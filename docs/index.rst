@@ -10,6 +10,10 @@ in robotics research (such as reinforcement learning, learning from demonstratio
 `NVIDIA Isaac Sim`_ for photo-realistic scenes and RTX rendering, and can also run standalone with the Newton physics backend
 for fast and efficient simulation without requiring a full Isaac Sim installation.
 
+Isaac Lab 3.0 introduces a :doc:`multi-backend architecture <source/concepts/backends_and_presets>`
+with shared asset, sensor, and scene APIs. Task presets let you select supported physics and rendering
+configurations, while visualization can be chosen independently.
+
 The core objectives of the framework are:
 
 - **Modularity**: Easily customize and add new environments, robots, and sensors.
@@ -17,10 +21,12 @@ The core objectives of the framework are:
 - **Openness**: Remain open-sourced to allow the community to contribute and extend the framework.
 - **Batteries-included**: Include a number of environments, sensors, and tasks that are ready to use.
 
-Key features available in Isaac Lab include fast and accurate physics simulation powered by both the
-**PhysX** and **Newton** backends, tiled rendering APIs for vectorized rendering with support for both
-**RTX** and **Newton** camera sensors, domain randomization for improving robustness and
-adaptability, and support for running in the cloud.
+Key features available in Isaac Lab include GPU-accelerated physics simulation with **PhysX** and
+**Newton**, the **OvPhysX** backend, vectorized camera rendering with **Newton Warp** and
+**RTX** renderers, domain randomization, and support for running in the cloud. Newton also supports
+soft bodies, cloth, and experimental cables through its VBD solver, along with experimental particle
+materials and coupled solvers for rigid--deformable interactions. See
+:doc:`source/concepts/physics_backends` for backend features and requirements.
 
 .. note::
 
@@ -29,9 +35,10 @@ adaptability, and support for running in the cloud.
 
 Additionally, Isaac Lab provides a variety of environments, and we are actively working on adding more environments
 to the list. These include classic control tasks, fixed-arm and dexterous manipulation tasks, legged locomotion tasks,
-and navigation tasks. A complete list is available in the `environments <source/overview/environments>`_ section.
+and navigation tasks. Browse the registered tasks and build a command in the
+:doc:`environment browser <source/isaaclab/environments>`.
 
-Isaac lab is developed with specific robot assets that are now **Batteries-included** as part of the platform and are ready to learn! These robots include...
+Isaac Lab is developed with specific robot assets that are now **Batteries-included** as part of the platform and are ready to learn! These robots include...
 
 - **Classic** Cartpole, Humanoid, Ant
 - **Fixed-Arm and Hands**: UR10, Franka, Allegro, Shadow Hand
@@ -41,6 +48,11 @@ Isaac lab is developed with specific robot assets that are now **Batteries-inclu
 
 The platform is also designed so that you can add your own robots! Please refer to the
 :ref:`how-to` section for details.
+
+.. tip::
+
+   Working with a coding agent? Isaac Lab ships a library of agent skills for installation, environment
+   creation, RL training, migration, and more. See :doc:`source/developer-tools/agent_skills`.
 
 For more information about the framework, please refer to the `technical report <https://arxiv.org/abs/2511.04831>`_
 :cite:`mittal2025isaaclab`. For clarifications on NVIDIA Isaac ecosystem, please check out the
@@ -85,96 +97,95 @@ Table of Contents
 
 .. toctree::
    :maxdepth: 1
+   :titlesonly:
    :caption: Isaac Lab
 
-   source/setup/ecosystem
-   source/setup/installation/index
-   source/setup/environments
-   source/refs/reference_architecture/index
-
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Getting Started
-   :titlesonly:
-
-   source/setup/quickstart
-   source/overview/own-project/index
-   source/setup/walkthrough/index
-   source/tutorials/index
+   source/isaaclab/ecosystem
+   source/isaaclab/installation
+   source/isaaclab/environments
+   source/isaaclab/quickstart
+   source/isaaclab/tutorial
+   source/isaaclab/demos
+   source/isaaclab/interactive_demos
    source/how-to/index
-   source/overview/developer-guide/index
-   source/testing/index
+   source/isaaclab/migrating
 
-
-.. toctree::
-   :maxdepth: 3
-   :caption: Overview
-   :titlesonly:
-
-
-   source/overview/core-concepts/index
-   source/overview/environments
-   source/overview/reinforcement-learning/index
-   source/overview/imitation-learning/index
-   source/overview/showroom
-   source/overview/simple_agents
-
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Features
-
-   source/features/isaac_teleop
-   source/features/docker_cloud
-   source/features/hydra
-   source/features/multi_gpu
-   source/features/population_based_training
-   source/features/ray
-   source/features/reproducibility
-
-
-.. toctree::
-   :maxdepth: 3
-   :caption: Experimental Features
-
-   source/experimental-features/bleeding-edge
-   source/experimental-features/visuo_tactile_sensor
-   source/experimental-features/rlinf_vla_posttraining
 
 .. toctree::
    :maxdepth: 1
-   :caption: Resources
    :titlesonly:
+   :caption: Concepts
+
+   source/concepts/task_workflows
+   source/concepts/reinforcement_learning
+   source/concepts/backends_and_presets
+   source/concepts/physics_backends
+   source/concepts/solver_differences
+   source/concepts/actuators
+   source/concepts/motion_generators
+   source/concepts/sensors/index
+   source/concepts/renderers
+   source/concepts/visualization
+   source/concepts/deformables
+   source/concepts/coupled_solvers
+   source/concepts/schema_cfgs
+   source/concepts/scene_data_providers
+
+
+.. toctree::
+   :maxdepth: 1
+   :titlesonly:
+   :caption: Features
+
+   source/features/isaac_teleop
+   source/features/hydra
+   source/features/multi_gpu
+   source/features/population_based_training
+   source/features/hpc_clusters
+   source/features/cloud_deployment
+
+
+.. toctree::
+   :maxdepth: 1
+   :titlesonly:
+   :caption: Developer Tools
+
+   source/developer-tools/editor_setup
+   source/developer-tools/template_generator
+   source/developer-tools/benchmarking/index
+   source/developer-tools/agent_skills
+   source/developer-tools/add_physics_backend
+   source/developer-tools/extending_newton_solvers
+
+
+.. toctree::
+   :maxdepth: 1
+   :titlesonly:
+   :caption: Experimental Features
+
+   source/experimental-features/bleeding-edge
+   source/concepts/warp_environments
+   source/experimental-features/ray
+   source/experimental-features/visuo_tactile_sensor
+   source/experimental-features/rlinf_vla_posttraining
+   source/features/imitation-learning/index
+
+.. toctree::
+   :maxdepth: 1
+   :titlesonly:
+   :caption: Resources
 
    source/policy_deployment/index
 
 .. toctree::
    :maxdepth: 1
-   :caption: Migration Guides
    :titlesonly:
-
-   source/migration/migrating_to_isaaclab_3-0
-   source/migration/migrating_deformables
-   source/migration/migrating_from_isaacgymenvs
-   source/migration/migrating_from_omniisaacgymenvs
-   source/migration/migrating_from_orbit
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Source API
-
-   source/api/index
-
-.. toctree::
-   :maxdepth: 1
    :caption: References
 
-
+   source/api/index
    source/refs/additional_resources
    source/refs/contributing
    source/refs/troubleshooting
-   source/refs/migration
    source/refs/issues
    source/refs/release_notes
    source/refs/changelog

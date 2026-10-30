@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Public schema for Isaac Lab benchmark bundles (v1.2).
+"""Public schema for Isaac Lab benchmark bundles (v1.5).
 
 Defines the on-disk JSON schema produced by the benchmark workflows
 in :mod:`isaaclab.benchmark.entrypoints`.
@@ -17,7 +17,7 @@ Each bundle is self-contained: every top-level bundle carries its own
 :class:`Versions` and :class:`Hardware` metadata so a reader need not
 cross-reference other files in the bundle directory.
 
-Current version: 1.2
+Current version: 1.5
 """
 
 from __future__ import annotations
@@ -26,10 +26,19 @@ import math
 from dataclasses import dataclass, field
 from typing import Literal
 
-SCHEMA_VERSION = "1.2"
+SCHEMA_VERSION = "1.5"
 
 Framework = Literal["rsl_rl", "rl_games", "skrl", "sb3"]
-PhysicsBackend = Literal["physx", "newton_mjwarp", "newton_kamino", "ovphysx"]
+PhysicsBackend = Literal[
+    "physx",
+    "ovphysx",
+    "newton_mjwarp",
+    "newton_kamino",
+    "newton_featherstone",
+    "newton_xpbd",
+    "newton_vbd",
+    "newton_mpm",
+]
 # "newton" selects Newton's built-in Warp renderer.
 RenderingBackend = Literal["none", "isaacsim_rtx", "ovrtx", "newton"]
 RunStatus = Literal["completed", "interrupted", "crashed"]
@@ -129,6 +138,7 @@ class Versions:
     mujoco: str | None = None
     cuda_bindings: str | None = None
     usd_core: str | None = None
+    usd_exchange: str | None = None
     isaaclab_release: str | None = None
 
 
@@ -145,11 +155,18 @@ class RunConfig:
             resolutions, and any other domain presets are captured without a
             closed enum; ``physics_backend`` / ``rendering_backend`` surface the
             two primary grouping dimensions as typed fields.
+        physics_solvers: Every physics solver in the concrete physics configuration
+            (e.g. ``["newton_mjwarp", "newton_vbd"]`` for a coupled Newton run), so
+            composite runs are distinguishable from single-solver runs.
+        physics_coupling: Coupling method (e.g. ``"proxy"`` or ``"admm"``), or
+            ``None`` for a single solver.
     """
 
     physics_backend: PhysicsBackend
     rendering_backend: RenderingBackend = "none"
     presets: list[str] = field(default_factory=list)
+    physics_solvers: list[str] = field(default_factory=list)
+    physics_coupling: str | None = None
 
 
 @dataclass(frozen=True)
@@ -231,6 +248,7 @@ class EnvironmentStepTiming:
         measurement_mode: Timing boundary semantics. ``host_return`` does not
             force device completion. ``serialized_synchronized`` explicitly
             synchronizes every measured boundary.
+        warmup_steps: Number of initial environment-step calls excluded from timing.
     """
 
     environment_step_time_s: MeanStd
@@ -241,9 +259,12 @@ class EnvironmentStepTiming:
     environment_step_calls: int
     simulation_step_calls: int | None
     measurement_mode: Literal["host_return", "serialized_synchronized"]
+    warmup_steps: int = 0
 
     def __post_init__(self) -> None:
         """Validate that the timing fields form one consistent measurement mode."""
+        if self.warmup_steps < 0:
+            raise ValueError("warmup_steps must be non-negative")
         if self.environment_step_calls <= 0:
             raise ValueError("environment_step_calls must be greater than zero")
         if not (
@@ -331,6 +352,19 @@ class Runtime:
 
 
 @dataclass(frozen=True)
+class GpuResources:
+    """Resource-utilisation metrics of one logical CUDA device.
+
+    Args:
+        util_pct: GPU utilisation [%].
+        mem_gb: GPU memory used [GB].
+    """
+
+    util_pct: MeanStd
+    mem_gb: MeanStd
+
+
+@dataclass(frozen=True)
 class Resources:
     """Aggregated resource-utilisation metrics for a run.
 
@@ -338,21 +372,26 @@ class Resources:
     uninformative); memory fields populate ``peak``.
 
     Args:
-        gpu_util_pct: GPU utilisation [%].
-        gpu_mem_gb: GPU memory used [GB].
+        gpu_util_pct: Utilisation of the device the run used [%].
+        gpu_mem_gb: Memory used on the device the run used [GB].
         cpu_util_pct: CPU utilisation [%].
         ram_gb: Host RAM used [GB].
+        devices: Per-device metrics keyed by logical CUDA device index, covering every
+            device visible to the process. On a multi-GPU run this is the whole node,
+            while :attr:`gpu_util_pct` and :attr:`gpu_mem_gb` stay scoped to the device
+            the reporting rank used.
     """
 
     gpu_util_pct: MeanStd
     gpu_mem_gb: MeanStd
     cpu_util_pct: MeanStd
     ram_gb: MeanStd
+    devices: dict[str, GpuResources] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
 class LearningCurve:
-    """One learning curve (reward or episode length)."""
+    """One learning curve (reward, episode length, or success rate)."""
 
     final_raw: float
     final_ema: float
@@ -361,11 +400,20 @@ class LearningCurve:
 
 @dataclass(frozen=True)
 class Learning:
-    """Learning curves for a training run, plus their EMA smoothing factor."""
+    """Learning curves for a training run, plus their EMA smoothing factor.
+
+    Args:
+        ema_alpha: EMA smoothing factor in ``[0, 1]``.
+        reward: Per-iteration mean-reward learning curve.
+        ep_length: Per-iteration mean episode-length learning curve.
+        success_rate: Per-iteration success-rate learning curve, or ``None``
+            when the task does not report success.
+    """
 
     ema_alpha: float
     reward: LearningCurve
     ep_length: LearningCurve
+    success_rate: LearningCurve | None = None
 
 
 @dataclass(frozen=True)

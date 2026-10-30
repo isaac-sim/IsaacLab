@@ -8,11 +8,12 @@ import os
 import subprocess
 import sys
 
-from isaaclab.benchmark.interfaces import MeasurementData, MeasurementDataRecorder
-from isaaclab.benchmark.measurements import DictMetadata, StringMetadata
+from ...paths import ISAACLAB_ROOT
+from ..interfaces import MeasurementData, MeasurementDataRecorder
+from ..measurements import DictMetadata, StringMetadata
 
-# Path to the repository root.
-_REPO_ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 6))
+# Path to the source checkout or installed wheel resources.
+_REPO_ROOT = str(ISAACLAB_ROOT)
 
 
 class VersionInfoRecorder(MeasurementDataRecorder):
@@ -90,7 +91,6 @@ class VersionInfoRecorder(MeasurementDataRecorder):
             self._version_info[key] = version
 
     def _get_version_info(self) -> None:
-        # isaaclab
         self._record("isaaclab", self._get_version("isaaclab"))
 
         # warp - try config.version first, then __version__
@@ -102,10 +102,7 @@ class VersionInfoRecorder(MeasurementDataRecorder):
         self._record("kit", version, nullable=True)
         self._record("isaacsim", self._get_isaacsim_version() if version else None, nullable=True)
 
-        # torch
         self._record("torch", self._get_version("torch"))
-
-        # numpy
         self._record("numpy", self._get_version("numpy"))
 
         # IsaacLab sub-packages
@@ -117,7 +114,7 @@ class VersionInfoRecorder(MeasurementDataRecorder):
 
         # Renderers & physics engines
         self._record("ovrtx", self._get_pkg_version("ovrtx"), nullable=True)
-        self._record("ovphysx", self._get_pkg_version("isaaclab_ovphysx"), nullable=True)
+        self._record("ovphysx", self._get_pkg_version("ovphysx"), nullable=True)
         self._record("newton", self._get_pkg_version("newton"))
         self._record("mujoco", self._get_pkg_version("mujoco"))
         self._record("mujoco_warp", self._get_pkg_version("mujoco-warp"))
@@ -131,7 +128,10 @@ class VersionInfoRecorder(MeasurementDataRecorder):
         # Key dependencies
         self._record("gymnasium", self._get_pkg_version("gymnasium"))
         self._record("cuda_bindings", self._get_pkg_version("cuda-bindings"))
+        # usd-exchange is the standalone USD provider; usd-core only appears in environments
+        # that predate the switch, so record whichever one is installed.
         self._record("usd_core", self._get_pkg_version("usd-core"))
+        self._record("usd_exchange", self._get_pkg_version("usd-exchange"))
 
         # Release version from root VERSION file
         version_file = os.path.join(_REPO_ROOT, "VERSION")
@@ -179,7 +179,6 @@ class VersionInfoRecorder(MeasurementDataRecorder):
             )
             if result.returncode == 0:
                 self._dev_info["commit_date"] = result.stdout.strip()
-
             # Check if working directory is dirty
             result = subprocess.run(
                 ["git", "status", "--porcelain"],

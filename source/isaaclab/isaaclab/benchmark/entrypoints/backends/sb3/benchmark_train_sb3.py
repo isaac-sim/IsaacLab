@@ -12,10 +12,13 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from isaaclab.benchmark import BenchmarkResult
 
+import logging
 import sys
 import time
 
-from isaaclab_rl.entrypoints import common as _common
+from isaaclab_rl.entrypoints import common
+
+logger = logging.getLogger(__name__)
 
 
 def _build_benchmark_callback_class():
@@ -98,12 +101,12 @@ def _parse_args(argv: list[str]):
     import argparse
 
     from isaaclab.app import add_launcher_args
-    from isaaclab.benchmark._cli import parse_non_negative_int, parse_positive_int
+    from isaaclab.benchmark.cli import parse_non_negative_int, parse_positive_int
 
     from isaaclab_tasks.utils import setup_preset_cli
 
-    add_common_train_args = _common.add_common_train_args
-    enable_cameras_for_video = _common.enable_cameras_for_video
+    add_common_train_args = common.add_common_train_args
+    enable_cameras_for_video = common.enable_cameras_for_video
 
     parser = argparse.ArgumentParser(description="Benchmark RL training with Stable-Baselines3.")
     add_common_train_args(
@@ -189,10 +192,19 @@ def run(argv: list[str]) -> BenchmarkResult:
     from stable_baselines3.common.vec_env import VecNormalize
 
     from isaaclab.app import launch_simulation
-    from isaaclab.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, BenchmarkResult, builders, capture, stepping
+    from isaaclab.benchmark import (
+        BaseIsaacLabBenchmark,
+        BenchmarkMonitor,
+        BenchmarkResult,
+        builders,
+        capture,
+        console,
+        stepping,
+    )
     from isaaclab.benchmark.metrics import RL_LIBRARY_DESCRIPTORS, parse_tf_logs
     from isaaclab.benchmark.schema import StartupTime
 
+    from isaaclab_rl.entrypoints.backends import cli_args_sb3 as cli_args
     from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 
     import isaaclab_tasks  # noqa: F401
@@ -202,7 +214,7 @@ def run(argv: list[str]) -> BenchmarkResult:
 
     from isaaclab_tasks.utils import resolve_task_config
 
-    apply_env_overrides = _common.apply_env_overrides
+    apply_env_overrides = common.apply_env_overrides
 
     from isaaclab.benchmark.entrypoints.early_stop import (
         SuccessRateTrackerWrapper,
@@ -218,6 +230,7 @@ def run(argv: list[str]) -> BenchmarkResult:
     config_t0 = time.perf_counter_ns()
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
     config_t1 = time.perf_counter_ns()
+    common.pre_launch_video_config(env_cfg, args_cli)
 
     start_utc = capture.now_utc_iso()
     app_t0 = time.perf_counter_ns()
@@ -228,7 +241,7 @@ def run(argv: list[str]) -> BenchmarkResult:
 
             apply_env_overrides(args_cli, env_cfg)
 
-            agent_cfg["seed"] = args_cli.seed if args_cli.seed is not None else agent_cfg.get("seed", 0)
+            agent_cfg = cli_args.update_sb3_cfg(agent_cfg, args_cli)
             env_cfg.seed = agent_cfg["seed"]
 
             # Convert the iteration override to SB3 total timesteps.
@@ -238,7 +251,7 @@ def run(argv: list[str]) -> BenchmarkResult:
             steps_per_iteration = env_cfg.scene.num_envs * n_steps_cfg
             resolved_max_iterations = (int(agent_cfg["n_timesteps"]) + steps_per_iteration - 1) // steps_per_iteration
 
-            cfg = capture.run_config_from_presets(remaining_args, env_cfg=env_cfg)
+            cfg = capture.run_config_from_env_cfg(env_cfg)
             formatter_types = [value.strip() for value in args_cli.benchmark_formatter.split(",") if value.strip()]
             formatter_types = formatter_types or ["omniperf"]
 
@@ -260,7 +273,6 @@ def run(argv: list[str]) -> BenchmarkResult:
                             "data": ("serialized_synchronized" if args_cli.measure_sync_step else "host_return"),
                         },
                         {"name": "environment_step_warmup_steps", "data": args_cli.warmup_steps},
-                        {"name": "presets", "data": ",".join(cfg.presets)},
                     ]
                 },
             )
@@ -268,17 +280,17 @@ def run(argv: list[str]) -> BenchmarkResult:
             run_info = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             log_root_path = os.path.abspath(os.path.join("logs", "sb3", args_cli.task))
             log_dir = os.path.join(log_root_path, run_info)
-            _common.write_run_manifest(log_dir, library="sb3", task=args_cli.task, metadata={"agent": args_cli.agent})
+            common.write_run_manifest(log_dir, library="sb3", task=args_cli.task, metadata={"agent": args_cli.agent})
             env_cfg.log_dir = log_dir
+            common.apply_video_recording(env_cfg, log_dir, args_cli, subdir="benchmark")
 
             agent_cfg = process_sb3_cfg(agent_cfg, env_cfg.scene.num_envs)
             policy_arch = agent_cfg.pop("policy")
             n_timesteps = agent_cfg.pop("n_timesteps")
 
             env_t0 = time.perf_counter_ns()
-            env = _common.create_isaaclab_env(args_cli.task, env_cfg, args_cli, convert_marl_to_single_agent=True)
+            env = common.create_isaaclab_env(args_cli.task, env_cfg, args_cli, convert_marl_to_single_agent=True)
             cleanup.callback(lambda: env.close())
-            env = _common.wrap_record_video(env, log_dir, args_cli)
             env_t1 = time.perf_counter_ns()
             success_kwargs = build_success_kwargs(args_cli)
             success_context = SuccessRateTrackerWrapper(
@@ -346,10 +358,9 @@ def run(argv: list[str]) -> BenchmarkResult:
             reward_series = [v for v in cb.ep_rew_mean if v == v]  # NaN != NaN
             ep_len_series = [v for v in cb.ep_len_mean if v == v]
             if not reward_series and iteration_times_s:
-                print(
-                    "[WARNING] sb3: no episodes completed during the benchmarked rollouts;"
-                    " reward/episode-length curves are empty.",
-                    file=sys.stderr,
+                logger.warning(
+                    "sb3: no episodes completed during the benchmarked rollouts;"
+                    " reward/episode-length curves are empty."
                 )
 
             startup = StartupTime(
@@ -367,21 +378,22 @@ def run(argv: list[str]) -> BenchmarkResult:
                 total_fps=total_fps,
                 steps_per_iteration=steps_per_iteration,
                 frames_per_environment_step=env.unwrapped.num_envs,
+                environment_step_warmup_steps=args_cli.warmup_steps,
                 environment_step_times_s=environment_step_timer.step_times_s,
                 simulation_step_times_s=environment_step_timer.simulation_step_times_s,
                 simulation_step_calls=environment_step_timer.simulation_step_calls,
             )
 
-            learning = builders.build_learning(
-                reward_series=reward_series,
-                ep_length_series=ep_len_series,
-                ema_alpha=args_cli.ema_alpha,
-                keep_series=not args_cli.no_series,
-            )
-
             desc = RL_LIBRARY_DESCRIPTORS["sb3"]
             log_data = parse_tf_logs(log_dir, desc.tfevents_pattern)
             success_tracker = get_success_tracker(args_cli, success_context.tracker, log_data)
+            learning = builders.build_learning(
+                reward_series=reward_series,
+                ep_length_series=ep_len_series,
+                success_rate_series=success_tracker.history if success_tracker is not None else None,
+                ema_alpha=args_cli.ema_alpha,
+                keep_series=not args_cli.no_series,
+            )
             success_rate = (
                 round(success_tracker.tail_mean, 4) if (success_tracker and success_tracker.history) else None
             )
@@ -426,6 +438,7 @@ def run(argv: list[str]) -> BenchmarkResult:
 
             output_paths = benchmark.finalize()
             result = BenchmarkResult(bundle=bundle, output_paths=output_paths)
+            console.print_training_report(bundle, output_paths)
 
     return result
 

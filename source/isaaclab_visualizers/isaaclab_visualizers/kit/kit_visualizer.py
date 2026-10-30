@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING
+import signal
+from typing import TYPE_CHECKING, ClassVar
 
 import numpy as np
 import torch
@@ -17,30 +18,21 @@ import torch
 from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
 from isaaclab.app.settings_manager import get_settings_manager
-from isaaclab.envs.utils.camera_view import (
-    VISUALIZER_TILED_CAMERA_MAX_TILES,
-    apply_camera_target_positions,
-    camera_rgb_batch,
-    compose_rgb_grid_tensor,
-    compute_tile_resolution,
-    create_visualizer_camera,
-    find_camera_by_prim_path,
-    prim_world_positions,
-    remove_generated_prims,
-    resolve_tiled_env_indices,
-)
+from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import create_rotation_matrix_from_view, quat_from_matrix
-from isaaclab.utils.renderers import isaac_rtx_per_env_scene_partition_enabled
+from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
+from isaaclab.visualizers import VisualizerCfg
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
+from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg
 
-from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
+from isaaclab_visualizers.desktop_entry import write_desktop_entry
 
-from .kit_visualizer_cfg import KitVisualizerCfg
+from .kit_key_event_source import KitKeyEventSource
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from isaaclab.scene_data import SceneDataProvider
+    from isaaclab.sensors.camera import Camera
 
 _DEFAULT_VIEWPORT_NAME = "Visualizer Viewport"
 _DEFAULT_VIEWPORT_CAMERA_PATH = "/OmniverseKit_Persp"
@@ -55,93 +47,125 @@ _BACKEND_DISPLAY_NAMES = {
 class KitVisualizer(BaseVisualizer):
     """Kit visualizer using Isaac Sim viewport."""
 
-    def __init__(self, cfg: KitVisualizerCfg):
+    _timeline_auto_update: ClassVar[bool | None] = None
+    _timeline_control_owner_count: ClassVar[int] = 0
+
+    def __init__(self, cfg: VisualizerCfg):
         """Initialize Kit visualizer state.
 
         Args:
             cfg: Kit visualizer configuration.
         """
         super().__init__(cfg)
-        self.cfg: KitVisualizerCfg = cfg
 
         self._simulation_app = None
         self._viewport_window = None
         self._viewport_api = None
-        self._is_initialized = False
-        self._sim_time = 0.0
         self._step_counter = 0
-        self._env_ids = None
-        self._resolved_visible_env_ids: list[int] | None = None
         self._hidden_env_visibilities: dict[str, str] = {}
         # PointInstancer prim path -> (had authored invisibleIds, previous value) for partial viz restore.
         self._point_instancer_invisible_ids_backup: dict[str, tuple[bool, object]] = {}
         self._runtime_headless = bool(cfg.headless)
         # USD path for the viewport's active camera, refreshed after setup (used by CI/tests).
-        self._controlled_camera_path: str | None = None
-        self._camera_sensor = None
-        self._camera_sensor_indices: list[int] = []
-        self._camera_env_indices: list[int] = []
-        self._camera_is_owned = False
-        self._generated_camera_prim_paths: list[str] = []
-        self._generated_camera_xform_ops: dict[str, tuple[UsdGeom.XformOp, UsdGeom.XformOp]] = {}
-        self._generated_camera_pose_cache: dict[str, tuple[float, ...]] = {}
-        self._generated_camera_poses_dirty = False
+        self._controlled_camera_path = _DEFAULT_VIEWPORT_CAMERA_PATH
+        # Lazy Replicator render product + annotator for render_rgb_array().
+        self._rgb_render_product = None
+        self._rgb_annotator = None
+        self._viewport_camera_xform_ops: dict[str, tuple[UsdGeom.XformOp, UsdGeom.XformOp]] = {}
+        self._viewport_camera_pose_cache: dict[str, tuple[float, ...]] = {}
         self._camera_image_provider = None
         self._camera_image_window = None
-        self._camera_gpu_upload_tensor = None
-        self._warned_gpu_upload_failure = False
         self._backend_menubar_label = None
         self._hid_simulation_menu = False
+        # Guard flag: True once app.update() has been called in the current step() invocation.
+        # render_rgb_array() skips its own pump when the step already pumped the app.
+        self._app_pumped_this_step: bool = False
+        self._controls_kit_timeline = False
+        self._owns_kit_timeline = False
+        # Camera tracking state (replaces ViewportCameraController)
+        self._interactive_scene = None  # set from SimulationContext._interactive_scene in initialize()
+        self._viewer_origin: torch.Tensor | None = None  # world-space origin offset for eye/lookat
 
     # ---- Lifecycle ------------------------------------------------------------------------
 
-    def initialize(self, scene_data_provider: SceneDataProvider) -> None:
+    @property
+    def visual_material_writer(self):
+        """Write material channels directly through Fabric."""
+        from isaaclab_physx.renderers.visual_material import FabricVisualMaterialWriter
+
+        return FabricVisualMaterialWriter
+
+    def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
         """Initialize viewport resources and bind scene data provider.
 
         Args:
-            scene_data_provider: Scene data provider used by the visualizer.
+            sim: Simulation owner used to resolve scene data and native resources.
+            cameras: Resolved perspective settings and borrowed scene sensors, in display order.
         """
         if self._is_initialized:
             logger.debug("[KitVisualizer] initialize() called while already initialized.")
             return
 
-        scene_data_provider = self._set_scene_data_provider(scene_data_provider)
-        usd_stage = scene_data_provider.usd_stage
-        if usd_stage is None:
-            raise RuntimeError("[KitVisualizer] USD stage not available from scene_data_provider.")
+        super().initialize(sim, cameras=cameras)
+        scene_data_provider = self._sim.get_scene_data_provider()
         num_envs = scene_data_provider.num_envs
 
         self._ensure_simulation_app()
         self._setup_viewport()
+        if self._viewport_api is not None:
+            self._apply_render_product_background(self._sim.stage, self._viewport_api.render_product_path)
 
-        self._env_ids = self._compute_visualized_env_ids()
-        self._resolved_visible_env_ids = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs)
-        if self._resolved_visible_env_ids is not None:
+        if self._env_ids is not None:
             logger.warning(
                 "[KitVisualizer] Partial visualization in Kit uses visibility only; unselected env prims are hidden."
             )
-            self._apply_env_visibility(usd_stage, num_envs, self._resolved_visible_env_ids)
-        self._apply_viewport_camera_scene_partition(usd_stage, num_envs)
-        num_visualized_envs = (
-            len(self._resolved_visible_env_ids) if self._resolved_visible_env_ids is not None else num_envs
-        )
+            self._apply_env_visibility(self._sim.stage, num_envs, self._env_ids)
+        self._apply_viewport_camera_scene_partition(self._sim.stage, num_envs)
+        num_visualized_envs = len(self._env_ids) if self._env_ids is not None else num_envs
         self._log_initialization_table(
             logger=logger,
             title="KitVisualizer Configuration",
             rows=[
                 ("eye", self.cfg.eye),
                 ("lookat", self.cfg.lookat),
-                ("tiled_cam_view", self.cfg.tiled_cam_view),
-                ("tiled_cam_num", self.cfg.tiled_cam_num),
+                ("background_color", self.cfg.background_color),
+                ("streaming_view", self.cfg.streaming_view),
+                ("streaming_gt_types", list(self.cfg.streaming_gt_types)),
                 ("max_visible_envs", self.cfg.max_visible_envs),
                 ("num_visualized_envs", num_visualized_envs),
-                ("create_viewport", self.cfg.create_viewport),
+                ("create_viewport", self.cfg.backend.create_viewport),
                 ("headless", self._runtime_headless),
             ],
         )
-        self._setup_camera_sensor_view(num_envs)
+        if self.current_image_view is not None and not self._runtime_headless:
+            import omni.ui
 
+            title = self.cfg.backend.viewport_name or "Streaming View"
+            self._camera_image_provider = omni.ui.ByteImageProvider()
+            self._camera_image_window = omni.ui.Window(
+                title, width=self.cfg.window.size[0], height=self.cfg.window.size[1]
+            )
+            with self._camera_image_window.frame:
+                omni.ui.ImageWithProvider(self._camera_image_provider)
+            asyncio.ensure_future(self._dock_window_async(title))
+
+        from isaaclab_physx.renderers.fabric import FabricBackendCfg  # noqa: PLC0415 - requires Kit
+
+        self._fabric = sim.get_or_create_backend(FabricBackendCfg(stage=sim.stage, device=sim.device))
+        self._fabric.bind_transforms(scene_data_provider)
         self._is_initialized = True
+        self.reapply_origin()
+        self._controls_kit_timeline = sim.has_gui and self.physics_backend not in ("physx", "ovphysx")
+        if self._controls_kit_timeline:
+            self.play()
+        if not self._runtime_headless:
+            # keyboard input is optional: a failure here must not stop the visualizer from starting
+            try:
+                import omni.appwindow
+
+                self._key_event_source = KitKeyEventSource(omni.appwindow.get_default_app_window())
+            except Exception:
+                logger.exception("[KitVisualizer] Keyboard input is unavailable")
 
     def step(self, dt: float) -> None:
         """Advance visualizer/UI updates for one simulation step.
@@ -151,22 +175,31 @@ class KitVisualizer(BaseVisualizer):
         """
         if not self._is_initialized:
             return
+        self._app_pumped_this_step = False
         self._sim_time += dt
         self._step_counter += 1
-        try:
-            import omni.kit.app
+        # Headless mode: skip the app update and camera panel refresh; rendering is
+        # triggered on demand by render_rgb_array() / render_tiled_rgb_array().
+        if self._runtime_headless:
+            return
+        provider = self._sim.get_scene_data_provider()
+        self._fabric.update_transforms(provider)
+        self._fabric.update_geometries(provider, self._sim.render_generation)
+        if self.cfg.backend.origin_type == "asset":
+            self._update_asset_tracking_camera()
+        self._app_pumped_this_step = self._pump_kit_app_update()
+        if self._camera_image_provider is not None:
+            image = self.current_image_view.frame.data if self.is_training_paused() else self.render_tiled_rgba_array()
+            if image is not None:
+                height, width = image.shape[:2]
+                if image.device.is_cuda:
+                    import omni.gpu_foundation_factory as gf
 
-            app = omni.kit.app.get_app()
-            if app is not None and app.is_running():
-                # Keep app pumping for viewport/UI updates only; physics is owned by SimulationContext.
-                # Disable playSimulations around app.update() so Kit does not advance its own physics here.
-                settings = get_settings_manager()
-                settings.set_bool("/app/player/playSimulations", False)
-                app.update()
-                settings.set_bool("/app/player/playSimulations", True)
-        except (ImportError, AttributeError) as exc:
-            logger.debug("[KitVisualizer] App update skipped: %s", exc)
-        self._update_camera_image_panel(dt)
+                    self._camera_image_provider.set_bytes_data_from_gpu(
+                        image.ptr, [width, height], gf.TextureFormat.RGBA8_UNORM
+                    )
+                else:
+                    self._camera_image_provider.set_bytes_data(image.numpy().data, [width, height])
         # Markers (VisualizationMarkers) are often created or resized to num_envs only after the first
         # simulation / debug-vis step; re-apply PointInstancer invisibleIds each step when partial viz is on.
         self._refresh_partial_viz_point_instancers_if_needed()
@@ -175,21 +208,143 @@ class KitVisualizer(BaseVisualizer):
         """Close viewport resources and restore temporary state."""
         if not self._is_initialized:
             return
-        self._teardown_backend_menubar_label()
-        self._restore_env_visibility()
-        if self._camera_sensor is not None and self._camera_is_owned:
-            remove_generated_prims(self._generated_camera_prim_paths)
-        self._camera_sensor = None
-        self._generated_camera_xform_ops.clear()
-        self._generated_camera_pose_cache.clear()
-        self._generated_camera_poses_dirty = False
-        self._camera_image_provider = None
-        self._camera_image_window = None
-        self._simulation_app = None
-        self._viewport_window = None
-        self._viewport_api = None
-        self._is_initialized = False
-        self._is_closed = True
+        self._close_key_event_source()
+        try:
+            if self._owns_kit_timeline:
+                self.stop()
+        finally:
+            self._teardown_backend_menubar_label()
+            self._restore_env_visibility()
+            self._viewport_camera_xform_ops.clear()
+            self._viewport_camera_pose_cache.clear()
+            self._camera_image_provider = None
+            self._camera_image_window = None
+            self._simulation_app = None
+            self._viewport_window = None
+            self._viewport_api = None
+            import contextlib
+
+            if self._rgb_annotator is not None:
+                with contextlib.suppress(Exception):
+                    self._rgb_annotator.detach()
+            if self._rgb_render_product is not None:
+                with contextlib.suppress(Exception):
+                    self._rgb_render_product.destroy()
+            self._rgb_annotator = None
+            self._rgb_render_product = None
+            self._controls_kit_timeline = False
+            self._is_initialized = False
+            super().close()
+
+    def play(self) -> None:
+        """Show the running state in Kit's toolbar without advancing Kit physics."""
+        if not self._controls_kit_timeline:
+            return
+        import omni.timeline
+
+        timeline = omni.timeline.get_timeline_interface()
+        if not self._owns_kit_timeline:
+            if KitVisualizer._timeline_control_owner_count == 0:
+                KitVisualizer._timeline_auto_update = timeline.is_auto_updating()
+            KitVisualizer._timeline_control_owner_count += 1
+            self._owns_kit_timeline = True
+        # The toolbar still reflects play/pause while the selected backend remains the only time owner.
+        timeline.set_auto_update(False)
+        timeline.play()
+        self._pump_kit_app_update()
+
+    def pause(self) -> None:
+        """Show the paused state in Kit's toolbar without advancing Kit physics."""
+        if not self._controls_kit_timeline:
+            return
+        import omni.timeline
+
+        omni.timeline.get_timeline_interface().pause()
+        self._pump_kit_app_update()
+
+    def stop(self) -> None:
+        """Show the stopped state in Kit's toolbar without advancing Kit physics."""
+        if not self._controls_kit_timeline or not self._owns_kit_timeline:
+            return
+        import omni.timeline
+
+        timeline = omni.timeline.get_timeline_interface()
+        is_last_owner = KitVisualizer._timeline_control_owner_count == 1
+        try:
+            if is_last_owner:
+                timeline.stop()
+                self._pump_kit_app_update()
+        finally:
+            KitVisualizer._timeline_control_owner_count -= 1
+            self._owns_kit_timeline = False
+            if is_last_owner:
+                timeline_auto_update = KitVisualizer._timeline_auto_update
+                KitVisualizer._timeline_auto_update = None
+                if timeline_auto_update is not None:
+                    timeline.set_auto_update(timeline_auto_update)
+
+    def render_rgb_array(self) -> np.ndarray:
+        """Return an RGB frame captured from the Kit viewport camera.
+
+        Uses the Replicator annotator bound to the controlled camera prim
+        (``/OmniverseKit_Persp`` by default). Lazily creates the render product
+        and annotator on the first call. Returns a blank frame while the RTX
+        pipeline warms up.
+
+        Returns:
+            RGB image array of shape ``(window_height, window_width, 3)``, dtype ``uint8``.
+        """
+        import omni.replicator.core as rep
+
+        if not self._sim.is_rendering:
+            self._sim.forward()
+            if self.supports_markers():
+                self._sim.vis_marker_registry.dispatch_callbacks()
+        provider = self._sim.get_scene_data_provider()
+        self._fabric.update_transforms(provider)
+        self._fabric.update_geometries(provider, self._sim.render_generation)
+        if self._runtime_headless and self.cfg.backend.origin_type == "asset":
+            self._update_asset_tracking_camera()
+        w, h = self.cfg.window.size
+
+        # Create the render product and annotator before the app update so the first
+        # captured frame contains real rendered output, not empty/blank data.
+        if self._rgb_annotator is None:
+            self._rgb_render_product = rep.create.render_product(self._controlled_camera_path, (w, h))
+            self._apply_render_product_background(self._sim.stage, self._rgb_render_product.path)
+            self._rgb_annotator = rep.AnnotatorRegistry.get_annotator("rgb", device="cpu")
+            self._rgb_annotator.attach([self._rgb_render_product])
+        elif self._runtime_headless and self._rgb_render_product is not None:
+            # In headless mode the render product is paused between captures (see below).
+            # Resume it now so RTX can produce a fresh frame before we read the annotator.
+            import contextlib
+
+            with contextlib.suppress(Exception):
+                self._rgb_render_product.resume()
+
+        if not self._app_pumped_this_step:
+            self._pump_kit_app_update()
+
+        raw = self._rgb_annotator.get_data()
+        if isinstance(raw, dict):
+            raw = raw.get("data", np.array([], dtype=np.uint8))
+        raw = np.asarray(raw, dtype=np.uint8)
+        if raw.size == 0:
+            return np.zeros((h, w, 3), dtype=np.uint8)
+        if raw.ndim == 1:
+            raw = raw.reshape(h, w, -1)
+        result = raw[:, :, :3]
+
+        # Headless on-demand: pause RTX after the frame is captured so it does not
+        # render between recording windows.  resume() is called at the top of the
+        # next render_rgb_array() call.
+        if self._runtime_headless and self._rgb_render_product is not None:
+            import contextlib
+
+            with contextlib.suppress(Exception):
+                self._rgb_render_product.pause()
+
+        return result
 
     # ---- Capabilities ---------------------------------------------------------------------
 
@@ -210,11 +365,14 @@ class KitVisualizer(BaseVisualizer):
             return False
 
     def is_training_paused(self) -> bool:
-        """Return whether simulation play flag is paused in Kit settings."""
+        """Return whether the Kit timeline is paused by its toolbar controls."""
+        if not self._controls_kit_timeline:
+            return False
         try:
-            settings = get_settings_manager()
-            play_flag = settings.get("/app/player/playSimulations")
-            return play_flag is False
+            import omni.timeline
+
+            timeline = omni.timeline.get_timeline_interface()
+            return not timeline.is_playing() and not timeline.is_stopped()
         except Exception:
             return False
 
@@ -274,10 +432,6 @@ class KitVisualizer(BaseVisualizer):
             if isinstance(source, DirectScalarLivePlots):
                 self.kit_manager_visualizers[source.manager_name] = DirectScalarLiveVisualizer(source)
 
-    def requires_forward_before_step(self) -> bool:
-        """OV viewport relies on refreshed kinematic state before render."""
-        return True
-
     def pumps_app_update(self) -> bool:
         """KitVisualizer calls app.update() in step(), so render() should not do it again."""
         return True
@@ -296,7 +450,55 @@ class KitVisualizer(BaseVisualizer):
             return
         self._set_viewport_camera(tuple(eye), tuple(target))
 
+    @property
+    def viewer_origin(self) -> torch.Tensor | None:
+        """Current world-space origin offset applied to :attr:`~isaaclab.visualizers.VisualizerCfg.eye` and
+        :attr:`~isaaclab.visualizers.VisualizerCfg.lookat` when computing the absolute camera position.
+
+        Returns ``None`` before :meth:`initialize` is called or when no valid origin has been
+        established yet (e.g. asset-tracking before the first :meth:`step`).
+        """
+        return self._viewer_origin
+
     # ---- Viewport + camera ----------------------------------------------------------------
+
+    def _pump_kit_app_update(self) -> bool:
+        """Process one Kit UI update without letting Kit advance physics."""
+        try:
+            import omni.kit.app
+
+            app = omni.kit.app.get_app()
+            if app is None or not app.is_running():
+                return False
+            settings = get_settings_manager()
+            play_flag = settings.get("/app/player/playSimulations")
+            settings.set("/app/player/playSimulations", False)
+            interrupted = False
+
+            def defer_interrupt(_signum, _frame):
+                nonlocal interrupted
+                interrupted = True
+                # Let a second Ctrl+C terminate the process if app.update() does not return.
+                signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+            previous_handler = signal.getsignal(signal.SIGINT)
+            defer_interrupts = previous_handler != signal.SIG_DFL
+            if defer_interrupts:
+                signal.signal(signal.SIGINT, defer_interrupt)
+            try:
+                # Kit can swallow KeyboardInterrupt when SIGINT lands in a Python event callback.
+                # Record it without raising until update() returns to this call site.
+                app.update()
+            finally:
+                if defer_interrupts:
+                    signal.signal(signal.SIGINT, previous_handler)
+                settings.set("/app/player/playSimulations", True if play_flag is None else bool(play_flag))
+                if interrupted:
+                    raise KeyboardInterrupt
+            return True
+        except (ImportError, AttributeError) as exc:
+            logger.debug("[KitVisualizer] App update skipped: %s", exc)
+            return False
 
     def _setup_backend_menubar_label(self) -> None:
         """Add a read-only backend label to the viewport menubar and hide the PhysX Simulation menu."""
@@ -325,6 +527,19 @@ class KitVisualizer(BaseVisualizer):
             delegate=IconMenuDelegate("", text=True, width=0, has_triangle=False, enabled=False),
         )
 
+    async def _setup_backend_menubar_label_async(self) -> None:
+        """Defer backend menubar label setup by one app tick.
+
+        Creating a :class:`ViewportMenuItem` synchronously during viewport init triggers an
+        ``omni.kit.viewport.menubar.camera`` render-settings notification before Isaac Sim's
+        camera collection is ready, producing a spurious ``AttributeError``.  Deferring until
+        the next ``next_update_async`` tick lets the collection initialize first.
+        """
+        import omni.kit.app
+
+        await omni.kit.app.get_app().next_update_async()
+        self._setup_backend_menubar_label()
+
     def _teardown_backend_menubar_label(self) -> None:
         """Remove the backend label and restore the Simulation menu visibility."""
         if self._hid_simulation_menu:
@@ -349,6 +564,15 @@ class KitVisualizer(BaseVisualizer):
         if app is None or not app.is_running():
             raise RuntimeError("[KitVisualizer] Isaac Sim app is not running.")
 
+        import os as _os
+
+        headless_env = bool(int(_os.environ.get("HEADLESS", 0)))
+        # Apply env var immediately — before sim_app lookup — so the headless guard in
+        # _setup_viewport() fires even when the SimulationApp instance is not yet accessible.
+        if headless_env and not self._runtime_headless:
+            self._runtime_headless = True
+            logger.warning("[KitVisualizer] Running in headless mode (HEADLESS=1). Viewport may not display.")
+
         try:
             from isaacsim import SimulationApp
 
@@ -360,283 +584,97 @@ class KitVisualizer(BaseVisualizer):
 
             if sim_app is not None:
                 self._simulation_app = sim_app
-                self._runtime_headless = bool(self.cfg.headless or self._simulation_app.config.get("headless", False))
+                self._runtime_headless = bool(
+                    self.cfg.headless or headless_env or self._simulation_app.config.get("headless", False)
+                )
                 if self._runtime_headless:
                     logger.warning("[KitVisualizer] Running in headless mode. Viewport may not display.")
         except ImportError:
             pass
 
+    def _apply_render_product_background(self, stage: Usd.Stage, render_product_path: str | Sdf.Path) -> None:
+        """Apply the configured solid background to an Isaac RTX render product."""
+        if self.cfg.background_color is None:
+            return
+        render_product = stage.GetPrimAtPath(render_product_path)
+        if not render_product.IsValid():
+            logger.warning(
+                "[KitVisualizer] Render product '%s' was not found; background was not applied.",
+                render_product_path,
+            )
+            return
+
+        with Usd.EditContext(stage, stage.GetSessionLayer()), Sdf.ChangeBlock():
+            render_product.CreateAttribute("omni:rtx:background:source:type", Sdf.ValueTypeNames.Token).Set("color")
+            render_product.CreateAttribute("omni:rtx:background:source:color", Sdf.ValueTypeNames.Float3).Set(
+                Gf.Vec3f(*self.cfg.background_color)
+            )
+
+    def _write_desktop_entry(self) -> None:
+        """Write the Linux desktop entry that lets docks show the Kit window's icon."""
+        import carb.tokens
+
+        settings = get_settings_manager()
+        title = settings.get("/app/window/title")
+        version = settings.get("/app/version")
+        icon_path = settings.get("/app/window/iconPath")
+        if title and version and icon_path:
+            # Kit composes the window's WM_CLASS from the app title and version, e.g. "Isaac Lab 3.0.0".
+            icon = carb.tokens.get_tokens_interface().resolve(icon_path)
+            write_desktop_entry("isaaclab", title, f"{title} {version}", icon)
+
     def _setup_viewport(self) -> None:
         """Create/resolve viewport and configure initial camera."""
-        import omni.kit.viewport.utility as vp_utils
-        from omni.ui import DockPosition
+        # Headless Kit may not load the viewport extension; its camera is authored below.
+        if not self._runtime_headless:
+            self._write_desktop_entry()
+            import omni.kit.viewport.utility as vp_utils
 
-        if self._runtime_headless:
-            # Headless: no viewport window; apply cfg pose to the default perspective camera path.
-            self._viewport_window = None
-            self._viewport_api = None
-            if self._uses_camera_sensor_view():
-                logger.debug("[KitVisualizer] Camera image view requested in headless mode; no UI panel is created.")
-            else:
-                self._apply_cfg_camera_pose_if_configured()
-            self._refresh_controlled_camera_path()
-            return
-
-        effective_viewport_name = (
-            self.cfg.viewport_name if self.cfg.viewport_name is not None else _DEFAULT_VIEWPORT_NAME
-        )
-        if self.cfg.create_viewport:
-            if not str(effective_viewport_name).strip():
-                raise RuntimeError(
-                    "[KitVisualizer] viewport_name must be a non-empty string when create_viewport=True."
+            if self.cfg.backend.create_viewport:
+                name = (
+                    self.cfg.backend.viewport_name
+                    if self.cfg.backend.viewport_name is not None
+                    else _DEFAULT_VIEWPORT_NAME
                 )
-            dock_position_name = self.cfg.dock_position.upper()
-            dock_position_map = {
-                "LEFT": DockPosition.LEFT,
-                "RIGHT": DockPosition.RIGHT,
-                "BOTTOM": DockPosition.BOTTOM,
-                "SAME": DockPosition.SAME,
-            }
-            dock_pos = dock_position_map.get(dock_position_name, DockPosition.SAME)
-
-            self._viewport_window = vp_utils.create_viewport_window(
-                name=effective_viewport_name,
-                width=self.cfg.window_width,
-                height=self.cfg.window_height,
-                position_x=50,
-                position_y=50,
-                docked=True,
-            )
-
-            asyncio.ensure_future(self._dock_viewport_async(effective_viewport_name, dock_pos))
-        else:
-            self._viewport_window = vp_utils.get_active_viewport_window()
-
-        if self._viewport_window is None:
-            logger.warning("[KitVisualizer] No active viewport window found.")
-            self._viewport_api = None
-            if not self._uses_camera_sensor_view():
-                self._apply_cfg_camera_pose_if_configured()
-            self._refresh_controlled_camera_path()
-            return
-        self._viewport_api = self._viewport_window.viewport_api
-        if self._uses_camera_sensor_view():
-            # Camera sensor image views are shown in a non-interactive image panel.
-            pass
-        else:
-            self._apply_cfg_camera_pose_if_configured()
-        self._refresh_controlled_camera_path()
-        self._setup_backend_menubar_label()
-
-    def _uses_camera_sensor_view(self) -> bool:
-        """Return whether Kit should display a camera sensor image instead of an interactive viewport camera."""
-        return bool(self.cfg.tiled_cam_view)
-
-    def _setup_camera_sensor_view(self, num_envs: int) -> None:
-        """Resolve or create the Camera sensor backing non-interactive image views."""
-        if not self._uses_camera_sensor_view():
-            return
-        if self._runtime_headless:
-            return
-        if not get_settings_manager().get("/isaaclab/cameras_enabled", False):
-            raise RuntimeError(
-                "[KitVisualizer] tiled_cam_view=True requires camera rendering support. "
-                "Disable tiled_cam_view for this visualizer config."
-            )
-        logger.debug(
-            "[KitVisualizer] Setting up camera image view: tiled=%s source=%s num_envs=%s",
-            self.cfg.tiled_cam_view,
-            "prim_path" if self.cfg.tiled_cam_prim_path is not None else "generated",
-            num_envs,
-        )
-        env_ids = resolve_tiled_env_indices(
-            num_envs,
-            self.cfg.tiled_cam_num,
-            self.cfg.tiled_cam_env_indices,
-            max_tiles=VISUALIZER_TILED_CAMERA_MAX_TILES,
-            sample_from=self._resolved_visible_env_ids,
-        )
-        self._camera_env_indices = env_ids
-        if self.cfg.tiled_cam_prim_path is not None:
-            logger.debug(
-                "[KitVisualizer] tiled_cam_prim_path uses existing camera sensor output; "
-                "generated tiled camera pose fields are ignored."
-            )
-            cameras = self._scene_data_provider.get_camera_sensors()
-            self._camera_sensor = find_camera_by_prim_path(cameras, self.cfg.tiled_cam_prim_path, env_ids)
-            self._camera_sensor_indices = env_ids
-        else:
-            from isaaclab_physx.renderers import IsaacRtxRendererCfg
-
-            count = max(1, len(env_ids))
-            tile_w, tile_h = compute_tile_resolution(self.cfg.window_width, self.cfg.window_height, count)
-            logger.debug(
-                "[KitVisualizer] Creating generated camera sensor: env_ids=%s tile=%sx%s",
-                env_ids,
-                tile_w,
-                tile_h,
-            )
-            self._camera_sensor, self._generated_camera_prim_paths = create_visualizer_camera(
-                num_envs=num_envs,
-                width=tile_w,
-                height=tile_h,
-                renderer_cfg=IsaacRtxRendererCfg(),
-            )
-            logger.debug("[KitVisualizer] Generated camera sensor initialized.")
-            self._camera_sensor_indices = env_ids
-            self._camera_is_owned = True
-            self._update_owned_camera_poses()
-            logger.debug("[KitVisualizer] Generated camera poses initialized.")
-        self._setup_camera_image_window()
-        logger.debug("[KitVisualizer] Camera image window initialized.")
-
-    def _setup_camera_image_window(self) -> None:
-        """Create a dockable Kit UI image panel for camera sensor RGB output."""
-        import omni.ui
-
-        title = self.cfg.viewport_name or "Visualizer Tiled Camera"
-        self._camera_image_provider = omni.ui.ByteImageProvider()
-        self._camera_image_window = omni.ui.Window(title, width=self.cfg.window_width, height=self.cfg.window_height)
-        with self._camera_image_window.frame:
-            omni.ui.ImageWithProvider(self._camera_image_provider)
-
-        dock_position_name = self.cfg.dock_position.upper()
-        dock_position_map = {
-            "LEFT": omni.ui.DockPosition.LEFT,
-            "RIGHT": omni.ui.DockPosition.RIGHT,
-            "BOTTOM": omni.ui.DockPosition.BOTTOM,
-            "SAME": omni.ui.DockPosition.SAME,
-        }
-        asyncio.ensure_future(
-            self._dock_image_window_async(title, dock_position_map.get(dock_position_name, omni.ui.DockPosition.SAME))
-        )
-
-    async def _dock_image_window_async(self, window_name: str, dock_position) -> None:
-        """Dock the camera image panel next to the main viewport."""
-        import omni.kit.app
-        import omni.ui
-
-        image_window = None
-        for _ in range(10):
-            image_window = omni.ui.Workspace.get_window(window_name)
-            if image_window:
-                break
-            await omni.kit.app.get_app().next_update_async()
-        main_viewport = omni.ui.Workspace.get_window("Viewport")
-        if image_window is not None and main_viewport is not None and image_window != main_viewport:
-            image_window.dock_in(main_viewport, dock_position, 0.5)
-
-    def _update_owned_camera_poses(self) -> None:
-        """Update generated camera poses from env origins or follow prims."""
-        if self._camera_sensor is None or not self._camera_is_owned:
-            return
-        target_positions = prim_world_positions(
-            self._scene_data_provider.get_usd_stage(),
-            self.cfg.tiled_cam_target_prim_path,
-            self._camera_env_indices,
-            scene=self._scene_data_provider.get_interactive_scene(),
-        )
-        eyes, targets = apply_camera_target_positions(
-            self._camera_sensor, target_positions, self.cfg.tiled_cam_eye, self._camera_env_indices
-        )
-        self._set_generated_usd_camera_poses(eyes, targets)
-
-    def _update_camera_image_panel(self, dt: float) -> None:
-        """Refresh the non-interactive Kit image panel from camera RGB output."""
-        if self._camera_sensor is None or self._camera_image_provider is None:
-            return
-        if self._camera_is_owned:
-            self._update_owned_camera_poses()
-            if self._generated_camera_poses_dirty:
-                self._sync_camera_pose_updates_to_kit()
-                self._generated_camera_poses_dirty = False
-        if self._camera_is_owned:
-            self._camera_sensor.update(dt=dt, force_recompute=True)
-        rgb = camera_rgb_batch(self._camera_sensor, self._camera_sensor_indices)
-        image = compose_rgb_grid_tensor(rgb) if self.cfg.tiled_cam_view else rgb[0].contiguous()
-        self._upload_camera_image_to_panel(image)
-
-    def _upload_camera_image_to_panel(self, image: np.ndarray | torch.Tensor) -> None:
-        """Upload an RGB/RGBA image to the Kit image provider."""
-        if isinstance(image, torch.Tensor):
-            if image.is_cuda:
-                try:
-                    import omni.gpu_foundation_factory as gf
-
-                    if image.ndim == 3 and image.shape[2] == 3:
-                        alpha = torch.full((*image.shape[:2], 1), 255, dtype=torch.uint8, device=image.device)
-                        image = torch.cat((image, alpha), dim=2)
-                    image = image.to(dtype=torch.uint8).contiguous()
-                    self._camera_gpu_upload_tensor = image
-                    self._camera_image_provider.set_bytes_data_from_gpu(
-                        int(image.data_ptr()), [int(image.shape[1]), int(image.shape[0])], gf.TextureFormat.RGBA8_UNORM
+                if not str(name).strip():
+                    raise RuntimeError(
+                        "[KitVisualizer] viewport_name must be a non-empty string when create_viewport=True."
                     )
-                    return
-                except Exception as exc:
-                    if not self._warned_gpu_upload_failure:
-                        logger.warning("[KitVisualizer] GPU image upload failed; falling back to CPU upload: %s", exc)
-                        self._warned_gpu_upload_failure = True
-            image = image.detach().contiguous().cpu().numpy()
+                self._viewport_window = vp_utils.create_viewport_window(
+                    name=name, width=self.cfg.window.size[0], height=self.cfg.window.size[1],
+                    position_x=50, position_y=50, docked=True,
+                )  # fmt: skip
+                asyncio.ensure_future(self._dock_window_async(name, focus=True))
+            else:
+                self._viewport_window = vp_utils.get_active_viewport_window()
 
-        image = image.astype("uint8", copy=False)
-        if image.ndim == 3 and image.shape[2] == 3:
-            alpha = np.full((*image.shape[:2], 1), 255, dtype=np.uint8)
-            image = np.concatenate((image, alpha), axis=2)
-        image = np.ascontiguousarray(image)
-        self._camera_image_provider.set_bytes_data(image.flatten().data, [image.shape[1], image.shape[0]])
-
-    def _sync_camera_pose_updates_to_kit(self) -> None:
-        """Flush generated camera pose writes before camera RGB is sampled."""
-        try:
-            import omni.kit.app
-
-            app = omni.kit.app.get_app()
-            if app is None or not app.is_running():
-                return
-            settings = get_settings_manager()
-            play_flag = settings.get("/app/player/playSimulations")
-            settings.set_bool("/app/player/playSimulations", False)
-            app.update()
-            if play_flag is not None:
-                settings.set_bool("/app/player/playSimulations", bool(play_flag))
-        except Exception as exc:
-            logger.debug("[KitVisualizer] Camera pose Kit sync skipped: %s", exc)
-
-    def _refresh_controlled_camera_path(self) -> None:
-        """Cache :attr:`_controlled_camera_path` from the active viewport (or default persp)."""
-        if self._viewport_api is not None:
-            path = self._viewport_api.get_active_camera()
-            self._controlled_camera_path = path if path else _DEFAULT_VIEWPORT_CAMERA_PATH
-        else:
-            self._controlled_camera_path = _DEFAULT_VIEWPORT_CAMERA_PATH
+            if self._viewport_window is None:
+                logger.warning("[KitVisualizer] No active viewport window found.")
+            else:
+                self._viewport_api = self._viewport_window.viewport_api
+                self._controlled_camera_path = self._viewport_api.get_active_camera() or _DEFAULT_VIEWPORT_CAMERA_PATH
+                asyncio.ensure_future(self._setup_backend_menubar_label_async())
+        if not self.cfg.streaming_view:
+            self._set_viewport_camera(self.cfg.eye, self.cfg.lookat)
 
     def _apply_viewport_camera_scene_partition(self, usd_stage: Usd.Stage, num_envs: int) -> None:
-        """Tag the viewport camera with the first visible env partition.
+        """Configure the viewport camera for partitioned or all-environment viewing.
 
         RTX scene partitioning culls per-env geometry by the camera's non-primvar
         ``omni:scenePartition`` token. Interactive viewport cameras live outside
-        ``/World/envs`` and are created by Kit, so they do not inherit the env-root
-        primvar authored by :class:`~isaaclab.scene.InteractiveScene`.
-
-        This method is a no-op unless ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=1``,
-        matching the opt-in behaviour of
-        :meth:`~isaaclab_physx.renderers.IsaacRtxRenderer.prepare_stage`.
+        the environment roots and are created by Kit, so they do not inherit the env-root
+        primvar authored by the renderer. When the RTX spectator-view setting is
+        enabled, leaving the viewport camera unpartitioned shows all environments.
+        Otherwise, the viewport is assigned to the first visible environment.
         """
 
-        if not isaac_rtx_per_env_scene_partition_enabled():
+        if num_envs <= 0:
             return
 
-        if num_envs <= 0 or self._controlled_camera_path is None:
+        env_prim = usd_stage.GetPrimAtPath(self._sim.get_clone_plan().env_template.format(0))
+        env_partition_attr = env_prim.GetAttribute("primvars:omni:scenePartition")
+        if not env_partition_attr.IsValid() or env_partition_attr.Get() is None:
             return
-
-        logger.debug(
-            "[KitVisualizer] Per-environment Isaac RTX scene partitioning is enabled"
-            " (ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=1)."
-            " Authoring omni:scenePartition attribute onto viewport camera '%s'.",
-            self._controlled_camera_path,
-        )
-
-        env_id = self._resolved_visible_env_ids[0] if self._resolved_visible_env_ids else 0
         camera_prim = usd_stage.GetPrimAtPath(self._controlled_camera_path)
         if not camera_prim.IsValid() or not camera_prim.IsA(UsdGeom.Camera):
             logger.debug(
@@ -644,25 +682,47 @@ class KitVisualizer(BaseVisualizer):
                 self._controlled_camera_path,
             )
             return
+
         attr = camera_prim.GetAttribute("omni:scenePartition")
+        if get_settings_manager().get(ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING, False):
+            if attr.IsValid():
+                camera_prim.RemoveProperty("omni:scenePartition")
+            logger.debug(
+                "[KitVisualizer] Leaving viewport camera '%s' unpartitioned for the all-environment spectator view.",
+                self._controlled_camera_path,
+            )
+            return
+
+        env_id = self._env_ids[0] if self._env_ids else 0
+        logger.debug(
+            "[KitVisualizer] Assigning viewport camera '%s' to scene partition env_%d.",
+            self._controlled_camera_path,
+            env_id,
+        )
         if not attr.IsValid():
             attr = camera_prim.CreateAttribute("omni:scenePartition", Sdf.ValueTypeNames.Token)
         attr.Set(f"env_{env_id}")
 
-    async def _dock_viewport_async(self, viewport_name: str, dock_position) -> None:
-        """Dock a created viewport window relative to main viewport."""
+    async def _dock_window_async(self, window_name: str, *, focus: bool = False) -> None:
+        """Dock a viewport or image panel after Kit registers its window."""
         import omni.kit.app
         import omni.ui
 
-        viewport_window = None
+        dock_positions = {
+            "LEFT": omni.ui.DockPosition.LEFT,
+            "RIGHT": omni.ui.DockPosition.RIGHT,
+            "BOTTOM": omni.ui.DockPosition.BOTTOM,
+            "SAME": omni.ui.DockPosition.SAME,
+        }
+        window = None
         for _ in range(10):
-            viewport_window = omni.ui.Workspace.get_window(viewport_name)
-            if viewport_window:
+            window = omni.ui.Workspace.get_window(window_name)
+            if window:
                 break
             await omni.kit.app.get_app().next_update_async()
 
-        if not viewport_window:
-            logger.warning(f"[KitVisualizer] Could not find viewport window '{viewport_name}'.")
+        if not window:
+            logger.warning(f"[KitVisualizer] Could not find window '{window_name}'.")
             return
 
         main_viewport = omni.ui.Workspace.get_window("Viewport")
@@ -672,20 +732,27 @@ class KitVisualizer(BaseVisualizer):
                 if main_viewport:
                     break
 
-        if main_viewport and main_viewport != viewport_window:
-            viewport_window.dock_in(main_viewport, dock_position, 0.5)
-            await omni.kit.app.get_app().next_update_async()
-            viewport_window.focus()
-            viewport_window.visible = True
-            await omni.kit.app.get_app().next_update_async()
-            viewport_window.focus()
+        if main_viewport and main_viewport != window:
+            window.dock_in(
+                main_viewport,
+                dock_positions.get(self.cfg.backend.dock_position.upper(), omni.ui.DockPosition.SAME),
+                0.5,
+            )
+            if focus:
+                await omni.kit.app.get_app().next_update_async()
+                window.focus()
+                window.visible = True
+                await omni.kit.app.get_app().next_update_async()
+                window.focus()
 
     def _set_viewport_camera(self, position: tuple[float, float, float], target: tuple[float, float, float]) -> None:
         """Apply eye/target camera view to the active viewport."""
         if self._viewport_api is None:
             # Without a viewport, Kit does not create its default perspective
             # camera, so author it explicitly before render products use it.
-            self._set_usd_camera_pose(_DEFAULT_VIEWPORT_CAMERA_PATH, position, target)
+            # Kit stores existing camera transforms in the stronger session layer.
+            with Usd.EditContext(self._sim.stage, self._sim.stage.GetSessionLayer()):
+                self._set_usd_camera_pose(_DEFAULT_VIEWPORT_CAMERA_PATH, position, target)
             return
 
         try:
@@ -708,21 +775,6 @@ class KitVisualizer(BaseVisualizer):
         camera_state.set_position_world(Gf.Vec3d(float(position[0]), float(position[1]), float(position[2])), False)
         camera_state.set_target_world(Gf.Vec3d(float(target[0]), float(target[1]), float(target[2])), True)
 
-    def _set_generated_usd_camera_poses(self, eyes: torch.Tensor, targets: torch.Tensor) -> None:
-        """Author generated camera poses directly on USD camera prims for Kit/Fabric visibility."""
-        # TODO: Remove this USD-side pose path once Fabric-backed camera transforms propagate reliably to Kit.
-        for local_idx, env_id in enumerate(self._camera_env_indices):
-            if local_idx >= eyes.shape[0]:
-                break
-            camera_path = (
-                self._generated_camera_prim_paths[env_id]
-                if 0 <= env_id < len(self._generated_camera_prim_paths)
-                else f"/World/envs/env_{env_id}/VisualizerCamera"
-            )
-            self._generated_camera_poses_dirty |= self._set_usd_camera_pose(
-                camera_path, eyes[local_idx], targets[local_idx]
-            )
-
     def _set_usd_camera_pose(self, camera_path: str, position, target) -> bool:
         """Apply eye/target camera pose directly to a USD camera prim.
 
@@ -730,13 +782,9 @@ class KitVisualizer(BaseVisualizer):
             ``True`` when authored values changed, otherwise ``False``.
         """
         # TODO: Remove this USD-side pose path once Fabric-backed camera transforms propagate reliably to Kit.
-        usd_stage = self._scene_data_provider.usd_stage if self._scene_data_provider else None
-        if usd_stage is None:
-            return False
-
         eye = torch.as_tensor(position, dtype=torch.float32, device="cpu").reshape(1, 3)
         lookat = torch.as_tensor(target, dtype=torch.float32, device="cpu").reshape(1, 3)
-        up_axis = UsdGeom.GetStageUpAxis(usd_stage)
+        up_axis = UsdGeom.GetStageUpAxis(self._sim.stage)
         rotation_matrix = create_rotation_matrix_from_view(eye, lookat, up_axis=up_axis, device="cpu")
         if torch.isnan(rotation_matrix).any():
             raise ValueError("[KitVisualizer] Cannot set camera pose because eye and lookat are degenerate.")
@@ -750,21 +798,29 @@ class KitVisualizer(BaseVisualizer):
             float(quat_xyzw[2]),
             float(quat_xyzw[3]),
         )
-        if self._generated_camera_pose_cache.get(camera_path) == pose_key:
+        if self._viewport_camera_pose_cache.get(camera_path) == pose_key:
             return False
 
-        if camera_path not in self._generated_camera_xform_ops:
-            camera = UsdGeom.Camera.Define(usd_stage, camera_path)
+        if camera_path not in self._viewport_camera_xform_ops:
+            camera = UsdGeom.Camera.Define(self._sim.stage, camera_path)
             camera_xform = UsdGeom.Xformable(camera.GetPrim())
             camera_xform.ClearXformOpOrder()
-            # Generated visualizer cameras live under env prims, but eyes/targets are world-space.
+            # Viewport eyes/targets are world-space.
             # Reset the xform stack so Kit/Fabric sees the authored pose as a world pose.
             camera_xform.SetResetXformStack(True)
-            translate_op = camera_xform.AddTranslateOp()
-            orient_op = camera_xform.AddOrientOp(UsdGeom.XformOp.PrecisionDouble)
-            self._generated_camera_xform_ops[camera_path] = (translate_op, orient_op)
+            # ClearXformOpOrder removes the ordering metadata but not the prim attributes
+            # themselves, so AddTranslateOp/AddOrientOp fail if they already exist on the
+            # prim (e.g. for /OmniverseKit_Persp which Isaac Sim pre-populates).
+            # Reuse existing attributes when present; add them only when absent.
+            prim = camera.GetPrim()
+            t_attr = prim.GetAttribute("xformOp:translate")
+            translate_op = UsdGeom.XformOp(t_attr) if t_attr else camera_xform.AddTranslateOp()
+            o_attr = prim.GetAttribute("xformOp:orient")
+            orient_op = UsdGeom.XformOp(o_attr) if o_attr else camera_xform.AddOrientOp(UsdGeom.XformOp.PrecisionDouble)
+            camera_xform.SetXformOpOrder([translate_op, orient_op], camera_xform.GetResetXformStack())
+            self._viewport_camera_xform_ops[camera_path] = (translate_op, orient_op)
         else:
-            translate_op, orient_op = self._generated_camera_xform_ops[camera_path]
+            translate_op, orient_op = self._viewport_camera_xform_ops[camera_path]
 
         quat_gf = Gf.Quatd(
             float(quat_xyzw[3]),
@@ -773,28 +829,7 @@ class KitVisualizer(BaseVisualizer):
 
         translate_op.Set(Gf.Vec3d(float(eye[0, 0]), float(eye[0, 1]), float(eye[0, 2])))
         orient_op.Set(quat_gf)
-        self._generated_camera_pose_cache[camera_path] = pose_key
-        return True
-
-    def _apply_cfg_camera_pose_if_configured(self) -> None:
-        """Apply configured camera pose from eye/lookat."""
-        self._set_viewport_camera(self.cfg.eye, self.cfg.lookat)
-
-    def _set_active_camera_path(self, camera_path: str) -> bool:
-        """Set active camera path for viewport if the prim exists.
-
-        Returns:
-            ``True`` if camera was set, otherwise ``False``.
-        """
-        if self._viewport_api is None:
-            return False
-        usd_stage = self._scene_data_provider.usd_stage if self._scene_data_provider else None
-        if usd_stage is None:
-            return False
-        camera_prim = usd_stage.GetPrimAtPath(camera_path)
-        if not camera_prim.IsValid():
-            return False
-        self._viewport_api.set_active_camera(camera_path)
+        self._viewport_camera_pose_cache[camera_path] = pose_key
         return True
 
     def _apply_env_visibility(self, usd_stage, num_envs: int, visible_env_ids: list[int]) -> None:
@@ -805,7 +840,7 @@ class KitVisualizer(BaseVisualizer):
         for env_id in range(num_envs):
             if env_id in visible:
                 continue
-            env_path = f"/World/envs/env_{env_id}"
+            env_path = self._sim.get_clone_plan().env_template.format(env_id)
             prim = usd_stage.GetPrimAtPath(env_path)
             if not prim.IsValid():
                 continue
@@ -822,15 +857,12 @@ class KitVisualizer(BaseVisualizer):
 
     def _refresh_partial_viz_point_instancers_if_needed(self) -> None:
         """Re-apply ``invisibleIds`` for env-scaled `/Visuals` instancers (handles lazy marker creation)."""
-        if self._resolved_visible_env_ids is None or self._scene_data_provider is None:
+        if self._env_ids is None or self._sim is None:
             return
-        usd_stage = self._scene_data_provider.usd_stage
-        if usd_stage is None:
-            return
-        num_envs = self._scene_data_provider.num_envs
+        num_envs = self._sim.get_scene_data_provider().num_envs
         if num_envs <= 0:
             return
-        self._apply_visual_point_instancer_visibility(usd_stage, num_envs, set(self._resolved_visible_env_ids))
+        self._apply_visual_point_instancer_visibility(self._sim.stage, num_envs, set(self._env_ids))
 
     def _apply_visual_point_instancer_visibility(self, usd_stage, num_envs: int, visible_env_ids: set[int]) -> None:
         """Set ``PointInstancer.invisibleIds`` for per-env `/Visuals` markers (e.g. velocity arrows)."""
@@ -875,11 +907,8 @@ class KitVisualizer(BaseVisualizer):
 
     def _restore_env_visibility(self) -> None:
         """Restore environment visibilities and PointInstancer ``invisibleIds`` from partial viz."""
-        usd_stage = self._scene_data_provider.usd_stage if self._scene_data_provider else None
-        if usd_stage is None:
-            return
         for env_path, prev in self._hidden_env_visibilities.items():
-            prim = usd_stage.GetPrimAtPath(env_path)
+            prim = self._sim.stage.GetPrimAtPath(env_path)
             if not prim.IsValid():
                 continue
             imageable = UsdGeom.Imageable(prim)
@@ -889,7 +918,7 @@ class KitVisualizer(BaseVisualizer):
         self._hidden_env_visibilities.clear()
 
         for path_str, (was_authored, prev) in self._point_instancer_invisible_ids_backup.items():
-            prim = usd_stage.GetPrimAtPath(path_str)
+            prim = self._sim.stage.GetPrimAtPath(path_str)
             if not prim.IsValid() or not prim.IsA(UsdGeom.PointInstancer):
                 continue
             inv_attr = UsdGeom.PointInstancer(prim).GetInvisibleIdsAttr()
@@ -898,3 +927,78 @@ class KitVisualizer(BaseVisualizer):
             else:
                 inv_attr.Set(prev)
         self._point_instancer_invisible_ids_backup.clear()
+
+    def reapply_origin(self) -> None:
+        """Apply the configured world, environment, or asset origin to the viewport camera.
+
+        Called during initialization and after changing ``cfg.backend.origin_type``,
+        ``cfg.backend.origin_env_index``, or ``cfg.backend.origin_track_path`` at runtime.
+        Asset tracking waits for the next :meth:`step`, when simulation state is available.
+        """
+        self._interactive_scene = self._sim.get_scene_data_provider().get_interactive_scene()
+
+        if self.cfg.backend.origin_type == "world":
+            self._viewer_origin = torch.zeros(3)
+        elif self.cfg.backend.origin_type == "env":
+            scene = self._interactive_scene
+            if scene is None:
+                logger.warning("[KitVisualizer] origin_type='env' requested but no scene is registered yet.")
+                self._viewer_origin = torch.zeros(3)
+            else:
+                num_envs = scene.num_envs
+                if not (0 <= self.cfg.backend.origin_env_index < num_envs):
+                    raise ValueError(
+                        f"[KitVisualizer] origin_env_index {self.cfg.backend.origin_env_index} is out of range "
+                        f"[0, {num_envs - 1}] for origin_type='env'."
+                    )
+                self._viewer_origin = scene.env_origins[self.cfg.backend.origin_env_index]
+        elif self.cfg.backend.origin_type == "asset":
+            if self.cfg.backend.origin_track_path is None:
+                raise ValueError("[KitVisualizer] origin_type='asset' requires origin_track_path to be set.")
+            # Asset data is not available until after sim.reset(); defer to step().
+            return
+        else:
+            logger.warning(
+                "[KitVisualizer] Unknown origin_type '%s'; defaulting to world.", self.cfg.backend.origin_type
+            )
+            self._viewer_origin = torch.zeros(3)
+
+        self._apply_viewer_origin_to_camera()
+
+    def _update_asset_tracking_camera(self) -> None:
+        """Update the viewport camera to track an asset root or body.
+
+        Called before viewport frames when :attr:`KitBackendCfg.origin_type` is ``"asset"``.
+        Parses :attr:`~KitBackendCfg.origin_track_path`: ``"asset_name"`` tracks the root,
+        ``"asset_name/body_name"`` tracks a specific body.
+        """
+        scene = self._interactive_scene
+        if scene is None or self.cfg.backend.origin_track_path is None:
+            return
+        asset_name, _, body_name = self.cfg.backend.origin_track_path.partition("/")
+        try:
+            asset = scene[asset_name]
+        except KeyError:
+            return
+        if body_name:
+            body_ids, _ = asset.find_bodies(body_name)
+            self._viewer_origin = asset.data.body_pos_w.torch[self.cfg.backend.origin_env_index, body_ids[0]]
+        else:
+            self._viewer_origin = asset.data.root_pos_w.torch[self.cfg.backend.origin_env_index]
+        self._apply_viewer_origin_to_camera()
+
+    def _apply_viewer_origin_to_camera(self) -> None:
+        """Compute absolute eye/target from :attr:`_viewer_origin` and push to the viewport."""
+        if self._viewer_origin is None:
+            return
+        origin = self._viewer_origin.detach().cpu().numpy()
+        eye = np.array(self.cfg.eye, dtype=float) + origin
+        target = np.array(self.cfg.lookat, dtype=float) + origin
+        self.set_camera_view(tuple(float(v) for v in eye), tuple(float(v) for v in target))
+        # Keep the Isaac RTX renderer camera in sync (no-op if isaaclab_physx is not installed).
+        try:
+            from isaaclab_physx.renderers.kit_viewport_utils import set_kit_renderer_camera_view  # noqa: PLC0415
+
+            set_kit_renderer_camera_view(eye=eye, target=target, camera_prim_path="/OmniverseKit_Persp")
+        except (ImportError, ModuleNotFoundError):
+            pass

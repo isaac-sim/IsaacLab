@@ -45,8 +45,7 @@ class BenchmarkLauncherConfig:
     Args:
         device: Simulation device identifier, such as ``"cpu"`` or ``"cuda:0"``.
         enable_cameras: Whether to enable camera rendering.
-        visualizers: Visualizers to enable. An empty tuple explicitly disables all visualizers;
-            ``None`` preserves task and environment defaults.
+        visualizers: Visualizers to run, passed as ``--visualizer``. ``None`` or an empty tuple runs none.
         max_visible_envs: Maximum number of environments shown by visualizers.
         experience: Isaac Sim experience file.
         deterministic: Whether to request deterministic rendering and backend behavior.
@@ -83,8 +82,8 @@ class BenchmarkRuntimeRequest:
     Args:
         task: Registered Gym task identifier.
         num_envs: Number of parallel environments.
-        num_frames: Number of measured environment steps.
-        warmup_frames: Number of warm-up steps excluded from throughput measurements.
+        num_steps: Number of measured environment steps.
+        warmup_steps: Number of warm-up steps excluded from throughput measurements.
         seed: Environment seed.
         measure_synchronized_step_breakdown: Whether to collect serialized synchronized
             environment/simulation step diagnostics.
@@ -96,8 +95,8 @@ class BenchmarkRuntimeRequest:
 
     task: str
     num_envs: int | None = None
-    num_frames: int = 1000
-    warmup_frames: int = 50
+    num_steps: int = 1000
+    warmup_steps: int = 50
     seed: int | None = None
     measure_synchronized_step_breakdown: bool = False
     presets: tuple[str, ...] = field(default_factory=tuple)
@@ -223,8 +222,8 @@ class BenchmarkPlayRequest:
             published checkpoint.
         agent: Optional task agent configuration entry point.
         num_envs: Number of parallel environments.
-        num_frames: Number of measured inference steps.
-        warmup_frames: Number of initial environment steps excluded from environment-step timing.
+        num_steps: Number of measured inference steps.
+        warmup_steps: Number of initial environment steps excluded from environment-step timing.
         seed: Environment seed.
         measure_synchronized_step_breakdown: Whether to collect serialized synchronized
             environment/simulation step diagnostics.
@@ -240,8 +239,8 @@ class BenchmarkPlayRequest:
     checkpoint: str | None = None
     agent: str | None = None
     num_envs: int | None = None
-    num_frames: int = 100
-    warmup_frames: int = 1
+    num_steps: int = 100
+    warmup_steps: int = 1
     seed: int | None = None
     measure_synchronized_step_breakdown: bool = False
     presets: tuple[str, ...] = field(default_factory=tuple)
@@ -264,7 +263,8 @@ class BenchmarkResult(Generic[_BenchmarkBundleT]):
     """Completed benchmark result.
 
     Args:
-        bundle: Typed benchmark result bundle.
+        bundle: Typed benchmark result bundle. Runtime profiling summaries, when enabled,
+            are included as scalar metrics in ``bundle.extra``.
         output_paths: Files written by the selected formatters.
     """
 
@@ -302,6 +302,13 @@ def run_benchmark(request: BenchmarkRequest) -> BenchmarkResult:
 
 def run_runtime_benchmark(request: BenchmarkRuntimeRequest) -> BenchmarkResult[RuntimeBundle]:
     """Run an environment runtime benchmark.
+
+    A task with a non-``None`` ``benchmark_mode`` can collect synchronized scope
+    timings through ``ISAACLAB_RENDER_PROFILE`` and ``ISAACLAB_PHYSICS_PROFILE``.
+    The returned bundle includes per-call mean, standard deviation, maximum [ms],
+    and call count in ``extra`` under ``physics_*`` and ``render_*`` keys. Raw
+    samples remain in the local ``profile_timings.json`` file. Disabled scopes
+    contribute no summary keys.
 
     Args:
         request: Runtime benchmark request.

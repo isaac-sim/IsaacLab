@@ -5,13 +5,12 @@
 
 """Tests for method-level micro-benchmark sampling."""
 
-import inspect
-from dataclasses import fields
+import json
 from unittest.mock import patch
 
 import pytest
 
-from isaaclab.benchmark import MethodBenchmarkDefinition, MethodBenchmarkRunner, MethodBenchmarkRunnerConfig
+from isaaclab.benchmark import MethodBenchmarkRunner, MethodBenchmarkRunnerConfig
 
 pytestmark = pytest.mark.benchmark
 
@@ -37,6 +36,24 @@ def test_config_accepts_zero_joints_for_rigid_assets() -> None:
     config = MethodBenchmarkRunnerConfig(num_joints=0)
 
     assert config.num_joints == 0
+
+
+def test_runner_records_exact_physics_variant_in_workflow_metadata(tmp_path) -> None:
+    """Exact backend selectors should remain distinguishable in output metadata."""
+    runner = MethodBenchmarkRunner(
+        benchmark_name="asset_benchmark",
+        config=MethodBenchmarkRunnerConfig(device="cpu"),
+        output_path=str(tmp_path),
+        use_recorders=False,
+        physics_variant="newton_kamino",
+    )
+
+    (output_file,) = runner.finalize()
+    with open(output_file) as f:
+        phases = json.load(f)
+    info = next(phase for phase in phases if phase["phase_name"] == "benchmark_info")
+    metadata = {entry["name"]: entry["data"] for entry in info["metadata"]}
+    assert metadata["asset_benchmark benchmark_info physics_variant"] == "newton_kamino"
 
 
 def _runner(*, num_iterations: int = 3, warmup_steps: int = 0) -> MethodBenchmarkRunner:
@@ -113,12 +130,47 @@ def test_method_benchmark_collects_exact_requested_samples() -> None:
     assert call_count == 6
 
 
-def test_method_dependency_surface_is_not_published() -> None:
-    """The unused method dependency arguments should not become public API."""
-    definition_fields = {field.name for field in fields(MethodBenchmarkDefinition)}
+def test_method_benchmark_prepares_target_outside_timed_operation() -> None:
+    """Target cache preparation should run for every call without contributing to measured latency."""
+    runner = _runner(num_iterations=1, warmup_steps=1)
+    events: list[str] = []
 
-    assert "dependencies" not in definition_fields
-    assert "dependencies" not in inspect.signature(MethodBenchmarkRunner.run_benchmarks).parameters
+    def prepare_target() -> None:
+        events.append("target")
+
+    def generator(_config) -> dict[str, object]:
+        events.append("inputs")
+        return {}
+
+    def operation() -> None:
+        events.append("operation")
+
+    def clock() -> int:
+        events.append("clock")
+        return events.count("clock") * 1_000
+
+    with patch("isaaclab.benchmark.method_benchmark.time.perf_counter_ns", side_effect=clock):
+        result = runner._benchmark_method(
+            operation,
+            "example",
+            generator,
+            prepare_target=prepare_target,
+        )
+
+    assert result is not None
+    assert events == [
+        "target",
+        "inputs",
+        "operation",
+        "target",
+        "inputs",
+        "operation",
+        "target",
+        "inputs",
+        "clock",
+        "operation",
+        "clock",
+    ]
 
 
 def test_method_benchmark_uses_sample_standard_deviation() -> None:

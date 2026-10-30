@@ -22,8 +22,6 @@ from isaaclab.assets.asset_base import AssetBase
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.utils.warp import ProxyArray
 
-from isaaclab_physx.physics import PhysxManager as SimulationManager
-
 from .deformable_object_data import DeformableObjectData
 from .kernels import (
     compute_nodal_state_w,
@@ -273,6 +271,7 @@ class DeformableObject(AssetBase):
         self._data._root_pos_w.timestamp = -1.0
         # set into simulation
         self.root_view.set_simulation_nodal_positions(self._get_nodal_pos_w_f32(), indices=env_ids)
+        self._backend_manager.get_scene_data_backend().geometry_timestamp += 1
 
     def write_nodal_pos_to_sim_mask(
         self,
@@ -569,6 +568,8 @@ class DeformableObject(AssetBase):
         """
         if (env_ids is None) or (env_ids == slice(None)):
             return self._ALL_INDICES
+        if isinstance(env_ids, slice):
+            return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids])
         if isinstance(env_ids, torch.Tensor):
             if env_ids.dtype == torch.int64:
                 env_ids = env_ids.to(torch.int32)
@@ -579,7 +580,7 @@ class DeformableObject(AssetBase):
 
     def _initialize_impl(self):
         # obtain global simulation view
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
+        self._physics_sim_view = self._backend_manager.get_physics_sim_view()
 
         def has_deformable_body_api(prim) -> bool:
             return "OmniPhysicsDeformableBodyAPI" in prim.GetAppliedSchemas()
@@ -644,12 +645,12 @@ class DeformableObject(AssetBase):
         if self._deformable_type == "surface":
             # surface deformable
             self._root_physx_view = self._physics_sim_view.create_surface_deformable_body_view(
-                root_prim_path_expr.replace(".*", "*")
+                sim_utils.path_expr_to_glob(root_prim_path_expr)
             )
         elif self._deformable_type == "volume":
             # volume deformable
             self._root_physx_view = self._physics_sim_view.create_volume_deformable_body_view(
-                root_prim_path_expr.replace(".*", "*")
+                sim_utils.path_expr_to_glob(root_prim_path_expr)
             )
         else:
             raise RuntimeError(
@@ -677,7 +678,7 @@ class DeformableObject(AssetBase):
                 material_prim_path_expr = material_prim_path
             # -- material view
             self._material_physx_view = self._physics_sim_view.create_deformable_material_view(
-                material_prim_path_expr.replace(".*", "*")
+                sim_utils.path_expr_to_glob(material_prim_path_expr)
             )
         else:
             self._material_physx_view = None

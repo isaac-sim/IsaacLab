@@ -6,9 +6,11 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+import numpy as np
 import warp as wp
 from newton import JointType
 from newton.selection import ArticulationView
@@ -17,8 +19,6 @@ from pxr import UsdPhysics
 
 from isaaclab.sensors.joint_wrench import BaseJointWrenchSensor
 from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
-
-from isaaclab_newton.physics import NewtonManager
 
 from .joint_wrench_sensor_data import JointWrenchSensorData
 from .kernels import joint_wrench_reset_kernel, joint_wrench_to_incoming_joint_frame_kernel
@@ -39,9 +39,9 @@ class JointWrenchSensor(BaseJointWrenchSensor):
 
     :attr:`~isaaclab.sensors.SensorBaseCfg.prim_path` may point at either an
     articulation root expression or an env-scoped parent prefix. Newton label
-    matching selects the articulations owned by that prefix. ``FREE`` and
-    ``FIXED`` joints are excluded because neither has a meaningful joint
-    anchor.
+    matching selects the articulations owned by that prefix. Reports tree joints,
+    including fixed connections between bodies. Free joints, fixed joints to the
+    world, and loop-closing constraints are excluded.
     """
 
     cfg: JointWrenchSensorCfg
@@ -70,7 +70,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         self._joint_child: wp.array | None = None
         self._num_joints: int = 0
 
-        NewtonManager.request_extended_state_attribute("body_parent_f")
+        self._backend_manager.request_extended_state_attribute("body_parent_f")
 
     def __str__(self) -> str:
         """String representation of the sensor instance."""
@@ -125,24 +125,35 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         """PHYSICS_READY callback: builds the articulation view and binds model / state arrays."""
         super()._initialize_impl()
 
-        model = NewtonManager.get_model()
-        state_0 = NewtonManager.get_state_0()
+        model, state_0 = self._backend_manager.backend.model, self._backend_manager.backend.state_0
 
         def has_articulation_root_api(prim) -> bool:
             return bool(prim.HasAPI(UsdPhysics.ArticulationRootAPI))
 
         resolve_kwargs = {"predicate": has_articulation_root_api, "expected_num_matches": 1}
         _, root_prim_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
-        self._root_view = ArticulationView(
-            model,
-            root_prim_path_expr.replace(".*", "*"),
-            verbose=False,
-            exclude_joint_types=[JointType.FREE, JointType.FIXED],
-        )
-        self._num_joints = self._root_view.joint_count
+        self._root_view = self._backend_manager.views.get(root_prim_path_expr)
+        if self._root_view is None:
+            self._root_view = self._backend_manager.views[root_prim_path_expr] = ArticulationView(
+                model,
+                re.compile(root_prim_path_expr),
+                verbose=False,
+                exclude_joint_types=[JointType.FREE, JointType.FIXED],
+            )
+        # Share body bindings with the articulation, but select sensor joints independently
+        # of its control joints. articulation_end excludes loop-closing constraints.
+        articulation_ids = self._root_view.articulation_ids.numpy()[:, 0]
+        joint_starts = model.articulation_start.numpy()[articulation_ids]
+        joint_end = model.articulation_end.numpy()[articulation_ids[0]]
+        tree_joint_ids = np.arange(joint_starts[0], joint_end)
+        joint_types = model.joint_type.numpy()[tree_joint_ids]
+        joint_parents = model.joint_parent.numpy()[tree_joint_ids]
+        report_joint = (joint_types != JointType.FREE) & ((joint_types != JointType.FIXED) | (joint_parents != -1))
+        joint_ids = joint_starts[:, None] + (tree_joint_ids[report_joint] - joint_starts[0])
+        self._num_joints = joint_ids.shape[1]
         if self._num_joints == 0:
             raise RuntimeError(
-                "Joint wrench sensor matched zero reportable joints (all joints are FREE or FIXED)."
+                "Joint wrench sensor matched zero reportable tree joints (only free joints or world-fixed roots)."
                 f" Check the articulation at '{root_prim_path_expr}'."
             )
 
@@ -158,14 +169,14 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         self._sim_bind_body_parent_f = body_parent_f[:, 0]
         self._sim_bind_body_q = self._root_view.get_link_transforms(state_0)[:, 0]
         self._sim_bind_body_com = self._root_view.get_attribute("body_com", model)[:, 0]
-        self._sim_bind_joint_X_c = self._root_view.get_attribute("joint_X_c", model)[:, 0]
+        self._sim_bind_joint_X_c = wp.array(
+            model.joint_X_c.numpy()[joint_ids], dtype=wp.transformf, device=self._device
+        )
 
-        # joint_child is per-articulation; topology is identical across envs,
-        # so we take the first-env mapping as the 1-D kernel input.
-        joint_child_full = self._root_view.get_attribute("joint_child", model)[:, 0]
-        joint_child_np = joint_child_full.numpy()[0]
-        if not all(0 <= b < self._sim_bind_body_parent_f.shape[1] for b in joint_child_np):
-            raise RuntimeError(f"joint_child contains out-of-range body indices for '{self.cfg.prim_path}'")
+        # The shared view orders all tree bodies by model index. Its topology is identical across envs.
+        joint_children = model.joint_child.numpy()
+        body_ids = np.unique(joint_children[tree_joint_ids])
+        joint_child_np = np.searchsorted(body_ids, joint_children[joint_ids[0]])
         self._joint_child = wp.array(joint_child_np, dtype=wp.int32, device=self._device)
 
         link_names = list(self._root_view.link_names)
@@ -196,7 +207,6 @@ class JointWrenchSensor(BaseJointWrenchSensor):
                 self._sim_bind_body_com,
                 self._sim_bind_joint_X_c,
                 self._joint_child,
-                self._timestamp,
             ],
             outputs=[self._data._force, self._data._torque],
             device=self._device,
@@ -221,4 +231,4 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         self._data._body_names = []
         self._data._force_ta = None
         self._data._torque_ta = None
-        NewtonManager.request_extended_state_attribute("body_parent_f")
+        self._backend_manager.request_extended_state_attribute("body_parent_f")

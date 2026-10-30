@@ -18,12 +18,9 @@ from typing import TYPE_CHECKING, Literal
 
 from isaaclab_newton.physics import NewtonCollisionPipelineCfg, NewtonSolverCfg
 
-from isaaclab.utils.configclass import configclass
-
-from ..deformable.newton_manager_cfg import NewtonModelSolverCfg
+from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
-    from isaaclab_newton.physics import NewtonManager
     from newton import CollisionPipeline
     from newton.solvers.experimental.coupled import ModelView
 
@@ -48,6 +45,7 @@ class CouplerEntryCfg:
 
     Each string is treated as a regex matched against full Newton body labels,
     including all descendant body labels below the matched path.
+    ``{ENV_REGEX_NS}`` expands to the simulation's declared clone template.
     """
 
     particles: list[int] = field(default_factory=list)
@@ -70,7 +68,7 @@ class CouplerEntryCfg:
     """Whether this entry owns all shapes whose body index is ``-1``."""
 
     shape_label_patterns: list[str] = field(default_factory=list)
-    """Regexes matched against full Newton shape labels for additional ownership."""
+    """Regexes matched against full Newton shape labels, with ``{ENV_REGEX_NS}`` expansion."""
 
     substeps: int = 1
     """Number of equal substeps this entry runs inside one coupled step."""
@@ -99,8 +97,7 @@ class CouplerProxyMappingCfg:
 
     String selectors use the full-label-regex semantics of
     :attr:`CouplerEntryCfg.bodies`. Raw Newton body ids may be given directly as
-    integers. The coupler resolves selectors to body ids in place, so after build
-    this list holds only integers.
+    integers. The coupler resolves a copy at build time, preserving these declarations.
     """
 
     particles: list[int] = field(default_factory=list)
@@ -111,6 +108,24 @@ class CouplerProxyMappingCfg:
 
     mass_scale: float = 1.0
     """Scale applied to proxy body mass/inertia and particle mass in the destination view."""
+
+    proxy_relaxation: float = 1.0
+    """Relaxation factor applied to proxy-feedback forces in lagged and staggered modes.
+
+    Fixed relaxation blends the new force estimate with the previous feedback.
+    Setting this to ``0`` from a fresh state preserves zero feedback while
+    retaining source-to-destination proxy motion, which yields one-way coupling.
+    Switching an ongoing run to zero instead preserves its existing feedback.
+    """
+
+    proxy_relaxation_mode: Literal["fixed", "aitken"] = "fixed"
+    """Proxy-feedback relaxation mode."""
+
+    proxy_relaxation_min: float = 0.1
+    """Minimum relaxation factor used by adaptive Aitken relaxation."""
+
+    proxy_relaxation_max: float = 1.0
+    """Maximum relaxation factor used by adaptive Aitken relaxation."""
 
     collide_interval: int | None = None
     """Proxy-local collision refresh interval.
@@ -130,7 +145,7 @@ class CouplerProxyMappingCfg:
 
 
 @configclass
-class CouplerCfg(NewtonModelSolverCfg):
+class CouplerCfg(NewtonSolverCfg):
     """Base configuration for a Newton experimental coupled solver.
 
     Bodies, particles, joints, and shapes may be assigned to at most one
@@ -138,11 +153,16 @@ class CouplerCfg(NewtonModelSolverCfg):
     concrete subclass to configure the coupling interfaces.
     """
 
-    class_type: type[NewtonManager] | str = "{DIR}.coupler:NewtonCouplerManager"
-    """Coupler implementation class."""
+    class_type: type | str = "{DIR}.coupler:CouplerSolver"
 
     entries: list[CouplerEntryCfg] = field(default_factory=list)
     """Ordered named sub-solver entries and their ownership selectors."""
+
+    outer_contact_entry: str | None = None
+    """Entry whose shape pairs the outer collision pipeline collides, or ``None`` for the whole model.
+
+    Restricting outer contacts to one entry lets another entry, e.g. a cable, run its own post-transfer pipeline.
+    """
 
 
 @configclass
@@ -162,6 +182,20 @@ class CouplerProxyCfg(CouplerCfg):
 @configclass
 class CouplerAdmmCfg(CouplerCfg):
     """Configuration for Newton's linearized ADMM coupling."""
+
+    contact_max_triangle_pairs: int | None = None
+    """Internal ADMM triangle-pair capacity across all environments in one process.
+
+    ``None`` uses Newton's default. Must be less than ``2**20`` with
+    :attr:`rigid_contact_matching` set to ``"latest"`` or ``"sticky"``;
+    larger capacities require ``"disabled"``.
+    """
+
+    contact_reduction_hashtable_size_factor: float | None = None
+    """Contact-reduction hash table size relative to the internal triangle-pair capacity.
+
+    ``None`` uses Newton's default. Increase it for hash table fill or insertion warnings.
+    """
 
     contact_pairs: list[tuple[str, str]] | None = None
     """Symmetric contact interfaces as ``(entry_name, entry_name)`` pairs.

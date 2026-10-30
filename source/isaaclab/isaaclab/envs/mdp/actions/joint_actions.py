@@ -14,14 +14,13 @@ import torch
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation import Articulation
 from isaaclab.managers.action_manager import ActionTerm
+from isaaclab.utils import index_fill_
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
-    from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
-
+    from ... import ManagerBasedEnv
+    from ...utils.io_descriptors import GenericActionIODescriptor
     from . import actions_cfg
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -62,10 +61,11 @@ class JointAction(ActionTerm):
         super().__init__(cfg, env)
 
         # resolve the joints over which the action term is applied
-        self._joint_ids, self._joint_names = self._asset.find_joints(
-            self.cfg.joint_names, preserve_order=self.cfg.preserve_order
+        joint_ids, self._joint_names = self._asset.find_joints(
+            self.cfg.joint_names, preserve_order=self.cfg.preserve_order, as_proxy=True
         )
-        self._num_joints = len(self._joint_ids)
+        self._num_joints = len(joint_ids)
+        self._joint_ids = joint_ids.torch
         # log the resolved joint names for debugging
         logger.info(
             f"Resolved joint names for the action term {self.__class__.__name__}:"
@@ -170,15 +170,14 @@ class JointAction(ActionTerm):
         # store the raw actions
         self._raw_actions[:] = actions
         # apply the affine transformations
-        self._processed_actions = self._raw_actions * self._scale + self._offset
+        self._processed_actions = self._raw_actions * self._scale
+        self._processed_actions.add_(self._offset)
         # clip actions
         if self.cfg.clip is not None:
-            self._processed_actions = torch.clamp(
-                self._processed_actions, min=self._clip[:, :, 0], max=self._clip[:, :, 1]
-            )
+            self._processed_actions.clamp_(min=self._clip[:, :, 0], max=self._clip[:, :, 1])
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        self._raw_actions[env_ids] = 0.0
+        index_fill_(self._raw_actions, env_ids, 0.0)
 
 
 class JointPositionAction(JointAction):

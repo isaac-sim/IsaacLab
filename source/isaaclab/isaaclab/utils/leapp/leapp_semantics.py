@@ -12,6 +12,10 @@ from contextlib import suppress
 from dataclasses import dataclass
 from typing import Any
 
+import warp as wp
+
+from ..array import convert_to_torch
+
 try:
     from leapp import InputKindEnum, OutputKindEnum
 except ImportError:
@@ -58,6 +62,8 @@ def select_element_names(names: list[str] | None, indices: Any = None) -> list[s
         return list(names)
     if isinstance(indices, slice):
         return list(names[indices])
+    if isinstance(indices, wp.array):
+        indices = convert_to_torch(indices)
     with suppress(AttributeError):
         indices = indices.tolist()
     if isinstance(indices, (list, tuple)):
@@ -75,7 +81,6 @@ def leapp_tensor_semantics(
     const: bool = False,
 ) -> Callable:
     """Attach LEAPP semantic metadata to a raw tensor-producing function."""
-
     semantics = LeappTensorSemantics(
         kind=kind,
         element_names=element_names,

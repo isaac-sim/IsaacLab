@@ -8,11 +8,12 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 from typing import TYPE_CHECKING
 
-from isaaclab.benchmark import SingleMeasurement
-from isaaclab.benchmark.metrics import SuccessRateTracker, get_success_rate_log
+from .. import SingleMeasurement
+from ..metrics import SuccessRateTracker, get_success_rate_log
 
 if TYPE_CHECKING:
     from types import TracebackType
@@ -21,6 +22,8 @@ if TYPE_CHECKING:
     from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
     from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_SUCCESS_THRESHOLD = 0.3
 DEFAULT_SUCCESS_WINDOW = 20
@@ -71,8 +74,8 @@ class RslRlEarlyStopWrapper:
         self.env.step = self._orig_step
         if exc_type is EarlyStopConverged:
             self._runner_cleanup()
-            print(
-                f"[INFO] Early stop: success rate converged at iteration "
+            logger.info(
+                f"Early stop: success rate converged at iteration "
                 f"{self.tracker.current_iteration} (tail mean {self.tracker.tail_mean:.4f})"
             )
             return True
@@ -82,6 +85,8 @@ class RslRlEarlyStopWrapper:
         result = self._orig_step(actions)
         self.tracker.record_step(result[3])  # rsl_rl: (obs, rew, dones, extras)
         if self.tracker.at_iteration_boundary:
+            # Ranks must agree on convergence, or a rank that stops alone deadlocks the others.
+            self.tracker.all_reduce_iteration(self.runner.device)
             self.tracker.end_iteration()
             if self.stop_on_convergence and self.tracker.converged:
                 raise EarlyStopConverged()
@@ -185,10 +190,11 @@ class RlGamesEarlyStopObserver:
         self._base.after_steps()
         if self.tracker is None:
             return
+        self.tracker.all_reduce_iteration(self.algo.ppo_device)
         self.tracker.end_iteration()
         if self.stop_on_convergence and self.tracker.converged and self.algo is not None:
-            print(
-                f"[INFO] Early stop: success rate converged at iteration "
+            logger.info(
+                f"Early stop: success rate converged at iteration "
                 f"{self.tracker.current_iteration} (tail mean {self.tracker.tail_mean:.4f})"
             )
             self.algo.max_epochs = self.tracker.current_iteration
@@ -257,9 +263,7 @@ def get_success_tracker(
 ) -> SuccessRateTracker | None:
     """Return a tracker with recorded history, or ``None`` if neither source has data.
 
-    Prefers *live_tracker* (from the training wrapper/observer). If it never ran or recorded
-    no iterations, falls back to building a post-hoc tracker by replaying the success metric
-    series out of TensorBoard *log_data* (from :func:`isaaclab.benchmark.metrics.parse_tf_logs`).
+    Prefer logged per-iteration history; fall back to the live tracker.
 
     Args:
         args_cli: Parsed arg namespace with the ``--success_*`` flags.
@@ -269,15 +273,17 @@ def get_success_tracker(
     Returns:
         A :class:`SuccessRateTracker` populated with history, or ``None`` if no data is available.
     """
+    history = get_success_rate_log(log_data)
+    if history:
+        tracker = live_tracker
+        if tracker is None:
+            kwargs = build_success_kwargs(args_cli)
+            tracker = SuccessRateTracker(kwargs["threshold"], kwargs["window"], num_steps_per_env=0)
+        tracker.history = list(history)
+        return tracker
     if live_tracker is not None and live_tracker.history:
         return live_tracker
-    history = get_success_rate_log(log_data)
-    if not history:
-        return None
-    kwargs = build_success_kwargs(args_cli)
-    tracker = SuccessRateTracker(kwargs["threshold"], kwargs["window"], num_steps_per_env=0)
-    tracker.history = list(history)
-    return tracker
+    return None
 
 
 def success_measurements(tracker: SuccessRateTracker | None) -> list[SingleMeasurement]:

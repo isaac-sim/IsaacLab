@@ -21,6 +21,9 @@ repos:
       - id: check-added-large-files
         args: ["--maxkb=2000"]  # restrict files more than 2 MB. Should use git-lfs instead.
       - id: check-yaml
+        # OSMO workflow specs are Jinja templates, so they only become valid
+        # YAML once the submission-time parameters have been substituted.
+        exclude: '^docker/cluster/osmo_multi_gpu_workflow\.yaml$'
       - id: check-merge-conflict
         # These verbatim license headings contain a literal "=======" separator.
         exclude: '^docs/licenses/dependencies/(mujoco|llvmlite|numba)-license\.txt$'
@@ -54,13 +57,13 @@ repos:
           - --license-filepath
           - .github/LICENSE_HEADER.txt
           - --use-current-year
-        exclude: "source/isaaclab_mimic/|scripts/imitation_learning/isaaclab_mimic/"
-  # Apache 2.0 license for mimic files
+        exclude: "source/isaaclab_mimic/|scripts/imitation_learning/isaaclab_mimic/|source/isaaclab_teleop/isaaclab_teleop/entrypoints/_instruction_display.py"
+  # Apache 2.0 license for mimic files, and the instruction display moved from isaaclab_mimic with its notices
   - repo: https://github.com/Lucas-C/pre-commit-hooks
     rev: v1.5.5
     hooks:
       - id: insert-license
-        files: ^(source/isaaclab_mimic|scripts/imitation_learning/isaaclab_mimic)/.*\.py$
+        files: ^(source/isaaclab_mimic/.*|scripts/imitation_learning/isaaclab_mimic/.*|source/isaaclab_teleop/isaaclab_teleop/entrypoints/_instruction_display)\.py$
         args:
           # - --remove-header    # Remove existing license headers. Useful when updating license.
           - --license-filepath
@@ -74,8 +77,21 @@ repos:
       - id: rst-inline-touching-normal
   - repo: local
     hooks:
+      - id: check-changelog-fragments
+        name: check changelog fragments
+        entry: python tools/changelog/cli.py check --include-worktree
+        language: python
+        always_run: true
+        pass_filenames: false
       - id: check-git-lfs-pointers
         name: check Git LFS pointers
         entry: tools/pre_commit/check_git_lfs_pointers.sh
         language: script
         pass_filenames: true
+      - id: no-print-warnings
+        name: use logger.warning or warnings.warn instead of print for warnings
+        # See "Warnings and Logging" in docs/source/refs/contributing.rst.
+        entry: '\bprint\(\s*[rRfF]*["''](\\n)*\s*\[?\s*warn'
+        language: pygrep
+        args: [--multiline, --ignore-case]
+        files: ^(source|scripts)/.*\.py$

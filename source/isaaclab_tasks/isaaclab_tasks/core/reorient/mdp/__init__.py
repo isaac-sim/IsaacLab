@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""This sub-module contains the functions that are specific to the in-hand manipulation environments."""
+"""MDP terms specific to the in-hand reorientation environments."""
 
 from isaaclab.utils.module import lazy_export
 

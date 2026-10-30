@@ -13,11 +13,12 @@ from typing import TYPE_CHECKING
 import torch
 from prettytable import PrettyTable
 
+from ..utils import index_fill_
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import RewardTermCfg
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedRLEnv
+    from ..envs import ManagerBasedRLEnv
 
 
 class RewardManager(ManagerBase):
@@ -49,16 +50,17 @@ class RewardManager(ManagerBase):
             env: The environment instance.
         """
         # create buffers to parse and store terms
-        self._term_names: list[str] = list()
-        self._term_cfgs: list[RewardTermCfg] = list()
-        self._class_term_cfgs: list[RewardTermCfg] = list()
+        self._term_names: list[str] = []
+        self._term_cfgs: list[RewardTermCfg] = []
+        self._class_term_cfgs: list[RewardTermCfg] = []
 
         # call the base class constructor (this will parse the terms config)
         super().__init__(cfg, env)
-        # prepare extra info to store individual reward term information
-        self._episode_sums = dict()
-        for term_name in self._term_names:
-            self._episode_sums[term_name] = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
+        # episodic sum of each term; the dictionary holds column views of one matrix for batched updates
+        self._episode_sum_buf = torch.zeros(
+            (self.num_envs, len(self._term_names)), dtype=torch.float, device=self.device
+        )
+        self._episode_sums = {name: self._episode_sum_buf[:, i] for i, name in enumerate(self._term_names)}
         # create buffer for managing reward per environment
         self._reward_buf = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
 
@@ -108,22 +110,16 @@ class RewardManager(ManagerBase):
         Returns:
             Dictionary of episodic sum of individual reward terms.
         """
-        # resolve environment ids
         if env_ids is None:
             env_ids = slice(None)
-        # store information
-        extras = {}
-        for key in self._episode_sums.keys():
-            # store information
-            # r_1 + r_2 + ... + r_n
-            episodic_sum_avg = torch.mean(self._episode_sums[key][env_ids])
-            extras["Episode_Reward/" + key] = episodic_sum_avg / self._env.max_episode_length_s
-            # reset episodic sum
-            self._episode_sums[key][env_ids] = 0.0
+        # average of r_1 + r_2 + ... + r_n over the selected environments, for all terms at once
+        episodic_sum_avg = torch.mean(self._episode_sum_buf[env_ids], dim=0) / self._env.max_episode_length_s
+        extras = {"Episode_Reward/" + key: episodic_sum_avg[i] for i, key in enumerate(self._term_names)}
+        # reset episodic sums
+        index_fill_(self._episode_sum_buf, env_ids, 0.0)
         # reset all the reward terms
         for term_cfg in self._class_term_cfgs:
             term_cfg.func.reset(env_ids=env_ids)
-        # return logged information
         return extras
 
     def compute(self, dt: float) -> torch.Tensor:
@@ -138,23 +134,22 @@ class RewardManager(ManagerBase):
         Returns:
             The net reward signal of shape (num_envs,).
         """
-        # reset computation
-        self._reward_buf[:] = 0.0
-        # iterate over all the reward terms
-        for term_idx, (name, term_cfg) in enumerate(zip(self._term_names, self._term_cfgs)):
+        # compute the weighted reward of each term
+        for term_idx, term_cfg in enumerate(self._term_cfgs):
             # skip if weight is zero (kind of a micro-optimization)
             if term_cfg.weight == 0.0:
                 self._step_reward[:, term_idx] = 0.0
                 continue
-            # compute term's value
-            value = term_cfg.func(self._env, **term_cfg.params) * term_cfg.weight * dt
-            # update total reward
-            self._reward_buf += value
-            # update episodic sum
-            self._episode_sums[name] += value
-
-            # Update current reward for this step.
-            self._step_reward[:, term_idx] = value / dt
+            value = term_cfg.func(self._env, **term_cfg.params)
+            step_reward = self._step_reward[:, term_idx]
+            if isinstance(value, torch.Tensor) and value.shape == step_reward.shape:
+                torch.mul(value, term_cfg.weight, out=step_reward)
+            else:
+                # broadcast scalar values
+                step_reward[:] = value * term_cfg.weight
+        # update total reward and episodic sums with the time-step scaling
+        torch.sum(self._step_reward, dim=1, out=self._reward_buf).mul_(dt)
+        self._episode_sum_buf.add_(self._step_reward, alpha=dt)
 
         return self._reward_buf
 

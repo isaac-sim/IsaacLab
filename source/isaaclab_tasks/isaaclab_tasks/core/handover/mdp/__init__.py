@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Manager-based MDP terms for the Shadow Hand handover task."""
+"""MDP terms specific to the Shadow Hand handover environments."""
 
 from isaaclab.utils.module import lazy_export
 

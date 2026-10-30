@@ -30,6 +30,15 @@ __all__ = [
     "MethodBenchmarkDefinition",
     "MethodBenchmarkRunner",
     "MethodBenchmarkRunnerConfig",
+    "LatencyBenchmarkRunner",
+    "LatencySample",
+    "LatencyStatistics",
+    "add_latency_measurements",
+    "measure_latency",
+    "summarize_latency",
+    "MicrobenchmarkCommand",
+    "MicrobenchmarkFactory",
+    "run_microbenchmark_cli",
     "BooleanMeasurement",
     "DictMeasurement",
     "DictMetadata",
@@ -47,6 +56,7 @@ __all__ = [
     "EnvironmentStepTiming",
     "Framework",
     "GpuDeviceInfo",
+    "GpuResources",
     "Hardware",
     "Learning",
     "LearningCurve",
@@ -97,6 +107,15 @@ from .method_benchmark import (
     MethodBenchmarkRunner,
     MethodBenchmarkRunnerConfig,
 )
+from .micro import (
+    LatencyBenchmarkRunner,
+    LatencySample,
+    LatencyStatistics,
+    add_latency_measurements,
+    measure_latency,
+    summarize_latency,
+)
+from .microbenchmark import MicrobenchmarkCommand, MicrobenchmarkFactory, run_microbenchmark_cli
 from .measurements import (
     BooleanMeasurement,
     DictMeasurement,
@@ -117,6 +136,7 @@ from .schema import (
     EnvironmentStepTiming,
     Framework,
     GpuDeviceInfo,
+    GpuResources,
     Hardware,
     Learning,
     LearningCurve,

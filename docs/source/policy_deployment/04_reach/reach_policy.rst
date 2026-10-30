@@ -3,7 +3,8 @@
 Training a Reach Policy for Real Robot Deployment
 =================================================
 
-This tutorial walks you through training an end-effector pose tracking (reach) reinforcement learning (RL) policy that transfers from simulation to a real robot. By the end of this guide, you will have a trained policy capable of controlling a robot arm to reach arbitrary target end-effector poses within its workspace.
+Train an end-effector pose-tracking policy for a robot arm. The policy learns to
+reach targets sampled within the workspace; the deployment steps use Isaac ROS.
 
 **Supported Robots:**
 
@@ -12,7 +13,7 @@ This tutorial walks you through training an end-effector pose tracking (reach) r
 
 **Scope of This Tutorial:**
 
-This tutorial focuses on the **training** portion of the sim-to-real workflow. For deployment on real hardware, including robot interface setup and ROS inference node configuration, refer to the `Isaac ROS Documentation <https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/index.html>`_.
+This tutorial focuses on the **training** portion of the sim-to-real workflow. For deployment on real hardware, including robot interface setup and ROS inference node configuration, refer to the `Isaac ROS Documentation <https://nvidia-isaac-ros.github.io/v/release-4.6/reference_workflows/isaac_for_manipulation/index.html>`_.
 
 **Prerequisites:**
 
@@ -191,8 +192,8 @@ Each robot has specific actuator configurations and workspace definitions.
                 # Joints 1-2: Higher torque (123 Nm), lower speed
                 "shoulder": ImplicitActuatorCfg(
                     joint_names_expr=["joint[1-2]"],
-                    effort_limit_sim=123.0,
-                    velocity_limit_sim=2.094,  # 120 deg/s
+                    joint_effort_limit=123.0,
+                    joint_velocity_limit=2.094,  # 120 deg/s
                     stiffness=6000.0,
                     damping=108.5,
                     friction=0.0,
@@ -201,8 +202,8 @@ Each robot has specific actuator configurations and workspace definitions.
                 # Joints 3-4: Medium torque (64 Nm), medium speed
                 "elbow": ImplicitActuatorCfg(
                     joint_names_expr=["joint[3-4]"],
-                    effort_limit_sim=64.0,
-                    velocity_limit_sim=2.443,  # 140 deg/s
+                    joint_effort_limit=64.0,
+                    joint_velocity_limit=2.443,  # 140 deg/s
                     stiffness=4200.0,
                     damping=90.7,
                     friction=0.0,
@@ -211,8 +212,8 @@ Each robot has specific actuator configurations and workspace definitions.
                 # Joints 5-7: Lower torque (39 Nm), higher speed
                 "wrist": ImplicitActuatorCfg(
                     joint_names_expr=["joint[5-7]"],
-                    effort_limit_sim=39.0,
-                    velocity_limit_sim=4.887,  # 280 deg/s
+                    joint_effort_limit=39.0,
+                    joint_velocity_limit=4.887,  # 280 deg/s
                     stiffness=1500.0,
                     damping=54.2,
                     friction=0.0,
@@ -430,15 +431,6 @@ Before starting full training, launch a quick visualization run to verify the en
                       --num_envs 4 \
                       --visualizer kit
 
-           .. tab-item:: isaaclab.sh / isaaclab.bat
-
-              .. code-block:: bash
-
-                  ./isaaclab.sh train --rl_library rsl_rl \
-                      --task IsaacContrib-Deploy-Reach-UR10e-ROS-Inference \
-                      --num_envs 4 \
-                      --visualizer kit
-
     .. tab-item:: Flexiv Rizon 4s
 
         .. tab-set::
@@ -448,15 +440,6 @@ Before starting full training, launch a quick visualization run to verify the en
               .. code-block:: bash
 
                   uv run isaaclab train --rl_library rsl_rl \
-                      --task IsaacContrib-Deploy-Reach-Rizon4s-ROS-Inference \
-                      --num_envs 4 \
-                      --visualizer kit
-
-           .. tab-item:: isaaclab.sh / isaaclab.bat
-
-              .. code-block:: bash
-
-                  ./isaaclab.sh train --rl_library rsl_rl \
                       --task IsaacContrib-Deploy-Reach-Rizon4s-ROS-Inference \
                       --num_envs 4 \
                       --visualizer kit
@@ -495,16 +478,7 @@ Launch full training with many parallel environments in headless mode:
 
               .. code-block:: bash
 
-                  uv run isaaclab train --rl_library rsl_rl \
-                      --task IsaacContrib-Deploy-Reach-UR10e-ROS-Inference \
-                      --num_envs 4096 \
-                      --video --video_length 720 --video_interval 72000
-
-           .. tab-item:: isaaclab.sh / isaaclab.bat
-
-              .. code-block:: bash
-
-                  ./isaaclab.sh train --rl_library rsl_rl \
+                  uv run --extra video isaaclab train --rl_library rsl_rl \
                       --task IsaacContrib-Deploy-Reach-UR10e-ROS-Inference \
                       --num_envs 4096 \
                       --video --video_length 720 --video_interval 72000
@@ -517,16 +491,7 @@ Launch full training with many parallel environments in headless mode:
 
               .. code-block:: bash
 
-                  uv run isaaclab train --rl_library rsl_rl \
-                      --task IsaacContrib-Deploy-Reach-Rizon4s-ROS-Inference \
-                      --num_envs 4096 \
-                      --video --video_length 720 --video_interval 72000
-
-           .. tab-item:: isaaclab.sh / isaaclab.bat
-
-              .. code-block:: bash
-
-                  ./isaaclab.sh train --rl_library rsl_rl \
+                  uv run --extra video isaaclab train --rl_library rsl_rl \
                       --task IsaacContrib-Deploy-Reach-Rizon4s-ROS-Inference \
                       --num_envs 4096 \
                       --video --video_length 720 --video_interval 72000
@@ -596,12 +561,6 @@ Use TensorBoard to monitor training metrics:
 
                   uv run python -m tensorboard.main --logdir logs/rsl_rl/reach_ur10e
 
-           .. tab-item:: isaaclab.sh / isaaclab.bat
-
-              .. code-block:: bash
-
-                  ./isaaclab.sh -p -m tensorboard.main --logdir logs/rsl_rl/reach_ur10e
-
     .. tab-item:: Flexiv Rizon 4s
 
         .. tab-set::
@@ -611,12 +570,6 @@ Use TensorBoard to monitor training metrics:
               .. code-block:: bash
 
                   uv run python -m tensorboard.main --logdir logs/rsl_rl/reach_rizon4s
-
-           .. tab-item:: isaaclab.sh / isaaclab.bat
-
-              .. code-block:: bash
-
-                  ./isaaclab.sh -p -m tensorboard.main --logdir logs/rsl_rl/reach_rizon4s
 
 Replace the log directory path with your actual training log location if different.
 
@@ -656,15 +609,6 @@ better visualization:
                       --num_envs 50 \
                       --visualizer kit
 
-           .. tab-item:: isaaclab.sh / isaaclab.bat
-
-              .. code-block:: bash
-
-                  ./isaaclab.sh play --rl_library rsl_rl \
-                      --task IsaacContrib-Deploy-Reach-UR10e \
-                      --num_envs 50 \
-                      --visualizer kit
-
     .. tab-item:: Flexiv Rizon 4s
 
         .. tab-set::
@@ -674,15 +618,6 @@ better visualization:
               .. code-block:: bash
 
                   uv run isaaclab play --rl_library rsl_rl \
-                      --task IsaacContrib-Deploy-Reach-Rizon4s \
-                      --num_envs 50 \
-                      --visualizer kit
-
-           .. tab-item:: isaaclab.sh / isaaclab.bat
-
-              .. code-block:: bash
-
-                  ./isaaclab.sh play --rl_library rsl_rl \
                       --task IsaacContrib-Deploy-Reach-Rizon4s \
                       --num_envs 50 \
                       --visualizer kit
@@ -701,28 +636,8 @@ To load a specific checkpoint, use these arguments:
 
       .. code-block:: bash
 
-          # Load from a specific run folder
-          uv run isaaclab play --rl_library rsl_rl \
-              --task IsaacContrib-Deploy-Reach-UR10e \
-              --load_run 2025-01-15_14-30-00
-
           # Load a specific checkpoint file
           uv run isaaclab play --rl_library rsl_rl \
-              --task IsaacContrib-Deploy-Reach-UR10e \
-              --checkpoint /path/to/model_1500.pt
-
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-          # Load from a specific run folder
-          ./isaaclab.sh play --rl_library rsl_rl \
-              --task IsaacContrib-Deploy-Reach-UR10e \
-              --load_run 2025-01-15_14-30-00
-
-          # Load a specific checkpoint file
-          ./isaaclab.sh play --rl_library rsl_rl \
               --task IsaacContrib-Deploy-Reach-UR10e \
               --checkpoint /path/to/model_1500.pt
 
@@ -737,7 +652,7 @@ Once satisfied with the trained policy, deploy it on real hardware using the Isa
 
 No additional export step is required.
 
-For detailed deployment instructions, see the `Isaac ROS Documentation <https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/index.html>`_.
+For detailed deployment instructions, see the `Isaac ROS Documentation <https://nvidia-isaac-ros.github.io/v/release-4.6/reference_workflows/isaac_for_manipulation/index.html>`_.
 
 
 Troubleshooting
@@ -788,6 +703,6 @@ Further Resources
 
 - `IndustReal: Transferring Contact-Rich Assembly Tasks from Simulation to Reality <https://arxiv.org/abs/2305.17110>`_
 - `FORGE: Force-Guided Exploration for Robust Contact-Rich Manipulation under Uncertainty <https://arxiv.org/abs/2408.04587>`_
-- `Isaac ROS Manipulation Documentation <https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/index.html>`_
+- `Isaac ROS Manipulation Documentation <https://nvidia-isaac-ros.github.io/v/release-4.6/reference_workflows/isaac_for_manipulation/index.html>`_
 - Gear Assembly Sim-to-Real Tutorial: :ref:`walkthrough_sim_to_real`
 - RL Training Tutorial: :ref:`tutorial-run-rl-training`

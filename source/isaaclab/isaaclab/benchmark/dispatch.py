@@ -10,15 +10,21 @@ from __future__ import annotations
 import argparse
 import importlib
 import sys
+import warnings
 from typing import TYPE_CHECKING, Any
+
+from ..app.logging_utils import configure_console_logging
 
 if TYPE_CHECKING:
     from .api import BenchmarkLauncherConfig, BenchmarkRequest, BenchmarkResult
 
-_WORKFLOW_MODULES = {
+WORKFLOW_MODULES = {
     "runtime": "isaaclab.benchmark.entrypoints.runtime",
     "startup": "isaaclab.benchmark.entrypoints.startup",
 }
+"""Single-process workflows that need no reinforcement-learning backend."""
+
+
 _RL_WORKFLOW_MODULES = {
     "training": {
         "rl_games": "isaaclab.benchmark.entrypoints.backends.rl_games.benchmark_train_rl_games",
@@ -65,18 +71,43 @@ def run_benchmark_request(request: BenchmarkRequest) -> BenchmarkResult:
 
 
 def run_benchmark_cli(argv: list[str] | None = None) -> int:
-    """Run a runtime, startup, training, or play benchmark from CLI arguments."""
+    """Run a runtime, startup, training, or play benchmark from CLI arguments.
+
+    Appending ``_multigpu`` to a workflow name runs it across several GPUs; see
+    :mod:`isaaclab.benchmark.entrypoints.multigpu`.
+    """
+    from .entrypoints import multigpu
+
+    configure_console_logging()
     if argv is None:
         argv = sys.argv[1:]
     argv = _fuse_kit_args(argv)
+    multigpu_workflows = tuple(f"{name}{multigpu.MULTIGPU_SUFFIX}" for name in multigpu.MULTIGPU_WORKFLOWS)
+    legacy_multigpu_workflows = tuple(
+        f"{name}{multigpu.LEGACY_MULTIGPU_SUFFIX}" for name in multigpu.MULTIGPU_WORKFLOWS
+    )
     parser = argparse.ArgumentParser(description="Run an Isaac Lab benchmark.")
-    parser.add_argument("workflow", choices=(*_WORKFLOW_MODULES, *_RL_WORKFLOW_MODULES))
+    parser.add_argument(
+        "workflow",
+        choices=(*WORKFLOW_MODULES, *_RL_WORKFLOW_MODULES, *multigpu_workflows, *legacy_multigpu_workflows),
+    )
     if not argv or argv[0] in ("-h", "--help"):
         parser.parse_args(argv)
     selected = parser.parse_args(argv[:1])
+    if selected.workflow in multigpu_workflows:
+        workflow = selected.workflow[: -len(multigpu.MULTIGPU_SUFFIX)]
+        return multigpu.run_multigpu_benchmark_cli(workflow, argv[1:])
+    if selected.workflow in legacy_multigpu_workflows:
+        workflow = selected.workflow[: -len(multigpu.LEGACY_MULTIGPU_SUFFIX)]
+        warnings.warn(
+            f"'{selected.workflow}' is deprecated. Use '{workflow}{multigpu.MULTIGPU_SUFFIX}' instead.",
+            FutureWarning,
+            stacklevel=2,
+        )
+        return multigpu.run_multigpu_benchmark_cli(workflow, argv[1:])
     if selected.workflow in _RL_WORKFLOW_MODULES:
         return _run_rl_cli(selected.workflow, argv[1:])
-    module = importlib.import_module(_WORKFLOW_MODULES[selected.workflow])
+    module = importlib.import_module(WORKFLOW_MODULES[selected.workflow])
     module.run(argv[1:])
     return 0
 
@@ -114,8 +145,8 @@ def _run_rl_cli(workflow: str, argv: list[str] | None) -> int:
 
 
 def _workflow_module(workflow: str, backend: str | None) -> str:
-    if workflow in _WORKFLOW_MODULES:
-        return _WORKFLOW_MODULES[workflow]
+    if workflow in WORKFLOW_MODULES:
+        return WORKFLOW_MODULES[workflow]
     if workflow not in _RL_WORKFLOW_MODULES:
         raise ValueError(f"Unsupported benchmark workflow: {workflow!r}")
     if backend not in _RL_WORKFLOW_MODULES[workflow]:
@@ -129,8 +160,8 @@ def _request_argv(request: BenchmarkRequest) -> list[str]:
     _append_value(argv, "--seed", getattr(request, "seed", None))
 
     if request.workflow == "runtime":
-        _append_value(argv, "--num_frames", request.num_frames)
-        _append_value(argv, "--warmup_frames", request.warmup_frames)
+        _append_value(argv, "--num_steps", request.num_steps)
+        _append_value(argv, "--warmup_steps", request.warmup_steps)
     elif request.workflow == "startup":
         _append_value(argv, "--top_n", request.top_n)
         _append_value(argv, "--whitelist_config", request.whitelist_config)
@@ -162,8 +193,8 @@ def _request_argv(request: BenchmarkRequest) -> list[str]:
     elif request.workflow == "play":
         _append_value(argv, "--checkpoint", request.checkpoint)
         _append_value(argv, "--agent", request.agent)
-        _append_value(argv, "--num_frames", request.num_frames)
-        _append_value(argv, "--warmup_frames", request.warmup_frames)
+        _append_value(argv, "--num_steps", request.num_steps)
+        _append_value(argv, "--warmup_steps", request.warmup_steps)
 
     if getattr(request, "measure_synchronized_step_breakdown", False):
         argv.append("--measure_sync_step")
@@ -185,9 +216,8 @@ def _launcher_argv(launcher: BenchmarkLauncherConfig) -> list[str]:
     _append_value(argv, "--device", launcher.device)
     if launcher.enable_cameras:
         argv.append("--enable_cameras")
-    if launcher.visualizers is not None:
-        value = ",".join(launcher.visualizers) if launcher.visualizers else "none"
-        argv.extend(("--visualizer", value))
+    if launcher.visualizers:
+        argv.extend(("--visualizer", ",".join(launcher.visualizers)))
     _append_value(argv, "--max_visible_envs", launcher.max_visible_envs)
     _append_value(argv, "--experience", launcher.experience)
     if launcher.animation_recording:
@@ -213,16 +243,7 @@ def _append_value(argv: list[str], option: str, value: object | None) -> None:
 
 
 def _fuse_kit_args(argv: list[str]) -> list[str]:
-    """Fuse an option-like Kit argument value into argparse-compatible form."""
-    fused: list[str] = []
-    index = 0
-    while index < len(argv):
-        token = argv[index]
-        next_token = argv[index + 1] if index + 1 < len(argv) else None
-        if token == "--kit_args" and next_token is not None and next_token.startswith("-") and " " not in next_token:
-            fused.append(f"--kit_args={next_token}")
-            index += 2
-        else:
-            fused.append(token)
-            index += 1
-    return fused
+    # imported here so that importing this module stays lightweight
+    from ..app.sim_launcher import fuse_kit_args
+
+    return fuse_kit_args(argv)

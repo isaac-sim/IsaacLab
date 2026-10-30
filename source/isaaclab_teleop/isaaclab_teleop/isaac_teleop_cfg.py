@@ -3,16 +3,16 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configuration class for IsaacTeleop-based teleoperation."""
+"""Configuration class for Isaac Capture-based teleoperation."""
 
 from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import MISSING, field
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from .control_events import TELEOP_CONTROL_CHANNEL_UUID
 from .xr_cfg import XrCfg
@@ -28,7 +28,7 @@ CLOUDXR_JS_ENV: str = str(_CLOUDXR_ENV_DIR / "cloudxrjs-cloudxr.env")
 CLOUDXR_STANDALONE_ENV: str = str(_CLOUDXR_ENV_DIR / "cloudxr-standalone.env")
 """Absolute path to the standalone (headless, no XR client) CloudXR ``.env`` profile.
 
-Default profile for teleop scripts run without ``--xr``, where IsaacTeleop is a
+Default profile for teleop scripts run without ``--xr``, where Isaac Capture is a
 pure input/output transport and creates its own OpenXR session. It forces a
 ``quest3`` device profile so the CloudXR runtime advertises an OpenXR system with
 no client connected, working around ``XR_ERROR_FORM_FACTOR_UNAVAILABLE`` (``-35``).
@@ -40,13 +40,126 @@ if TYPE_CHECKING:
 
 
 @configclass
-class IsaacTeleopCfg:
-    """Configuration for IsaacTeleop-based teleoperation.
+class XrCameraFeedCfg:
+    """Configuration for one camera image panel shown in XR.
 
-    This configuration class defines the parameters needed to create a IsaacTeleop
+    Render-product policy authored for a feed remains on the selected camera
+    render product until that prim is replaced or destroyed. Closing the PiP
+    panel releases display resources but does not restore prior policy values.
+    """
+
+    camera_name: str = MISSING
+    """Name of the :class:`~isaaclab.sensors.Camera` in the interactive scene."""
+
+    enabled: bool = True
+    """Whether to create and update this feed."""
+
+    enable_dlss_ray_reconstruction: bool | None = None
+    """Enable DLSS Ray Reconstruction on this feed's RTX render product.
+
+    ``None`` preserves the render-product default. When ``True``, the teleoperation
+    and recording scripts also enable responsive denoising before environment
+    construction. The private PiP adapter applies this setting on a best-effort
+    basis when binding to a compatible render product. Backends without one keep
+    using the Camera-buffer fallback.
+    """
+
+    dlss_exec_mode: Literal["performance", "balanced", "quality", "auto", "rtxaa", "manual"] | None = None
+    """Optional DLSS execution mode for this feed's RTX render product.
+
+    ``None`` preserves the render-product default. The private PiP adapter applies
+    this setting on a best-effort basis when binding to a compatible render product;
+    it does not author the value on other render products.
+    """
+
+    panel_width_m: float = 0.48
+    """Physical panel width [m]."""
+
+    distance_m: float = 0.8
+    """Distance in front of the viewer anchor [m].
+
+    This value is unused when :attr:`XrCameraFeedLayoutCfg.placement` is
+    ``"world"``.
+    """
+
+    offset_m: tuple[float, float] = (0.0, 0.0)
+    """Horizontal and vertical panel offset in the selected placement frame [m]."""
+
+    max_update_hz: float = 30.0
+    """Maximum provider upload rate [Hz]. Set to zero to update after every rendered frame."""
+
+    label: str | None = None
+    """Optional short label shown above the image."""
+
+
+@configclass
+class XrCameraFeedLayoutCfg:
+    """Declarative placement and packing for enabled XR camera feeds."""
+
+    mode: Literal["manual", "horizontal", "vertical", "grid"] = "manual"
+    """Layout mode. Manual preserves each feed's offset and distance."""
+
+    placement: Literal["viewer_start", "head_locked", "world"] = "viewer_start"
+    """Reference frame used to place the panels.
+
+    ``"viewer_start"`` captures the first valid viewer eye position and yaw,
+    then leaves the panels fixed in the world. ``"head_locked"`` follows the
+    viewer with full pose. ``"world"`` uses :attr:`world_position_m` and
+    :attr:`world_orientation_xyzw` as a fixed pose in the Isaac Lab USD stage
+    world.
+    """
+
+    center_offset_m: tuple[float, float] = (0.0, 0.0)
+    """Horizontal and vertical center of an automatic layout [m]."""
+
+    distance_m: float = 0.8
+    """Distance of every automatically placed panel from the viewer anchor [m].
+
+    This value is unused when :attr:`placement` is ``"world"``.
+    """
+
+    panel_gap_m: float = 0.04
+    """Edge-to-edge gap between automatically placed panels [m]."""
+
+    max_columns: int = 2
+    """Maximum number of columns in grid mode."""
+
+    world_position_m: tuple[float, float, float] | None = None
+    """Layout-plane center in the Isaac Lab USD stage world [m].
+
+    Isaac Lab stages are Z-up. This value is required when :attr:`placement`
+    is ``"world"``.
+    """
+
+    world_orientation_xyzw: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
+    """Panel-local-to-world orientation as a quaternion in ``xyzw`` order.
+
+    Panel local +X is image right, +Y is image up, and +Z points from the
+    panel's readable side toward the viewer. Feed and layout offsets are
+    applied in the resulting local XY plane.
+    """
+
+    use_scene_partition: bool = False
+    """Isolate the entire SceneUI root from robot cameras. Defaults to False.
+
+    Preparation disables selected Isaac RTX cameras' environment partitioning before
+    environment construction. Binding sets ``showAllPartitionsByDefault=False`` after renderer
+    initialization and before creating panels. Other scene cameras must also disable partitioning.
+    Geometry starts as shared background; the presenter assigns
+    XR and ``/ui`` to the PiP partition and refreshes inheritance when SceneUI children appear.
+    Camera configuration is restored after the last prepared session closes; the global setting's
+    bind-time value is restored after the last bound session closes, unless changed externally.
+    """
+
+
+@configclass
+class IsaacTeleopCfg:
+    """Configuration for Isaac Capture-based teleoperation.
+
+    This configuration class defines the parameters needed to create an Isaac Capture
     teleoperation session integrated with Isaac Lab environments.
 
-    The pipeline_builder is a callable that constructs the IsaacTeleop retargeting
+    The pipeline_builder is a callable that constructs the Isaac Capture retargeting
     pipeline. It should return an OutputCombiner with a single "action" output
     that contains the flattened action tensor (typically via TensorReorderer).
 
@@ -82,8 +195,17 @@ class IsaacTeleopCfg:
     to follow a prim (e.g., robot base) during locomotion tasks.
     """
 
+    xr_camera_feeds: list[XrCameraFeedCfg] = field(default_factory=list)
+    """Existing task camera outputs to show as XR image panels.
+
+    The default empty list disables PiP.
+    """
+
+    xr_camera_feed_layout: XrCameraFeedLayoutCfg = field(default_factory=XrCameraFeedLayoutCfg)
+    """Placement and packing applied to the ordered enabled camera feeds."""
+
     pipeline_builder: Callable[[], OutputCombiner] = MISSING
-    """Callable that builds the IsaacTeleop retargeting pipeline.
+    """Callable that builds the Isaac Capture retargeting pipeline.
 
     The function should return an OutputCombiner with an "action" output
     containing the flattened action tensor matching the Isaac Lab action space.
@@ -95,7 +217,7 @@ class IsaacTeleopCfg:
     """
 
     plugins: list[PluginConfig] = field(default_factory=list)
-    """List of IsaacTeleop plugin configurations.
+    """List of Isaac Capture plugin configurations.
 
     Plugins can provide additional functionality like synthetic hand tracking
     from controller inputs.
@@ -105,12 +227,12 @@ class IsaacTeleopCfg:
     """Torch device string for placing output action tensors."""
 
     retargeting_execution: RetargetingExecutionConfig | None = None
-    """IsaacTeleop retargeting execution settings.
+    """Isaac Capture retargeting execution settings.
 
     Left as ``None`` by default so that importing and constructing this config
     never requires the optional ``isaacteleop`` package (e.g. on platforms where
     it is not installed). When ``None``, Isaac Lab resolves it at session start to
-    IsaacTeleop's pipelined, deadline-paced default
+    Isaac Capture's pipelined, deadline-paced default
     (``RetargetingExecutionConfig(mode="pipelined", pacing=DeadlinePacingConfig(safety_margin_s=0.025))``),
     where ``isaacteleop`` is guaranteed to be available. Set this explicitly to
     ``RetargetingExecutionConfig(mode="sync")`` for exact current-frame
@@ -162,22 +284,25 @@ class IsaacTeleopCfg:
     """Optional USD prim path whose world frame becomes the target coordinate
     frame for all output poses.
 
-    When set, the device automatically reads this prim's world transform each
-    frame and uses its inverse as the ``target_T_world`` rebase matrix in
+    The prim must exist when entering the device context. Its Fabric attribute is bound
+    once at that point; a missing prim raises :class:`ValueError` before the session starts.
+    Each frame reads its current world transform and uses its inverse as the
+    ``target_T_world`` rebase matrix in
     :meth:`~isaaclab_teleop.IsaacTeleopDevice.advance`.  An explicit
     ``target_T_world`` argument to :meth:`~isaaclab_teleop.IsaacTeleopDevice.advance`
     takes precedence over this config.
 
     Typical usage: set to the robot base link prim path so that an IK
     controller receives end-effector poses in the robot's base frame.
+    :func:`create_isaac_teleop_device` expands ``{ENV_REGEX_NS}`` when given an ``env_prim_path``.
 
     Example::
 
         IsaacTeleopCfg(
-            target_frame_prim_path="/World/envs/env_0/Robot/base_link",
+            target_frame_prim_path="{ENV_REGEX_NS}/Robot/base_link",
             ...
         )
     """
 
     app_name: str = "IsaacLabTeleop"
-    """Application name for the IsaacTeleop session."""
+    """Application name for the Isaac Capture session."""

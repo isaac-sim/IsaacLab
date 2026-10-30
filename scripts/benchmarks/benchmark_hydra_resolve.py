@@ -31,6 +31,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import io
+import logging
 import os
 import statistics
 import sys
@@ -59,11 +60,13 @@ class Case:
     args: tuple[str, ...] = ()
 
 
+logger = logging.getLogger(__name__)
+
 QUICK_CASES = (
     Case("cartpole_manager", "Isaac-Cartpole"),
     Case("cartpole_camera_presets", "Isaac-Cartpole-Camera-Direct", "rl_games_cfg_entry_point"),
     Case("anymal_rough", "IsaacContrib-Velocity-Rough-AnymalC"),
-    Case("franka_lift_cube", "Isaac-Lift-Cube-Franka"),
+    Case("franka_lift_cube", "IsaacContrib-Lift-Cube-Franka"),
     Case(
         "cartpole_camera_newton_ovrtx",
         "Isaac-Cartpole-Camera-Direct",
@@ -81,7 +84,7 @@ BROAD_CASES = (
     Case("ant_manager", "Isaac-Ant"),
     Case("humanoid_manager", "Isaac-Humanoid", "rsl_rl_cfg_entry_point"),
     Case("franka_reach", "Isaac-Reach-Franka"),
-    Case("franka_lift_cube_agent", "Isaac-Lift-Cube-Franka", "sb3_cfg_entry_point"),
+    Case("franka_lift_cube_agent", "IsaacContrib-Lift-Cube-Franka", "sb3_cfg_entry_point"),
     Case("kuka_allegro_lift", "Isaac-Lift-KukaAllegro", "rsl_rl_cfg_entry_point"),
     Case(
         "kuka_allegro_lift_single_camera",
@@ -216,7 +219,7 @@ def main() -> int:
     valid_cases = tuple(case for case in cases if case.task in gymnasium.registry)
     skipped = [case.task for case in cases if case.task not in gymnasium.registry]
     if skipped:
-        print(f"[WARN] Skipping unregistered task(s): {skipped}")
+        logger.warning(f"Skipping unregistered task(s): {skipped}")
     if not valid_cases:
         print("[ERROR] No valid benchmark cases.")
         return 1

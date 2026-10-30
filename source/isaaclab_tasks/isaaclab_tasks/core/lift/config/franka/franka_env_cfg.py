@@ -1,0 +1,335 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Configuration for the Franka lift environment."""
+
+from isaaclab.assets import ArticulationCfg
+from isaaclab.managers import CurriculumTermCfg as CurrTerm
+from isaaclab.managers import EventTermCfg as EventTerm
+from isaaclab.managers import ObservationTermCfg as ObsTerm
+from isaaclab.managers import RewardTermCfg as RewTerm
+from isaaclab.managers import SceneEntityCfg
+from isaaclab.sensors import ContactSensorCfg
+from isaaclab.sim import MeshCapsuleCfg, MeshCuboidCfg, MeshSphereCfg
+from isaaclab.utils import clone, configclass, replace
+
+from isaaclab_tasks.utils import preset
+
+from isaaclab_assets.robots import FRANKA_MINIMAL_CFG, FRANKA_PANDA_CFG
+
+from ... import lift_env_cfg as lift
+from ... import mdp
+
+##
+# Scene assets
+##
+
+# Lift inherits the shared asset and overrides its calibrated manipulation actuators.
+FRANKA_PANDA_LIFT_CFG = clone(FRANKA_PANDA_CFG)
+FRANKA_PANDA_LIFT_CFG.actuators = {
+    # inspired by libfranka's joint_impedance_control.cpp; ``actuator_velocity_limit`` is the soft task
+    # limit and ``joint_velocity_limit`` the separate solver request
+    "panda_arm": replace(
+        FRANKA_PANDA_CFG.actuators["panda_arm"],
+        actuator_velocity_limit={"panda_joint[1-4]": 2.175, "panda_joint[5-7]": 2.61},
+        stiffness={
+            "panda_joint[1-4]": 600.0,
+            "panda_joint5": 250.0,
+            "panda_joint6": 150.0,
+            "panda_joint7": 50.0,
+        },
+        damping={
+            "panda_joint[1-4]": 50.0,
+            "panda_joint5": 30.0,
+            "panda_joint6": 25.0,
+            "panda_joint7": 15.0,
+        },
+        armature={
+            "panda_joint[1-2]": 0.6057,
+            "panda_joint[3-4]": 0.4625,
+            "panda_joint[5-7]": 0.2055,
+        },
+    ),
+    "panda_hand": replace(
+        FRANKA_PANDA_CFG.actuators["panda_hand"],
+        joint_effort_limit=70.0,
+        actuator_velocity_limit=0.2,
+        joint_velocity_limit=2.0,
+        stiffness=350.0,
+        damping=175.0,
+        armature=0.1,
+    ),
+    "panda_finger2_passive": replace(
+        FRANKA_PANDA_CFG.actuators["panda_finger2_passive"],
+        joint_effort_limit=1.0,
+        actuator_velocity_limit=0.2,
+        joint_velocity_limit=2.0,
+        armature=0.1,
+    ),
+}
+
+"""Franka Panda configuration for the lift tasks."""
+
+FINGERTIP_LIST = ["panda_rightfinger", "panda_leftfinger"]
+"""Finger bodies that carry an object contact sensor."""
+
+THUMB_SENSOR = "panda_leftfinger_object_s"
+"""Contact sensor that plays the thumb in the finger-contact rewards."""
+
+FINGER_SENSORS = [f"{name}_object_s" for name in FINGERTIP_LIST if name != "panda_leftfinger"]
+"""Contact sensors of the remaining fingers."""
+
+GRASPABLE_OBJECT_PREGRASPS = [
+    (MeshCuboidCfg(size=(0.05, 0.05, 0.05), **lift.OBJECT_PHYSICS), 0.026, (0.0, 0.0, 0.0, 1.0)),
+    (MeshCuboidCfg(size=(0.025, 0.05, 0.05), **lift.OBJECT_PHYSICS), 0.026, (0.0, 0.0, 0.0, 1.0)),
+    (MeshCuboidCfg(size=(0.025, 0.025, 0.05), **lift.OBJECT_PHYSICS), 0.0135, (0.0, 0.0, 0.0, 1.0)),
+    (MeshCuboidCfg(size=(0.01, 0.05, 0.05), **lift.OBJECT_PHYSICS), 0.026, (0.0, 0.0, 0.0, 1.0)),
+    (MeshSphereCfg(radius=0.02, **lift.OBJECT_PHYSICS), 0.021, (0.0, 0.0, 0.0, 1.0)),
+    (MeshCapsuleCfg(radius=0.025, height=0.1, **lift.OBJECT_PHYSICS), 0.026, (0.0, 2.0**-0.5, 0.0, 2.0**-0.5)),
+    (MeshCapsuleCfg(radius=0.025, height=0.2, **lift.OBJECT_PHYSICS), 0.026, (0.0, 2.0**-0.5, 0.0, 2.0**-0.5)),
+    (MeshCapsuleCfg(radius=0.01, height=0.2, **lift.OBJECT_PHYSICS), 0.011, (0.0, 2.0**-0.5, 0.0, 2.0**-0.5)),
+]
+"""Object shapes, finger openings [m], and object orientations in the hand frame [xyzw]."""
+
+
+##
+# Scene definition
+##
+
+
+@configclass
+class FrankaSceneCfg(lift.SceneCfg):
+    """Franka scene for the lift task."""
+
+    robot: ArticulationCfg = replace(FRANKA_PANDA_LIFT_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.robot.spawn.variants["Physics"] = preset(
+            default="mujoco", isaacsim_physx="physx", physx="physx", ovphysx="physx"
+        )
+        self.robot.spawn.variants["Colliders"] = preset(
+            default=FRANKA_PANDA_CFG.spawn.variants["Colliders"],
+            minimal=FRANKA_MINIMAL_CFG.spawn.variants["Colliders"],
+        )
+        self.robot.spawn.activate_contact_sensors = True
+        # the base is rotated by 180 degrees about z so the workspace lies at positive x
+        self.robot.init_state.rot = (0.0, 0.0, 1.0, 0.0)
+        # one object contact sensor per finger
+        for link_name in FINGERTIP_LIST:
+            setattr(
+                self,
+                f"{link_name}_object_s",
+                ContactSensorCfg(
+                    prim_path="{ENV_REGEX_NS}/Robot/Geometry/panda_link0/panda_link1/panda_link2/panda_link3/panda_link4/panda_link5/panda_link6/panda_link7/panda_hand/"
+                    + link_name,
+                    filter_prim_paths_expr=["{ENV_REGEX_NS}/Object"],
+                ),
+            )
+        graspable_shape_assets_cfg = [clone(shape) for shape, _, _ in GRASPABLE_OBJECT_PREGRASPS]
+        self.object.spawn.shapes.assets_cfg = graspable_shape_assets_cfg
+        self.object.spawn.default.assets_cfg = graspable_shape_assets_cfg
+
+
+##
+# MDP settings
+##
+
+
+@configclass
+class StateObservationCfg(lift.ObservationsCfg):
+    """State observations for the Franka lift tasks."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.proprio.contact = ObsTerm(
+            func=mdp.fingers_contact_force_b,
+            params={"contact_sensor_names": [f"{link}_object_s" for link in FINGERTIP_LIST]},
+            clip=(-20.0, 20.0),
+        )
+        self.proprio.hand_tips_state_b.params["body_asset_cfg"].body_names = FINGERTIP_LIST
+
+
+@configclass
+class FrankaRelJointPosActionCfg:
+    """Relative joint position targets for all joints."""
+
+    action = mdp.RelativeJointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.1)
+
+
+@configclass
+class FrankaReorientRewardCfg(lift.RewardsCfg):
+    """Reward terms for the MDP, with the Franka finger contact sensors filled in."""
+
+    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-1e-4)
+    joint_vel = RewTerm(func=mdp.joint_vel_l2, weight=-1e-4, params={"asset_cfg": SceneEntityCfg("robot")})
+
+    good_finger_contact = RewTerm(
+        func=mdp.contacts,
+        weight=0.75,
+        params={"threshold": 0.01, "thumb_name": THUMB_SENSOR, "finger_names": FINGER_SENSORS},
+    )
+
+    contact_count = RewTerm(
+        func=mdp.contact_count,
+        weight=0.1,
+        params={"threshold": 0.01, "sensor_names": FINGER_SENSORS + [THUMB_SENSOR]},
+    )
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.fingers_to_object.params["asset_cfg"] = SceneEntityCfg("robot", body_names=".*finger")
+        self.fingers_to_object.params["thumb_name"] = THUMB_SENSOR
+        self.fingers_to_object.params["finger_names"] = FINGER_SENSORS
+        self.position_tracking.params["thumb_name"] = THUMB_SENSOR
+        self.position_tracking.params["finger_names"] = FINGER_SENSORS
+        if self.orientation_tracking:
+            self.orientation_tracking.params["thumb_name"] = THUMB_SENSOR
+            self.orientation_tracking.params["finger_names"] = FINGER_SENSORS
+        self.success.params["thumb_name"] = THUMB_SENSOR
+        self.success.params["finger_names"] = FINGER_SENSORS
+
+
+@configclass
+class FrankaLiftCurriculumCfg(lift.CurriculumCfg):
+    """Franka-specific motion regularization as grasp difficulty increases."""
+
+    action_rate = CurrTerm(
+        func=mdp.modify_term_cfg,
+        params={
+            "address": "rewards.action_rate.weight",
+            "modify_fn": mdp.difficulty_interpolate_float,
+            "modify_params": {"initial_value": -1e-4, "final_value": -1e-1},
+        },
+    )
+    joint_vel = CurrTerm(
+        func=mdp.modify_term_cfg,
+        params={
+            "address": "rewards.joint_vel.weight",
+            "modify_fn": mdp.difficulty_interpolate_float,
+            "modify_params": {"initial_value": -1e-4, "final_value": -1e-1},
+        },
+    )
+
+
+@configclass
+class FrankaEventCfg(lift.EventCfg):
+    """Franka-specific event configuration."""
+
+    # closing speed = kp * action_scale / kd; kd range derived for 0.2 .. 0.01 m/s so it
+    # tracks kp/base-kd/scale changes. Driven finger only: damping on the passive mimic
+    # joint drags the pair asymmetrically.
+    gripper_closing_speed = EventTerm(
+        func=mdp.randomize_actuator_gains,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names="panda_finger_joint1"),
+            "damping_distribution_params": (
+                0.0,
+                FRANKA_PANDA_LIFT_CFG.actuators["panda_hand"].stiffness * 0.1 / 0.01
+                - FRANKA_PANDA_LIFT_CFG.actuators["panda_hand"].damping,
+            ),
+            "operation": "add",
+        },
+    )
+
+    def __post_init__(self):
+        super().__post_init__()
+        reset_terms = self.conditional_reset.params["terms"]
+        criteria = self.conditional_reset.params["valid_criteria"]
+        # the coupled finger pair is one mechanical DOF: independent per-joint draws write
+        # equality-violating states the solver snaps shut at birth, so the pair shares one draw
+        reset_terms["reset_robot_wrist_joint"].params["asset_cfg"] = SceneEntityCfg("robot", joint_names="panda_joint7")
+        reset_terms["reset_robot_joints"].params["asset_cfg"] = SceneEntityCfg("robot", joint_names="panda_joint.*")
+        fingers = SceneEntityCfg("robot", joint_names="panda_finger_joint.*")
+        reset_terms["reset_gripper_width"] = EventTerm(
+            func=mdp.reset_joints_shared_offset,
+            mode="reset",
+            params={"position_range": [-0.04, 0.0], "asset_cfg": fingers},
+        )
+        # spawn-in-hand: the grasp center sits ~0.10 m along the hand z-axis (fingertip plane)
+        to_target = reset_terms["reset_object_to_target"].params
+        to_target["target_cfg"] = SceneEntityCfg("robot", body_names="panda_hand")
+        to_target["pose_range"] = {"x": [-0.02, 0.02], "y": [-0.02, 0.02], "z": [0.08, 0.12]}
+        # The ground-mounted base is excluded; all enabled arm and gripper colliders are checked.
+        criteria["robot_table_clearance"].body_names = ["panda_link[1-7]", "panda_hand", ".*finger"]
+
+        # Allow prefill even with one environment per shape and a low acceptance rate.
+        self.conditional_reset.params["max_prefill_iters"] = 20_000
+
+        # spread the reset bank over the grasp geometry, same bodies as fingers_to_object
+        diversity_feature = self.conditional_reset.params.get("diversity_feature")
+        if diversity_feature is not None:
+            diversity_feature.body_names = ".*finger"
+        # keep the generic gain randomization off the fingers: the closing-speed term owns
+        # their damping, and stacking the x2 scale on top cancels the grip force entirely.
+        self.joint_stiffness_and_damping.params["asset_cfg"] = SceneEntityCfg("robot", joint_names="panda_joint.*")
+
+
+##
+# Environment configuration
+##
+
+
+@configclass
+class FrankaMixinCfg:
+    """Franka scene, observation, action, reward and event terms for the lift task."""
+
+    scene: FrankaSceneCfg = FrankaSceneCfg(num_envs=4096, env_spacing=3)
+    rewards: FrankaReorientRewardCfg = FrankaReorientRewardCfg()
+    observations: StateObservationCfg = StateObservationCfg()
+    actions: FrankaRelJointPosActionCfg = FrankaRelJointPosActionCfg()
+    events: FrankaEventCfg = FrankaEventCfg()
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.commands.object_pose.body_name = "panda_hand"
+        # Franka base is rotated 180 deg about z, so the workspace mirrors to positive x.
+        self.commands.object_pose.ranges.pos_x = (0.3, 0.7)
+        # The actuator limits are nominal policy limits, not evidence of unstable physics.
+        # Reserve the abnormal-state termination for velocities beyond the solver contract.
+        self.terminations.abnormal_robot.func = mdp.abnormal_robot_state
+        self.terminations.abnormal_robot.params["asset_cfg"] = SceneEntityCfg("robot", joint_names="panda_joint.*")
+
+
+@configclass
+class FrankaLiftEnvCfg(FrankaMixinCfg, lift.LiftEnvCfg):
+    """Franka object lifting with a mixed aligned-grasp and table reset bank.
+
+    Training and play mode propose aligned pre-grasps with probability 0.75 before clearance
+    rejection and bank sampling. Success is measured on this mixture, rather than table-only picks.
+    Set ``events.conditional_reset.params.terms.reset_object_to_target.params.probability=0``
+    before initialization to build a table-only evaluation bank.
+    """
+
+    curriculum: FrankaLiftCurriculumCfg | None = FrankaLiftCurriculumCfg()
+
+    def __post_init__(self):
+        super().__post_init__()
+        reset = self.events.conditional_reset.params
+        terms = reset["terms"]
+
+        # The aligned opening must be written after the generic gripper-width reset.
+        pregrasp = terms.pop("reset_object_to_target")
+        terms["reset_object_to_target"] = pregrasp
+        pregrasp.func = mdp.reset_to_grasp
+        pregrasp.params.update(
+            probability=0.75,
+            gripper_cfg=SceneEntityCfg("robot", joint_names="panda_finger_joint.*"),
+            pose_range={"x": (-0.002, 0.002), "y": (-0.002, 0.002), "z": (0.1, 0.1)},
+            grasp_configs=[
+                (clone(shape), opening, orientation) for shape, opening, orientation in GRASPABLE_OBJECT_PREGRASPS
+            ],
+        )
+        pregrasp.params.pop("velocity_range")
+
+        # Farthest-point thinning discards valid near-grasp starts.
+        reset["diversity_feature"] = None
+
+    def play_mode(self):
+        super().play_mode()
+        # evaluate at the datasheet gripper speed: without the closing-speed randomization the hand
+        # damping caps closing at the real hand's jaw-speed limit of 0.2 m/s
+        self.events.gripper_closing_speed = None

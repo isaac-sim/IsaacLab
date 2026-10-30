@@ -22,9 +22,8 @@ import argparse
 import time
 from typing import TYPE_CHECKING
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
 
-# add argparse arguments
 parser = argparse.ArgumentParser(description="Benchmark loading different robots.")
 parser.add_argument("--num_envs", type=int, default=32, help="Number of robots to simulate.")
 parser.add_argument("--physics", default="physx", choices=["physx", "newton_mjwarp"], help="Physics backend.")
@@ -43,12 +42,8 @@ parser.add_argument(
     help="Benchmark output formatter, defaults omniperf",
 )
 parser.add_argument("--output_path", type=str, default=".", help="Path to output benchmark results.")
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
-# parse the arguments
+add_launcher_args(parser)
 args_cli, _ = parser.parse_known_args()
-
-"""Rest everything follows."""
 
 # Start the timer for imports
 imports_time_begin = time.perf_counter_ns()
@@ -60,12 +55,10 @@ import torch
 # runtime classes (``SimulationContext``, ``InteractiveScene``) eagerly import ``pxr`` and must therefore
 # be imported only after the simulation app has been launched (see :func:`main`).
 import isaaclab.sim as sim_utils
-from isaaclab.app import launch_simulation
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.benchmark import BaseIsaacLabBenchmark, SingleMeasurement
-from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass, replace
 
 if TYPE_CHECKING:
     from isaaclab.scene import InteractiveScene
@@ -96,11 +89,11 @@ class RobotSceneCfg(InteractiveSceneCfg):
 
     # articulation
     if args_cli.robot == "h1":
-        robot: ArticulationCfg = H1_MINIMAL_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        robot: ArticulationCfg = replace(H1_MINIMAL_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     elif args_cli.robot == "g1":
-        robot: ArticulationCfg = G1_MINIMAL_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        robot: ArticulationCfg = replace(G1_MINIMAL_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     elif args_cli.robot == "anymal_d":
-        robot: ArticulationCfg = ANYMAL_D_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        robot: ArticulationCfg = replace(ANYMAL_D_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     else:
         raise ValueError(f"Unsupported robot type: {args_cli.robot}.")
 
@@ -164,7 +157,7 @@ def run_simulator(sim: "SimulationContext", scene: "InteractiveScene", benchmark
 
 def main(
     scene_cfg: RobotSceneCfg,
-    physics_cfg: PhysicsCfg,
+    sim_cfg: sim_utils.SimulationCfg,
     app_start_time_ms: float,
     benchmark: BaseIsaacLabBenchmark,
 ):
@@ -174,7 +167,7 @@ def main(
     from isaaclab.scene import InteractiveScene
     from isaaclab.sim import SimulationContext
 
-    # Load kit helper
+    physics_cfg = sim_cfg.physics
     # The default MJWarp configuration needs additional constraint capacity and solver tuning for bipeds.
     if (
         args_cli.robot in ("h1", "g1")
@@ -190,7 +183,6 @@ def main(
         physics_cfg.solver_cfg.integrator = "implicitfast"
         physics_cfg.num_substeps = 2
 
-    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device, physics=physics_cfg)
     sim = SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view([2.5, 0.0, 4.0], [0.0, 0.0, 2.0])
@@ -210,7 +202,6 @@ def main(
 
     # Start the timer for reset
     reset_time_begin = time.perf_counter_ns()
-    # Play the simulator
     sim.reset()
     # Stop the timer for reset
     reset_time_end = time.perf_counter_ns()
@@ -230,7 +221,6 @@ def main(
         "startup", measurement=SingleMeasurement(name="Imports Time", value=imports_time_ms, unit="ms")
     )
 
-    # Run the simulator
     run_simulator(sim, scene, benchmark)
 
     # Finalize benchmark
@@ -246,13 +236,12 @@ if __name__ == "__main__":
 
     # Build the scene configuration before measuring app startup so scene-config imports are measured separately.
     scene_cfg = RobotSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
+    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device)
 
     # Start the timer for app start
     app_start_time_begin = time.perf_counter_ns()
     # Launch the selected physics backend in the benchmark's Kit experience.
-    with launch_simulation(PhysicsCfg(), args_cli) as physics_cfg:
-        if physics_cfg is None:
-            raise RuntimeError("No physics backend was selected.")
+    with launch_simulation(sim_cfg, args_cli):
         # End the timer for app start
         app_start_time_end = time.perf_counter_ns()
         app_start_time_ms = (app_start_time_end - app_start_time_begin) / 1e6
@@ -277,5 +266,4 @@ if __name__ == "__main__":
                 ]
             },
         )
-        # run the main function
-        main(scene_cfg, physics_cfg, app_start_time_ms, benchmark)
+        main(scene_cfg, sim_cfg, app_start_time_ms, benchmark)

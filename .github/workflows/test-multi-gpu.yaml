@@ -17,8 +17,8 @@ name: Multi-GPU Training Tests
 on:
   pull_request:
     paths:
-      - "source/isaaclab/isaaclab/app/app_launcher.py"
-      - "source/isaaclab_tasks/isaaclab_tasks/utils/sim_launcher.py"
+      - "source/isaaclab_physx/isaaclab_physx/app/kit_launcher.py"
+      - "source/isaaclab/isaaclab/app/sim_launcher.py"
       - "scripts/reinforcement_learning/train.py"
       - "source/isaaclab_rl/isaaclab_rl/entrypoints/**"
       - ".github/workflows/test-multi-gpu.yaml"
@@ -83,21 +83,21 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
         with:
-          python-version: "3.10"
+          version: "0.12.9"
 
       - name: Install Isaac Lab
         run: |
-          ./isaaclab.sh --install
+          uv sync --locked --extra isaacsim --extra test --extra skrl
 
       - name: Verify multi-GPU availability
         run: |
           echo "=== GPU Info ==="
           nvidia-smi --query-gpu=index,name,memory.total --format=csv
 
-          GPU_COUNT=$(python -c "import torch; print(torch.cuda.device_count())")
+          GPU_COUNT=$(uv run --no-sync python -c "import torch; print(torch.cuda.device_count())")
           echo "Detected $GPU_COUNT GPU(s)"
 
           if [ "$GPU_COUNT" -lt 2 ]; then
@@ -120,7 +120,7 @@ jobs:
           echo "=========================================="
 
           # Run 2-GPU distributed training for 3 iterations
-          ./isaaclab.sh -p -m torch.distributed.run --nproc_per_node=2 \
+          uv run --no-sync isaaclab -p -m torch.distributed.run --nproc_per_node=2 \
             scripts/reinforcement_learning/train.py \
             --rl_library ${TRAINER} \
             --task=${{ matrix.task }} \

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import inspect
 import logging
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, cast
 
@@ -27,13 +28,11 @@ try:
 except ImportError as e:
     raise ImportError("LEAPP package is required for policy deployment testing. Install with: pip install leapp") from e
 
-from isaaclab.managers import CommandManager, EventManager
-from isaaclab.scene import InteractiveScene
-from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils.stage import use_stage
-from isaaclab.utils.configclass import resolve_cfg_presets
-
-from .ui import ViewportCameraController
+from ..managers import CommandManager, EventManager
+from ..scene import InteractiveScene
+from ..sim import SimulationContext
+from ..sim.utils.stage import use_stage
+from ..utils import validate
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +44,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class StateInputSpec:
-    """Read a property from a scene entity's data object."""
+    """Read a data property, using dots for mapping entries such as ``output.rgb``."""
 
     entity_name: str
     property_name: str
@@ -166,10 +165,8 @@ class LeappDeploymentEnv:
             cfg: A ``ManagerBasedRLEnvCfg`` (or compatible) task config.
             leapp_yaml_path: Path to the LEAPP ``.yaml`` pipeline description.
         """
-
         cfg.scene.num_envs = 1
-        cfg.validate()
-        resolve_cfg_presets(cfg)
+        validate(cfg)
         self.cfg = cfg
         self._is_closed = False
         self._leapp_yaml_path = leapp_yaml_path
@@ -184,18 +181,10 @@ class LeappDeploymentEnv:
 
         with use_stage(self.sim.stage):
             self.scene = InteractiveScene(cfg.scene)
-            self.scene.initialize_renderers()
         with use_stage(self.sim.stage):
             self.sim.reset()
         self.scene.update(dt=self.physics_dt)
         self.has_rtx_sensors = bool(self.sim.get_setting("/isaaclab/render/rtx_sensors"))
-
-        # Match the standard env initialization path for viewport camera setup.
-        has_visualizers = bool(self.sim.get_setting("/isaaclab/visualizer"))
-        if self.sim.has_gui or has_visualizers:
-            self.viewport_camera_controller = ViewportCameraController(cast(Any, self), self.cfg.viewer)
-        else:
-            self.viewport_camera_controller = None
 
         # ── EventManager (optional, for resets) ───────────────────
         self.event_manager: EventManager | None = None
@@ -328,7 +317,10 @@ class LeappDeploymentEnv:
         for key, spec in self._input_mapping.items():
             if isinstance(spec, StateInputSpec):
                 entity = self.scene[spec.entity_name]
-                value = getattr(entity.data, spec.property_name).torch
+                value = entity.data
+                for part in spec.property_name.split("."):
+                    value = value[part] if isinstance(value, Mapping) else getattr(value, part)
+                value = value.torch
                 if spec.joint_ids is not None:
                     value = value[:, spec.joint_ids]
                 inputs[key] = value
@@ -364,7 +356,7 @@ class LeappDeploymentEnv:
         Returns:
             The initial input tensors (for logging / debugging).
         """
-        env_ids = [0]
+        env_ids = torch.arange(self.num_envs, dtype=torch.int32, device=self.device)
 
         self.scene.reset(env_ids)
 
@@ -383,7 +375,7 @@ class LeappDeploymentEnv:
                 self.sim.render()
 
         if getattr(self.cfg, "wait_for_textures", False) and self.has_rtx_sensors:
-            assets_loading = getattr(self.sim.physics_manager, "assets_loading", None)
+            assets_loading = getattr(self.sim.backend_manager, "assets_loading", None)
             if callable(assets_loading):
                 while assets_loading():
                     self.sim.render()
@@ -443,8 +435,6 @@ class LeappDeploymentEnv:
             if self.event_manager is not None:
                 del self.event_manager
             del self.scene
-            if self.viewport_camera_controller is not None:
-                del self.viewport_camera_controller
             self.sim.clear_instance()
             if self._window is not None:
                 self._window = None

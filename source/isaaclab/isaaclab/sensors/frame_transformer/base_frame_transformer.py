@@ -11,8 +11,7 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 
-import isaaclab.utils.string as string_utils
-
+from ...utils import string as string_utils
 from ..sensor_base import SensorBase
 from .base_frame_transformer_data import BaseFrameTransformerData
 
@@ -49,15 +48,6 @@ class BaseFrameTransformer(SensorBase):
     __backend_name__: str = "base"
     """The name of the backend for the frame transformer sensor."""
 
-    def __init__(self, cfg: FrameTransformerCfg):
-        """Initializes the frame transformer object.
-
-        Args:
-            cfg: The configuration parameters.
-        """
-        # initialize base class
-        super().__init__(cfg)
-
     """
     Properties
     """
@@ -91,6 +81,12 @@ class BaseFrameTransformer(SensorBase):
     Operations
     """
 
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
+        """Reset clocks and invalidate transforms derived from the current scene state."""
+        env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
+        super().reset(env_mask=env_mask)
+        self._invalidate_buffers(env_mask)
+
     def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
         """Find bodies in the articulation based on the name keys.
 
@@ -115,11 +111,8 @@ class BaseFrameTransformer(SensorBase):
         the common sensor infrastructure from :class:`SensorBase`.
         """
         super()._initialize_impl()
+        self._invalidate_buffers(self._ALL_ENV_MASK)
 
     @abstractmethod
     def _update_buffers_impl(self, env_mask: wp.array):
         raise NotImplementedError
-
-    def _invalidate_initialize_callback(self, event):
-        """Invalidates the scene elements."""
-        super()._invalidate_initialize_callback(event)

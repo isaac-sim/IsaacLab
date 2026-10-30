@@ -5,8 +5,7 @@
 
 from __future__ import annotations
 
-from isaaclab.utils.backend_utils import FactoryBase
-
+from ...utils.backend_utils import FactoryBase
 from .base_multi_mesh_ray_caster_camera import BaseMultiMeshRayCasterCamera
 
 

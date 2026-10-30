@@ -6,9 +6,7 @@
 from __future__ import annotations
 
 import logging
-import re
 import warnings
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -16,12 +14,12 @@ import warp as wp
 
 from pxr import UsdPhysics
 
+from isaaclab import cloner
+from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.frame_transformer import BaseFrameTransformer
-from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
+from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.math import is_identity_pose, normalize, quat_from_angle_axis
-
-from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 from .frame_transformer_data import FrameTransformerData
 from .kernels import frame_transformer_update_kernel
@@ -128,21 +126,13 @@ class FrameTransformer(BaseFrameTransformer):
         return self._target_frame_body_names
 
     """
-    Operations
-    """
-
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
-        # resolve indices and mask
-        env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
-        # reset the timers and counters
-        super().reset(None, env_mask)
-
-    """
     Implementation.
     """
 
     def _initialize_impl(self):
         super()._initialize_impl()
+        plan = self._sim.get_clone_plan()
+        env_template = plan.env_template if plan is not None else DEFAULT_ENV_TEMPLATE
 
         # resolve source frame offset
         source_frame_offset_pos = torch.tensor(self.cfg.source_frame_offset.pos, device=self.device)
@@ -165,7 +155,7 @@ class FrameTransformer(BaseFrameTransformer):
         # create unnecessary views.
         body_names_to_frames: dict[str, dict[str, set[str] | str]] = {}
         # The offsets associated with each target frame
-        target_offsets: dict[str, dict[str, torch.Tensor]] = {}
+        target_offsets: dict[tuple[str, str], dict[str, torch.Tensor]] = {}
         # The frames whose offsets are not identity (use set to avoid duplicates across envs)
         non_identity_offset_frames: set[str] = set()
 
@@ -185,21 +175,24 @@ class FrameTransformer(BaseFrameTransformer):
         frame_offsets = [None] + [target_frame.offset for target_frame in self.cfg.target_frames]
         frame_types = ["source"] + ["target"] * len(self.cfg.target_frames)
         for frame, prim_path, offset, frame_type in zip(frames, frame_prim_paths, frame_offsets, frame_types):
-            # Resolve the source-side env prims (filtered to rigid bodies) and their destination
-            # expressions. Plan-aware: with an active ``ClonePlan``, only env-0 representatives
-            # are walked and dest expressions are rebuilt against the plan's destination glob.
-            def has_rigid_body_api(prim) -> bool:
-                return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
-
-            matches = resolve_matching_prims_from_source(prim_path, has_rigid_body_api, raise_if_no_matches=False)
+            matches = [
+                (prim, destination)
+                for prim, destination in resolve_matching_prims_from_source(prim_path, raise_if_no_matches=False)
+                if prim.HasAPI(UsdPhysics.RigidBodyAPI)
+            ]
             if not matches:
                 raise ValueError(
                     f"Failed to create frame transformer for frame '{frame}' with path '{prim_path}'."
                     " No matching rigid-body prims were found."
                 )
+            if frame_type == "source" and len(matches) != 1:
+                raise ValueError(
+                    f"Expected one source rigid-body prim for frame '{frame}' with path '{prim_path}',"
+                    f" found {len(matches)}."
+                )
             for prim, matching_prim_path in matches:
                 # Get the name of the body: use relative prim path for unique identification
-                body_name = self._get_relative_body_path(matching_prim_path)
+                body_name = self._get_relative_body_path(matching_prim_path, env_template)
                 # Use leaf name of prim path if frame name isn't specified by user
                 frame_name = frame if frame is not None else matching_prim_path.rsplit("/", 1)[-1]
 
@@ -226,7 +219,7 @@ class FrameTransformer(BaseFrameTransformer):
                     if not is_identity_pose(offset_pos, offset_quat):
                         non_identity_offset_frames.add(frame_name)
                         self._apply_target_frame_offset = True
-                    target_offsets[frame_name] = {"pos": offset_pos, "quat": offset_quat}
+                    target_offsets[(body_name, frame_name)] = {"pos": offset_pos, "quat": offset_quat}
 
         if not self._apply_target_frame_offset:
             logger.info(
@@ -243,63 +236,31 @@ class FrameTransformer(BaseFrameTransformer):
         tracked_prim_paths = [body_names_to_frames[body_name]["prim_path"] for body_name in body_names_to_frames.keys()]
         tracked_body_names = [body_name for body_name in body_names_to_frames.keys()]
 
-        # Convert each tracked prim path to PhysX glob form for ``create_rigid_body_view``.
-        # Plan-mode dest expressions use ``env_.*`` (regex), legacy mode produces concrete
-        # ``env_0`` paths; chain both substitutions so each mode normalises to ``env_*``.
-        body_names_regex = [
-            tracked_prim_path.replace(".*", "*").replace("env_0", "env_*") for tracked_prim_path in tracked_prim_paths
-        ]
+        body_names_regex = [path_expr_to_glob(path) for path in tracked_prim_paths]
 
         # obtain global simulation view
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
+        self._physics_sim_view = self._backend_manager.get_physics_sim_view()
         # Create a prim view for all frames and initialize it
         # order of transforms coming out of view will be source frame followed by target frame(s)
         self._frame_physx_view = self._physics_sim_view.create_rigid_body_view(body_names_regex)
+        self._check_env_count(self._frame_physx_view.count, " or ".join(body_names_regex), len(tracked_body_names))
 
         # Determine the order in which regex evaluated body names so we can later index into frame transforms
         # by frame name correctly
         all_prim_paths = self._frame_physx_view.prim_paths
 
-        if "env_" in all_prim_paths[0]:
-
-            def extract_env_num_and_prim_path(item: str) -> tuple[int, str]:
-                """Separates the environment number and prim_path from the item.
-
-                Args:
-                    item: The item to extract the environment number from. Assumes item is of the form
-                        `/World/envs/env_1/blah` or `/World/envs/env_11/blah`.
-                Returns:
-                    The environment number and the prim_path.
-                """
-                match = re.search(r"env_(\d+)(.*)", item)
-                return (int(match.group(1)), match.group(2))
-
-            # Find the indices that would reorganize output to be per environment.
-            # We want `env_1/blah` to come before `env_11/blah` and env_1/Robot/base
-            # to come before env_1/Robot/foot so we need to use custom key function
-            self._per_env_indices = [
-                index
-                for index, _ in sorted(
-                    list(enumerate(all_prim_paths)), key=lambda x: extract_env_num_and_prim_path(x[1])
-                )
-            ]
-
-            # Only need 0th env as the names and their ordering are the same across environments
-            sorted_prim_paths = [
-                all_prim_paths[index] for index in self._per_env_indices if "env_0" in all_prim_paths[index]
-            ]
-
-        else:
-            # If no environment is present, then the order of the body names is the same as the order of the
-            # prim paths sorted alphabetically
-            self._per_env_indices = [index for index, _ in sorted(enumerate(all_prim_paths), key=lambda x: x[1])]
-            sorted_prim_paths = [all_prim_paths[index] for index in self._per_env_indices]
+        order = []
+        for index, prim_path in enumerate(all_prim_paths):
+            match = cloner.path.match(prim_path, env_template)
+            order.append((int(match.instance), match.suffix, index) if match else (-1, prim_path, index))
+        self._per_env_indices = [index for _, _, index in sorted(order)]
+        sorted_prim_paths = [all_prim_paths[index] for index in self._per_env_indices[: len(tracked_body_names)]]
 
         # -- target frames: use relative prim path for unique identification
-        self._target_frame_body_names = [self._get_relative_body_path(prim_path) for prim_path in sorted_prim_paths]
+        self._target_frame_body_names = [self._get_relative_body_path(path, env_template) for path in sorted_prim_paths]
 
-        # -- source frame: use relative prim path for unique identification
-        self._source_frame_body_name = self._get_relative_body_path(self.cfg.prim_path)
+        # -- source frame: retain the concrete body resolved from the configured expression
+        self._source_frame_body_name = tracked_body_names[0]
         source_frame_index = self._target_frame_body_names.index(self._source_frame_body_name)
 
         # Only remove source frame from tracked bodies if it is not also a target frame
@@ -333,9 +294,9 @@ class FrameTransformer(BaseFrameTransformer):
         for i, body_name in enumerate(self._target_frame_body_names):
             for frame in body_names_to_frames[body_name]["frames"]:
                 # Only need to handle target frames here as source frame is handled separately
-                if frame in target_offsets:
-                    target_frame_offset_pos.append(target_offsets[frame]["pos"])
-                    target_frame_offset_quat.append(target_offsets[frame]["quat"])
+                if (body_name, frame) in target_offsets:
+                    target_frame_offset_pos.append(target_offsets[(body_name, frame)]["pos"])
+                    target_frame_offset_quat.append(target_offsets[(body_name, frame)]["quat"])
                     self._target_frame_names.append(frame)
                     duplicate_frame_indices.append(i)
 
@@ -420,6 +381,7 @@ class FrameTransformer(BaseFrameTransformer):
         # the getter lazily allocates its output buffer and refreshes the same memory in place
         # on every call, so the cached view (and the recorded launch that consumes it) stays
         # valid. A re-backed buffer would silently freeze the sensor data, so fail loudly.
+        self._backend_manager.update_kinematics()
         transforms = self._frame_physx_view.get_transforms()
         if self._raw_transforms is None:
             self._raw_transforms = transforms.view(wp.transformf)
@@ -486,6 +448,7 @@ class FrameTransformer(BaseFrameTransformer):
                 self.frame_visualizer.set_visibility(False)
 
     def _debug_vis_callback(self, event):
+        self._update_outdated_buffers()
         # Convert warp -> torch at the boundary for visualization
         source_pos_w = wp.to_torch(self._data._source_pos_w)
         source_quat_w = wp.to_torch(self._data._source_quat_w)
@@ -586,24 +549,7 @@ class FrameTransformer(BaseFrameTransformer):
         return positions, orientations, lengths
 
     @staticmethod
-    def _get_relative_body_path(prim_path: str) -> str:
-        """Extract a normalized body path from a prim path.
-
-        Removes the environment instance segment `/envs/env_<id>/` to normalize paths
-        across multiple environments, while preserving the `/envs/` prefix to
-        distinguish environment-scoped paths from non-environment paths.
-
-        Examples:
-        - '/World/envs/env_0/Robot/torso' -> '/World/envs/Robot/torso'
-        - '/World/envs/env_123/Robot/left_hand' -> '/World/envs/Robot/left_hand'
-        - '/World/Robot' -> '/World/Robot'
-        - '/World/Robot_2/left_hand' -> '/World/Robot_2/left_hand'
-
-        Args:
-            prim_path: The full prim path.
-
-        Returns:
-            The prim path with `/envs/env_<id>/` removed, preserving `/envs/`.
-        """
-        pattern = re.compile(r"/envs/env_[^/]+/")
-        return pattern.sub("/envs/", prim_path)
+    def _get_relative_body_path(prim_path: str, env_template: str) -> str:
+        """Use the same body key for declared expressions and concrete native copies."""
+        match = cloner.path.match(prim_path, env_template)
+        return env_template.format("[^/]+") + match.suffix if match is not None else prim_path

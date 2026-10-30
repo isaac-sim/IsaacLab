@@ -1,3 +1,5 @@
+:orphan:
+
 .. _how-to-add-library:
 
 Adding your own learning library

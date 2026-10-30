@@ -4,38 +4,73 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
-    "NewtonFeatherstoneManager",
+    "create_newton_builder",
+    "FeatherstoneSolver",
     "FeatherstoneSolverCfg",
     "HydroelasticSDFCfg",
-    "NewtonKaminoManager",
-    "KaminoSolverCfg",
-    "NewtonMPMManager",
-    "MPMSolverCfg",
-    "NewtonMJWarpManager",
+    "KaminoCollisionDetectorCfg",
+    "KaminoConstraintsCfg",
+    "KaminoDVICfg",
+    "KaminoDVISolverCfg",
+    "KaminoDynamicsCfg",
+    "KaminoFKCfg",
+    "KaminoMaterialsCfg",
+    "KaminoPADMMCfg",
+    "KaminoPADMMSolverCfg",
+    "KaminoSolver",
+    "MJWarpSolver",
     "MJWarpSolverCfg",
+    "MjWarpActuatorBridge",
+    "MPMSolver",
+    "MPMSolverCfg",
+    "NewtonBackend",
+    "NewtonBackendCfg",
+    "NewtonBuilderCfg",
     "NewtonCfg",
+    "NewtonCloneRecord",
     "NewtonCollisionPipelineCfg",
     "NewtonManager",
+    "NewtonQueries",
+    "reset_mpm_solver_state",
     "NewtonShapeCfg",
+    "NewtonSoftContactCfg",
+    "NewtonSolver",
     "NewtonSolverCfg",
-    "NewtonXPBDManager",
+    "create_builder",
+    "VBDSolver",
+    "VBDSolverCfg",
+    "XPBDSolver",
     "XPBDSolverCfg",
 ]
 
-from .featherstone_manager import NewtonFeatherstoneManager
-from .featherstone_manager_cfg import FeatherstoneSolverCfg
-from .kamino_manager import NewtonKaminoManager
-from .kamino_manager_cfg import KaminoSolverCfg
-from .mjwarp_manager import NewtonMJWarpManager
-from .mjwarp_manager_cfg import MJWarpSolverCfg
-from .mpm_manager import NewtonMPMManager
-from .mpm_manager_cfg import MPMSolverCfg
-from .newton_collision_cfg import HydroelasticSDFCfg, NewtonCollisionPipelineCfg
-from .newton_manager import NewtonManager
-from .newton_manager_cfg import (
-    NewtonCfg,
-    NewtonShapeCfg,
-    NewtonSolverCfg,
+from .featherstone_solver import FeatherstoneSolver
+from .featherstone_solver_cfg import FeatherstoneSolverCfg
+from .kamino_solver import KaminoSolver
+from .kamino_solver_cfg import (
+    KaminoCollisionDetectorCfg,
+    KaminoConstraintsCfg,
+    KaminoDVICfg,
+    KaminoDVISolverCfg,
+    KaminoDynamicsCfg,
+    KaminoFKCfg,
+    KaminoMaterialsCfg,
+    KaminoPADMMCfg,
+    KaminoPADMMSolverCfg,
 )
-from .xpbd_manager import NewtonXPBDManager
-from .xpbd_manager_cfg import XPBDSolverCfg
+from .mjwarp_actuator_bridge import MjWarpActuatorBridge
+from .mjwarp_solver import MJWarpSolver
+from .mjwarp_solver_cfg import MJWarpSolverCfg
+from .mpm_solver import MPMSolver, reset_mpm_solver_state
+from .mpm_solver_cfg import MPMSolverCfg
+from .newton_backend import NewtonBackend, NewtonCloneRecord
+from .newton_backend_cfg import NewtonBackendCfg
+from .newton_builder import create_builder
+from .newton_builder_cfg import NewtonBuilderCfg
+from .newton_collision_cfg import HydroelasticSDFCfg, NewtonCollisionPipelineCfg
+from .newton_manager import NewtonManager, NewtonQueries, create_newton_builder
+from .newton_manager_cfg import NewtonCfg, NewtonShapeCfg, NewtonSoftContactCfg, NewtonSolverCfg
+from .newton_solver import NewtonSolver
+from .vbd_solver import VBDSolver
+from .vbd_solver_cfg import VBDSolverCfg
+from .xpbd_solver import XPBDSolver
+from .xpbd_solver_cfg import XPBDSolverCfg

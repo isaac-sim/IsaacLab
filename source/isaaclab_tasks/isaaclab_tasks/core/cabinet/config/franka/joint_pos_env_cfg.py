@@ -3,50 +3,49 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Configuration for the manager-based Franka cabinet-opening environment."""
+
+from isaaclab.managers import RewardTermCfg as RewTerm
+from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import FrameTransformerCfg
-from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.sensors.frame_transformer import OffsetCfg
+from isaaclab.utils import configclass, replace
 
-from isaaclab_tasks.core.cabinet import mdp
+from isaaclab_tasks.utils import preset
 
-from isaaclab_tasks.core.cabinet.cabinet_env_cfg import (  # isort: skip
-    FRAME_MARKER_SMALL_CFG,
-    CabinetEnvCfg,
-    CabinetSceneCfg,
-)
+from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG
 
-##
-# Pre-defined configs
-##
-from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # isort: skip
+from ... import mdp
+from ...cabinet_env_cfg import FRAME_MARKER_SMALL_CFG, CabinetEnvCfg, CabinetSceneCfg, RewardsCfg
 
 
 @configclass
 class FrankaCabinetSceneCfg(CabinetSceneCfg):
     """Cabinet scene configured for the Franka robot."""
 
-    robot = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot = replace(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+    robot.spawn.variants["Physics"] = preset(default="mujoco", isaacsim_physx="physx", physx="physx", ovphysx="physx")
     ee_frame = FrameTransformerCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/panda_link0",
+        prim_path="{ENV_REGEX_NS}/Robot/(Geometry/)?panda_link0",
         debug_vis=False,
-        visualizer_cfg=FRAME_MARKER_SMALL_CFG.replace(prim_path="/Visuals/EndEffectorFrameTransformer"),
+        visualizer_cfg=replace(FRAME_MARKER_SMALL_CFG, prim_path="/Visuals/EndEffectorFrameTransformer"),
         target_frames=[
             FrameTransformerCfg.FrameCfg(
-                prim_path="{ENV_REGEX_NS}/Robot/panda_hand",
+                prim_path="{ENV_REGEX_NS}/Robot/(Geometry/.*/)?panda_hand",
                 name="ee_tcp",
                 offset=OffsetCfg(
                     pos=(0.0, 0.0, 0.1034),
                 ),
             ),
             FrameTransformerCfg.FrameCfg(
-                prim_path="{ENV_REGEX_NS}/Robot/panda_leftfinger",
+                prim_path="{ENV_REGEX_NS}/Robot/(Geometry/.*/)?panda_leftfinger",
                 name="tool_leftfinger",
                 offset=OffsetCfg(
                     pos=(0.0, 0.0, 0.046),
                 ),
             ),
             FrameTransformerCfg.FrameCfg(
-                prim_path="{ENV_REGEX_NS}/Robot/panda_rightfinger",
+                prim_path="{ENV_REGEX_NS}/Robot/(Geometry/.*/)?panda_rightfinger",
                 name="tool_rightfinger",
                 offset=OffsetCfg(
                     pos=(0.0, 0.0, 0.046),
@@ -57,19 +56,38 @@ class FrankaCabinetSceneCfg(CabinetSceneCfg):
 
 
 @configclass
+class FrankaCabinetRewardsCfg(RewardsCfg):
+    """Penalize arm motion near position limits and above the requested speed."""
+
+    joint_pos_limits = RewTerm(
+        func=mdp.joint_pos_limits,
+        weight=-10.0,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["panda_joint.*"])},
+    )
+    joint_vel_limits = RewTerm(
+        func=mdp.joint_vel_limits,
+        weight=-100.0,
+        params={"soft_ratio": 1.0, "asset_cfg": SceneEntityCfg("robot", joint_names=["panda_joint.*"])},
+    )
+
+
+@configclass
 class FrankaCabinetEnvCfg(CabinetEnvCfg):
+    """Cabinet-opening environment with a Franka Panda arm driven by joint position targets."""
+
     scene: FrankaCabinetSceneCfg = FrankaCabinetSceneCfg(num_envs=4096, env_spacing=2.0)
+    rewards: FrankaCabinetRewardsCfg = FrankaCabinetRewardsCfg()
 
     def __post_init__(self):
-        # post init of parent
         super().__post_init__()
 
-        # Set Actions for the specific robot type (franka)
-        self.actions.arm_action = mdp.JointPositionActionCfg(
+        # actions
+        self.actions.arm_action = mdp.EMAJointPositionToLimitsActionCfg(
             asset_name="robot",
             joint_names=["panda_joint.*"],
             scale=1.0,
-            use_default_offset=True,
+            rescale_to_limits=True,
+            alpha=0.01,
         )
         self.actions.gripper_action = mdp.BinaryJointPositionActionCfg(
             asset_name="robot",
@@ -82,10 +100,19 @@ class FrankaCabinetEnvCfg(CabinetEnvCfg):
         self.rewards.approach_gripper_handle.params["offset"] = 0.04
         self.rewards.grasp_handle.params["open_joint_pos"] = 0.04
         self.rewards.grasp_handle.params["asset_cfg"].joint_names = ["panda_finger_.*"]
+        self.rewards.action_rate_l2.weight = -0.05
+        self.rewards.joint_vel.weight = -5.0
+
+        # Keep a 5% margin at each end of the joint range.
+        self.scene.robot.soft_joint_pos_limit_factor = 0.9
+        # Retract the hand so randomized resets clear the lower cabinet doors and knobs.
+        self.scene.robot.init_state.joint_pos["panda_joint2"] = -1.1
+        self.scene.robot.actuators["panda_arm"].damping = 80.0
+        # MJWarp does not enforce this limit; the velocity-limit reward penalizes excess speed.
+        self.scene.robot.actuators["panda_arm"].joint_velocity_limit = 0.3
+        self.episode_length_s = 16.0
 
     def play_mode(self):
-        # play-mode overrides of parent
         super().play_mode()
-
         # make a smaller scene for play
         self.scene.env_spacing = 2.5

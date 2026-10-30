@@ -10,6 +10,9 @@ The package is structured as follows:
 - ``core``: Core task families maintained as part of Isaac Lab.
 - ``contrib``: Contributed task families. These may depend on ``core`` tasks, but
   ``core`` tasks never depend on ``contrib`` tasks.
+- ``benchmark``: Benchmark-only task families used to measure simulation and rendering
+  throughput. These may depend on ``core`` and ``contrib`` tasks, but neither depends
+  on ``benchmark`` tasks.
 - ``utils``: These include utility functions for the tasks.
 
 """
@@ -30,7 +33,7 @@ import builtins
 
 from .utils import import_packages
 
-# Guard: AppLauncher._create_app() temporarily removes all "lab" modules from
+# Guard: KitLauncher._create_app() temporarily removes all "lab" modules from
 # sys.modules while creating SimulationApp.  If Kit re-imports this package
 # during that window, __init__ runs again and re-registers every gym env.
 # We stash a flag on builtins because it is never evicted from sys.modules.

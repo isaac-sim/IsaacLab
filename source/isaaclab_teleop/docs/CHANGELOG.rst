@@ -1,6 +1,308 @@
 Changelog
 ---------
 
+.. towncrier release notes start
+
+0.11.2 (2026-10-29)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :mod:`isaaclab_teleop.entrypoints` with
+  :func:`~isaaclab_teleop.entrypoints.run_teleop_se3_agent_cli`,
+  :func:`~isaaclab_teleop.entrypoints.run_record_demos_cli`,
+  :func:`~isaaclab_teleop.entrypoints.run_replay_demos_cli` and
+  :func:`~isaaclab_teleop.entrypoints.run_teleop_replay_agent_cli`, plus
+  :func:`~isaaclab_teleop.entrypoints.run_cli`, which dispatches ``isaaclab teleop``.
+  ``teleop_se3_agent.py``, ``record_demos.py``, ``replay_demos.py`` and ``teleop_replay_agent.py`` now
+  call them. They load tasks registered through the ``isaaclab.tasks`` entry point, so out-of-tree tasks
+  work with the teleop scripts and ``isaaclab teleop``.
+
+Changed
+^^^^^^^
+
+* Changed ``record_demos.py`` to no longer require :mod:`isaaclab_mimic`; Mimic task variants are still
+  registered when it is installed.
+
+
+0.11.1 (2026-10-28)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Pink IK failing to load URDF 1.2 files, which newer Isaac Sim URDF exporters write, with
+  ``Invalid 'version' specified; only version 1.0 is currently supported``. The ``teleop`` extra now
+  requires ``isaaccapture==1.7.68a1``, which moves its retargeter extras to ``pin>=4.1`` and lets
+  Pinocchio resolve to 4.1 (``cmeel-urdfdom`` 6, ``cmeel-tinyxml2`` 11).
+
+
+0.11.0 (2026-10-27)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab_teleop.se2_keyboard_teleop_cfg`, :func:`~isaaclab_teleop.se3_keyboard_teleop_cfg`,
+  :func:`~isaaclab_teleop.se2_gamepad_teleop_cfg`, :func:`~isaaclab_teleop.se3_gamepad_teleop_cfg`,
+  :func:`~isaaclab_teleop.se2_spacemouse_teleop_cfg` and :func:`~isaaclab_teleop.se3_spacemouse_teleop_cfg`,
+  which build an :class:`~isaaclab_teleop.IsaacTeleopCfg` for keyboard, gamepad or SpaceMouse
+  SE(2)/SE(3) teleoperation. The keyboard is read in process from whichever visualizer window has
+  focus (no ``input`` group, no keys from other apps). The gamepad is read from ``/dev/input/jsN``
+  and the SpaceMouse from ``/dev/hidrawN`` (which needs a udev rule) by the Isaac Capture
+  ``gamepad`` and ``spacemouse`` plugins, which their configs start with the session. Without
+  ``--xr`` they run headset-free on the standalone CloudXR profile.
+* Added :mod:`isaaclab_teleop.device_selection`, which translates an :mod:`isaaclab.devices`
+  keyboard, gamepad or SpaceMouse config into the equivalent pipeline and resolves each script's
+  ``--teleop_device`` request once. Keyboard, gamepad and SpaceMouse require Isaac Capture (the
+  ``teleop`` extra); devices without a Capture pipeline, such as OpenXR hand tracking, keep their
+  native implementation.
+
+Changed
+^^^^^^^
+
+* Passed visualizer windows explicitly into Isaac Capture sessions and centralized script device
+  selection and creation. Window input attachments roll back partial setup on failure.
+* Consolidated keyboard, gamepad and SpaceMouse pipelines into one module and removed redundant action-copy nodes.
+* Changed :class:`~isaaclab_teleop.IsaacTeleopDevice` to start, pause and reset teleoperation on the
+  ``B`` / ``P`` / ``R`` keys typed into a visualizer window and on a SpaceMouse pipeline's right
+  button, so scripts no longer bind them. While a pipeline reads the keyboard, the visualizers'
+  keyboard camera movement is turned off.
+* Changed the ``teleop`` extra to install ``isaaccapture~=1.7.44a1``, the Isaac Capture release
+  with the keyboard, gamepad and SpaceMouse devices, in place of ``isaacteleop~=1.4.145``, on Linux
+  x86_64 and aarch64.
+  ``isaaccapture`` is ``isaacteleop`` renamed and still provides the ``isaacteleop`` import.
+* Migrated consolidated Mimic, pick-and-place and the manual keyboard check to Isaac Capture.
+  Device configs deprecated in Isaac Lab 3.2 translate before creation, preserving sensitivities,
+  dead zones, gripper output, activation and output device. Replay and annotation use visualizer
+  hotkeys without a session.
+* Changed ``teleop_se3_agent.py`` and ``record_demos.py`` to no longer force Kit, so keyboard, gamepad
+  and SpaceMouse teleoperation also run with kitless visualizers such as ``newton_rtx``. ``--xr`` and
+  tasks that need Kit still start it.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_teleop.IsaacTeleopDevice` failing to start when Isaac Sim is installed but
+  Kit is not running.
+
+
+0.10.6 (2026-10-25)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed XR camera-feed visibility and task-declared target and anchor paths for custom clone
+  namespaces. ``create_isaac_teleop_device`` now accepts ``env_prim_path`` to expand
+  ``{ENV_REGEX_NS}`` without changing the supplied configuration.
+
+
+0.10.5 (2026-10-23)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Bound teleop target frames and XR anchor references once during setup instead of rediscovering the
+  Fabric stage and prim every update. Live pose updates and explicit target-matrix overrides were preserved.
+* Rejected nonexistent teleop target-frame paths before starting the session instead of silently emitting
+  poses in the world frame. Ensure ``target_frame_prim_path`` exists before entering the device context.
+
+
+0.10.4 (2026-10-20)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Updated the XR workstation check to link to the ``main`` documentation after the default-branch rename.
+
+
+0.10.3 (2026-10-10)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed Isaac Capture teleoperation sessions to set ``OXR_NO_PRINTING=true`` by default, which hides the
+  OpenXR runtime's per-call error messages, such as the ``XR_ERROR_FEATURE_UNSUPPORTED`` lines logged while
+  probing hand trackers at startup. To see these messages again, set ``OXR_NO_PRINTING=false`` before launching.
+
+
+0.10.2 (2026-10-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``uv run --extra teleop`` failing to build ``isaacteleop==1.4.98rc1`` when an index that
+  mirrors PyPI was searched before ``https://pypi.nvidia.com``. The ``teleop`` extra now requires
+  ``isaacteleop~=1.4.145``, which installs from a prebuilt wheel on every index.
+
+
+0.10.1 (2026-10-01)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed isolated XR camera PiP startup by acquiring the global scene-partition setting at bind,
+  after renderer initialization and before creating panels. Camera configuration remained prepared
+  before environment construction, while the global setting was restored to its bind-time value
+  after the last bound session closed.
+
+
+0.10.0 (2026-09-29)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added opt-in ``XrCameraFeedLayoutCfg.use_scene_partition`` to exclude shared SceneUI
+  from robot cameras. Preparation disabled environment partitioning and all-partitions
+  rendering before camera initialization, keeping the single environment shared while
+  the XR camera and SceneUI used a dedicated PiP partition. Prior camera, renderer, and
+  session-layer settings were restored after the final owner closed, including failures
+  during environment construction.
+
+Fixed
+^^^^^
+
+* Fixed head-locked XR camera panels to follow the complete display pose.
+* Hid panels during tracking loss or partition conflicts and restored them after recovery.
+* Fixed first-panel startup to establish the SceneUI partition before waiting for panel visibility.
+* Refreshed partition inheritance when SceneUI children appeared, preventing recursive camera feeds after startup
+  or stage replacement without rewriting the partition every frame.
+* Preserved positional construction of ``XrCameraFeedLayoutCfg``.
+* Preserved requested PiP denoising settings without importing Isaac Sim during configuration preparation.
+
+
+0.9.0 (2026-09-10)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the ``ISAACLAB_CXR_ACCEPT_EULA=1`` environment variable, which accepts the NVIDIA
+  CloudXR license up front wherever Isaac Lab launches the CloudXR runtime -- both the teleop
+  session lifecycle and the process-scoped launcher in ``teleop_replay_agent.py``, which share
+  one :func:`~isaaclab_teleop.cloudxr_eula_accepted` helper. The license is separate from the
+  Omniverse one and was otherwise only ever prompted for on stdin, so headless, container and
+  CI runs aborted with
+  ``RuntimeError: CloudXR EULA was not accepted; cannot start the runtime``.
+
+
+0.8.4 (2026-09-05)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed demonstration recording for tasks whose rewards reference the ``success``
+  termination term.
+
+
+0.8.3 (2026-09-03)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``from isaaclab_teleop import IsaacTeleopDevice`` raising ``ModuleNotFoundError: No module named 'carb'``
+  on hosts without Isaac Sim installed. :mod:`~isaaclab_teleop.xr_anchor_manager` now imports ``carb`` with the
+  same optional fallback it already used for ``omni.kit.xr.core``, so headless sessions that never start an XR
+  runtime can import the device. The XR render and anchor settings are skipped when Kit is absent; behavior with
+  Kit present is unchanged.
+
+
+0.8.2 (2026-09-01)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the XR headset receiving noise instead of the rendered scene on multi-GPU hosts.
+  The auto-launched CloudXR runtime selected its own device, and because Vulkan's physical
+  device enumeration is unrelated to the CUDA ordering Isaac Lab picks the simulation and
+  renderer devices with, the compositor could end up on a different GPU than the one holding
+  the rendered swapchain. The runtime is now pinned to the renderer's CUDA device via
+  ``NV_CXR_GPU_INDEX_CUDA``; an index already set in the environment or in the
+  ``--cloudxr_env`` profile is left untouched.
+
+
+0.8.1 (2026-08-28)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the ``isaaclab teleop run``, ``record``, and ``replay`` workflows rejecting Hydra-style
+  task selectors such as ``physics=isaacsim_physx presets=diffik``. The workflows now resolve task
+  configurations through the shared preset-aware path and expose the selector syntax in ``--help``.
+
+
+0.8.0 (2026-08-08)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added XR camera feedback to ``teleop_se3_agent.py`` and ``record_demos.py``, with task-configured
+  existing-camera selection, declarative layouts, and viewer-start, head-locked, or explicit-world
+  placement.
+* Added a PiP-owned CUDA Replicator source with staged camera-buffer fallback so camera feedback works
+  with CPU physics without changing the core camera output device.
+* Added optional feed-local DLSS Ray Reconstruction and execution-mode settings, applied by the
+  PiP adapter without extending the core camera or renderer configuration APIs.
+* Added lazy Kit Scene UI loading so kitless teleoperation warns and continues without PiP.
+* Added :class:`~isaaclab_teleop.XrCameraFeedSession` as the supported camera-feedback lifecycle
+  API for teleoperation entry points.
+
+Changed
+^^^^^^^
+
+* Changed ``--disable_external_cameras`` into the master camera-rendering and PiP gate for
+  ``teleop_se3_agent.py`` and ``record_demos.py``. To keep task cameras enabled without PiP, leave
+  this flag unset and configure ``xr_camera_feeds`` as an empty list or with every feed disabled.
+
+Fixed
+^^^^^
+
+* Fixed camera feedback so it refreshes immediately after environment resets.
+* Fixed pre-6.1 PiP compatibility by falling back to classic DLSS when a selected feed requests
+  Ray Reconstruction on a runtime without responsive denoising.
+
+
+0.7.1 (2026-08-07)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed a spurious warning during ``./isaaclab.sh -i teleop`` by removing the
+  ``[tool.isaaclab] pip_upgrade_dependencies`` entry for ``isaacteleop``. The dependency is
+  declared by the root ``teleop`` extra rather than by this package, so the targeted upgrade
+  could never resolve it from the installed package metadata.
+
+
+0.7.0 (2026-07-31)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab_teleop.check_system_requirements`, which measures the workstation against
+  the recommended teleoperation spec (CPU single-thread throughput, frequency governor, GPU memory
+  and architecture, driver, and system memory) and reports any unmet requirement. The check runs
+  automatically when a teleop session starts, is advisory only, and never blocks a session.
+
+* Added :meth:`~isaaclab_teleop.IsaacTeleopDevice.send_client_message` for sending JSON messages
+  from Isaac Lab to the connected XR client over the teleop control channel. Workstation warnings
+  use it to surface in the headset, where the operator can see them.
+
+
 0.6.0 (2026-07-24)
 ~~~~~~~~~~~~~~~~~~
 

@@ -3,22 +3,23 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# needed to import for allowing type-hinting: np.ndarray | None
 from __future__ import annotations
 
+import logging
 import math
-from collections.abc import Sequence
 from typing import Any, ClassVar
 
 import gymnasium as gym
 import numpy as np
 import torch
 
-from isaaclab.managers import CommandManager, CurriculumManager, RewardManager, TerminationManager
-
+from ..managers import CommandManager, CurriculumManager, RewardManager, TerminationManager
+from ..utils import index_fill_
 from .common import VecEnvStepReturn
 from .manager_based_env import ManagerBasedEnv
 from .manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
+
+logger = logging.getLogger(__name__)
 
 
 class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
@@ -75,14 +76,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
 
         # initialize the episode length buffer BEFORE loading the managers to use it in mdp functions.
         self.episode_length_buf = torch.zeros(cfg.scene.num_envs, device=cfg.sim.device, dtype=torch.long)
-
-        # Forward render_mode and viewer camera to VideoRecorderCfg before super().__init__()
-        # creates the VideoRecorder, so fallback cameras are only spawned when --video is active
-        # (env_render_mode="rgb_array") and the perspective view matches the task viewport.
-        if cfg.video_recorder is not None:
-            cfg.video_recorder.env_render_mode = render_mode
-            cfg.video_recorder.eye = tuple(float(x) for x in cfg.viewer.eye)
-            cfg.video_recorder.lookat = tuple(float(x) for x in cfg.viewer.lookat)
+        self.reset_buf = torch.zeros(cfg.scene.num_envs, device=cfg.sim.device, dtype=torch.bool)
 
         # initialize the base class to setup the scene.
         super().__init__(cfg=cfg)
@@ -94,7 +88,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         #    produced video matches the simulation
         self.metadata["render_fps"] = 1 / self.step_dt
         self.has_rtx_sensors = self.sim.get_setting("/isaaclab/render/rtx_sensors")
-        print("[INFO]: Completed setting up the environment...")
+        logger.info("Completed setting up the environment...")
 
     """
     Properties.
@@ -119,7 +113,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # and the reward manager needs to know the termination manager
         # -- command manager
         self.command_manager: CommandManager = CommandManager(self.cfg.commands, self)
-        print("[INFO] Command Manager: ", self.command_manager)
+        logger.info(f"Command Manager: {self.command_manager}")
 
         # call the parent class to load the managers for observations and actions.
         super().load_managers()
@@ -127,13 +121,13 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # prepare the managers
         # -- termination manager
         self.termination_manager = TerminationManager(self.cfg.terminations, self)
-        print("[INFO] Termination Manager: ", self.termination_manager)
+        logger.info(f"Termination Manager: {self.termination_manager}")
         # -- reward manager
         self.reward_manager = RewardManager(self.cfg.rewards, self)
-        print("[INFO] Reward Manager: ", self.reward_manager)
+        logger.info(f"Reward Manager: {self.reward_manager}")
         # -- curriculum manager
         self.curriculum_manager = CurriculumManager(self.cfg.curriculum, self)
-        print("[INFO] Curriculum Manager: ", self.curriculum_manager)
+        logger.info(f"Curriculum Manager: {self.curriculum_manager}")
 
         # setup the action and observation spaces for Gym
         self._configure_gym_env_spaces()
@@ -211,44 +205,26 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         Returns:
             A tuple containing the observations, rewards, resets (terminated and truncated) and extras.
         """
-        # process actions
         self.action_manager.process_action(action.to(self.device))
 
         self.recorder_manager.record_pre_step()
 
         # check if we need to do rendering within the physics loop
-        # note: uses cached property to avoid settings lookup every step
+        # note: evaluated once per step rather than once per physics substep
         is_rendering = self.sim.is_rendering
 
-        # perform physics stepping
-        if self._physics_handles_decimation:
-            self._sim_step_counter += self.cfg.decimation
+        # physics-owned decimation covers all substeps in one call
+        steps_per_call = self.cfg.decimation if self._physics_handles_decimation else 1
+        for _ in range(self.cfg.decimation // steps_per_call):
+            self._sim_step_counter += steps_per_call
             self.action_manager.apply_action()
             self.scene.write_data_to_sim()
             self.sim.step(render=False)
             self.recorder_manager.record_post_physics_decimation_step()
-            # render only when a render_interval boundary falls within this decimation block,
-            # mirroring the per-sub-step check in the else branch.
+            # render_enabled=False skips Kit (camera/GUI); standalone visualizers still update
             if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
                 self.sim.render(skip_app_pumping=not self.render_enabled)
-            self.scene.update(dt=self.step_dt)
-        else:
-            for _ in range(self.cfg.decimation):
-                self._sim_step_counter += 1
-                # set actions into buffers
-                self.action_manager.apply_action()
-                # set actions into simulator
-                self.scene.write_data_to_sim()
-                # simulate
-                self.sim.step(render=False)
-                self.recorder_manager.record_post_physics_decimation_step()
-                # render between steps only if the GUI or an RTX sensor needs it.
-                # When render_enabled is False, Kit visualizer (camera/GUI) is skipped
-                # but standalone visualizers (Newton, Rerun, Viser) still update.
-                if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
-                    self.sim.render(skip_app_pumping=not self.render_enabled)
-                # update buffers at sim dt
-                self.scene.update(dt=self.physics_dt)
+            self.scene.update(dt=self.physics_dt * steps_per_call)
 
         # post-step:
         # -- update env counters (used for curriculum generation)
@@ -258,7 +234,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.reset_buf = self.termination_manager.compute()
         self.reset_terminated = self.termination_manager.terminated
         self.reset_time_outs = self.termination_manager.time_outs
-        # -- reward computation
         self.reward_buf = self.reward_manager.compute(dt=self.step_dt)
 
         if len(self.recorder_manager.active_terms) > 0:
@@ -272,7 +247,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             # capture the terminal observation before reset and expose it for Same-Step autoreset.
             if self.cfg.compute_final_obs:
                 self.extras["final_obs"] = self.observation_manager.compute()
-            # trigger recorder terms for pre-reset calls
             self.recorder_manager.record_pre_reset(reset_env_ids)
 
             self._reset_idx(reset_env_ids)
@@ -281,20 +255,32 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             if self.render_enabled and is_rendering and self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
                 for _ in range(self.cfg.num_rerenders_on_reset):
                     self.sim.render()
-
-            # trigger recorder terms for post-reset calls
             self.recorder_manager.record_post_reset(reset_env_ids)
 
-        # -- update command
+        # -- handle episode reset requested from visualizer UI controls
+        if self.sim.consume_reset_request():
+            # Only reset envs not already reset this step to avoid redundant resets.
+            not_yet_reset = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
+            index_fill_(not_yet_reset, reset_env_ids, False)
+            manual_reset_ids = not_yet_reset.nonzero(as_tuple=False).squeeze(-1).int()
+            if len(manual_reset_ids) > 0:
+                # mark as terminated so RL wrappers observe the episode boundary
+                index_fill_(self.reset_terminated, manual_reset_ids, True)
+                # mirror the recorder lifecycle used for normal resets
+                self.recorder_manager.record_pre_reset(manual_reset_ids)
+                self._reset_idx(manual_reset_ids)
+                self.recorder_manager.record_post_reset(manual_reset_ids)
+
         self.command_manager.compute(dt=self.step_dt)
-        # -- step interval events
-        if "interval" in self.event_manager.available_modes:
+        if "interval" in self.event_manager.active_terms:
             self.event_manager.apply(mode="interval", dt=self.step_dt)
+        # -- advance video recorders (after render and resets, before final obs)
+        for recorder in self.video_recorders:
+            recorder.step()
         # -- compute observations
         # note: done after reset to get the correct observations for reset envs
         self.obs_buf = self.observation_manager.compute(update_history=True)
 
-        # return observations, rewards, resets and extras
         return self.obs_buf, self.reward_buf, self.reset_terminated, self.reset_time_outs, self.extras
 
     def render(self, recompute: bool = False) -> np.ndarray | None:
@@ -303,15 +289,18 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         By convention, if mode is:
 
         - **human**: Render to the current display and return nothing. Usually for human consumption.
-        - **rgb_array**: Return a numpy.ndarray with shape (x, y, 3), representing RGB values for an
-          x-by-y pixel image, suitable for turning into a video.
+
+        .. note::
+            ``render_mode="rgb_array"`` is no longer supported.  Use
+            :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg` on
+            ``env_cfg.video_recorders`` instead.
 
         Args:
             recompute: Whether to force a render even if the simulator has already rendered the scene.
                 Defaults to False.
 
         Returns:
-            The rendered image as a numpy array if mode is "rgb_array". Otherwise, returns None.
+            None.
 
         Raises:
             RuntimeError: If mode is set to "rgb_data" and simulation render mode does not support it.
@@ -324,12 +313,18 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         if not self.has_rtx_sensors and not recompute:
             self.sim.render()
         # decide the rendering mode
+        if self.render_mode == "rgb_array":
+            import warnings
+
+            warnings.warn(
+                "render_mode='rgb_array' is deprecated and will be removed in a future release. "
+                "Use VideoRecorderCfg on env_cfg.video_recorders to capture frames instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return None
         if self.render_mode == "human" or self.render_mode is None:
             return None
-        elif self.render_mode == "rgb_array":
-            if self.video_recorder is None:
-                return None
-            return self.video_recorder.render_rgb_array()
         else:
             raise NotImplementedError(
                 f"Render mode '{self.render_mode}' is not supported. Please use: {self.metadata['render_modes']}."
@@ -384,18 +379,18 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.observation_space = gym.vector.utils.batch_space(self.single_observation_space, self.num_envs)
         self.action_space = gym.vector.utils.batch_space(self.single_action_space, self.num_envs)
 
-    def _reset_idx(self, env_ids: Sequence[int]):
+    def _reset_idx(self, env_ids: torch.Tensor | slice):
         """Reset environments based on specified indices.
 
         Args:
-            env_ids: List of environment ids which must be reset
+            env_ids: A slice or environment indices on the environment device.
         """
         # update the curriculum for environments that need a reset
         self.curriculum_manager.compute(env_ids=env_ids)
         # reset the internal buffers of the scene elements
         self.scene.reset(env_ids)
         # apply events such as randomizations for environments that need a reset
-        if "reset" in self.event_manager.available_modes:
+        if "reset" in self.event_manager.active_terms:
             env_step_count = self._sim_step_counter // self.cfg.decimation
             self.event_manager.apply(mode="reset", env_ids=env_ids, global_env_step_count=env_step_count)
 
@@ -428,7 +423,4 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         info = self.recorder_manager.reset(env_ids)
         self.extras["log"].update(info)
 
-        # reset the episode length buffer
-        self.episode_length_buf[env_ids] = 0
-
-        self.sim.render_context.reset_scene_state_cadence()
+        index_fill_(self.episode_length_buf, env_ids, 0)

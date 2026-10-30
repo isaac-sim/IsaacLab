@@ -28,17 +28,20 @@ import warp as wp
 
 from isaaclab.envs.common import VecEnvObs
 from isaaclab.envs.manager_based_env_cfg import ManagerBasedEnvCfg
-from isaaclab.envs.ui import ViewportCameraController
-from isaaclab.envs.utils.io_descriptors import export_articulations_data, export_scene_data
+from isaaclab.envs.utils.io_descriptors import (
+    _warn_io_descriptors_deprecated,
+    export_articulations_data,
+    export_scene_data,
+)
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import use_stage
+from isaaclab.utils import validate
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
-from isaaclab.utils.version import has_kit
+from isaaclab.utils.warp.memory import resolve_1d_mask
 
 from isaaclab_experimental.envs.interactive_scene_warp import InteractiveSceneWarp as InteractiveScene
 from isaaclab_experimental.utils.manager_call_switch import ManagerCallMode, ManagerCallSwitch
-from isaaclab_experimental.utils.warp import resolve_1d_mask
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -73,9 +76,17 @@ class ManagerBasedEnvWarp:
                 since it configures the simulation context and controls the simulation.
         """
         # check that the config is valid
-        cfg.validate()
+        validate(cfg)
         # store inputs to class
         self.cfg = cfg
+        # Video recording is not supported on Warp environments.
+        if getattr(cfg, "video_recorders", None):
+            import logging as _logging
+
+            _logging.getLogger(__name__).warning(
+                "cfg.video_recorders is set but ManagerBasedEnvWarp does not support VideoRecorder. "
+                "No clips will be written. Use ManagerBasedEnv for video recording support."
+            )
         # initialize internal variables
         self._is_closed = False
         # temporary debug runtime config for manager source/call switching.
@@ -107,12 +118,14 @@ class ManagerBasedEnvWarp:
             torch.cuda.set_device(self.device)
 
         # print useful information
-        print("[INFO]: Base environment:")
-        print(f"\tEnvironment device    : {self.device}")
-        print(f"\tEnvironment seed      : {self.cfg.seed}")
-        print(f"\tPhysics step-size     : {self.physics_dt}")
-        print(f"\tRendering step-size   : {self.physics_dt * self.cfg.sim.render_interval}")
-        print(f"\tEnvironment step-size : {self.step_dt}")
+        logger.info(
+            "Base environment:\n"
+            f"\tEnvironment device    : {self.device}\n"
+            f"\tEnvironment seed      : {self.cfg.seed}\n"
+            f"\tPhysics step-size     : {self.physics_dt}\n"
+            f"\tRendering step-size   : {self.physics_dt * self.cfg.sim.render_interval}\n"
+            f"\tEnvironment step-size : {self.step_dt}"
+        )
 
         if self.cfg.sim.render_interval < self.cfg.decimation:
             msg = (
@@ -134,8 +147,7 @@ class ManagerBasedEnvWarp:
             with use_stage(self.sim.stage):
                 self.scene = InteractiveScene(self.cfg.scene)
                 # attach_stage_to_usd_context()
-                self.scene.initialize_renderers()
-        print("[INFO]: Scene manager: ", self.scene)
+        logger.info(f"Scene manager: {self.scene}")
 
         # Shared per-env Warp RNG state (accessible to all managers/terms via `env`).
         # This is a single stream per env (no lookup) and is initialized once when `num_envs` is known.
@@ -157,17 +169,6 @@ class ManagerBasedEnvWarp:
         # Persistent scalar buffer for global env step count (stable pointer for capture).
         self._global_env_step_count_wp = wp.zeros((1,), dtype=wp.int32, device=self.device)
 
-        # set up camera viewport controller
-        # viewport is not available in other rendering modes so the function will throw a warning
-        # FIXME: This needs to be fixed in the future when we unify the UI functionalities even for
-        # non-rendering modes.
-        # Initialize when a Kit viewport exists. ViewportCameraController uses omni.kit (renderer camera);
-        # skip in kitless Newton-only runs (e.g. --viz rerun) where no Kit app is running.
-        if (self.sim.has_gui or self.sim.has_active_visualizers()) and has_kit():
-            self.viewport_camera_controller = ViewportCameraController(self, self.cfg.viewer)
-        else:
-            self.viewport_camera_controller = None
-
         # create event manager
         # note: this is needed here (rather than after simulation play) to allow USD-related randomization events
         #   that must happen before the simulation starts. Example: randomizing mesh scale
@@ -181,7 +182,7 @@ class ManagerBasedEnvWarp:
         # note: this activates the physics simulation view that exposes TensorAPIs
         # note: when started in extension mode, first call sim.reset_async() and then initialize the managers
         # if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:
-        print("[INFO]: Starting the simulation. This may take a few seconds. Please wait...")
+        logger.info("Starting the simulation. This may take a few seconds. Please wait...")
         with Timer("[INFO]: Time taken for simulation start", "simulation_start"):
             # since the reset can trigger callbacks which use the stage,
             # we need to set the stage context here
@@ -295,25 +296,37 @@ class ManagerBasedEnvWarp:
             mask=env_mask,
             all_mask=self.ALL_ENV_MASK,
             scratch_mask=self.ENV_MASK,
-            device=self.device,
         )
 
     @property
     def get_IO_descriptors(self):
         """Get the IO descriptors for the environment.
 
+        .. deprecated:: 3.0
+           IO descriptors will be removed in Isaac Lab 3.2. Use the LEAPP
+           export workflow for supported RSL-RL/PyTorch deployments.
+
         Returns:
             A dictionary with keys as the group names and values as the IO descriptors.
         """
+        _warn_io_descriptors_deprecated(stacklevel=3)
+        return self._collect_io_descriptors()
+
+    def _collect_io_descriptors(self):
+        """Collect IO descriptors without emitting a deprecation warning."""
         return {
-            "observations": self.observation_manager.get_IO_descriptors,
-            "actions": self.action_manager.get_IO_descriptors,
+            "observations": self.observation_manager._collect_io_descriptors(),
+            "actions": self.action_manager._collect_io_descriptors(),
             "articulations": export_articulations_data(self),
             "scene": export_scene_data(self),
         }
 
     def export_IO_descriptors(self, output_dir: str | None = None):
         """Export the IO descriptors for the environment.
+
+        .. deprecated:: 3.0
+           IO descriptors will be removed in Isaac Lab 3.2. Use the LEAPP
+           export workflow for supported RSL-RL/PyTorch deployments.
 
         Args:
             output_dir: The directory to export the IO descriptors to.
@@ -322,7 +335,8 @@ class ManagerBasedEnvWarp:
 
         import yaml
 
-        IO_descriptors = self.get_IO_descriptors
+        _warn_io_descriptors_deprecated(stacklevel=3)
+        IO_descriptors = self._collect_io_descriptors()
 
         if output_dir is None:
             if self.cfg.log_dir is not None:
@@ -337,7 +351,7 @@ class ManagerBasedEnvWarp:
             os.makedirs(output_dir, exist_ok=True)
 
         with open(os.path.join(output_dir, "IO_descriptors.yaml"), "w") as f:
-            print(f"[INFO]: Exporting IO descriptors to {os.path.join(output_dir, 'IO_descriptors.yaml')}")
+            logger.info(f"Exporting IO descriptors to {os.path.join(output_dir, 'IO_descriptors.yaml')}")
             yaml.safe_dump(IO_descriptors, f)
 
     """
@@ -362,20 +376,20 @@ class ManagerBasedEnvWarp:
         """
         # prepare the managers
         # -- event manager (we print it here to make the logging consistent)
-        print("[INFO] Event Manager: ", self.event_manager)
+        logger.info(f"Event Manager: {self.event_manager}")
         # -- recorder manager
         self.recorder_manager = self._manager_call_switch.resolve_manager_class("RecorderManager")(
             self.cfg.recorders, self
         )
-        print("[INFO] Recorder Manager: ", self.recorder_manager)
+        logger.info(f"Recorder Manager: {self.recorder_manager}")
         # -- action manager
         self.action_manager = self._manager_call_switch.resolve_manager_class("ActionManager")(self.cfg.actions, self)
-        print("[INFO] Action Manager: ", self.action_manager)
+        logger.info(f"Action Manager: {self.action_manager}")
         # -- observation manager
         self.observation_manager = self._manager_call_switch.resolve_manager_class("ObservationManager")(
             self.cfg.observations, self
         )
-        print("[INFO] Observation Manager:", self.observation_manager)
+        logger.info(f"Observation Manager: {self.observation_manager}")
 
         # perform events at the start of the simulation
         # in-case a child implementation creates other managers, the randomization should happen
@@ -583,21 +597,12 @@ class ManagerBasedEnvWarp:
         Returns:
             The seed used for random generator.
         """
-        # set seed for replicator
-        try:
-            import omni.replicator.core as rep
-
-            rep.set_global_seed(seed)
-        except ModuleNotFoundError:
-            pass
-        # set seed for torch and other libraries
         return configure_seed(seed)
 
     def close(self):
         """Cleanup for the environment."""
         if not self._is_closed:
             # destructor is order-sensitive
-            del self.viewport_camera_controller
             del self.action_manager
             del self.observation_manager
             del self.event_manager
@@ -703,9 +708,8 @@ class ManagerBasedEnvWarp:
             replaced_items.append(f"{manager_name} -> cfg.{cfg_attr}")
 
         if replaced_items:
-            print("[INFO] Applied stable term config profile for managers:")
-            for item in replaced_items:
-                print(f"  - {item}")
+            items = "\n".join(f"  - {item}" for item in replaced_items)
+            logger.info(f"Applied stable term config profile for managers:\n{items}")
 
     def _reset_idx(self, env_ids: Sequence[int]):
         """Reset environments based on specified indices.

@@ -7,7 +7,7 @@ import warnings
 from typing import TYPE_CHECKING
 
 from isaaclab.sensors.contact_sensor.contact_sensor_cfg import ContactSensorCfg as BaseContactSensorCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from .contact_sensor import ContactSensor
@@ -32,9 +32,11 @@ class ContactSensorCfg(BaseContactSensorCfg):
         return self.prim_path
 
     def __post_init__(self):
-        if self.track_contact_points:
+        if self.track_contact_points and not (self.filter_prim_paths_expr or self.filter_shape_prim_expr):
             warnings.warn(
-                "ContactSensorCfg: 'track_contact_points' is not supported by the Newton backend. Ignoring.",
+                "ContactSensorCfg: 'track_contact_points' requires filter objects on the Newton backend. Please set"
+                " 'filter_prim_paths_expr' or 'filter_shape_prim_expr'. Ignoring.",
+                UserWarning,
                 stacklevel=2,
             )
             self.track_contact_points = False
@@ -42,16 +44,10 @@ class ContactSensorCfg(BaseContactSensorCfg):
         if self.max_contact_data_count_per_prim is not None:
             warnings.warn(
                 "ContactSensorCfg: 'max_contact_data_count_per_prim' is not supported by the Newton backend. Ignoring.",
+                UserWarning,
                 stacklevel=2,
             )
             self.max_contact_data_count_per_prim = None
-
-        if self.track_friction_forces:
-            warnings.warn(
-                "ContactSensorCfg: 'track_friction_forces' is not supported by the Newton backend. Ignoring.",
-                stacklevel=2,
-            )
-            self.track_friction_forces = False
 
     @classmethod
     def from_base_cfg(cls, base_cfg: BaseContactSensorCfg, **kwargs) -> "ContactSensorCfg":
@@ -59,7 +55,8 @@ class ContactSensorCfg(BaseContactSensorCfg):
 
         Args:
             base_cfg: The base contact sensor configuration to copy from.
-            **kwargs: Newton-specific fields, e.g. ``filter_shape_prim_expr=["fingertip_.*"]``.
+            **kwargs: Newton-specific fields, e.g.
+                ``filter_shape_prim_expr=["{ENV_REGEX_NS}/Robot/fingertip_[^/]*/.*"]``.
 
         Returns:
             A new :class:`ContactSensorCfg` instance.

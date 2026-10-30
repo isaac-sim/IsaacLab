@@ -9,6 +9,8 @@
 
     Articulation
     ArticulationData
+    CableObject
+    CableObjectData
     RigidObject
     RigidObjectData
     RigidObjectCollection
@@ -30,6 +32,20 @@ Articulation
   :show-inheritance:
 
 .. autoclass:: ArticulationData
+  :members:
+  :inherited-members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+Cable Object
+------------
+
+.. autoclass:: CableObject
+  :members:
+  :inherited-members:
+  :show-inheritance:
+
+.. autoclass:: CableObjectData
   :members:
   :inherited-members:
   :show-inheritance:

@@ -7,13 +7,12 @@
 Script to record teleoperated demos and run mimic dataset generation in real-time.
 """
 
-# Launching Isaac Sim Simulator first.
+# Parse CLI first so we can decide whether to launch Isaac Sim Kit.
 
 import argparse
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
 
-# add argparse arguments
 parser = argparse.ArgumentParser(
     description="Record demonstrations and run mimic dataset generation for Isaac Lab environments."
 )
@@ -60,16 +59,11 @@ parser.add_argument(
     default=None,
     help="File path to export generated episodes by mimic.",
 )
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
-# parse the arguments
-args_cli = parser.parse_args()
-
-# launch the simulator
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
-
-"""Rest everything follows."""
+add_launcher_args(parser)
+# parse the arguments, forwarding unrecognized ones as Hydra-style task config overrides
+args_cli, hydra_overrides = parser.parse_known_args()
+# The environment and data generation use the Kit runtime.
+args_cli.require_kit = True
 
 import asyncio
 import contextlib
@@ -81,16 +75,12 @@ import gymnasium as gym
 import numpy as np
 import torch
 
-from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3SpaceMouseCfg
-from isaaclab.envs import ManagerBasedRLMimicEnv
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 from isaaclab.managers import DatasetExportMode, RecorderTerm, RecorderTermCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 from isaaclab.utils.datasets import HDF5DatasetFileHandler
 
 import isaaclab_mimic.envs  # noqa: F401
-from isaaclab_mimic.datagen.data_generator import DataGenerator
-from isaaclab_mimic.datagen.datagen_info_pool import DataGenInfoPool
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
@@ -175,37 +165,16 @@ class RateLimiter:
                 self.last_time += self.sleep_duration
 
 
-def pre_process_actions(delta_pose: torch.Tensor, gripper_command: bool) -> torch.Tensor:
-    """Pre-process actions for the environment."""
-    # compute actions based on environment
-    if "Reach" in args_cli.task:
-        # note: reach is the only one that uses a different action space
-        # compute actions
-        return delta_pose
-    else:
-        # resolve gripper command
-        gripper_vel = torch.zeros((delta_pose.shape[0], 1), dtype=torch.float, device=delta_pose.device)
-        gripper_vel[:] = -1 if gripper_command else 1
-        # compute actions
-        return torch.concat([delta_pose, gripper_vel], dim=1)
-
-
 async def run_teleop_robot(
-    env, env_id, env_action_queue, shared_datagen_info_pool, success_term, exported_dataset_path, teleop_interface=None
+    env, env_id, env_action_queue, shared_datagen_info_pool, success_term, exported_dataset_path, teleop_interface
 ):
     """Run teleop robot."""
     global num_recorded
     should_reset_teleop_instance = False
-    # create controller if needed
-    if teleop_interface is None:
-        if args_cli.teleop_device.lower() == "keyboard":
-            teleop_interface = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.2, rot_sensitivity=0.5))
-        elif args_cli.teleop_device.lower() == "spacemouse":
-            teleop_interface = Se3SpaceMouse(Se3SpaceMouseCfg(pos_sensitivity=0.2, rot_sensitivity=0.5))
-        else:
-            raise ValueError(
-                f"Invalid device interface '{args_cli.teleop_device}'. Supported: 'keyboard', 'spacemouse'."
-            )
+    teleoperation_active = True
+    teleop_action = torch.zeros((1, 6 if "Reach" in args_cli.task else 7), device=env.device)
+    if teleop_action.shape[1] == 7:
+        teleop_action[0, 6] = 1.0
 
     # add teleoperation key for reset current recording instance
     def reset_teleop_instance():
@@ -230,12 +199,14 @@ async def run_teleop_robot(
             should_reset_teleop_instance = False
             success_step_count = 0
 
-        # get keyboard command
-        delta_pose, gripper_command = teleop_interface.advance()
-        # convert to torch
-        delta_pose = torch.tensor(delta_pose, dtype=torch.float, device=env.device).repeat(1, 1)
-        # compute actions based on environment
-        teleop_action = pre_process_actions(delta_pose, gripper_command)
+        action = teleop_interface.advance()
+        if teleop_interface.last_control_events.is_active is not None:
+            teleoperation_active = teleop_interface.last_control_events.is_active
+        if action is not None and teleoperation_active:
+            teleop_action[0] = action[: teleop_action.shape[1]]
+        else:
+            # Every generator supplies an action each round; stop motion and retain the gripper state.
+            teleop_action[:, :6] = 0
 
         await env_action_queue.put((env_id, teleop_action))
         await env_action_queue.join()
@@ -264,6 +235,8 @@ async def run_data_generator(
 ):
     """Run data generator."""
     global num_success, num_failures, num_attempts
+    from isaaclab_mimic.datagen.data_generator import DataGenerator
+
     data_generator = DataGenerator(env=env.unwrapped, src_demo_datagen_info_pool=shared_datagen_info_pool)
     idle_action = torch.zeros(env.unwrapped.action_space.shape)[0]
     while True:
@@ -344,7 +317,6 @@ def env_loop(env, env_action_queue, shared_datagen_info_pool, asyncio_event_loop
 
             if rate_limiter:
                 rate_limiter.sleep(env.unwrapped)
-    env.close()
 
 
 def main():
@@ -371,7 +343,7 @@ def main():
         raise ValueError("Task/env name was not specified nor found in the dataset.")
 
     # parse configuration
-    env_cfg = parse_env_cfg(env_name, device=args_cli.device, num_envs=num_envs)
+    env_cfg = parse_env_cfg(env_name, device=args_cli.device, num_envs=num_envs, overrides=hydra_overrides)
     env_cfg.env_name = env_name
 
     # extract success checking function to invoke manually
@@ -400,8 +372,32 @@ def main():
         env_cfg.recorders.dataset_filename = generated_output_file_name
         env_cfg.recorders.dataset_export_mode = DatasetExportMode.EXPORT_SUCCEEDED_ONLY
 
+    teleop_cfg = None
+    if args_cli.teleop_env_index is not None and args_cli.teleop_env_index >= 0:
+        from isaaclab_teleop import se3_keyboard_teleop_cfg, se3_spacemouse_teleop_cfg
+
+        builders = {"keyboard": se3_keyboard_teleop_cfg, "spacemouse": se3_spacemouse_teleop_cfg}
+        if args_cli.teleop_device.lower() not in builders:
+            raise ValueError(f"Unsupported teleop device: {args_cli.teleop_device!r}")
+        teleop_cfg = builders[args_cli.teleop_device.lower()](
+            pos_sensitivity=0.2, rot_sensitivity=0.5, sim_device=args_cli.device
+        )
+    with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
+        run_consolidated_demo(env_cfg, success_term, teleop_cfg, cleanup)
+
+
+def run_consolidated_demo(env_cfg, success_term, teleop_cfg, cleanup):
+    """Create the environment and run teleoperated recording alongside real-time mimic data generation."""
+    # the environment and data generation classes load USD, so they are imported once the simulation is launched
+    from isaaclab.envs import ManagerBasedRLMimicEnv
+
+    from isaaclab_mimic.datagen.datagen_info_pool import DataGenInfoPool
+
+    num_envs = args_cli.num_envs
+
     # create environment
     env = gym.make(args_cli.task, cfg=env_cfg)
+    cleanup.callback(env.close)
 
     if not isinstance(env.unwrapped, ManagerBasedRLMimicEnv):
         raise ValueError("The environment should be derived from ManagerBasedRLMimicEnv")
@@ -432,6 +428,20 @@ def main():
         shared_datagen_info_pool.load_from_dataset_file(args_cli.input_file)
         print(f"Loaded {shared_datagen_info_pool.num_datagen_infos} to datagen info pool")
 
+    teleop_interface = None
+    if teleop_cfg is not None:
+        from isaaclab_teleop import CLOUDXR_STANDALONE_ENV, create_isaac_teleop_device
+
+        teleop_interface = cleanup.enter_context(
+            create_isaac_teleop_device(
+                teleop_cfg,
+                visualizers=env.unwrapped.sim.visualizers,
+                use_kit_xr_bridge=False,
+                cloudxr_env_file=CLOUDXR_STANDALONE_ENV,
+            )
+        )
+        teleop_interface.request_start()
+
     # make data generator object
     data_generator_asyncio_tasks = []
     for i in range(num_envs):
@@ -439,7 +449,13 @@ def main():
             data_generator_asyncio_tasks.append(
                 asyncio_event_loop.create_task(
                     run_teleop_robot(
-                        env, i, env_action_queue, shared_datagen_info_pool, success_term, args_cli.output_file
+                        env,
+                        i,
+                        env_action_queue,
+                        shared_datagen_info_pool,
+                        success_term,
+                        args_cli.output_file,
+                        teleop_interface,
                     )
                 )
             )
@@ -470,5 +486,3 @@ if __name__ == "__main__":
         main()
     except KeyboardInterrupt:
         print("\nProgram interrupted by user. Exiting...")
-    # close sim app
-    simulation_app.close()

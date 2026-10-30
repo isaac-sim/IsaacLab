@@ -3,9 +3,20 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
 import warp as wp
 
 from isaaclab.assets.articulation.ordering_kernels import resolve_backend_index
+from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
+from isaaclab.utils.warp.math import scale_interval
+
+from isaaclab_newton.assets.kernels import pack_body_wrench_to_world
+
+if TYPE_CHECKING:
+    import torch
 
 """
 Articulation-specific warp functions.
@@ -13,25 +24,37 @@ Articulation-specific warp functions.
 
 
 @wp.func
-def compute_soft_joint_pos_limits_func(
-    joint_pos_limits: wp.vec2f,
-    soft_limit_factor: wp.float32,
+def incoming_joint_wrench(
+    wrench: wp.spatial_vectorf, link_pose: wp.transformf, com: wp.vec3f, joint_pose: wp.transformf
+) -> wp.spatial_vectorf:
+    """Shift a world-frame COM wrench to the child joint anchor and express it in that frame."""
+    force = wp.spatial_top(wrench)
+    joint_world = link_pose * joint_pose
+    com_world = wp.transform_point(link_pose, com)
+    torque = wp.spatial_bottom(wrench) + wp.cross(com_world - wp.transform_get_translation(joint_world), force)
+    rotation = wp.transform_get_rotation(joint_world)
+    return wp.spatial_vector(wp.quat_rotate_inv(rotation, force), wp.quat_rotate_inv(rotation, torque))
+
+
+@wp.kernel
+def update_body_joint_wrench(
+    body_parent_f: wp.array(dtype=wp.spatial_vectorf, ndim=2),
+    body_q: wp.array(dtype=wp.transformf, ndim=2),
+    body_com: wp.array(dtype=wp.vec3f, ndim=2),
+    body_joint_pose: wp.array(dtype=wp.transformf, ndim=2),
+    report_body: wp.array(dtype=wp.bool),
+    user_to_backend: wp.array(dtype=wp.int32),
+    has_ordering: bool,
+    out: wp.array(dtype=wp.spatial_vectorf, ndim=2),
 ):
-    """Compute the soft joint position limits.
-
-    Args:
-        joint_pos_limits: The joint position limits.
-        soft_limit_factor: The soft limit factor.
-
-    Returns:
-        The soft joint position limits.
-    """
-    joint_pos_mean = (joint_pos_limits[0] + joint_pos_limits[1]) / 2.0
-    joint_pos_range = joint_pos_limits[1] - joint_pos_limits[0]
-    return wp.vec2f(
-        joint_pos_mean - 0.5 * joint_pos_range * soft_limit_factor,
-        joint_pos_mean + 0.5 * joint_pos_range * soft_limit_factor,
-    )
+    """Convert reportable tree-joint wrenches into the articulation's public body order."""
+    env, user_body = wp.tid()
+    body = resolve_backend_index(user_body, user_to_backend, has_ordering)
+    out[env, user_body] = wp.spatial_vectorf(0.0)
+    if report_body[body]:
+        out[env, user_body] = incoming_joint_wrench(
+            body_parent_f[env, body], body_q[env, body], body_com[env, body], body_joint_pose[env, body]
+        )
 
 
 """
@@ -43,12 +66,13 @@ Articulation-specific warp kernels.
 def update_wrench_array_with_force_and_torque_ordered(
     forces: wp.array2d(dtype=wp.vec3f),
     torques: wp.array2d(dtype=wp.vec3f),
+    body_link_pose_w: wp.array2d(dtype=wp.transformf),
     user_to_backend: wp.array(dtype=wp.int32),
     wrench: wp.array2d(dtype=wp.spatial_vectorf),
     env_mask: wp.array(dtype=wp.bool),
     body_mask: wp.array(dtype=wp.bool),
 ) -> None:
-    """Write public-order force and torque into a backend-order wrench array.
+    """Write public-order body-frame COM wrenches into a backend-order array.
 
     Launched only under non-identity body ordering; the caller uses the
     reorder-free :func:`~isaaclab_newton.assets.kernels.update_wrench_array_with_force_and_torque`
@@ -57,20 +81,26 @@ def update_wrench_array_with_force_and_torque_ordered(
     Args:
         forces: Body-frame forces [N], shaped [num_envs, num_bodies], in public
             body order.
-        torques: Body-frame torques [N*m], shaped [num_envs, num_bodies], in
+        torques: Body-frame torques [N·m], shaped [num_envs, num_bodies], in
             public body order.
+        body_link_pose_w: World-frame body link poses, shaped [num_envs,
+            num_bodies], in public body order. Only each quaternion is used;
+            translation does not shift the COM-referenced wrench.
         user_to_backend: Read-only map shaped [num_bodies] from each public body
             index to its backend body index.
-        wrench: Backend-order wrench destination [N, N*m], shaped
-            [num_envs, num_bodies].
+        wrench: World-frame force and torque at each body center of mass [N,
+            N·m], shaped [num_envs, num_bodies], in backend body order.
         env_mask: Environment-selection mask shaped [num_envs].
         body_mask: Public-body selection mask shaped [num_bodies].
     """
     env_id, user_body_id = wp.tid()
     if env_mask[env_id] and body_mask[user_body_id]:
         backend_body_id = user_to_backend[user_body_id]
-        wrench[env_id, backend_body_id] = wp.spatial_vector(
-            forces[env_id, user_body_id], torques[env_id, user_body_id], wp.float32
+        body_rot_w = wp.transform_get_rotation(body_link_pose_w[env_id, user_body_id])
+        wrench[env_id, backend_body_id] = pack_body_wrench_to_world(
+            forces[env_id, user_body_id],
+            torques[env_id, user_body_id],
+            body_rot_w,
         )
 
 
@@ -134,8 +164,8 @@ def get_body_com_acc_from_body_com_vel_ordered(
 def write_joint_limit_data_to_buffer_index(
     in_data: wp.array2d(dtype=wp.vec2f),
     soft_limit_factor: wp.float32,
-    env_ids: wp.array(dtype=wp.int32),
-    joint_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
+    joint_ids: wp.array(dtype=Any),
     joint_pos_limits_lower: wp.array2d(dtype=wp.float32),
     joint_pos_limits_upper: wp.array2d(dtype=wp.float32),
     soft_joint_pos_limits: wp.array2d(dtype=wp.vec2f),
@@ -166,19 +196,21 @@ def write_joint_limit_data_to_buffer_index(
             positions were clamped. Non-zero if any clamping occurred. Shape is (1,).
     """
     i, j = wp.tid()
-    joint_pos_limits_lower[env_ids[i], joint_ids[j]] = in_data[i, j][0]
-    joint_pos_limits_upper[env_ids[i], joint_ids[j]] = in_data[i, j][1]
-    if (
-        default_joint_pos[env_ids[i], joint_ids[j]] < joint_pos_limits_lower[env_ids[i], joint_ids[j]]
-    ) or default_joint_pos[env_ids[i], joint_ids[j]] > joint_pos_limits_upper[env_ids[i], joint_ids[j]]:
+    env_id = wp.int32(env_ids[i])
+    joint_id = wp.int32(joint_ids[j])
+    joint_pos_limits_lower[env_id, joint_id] = in_data[i, j][0]
+    joint_pos_limits_upper[env_id, joint_id] = in_data[i, j][1]
+    if (default_joint_pos[env_id, joint_id] < joint_pos_limits_lower[env_id, joint_id]) or default_joint_pos[
+        env_id, joint_id
+    ] > joint_pos_limits_upper[env_id, joint_id]:
         wp.atomic_add(clamped_defaults, 0, 1)
-        default_joint_pos[env_ids[i], joint_ids[j]] = wp.clamp(
-            default_joint_pos[env_ids[i], joint_ids[j]],
-            joint_pos_limits_lower[env_ids[i], joint_ids[j]],
-            joint_pos_limits_upper[env_ids[i], joint_ids[j]],
+        default_joint_pos[env_id, joint_id] = wp.clamp(
+            default_joint_pos[env_id, joint_id],
+            joint_pos_limits_lower[env_id, joint_id],
+            joint_pos_limits_upper[env_id, joint_id],
         )
-    soft_joint_pos_limits[env_ids[i], joint_ids[j]] = compute_soft_joint_pos_limits_func(
-        wp.vec2f(joint_pos_limits_lower[env_ids[i], joint_ids[j]], joint_pos_limits_upper[env_ids[i], joint_ids[j]]),
+    soft_joint_pos_limits[env_id, joint_id] = scale_interval(
+        wp.vec2f(joint_pos_limits_lower[env_id, joint_id], joint_pos_limits_upper[env_id, joint_id]),
         soft_limit_factor,
     )
 
@@ -231,7 +263,7 @@ def write_joint_limit_data_to_buffer_mask(
                 joint_pos_limits_lower[i, j],
                 joint_pos_limits_upper[i, j],
             )
-        soft_joint_pos_limits[i, j] = compute_soft_joint_pos_limits_func(
+        soft_joint_pos_limits[i, j] = scale_interval(
             wp.vec2f(joint_pos_limits_lower[i, j], joint_pos_limits_upper[i, j]), soft_limit_factor
         )
 
@@ -240,8 +272,8 @@ def write_joint_limit_data_to_buffer_mask(
 def write_joint_limit_data_to_user_and_backend_index(
     in_data: wp.array2d(dtype=wp.vec2f),
     soft_limit_factor: wp.float32,
-    env_ids: wp.array(dtype=wp.int32),
-    user_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
+    user_ids: wp.array(dtype=Any),
     user_to_backend: wp.array(dtype=wp.int32),
     has_ordering: bool,
     user_joint_pos_limits_lower: wp.array2d(dtype=wp.float32),
@@ -255,8 +287,8 @@ def write_joint_limit_data_to_user_and_backend_index(
 ):
     """Write indexed user-order joint limits into public and backend-order buffers."""
     i, j = wp.tid()
-    env_id = env_ids[i]
-    user_id = user_ids[j]
+    env_id = wp.int32(env_ids[i])
+    user_id = wp.int32(user_ids[j])
     backend_id = resolve_backend_index(user_id, user_to_backend, has_ordering)
     limits = in_data[i, j]
     lower = limits[0]
@@ -272,7 +304,7 @@ def write_joint_limit_data_to_user_and_backend_index(
         wp.atomic_add(clamped_defaults, 0, 1)
         default_joint_pos[env_id, user_id] = wp.clamp(default_joint_pos[env_id, user_id], lower, upper)
 
-    soft_joint_pos_limits[env_id, user_id] = compute_soft_joint_pos_limits_func(limits, soft_limit_factor)
+    soft_joint_pos_limits[env_id, user_id] = scale_interval(limits, soft_limit_factor)
 
 
 @wp.kernel
@@ -312,7 +344,7 @@ def write_joint_limit_data_to_user_and_backend_mask(
         wp.atomic_add(clamped_defaults, 0, 1)
         default_joint_pos[env_id, user_id] = wp.clamp(default_joint_pos[env_id, user_id], lower, upper)
 
-    soft_joint_pos_limits[env_id, user_id] = compute_soft_joint_pos_limits_func(limits, soft_limit_factor)
+    soft_joint_pos_limits[env_id, user_id] = scale_interval(limits, soft_limit_factor)
 
 
 @wp.kernel
@@ -320,8 +352,8 @@ def write_joint_friction_data_to_buffer(
     in_friction: wp.array2d(dtype=wp.float32),
     in_dynamic_friction: wp.array2d(dtype=wp.float32),
     in_viscous_friction: wp.array2d(dtype=wp.float32),
-    env_ids: wp.array(dtype=wp.int32),
-    joint_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
+    joint_ids: wp.array(dtype=Any),
     from_mask: bool,
     out_friction: wp.array2d(dtype=wp.float32),
     out_dynamic_friction: wp.array2d(dtype=wp.float32),
@@ -359,32 +391,34 @@ def write_joint_friction_data_to_buffer(
             [friction, dynamic_friction, viscous_friction].
     """
     i, j = wp.tid()
+    env_id = wp.int32(env_ids[i])
+    joint_id = wp.int32(joint_ids[j])
     # First update the output buffers
     if from_mask:
-        out_friction[env_ids[i], joint_ids[j]] = in_friction[env_ids[i], joint_ids[j]]
+        out_friction[env_id, joint_id] = in_friction[env_id, joint_id]
         if in_dynamic_friction:
-            out_dynamic_friction[env_ids[i], joint_ids[j]] = in_dynamic_friction[env_ids[i], joint_ids[j]]
+            out_dynamic_friction[env_id, joint_id] = in_dynamic_friction[env_id, joint_id]
         if in_viscous_friction:
-            out_viscous_friction[env_ids[i], joint_ids[j]] = in_viscous_friction[env_ids[i], joint_ids[j]]
+            out_viscous_friction[env_id, joint_id] = in_viscous_friction[env_id, joint_id]
     else:
-        out_friction[env_ids[i], joint_ids[j]] = in_friction[i, j]
+        out_friction[env_id, joint_id] = in_friction[i, j]
         if in_dynamic_friction:
-            out_dynamic_friction[env_ids[i], joint_ids[j]] = in_dynamic_friction[i, j]
+            out_dynamic_friction[env_id, joint_id] = in_dynamic_friction[i, j]
         if in_viscous_friction:
-            out_viscous_friction[env_ids[i], joint_ids[j]] = in_viscous_friction[i, j]
+            out_viscous_friction[env_id, joint_id] = in_viscous_friction[i, j]
     # Then update the friction properties
-    friction_props[env_ids[i], joint_ids[j], 0] = out_friction[env_ids[i], joint_ids[j]]
+    friction_props[env_id, joint_id, 0] = out_friction[env_id, joint_id]
     if in_dynamic_friction:
-        friction_props[env_ids[i], joint_ids[j], 1] = out_dynamic_friction[env_ids[i], joint_ids[j]]
+        friction_props[env_id, joint_id, 1] = out_dynamic_friction[env_id, joint_id]
     if in_viscous_friction:
-        friction_props[env_ids[i], joint_ids[j], 2] = out_viscous_friction[env_ids[i], joint_ids[j]]
+        friction_props[env_id, joint_id, 2] = out_viscous_friction[env_id, joint_id]
 
 
 @wp.kernel
 def write_joint_friction_param_to_buffer(
     in_data: wp.array2d(dtype=wp.float32),
-    env_ids: wp.array(dtype=wp.int32),
-    joint_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
+    joint_ids: wp.array(dtype=Any),
     buffer_index: wp.int32,
     from_mask: bool,
     out_data: wp.array2d(dtype=wp.float32),
@@ -412,82 +446,56 @@ def write_joint_friction_param_to_buffer(
             slice. Shape is (num_envs, num_joints, num_friction_params).
     """
     i, j = wp.tid()
+    env_id = wp.int32(env_ids[i])
+    joint_id = wp.int32(joint_ids[j])
     if from_mask:
-        out_data[env_ids[i], joint_ids[j]] = in_data[env_ids[i], joint_ids[j]]
-        out_buffer[env_ids[i], joint_ids[j], buffer_index] = in_data[env_ids[i], joint_ids[j]]
+        out_data[env_id, joint_id] = in_data[env_id, joint_id]
+        out_buffer[env_id, joint_id, buffer_index] = in_data[env_id, joint_id]
     else:
-        out_data[env_ids[i], joint_ids[j]] = in_data[i, j]
-        out_buffer[env_ids[i], joint_ids[j], buffer_index] = in_data[i, j]
+        out_data[env_id, joint_id] = in_data[i, j]
+        out_buffer[env_id, joint_id, buffer_index] = in_data[i, j]
 
 
-@wp.kernel
-def float_data_to_buffer_with_indices(
-    in_data: wp.float32,
-    env_ids: wp.array(dtype=wp.int32),
-    joint_ids: wp.array(dtype=wp.int32),
-    out_data: wp.array2d(dtype=wp.float32),
-):
-    """Write a scalar float value to a 2D buffer at specified indices.
-
-    This kernel broadcasts a single scalar float value to all specified (env_id, joint_id)
-    locations in the output buffer.
-
-    Args:
-        in_data: Input scalar float value to broadcast.
-        env_ids: Input array of environment indices to write to. Shape is (num_selected_envs,).
-        joint_ids: Input array of joint indices to write to. Shape is (num_selected_joints,).
-        out_data: Output array where the scalar value is written. Shape is (num_envs, num_joints).
-    """
-    i, j = wp.tid()
-    out_data[env_ids[i], joint_ids[j]] = in_data
+_WRITE_JOINT_LIMIT_DATA_TO_BUFFER_INDEX_DISPATCHER = IndexKernelDispatcher(
+    write_joint_limit_data_to_buffer_index, ("env_ids", "joint_ids")
+)
+_WRITE_JOINT_LIMIT_DATA_TO_USER_AND_BACKEND_INDEX_DISPATCHER = IndexKernelDispatcher(
+    write_joint_limit_data_to_user_and_backend_index, ("env_ids", "user_ids")
+)
+_WRITE_JOINT_FRICTION_DATA_TO_BUFFER_DISPATCHER = IndexKernelDispatcher(
+    write_joint_friction_data_to_buffer, ("env_ids", "joint_ids")
+)
+_WRITE_JOINT_FRICTION_PARAM_TO_BUFFER_DISPATCHER = IndexKernelDispatcher(
+    write_joint_friction_param_to_buffer, ("env_ids", "joint_ids")
+)
 
 
-@wp.kernel
-def float_data_to_buffer_with_mask(
-    in_data: wp.float32,
-    env_mask: wp.array(dtype=wp.bool),
-    joint_mask: wp.array(dtype=wp.bool),
-    out_data: wp.array2d(dtype=wp.float32),
-):
-    """Write a scalar float value to a 2D buffer at specified mask.
-
-    This kernel broadcasts a single scalar float value to all the positions that are marked as True in the environment
-    and joint masks.
-
-    Args:
-        in_data: Input scalar float value to broadcast.
-        env_mask: Input array of environment mask. Shape is (num_envs,).
-        joint_mask: Input array of joint mask. Shape is (num_joints,).
-        out_data: Output array where the scalar value is written. Shape is (num_envs, num_joints).
-    """
-    i, j = wp.tid()
-    if env_mask[i] and joint_mask[j]:
-        out_data[i, j] = in_data
+def write_joint_limit_data_to_buffer_index_kernel(
+    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select the joint-limit buffer writer matching the selector dtypes."""
+    return _WRITE_JOINT_LIMIT_DATA_TO_BUFFER_INDEX_DISPATCHER.select(env_ids, joint_ids)
 
 
-@wp.kernel
-def update_soft_joint_pos_limits(
-    joint_pos_limits: wp.array2d(dtype=wp.vec2f),
-    soft_limit_factor: wp.float32,
-    soft_joint_pos_limits: wp.array2d(dtype=wp.vec2f),
-):
-    """Update soft joint position limits based on hard limits and a soft limit factor.
+def write_joint_limit_data_to_user_and_backend_index_kernel(
+    env_ids: wp.array | torch.Tensor, user_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select the ordered joint-limit writer matching the selector dtypes."""
+    return _WRITE_JOINT_LIMIT_DATA_TO_USER_AND_BACKEND_INDEX_DISPATCHER.select(env_ids, user_ids)
 
-    This kernel computes soft joint position limits from hard joint position limits using
-    a soft limit factor. Soft limits are typically used to provide a safety margin before
-    reaching the hard limits.
 
-    Args:
-        joint_pos_limits: Input array of hard joint position limits as vec2f (lower, upper).
-            Shape is (num_envs, num_joints).
-        soft_limit_factor: Input scalar factor for computing soft limits (typically 0.0-1.0).
-            A value of 1.0 means soft limits equal hard limits, while smaller values create
-            a tighter range.
-        soft_joint_pos_limits: Output array where soft joint position limits are written.
-            Shape is (num_envs, num_joints).
-    """
-    i, j = wp.tid()
-    soft_joint_pos_limits[i, j] = compute_soft_joint_pos_limits_func(joint_pos_limits[i, j], soft_limit_factor)
+def write_joint_friction_data_to_buffer_kernel(
+    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select the joint-friction writer matching the selector dtypes."""
+    return _WRITE_JOINT_FRICTION_DATA_TO_BUFFER_DISPATCHER.select(env_ids, joint_ids)
+
+
+def write_joint_friction_param_to_buffer_kernel(
+    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select the joint-friction parameter writer matching the selector dtypes."""
+    return _WRITE_JOINT_FRICTION_PARAM_TO_BUFFER_DISPATCHER.select(env_ids, joint_ids)
 
 
 @wp.kernel
@@ -551,52 +559,6 @@ def update_targets(
         target_joint_velocities[i, joint_indices[j]] = source_joint_velocities[i, j]
     if source_joint_efforts:
         target_joint_efforts[i, joint_indices[j]] = source_joint_efforts[i, j]
-
-
-@wp.kernel
-def update_actuator_state_model(
-    source_computed_effort: wp.array2d(dtype=wp.float32),
-    source_applied_effort: wp.array2d(dtype=wp.float32),
-    source_gear_ratio: wp.array2d(dtype=wp.float32),
-    source_vel_limits: wp.array2d(dtype=wp.float32),
-    joint_indices: wp.array(dtype=wp.int32),
-    target_computed_effort: wp.array2d(dtype=wp.float32),
-    target_applied_effort: wp.array2d(dtype=wp.float32),
-    target_gear_ratio: wp.array2d(dtype=wp.float32),
-    target_soft_joint_vel_limits: wp.array2d(dtype=wp.float32),
-):
-    """Update actuator state model parameters from source arrays using joint indices.
-
-    This kernel copies actuator state model parameters (computed effort, applied effort,
-    gear ratio, and velocity limits) from source arrays to target arrays, remapping
-    joint indices using the provided joint_indices array.
-
-    Args:
-        source_computed_effort: Input array of source computed effort values. Shape is
-            (num_envs, num_selected_joints).
-        source_applied_effort: Input array of source applied effort values. Shape is
-            (num_envs, num_selected_joints).
-        source_gear_ratio: Input array of source gear ratio values. Shape is
-            (num_envs, num_selected_joints). Can be None if not provided.
-        source_vel_limits: Input array of source velocity limit values. Shape is
-            (num_envs, num_selected_joints).
-        joint_indices: Input array of joint indices for remapping. Shape is
-            (num_selected_joints,). Specifies which joints in the target arrays to update.
-        target_computed_effort: Output array where computed effort values are written.
-            Shape is (num_envs, num_joints).
-        target_applied_effort: Output array where applied effort values are written.
-            Shape is (num_envs, num_joints).
-        target_gear_ratio: Output array where gear ratio values are written. Shape is
-            (num_envs, num_joints).
-        target_soft_joint_vel_limits: Output array where soft joint velocity limits are
-            written. Shape is (num_envs, num_joints).
-    """
-    i, j = wp.tid()
-    target_computed_effort[i, joint_indices[j]] = source_computed_effort[i, j]
-    target_applied_effort[i, joint_indices[j]] = source_applied_effort[i, j]
-    target_soft_joint_vel_limits[i, joint_indices[j]] = source_vel_limits[i, j]
-    if source_gear_ratio:
-        target_gear_ratio[i, joint_indices[j]] = source_gear_ratio[i, j]
 
 
 @wp.kernel
@@ -804,68 +766,187 @@ def gather_dof_force_rows(
     dst[i, user_dof] = src[dof_start + backend_dof]
 
 
+"""
+Deprecated kernels.
+
+These kernels are retained for backward compatibility and will be removed in a future release. Prefer the
+public-order asset write APIs (:meth:`~isaaclab.assets.Articulation.write_joint_position_to_sim_index` and its
+siblings), which apply the ordering conversion internally, or the public-order reorder kernels from
+``isaaclab.assets.articulation.ordering_kernels``. Because Warp kernels cannot emit a runtime deprecation warning
+without breaking :func:`warp.launch`, the deprecation is documented here and in the changelog rather than raised at
+call time.
+"""
+
+
 @wp.kernel
-def shift_jacobian_com_to_origin(
-    body_link_pose: wp.array2d(dtype=wp.transformf),
-    body_com_pos_b: wp.array2d(dtype=wp.vec3f),
-    link_offset: wp.int32,
-    src: wp.array4d(dtype=wp.float32),
-    dst: wp.array4d(dtype=wp.float32),
+def write_joint_vel_data_index(
+    in_data: wp.array2d(dtype=wp.float32),
+    env_ids: wp.array(dtype=Any),
+    joint_ids: wp.array(dtype=Any),
+    joint_vel: wp.array2d(dtype=wp.float32),
+    prev_joint_vel: wp.array2d(dtype=wp.float32),
+    joint_acc: wp.array2d(dtype=wp.float32),
 ):
-    """Shift the linear-velocity rows of the Jacobian from COM to link origin.
+    """Write joint velocity data to the output buffers.
 
-    Newton's ``eval_jacobian`` returns ``J · q_dot = [v_com_world, omega_world]``
-    per link — the linear rows are the velocity of the link's center of mass,
-    expressed in world frame. The
-    :attr:`~isaaclab.assets.BaseArticulationData.body_link_jacobian_w` contract
-    requires the linear rows to be the velocity at the link **origin**
-    (USD prim transform) so that ``J · q_dot[body_idx]`` matches
-    :attr:`~isaaclab.assets.BaseArticulationData.body_link_lin_vel_w` /
-    :attr:`~isaaclab.assets.BaseArticulationData.body_link_ang_vel_w`.
+    Deprecated. Prefer :meth:`~isaaclab.assets.Articulation.write_joint_velocity_to_sim_index` (or the
+    ``ordering_kernels`` reorder family), which apply the public-to-backend ordering conversion internally.
 
-    The shift is the same one applied per-body by
-    :func:`get_link_vel_from_root_com_vel_func`, but layered onto every
-    Jacobian column: each column represents the spatial velocity contribution
-    of one DoF, and shifting a spatial velocity from COM to link origin uses
-    the same ``v_origin = v_com - omega x (R · body_com_pos_b)`` identity.
-
-    Notes on layout:
-        * Jacobian rows ``[0:3]`` are linear velocity, ``[3:6]`` are angular.
-        * ``body_link_pose`` and ``body_com_pos_b`` are indexed by the
-          articulation's full body count, so ``link_offset`` must be applied
-          to map a row in the (already-gathered) ``src`` to its body index in
-          the asset data. ``link_offset = 1`` for fixed-base (Newton's row 0
-          fixed-root row was dropped during the prior gather);
-          ``link_offset = 0`` for floating-base.
+    This kernel writes joint velocity data from the input array to the output buffers.
+    It also updates the previous joint velocity buffer and resets the joint acceleration to 0.0.
 
     Args:
-        body_link_pose: Per-body link pose in world frame. Shape is
-            (num_instances, num_bodies).
-        body_com_pos_b: Per-body center-of-mass offset expressed in the body's
-            link frame. Shape is (num_instances, num_bodies).
-        link_offset: Offset added to the jacobian-row body index to reach the
-            full body index. ``1`` for fixed-base, ``0`` for floating-base.
-        src: COM-referenced Jacobian (read-only). Shape is
-            (num_instances, num_jacobi_bodies, 6, num_joints + num_base_dofs).
-        dst: Output buffer for the link-origin Jacobian. Same shape as
-            ``src``. Linear rows ``[0:3]`` are written with the shifted
-            velocity; angular rows ``[3:6]`` are copied unchanged (angular
-            velocity is reference-point invariant).
+        in_data: Input array containing joint velocity data. Shape is (num_selected_envs, num_selected_joints).
+        env_ids: Input array of environment indices to write to. Shape is (num_selected_envs,).
+        joint_ids: Input array of joint indices to write to. Shape is (num_selected_joints,).
+        joint_vel: Output array where joint velocities are written. Shape is (num_envs, num_joints).
+        prev_joint_vel: Output array where previous joint velocities are written. Shape is
+            (num_envs, num_joints).
+        joint_acc: Output array where joint accelerations are reset to 0.0. Shape is
+            (num_envs, num_joints).
     """
-    n, b, dof = wp.tid()
-    full_body_idx = b + link_offset
+    i, j = wp.tid()
+    env_id = wp.int32(env_ids[i])
+    joint_id = wp.int32(joint_ids[j])
+    joint_vel[env_id, joint_id] = in_data[i, j]
+    prev_joint_vel[env_id, joint_id] = in_data[i, j]
+    joint_acc[env_id, joint_id] = 0.0
 
-    R = wp.transform_get_rotation(body_link_pose[n, full_body_idx])
-    c_world = wp.quat_rotate(R, body_com_pos_b[n, full_body_idx])
 
-    v_com = wp.vec3(src[n, b, 0, dof], src[n, b, 1, dof], src[n, b, 2, dof])
-    omega = wp.vec3(src[n, b, 3, dof], src[n, b, 4, dof], src[n, b, 5, dof])
+@wp.kernel
+def write_joint_vel_data_mask(
+    in_data: wp.array2d(dtype=wp.float32),
+    env_mask: wp.array(dtype=wp.bool),
+    joint_mask: wp.array(dtype=wp.bool),
+    joint_vel: wp.array2d(dtype=wp.float32),
+    prev_joint_vel: wp.array2d(dtype=wp.float32),
+    joint_acc: wp.array2d(dtype=wp.float32),
+):
+    """Write joint velocity data to the output buffers.
 
-    v_origin = v_com - wp.cross(omega, c_world)
+    Deprecated. Prefer :meth:`~isaaclab.assets.Articulation.write_joint_velocity_to_sim_mask` (or the
+    ``ordering_kernels`` reorder family), which apply the public-to-backend ordering conversion internally.
 
-    dst[n, b, 0, dof] = v_origin[0]
-    dst[n, b, 1, dof] = v_origin[1]
-    dst[n, b, 2, dof] = v_origin[2]
-    dst[n, b, 3, dof] = omega[0]
-    dst[n, b, 4, dof] = omega[1]
-    dst[n, b, 5, dof] = omega[2]
+    This kernel writes joint velocity data from the input array to the output buffers.
+    It also updates the previous joint velocity buffer and resets the joint acceleration to 0.0.
+
+    Args:
+        in_data: Input array containing joint velocity data. Shape is (num_envs, num_joints).
+        env_mask: Input array of environment mask. Shape is (num_envs,).
+        joint_mask: Input array of joint mask. Shape is (num_joints,).
+        joint_vel: Output array where joint velocities are written. Shape is (num_envs, num_joints).
+        prev_joint_vel: Output array where previous joint velocities are written. Shape is
+            (num_envs, num_joints).
+        joint_acc: Output array where joint accelerations are reset to 0.0. Shape is
+            (num_envs, num_joints).
+    """
+    i, j = wp.tid()
+    if env_mask[i] and joint_mask[j]:
+        joint_vel[i, j] = in_data[i, j]
+        prev_joint_vel[i, j] = in_data[i, j]
+        joint_acc[i, j] = 0.0
+
+
+@wp.kernel
+def write_joint_state_data_index(
+    pos_data: wp.array2d(dtype=wp.float32),
+    vel_data: wp.array2d(dtype=wp.float32),
+    env_ids: wp.array(dtype=Any),
+    joint_ids: wp.array(dtype=Any),
+    joint_pos: wp.array2d(dtype=wp.float32),
+    joint_vel: wp.array2d(dtype=wp.float32),
+    prev_joint_vel: wp.array2d(dtype=wp.float32),
+    joint_acc: wp.array2d(dtype=wp.float32),
+):
+    """Write joint position and velocity data in a single kernel launch.
+
+    Deprecated. Prefer :meth:`~isaaclab.assets.Articulation.write_joint_state_to_sim` and its indexed siblings
+    (or the ``ordering_kernels`` reorder family), which apply the public-to-backend ordering conversion internally.
+
+    Args:
+        pos_data: Input joint positions. Shape is (num_selected_envs, num_selected_joints).
+        vel_data: Input joint velocities. Shape is (num_selected_envs, num_selected_joints).
+        env_ids: Environment indices. Shape is (num_selected_envs,).
+        joint_ids: Joint indices. Shape is (num_selected_joints,).
+        joint_pos: Output joint positions. Shape is (num_envs, num_joints).
+        joint_vel: Output joint velocities. Shape is (num_envs, num_joints).
+        prev_joint_vel: Output previous joint velocities. Shape is (num_envs, num_joints).
+        joint_acc: Output joint accelerations (reset to 0). Shape is (num_envs, num_joints).
+    """
+    i, j = wp.tid()
+    env_id = wp.int32(env_ids[i])
+    joint_id = wp.int32(joint_ids[j])
+    joint_pos[env_id, joint_id] = pos_data[i, j]
+    joint_vel[env_id, joint_id] = vel_data[i, j]
+    prev_joint_vel[env_id, joint_id] = vel_data[i, j]
+    joint_acc[env_id, joint_id] = 0.0
+
+
+_WRITE_JOINT_VEL_DATA_INDEX_DISPATCHER = IndexKernelDispatcher(write_joint_vel_data_index, ("env_ids", "joint_ids"))
+_WRITE_JOINT_STATE_DATA_INDEX_DISPATCHER = IndexKernelDispatcher(write_joint_state_data_index, ("env_ids", "joint_ids"))
+
+
+def write_joint_vel_data_index_kernel(
+    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select the deprecated joint-velocity writer matching the selector dtypes."""
+    return _WRITE_JOINT_VEL_DATA_INDEX_DISPATCHER.select(env_ids, joint_ids)
+
+
+def write_joint_state_data_index_kernel(
+    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+) -> wp.Kernel:
+    """Select the deprecated joint-state writer matching the selector dtypes."""
+    return _WRITE_JOINT_STATE_DATA_INDEX_DISPATCHER.select(env_ids, joint_ids)
+
+
+@wp.kernel
+def write_joint_state_data_mask(
+    pos_data: wp.array2d(dtype=wp.float32),
+    vel_data: wp.array2d(dtype=wp.float32),
+    env_mask: wp.array(dtype=wp.bool),
+    joint_mask: wp.array(dtype=wp.bool),
+    joint_pos: wp.array2d(dtype=wp.float32),
+    joint_vel: wp.array2d(dtype=wp.float32),
+    prev_joint_vel: wp.array2d(dtype=wp.float32),
+    joint_acc: wp.array2d(dtype=wp.float32),
+):
+    """Write joint position and velocity data in a single kernel launch using masks.
+
+    Deprecated. Prefer :meth:`~isaaclab.assets.Articulation.write_joint_state_to_sim` and its masked siblings
+    (or the ``ordering_kernels`` reorder family), which apply the public-to-backend ordering conversion internally.
+
+    Args:
+        pos_data: Input joint positions. Shape is (num_envs, num_joints).
+        vel_data: Input joint velocities. Shape is (num_envs, num_joints).
+        env_mask: Environment mask. Shape is (num_envs,).
+        joint_mask: Joint mask. Shape is (num_joints,).
+        joint_pos: Output joint positions. Shape is (num_envs, num_joints).
+        joint_vel: Output joint velocities. Shape is (num_envs, num_joints).
+        prev_joint_vel: Output previous joint velocities. Shape is (num_envs, num_joints).
+        joint_acc: Output joint accelerations (reset to 0). Shape is (num_envs, num_joints).
+    """
+    i, j = wp.tid()
+    if env_mask[i] and joint_mask[j]:
+        joint_pos[i, j] = pos_data[i, j]
+        joint_vel[i, j] = vel_data[i, j]
+        prev_joint_vel[i, j] = vel_data[i, j]
+        joint_acc[i, j] = 0.0
+
+
+@wp.kernel
+def scatter_fixed_tendon_position_targets(
+    position_target: wp.array2d(dtype=wp.float32),
+    actuator_columns: wp.array(dtype=wp.int32),
+    target_tendon_ids: wp.array(dtype=wp.int32),
+    commands: wp.array3d(dtype=wp.float32),
+) -> None:
+    """Scatter buffered fixed-tendon targets into the view-shaped MuJoCo control buffer.
+
+    ``commands`` is the buffer the articulation view writes to ``mujoco.ctrl``, so the view owns
+    the mapping onto the flat control array and this kernel does no layout arithmetic. One thread
+    per *actuator* that transmits to a tendon: a tendon nothing drives has no entry, and several
+    actuators may name the same tendon.
+    """
+    env_id, entry = wp.tid()
+    commands[env_id, 0, actuator_columns[entry]] = position_target[env_id, target_tendon_ids[entry]]

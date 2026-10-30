@@ -7,16 +7,26 @@
 
 from __future__ import annotations
 
-from isaaclab.utils.configclass import configclass
-from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
+from typing import TYPE_CHECKING, ClassVar
+
+from isaaclab.utils import configclass
+from isaaclab.visualizers.visualizer_cfg import VisualizerBackendCfg, VisualizerCfg
+
+if TYPE_CHECKING:
+    from .rerun_visualizer import RerunVisualizer
 
 
 @configclass
-class RerunVisualizerCfg(VisualizerCfg):
+class RerunBackendCfg(VisualizerBackendCfg):
     """Configuration for Rerun visualizer (web-based visualization)."""
+
+    class_type: type[RerunVisualizer] | str = "{DIR}.rerun_visualizer:RerunVisualizer"
+    """Visualizer implementation class."""
 
     visualizer_type: str = "rerun"
     """Type identifier for Rerun visualizer."""
+
+    cloning_contexts: ClassVar[tuple[type | str, ...]] = ("isaaclab_newton.cloner:NewtonReplicateContext",)
 
     app_id: str = "isaaclab-simulation"
     """Application identifier shown in viewer title."""
@@ -48,8 +58,10 @@ class RerunVisualizerCfg(VisualizerCfg):
     keep_scalar_history: bool = False
     """Accumulate scalars as a time-series in the Rerun timeline (True = live plot history, False = constant memory).
 
-    Set to ``True`` when using live plots so that scalar values accumulate as a time series in the
-    Rerun viewer rather than only showing the latest value.
+    When :attr:`~isaaclab.visualizers.VisualizerCfg.enable_live_plots` is ``True`` (the default),
+    this is automatically forced to ``True`` so that scalar values accumulate as a time series in
+    the Rerun viewer.  Set to ``False`` explicitly to reduce memory usage when scalar history is
+    not needed, but note this will disable live plot curves.
     """
 
     show_particles: bool = True
@@ -60,3 +72,13 @@ class RerunVisualizerCfg(VisualizerCfg):
 
     record_to_rrd: str | None = None
     """Path to save .rrd recording file. None = no recording."""
+
+
+@configclass
+class RerunVisualizerCfg(RerunBackendCfg, VisualizerCfg):
+    """Deprecated combined configuration; use ``VisualizerCfg(backend=RerunBackendCfg())``.
+
+    Simulation launch translates this declaration before constructing visualizers.
+    """
+
+    backend: RerunBackendCfg = RerunBackendCfg()
