@@ -32,6 +32,7 @@ class MJWarpSolver(NewtonSolver):
     solver_class = SolverMuJoCo
     single_state = True
     deterministic = True
+    captures_model_changes = True
 
     @classmethod
     def applied_deterministic_mode(cls, cfg: MJWarpSolverCfg, mode: wp.DeterministicMode) -> wp.DeterministicMode:

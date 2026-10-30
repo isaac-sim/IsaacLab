@@ -137,11 +137,13 @@ def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monke
 
     newton_backend = backend_stub(
         cfg=owner._cfg,
-        model=SimpleNamespace(body_count=1, world_count=1),
+        model_changes=set(),
+        model=SimpleNamespace(body_count=1, world_count=1, articulation_world=None),
         state_0=state,
         solver=None,
         world_mask=wp.zeros(2, dtype=wp.bool, device="cpu"),
         fk_mask=wp.zeros(1, dtype=wp.bool, device="cpu"),
+        is_stepping=False,
         kinematics_dirty=False,
         transforms_may_change_on_graph_replay=False,
         device=wp.get_device("cpu"),

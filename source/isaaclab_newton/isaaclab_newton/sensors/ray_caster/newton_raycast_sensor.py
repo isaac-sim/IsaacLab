@@ -347,14 +347,14 @@ class NewtonRaycastSensor(_NewtonRayCasterPoseMixin, BaseRayCaster):
         use_graph = self.cfg.use_cuda_graph and backend.device.is_cuda
         timestamp = provider.backend.transforms_timestamp + provider.backend.geometry_timestamp
         backend.refit_bvh(timestamp, use_cuda_graph=use_graph)
-        if not use_graph:
+        if not use_graph or backend.device.is_capturing:
             self._launch_raycast()
             return
         pointers = backend.state_pointers()
         if self._graph is None or self._graph[0] != pointers:
             graph = newton_backend.capture_graph(backend.device, self._launch_raycast, relaxed=has_kit())
             self._graph = pointers, graph
-        wp.capture_launch(self._graph[1])
+        self._graph[1].launch()
 
     def _invalidate_initialize_callback(self, event) -> None:
         self._graph = None

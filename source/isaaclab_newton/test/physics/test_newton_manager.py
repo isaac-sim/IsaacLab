@@ -17,6 +17,7 @@ import isaaclab_newton.physics.newton_manager as newton_manager_module
 import newton
 import numpy as np
 import pytest
+import torch
 import warp as wp
 from isaaclab_newton.physics import (
     FeatherstoneSolverCfg,
@@ -289,7 +290,9 @@ def _recording_backend(
         fk_mask=wp.zeros(1, dtype=wp.bool, device=device),
         kinematics_dirty=False,
         transforms_may_change_on_graph_replay=False,
+        is_stepping=False,
         model_changes=set(),
+        model_dirty=wp.zeros(1, dtype=wp.int32, device=device),
         warned_model_changes=set(),
         pre_actuator_callbacks=[],
         post_actuator_callbacks=[],
@@ -473,8 +476,11 @@ def test_model_changes_notify_the_solver_once_per_step_and_warn_once_when_ignore
 @pytest.mark.parametrize("supported", [True, False])
 def test_step_runs_eagerly_once_then_replays_a_graph_only_when_the_solver_supports_capture(monkeypatch, supported):
     events, replays = [], []
-    monkeypatch.setattr(newton_backend, "capture_graph", lambda device, segment, relaxed=False: segment)
-    monkeypatch.setattr(wp, "capture_launch", lambda segment: (replays.append(segment), segment()))
+    monkeypatch.setattr(
+        newton_backend,
+        "capture_graph",
+        lambda device, segment, relaxed=False: SimpleNamespace(launch=lambda: (replays.append(segment), segment())),
+    )
     backend = _recording_backend(events, device="cuda:0", captures=supported)
 
     captured = [backend.step() for _ in range(2)]
@@ -483,6 +489,57 @@ def test_step_runs_eagerly_once_then_replays_a_graph_only_when_the_solver_suppor
     assert len(replays) == int(supported)
     assert events.count(("step", "state_0", "state_0")) == 2
     assert [event for event in events if event[0] == "check"] == [("check", supported)] * 2
+
+
+@pytest.mark.parametrize("relaxed", [False, True])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_capture_graph_records_torch_work_and_keeps_its_temporary_tensors(device, relaxed):
+    """Recording does not advance the output; each replay reruns the Torch work with its temporary tensors."""
+    value = torch.zeros(4, device=device)
+
+    def controller():
+        value.copy_((value + 1.0).square())
+
+    controller()
+    torch.cuda.synchronize(device)
+    graph = newton_backend.capture_graph(device, controller, relaxed=relaxed)
+    torch.testing.assert_close(value, torch.ones_like(value))
+    for _ in range(3):
+        graph.launch()
+    torch.cuda.synchronize(device)
+    torch.testing.assert_close(value, torch.full_like(value, 676.0))
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_captured_model_refresh_runs_only_when_the_edit_mask_selects_a_world(device):
+    """A recorded model-property edit refreshes MuJoCo's constants on replay only when its mask selects a world."""
+    cfg = NewtonCfg(solver_cfg=MJWarpSolverCfg(), use_cuda_graph=False)
+    builder = newton.ModelBuilder()
+    SolverMuJoCo.register_custom_attributes(builder)
+    builder.begin_world()
+    body = builder.add_link(mass=1.0, inertia=wp.mat33(np.eye(3)))
+    builder.add_articulation([builder.add_joint_fixed(-1, body)])
+    builder.end_world()
+    backend = NewtonBackend(NewtonBackendCfg(physics_cfg=cfg, device=device), builder, dt=0.01)
+    backend.init_solver()
+    mask = wp.array([False], dtype=wp.bool, device=device)
+
+    def refresh():
+        backend.add_model_change(ModelFlags.JOINT_PROPERTIES, env_mask=mask)
+        backend.forward()
+
+    graph = newton_backend.capture_graph(device, refresh)
+    for position in (1.0, 2.0):
+        backend.model.joint_X_p.assign(
+            wp.array([wp.transform(wp.vec3(position, 0.0, 0.0), wp.quat_identity())], dtype=wp.transform, device=device)
+        )
+        before = backend.solver.mjw_data.mocap_pos.numpy().copy()
+        mask.fill_(False)
+        graph.launch()
+        np.testing.assert_array_equal(backend.solver.mjw_data.mocap_pos.numpy(), before)
+        mask.fill_(True)
+        graph.launch()
+        np.testing.assert_allclose(backend.solver.mjw_data.mocap_pos.numpy()[0, 0], [position, 0.0, 0.0])
 
 
 # ----- Reset masks -------------------------------------------------------------------------
@@ -509,10 +566,12 @@ def test_forward_resolves_flagged_worlds_once_and_not_while_an_outer_graph_recor
         cfg=manager._cfg,
         state_0=object(),
         solver=object(),
+        device=wp.get_device("cpu"),
         world_mask=world_mask,
         fk_mask=fk_mask,
         kinematics_dirty=True,
         transforms_may_change_on_graph_replay=False,
+        model_changes=set(),
     )
     scene_data = NewtonSceneDataBackend(manager)
 
@@ -532,7 +591,9 @@ def test_manager_flags_the_masked_worlds_and_articulations(articulation_mask):
     manager = NewtonManager(NewtonCfg())
     manager.backend = backend_stub(
         device=wp.get_device("cpu"),
-        model=SimpleNamespace(world_count=3),
+        model=SimpleNamespace(
+            world_count=3, articulation_world=wp.array([0, 0, 1, 1, 2, 2], dtype=wp.int32, device="cpu")
+        ),
         world_mask=wp.zeros(4, dtype=wp.bool, device="cpu"),
         fk_mask=wp.zeros(6, dtype=wp.bool, device="cpu"),
         kinematics_dirty=False,
@@ -559,6 +620,39 @@ def test_manager_flags_the_masked_worlds_and_articulations(articulation_mask):
     assert manager.backend.world_mask.numpy().tolist() == [False, True, False, False]
     assert body_mask.numpy().tolist() == [False, True, False]
     assert manager.backend.kinematics_dirty
+
+
+def test_fk_flags_the_worlds_of_reordered_view_rows_and_never_resets_the_global_world():
+    """View rows map to their articulations' worlds; a global articulation gets FK without a global-world reset."""
+    cfg = NewtonCfg(solver_cfg=XPBDSolverCfg(), use_cuda_graph=False)
+    builder = create_builder(cfg)
+    for world in range(3):
+        builder.begin_world()
+        for index in range(2 if world < 2 else 1):
+            label = f"world_{world}_{index}"
+            link = builder.add_link(mass=1.0, inertia=wp.diag(wp.vec3(0.1)), label=label)
+            builder.add_articulation([builder.add_joint_revolute(-1, link)], label=label)
+        builder.end_world()
+    link = builder.add_link(mass=1.0, inertia=wp.diag(wp.vec3(0.1)), label="global")
+    builder.add_articulation([builder.add_joint_revolute(-1, link)], label="global")
+    backend = NewtonBackend(NewtonBackendCfg(physics_cfg=cfg, device="cpu"), builder, dt=0.01)
+    backend.init_solver()
+    initial = backend.state_0.body_q.numpy().copy()
+    backend.state_0.joint_q.fill_(0.5)
+    view_rows = (("world_2_0", "global"), ("world_0_0", "world_0_1"), ("world_1_0", "world_1_1"))
+    labels = backend.model.articulation_label
+    articulation_ids = wp.array(
+        [[labels.index(label) for label in row] for row in view_rows], dtype=wp.int32, device="cpu"
+    )
+
+    backend.invalidate_fk(wp.array([True, False, True], dtype=wp.bool, device="cpu"), articulation_ids)
+
+    assert backend.world_mask.numpy().tolist() == [False, True, True, False]
+    backend.forward()
+    changed = np.any(backend.state_0.body_q.numpy() != initial, axis=1)
+    expected = {"world_1_0", "world_1_1", "world_2_0", "global"}
+    assert changed.tolist() == [label in expected for label in backend.model.body_label]
+    assert not backend.world_mask.numpy().any() and not backend.fk_mask.numpy().any()
 
 
 # ----- Independent backends ----------------------------------------------------------------
@@ -598,24 +692,33 @@ def _two_solver_configs() -> list[tuple[NewtonCfg, int]]:
     ]
 
 
-@pytest.mark.parametrize("captured", [False, True], ids=["eager", "captured"])
+@pytest.mark.parametrize("execution", ["eager", "backend_capture", "outer_capture"])
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_backends_with_different_solvers_step_side_by_side(device, captured):
-    """Each backend advances only its own model and matches a backend stepped alone."""
+def test_backends_with_different_solvers_step_side_by_side(device, execution):
+    """Each backend advances only its own model and matches a backend stepped alone.
+
+    An outer capture records each backend's step without running it or capturing a graph of its own.
+    """
+    captured = execution != "eager"
     pair = [_pendulums(cfg, decimation, device, captured=captured) for cfg, decimation in _two_solver_configs()]
     alone = [_pendulums(cfg, decimation, device) for cfg, decimation in _two_solver_configs()]
     start = [backend.state_0.joint_q.numpy().copy() for backend in pair]
+    steps = [backend.step for backend in pair]
+    if execution == "outer_capture":
+        steps = [newton_backend.capture_graph(device, backend.step).launch for backend in pair]
+        for backend, initial in zip(pair, start, strict=True):
+            np.testing.assert_array_equal(backend.state_0.joint_q.numpy(), initial)
 
     for _ in range(5):
-        pair[0].step()
+        steps[0]()
     np.testing.assert_array_equal(pair[1].state_0.joint_q.numpy(), start[1])
     for _ in range(5):
-        pair[1].step()
+        steps[1]()
         alone[0].step()
         alone[1].step()
 
     for backend, reference, initial in zip(pair, alone, start, strict=True):
-        assert (backend.graph is not None) is captured
+        assert (backend.graph is not None) is (execution == "backend_capture")
         assert np.all(np.abs(backend.state_0.joint_q.numpy() - initial) > 1e-3)
         np.testing.assert_allclose(backend.state_0.joint_q.numpy(), reference.state_0.joint_q.numpy(), atol=1e-5)
 

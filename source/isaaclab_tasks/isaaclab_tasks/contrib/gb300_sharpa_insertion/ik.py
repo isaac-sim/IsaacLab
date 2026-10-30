@@ -24,7 +24,7 @@ class CapturedNewtonIKSolver(NewtonIKSolver):
 
     def __init__(self, cfg: NewtonIKSolverCfg, **kwargs) -> None:
         super().__init__(cfg, **kwargs)
-        self._graph: wp.Graph | None = None
+        self._graph: newton_backend.CapturedGraph | None = None
         self._seed: wp.array | None = None
 
     def solve(self, joint_pos: wp.array) -> wp.array:
@@ -42,5 +42,5 @@ class CapturedNewtonIKSolver(NewtonIKSolver):
                 lambda: super(CapturedNewtonIKSolver, self).solve(self._seed),
                 relaxed=has_kit(),
             )
-        wp.capture_launch(self._graph)
+        self._graph.launch()
         return self.joint_q_out

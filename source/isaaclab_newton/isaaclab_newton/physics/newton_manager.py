@@ -345,9 +345,14 @@ class NewtonManager(PhysicsManager):
         """
         self.builder.request_contact_attributes(attr)
 
-    def add_model_change(self, change: ModelFlags) -> None:
-        """Register a model change to notify the solver at the next step."""
-        self.backend.model_changes.add(change)
+    def add_model_change(self, change: ModelFlags, env_mask: wp.array | None = None) -> None:
+        """Queue a model-property edit for the next state-read or step boundary.
+
+        Args:
+            change: Property categories the solver must refresh.
+            env_mask: Changed worlds; an empty mask skips capture-capable solver refreshes.
+        """
+        self.backend.add_model_change(change, env_mask)
 
     def invalidate_fk(
         self,

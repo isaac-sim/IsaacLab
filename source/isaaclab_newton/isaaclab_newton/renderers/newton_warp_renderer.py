@@ -594,7 +594,7 @@ class NewtonWarpRenderer(BaseRenderer):
         use_graph = self.cfg.use_cuda_graph and backend.device.is_cuda and backend.model.tri_count == 0
         timestamp = provider.backend.transforms_timestamp + provider.backend.geometry_timestamp
         backend.refit_bvh(timestamp, use_cuda_graph=use_graph)
-        if not use_graph:
+        if not use_graph or backend.device.is_capturing:
             self._launch_render(render_data)
         else:
             pointers = backend.state_pointers()
@@ -603,7 +603,7 @@ class NewtonWarpRenderer(BaseRenderer):
                     backend.device, partial(self._launch_render, render_data), relaxed=has_kit()
                 )
                 render_data.graph = pointers, graph
-            wp.capture_launch(render_data.graph[1])
+            render_data.graph[1].launch()
 
         # Post-render PPISP: HDR scene-linear → LDR RGBA. Source/destination
         # tensors were bound once in ``set_outputs``.
