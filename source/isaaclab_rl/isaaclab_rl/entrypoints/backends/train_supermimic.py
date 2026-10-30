@@ -20,7 +20,7 @@ from pathlib import Path
 import torch
 
 from isaaclab.app import add_launcher_args, launch_simulation
-from isaaclab.utils import string_to_callable, to_dict
+from isaaclab.utils import string_to_callable, to_dict, update_from_dict
 from isaaclab.utils.noise import NoiseCfg
 
 import isaaclab_tasks  # noqa: F401
@@ -30,7 +30,12 @@ from isaaclab_tasks.contrib.g1_tracking.g1_tracking_env_cfg import (
     TerminationsCfg,
     TransitionRecorderCfg,
 )
-from isaaclab_tasks.contrib.g1_tracking.tracking import MAX_REWARD_RATE, OBS_DIM
+from isaaclab_tasks.contrib.g1_tracking.tracking import (
+    MAX_REWARD_RATE,
+    MAX_VELOCITY_REWARD_RATE,
+    OBS_DIM,
+    unflatten_state,
+)
 from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
 
 from ...supermimic.learner import Learner
@@ -77,7 +82,11 @@ def run(argv: list[str]) -> None:
     # Capture semantic configuration before adding run-specific log paths and video outputs.
     saved_env_cfg, saved_agent_cfg = to_dict(env_cfg), to_dict(agent_cfg)
     if resumed:
-        if resumed["task"] != args.task or resumed["env_cfg"] != saved_env_cfg:
+        restored_env, restored_agent = resolve_task_config(args.task, args.agent, overrides=[])
+        restored_env.recorders.transition = TransitionRecorderCfg()
+        update_from_dict(restored_env, resumed["env_cfg"])
+        update_from_dict(restored_agent, resumed["agent_cfg"])
+        if resumed["task"] != args.task or to_dict(restored_env) != saved_env_cfg:
             raise ValueError("Resume requires the checkpoint's task and environment configuration.")
         mutable = {
             "max_iterations",
@@ -91,7 +100,9 @@ def run(argv: list[str]) -> None:
             "wandb_name",
         }
         changed = {
-            key for key, value in saved_agent_cfg.items() if key not in mutable and resumed["agent_cfg"][key] != value
+            key
+            for key, value in saved_agent_cfg.items()
+            if key not in mutable and to_dict(restored_agent)[key] != value
         }
         if changed or resumed["iteration"] >= agent_cfg.max_iterations:
             raise ValueError(f"Resume requires unchanged learning settings and a later iteration limit: {changed}.")
@@ -193,6 +204,21 @@ def _configure_training(args, env_cfg, agent_cfg):
         raise ValueError("Action noise must be finite and nonnegative.")
     if agent_cfg.world_model_only_iterations < 0:
         raise ValueError("World-model-only iterations must be nonnegative.")
+    if not math.isfinite(agent_cfg.velocity_alignment_weight) or agent_cfg.velocity_alignment_weight < 0:
+        raise ValueError("Velocity latent alignment weight must be finite and nonnegative.")
+    fraction = env_cfg.commands.motion.velocity.fraction
+    if not 0 <= fraction < 1:
+        raise ValueError("Joint training needs a velocity fraction in [0, 1), retaining motion-tracking worlds.")
+    if fraction:
+        for size in (env_cfg.scene.num_envs, agent_cfg.policy_batch_size):
+            velocity_count = round(size * fraction)
+            if not 0 < velocity_count < size:
+                raise ValueError("Joint training needs nonempty motion and velocity batches.")
+        if (
+            min(velocity_count, agent_cfg.policy_batch_size - velocity_count) * agent_cfg.horizon
+            < agent_cfg.critic_minibatches
+        ):
+            raise ValueError("Each interface must supply samples to every critic minibatch.")
     for value in (agent_cfg.update_to_data_ratio, agent_cfg.learning_rate, agent_cfg.save_interval_seconds):
         if not math.isfinite(value) or value <= 0:
             raise ValueError("Learning rates, update/data ratio and checkpoint intervals must be finite and positive.")
@@ -205,7 +231,7 @@ def _configure_training(args, env_cfg, agent_cfg):
     # The same analytical observations are used inside imagined rollouts. Reject changes that
     # preserve tensor width but alter their meaning; native history and stateless noise remain configurable.
     template = ObservationsCfg()
-    for name in ("policy", "goal"):
+    for name in ("policy", "goal", "interface"):
         expected, actual = to_dict(getattr(template, name)), to_dict(getattr(env_cfg.observations, name))
         if name == "policy":
             for group in (expected, actual):
@@ -218,6 +244,33 @@ def _configure_training(args, env_cfg, agent_cfg):
             raise ValueError(f"Analytical {name} observations require the task's declared functions and layout.")
     if to_dict(env_cfg.terminations) != to_dict(TerminationsCfg()):
         raise ValueError("Analytical termination requires the task's declared failure, clip-end and timeout terms.")
+
+
+@torch.no_grad()
+def _collect(env, learner, command, capture, observations, count, stats):
+    """Step the native task, retain captured transitions and accumulate physical metrics."""
+    for _ in range(count):
+        observations, _, _, _, extras = env.step(learner.act(observations))
+        transition = capture.latest
+        learner.observe(transition)
+        done = transition["done"]
+        done_count = done.sum()
+        maximum = torch.where(command.is_velocity, MAX_VELOCITY_REWARD_RATE, MAX_REWARD_RATE)
+        stats["reward"].append((transition["r"] / (maximum * learner.reward_scale)).mean())
+        stats["length"].append(((transition["ep_step"] + 1) * done).sum())
+        stats["return"].append(extras["log"].get("Metrics/motion/return", 0.0) * done_count)
+        stats["failed"].append(transition["term"].sum())
+        stats["done"].append(done_count)
+        if learner.velocity_batch_size:
+            ids = learner.buffer.envs[1]
+            error = command.mdp.velocity_error(
+                unflatten_state(transition["s1"][ids]), transition["velocity_command"][ids]
+            )
+            stats["velocity_xy"].append(error[:, :2].norm(dim=-1).mean())
+            stats["velocity_yaw"].append(error[:, 2].abs().mean())
+            stats["velocity_failed"].append(transition["term"][ids].sum())
+            stats["velocity_done"].append(done[ids].sum())
+    return observations
 
 
 def _train(env, agent_cfg, output, resumed, run, metadata):
@@ -279,9 +332,12 @@ def _train(env, agent_cfg, output, resumed, run, metadata):
             history=group.history_length,
             gamma=command.cfg.gamma,
         )
+        checkpoint_models = ("wm", "pi", "critic", "opt_wm", "opt_pi", "opt_v") + (
+            ("velocity_critic",) if learner.velocity_critic is not None else ()
+        )
         first_iteration, prior_wall_time, sim_steps = 0, 0.0, 0
         if resumed:
-            for name in ("wm", "pi", "critic", "opt_wm", "opt_pi", "opt_v"):
+            for name in checkpoint_models:
                 getattr(learner, name).load_state_dict(resumed[name])
             command.bin_return.copy_(resumed["bin_return"])
             command.bin_weight.copy_(resumed["bin_weight"])
@@ -299,44 +355,46 @@ def _train(env, agent_cfg, output, resumed, run, metadata):
 
         previous_handlers = {sig: signal.signal(sig, request_stop) for sig in (signal.SIGTERM, signal.SIGINT)}
         stats = {name: [] for name in ("reward", "length", "return", "failed", "done")}
+        if learner.velocity_batch_size:
+            stats.update({name: [] for name in ("velocity_xy", "velocity_yaw", "velocity_failed", "velocity_done")})
 
-        @torch.no_grad()
-        def collect(count):
-            nonlocal observations, sim_steps
-            for _ in range(count):
-                observations, _, _, _, extras = env.step(learner.act(observations))
-                transition = capture.latest
-                learner.observe(transition)
-                done = transition["done"]
-                done_count = done.sum()
-                stats["reward"].append(transition["r"].mean() / (MAX_REWARD_RATE * learner.reward_scale))
-                stats["length"].append(((transition["ep_step"] + 1) * done).sum())
-                stats["return"].append(extras["log"].get("Metrics/motion/return", 0.0) * done_count)
-                stats["failed"].append(transition["term"].sum())
-                stats["done"].append(done_count)
-                sim_steps += native_env.num_envs
-
-        collect(agent_cfg.warmup_steps)
+        observations = _collect(env, learner, command, capture, observations, agent_cfg.warmup_steps, stats)
+        sim_steps += agent_cfg.warmup_steps * native_env.num_envs
         training_start = log_start = checkpoint_time = time.time()
         step_accumulator = 0.0
-        aggregate = {name: [] for name in ("wm", "wm_last", "pi", "v", "imagined_reward", "gradient", "survival")}
+        aggregate = {
+            name: []
+            for name in (
+                "wm_loss",
+                "wm_last_error",
+                "pi_loss",
+                "v_loss",
+                "imagined_reward",
+                "actor_gradient",
+                "survival",
+            )
+        }
+        if learner.velocity_batch_size:
+            aggregate.update(
+                {
+                    f"velocity_{name}": []
+                    for name in ("pi_loss", "v_loss", "imagined_reward", "survival", "alignment_loss")
+                }
+            )
         columns = (
             "iteration",
             "wall_h",
             "sim_steps",
-            "wm_loss",
-            "wm_last_error",
-            "pi_loss",
-            "v_loss",
-            "imagined_reward",
-            "actor_gradient",
-            "survival",
+            *aggregate,
             "sim_reward",
             "episode_length",
             "episode_return",
             "failure_rate",
             "iterations_per_second",
             "learning_rate",
+        )
+        columns += (
+            ("velocity_error_xy", "velocity_error_yaw", "velocity_failure_rate") if learner.velocity_batch_size else ()
         )
         log_path = output / "train_log.csv"
         if first_iteration and log_path.exists():
@@ -355,16 +413,14 @@ def _train(env, agent_cfg, output, resumed, run, metadata):
                 step_accumulator += 1.0 / agent_cfg.update_to_data_ratio
                 count = int(step_accumulator)
                 step_accumulator -= count
-                collect(count)
+                observations = _collect(env, learner, command, capture, observations, count, stats)
+                sim_steps += count * native_env.num_envs
                 for _ in range(agent_cfg.world_model_batches):
                     loss, error = learner.wm_update()
-                aggregate["wm"].append(loss)
-                aggregate["wm_last"].append(error)
+                aggregate["wm_loss"].append(loss)
+                aggregate["wm_last_error"].append(error)
                 if iteration >= agent_cfg.world_model_only_iterations:
-                    results = learner.policy_update()
-                    for name, value in zip(
-                        ("pi", "v", "imagined_reward", "gradient", "survival"), results, strict=True
-                    ):
+                    for name, value in learner.policy_update().items():
                         aggregate[name].append(value)
                 if (iteration + 1) % agent_cfg.log_interval == 0:
                     means = [float(torch.stack(values).mean()) if values else 0.0 for values in aggregate.values()]
@@ -385,6 +441,15 @@ def _train(env, agent_cfg, output, resumed, run, metadata):
                         agent_cfg.log_interval / (time.time() - log_start),
                         lr,
                     ]
+                    if learner.velocity_batch_size:
+                        count = max(len(stats["velocity_xy"]), 1)
+                        row.extend(
+                            (
+                                totals["velocity_xy"] / count,
+                                totals["velocity_yaw"] / count,
+                                totals["velocity_failed"] / max(totals["velocity_done"], 1.0),
+                            )
+                        )
                     if not all(math.isfinite(value) for value in row):
                         raise FloatingPointError(f"Nonfinite training statistics at update {iteration + 1}: {row}")
                     log.write(",".join(f"{value:.6g}" for value in row) + "\n")
@@ -412,10 +477,7 @@ def _train(env, agent_cfg, output, resumed, run, metadata):
                 ):
                     checkpoint = {
                         **metadata,
-                        **{
-                            name: getattr(learner, name).state_dict()
-                            for name in ("wm", "pi", "critic", "opt_wm", "opt_pi", "opt_v")
-                        },
+                        **{name: getattr(learner, name).state_dict() for name in checkpoint_models},
                         "iteration": iteration + 1,
                         "wall_time": elapsed,
                         "sim_steps": sim_steps,
@@ -429,7 +491,7 @@ def _train(env, agent_cfg, output, resumed, run, metadata):
                         policy_checkpoint = {
                             key: value
                             for key, value in checkpoint.items()
-                            if key not in ("wm", "critic", "opt_wm", "opt_pi", "opt_v")
+                            if key not in ("wm", "critic", "velocity_critic", "opt_wm", "opt_pi", "opt_v")
                         }
                         path = output / f"policy_{iteration + 1:06d}.pt"
                         torch.save(policy_checkpoint, path.with_suffix(".tmp"))

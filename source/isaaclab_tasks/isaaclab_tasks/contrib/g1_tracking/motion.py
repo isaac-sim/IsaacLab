@@ -51,6 +51,7 @@ def resample_motion(raw: torch.Tensor, src_fps: float):
 
 
 class MotionLib:
+    @torch.no_grad()
     def __init__(self, path: str, kin: G1Kinematics, device: str, src_fps: float = 30.0):
         if not np.isfinite(src_fps) or src_fps <= 0:
             raise ValueError("Source frame rate must be finite and positive.")
@@ -87,7 +88,7 @@ class MotionLib:
         self.num_frames = int(sum(lens))
         self.clip_id = torch.cat([torch.full((n,), i, dtype=torch.long) for i, n in enumerate(lens)]).to(device)
 
-        root_p, root_R, root_v, root_w, jq, jqd = [], [], [], [], [], []
+        root_p, root_R, root_v, root_w, jq, jqd, commands = [], [], [], [], [], [], []
         for p, quat, j in zip(ps, qs, js):
             R = matrix_from_quat(quat)
             v = torch.gradient(p, spacing=CONTROL_DT, dim=0)[0]
@@ -98,9 +99,17 @@ class MotionLib:
             w[0] = so3_log(R[1] @ R[0].T) / CONTROL_DT
             w[-1] = so3_log(R[-1] @ R[-2].T) / CONTROL_DT
             root_p.append(p), root_R.append(R), root_v.append(v), root_w.append(w), jq.append(j), jqd.append(qd)
+            heading_v = (yaw_mat(R).transpose(-1, -2) @ v.unsqueeze(-1)).squeeze(-1)
+            command = torch.cat((heading_v[:, :2], w[:, 2:3]), -1)
+            # Centered 25-frame average, clipped within this motion rather than crossing clip boundaries.
+            prefix = torch.cat((torch.zeros_like(command[:1]), command.cumsum(0)))
+            frame = torch.arange(len(p))
+            lo, hi = (frame - 12).clamp_min(0), (frame + 13).clamp_max(len(p))
+            commands.append((prefix[hi] - prefix[lo]) / (hi - lo).unsqueeze(-1))
         cat = lambda xs: torch.cat(xs).to(device)  # noqa: E731
         self.root_p, self.root_R, self.root_v, self.root_w = cat(root_p), cat(root_R), cat(root_v), cat(root_w)
         self.q, self.qd = cat(jq), cat(jqd)
+        self.velocity_command = cat(commands)
         with torch.no_grad():
             for s in range(0, self.num_frames, 65536):
                 e = min(s + 65536, self.num_frames)

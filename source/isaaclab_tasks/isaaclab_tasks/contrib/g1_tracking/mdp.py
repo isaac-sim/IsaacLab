@@ -10,6 +10,8 @@
 
 from __future__ import annotations
 
+import math
+
 import torch
 import warp as wp
 from newton import ModelFlags
@@ -20,7 +22,7 @@ from isaaclab.utils.math import matrix_from_quat, quat_from_matrix
 
 from .kinematics import G1_JOINT_NAMES, G1Kinematics, mat_to_6d, so3_exp
 from .motion import BIN_FRAMES, MotionLib
-from .tracking import MAX_REWARD_RATE, STATE_DIM, TrackingObjective
+from .tracking import MAX_REWARD_RATE, MAX_VELOCITY_REWARD_RATE, STATE_DIM, TrackingObjective
 
 
 class MotionCommand(CommandTerm):
@@ -28,18 +30,39 @@ class MotionCommand(CommandTerm):
 
     def __init__(self, cfg, env):
         super().__init__(cfg, env)
+        velocity = cfg.velocity
+        if not all(
+            0 <= value <= 1
+            for value in (velocity.fraction, velocity.reference_probability, velocity.standing_probability)
+        ):
+            raise ValueError("Velocity fraction and command probabilities must lie in [0, 1].")
+        if (
+            velocity.resampling_steps < 1
+            or len(velocity.ranges) != 3
+            or any(
+                len(bounds) != 2 or not all(math.isfinite(v) for v in bounds) or bounds[0] > bounds[1]
+                for bounds in velocity.ranges
+            )
+        ):
+            raise ValueError(
+                "Velocity commands require a positive resampling interval and three finite ordered ranges."
+            )
         self.robot = env.scene["robot"]
         if list(self.robot.joint_names) != G1_JOINT_NAMES:
             raise ValueError(f"The tracking asset must preserve the motion joint order: {self.robot.joint_names}")
         self.kin = G1Kinematics(cfg.kinematics_path, self.device)
         self.motion = MotionLib(cfg.motion_dir, self.kin, self.device, cfg.source_fps)
         self.mdp = TrackingObjective(
-            self.kin, self.motion, self.robot.data.default_joint_pos.torch[0].clone(), cfg.objective
+            self.kin, self.motion, self.robot.data.default_joint_pos.torch[0].clone(), cfg.objective, cfg.velocity
         )
         self.physics = env.sim.backend_manager
         self.robot_view = self.robot.root_view
         self.torso_id = self.robot.find_bodies("torso_link")[0][0]
         self.env_ids = torch.arange(self.num_envs, device=self.device)
+        self.num_velocity_envs = round(self.num_envs * cfg.velocity.fraction)
+        self.is_velocity = self.env_ids >= self.num_envs - self.num_velocity_envs
+        self.velocity_command = torch.zeros(self.num_envs, 3, device=self.device)
+        self.velocity_reference = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         self.xi = torch.zeros(self.num_envs, 33, device=self.device)
         self.start_frame = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
         self.start_bin = torch.zeros_like(self.start_frame)
@@ -91,7 +114,7 @@ class MotionCommand(CommandTerm):
         # Public reset after command.compute discards a partial episode without updating its bin twice.
         if hasattr(self._env, "reset_terminated") and not self.cfg.evaluation:
             boundary = pending & (self._env.reset_terminated[ids] | self._env.reset_time_outs[ids])
-            ended = ids[boundary]
+            ended = ids[boundary & ~self.is_velocity[ids]]
             if len(ended):
                 steps = self._env.episode_length_buf[ended].float()
                 bootstrap = torch.where(
@@ -106,7 +129,8 @@ class MotionCommand(CommandTerm):
                 self.bin_return.copy_(
                     torch.where(counts > 0, 0.8 * self.bin_return + 0.2 * sums / counts.clamp_min(1), self.bin_return)
                 )
-        scale = MAX_REWARD_RATE * self._env.step_dt * self._env.reward_manager.get_term_cfg("tracking").weight
+        maximum = torch.where(self.is_velocity[ids], MAX_VELOCITY_REWARD_RATE, MAX_REWARD_RATE)
+        scale = maximum * self._env.step_dt * self._env.reward_manager.get_term_cfg("tracking").weight
         self.metrics["return"][ids] = self.episode_return[ids] / (
             self._env.episode_length_buf[ids].clamp_min(1) * scale
         )
@@ -118,6 +142,14 @@ class MotionCommand(CommandTerm):
 
     def _update_command(self):
         self._command.copy_(self.motion.goal(self.frame, self.cfg.goal_frames))
+        if self.cfg.velocity.fraction:
+            steps = self._env.episode_length_buf
+            resample = (steps > 0) & (steps % self.cfg.velocity.resampling_steps == 0)
+            command, reference = self.mdp.sample_velocity_command(
+                self.frame, self.velocity_command, self.velocity_reference, resample
+            )
+            self.velocity_command.copy_(command)
+            self.velocity_reference.copy_(reference)
 
     def _resample_command(self, env_ids):
         ids = self.env_ids[env_ids]
@@ -155,6 +187,13 @@ class MotionCommand(CommandTerm):
         self.robot.write_joint_state_to_sim_index(position=q, velocity=qd, env_ids=ids)
         self.robot.actuators.target_command.set_position_index(value=q, env_ids=ids)
         self.start_frame[ids], self.start_bin[ids] = frames, bins
+        if self.cfg.velocity.fraction:
+            self.velocity_command[ids], self.velocity_reference[ids] = self.mdp.sample_velocity_command(
+                frames,
+                self.velocity_command[ids],
+                self.velocity_reference[ids],
+                torch.ones(n, dtype=torch.bool, device=self.device),
+            )
         self._accounted_step[ids] = 0
         self.episode_return[ids] = 0
         self.discounted_return[ids] = 0
@@ -202,17 +241,46 @@ def joint_pos_rel(env):
 def relative_orientation(env):
     command = env.command_manager.get_term("motion")
     R = matrix_from_quat(command.robot.data.root_link_pose_w.torch[:, 3:7])
-    return mat_to_6d(R.transpose(-1, -2) @ command.motion.root_R[command.frame])
+    relative = mat_to_6d(R.transpose(-1, -2) @ command.motion.root_R[command.frame])
+    return torch.where(command.is_velocity.unsqueeze(-1), 0.0, relative)
+
+
+def control_interface(env):
+    """Interface selector and current velocity command; command provenance is not a policy input."""
+    command = env.command_manager.get_term("motion")
+    return torch.cat((command.is_velocity.float().unsqueeze(-1), command.velocity_command), -1)
 
 
 def tracking_reward(env):
     command = env.command_manager.get_term("motion")
-    return command.mdp.reward(command.state(), command.frame, env.action_manager.action, env.action_manager.prev_action)
+    state, action, previous = command.state(), env.action_manager.action, env.action_manager.prev_action
+    split = env.num_envs - command.num_velocity_envs
+    rewards = []
+    if split:
+        rewards.append(
+            command.mdp.reward(
+                tuple(value[:split] for value in state), command.frame[:split], action[:split], previous[:split]
+            )
+        )
+    if command.num_velocity_envs:
+        rewards.append(
+            command.mdp.velocity_reward(
+                tuple(value[split:] for value in state),
+                command.velocity_command[split:],
+                action[split:],
+                previous[split:],
+            )
+        )
+    return torch.cat(rewards)
 
 
 def tracking_failure(env):
     command = env.command_manager.get_term("motion")
-    return command.mdp.termination(command.state(), command.frame)
+    state = command.state()
+    failure = command.mdp.termination(state, command.frame)
+    if command.cfg.velocity.fraction:
+        failure = torch.where(command.is_velocity, command.mdp.velocity_termination(state), failure)
+    return failure
 
 
 def clip_end(env):
@@ -244,6 +312,12 @@ class TransitionRecorder(RecorderTerm):
             "term": torch.empty(self.num_envs, dtype=torch.bool, device=self.device),
         }
         self._has_transition = False
+        if self.motion.cfg.velocity.fraction:
+            self.latest.update(
+                is_velocity=self.motion.is_velocity.clone(),
+                velocity_command=torch.empty_like(self.motion.velocity_command),
+                velocity_reference=torch.empty_like(self.motion.velocity_reference),
+            )
 
     def _capture_state(self, target):
         data = self.robot.data
@@ -260,6 +334,9 @@ class TransitionRecorder(RecorderTerm):
         self.latest["xi"].copy_(self.motion.xi)
         self.latest["f"].copy_(self.motion.frame)
         self.latest["ep_step"].copy_(self._env.episode_length_buf)
+        if self.motion.cfg.velocity.fraction:
+            self.latest["velocity_command"].copy_(self.motion.velocity_command)
+            self.latest["velocity_reference"].copy_(self.motion.velocity_reference)
         self._has_transition = True
         return None, None
 

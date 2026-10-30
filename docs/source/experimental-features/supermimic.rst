@@ -113,6 +113,49 @@ Observation history, stateless policy noise and task reward parameters remain co
 The runner rejects incompatible observation functions or layouts instead of silently optimizing
 a different imagined task.
 
+Joint motion and velocity training
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Set ``env.commands.motion.velocity.fraction=0.5`` to assign half the physical worlds and half
+the imagined starts to velocity control. The existing task and training entrypoint handle both
+interfaces. Use a walking/running motion directory for this experiment, as in
+`SuperMimic Appendix G <https://arxiv.org/abs/2610.28480>`__.
+
+Both interfaces share one dynamics model and action decoder. Motion tracking trains its encoder
+and the decoder; velocity return trains a separate encoder through the frozen decoder and world
+model. Each interface has its own critic. Actor gradients from both imagined batches accumulate
+before one optimizer step. The velocity encoder uses the normalized command and flattened
+observation history, with two 256-wide hidden layers and the same 32-dimensional latent.
+Reference-relative orientation inputs are zeroed for velocity worlds, so their actions do not
+depend on an unavailable reference pose.
+
+The task samples a new command source every 250 control steps (5 seconds) and at reset.
+Half the commands follow a centered 25-frame reference-velocity average; the other half are
+held random commands, including standing. Command ranges, source probabilities and the
+interval live under ``env.commands.motion.velocity``. Velocity rewards track planar speed
+and yaw rate with action, joint-limit and torso penalties; failure is a fall rather than motion
+deviation. Clip ends and time limits remain truncations. Reference reset priorities are updated
+from motion-tracking returns only.
+
+The recorder captures the command and source before stepping. Replay seeds each interface from
+its own worlds, and imagined commands follow the same resampling rule. On reference-command
+velocity rollouts, ``agent.velocity_alignment_weight=0.1`` aligns the velocity latent with a
+detached motion latent. Random commands receive no alignment loss.
+
+Append these settings to the training command above:
+
+.. code-block:: bash
+
+   --max_iterations 100000 env.commands.motion.velocity.fraction=0.5
+
+CSV and W&B logs include separate ``velocity_pi_loss``, ``velocity_v_loss``,
+``velocity_imagined_reward``, ``velocity_survival`` and ``velocity_alignment_loss``.
+Physical ``velocity_error_xy`` is the mean planar error norm in m/s; ``velocity_error_yaw``
+is mean absolute yaw-rate error in rad/s. ``velocity_failure_rate`` counts falls among velocity
+episode endings. Existing simulation reward/episode metrics summarize both interfaces.
+Checkpoints include both encoders, both critics and their optimizer state.
+The default fraction of zero preserves motion-only training and playback.
+
 For a short integration smoke test, use ``--num_envs 32 --max_iterations 2`` and append:
 
 .. code-block:: bash
@@ -191,6 +234,21 @@ Use ``--motion_dir`` to select another corpus in the same pose schema and source
 ``--asset_path`` and ``--kinematics_path`` relocate the matching assets. Add the standard
 ``--video --video_length 600`` options to record playback with Isaac Lab's native renderer.
 For an interpretable video, select a small motion directory and a small ``--num_envs`` count.
+
+To play the velocity encoder from a joint-trained checkpoint, supply a held forward/lateral/yaw
+command. For example:
+
+.. code-block:: bash
+
+   uv run python scripts/reinforcement_learning/play.py \
+       --rl_library supermimic --checkpoint logs/supermimic/g1_joint/last.pt \
+       --velocity_command 0.5 0 0 --velocity_steps 500 --num_envs 8 \
+       --output logs/supermimic/g1_joint/velocity.json
+
+This records mean planar and yaw-rate errors and fall counts, including terminal states.
+Worlds initialize from the selected reference clips and reset after falls or clip ends.
+This is held-command playback, not the paper's standing-start step-response benchmark.
+Omit ``--velocity_command`` to evaluate motion tracking from the same checkpoint.
 
 Validation scope
 ----------------

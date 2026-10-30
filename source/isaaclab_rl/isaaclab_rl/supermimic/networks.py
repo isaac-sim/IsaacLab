@@ -147,7 +147,9 @@ class WorldModel(nn.Module):
 class Policy(nn.Module):
     """a = dec(enc(g), o_{t-9:t}); deterministic, latent z in R^32 bounded by tanh."""
 
-    def __init__(self, obs_dim: int, goal_dim: int, hist: int = 10, z_dim: int = 32, amp_dtype=None):
+    def __init__(
+        self, obs_dim: int, goal_dim: int, hist: int = 10, z_dim: int = 32, amp_dtype=None, velocity: bool = False
+    ):
         super().__init__()
         self.hist = hist
         self.amp_dtype = amp_dtype
@@ -158,10 +160,21 @@ class Policy(nn.Module):
             self.dec[-1].bias.zero_()
         self.obs_norm = RunningNorm(obs_dim)
         self.goal_norm = RunningNorm(goal_dim)
+        self.velocity_enc = mlp(3 + obs_dim * hist, [256, 256], z_dim) if velocity else None
+        self.velocity_norm = RunningNorm(3) if velocity else None
 
-    def forward(self, obs_hist: torch.Tensor, goal: torch.Tensor) -> torch.Tensor:
+    def velocity_latent(self, obs_hist: torch.Tensor, command: torch.Tensor) -> torch.Tensor:
+        """Encode a velocity command and flattened observation history into the shared action latent."""
+        features = torch.cat((self.velocity_norm(command), self.obs_norm(obs_hist).flatten(-2)), -1)
+        return torch.tanh(run_network(self.velocity_enc, features, self.amp_dtype))
+
+    def forward(self, obs_hist: torch.Tensor, goal: torch.Tensor, command: torch.Tensor | None = None) -> torch.Tensor:
         """obs_hist: (B, hist, obs_dim) noisy observations, newest last."""
-        z = torch.tanh(run_network(self.enc, self.goal_norm(goal), self.amp_dtype))
+        z = (
+            torch.tanh(run_network(self.enc, self.goal_norm(goal), self.amp_dtype))
+            if command is None
+            else self.velocity_latent(obs_hist, command)
+        )
         o = self.obs_norm(obs_hist).flatten(-2)
         return run_network(self.dec, torch.cat((z, o), -1), self.amp_dtype)
 
