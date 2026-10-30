@@ -78,29 +78,21 @@ See :doc:`/source/concepts/sensors/index` for sensor configuration and
 Installation
 ------------
 
-The ``ovphysx`` extra requires OvPhysX 0.6.4.72118723. Install it from the repository root with:
+The ``ovphysx`` extra requires OvPhysX |ovphysx_version|. Install it from the repository root with:
 
 .. code-block:: bash
 
     uv sync --inexact --extra ovphysx
 
 The ``--inexact`` flag preserves packages installed through other extras.
-Use ``--extra ov`` to install both public OvPhysX and OVRTX runtimes. The combined
-extra pairs OVRTX 0.5.1.385782 with OVStage 0.2.1; OVRTX 0.4.1 is not compatible
-with this runtime combination.
+Use ``--extra ov`` to install both public OvPhysX and OVRTX runtimes with a compatible
+OVStage runtime. Keep the runtime versions resolved by the repository's dependency pins together.
 
-Opt-in OVPhysX 0.7 support
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+Schema registration
+~~~~~~~~~~~~~~~~~~~
 
-The default dependency pins remain on OVPhysX 0.6.4. The backend also accepts
-OVPhysX 0.7, including development builds. It selects task completion, stage
-teardown, scene reads and schema discovery from the installed runtime version.
-Tensor and contact bindings remain in use on both versions.
-
-OVPhysX 0.7 no longer bundles PhysX USD schemas. Install ``physx-usd-schemas>=25.11.2``
-into the simulation environment before startup. Use ``uv run --no-sync`` with an
-opt-in environment to avoid restoring the project's default dependency pins.
-Isaac Lab locates
+The ``ov`` and ``ovphysx`` extras install the external ``physx-usd-schemas`` provider
+before startup. The OvPhysX backend locates
 both PhysX and deformable schema directories without importing the provider,
 then registers them before USD population. The already-installed Newton schemas
 are also registered. Do not suppress schema-registration errors: late registration
