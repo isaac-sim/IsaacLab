@@ -34,6 +34,66 @@ def test_replay_failed_input_drain_requests_stop_without_releasing_borrowers(rep
     presentation.session.close.assert_not_called()
 
 
+@pytest.mark.parametrize("layout_mode", ["horizontal", "manual", None])
+def test_replay_presentation_preserves_camera_layout(monkeypatch, replay_presentation_type, layout_mode):
+    """The actual viewer constructor changes placement without discarding task packing."""
+    import isaaclab_teleop
+    from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg, XrCameraFeedCfg, XrCameraFeedLayoutCfg
+
+    from isaaclab.sensors import CameraCfg
+
+    names = ["left", "right"]
+    config = SimpleNamespace(
+        scene=SimpleNamespace(**{name: CameraCfg(prim_path=f"/World/{name}", width=640, height=480) for name in names}),
+        sim=object(),
+        isaac_teleop=IsaacTeleopCfg(
+            xr_camera_feeds=[XrCameraFeedCfg(camera_name=name, panel_width_m=0.4) for name in names],
+            xr_camera_feed_layout=(
+                XrCameraFeedLayoutCfg(
+                    mode=layout_mode,
+                    placement="viewer_start",
+                    center_offset_m=(0.1, -0.2),
+                    panel_gap_m=0.1,
+                    distance_m=1.2,
+                )
+                if layout_mode is not None
+                else None
+            ),
+        ),
+    )
+    original_layout = config.isaac_teleop.xr_camera_feed_layout
+    original_layout_fields = original_layout.to_dict() if original_layout is not None else None
+    original_feeds = [feed.to_dict() for feed in config.isaac_teleop.xr_camera_feeds]
+    monkeypatch.setitem(
+        replay_presentation_type.__init__.__globals__,
+        "args_cli",
+        SimpleNamespace(
+            ovxr_pip_camera=names,
+            task="Test",
+            ovxr_session_mode="ar",
+            cloudxr_env="none",
+            auto_launch_cloudxr=False,
+            ovxr_desktop_mirror=False,
+        ),
+    )
+    prepare = Mock()
+    monkeypatch.setattr(isaaclab_teleop.OvLibrariesXrSession, "prepare", prepare)
+    presentation = replay_presentation_type(config)
+    assert presentation.session is prepare.return_value
+    session_config = prepare.call_args.args[1]
+    expected = (
+        [(-0.15, -0.2, -1.2), (0.35, -0.2, -1.2)]
+        if layout_mode == "horizontal"
+        else [(0.0, 0.0, -0.8), (0.0, 0.0, -0.8)]
+    )
+    for camera, position in zip(session_config.auxiliary_cameras, expected, strict=True):
+        assert camera.position == pytest.approx(position)
+    assert config.isaac_teleop.xr_camera_feed_layout is original_layout
+    if original_layout is not None:
+        assert original_layout.to_dict() == original_layout_fields
+    assert [feed.to_dict() for feed in config.isaac_teleop.xr_camera_feeds] == original_feeds
+
+
 @pytest.mark.parametrize(
     "kit_active,run_index,backend,viewer,hard_reset",
     [

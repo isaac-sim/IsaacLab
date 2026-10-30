@@ -1541,36 +1541,149 @@ def test_render_lease_owner_transfer_is_single_use(leased_renderer):
     assert renderer.backend is renderer.scene is None
 
 
-def test_render_lease_complete_publication_deduplicates_and_poison_fails_closed(leased_renderer, monkeypatch):
+@pytest.fixture
+def complete_scene_publication(leased_renderer, monkeypatch):
+    """Exercise the application publisher with native component endpoints doubled."""
     renderer = leased_renderer
     lease = renderer.acquire_ov_libraries_render_lease()
     publisher = lease.capture_scene_publisher()
     _prepare_leased_renderer(renderer)
-    renderer.scene.stage.advance_write_floor.reset_mock()
-    transforms = MagicMock()
-    monkeypatch.setattr(renderer, "_update_transforms", transforms)
-    monkeypatch.setattr(renderer, "_update_geometries", lambda: None)
-    assert publisher.publication_required("step-1")
-    publisher.write_complete_scene(18, "step-1")
-    assert not publisher.publication_required("step-1")
-    transforms.assert_called_once_with()
+    lease._external_camera_scene_partitions = (("/Camera/left", "env"), ("/Camera/right", "env"))
+    lease._external_camera_scene_partitions_pending = True
+    stage = renderer.scene.stage
+    stage.get_attribute_write_floor.reset_mock()
+    stage.advance_write_floor.reset_mock()
+    state = types.SimpleNamespace(
+        renderer=renderer,
+        lease=lease,
+        publisher=publisher,
+        ordinal=23,
+        events=[],
+        failure=None,
+        cause=ValueError("component endpoint failed"),
+        initial_id=renderer._render_lease._last_step_id,
+    )
+
+    def component(name):
+        state.events.append((name, renderer.scene.ordinal))
+        if state.failure == name:
+            raise state.cause
+
+    writer = types.SimpleNamespace(
+        has_pending_updates=False,
+        publish=lambda: component("material"),
+        drain=lambda: component("material-drain"),
+    )
+    monkeypatch.setattr(renderer, "_visual_material_writer_ref", lambda: writer)
+    monkeypatch.setattr(renderer, "_update_transforms", lambda: component("transform"))
+    monkeypatch.setattr(renderer, "_update_geometries", lambda: component("geometry"))
+    monkeypatch.setattr(renderer._render_lease, "_update_cameras", lambda: component("auxiliary"))
+
+    def partitions(selected, ordinal):
+        assert selected is lease
+        assert selected._external_camera_scene_partitions == (("/Camera/left", "env"), ("/Camera/right", "env"))
+        assert ordinal == renderer.scene.ordinal
+        component("partition")
+
+    monkeypatch.setattr(renderer._render_lease, "_write_camera_partitions", partitions)
+    state.publish = lambda step_id="step": publisher.write_complete_scene(state.ordinal, step_id)
+    try:
+        yield state
+    finally:
+        lease.release()
+
+
+@pytest.mark.parametrize("pending", [False, True])
+def test_render_lease_complete_scene_components_share_the_supplied_ordinal(complete_scene_publication, pending):
+    state = complete_scene_publication
+    renderer, lease = state.renderer, state.lease
+    lease._external_camera_scene_partitions_pending = pending
+    assert state.publisher.publication_required("step")
+    assert state.publish() is None
+    names = ["material", "transform", "geometry", "auxiliary"] + (["partition"] if pending else []) + ["material-drain"]
+    assert state.events == [(name, state.ordinal) for name in names]
+    assert renderer._render_lease._last_step_id == "step"
+    assert not lease._external_camera_scene_partitions_pending
+    assert renderer.scene.ordinal == state.ordinal
+    assert not state.publisher.publication_required("step")
+    with pytest.raises(RuntimeError, match="publication is not required"):
+        state.publish()
+    assert state.events == [(name, state.ordinal) for name in names]
+    renderer.scene.stage.get_attribute_write_floor.assert_not_called()
     renderer.scene.stage.advance_write_floor.assert_not_called()
-    transforms.side_effect = ValueError("write failed")
-    with pytest.raises(RuntimeError, match="scene publication failed"):
-        publisher.write_complete_scene(19, "step-2")
+    assert not renderer._render_lease._poisoned
+
+
+@pytest.mark.parametrize("failure", ["material", "transform", "geometry", "auxiliary", "partition", "material-drain"])
+def test_render_lease_complete_scene_failure_preserves_commit_boundary(complete_scene_publication, failure):
+    state = complete_scene_publication
+    renderer, lease = state.renderer, state.lease
+    state.failure = failure
+    with pytest.raises(RuntimeError, match="Producer scene publication failed") as caught:
+        state.publish()
+    assert caught.value.__cause__ is state.cause
+    order = ["material", "transform", "geometry", "auxiliary", "partition", "material-drain"]
+    expected = order[: order.index(failure) + 1]
+    if failure != "material-drain":
+        expected.append("material-drain")
+    assert state.events == [(name, state.ordinal) for name in expected]
+    assert renderer._render_lease._last_step_id == state.initial_id
+    assert lease._external_camera_scene_partitions_pending
+    assert renderer.scene.ordinal == state.ordinal
+    assert renderer._render_lease._poisoned
     with pytest.raises(RuntimeError, match="poisoned"):
         _ = lease.ovstage
-    publisher.close()
-    lease.release()
+    previous_events = list(state.events)
+    with pytest.raises(RuntimeError, match="unavailable|poisoned"):
+        state.publish("next-step")
+    assert state.events == previous_events
+    renderer.scene.stage.advance_write_floor.assert_not_called()
+    renderer.scene.stage.get_attribute_write_floor.assert_not_called()
+
+
+def test_render_lease_complete_scene_public_authority_precedes_components(complete_scene_publication):
+    import threading
+
+    state = complete_scene_publication
+    errors = []
+
+    def foreign_thread():
+        try:
+            state.publish()
+        except BaseException as exc:
+            errors.append(exc)
+
+    thread = threading.Thread(target=foreign_thread)
+    thread.start()
+    thread.join(timeout=5)
+    assert not thread.is_alive()
+    assert len(errors) == 1 and isinstance(errors[0], RuntimeError)
+    assert "thread" in str(errors[0])
+    with pytest.raises(TypeError, match="physics_step_id must be hashable"):
+        state.publish([])
+    with pytest.raises(ValueError, match="ordinal must be nonzero"):
+        state.publisher.write_complete_scene(0, "step")
+    state.publisher.close()
+    with pytest.raises(RuntimeError, match="publisher is closed"):
+        state.publish()
+    assert not state.events
+    state.renderer.scene.stage.get_attribute_write_floor.assert_not_called()
+    state.renderer.scene.stage.advance_write_floor.assert_not_called()
+    assert not state.renderer._render_lease._poisoned
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA material buffers")
-def test_leased_material_updates_reach_the_reserved_scene(leased_renderer, monkeypatch):
+@pytest.mark.parametrize("deferred", [False, True])
+def test_leased_material_updates_reach_the_reserved_scene(leased_renderer, monkeypatch, deferred):
     """Real material composition and the lease publisher must reach native writes, including before physics changes."""
     renderer = leased_renderer
     lease = renderer.acquire_ov_libraries_render_lease()
     publisher = lease.capture_scene_publisher()
     context = renderer._sim.render_context
+    if deferred:
+        cfg = _make_camera_cfg(["rgb"])
+        cfg.prim_path = "/World/Camera"
+        lease.configure_auxiliary_camera(cfg)
     _prepare_leased_renderer(renderer)
     material = types.SimpleNamespace(
         channels=("color",),
@@ -1584,6 +1697,20 @@ def test_leased_material_updates_reach_the_reserved_scene(leased_renderer, monke
     )
     context.register_visual_material(material)
     context.finalize_consumers([])
+    if deferred:
+        spec = CameraRenderSpec(cfg, "cpu", 1, (cfg.prim_path,), 1)
+        data = renderer.create_render_data(spec)
+        monkeypatch.setattr(ovrtx_renderer_module.ovstage.population, "add_usd_reference_from_string", lambda *a: 1)
+        monkeypatch.setattr(ovrtx_renderer_module.ovstage.population, "apply_usd_changes", lambda *a, **kw: None)
+        token = lease.offer_owner_transfer()
+        lease.claim_owner_transfer(token)
+        assert lease.materialize_deferred_auxiliary_camera_stage(renderer._sim.stage, 1)
+        renderer.update_camera(
+            data,
+            wp.zeros(1, dtype=wp.vec3f, device="cpu"),
+            wp.array([[0.0, 0.0, 0.0, 1.0]], dtype=wp.quatf, device="cpu"),
+            None,
+        )
     stage = renderer.scene.stage
     try:
         for ordinal, color in ((23, [0.0, 1.0, 0.0]), (24, [0.0, 0.0, 1.0])):
@@ -1720,3 +1847,153 @@ def test_camera_registration_authors_valid_render_device_selection(monkeypatch, 
     monkeypatch.setattr(ovrtx_renderer_module, "build_render_product_as_string", consume_product)
     with pytest.raises(AuthoredProduct):
         renderer.create_render_data(spec)
+
+
+def test_external_camera_native_rate_is_authored_only_on_export(leased_renderer):
+    from pxr import Usd, UsdGeom
+
+    renderer = leased_renderer
+    lease = renderer.acquire_ov_libraries_render_lease()
+    cfg = _make_camera_cfg(["rgb"])
+    cfg.prim_path = "/World/envs/env_0/Camera"
+    lease.configure_auxiliary_camera(cfg, max_fps=20.0)
+    lease._auxiliary_cameras[0].spec = types.SimpleNamespace(camera_prim_paths=[cfg.prim_path])
+    stage = Usd.Stage.CreateInMemory()
+    camera = UsdGeom.Camera.Define(stage, cfg.prim_path).GetPrim()
+    exported = Usd.Stage.CreateInMemory()
+    assert exported.GetRootLayer().ImportFromString(
+        renderer._render_lease._author_camera_schedules(stage.ExportToString(), lease)
+    )
+    assert not camera.HasAttribute("omni:sensor:frameRate")
+    assert not camera.HasAttribute("omni:sensor:Core:partialOutputs")
+    prim = exported.GetPrimAtPath(cfg.prim_path)
+    assert tuple(prim.GetAttribute("omni:sensor:frameRate").Get()) == (20.0, 1.0)
+    assert prim.GetAttribute("omni:sensor:Core:partialOutputs").Get() is False
+    lease.release()
+
+
+def test_selected_external_camera_order_is_independent_of_sensor_preparation(leased_renderer):
+    renderer = leased_renderer
+    lease = renderer.acquire_ov_libraries_render_lease()
+    specs = []
+    for name, hz in zip(("Head", "Left", "Right", "Overview"), (20, 10, 10, 5), strict=True):
+        cfg = types.SimpleNamespace(prim_path=f"/World/{name}", width=640, height=480, data_types=("rgb",))
+        lease.configure_auxiliary_camera(cfg, max_fps=hz)
+        specs.append(types.SimpleNamespace(cfg=cfg, num_instances=1, view_count=1, camera_prim_paths=(cfg.prim_path,)))
+    for spec in reversed(specs):
+        assert renderer._render_lease.accept_camera_spec(spec)
+    assert [camera.spec for camera in lease._auxiliary_cameras] == specs
+    assert [camera.max_fps for camera in lease._auxiliary_cameras] == [20, 10, 10, 5]
+    lease.release()
+
+
+def test_external_camera_partition_validation_is_not_stereo_specific(leased_renderer, monkeypatch):
+    renderer = leased_renderer
+    lease = renderer.acquire_ov_libraries_render_lease()
+    _prepare_leased_renderer(renderer)
+    cameras = ("/Camera/front", "/Camera/side", "/Camera/rear")
+    tokens = {
+        ("/World/envs/env_0", "primvars:omni:scenePartition"): "env_0",
+        **{(path, "omni:scenePartition"): "env_0" for path in cameras},
+    }
+    monkeypatch.setattr(renderer._render_lease, "_read_partition_tokens", lambda *_: tokens)
+    try:
+        with lease.ovstage_owner_lane():
+            lease.configure_external_camera_scene_partitions("/World/envs/env_0", cameras)
+            assert lease.validate_external_scene_partitions(1) == {
+                "/World/envs/env_0": "env_0",
+                **dict.fromkeys(cameras, "env_0"),
+            }
+            tokens[(cameras[-1], "omni:scenePartition")] = "other"
+            with pytest.raises(RuntimeError, match="scene-partition proof failed"):
+                lease.validate_external_scene_partitions(1)
+    finally:
+        lease.release()
+
+
+def test_external_camera_schedules_reach_native_stage(monkeypatch):
+    """The renderer's real population path retains only selected camera scheduling properties."""
+    import ovrtx
+    import ovstage
+
+    ovrtx.register_schema_paths()
+    camera_paths = [f"/World/envs/env_0/{name}" for name in ("Head", "Wrist", "Unselected")]
+    source = """#usda 1.0
+def Xform "World" {
+ def Xform "envs" {
+  def Xform "env_0" {
+   def Camera "Head" {
+    double2 omni:sensor:frameRate = (20, 1)
+    bool omni:sensor:Core:partialOutputs = false
+   }
+   def Camera "Wrist" {
+    double2 omni:sensor:frameRate = (10, 1)
+    bool omni:sensor:Core:partialOutputs = false
+   }
+   def Camera "Unselected" {
+    double2 omni:sensor:frameRate = (999, 1)
+   }
+  }
+ }
+}
+"""
+    cfg = _make_camera_cfg(["rgb"])
+    cfg.prim_path = camera_paths[0]
+    spec = types.SimpleNamespace(cfg=cfg, num_instances=1, camera_prim_paths=[camera_paths[0]], render_settings={})
+    data = OVRTXCameraRenderData(spec, "RenderCamera_0", list(spec.camera_prim_paths))
+    from isaaclab_ov.stage import OvstageBackend, OvstageBackendCfg
+
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._use_ovstage = True
+    renderer._render_lease.stage_deferred = False
+    renderer._render_lease.active = None
+    renderer.backend.renderer = MagicMock()
+    with contextlib.ExitStack() as resources:
+        renderer.scene = OvstageBackend(OvstageBackendCfg())
+        resources.callback(renderer.scene.close)
+        stage, paths = renderer.scene.stage, renderer.scene.paths
+        population = ovstage.population
+        description = population.Desc(
+            domains=ovstage.PopulationDomain.RENDERING,
+            selectors=[
+                population.Selector(
+                    population.PrimPredicate.has_path(*camera_paths[:2]),
+                    population.PropertyPredicate.has_name("omni:sensor:frameRate", "omni:sensor:Core:partialOutputs"),
+                )
+            ],
+        )
+        renderer.scene.populate(source, population_desc=description)
+        try:
+            renderer._register_camera(spec, data)
+            renderer.scene.commit()
+            resolved = {}
+            plist = paths.create_path_list_from_strings(camera_paths)
+            try:
+                with stage.query_from_path_list(plist) as query:
+                    query.wait()
+                    names = ("omni:sensor:frameRate", "omni:sensor:Core:partialOutputs")
+                    with stage.read_attributes(
+                        query,
+                        [paths.intern_token(name) for name in names],
+                        ovstage.OrdinalRange.latest(renderer.scene.ordinal - 1),
+                    ) as read:
+                        read.wait()
+                        for group in read.groups():
+                            try:
+                                values = np.asarray(group.array(0).copy()).reshape(group.data_count, -1)
+                                group_paths = paths.get_path_strings(group.prim_list)
+                                attribute = paths.token_to_string(group.attribute)
+                                for index in range(min(group.prim_count, group.data_count)):
+                                    path = group_paths[group.prim_index(index)]
+                                    resolved[path, attribute] = values[group.data_row_index(index)].tolist()
+                            finally:
+                                stage.release_group(group)
+            finally:
+                paths.destroy_path_list(plist)
+            assert resolved.get((camera_paths[0], names[0])) == [20.0, 1.0]
+            assert resolved.get((camera_paths[1], names[0])) == [10.0, 1.0]
+            assert resolved.get((camera_paths[0], names[1])) == [False]
+            assert resolved.get((camera_paths[1], names[1])) == [False]
+            assert (camera_paths[2], names[0]) not in resolved
+        finally:
+            data.resources.close()

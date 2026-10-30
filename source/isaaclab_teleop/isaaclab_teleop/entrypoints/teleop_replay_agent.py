@@ -14,9 +14,10 @@ teleop script remains ``teleop_se3_agent.py``.
 
 OVXR viewer:
     ``--ovxr`` presents replay through an independently owned OVXR session while
-    tracker and control input remain sourced from MCAP. See
-    ``source/isaaclab_teleop/docs/kitless_xr.md`` for installation and launch
-    instructions.
+    tracker and control input remain sourced from MCAP. Optional camera quads
+    use ``--ovxr_pip_camera NAME --ovxr_pip_head_locked``. The desktop mirror is enabled
+    by default; ``--headless`` disables it. See ``source/isaaclab_teleop/docs/kitless_xr.md``
+    for installation and launch instructions.
 
 Inputs:
     ``--replay_file`` is an MCAP capture produced by Isaac Capture's
@@ -316,6 +317,14 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--ovxr", action="store_true", help="Present recorded motion through kitless OVXR; input stays MCAP."
     )
+    parser.add_argument("--ovxr_pip_camera", nargs="+", default=None, help="Task camera names to show as OVXR panels.")
+    parser.add_argument("--ovxr_pip_head_locked", action="store_true", help="Use the supported head-locked PiP layout.")
+    parser.add_argument(
+        "--ovxr_desktop_mirror",
+        action="store_true",
+        help="Show the OVXR desktop mirror (enabled by default; --headless disables it).",
+    )
+    parser.add_argument("--headless", action="store_true", help="Disable the OVXR desktop mirror.")
     parser.add_argument("--ovxr_session_mode", choices=("ar", "vr"), default="ar")
     parser.add_argument(
         "--replay_file",
@@ -443,6 +452,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = _build_parser()
 
     args_cli, hydra_overrides = setup_preset_cli(parser)
+    if args_cli.ovxr:
+        args_cli.ovxr_desktop_mirror = not args_cli.headless
     sys.argv = [sys.argv[0]] + hydra_overrides
 
     # Enable external camera rendering by default so the replay mimics the production teleop env (perf
@@ -1055,7 +1066,10 @@ def _maybe_launch_cloudxr(cloudxr_env_path: str | None, auto_launch: bool):
 
 
 def _prepare_env_cfg(
-    task: str, num_envs: int, device: str, overrides: Sequence[str] = ()
+    task: str,
+    num_envs: int,
+    device: str,
+    overrides: Sequence[str] = (),
 ) -> tuple[ManagerBasedRLEnvCfg, object | None]:
     """Build and tweak an env config suitable for non-interactive replay.
 
@@ -1114,12 +1128,26 @@ def _prepare_env_cfg(
         )
     if hasattr(env_cfg.terminations, "time_out"):
         env_cfg.terminations.time_out = None
+    # Keep camera configs when external cameras are enabled (defaulted on) so the replay
+    # renders them for production parity; otherwise strip them for a lighter headless replay.
     if args_cli.ovxr:
         if args_cli.num_envs != 1 or args_cli.xr:
             raise ValueError("--ovxr requires one environment and no Kit XR or local visualizer")
         if os.environ.get("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1").strip() != "1":
             raise ValueError("--ovxr requires ISAAC_LAB_OVRTX_USE_OVSTAGE=1")
-        env_cfg = remove_camera_configs(env_cfg)
+        from isaaclab_ov.renderers import OVRTXRendererCfg
+
+        from ..camera_feed import select_ovxr_camera_feeds
+
+        names = args_cli.ovxr_pip_camera or []
+        if names and args_cli.disable_external_cameras:
+            raise ValueError("OVXR PiP conflicts with --disable_external_cameras")
+        if names and not args_cli.ovxr_pip_head_locked:
+            raise ValueError("OVXR replay PiP requires --ovxr_pip_head_locked")
+        select_ovxr_camera_feeds(env_cfg, names, OVRTXRendererCfg())
+        env_cfg = remove_camera_configs(env_cfg, keep=tuple(names))
+    elif args_cli.ovxr_pip_camera or args_cli.ovxr_desktop_mirror or args_cli.ovxr_pip_head_locked:
+        raise ValueError("OVXR presentation options require --ovxr")
     elif args_cli.disable_external_cameras:
         env_cfg = remove_camera_configs(env_cfg)
     if env_cfg.sim.physics is None:
@@ -1213,7 +1241,23 @@ class _ReplayPresentation:
         from isaaclab_ov.renderers import OVRTXRendererCfg
 
         from .. import OvLibrariesXrConfig, OvLibrariesXrSession
+        from ..camera_feed import resolve_ovxr_camera_configs
+        from ..isaac_teleop_cfg import XrCameraFeedLayoutCfg
 
+        selected = [
+            (
+                name,
+                getattr(env_cfg.scene, name),
+                next(
+                    feed for feed in env_cfg.isaac_teleop.xr_camera_feeds if feed.enabled and feed.camera_name == name
+                ),
+            )
+            for name in args_cli.ovxr_pip_camera or []
+        ]
+        layout = (env_cfg.isaac_teleop.xr_camera_feed_layout or XrCameraFeedLayoutCfg()).replace(
+            placement="head_locked"
+        )
+        cameras = resolve_ovxr_camera_configs(selected, layout, max_fps=30.0)
         self.session = OvLibrariesXrSession.prepare(
             env_cfg.sim,
             OvLibrariesXrConfig(
@@ -1221,8 +1265,10 @@ class _ReplayPresentation:
                 session_mode=args_cli.ovxr_session_mode,
                 cloudxr_env_file=args_cli.cloudxr_env,
                 auto_launch_cloudxr=args_cli.auto_launch_cloudxr,
+                desktop_mirror_enabled=args_cli.ovxr_desktop_mirror,
+                auxiliary_cameras=cameras,
             ),
-            OVRTXRendererCfg(),
+            cameras[0].camera_cfg.renderer_cfg if cameras else OVRTXRendererCfg(),
         )
         self.xr_cfg = env_cfg.isaac_teleop.xr_cfg
         self.device = None
@@ -1237,6 +1283,7 @@ class _ReplayPresentation:
                 env,
                 tracking_anchor_path=device.xr_render_anchor_path,
                 hidden_visual_prims=self.xr_cfg.hidden_visual_prims,
+                excluded_visual_meshes=self.xr_cfg.excluded_visual_meshes,
                 external_anchor_state=device.external_anchor_state,
                 timeout_s=args_cli.max_stage_load_wait_s,
             ):
@@ -1255,6 +1302,7 @@ class _ReplayPresentation:
         if self.pending is not None and self.session.request_render(self.pending, force=self.force) is not None:
             self.pending = None
             self.force = False
+        self.session.report_host_timing(env.sim.get_physics_step_count(), env.sim.get_physics_dt())
 
     def close(self):
         if self.device is not None and self.device.session_cleanup_failed:

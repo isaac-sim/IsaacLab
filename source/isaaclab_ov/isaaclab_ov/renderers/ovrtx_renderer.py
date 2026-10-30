@@ -378,11 +378,15 @@ class OVRTXRenderer(BaseRenderer):
 
     @property
     def visual_material_writer(self):
-        """Return a writer factory once this renderer has a scene consumer."""
-        return self._create_visual_material_writer if self._initialized_scene else None
+        """Register materials for an initialized or deferred leased scene consumer."""
+        return (
+            self._create_visual_material_writer
+            if self._initialized_scene or self._render_lease.stage_deferred
+            else None
+        )
 
     def _create_visual_material_writer(self, batches: tuple[VisualMaterialBatch, ...]) -> OVRTXVisualMaterialWriter:
-        """Create the detached-scene material writer after scene population."""
+        """Retain material buffers; deferred scenes compile addresses after population."""
         writer = OVRTXVisualMaterialWriter(self, batches)
         self._visual_material_writer_ref = weakref.ref(writer)
         return writer
@@ -407,7 +411,9 @@ class OVRTXRenderer(BaseRenderer):
 
     def prepare_stage(self, stage: Usd.Stage, num_envs: int) -> None:
         """Load, clone, and bind the shared scene before any camera products are registered."""
-        self._render_lease.prepare_stage(num_envs)
+        if not self._render_lease.prepare_stage(num_envs):
+            return
+        lease = self._render_lease.active
         logger.info("Preparing stage (%d envs)...", num_envs)
         env_paths = self.scene.clone_env_paths
         if self.cfg.temp_usd_dir is not None or not self._use_ovstage or not self.scene.ordinal:
@@ -437,7 +443,10 @@ class OVRTXRenderer(BaseRenderer):
             if self.cfg.temp_usd_dir is not None:
                 _write_file(Path(self.cfg.temp_usd_dir), "ovrtx_renderer_stage.usda", usd)
             if self._use_ovstage:
-                self.scene.populate(usd)
+                if lease is not None:
+                    self._render_lease.populate_stage(usd)
+                else:
+                    self.scene.populate(usd)
             else:
                 self.backend.renderer.open_usd_from_string(usd)
                 ovrtx_replicate(self.backend.renderer, self.scene.clone_copies, env_paths, self.scene.clone_positions)
@@ -591,24 +600,42 @@ class OVRTXRenderer(BaseRenderer):
             self._bindings.callback(self._geometry_points_binding.unbind)
 
     def create_render_data(self, spec: CameraRenderSpec) -> OVRTXCameraRenderData:
-        """Register a camera's product and bindings in the prepared scene."""
-        self._render_lease.reject_ordinary_operation("create ordinary camera render data")
+        """Register an ordinary camera, or reserve an authorized external camera until handoff."""
+        auxiliary = self._render_lease.accept_camera_spec(spec)
+        if not auxiliary:
+            self._render_lease.reject_ordinary_operation("create ordinary camera render data")
         if str(wp.get_device(spec.device)) != self._device:
             raise ValueError("Cameras sharing an OVRTX renderer must use the simulation device.")
+        camera = self._render_lease.camera_for_spec(spec) if auxiliary else None
+        if camera is not None and camera.render_data is not None:
+            raise RuntimeError("Auxiliary camera render data already exists")
         camera_paths = list(spec.camera_prim_paths)
+        env_partitions = {Sdf.Path(path): f"env_{i}" for i, path in enumerate(self.scene.clone_env_paths)}
+        source_root = next((root for root in Sdf.Path(camera_paths[0]).GetPrefixes() if root in env_partitions), None)
+        if source_root is not None and len(camera_paths) < spec.num_instances:
+            # Native cloning may leave only the source camera in USD. Preserve complete path row order.
+            suffix = camera_paths[0][len(str(source_root)) :]
+            camera_paths = [path + suffix for path in self.scene.clone_env_paths]
+        data = OVRTXCameraRenderData(spec, f"RenderCamera_{self.scene.next_camera_id}", camera_paths)
+        if not auxiliary or not self._render_lease.stage_deferred:
+            self._register_camera(spec, data)
+        self.scene.next_camera_id += 1
+        self._camera_render_data.append(data)
+        if camera is not None:
+            camera.render_data = data
+        return data
+
+    def _register_camera(self, spec: CameraRenderSpec, render_data: OVRTXCameraRenderData) -> None:
+        """Bind one product in the already populated simulation-owned scene."""
+        camera_paths = render_data.camera_paths
         env_partitions = {Sdf.Path(path): f"env_{i}" for i, path in enumerate(self.scene.clone_env_paths)}
         source_root = next((root for root in Sdf.Path(camera_paths[0]).GetPrefixes() if root in env_partitions), None)
         camera_partitions = []
         if source_root is not None:
-            # Native cloning may leave only the source camera in USD. Complete paths retain their row order.
-            if len(camera_paths) < spec.num_instances:
-                suffix = camera_paths[0][len(str(source_root)) :]
-                camera_paths = [path + suffix for path in self.scene.clone_env_paths]
             camera_partitions = [
                 next(env_partitions[root] for root in Sdf.Path(path).GetPrefixes() if root in env_partitions)
                 for path in camera_paths
             ]
-        render_data = OVRTXCameraRenderData(spec, f"RenderCamera_{self.scene.next_camera_id}", camera_paths)
         scope, product_path = render_data.render_scope_name, render_data.render_product_path
         usd = build_render_product_as_string(
             spec,
@@ -699,11 +726,8 @@ class OVRTXRenderer(BaseRenderer):
         except Exception:
             render_data.cleanup()
             raise
-        self.scene.next_camera_id += 1
-        self._camera_render_data.append(render_data)
         self.backend.render_products.add(render_data.render_product_path)
         render_data.resources.callback(self.backend.render_products.discard, render_data.render_product_path)
-        return render_data
 
     def set_outputs(self, render_data: OVRTXCameraRenderData, output_data: dict[str, ProxyArray]) -> None:
         """Register pre-allocated warp output buffers for rendering.
@@ -1134,8 +1158,20 @@ class OVRTXRenderer(BaseRenderer):
         orientations: ProxyArray,
         intrinsics: ProxyArray,
     ) -> None:
-        """Update camera poses using the camera's reusable conversion buffers."""
+        """Update an ordinary camera or queue a sample for an external borrower."""
+        if self._render_lease.queue_camera_update(render_data, positions, orientations, intrinsics):
+            return
         self._render_lease.reject_ordinary_operation("update ordinary cameras")
+        self._update_camera(render_data, positions, orientations, intrinsics)
+
+    def _update_camera(
+        self,
+        render_data: OVRTXCameraRenderData,
+        positions: ProxyArray,
+        orientations: ProxyArray,
+        intrinsics: ProxyArray,
+    ) -> None:
+        """Update camera poses using the camera's reusable conversion buffers."""
         binding = render_data.camera_xform_binding
         if binding is None:
             return

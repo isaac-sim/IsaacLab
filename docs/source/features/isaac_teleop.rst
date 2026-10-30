@@ -1344,6 +1344,34 @@ through this variable -- later runs no longer prompt. The variable applies to ev
 that launches the runtime, including the process-scoped launcher in
 ``teleop_replay_agent.py``.
 
+.. _isaac-teleop-ovxr-mcap:
+
+Replay MCAP with a Kitless OVXR Viewer
+--------------------------------------
+
+The MCAP replay entrypoint can present recorded input through an independent
+OVXR viewer. Follow the :ref:`kitless XR guide <kitless-xr>` to install Isaac
+Capture with its OVXR extra and select the compatible rendering dependencies.
+
+.. code-block:: bash
+
+   uv run --extra ovxr python \
+       scripts/environments/teleoperation/teleop_replay_agent.py \
+       --task IsaacContrib-PickPlace-GR1T2-Abs --physics ovphysx \
+       --device cpu --num_envs 1 --ovxr \
+       --replay_file /absolute/path/to/session.mcap
+
+Use ``--physics newton_mjwarp`` for Newton. MCAP supplies tracker and control
+input; the connected client supplies the view. A recorded STOP, task success
+or failure, or the replay duration limit ends the run. The separate
+``isaaclab teleop replay`` command replays HDF5 demonstrations through Kit.
+
+Add ``--ovxr_pip_camera robot_pov_cam --ovxr_pip_head_locked`` for a camera
+panel. OVXR live and MCAP replay open a desktop mirror by default; add
+``--headless`` to disable that window while keeping XR and PiP rendering.
+See the kitless XR guide for installation, camera selection and display requirements.
+
+
 .. _isaac-teleop-xr-anchor:
 
 Configure the XR Anchor
@@ -1485,7 +1513,7 @@ unchanged. For either G1 task, set ``env.isaac_teleop.xr_camera_feeds=[]`` to di
 the camera sensor and any configured camera observations.
 
 The reference feeds request render-product-local DLSS Ray Reconstruction and ``quality`` execution
-mode through :class:`~isaaclab_teleop.XrCameraFeedCfg`. The private PiP adapter authors those two
+mode through :class:`~isaaclab_teleop.XrCameraFeedCfg`. The Kit Scene UI presenter authors those two
 attributes only on the selected camera render product. Ray Reconstruction also requires the
 process-global responsive-denoising setting, which the teleoperation and recording scripts
 enable before environment construction when a selected feed requests Ray Reconstruction.
@@ -1596,8 +1624,10 @@ Kit Scene UI presentation
 PiP presentation uses Kit Scene UI and ``SpatialSource`` placement. Kit imports are deferred until
 an enabled feed is requested. If the Scene UI modules cannot be imported, the scripts log a warning
 and continue without PiP; task-owned cameras and recording observations remain unchanged. This keeps
-the camera selection configuration usable when a future kitless entry point no longer provides
-Scene UI. Render-product tuning is also best-effort: backends without a compatible render product
+the camera selection configuration usable without Scene UI. The
+:ref:`kitless XR guide <kitless-xr>` uses separate OpenXR quad
+layers and does not import Scene UI; those layers are visible in the headset/client, not in the
+passive eye-image desktop mirror. Render-product tuning is also best-effort: backends without a compatible render product
 keep the Camera-buffer path, and schema-authoring failures warn while PiP continues. Other
 configuration, camera-buffer, and panel-initialization errors still fail during startup.
 
@@ -2031,8 +2061,8 @@ Optimize XR Performance
 
    .. note::
 
-      The ``--headless`` CLI flag was removed in Isaac Lab 3.0. Headless is now the **default**
-      (omit ``--visualizer``), or set ``HEADLESS=1`` in the environment.
+      For Kit XR, omit ``--visualizer`` to run without the local viewport.
+      For kitless ``--ovxr``, pass ``--headless`` to disable its default desktop mirror.
 
 .. dropdown:: Configure retargeting execution
    :open:

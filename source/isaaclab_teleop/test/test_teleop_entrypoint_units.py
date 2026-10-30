@@ -246,7 +246,7 @@ def run_live_workflow(monkeypatch):
         monkeypatch.setattr(agent, "_install_ovxr_shutdown_handlers", lambda *_args: {})
         monkeypatch.setattr(isaaclab_teleop.XrCameraFeedSession, "prepare", lambda *_args, **_kwargs: camera)
         monkeypatch.setattr(isaaclab_teleop.OvLibrariesXrSession, "prepare", lambda *_args, **_kwargs: session)
-        agent.run_teleoperation(cfg, cfg.isaac_teleop, True)
+        agent.run_teleoperation(cfg, cfg.isaac_teleop, True, [])
 
     return run
 
@@ -385,6 +385,7 @@ def test_paused_loop_retries_the_latest_unaccepted_publication(monkeypatch, run_
     steps = []
     requests = []
     sleeps = []
+    reports = []
     session = SimpleNamespace(shutdown_requested=False)
 
     def advance():
@@ -405,6 +406,7 @@ def test_paused_loop_retries_the_latest_unaccepted_publication(monkeypatch, run_
         sleeps.append((duration, len(requests)))
 
     session.request_render = request
+    session.report_host_timing = lambda step, dt: reports.append((step, dt, len(requests)))
     session.wait_for_shutdown = sleep
     monkeypatch.setattr(agent, "time", SimpleNamespace(perf_counter=lambda: 0.0, sleep=sleep))
     env = SimpleNamespace(
@@ -428,6 +430,7 @@ def test_paused_loop_retries_the_latest_unaccepted_publication(monkeypatch, run_
     assert advances == 2 and len(steps) == 1
     assert len(requests) == 3 and requests[0][1] is True
     assert requests[1:] == [(1, False), (1, False)]
+    assert reports == [(1, 0.005, 2), (1, 0.005, 3)]
     assert sleeps == [(0.02, 3)]  # Pacing follows the retried publication.
 
 
@@ -802,6 +805,112 @@ def test_kitless_hand_guard_renders_without_step_and_next_valid_frame_resumes(mo
     assert len(env.actions) == 2
     torch.testing.assert_close(env.actions[0], env.actions[1])
     assert haptics == {"update": 2, "stop": 1}
+
+
+def test_desktop_mirror_cli_is_explicit_and_bounded(monkeypatch):
+    agent = _load_teleop_agent(
+        monkeypatch,
+        "--ovxr",
+        "--ovxr_desktop_mirror",
+        "--ovxr_desktop_mirror_fps",
+        "20",
+    )
+
+    assert agent.args_cli.ovxr_desktop_mirror
+    assert agent.args_cli.ovxr_desktop_mirror_fps == 20.0
+
+
+def test_auxiliary_camera_pip_cli_is_explicit_and_bounded(monkeypatch):
+    agent = _load_teleop_agent(
+        monkeypatch,
+        "--ovxr",
+        "--ovxr_pip_camera",
+        "robot_pov_cam",
+        "--ovxr_pip_fps",
+        "20",
+    )
+
+    assert agent.args_cli.ovxr_pip_camera == ["robot_pov_cam"]
+    assert agent.args_cli.ovxr_pip_fps == 20.0
+
+
+@pytest.mark.parametrize("entrypoint", ["live", "replay"])
+@pytest.mark.parametrize(
+    "flags, expected",
+    [
+        ([], True),
+        (["--headless"], False),
+        (["--ovxr_desktop_mirror"], True),
+        (["--headless", "--ovxr_desktop_mirror"], False),
+        (["--ovxr_desktop_mirror", "--headless"], False),
+    ],
+)
+def test_ovxr_mirror_cli_reaches_session_construction(monkeypatch, entrypoint, flags, expected):
+    """The real entrypoint parser controls the config passed to XR session preparation."""
+    import isaaclab_teleop
+    from isaaclab_teleop.entrypoints import teleop_replay_agent, teleop_se3_agent
+
+    module = teleop_se3_agent if entrypoint == "live" else teleop_replay_agent
+    monkeypatch.setattr(sys, "argv", ["teleop-test"])
+    monkeypatch.setattr(module, "args_cli", None, raising=False)
+    argv = ["--task", "Test", "--ovxr", *flags]
+    if entrypoint == "replay":
+        argv += ["--replay_file", "recording.mcap"]
+        monkeypatch.setattr(module, "hydra_overrides", None, raising=False)
+    module._parse_args(argv)
+    assert module.args_cli.headless is ("--headless" in flags)
+    cfg = SimpleNamespace(sim=object(), isaac_teleop=isaaclab_teleop.IsaacTeleopCfg())
+    received = []
+
+    class PreparationReached(Exception):
+        pass
+
+    def prepare(_sim, xr_cfg, *_args, **_kwargs):
+        assert isinstance(xr_cfg, isaaclab_teleop.OvLibrariesXrConfig)
+        received.append(xr_cfg.desktop_mirror_enabled)
+        raise PreparationReached
+
+    monkeypatch.setattr(isaaclab_teleop.OvLibrariesXrSession, "prepare", prepare)
+    if entrypoint == "live":
+        monkeypatch.setattr(module, "has_kit", lambda: False)
+        monkeypatch.setattr(
+            isaaclab_teleop.XrCameraFeedSession,
+            "prepare",
+            lambda *_args, **_kwargs: SimpleNamespace(close=lambda: None),
+        )
+        with pytest.raises(PreparationReached):
+            module.run_teleoperation(cfg, cfg.isaac_teleop, True, [])
+    else:
+        with pytest.raises(PreparationReached):
+            module._ReplayPresentation(cfg)
+    assert received == [expected]
+    assert isaaclab_teleop.OvLibrariesXrConfig().desktop_mirror_enabled is False
+
+
+@pytest.mark.parametrize(
+    "entrypoint, flags",
+    [
+        ("live", []),
+        ("live", ["--headless"]),
+        ("live", ["--xr"]),
+        ("live", ["--xr", "--headless"]),
+        ("replay", []),
+        ("replay", ["--headless"]),
+    ],
+)
+def test_non_ovxr_cli_keeps_mirror_disabled(monkeypatch, entrypoint, flags):
+    from isaaclab_teleop.entrypoints import teleop_replay_agent, teleop_se3_agent
+
+    module = teleop_se3_agent if entrypoint == "live" else teleop_replay_agent
+    monkeypatch.setattr(sys, "argv", ["teleop-test"])
+    monkeypatch.setattr(module, "args_cli", None, raising=False)
+    argv = ["--task", "Test", *flags]
+    if entrypoint == "replay":
+        argv += ["--replay_file", "recording.mcap"]
+        monkeypatch.setattr(module, "hydra_overrides", None, raising=False)
+    args = module._parse_args(argv)
+    assert args.ovxr_desktop_mirror is False
+    assert args.headless is ("--headless" in flags)
 
 
 @pytest.mark.parametrize("entrypoint", ["live", "replay"])

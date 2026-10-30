@@ -86,6 +86,8 @@ class PickPlaceGR1T2WaistEnabledEnvCfg(ManagerBasedRLEnvCfg):
             self.xr = XrCfg(
                 anchor_pos=(0.0, 0.0, 0.0),
                 anchor_rot=(0.0, 0.0, 0.0, 1.0),
+                # Exclude head visuals from the operator camera, not the source scene.
+                excluded_visual_meshes=["/World/envs/env_0/Robot/head_.*_link/visuals/.*"],
             )
             self.isaac_teleop = IsaacTeleopCfg(
                 prepare_environment=prepare_humanoid_teleop_environment,

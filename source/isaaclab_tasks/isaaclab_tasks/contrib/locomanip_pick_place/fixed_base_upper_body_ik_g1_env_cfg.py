@@ -33,6 +33,7 @@ from isaaclab_assets.robots.unitree import G1_29DOF_CFG
 from isaaclab_tasks.contrib.locomanip_pick_place.configs.pink_controller_cfg import (  # isort: skip
     G1_UPPER_BODY_IK_ACTION_CFG,
 )
+from isaaclab_tasks.contrib.robot_pov_camera_cfg import robot_pov_camera_cfg  # isort: skip
 
 
 def _build_g1_upper_body_pipeline():
@@ -267,7 +268,24 @@ class FixedBaseUpperBodyIKG1SceneCfg(InteractiveSceneCfg):
     # Unitree G1 Humanoid robot - fixed base configuration
     robot: ArticulationCfg = replace(G1_29DOF_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
-    robot_pov_cam = g1_robot_pov_camera_cfg()
+    # Share the calibrated head view with the locomomanipulation G1 task.
+    robot_pov_cam = g1_robot_pov_camera_cfg().replace(update_period=1.0 / 20.0)
+
+    # Mount above each hand, looking along wrist-local +X with +Z up.
+    left_wrist_cam = robot_pov_camera_cfg(
+        parent_prim_path="{ENV_REGEX_NS}/Robot/left_wrist_yaw_link",
+        offset_pos=(0.06, 0.0, 0.06),
+        offset_rot=(-0.5, 0.5, -0.5, 0.5),
+    ).replace(
+        prim_path="{ENV_REGEX_NS}/Robot/left_wrist_yaw_link/LeftWristCam",
+        update_period=1.0 / 10.0,
+        height=480,
+        width=640,
+        spawn=sim_utils.PinholeCameraCfg(focal_length=15.0, horizontal_aperture=20.955, clipping_range=(0.01, 5.0)),
+    )
+    right_wrist_cam = left_wrist_cam.replace(
+        prim_path="{ENV_REGEX_NS}/Robot/right_wrist_yaw_link/RightWristCam",
+    )
 
     # Per-hand contact sensors over all finger links, used to drive controller
     # haptics (see HapticFeedbackCfg below). Requires activate_contact_sensors
@@ -310,13 +328,11 @@ class ActionsCfg:
 
 @configclass
 class ObservationsCfg:
-    """Observation specifications for the MDP.
-    This class is required by the environment configuration but not used in this implementation
-    """
+    """State and camera observations for fixed-base manipulation."""
 
     @configclass
     class PolicyCfg(ObsGroup):
-        """Observations for policy group with state values."""
+        """Policy observations with state values and head/wrist RGB images."""
 
         actions = ObsTerm(func=manip_mdp.last_action)
         robot_joint_pos = ObsTerm(
@@ -340,6 +356,28 @@ class ObservationsCfg:
         object = ObsTerm(
             func=manip_mdp.object_obs,
             params={"left_eef_link_name": "left_wrist_yaw_link", "right_eef_link_name": "right_wrist_yaw_link"},
+        )
+
+        robot_pov_cam = ObsTerm(
+            func=base_mdp.image_rgb,
+            params={
+                "sensor_cfg": SceneEntityCfg("robot_pov_cam"),
+                "normalize": False,
+            },
+        )
+        left_wrist_cam = ObsTerm(
+            func=base_mdp.image_rgb,
+            params={
+                "sensor_cfg": SceneEntityCfg("left_wrist_cam"),
+                "normalize": False,
+            },
+        )
+        right_wrist_cam = ObsTerm(
+            func=base_mdp.image_rgb,
+            params={
+                "sensor_cfg": SceneEntityCfg("right_wrist_cam"),
+                "normalize": False,
+            },
         )
 
         def __post_init__(self):
@@ -390,6 +428,7 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
     # MDP settings
     terminations: TerminationsCfg = TerminationsCfg()
     observations: ObservationsCfg = ObservationsCfg()
+    image_obs_list = ["robot_pov_cam", "left_wrist_cam", "right_wrist_cam"]
     actions: ActionsCfg = ActionsCfg()
 
     # Unused managers
@@ -432,6 +471,7 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
             self.xr = XrCfg(
                 anchor_pos=(0.0, 0.0, -0.30),
                 anchor_rot=(0.0, 0.0, 0.0, 1.0),
+                excluded_visual_meshes=["/World/envs/env_0/Robot/torso_link/visuals/head_link/mesh"],
             )
 
             self.isaac_teleop = IsaacTeleopCfg(
@@ -444,11 +484,26 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
                 xr_camera_feeds=[
                     XrCameraFeedCfg(
                         camera_name="robot_pov_cam",
+                        label="Head",
                         enable_dlss_ray_reconstruction=True,
                         dlss_exec_mode="quality",
                         offset_m=(0.0, -0.15),
-                        max_update_hz=0.0,
-                    )
+                        max_update_hz=20.0,
+                    ),
+                    XrCameraFeedCfg(
+                        camera_name="left_wrist_cam",
+                        label="Left wrist",
+                        panel_width_m=0.30,
+                        offset_m=(-0.43, -0.15),
+                        max_update_hz=10.0,
+                    ),
+                    XrCameraFeedCfg(
+                        camera_name="right_wrist_cam",
+                        label="Right wrist",
+                        panel_width_m=0.30,
+                        offset_m=(0.43, -0.15),
+                        max_update_hz=10.0,
+                    ),
                 ],
             )
 

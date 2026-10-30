@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     import numpy as np
     from isaaclab_ov.renderers.render_lease import OvLibrariesScenePublisher
 
+    from isaaclab.sensors import CameraCfg
     from isaaclab.sim import SimulationCfg
 
 
@@ -78,6 +79,13 @@ class OvxrSessionBootstrap:
             raise RuntimeError("Scene publisher is available only before OVXR Stage binding")
         return self._lease.capture_scene_publisher()
 
+    def configure_auxiliary_camera(self, camera_cfg: CameraCfg, *, max_fps: float | None = None) -> None:
+        """Authorize a camera with an update cap [Hz]; None retains its configured cadence."""
+        self._require_open()
+        if self._bound or self._lease is None:
+            raise RuntimeError("Auxiliary camera must be configured before OVXR Stage binding")
+        self._lease.configure_auxiliary_camera(camera_cfg, max_fps=max_fps)
+
     @property
     def simulation_context(self) -> SimulationContext:
         """Return the exact pre-created simulation context."""
@@ -100,8 +108,10 @@ class OvxrSessionBootstrap:
             num_envs = unwrapped.num_envs
             if not isinstance(num_envs, int) or num_envs <= 0:
                 raise RuntimeError(f"Environment has invalid num_envs: {num_envs!r}")
+
             assert self._sim is not None and self._lease is not None
-            self._sim.render_context.ensure_prepare_stage(scene.stage, num_envs)
+            if not self._lease.materialize_deferred_auxiliary_camera_stage(scene.stage, num_envs):
+                self._sim.render_context.ensure_prepare_stage(scene.stage, num_envs)
             self._lease.validate_live()
             self._bound = True
             return self._lease
