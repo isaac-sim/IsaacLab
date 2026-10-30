@@ -112,5 +112,8 @@ def build_rendering_scene(
             asset.write_root_velocity_to_sim_index(root_velocity=asset.data.default_root_vel.torch)
         runtime.scene.write_data_to_sim()
         sim.forward()
+        if sim.get_setting("/isaaclab/render/rtx_sensors") and hasattr(sim.backend_manager, "assets_loading"):
+            while sim.backend_manager.assets_loading():
+                sim.render()
         runtime.scene.update(0.0)
         yield runtime
