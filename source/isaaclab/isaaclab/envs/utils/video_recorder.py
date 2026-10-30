@@ -70,7 +70,15 @@ class VideoRecorder:
                     f"Enable streaming_view on {viz.cfg.backend.visualizer_type!r} to record its sensor view."
                 )
             # Legacy recording follows camera selection in the window.
-            self._capture = viz.render_tiled_rgb_array if channel == "streaming_view" else viz.render_rgb_array
+            if channel == "tracking":
+                if viz.cfg.backend.visualizer_type != "newton_gl":
+                    raise RuntimeError(
+                        f"The {viz.cfg.backend.visualizer_type!r} visualizer cannot record a tracking view. Use "
+                        "'viz:newton_gl:tracking'."
+                    )
+                self._capture = viz.render_tracking_rgb_array
+            else:
+                self._capture = viz.render_tiled_rgb_array if channel == "streaming_view" else viz.render_rgb_array
 
         self.cfg = cfg
         self._env = env

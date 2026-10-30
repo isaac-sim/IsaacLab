@@ -7,8 +7,9 @@ Streaming a camera view in a visualizer
 
 .. currentmodule:: isaaclab
 
-Display ground-truth camera frames from many environments in one live visualizer panel. For how the view works and which visualizers support it, see
-:ref:`visualization-streaming-camera-view`.
+This guide shows how to show ground-truth camera frames from many environments in one live
+panel of a visualizer, and how to add a view that follows a robot (see :ref:`how-to-visualizer-tracking-cameras`).
+For how the view works and which visualizers support it, see :ref:`visualization-streaming-camera-view`.
 
 
 Sharing a view with recording
@@ -54,7 +55,7 @@ For Newton RTX, a perspective declaration is expanded into an ordinary scene cam
 
 .. code-block:: python
 
-   from isaaclab.visualizers import PerspectiveCameraCfg, VisualizerCfg
+   from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
 
    view = ImageViewCfg(source=PerspectiveCameraCfg(eye=(4.0, -4.0, 3.0)))
    env_cfg.sim.visualizer_cfgs = VisualizerCfg(
@@ -125,6 +126,7 @@ for dual monitoring.
 **Newton GL and Newton RTX** have a **Camera View** selector in the sidebar. Selecting a scene camera displays
 its tiled output in the main viewport instead of rendering a perspective view behind it.
 Selecting a perspective camera restores interactive scene rendering. Newton GL also restores picking.
+A tracking camera is listed as **Tracking Camera**; see :ref:`how-to-visualizer-tracking-cameras`.
 
 Without an explicit ``cameras`` list, Newton GL starts in perspective and offers scene cameras
 that provide every requested ``streaming_gt_types`` channel. An explicit
@@ -239,6 +241,48 @@ displayed image and sensor navigation; pausing training alone does not.
 With ``InteractiveSceneCfg.lazy_sensor_update=True``, the viewer reads only the selected camera.
 Unselected cameras are still allocated and may render if another consumer reads them or the
 scene uses eager sensor updates. ``streaming_envs`` selects displayed tiles, not capture work.
+
+
+.. _how-to-visualizer-tracking-cameras:
+
+Tracking cameras that follow a robot
+------------------------------------
+
+A ``TrackingCameraCfg`` frames an environment or follows an asset in it. Its ``eye`` and ``lookat`` are
+offsets [m] from the environment origin, or from the tracked asset, so it frames the robot wherever the scene puts
+it. The visualizer renders it from its own camera: nothing is added to the scene, and the view keeps the
+viewport's markers and shadows.
+
+.. code-block:: python
+
+   from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
+
+   self.sim.visualizer_cfgs = VisualizerCfg(
+       cameras=[
+           TrackingCameraCfg(
+               eye=(1.8, -3.0, 1.1),
+               lookat=(0.15, 0.0, 0.0),
+               track_path="robot",
+               follow_heading=True,
+               heading_smoothing_time_constant=0.2,
+           )
+       ],
+   )
+
+* ``env_index``: the environment to frame or follow; defaults to the middle one, which has neighbors on every side.
+* ``track_path``: a scene asset (``"robot"``) or one of its bodies (``"robot/base"``). Without it, the view stays
+  fixed in the environment.
+* ``follow_heading``: rotate the offsets with the asset's yaw, keeping the horizon level.
+  ``heading_smoothing_time_constant`` [s] damps rapid turns.
+
+A free view at the visualizer's own ``eye`` and ``lookat`` is added before the first tracking camera, so the
+interactive camera stays free.
+
+* **Newton GL:** **Camera View** lists the tracking camera as **Tracking Camera** beside **Perspective**. A
+  **Tracking Camera** group edits its environment, asset, body, eye, look-at, focal length and heading settings
+  while it runs; **Reset to Task Default** restores the declaration. Record it with
+  ``--video viz:newton_gl:tracking``, whichever view the window shows.
+* **Kit**, **Newton RTX**, **Viser** and **Rerun** ignore tracking cameras.
 
 
 Examples

@@ -36,7 +36,14 @@ from ..utils.string import clear_resolve_matching_names_cache, string_to_callabl
 from ..utils.version import has_kit
 from ..visualizers.base_visualizer import BaseVisualizer
 from ..visualizers.image_view import ImageView
-from ..visualizers.visualizer_cfg import PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg, migrate_visualizer_cfgs
+from ..visualizers.visualizer_cfg import (
+    PerspectiveCameraCfg,
+    SceneCameraCfg,
+    TrackingCameraCfg,
+    VisualizerCfg,
+    migrate_visualizer_cfgs,
+    with_free_view,
+)
 from .utils import create_new_stage
 from .utils import stage as stage_utils
 
@@ -426,12 +433,24 @@ class SimulationContext:
                         eye=visualizer.cfg.eye, lookat=visualizer.cfg.lookat, focal_length=visualizer.cfg.focal_length
                     )
                 ])  # fmt: skip
+            if visualizer.cfg.backend.visualizer_type == "newton_rtx":
+                # An RTX window shows scene cameras, so tracking cameras have nothing to follow there.
+                # RTX-only: remove this branch, and the filter in sim_launcher, with the RTX visualizer.
+                cameras = [camera for camera in cameras if not (isinstance(camera, TrackingCameraCfg))]
+            else:
+                cameras = with_free_view(
+                    cameras, visualizer.cfg.eye, visualizer.cfg.lookat, visualizer.cfg.focal_length
+                )
             if visualizer.cfg.view is None and visualizer.cfg.streaming_view:
                 sensors = self._scene_data_provider.get_camera_sensors()
                 env_template = self._clone_plan.env_template if self._clone_plan is not None else DEFAULT_ENV_TEMPLATE
                 for gt_type in visualizer.cfg.streaming_gt_types:
                     sensor_key_for_gt_type(gt_type)
-                if visualizer.cfg.cameras is None:
+                # tracking cameras only add to the scene cameras the visualizer would find on its own
+                tracking_only = bool(visualizer.cfg.cameras) and all(
+                    isinstance(camera, TrackingCameraCfg) for camera in visualizer.cfg.cameras
+                )
+                if visualizer.cfg.cameras is None or tracking_only:
                     if visualizer.cfg.streaming_sensor_prim_path is not None:
                         cameras.insert(0, SceneCameraCfg(prim_path=visualizer.cfg.streaming_sensor_prim_path))
                     else:
@@ -464,6 +483,8 @@ class SimulationContext:
                             f"Declare a CameraCfg in the scene; available paths: {available_paths}."
                         )
                     cameras[index] = camera
+            # tracking cameras come last, after the free view and the scene cameras
+            cameras.sort(key=lambda camera: isinstance(camera, TrackingCameraCfg))
             visualizer.initialize(self, cameras=cameras)
             self._pending_visualizers.remove(visualizer)
             self._visualizers.append(visualizer)

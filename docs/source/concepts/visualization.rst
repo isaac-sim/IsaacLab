@@ -567,10 +567,11 @@ task's wrist-mounted and ego cameras. The view is supported in the Kit, Newton G
 Rerun, and Viser visualizers. **Kit** opens it as a separate **Streaming View** viewport, which can
 sit side by side with the default viewport for dual monitoring. **Newton GL** and **Newton RTX**
 provide a **Camera View** selector in the sidebar for switching between perspective and scene-camera
-views.
+views. A perspective view can also be a *tracking camera* that follows a robot or frames an environment; only Newton GL
+supports it.
 
 See :doc:`/source/how-to/visualizer_streaming_camera_view` for the ``VisualizerCfg`` options, display
-sources, troubleshooting, migration from generated cameras, and step-by-step examples.
+sources, tracking cameras that follow a robot, troubleshooting, migration from generated cameras, and step-by-step examples.
 
 
 Visualization Markers
@@ -795,22 +796,21 @@ Watch training live in Kit while recording from a separate headless Newton GL an
 ``--viz kit --video viz:newton_gl`` and giving each visualizer its own camera. See
 :ref:`Recording from an independent camera angle <how_to_record_video_angle>` for the configuration.
 
-**Following a moving robot (Kit)**
+**Following a moving robot**
 
-Lock the Kit camera to a moving asset instead of updating ``eye``/``lookat`` yourself every
-step, running with ``--viz kit``:
+Declare a *tracking camera* instead of updating ``eye``/``lookat`` every step; see :ref:`how-to-visualizer-tracking-cameras`:
 
 .. code-block:: python
 
-    from isaaclab_visualizers.kit import KitBackendCfg
-
-    from isaaclab.visualizers import VisualizerCfg
-
-    from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
+    from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
 
     sim_cfg.visualizer_cfgs = VisualizerCfg(
-        eye=(4.0, 4.0, 2.0),
-        backend=MultiBackendVisualizerCfg(kit=KitBackendCfg(origin_type="asset", origin_track_path="robot")),
+        cameras=[
+            TrackingCameraCfg(
+                track_path="robot",  # or "robot/panda_hand" to track a specific body
+                eye=(4.0, 4.0, 2.0),  # offset from the tracked asset
+            ),
+        ],
     )
 
 **Sharing a live view with a remote teammate**
