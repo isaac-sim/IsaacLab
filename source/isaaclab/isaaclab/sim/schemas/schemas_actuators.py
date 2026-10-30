@@ -266,7 +266,7 @@ def author_actuator_prims(
                 "resistance": float(cfg.motor.resistance),
                 "vin": float(cfg.vin),
             }
-            # Every BAM group draws from one battery per articulation, which Newton replicates per environment.
+            # Each BAM group draws from its own battery prim, which Newton replicates per environment.
             battery_path = f"{articulation_prim_path}/{group_name}_battery"
             _define_bam_battery(stage, battery_path, cfg)
 

@@ -301,8 +301,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
     def _sample_bam_supply(self, cfg: BamActuatorCfg) -> tuple[torch.Tensor, torch.Tensor]:
         """Sample the per-environment nominal supply voltage and battery resistance, held across resets.
 
-        Both ranges are drawn from the global torch generator, voltage first, with shape ``(num_envs, 1)``, as the
-        supply voltage and sag gain of the pre-native BAM path were.
+        Both ranges are drawn from the global torch generator, voltage first, with shape ``(num_envs, 1)``.
 
         Returns:
             The nominal voltage [V] and battery resistance [Ohm] of each environment, shape ``(num_envs,)`` each.

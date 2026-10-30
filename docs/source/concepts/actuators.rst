@@ -855,8 +855,6 @@ unless the PWM range overrides the limiter at high joint speed, where the back-E
 ``actuator_effort_limit`` must stay unset, since Newton's clamps act on the voltage command of a motor.
 ``joint_effort_limit`` is unchanged; keep it above ``kt * max_current``.
 
-.. _actuators-bam-paths:
-
 MJWarp coupling
 ^^^^^^^^^^^^^^^
 
@@ -867,9 +865,9 @@ the external load: the previous solve's bias and constraint forces without the s
 loss, which Newton's MuJoCo solver exports as observables. Applied body wrenches are not included. The
 first budget after an environment reset reads no external load, since the last solve belongs to the
 terminated episode; state writes without a reset, such as pushes, keep it. The viscous coefficient is
-applied once as passive joint damping and is visible through ``data.joint_viscous_friction_coeff``. ``stiff_frictionloss=True`` authors a stiff friction-constraint
-reference on the servo joints (``mjc:solreffriction`` and ``mjc:solimpfriction``) to reduce creep,
-since MJWarp has no noslip solver.
+applied once as passive joint damping and is visible through ``data.joint_viscous_friction_coeff``.
+``stiff_frictionloss=True`` authors a stiff friction-constraint reference on the servo joints
+(``mjc:solreffriction`` and ``mjc:solimpfriction``) to reduce creep, since MJWarp has no noslip solver.
 
 :attr:`~isaaclab.actuators.ActuatorCollection.applied_effort` and
 :attr:`~isaaclab.actuators.ActuatorCollection.computed_effort` both report the motor torque, not the
