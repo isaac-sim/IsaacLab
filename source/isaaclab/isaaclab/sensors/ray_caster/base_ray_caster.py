@@ -43,6 +43,10 @@ class BaseRayCaster(SensorBase):
     converted to warp meshes and stored in the :attr:`meshes` dictionary. The ray-caster then ray-casts
     against these warp meshes using the ray pattern provided in the configuration.
 
+    The fixed local ``ray_starts`` and ``ray_directions`` patterns are shared across sensor instances
+    as broadcast views. Treat them as read-only and configure the pattern through ``cfg.pattern_cfg``.
+    World-frame rays, drift, and hit buffers remain independent for each sensor instance.
+
     .. note::
         Currently, only static meshes are supported. Extending the warp mesh to support dynamic meshes
         is a work in progress.
@@ -240,9 +244,10 @@ class BaseRayCaster(SensorBase):
         )
         ray_starts_torch += offset_pos
 
-        # Repeat for each environment
-        ray_starts_torch = ray_starts_torch.repeat(self._view_count, 1, 1).contiguous()
-        ray_directions_torch = ray_directions_torch.repeat(self._view_count, 1, 1).contiguous()
+        # The configured pattern is shared; only world-frame rays and drift vary per environment.
+        # Warp preserves these zero-stride batch views, avoiding copies of the fixed local pattern.
+        ray_starts_torch = ray_starts_torch.expand(self._view_count, -1, -1)
+        ray_directions_torch = ray_directions_torch.expand(self._view_count, -1, -1)
 
         # Keep public aliases warp-first; kernels use the underlying Warp arrays.
         self.ray_starts = ProxyArray(wp.from_torch(ray_starts_torch, dtype=wp.vec3f))
