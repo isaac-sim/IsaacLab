@@ -3,12 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Prepare ROS RealSense depth images for the G1 visual policy.
-
-The official realsense2_camera driver owns capture. This node only applies the policy's
-field of view, valid-pixel averaging, range and orientation, publishing 32FC1 metres.
-Isaac ROS ImageToTensorNode performs the conversion to the inference tensor.
-"""
+"""Preprocess ROS RealSense depth images and publish 32FC1 metres for the G1 visual policy."""
 
 from __future__ import annotations
 
@@ -56,7 +51,7 @@ def downsample_masked(frame_m: np.ndarray) -> np.ndarray:
 
 
 def prepare_depth(frame_m: np.ndarray, crop: tuple[int, int, int, int], rotation: int) -> np.ndarray:
-    """Preserve the policy's millimetre quantization and three-metre missing-return convention."""
+    """Crop, downsample and rotate depth, using three metres for missing returns."""
     x, y, width, height = crop
     frame = downsample_masked(frame_m[y : y + height, x : x + width])
     frame = np.clip(np.rint(frame * 1000.0), 0, 65535).astype(np.float32) / 1000.0
