@@ -10,6 +10,7 @@ from __future__ import annotations
 import builtins
 import contextlib
 import importlib
+import math
 import sys
 import threading
 from contextlib import contextmanager
@@ -351,6 +352,74 @@ def test_host_lends_exact_pair_and_keeps_application_publication(xr_module, monk
     assert bootstrap.publisher.closed and bootstrap.closed
     assert binding.ordinal_ledger.destroyed
     assert bootstrap.events[-1] == "environment-close"
+
+
+def test_host_smooths_committed_anchor_on_xr_clock_and_reseeds_reset(xr_module, monkeypatch):
+    """Use the real pose policy; substitute only frame time, scene I/O, and native sealing."""
+    import numpy as np
+    from isaaclab_teleop import xr_anchor_manager
+    from isaaclab_teleop.xr_cfg import XrAnchorRotationMode, XrCfg
+    from scipy.spatial.transform import Rotation
+
+    from pxr import Usd, UsdGeom
+
+    from isaaclab.sim.utils.stage import use_stage
+
+    monkeypatch.setattr(xr_anchor_manager, "XRCore", None)
+    cfg = XrCfg(
+        anchor_prim_path="/World/Robot",
+        anchor_rotation_mode=XrAnchorRotationMode.FOLLOW_PRIM_SMOOTHED,
+        anchor_rotation_smoothing_time=0.1,
+    )
+    with use_stage(Usd.Stage.CreateInMemory()):
+        UsdGeom.Xform.Define(xr_anchor_manager.get_current_stage(), "/World/Robot")
+        manager = xr_anchor_manager.XrAnchorManager(cfg, ovxr_session=True)
+
+    bootstrap = _FakeBootstrap()
+    reference = np.eye(4)
+    bootstrap.get_world_transform = lambda _path: reference.copy()
+    env = SimpleNamespace(sim=SimpleNamespace(get_rendering_dt=lambda: 0.25))
+    host = xr_module._IsaacLabOvxrApplicationInterface(
+        bootstrap, env, xr_module.OvLibrariesXrConfig(), (), external_anchor_state=manager
+    )
+    host._scene_publisher = bootstrap.publisher
+    host._ordinal_ledger = _FakeOrdinalLedger(None)
+    writes = []
+    monkeypatch.setattr(
+        host, "_write_anchor_matrices", lambda matrices, ordinal: writes.append((matrices.copy(), ordinal))
+    )
+    frame_times = iter((10.0, 10.01, 10.02, 10.05, 20.0, 20.1, 20.11))
+    monkeypatch.setattr(xr_module.time, "monotonic", lambda: next(frame_times))
+
+    def committed_yaw():
+        return Rotation.from_matrix(writes[-1][0][0, :3, :3]).as_euler("xyz")[2]
+
+    seed = host.publish_complete_scene("initial")
+    assert writes[-1][1] == seed == host._ordinal_ledger.published[-1]
+    host.prepare_frame_scene()
+    reference[:3, :3] = Rotation.from_euler("z", 90, degrees=True).as_matrix()
+    host.prepare_frame_scene()
+    assert committed_yaw() == pytest.approx(0.0)  # Unpublished physics must not move the view.
+    host.publish_complete_scene("moved")
+    host.prepare_frame_scene()
+    assert committed_yaw() == pytest.approx(math.pi / 2 * (1.0 - math.exp(-0.01 / 0.1)))
+    host.prepare_frame_scene()
+    assert committed_yaw() == pytest.approx(math.pi / 2 * (1.0 - math.exp(-0.04 / 0.1)))
+
+    manager.reset()
+    write_count = len(writes)
+    host.prepare_frame_scene()
+    assert len(writes) == write_count  # An old reference cannot seed the new epoch.
+    reference[:3, :3] = Rotation.from_euler("z", 45, degrees=True).as_matrix()
+    seed = host.publish_complete_scene("reset")
+    assert writes[-1][1] == seed == host._ordinal_ledger.published[-1]
+    assert committed_yaw() == pytest.approx(0.0)
+    assert np.isfinite(manager.get_world_matrix()).all()  # Input is usable before the next XR frame.
+    host.prepare_frame_scene()
+    reference[:3, :3] = Rotation.from_euler("z", 135, degrees=True).as_matrix()
+    host.publish_complete_scene("after-reset")
+    host.prepare_frame_scene()
+    assert committed_yaw() == pytest.approx(math.pi / 2 * (1.0 - math.exp(-0.01 / 0.1)))
 
 
 def test_host_abandons_failed_write_and_failed_publish(xr_module, monkeypatch):
