@@ -63,11 +63,14 @@ class ForgeEnv(FactoryEnv):
         self.pos_threshold = self.default_pos_threshold.clone()
         self.rot_threshold = self.default_rot_threshold.clone()
 
+    def _init_tensors(self):
+        """Initialize FORGE-owned history for noisy policy observations."""
+        super()._init_tensors()
+        self.prev_noisy_fingertip_pos = self.prev_fingertip_pos.clone()
+        self.prev_noisy_fingertip_quat = self.prev_fingertip_quat.clone()
+
     def _compute_intermediate_values(self, dt):
         """Add noise to observations for force sensing."""
-        # Preserve the previous noisy pose before the parent updates the shared history.
-        prev_fingertip_pos = self.prev_fingertip_pos.clone()
-        prev_fingertip_quat = self.prev_fingertip_quat.clone()
         super()._compute_intermediate_values(dt)
 
         # Add noise to fingertip position.
@@ -86,20 +89,21 @@ class ForgeEnv(FactoryEnv):
         self.noisy_fingertip_quat = quat_mul(
             self.fingertip_midpoint_quat, quat_from_angle_axis(rot_noise_angle, rot_noise_axis)
         )
+        # With roll pi, upright-tool yaw is encoded in XYZW x/y; discard z/w tilt components.
         self.noisy_fingertip_quat[:, 2:].zero_()
         self.noisy_fingertip_quat = self.noisy_fingertip_quat * self.flip_quats.unsqueeze(-1)
 
         # Repeat finite differencing with noisy fingertip positions.
-        self.ee_linvel_fd = (self.noisy_fingertip_pos - prev_fingertip_pos) / dt
-        self.prev_fingertip_pos = self.noisy_fingertip_pos.clone()
+        self.ee_linvel_fd = (self.noisy_fingertip_pos - self.prev_noisy_fingertip_pos) / dt
+        self.prev_noisy_fingertip_pos.copy_(self.noisy_fingertip_pos)
 
         # Add state differences if velocity isn't being added.
-        rot_diff_quat = quat_mul(self.noisy_fingertip_quat, quat_conjugate(prev_fingertip_quat))
+        rot_diff_quat = quat_mul(self.noisy_fingertip_quat, quat_conjugate(self.prev_noisy_fingertip_quat))
         rot_diff_quat *= torch.sign(rot_diff_quat[:, 3]).unsqueeze(-1)  # W component is at index 3 in XYZW format
         rot_diff_aa = axis_angle_from_quat(rot_diff_quat)
         self.ee_angvel_fd = rot_diff_aa / dt
         self.ee_angvel_fd[:, 0:2] = 0.0
-        self.prev_fingertip_quat = self.noisy_fingertip_quat.clone()
+        self.prev_noisy_fingertip_quat.copy_(self.noisy_fingertip_quat)
 
         # Update and smooth force values.
         self.force_sensor_world = wp.to_torch(self._robot.root_view.get_link_incoming_joint_force())[
@@ -349,6 +353,10 @@ class ForgeEnv(FactoryEnv):
         self.flip_quats = torch.ones((self.num_envs,), dtype=torch.float32, device=self.device)
         rand_flips = torch.rand(self.num_envs) > 0.5
         self.flip_quats[rand_flips] = -1.0
+
+        # Start the episode from the final noisy pose observed during reset settling.
+        self.prev_noisy_fingertip_pos[env_ids] = self.noisy_fingertip_pos[env_ids]
+        self.prev_noisy_fingertip_quat[env_ids] = self.noisy_fingertip_quat[env_ids]
 
     def _reset_buffers(self, env_ids):
         """Reset additional logging metrics."""

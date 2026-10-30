@@ -7,24 +7,34 @@
 
 import math
 from types import SimpleNamespace
-from unittest.mock import patch
 
 import pytest
 import torch
 import warp as wp
 
+from isaaclab_tasks.contrib.factory.factory_env import FactoryEnv
 from isaaclab_tasks.contrib.forge.forge_env import ForgeEnv
 
 pytestmark = pytest.mark.unit
 
 
-def test_velocity_uses_consecutive_noisy_poses():
-    """Preserve translation, yaw and noise across the real parent/child updates."""
+@pytest.fixture
+def forge_env():
+    """Provide backend pose samples while executing real tensor initialization and updates."""
     env = object.__new__(ForgeEnv)
     env.sim = SimpleNamespace(device="cpu")
     env.scene = SimpleNamespace(num_envs=1, env_origins=torch.zeros((1, 3)))
     env.cfg = SimpleNamespace(
-        obs_rand=SimpleNamespace(fingertip_pos=0.00025, fingertip_rot_deg=math.degrees(0.002), ft_force=0.0),
+        obs_rand=SimpleNamespace(fingertip_pos=0.0, fingertip_rot_deg=0.0, ft_force=0.0),
+        ctrl=SimpleNamespace(
+            ema_factor=0.1,
+            ema_factor_range=(0.025, 0.1),
+            pos_action_bounds=[0.05] * 3,
+            task_prop_gains_noise_level=[0.0] * 6,
+            pos_threshold_noise_level=[0.0] * 3,
+            rot_threshold_noise_level=[0.0] * 3,
+        ),
+        task=SimpleNamespace(contact_penalty_threshold_range=(1.0, 2.0)),
         ft_smoothing_factor=0.25,
     )
     zeros = torch.zeros((1, 3))
@@ -34,10 +44,11 @@ def test_velocity_uses_consecutive_noisy_poses():
     )
     env._fixed_asset = SimpleNamespace(data=asset_data)
     env._held_asset = SimpleNamespace(data=asset_data)
-    positions = torch.zeros((1, 3, 3))
     env._robot = SimpleNamespace(
+        body_names=["panda_fingertip_centered", "panda_leftfinger", "panda_rightfinger"],
+        num_joints=9,
         data=SimpleNamespace(
-            body_pos_w=SimpleNamespace(torch=positions),
+            body_pos_w=SimpleNamespace(torch=torch.zeros((1, 3, 3))),
             body_quat_w=SimpleNamespace(torch=quat[:, None].repeat(1, 3, 1)),
             body_lin_vel_w=SimpleNamespace(torch=torch.zeros((1, 3, 3))),
             body_ang_vel_w=SimpleNamespace(torch=torch.zeros((1, 3, 3))),
@@ -51,35 +62,73 @@ def test_velocity_uses_consecutive_noisy_poses():
             get_link_incoming_joint_force=lambda: wp.zeros((1, 1, 6), dtype=wp.float32, device="cpu")
         ),
     )
-    env.fingertip_body_idx, env.left_finger_body_idx, env.right_finger_body_idx = 0, 1, 2
+    env._init_tensors()
     env.force_sensor_body_idx = 0
-    env.prev_fingertip_pos = zeros.clone()
-    env.prev_fingertip_quat = quat.clone()
-    env.prev_joint_pos = torch.zeros((1, 7))
     env.flip_quats = torch.ones(1)
     env.force_sensor_world_smooth = torch.zeros((1, 6))
-    env.fixed_pos_obs_frame = zeros.clone()
-    env.init_fixed_pos_obs_noise = zeros.clone()
+    env.default_gains = torch.ones((1, 6))
+    env.default_pos_threshold = torch.ones((1, 3))
+    env.default_rot_threshold = torch.ones((1, 3))
+    env.default_dead_zone = torch.zeros((1, 6))
+    env.actions = torch.zeros((1, 7))
+    env.prev_actions = env.actions.clone()
+    return env
 
-    # Translate 1 mm and rotate 0.01 rad per 10 ms, then hold still.
-    # Opposite noise in the last two samples must contribute both previous and current errors.
-    samples = (
-        (0.001, 0.01, 0.0, 0.0, 0.1, 1.0),
-        (0.002, 0.02, 0.0, 0.0, 0.1, 1.0),
-        (0.003, 0.03, 0.00025, 1.0, 0.125, 1.2),
-        (0.003, 0.03, -0.00025, -1.0, -0.05, -0.4),
-    )
-    for x, yaw, pos_noise, rot_noise, expected_vx, expected_wz in samples:
-        positions[0, 0, 0] = x
-        env._robot.data.body_quat_w.torch[:] = torch.tensor([math.cos(yaw / 2), math.sin(yaw / 2), 0.0, 0.0])
-        # Supply deterministic position noise, rotation axis/angle and force noise.
-        draws = [
-            torch.tensor([[pos_noise / env.cfg.obs_rand.fingertip_pos, 0.0, 0.0]]),
-            torch.tensor([[0.0, 0.0, -1.0]]),  # Local -Z is world +Z for the upright tool.
-            torch.tensor([rot_noise]),
-            zeros.clone(),
-        ]
-        with patch("torch.randn", side_effect=draws):
+
+@pytest.mark.parametrize("add_noise", [False, True])
+def test_velocity_uses_consecutive_noisy_poses(forge_env, add_noise):
+    """Compare velocity with independently recorded poses, allowing sampling to be reordered."""
+    env = forge_env
+    if add_noise:
+        env.cfg.obs_rand.fingertip_pos = 0.00025
+        env.cfg.obs_rand.fingertip_rot_deg = math.degrees(0.002)
+
+    with torch.random.fork_rng(devices=[]):
+        torch.manual_seed(0)
+        env._compute_intermediate_values(dt=0.01)
+        previous_pos = env.noisy_fingertip_pos.clone()
+        previous_yaw = 2 * torch.atan2(env.noisy_fingertip_quat[:, 1], env.noisy_fingertip_quat[:, 0])
+        for step in range(1, 5):
+            env._robot.data.body_pos_w.torch[0, 0, 0] = step * 0.001
+            yaw = step * 0.01
+            env._robot.data.body_quat_w.torch[:] = torch.tensor([math.cos(yaw / 2), math.sin(yaw / 2), 0.0, 0.0])
             env._compute_intermediate_values(dt=0.01)
-        torch.testing.assert_close(env.ee_linvel_fd, torch.tensor([[expected_vx, 0.0, 0.0]]))
-        torch.testing.assert_close(env.ee_angvel_fd, torch.tensor([[0.0, 0.0, expected_wz]]), rtol=1e-4, atol=1e-6)
+            expected_linear = (env.noisy_fingertip_pos - previous_pos) / 0.01
+            current_yaw = 2 * torch.atan2(env.noisy_fingertip_quat[:, 1], env.noisy_fingertip_quat[:, 0])
+            delta_yaw = current_yaw - previous_yaw
+            expected_yaw_rate = torch.atan2(torch.sin(delta_yaw), torch.cos(delta_yaw)) / 0.01
+            torch.testing.assert_close(env.ee_linvel_fd, expected_linear)
+            torch.testing.assert_close(env.ee_angvel_fd[:, 2], expected_yaw_rate, rtol=1e-4, atol=1e-5)
+            if not add_noise:
+                torch.testing.assert_close(env.ee_linvel_fd, torch.tensor([[0.1, 0.0, 0.0]]))
+                torch.testing.assert_close(env.ee_angvel_fd, torch.tensor([[0.0, 0.0, 1.0]]), rtol=1e-4, atol=1e-5)
+            previous_pos = env.noisy_fingertip_pos.clone()
+            previous_yaw = current_yaw.clone()
+
+
+def test_reset_rebases_noisy_pose_history(forge_env, monkeypatch):
+    """A reset pose jump must not become a policy velocity in the next stationary sample."""
+    env = forge_env
+    env._compute_intermediate_values(dt=0.01)
+
+    def reset_backend(self, env_ids):
+        # Supply the parent's completed reset pose/observation without running physics settling.
+        self._robot.data.body_pos_w.torch[:, 0] = torch.tensor([[1.0, -0.5, 0.2]])
+        yaw = 0.8
+        self._robot.data.body_quat_w.torch[:] = torch.tensor([math.cos(yaw / 2), math.sin(yaw / 2), 0.0, 0.0])
+        self.fingertip_midpoint_pos = self._robot.data.body_pos_w.torch[:, 0].clone()
+        self.fingertip_midpoint_quat = self._robot.data.body_quat_w.torch[:, 0].clone()
+        self.noisy_fingertip_pos = self.fingertip_midpoint_pos.clone()
+        self.noisy_fingertip_quat = self.fingertip_midpoint_quat.clone()
+        self.prev_fingertip_pos = self.fingertip_midpoint_pos.clone()
+        self.prev_fingertip_quat = self.fingertip_midpoint_quat.clone()
+        self.ee_linvel_fd.zero_()
+        self.ee_angvel_fd.zero_()
+
+    monkeypatch.setattr(FactoryEnv, "_reset_idx", reset_backend)
+    with torch.random.fork_rng(devices=[]):
+        torch.manual_seed(0)
+        env._reset_idx(torch.tensor([0]))
+        env._compute_intermediate_values(dt=0.01)
+    torch.testing.assert_close(env.ee_linvel_fd, torch.zeros((1, 3)))
+    torch.testing.assert_close(env.ee_angvel_fd, torch.zeros((1, 3)), rtol=0.0, atol=1e-5)
