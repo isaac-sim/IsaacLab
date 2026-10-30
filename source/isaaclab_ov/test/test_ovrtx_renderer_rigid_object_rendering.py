@@ -100,7 +100,8 @@ def test_kinematic_rigid_object_scale_and_pose_are_rendered(monkeypatch: pytest.
 
 
 def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(monkeypatch, tmp_path):
-    """Overlapping worlds retain distinct contacts and images across shared-stage control writes."""
+    """Overlapping worlds retain distinct contacts, images, and lights across shared-stage writes."""
+    import numpy as np
     import ovrtx
     import torch
     from isaaclab_ppisp import PpispCfg
@@ -108,7 +109,7 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
     from pxr import UsdPhysics
 
     import isaaclab.sim as sim_utils
-    from isaaclab.assets import RigidObjectCfg
+    from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
     from isaaclab.scene import InteractiveSceneCfg
     from isaaclab.sensors import CameraCfg
     from isaaclab.utils import configclass, instantiate, replace
@@ -118,6 +119,10 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
 
     @configclass
     class SceneCfg(InteractiveSceneCfg):
+        dome = AssetBaseCfg(
+            prim_path="{ENV_REGEX_NS}/Dome",
+            spawn=sim_utils.DomeLightCfg(intensity=300.0, color=(0.8, 0.8, 0.8)),
+        )
         body = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Body",
             spawn=sim_utils.CuboidCfg(
@@ -138,7 +143,7 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
             prim_path="{ENV_REGEX_NS}/Camera",
             height=32,
             width=32,
-            data_types=["depth"],
+            data_types=["depth", "rgb"],
             spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.1, 20.0)),
             offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 6.0), rot=(0.0, 0.0, 0.0, 1.0), convention="opengl"),
             renderer_cfg=OVRTXRendererCfg(temp_usd_dir=str(tmp_path)),
@@ -181,6 +186,42 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
             camera, other = scene["camera"], scene["other_camera"]
             assert camera._renderer.backend is other._renderer.backend
             assert sim.backend_manager.backend.stage is camera._renderer.scene.stage
+
+            def capture_lighting():
+                frames = []
+                for _ in range(32):
+                    sim.render()
+                    camera.update(cfg.dt, force_recompute=True)
+                    frames.append(camera.data.output["rgb"].torch[..., :3].cpu().numpy().copy())
+                return np.asarray(frames, dtype=np.float32)
+
+            baseline = capture_lighting()
+            before = baseline[-8:].mean(axis=0)
+            noise = np.abs(baseline - before).mean(axis=(2, 3, 4)).max(axis=0)
+            renderer = camera._renderer
+            with renderer.scene.query(["/World/envs/env_0/Dome"]) as query:
+                renderer.scene.stage.write_attribute(
+                    query,
+                    "inputs:color",
+                    ordinal=renderer.scene.ordinal,
+                    tensors=np.asarray([[0.9, 0.02, 0.02]], dtype=np.float32),
+                    is_array=False,
+                ).wait()
+                renderer.scene.stage.write_attribute(
+                    query,
+                    "inputs:intensity",
+                    ordinal=renderer.scene.ordinal,
+                    tensors=np.asarray([10000.0], dtype=np.float32),
+                    is_array=False,
+                ).wait()
+            renderer.scene.commit()
+            changed = capture_lighting()
+            delta = np.abs(changed - before).mean(axis=(2, 3, 4))
+            assert delta[-8:, 0].mean() > 15.0, f"Selected dome update was not rendered: {delta[-8:].mean(axis=0)}"
+            assert np.all(delta[:, 1:] <= np.maximum(3.0, 4.0 * noise[1:])), (
+                f"Dome update changed untouched views: peak={delta.max(axis=0)}, noise={noise}"
+            )
+
             floor_pose = scene["floor"].data.root_link_pose_w.torch.clone()
             floor_pose[1, 2] += 1.0
             scene["floor"].write_root_pose_to_sim_index(root_pose=floor_pose)
