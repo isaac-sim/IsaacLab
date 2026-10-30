@@ -43,3 +43,10 @@ class ShoelacePPORunnerCfg(RslRlOnPolicyRunnerCfg):
         desired_kl=0.01,
         max_grad_norm=1.0,
     )
+
+
+@configclass
+class G1ShoelacePPORunnerCfg(ShoelacePPORunnerCfg):
+    """PPO configuration for the G1 Inspire shoelace task."""
+
+    experiment_name = "shoelace_g1_inspire"

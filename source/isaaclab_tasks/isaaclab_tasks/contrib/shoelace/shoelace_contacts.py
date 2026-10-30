@@ -16,7 +16,7 @@ import warp as wp
 
 from isaaclab.sensors import SensorBase
 
-from . import shoelace_constants as physics
+from .shoelace_constants import CONTACT_DISTANCE_CAP
 
 if TYPE_CHECKING:
     from isaaclab_newton.physics import NewtonManager
@@ -80,13 +80,23 @@ class FingerTailContacts:
         model: Finalized Newton model containing the robot and cable collision shapes.
         body_chains: Left and right cable body indices grouped by environment.
         backend_manager: Newton physics manager that owns the model and contact buffer.
+        robot_prim_names: Robot prim names in left/right arm order; both may name one humanoid.
+        finger_body_names: Two contact bodies per hand, in left/right arm order.
 
     Attributes:
         signed_distance: Finger-tail surface distances [m], shape [N, 4], or ``None`` before initialization.
     """
 
     def __init__(
-        self, model: Model, body_chains: list[tuple[list[int], list[int]]], backend_manager: NewtonManager
+        self,
+        model: Model,
+        body_chains: list[tuple[list[int], list[int]]],
+        backend_manager: NewtonManager,
+        robot_prim_names: tuple[str, str] = ("RobotLeft", "RobotRight"),
+        finger_body_names: tuple[tuple[str, str], tuple[str, str]] = (
+            ("panda_leftfinger", "panda_rightfinger"),
+            ("panda_leftfinger", "panda_rightfinger"),
+        ),
     ) -> None:
         self._backend_manager = backend_manager
         # Columns are finger slot, environment index, and matching tail arm; -1 means unused.
@@ -96,8 +106,8 @@ class FingerTailContacts:
         body_world = model.body_world.numpy()
         fingers: dict[tuple[int, int, int], list[int]] = {}
         for body, label in enumerate(model.body_label):
-            for arm, robot in enumerate(("RobotLeft", "RobotRight")):
-                for finger, name in enumerate(("panda_leftfinger", "panda_rightfinger")):
+            for arm, robot in enumerate(robot_prim_names):
+                for finger, name in enumerate(finger_body_names[arm]):
                     if f"/{robot}/" in label and label.rsplit("/", 1)[-1] == name:
                         fingers.setdefault((int(body_world[body]), arm, finger), []).append(body)
 
@@ -121,7 +131,7 @@ class FingerTailContacts:
         """Allocate device buffers and register the post-step observer after model construction."""
         device = self._backend_manager.backend.model.device
         self._device_slots = wp.array(self._shape_slots, dtype=wp.int32, device=device)
-        self._distance = wp.full((self._num_envs, 4), physics.CONTACT_DISTANCE_CAP, device=device)
+        self._distance = wp.full((self._num_envs, 4), CONTACT_DISTANCE_CAP, device=device)
         self.signed_distance = wp.to_torch(self._distance)
         self._backend_manager.unregister_post_step_callback(self.update)
         self._backend_manager.register_post_step_callback(self.update)
@@ -131,7 +141,7 @@ class FingerTailContacts:
         if self.signed_distance is not None:
             if env_ids is not None and not isinstance(env_ids, (torch.Tensor, slice)):
                 env_ids = torch.as_tensor(env_ids, dtype=torch.long, device=self.signed_distance.device)
-            self.signed_distance[slice(None) if env_ids is None else env_ids] = physics.CONTACT_DISTANCE_CAP
+            self.signed_distance[slice(None) if env_ids is None else env_ids] = CONTACT_DISTANCE_CAP
 
     def update(self) -> None:
         """Aggregate signed surface distances [m] after each physics step, including CUDA capture."""
@@ -139,7 +149,7 @@ class FingerTailContacts:
         contacts, model = backend.contacts, backend.model
         if contacts is None:
             raise RuntimeError("Shoelace contact observation requires an initialized Newton collision buffer")
-        self._distance.fill_(physics.CONTACT_DISTANCE_CAP)
+        self._distance.fill_(CONTACT_DISTANCE_CAP)
         wp.launch(
             _aggregate_finger_tail_signed_distance,
             dim=contacts.rigid_contact_max,
@@ -175,7 +185,7 @@ class FingerTailContactSensor(SensorBase):
         """Clear cached distances for the reset environments."""
         super().reset(env_ids, env_mask)
         if env_mask is not None:
-            self.data[wp.to_torch(env_mask)] = physics.CONTACT_DISTANCE_CAP
+            self.data[wp.to_torch(env_mask)] = CONTACT_DISTANCE_CAP
         else:
             self._contacts.reset(env_ids)
 
@@ -185,7 +195,9 @@ class FingerTailContactSensor(SensorBase):
         chains = _find_chains(model.body_label, model.body_world.numpy(), self._num_envs, "edge_body")
         if any(not left or not right for left, right in chains):
             raise RuntimeError("Finger-tail contact sensor requires both shoelace segment chains in every world")
-        self._contacts = FingerTailContacts(model, chains, self._backend_manager)
+        self._contacts = FingerTailContacts(
+            model, chains, self._backend_manager, self.cfg.robot_prim_names, self.cfg.finger_body_names
+        )
         self._contacts.initialize()
 
     def _update_buffers_impl(self, env_mask: wp.array) -> None:

@@ -20,16 +20,13 @@ def tail_state(
     env: ManagerBasedEnv,
     cable_cfgs: tuple[SceneEntityCfg, SceneEntityCfg],
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """Return three-segment mean tail positions [m] and velocities [m/s]."""
-    left_cable = env.scene[cable_cfgs[0].name]
-    right_cable = env.scene[cable_cfgs[1].name]
-    left_positions = left_cable.data.segment_pose_w.torch[:, :3, :3].mean(dim=1)
-    right_positions = right_cable.data.segment_pose_w.torch[:, -3:, :3].mean(dim=1)
-    left_velocities = left_cable.data.segment_velocity_w.torch[:, :3, :3].mean(dim=1)
-    right_velocities = right_cable.data.segment_velocity_w.torch[:, -3:, :3].mean(dim=1)
-    return torch.stack((right_positions, left_positions), dim=1), torch.stack(
-        (right_velocities, left_velocities), dim=1
-    )
+    """Return three-segment mean tail positions [m] and velocities [m/s], in robot-arm order."""
+    positions, velocities = [], []
+    for cfg, segments in ((cable_cfgs[1], slice(-3, None)), (cable_cfgs[0], slice(3))):
+        data = env.scene[cfg.name].data
+        positions.append(data.segment_pose_w.torch[:, segments, :3].mean(dim=1))
+        velocities.append(data.segment_velocity_w.torch[:, segments, :3].mean(dim=1))
+    return torch.stack(positions, dim=1), torch.stack(velocities, dim=1)
 
 
 def tail_x_separation(
