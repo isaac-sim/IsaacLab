@@ -10,13 +10,13 @@
      - OVRTX
      - Isaac RTX (legacy)
    * - RGB
-     - .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-newton.webp
+     - .. image:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/renderers/camera_renderer_newton.webp
           :alt: Newton Warp RGB animation of six material spheres falling onto a table.
           :width: 100%
-     - .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-ovrtx.webp
+     - .. image:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/renderers/camera_renderer_ovrtx.webp
           :alt: OVRTX RTPT RGB animation of six material spheres falling onto a table.
           :width: 100%
-     - .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-isaac-rtx.webp
+     - .. image:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/renderers/camera_renderer_isaac_rtx.webp
           :alt: Isaac RTX RTPT RGB animation of six material spheres falling onto a table.
           :width: 100%
    * - Minimal, constant diffuse
@@ -29,28 +29,28 @@
           :width: 100%
    * - Minimal, diffuse MDL
      - Not supported
-     - .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-ovrtx-simple-shading-diffuse-mdl.png
+     - .. image:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/renderers/camera_renderer_ovrtx_simple_shading_diffuse_mdl.png
           :alt: OVRTX RTX Minimal textured-diffuse output for six material spheres.
           :width: 100%
-     - .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-isaac-rtx-simple-shading-diffuse-mdl.png
+     - .. image:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/renderers/camera_renderer_isaac_rtx_simple_shading_diffuse_mdl.png
           :alt: Isaac RTX RTX Minimal textured-diffuse output for six material spheres.
           :width: 100%
    * - Minimal, full MDL
      - Not supported
-     - .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-ovrtx-simple-shading-full-mdl.png
+     - .. image:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/renderers/camera_renderer_ovrtx_simple_shading_full_mdl.png
           :alt: OVRTX RTX Minimal full-material output for six material spheres.
           :width: 100%
-     - .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-isaac-rtx-simple-shading-full-mdl.png
+     - .. image:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/renderers/camera_renderer_isaac_rtx_simple_shading_full_mdl.png
           :alt: Isaac RTX RTX Minimal full-material output for six material spheres.
           :width: 100%
    * - Albedo
-     - .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-newton-albedo.png
+     - .. image:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/renderers/camera_renderer_newton_albedo.png
           :alt: Newton Warp albedo output for six material spheres.
           :width: 100%
-     - .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-ovrtx-albedo.png
+     - .. image:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/renderers/camera_renderer_ovrtx_albedo.png
           :alt: OVRTX albedo output for six material spheres.
           :width: 100%
-     - .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-isaac-rtx-albedo.png
+     - .. image:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/renderers/camera_renderer_isaac_rtx_albedo.png
           :alt: Isaac RTX albedo output for six material spheres.
           :width: 100%
    * - Depth

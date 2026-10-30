@@ -44,7 +44,7 @@ Training outputs, including checkpoints, are saved under ``logs/``. Add
      <video autoplay loop muted playsinline controls preload="metadata" width="3840" height="720"
             style="width:100%; height:auto; display:block;"
             aria-label="Cartpole, G1 locomotion, and Kuka Allegro manipulation tasks running side by side">
-       <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/task-sampler.mp4" type="video/mp4">
+       <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/quickstart/task_sampler.mp4" type="video/mp4">
      </video>
      <figcaption>
        <p>The same train and play workflow applies across classic control, locomotion,
@@ -150,7 +150,7 @@ complete training and playback reference.
      <video autoplay loop muted playsinline controls preload="metadata" width="3840" height="720"
             style="width:100%; height:auto; display:block;"
             aria-label="A Franka drawer-opening task controlled by the zero agent, random agent, and a trained policy side by side">
-       <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/agent-comparison.mp4" type="video/mp4">
+       <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/quickstart/agent_comparison.mp4" type="video/mp4">
      </video>
      <figcaption>
        <p>On the same Franka drawer-opening task, <code class="docutils literal notranslate">zero_agent</code>

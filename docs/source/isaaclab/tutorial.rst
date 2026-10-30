@@ -3,7 +3,7 @@
 Tutorial
 ========
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/tutorial_so101_vialplace_play.gif
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/tutorials/tutorial_so101_vialplace_play.gif
    :alt: The SO-101 arm picking up a vial and placing it in a rack.
    :align: center
    :width: 85%

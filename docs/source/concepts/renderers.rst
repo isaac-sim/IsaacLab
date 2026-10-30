@@ -27,7 +27,7 @@ Choosing a renderer backend
 
    .. grid-item-card:: Newton Warp :bdg-info:`Lightweight`
 
-      .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-newton.webp
+      .. image:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/renderers/camera_renderer_newton.webp
          :alt: Six material spheres falling onto a table in Newton Warp RGB output.
          :width: 100%
 
@@ -38,7 +38,7 @@ Choosing a renderer backend
 
    .. grid-item-card:: OVRTX :bdg-success:`Recommended`
 
-      .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-ovrtx.webp
+      .. image:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/renderers/camera_renderer_ovrtx.webp
          :alt: Six material spheres falling onto a table in OVRTX RGB output.
          :width: 100%
 
@@ -49,7 +49,7 @@ Choosing a renderer backend
 
    .. grid-item-card:: Isaac RTX :bdg-warning:`Legacy`
 
-      .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-isaac-rtx.webp
+      .. image:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/renderers/camera_renderer_isaac_rtx.webp
          :alt: Six material spheres falling onto a table in Isaac RTX RGB output.
          :width: 100%
 
@@ -172,7 +172,7 @@ documentation for the renderer-level settings and limitations.
 
          .. grid-item::
 
-            .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-newton-shadows-disabled.png
+            .. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/renderers/camera_renderer_newton_shadows_disabled.png
                :width: 100%
                :alt: Newton Warp RGB output with directional-light shadows disabled.
 
@@ -180,7 +180,7 @@ documentation for the renderer-level settings and limitations.
 
          .. grid-item::
 
-            .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-newton-shadows-enabled.png
+            .. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/renderers/camera_renderer_newton_shadows_enabled.png
                :width: 100%
                :alt: Newton Warp RGB output with directional-light shadows enabled.
 

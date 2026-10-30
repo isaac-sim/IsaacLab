@@ -14,7 +14,7 @@ robot with `Isaac ROS Deploy
 <https://nvidia-isaac-ros.github.io/repositories_and_packages/isaac_ros_deploy/index.html>`__,
 or in a custom runtime that reads the exported YAML.
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/ur10_sim_vs_real.gif
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/policy_deployment/leapp/ur10_sim_vs_real.gif
    :width: 100%
    :align: center
    :alt: Side-by-side UR10 reaching motions in Isaac Lab on the left and on a physical robot on the right.

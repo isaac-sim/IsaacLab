@@ -45,7 +45,10 @@ their optional runtime packages cannot share one process. It writes the final
 WebP and PNG assets directly to `docs/source/_static/overview/sensors`.
 
 The animated RGB clips and the albedo, Newton Warp shadow, and MDL
-simple-shading stills are too large to keep in the repository. Upload them to
-`https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/` after
-regenerating; the renderer concept pages reference them by URL and do not track
-them under `_static`.
+simple-shading stills are too large to keep in the repository. Upload them to the
+`renderers/` folder of the
+[`nvidia/isaaclab-docs-assets`](https://huggingface.co/datasets/nvidia/isaaclab-docs-assets)
+dataset after regenerating; the renderer concept pages reference them by URL and do not
+track them under `_static`. The dataset uses snake_case names, so replace the hyphens in the
+generated file names with underscores when uploading, for example
+`camera-renderer-newton-albedo.png` becomes `renderers/camera_renderer_newton_albedo.png`.
