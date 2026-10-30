@@ -203,7 +203,7 @@ teleop = [
     "isaaccapture[retargeters,ui,cloudxr]==1.7.68a1 ; platform_system == 'Linux'",
     "dex-retargeting==0.5.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
 ]
-# SimReady USD-Search asset resolution (isaaclab.sim.spawners.simready).
+# SimReady USD-Search asset discovery (isaaclab.utils.assets.search_simready_usd_paths).
 simready = ["simready-search>=2026.4.2"]
 rlinf = [
     "ray[default]>=2.47.0",

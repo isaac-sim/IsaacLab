@@ -223,13 +223,8 @@ _MIRROR_FINGERPRINT_SUFFIX = ".isaaclab-cache.json"
 _REMOTE_FINGERPRINTS: dict[str, dict] = {}
 """Successful remote metadata queries, refreshed by forced retrieval."""
 
-SIMREADY_SEARCH_SERVICE_ENDPOINT = "https://search.dev.simready.omniverse.nvidia.com/"
-"""Default SimReady USD-Search service endpoint.
-
-The service requires HTTP Basic authentication. The credentials are read by the ``simready-search``
-package from the ``USD_SEARCH_USERNAME`` and ``USD_SEARCH_PASSWORD`` environment variables, which
-must be set before the first search call.
-"""
+SIMREADY_SEARCH_SERVICE_ENDPOINT = "https://search.simready.omniverse.nvidia.com/"
+"""Default SimReady USD-Search service endpoint."""
 
 _ANNOUNCED_MIRROR_DIRS: set[str] = set()
 """Cache directories already announced, so the banner is logged once per directory."""
@@ -603,38 +598,36 @@ def search_simready_usd_paths(
     min_relevance: float = 0.0,
     filter_profiles: list[str] | None = None,
     filter_features: list[str] | None = None,
+    exclude_features: list[str] | None = None,
     service_endpoint: str = SIMREADY_SEARCH_SERVICE_ENDPOINT,
 ) -> list[str]:
     """Search the SimReady USD-Search service and return the top-ranked USD asset paths.
 
-    The results are ordered by descending relevance score. Ties are broken by the asset path so
-    that repeated calls (for instance, one per process in distributed training) resolve the same
-    ordering for identical service responses.
-
-    This function requires the optional ``simready-search`` package. Install it with
-    ``./isaaclab.sh -i simready`` or ``pip install simready-search``. The service credentials are
-    read from the ``USD_SEARCH_USERNAME`` and ``USD_SEARCH_PASSWORD`` environment variables when
-    the package is first imported.
+    This function requires the optional ``simready-search`` package, provided by the ``simready``
+    extra (``uv sync --extra simready``).
 
     .. note::
         The service returns identical results for identical queries while its asset index is
         unchanged, but the index evolves over time, so the same query may resolve differently
         across days. Treat this function as an authoring-time discovery step: resolve once, then
         record the returned paths directly (e.g. in a spawner configuration's ``usd_path``)
-        instead of re-querying on every run. For physics-ready assets, restrict results with
-        SimReady features, e.g. ``filter_features=["FET004_BASE_PHYSX"]``. Feature tags certify
-        PhysX readiness only; validate assets under other physics backends before training on
-        them (see ``scripts/demos/simready_lift.py``).
+        instead of re-querying on every run. For assets that spawn as a single rigid body (e.g.
+        with :class:`~isaaclab.assets.RigidObject`), pass ``filter_features=["FET003_BASE_PHYSX"]``
+        and ``exclude_features=["FET004_BASE_PHYSX"]``, since ``FET004_BASE_PHYSX`` marks multibody
+        assets. Feature tags certify PhysX readiness only; validate assets under other physics
+        backends before training on them.
 
     Args:
-        query: Free-text search phrase (e.g. ``"food box"``). At least one of :paramref:`query`,
+        query: Free-text search phrase (e.g. ``"can"``). At least one of :paramref:`query`,
             :paramref:`filter_profiles`, or :paramref:`filter_features` must be provided.
         top_k: Maximum number of asset paths to return.
         min_relevance: Minimum relevance score for a match to be included.
         filter_profiles: SimReady profile names that every match must have
             (e.g. ``"Prop-Robotics-Isaac"``).
         filter_features: SimReady feature names that every match must have
-            (e.g. ``"FET004_BASE_PHYSX"`` for rigid-body physics readiness).
+            (e.g. ``"FET003_BASE_PHYSX"``).
+        exclude_features: SimReady feature names that no match may have
+            (e.g. ``"FET004_BASE_PHYSX"``).
         service_endpoint: URL of the USD-Search service.
 
     Returns:
@@ -645,19 +638,13 @@ def search_simready_usd_paths(
         ValueError: If no search criterion is provided, ``top_k`` is not positive, or the search
             returned no results.
     """
-    try:
-        from simready.search import (  # noqa: PLC0415
-            AssetLibrary,
-            SearchFilterFeature,
-            SearchFilterPhrase,
-            SearchFilterProfile,
-            SearchFilterRelevance,
-        )
-    except ImportError as ex:
-        raise ImportError(
-            "SimReady asset search requires the optional 'simready-search' package. Install it with"
-            " './isaaclab.sh -i simready' or 'pip install simready-search'."
-        ) from ex
+    from simready.search import (  # noqa: PLC0415
+        AssetLibrary,
+        SearchFilterFeature,
+        SearchFilterPhrase,
+        SearchFilterProfile,
+        SearchFilterRelevance,
+    )
 
     if top_k < 1:
         raise ValueError(f"Expected 'top_k' to be positive, got: {top_k}.")
@@ -674,18 +661,17 @@ def search_simready_usd_paths(
         filters.append(SearchFilterProfile(profile))
     for feature in filter_features or []:
         filters.append(SearchFilterFeature(feature))
+    excluded = [SearchFilterFeature(feature) for feature in exclude_features or []]
 
     # raise on network/auth failures instead of the library default of returning empty results
     library = AssetLibrary(raise_on_network_error=True)
     library.add_service_source(service_endpoint)
-    matches = library.search(include_all=filters, max_count=top_k)
+    matches = library.search(include_all=filters, exclude_any=excluded, max_count=top_k)
     if not matches:
         raise ValueError(
             f"SimReady search returned no results for query: {query!r}. Check the query phrase,"
             " the filters, and the service endpoint."
         )
-    # deterministic ordering: sort by descending relevance, breaking ties by asset path
-    matches = sorted(matches, key=lambda match: (-(match.relevance_score or 0.0), match.asset_path))
     return [match.asset_path for match in matches]
 
 
