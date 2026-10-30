@@ -447,9 +447,9 @@ class InteractiveScene:
         """Export one environment as USD that reproduces its initialized physics.
 
         The file keeps the scene's USD, with assets as references to their source files, and adds
-        the values the physics engine holds that an import of that USD would not produce. Call it
-        after asset initialization and before the first physics step. Joint and body state,
-        events after initialization, and controllers are not exported.
+        the values the physics engine holds that an import of that USD would not produce, and the
+        initial joint state articulations reset to. Call it after asset initialization and before the
+        first physics step. Other state, events after initialization, and controllers are not exported.
 
         Args:
             path: Destination USD file.

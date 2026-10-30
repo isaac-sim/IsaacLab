@@ -19,6 +19,7 @@ from pxr import Usd, UsdPhysics
 
 from ..utils.queries import find_matching_prim_paths, resolve_matching_prims_from_source
 from .base_usd_exporter import (
+    JOINT_STATE_ATTRIBUTES,
     USD_PHYSICS_D6_LIMIT_ATTRIBUTES,
     USD_PHYSICS_JOINT_ATTRIBUTES,
     USD_PHYSICS_MATERIAL_ATTRIBUTES,
@@ -50,6 +51,7 @@ JOINT_ATTRIBUTES = {
     "viscous_friction": JointAttribute(
         "physxJointAxis:{axis}:viscousFrictionCoefficient", "PhysxJointAxisAPI:{axis}", math.radians(1.0)
     ),
+    **JOINT_STATE_ATTRIBUTES,
 }
 """Joint property -> USD attribute."""
 
@@ -298,23 +300,45 @@ class PhysxUsdExporter(BaseUsdExporter):
             "dynamic_friction": self._row(data.joint_dynamic_friction_coeff),
             "viscous_friction": self._row(data.joint_viscous_friction_coeff),
         }
+        # The joint state Isaac Lab resets the articulation to; the engine holds it only from the first reset on.
+        initial = {"position": self._row(data.default_joint_pos), "velocity": self._row(data.default_joint_vel)}
         # The engine orders DOFs and bodies as the backend does; the asset data may reorder them.
         engine_dof = {name: index for index, name in enumerate(articulation.backend_joint_names)}
         engine_body = {name: index for index, name in enumerate(articulation.backend_body_names)}
+        unwritten = []
         for index, name in enumerate(articulation.joint_names):
             path, axis = self._joint_axis(stage, joints, name, scope)
             live = {prop: values[index] for prop, values in dofs.items()}
             loaded = {prop: self._env_row(engine[prop])[engine_dof[name]] for prop in dofs}
+            state = {prop: values[index] for prop, values in initial.items()}
             if axis is None:
                 if any(not self._close(loaded[prop], value) for prop, value in live.items()):
                     raise NotImplementedError(
                         f"Joint '{path}' changed; only revolute, prismatic and rotational D6 joints are exported."
                     )
+                if any(not self._close(value, 0.0) for value in state.values()):
+                    unwritten.append(path)
                 continue
-            yield (path, axis), (live, loaded)
+            yield (path, axis), (live | state, loaded | self._initial_state(stage.GetPrimAtPath(path), axis))
+        if unwritten:
+            logger.warning(
+                "The initial state of joints other than revolute, prismatic and rotational D6 ones is not written:"
+                f" {sorted(set(unwritten))}."
+            )
         for index, name in enumerate(articulation.body_names):
             key = self._unique(links, name, scope), None
             yield key, (self._body_values(data, index), self._body_base(engine, engine_body[name]))
+
+    @classmethod
+    def _initial_state(cls, prim: Usd.Prim, axis: str) -> dict[str, float]:
+        """The state [m or rad] an import starts a joint axis at: the USD's, which PhysX reads only with its schema."""
+        scale = 1.0 if axis == "linear" else math.radians(1.0)
+        applied = prim.GetAppliedSchemas()
+        state = {}
+        for name, (attribute, schema, _) in JOINT_STATE_ATTRIBUTES.items():
+            value = cls._stated(prim, attribute.format(axis=axis))
+            state[name] = float(value) * scale if value is not None and schema.format(axis=axis) in applied else 0.0
+        return state
 
     def _body_values(self, data, index: int) -> dict[str, np.ndarray]:
         """Mass properties of one body of an asset in the selected environment."""

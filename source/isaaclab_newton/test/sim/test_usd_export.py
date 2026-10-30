@@ -66,19 +66,28 @@ def _export(
         if before_export is not None:
             before_export(scene)
         scene.export_to_usd(output)
+        # Isaac Lab's reset writes the initial joint state, which the engine holds only from then on.
+        robot = scene["robot"]
+        robot.write_joint_state_to_sim_index(
+            position=robot.data.default_joint_pos.torch, velocity=robot.data.default_joint_vel.torch
+        )
         manager = sim.backend_manager
-        live = _capture(manager.backend.model, manager.backend.state_0.body_q)
+        model, state = manager.backend.model, manager.backend.state_0
+        live = _capture(model, state.body_q, state.joint_q, state.joint_qd)
         solver_type = type(manager.backend.solver)
-        # The engine's own construction of the solver, stepped from the model's initial state.
-        model = manager.backend.model
-        motion = _rollout(model, solver_cfg.class_type.build(solver_cfg, model, wp.DeterministicMode.NOT_GUARANTEED))
+        # The engine's own construction of the solver, stepped from the reset state.
+        solver = solver_cfg.class_type.build(solver_cfg, model, wp.DeterministicMode.NOT_GUARANTEED)
+        motion = _rollout(model, solver, state.joint_q, state.joint_qd)
     return output, live, solver_type, motion
 
 
-def _rollout(model, solver, steps=60, dt=1 / 120):
-    """Body positions after stepping the model's initial state without control input, keyed by body label."""
+def _rollout(model, solver, joint_q=None, joint_qd=None, steps=60, dt=1 / 120):
+    """Body positions after stepping from a joint state (default: the model's) without control input, by body label."""
     state_0, state_1, control = model.state(), model.state(), model.control()
-    newton.eval_fk(model, model.joint_q, model.joint_qd, state_0)
+    if joint_q is not None:
+        state_0.joint_q.assign(joint_q)
+        state_0.joint_qd.assign(joint_qd)
+    newton.eval_fk(model, state_0.joint_q, state_0.joint_qd, state_0)
     for _ in range(steps):
         state_0.clear_forces()
         solver.step(state_0, state_1, control, None, dt)
@@ -99,13 +108,13 @@ def _newton_import(output, solver, device):
     return builder.finalize(device=device)
 
 
-def _capture(model, body_q):
-    """Every float model array, and the joint target modes, of world 0's bodies, shapes, joints and DOFs.
+def _capture(model, body_q, joint_q=None, joint_qd=None):
+    """Every float model array, and the joint target modes, of world 0's bodies, shapes, joints, DOFs and coordinates.
 
-    Keyed by attribute name and entity label; a DOF is labelled ``<joint label>:<axis index>``. Root body
-    poses come from ``body_q``; other poses follow the joint state, which the export leaves out. The world's
-    gravity is keyed ``("gravity", "")``. Model values the export does not
-    carry show up as differences.
+    Keyed by attribute name and entity label; a DOF or coordinate is labelled ``<joint label>:<index in the
+    joint>``. Root body poses come from ``body_q`` and the joint state from ``joint_q`` and ``joint_qd`` (default:
+    the model's); other poses follow the joint state. The world's gravity is keyed ``("gravity", "")``. Model
+    values the export does not carry show up as differences.
     """
     frequency = newton.Model.AttributeFrequency
     labels = {
@@ -113,20 +122,25 @@ def _capture(model, body_q):
         frequency.SHAPE: list(model.shape_label),
         frequency.JOINT: list(model.joint_label),
         frequency.JOINT_DOF: [None] * model.joint_dof_count,
+        frequency.JOINT_COORD: [None] * model.joint_coord_count,
     }
     worlds = {
         frequency.BODY: model.body_world.numpy(),
         frequency.SHAPE: model.shape_world.numpy(),
         frequency.JOINT: model.joint_world.numpy(),
         frequency.JOINT_DOF: np.empty(model.joint_dof_count, dtype=int),
+        frequency.JOINT_COORD: np.empty(model.joint_coord_count, dtype=int),
     }
-    starts, types = model.joint_qd_start.numpy(), model.joint_type.numpy()
+    types = model.joint_type.numpy()
     # Free joints of floating bodies are generated, under generated names; their bodies carry the pose.
     worlds[frequency.JOINT][types == int(newton.JointType.FREE)] = -2
-    for joint, label in enumerate(model.joint_label):
-        for axis, dof in enumerate(range(starts[joint], starts[joint + 1])):
-            labels[frequency.JOINT_DOF][dof] = f"{label}:{axis}"
-            worlds[frequency.JOINT_DOF][dof] = worlds[frequency.JOINT][joint]
+    for entity, starts in ((frequency.JOINT_DOF, model.joint_qd_start), (frequency.JOINT_COORD, model.joint_q_start)):
+        starts = starts.numpy()
+        for joint, label in enumerate(model.joint_label):
+            for axis, index in enumerate(range(starts[joint], starts[joint + 1])):
+                labels[entity][index] = f"{label}:{axis}"
+                worlds[entity][index] = worlds[frequency.JOINT][joint]
+    state = {"body_q": body_q, "joint_q": joint_q, "joint_qd": joint_qd}
     parents, children = model.joint_parent.numpy(), model.joint_child.numpy()
     roots = {model.body_label[child] for parent, child in zip(parents, children) if parent == -1}
     values = {}
@@ -135,7 +149,7 @@ def _capture(model, body_q):
         array = getattr(getattr(model, namespace) if namespace else model, attribute, None)
         if entity not in labels or not isinstance(array, wp.array):
             continue
-        array = body_q.numpy() if name == "body_q" else array.numpy()
+        array = (array if state.get(name) is None else state[name]).numpy()
         if array.dtype.kind != "f" and name != "joint_target_mode":
             continue
         for index in np.flatnonzero(np.isin(worlds[entity], (-1, 0))):
@@ -181,15 +195,17 @@ def test_importing_the_export_reproduces_the_initialized_model(tmp_path, caplog,
         moved = _rollout(model, imported_solver)
         for label, position in motion.items():
             np.testing.assert_allclose(moved[label], position, atol=1e-4, err_msg=label)
-    # The actuator configuration differs from the USD drive, so the export must carry it.
+    # The actuator configuration differs from the USD drive, and the configured initial state from the USD's (zero),
+    # so the export must carry them.
     hinge = "/World/envs/env_0/Robot/Hinge:0"
+    assert live["joint_q", hinge] == pytest.approx(0.21)
     assert live["joint_target_ke", hinge] == pytest.approx(83.0)
     assert live["joint_armature", hinge] == pytest.approx(0.023)
     assert set(live) == set(loaded), (sorted(set(live) - set(loaded))[:8], sorted(set(loaded) - set(live))[:8])
     assert live["joint_target_mode", hinge] == int(newton.JointTargetMode.POSITION_VELOCITY)
     if solver != "mujoco":
-        # USD cannot state a target mode; without MuJoCo's velocity actuator the import infers position mode.
-        assert "target mode" in caplog.text
+        # The import infers position mode, which XPBD does not apply, so the export does not warn about it.
+        assert "target mode" not in caplog.text
         assert "USD does not state the settings of XPBDSolverCfg" in caplog.text
         del live["joint_target_mode", hinge]
     for (name, label), value in live.items():
@@ -197,6 +213,52 @@ def test_importing_the_export_reproduces_the_initialized_model(tmp_path, caplog,
             _assert_pose_equal(loaded[name, label], value)
         else:
             np.testing.assert_allclose(loaded[name, label], value, rtol=1e-4, atol=1e-7, err_msg=f"{label} {name}")
+
+
+def test_importing_an_exported_cable_reproduces_it_but_its_segment_gaps(tmp_path, caplog):
+    """Newton's import builds a cable from its USD curve; the segments it generates take its own contact gap."""
+    from isaaclab_newton.physics import NewtonCfg, VBDSolverCfg
+    from newton.usd import SchemaResolverPhysx
+
+    from isaaclab.assets import CableObjectCfg
+    from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+    from isaaclab.sim import SimulationCfg, UsdPhysicsCollisionCfg, build_simulation_context
+    from isaaclab.sim.spawners.materials import CableMaterialCfg
+    from isaaclab.sim.spawners.shapes import CableCfg
+
+    cfg = InteractiveSceneCfg(num_envs=1, env_spacing=3.0)
+    cfg.cable = CableObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Cable",
+        spawn=CableCfg(
+            positions=[(0.1 * index, 0.0, 0.5) for index in range(4)],
+            physics_material=CableMaterialCfg(thickness=0.01, density=100.0, stretch_stiffness=1e6, bend_stiffness=1e3),
+            collision_props=UsdPhysicsCollisionCfg(collision_enabled=True),
+        ),
+    )
+    sim_cfg = SimulationCfg(device="cpu", dt=1 / 120, physics=NewtonCfg(solver_cfg=VBDSolverCfg()))
+    output = str(tmp_path / "exported.usda")
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        scene = InteractiveScene(cfg)
+        sim.reset()
+        scene.export_to_usd(output)
+        live = _capture(sim.backend_manager.backend.model, sim.backend_manager.backend.state_0.body_q)
+    builder = newton.ModelBuilder()
+    newton.solvers.SolverVBD.register_custom_attributes(builder)
+    builder.add_usd(Usd.Stage.Open(output), schema_resolvers=[SchemaResolverNewton(), SchemaResolverPhysx()])
+    model = builder.finalize(device="cpu")
+    loaded = _capture(model, model.body_q)
+
+    assert set(live) == set(loaded)
+    differ = set()
+    for key, value in live.items():
+        if key[0] in ("body_q", "joint_X_p", "joint_X_c"):
+            _assert_pose_equal(loaded[key], value)
+        elif not np.allclose(loaded[key], value, rtol=1e-4, atol=1e-7):
+            differ.add(key)
+    segments = {label for name, label in live if name == "shape_gap"}
+    assert len(segments) == 3
+    assert differ == {("shape_gap", label) for label in segments}
+    assert "contact values" in caplog.text
 
 
 @pytest.mark.parametrize("mass", [None, 4.0], ids=["unchanged", "changed mass"])
@@ -500,7 +562,7 @@ def test_attribute_tables_cover_newton_importer():
     exported = {attribute for attribute, _, _ in DOF_ATTRIBUTES.values()}
     exported |= set(SHAPE_ATTRIBUTES.values()) | set(MATERIAL_ATTRIBUTES.values())
     excluded = {
-        # joint state is not part of the export
+        # joint state, written as JOINT_STATE_ATTRIBUTES unless the USD states these
         *(
             f"newton:{axis}:{kind}"
             for axis in ("angular", "linear", "rotX", "rotY", "rotZ")

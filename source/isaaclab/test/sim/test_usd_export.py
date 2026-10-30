@@ -70,6 +70,8 @@ def _articulation(joint_names, body_names):
                 "joint_friction_coeff",
                 "joint_dynamic_friction_coeff",
                 "joint_viscous_friction_coeff",
+                "default_joint_pos",
+                "default_joint_vel",
             )
         },
         body_mass=rows(bodies),

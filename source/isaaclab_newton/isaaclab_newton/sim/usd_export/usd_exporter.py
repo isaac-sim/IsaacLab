@@ -18,6 +18,7 @@ from newton.usd import PrimType, SchemaResolverNewton
 from pxr import Sdf, Tf, Usd, UsdPhysics, UsdShade
 
 from isaaclab.sim.usd_export.base_usd_exporter import (
+    JOINT_STATE_ATTRIBUTES,
     USD_PHYSICS_D6_LIMIT_ATTRIBUTES,
     USD_PHYSICS_JOINT_ATTRIBUTES,
     USD_PHYSICS_MATERIAL_ATTRIBUTES,
@@ -108,6 +109,9 @@ class UsdExporter(BaseUsdExporter):
     heightfield is imported as its mesh.
     """
 
+    # Newton's import builds cables from their USD curves, as Isaac Lab does.
+    exports_cables = True
+
     def compute_diff(self, stage: Usd.Stage) -> list[UsdEdit]:
         """Return the live model values that differ from Newton's import of ``stage``.
 
@@ -170,6 +174,7 @@ class UsdExporter(BaseUsdExporter):
         values = self._arrays(model, DOF_ATTRIBUTES)
         changed = self._changed(values, builder)
         starts, types, modes = model.joint_qd_start.numpy(), model.joint_type.numpy(), model.joint_target_mode.numpy()
+        coords, (positions, velocities) = model.joint_q_start.numpy(), self._initial_joint_state(model)
         reference = self._limit_reference(model)
         edits, dofs, drives = [], {}, {}
         for joint in self._selected(model.joint_world):
@@ -226,6 +231,17 @@ class UsdExporter(BaseUsdExporter):
                                     path, attribute.format(axis=axis), value, schema=schema and schema.format(axis=axis)
                                 )
                             )
+                for dof, axis in axes:
+                    coord = coords[joint] + dof - starts[joint]
+                    state = {
+                        "position": (positions[coord], builder.joint_q[coord]),
+                        "velocity": (velocities[dof], builder.joint_qd[dof]),
+                    }
+                    edits += [
+                        self._joint_state_edit(prim, axis, name, live)
+                        for name, (live, base) in state.items()
+                        if not self._close(live, base)
+                    ]
         self._target_mode_actuators(stage, model, dofs, values["joint_target_ke"], values["joint_target_kd"], modes)
         return edits + self._force_range_edits(stage, edits), drives
 
@@ -261,6 +277,41 @@ class UsdExporter(BaseUsdExporter):
         axes = model.joint_axis.numpy()
         return [(prim, [(dof, "rot" + "XYZ"[int(np.argmax(np.abs(axes[dof])))]) for dof in dofs], D6_DOF_ATTRIBUTES)]
 
+    def _initial_joint_state(self, model: newton.Model) -> tuple[np.ndarray, np.ndarray]:
+        """Joint coordinates and velocities with the scene's articulations at the state Isaac Lab resets them to.
+
+        The engine holds that state only from the first reset on, so it is written to a scratch state.
+        """
+        state, unwritten = model.state(), []
+        for name, articulation in self.scene.articulations.items():
+            view, data = articulation.root_view, articulation.data
+            order = [articulation.joint_names.index(joint) for joint in articulation.backend_joint_names]
+            for values, read, write in (
+                (data.default_joint_pos, view.get_dof_positions, view.set_dof_positions),
+                (data.default_joint_vel, view.get_dof_velocities, view.set_dof_velocities),
+            ):
+                shape = read(state).shape
+                if shape[-1] != len(order):
+                    # Ball joints have more coordinates than DOFs.
+                    unwritten.append(name)
+                    continue
+                write(state, values.torch[:, order].detach().cpu().numpy().reshape(shape))
+        if unwritten:
+            logger.warning(
+                f"The initial joint positions of articulations with ball joints are not written: {unwritten}."
+            )
+        return state.joint_q.numpy(), state.joint_qd.numpy()
+
+    @classmethod
+    def _joint_state_edit(cls, prim: Usd.Prim, axis: str, name: str, value: float) -> UsdEdit:
+        """Edit stating a joint axis's initial position or velocity, on the attribute Newton's import reads first."""
+        attribute, schema, angular_scale = JOINT_STATE_ATTRIBUTES[name]
+        value = float(value) * (1.0 if axis == "linear" else angular_scale)
+        path, own = str(prim.GetPath()), _JOINT[f"{axis}_{name}"].name
+        if cls._stated(prim, own) is not None:
+            return UsdEdit(path, own, value)
+        return UsdEdit(path, attribute.format(axis=axis), value, schema=schema.format(axis=axis))
+
     @classmethod
     def _joint_value_edit(
         cls, path: str, attribute: str, values: np.ndarray, axes: list[tuple[int, str]], angular_scale: float
@@ -281,7 +332,7 @@ class UsdExporter(BaseUsdExporter):
             properties = {name.removeprefix("body_") for name, rows in changed.items() if rows[body]}
             if prim and properties:
                 edits += self._mass_edits(prim, float(mass[body]), com[body], inertia[body], properties)
-        # Root bodies and world anchors are placed where initialization put them; joint state is not exported.
+        # Root bodies and world anchors are placed where initialization put them; the joints state the rest.
         body_q, anchors = self.scene.sim.backend_manager.backend.state_0.body_q.numpy(), model.joint_X_p.numpy()
         parents, children, types = model.joint_parent.numpy(), model.joint_child.numpy(), model.joint_type.numpy()
         for joint in self._selected(model.joint_world):
@@ -300,11 +351,16 @@ class UsdExporter(BaseUsdExporter):
         values, material = self._arrays(model, SHAPE_ATTRIBUTES), self._arrays(model, MATERIAL_ATTRIBUTES)
         changed = self._changed(values, builder) | self._changed(material, builder)
         flags, collide = model.shape_flags.numpy(), int(newton.ShapeFlags.COLLIDE_SHAPES)
-        edits, materials, complete, bound = [], {}, {}, {}
+        edits, materials, complete, bound, generated = [], {}, {}, {}, []
         for shape in self._selected(model.shape_world):
+            # Sensor sites and visual shapes do not collide.
+            if not int(flags[shape]) & collide:
+                continue
             prim = stage.GetPrimAtPath(model.shape_label[shape])
-            # Sensor sites and visual shapes do not collide; generated shapes have no USD prim.
-            if not prim or not int(flags[shape]) & collide:
+            if not prim:
+                # Shapes Newton's import generates, such as cable segments, have no prim to state a value on.
+                if any(rows[shape] for rows in changed.values()):
+                    generated.append(model.shape_label[shape])
                 continue
             edits += [
                 UsdEdit(str(prim.GetPath()), attribute, float(values[name][shape]))
@@ -333,6 +389,11 @@ class UsdExporter(BaseUsdExporter):
         # A collider without a material gets a new one, which states every value an import reads from it.
         materials |= {path: complete[path] for path in materials if not bound[path]}
         edits = [edit for edit in edits if edit is not None]
+        if generated:
+            logger.warning(
+                "Newton's import gives the shapes it generates its own contact values, which these do not hold:"
+                f" {generated}."
+            )
         # An unset contact gain of a material falls back to Newton's builder default.
         upstream = newton.ModelBuilder.ShapeConfig()
         fallbacks = {
@@ -521,7 +582,8 @@ class UsdExporter(BaseUsdExporter):
         actuator targeting a single-axis joint makes the import use position-velocity mode (gain: the damping).
         """
         position_velocity = int(newton.JointTargetMode.POSITION_VELOCITY)
-        mujoco = self._runs(self.scene.sim.cfg.physics.solver_cfg, newton.solvers.SolverMuJoCo)
+        solver_cfg = self.scene.sim.cfg.physics.solver_cfg
+        mujoco = self._runs(solver_cfg, newton.solvers.SolverMuJoCo)
         converted = self._converted_velocity_dofs(model) if mujoco else set()
         axes = Counter(dofs.values())
         root = self.scene.env_prim_paths[self.env_id]
@@ -547,7 +609,8 @@ class UsdExporter(BaseUsdExporter):
                 actuator.CreateAttribute(attribute, type_name, custom=False, variability=Sdf.VariabilityUniform).Set(
                     value
                 )
-        if differ:
+        # Of Newton's solvers, only MuJoCo and Kamino apply a target mode.
+        if differ and (mujoco or self._runs(solver_cfg, newton.solvers.SolverKamino)):
             logger.warning(
                 f"USD cannot state the target mode of these joints; an import infers another: {sorted(differ)}."
             )
@@ -592,17 +655,23 @@ class _AlignedBase:
     def __init__(self, live: newton.Model, base: newton.Model):
         self._live, self._base, self._arrays = live, base, {}
         joints = self._match(live.joint_label, base.joint_label)
-        live_starts, base_starts = live.joint_qd_start.numpy(), base.joint_qd_start.numpy()
-        dofs = []
-        for live_joint, base_joint in joints:
-            count = int(live_starts[live_joint + 1] - live_starts[live_joint])
-            if count == int(base_starts[base_joint + 1] - base_starts[base_joint]):
-                dofs += [(int(live_starts[live_joint]) + k, int(base_starts[base_joint]) + k) for k in range(count)]
         self._pairs = {
             "body": self._match(live.body_label, base.body_label),
             "shape": self._match(live.shape_label, base.shape_label),
-            "joint": dofs,  # the exported joint arrays are per DOF
+            "joint": self._entries(joints, live.joint_qd_start, base.joint_qd_start),  # per DOF
+            "joint_q": self._entries(joints, live.joint_q_start, base.joint_q_start),  # per coordinate
         }
+
+    @staticmethod
+    def _entries(joints: list[tuple[int, int]], live_starts, base_starts) -> list[tuple[int, int]]:
+        """Pairs of the per-joint entries (DOFs or coordinates) of matched joints with equal entry counts."""
+        live_starts, base_starts = live_starts.numpy(), base_starts.numpy()
+        pairs = []
+        for live_joint, base_joint in joints:
+            count = int(live_starts[live_joint + 1] - live_starts[live_joint])
+            if count == int(base_starts[base_joint + 1] - base_starts[base_joint]):
+                pairs += [(int(live_starts[live_joint]) + k, int(base_starts[base_joint]) + k) for k in range(count)]
+        return pairs
 
     @staticmethod
     def _match(live_labels, base_labels) -> list[tuple[int, int]]:
@@ -617,7 +686,7 @@ class _AlignedBase:
         if name not in self._arrays:
             aligned = getattr(self._live, name).numpy().copy()
             base = getattr(self._base, name).numpy()
-            for live_index, base_index in self._pairs[name.split("_", 1)[0]]:
+            for live_index, base_index in self._pairs[name if name in self._pairs else name.split("_", 1)[0]]:
                 aligned[live_index] = base[base_index]
             self._arrays[name] = aligned
         return self._arrays[name]

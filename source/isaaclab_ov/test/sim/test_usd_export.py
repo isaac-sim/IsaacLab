@@ -35,6 +35,11 @@ def test_importing_the_export_reproduces_the_initialized_engine(tmp_path):
         scene = InteractiveScene(cfg)
         sim.reset()
         output = scene.export_to_usd(str(tmp_path / "exported.usda"))
+        # Isaac Lab's reset writes the initial joint state, which the engine holds only from then on.
+        robot = scene["robot"]
+        robot.write_joint_state_to_sim_index(
+            position=robot.data.default_joint_pos.torch, velocity=robot.data.default_joint_vel.torch
+        )
         stage = Usd.Stage.Open(output)
         articulations, bodies = physics_prims(stage)
         live = readings(stage, read(sim.backend_manager.get_physx_instance(), articulations, bodies, "cpu"))
@@ -44,6 +49,7 @@ def test_importing_the_export_reproduces_the_initialized_engine(tmp_path):
     loaded = readings(stage, imported)
 
     hinge = live["/World/envs/env_0/Robot/Hinge", "angular"]
+    assert hinge["position"] == pytest.approx(0.21)
     assert hinge["stiffness"] == pytest.approx(83.0)
     assert hinge["armature"] == pytest.approx(0.023)
     exported_hinge = stage.GetPrimAtPath("/World/envs/env_0/Robot/Hinge")
@@ -192,14 +198,12 @@ def test_read_bindings_cover_ovphysx_properties():
 
     read = {*ARTICULATION_TENSORS.values(), *RIGID_BODY_TENSORS.values()}
     excluded = {
-        # state, targets and forces are not part of the export
+        # body state, targets and forces are not part of the export
         TT.ROOT_POSE,
         TT.ROOT_VELOCITY,
         TT.LINK_POSE,
         TT.LINK_VELOCITY,
         TT.LINK_ACCELERATION,
-        TT.DOF_POSITION,
-        TT.DOF_VELOCITY,
         TT.DOF_POSITION_TARGET,
         TT.DOF_VELOCITY_TARGET,
         TT.DOF_ACTUATION_FORCE,

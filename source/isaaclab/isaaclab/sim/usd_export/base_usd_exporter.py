@@ -72,6 +72,12 @@ USD_PHYSICS_D6_LIMIT_ATTRIBUTES = {
 }
 """UsdPhysics limits of one axis of a D6 joint (``rotX``, ``rotY``, ``rotZ``), which replace a single-axis joint's."""
 
+JOINT_STATE_ATTRIBUTES = {
+    "position": JointAttribute("state:{axis}:physics:position", "PhysicsJointStateAPI:{axis}", math.degrees(1.0)),
+    "velocity": JointAttribute("state:{axis}:physics:velocity", "PhysicsJointStateAPI:{axis}", math.degrees(1.0)),
+}
+"""Initial joint state of one axis, which Isaac Sim, OVPhysX and Newton's import read; unset means zero."""
+
 USD_PHYSICS_MATERIAL_ATTRIBUTES = {
     "static_friction": "physics:staticFriction",
     "dynamic_friction": "physics:dynamicFriction",
@@ -146,6 +152,9 @@ class BaseUsdExporter(ABC):
     exports_deformables: ClassVar[bool] = False
     """Whether an import of the layer reproduces the scene's deformable objects."""
 
+    exports_cables: ClassVar[bool] = False
+    """Whether an import of the layer reproduces the scene's cable objects."""
+
     def __init__(self, scene: InteractiveScene, env_id: int = 0):
         """Initialize the exporter.
 
@@ -169,7 +178,9 @@ class BaseUsdExporter(ABC):
         Returns:
             The destination path.
         """
-        if self.scene.cable_objects or (self.scene.deformable_objects and not self.exports_deformables):
+        if (self.scene.cable_objects and not self.exports_cables) or (
+            self.scene.deformable_objects and not self.exports_deformables
+        ):
             # Their values are not exported, so a fresh import would not reproduce them.
             raise NotImplementedError("Scenes with deformable or cable objects are not exported on this backend.")
         self._schema_defaults.cache_clear()  # include schemas registered since the last export

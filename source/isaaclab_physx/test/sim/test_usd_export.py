@@ -57,6 +57,11 @@ def test_importing_the_export_reproduces_the_initialized_engine(tmp_path):
         scene = InteractiveScene(cfg)
         sim.reset()
         output = scene.export_to_usd(str(tmp_path / "exported.usda"))
+        # Isaac Lab's reset writes the initial joint state, which the engine holds only from then on.
+        robot = scene["robot"]
+        robot.write_joint_state_to_sim_index(
+            position=robot.data.default_joint_pos.torch, velocity=robot.data.default_joint_vel.torch
+        )
         stage = Usd.Stage.Open(output)
         articulations, bodies = physics_prims(stage)
         live = readings(stage, read(sim.backend_manager.get_physics_sim_view(), articulations, bodies))
@@ -64,6 +69,7 @@ def test_importing_the_export_reproduces_the_initialized_engine(tmp_path):
     loaded = readings(stage, _read_import(stage, articulations, bodies))
 
     hinge = live["/World/envs/env_0/Robot/Hinge", "angular"]
+    assert hinge["position"] == pytest.approx(0.21)
     assert hinge["stiffness"] == pytest.approx(83.0)
     assert hinge["armature"] == pytest.approx(0.023)
     assert live.keys() == loaded.keys()
@@ -164,14 +170,15 @@ def test_read_getters_cover_physx_views(tmp_path):
 
     read = {*ARTICULATION_GETTERS.values(), *RIGID_BODY_GETTERS.values()}
     excluded = {
-        # state, targets and forces are not part of the export
+        # the initial joint state comes from the asset configuration, which the engine holds only after a reset
+        "get_dof_positions",
+        "get_dof_velocities",
+        # body state, targets and forces are not part of the export
         "get_root_transforms",
         "get_root_velocities",
         "get_link_transforms",
         "get_link_velocities",
         "get_link_accelerations",
-        "get_dof_positions",
-        "get_dof_velocities",
         "get_dof_position_targets",
         "get_dof_velocity_targets",
         "get_dof_actuation_forces",

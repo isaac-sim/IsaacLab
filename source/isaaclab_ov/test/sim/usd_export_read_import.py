@@ -49,10 +49,15 @@ def read_import(source: str, articulations: list[str], bodies: list[str]) -> dic
         backend.close()
 
 
-_DOF_READINGS = ("stiffness", "damping", "max_force", "max_velocity", "armature")
+_DOF_READINGS = ("stiffness", "damping", "max_force", "max_velocity", "armature", "position", "velocity")
 
-# The exporter's bindings, and gravity, which the round trip also compares.
-ARTICULATION_TENSORS = {**usd_exporter.ARTICULATION_TENSORS, "disable_gravity": TT.BODY_DISABLE_GRAVITY}
+# The exporter's bindings, and gravity and the joint state, which the round trip also compares.
+ARTICULATION_TENSORS = {
+    **usd_exporter.ARTICULATION_TENSORS,
+    "disable_gravity": TT.BODY_DISABLE_GRAVITY,
+    "position": TT.DOF_POSITION,
+    "velocity": TT.DOF_VELOCITY,
+}
 RIGID_BODY_TENSORS = {**usd_exporter.RIGID_BODY_TENSORS, "disable_gravity": TT.RIGID_BODY_DISABLE_GRAVITY}
 
 

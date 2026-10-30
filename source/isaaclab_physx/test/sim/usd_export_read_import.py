@@ -97,7 +97,7 @@ def simulate_deformables(source: str, output: str, bodies: dict, dt: float, step
         app.close()
 
 
-_DOF_READINGS = ("stiffness", "damping", "max_force", "max_velocity", "armature")
+_DOF_READINGS = ("stiffness", "damping", "max_force", "max_velocity", "armature", "position", "velocity")
 
 
 def read(simulation_view, articulations: list[str], bodies: list[str]) -> dict:
@@ -114,10 +114,12 @@ def read(simulation_view, articulations: list[str], bodies: list[str]) -> dict:
     # The exporter's getters; imported here because this file also runs before Isaac Sim starts.
     from isaaclab_physx.sim.usd_export.usd_exporter import ARTICULATION_GETTERS, RIGID_BODY_GETTERS
 
+    # The joint state, which the round trip also compares.
+    getters = {**ARTICULATION_GETTERS, "position": "get_dof_positions", "velocity": "get_dof_velocities"}
     raw = {}
     for root in articulations:
         view = simulation_view.create_articulation_view(root)
-        data = {name: _get(getattr(view, getter)()) for name, getter in ARTICULATION_GETTERS.items()}
+        data = {name: _get(getattr(view, getter)()) for name, getter in getters.items()}
         dofs = {name: data.pop(name) for name in _DOF_READINGS}
         limits, friction = data.pop("limits"), data.pop("friction")
         dofs.update(lower_limit=limits[..., 0], upper_limit=limits[..., 1])
