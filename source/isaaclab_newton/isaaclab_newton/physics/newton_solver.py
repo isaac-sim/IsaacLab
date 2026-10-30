@@ -18,7 +18,7 @@ from newton.solvers import SolverBase
 from isaaclab.utils import to_dict
 
 if TYPE_CHECKING:
-    from .newton_manager_cfg import NewtonSolverCfg
+    from .newton_manager_cfg import NewtonCollisionPipelineCfg, NewtonSolverCfg
 
 
 def solver_kwargs(solver_cls: type, cfg: Any, mode: wp.DeterministicMode) -> dict:
@@ -90,6 +90,28 @@ class NewtonSolver:
         return None
 
     # ----- Construction -----
+
+    @classmethod
+    def prepare_model(
+        cls,
+        cfg: NewtonSolverCfg,
+        model: Model,
+        collision_cfg: NewtonCollisionPipelineCfg | None,
+        mode: wp.DeterministicMode,
+    ) -> CollisionPipeline | None:
+        """Prepare resources the solver needs before construction.
+
+        Args:
+            cfg: Solver configuration.
+            model: Finalized Newton model the solver advances.
+            collision_cfg: External collision pipeline configuration, or ``None`` for defaults.
+            mode: Warp determinism mode.
+
+        Returns:
+            A collision pipeline whose published capacity the solver needs during construction, or ``None``
+            when the manager can create the pipeline after constructing the solver.
+        """
+        return None
 
     @classmethod
     def build(

@@ -194,6 +194,31 @@ def test_deterministic_collision_pipeline_matches_expanded_contact_capacity(coll
     assert prepared == [backend.contacts]
 
 
+def test_collision_pipeline_matches_expanded_contact_capacity() -> None:
+    """Matching remains usable when the solver requires more contacts than the pipeline estimates."""
+    builder = ModelBuilder(gravity=(0.0, 0.0, 0.0))
+    builder.add_ground_plane()
+    body = builder.add_body(xform=wp.transform(wp.vec3(0.0, 0.0, 0.1)))
+    builder.add_shape_sphere(body, radius=0.1)
+    model = builder.finalize(device="cpu")
+    solver = SimpleNamespace(model=model, get_max_contact_count=lambda: 2)
+    manager = NewtonManager(
+        NewtonCfg(
+            solver_cfg=NewtonSolverCfg(),
+            collision_cfg=NewtonCollisionPipelineCfg(broad_phase="nxn", rigid_contact_max=1, contact_matching="latest"),
+        )
+    )
+    manager._device = "cpu"
+    manager.backend = SimpleNamespace(model=model, solver=solver, collision_pipeline=None, contacts=None)
+
+    manager._initialize_contacts()
+
+    assert manager.backend.contacts.rigid_contact_max == 2
+    state = model.state()
+    manager.backend.collision_pipeline.collide(state, manager.backend.contacts)
+    assert int(manager.backend.contacts.rigid_contact_count.numpy()[0]) > 0
+
+
 @pytest.mark.parametrize("cloth", [False, True])
 @pytest.mark.parametrize("device", test_devices())
 def test_queries_share_native_bvhs_and_read_only_through_sdp(monkeypatch, cloth, device):
@@ -808,6 +833,7 @@ def _backend_with_masks(world_mask: wp.array, fk_mask: wp.array, solver: object)
         kinematics_dirty=True,
         transforms_may_change_on_graph_replay=False,
         solver=solver,
+        collision_pipeline=None,
     )
 
 
@@ -850,6 +876,7 @@ def test_forward_keeps_implicit_mpm_history_on_automatic_resets(monkeypatch):
     """Authored-state boundaries must not reset shared-grid MPM history; tasks reset it explicitly."""
     world_mask = wp.array([True, False], dtype=wp.bool, device="cpu")
     fk_mask = wp.array([], dtype=wp.bool, device="cpu")
+    matching_resets: list[list[bool]] = []
 
     class _RejectingSolver:
         def reset(self, state, world_mask=None, flags=0):
@@ -863,8 +890,17 @@ def test_forward_keeps_implicit_mpm_history_on_automatic_resets(monkeypatch):
     manager = NewtonManager(NewtonCfg(solver_cfg=MPMSolverCfg(class_type=NoFKSolver)))
     manager.backend = _backend_with_masks(world_mask, fk_mask, _RejectingSolver())
 
+    class RecordingPipeline:
+        def reset_contact_matching(self, worlds):
+            matching_resets.append(worlds.numpy().tolist())
+
+    manager.backend.collision_pipeline = RecordingPipeline()
+
+    manager.forward()
     manager.forward()
 
+    # MPM bypasses the base solver reset, so matching must reset at the shared forward boundary.
+    assert matching_resets == [[True, False]]
     assert world_mask.numpy().tolist() == [False, False]
 
 

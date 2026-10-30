@@ -349,6 +349,8 @@ class NewtonManager(PhysicsManager):
             )
         solver_cfg, solver, state = self._cfg.solver_cfg, backend.solver, backend.state_0
         solver_cfg.class_type.reset(solver_cfg, solver, state, backend.world_mask)
+        if backend.collision_pipeline is not None:
+            backend.collision_pipeline.reset_contact_matching(backend.world_mask)
         solver_cfg.class_type.eval_fk(solver_cfg, solver, state, backend.world_mask, backend.fk_mask)
         backend.fk_mask.zero_()
         backend.world_mask.zero_()
@@ -841,8 +843,8 @@ class NewtonManager(PhysicsManager):
             backend.contacts = backend.collision_pipeline.contacts()
             # MuJoCo Warp can require more contacts than the pipeline estimates.
             if required > backend.contacts.rigid_contact_max:
-                if args["deterministic"]:
-                    # The deterministic sort buffer is sized at construction, so rebuild the pipeline to match.
+                if args["deterministic"] or backend.collision_pipeline.contact_matching != "disabled":
+                    # Sorting and matching buffers are sized at construction, so rebuild the pipeline to match.
                     args["rigid_contact_max"] = required
                     backend.collision_pipeline = solver_cls.create_collision_pipeline(solver_cfg, solver, **args)
                     backend.contacts = backend.collision_pipeline.contacts()
@@ -910,6 +912,7 @@ class NewtonManager(PhysicsManager):
                 )
             plan = self._sim.get_clone_plan() if self._sim is not None else None
             env_template = plan.env_template if plan is not None else None
+            backend.collision_pipeline = solver_cls.prepare_model(solver_cfg, model, cfg.collision_cfg, mode)
             solver = backend.solver = solver_cls.build(solver_cfg, model, mode, env_template)
             if not solver_cls.single_state:
                 solver_cls.init_state(solver_cfg, solver, backend.state_1)

@@ -10,12 +10,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import warp as wp
-from newton import Model, ModelBuilder, State, eval_ik
+from newton import CollisionPipeline, Model, ModelBuilder, State, eval_ik
 from newton.solvers import SolverVBD
 
 from .newton_solver import NewtonSolver, solver_kwargs
 
 if TYPE_CHECKING:
+    from .newton_manager_cfg import NewtonCollisionPipelineCfg
     from .vbd_solver_cfg import VBDSolverCfg
 
 
@@ -28,6 +29,26 @@ class VBDSolver(NewtonSolver):
     def prepare_builder(cls, cfg: VBDSolverCfg, builder: ModelBuilder) -> None:
         """Color the completed builder before allocating the model."""
         builder.color(include_bending=True, balance_colors=False)
+
+    @classmethod
+    def prepare_model(
+        cls,
+        cfg: VBDSolverCfg,
+        model: Model,
+        collision_cfg: NewtonCollisionPipelineCfg | None,
+        mode: wp.DeterministicMode,
+    ) -> CollisionPipeline | None:
+        """Publish matching capacity before standalone rigid VBD allocates persistent contact history."""
+        if not cfg.rigid_contact_history or model.body_count == 0 or cfg.integrate_with_external_rigid_solver:
+            return None
+        if collision_cfg is None or collision_cfg.contact_matching == "disabled":
+            raise ValueError(
+                "VBDSolverCfg.rigid_contact_history requires NewtonCfg.collision_cfg with "
+                "contact_matching='latest' or 'sticky'."
+            )
+        args = collision_cfg.to_pipeline_args()
+        args["deterministic"] = mode != wp.DeterministicMode.NOT_GUARANTEED
+        return CollisionPipeline(model, **args)
 
     @classmethod
     def build(
