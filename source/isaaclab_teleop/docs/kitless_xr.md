@@ -46,18 +46,42 @@ and restore the caller's arguments on return. The scripts under
 
 ```bash
 uv run --extra ovxr isaaclab teleop run \
-    --task IsaacContrib-Stack-Cube-SO101-IK-Abs-v0 --num_envs 1 \
-    --device cpu --physics ovphysx --ovxr
+    --task IsaacContrib-PickPlace-GR1T2-Abs --num_envs 1 \
+    --device cuda:0 --physics newton_mjwarp --ovxr
 ```
 
-Use `--physics ovphysx --device cpu` for CPU OVPhysX. `--ovxr` selects OVStage
-and starts CloudXR with the `cloudxrjs` profile by default. Connect a supported
-CloudXR client, then use Play, Pause and Reset as in Kit-based teleoperation.
+The same registered-task selectors apply to live input and MCAP replay:
+
+| Task | Physics selectors |
+| --- | --- |
+| `IsaacContrib-PickPlace-GR1T2-Abs` | `ovphysx`, `newton_mjwarp`, `isaacsim_physx` |
+| `IsaacContrib-PickPlace-Locomanipulation-G1-Abs` | `ovphysx`, `newton_mjwarp`, `isaacsim_physx` |
+| `IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs` | `ovphysx`, `newton_mjwarp`, `isaacsim_physx` |
+| `IsaacContrib-Stack-Cube-SO101-IK-Abs-v0` | `ovphysx`, `newton_mjwarp`, `isaacsim_physx` |
+
+Omitting `--physics` retains the Kit/Isaac Sim default. Use `--physics ovphysx
+--device cpu` for standalone CPU physics, or `--physics newton_mjwarp --device
+cuda:0` for Newton; these standalone selections support `--ovxr`. Kit's
+`isaacsim_physx` selection uses its separate `--xr` workflow and Isaac Sim
+installation, not `--ovxr`. The task presets retain backend-specific solver
+settings and, for SO101, choose the matching USD Physics variant.
 
 The SO101 IK task resets its joints to the configured nominal pose without
 joint-position noise, giving the clutch a repeatable reset pose. Its configured
 home transform supplies the clutch calibration. This applies to its Kit and
 kitless backends. The separate joint-control task retains its randomized reset.
+
+For example, replace the task in this command with any row above:
+
+```bash
+uv run --python 3.12 --extra ovxr --locked isaaclab teleop run \
+    --task IsaacContrib-PickPlace-GR1T2-Abs --num_envs 1 \
+    --device cpu --physics ovphysx --ovxr --cloudxr_env cloudxrjs
+```
+
+ `--ovxr` selects OVStage
+and starts CloudXR with the `cloudxrjs` profile by default. Connect a supported
+CloudXR client, then use Play, Pause and Reset as in Kit-based teleoperation.
 
 For desktop IWER, select **VR** and set **Reference Space** to **local-floor**
 under **Teleoperator adjustment** before connecting. This keeps the emulated
@@ -90,7 +114,7 @@ environment action interval when no explicit rate is set. This option requires
 
 ```bash
 uv run --extra ovxr python scripts/environments/teleoperation/teleop_replay_agent.py \
-    --task IsaacContrib-Stack-Cube-SO101-IK-Abs-v0 --num_envs 1 \
+    --task IsaacContrib-PickPlace-GR1T2-Abs --num_envs 1 \
     --device cpu --physics ovphysx --ovxr \
     --replay_file /absolute/path/to/session.mcap
 ```
