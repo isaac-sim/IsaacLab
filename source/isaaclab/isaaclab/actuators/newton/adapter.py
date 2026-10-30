@@ -412,7 +412,7 @@ def read_group_parameter(collection: ActuatorCollection, name: str, component: s
     Args:
         collection: The articulation's actuator collection.
         name: Actuator group name.
-        component: Component kind: ``"drive"``, ``"delay"``, ``"clamping"``, or ``"motor"``.
+        component: Component kind: ``"drive"``, ``"delay"``, or ``"clamping"``.
             ``"controller"`` is a deprecated alias for ``"drive"``.
         attr: Parameter name on that component (e.g. ``"kp"``, ``"max_effort"``).
 
@@ -453,7 +453,7 @@ def write_group_parameter(
     Args:
         collection: The articulation's actuator collection.
         name: Actuator group name.
-        component: Component kind: ``"drive"``, ``"delay"``, ``"clamping"``, or ``"motor"``.
+        component: Component kind: ``"drive"``, ``"delay"``, or ``"clamping"``.
             ``"controller"`` is a deprecated alias for ``"drive"``.
         attr: Parameter name on that component (e.g. ``"kp"``, ``"max_effort"``).
         values: New values, shape ``(len(env_ids), len(joint_ids))``. Units
@@ -522,8 +522,8 @@ def _group_parameter_owners(
 def resolve_actuator_component(actuator: Actuator, component: str, attr: str) -> Any | None:
     """Return the component instance that exposes ``attr`` on the addressed component kind.
 
-    ``component`` selects the actuator's ``"drive"``, ``"delay"``,
-    ``"clamping"``, or ``"motor"`` entry; the returned object is what Newton's
+    ``component`` selects the actuator's ``"drive"``, ``"delay"``, or
+    ``"clamping"`` entry; the returned object is what Newton's
     :meth:`~newton.selection.ArticulationView.get_actuator_parameter` and
     :meth:`~newton.selection.ArticulationView.set_actuator_parameter` take as
     their ``component`` argument. Returns ``None`` when the component is absent
@@ -540,12 +540,8 @@ def resolve_actuator_component(actuator: Actuator, component: str, attr: str) ->
             names = ", ".join(type(entry).__name__ for entry in matches)
             raise ValueError(f"Ambiguous clamping parameter '{attr}': exposed by {names}.")
         owner = matches[0] if matches else None
-    elif component == "motor":
-        owner = actuator.motor
     else:
-        raise ValueError(
-            f"Unknown actuator component '{component}'. Expected 'drive', 'delay', 'clamping', or 'motor'."
-        )
+        raise ValueError(f"Unknown actuator component '{component}'. Expected 'drive', 'delay', or 'clamping'.")
     if owner is None or not hasattr(owner, attr):
         return None
     return owner

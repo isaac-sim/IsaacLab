@@ -754,18 +754,6 @@ def test_native_group_parameters_route_through_the_collection_door(env_ids):
     write_group_parameter(collection, "native", "drive", "kd", values=torch.full((2, 3), 0.9))
     torch.testing.assert_close(control.native_gains["kd"], torch.full((2, 3), 0.9))
 
-    # The "motor" component addresses the actuator's motor, such as Newton's MotorDC, and only when it has one.
-    with pytest.raises(ValueError, match=r"No Newton actuator exposes parameter \('motor', 'kt'\)"):
-        read_group_parameter(collection, "native", "motor", "kt")
-    group.motor = SimpleNamespace(kt=wp.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6], dtype=wp.float32, device=control.device))
-    torch.testing.assert_close(
-        read_group_parameter(collection, "native", "motor", "kt"), torch.tensor([[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]])
-    )
-    write_group_parameter(
-        collection, "native", "motor", "kt", values=torch.tensor([[0.9]]), env_ids=env_ids, joint_ids=torch.tensor([2])
-    )
-    torch.testing.assert_close(wp.to_torch(group.motor.kt).view(2, 3), torch.tensor([[0.1, 0.2, 0.9], [0.4, 0.5, 0.6]]))
-
     with pytest.raises(ValueError, match=r"No Newton actuator exposes parameter \('drive', 'kq'\)"):
         write_group_parameter(collection, "native", "drive", "kq", values=torch.zeros((2, 3)))
     with pytest.raises(ValueError, match=r"Unknown actuator component 'gains'"):
