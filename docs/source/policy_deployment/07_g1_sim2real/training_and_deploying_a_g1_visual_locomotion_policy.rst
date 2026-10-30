@@ -9,11 +9,10 @@ control loop that drives a physical Unitree G1 over DDS.
 
 :doc:`../05_leapp/deploying_exported_policies_with_leapp` ends at
 :class:`~envs.LeappDeploymentEnv`, which runs an exported policy back in simulation. This guide
-continues from there onto hardware. By default, ``g1_deploy.py`` uses ``leapp.InferenceManager``
-in Python. With ``--isaac_ros``, it uses the `Isaac ROS Deploy node runtime
-<https://nvidia-isaac-ros.github.io/repositories_and_packages/isaac_ros_deploy/concepts/ros2_nodes_runtime.html>`__
-(``InputBuilderNode``, ``TritonNode`` and ``OutputBuilderNode``). Both backends share the robot's
-Unitree DDS interface, depth stream and input/output conversions.
+continues from there onto hardware using the `Isaac ROS Deploy node runtime
+<https://nvidia-isaac-ros.github.io/repositories_and_packages/isaac_ros_deploy/concepts/ros2_nodes_runtime.html>`__.
+Its ``InputBuilderNode``, ``TritonNode`` and ``OutputBuilderNode`` execute the exported graph.
+``g1_deploy.py`` connects that runtime to the robot's Unitree DDS interface and depth stream.
 
 .. note::
 
@@ -43,16 +42,13 @@ Prerequisites
 -------------
 
 Start with the :doc:`Isaac Lab installation </source/isaaclab/installation>`. From the repository
-root, install the LEAPP export and Python inference dependencies into its Python environment:
+root, install the LEAPP export dependencies into its Python environment:
 
 .. code-block:: bash
 
    uv sync --extra leapp
 
-The default Python backend uses this environment and does not require ROS. In the SDK commands
-below, use ``.venv/bin/python`` for this backend.
-
-For ``--isaac_ros``, prepare an `Isaac ROS 5.0 environment
+For hardware deployment, prepare an `Isaac ROS 5.0 environment
 <https://nvidia-isaac-ros.github.io/getting_started/index.html>`__ with GPU access and install
 ``isaac_ros_deploy_bringup`` and ``isaac_ros_triton`` with their runtime dependencies. The deployment
 environment must also reach the robot's Ethernet subnet and receive the UDP depth stream.
@@ -79,9 +75,8 @@ the DDS library first, following the `Unitree SDK installation instructions
    uv pip install --python .venv-g1-deploy/bin/python numpy pyyaml "cyclonedds==0.10.2" \
        "git+https://github.com/unitreerobotics/unitree_sdk2_python.git"
 
-Set ``CYCLONEDDS_HOME`` to the same path in each deployment terminal. For the Python backend,
-check the SDK import with ``.venv/bin/python -c "from unitree_sdk2py.core.channel import ChannelFactoryInitialize"``.
-For ``--isaac_ros``, also source the ROS setup file and check both imports:
+Source the ROS setup file and set ``CYCLONEDDS_HOME`` to the same path in each deployment terminal.
+Check the ROS and SDK imports before connecting to the robot:
 
 .. code-block:: bash
 
@@ -212,10 +207,10 @@ against a simulated scene. Hardware deployment resolves the same connections aga
 The Control Loop
 ^^^^^^^^^^^^^^^^
 
-By default, the script runs the exported graph through ``leapp.InferenceManager`` and paces the
-control loop at 50 Hz. With ``--isaac_ros``, it publishes ROS ``TensorList`` messages and waits for
-fresh ``JointCommand`` messages from the official input builder configured for 50 Hz. Both paths
-validate tensor shapes and finite values and map joint targets and gains to the 29 motors.
+The script publishes sensor and command tensors as ROS ``TensorList`` messages. Isaac ROS Deploy
+runs the ONNX graph and returns ``JointCommand`` messages containing targets and gains. The script
+checks their timestamps, joint layout and finite values before writing the 29 motor commands.
+The official input builder is configured for 50 Hz; the loop waits for a fresh result each step.
 
 .. literalinclude:: ../../../../scripts/deploy/g1_deploy.py
    :language: python
@@ -229,8 +224,7 @@ Joint targets are mapped to the 29 body motors by joint name using the exported 
 
 Before enabling the policy, the robot transitions to the predefined starting pose over three seconds
 and holds it until the operator confirms. The inference graph is warmed up before taking control;
-feedback resets after warmup. The ROS backend also closes its enable gate during the ramp and hold
-and resets feedback when the policy is enabled.
+its enable gate stays closed during the ramp and hold, and feedback resets when the policy is enabled.
 
 Conversions
 ^^^^^^^^^^^
@@ -293,27 +287,15 @@ Press ``Ctrl+C`` to stop the publisher after stopping the policy.
 Starting the Policy
 ^^^^^^^^^^^^^^^^^^^
 
-Put the robot in debug mode and support it on a stand before starting. Keep the exported YAML,
-models and initial-state file together. Run the default Python backend from the repository root:
-
-.. code-block:: bash
-
-   uv run --extra leapp python scripts/deploy/g1_deploy.py \
-       --pipeline <PATH_TO_EXPORTED_LEAPP_YAML> \
-       --interface <NETWORK_INTERFACE> --domain_id 0
-
-Adding ``--isaac_ros`` runs the LEAPP-exported ONNX bundle through Isaac ROS Deploy’s ROS 2 nodes
-and Triton instead of Python’s ``leapp.InferenceManager``. The Isaac ROS 5.0 setup described here
-additionally requires an Ubuntu 24.04 environment with ROS 2 Lyrical, the
-``isaac_ros_deploy_bringup`` and ``isaac_ros_triton`` packages, and access to a supported NVIDIA GPU
-with compatible drivers and CUDA libraries.
-
-The script creates temporary ROS port metadata without modifying the source bundle:
+Put the robot in debug mode and support it on a stand before starting. Run from the repository root
+in the Isaac ROS deployment environment prepared above. Use the exported ONNX bundle, keeping its
+YAML, models and initial-state file together; the script creates temporary ROS port metadata without
+modifying the source bundle.
 
 .. code-block:: bash
 
    source /opt/ros/lyrical/setup.bash
-   .venv-g1-deploy/bin/python scripts/deploy/g1_deploy.py --isaac_ros \
+   .venv-g1-deploy/bin/python scripts/deploy/g1_deploy.py \
        --pipeline <PATH_TO_EXPORTED_LEAPP_YAML> \
        --interface <NETWORK_INTERFACE> --domain_id 0
 

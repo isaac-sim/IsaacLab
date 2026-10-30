@@ -5,10 +5,10 @@
 
 """Run a LEAPP-exported policy on a physical Unitree G1.
 
-Inference uses LEAPP's Python InferenceManager by default. Pass --isaac_ros to use
-Isaac ROS Deploy (InputBuilderNode, TritonNode, OutputBuilderNode) with an ONNX bundle.
-Only the ROS backend requires an Isaac ROS environment with isaac_ros_deploy,
-isaac_ros_triton and their dependencies.
+Inference runs in Isaac ROS Deploy (InputBuilderNode, TritonNode, OutputBuilderNode).
+This script adapts Unitree DDS and the depth stream to that runtime; it does not execute
+the policy in Python. Source an Isaac ROS environment with isaac_ros_deploy, isaac_ros_triton
+and their dependencies before running. The pipeline must be an ONNX LEAPP bundle.
 
 Needs ``unitree_sdk2py`` with ``cyclonedds==0.10.2``, and a depth publisher on the robot's onboard
 computer sending 64x38 frames as unsigned 16-bit millimetres over UDP.
@@ -285,7 +285,6 @@ class G1Link:
         self._publisher.Init()
         self._command = unitree_hg_msg_dds__LowCmd_()
         self._crc = CRC()
-        self._next = None
         deadline = time.monotonic() + 30.0
         while self.state is None:
             if time.monotonic() > deadline:
@@ -338,20 +337,6 @@ class G1Link:
         for _ in range(int(seconds / CONTROL_DT)):
             self.write(zero, zero, kd)
             time.sleep(CONTROL_DT)
-
-    def wait(self, period: float) -> None:
-        """Keep the control cadence, discarding overdue deadlines after a stall."""
-        if self._next is None:
-            self._next = time.monotonic()
-        self._next += period
-        now = time.monotonic()
-        if now < self._next:
-            time.sleep(self._next - now)
-            now = time.monotonic()
-            if now - self._next < period:
-                return
-        if now > self._next:
-            self._next = now
 
 
 def prepare_ros_pipeline(pipeline: str, directory: str) -> tuple[Path, dict]:
@@ -433,18 +418,27 @@ def run_ros_runtime(pipeline: str, namespace: str) -> int:
 
 
 class GraphPolicy:
-    """Shared G1 input/output conversion for LEAPP Python and Isaac ROS Deploy inference."""
+    """Device adapter for the Isaac ROS Deploy node runtime.
 
-    def __init__(
-        self,
-        pipeline: str,
-        depth_rotation: int,
-        imu_tilt: tuple[float, float] = (0.0, 0.0),
-        *,
-        isaac_ros: bool = False,
-    ) -> None:
-        self._isaac_ros = isaac_ros
-        self._context = self._node = self._process = self._executor = self._directory = None
+    The official runtime owns inference, graph scheduling and exported feedback state.
+    This adapter supplies the existing robot/camera inputs and consumes JointCommand messages.
+    Source bundles and model weights are never modified.
+    """
+
+    def __init__(self, pipeline: str, depth_rotation: int, imu_tilt: tuple[float, float] = (0.0, 0.0)) -> None:
+        import rclpy
+        from isaac_ros_deploy_converters.tensor_utils import make_tensor
+        from isaac_ros_deploy_interfaces.msg import JointCommand
+        from isaac_ros_tensor_msgs.msg import TensorList
+        from rclpy.context import Context
+        from rclpy.executors import SingleThreadedExecutor
+        from std_msgs.msg import Bool
+
+        self._make_tensor = make_tensor
+        self._tensor_list, self._bool = TensorList, Bool
+        self._context = Context()
+        self._node = self._process = self._executor = None
+        self._directory = tempfile.TemporaryDirectory(prefix="g1_ros_deploy_")
         self._result = None
         self._enabled = False
         self._rotate = depth_rotation == 180
@@ -452,25 +446,7 @@ class GraphPolicy:
         cp, sp, cr, sr = math.cos(pitch), math.sin(pitch), math.cos(roll), math.sin(roll)
         self._imu_tilt = np.array([cp * cr, cp * sr, sp * cr, -sp * sr], dtype=np.float32)
         try:
-            if isaac_ros:
-                self._directory = tempfile.TemporaryDirectory(prefix="g1_ros_deploy_")
-                config_path, self._ports = prepare_ros_pipeline(pipeline, self._directory.name)
-            else:
-                import torch
-                from leapp import InferenceManager
-
-                self._torch = torch
-                torch.set_num_threads(1)
-                self.inference = InferenceManager(pipeline)
-                self._ports, self._keys = {}, {}
-                for direction, keys in (("inputs", self.inference.inputs), ("outputs", self.inference.outputs)):
-                    for key in keys:
-                        node, name = key.split("/", 1)
-                        spec = next(io for io in self.inference.models[node][direction] if io["name"] == name)
-                        connection = spec.get("isaaclab_connection")
-                        if not connection or connection in self._ports:
-                            raise ValueError(f"Missing or duplicate isaaclab_connection for {key}")
-                        self._ports[connection], self._keys[connection] = spec, key
+            config_path, self._ports = prepare_ros_pipeline(pipeline, self._directory.name)
             output_specs = [self._ports[connection] for connection in ROS_OUTPUT_KINDS]
             names = output_specs[0]["element_names"][-1]
             if any(spec["element_names"][-1] != names or spec["shape"] != [1, len(names)] for spec in output_specs):
@@ -488,10 +464,30 @@ class GraphPolicy:
                 if self._ports[connection]["element_names"][-1] != names:
                     raise ValueError(f"Joint layout differs for {connection}")
 
-            if isaac_ros:
-                self._start_ros(config_path)
-            # Pay model startup costs before taking ownership of the robot, then reset feedback.
-            # The ROS gate also keeps history frozen throughout the ramp and hold.
+            rclpy.init(context=self._context)
+            namespace = Path(self._directory.name).name
+            self._node = rclpy.create_node("device_adapter", namespace=namespace, context=self._context)
+            self._executor = SingleThreadedExecutor(context=self._context)
+            self._executor.add_node(self._node)
+            self._inputs = self._node.create_publisher(TensorList, "robot_inputs", 1)
+            self._enable = self._node.create_publisher(Bool, "enable", 1)
+            self._node.create_subscription(JointCommand, "joint_commands", self._on_output, 1)
+            self._process = subprocess.Popen(
+                [
+                    sys.executable,
+                    str(Path(__file__).resolve()),
+                    "--ros-runtime",
+                    str(config_path),
+                    namespace,
+                ],
+                start_new_session=True,
+                env={**os.environ, "TMPDIR": self._directory.name},
+            )
+            deadline = time.monotonic() + 60.0
+            while not self._inputs.get_subscription_count() or not self._enable.get_subscription_count():
+                self._spin_until(deadline)
+            # Pay model startup costs before taking ownership of the robot. Closing the enable
+            # gate then keeps history frozen throughout the ramp/hold; reopening resets feedback.
             for _ in range(3):
                 self.step(
                     self.default_pose,
@@ -502,54 +498,15 @@ class GraphPolicy:
                     np.full(DEPTH_SHAPE, DEPTH_MAX_RANGE, np.float32),
                     timeout=60.0,
                 )
-            if isaac_ros:
-                self._enable.publish(self._bool(data=False))
-                self._enabled = False
-                deadline = time.monotonic() + 0.2
-                while time.monotonic() < deadline:
-                    self._executor.spin_once(timeout_sec=CONTROL_DT)
-                self._result = None
-            else:
-                with torch.inference_mode():
-                    self.inference.reset()
+            self._enable.publish(Bool(data=False))
+            self._enabled = False
+            deadline = time.monotonic() + 0.2
+            while time.monotonic() < deadline:
+                self._executor.spin_once(timeout_sec=CONTROL_DT)
+            self._result = None
         except BaseException:
             self.close()
             raise
-
-    def _start_ros(self, config_path: Path) -> None:
-        import rclpy
-        from isaac_ros_deploy_converters.tensor_utils import make_tensor
-        from isaac_ros_deploy_interfaces.msg import JointCommand
-        from isaac_ros_tensor_msgs.msg import TensorList
-        from rclpy.context import Context
-        from rclpy.executors import SingleThreadedExecutor
-        from std_msgs.msg import Bool
-
-        self._make_tensor = make_tensor
-        self._tensor_list, self._bool = TensorList, Bool
-        self._context = Context()
-        rclpy.init(context=self._context)
-        namespace = Path(self._directory.name).name
-        self._node = rclpy.create_node("device_adapter", namespace=namespace, context=self._context)
-        self._executor = SingleThreadedExecutor(context=self._context)
-        self._executor.add_node(self._node)
-        self._inputs = self._node.create_publisher(TensorList, "robot_inputs", 1)
-        self._enable = self._node.create_publisher(Bool, "enable", 1)
-        self._node.create_subscription(JointCommand, "joint_commands", self._on_output, 1)
-        self._process = subprocess.Popen(
-            [
-                sys.executable,
-                str(Path(__file__).resolve()),
-                "--ros-runtime",
-                str(config_path),
-                namespace,
-            ],
-            start_new_session=True,
-            env={**os.environ, "TMPDIR": self._directory.name},
-        )
-        deadline = time.monotonic() + 60.0
-        while not self._inputs.get_subscription_count() or not self._enable.get_subscription_count():
-            self._spin_until(deadline)
 
     def _spin_until(self, deadline: float) -> None:
         if self._process.poll() is not None:
@@ -562,7 +519,7 @@ class GraphPolicy:
         self._result = message
 
     def step(self, joint_pos, joint_vel, quat_xyzw, ang_vel, command, depth, timeout: float = DEPTH_MAX_AGE):
-        """Run inference and return finite motor targets, Kp and Kd, each shaped ``(29,)``."""
+        """Publish device tensors and wait for a fresh, finite command from the official runtime."""
         q, dq = self._default.copy(), np.zeros_like(self._default)
         q[self._motors], dq[self._motors] = joint_pos, joint_vel
         if self._imu_tilt[0] != 1.0:
@@ -589,30 +546,13 @@ class GraphPolicy:
             "command:base_velocity": np.asarray(command, np.float32)[None],
             "state:depth_camera:output:distance_to_image_plane": frame[None, :, :, None],
         }
-        for connection, value in values.items():
-            if list(value.shape) != self._ports[connection]["shape"] or not np.isfinite(value).all():
-                raise ValueError(f"Invalid device input for {connection}")
-        if self._isaac_ros:
-            arrays = self._infer_ros(values, timeout)
-        else:
-            inputs = {
-                self._keys[connection]: self._torch.from_numpy(np.ascontiguousarray(value))
-                for connection, value in values.items()
-            }
-            with self._torch.inference_mode():
-                outputs = self.inference.run_policy(inputs)
-            arrays = [outputs[self._keys[c]].detach().cpu().numpy().reshape(-1) for c in ROS_OUTPUT_KINDS]
-        if any(value.shape != (len(self._names),) or not np.isfinite(value).all() for value in arrays):
-            raise ValueError("The graph returned invalid joint targets or gains")
-        target, self.kp, self.kd = (value[self._motors] for value in arrays)
-        return target, self.kp, self.kd
-
-    def _infer_ros(self, values: dict, timeout: float) -> list[np.ndarray]:
         message = self._tensor_list()
         message.header.stamp = self._node.get_clock().now().to_msg()
         sent_at = message.header.stamp.sec * 10**9 + message.header.stamp.nanosec
         for connection, value in values.items():
             spec = self._ports[connection]
+            if list(value.shape) != spec["shape"] or not np.isfinite(value).all():
+                raise ValueError(f"Invalid device input for {connection}")
             message.names.append(spec["name"])
             message.tensors.append(self._make_tensor(value))
         self._inputs.publish(message)
@@ -630,7 +570,11 @@ class GraphPolicy:
                 continue
             if list(result.names) != self._names:
                 raise ValueError("Isaac ROS Deploy returned a different joint layout")
-            return [np.asarray(value, np.float32) for value in (result.position, result.kp, result.kd)]
+            arrays = [np.asarray(value, np.float32) for value in (result.position, result.kp, result.kd)]
+            if any(value.shape != (len(self._names),) or not np.isfinite(value).all() for value in arrays):
+                raise ValueError("Isaac ROS Deploy returned invalid joint targets or gains")
+            target, self.kp, self.kd = (value[self._motors] for value in arrays)
+            return target, self.kp, self.kd
 
     def close(self) -> None:
         """Stop the child runtime and release its temporary metadata without touching the export."""
@@ -645,10 +589,9 @@ class GraphPolicy:
             self._executor.shutdown()
         if self._node is not None:
             self._node.destroy_node()
-        if self._context is not None and self._context.ok():
+        if self._context.ok():
             self._context.shutdown()
-        if self._directory is not None:
-            self._directory.cleanup()
+        self._directory.cleanup()
 
     def __enter__(self):
         return self
@@ -737,11 +680,8 @@ def bring_up(link: G1Link, pose: np.ndarray, kp, kd, ramp_s: float) -> None:
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="[%(levelname)s]: %(message)s", stream=sys.stdout)
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--pipeline", help="Exported LEAPP .yaml (required; ONNX for --isaac_ros).")
+    parser.add_argument("--pipeline", help="Exported ONNX LEAPP .yaml (required).")
     parser.add_argument("--interface", help="Network interface on the robot's subnet (required).")
-    parser.add_argument(
-        "--isaac_ros", action="store_true", help="Use Isaac ROS Deploy instead of LEAPP Python inference."
-    )
     parser.add_argument("--ros-runtime", nargs=2, help=argparse.SUPPRESS)
     parser.add_argument("--domain_id", type=int, default=0, help="DDS domain.")
     parser.add_argument("--depth_port", type=int, default=5601, help="UDP port the publisher sends to.")
@@ -771,7 +711,7 @@ def main() -> int:
     except ValueError:
         parser.error("--imu_tilt requires finite PITCH,ROLL values in degrees")
 
-    with GraphPolicy(args.pipeline, args.depth_rotation, (pitch, roll), isaac_ros=args.isaac_ros) as policy:
+    with GraphPolicy(args.pipeline, args.depth_rotation, (pitch, roll)) as policy:
         link = G1Link(args.domain_id, args.interface)
         depth = DepthStream(args.depth_port)
         depth.wait()
@@ -806,8 +746,6 @@ def main() -> int:
                         frame,
                     )
                     link.write(joint_pos, kp, kd)
-                    if not args.isaac_ros:
-                        link.wait(CONTROL_DT)
         except (KeyboardInterrupt, OperatorAbort) as error:
             logger.info(str(error) or "Interrupted")
         except (RuntimeError, TimeoutError) as error:
