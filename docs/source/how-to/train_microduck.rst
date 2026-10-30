@@ -63,3 +63,50 @@ To retain the previous recipe in a custom task config, use ``mdp.track_linear_ve
 2.0 and ``std=math.sqrt(0.1)``, and ``mdp.track_angular_velocity`` with weight 2.0 and
 ``std=math.sqrt(0.5)``. Set ``rewards.pose.params["standing_only"] = False`` and restore the action-rate
 weight stages to ``(500, -0.2)``, ``(750, -0.4)``, ``(1000, -0.6)``, ``(1250, -0.8)``, and ``(1500, -1.0)``.
+
+Symmetry augmentation
+---------------------
+
+Select ``--agent rsl_rl_with_symmetry_cfg_entry_point`` to train either walking task with
+left/right data augmentation. This doubles each PPO minibatch with reflected observations and
+actions. It uses MicroDuck's servo order and joint-axis signs, and reflects the critic's foot
+features as well. Mirror loss is disabled. RSL-RL may still log a detached symmetry diagnostic.
+
+.. code-block:: bash
+
+    uv run isaaclab train --task IsaacContrib-Velocity-Flat-MicroDuck \
+        --rl_library rsl_rl --agent rsl_rl_with_symmetry_cfg_entry_point
+
+Single-GPU fast-start experiment
+--------------------------------
+
+The optional recipe below combines augmentation with a wider yaw-tracking tolerance of 0.5 rad/s,
+following `AGILE's G1 reward kernel <https://github.com/nvidia-isaac/WBC-AGILE/tree/main/agile/rl_env/tasks/locomotion/g1>`_. It keeps the original action scale, networks, exploration, and
+other rewards. Mirror loss is disabled. Use early checkpoint evaluations to select the training
+budget; the recipe does not guarantee convergence across seeds or terrain presets.
+
+.. code-block:: bash
+
+    PYTHONPATH=scripts/benchmarks/microduck uv run isaaclab train \
+        --external_callback microduck_fast_recipe.register \
+        --task IsaacContrib-Velocity-Flat-MicroDuck-FastStudy --rl_library rsl_rl \
+        --num_envs 4096 --seed 42 --max_iterations 501 agent.save_interval=100
+
+Evaluating early checkpoints
+----------------------------
+
+Compare saved checkpoints with the same fixed-command benchmark:
+
+.. code-block:: bash
+
+    uv run python scripts/benchmarks/microduck/evaluate_microduck.py \
+        --checkpoint /path/to/model_500.pt --output /path/to/evaluation.json
+
+The evaluator uses the default flat robot and reads the action scale from the saved environment
+configuration. It does not restore rough terrain, backlash, or other dynamics overrides. Its 12 command
+cases cover standing, forward/backward walking, mirrored lateral motion, turns, and combined
+translation and turning. It reports velocity MAE and RMSE, falls, surviving sample coverage,
+per-robot stance asymmetry, swing durations, single-support fraction, and policy mirror error.
+Startup and reset randomization remain enabled. It excludes a robot's samples after its first fall
+and reports the resulting coverage explicitly.
+Compare physical metrics and wall time as well as rewards and iteration counts.
