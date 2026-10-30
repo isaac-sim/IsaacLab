@@ -93,9 +93,11 @@ def _make_cfg(**overrides) -> BamActuatorCfg:
     return BamActuatorCfg(**kwargs)
 
 
-def _spawn_pendulums(sim, pendulum_usd: str, cfgs: dict[str, BamActuatorCfg]) -> list[Articulation]:
-    """Spawn one BAM pendulum per entry of *cfgs* in each of :data:`NUM_ENVS` environments and reset."""
-    for index in range(NUM_ENVS):
+def _spawn_pendulums(
+    sim, pendulum_usd: str, cfgs: dict[str, BamActuatorCfg], num_envs: int = NUM_ENVS
+) -> list[Articulation]:
+    """Spawn one BAM pendulum per entry of *cfgs* in each of *num_envs* environments and reset."""
+    for index in range(num_envs):
         sim_utils.create_prim(f"/World/Env_{index}", "Xform", translation=(index * 1.0, 0.0, 1.0))
     robots = [
         Articulation(
@@ -108,7 +110,7 @@ def _spawn_pendulums(sim, pendulum_usd: str, cfgs: dict[str, BamActuatorCfg]) ->
         )
         for name, cfg in cfgs.items()
     ]
-    clone_plan_from_env_0(CloneCfg(clone_template="/World/Env_{}"), [robot.cfg for robot in robots], NUM_ENVS, 1.0)
+    clone_plan_from_env_0(CloneCfg(clone_template="/World/Env_{}"), [robot.cfg for robot in robots], num_envs, 1.0)
     replicate(sim.get_clone_plan())
     sim.reset()
     return robots
@@ -317,10 +319,13 @@ def test_each_group_keeps_its_own_configuration(native_sim, device, elbow_delay)
     ids=["featherstone", "mujoco-cpu", "lab-executed", "missing-play-hinge"],
 )
 def test_unsupported_setups_fail_at_startup(device, pendulum_usd, solver_cfg, use_newton_actuators, overrides, error):
-    """Setups BAM cannot run fail while the scene starts, instead of approximating friction or dropping settings."""
+    """Setups BAM cannot run fail while the scene starts, instead of approximating friction or dropping settings.
+
+    One environment, since Newton runs MuJoCo on the CPU only for a single world.
+    """
     sim_cfg = _make_sim_cfg(device, solver_cfg=solver_cfg, use_newton_actuators=use_newton_actuators)
     with build_simulation_context(device=device, gravity_enabled=True, add_ground_plane=False, sim_cfg=sim_cfg) as sim:
         sim._app_control_on_stop_handle = None  # noqa: SLF001
         cfgs = {f"Robot{index}": _make_cfg(**kwargs) for index, kwargs in enumerate(overrides)}
         with pytest.raises(ValueError, match=error):
-            _spawn_pendulums(sim, pendulum_usd, cfgs)
+            _spawn_pendulums(sim, pendulum_usd, cfgs, num_envs=1)
