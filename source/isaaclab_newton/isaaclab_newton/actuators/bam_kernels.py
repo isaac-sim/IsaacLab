@@ -77,6 +77,28 @@ def bam_command_lag_reset_kernel(
         phase[i] = 0
 
 
+@wp.struct
+class BamFrictionFit:
+    """Gearbox friction fit of a BAM motor, as in :class:`~isaaclab.actuators.BamMotorCfg`.
+
+    The flags select the terms of the fit's model, as in :data:`~isaaclab.actuators.actuator_bam_cfg.BAM_MODEL_FLAGS`.
+    """
+
+    friction_base: float
+    friction_stribeck: float
+    dtheta_stribeck: float
+    alpha: float
+    load_friction_motor: float
+    load_friction_external: float
+    load_friction_motor_stribeck: float
+    load_friction_external_stribeck: float
+    load_friction_motor_quad: float
+    load_friction_external_quad: float
+    stribeck: int
+    load_dependent: int
+    quadratic: int
+
+
 @wp.kernel
 def bam_friction_budget_kernel(
     joint_qd: wp.array[float],
@@ -87,19 +109,7 @@ def bam_friction_budget_kernel(
     prev_applied_torque: wp.array[float],
     episode_start: wp.array[wp.bool],
     friction_scale: wp.array[float],
-    friction_base: wp.array[float],
-    friction_stribeck: wp.array[float],
-    dtheta_stribeck: wp.array[float],
-    alpha: wp.array[float],
-    load_friction_motor: wp.array[float],
-    load_friction_external: wp.array[float],
-    load_friction_motor_stribeck: wp.array[float],
-    load_friction_external_stribeck: wp.array[float],
-    load_friction_motor_quad: wp.array[float],
-    load_friction_external_quad: wp.array[float],
-    stribeck: int,
-    load_dependent: int,
-    quadratic: int,
+    fit: BamFrictionFit,
     external_torque: wp.array[float],
     friction_budget: wp.array[float],
     joint_friction: wp.array[float],
@@ -122,27 +132,27 @@ def bam_friction_budget_kernel(
     external_torque[i] = ext_tau
 
     stribeck_coeff = float(0.0)
-    if stribeck != 0:
-        stribeck_coeff = wp.exp(-wp.pow(wp.abs(joint_vel) / dtheta_stribeck[i], alpha[i]))
+    if fit.stribeck != 0:
+        stribeck_coeff = wp.exp(-wp.pow(wp.abs(joint_vel) / fit.dtheta_stribeck, fit.alpha))
 
     prev_tau = prev_applied_torque[i]
-    budget = friction_base[i]
-    if stribeck != 0:
-        budget += stribeck_coeff * friction_stribeck[i]
-    if load_dependent != 0:
-        budget += wp.abs(ext_tau * load_friction_external[i] - prev_tau * load_friction_motor[i])
-        if stribeck != 0:
+    budget = fit.friction_base
+    if fit.stribeck != 0:
+        budget += stribeck_coeff * fit.friction_stribeck
+    if fit.load_dependent != 0:
+        budget += wp.abs(ext_tau * fit.load_friction_external - prev_tau * fit.load_friction_motor)
+        if fit.stribeck != 0:
             budget += stribeck_coeff * wp.abs(
-                ext_tau * load_friction_external_stribeck[i] - prev_tau * load_friction_motor_stribeck[i]
+                ext_tau * fit.load_friction_external_stribeck - prev_tau * fit.load_friction_motor_stribeck
             )
-            if quadratic != 0:
+            if fit.quadratic != 0:
                 # Driving (motor wins) loads the gearbox through the external torque;
                 # back-driving (load wins) loads it through the motor torque.
                 abs_ext = wp.abs(ext_tau)
                 abs_motor = wp.abs(prev_tau)
-                quad_term = load_friction_motor_quad[i] * abs_motor * abs_motor
+                quad_term = fit.load_friction_motor_quad * abs_motor * abs_motor
                 if abs_motor > abs_ext:
-                    quad_term = load_friction_external_quad[i] * abs_ext * abs_ext
+                    quad_term = fit.load_friction_external_quad * abs_ext * abs_ext
                 budget += stribeck_coeff * quad_term
     budget *= friction_scale[i]
 

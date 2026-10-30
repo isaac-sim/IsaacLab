@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING
 
 import numpy as np
 import warp as wp
@@ -26,6 +26,7 @@ from newton.actuators import InputProcessorDelay
 from isaaclab.actuators.actuator_bam_cfg import BAM_MODEL_FLAGS, BamMotorCfg
 
 from .bam_kernels import (
+    BamFrictionFit,
     bam_command_lag_kernel,
     bam_command_lag_reset_kernel,
     bam_friction_budget_kernel,
@@ -163,20 +164,6 @@ class BamFriction:
     effort for the next budget. Both run in CUDA graphs.
     """
 
-    COEFFICIENTS: ClassVar[tuple[str, ...]] = (
-        "friction_base",
-        "friction_stribeck",
-        "dtheta_stribeck",
-        "alpha",
-        "load_friction_motor",
-        "load_friction_external",
-        "load_friction_motor_stribeck",
-        "load_friction_external_stribeck",
-        "load_friction_motor_quad",
-        "load_friction_external_quad",
-    )
-    """Fit coefficients copied per DOF from :class:`~isaaclab.actuators.BamMotorCfg`."""
-
     def __init__(self, motor: BamMotorCfg, dof_indices: wp.array, dofs_per_env: int):
         """Initialize the friction state of a set of servo DOFs.
 
@@ -187,18 +174,25 @@ class BamFriction:
         """
         device = dof_indices.device
         num_dofs = len(dof_indices)
-        flags = BAM_MODEL_FLAGS[motor.model]
-        self.stribeck = flags["stribeck"]
-        self.load_dependent = flags["load_dependent"]
-        self.quadratic = flags["quadratic"]
         self.dof_indices = dof_indices
         """DOF index of each slot into ``joint_qd``-shaped arrays, shape ``(N,)``."""
         self._dofs_per_env = dofs_per_env
-        self.coefficients = {
-            name: wp.array(np.full(num_dofs, getattr(motor, name), dtype=np.float32), device=device)
-            for name in self.COEFFICIENTS
-        }
-        """Fit coefficients per slot, shape ``(N,)`` each."""
+        self.fit = BamFrictionFit()
+        """Friction fit of the servos' motor."""
+        self.fit.friction_base = motor.friction_base
+        self.fit.friction_stribeck = motor.friction_stribeck
+        self.fit.dtheta_stribeck = motor.dtheta_stribeck
+        self.fit.alpha = motor.alpha
+        self.fit.load_friction_motor = motor.load_friction_motor
+        self.fit.load_friction_external = motor.load_friction_external
+        self.fit.load_friction_motor_stribeck = motor.load_friction_motor_stribeck
+        self.fit.load_friction_external_stribeck = motor.load_friction_external_stribeck
+        self.fit.load_friction_motor_quad = motor.load_friction_motor_quad
+        self.fit.load_friction_external_quad = motor.load_friction_external_quad
+        flags = BAM_MODEL_FLAGS[motor.model]
+        self.fit.stribeck = flags["stribeck"]
+        self.fit.load_dependent = flags["load_dependent"]
+        self.fit.quadratic = flags["quadratic"]
         self.friction_scale = wp.ones(num_dofs, dtype=wp.float32, device=device)
         """Multiplier of the friction budget [-], shape ``(N,)``."""
         self.external_torque = wp.zeros(num_dofs, dtype=wp.float32, device=device)
@@ -246,10 +240,7 @@ class BamFriction:
                 self.prev_applied_torque,
                 self.episode_start,
                 self.friction_scale,
-                *(self.coefficients[name] for name in self.COEFFICIENTS),
-                self.stribeck,
-                self.load_dependent,
-                self.quadratic,
+                self.fit,
             ],
             outputs=[self.external_torque, self.friction_budget, joint_friction],
             device=self.dof_indices.device,
