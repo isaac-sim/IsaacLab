@@ -54,6 +54,10 @@ The following features are currently available in ``isaaclab_contrib``:
      - Geometric controllers for multirotor attitude, velocity, acceleration, and position tracking
        on SO(3) (Lee et al.). Suitable for both trajectory following and RL baselines.
      - API reference: :mod:`~isaaclab_contrib.controllers`
+   * - **Newton Suction Gripper**
+     - Experimental force-based suction for replicated rigid parcels, demonstrated with
+       success-guided resets in a Franka conveyor-sorting task. Requires the pinned Newton prototype.
+     - :download:`Sorting example <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/conveyor_suction/README.md>`
    * - **Newton Solver Coupling**
      - Proxy coupling between MJWarp and VBD. Deformable assets are implemented in
        :mod:`isaaclab_newton.assets`.

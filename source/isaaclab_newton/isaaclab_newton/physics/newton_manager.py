@@ -22,6 +22,7 @@ from newton import Axis, Contacts, ModelBuilder, ModelFlags, State
 from newton.selection import ArticulationView
 from newton.sensors import SensorContact as NewtonContactSensor
 from newton.sensors import SensorIMU as NewtonSensorIMU
+from newton.solvers import SolverBase
 
 from pxr import UsdGeom
 
@@ -322,6 +323,7 @@ class NewtonManager(PhysicsManager):
         # The CUDA graph points at the old model's freed buffers (CUDA 700 on the next step).
         self._graph = None
         self._graph_capture_pending = False
+        self._solver_observables = None
         self.transforms_may_change_on_graph_replay = False
         self._use_newton_actuators_active = False
         if backend is not None:
@@ -503,6 +505,11 @@ class NewtonManager(PhysicsManager):
         self._pre_actuator_callbacks: list[Callable[[], None]] = []
         self._post_actuator_callbacks: list[Callable[[], None]] = []
         self._state_force_callbacks: list[Callable[[State], None]] = []
+        self._post_solver_substep_callbacks: list[
+            Callable[[Contacts | None, SolverBase.Observables | None, State, float], None]
+        ] = []
+        self._requested_solver_observables: set[str] = set()
+        self._solver_observables: SolverBase.Observables | None = None
         self._post_step_callbacks: list[Callable[[], None]] = []
         # Substeps clear the input state's forces, so each one re-applies this copy of the staged body forces.
         self._staged_body_f: wp.array | None = None
@@ -914,6 +921,11 @@ class NewtonManager(PhysicsManager):
             if not solver_cls.single_state:
                 solver_cls.init_state(solver_cfg, solver, backend.state_1)
             self._initialize_contacts()
+            self._solver_observables = (
+                backend.solver.observables(self._requested_solver_observables, contacts=backend.contacts)
+                if self._requested_solver_observables
+                else None
+            )
             state_0 = backend.state_0
             self._staged_body_f = wp.zeros_like(state_0.body_f) if state_0.body_count else None
 
@@ -978,6 +990,8 @@ class NewtonManager(PhysicsManager):
         backend = self.backend
         solver_cfg, solver = self._cfg.solver_cfg, backend.solver
         step = solver_cfg.class_type.step
+        if self._solver_observables is not None:
+            step = partial(step, observables=self._solver_observables)
         num_substeps = backend.num_substeps
         collide_every = self._cfg.collision_decimation
         # Last substep is skipped: its contact set would only feed the next tick's
@@ -990,6 +1004,8 @@ class NewtonManager(PhysicsManager):
                 for callback in self._state_force_callbacks:
                     callback(backend.state_0)
                 step(solver_cfg, solver, backend.state_0, backend.state_0, backend.control, contacts, backend.solver_dt)
+                for callback in self._post_solver_substep_callbacks:
+                    callback(contacts, self._solver_observables, backend.state_0, backend.solver_dt)
                 backend.state_0.clear_forces()
                 if collide_mid_loop and (i + 1) % collide_every == 0 and i + 1 < num_substeps:
                     backend.collision_pipeline.collide(backend.state_0, contacts)
@@ -1000,6 +1016,8 @@ class NewtonManager(PhysicsManager):
                 for callback in self._state_force_callbacks:
                     callback(backend.state_0)
                 step(solver_cfg, solver, backend.state_0, backend.state_1, backend.control, contacts, backend.solver_dt)
+                for callback in self._post_solver_substep_callbacks:
+                    callback(contacts, self._solver_observables, backend.state_1, backend.solver_dt)
                 if need_copy_on_last and i == num_substeps - 1:
                     backend.state_0.assign(backend.state_1)
                 else:
@@ -1098,6 +1116,14 @@ class NewtonManager(PhysicsManager):
             view = ArticulationView(model, prim_paths, verbose=False)
         return VisualShapeColorWriter(model, view, body_names)
 
+    def request_solver_observables(self, *kinds: str) -> None:
+        """Request solver outputs before initialization; requests survive hard resets."""
+        self._requested_solver_observables.update(kinds)
+
+    def get_solver_observables(self) -> SolverBase.Observables | None:
+        """Return the outputs populated by each solver substep, or ``None`` when unrequested."""
+        return self._solver_observables
+
     def get_scene_data_provider(self) -> SceneDataProvider:
         """Return the active scene data provider."""
         return SimulationContext.instance().get_scene_data_provider()
@@ -1188,6 +1214,34 @@ class NewtonManager(PhysicsManager):
         if callback in self._state_force_callbacks:
             return
         self._state_force_callbacks.append(callback)
+
+    def unregister_state_force_callback(self, callback: Callable[[State], None]) -> None:
+        """Detach a force callback and recapture an active graph without it."""
+        if callback in self._state_force_callbacks:
+            self._state_force_callbacks.remove(callback)
+            if self._graph is not None:
+                self._invalidate_graph()
+
+    def register_post_solver_substep_callback(
+        self, callback: Callable[[Contacts | None, SolverBase.Observables | None, State, float], None]
+    ) -> None:
+        """Register a graph-safe hook after each solve, before state swapping and force clearing."""
+        if callback not in self._post_solver_substep_callbacks:
+            self._post_solver_substep_callbacks.append(callback)
+
+    def unregister_post_solver_substep_callback(
+        self, callback: Callable[[Contacts | None, SolverBase.Observables | None, State, float], None]
+    ) -> None:
+        """Detach a post-solve callback and recapture an active graph without it."""
+        if callback in self._post_solver_substep_callbacks:
+            self._post_solver_substep_callbacks.remove(callback)
+            if self._graph is not None:
+                self._invalidate_graph()
+
+    def unregister_solver_init_callback(self, callback: Callable[[], None]) -> None:
+        """Remove a pending one-shot solver initialization hook, if still registered."""
+        with contextlib.suppress(ValueError):
+            self._solver_init_callbacks.remove(callback)
 
     def register_post_step_callback(self, callback: Callable[[], None]) -> None:
         """Append a hook to the list invoked after the last solver substep on every step.
