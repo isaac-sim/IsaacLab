@@ -324,6 +324,7 @@ class NewtonManager(PhysicsManager):
         self._graph = None
         self._graph_capture_pending = False
         self._solver_observables = None
+        self.transforms_may_change_on_graph_replay = False
         self._use_newton_actuators_active = False
         if backend is not None:
             self.backend = None
