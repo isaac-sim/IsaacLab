@@ -190,6 +190,7 @@ def test_importing_the_export_reproduces_the_initialized_model(tmp_path, caplog,
     if solver != "mujoco":
         # USD cannot state a target mode; without MuJoCo's velocity actuator the import infers position mode.
         assert "target mode" in caplog.text
+        assert "USD does not state the settings of XPBDSolverCfg" in caplog.text
         del live["joint_target_mode", hinge]
     for (name, label), value in live.items():
         if name in ("body_q", "joint_X_p", "joint_X_c"):
@@ -310,6 +311,24 @@ def test_a_mass_change_keeps_the_inertia_derived_from_geometry(tmp_path):
     loaded = _capture(model, model.body_q)
     for name in ("body_mass", "body_inertia"):
         np.testing.assert_allclose(loaded[name, box], live[name, box], rtol=1e-5, err_msg=name)
+
+
+def test_a_joint_actuated_without_a_usd_drive_gets_one(tmp_path):
+    """Newton's import actuates only axes with a USD drive; an axis Isaac Lab actuates gets one, also at zero gains."""
+    from isaaclab_newton.physics import XPBDSolverCfg
+
+    from isaaclab.actuators import ImplicitActuatorCfg
+
+    def undriven(stage):
+        stage.GetPrimAtPath("/Robot/Hinge").RemoveAPI(UsdPhysics.DriveAPI, "angular")
+
+    actuator = ImplicitActuatorCfg(joint_names_expr=["Hinge"], stiffness=0.0, damping=0.0)
+    output, live, _, _ = _export(tmp_path, XPBDSolverCfg(), "cpu", hinge_actuator=actuator, edit_robot=undriven)
+
+    model = _newton_import(output, "xpbd", "cpu")
+    key = "joint_target_mode", "/World/envs/env_0/Robot/Hinge:0"
+    assert live[key] == int(newton.JointTargetMode.EFFORT)
+    assert _capture(model, model.body_q)[key] == live[key]
 
 
 def test_the_solver_step_rate_is_stated(tmp_path):

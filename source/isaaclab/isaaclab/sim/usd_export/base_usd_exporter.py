@@ -331,6 +331,12 @@ class BaseUsdExporter(ABC):
         # Cached copies of remote assets exist only on this machine; reference their source instead.
         UsdUtils.ModifyAssetPaths(layer, lambda asset: unmirror_file_path(asset) or asset)
         UsdUtils.ModifyAssetPaths(layer, functools.partial(self._keep_temporary_file, export_path=export_path))
+        remote = sorted({asset for asset in layer.GetCompositionAssetDependencies() if "://" in asset})
+        if remote:
+            logger.warning(
+                "The export references remote assets; an import opens them only with a resolver that fetches them, such"
+                f" as Isaac Sim's, or after they are copied locally: {remote}."
+            )
 
     @staticmethod
     def _keep_temporary_file(asset: str, export_path: str) -> str:
@@ -514,10 +520,13 @@ class BaseUsdExporter(ABC):
                 stated = tuple(sorted(cls._unless_fallback(engine, fallbacks or {}).items()))
                 if stated not in created:
                     root = stage.GetDefaultPrim().GetPath() if stage.GetDefaultPrim() else Sdf.Path.absoluteRootPath
-                    index = len(created)
-                    while stage.GetPrimAtPath(root.AppendPath(f"PhysicsMaterials/Material_{index}")):
-                        index += 1  # never reuse a prim the stage already has
-                    created[stated] = str(root.AppendPath(f"PhysicsMaterials/Material_{index}"))
+                    index, taken = 0, set(created.values())
+                    # Never reuse a prim the stage already has, nor a new material's path.
+                    while (path := str(root.AppendPath(f"PhysicsMaterials/Material_{index}"))) in taken or (
+                        stage.GetPrimAtPath(path)
+                    ):
+                        index += 1
+                    created[stated] = path
                 edits.append(UsdEdit(collider, _PHYSICS_MATERIAL, created[stated]))
                 continue
             path = str(material.GetPath())

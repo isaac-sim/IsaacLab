@@ -131,6 +131,39 @@ def test_legacy_joint_attributes_isaac_lab_migrates_are_restated(tmp_path):
         assert loaded[key][name] == pytest.approx(live[key][name], rel=1e-5), name
 
 
+def test_a_newton_joint_value_isaac_lab_overrides_is_restated(tmp_path):
+    """OVPhysX 0.7 applies a per-axis joint value only when positive and otherwise keeps an authored Newton value,
+    so the export restates a Newton value the live engine no longer holds."""
+    from isaaclab_ov.physics import OvPhysxCfg, ovphysx_compat
+    from usd_export_read_import import read, read_import, readings
+
+    from isaaclab.scene import InteractiveScene
+    from isaaclab.sim import SimulationCfg, build_simulation_context
+    from isaaclab.test.utils.usd_export import make_export_scene_cfg, physics_prims
+
+    if not ovphysx_compat.OVPHYSX_USES_TASKS:
+        pytest.skip("OVPhysX before 0.7 reads PhysxJointAPI ahead of Newton's attributes.")
+    cfg = make_export_scene_cfg(tmp_path)
+    robot = Usd.Stage.Open(cfg.robot.spawn.usd_path)
+    hinge = robot.GetPrimAtPath("/Robot/Hinge")
+    hinge.AddAppliedSchema("NewtonJointAPI")
+    hinge.CreateAttribute("newton:armature", Sdf.ValueTypeNames.Float).Set(0.3)
+    robot.GetRootLayer().Save()
+    cfg.robot.actuators["hinge"].armature = 0.0
+    with build_simulation_context(sim_cfg=SimulationCfg(device="cpu", dt=1 / 120, physics=OvPhysxCfg())) as sim:
+        scene = InteractiveScene(cfg)
+        sim.reset()
+        stage = Usd.Stage.Open(scene.export_to_usd(str(tmp_path / "exported.usda")))
+        articulations, bodies = physics_prims(stage)
+        live = readings(stage, read(sim.backend_manager.get_physx_instance(), articulations, bodies, "cpu"))
+    with ProcessPoolExecutor(max_workers=1, mp_context=multiprocessing.get_context("spawn")) as pool:
+        imported = pool.submit(read_import, stage.Flatten().ExportToString(), articulations, bodies).result()
+
+    key = "/World/envs/env_0/Robot/Hinge", "angular"
+    assert live[key]["armature"] == pytest.approx(0.0)
+    assert readings(stage, imported)[key]["armature"] == pytest.approx(0.0)
+
+
 def test_a_stopped_simulation_reads_the_engine_again(tmp_path):
     """The engine read at startup is dropped when the simulation stops and taken again when it is ready."""
     from isaaclab_ov.physics import OvPhysxCfg

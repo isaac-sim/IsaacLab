@@ -394,7 +394,8 @@ def test_collider_values_its_shapes_disagree_on_are_written_only_if_unchanged():
 
 
 def test_a_collider_without_a_material_gets_one_stating_its_values():
-    """Material values of a collider without a physics material go on a new material bound to it, at an unused path.
+    """Material values of a collider without a physics material go on a new material bound to it, at an unused path;
+    colliders with other values get another new material.
 
     A body without colliders, which reports empty per-shape arrays, gets no collider values.
     """
@@ -405,6 +406,8 @@ def test_a_collider_without_a_material_gets_one_stating_its_values():
     stage.DefinePrim("/PhysicsMaterials/Material_0", "Material")
     UsdPhysics.RigidBodyAPI.Apply(UsdGeom.Xform.Define(stage, "/Box").GetPrim())
     UsdPhysics.CollisionAPI.Apply(UsdGeom.Cube.Define(stage, "/Box/Collider").GetPrim())
+    UsdPhysics.RigidBodyAPI.Apply(UsdGeom.Xform.Define(stage, "/Other").GetPrim())
+    UsdPhysics.CollisionAPI.Apply(UsdGeom.Cube.Define(stage, "/Other/Collider").GetPrim())
     UsdPhysics.RigidBodyAPI.Apply(UsdGeom.Xform.Define(stage, "/Bare").GetPrim())
     data = SimpleNamespace(
         body_mass=SimpleNamespace(torch=torch.full((1, 1), 1.0)),
@@ -416,17 +419,19 @@ def test_a_collider_without_a_material_gets_one_stating_its_values():
     bare = {"material": np.zeros((0, 3)), "contact_offset": np.zeros(0), "rest_offset": np.zeros(0)}
     base = {
         "box": _engine(**loaded | {"material": np.array([[0.5, 0.5, 0.0]])}),
+        "other": _engine(**loaded | {"material": np.array([[0.5, 0.5, 0.0]])}),
         "bare": _engine(**loaded | bare | {"mass": [2.0]}),
     }
     rigid_objects = {
         name: SimpleNamespace(cfg=SimpleNamespace(prim_path=path), data=data)
-        for name, path in (("box", "/Box"), ("bare", "/Bare"))
+        for name, path in (("box", "/Box"), ("other", "/Other"), ("bare", "/Bare"))
     }
     scene = _scene(base, rigid_objects=rigid_objects)
     scene.physics_scene_path = "/physicsScene"
     scene.sim.backend_manager = SimpleNamespace(get_gravity=lambda: (0.0, 0.0, -9.81))
     exporter = _Exporter(scene)
-    exporter.colliders = {"/Box": live, "/Bare": bare}
+    other = live | {"material": np.array([[0.9, 0.9, 0.0]])}
+    exporter.colliders = {"/Box": live, "/Other": other, "/Bare": bare}
 
     edits = exporter.compute_diff(stage)
     for edit in edits:
@@ -443,6 +448,20 @@ def test_a_collider_without_a_material_gets_one_stating_its_values():
     assert values == pytest.approx(
         {"physics:staticFriction": 0.8, "physics:dynamicFriction": 0.6, "physics:restitution": 0.1}
     )
+    other, _ = UsdShade.MaterialBindingAPI(stage.GetPrimAtPath("/Other/Collider")).ComputeBoundMaterial("physics")
+    assert other.GetPath() == "/PhysicsMaterials/Material_2"
+    assert other.GetPrim().GetAttribute("physics:dynamicFriction").Get() == pytest.approx(0.9)
+
+
+def test_remote_asset_references_are_reported(caplog):
+    """An import resolves a remote asset only with a resolver that fetches it, so the export warns about it."""
+    layer = Sdf.Layer.CreateAnonymous(".usda")
+    stage = Usd.Stage.Open(layer)
+    stage.DefinePrim("/Robot").GetReferences().AddReference("https://example.com/robot.usda")
+
+    _Exporter(_scene())._localize_asset_paths(layer, "exported.usda")
+
+    assert "https://example.com/robot.usda" in caplog.text
 
 
 def test_a_collision_schema_the_export_applies_states_the_other_offsets():

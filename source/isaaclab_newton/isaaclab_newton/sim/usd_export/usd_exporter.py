@@ -132,6 +132,12 @@ class UsdExporter(BaseUsdExporter):
             *self._gravity_edits(stage, gravity),
             *self._scene_edits(solver_cfg),
         ]
+        if not self._runs(solver_cfg, newton.solvers.SolverMuJoCo):
+            # Newton reads solver settings from USD only for MuJoCo (its options) and Kamino (constraint gains).
+            logger.warning(
+                f"USD does not state the settings of {type(solver_cfg).__name__} beyond Kamino's constraint gains; an"
+                " import runs the solver its consumer builds, with that solver's defaults."
+            )
         # MuJoCo's and Kamino's own contacts are found every solver step; Newton's pipeline once per physics step.
         pipeline = not getattr(solver_cfg, "use_mujoco_contacts", getattr(solver_cfg, "use_collision_detector", False))
         if physics_cfg.num_substeps > 1 and pipeline:
@@ -187,11 +193,16 @@ class UsdExporter(BaseUsdExporter):
                 for dof, axis in axes:
                     if not actuated[dof] and prim.HasAPI(UsdPhysics.DriveAPI, axis):
                         raise NotImplementedError(f"Joint '{path}' has a USD drive the engine does not actuate.")
-                # A changed drive is written whole, since Isaac Lab's build can hold drive values other than the USD's.
+                # A changed drive is written whole, since Isaac Lab's build can hold drive values other than the USD's;
+                # so is the drive of an axis Isaac Lab actuates without a USD drive, which the import would not actuate.
                 driven = {
                     name for name, (_, schema, _) in table.items() if schema and schema.startswith("PhysicsDriveAPI")
                 }
-                drive = {dof: actuated[dof] and any(changed[name][dof] for name in driven) for dof, _ in axes}
+                drive = {
+                    dof: actuated[dof]
+                    and (not prim.HasAPI(UsdPhysics.DriveAPI, axis) or any(changed[name][dof] for name in driven))
+                    for dof, axis in axes
+                }
                 if len(axes) == 1 and drive[axes[0][0]]:
                     dof = axes[0][0]
                     drives[path] = (float(values["joint_target_ke"][dof]), float(values["joint_target_kd"][dof]))

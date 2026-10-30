@@ -11,6 +11,9 @@ import re
 
 import numpy as np
 
+from pxr import Usd
+
+from isaaclab.sim.usd_export.base_usd_exporter import UsdEdit
 from isaaclab.sim.usd_export.physx_usd_exporter import PhysxUsdExporter
 from isaaclab.sim.utils.queries import path_expr_to_glob
 
@@ -52,9 +55,35 @@ LEGACY_JOINT_ATTRIBUTES = {
 """Joint property -> the ``PhysxJointAPI`` attribute Isaac Lab migrates before OVPhysX 0.7 loads the stage, and the
 Newton attribute the migration keeps instead."""
 
+NEWTON_JOINT_ATTRIBUTES = {
+    "armature": "newton:armature",
+    "max_velocity": "newton:velocityLimit",
+    "static_friction": "newton:friction",
+    "viscous_friction": "newton:damping",
+}
+"""Joint property -> the Newton attribute OVPhysX 0.7 keeps when the per-axis value is not positive."""
+
 
 class UsdExporter(PhysxUsdExporter):
     """Export an OVPhysX scene environment: its USD plus every engine value Isaac Lab changed."""
+
+    def compute_diff(self, stage: Usd.Stage) -> list[UsdEdit]:
+        edits = super().compute_diff(stage)
+        if not self._uses_tasks():
+            return edits
+        # OVPhysX 0.7 applies a per-axis joint value only when it is positive and otherwise keeps an authored Newton
+        # value, so a Newton value the live engine no longer holds is restated.
+        readings, _ = self._read_assets(stage)
+        for (path, axis), values in readings.items():
+            if axis is None:
+                continue
+            prim, table = stage.GetPrimAtPath(path), self._joint_table(axis)
+            for name, attribute in NEWTON_JOINT_ATTRIBUTES.items():
+                live = float(values[name]) * (1.0 if axis == "linear" else table[name].angular_scale)
+                stated = self._stated(prim, attribute)
+                if stated is not None and not self._close(stated, live):
+                    edits.append(UsdEdit(path, attribute, live))
+        return edits
 
     def _not_imported(self, prim, axis):
         if not self._uses_tasks():
