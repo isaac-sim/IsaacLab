@@ -1267,7 +1267,7 @@ jobs:
           test_multi_agent_environments.py,
           test_environment_determinism.py,
           test_contrib_environments_kitless.py,
-          test_newton_manager_abstraction.py
+          test_newton_manager.py
         # Keep this warmer focused on rigid environments.
         test-k-expr: "not (Soft or Cloth or Cable)"
         warp-cache: ${{ env.PUBLISHES_WARP_CACHE == 'true' && 'save' || 'restore' }}

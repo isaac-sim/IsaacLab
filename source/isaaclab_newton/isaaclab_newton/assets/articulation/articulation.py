@@ -1223,7 +1223,7 @@ class Articulation(BaseArticulation):
         # Let the data class handle the invalidation of the pose and velocity related properties.
         if not skip_forward:
             self.data._reset_pose(env_ids=env_ids)
-            self.data._reset_velocity(env_ids=env_ids)
+            self.data._reset_velocity(env_ids=env_ids, invalidate=False)
 
     def write_joint_state_to_sim_mask(
         self,
@@ -1297,7 +1297,7 @@ class Articulation(BaseArticulation):
         # Let the data class handle the invalidation of the pose and velocity related properties.
         if not skip_forward:
             self.data._reset_pose(env_mask=env_mask)
-            self.data._reset_velocity(env_mask=env_mask)
+            self.data._reset_velocity(env_mask=env_mask, invalidate=False)
 
     def write_joint_position_to_sim_index(
         self,
@@ -1357,7 +1357,7 @@ class Articulation(BaseArticulation):
         # Let the data class handle the invalidation of pose- and velocity-dependent properties.
         if not skip_forward:
             self.data._reset_pose(env_ids=env_ids)
-            self.data._reset_velocity(env_ids=env_ids)
+            self.data._reset_velocity(env_ids=env_ids, invalidate=False)
 
     def write_joint_position_to_sim_mask(
         self,
@@ -1415,7 +1415,7 @@ class Articulation(BaseArticulation):
         # Let the data class handle the invalidation of pose- and velocity-dependent properties.
         if not skip_forward:
             self.data._reset_pose(env_mask=env_mask)
-            self.data._reset_velocity(env_mask=env_mask)
+            self.data._reset_velocity(env_mask=env_mask, invalidate=False)
 
     def write_joint_velocity_to_sim_index(
         self,
