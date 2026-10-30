@@ -583,6 +583,8 @@ When replacing a kernel launch with a host operation, validate the real callers 
 When a kernel operation is known before launch, specialize it with dedicated kernels or static Warp
 branches instead of a runtime mode switch. Keep shared indexing in one implementation and benchmark
 the generated kernels against the original path.
+When a thread exclusively owns an output cell, use explicit read-add-write assignments.
+Warp array ``+=`` may lower to atomic addition; reserve atomics for concurrent reduction.
 
 Python does not have a concept of private and public classes and functions. However, we follow the
 convention of prefixing the private functions and classes with an underscore.
