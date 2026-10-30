@@ -105,6 +105,19 @@ sets actuator targets before physics. Both modes still step physics. Direct posi
 requires ``scene.lazy_sensor_update=True``. With Isaac RTX, omit ``--visualizer``
 in this mode: a Kit visualizer would render before the pose write.
 
+``Isaac-RizonSharpa-Coffee-Kitchen-Camera-Benchmark`` renders the Rizon-Sharpa coffee demo's kitchen
+scene, without the coffee powder, in every environment. Each environment replays the demo's recorded
+arm motion in a loop from its own time offset. It requires Newton physics and loads the demo's hosted
+asset bundle; set ``ISAACLAB_COFFEE_ASSET_ROOT`` to use a local copy. Select the camera data type
+and resolution with a preset named like the Kuka-Allegro camera presets:
+
+.. code-block:: bash
+
+   uv run --extra ovrtx isaaclab benchmark runtime \
+       --task Isaac-RizonSharpa-Coffee-Kitchen-Camera-Benchmark \
+       --num_envs 256 \
+       physics=newton_mjwarp renderer=ovrtx presets=simple_shading_full_mdl64
+
 Set ``ISAACLAB_PHYSICS_PROFILE=1`` to time physics steps with
 :func:`~isaaclab.benchmark.stepping.profile_physics_steps`.
 ``ISAACLAB_RENDER_PROFILE=1`` uses
