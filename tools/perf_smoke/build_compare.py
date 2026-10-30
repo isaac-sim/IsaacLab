@@ -223,22 +223,16 @@ def _row(
     context_differences = _differences(_context(a, left), _context(b, right))
     ha, hb = _observations(left, _hardware), _observations(right, _hardware)
     hardware_differences = _differences(ha, hb, missing=True)
-    status = next(
-        (value for value in ("missing", "partial", "unknown") if value in (before["status"], after["status"])),
-        "compared",
-    )
+    statuses = [value for value in ("missing", "partial", "unknown") if value in (before["status"], after["status"])]
     if not all(formulas.values()):
         reasons.append("FPS formula identity is unknown for one or both selections.")
-        if status == "compared":
-            status = "unknown"
+        statuses.append("unknown")
     elif formulas["baseline"] != formulas["candidate"]:
         reasons.append("FPS formula identities differ.")
-        if status == "compared":
-            status = "incompatible"
+        statuses.append("incompatible")
     if protocol_differences:
         reasons.append("Measurement protocol differs, varies within a selection, or has unrecorded fields.")
-        if status == "compared":
-            status = "unknown" if any(None in values for values in (*pa.values(), *pb.values())) else "incompatible"
+        statuses.append("unknown" if any(None in values for values in (*pa.values(), *pb.values())) else "incompatible")
     if hardware_differences:
         unavailable = any(None in values for values in (*ha.values(), *hb.values()))
         reasons.append(
@@ -246,8 +240,8 @@ def _row(
             if unavailable
             else "CPU/GPU hardware differs or varies within a selection."
         )
-        if status == "compared":
-            status = "unknown" if unavailable else "incompatible"
+        statuses.append("unknown" if unavailable else "incompatible")
+    status = next(iter(statuses), "compared")
     absolute_change = change_pct = None
     notes = []
     if status == "compared":

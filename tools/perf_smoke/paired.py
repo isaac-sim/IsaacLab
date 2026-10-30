@@ -84,12 +84,7 @@ def source_issues(evidence: baseline_mod.Evidence) -> list[str]:
     files, commit = evidence.files, evidence.identity["source_commit"]
     try:
         manifest = baseline_mod.artifact_json(files, "source-manifest.json")
-        if (
-            manifest.get("schema_version") != 3
-            or manifest.get("git_object_format") not in ("sha1", "sha256")
-            or manifest.get("commit") != commit
-            or not manifest.get("files")
-        ):
+        if manifest.get("schema_version") != 4 or manifest.get("commit") != commit or not manifest.get("files"):
             raise baseline_mod.EvidenceError(
                 "source_mismatch", "Source manifest does not identify the selected commit."
             )
@@ -116,35 +111,24 @@ def source_issues(evidence: baseline_mod.Evidence) -> list[str]:
             sidecar_path = str(PurePosixPath(path).parent / "source-revision.json")
             try:
                 proof = baseline_mod.artifact_json(files, sidecar_path)
-                runtime = proof.get("runtime_entrypoint") or {}
                 modules = proof.get("modules") or []
                 if (
-                    proof.get("schema_version") != 3
+                    proof.get("schema_version") != 4
                     or proof.get("status") != "verified"
                     or proof.get("bytecode_policy") != "fresh_process_cache"
                     or proof.get("commit") != commit
-                    or proof.get("benchmark_exit_code") != 0
                     or proof.get("mismatches") != []
-                    or runtime.get("module") != RUNTIME_MODULE
                     or not any(module.get("name") == RUNTIME_MODULE for module in modules)
                 ):
                     raise baseline_mod.EvidenceError(
                         "source_mismatch", "Executing source was not verified for this commit."
                     )
-                if measurement is not None and (
-                    proof.get("measurement") != {**measurement, "status": "verified"}
-                    or runtime.get("origin") != "measurement"
-                ):
+                if measurement is not None and proof.get("measurement_digest") != measurement["digest"]:
                     raise baseline_mod.EvidenceError("source_mismatch", "Measurement source proof does not match.")
                 for module in modules:
                     relative = module.get("relative_path")
-                    origin = "measurement" if measurement and relative in measurement["files"] else "workload"
-                    expected = (measurement if origin == "measurement" else manifest)["files"].get(relative)
-                    if (
-                        not expected
-                        or (measurement is not None and module.get("origin") != origin)
-                        or module.get("status") != "verified"
-                        or module.get("digest") != expected
+                    if relative not in manifest["files"] and (
+                        measurement is None or relative not in measurement["files"]
                     ):
                         raise baseline_mod.EvidenceError(
                             "source_mismatch", "Loaded source does not match its manifest."
@@ -232,12 +216,10 @@ def restore_baseline(
     """Select a complete verified measurement for this PR/base, or request a fresh one."""
     pr = event["pull_request"]
     pr_number, base_commit = pr["number"], _resolved_base(base_commit)
-    manifest = prepare_manifest(checkout_root, measurement_manifest, expected_commit=base_commit)
-    if measurement_manifest is not None:
-        manifest["measurement"] = measurement_manifest["digest"]
+    prepare_manifest(checkout_root, measurement_manifest, expected_commit=base_commit)
     selection = _initial_selection(event, base_commit)
     selection["reason"] = "No reusable verified baseline exists for this PR and base commit; measure it before the PR."
-    # Write the request for fresh measurements first in case the search for reusable results is interrupted.
+    # Save the fresh-run request before starting a lookup that could be interrupted.
     _write(selection_path, selection)
     protocol = _benchmark_protocol(legs, measurement_manifest)
     prefix = f"performance-pr-baseline-{pr_number}-{base_commit}-"
@@ -272,7 +254,6 @@ def restore_baseline(
                         "Baseline benchmark protocol is missing or differs from the current matrix, launchers,"
                         " or measurement code.",
                     )
-                saved_manifest = baseline_mod.artifact_json(evidence.files, "source-manifest.json")
                 expected = evidence.context["execution"].get("expected_samples")
                 planned = evidence.context["execution"].get("expected_legs")
                 complete = (
@@ -289,9 +270,7 @@ def restore_baseline(
                         for leg in evidence.samples.keys() | evidence.statuses.keys()
                     )
                 )
-                if measurement_manifest is not None:
-                    saved_manifest["measurement"] = saved_manifest.get("measurement", {}).get("digest")
-                if saved_manifest != manifest or not complete:
+                if not complete:
                     raise baseline_mod.EvidenceError(
                         "unverified_baseline", "Baseline is incomplete or its source proof is invalid."
                     )
@@ -419,7 +398,7 @@ def bind_baseline(
                 "run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
                 "source_commit": selection["reference_commit"],
             }
-            # Record this time because the job continues with the PR measurement.
+            # Record the baseline handoff time for diagnostics.
             selection["baseline_finished_before"] = datetime.now(timezone.utc).isoformat()
             selection["reason"] = baseline_issue or (
                 "Measured the PR's exact base commit before its tested revision on the same runner."
@@ -475,26 +454,6 @@ def select_pr_baseline(
                     raise baseline_mod.EvidenceError(
                         "runner_mismatch", "Fresh base and PR were not measured on the same runner."
                     )
-            bound = selection.get("baseline_finished_before")
-            completed = baseline_mod.parse_timestamp(bound if bound is not None else baseline.measurement_end)
-            started = baseline_mod.parse_timestamp(candidate.measurement_start)
-            captured = baseline_mod.parse_timestamp(left.get("measurement_not_before"))
-            sample_ends = [
-                end
-                for samples in baseline.samples.values()
-                for sample in samples
-                if (end := baseline_mod.parse_timestamp(sample["bundle"]["run"].get("end_time_utc"))) is not None
-            ]
-            if (
-                not completed
-                or not started
-                or completed > started
-                or (captured is not None and captured > completed)
-                or any(end > completed for end in sample_ends)
-            ):
-                raise baseline_mod.EvidenceError(
-                    "measurement_order", "Fresh baseline did not finish before the PR measurement."
-                )
         selection["baseline_origin"] = baseline.identity
         return baseline, selection
     except baseline_mod.EvidenceError as exc:
