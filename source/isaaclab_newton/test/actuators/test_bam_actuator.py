@@ -18,7 +18,7 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-from isaaclab_newton.actuators import BamCommandLag, BamFriction
+from isaaclab_newton.actuators.bam import BamCommandLag, BamFriction
 from newton import ModelBuilder
 from newton.actuators import (
     BatteryConstantResistance,

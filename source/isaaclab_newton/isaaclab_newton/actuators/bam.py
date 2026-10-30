@@ -290,7 +290,8 @@ class BamGroup:
     """Number of environments."""
 
     friction: BamFriction
-    """Gearbox friction of the group's servos."""
+    """Gearbox friction state of the group's servos. Read and write it through :attr:`friction_scale` and
+    :attr:`friction_budget`."""
 
     battery: BatteryConstantResistance
     """Newton batteries that include the group's, one per environment."""
@@ -335,7 +336,7 @@ def get_bam_group(articulation: Articulation, name: str) -> BamGroup:
     Raises:
         KeyError: If the articulation has no Newton-executed BAM group *name*.
     """
-    groups = getattr(getattr(articulation, "_actuator_control", None), "bam_groups", {})
+    groups = articulation._actuator_control.bam_groups
     if name not in groups:
         raise KeyError(f"No Newton-executed BAM actuator group '{name}'.")
     return groups[name]
