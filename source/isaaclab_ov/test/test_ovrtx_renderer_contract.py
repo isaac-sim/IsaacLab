@@ -605,7 +605,7 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
 
 @pytest.mark.parametrize("batch", [False, True], ids=["lazy", "batched"])
 def test_async_cameras_publish_independently_with_capture_metadata_and_reset(monkeypatch, batch):
-    """Completed batches do not update another camera; reset retires only that camera's history."""
+    """Real captures match delayed metadata; generated images and other cameras cannot replace them."""
     renderer = _make_ovrtx_renderer_without_backend()
     renderer.cfg.async_rendering = True
     renderer._initialized_scene = True
@@ -626,14 +626,19 @@ def test_async_cameras_publish_independently_with_capture_metadata_and_reset(mon
 
     def submit(render_products, delta_time):
         operation = MagicMock()
+        frames = [types.SimpleNamespace(end_time=float(ordinal), value=ordinal)]
+        if batch:
+            # SDK capture times identify the real image independently of the returned list order.
+            frames.insert(0, types.SimpleNamespace(end_time=ordinal - 0.5, value=-ordinal))
+            frames.append(types.SimpleNamespace(end_time=ordinal - 0.25, value=-ordinal))
         operation.wait.return_value.fetch.return_value = {
-            path: types.SimpleNamespace(frames=[ordinal]) for path in render_products
+            path: types.SimpleNamespace(frames=frames) for path in render_products
         }
         operations.append(operation)
         return operation
 
-    def consume(camera, value, buffers):
-        buffers["rgba"].fill_(value)
+    def consume(camera, frame, buffers):
+        buffers["rgba"].fill_(frame.value)
 
     renderer.backend.renderer = types.SimpleNamespace(step_async=submit)
     consume = MagicMock(side_effect=consume)
@@ -848,13 +853,23 @@ def test_ovrtx_process_frame_reads_authored_camera_render_vars(monkeypatch, use_
             for prim in stage.Traverse()
             if prim.GetTypeName() == "RenderVar"
         }
-        frame = types.SimpleNamespace(render_vars={})
+        frame = types.SimpleNamespace(end_time=1.0, render_vars={})
         buffers = {}
         for index, (output, (source, channels, dtype)) in enumerate(outputs.items(), start=1):
             value = 10 * camera_id + index
             frame.render_vars[keys[source]] = wp.full((8, 32, channels), value, dtype=dtype, device="cpu")
             buffers[output] = wp.zeros((2, 8, 16, channels), dtype=dtype, device="cpu")
-        renderer._process_render_frame(render_data, frame, buffers)
+        frames = [frame]
+        if camera_id == 1:
+            generated = types.SimpleNamespace(
+                end_time=0.5,
+                render_vars={keys["LdrColor"]: wp.full((8, 32, 4), 99, dtype=wp.uint8, device="cpu")},
+            )
+            frames.insert(0, generated)
+        render_data.warp_buffers = buffers
+        renderer._process_render_products(
+            (render_data,), {render_data.render_product_path: types.SimpleNamespace(frames=frames)}
+        )
         for index, output in enumerate(outputs, start=1):
             np.testing.assert_array_equal(buffers[output].numpy(), 10 * camera_id + index)
         render_data.cleanup()
