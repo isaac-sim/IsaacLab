@@ -266,9 +266,11 @@ class MPMSolver(NewtonSolver):
         control: Control,
         contacts: Contacts | None,
         dt: float,
+        *,
+        observables: SolverBase.Observables | None = None,
     ) -> None:
         """Run one implicit MPM substep, optionally projecting particles out of collider interiors."""
-        solver.step(state_in, state_out, control, contacts, dt)
+        super().step(cfg, solver, state_in, state_out, control, contacts, dt, observables=observables)
         if cfg.project_outside_colliders:
             solver.project_outside(state_out, state_out, dt)
 
