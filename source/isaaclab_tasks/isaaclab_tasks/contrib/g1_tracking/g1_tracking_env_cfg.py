@@ -37,7 +37,7 @@ from isaaclab.utils.noise import UniformNoiseCfg
 from isaaclab_tasks.utils import PresetCfg
 
 from .motion import CONTROL_DT
-from .tracking import RewardCfg
+from .tracking import RewardCfg, VelocityCfg
 
 G1_DATA_DIR = Path(ISAACLAB_ROOT) / "data/g1_tracking"
 
@@ -151,6 +151,7 @@ class MotionCommandCfg(CommandTermCfg):
     evaluation_clip_offset: int = 0
     reset_noise: bool = True
     objective: RewardCfg = RewardCfg()
+    velocity: VelocityCfg = VelocityCfg()
 
 
 @configclass
@@ -195,8 +196,13 @@ class ObservationsCfg:
     class GoalCfg(ObservationGroupCfg):
         reference = ObservationTermCfg(func=mdp.generated_commands, params={"command_name": "motion"})
 
+    @configclass
+    class InterfaceCfg(ObservationGroupCfg):
+        command = ObservationTermCfg(func="isaaclab_tasks.contrib.g1_tracking.mdp:control_interface")
+
     policy = PolicyCfg()
     goal = GoalCfg()
+    interface = InterfaceCfg()
 
 
 @configclass

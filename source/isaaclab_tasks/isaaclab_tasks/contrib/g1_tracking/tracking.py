@@ -19,7 +19,7 @@ import torch
 from isaaclab.utils import configclass
 from isaaclab.utils.math import matrix_from_quat
 
-from .kinematics import G1Kinematics, mat_to_6d, rot_angle_sq, yaw_mat
+from .kinematics import TRACKED_BODIES, G1Kinematics, mat_to_6d, rot_angle_sq, yaw_mat
 from .motion import MotionLib
 
 STATE_DIM = 71
@@ -28,6 +28,21 @@ XI_DIM = 33
 NUM_J = 29
 
 MAX_REWARD_RATE = 5.0
+MAX_VELOCITY_REWARD_RATE = 3.0
+
+
+@configclass
+class VelocityCfg:
+    """Optional velocity interface, using the command distribution and objective in Appendix G."""
+
+    fraction: float = 0.0
+    """Fraction of physical worlds and imagined starts assigned to velocity control."""
+    resampling_steps: int = 250
+    reference_probability: float = 0.5
+    standing_probability: float = 0.1
+    ranges: tuple[tuple[float, float], ...] = ((-1.5, 2.0), (-1.32, 1.32), (-3.35, 3.35))
+    fall_height: float = 0.35
+    fall_tilt: float = 0.7
 
 
 @configclass
@@ -50,21 +65,29 @@ def unflatten_state(x: torch.Tensor):
 
 
 class TrackingObjective:
-    def __init__(self, kin: G1Kinematics, motion: MotionLib, default_q: torch.Tensor, cfg: RewardCfg | None = None):
+    def __init__(
+        self,
+        kin: G1Kinematics,
+        motion: MotionLib,
+        default_q: torch.Tensor,
+        cfg: RewardCfg | None = None,
+        velocity_cfg: VelocityCfg | None = None,
+    ):
         self.kin, self.motion, self.cfg = kin, motion, cfg if cfg is not None else RewardCfg()
+        self.velocity_cfg = velocity_cfg if velocity_cfg is not None else VelocityCfg()
         cfg = self.cfg
         self.default_q = default_q
         mid, half = (kin.q_lo + kin.q_hi) / 2, (kin.q_hi - kin.q_lo) / 2
         self.soft_lo, self.soft_hi = mid - half * cfg.soft_limit_factor, mid + half * cfg.soft_limit_factor
 
     # ---------------- observation ----------------
-    def obs(self, S, a_prev, xi, f) -> torch.Tensor:
+    def obs(self, S, a_prev, xi, f, velocity: bool = False) -> torch.Tensor:
         """Noise-free proprioceptive observation (+ reference-relative root orientation)."""
         p, R, v, w, q, qd = S
         Rt = R.transpose(-1, -2)
         dq0 = xi[..., 1:30]
         g_b = -R[..., 2, :]  # R^T (0,0,-1)
-        rel = mat_to_6d(Rt @ self.motion.root_R[f])
+        rel = torch.zeros_like(R[..., :2, :]).flatten(-2) if velocity else mat_to_6d(Rt @ self.motion.root_R[f])
         return torch.cat((q - self.default_q - dq0, qd, (Rt @ w.unsqueeze(-1)).squeeze(-1), g_b, a_prev, rel), -1)
 
     # ---------------- reward / termination ----------------
@@ -126,3 +149,48 @@ class TrackingObjective:
             1 - torch.sigmoid((e_tilt - self.cfg.term_tilt) / tt)
         )
         return 1 - alive
+
+    def sample_velocity_command(self, f, command, reference, resample):
+        """Advance reference commands; replace held commands and their source only at resampling boundaries."""
+        cfg = self.velocity_cfg
+        reference = torch.where(
+            resample, torch.rand_like(f, dtype=torch.float32) < cfg.reference_probability, reference
+        )
+        bounds = command.new_tensor(cfg.ranges)
+        sampled = bounds[:, 0] + torch.rand_like(command) * (bounds[:, 1] - bounds[:, 0])
+        sampled = torch.where(
+            (torch.rand_like(f, dtype=torch.float32) < cfg.standing_probability).unsqueeze(-1), 0.0, sampled
+        )
+        command = torch.where(resample.unsqueeze(-1), sampled, command)
+        return torch.where(reference.unsqueeze(-1), self.motion.velocity_command[f], command), reference
+
+    def velocity_error(self, S, command) -> torch.Tensor:
+        """Signed planar velocity errors in the root heading frame and world yaw-rate error."""
+        _, R, v, w, _, _ = S
+        v_heading = (yaw_mat(R).transpose(-1, -2) @ v.unsqueeze(-1)).squeeze(-1)
+        return torch.cat((v_heading[..., :2], w[..., 2:3]), -1) - command
+
+    def velocity_reward(self, S, command, a, a_prev) -> torch.Tensor:
+        """Velocity reward rate from Table A.6, including torso and joint regularization."""
+        error = self.velocity_error(S, command)
+        _, body_R, _, body_w = self.kin.forward(*S)
+        torso = TRACKED_BODIES.index("torso_link")
+        R = body_R[..., torso, :, :]
+        tilt = yaw_mat(R).transpose(-1, -2) @ R
+        q = S[4]
+        return (
+            2 * torch.exp(-error[..., :2].square().sum(-1) / 0.5**2)
+            + torch.exp(-error[..., 2].square() / 0.5)
+            - 0.3 * (a - a_prev).square().sum(-1)
+            - 2 * (torch.relu(q - self.soft_hi) + torch.relu(self.soft_lo - q)).sum(-1)
+            - 4 * tilt[..., 1, 2].square()
+            - 0.05 * body_w[..., torso, :2].square().sum(-1)
+        )
+
+    def velocity_termination(self, S, soft: bool = False) -> torch.Tensor:
+        """Fall-only termination, with a differentiable counterpart for imagination."""
+        height_error = self.velocity_cfg.fall_height - S[0][..., 2]
+        tilt_error = 1 - S[1][..., 2, 2] - self.velocity_cfg.fall_tilt
+        if soft:
+            return 1 - (1 - torch.sigmoid(height_error / 0.02)) * (1 - torch.sigmoid(tilt_error / 0.04))
+        return (height_error > 0) | (tilt_error > 0)

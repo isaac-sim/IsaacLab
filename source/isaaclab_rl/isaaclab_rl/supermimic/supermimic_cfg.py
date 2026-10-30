@@ -28,6 +28,8 @@ class SuperMimicCfg:
     learning_rate: float = 2e-4
     gae_lambda: float = 0.95
     action_noise: float = 0.1
+    velocity_alignment_weight: float = 0.1
+    """Velocity-to-motion latent alignment on reference-command rollouts only."""
     critic_epochs: int = 5
     critic_minibatches: int = 4
     warmup_steps: int = 64

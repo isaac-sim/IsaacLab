@@ -70,7 +70,9 @@ def test_native_ownership_has_no_external_training_package():
                 imports.append(node.module or "")
         assert not any(name == "supermimic" or name.startswith("supermimic.") for name in imports), path
         symbols = {node.name for node in ast.walk(tree) if isinstance(node, (ast.ClassDef, ast.FunctionDef))}
-        assert symbols.isdisjoint({"TrackingSim", "TransitionCapture"}), path
+        assert symbols.isdisjoint(
+            {"TrackingSim", "TransitionCapture", "VelocityLearner", "VelocityWorldModel", "VelocityPolicy"}
+        ), path
         if path.is_relative_to(task):
             assert not any(name.startswith(("isaaclab_rl", "physicsnemo", "wandb")) for name in imports), path
             assert "step" not in symbols and path.name not in ("train.py", "learner.py"), path
@@ -124,6 +126,103 @@ def test_replay_ring_masks_boundaries_and_owns_samples():
     ring.data["ep_step"].zero_()
     start, history = ring.sample_starts(32, 10)
     torch.testing.assert_close(history["s"], start["s"][:, None].expand(-1, 10, -1))
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_joint_learning_routes_gradients_and_seeds_by_interface(tmp_path, device):
+    """Both actors/critics learn, while velocity gradients cannot update the decoder or motion encoder."""
+    from types import SimpleNamespace
+
+    from isaaclab_rl.supermimic.learner import Learner
+    from isaaclab_rl.supermimic.networks import WorldModel
+    from isaaclab_rl.supermimic.supermimic_cfg import SuperMimicCfg
+
+    from isaaclab_tasks.contrib.g1_tracking.motion import MotionLib
+    from isaaclab_tasks.contrib.g1_tracking.tracking import TrackingObjective, VelocityCfg
+
+    torch.manual_seed(13)
+    raw = np.zeros((32, 36), dtype=np.float32)
+    raw[:, 2], raw[:, 6] = 0.8, 1.0
+    np.save(tmp_path / "standing.npy", raw)
+    # Geometry is independent of routing: use a rigid set of 14 co-located tracked bodies.
+    kin = SimpleNamespace(
+        q_lo=torch.full((29,), -2.0, device=device),
+        q_hi=torch.full((29,), 2.0, device=device),
+        forward=lambda p, R, v, w, q, qd: (
+            p.unsqueeze(-2).expand(*p.shape[:-1], 14, 3),
+            R.unsqueeze(-3).expand(*R.shape[:-2], 14, 3, 3),
+            v.unsqueeze(-2).expand(*v.shape[:-1], 14, 3),
+            w.unsqueeze(-2).expand(*w.shape[:-1], 14, 3),
+        ),
+    )
+    motion = MotionLib(str(tmp_path), kin, device, src_fps=50)
+    objective = TrackingObjective(
+        kin, motion, torch.zeros(29, device=device), velocity_cfg=VelocityCfg(fraction=0.5, resampling_steps=2)
+    )
+    state = torch.zeros(8, 71, device=device)
+    state[:, 2], state[:, 6] = 0.8, 1.0
+    transition = {
+        "s": state,
+        "s1": state.clone(),
+        "a": torch.zeros(8, 29, device=device),
+        "a_prev": torch.zeros(8, 29, device=device),
+        "xi": torch.zeros(8, 33, device=device),
+        "f": torch.zeros(8, dtype=torch.long, device=device),
+        "ep_step": torch.zeros(8, dtype=torch.long, device=device),
+        "done": torch.zeros(8, dtype=torch.bool, device=device),
+        "is_velocity": torch.arange(8, device=device) >= 4,
+        "velocity_command": torch.full((8, 3), 0.5, device=device),
+        "velocity_reference": torch.ones(8, dtype=torch.bool, device=device),
+    }
+    transition["xi"][:, 0] = 1
+    transition["s"][:, 0] = torch.arange(8, device=device)  # Identifies each world's replay seeds.
+    transition["s1"].copy_(transition["s"])
+    cfg = SuperMimicCfg(
+        compile=False,
+        amp="none",
+        horizon=2,
+        policy_batch_size=8,
+        buffer_steps=8,
+        critic_epochs=1,
+        critic_minibatches=1,
+        velocity_alignment_weight=0.0,
+    )
+    world = WorldModel(hidden=(32,)).to(device)
+    torch.nn.init.normal_(world.net[-1].weight, std=0.01)
+    learner = Learner(
+        cfg, objective, transition, ((slice(None), None, None),), 0.02, world, goal_frames=2, history=3, gamma=0.99
+    )
+    for frame in range(4):
+        transition["f"].fill_(frame)
+        transition["ep_step"].fill_(frame)
+        learner.observe(transition)
+    for velocity in (False, True):
+        starts, _ = learner.buffer.sample_starts(64, 3, velocity)
+        assert ((starts["s"][:, 0] >= 4) == velocity).all()
+    models = (learner.pi.enc, learner.pi.dec, learner.pi.velocity_enc, learner.critic, learner.velocity_critic, world)
+    before = [[p.detach().clone() for p in model.parameters()] for model in models]
+    counts = [0, 0, 0]
+
+    def count(index):
+        def hook(gradient):
+            assert gradient.isfinite().all() and gradient.abs().sum() > 0
+            counts[index] += 1
+
+        return hook
+
+    handles = [model[-1].weight.register_hook(count(i)) for i, model in enumerate(models[:3])]
+    result = learner.policy_update()
+    assert counts == [1, 1, 1]  # Return gradients reach the velocity encoder without an auxiliary loss.
+    cfg.velocity_alignment_weight = 0.1
+    result.update(learner.policy_update())
+    for handle in handles:
+        handle.remove()
+    assert counts == [2, 2, 2]  # Neither velocity return nor alignment may update shared-model weights.
+    assert all(torch.isfinite(value) for value in result.values())
+    for model, initial in zip(models[:-1], before[:-1], strict=True):
+        assert any(not torch.equal(p, old) for p, old in zip(model.parameters(), initial, strict=True))
+    for parameter, initial in zip(world.parameters(), before[-1], strict=True):
+        torch.testing.assert_close(parameter, initial, rtol=0, atol=0)
 
 
 def test_evaluation_batches_cover_last_partial_batch_and_failed_tails():
@@ -188,6 +287,7 @@ def test_training_root_rejects_different_analytical_task_semantics(tmp_path, mon
         (("policy", "joint_vel", "delay_max_lag"), 1),
         (("policy", "flatten_history_dim"), True),
         (("goal", "reference", "scale"), 2.0),
+        (("interface", "command", "scale"), 2.0),
     )
     argv = ["--task", "IsaacContrib-Motion-Tracking-G1", "--log_dir", str(tmp_path)]
     for path, value in invalid:
