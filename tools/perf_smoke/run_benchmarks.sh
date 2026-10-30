@@ -93,7 +93,7 @@ while IFS='|' read -r leg task num_envs bench_timeout_s args; do
   echo "::group::performance-smoke: ${leg}"
   install -d -m 0777 "${BENCHMARK_OUTPUT}/${leg}"
   leg_ok=true
-  # Repeat each benchmark three times to measure variation between runs.
+  # Use separate runs for ASV because frames from one simulation are not independent samples.
   for sample in 1 2 3; do
     mkdir -p "${BENCHMARK_OUTPUT}/${leg}/sample-${sample}"
     if ! run_attempt 1; then
