@@ -639,6 +639,17 @@ class PhysxManager(PhysicsManager):
     def get_physics_sim_view(self) -> omni.physics.tensors.SimulationView | None:
         return None if self.backend is None else self.backend.simulation_view
 
+    def get_gravity(self) -> tuple[float, float, float]:
+        """Return the world-frame gravity vector [m/s^2] currently applied to the scene.
+
+        Raises:
+            RuntimeError: If the PhysX simulation view has not been initialized.
+        """
+        physics_sim_view = self.get_physics_sim_view()
+        if physics_sim_view is None:
+            raise RuntimeError("PhysxManager has not been initialized yet.")
+        return tuple(physics_sim_view.get_gravity())
+
     def set_gravity(self, gravity: tuple[float, float, float]) -> None:
         """Set the scene-wide gravity vector through the PhysX simulation view [m/s^2].
 

@@ -1,0 +1,332 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""OVPhysX USD export: an OVPhysX import of the exported file reproduces the initialized engine."""
+
+import multiprocessing
+import sys
+from concurrent.futures import ProcessPoolExecutor
+from pathlib import Path
+
+import numpy as np
+import pytest
+from isaaclab_ov.physics import OvPhysxManager
+
+from pxr import Sdf, Usd, UsdPhysics
+
+# The file loader runs in a spawned process and must import by module name.
+sys.path.insert(0, str(Path(__file__).parent))
+
+# The USD schema registry misses schemas registered after its first use, which a test's scene files make.
+OvPhysxManager._ensure_physx_schemas_registered()
+
+
+# Without a box per environment, environment 1 exists in physics only.
+def test_importing_the_export_reproduces_the_initialized_engine(tmp_path):
+    """Every exported value of a fresh OVPhysX import equals the live engine's, including config overrides."""
+    from isaaclab_ov.physics import OvPhysxCfg
+    from usd_export_read_import import read, read_import, readings
+
+    from isaaclab.scene import InteractiveScene
+    from isaaclab.sim import SimulationCfg, build_simulation_context
+    from isaaclab.test.utils.usd_export import make_export_scene_cfg, physics_prims
+
+    cfg = make_export_scene_cfg(tmp_path)
+    sim_cfg = SimulationCfg(device="cpu", dt=1 / 120, gravity=(0.2, -0.1, -4.0), physics=OvPhysxCfg())
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        scene = InteractiveScene(cfg)
+        sim.reset()
+        output = scene.export_to_usd(str(tmp_path / "exported.usda"))
+        # Isaac Lab's reset writes the initial joint state, which the engine holds only from then on.
+        robot = scene["robot"]
+        robot.write_joint_state_to_sim_index(
+            position=robot.data.default_joint_pos.torch, velocity=robot.data.default_joint_vel.torch
+        )
+        stage = Usd.Stage.Open(output)
+        articulations, bodies = physics_prims(stage)
+        live = readings(stage, read(sim.backend_manager.get_physx_instance(), articulations, bodies, "cpu"))
+        gravity = np.asarray(sim.backend_manager.get_gravity())
+    with ProcessPoolExecutor(max_workers=1, mp_context=multiprocessing.get_context("spawn")) as pool:
+        imported = pool.submit(read_import, stage.Flatten().ExportToString(), articulations, bodies).result()
+    loaded = readings(stage, imported)
+
+    hinge = live["/World/envs/env_0/Robot/Hinge", "angular"]
+    assert hinge["position"] == pytest.approx(0.21)
+    assert hinge["stiffness"] == pytest.approx(83.0)
+    assert hinge["armature"] == pytest.approx(0.023)
+    exported_hinge = stage.GetPrimAtPath("/World/envs/env_0/Robot/Hinge")
+    assert exported_hinge.GetAttribute("physxJointAxis:angular:armature").HasAuthoredValue()
+    # Zero joint friction equals the schema default, so the export leaves it unset.
+    assert not exported_hinge.GetAttribute("physxJointAxis:angular:staticFrictionEffort").HasAuthoredValue()
+    assert live.keys() == loaded.keys()
+    for key, values in live.items():
+        for name, value in values.items():
+            expected = loaded[key][name]
+            np.testing.assert_allclose(expected, value, rtol=1e-4, atol=1e-6, err_msg=f"{key} {name}")
+    scene_prim = UsdPhysics.Scene(stage.GetPrimAtPath("/physicsScene"))
+    exported = np.asarray(scene_prim.GetGravityDirectionAttr().Get()) * scene_prim.GetGravityMagnitudeAttr().Get()
+    np.testing.assert_allclose(exported, gravity, rtol=1e-5)
+
+
+@pytest.mark.skipif(not __import__("torch").cuda.is_available(), reason="OVPhysX simulates deformables on the GPU")
+def test_importing_the_export_reproduces_deformables(tmp_path):
+    """An OVPhysX import starts deformables at Isaac Lab's reset state and steps them like the live engine."""
+    import warp as wp
+    from isaaclab_ov.physics import OvPhysxCfg
+    from isaaclab_physx.sim.schemas import PhysxDeformableBodyCfg
+    from isaaclab_physx.sim.spawners.materials import (
+        PhysxDeformableBodyMaterialCfg,
+        PhysxSurfaceDeformableBodyMaterialCfg,
+    )
+    from usd_export_read_import import DEFORMABLE_TENSORS, simulate_deformables
+
+    import isaaclab.sim as sim_utils
+    from isaaclab.assets import DeformableObjectCfg
+    from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+    from isaaclab.sim import SimulationCfg, build_simulation_context
+
+    body = [
+        sim_utils.OmniPhysicsDeformableBodyCfg(),
+        PhysxDeformableBodyCfg(solver_position_iteration_count=24, linear_damping=0.05),
+    ]
+    cfg = InteractiveSceneCfg(num_envs=1, env_spacing=1.0)
+    cfg.beam = DeformableObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Beam",
+        init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, -0.3, 1.0)),
+        spawn=sim_utils.MeshCuboidCfg(
+            size=(0.3, 0.04, 0.04),
+            volume_deformable_props=body,
+            physics_material=PhysxDeformableBodyMaterialCfg(youngs_modulus=2e5, poissons_ratio=0.3, density=500.0),
+        ),
+    )
+    cfg.cloth = DeformableObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Cloth",
+        init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.3, 1.0)),
+        spawn=sim_utils.MeshRectangleCfg(
+            size=(0.2, 0.2),
+            surface_deformable_props=body,
+            physics_material=PhysxSurfaceDeformableBodyMaterialCfg(youngs_modulus=1e5, surface_thickness=0.002),
+        ),
+    )
+    kinds = {"beam": "volume", "cloth": "surface"}
+    dt, steps = 1 / 120, 20
+    with build_simulation_context(sim_cfg=SimulationCfg(device="cuda:0", dt=dt, physics=OvPhysxCfg())) as sim:
+        scene = InteractiveScene(cfg)
+        sim.reset()
+        output = scene.export_to_usd(str(tmp_path / "exported.usda"))
+        initial, start, live = {}, {}, {}
+        for name, asset in scene.deformable_objects.items():
+            asset.write_nodal_state_to_sim_index(asset.data.default_nodal_state_w)
+            view, (position, velocity) = asset.root_view, DEFORMABLE_TENSORS[kinds[name]]
+            positions = view.get_attribute(position).numpy().copy()
+            # Stretch and spin, so that the elastic forces act without any contact.
+            offsets = positions - positions.mean(axis=1, keepdims=True)
+            velocities = (2.0 * offsets + np.cross([0.0, 0.0, 3.0], offsets)).astype(np.float32)
+            view.set_attribute(velocity, wp.array(velocities, device="cuda:0"))
+            # The import keeps the positions the export states for a volume deformable.
+            stated = None if kinds[name] == "volume" else positions.tolist()
+            initial[view.prim_paths[0]] = (kinds[name], stated, velocities.tolist())
+            start[view.prim_paths[0]] = positions
+        for _ in range(steps):
+            sim.step(render=False)
+        for name, asset in scene.deformable_objects.items():
+            live[asset.root_view.prim_paths[0]] = asset.root_view.get_attribute(
+                DEFORMABLE_TENSORS[kinds[name]][0]
+            ).numpy()
+    source = Usd.Stage.Open(output).Flatten().ExportToString()
+    with ProcessPoolExecutor(max_workers=1, mp_context=multiprocessing.get_context("spawn")) as pool:
+        loaded = pool.submit(simulate_deformables, source, initial, dt, steps).result()
+
+    beam = "/World/envs/env_0/Beam"
+    np.testing.assert_allclose(loaded["initial"][beam], start[beam], atol=1e-5)
+    assert loaded["final"].keys() == live.keys()
+    for path, positions in live.items():
+        assert np.abs(positions - start[path]).max() > 0.01, f"{path} barely moved"
+        # Measured: the import matches the live engine exactly; a 10x stiffer material moves the beam by 20 mm.
+        np.testing.assert_allclose(loaded["final"][path], positions, atol=1e-3, err_msg=path)
+
+
+def test_values_the_engine_derives_are_not_written(tmp_path):
+    """A contact offset the USD leaves to PhysX (-inf), which it derives from the collider, is not restated."""
+    from isaaclab_ov.physics import OvPhysxCfg
+    from usd_export_read_import import read, read_import, readings
+
+    from pxr import Sdf
+
+    from isaaclab.scene import InteractiveScene
+    from isaaclab.sim import SimulationCfg, build_simulation_context
+    from isaaclab.test.utils.usd_export import make_export_scene_cfg, physics_prims
+
+    sim_cfg = SimulationCfg(device="cpu", dt=1 / 120, physics=OvPhysxCfg())
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        scene = InteractiveScene(make_export_scene_cfg(tmp_path))
+        box = "/World/envs/env_0/Box"
+        collider = next(p for p in Usd.PrimRange(sim.stage.GetPrimAtPath(box)) if p.HasAPI(UsdPhysics.CollisionAPI))
+        collider.AddAppliedSchema("PhysxCollisionAPI")
+        offset = collider.CreateAttribute("physxCollision:contactOffset", Sdf.ValueTypeNames.Float)
+        offset.Set(float("-inf"))
+        sim.reset()
+        output = scene.export_to_usd(str(tmp_path / "exported.usda"))
+        stage = Usd.Stage.Open(output)
+        articulations, bodies = physics_prims(stage)
+        live = readings(stage, read(sim.backend_manager.get_physx_instance(), articulations, bodies, "cpu"))
+    with ProcessPoolExecutor(max_workers=1, mp_context=multiprocessing.get_context("spawn")) as pool:
+        imported = pool.submit(read_import, stage.Flatten().ExportToString(), articulations, bodies).result()
+
+    assert np.all(np.isfinite(live[box, None]["contact_offset"]))  # derived by the engine
+    assert stage.GetPrimAtPath(collider.GetPath()).GetAttribute("physxCollision:contactOffset").Get() == float("-inf")
+    loaded = readings(stage, imported)[box, None]["contact_offset"]
+    np.testing.assert_allclose(loaded, live[box, None]["contact_offset"], rtol=1e-5)
+
+
+def test_legacy_joint_attributes_isaac_lab_migrates_are_restated(tmp_path):
+    """OVPhysX 0.7 ignores legacy PhysX joint attributes, which Isaac Lab migrates before the engine loads the stage;
+    the export states them as the attributes an import reads."""
+    from isaaclab_ov.physics import OvPhysxCfg, ovphysx_compat
+    from usd_export_read_import import read, read_import, readings
+
+    from isaaclab.scene import InteractiveScene
+    from isaaclab.sim import SimulationCfg, build_simulation_context
+    from isaaclab.test.utils.usd_export import make_export_scene_cfg, physics_prims
+
+    if not ovphysx_compat.OVPHYSX_USES_TASKS:
+        pytest.skip("OVPhysX before 0.7 reads the legacy attributes.")
+    cfg = make_export_scene_cfg(tmp_path)
+    robot = Usd.Stage.Open(cfg.robot.spawn.usd_path)
+    hinge = robot.GetPrimAtPath("/Robot/Hinge")
+    hinge.AddAppliedSchema("PhysxJointAPI")
+    hinge.CreateAttribute("physxJoint:armature", Sdf.ValueTypeNames.Float).Set(0.3)
+    hinge.CreateAttribute("physxJoint:maxJointVelocity", Sdf.ValueTypeNames.Float).Set(120.0)
+    robot.GetRootLayer().Save()
+    cfg.robot.actuators["hinge"].armature = None
+    cfg.robot.actuators["hinge"].joint_velocity_limit = None
+    with build_simulation_context(sim_cfg=SimulationCfg(device="cpu", dt=1 / 120, physics=OvPhysxCfg())) as sim:
+        scene = InteractiveScene(cfg)
+        sim.reset()
+        stage = Usd.Stage.Open(scene.export_to_usd(str(tmp_path / "exported.usda")))
+        articulations, bodies = physics_prims(stage)
+        live = readings(stage, read(sim.backend_manager.get_physx_instance(), articulations, bodies, "cpu"))
+    with ProcessPoolExecutor(max_workers=1, mp_context=multiprocessing.get_context("spawn")) as pool:
+        imported = pool.submit(read_import, stage.Flatten().ExportToString(), articulations, bodies).result()
+    loaded = readings(stage, imported)
+
+    key = "/World/envs/env_0/Robot/Hinge", "angular"
+    assert live[key]["armature"] == pytest.approx(0.3)
+    assert stage.GetPrimAtPath(key[0]).GetAttribute("physxJointAxis:angular:armature").Get() == pytest.approx(0.3)
+    for name in ("armature", "max_velocity"):
+        assert loaded[key][name] == pytest.approx(live[key][name], rel=1e-5), name
+
+
+def test_a_newton_joint_value_isaac_lab_overrides_is_restated(tmp_path):
+    """OVPhysX 0.7 applies a per-axis joint value only when positive and otherwise keeps an authored Newton value,
+    so the export restates a Newton value the live engine no longer holds."""
+    from isaaclab_ov.physics import OvPhysxCfg, ovphysx_compat
+    from usd_export_read_import import read, read_import, readings
+
+    from isaaclab.scene import InteractiveScene
+    from isaaclab.sim import SimulationCfg, build_simulation_context
+    from isaaclab.test.utils.usd_export import make_export_scene_cfg, physics_prims
+
+    if not ovphysx_compat.OVPHYSX_USES_TASKS:
+        pytest.skip("OVPhysX before 0.7 reads PhysxJointAPI ahead of Newton's attributes.")
+    cfg = make_export_scene_cfg(tmp_path)
+    robot = Usd.Stage.Open(cfg.robot.spawn.usd_path)
+    hinge = robot.GetPrimAtPath("/Robot/Hinge")
+    hinge.AddAppliedSchema("NewtonJointAPI")
+    hinge.CreateAttribute("newton:armature", Sdf.ValueTypeNames.Float).Set(0.3)
+    robot.GetRootLayer().Save()
+    cfg.robot.actuators["hinge"].armature = 0.0
+    with build_simulation_context(sim_cfg=SimulationCfg(device="cpu", dt=1 / 120, physics=OvPhysxCfg())) as sim:
+        scene = InteractiveScene(cfg)
+        sim.reset()
+        stage = Usd.Stage.Open(scene.export_to_usd(str(tmp_path / "exported.usda")))
+        articulations, bodies = physics_prims(stage)
+        live = readings(stage, read(sim.backend_manager.get_physx_instance(), articulations, bodies, "cpu"))
+    with ProcessPoolExecutor(max_workers=1, mp_context=multiprocessing.get_context("spawn")) as pool:
+        imported = pool.submit(read_import, stage.Flatten().ExportToString(), articulations, bodies).result()
+
+    key = "/World/envs/env_0/Robot/Hinge", "angular"
+    assert live[key]["armature"] == pytest.approx(0.0)
+    assert readings(stage, imported)[key]["armature"] == pytest.approx(0.0)
+
+
+def test_a_stopped_simulation_reads_the_engine_again(tmp_path):
+    """The engine read at startup is dropped when the simulation stops and taken again when it is ready."""
+    from isaaclab_ov.physics import OvPhysxCfg
+
+    from isaaclab.physics import PhysicsEvent
+    from isaaclab.scene import InteractiveScene
+    from isaaclab.sim import SimulationCfg, build_simulation_context
+    from isaaclab.test.utils.usd_export import make_export_scene_cfg
+
+    sim_cfg = SimulationCfg(device="cpu", dt=1 / 120, physics=OvPhysxCfg())
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        scene = InteractiveScene(make_export_scene_cfg(tmp_path))
+        sim.reset()
+        first = scene._usd_export_base
+        assert first is not None
+        sim.backend_manager.dispatch_event(PhysicsEvent.STOP, payload={})
+        assert scene._usd_export_base is None
+        sim.backend_manager.dispatch_event(PhysicsEvent.PHYSICS_READY, payload={})
+        assert scene._usd_export_base is not None and scene._usd_export_base is not first
+
+
+def test_read_bindings_cover_ovphysx_properties():
+    """Every OVPhysX articulation and rigid-body binding is compared by the round trip or deliberately excluded."""
+    from isaaclab_ov import tensor_types as TT
+    from usd_export_read_import import ARTICULATION_TENSORS, RIGID_BODY_TENSORS
+
+    read = {*ARTICULATION_TENSORS.values(), *RIGID_BODY_TENSORS.values()}
+    excluded = {
+        # body state, targets and forces are not part of the export
+        TT.ROOT_POSE,
+        TT.ROOT_VELOCITY,
+        TT.LINK_POSE,
+        TT.LINK_VELOCITY,
+        TT.LINK_ACCELERATION,
+        TT.DOF_POSITION_TARGET,
+        TT.DOF_VELOCITY_TARGET,
+        TT.DOF_ACTUATION_FORCE,
+        TT.LINK_WRENCH,
+        TT.RIGID_BODY_POSE,
+        TT.RIGID_BODY_VELOCITY,
+        TT.RIGID_BODY_ACCELERATION,
+        TT.RIGID_BODY_WRENCH,
+        # derived from exported properties
+        TT.BODY_INV_MASS,
+        TT.BODY_INV_INERTIA,
+        TT.RIGID_BODY_INV_MASS,
+        TT.RIGID_BODY_INV_INERTIA,
+        TT.JACOBIAN,
+        TT.MASS_MATRIX,
+        TT.CORIOLIS,
+        TT.GRAVITY_FORCE,
+        TT.LINK_INCOMING_JOINT_FORCE,
+        TT.DOF_PROJECTED_JOINT_FORCE,
+        # drive type and model come from the USD drive schema and are not written at runtime
+        TT.DOF_DRIVE_TYPE,
+        TT.DOF_DRIVE_MODEL,
+        # articulation shapes and tendons have no per-shape or per-tendon USD identity to write
+        TT.CONTACT_OFFSET,
+        TT.REST_OFFSET,
+        TT.SHAPE_FRICTION_AND_RESTITUTION,
+        TT.FIXED_TENDON_STIFFNESS,
+        TT.FIXED_TENDON_DAMPING,
+        TT.FIXED_TENDON_LIMIT_STIFFNESS,
+        TT.FIXED_TENDON_LIMIT,
+        TT.FIXED_TENDON_REST_LENGTH,
+        TT.FIXED_TENDON_OFFSET,
+        TT.SPATIAL_TENDON_STIFFNESS,
+        TT.SPATIAL_TENDON_DAMPING,
+        TT.SPATIAL_TENDON_LIMIT_STIFFNESS,
+        TT.SPATIAL_TENDON_OFFSET,
+    }
+    bindings = {
+        value
+        for name, value in vars(TT).items()
+        if name.isupper() and "DEFORMABLE" not in name and isinstance(value, type(TT.DOF_STIFFNESS))
+    }
+    unclassified = sorted(str(binding) for binding in bindings - read - excluded)
+    assert not unclassified, f"Unclassified bindings: {unclassified}"
