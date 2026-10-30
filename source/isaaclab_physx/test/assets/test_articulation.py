@@ -1196,6 +1196,38 @@ def test_fixed_tendon_position_target_writes_offset(articulation_scene: _Articul
     torch.testing.assert_close(wp.to_torch(articulation.root_view.get_fixed_tendon_offsets()).to(device), offset)
 
 
+@pytest.mark.isaacsim_ci
+def test_joint_armature_updates_mass_matrix_without_accumulating(articulation_scene: _ArticulationScene) -> None:
+    """Armature adds joint inertia in public order without changing base inertia or native query storage."""
+    scene = articulation_scene
+    for articulation in (scene.ordered, scene.floating):
+        data = articulation.data
+        original_armature = data.joint_armature.torch.clone()
+        before = data.mass_matrix.torch.clone()
+        increment = 0.125 * torch.arange(
+            1, original_armature.numel() + 1, device=scene.device, dtype=original_armature.dtype
+        ).reshape_as(original_armature)
+        expected_change = torch.zeros_like(before)
+        joint_dofs = articulation.num_base_dofs + torch.arange(articulation.num_joints, device=scene.device)
+        expected_change[:, joint_dofs, joint_dofs] = increment
+        try:
+            articulation.write_joint_armature_to_sim_index(armature=original_armature + increment)
+            native = wp.to_torch(articulation.root_view.get_generalized_mass_matrices())
+            native_before = native.clone()
+            after = data.mass_matrix.torch.clone()
+            torch.testing.assert_close(after - before, expected_change, atol=1e-5, rtol=1e-5)
+            torch.testing.assert_close(data.mass_matrix.torch, after)
+            torch.testing.assert_close(native, native_before, atol=0.0, rtol=0.0)
+
+            # Advancing the cache timestamp without stepping preserves the pose and must not add armature again.
+            articulation.update(scene.sim.cfg.dt)
+            torch.testing.assert_close(data.mass_matrix.torch, after)
+            torch.testing.assert_close(data.mass_matrix.torch, after)
+            torch.testing.assert_close(native, native_before, atol=0.0, rtol=0.0)
+        finally:
+            articulation.write_joint_armature_to_sim_index(armature=original_armature)
+
+
 @pytest.mark.xfail(strict=True, reason="GPU PhysX applies mass and inertia writes on the next step")
 def test_inertial_writes_refresh_the_mass_matrix(articulation_scene: _ArticulationScene) -> None:
     """Mass and inertia writes refresh a mass matrix that was already read in the same step."""
