@@ -362,9 +362,11 @@ class RigidObject(BaseRigidObject):
             inputs=[
                 root_pose,
                 env_ids,
+                not skip_forward,
             ],
             outputs=[
                 self.data.root_link_pose_w,
+                self._index_env_mask,
             ],
             device=self.device,
         )
@@ -373,7 +375,7 @@ class RigidObject(BaseRigidObject):
             solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of pose-dependent properties.
         if not skip_forward:
-            self.data._reset_pose(env_ids=env_ids)
+            self.data._reset_pose(env_mask=self._index_env_mask, consume_mask=True)
 
     def write_root_link_pose_to_sim_mask(
         self,
@@ -466,10 +468,12 @@ class RigidObject(BaseRigidObject):
                 root_pose,
                 self.data.body_com_pos_b,
                 env_ids,
+                not skip_forward,
             ],
             outputs=[
                 self.data.root_com_pose_w,
                 self.data.root_link_pose_w,
+                self._index_env_mask,
             ],
             device=self.device,
         )
@@ -478,7 +482,7 @@ class RigidObject(BaseRigidObject):
         # Let the data class handle the invalidation of pose-dependent properties.
         # The com pose was just written, so it must not be invalidated.
         if not skip_forward:
-            self.data._reset_pose(env_ids=env_ids, from_link=False)
+            self.data._reset_pose(env_mask=self._index_env_mask, consume_mask=True, from_link=False)
 
     def write_root_com_pose_to_sim_mask(
         self,
@@ -575,16 +579,18 @@ class RigidObject(BaseRigidObject):
                 root_velocity,
                 env_ids,
                 1,
+                not skip_forward,
             ],
             outputs=[
                 self.data.root_com_vel_w,
                 self.data.body_com_acc_w,
+                self._index_env_mask,
             ],
             device=self.device,
         )
         # Let the data class handle the invalidation of velocity-dependent properties.
         if not skip_forward:
-            self.data._reset_velocity(env_ids=env_ids)
+            self.data._reset_velocity(env_mask=self._index_env_mask, consume_mask=True)
 
     def write_root_com_velocity_to_sim_mask(
         self,
@@ -683,18 +689,20 @@ class RigidObject(BaseRigidObject):
                 self.data.root_link_pose_w,
                 env_ids,
                 1,
+                not skip_forward,
             ],
             outputs=[
                 self.data.root_link_vel_w,
                 self.data.root_com_vel_w,
                 self.data.body_com_acc_w,
+                self._index_env_mask,
             ],
             device=self.device,
         )
         # Let the data class handle the invalidation of velocity-dependent properties.
         # The link velocity was just written, so it must not be invalidated.
         if not skip_forward:
-            self.data._reset_velocity(env_ids=env_ids, from_com=False)
+            self.data._reset_velocity(env_mask=self._index_env_mask, consume_mask=True, from_com=False)
 
     def write_root_link_velocity_to_sim_mask(
         self,
@@ -1068,6 +1076,8 @@ class RigidObject(BaseRigidObject):
         # constants
         self._ALL_INDICES = wp.array(np.arange(self.num_instances, dtype=np.int32), device=self.device)
         self._ALL_ENV_MASK = wp.ones((self.num_instances,), dtype=wp.bool, device=self.device)
+        # Environments of the last index write, cleared again by the FK flagging that consumes them.
+        self._index_env_mask = wp.zeros((self.num_instances,), dtype=wp.bool, device=self.device)
         self._ALL_BODY_INDICES = wp.array(np.arange(self.num_bodies, dtype=np.int32), device=self.device)
         self._ALL_BODY_MASK = wp.ones((self.num_bodies,), dtype=wp.bool, device=self.device)
 

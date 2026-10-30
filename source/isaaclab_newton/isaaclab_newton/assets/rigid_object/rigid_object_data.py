@@ -23,7 +23,6 @@ from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.physics import NewtonManager
 
 if TYPE_CHECKING:
-    import torch
     from newton.selection import ArticulationView
 
 
@@ -134,14 +133,14 @@ class RigidObjectData(BaseRigidObjectData):
         self,
         from_link: bool = True,
         *,
-        env_ids: wp.array | torch.Tensor | None = None,
         env_mask: wp.array | None = None,
+        consume_mask: bool = False,
     ) -> None:
         """Reset pose-dependent cached rigid object properties.
 
         Args:
-            env_ids: Environment indices. If None, then all indices are used.
             env_mask: Environment mask. If None, then all instances are updated. Shape is (num_instances,).
+            consume_mask: Clear ``env_mask`` while flagging it, for an asset scratch mask.
             from_link: Set ``True`` when the root link pose was written so the derived root
                 center-of-mass pose (:attr:`root_com_pose_w`) is also invalidated; set ``False`` when
                 the center-of-mass pose was written directly so it is not clobbered. Defaults to True.
@@ -163,18 +162,16 @@ class RigidObjectData(BaseRigidObjectData):
                 self._root_com_state_w,
             ]
         )
-        self._backend_manager.invalidate_fk(
-            env_mask=env_mask, env_ids=env_ids, articulation_ids=self._root_view.articulation_ids
-        )
+        self._backend_manager.invalidate_fk(env_mask, self._root_view.articulation_ids, consume_mask=consume_mask)
 
     def _reset_velocity(
-        self, from_com: bool = True, *, env_ids: wp.array | torch.Tensor | None = None, env_mask: wp.array | None = None
+        self, from_com: bool = True, *, env_mask: wp.array | None = None, consume_mask: bool = False
     ) -> None:
         """Reset velocity-dependent cached rigid object properties.
 
         Args:
-            env_ids: Environment indices. If None, then all indices are used.
             env_mask: Environment mask. If None, then all instances are updated. Shape is (num_instances,).
+            consume_mask: Clear ``env_mask`` while flagging it, for an asset scratch mask.
             from_com: Set ``True`` when the root center-of-mass velocity was written so the derived root
                 link velocity (:attr:`root_link_vel_w`) is also invalidated; set ``False`` when the link
                 velocity was written directly so it is not clobbered. Defaults to True.
@@ -193,9 +190,7 @@ class RigidObjectData(BaseRigidObjectData):
                 self._root_com_state_w,
             ]
         )
-        self._backend_manager.invalidate_fk(
-            env_mask=env_mask, env_ids=env_ids, articulation_ids=self._root_view.articulation_ids
-        )
+        self._backend_manager.invalidate_fk(env_mask, self._root_view.articulation_ids, consume_mask=consume_mask)
 
     def _reset_body_com_pose_b_dependents(self) -> None:
         """Reset cached properties derived from the body-frame center-of-mass offset."""

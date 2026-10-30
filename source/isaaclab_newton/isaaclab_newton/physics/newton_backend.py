@@ -13,7 +13,7 @@ import logging
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import torch
 import warp as wp
@@ -25,7 +25,6 @@ from isaaclab.sim import SimulationContext
 from isaaclab.utils.buffers import TimestampedBuffer
 from isaaclab.utils.timer import Timer
 from isaaclab.utils.version import has_kit
-from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 
 from isaaclab_newton.renderers.visual_material import VisualMaterialWriter
 
@@ -73,15 +72,6 @@ def _flag_worlds_masked(env_mask: wp.array(dtype=wp.bool), clear_env_mask: bool,
         world_mask[world] = True
         if clear_env_mask:
             env_mask[world] = False
-
-
-@wp.kernel(enable_backward=False)
-def _mask_from_ids(env_ids: wp.array(dtype=Any), env_mask: wp.array(dtype=wp.bool)):
-    """Set the mask entry of each selected environment."""
-    env_mask[wp.int32(env_ids[wp.tid()])] = True
-
-
-_MASK_FROM_IDS = IndexKernelDispatcher(_mask_from_ids, ("env_ids",))
 
 
 # ----- Data ------------------------------------------------------------------------------
@@ -184,8 +174,6 @@ class NewtonBackend:
         """Articulations whose forward kinematics must be evaluated."""
         self.kinematics_dirty = False
         """Whether joint coordinates changed since the last forward kinematics."""
-        self.ids_mask = wp.zeros(self.model.world_count, dtype=wp.bool, device=self.device)
-        """Environment mask written by :meth:`mask_from_ids`; the invalidation that consumes it clears it again."""
         self.transforms_may_change_on_graph_replay = False
         """Whether state was written inside an outer CUDA graph capture; :meth:`forward` then always runs."""
         self.model_changes: set[int] = set()
@@ -273,29 +261,13 @@ class NewtonBackend:
                 )
         self.invalidate_graph()
 
-    def mask_from_ids(self, env_ids: wp.array | torch.Tensor) -> wp.array:
-        """Return a mask selecting ``env_ids``, written into :attr:`ids_mask`.
-
-        Pass the mask to :meth:`invalidate_fk` or :meth:`invalidate_body_state`, which clear it again for the next call.
-
-        Args:
-            env_ids: Environment indices, int32 or int64.
-
-        Returns:
-            :attr:`ids_mask`.
-        """
-        if isinstance(env_ids, torch.Tensor):
-            env_ids = wp.from_torch(env_ids)
-        wp.launch(
-            _MASK_FROM_IDS.select(env_ids),
-            dim=env_ids.shape[0],
-            inputs=[env_ids],
-            outputs=[self.ids_mask],
-            device=self.device,
-        )
-        return self.ids_mask
-
-    def invalidate_fk(self, env_mask: wp.array | None = None, articulation_ids: wp.array | None = None) -> None:
+    def invalidate_fk(
+        self,
+        env_mask: wp.array | None = None,
+        articulation_ids: wp.array | None = None,
+        *,
+        consume_mask: bool = False,
+    ) -> None:
         """Flag articulations for forward kinematics and their worlds for a solver reset, without host synchronization.
 
         Args:
@@ -303,27 +275,29 @@ class NewtonBackend:
             articulation_ids: Model articulation index of each ``(world, articulation)``, from
                 ``ArticulationView.articulation_ids``. Shape ``(world_count, count_per_world)``. ``None`` flags every
                 articulation.
+            consume_mask: Clear ``env_mask`` while reading it, for a scratch mask that must start empty next time.
         """
         self.kinematics_dirty = True
         if env_mask is None or articulation_ids is None:
             self.world_mask[: self.model.world_count].fill_(True)
             self.fk_mask.fill_(True)
-            if env_mask is not None and env_mask is self.ids_mask:
-                self.ids_mask.zero_()
+            if env_mask is not None and consume_mask:
+                env_mask.zero_()
             return
         wp.launch(
             _flag_worlds_and_articulations_masked,
             dim=articulation_ids.shape[0],
-            inputs=[env_mask, articulation_ids, env_mask is self.ids_mask],
+            inputs=[env_mask, articulation_ids, consume_mask],
             outputs=[self.world_mask, self.fk_mask],
             device=self.device,
         )
 
-    def invalidate_body_state(self, env_mask: wp.array | None = None) -> None:
+    def invalidate_body_state(self, env_mask: wp.array | None = None, *, consume_mask: bool = False) -> None:
         """Flag worlds whose maximal-coordinate body state was written for a solver reset, without requesting FK.
 
         Args:
             env_mask: Mask over environments. ``None`` flags every environment.
+            consume_mask: Clear ``env_mask`` while reading it, for a scratch mask that must start empty next time.
         """
         self.kinematics_dirty = True
         if env_mask is None:
@@ -332,7 +306,7 @@ class NewtonBackend:
         wp.launch(
             _flag_worlds_masked,
             dim=env_mask.shape[0],
-            inputs=[env_mask, env_mask is self.ids_mask],
+            inputs=[env_mask, consume_mask],
             outputs=[self.world_mask],
             device=self.device,
         )

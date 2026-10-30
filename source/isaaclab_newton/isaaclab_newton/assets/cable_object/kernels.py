@@ -12,10 +12,13 @@ def set_segment_pose_to_sim_index(
     env_ids: wp.array(dtype=wp.int32),
     body_ids: wp.array2d(dtype=wp.int32),
     body_q: wp.array(dtype=wp.transformf),
+    env_mask: wp.array(dtype=wp.bool),
 ):
-    """Write selected cable segment poses to Newton body state."""
+    """Write selected cable segment poses to Newton body state and flag their environments in ``env_mask``."""
     index, segment = wp.tid()
     env_id = env_ids[index]
+    if segment == 0:
+        env_mask[env_id] = True
     body_q[body_ids[env_id, segment]] = segment_pose[index, segment]
 
 
@@ -38,10 +41,13 @@ def set_segment_velocity_to_sim_index(
     env_ids: wp.array(dtype=wp.int32),
     body_ids: wp.array2d(dtype=wp.int32),
     body_qd: wp.array(dtype=wp.spatial_vectorf),
+    env_mask: wp.array(dtype=wp.bool),
 ):
-    """Write selected cable segment velocities to Newton body state."""
+    """Write selected cable segment velocities to Newton body state and flag their environments in ``env_mask``."""
     index, segment = wp.tid()
     env_id = env_ids[index]
+    if segment == 0:
+        env_mask[env_id] = True
     body_qd[body_ids[env_id, segment]] = segment_velocity[index, segment]
 
 

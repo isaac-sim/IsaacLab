@@ -806,6 +806,7 @@ def test_fixed_root_pose_write_updates_solver(asset_class, writer, selector):
         data=data,
         device="cpu",
         _ALL_ENV_MASK=wp.array([True], dtype=wp.bool, device="cpu"),
+        _index_env_mask=wp.zeros(1, dtype=wp.bool, device="cpu"),
         _resolve_env_ids=lambda ids: ids,
         _resolve_mask=lambda mask, default: default if mask is None else mask,
         assert_shape_and_dtype=lambda *args: None,

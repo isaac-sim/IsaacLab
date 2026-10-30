@@ -273,7 +273,9 @@ Root-level write kernels (1D — used by RigidObject + Articulation).
 def set_root_link_pose_to_sim_index(
     data: wp.array(dtype=wp.transformf),
     env_ids: wp.array(dtype=Any),
+    flag_envs: bool,
     root_link_pose_w: wp.array(dtype=wp.transformf),
+    env_mask: wp.array(dtype=wp.bool),
 ):
     """Write root link pose data to simulation buffers.
 
@@ -283,9 +285,14 @@ def set_root_link_pose_to_sim_index(
         data: Input array of root link poses. Shape is (num_selected_envs,).
         env_ids: Input array of environment indices to write to. Shape is (num_selected_envs,).
         root_link_pose_w: Output array where root link poses are written. Shape is (num_envs,).
+        flag_envs: Whether to set :paramref:`env_mask` for the written environments.
+        env_mask: Output mask over environments, set for each written environment when
+            :paramref:`flag_envs` is true.
     """
     i = wp.tid()
     env_id = wp.int32(env_ids[i])
+    if flag_envs:
+        env_mask[env_id] = True
     root_link_pose_w[env_id] = data[i]
 
 
@@ -314,8 +321,10 @@ def set_root_com_pose_to_sim_index(
     data: wp.array(dtype=wp.transformf),
     body_com_pos_b: wp.array2d(dtype=wp.vec3f),
     env_ids: wp.array(dtype=Any),
+    flag_envs: bool,
     root_com_pose_w: wp.array(dtype=wp.transformf),
     root_link_pose_w: wp.array(dtype=wp.transformf),
+    env_mask: wp.array(dtype=wp.bool),
 ):
     """Write root COM pose data to simulation buffers.
 
@@ -330,9 +339,14 @@ def set_root_com_pose_to_sim_index(
         root_com_pose_w: Output array where root COM poses are written. Shape is (num_envs,).
         root_link_pose_w: Output array where root link poses (derived from COM) are written.
             Shape is (num_envs,).
+        flag_envs: Whether to set :paramref:`env_mask` for the written environments.
+        env_mask: Output mask over environments, set for each written environment when
+            :paramref:`flag_envs` is true.
     """
     i = wp.tid()
     env_id = wp.int32(env_ids[i])
+    if flag_envs:
+        env_mask[env_id] = True
     root_com_pose_w[env_id] = data[i]
     # Get the com pose in the link frame
     root_link_pose_w[env_id] = get_com_pose_in_link_frame_func(root_com_pose_w[env_id], body_com_pos_b[env_id, 0])
@@ -372,8 +386,10 @@ def set_root_com_velocity_to_sim_index(
     data: wp.array(dtype=wp.spatial_vectorf),
     env_ids: wp.array(dtype=Any),
     num_bodies: wp.int32,
+    flag_envs: bool,
     root_com_velocity_w: wp.array(dtype=wp.spatial_vectorf),
     body_acc_w: wp.array2d(dtype=wp.spatial_vectorf),
+    env_mask: wp.array(dtype=wp.bool),
 ):
     """Write root COM velocity data to simulation buffers.
 
@@ -387,9 +403,14 @@ def set_root_com_velocity_to_sim_index(
         root_com_velocity_w: Output array where root COM velocities are written. Shape is (num_envs,).
         body_acc_w: Output array where body accelerations are zeroed. Shape is
             (num_envs, num_bodies).
+        flag_envs: Whether to set :paramref:`env_mask` for the written environments.
+        env_mask: Output mask over environments, set for each written environment when
+            :paramref:`flag_envs` is true.
     """
     i = wp.tid()
     env_id = wp.int32(env_ids[i])
+    if flag_envs:
+        env_mask[env_id] = True
     root_com_velocity_w[env_id] = data[i]
     # Make the acceleration zero to prevent reporting old values
     for j in range(num_bodies):
@@ -432,9 +453,11 @@ def set_root_link_velocity_to_sim_index(
     link_pose_w: wp.array(dtype=wp.transformf),
     env_ids: wp.array(dtype=Any),
     num_bodies: wp.int32,
+    flag_envs: bool,
     root_link_velocity_w: wp.array(dtype=wp.spatial_vectorf),
     root_com_velocity_w: wp.array(dtype=wp.spatial_vectorf),
     body_acc_w: wp.array2d(dtype=wp.spatial_vectorf),
+    env_mask: wp.array(dtype=wp.bool),
 ):
     """Write root link velocity data to simulation buffers.
 
@@ -455,9 +478,14 @@ def set_root_link_velocity_to_sim_index(
             are written. Shape is (num_envs,).
         body_acc_w: Output array where body accelerations are zeroed.
             Shape is (num_envs, num_bodies).
+        flag_envs: Whether to set :paramref:`env_mask` for the written environments.
+        env_mask: Output mask over environments, set for each written environment when
+            :paramref:`flag_envs` is true.
     """
     i = wp.tid()
     env_id = wp.int32(env_ids[i])
+    if flag_envs:
+        env_mask[env_id] = True
     root_link_velocity_w[env_id] = data[i]
     # Get the link velocity in the com frame
     root_com_velocity_w[env_id] = get_link_velocity_in_com_frame_func(
@@ -550,7 +578,9 @@ def set_body_link_pose_to_sim(
     env_ids: wp.array(dtype=Any),
     body_ids: wp.array(dtype=Any),
     from_mask: bool,
+    flag_envs: bool,
     body_link_pose_w: wp.array2d(dtype=wp.transformf),
+    env_mask: wp.array(dtype=wp.bool),
 ):
     """Write body link pose data to simulation buffers.
 
@@ -565,9 +595,14 @@ def set_body_link_pose_to_sim(
         from_mask: Input flag indicating whether to use masked indexing.
         body_link_pose_w: Output array where body link poses are written.
             Shape is (num_envs, num_bodies).
+        flag_envs: Whether to set :paramref:`env_mask` for the written environments.
+        env_mask: Output mask over environments, set for each written environment when
+            :paramref:`flag_envs` is true.
     """
     i, j = wp.tid()
     env_id = wp.int32(env_ids[i])
+    if flag_envs and j == 0:
+        env_mask[env_id] = True
     body_id = wp.int32(body_ids[j])
     if from_mask:
         body_link_pose_w[env_id, body_id] = data[env_id, body_id]
@@ -582,8 +617,10 @@ def set_body_com_pose_to_sim(
     env_ids: wp.array(dtype=Any),
     body_ids: wp.array(dtype=Any),
     from_mask: bool,
+    flag_envs: bool,
     body_com_pose_w: wp.array2d(dtype=wp.transformf),
     body_link_pose_w: wp.array2d(dtype=wp.transformf),
+    env_mask: wp.array(dtype=wp.bool),
 ):
     """Write body COM pose data to simulation buffers.
 
@@ -603,9 +640,14 @@ def set_body_com_pose_to_sim(
             Shape is (num_envs, num_bodies).
         body_link_pose_w: Output array where body link poses (derived from COM) are written.
             Shape is (num_envs, num_bodies).
+        flag_envs: Whether to set :paramref:`env_mask` for the written environments.
+        env_mask: Output mask over environments, set for each written environment when
+            :paramref:`flag_envs` is true.
     """
     i, j = wp.tid()
     env_id = wp.int32(env_ids[i])
+    if flag_envs and j == 0:
+        env_mask[env_id] = True
     body_id = wp.int32(body_ids[j])
     if from_mask:
         body_com_pose_w[env_id, body_id] = data[env_id, body_id]
@@ -623,8 +665,10 @@ def set_body_com_velocity_to_sim(
     env_ids: wp.array(dtype=Any),
     body_ids: wp.array(dtype=Any),
     from_mask: bool,
+    flag_envs: bool,
     body_com_velocity_w: wp.array2d(dtype=wp.spatial_vectorf),
     body_acc_w: wp.array2d(dtype=wp.spatial_vectorf),
+    env_mask: wp.array(dtype=wp.bool),
 ):
     """Write body COM velocity data to simulation buffers.
 
@@ -642,9 +686,14 @@ def set_body_com_velocity_to_sim(
             Shape is (num_envs, num_bodies).
         body_acc_w: Output array where body accelerations are zeroed.
             Shape is (num_envs, num_bodies).
+        flag_envs: Whether to set :paramref:`env_mask` for the written environments.
+        env_mask: Output mask over environments, set for each written environment when
+            :paramref:`flag_envs` is true.
     """
     i, j = wp.tid()
     env_id = wp.int32(env_ids[i])
+    if flag_envs and j == 0:
+        env_mask[env_id] = True
     body_id = wp.int32(body_ids[j])
     if from_mask:
         body_com_velocity_w[env_id, body_id] = data[env_id, body_id]
@@ -662,9 +711,11 @@ def set_body_link_velocity_to_sim(
     env_ids: wp.array(dtype=Any),
     body_ids: wp.array(dtype=Any),
     from_mask: bool,
+    flag_envs: bool,
     body_link_velocity_w: wp.array2d(dtype=wp.spatial_vectorf),
     body_com_velocity_w: wp.array2d(dtype=wp.spatial_vectorf),
     body_acc_w: wp.array2d(dtype=wp.spatial_vectorf),
+    env_mask: wp.array(dtype=wp.bool),
 ):
     """Write body link velocity data to simulation buffers.
 
@@ -688,9 +739,14 @@ def set_body_link_velocity_to_sim(
             are written. Shape is (num_envs, num_bodies).
         body_acc_w: Output array where body accelerations are zeroed.
             Shape is (num_envs, num_bodies).
+        flag_envs: Whether to set :paramref:`env_mask` for the written environments.
+        env_mask: Output mask over environments, set for each written environment when
+            :paramref:`flag_envs` is true.
     """
     i, j = wp.tid()
     env_id = wp.int32(env_ids[i])
+    if flag_envs and j == 0:
+        env_mask[env_id] = True
     body_id = wp.int32(body_ids[j])
     if from_mask:
         body_link_velocity_w[env_id, body_id] = data[env_id, body_id]
