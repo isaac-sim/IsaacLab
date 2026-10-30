@@ -22,6 +22,8 @@ from newton import Axis, Contacts, ModelBuilder, ModelFlags, State
 from newton.selection import ArticulationView
 from newton.sensors import SensorContact as NewtonContactSensor
 from newton.sensors import SensorIMU as NewtonSensorIMU
+from newton.solvers import SolverImplicitMPM
+from newton.solvers.experimental.coupled import SolverCoupled
 
 from pxr import UsdGeom
 
@@ -42,6 +44,7 @@ from isaaclab_newton.renderers.visual_material import (
     VisualShapeColorWriter,
 )
 
+from .mpm_solver_cfg import MPMSolverCfg
 from .newton_backend import NewtonBackend, NewtonCloneRecord, SiteEntry
 from .newton_builder import create_builder
 from .newton_scene_data import NewtonSceneDataBackend
@@ -931,6 +934,82 @@ class NewtonManager(PhysicsManager):
         self._mark_transforms_changed()
 
         self._invalidate_graph()
+
+    def set_voxel_size(self, voxel_size: float, *, entry_name: str | None = None) -> None:
+        """Rebuild an MPM grid around the current particles between physics steps.
+
+        Particle state and material history are retained. Grid-backed warm starts
+        are discarded. This allocates solver resources and schedules CUDA graph
+        recapture, so use it at resolution transitions rather than every step.
+        Finer grids may require a larger active-cell capacity; coarser grids may
+        require a larger ``picN`` collider basis to retain every point contact.
+        Fixed grids cannot be resized.
+
+        Args:
+            voxel_size: New uniform grid spacing [m], finite and positive.
+            entry_name: Coupled MPM entry to update. Omit for direct MPM or when
+                the coupled solver has exactly one MPM entry.
+        """
+        solver, state, solver_cfg = self._runtime_mpm_target(entry_name)
+        solver.set_voxel_size(voxel_size, state=state)
+        solver_cfg.voxel_size = voxel_size
+        self._invalidate_graph()
+
+    def set_particle_radius(self, radius: float, *, entry_name: str | None = None) -> None:
+        """Change the uniform MPM support radius between physics steps.
+
+        Positions, velocities, material history, particle count, and masses stay
+        fixed. MPM support volume is ``8 * radius**3``, so changing radius at fixed
+        mass changes reference density. This does not split or merge particles.
+        The next physics step recaptures the CUDA graph when capture is enabled.
+
+        Args:
+            radius: New uniform support radius [m], finite and positive.
+            entry_name: Coupled MPM entry to update. It must own all model particles.
+
+        Raises:
+            ValueError: If the selected MPM entry owns only a subset of particles.
+        """
+        solver, _, _ = self._runtime_mpm_target(entry_name)
+        parent = self.backend.model
+        if isinstance(self.backend.solver, SolverCoupled):
+            owner_counts = getattr(self.backend.solver, "_isaaclab_mpm_particle_owner_counts", None)
+            if owner_counts is None or solver not in owner_counts:
+                raise RuntimeError("Coupled MPM particle ownership is unavailable; rebuild the coupled solver.")
+            if owner_counts[solver] != parent.particle_count:
+                raise ValueError("Runtime particle radius changes require an MPM entry owning all model particles.")
+        solver.set_particle_radius(radius)
+        if solver.model is not parent:
+            parent.particle_radius.fill_(radius)
+            parent.particle_max_radius = radius
+            for name in self.backend.solver.entry_names():
+                view = self.backend.solver.view(name)
+                if view.particle_count:
+                    view.particle_radius.fill_(radius)
+                    view.particle_max_radius = radius
+            self.backend.solver.notify_model_changed(ModelFlags.MODEL_PROPERTIES)
+        self._invalidate_graph()
+
+    def _runtime_mpm_target(self, entry_name: str | None) -> tuple[SolverImplicitMPM, State, MPMSolverCfg]:
+        """Resolve a direct or named coupled MPM solver and its current local state."""
+        if self.backend is None or self._sim is None:
+            raise RuntimeError("Newton physics must be initialized before changing MPM settings.")
+        root = self.backend.solver
+        if isinstance(root, SolverImplicitMPM):
+            if entry_name is not None:
+                raise ValueError("entry_name is only valid for coupled solvers.")
+            return root, self.backend.state_0, self._cfg.solver_cfg
+        if not isinstance(root, SolverCoupled):
+            raise RuntimeError("The active physics solver does not contain an MPM entry.")
+        names = tuple(name for name in root.entry_names() if isinstance(root.solver(name), SolverImplicitMPM))
+        if entry_name is None:
+            if len(names) != 1:
+                raise ValueError(f"Select entry_name from the active MPM entries: {names}.")
+            entry_name = names[0]
+        elif entry_name not in names:
+            raise ValueError(f"{entry_name!r} is not an MPM entry; select from {names}.")
+        solver_cfg = next(entry.solver_cfg for entry in self._cfg.solver_cfg.entries if entry.name == entry_name)
+        return root.solver(entry_name), root.entry_state(entry_name), solver_cfg
 
     def _invalidate_graph(self) -> None:
         """Schedule capture after reset and decimation setup, without advancing physics."""

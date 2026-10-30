@@ -12,7 +12,7 @@ import warnings
 from typing import TYPE_CHECKING
 
 import warp as wp
-from newton import BodyFlags, Contacts, Control, GeoType, Model, ModelBuilder, State, StateFlags
+from newton import Contacts, Control, GeoType, Model, ModelBuilder, State, StateFlags
 from newton.solvers import SolverBase, SolverImplicitMPM
 from warp.fem import TemporaryStore
 
@@ -208,19 +208,11 @@ class MPMSolver(NewtonSolver):
 
     @classmethod
     def prepare_builder(cls, cfg: MPMSolverCfg, builder: ModelBuilder) -> None:
-        """Normalize rigid colliders before solver construction.
+        """Convert convex colliders to the triangle-mesh type consumed by MPM.
 
-        Newton's implicit MPM treats positive-mass body colliders as finite-mass colliders, so kinematic bodies lose
-        their mass and inertia, matching Newton's MPM examples. The solver accepts only the triangle-mesh geometry
-        type, so convex meshes are classified as meshes without changing their geometry.
+        Newton applies zero effective collider mass to kinematic bodies without modifying their physical model mass,
+        which other coupled solvers need.
         """
-        kinematic_flag = int(BodyFlags.KINEMATIC)
-        for body_id, flags in enumerate(builder.body_flags):
-            if int(flags) & kinematic_flag:
-                builder.body_mass[body_id] = 0.0
-                builder.body_inv_mass[body_id] = 0.0
-                builder.body_inertia[body_id] = wp.mat33()
-                builder.body_inv_inertia[body_id] = wp.mat33()
         for shape_id, shape_type in enumerate(builder.shape_type):
             if shape_type == GeoType.CONVEX_MESH:
                 builder.shape_type[shape_id] = GeoType.MESH

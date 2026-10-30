@@ -382,8 +382,63 @@ follows:
   Newton's collision pipeline.
 * It treats rigid geometry as colliders. It is not a rigid-body or
   articulation dynamics solver, and it does not accept external rigid-body
-  forces. Kinematic bodies are given zero mass before the model is finalized,
-  and convex meshes are passed to the solver as triangle meshes.
+  forces. Newton gives kinematic colliders zero effective mass while retaining
+  their physical model mass. Convex meshes are passed as triangle meshes.
+
+
+Runtime grid spacing and particle radius
+----------------------------------------
+
+Change full-MPM resolution after initialization, between physics steps:
+
+.. code-block:: python
+
+   manager = env.sim.backend_manager
+   manager.set_voxel_size(0.012, entry_name="media")
+   manager.set_particle_radius(0.003, entry_name="media")
+
+Omit ``entry_name`` for standalone MPM or a single coupled MPM entry. Resizing
+rebuilds sparse or dense grids around the current particles and discards grid
+warm starts; fixed grids cannot be resized. Both setters preserve positions,
+velocities, material history, count, and masses, and schedule CUDA graph
+recapture after the next step when enabled. Radius changes alter reference
+density, ``mass / (8 * radius**3)``; they do not split, merge, or resample
+particles. A coupled radius update requires ownership of all parent particles
+and updates their proxy views too.
+
+Franka Pour's optional terminal-success curriculum is disabled by default.
+Configure its initial grid and transitions before creating the environment:
+
+.. code-block:: python
+
+   from isaaclab_tasks.contrib.franka_pour.pour_env_cfg import (
+       FrankaPourResetDatasetEnvCfg,
+       PourMPMResolutionStageCfg,
+   )
+
+   cfg = FrankaPourResetDatasetEnvCfg()
+   media = next(entry for entry in cfg.sim.physics.solver_cfg.entries if entry.name == "media")
+   # Bound point contacts for the default 468-particle fill in isolated worlds.
+   media.solver_cfg.collider_basis = "pic512"
+   media.solver_cfg.separate_worlds = True
+   media.solver_cfg.voxel_size = 0.030
+   cfg.mpm_resolution_stages = (
+       PourMPMResolutionStageCfg(success_rate=0.70, voxel_size=0.020),
+       PourMPMResolutionStageCfg(success_rate=0.85, voxel_size=0.015),
+   )
+
+A stage may also set ``particle_radius``. After at least
+``mpm_resolution_min_episodes`` completed episodes (default 128), a qualifying
+success fraction advances one stage at a reset boundary. Each rank decides
+independently; the change affects all its environments, including active
+episodes. ``curriculum_freeze=True`` stops these transitions and the reset
+sampler. Observation/action layouts and rewards are unchanged.
+
+Finer grids may need more active-cell capacity; coarsening increases particles
+per cell and can exceed a ``picN`` collider basis, omitting contacts beyond
+``N``. Recheck both capacities for other fills. Storage sufficiency does not
+guarantee contact accuracy, training speedup, or improved policy quality;
+validate the schedule for the task.
 
 
 Limitations

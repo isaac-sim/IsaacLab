@@ -722,7 +722,7 @@ def test_admm_always_requests_outer_collision_pipeline(monkeypatch):
     monkeypatch.setattr(
         coupler,
         "_build_admm_coupled_solver",
-        lambda model, entries, cfg, mode: SimpleNamespace(kind="admm"),
+        lambda model, entries, cfg, mode: SimpleNamespace(kind="admm", solver=lambda name: None),
     )
     solver = CouplerSolver.build(cfg, model, _NG, _CELL_TEMPLATE)
 
