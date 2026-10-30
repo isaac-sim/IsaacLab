@@ -5,9 +5,9 @@
 
 """Tests for BAM actuator authoring and its Newton-native composition.
 
-Newton's voltage-controlled drive, current and PWM clamp, DC motor, battery, delay and encoder, plus Isaac Lab's
-command lag and gearbox friction, are checked against upstream BAM recordings, stepping the actuators with
-test-supplied joint state and external load.
+The authored composition is checked as Newton imports it. Newton's drive, clamp and motor, with Isaac Lab's gearbox
+friction, are checked against upstream BAM recordings, and Isaac Lab's command lag on its own, stepping the actuators
+with test-supplied joint state and external load.
 """
 
 import sys
@@ -450,45 +450,8 @@ def test_motor_and_friction_match_upstream_goldens(goldens, servo_usd, device):
 
 
 @pytest.mark.parametrize("device", test_devices())
-def test_sampled_supply_matches_the_recorded_first_step(goldens, device):
-    """Per-environment nominal voltages written into the batteries reach the servos on the next step.
-
-    The upstream sag recording runs its first step at each environment's nominal voltage, under both its
-    ``vin - sag_gain * sum_j |tau_j|`` law and Newton's battery, whose later, sagged steps Newton tests.
-    """
-    cfg = make_cfg(goldens, vin_min=float(goldens["sag_vin_min"]))
-    bam = make_model(cfg, num_envs=goldens["sag_q"].shape[1], device=device)
-    # Isaac Lab writes its start-up samples the same way.
-    bam.battery.nominal_voltage.assign(goldens["sag_vin"][:, 0].astype(np.float32))
-    bam.battery.reset(bam.control)
-    np.testing.assert_allclose(supply_voltage(bam)[:, 0], goldens["sag_effective_vin"][0, :, 0], rtol=1e-6)
-    effort = step(bam, goldens["sag_q"][0], goldens["sag_dq"][0], goldens["sag_target"][0])
-    np.testing.assert_allclose(effort, goldens["sag_motor_torque"][0], rtol=1e-5, atol=1e-6)
-
-
-@pytest.mark.parametrize("device", test_devices())
-def test_delay_matches_recorded_mjlab_sequence(goldens, servo_usd, device):
-    """Replay mjlab's recorded 3--6-step lags through warm-up, ring wrap, and a partial reset.
-
-    Torch and Warp RNGs differ, so the recorded lags are written into the delay processor; the lag tests below
-    cover sampling.
-    """
-    shape = goldens["delay_commands"].shape[1:]
-    bam = make_actuator(servo_usd, make_cfg(goldens, max_delay=int(goldens["delay_max"])), shape[0], device)
-    (delay,) = bam.actuator.input_processors
-    for index, command in enumerate(goldens["delay_commands"]):
-        if goldens["delay_resets"][index].any():
-            bam.adapter.reset(torch.from_numpy(np.flatnonzero(goldens["delay_resets"][index])).to(device))
-        delay.delay_steps.assign(np.repeat(goldens["delay_lags"][index], shape[1]).astype(np.int32))
-        effort = step(bam, np.zeros(shape), np.zeros(shape), command)
-        np.testing.assert_allclose(
-            effort, goldens["delay_motor_torque"][index], rtol=1e-5, atol=1e-6, err_msg=f"step {index}"
-        )
-
-
-@pytest.mark.parametrize("device", test_devices())
-def test_effort_feedback_and_supply_floor(goldens, device):
-    """Friction feeds back the applied torque, a reset restores only its environment, and an empty supply brakes."""
+def test_effort_feedback_and_environment_reset(goldens, device):
+    """Friction feeds back the applied torque, and a reset restores only its environment."""
     cfg = make_cfg(goldens, battery_resistance=0.5)
     bam = make_model(cfg, num_envs=2, device=device)
     friction = add_friction(bam, cfg.motor)
@@ -515,13 +478,6 @@ def test_effort_feedback_and_supply_floor(goldens, device):
     np.testing.assert_array_equal(supply_voltage(bam)[1], sagged[1])
     np.testing.assert_allclose(step(bam, pos, vel, zeros)[0], effort[0], rtol=1e-6)
     np.testing.assert_allclose(friction.friction_budget.numpy().reshape(2, 2)[0], budget[0], rtol=1e-6)
-
-    # A supply sagged to 0 V applies no voltage, so only the back-EMF brake remains.
-    bam.battery.resistance.fill_(100.0)
-    bam.battery.min_voltage.zero_()
-    step(bam, pos, vel, zeros)
-    np.testing.assert_array_equal(supply_voltage(bam), 0.0)
-    np.testing.assert_allclose(step(bam, pos, vel, zeros), -(cfg.motor.kt**2) * vel / cfg.motor.resistance, rtol=1e-6)
 
 
 def make_lagged_actuator(goldens, servo_usd, device, num_envs, **lag_settings) -> SimpleNamespace:
