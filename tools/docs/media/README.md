@@ -49,4 +49,6 @@ simple-shading stills are too large to keep in the repository. Upload them to th
 `renderers/` folder of the
 [`nvidia/isaaclab-docs-assets`](https://huggingface.co/datasets/nvidia/isaaclab-docs-assets)
 dataset after regenerating; the renderer concept pages reference them by URL and do not
-track them under `_static`.
+track them under `_static`. The dataset uses snake_case names, so replace the hyphens in the
+generated file names with underscores when uploading, for example
+`camera-renderer-newton-albedo.png` becomes `renderers/camera_renderer_newton_albedo.png`.
