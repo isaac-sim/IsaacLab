@@ -755,7 +755,7 @@ ports `BAM (Better Actuator Models) <https://github.com/Rhoban/bam>`_, whose par
 identified from bench measurements. Use it when the servo's own dynamics matter for transfer: it
 cannot hold its target under load, its gearbox sticks, and its supply sags.
 
-BAM requires Newton with ``MJWarpSolverCfg`` and
+BAM requires Newton with ``MJWarpSolverCfg`` on MuJoCo Warp (``use_mujoco_cpu=False``) and
 :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` set to ``True``; other backends and solvers
 raise an error. Newton runs the firmware (:class:`~newton.actuators.DriveVoltageControlled`), the current
 and PWM limits (:class:`~newton.actuators.ClampingCurrentPWM`), the DC motor

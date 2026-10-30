@@ -23,6 +23,7 @@ from newton.actuators import (
     InputProcessorEncoder,
     MotorDC,
 )
+from newton.solvers import SolverMuJoCo
 
 from isaaclab.actuators import ActuatorCollection
 from isaaclab.actuators.actuator_bam_cfg import BamActuatorCfg
@@ -411,15 +412,16 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         servos' joint friction, and the post-actuator hook records the applied effort for the next budget.
 
         Raises:
-            ValueError: If the active solver does not export its bias, constraint and friction-loss forces.
+            ValueError: If the active solver is not MuJoCo Warp, including CPU MuJoCo (``use_mujoco_cpu=True``).
         """
         solver = self._articulation._backend_manager.backend.solver
-        kinds = {"qfrc_bias", "qfrc_constraint", "qfrc_frictionloss"}
-        if not kinds <= solver.supported_observables:
+        if not isinstance(solver, SolverMuJoCo) or solver.use_mujoco_cpu:
             raise ValueError(
-                "BAM actuators require Newton's MJWarp solver (MJWarpSolverCfg), which exports joint loads."
+                "BAM actuators require Newton's MJWarp solver (MJWarpSolverCfg with use_mujoco_cpu=False)."
             )
-        self._articulation._backend_manager.request_solver_observables(kinds)
+        self._articulation._backend_manager.request_solver_observables(
+            {"qfrc_bias", "qfrc_constraint", "qfrc_frictionloss"}
+        )
         # The solver applies the published budgets once it re-reads the joint friction.
         self._articulation._backend_manager.request_solver_model_sync(ModelFlags.JOINT_DOF_FORCE_PROPERTIES)
         model = self._articulation._backend_manager.backend.model

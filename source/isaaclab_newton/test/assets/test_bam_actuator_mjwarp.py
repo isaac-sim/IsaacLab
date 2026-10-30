@@ -303,6 +303,7 @@ def test_each_group_keeps_its_own_configuration(native_sim, device, elbow_delay)
     "solver_cfg, use_newton_actuators, overrides, error",
     [
         (FeatherstoneSolverCfg(), True, [{}], "BAM actuators require.*MJWarp"),
+        (MJWarpSolverCfg(use_mujoco_cpu=True), True, [{}], r"use_mujoco_cpu=False"),
         (None, False, [{}], "use_newton_actuators"),
         (
             None,
@@ -311,7 +312,7 @@ def test_each_group_keeps_its_own_configuration(native_sim, device, elbow_delay)
             "BAM backlash requires.*passive_joint_backlash",
         ),
     ],
-    ids=["featherstone", "lab-executed", "missing-play-hinge"],
+    ids=["featherstone", "mujoco-cpu", "lab-executed", "missing-play-hinge"],
 )
 def test_unsupported_setups_fail_at_startup(device, pendulum_usd, solver_cfg, use_newton_actuators, overrides, error):
     """Setups BAM cannot run fail while the scene starts, instead of approximating friction or dropping settings."""
