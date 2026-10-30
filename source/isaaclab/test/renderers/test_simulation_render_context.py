@@ -317,6 +317,7 @@ class _CpuCamera(Camera):
         self._frame = ProxyArray(wp.zeros(2, dtype=wp.int64, device="cpu"))
         self._ALL_INDICES = wp.array([0, 1], dtype=wp.int32, device="cpu")
         self._ALL_ENV_MASK = wp.ones(2, dtype=wp.bool, device="cpu")
+        self._reset_mask = wp.zeros_like(self._ALL_ENV_MASK)
         self._create_timing_buffers()
         self._invalidate_buffers(self._ALL_ENV_MASK)
         self.pose = 0.0

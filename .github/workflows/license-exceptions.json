@@ -549,6 +549,14 @@
     "comment": "NVIDIA component imported into the Isaac Lab Python process"
   },
   {
+    "package": "physx-usd-schemas",
+    "package_type": "Python",
+    "license": "LicenseRef-NVIDIA-Omniverse",
+    "usage": "runtime_dependency",
+    "interaction": "same_process_dynamic",
+    "comment": "Codeless PhysX USD schema resources read by host USD and OVStage. The standalone importer can import the provider's Python initializer in-process to register the schema plugin; no compiled plugin is loaded."
+  },
+  {
     "package": "decorator",
     "license": "UNKNOWN",
     "comment": "BSD-2"

@@ -55,7 +55,7 @@ No source checkout is required.
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
                data-demo-name="MicroDuck Warehouse" data-demo-id="microduck-warehouse"
-               data-demo-physics="isaacsim_physx"
+               data-demo-physics="newton_xpbd" data-demo-fixed-physics="true"
                data-demo-visualizers="kit,newton_gl,newton_rtx,rerun,viser"
                data-demo-description="View the static MicroDuck Warehouse through selectable renderers and saved cameras.">
          <img src="../../_static/browser_demos/previews/microduck.jpg"
@@ -150,6 +150,20 @@ No source checkout is required.
          See the demo README for asset-root overrides.</p>
      </aside>
    </div>
+
+NIST peg insertion in the browser
+---------------------------------
+
+Try a compact version of the NIST policy with three loose, draggable pegs.
+The browser uses small convex peg colliders that preserve the tip chamfers
+and simplified socket walls. The native ``nist`` demo above runs the full
+ten-part assembly.
+
+Full CAD visuals show the other 16 assemblies already seated as display objects.
+The camera orbits and zooms around the board center; hold Shift while dragging to pan.
+
+.. isaaclab-demos:: alphanist
+   :title: Try AlphaNIST peg insertion
 
 More examples
 -------------
