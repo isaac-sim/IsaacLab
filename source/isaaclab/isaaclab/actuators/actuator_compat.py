@@ -18,7 +18,6 @@ from typing import TYPE_CHECKING
 import torch
 
 from ..utils.string import _resolve_matching_values_dense
-from .actuator_bam_cfg import BamActuatorCfg
 from .actuator_base_cfg import _is_implicit_actuator_cfg
 
 if TYPE_CHECKING:
@@ -43,7 +42,7 @@ def resolve_limit_aliases(
     *,
     warn_deprecated: bool = True,
 ) -> None:
-    """Normalize deprecated effort- and velocity-limit aliases, and BAM's sag gain, on an actuator configuration.
+    """Normalize deprecated effort- and velocity-limit aliases on an actuator configuration.
 
     Writes the configuration in place: canonical fields absorb the alias values after
     equivalence validation and the alias fields are cleared. The collection resolves on
@@ -91,22 +90,3 @@ def resolve_limit_aliases(
                 f"Actuator group '{actuator_name}' has conflicting '{new_name}' and deprecated '{old_name}' values."
             )
         setattr(cfg, old_name, None)
-
-    if isinstance(cfg, BamActuatorCfg) and cfg.vin_drop_gain_range is not None:
-        if warn_deprecated:
-            warnings.warn(
-                f"Actuator group '{actuator_name}' uses deprecated 'vin_drop_gain_range' [V/(N.m)]. Use"
-                " 'battery_resistance_range' [Ohm] instead; 'vin_drop_gain_range' will be removed in 3.2. It is"
-                " converted to 'vin_drop_gain_range * motor.kt', but the supply now drops with the current the"
-                " servos draw during their PWM on-time instead of 'sum_j |tau_j|', so it sags less.",
-                DeprecationWarning,
-                stacklevel=3,
-            )
-        if cfg.battery_resistance_range is not None:
-            raise ValueError(
-                f"Actuator group '{actuator_name}' sets both 'battery_resistance_range' and the deprecated"
-                " 'vin_drop_gain_range'."
-            )
-        low, high = cfg.vin_drop_gain_range
-        cfg.battery_resistance_range = (low * cfg.motor.kt, high * cfg.motor.kt)
-        cfg.vin_drop_gain_range = None
