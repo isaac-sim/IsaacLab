@@ -187,7 +187,7 @@ class GB300SharpaInsertionEnvCfg(ManagerBasedEnvCfg):
                     CouplerEntryCfg(
                         name="rigid",
                         bodies=[r"{ENV_REGEX_NS}/Robot", r"{ENV_REGEX_NS}/Fixtures"],
-                        substeps=1,
+                        substeps=2,
                         solver_cfg=MJWarpSolverCfg(
                             cone="elliptic",
                             ls_iterations=50,
