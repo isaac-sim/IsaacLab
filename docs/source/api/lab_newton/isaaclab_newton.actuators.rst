@@ -8,19 +8,11 @@ isaaclab_newton.actuators
 .. autosummary::
    :nosignatures:
 
-   BamCommandLag
-   BamFriction
    BamGroup
    get_bam_group
 
 BAM Servo Runtime
 -----------------
-
-.. autoclass:: BamCommandLag
-    :members:
-
-.. autoclass:: BamFriction
-    :members:
 
 .. autoclass:: BamGroup
     :members:

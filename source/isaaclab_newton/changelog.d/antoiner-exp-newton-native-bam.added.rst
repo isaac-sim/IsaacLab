@@ -1,6 +1,3 @@
-* Added :class:`~isaaclab_newton.actuators.BamCommandLag` and :class:`~isaaclab_newton.actuators.BamFriction`,
-  the BAM servo parts Newton's native BAM path lacks: the per-environment random command lag, written into
-  Newton's delay processor, and the gearbox friction budget.
 * Added :func:`~isaaclab_newton.actuators.get_bam_group` and :class:`~isaaclab_newton.actuators.BamGroup`
   to read and write a Newton-executed BAM group's friction scale and its batteries' nominal voltage and
   resistance, and to read its friction budget.
