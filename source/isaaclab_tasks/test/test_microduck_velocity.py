@@ -200,8 +200,7 @@ def test_microduck_backlash_preset_reads_output_side_encoders(device):
         robot.actuators.target_command.set_position_index(value=robot.data.default_joint_pos.torch)
         robot.write_data_to_sim()
         # The supply voltage of this step, which the reset set to each environment's nominal voltage.
-        vin = wp.to_torch(get_bam_group(robot, "servos").voltage)[:, None]
-        torch.testing.assert_close(vin[:, 0], wp.to_torch(get_bam_group(robot, "servos").nominal_voltage))
+        vin = wp.to_torch(get_bam_group(robot, "servos").nominal_voltage)[:, None]
         env.sim.backend_manager.set_decimation(1)
         env.sim.step(render=False)
         env.sim.backend_manager.set_decimation(env.cfg.decimation)

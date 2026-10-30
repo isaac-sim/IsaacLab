@@ -295,20 +295,11 @@ class BamGroup:
     friction: BamFriction
     """Gearbox friction of the group's servos."""
 
-    command_lags: list[BamCommandLag]
-    """Random command lag per Newton actuator driving the group; empty without a delay."""
-
     battery: BatteryConstantResistance
     """Newton batteries that include the group's, one per environment."""
 
     battery_ids: slice
     """Indices of the group's batteries in :attr:`battery`, environment-major and evenly spaced."""
-
-    supply_voltage: wp.array
-    """Supply voltage of every actuator of the model [V] (``control.actuator_supply_voltage``)."""
-
-    supply_rows: wp.array
-    """Row of each environment's first servo in :attr:`supply_voltage`, shape ``(num_envs,)``."""
 
     @property
     def friction_scale(self) -> wp.array:
@@ -333,19 +324,6 @@ class BamGroup:
         """Live internal resistance of the battery [Ohm], shape ``(num_envs,)``. Writable."""
         return self.battery.resistance[self.battery_ids]
 
-    @property
-    def voltage(self) -> wp.array:
-        """Supply voltage the group's motors read on the next step [V], shape ``(num_envs,)``. A copy."""
-        voltage = wp.empty(self.num_envs, dtype=wp.float32, device=self.supply_rows.device)
-        wp.launch(
-            gather_dof_values_kernel,
-            dim=self.num_envs,
-            inputs=[self.supply_voltage, self.supply_rows],
-            outputs=[voltage],
-            device=self.supply_rows.device,
-        )
-        return voltage
-
 
 def get_bam_group(articulation: Articulation, name: str) -> BamGroup:
     """Return the Isaac Lab-side runtime of a Newton-executed BAM actuator group.
@@ -355,7 +333,7 @@ def get_bam_group(articulation: Articulation, name: str) -> BamGroup:
         name: Actuator group name.
 
     Returns:
-        The group's friction, command-lag and supply state.
+        The group's friction and supply state.
 
     Raises:
         KeyError: If the articulation has no Newton-executed BAM group *name*.
