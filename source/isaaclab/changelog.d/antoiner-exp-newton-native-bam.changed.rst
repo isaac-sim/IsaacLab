@@ -26,6 +26,8 @@
 * Changed :class:`~isaaclab.actuators.newton.NewtonActuatorAdapter` to build Newton actuators with
   :class:`~newton.actuators.InputProcessorDelay` instead of the deprecated ``Delay``, and with their authored
   motor, on its ``vin``, on PhysX and OVPhysX.
+* Changed Newton-native actuator authoring to stop authoring ``newton:maxDelay``, which
+  :class:`~newton.actuators.InputProcessorDelay` does not read; ``newton:delaySteps`` sizes its buffer.
 * Changed the Newton dependency pin from ``42f7def1`` to ``b9452c2f``, the merge of newton#4504 and newton#4797 on
   a fork, with ``mujoco`` and ``mujoco-warp`` 3.16, and pinned ``newton-usd-schemas`` to newton-usd-schemas#97
   (``1f440a08``), whose schemas register the native BAM actuator components.
