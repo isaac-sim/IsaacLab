@@ -433,8 +433,12 @@ class KitVisualizer(BaseVisualizer):
                 self.kit_manager_visualizers[source.manager_name] = DirectScalarLiveVisualizer(source)
 
     def pumps_app_update(self) -> bool:
-        """KitVisualizer calls app.update() in step(), so render() should not do it again."""
-        return True
+        """Return whether :meth:`step` pumps Kit continuously.
+
+        Headless presentation is on demand, so camera renderers must pump Kit after
+        preparing their scene and camera state instead of yielding to this visualizer.
+        """
+        return not self._runtime_headless
 
     def set_camera_view(
         self, eye: tuple[float, float, float] | list[float], target: tuple[float, float, float] | list[float]
