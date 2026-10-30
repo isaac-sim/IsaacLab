@@ -47,8 +47,8 @@ class BamCommandLag:
     processor's :attr:`~newton.actuators.InputProcessorDelay.delay_steps`. A draw is attempted every
     ``update_period`` steps on a random per-environment phase, and is skipped with probability ``hold_prob``.
 
-    The stream of each environment restarts on :meth:`reset` from the seed ``seed + reset_count``, where
-    ``reset_count`` counts the resets since construction.
+    Each environment's stream is keyed by the DOF of its first slot, so lags over other DOFs draw independently. It
+    restarts on :meth:`reset` from the seed ``reset_count``, the number of resets since construction.
     """
 
     def __init__(
@@ -61,20 +61,19 @@ class BamCommandLag:
         max_delay: int,
         hold_prob: float = 0.0,
         update_period: int = 0,
-        seed: int = 0,
     ):
         """Initialize the lag streams and seed the first episode.
 
         Args:
             delay: Delay processor whose lags are drawn.
             slots: Processor slots driven by this lag, shape ``(N,)``.
-            dof_indices: DOF index of each slot, which locates its environment, shape ``(N,)``.
+            dof_indices: DOF index of each slot, which locates its environment, shape ``(N,)``. Ordered
+                environment-major, with the same DOFs in every environment.
             dofs_per_env: DOFs per environment in the layout of :paramref:`dof_indices`.
             min_delay: Minimum lag [physics steps].
             max_delay: Maximum lag [physics steps].
             hold_prob: Probability of keeping the current lag at a draw [-].
             update_period: Physics steps between draws. ``0`` draws every step.
-            seed: Base seed of the lag and phase draws.
 
         Raises:
             ValueError: If the lag range is invalid or exceeds the processor's buffer.
@@ -93,12 +92,12 @@ class BamCommandLag:
         self.max_delay = max_delay
         self.hold_prob = hold_prob
         self.update_period = update_period
-        self.seed = seed
         self.reset_count = 0
         """Number of resets applied, which decorrelates successive episodes."""
         self._slots = wp.array(np.asarray(slots, dtype=np.int32), dtype=wp.int32, device=device)
         self._dof_indices = wp.array(np.asarray(dof_indices, dtype=np.uint32), dtype=wp.uint32, device=device)
         self._dofs_per_env = dofs_per_env
+        self._first_dof = int(dof_indices[0]) % dofs_per_env
         self.lag = wp.zeros(len(slots), dtype=wp.int32, device=device)
         """Lag of the last step [physics steps], shape ``(N,)``."""
         self.step_count = wp.zeros(len(slots), dtype=wp.int32, device=device)
@@ -107,7 +106,7 @@ class BamCommandLag:
         """Offset of the draw period, shape ``(N,)``."""
         self.rng_seed = wp.zeros(len(slots), dtype=wp.int32, device=device)
         """Episode seed of each slot's environment, shape ``(N,)``."""
-        self._reseed(None, seed)
+        self._reseed(None)
 
     def step(self) -> None:
         """Draw this step's lags into the delay processor. Captured with the actuator step in CUDA graphs."""
@@ -136,13 +135,20 @@ class BamCommandLag:
             env_mask: Per-environment boolean reset mask, or None to reset every environment.
         """
         self.reset_count += 1
-        self._reseed(env_mask, self.seed + self.reset_count)
+        self._reseed(env_mask)
 
-    def _reseed(self, env_mask: wp.array | None, seed: int) -> None:
+    def _reseed(self, env_mask: wp.array | None) -> None:
         wp.launch(
             bam_command_lag_reset_kernel,
             dim=len(self.lag),
-            inputs=[env_mask, self._dof_indices, self._dofs_per_env, self.update_period, seed],
+            inputs=[
+                env_mask,
+                self._dof_indices,
+                self._dofs_per_env,
+                self._first_dof,
+                self.update_period,
+                self.reset_count,
+            ],
             outputs=[self.lag, self.step_count, self.phase, self.rng_seed],
             device=self.lag.device,
         )

@@ -49,6 +49,7 @@ def bam_command_lag_reset_kernel(
     env_mask: wp.array[wp.bool],
     dof_indices: wp.array[wp.uint32],
     dofs_per_env: int,
+    first_dof: int,
     update_period: int,
     reset_seed: int,
     lag: wp.array[wp.int32],
@@ -56,7 +57,11 @@ def bam_command_lag_reset_kernel(
     phase: wp.array[wp.int32],
     rng_seed: wp.array[wp.int32],
 ):
-    """Restart the lag stream of the masked environments from an episode seed shared by each environment's DOFs."""
+    """Restart the lag stream of the masked environments from an episode seed shared by each environment's DOFs.
+
+    The stream is keyed by the DOF of the lag's first servo in the environment, ``first_dof`` within each
+    environment, so the lags of other groups and environments draw independently.
+    """
     i = wp.tid()
     env = int(dof_indices[i]) // dofs_per_env
     if env_mask:
@@ -64,9 +69,10 @@ def bam_command_lag_reset_kernel(
             return
     lag[i] = 0
     step_count[i] = 0
-    rng_seed[i] = wp.int32(wp.rand_init(reset_seed, env))
+    stream = wp.rand_init(reset_seed, env * dofs_per_env + first_dof)
+    rng_seed[i] = wp.int32(stream)
     if update_period > 0:
-        phase[i] = wp.randi(wp.rand_init(reset_seed, env), 0, update_period)
+        phase[i] = wp.randi(stream, 0, update_period)
     else:
         phase[i] = 0
 

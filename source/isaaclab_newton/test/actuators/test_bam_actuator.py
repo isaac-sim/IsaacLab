@@ -58,14 +58,6 @@ KP_FW = 200.0
 """Firmware proportional gain [-]."""
 
 
-@wp.kernel
-def _reference_lag_kernel(seed: int, step: int, min_delay: int, max_delay: int, lags: wp.array[wp.int32]):
-    """The pre-native BAM lag draw for update period 0: an episode seed per environment, a draw per step."""
-    env = wp.tid()
-    episode_seed = wp.int32(wp.rand_init(seed, env))
-    lags[env] = wp.randi(wp.rand_init(episode_seed, step), min_delay, max_delay + 1)
-
-
 @pytest.fixture(scope="module")
 def goldens() -> dict[str, np.ndarray]:
     """Upstream BAM 62bd8ce recordings and the identified fit they were made with."""
@@ -607,23 +599,20 @@ def test_command_lags_differ_per_environment_and_episode(goldens, servo_usd, dev
 
 
 @pytest.mark.parametrize("device", test_devices())
-def test_command_lag_stream_keeps_its_seeding(goldens, servo_usd, device):
-    """Each environment's lag stream is seeded from the base seed plus the reset count, as before the native port.
-
-    Pins the draw sequence, so trajectories recorded with the pre-native BAM drive replay unchanged.
-    """
-    num_envs = 4
-    bam = make_lagged_actuator(goldens, servo_usd, device, num_envs, min_delay=3, max_delay=6)
-    expected = wp.zeros(num_envs, dtype=wp.int32, device=device)
-    for reset_count in range(3):
-        if reset_count:
-            bam.adapter.reset(None if reset_count == 1 else torch.arange(num_envs, device=device))
-        for index in range(8):
-            with wp.ScopedDevice(device):
-                bam.lag.step()
-                wp.launch(_reference_lag_kernel, dim=num_envs, inputs=[reset_count, index, 3, 6, expected])
-            np.testing.assert_array_equal(
-                bam.lag.delay.delay_steps.numpy().reshape(num_envs, -1),
-                np.repeat(expected.numpy()[:, None], len(JOINT_NAMES), axis=1),
-                err_msg=f"episode {reset_count}, step {index}",
-            )
+def test_command_lags_over_other_dofs_draw_independently(goldens, servo_usd, device):
+    """Lags of separate groups, here one per joint, draw their own sequence in each environment."""
+    num_envs = 8
+    bam = make_actuator(servo_usd, make_cfg(goldens, max_delay=6), num_envs=num_envs, device=device)
+    (delay,) = bam.actuator.input_processors
+    lags = [
+        BamCommandLag(delay, bam.dofs[:, joint], bam.dofs[:, joint], len(JOINT_NAMES), min_delay=0, max_delay=6)
+        for joint in range(len(JOINT_NAMES))
+    ]
+    draws = []
+    for _ in range(4):
+        with wp.ScopedDevice(device):
+            for lag in lags:
+                lag.step()
+        draws.append([lag.lag.numpy() for lag in lags])
+    draws = np.array(draws)
+    assert not np.array_equal(draws[:, 0], draws[:, 1]), "groups drew the same lag sequence"

@@ -735,8 +735,8 @@ joints.
     Under native execution, delay is fixed. The schema stores only ``max_delay``, so ``min_delay``
     is ignored. A :class:`~isaaclab.actuators.DelayedPDActuator` does not randomize delay between
     resets as it does on the Isaac Lab path.
-    :class:`~isaaclab.actuators.BamActuatorCfg` is the exception: Isaac Lab draws one lag per
-    environment every step, honoring both bounds, and writes it into Newton's delay processor.
+    :class:`~isaaclab.actuators.BamActuatorCfg` is the exception: Isaac Lab draws one lag per group
+    and environment every step, honoring both bounds, and writes it into Newton's delay processor.
 
 .. note::
 
@@ -882,10 +882,10 @@ voltage the firmware commands; neither includes friction. ``data.joint_friction`
 the last step on the servo joints. Read it with ``get_bam_group(robot, "servos").friction_budget`` from
 :mod:`isaaclab_newton.actuators`.
 
-Isaac Lab draws one command lag per environment, shared by the group's joints, honoring ``min_delay``,
-``max_delay``, ``delay_hold_prob`` and ``delay_update_period``, and writes it into Newton's delay
-processor before the actuators step. Reset restarts the lag stream only for the selected environments,
-including during CUDA graph replay.
+Isaac Lab draws one command lag per group and environment, shared by the group's joints, honoring
+``min_delay``, ``max_delay``, ``delay_hold_prob`` and ``delay_update_period``, and writes it into Newton's
+delay processor before the actuators step. Reset restarts the lag stream only for the selected
+environments, including during CUDA graph replay.
 
 Randomization hooks
 ^^^^^^^^^^^^^^^^^^^
@@ -941,9 +941,8 @@ event:
 Known constraints
 ^^^^^^^^^^^^^^^^^
 
-* **Supply and lag are per group and environment.** Each BAM group has one battery per environment,
-  shared by the group's joints. Separate groups of one robot sag independently. Groups with the same
-  delay settings draw the same lag in an environment.
+* **Supply and lag are per group and environment.** Each BAM group has one battery and one command lag
+  per environment, shared by the group's joints. Separate groups of one robot sag and lag independently.
 * **Friction feedback ignores extra clipping.** If a tighter solver joint limit clips the drive
   output, the load-dependent friction does not see it.
 
