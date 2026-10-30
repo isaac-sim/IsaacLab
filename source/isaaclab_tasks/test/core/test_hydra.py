@@ -470,6 +470,42 @@ def test_register_task_mixed_overrides():
     assert hydra_args == ["--flag"]
 
 
+def test_resolve_task_config_replaces_task_without_migration_warnings(monkeypatch, tmp_path):
+    """Repeated composition uses the latest task config without Hydra migration warnings."""
+    import sys
+
+    import gymnasium as gym
+
+    task = "Isaac-Hydra-Repeated-Resolve-Test"
+    gym.register(
+        id=task,
+        entry_point="dummy:Env",
+        kwargs={"env_cfg_entry_point": SampleEnvCfg, "agent_cfg_entry_point": SampleAgentCfg},
+    )
+    monkeypatch.setattr(sys, "argv", ["test"])
+    original_argv = sys.argv
+    try:
+        for decimation in (4, 8):
+            with warnings.catch_warnings():
+                warnings.simplefilter("error", UserWarning)
+                env_cfg, agent_cfg = hydra_mod.resolve_task_config(
+                    task,
+                    "agent_cfg_entry_point",
+                    overrides=[
+                        f"env.decimation={decimation}",
+                        f"hydra.run.dir={tmp_path.as_posix()}",
+                        "hydra.output_subdir=null",
+                        "hydra/job_logging=disabled",
+                        "hydra/hydra_logging=disabled",
+                    ],
+                )
+            assert env_cfg.decimation == decimation
+            assert agent_cfg.learning_rate == 3e-4
+            assert sys.argv is original_argv
+    finally:
+        del gym.registry[task]
+
+
 def test_register_task_resolves_interpolations_after_overrides():
     """Resolve dictionary agent interpolations after presets and scalar overrides without extra Hydra arguments."""
     env = PresetCfgEnvCfg()
