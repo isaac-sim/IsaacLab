@@ -143,9 +143,11 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
             offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 6.0), rot=(0.0, 0.0, 0.0, 1.0), convention="opengl"),
             renderer_cfg=OVRTXRendererCfg(temp_usd_dir=str(tmp_path)),
         )
+        # Distinct viewpoints must remain independent when their products share a stage.
         other_camera = replace(
             camera,
             prim_path="{ENV_REGEX_NS}/OtherCamera",
+            offset=replace(camera.offset, pos=(0.0, 0.0, 7.0)),
             data_types=["depth", "rgb", "rgb_hdr"],
             isp_cfg=PpispCfg(),
             renderer_cfg=OVRTXRendererCfg(enable_shadows=True),
@@ -205,7 +207,7 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
             assert submissions and all(submitted == products for submitted in submissions)
             for sensor in (camera, other):
                 depth = sensor.data.output["depth"].torch[:, 16, 16, 0]
-                torch.testing.assert_close(depth, 6.0 - expected[:, 2] - 0.5, atol=0.02, rtol=0.0)
+                torch.testing.assert_close(depth, sensor.cfg.offset.pos[2] - expected[:, 2] - 0.5, atol=0.02, rtol=0.0)
             for soft in (True, False):
                 if not soft:
                     UsdPhysics.MassAPI(sim.stage.GetPrimAtPath("/World/envs/env_0/Body")).GetMassAttr().Set(2.0)
@@ -216,7 +218,10 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
                 sim.backend_manager.set_gravity((0.0, 0.0, 0.0))
                 sim.render()
                 scene.update(cfg.dt)
-                torch.testing.assert_close(camera.data.output["depth"].torch, other.data.output["depth"].torch)
+                torch.testing.assert_close(
+                    camera.data.output["depth"].torch[:, 16, 16, 0] + 1.0,
+                    other.data.output["depth"].torch[:, 16, 16, 0],
+                )
                 assert other.data.output["rgb"].torch.shape == (2, 32, 32, 3)
                 assert torch.isfinite(other.data.output["rgb_hdr"].torch).all()
                 if not soft:
@@ -226,7 +231,11 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
                     for sensor in (camera, other):
                         torch.testing.assert_close(
                             sensor.data.output["depth"].torch[:, 16, 16, 0],
-                            torch.full((2,), 6.0 - scene.cfg.body.init_state.pos[2] - 1.0, device=sim.device),
+                            torch.full(
+                                (2,),
+                                sensor.cfg.offset.pos[2] - scene.cfg.body.init_state.pos[2] - 1.0,
+                                device=sim.device,
+                            ),
                             atol=0.02,
                             rtol=0.0,
                         )

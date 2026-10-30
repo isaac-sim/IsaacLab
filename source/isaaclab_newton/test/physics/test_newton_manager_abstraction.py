@@ -924,7 +924,11 @@ def test_articulation_target_modes_are_resolved_once_for_replicas(monkeypatch):
 
 
 def test_reset_binds_consumers_before_constructing_the_solver(monkeypatch):
-    """Each hard reset finalizes a new backend, lets consumers bind it, then constructs the solver."""
+    """Each hard reset finalizes a new backend, lets consumers bind it, then constructs the solver.
+
+    Graph-replay invalidation from before a hard reset belongs to the discarded graph, so the new model's consumers
+    can read transforms before the solver is rebuilt.
+    """
     events: list[str] = []
     allocations = []
     sim_cfg = SimulationCfg(
@@ -947,6 +951,8 @@ def test_reset_binds_consumers_before_constructing_the_solver(monkeypatch):
             )
             assert sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=different)) is not builder
             sim.get_scene_data_provider().get_transforms(SceneDataFormat.Transform())
+            # Asset pose reads resolve pending FK through the manager.
+            sim.backend_manager.forward()
 
         builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
         body = builder.add_body(mass=1.0)
@@ -957,6 +963,8 @@ def test_reset_binds_consumers_before_constructing_the_solver(monkeypatch):
 
         sim.reset()
         assert isinstance(sim.backend_manager.backend.solver, SolverMuJoCo)
+        # as a write during graph capture does
+        monkeypatch.setattr(sim.backend_manager, "transforms_may_change_on_graph_replay", True)
         sim.reset()
 
     assert events == ["ready", "prepare"] * 2

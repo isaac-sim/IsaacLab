@@ -19,6 +19,7 @@ prerelease-mode = "allow"
 overrides = [
     { name = "fsspec", specifier = ">=2026.6.0" },
     { name = "mujoco", specifier = "~=3.16.0" },
+    { name = "mujoco-usd-converter", specifier = "==0.7.0" },
     { name = "mujoco-warp", specifier = "~=3.16.0" },
     { name = "newton", extras = ["sim"], git = "https://github.com/maxkra15/newton.git?rev=fd83c643a93f52785edb6846b732f0f6369beb06" },
     { name = "newton-usd-schemas", specifier = ">=0.5.0" },
@@ -26,6 +27,7 @@ overrides = [
     { name = "packaging", specifier = ">=20,<27" },
     { name = "torch", specifier = "==2.11.0", index = "https://download.pytorch.org/whl/cu130" },
     { name = "torchvision", specifier = "==0.26.0", index = "https://download.pytorch.org/whl/cu130" },
+    { name = "urdf-usd-converter", specifier = "==0.3.4" },
     { name = "urllib3", specifier = ">=2.8.0" },
     { name = "usd-exchange", specifier = "==3.0.1" },
     { name = "usd-optimize", specifier = "~=1.3.1" },
@@ -1771,7 +1773,7 @@ ui = [
 
 [[package]]
 name = "isaaclab"
-version = "42.1.0"
+version = "42.2.0"
 source = { editable = "source/isaaclab" }
 
 [[package]]
@@ -1795,7 +1797,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-contrib"
-version = "5.0.0"
+version = "5.0.1"
 source = { editable = "source/isaaclab_contrib" }
 dependencies = [
     { name = "isaaclab" },
@@ -1880,6 +1882,7 @@ all = [
     { name = "ovphysx" },
     { name = "ovrtx" },
     { name = "ovstage" },
+    { name = "physx-usd-schemas" },
     { name = "pyarrow" },
     { name = "rerun-sdk" },
     { name = "rich" },
@@ -1932,10 +1935,12 @@ ov = [
     { name = "ovphysx" },
     { name = "ovrtx" },
     { name = "ovstage" },
+    { name = "physx-usd-schemas" },
 ]
 ovphysx = [
     { name = "ovphysx" },
     { name = "ovstage" },
+    { name = "physx-usd-schemas" },
 ]
 ovrtx = [
     { name = "ovrtx" },
@@ -2056,7 +2061,7 @@ requires-dist = [
     { name = "isaaclab-teleop", marker = "extra == 'teleop'", editable = "source/isaaclab_teleop" },
     { name = "isaaclab-visualizers", editable = "source/isaaclab_visualizers" },
     { name = "isaacsim", extras = ["all", "extscache"], marker = "extra == 'isaacsim'", specifier = "==6.2.0.0" },
-    { name = "isaacsim-asset-isolated", marker = "extra == 'importers'", specifier = "==6.2.0.0" },
+    { name = "isaacsim-asset-isolated", marker = "extra == 'importers'", specifier = "==6.2.0.1" },
     { name = "jax", extras = ["cuda13"], marker = "sys_platform == 'linux' and extra == 'skrl-jax'" },
     { name = "jinja2" },
     { name = "junitparser", marker = "extra == 'test'" },
@@ -2074,16 +2079,18 @@ requires-dist = [
     { name = "omniverseclient", specifier = "==2.74.0", index = "https://pypi.org/simple" },
     { name = "onnx", specifier = ">=1.18.0" },
     { name = "open3d", marker = "(python_full_version < '3.13' and platform_machine != 'aarch64') or (python_full_version < '3.13' and sys_platform != 'linux')", specifier = ">=0.19.0" },
-    { name = "ovphysx", marker = "extra == 'ov'", specifier = "==0.6.4.72118723", index = "https://pypi.org/simple" },
-    { name = "ovphysx", marker = "extra == 'ovphysx'", specifier = "==0.6.4.72118723", index = "https://pypi.org/simple" },
-    { name = "ovrtx", marker = "extra == 'ov'", specifier = "==0.5.1.385782", index = "https://pypi.org/simple" },
-    { name = "ovrtx", marker = "extra == 'ovrtx'", specifier = "==0.5.1.385782", index = "https://pypi.org/simple" },
-    { name = "ovstage", marker = "extra == 'ov'", specifier = "==0.2.1.385922", index = "https://pypi.org/simple" },
-    { name = "ovstage", marker = "extra == 'ovphysx'", specifier = "==0.2.1.385922", index = "https://pypi.org/simple" },
-    { name = "ovstage", marker = "extra == 'ovrtx'", specifier = "==0.2.1.385922", index = "https://pypi.org/simple" },
+    { name = "ovphysx", marker = "extra == 'ov'", specifier = "==0.7.0.74035321", index = "https://pypi.org/simple" },
+    { name = "ovphysx", marker = "extra == 'ovphysx'", specifier = "==0.7.0.74035321", index = "https://pypi.org/simple" },
+    { name = "ovrtx", marker = "extra == 'ov'", specifier = "==0.6.0.1791947691", index = "https://pypi.org/simple" },
+    { name = "ovrtx", marker = "extra == 'ovrtx'", specifier = "==0.6.0.1791947691", index = "https://pypi.org/simple" },
+    { name = "ovstage", marker = "extra == 'ov'", specifier = "==0.3.0.1791986420", index = "https://pypi.org/simple" },
+    { name = "ovstage", marker = "extra == 'ovphysx'", specifier = "==0.3.0.1791986420", index = "https://pypi.org/simple" },
+    { name = "ovstage", marker = "extra == 'ovrtx'", specifier = "==0.3.0.1791986420", index = "https://pypi.org/simple" },
     { name = "packaging" },
     { name = "pandas", marker = "extra == 'rlinf'" },
     { name = "peft", marker = "extra == 'rlinf'", specifier = ">=0.17.0" },
+    { name = "physx-usd-schemas", marker = "extra == 'ov'", specifier = "==25.11.2.72696984", index = "https://pypi.org/simple" },
+    { name = "physx-usd-schemas", marker = "extra == 'ovphysx'", specifier = "==25.11.2.72696984", index = "https://pypi.org/simple" },
     { name = "pillow", specifier = ">=12.3.0" },
     { name = "pin", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
     { name = "pin-pink", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')", specifier = "==3.3.0" },
@@ -2147,7 +2154,7 @@ provides-extras = ["tetrahedralization", "video", "importers", "test", "dev", "s
 
 [[package]]
 name = "isaaclab-experimental"
-version = "0.3.1"
+version = "1.0.0"
 source = { editable = "source/isaaclab_experimental" }
 dependencies = [
     { name = "isaaclab" },
@@ -2158,7 +2165,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-mimic"
-version = "2.1.6"
+version = "2.1.7"
 source = { editable = "source/isaaclab_mimic" }
 dependencies = [
     { name = "isaaclab" },
@@ -2175,7 +2182,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-newton"
-version = "12.0.0"
+version = "12.0.1"
 source = { editable = "source/isaaclab_newton" }
 dependencies = [
     { name = "isaaclab" },
@@ -2186,7 +2193,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-ov"
-version = "8.0.0"
+version = "8.0.1"
 source = { editable = "source/isaaclab_ov" }
 dependencies = [
     { name = "isaaclab" },
@@ -2196,12 +2203,12 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "isaaclab", editable = "source/isaaclab" },
-    { name = "ovstage", specifier = "==0.2.1.385922" },
+    { name = "ovstage", specifier = "==0.3.0.1791986420" },
 ]
 
 [[package]]
 name = "isaaclab-physx"
-version = "10.0.1"
+version = "10.0.2"
 source = { editable = "source/isaaclab_physx" }
 dependencies = [
     { name = "isaaclab" },
@@ -2274,7 +2281,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-teleop"
-version = "0.11.1"
+version = "0.11.2"
 source = { editable = "source/isaaclab_teleop" }
 dependencies = [
     { name = "isaaclab" },
@@ -2364,7 +2371,7 @@ wheels = [
 
 [[package]]
 name = "isaacsim-asset-isolated"
-version = "6.2.0.0"
+version = "6.2.0.1"
 source = { registry = "https://pypi.nvidia.com/" }
 dependencies = [
     { name = "isaacsim-robot-schema" },
@@ -2376,7 +2383,7 @@ dependencies = [
     { name = "usd-optimize" },
 ]
 wheels = [
-    { url = "https://pypi.nvidia.com/isaacsim-asset-isolated/isaacsim_asset_isolated-6.2.0.0-py3-none-any.whl", hash = "sha256:bcfd5331e60f74c89f06c86577072f2e36d5213584188038f9c62b9bdd1cbd59" },
+    { url = "https://pypi.nvidia.com/isaacsim-asset-isolated/isaacsim_asset_isolated-6.2.0.1-py3-none-any.whl", hash = "sha256:1f1455ee216cb1c0b1fd589df8a22adddd9edc6328cc40794d943823da0d7fa3" },
 ]
 
 [[package]]
@@ -3357,7 +3364,7 @@ wheels = [
 
 [[package]]
 name = "mujoco-usd-converter"
-version = "0.6.1"
+version = "0.7.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "mujoco" },
@@ -3366,9 +3373,9 @@ dependencies = [
     { name = "tinyobjloader" },
     { name = "usd-exchange" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/95/47/92b378d3497d9cdaca18b1ee46f34cf3b8441dd5703f8e6bc63aff988089/mujoco_usd_converter-0.6.1.tar.gz", hash = "sha256:1d033e442bdb2f28e7f2e515ab88f8e60a3429f6a3a8ed2fee34fc59ef06a2ae", size = 312482, upload-time = "2026-09-29T19:43:39.02Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e5/3a/5b2faec6e08c25d0d3192cd70dfc6f85fb58abde227517306af6c95d3d72/mujoco_usd_converter-0.7.0.tar.gz", hash = "sha256:35ee56e4c1c3e780060e4d2fa989817196c1d5e119ae432f364bcb7be20c73e9", size = 322882, upload-time = "2026-10-15T00:02:20.18Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/bd/a2/d9d215a904886a79b0a8a8b14064608c2daf22150cc43e5e6a863b3bb50e/mujoco_usd_converter-0.6.1-py3-none-any.whl", hash = "sha256:e21e3b24b1877c0489b37624de43f59f34e98662e387e348e0b83271d4572d36", size = 55760, upload-time = "2026-09-29T19:43:37.557Z" },
+    { url = "https://files.pythonhosted.org/packages/63/06/ffcf02f454d0cb9cfda8963570840763b9172884e32dd55c39e77bb74c4d/mujoco_usd_converter-0.7.0-py3-none-any.whl", hash = "sha256:dc03bc77a59f79884499a970bf1d4d3c27108484a21e010e4b033cdf4bb56b2f", size = 55858, upload-time = "2026-10-15T00:02:18.783Z" },
 ]
 
 [[package]]
@@ -4058,7 +4065,7 @@ wheels = [
 
 [[package]]
 name = "ovphysx"
-version = "0.6.4.72118723"
+version = "0.7.0.74035321"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "ovstage" },
@@ -4066,25 +4073,25 @@ dependencies = [
     { name = "warp-lang" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b3/5b/eacab4c280b9f1fc1748b151dd0b9198c55a4baf188eff301469c720f401/ovphysx-0.6.4.72118723-py3-none-manylinux_2_35_aarch64.whl", hash = "sha256:073aaea335d66b833922c65bf88b777615148f635769c1115b4b393e155655d2", size = 139824208, upload-time = "2026-10-09T17:01:29.426Z" },
-    { url = "https://files.pythonhosted.org/packages/5a/52/04625f93a57c6dbabc1d3326b6211d4983dfe3d13084fea1aefdba9edd4f/ovphysx-0.6.4.72118723-py3-none-manylinux_2_35_x86_64.whl", hash = "sha256:8276824ef74bd79ae231804850a9dcaf218967c6dd92bc31f4d1bc1c1e0d4643", size = 139311386, upload-time = "2026-10-09T17:03:48.567Z" },
-    { url = "https://files.pythonhosted.org/packages/af/b0/276ea39a806cf77fcfe25749f7b4739eb173d3966d780cf9475b2bacf423/ovphysx-0.6.4.72118723-py3-none-win_amd64.whl", hash = "sha256:62edd7752743b3475d04693318d67b6cef7f69496740ef1ae0f58335e1c07524", size = 130693886, upload-time = "2026-10-09T17:04:10.688Z" },
+    { url = "https://files.pythonhosted.org/packages/cf/23/8206cf19ca63cedb98c9a50c3aed6fab00610a179b61853a2f83bc91619f/ovphysx-0.7.0.74035321-py3-none-manylinux_2_35_aarch64.whl", hash = "sha256:52f95d49d6c372984abc5afa24b7b99928579b785b3b81414759ffe005158c95", size = 136238203, upload-time = "2026-10-15T18:51:25.224Z" },
+    { url = "https://files.pythonhosted.org/packages/c9/41/b5baeec7acfcdfaa152ecbaf2be0ed848f926dcb79bb35f97e7ee99363e4/ovphysx-0.7.0.74035321-py3-none-manylinux_2_35_x86_64.whl", hash = "sha256:763e29e158c841822b041ca83d2747d949c7453eb261fc77ed9ac0e7a1eca64c", size = 135831310, upload-time = "2026-10-15T18:50:23.611Z" },
+    { url = "https://files.pythonhosted.org/packages/b1/65/ec34e845b19b375866d9710110726e9f88ef023e523f4069e63c60dd8b81/ovphysx-0.7.0.74035321-py3-none-win_amd64.whl", hash = "sha256:b6f4a447abdab5effd78faf1ee9d3b8679281de19e4bd2e40528f0a608f8c57c", size = 131429159, upload-time = "2026-10-15T18:49:02.235Z" },
 ]
 
 [[package]]
 name = "ovrtx"
-version = "0.5.1.385782"
+version = "0.6.0.1791947691"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/74/f8/c6fa8edf4ef1ae9add73ecd5359f4cb7aa0c9a84225f481ebc22523983fd/ovrtx-0.5.1.385782.tar.gz", hash = "sha256:41d5209ae69c0b059d27591d6c68204c0a4ed161429cfb59b977ea0115f7292c", size = 23080, upload-time = "2026-10-06T00:47:50.848Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/bd/3a/e4f8c74f2f3b5c2de6682e0bd4eeaa460811df0f49f5426e6e530a9fe1c1/ovrtx-0.6.0.1791947691.tar.gz", hash = "sha256:2c2895d48aeab7b16c2795e3389114cd973a2990ac334b739ec7e824f754903e", size = 23088, upload-time = "2026-10-15T05:49:20.493Z" }
 
 [[package]]
 name = "ovstage"
-version = "0.2.1.385922"
+version = "0.3.0.1791986420"
 source = { registry = "https://pypi.org/simple" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a5/3a/10ca15d015edf276ce641000a597c91409aa12a5c551b968911b5a9c3037/ovstage-0.2.1.385922-py3-none-manylinux_2_35_aarch64.whl", hash = "sha256:ddf7f5723926e12a1d332315e4be4c224366396e4d321c8d314f4296e96a00d5", size = 70139856, upload-time = "2026-10-05T20:01:53.562Z" },
-    { url = "https://files.pythonhosted.org/packages/6b/78/8bf3f2f6adf5957352f614591068fbc8ee86b7978efa6250cec40fe61791/ovstage-0.2.1.385922-py3-none-manylinux_2_35_x86_64.whl", hash = "sha256:19b5549260f6088678ec5ff914517fd18a5629319bbb531401fff8ebf3fe5c5d", size = 72591365, upload-time = "2026-10-05T20:02:11.223Z" },
-    { url = "https://files.pythonhosted.org/packages/32/28/7ee76958d7360f2bb95fdabb7c9c3cc38f7e0039d574ebb595272ff85e32/ovstage-0.2.1.385922-py3-none-win_amd64.whl", hash = "sha256:35f7ffb5ba1e97388d63882839577af5097e5f8d5331f7d5d225f65f1752df27", size = 46480476, upload-time = "2026-10-05T20:01:35.342Z" },
+    { url = "https://files.pythonhosted.org/packages/f9/ae/f7348aec410a971f4126bd7b4cca92fcec25b7cca60f92267f5c98cc2ba2/ovstage-0.3.0.1791986420-py3-none-manylinux_2_35_aarch64.whl", hash = "sha256:1b9f983320a45703adab4bf72c9c17419728b9a874c300ae026abe46397f89dd", size = 64550686, upload-time = "2026-10-15T03:53:22.19Z" },
+    { url = "https://files.pythonhosted.org/packages/c8/d1/bebef33ec7c2fd2f7e776109092517b9ab2a4374fccca29b6c3351be77aa/ovstage-0.3.0.1791986420-py3-none-manylinux_2_35_x86_64.whl", hash = "sha256:35aa0c10c47549c495e65896356ce3b910041d2eaa602888f092f7e300586cf8", size = 66832291, upload-time = "2026-10-15T03:53:46.247Z" },
+    { url = "https://files.pythonhosted.org/packages/65/73/445749e2534e8fbd78a9f2ad2cc44d83cfd121a9bbdf459737c06c27adcd/ovstage-0.3.0.1791986420-py3-none-win_amd64.whl", hash = "sha256:400df4b7dc916edefa6f832aa11b674deb8a4d6831bba9ad3849169236b80c46", size = 38037230, upload-time = "2026-10-15T03:53:02.713Z" },
 ]
 
 [[package]]
@@ -4155,6 +4162,14 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/42/92/cc564bf6381ff43ce1f4d06852fc19a2f11d180f23dc32d9588bee2f149d/pexpect-4.9.0.tar.gz", hash = "sha256:ee7d41123f3c9911050ea2c2dac107568dc43b2d3b0c7557a33212c398ead30f", size = 166450, upload-time = "2023-11-25T09:07:26.339Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/9e/c3/059298687310d527a58bb01f3b1965787ee3b40dce76752eda8b44e9a2c5/pexpect-4.9.0-py2.py3-none-any.whl", hash = "sha256:7236d1e080e4936be2dc3e326cec0af72acf9212a7e1d060210e70a47e253523", size = 63772, upload-time = "2023-11-25T06:56:14.81Z" },
+]
+
+[[package]]
+name = "physx-usd-schemas"
+version = "25.11.2.72696984"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/09/8d/50f22a01334b86111201e535c6498fbb9400fa1f96d6c2bf657066fb29c0/physx_usd_schemas-25.11.2.72696984-py3-none-any.whl", hash = "sha256:44a8671f8d4f0fbdf07c9436b3827f96156e4b094b646d0903937f275eb84f0e", size = 79370, upload-time = "2026-10-12T19:48:29.536Z" },
 ]
 
 [[package]]
@@ -5978,7 +5993,7 @@ wheels = [
 
 [[package]]
 name = "urdf-usd-converter"
-version = "0.3.2"
+version = "0.3.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "newton-usd-schemas" },
@@ -5987,9 +6002,9 @@ dependencies = [
     { name = "tinyobjloader" },
     { name = "usd-exchange" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/83/62/efd04d3aee2d83e378864298618f67d58f43a941018bbbc2eeeef07bc401/urdf_usd_converter-0.3.2.tar.gz", hash = "sha256:9a202a3d6529cfa404b3734d17a7a2e87bd1c8d53a909edf97c9813c4d253833", size = 219755, upload-time = "2026-07-31T01:56:29.736Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/3c/b4/6b57eba54cc70accab39ccb95c722053b9e7b7c85b2ebf2baddb32b1e185/urdf_usd_converter-0.3.4.tar.gz", hash = "sha256:9aa76812544f75e28383f10eae0865015ad0765b1723f2dee6c73508b3be060f", size = 228532, upload-time = "2026-10-15T20:34:35.726Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1d/d5/dfb7dd5a5cef24c96887dfe02c55c0e536c826d741ad9e06eb552a5c1faf/urdf_usd_converter-0.3.2-py3-none-any.whl", hash = "sha256:9d280df0d7534c4e5951d7a5b1391c9107ab653aac915eaee187db6445671346", size = 63696, upload-time = "2026-07-31T01:56:28.454Z" },
+    { url = "https://files.pythonhosted.org/packages/30/a2/6fcacb356e0c0414ab6b10d69af2ff6638395bb269587ac4fc4bfec8914f/urdf_usd_converter-0.3.4-py3-none-any.whl", hash = "sha256:1d0064534795dc9730d4f680a6425d33b5dd3f304b0920a02bbd7e951d1c9c59", size = 66014, upload-time = "2026-10-15T20:34:34.282Z" },
 ]
 
 [[package]]
