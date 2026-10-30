@@ -136,6 +136,23 @@ def _build_parser() -> argparse.ArgumentParser:
         help="OVXR session mode. Defaults to 'ar'; pass 'vr' for an opaque background.",
     )
     parser.add_argument(
+        "--ovrtx_active_cuda_gpus",
+        type=str,
+        default=None,
+        help="Comma-separated CUDA indices for OVRTX rendering, e.g. 0. Does not select physics or camera outputs.",
+    )
+    parser.add_argument(
+        "--geometry_publication_device",
+        type=str,
+        default=None,
+        metavar="CUDA_DEVICE",
+        help=(
+            "Destination CUDA device for completed OVStage geometry publication, e.g. cuda:0. "
+            "Adds copy work for geometry on another GPU; unset preserves renderer configuration. "
+            "Requires --ovxr; does not select physics or rendering placement."
+        ),
+    )
+    parser.add_argument(
         "--ovxr_desktop_mirror",
         action="store_true",
         default=False,
@@ -191,6 +208,10 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         parser.error("--step_hz must be finite and non-negative; 0 disables active-control pacing")
     if args_cli.step_hz > 0.0 and not args_cli.using_ovxr:
         parser.error("--step_hz requires --ovxr")
+    if not args_cli.using_ovxr and (
+        args_cli.geometry_publication_device is not None or args_cli.ovrtx_active_cuda_gpus is not None
+    ):
+        parser.error("--geometry_publication_device and --ovrtx_active_cuda_gpus require --ovxr")
     if args_cli.ovxr_desktop_mirror and not args_cli.using_ovxr:
         parser.error("--ovxr_desktop_mirror requires --ovxr")
     args_cli.ovxr_desktop_mirror = args_cli.using_ovxr and not args_cli.headless
@@ -378,7 +399,11 @@ def _resolve_env_cfg() -> tuple[
         names = args_cli.ovxr_pip_camera
         if len(names) > 1 and args_cli.ovxr_pip_view_position is not None:
             raise ValueError("A PiP position override requires one camera; multiple panels use task layout")
-        pip_selection = select_ovxr_camera_feeds(env_cfg, names, OVRTXRendererCfg())
+        renderer_cfg = OVRTXRendererCfg(
+            active_cuda_gpus=args_cli.ovrtx_active_cuda_gpus,
+            geometry_publication_device=args_cli.geometry_publication_device,
+        )
+        pip_selection = select_ovxr_camera_feeds(env_cfg, names, renderer_cfg)
         keep_cameras = tuple(names)
 
     # The leased OVRTX renderer is the only render path in OVXR. Strip
@@ -568,7 +593,14 @@ def run_teleoperation(  # noqa: C901
                     desktop_mirror_max_fps=args_cli.ovxr_desktop_mirror_fps,
                     auxiliary_cameras=selected_cameras,
                 ),
-                renderer_cfg=selected_cameras[0].camera_cfg.renderer_cfg if selected_cameras else OVRTXRendererCfg(),
+                renderer_cfg=(
+                    selected_cameras[0].camera_cfg.renderer_cfg
+                    if selected_cameras
+                    else OVRTXRendererCfg(
+                        active_cuda_gpus=args_cli.ovrtx_active_cuda_gpus,
+                        geometry_publication_device=args_cli.geometry_publication_device,
+                    )
+                ),
             )
 
         try:

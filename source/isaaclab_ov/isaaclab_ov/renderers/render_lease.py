@@ -390,13 +390,17 @@ class RenderLeaseController:
         self.validate_active(lease)
         if self._lane_operation is not None:
             raise RuntimeError("Cannot release OvLibrariesRenderLease while the owner lane is active")
+        if self._publisher is not None:
+            self._publisher.close()
+        # Keep native-owner guards installed until every retained producer/transfer
+        # completes. Environment teardown must not bypass a failed drain.
+        if self._renderer._geometry_publication is not None:
+            self._renderer._geometry_publication.close()
         if lease._state is _OvLibrariesRenderLeaseState.BOUND and (not self._poisoned):
             with self.owner_lane("lease-release ordinal rebase"):
                 self._renderer.scene.ordinal = self._next_ordinal()
         self._last_step_id = _NO_PHYSICS_STEP_ID
-        if self._publisher is not None:
-            self._publisher.close()
-            self._publisher = None
+        self._publisher = None
         self._transfer_claimed = False
         self.active = None
         if self._renderer.backend is not None:

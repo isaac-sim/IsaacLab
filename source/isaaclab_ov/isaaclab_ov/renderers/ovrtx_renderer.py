@@ -108,7 +108,7 @@ from .ovrtx_usd import (
     build_render_product_as_string,
     render_var_prim_names_by_source,
 )
-from .publication_buffers import _AsyncWriteBuffers
+from .publication_buffers import _AsyncWriteBuffers, _GeometryPublicationBuffers
 from .render_lease import OvLibrariesRenderLease, RenderLeaseController
 from .visual_materials import OVRTXVisualMaterialWriter
 
@@ -228,7 +228,13 @@ class OVRTXBackend:
         # Select the simulation's CUDA device for rendering, matching Kit's ``activeCudaGpus`` setting.
         sim_device = wp.get_device(cfg.device)
         native_cfg = RendererConfig(
-            active_cuda_gpus=str(sim_device.ordinal) if sim_device.is_cuda else None,
+            active_cuda_gpus=(
+                cfg.active_cuda_gpus
+                if cfg.active_cuda_gpus is not None
+                else str(sim_device.ordinal)
+                if sim_device.is_cuda
+                else None
+            ),
             log_file_path=cfg.log_file_path,
             log_level=cfg.log_level,
             read_gpu_transforms=cfg.read_gpu_transforms,
@@ -346,6 +352,7 @@ class OVRTXRenderer(BaseRenderer):
         super().__init__(cfg, sim=sim)
         self._closed = False
         self._render_lease = RenderLeaseController(self)
+        self._geometry_publication: _GeometryPublicationBuffers | None = None
         self._warp_device = wp.get_device(self._sim.device)
         self._device = str(self._warp_device)
         self._camera_render_data: list[OVRTXCameraRenderData] = []
@@ -414,6 +421,10 @@ class OVRTXRenderer(BaseRenderer):
         if not self._render_lease.prepare_stage(num_envs):
             return
         lease = self._render_lease.active
+        if self.cfg.geometry_publication_device is not None and self._geometry_publication is None:
+            if not self._use_ovstage:
+                raise ValueError("geometry_publication_device requires OVStage")
+            self._geometry_publication = _GeometryPublicationBuffers(self.cfg.geometry_publication_device)
         logger.info("Preparing stage (%d envs)...", num_envs)
         env_paths = self.scene.clone_env_paths
         if self.cfg.temp_usd_dir is not None or not self._use_ovstage or not self.scene.ordinal:
@@ -1072,7 +1083,9 @@ class OVRTXRenderer(BaseRenderer):
         if not self._sdp.get_transforms(output, allow_passthrough=not asynchronous, scales=self._object_scales):
             return
         matrices = output.matrices
-        if self._use_ovstage:
+        if self._geometry_publication is not None:
+            self._geometry_publication.write_transforms(self.scene.stage, binding, matrices, self.scene.ordinal)
+        elif self._use_ovstage:
             # The write waits for consumption; the producing CUDA stream orders access to the
             # borrowed buffer.
             self.scene.stage.write_attribute(
@@ -1131,7 +1144,11 @@ class OVRTXRenderer(BaseRenderer):
         timestamp = self._sdp.backend.geometry_timestamp
         if self._geometry_timestamp == timestamp:
             return
-        if self._use_ovstage:
+        if self._geometry_publication is not None:
+            self._geometry_publication.write(
+                self.scene.stage, binding, self._geometry_paths, points, self.scene.ordinal
+            )
+        elif self._use_ovstage:
             self.scene.stage.write_attribute(
                 binding,
                 "points",
@@ -1313,6 +1330,9 @@ class OVRTXRenderer(BaseRenderer):
     def close(self) -> None:
         """Complete borrowed-buffer reads and release bindings; the registry owns the native engine."""
         self._render_lease.reject_ordinary_operation("close the renderer")
+        # A failed drain must preserve publication storage and its scene bindings for retry.
+        if self._geometry_publication is not None:
+            self._geometry_publication.close()
         try:
             with contextlib.ExitStack() as resources:
                 resources.callback(self._bindings.close)
@@ -1330,6 +1350,7 @@ class OVRTXRenderer(BaseRenderer):
             self._geometry_offsets.clear()
             self._geometry_paths = []
             self._geometry_timestamp = -1
+            self._geometry_publication = None
             self._transforms_timestamp = -1
             self._output_id_color_buffers.clear()
             self._initialized_scene = False

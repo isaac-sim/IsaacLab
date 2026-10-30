@@ -44,13 +44,8 @@ and restore the caller's arguments on return. The scripts under
 
 ## Live teleoperation
 
-```bash
-uv run --extra ovxr isaaclab teleop run \
-    --task IsaacContrib-PickPlace-GR1T2-Abs --num_envs 1 \
-    --device cuda:0 --physics newton_mjwarp --ovxr
-```
-
-The same registered-task selectors apply to live input and MCAP replay:
+Start with CPU OvPhysX using the command below. The same registered-task
+selectors apply to live input and MCAP replay:
 
 | Task | Physics selectors |
 | --- | --- |
@@ -79,9 +74,9 @@ uv run --python 3.12 --extra ovxr --locked isaaclab teleop run \
     --device cpu --physics ovphysx --ovxr --cloudxr_env cloudxrjs
 ```
 
- `--ovxr` selects OVStage
-and starts CloudXR with the `cloudxrjs` profile by default. Connect a supported
-CloudXR client, then use Play, Pause and Reset as in Kit-based teleoperation.
+`--ovxr` selects OVStage and starts CloudXR with the `cloudxrjs` profile by default. Connect a supported
+CloudXR client, then use its Play and Reset controls. Pause/resume is available only on clients
+that expose it; Reset is a separate action.
 
 For desktop IWER, select **VR** and set **Reference Space** to **local-floor**
 under **Teleoperator adjustment** before connecting. This keeps the emulated
@@ -102,8 +97,7 @@ client to establish its OpenXR session. Installing Capture and resolving
 Python packages do not warm application-specific RTX shaders or Newton/Warp
 physics kernels. First runtime preparation and the first physics step can take
 longer than subsequent runs. Retain startup logs and distinguish stage/render
-preparation from client connection and active simulation; do not treat a warm
-retry as proof that an earlier timeout was fixed.
+preparation from client connection and active simulation.
 
 Use `--step_hz 20` to cap live control at 20 updates per second while XR rendering
 runs independently. Time spent reading input, stepping physics and publishing
@@ -169,3 +163,60 @@ The mirror requires Vulkan; remove conflicting backend settings before OVUI
 initialization. The mirror opens after the first submitted
 XR image; closing it requests application shutdown. Eye images exclude the
 separate OpenXR camera panels; select a camera product to inspect that feed.
+
+For SO101, check right-controller grip/squeeze engagement, release and re-engagement,
+proportional trigger control and Reset separately from cube grasping. Object retention and cube stacking also depend on contact properties and
+grasp placement; validate them separately from the input controls.
+
+## Physics and rendering on separate GPUs
+
+For GPU-intensive physics, select the physics device with `--device` and the
+rendering devices with `--ovrtx_active_cuda_gpus`. Both rendering device options
+require `--ovxr` in the live teleoperation CLI. The MCAP replay entrypoint does
+not expose these GPU-selection options.
+
+For live teleoperation:
+
+```bash
+uv run --extra ovxr isaaclab teleop run --ovxr \
+    --task IsaacContrib-PickPlace-GR1T2-Abs --num_envs 1 \
+    --physics newton_mjwarp --device cuda:1 \
+    --ovrtx_active_cuda_gpus 0 --geometry_publication_device cuda:0
+```
+
+By default, GPU physics and rendering use the same CUDA device; CPU physics
+leaves GPU selection to OVRTX. `--geometry_publication_device cuda:N` copies
+foreign-GPU deforming geometry and rigid transforms to reusable buffers on the selected device and
+waits for completion before publishing it. It does not select the physics or
+rendering device. Omit it to preserve source-buffer placement. CPU data and
+already-local geometry keep their placement; mixed CPU/CUDA geometry batches
+are unsupported by OVStage.
+
+Custom geometry producers must order updates on their current Warp stream and
+avoid concurrent mutation during publication. These controls do not change
+physics fidelity or guarantee a rendering rate.
+
+The compositor/encoder has a separate GPU choice. Align CloudXR's
+`NV_CXR_GPU_INDEX_CUDA` with the rendering GPU and verify effective physical GPU
+identities in the runtime logs. `CUDA_VISIBLE_DEVICES` can remap CUDA ordinals;
+two installed GPUs alone do not enable a split.
+
+Before using PCIe peer transfers, verify synchronized copy **values** in both
+directions with initialized destination buffers:
+
+```bash
+uv run --extra ovxr python -m isaaclab_teleop.check_cuda_peer --devices cuda:0 cuda:1
+```
+
+Run this with the same `CUDA_VISIBLE_DEVICES` selection as the application. It
+prints each device's UUID and PCI identity, checks two patterns in each direction,
+and exits nonzero on unsupported access, a detected transfer error or a value mismatch. This
+small transfer check does not qualify rendering, physics or performance.
+Peer-capability flags and CUDA
+completion alone do not establish data integrity. NVIDIA documents a
+[bare-metal Linux IOMMU limitation for PCIe peer copies](https://docs.nvidia.com/cuda/cuda-programming-guide/03-advanced/multi-gpu-systems.html#host-iommu-hardware-pci-access-control-services-and-vms).
+GPU-only identity/passthrough can bypass translation while leaving IOMMU enabled
+globally. Validate the selected configuration before use. Host preparation belongs to an administrator
+with idle GPUs; application startup must not detach drivers or change IOMMU or
+host services. Keep physics, rendering and compositor on one physical GPU when
+the required peer-transfer path is unsupported. No automatic CPU staging is used.

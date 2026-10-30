@@ -217,6 +217,7 @@ class OvrtxReplicateContext(cloner.ReplicateContext):
                 scene_key=None if share_ovstage else renderer.cfg,
                 log_file_path=renderer.cfg.log_file_path,
                 log_level=renderer.cfg.log_level,
+                active_cuda_gpus=renderer.cfg.active_cuda_gpus,
                 use_ovstage=use_ovstage,
                 read_gpu_transforms=read_gpu_transforms == "1",
                 device=sim.device,
