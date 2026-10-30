@@ -3,6 +3,15 @@ Changelog
 
 .. towncrier release notes start
 
+12.0.1 (2026-10-29)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Reused native Warp indexed views and copy/fill for asset and tendon writes, with shared selector normalization and boolean-masked kernels; native solver mappings remain in Newton.
+
+
 12.0.0 (2026-10-28)
 ~~~~~~~~~~~~~~~~~~~
 
