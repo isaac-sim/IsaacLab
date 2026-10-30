@@ -8,6 +8,7 @@ from typing import Any, ClassVar
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
+from isaaclab_visualizers.is7 import IS7VisualizerCfg
 from isaaclab_visualizers.kit import KitVisualizerCfg
 from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
 from isaaclab_visualizers.rerun import RerunVisualizerCfg
@@ -55,6 +56,7 @@ def set_isaac_rtx_global_settings(renderer_cfg: Any, **settings: Any) -> None:
 class MultiBackendVisualizerCfg(PresetCfg):
     """Built-in visualizers selected with ``visualizer=NAME``; no viewer opens by default."""
 
+    is7: IS7VisualizerCfg = IS7VisualizerCfg()
     kit: KitVisualizerCfg = KitVisualizerCfg()
     newton_gl: NewtonGLVisualizerCfg = NewtonGLVisualizerCfg()
     newton_rtx: NewtonRTXVisualizerCfg = NewtonRTXVisualizerCfg()
