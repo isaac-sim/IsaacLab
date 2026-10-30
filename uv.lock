@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = "==3.12.*"
 resolution-markers = [
     "platform_machine == 'x86_64' and sys_platform == 'linux'",
@@ -17,6 +17,7 @@ prerelease-mode = "allow"
 
 [manifest]
 overrides = [
+    { name = "boto3", specifier = "==1.41.5" },
     { name = "fsspec", specifier = ">=2026.6.0" },
     { name = "mujoco", specifier = "~=3.15.0" },
     { name = "mujoco-usd-converter", specifier = "==0.7.0" },
@@ -25,6 +26,7 @@ overrides = [
     { name = "newton-usd-schemas", specifier = ">=0.5.0" },
     { name = "numpy", specifier = ">=2" },
     { name = "packaging", specifier = ">=20,<27" },
+    { name = "requests", specifier = ">=2.33.0" },
     { name = "torch", specifier = "==2.11.0", index = "https://download.pytorch.org/whl/cu130" },
     { name = "torchvision", specifier = "==0.26.0", index = "https://download.pytorch.org/whl/cu130" },
     { name = "urdf-usd-converter", specifier = "==0.3.4" },
@@ -1977,6 +1979,9 @@ sb3 = [
     { name = "stable-baselines3" },
     { name = "tqdm" },
 ]
+simready = [
+    { name = "simready-search" },
+]
 skrl = [
     { name = "skrl", extra = ["torch", "warp"] },
 ]
@@ -2117,6 +2122,7 @@ requires-dist = [
     { name = "rsl-rl-lib", specifier = "==5.5.1" },
     { name = "rsl-rl-lib", marker = "extra == 'rsl-rl'", specifier = "==5.5.1" },
     { name = "scipy", specifier = ">=1.11.0" },
+    { name = "simready-search", marker = "extra == 'simready'", specifier = ">=2026.4.2" },
     { name = "skrl", extras = ["jax"], marker = "extra == 'skrl-jax'", specifier = ">=2.1.1" },
     { name = "skrl", extras = ["torch", "warp"], marker = "extra == 'skrl'", specifier = ">=2.1.1" },
     { name = "sphinx", marker = "extra == 'dev'", specifier = ">=7.0,<9" },
@@ -2150,7 +2156,7 @@ requires-dist = [
     { name = "wandb", marker = "extra == 'wandb'", specifier = ">=0.13.11" },
     { name = "warp-lang", specifier = "==1.17.0" },
 ]
-provides-extras = ["tetrahedralization", "video", "importers", "test", "dev", "sb3", "skrl", "skrl-jax", "rl-games", "wandb", "rsl-rl", "torchrl", "viser", "rerun", "isaacsim", "ov", "ovphysx", "ovrtx", "mimic", "teleop", "rlinf", "leapp", "all"]
+provides-extras = ["tetrahedralization", "video", "importers", "test", "dev", "sb3", "skrl", "skrl-jax", "rl-games", "wandb", "rsl-rl", "torchrl", "viser", "rerun", "isaacsim", "ov", "ovphysx", "ovrtx", "mimic", "teleop", "simready", "rlinf", "leapp", "all"]
 
 [[package]]
 name = "isaaclab-experimental"
@@ -3841,7 +3847,6 @@ dependencies = [
     { name = "configargparse" },
     { name = "dash" },
     { name = "flask" },
-    { name = "ipywidgets" },
     { name = "matplotlib" },
     { name = "nbformat" },
     { name = "numpy" },
@@ -4944,7 +4949,7 @@ wheels = [
 
 [[package]]
 name = "requests"
-version = "2.32.3"
+version = "2.34.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "certifi" },
@@ -4952,9 +4957,9 @@ dependencies = [
     { name = "idna" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/63/70/2bf7780ad2d390a8d301ad0b550f1581eadbd9a20f896afe06353c2a2913/requests-2.32.3.tar.gz", hash = "sha256:55365417734eb18255590a9ff9eb97e9e1da868d4ccd6402399eaf68af20a760", size = 131218, upload-time = "2024-05-29T15:37:49.536Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ac/c3/e2a2b89f2d3e2179abd6d00ebd70bff6273f37fb3e0cc209f48b39d00cbf/requests-2.34.2.tar.gz", hash = "sha256:f288924cae4e29463698d6d60bc6a4da69c89185ad1e0bcc4104f584e960b9ed", size = 142856, upload-time = "2026-05-14T19:25:27.735Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f9/9b/335f9764261e915ed497fcdeb11df5dfd6f7bf257d4a6a2a686d80da4d54/requests-2.32.3-py3-none-any.whl", hash = "sha256:70761cfe03c773ceb22aa2f671b4757976145175cdfca038c02654d061d6dcc6", size = 64928, upload-time = "2024-05-29T15:37:47.027Z" },
+    { url = "https://files.pythonhosted.org/packages/a0/f4/c67b0b3f1b9245e8d266f0f112c500d50e5b4e83cb6f3b71b6528104182a/requests-2.34.2-py3-none-any.whl", hash = "sha256:2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0", size = 73075, upload-time = "2026-05-14T19:25:26.443Z" },
 ]
 
 [[package]]
@@ -5269,6 +5274,19 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/3d/87/fd79ac0e3841cc173f4b44d9158d595eaac072603691b505dafab6bde0aa/simplejson-4.2.0-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:471f30cd51ffdda1a0c421dc9963ada31e9d29bd688a3198041d2c69d18d65c4", size = 195937, upload-time = "2026-10-03T03:32:20.615Z" },
     { url = "https://files.pythonhosted.org/packages/78/f0/08a6cffc4545112ca4c9918110e8c5227146a69fd270b0c64ff22a445ac6/simplejson-4.2.0-cp312-cp312-win_amd64.whl", hash = "sha256:733acb0a25795becbbb6c5564f5c1c2e839889a931a72249fb0cc1c176659d83", size = 93961, upload-time = "2026-10-03T03:32:22.996Z" },
     { url = "https://files.pythonhosted.org/packages/e9/4c/9acdf4ae4f41c09a09ad17427e5ee912f35aa56ea1d1723a9d927d659d4e/simplejson-4.2.0-py3-none-any.whl", hash = "sha256:c2a2e5f43287cbe3413f7b73b04d5a6f75c7bd93d783e628f5978853a2ef738d", size = 72826, upload-time = "2026-10-03T03:34:21.667Z" },
+]
+
+[[package]]
+name = "simready-search"
+version = "2026.7.1"
+source = { registry = "https://pypi.nvidia.com/" }
+dependencies = [
+    { name = "boto3" },
+    { name = "requests" },
+    { name = "urllib3" },
+]
+wheels = [
+    { url = "https://pypi.nvidia.com/simready-search/simready_search-2026.7.1-py3-none-any.whl", hash = "sha256:b4f96b31752fb500c25e8a1b8b8e9ca9a36a794fd0071c0141a9693d09469c5d" },
 ]
 
 [[package]]
