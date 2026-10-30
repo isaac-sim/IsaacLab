@@ -11,12 +11,13 @@ on:
     paths:
       # The repo-root conftest.py writes the crash journal these tests read back.
       - "conftest.py"
-      # Tools subpackages run their own checks.
+      # Tool subpackages have separate test workflows.
       - "tools/*.py"
       - "tools/perf_smoke/**"
       - "tools/perf_smoke_thresholds.json"
       # Shared CI action helpers and their co-located tests.
       - ".github/actions/_lib/**"
+      - ".github/actions/ecr-build-push-pull/**"
       - ".github/workflows/build.yaml"
       - ".github/workflows/tools-tests.yml"
   workflow_dispatch:
@@ -32,7 +33,7 @@ jobs:
   tools-tests:
     name: Tools tests
     runs-on: ubuntu-latest
-    # Bound stalled crash-test subprocesses.
+    # Stop the job if a crash-test subprocess hangs.
     timeout-minutes: 10
 
     steps:
@@ -42,7 +43,7 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          # Separate this job's pip cache by its dependency list.
+          # Use this workflow's dependency list as the cache key.
           cache-dependency-path: .github/workflows/tools-tests.yml
 
       # These tests run without Isaac Sim; flaky and pytest-xdist enable retry and parallel crash tests.
@@ -55,12 +56,12 @@ jobs:
           PYTHONPATH: tools
         # Explicit files avoid tests that need Isaac Sim; --noconftest prevents the full-suite orchestrator from running.
         run: python3 -m pytest tools/test_crash_journal.py tools/test_file_scheduler.py
-          .github/actions/_lib/test_registry_credential_fallback.py
           .github/actions/_lib/test_performance_workflow.py -v --noconftest
 
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: false
 
-      - name: Test ASV performance comparisons
-        run: uv run --no-project --with-requirements tools/perf_smoke/requirements.txt python -m unittest tools.perf_smoke.test_compare tools.perf_smoke.test_source_revision
+      - name: Test performance comparisons
+        run: uv run --no-project --with-requirements tools/perf_smoke/requirements.txt --with pytest --with pyyaml
+          python -m pytest tools/perf_smoke/test_source_revision.py tools/perf_smoke/test_paired.py -v --noconftest

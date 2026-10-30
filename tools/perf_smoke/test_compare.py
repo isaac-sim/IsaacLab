@@ -23,7 +23,7 @@ def _measurement(fps: float, startup: float = 10.0) -> dict[str, float]:
     return {"total_fps": fps, "startup_time_s": startup, "gpu_mem_peak_gb": 2.0, "ram_peak_gb": 4.0}
 
 
-class TestAsvComparison(unittest.TestCase):
+class AsvChecks(unittest.TestCase):
     """Check the pinned ASV comparison and the policies retained around it."""
 
     def setUp(self):
@@ -33,8 +33,8 @@ class TestAsvComparison(unittest.TestCase):
         )
         self.policy = {"defaults": {"warn_regression_pct": 5, "fail_regression_pct": 10}}
 
-    def evaluate(self, baseline, candidate):
-        measurements = [_measurement(value) for value in candidate]
+    def evaluate(self, baseline, candidate, *, startup=10.0):
+        measurements = [_measurement(value, startup=startup) for value in candidate]
         return compare.compare(
             self.contract,
             measurements,
@@ -42,9 +42,8 @@ class TestAsvComparison(unittest.TestCase):
             self.policy,
         )
 
-    def test_relative_regressions_and_improvement(self):
-        # Three baseline samples exercise the CI fallback; twenty permit ASV's
-        # Mann–Whitney test. FPS equality also checks the threshold factor.
+    def check_relative_regressions_and_improvement(self):
+        # Three baseline samples exercise the CI fallback; twenty permit Mann–Whitney testing.
         for count in (3, 20):
             for fps, expected in (
                 (100, compare.PASS),
@@ -68,12 +67,12 @@ class TestAsvComparison(unittest.TestCase):
             with self.subTest(baseline=baseline, candidate=candidate):
                 self.assertEqual(self.evaluate(baseline, candidate).verdict, expected)
 
-    def test_insufficient_independent_samples_skip(self):
+    def check_insufficient_independent_samples_skip(self):
         for baseline, candidate in (([], [80] * 3), ([100] * 2, [80] * 3), ([100] * 3, [80])):
             with self.subTest(baseline=baseline, candidate=candidate):
                 self.assertEqual(self.evaluate(baseline, candidate).verdict, compare.SKIP)
 
-    def test_hard_floor_gates_without_history_even_for_advisory_task(self):
+    def check_hard_floor_gates_without_history_even_for_advisory_task(self):
         self.policy.update(
             {
                 "per_task_regression_pct": {"task": {"advisory_only": True}},
@@ -85,7 +84,7 @@ class TestAsvComparison(unittest.TestCase):
         self.assertIn("hard floor", result.metrics[0].note)
         self.assertIn("hard floor", result.message)
 
-    def test_hard_floor_respects_metric_direction(self):
+    def check_hard_floor_respects_metric_direction(self):
         thresholds = compare.Thresholds(warn_pct=5, fail_pct=10, hard_floor=15, gating=False)
         breached = compare._evaluate(METRICS[1], [10, 20, 10], [], thresholds, min_samples=3)
         within_limit = compare._evaluate(METRICS[1], [10, 10, 10], [], thresholds, min_samples=3)
@@ -96,24 +95,18 @@ class TestAsvComparison(unittest.TestCase):
         self.assertEqual(within_limit.verdict, compare.SKIP)
         self.assertFalse(within_limit.gating)
 
-    def test_advisory_task_does_not_gate(self):
+    def check_advisory_task_does_not_gate(self):
         self.policy["per_task_regression_pct"] = {"task": {"advisory_only": True}}
         result = self.evaluate([100] * 3, [80] * 3)
         self.assertEqual(result.verdict, compare.SKIP)
         self.assertEqual(result.metrics[0].verdict, compare.FAIL)
 
-    def test_higher_is_worse_metrics_are_advisory(self):
-        measurements = [_measurement(100, startup=20)] * 3
-        result = compare.compare(
-            self.contract,
-            measurements,
-            [_measurement(100)] * 3,
-            self.policy,
-        )
+    def check_higher_is_worse_metrics_are_advisory(self):
+        result = self.evaluate([100] * 3, [100] * 3, startup=20)
         self.assertEqual(result.verdict, compare.PASS)
         self.assertEqual(result.metrics[1].verdict, compare.FAIL)
 
-    def test_cli_filters_contracts_and_preserves_failure_in_aggregate(self):
+    def check_cli_filters_contracts_and_preserves_failure_in_aggregate(self):
         matching = BaselineRow(self.contract.as_dict(), self.contract.hash, _measurement(100), "commit", "date", "run")
         other = Contract(workload={"task": "other"}, runtime={})
         mismatched = BaselineRow(other.as_dict(), self.contract.hash, _measurement(1), "commit", "date", "run")
@@ -145,7 +138,7 @@ class TestAsvComparison(unittest.TestCase):
             with contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(cli.main(["aggregate", "--comparison_dir", directory]), 1)
 
-    def test_cli_infrastructure_errors_and_missing_credentials_do_not_gate(self):
+    def check_cli_infrastructure_errors_and_missing_credentials_do_not_gate(self):
         for configured, expected in ((False, compare.SKIP), (True, compare.ERROR)):
             with self.subTest(configured=configured), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
@@ -173,10 +166,10 @@ class TestAsvComparison(unittest.TestCase):
                 self.assertEqual(json.loads(output.read_text())["verdict"], expected)
 
 
-class TestContracts(unittest.TestCase):
+class ContractChecks(unittest.TestCase):
     """Compare solver identity without invalidating legacy single-solver baselines."""
 
-    def test_solver_and_coupling_identity_controls_comparability(self):
+    def check_solver_and_coupling_identity_controls_comparability(self):
         bundle = {
             "run": {
                 "task": "task",
@@ -192,11 +185,13 @@ class TestContracts(unittest.TestCase):
         }
         config = bundle["run"]["config"]
         legacy = build(bundle)
+        self.assertEqual(legacy.hash, "9138656bb16b2861")
         config["physics_solvers"] = ["newton_mjwarp"]
         config["physics_coupling"] = None
         self.assertEqual(build(bundle), legacy)
         config.update(physics_solvers=["newton_vbd", "newton_mjwarp", "newton_vbd"], physics_coupling="proxy")
         proxy = build(bundle)
+        self.assertEqual(proxy.hash, "74606f4967b8b0ba")
         self.assertNotEqual(proxy, legacy)
         config["physics_solvers"] = ["newton_mjwarp", "newton_vbd"]
         self.assertEqual(build(bundle), proxy)
@@ -209,5 +204,16 @@ class TestContracts(unittest.TestCase):
             build(bundle)
 
 
-if __name__ == "__main__":
-    unittest.main()
+def check_rolling_history(_tmp_path, subtests):
+    loader = unittest.TestLoader()
+    loader.testMethodPrefix = "check_"
+    for case_type in (AsvChecks, ContractChecks):
+        for name in loader.getTestCaseNames(case_type):
+            with subtests.test(msg=name):
+                case = case_type(name)
+                case.subTest = subtests.test
+                try:
+                    case.setUp()
+                    getattr(case, name)()
+                finally:
+                    case.doCleanups()
