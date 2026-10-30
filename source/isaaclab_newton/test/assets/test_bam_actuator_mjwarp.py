@@ -206,11 +206,14 @@ def test_robots_pair_with_their_own_actuators_across_hard_resets(native_sim, dev
         (robot_c, "nominal_voltage", sampled_cfg.vin_range),
         (robot_c, "battery_resistance", sampled_cfg.battery_resistance_range),
     ):
-        values = wp.to_torch(getattr(get_bam_group(robot, "servo"), attr))
+        group = get_bam_group(robot, "servo")
+        values = wp.to_torch(getattr(group, attr))
         assert bool(((values >= low) & (values <= high)).all()), f"{attr} outside its configured range"
         if attr == "nominal_voltage":
             # Each environment's servos start on their battery's sampled voltage.
-            torch.testing.assert_close(wp.to_torch(get_bam_group(robot, "servo").voltage), values)
+            rows = group.battery.actuators.numpy()[group.battery.actuator_start.numpy()[group.battery_ids]]
+            supply = native_sim.backend_manager.backend.control.actuator_supply_voltage.numpy()[rows]
+            np.testing.assert_allclose(supply, values.cpu().numpy())
         assert len(torch.unique(values)) > 1, f"{attr} drew the same value for every environment"
         sampled[robot, attr] = values.clone()
     robot_c.actuators.reset()

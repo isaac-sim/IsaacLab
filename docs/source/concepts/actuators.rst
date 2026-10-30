@@ -910,10 +910,9 @@ arrays; write them in place, for example through :func:`warp.to_torch`:
       - Multiplier of the dry-friction budget [-], shape ``(num_envs, num_joints)``
       - -- (defaults to 1)
 
-Start-up ranges are sampled once per environment and kept across resets. ``voltage`` returns a copy of
-the supply voltage the group's motors read on the next step. The firmware gain is the drive's ``kp``
-(``kp_fw``), and its duty-cycle factor the drive's ``error_gain``, readable and writable through
-:func:`~isaaclab.actuators.newton.read_group_parameter` and
+Start-up ranges are sampled once per environment and kept across resets. The firmware gain is the
+drive's ``kp`` (``kp_fw``), and its duty-cycle factor the drive's ``error_gain``, readable and writable
+through :func:`~isaaclab.actuators.newton.read_group_parameter` and
 :func:`~isaaclab.actuators.newton.write_group_parameter`. To resample friction every episode, add a reset
 event:
 
