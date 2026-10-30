@@ -129,11 +129,6 @@ The `interactive gallery <https://isaac-sim.github.io/IsaacLab-Web-Demos/>`_ is 
 from the documentation. Documentation builds include pages, small thumbnails, and redirects for
 earlier demo URLs; WebAssembly, policies, and scene geometry are served by the gallery host.
 
-Reviewed runtime archives remain in the official
-`interactive-demos release <https://github.com/isaac-sim/IsaacLab/releases/tag/interactive-demos>`_.
-The separate hosting workflow pins an archive and verifies its SHA-256 before publishing.
-Documentation builds do not download or compile these bundles.
-
 After building the docs, write the compatibility redirects from the repository root:
 
 .. code-block:: bash
