@@ -13,7 +13,8 @@
   ``R = sag_gain * motor.kt`` drops the voltage per ampere of supply current ``duty * I`` as the sag gain did
   per ampere of motor current ``I``, so the supply sags less by the duty cycle: MicroDuck's sags about 9 times
   less (0.009 V instead of 0.082 V on average). Policies trained with sag see a different supply and need
-  retraining.
+  retraining. Setting :attr:`~isaaclab.actuators.BamActuatorCfg.vin_drop_gain_range` now raises a
+  ``ValueError``, since no sag gain converts to the same sag.
 * **Breaking:** Changed BAM servos to apply no effort clamp after the motor, and
   :class:`~isaaclab.actuators.BamActuatorCfg` to reject ``actuator_effort_limit``. Newton has no stage after
   its motors, and its clamps bound a motor's voltage command. The stall-torque cap
