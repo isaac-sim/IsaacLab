@@ -24,6 +24,7 @@ ordered-state republish recorded into a captured graph.
 """
 
 from isaaclab_newton.physics import NewtonCfg, NewtonManager
+from isaaclab_newton.test.fixtures.mock_newton import backend_stub
 
 from isaaclab.sim import FrameView, SimulationCfg
 from isaaclab.test.utils import DeviceScope, launch_test_simulation, test_devices
@@ -35,9 +36,8 @@ import sys
 from collections.abc import Iterator
 from dataclasses import dataclass
 from types import SimpleNamespace
-from unittest.mock import patch
 
-import isaaclab_newton.physics.newton_manager as newton_manager_module
+import isaaclab_newton.physics.newton_backend as newton_backend_module
 import newton
 import numpy as np
 import pytest
@@ -394,7 +394,7 @@ def test_scatter_reset_masks_from_ids_accepts_index_dtype(index_dtype: type) -> 
     fk_mask = wp.zeros(6, dtype=wp.bool, device="cpu")
 
     wp.launch(
-        newton_manager_module._scatter_reset_masks_from_ids,
+        newton_backend_module._flag_worlds_and_articulations_indexed,
         dim=(env_ids.shape[0], articulation_ids.shape[1]),
         inputs=[env_ids, articulation_ids],
         outputs=[world_mask, fk_mask],
@@ -448,8 +448,13 @@ def test_task_space_allocation_and_capture(device, first_property):
     model = builder.finalize(device=device)
     state, control = model.state(), model.control()
     backend_manager = NewtonManager(NewtonCfg())
-    backend_manager.backend = SimpleNamespace(
-        model=model, state_0=state, control=control, solver=None, kinematics_dirty=False
+    backend_manager.backend = backend_stub(
+        model=model,
+        state_0=state,
+        control=control,
+        solver=None,
+        kinematics_dirty=False,
+        transforms_may_change_on_graph_replay=False,
     )
     view = ArticulationView(model, "Robot", exclude_joint_types=[JointType.FIXED])
     eager = ArticulationData(view, device, backend_manager=backend_manager)
@@ -494,8 +499,13 @@ def test_world_hinged_root_has_no_base_dofs(device):
     model = builder.finalize(device=device)
     state, control = model.state(), model.control()
     backend_manager = NewtonManager(NewtonCfg())
-    backend_manager.backend = SimpleNamespace(
-        model=model, state_0=state, control=control, solver=None, kinematics_dirty=False
+    backend_manager.backend = backend_stub(
+        model=model,
+        state_0=state,
+        control=control,
+        solver=None,
+        kinematics_dirty=False,
+        transforms_may_change_on_graph_replay=False,
     )
     root_view = ArticulationView(model, "Robot")
     data = ArticulationData(root_view, device, backend_manager=backend_manager)
@@ -619,8 +629,8 @@ def test_hard_reset_recreates_ordered_state_and_actuators(device: str) -> None:
         sim.reset()
         callback_counts = (
             len(sim.backend_manager._callbacks),
-            len(sim.backend_manager._post_step_callbacks),
-            len(sim.backend_manager._post_actuator_callbacks),
+            len(sim.backend_manager.backend.post_step_callbacks),
+            len(sim.backend_manager.backend.post_actuator_callbacks),
         )
         for reset_index in range(3):
             if reset_index:
@@ -629,8 +639,8 @@ def test_hard_reset_recreates_ordered_state_and_actuators(device: str) -> None:
                 assert all(a.data is not previous for a, previous in zip(articulations.values(), old_data, strict=True))
                 assert callback_counts == (
                     len(sim.backend_manager._callbacks),
-                    len(sim.backend_manager._post_step_callbacks),
-                    len(sim.backend_manager._post_actuator_callbacks),
+                    len(sim.backend_manager.backend.post_step_callbacks),
+                    len(sim.backend_manager.backend.post_actuator_callbacks),
                 )
 
             positions = []
@@ -685,7 +695,7 @@ def test_newton_ordered_state_publishes_inside_captured_cuda_graph(device: str) 
         sim.reset()
         # the first step captures the graph that later steps replay
         sim.step()
-        assert sim.backend_manager._graph is not None
+        assert sim.backend_manager.backend.graph is not None
         data = articulation.data
         joint_u2b = np.asarray(articulation.joint_ordering.user_to_backend_indices)
         body_u2b = np.asarray(articulation.body_ordering.user_to_backend_indices)
@@ -2041,12 +2051,11 @@ def test_body_q_consistent_after_root_write(scene: _Scene) -> None:
         env_ids=torch.tensor([0], device=device, dtype=torch.int32),
     )
 
-    # Patch _simulate_physics_only to capture body_q before collide runs
+    # Pre-actuator callbacks run after the reset is resolved and before collision.
     captured = {}
     backend_manager = scene.sim.backend_manager
-    original_simulate = backend_manager._simulate_physics_only
 
-    def _patched_simulate() -> None:
+    def _record_body_state() -> None:
         if backend_manager.backend.collision_pipeline is not None:
             bq = wp.to_torch(backend_manager.backend.state_0.body_q)
             jq = wp.to_torch(backend_manager.backend.state_0.joint_q)
@@ -2054,10 +2063,9 @@ def test_body_q_consistent_after_root_write(scene: _Scene) -> None:
             jc0 = int(jc_starts[0])
             captured["bq_root"] = bq[b0, :3].clone()
             captured["jq_root"] = jq[jc0 : jc0 + 3].clone()
-        original_simulate()
 
-    with patch.object(backend_manager, "_simulate_physics_only", _patched_simulate):
-        scene.sim.step()
+    backend_manager.register_pre_actuator_callback(_record_body_state)
+    scene.sim.step()
     articulation.update(scene.sim.cfg.dt)
 
     assert captured, "collision pipeline did not run in the step"

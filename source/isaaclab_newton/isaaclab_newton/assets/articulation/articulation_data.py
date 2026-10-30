@@ -163,7 +163,7 @@ class ArticulationData(BaseArticulationData):
     def _update_body_state(self) -> None:
         """Resolve shared FK, then refresh this view's reordered body state after a manual write."""
         self._backend_manager.forward()
-        if self._body_state_dirty or self._backend_manager.transforms_may_change_on_graph_replay:
+        if self._body_state_dirty or self._backend_manager.backend.transforms_may_change_on_graph_replay:
             self._refresh_user_order_body_state()
 
     def _reset_pose(
