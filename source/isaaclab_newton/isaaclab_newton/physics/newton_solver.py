@@ -169,8 +169,9 @@ class NewtonSolver:
     ) -> None:
         """Advance one substep of ``dt`` [s], exporting the requested ``observables`` when given.
 
-        The manager passes ``observables`` only once a consumer requested some (see
-        :meth:`NewtonManager.request_solver_observables`).
+        The manager passes ``observables`` once a consumer requested some (see
+        :meth:`NewtonManager.request_solver_observables`), and ``None`` before. ``None`` is not forwarded, so solvers
+        that override :meth:`~newton.solvers.SolverBase.step` without ``observables`` keep stepping.
         """
         if observables is None:
             solver.step(state_in, state_out, control, contacts, dt)

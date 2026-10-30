@@ -980,9 +980,7 @@ class NewtonManager(PhysicsManager):
         """
         backend = self.backend
         solver_cfg, solver = self._cfg.solver_cfg, backend.solver
-        step = solver_cfg.class_type.step
-        if backend.solver_observables is not None:
-            step = partial(step, observables=backend.solver_observables)
+        step = partial(solver_cfg.class_type.step, observables=backend.solver_observables)
         num_substeps = backend.num_substeps
         collide_every = self._cfg.collision_decimation
         # Last substep is skipped: its contact set would only feed the next tick's

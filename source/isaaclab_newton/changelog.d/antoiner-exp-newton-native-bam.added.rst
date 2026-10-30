@@ -7,4 +7,5 @@
 * Added :meth:`~isaaclab_newton.physics.NewtonManager.request_solver_model_sync` to have the solver re-read
   model properties, such as a joint friction written by a pre-actuator hook, once per step after the actuators.
 * Added the ``observables`` argument of :meth:`~isaaclab_newton.physics.NewtonSolver.step`, which the manager
-  passes once a consumer requested observables.
+  passes on every substep, ``None`` until a consumer requests observables. Solver classes that override
+  ``step`` must accept it.
