@@ -8,5 +8,7 @@
   without a reset, such as pushes, keep the load.
 * Changed the BAM supply to one battery per actuator group and environment. Separate BAM groups of one
   robot now sag independently, also when Newton merges their actuators.
+* Changed the BAM command lag to one random stream per actuator group and environment. Groups with the same
+  delay settings no longer draw the same lag in an environment, and lag sequences differ from earlier releases.
 * Changed the Newton dependency pin from ``42f7def1`` to ``b9452c2f``, the merge of newton#4504 and newton#4797 on
   a fork, with ``mujoco`` and ``mujoco-warp`` 3.16.
