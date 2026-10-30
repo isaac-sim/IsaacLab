@@ -3,6 +3,34 @@ Changelog
 
 .. towncrier release notes start
 
+8.0.2 (2026-10-30)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated the public runtime compatibility set to ``ovrtx==0.6.0.1791947691``,
+  ``ovphysx==0.7.0.74035321``, and ``ovstage==0.3.0.1791986420``. The ``ov`` and
+  ``ovphysx`` extras installed the external PhysX USD schemas required by OvPhysX 0.7.
+  Upgrade the runtimes together with ``uv sync --inexact --extra ov``.
+
+Fixed
+^^^^^
+
+* Fixed joint friction writers to broadcast scalar coefficients directly in the fused Warp kernels,
+  including integer zero, without allocating expanded input tensors.
+* Fixed stale camera poses in the first legacy OVRTX render with GPU transform propagation
+  by initializing native world transforms without advancing sensor simulation time.
+* Added compatibility with OVRTX 0.7 named segmentation tensors while preserving
+  decoding of the packed label maps returned by the pinned OVRTX 0.6 runtime.
+* Disabled GPU camera transform reads for OVRTX 0.7 only to preserve independent tiled
+  captures and pose updates while retaining GPU scene transforms; pinned OVRTX
+  0.6 behavior was preserved.
+* Preserved renderer API documentation builds when the optional OVRTX distribution is not installed.
+* Fixed runtime meshes disappearing after material or texture changes with OVRTX 0.6 by
+  using a fresh USD reference path for each replacement.
+
+
 8.0.1 (2026-10-29)
 ~~~~~~~~~~~~~~~~~~
 
