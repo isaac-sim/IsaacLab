@@ -63,3 +63,16 @@ To retain the previous recipe in a custom task config, use ``mdp.track_linear_ve
 2.0 and ``std=math.sqrt(0.1)``, and ``mdp.track_angular_velocity`` with weight 2.0 and
 ``std=math.sqrt(0.5)``. Set ``rewards.pose.params["standing_only"] = False`` and restore the action-rate
 weight stages to ``(500, -0.2)``, ``(750, -0.4)``, ``(1000, -0.6)``, ``(1250, -0.8)``, and ``(1500, -1.0)``.
+
+Symmetry augmentation
+---------------------
+
+Select ``--agent rsl_rl_with_symmetry_cfg_entry_point`` to train either walking task with
+left/right data augmentation. This doubles each PPO minibatch with reflected observations and
+actions. It uses MicroDuck's servo order and joint-axis signs, and reflects the critic's foot
+features as well. Mirror loss is disabled. RSL-RL may still log a detached symmetry diagnostic.
+
+.. code-block:: bash
+
+    uv run isaaclab train --task IsaacContrib-Velocity-Flat-MicroDuck \
+        --rl_library rsl_rl --agent rsl_rl_with_symmetry_cfg_entry_point
