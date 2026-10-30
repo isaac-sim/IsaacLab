@@ -41,6 +41,9 @@ __all__ = [
     "MICRODUCK_BACKLASH_CFG",
     "MICRODUCK_ALLCOLLISIONS_BACKLASH_CFG",
     "PICK_AND_PLACE_CFG",
+    "P7_L6_CFG",
+    "P7_O6_CFG",
+    "P7_L20_CFG",
     "CRAZYFLIE_CFG",
     "RIDGEBACK_FRANKA_PANDA_CFG",
     "SAWYER_CFG",
@@ -109,6 +112,7 @@ from .microduck import (
     MICRODUCK_ALLCOLLISIONS_BACKLASH_CFG,
 )
 from .pick_and_place import PICK_AND_PLACE_CFG
+from .realhand import P7_L6_CFG, P7_O6_CFG, P7_L20_CFG
 from .quadcopter import CRAZYFLIE_CFG
 from .ridgeback_franka import RIDGEBACK_FRANKA_PANDA_CFG
 from .sawyer import SAWYER_CFG
