@@ -208,9 +208,9 @@ class ManagerBasedEnv:
         self._physics_handles_decimation = self.sim.backend_manager.handles_decimation()
         # export after asset initialization, before startup events
         if self.cfg.scene.export_usd_path is not None:
-            from ..sim.usd_export import BaseUsdExporter
+            from ..sim.usd_export import UsdExporter
 
-            BaseUsdExporter.export_configured_scene(self.scene)
+            UsdExporter.export_configured_scene(self.scene)
         # add timeline event to load managers
         report_activity("Setting up managers")
         self.load_managers()
