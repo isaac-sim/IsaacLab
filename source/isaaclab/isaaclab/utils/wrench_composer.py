@@ -15,6 +15,7 @@ import warp as wp
 
 from .warp import ProxyArray
 from .warp.index_kernel import selector_dtype
+from .warp.memory import resolve_ids
 from .warp.wrench import (
     add_raw_wrench_buffers,
     compose_wrench_to_body_frame,
@@ -672,24 +673,9 @@ class WrenchComposer:
             Environment indices.
 
         Raises:
-            TypeError: If ``env_ids`` is an unsupported type.
+            TypeError: If ``env_ids`` is a :class:`~isaaclab.utils.warp.ProxyArray`.
         """
-        if env_ids is None:
-            return self._ALL_ENV_INDICES
-        # Check tensor types before slice comparison (tensor == slice crashes)
-        if isinstance(env_ids, torch.Tensor):
-            return env_ids
-        if isinstance(env_ids, wp.array):
-            return env_ids
-        if env_ids == slice(None):
-            return self._ALL_ENV_INDICES
-        if isinstance(env_ids, slice):
-            return wp.from_torch(wp.to_torch(self._ALL_ENV_INDICES)[env_ids])
-        if isinstance(env_ids, list):
-            return wp.array(env_ids, dtype=wp.int32, device=self.device)
-        raise TypeError(
-            f"env_ids must be None, slice(None), list, torch.Tensor, or wp.array, got {type(env_ids).__name__}"
-        )
+        return resolve_ids(ids=env_ids, all_ids=self._ALL_ENV_INDICES)
 
     def _resolve_body_ids(
         self, body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None
@@ -703,23 +689,9 @@ class WrenchComposer:
             Body indices.
 
         Raises:
-            TypeError: If ``body_ids`` is an unsupported type.
+            TypeError: If ``body_ids`` is a :class:`~isaaclab.utils.warp.ProxyArray`.
         """
-        if body_ids is None:
-            return self._ALL_BODY_INDICES
-        if isinstance(body_ids, ProxyArray):
-            raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
-        if isinstance(body_ids, torch.Tensor):
-            return body_ids
-        if isinstance(body_ids, wp.array):
-            return body_ids
-        if body_ids == slice(None):
-            return self._ALL_BODY_INDICES
-        if isinstance(body_ids, Sequence):
-            return wp.array(body_ids, dtype=wp.int32, device=self.device)
-        raise TypeError(
-            f"body_ids must be None, slice(None), a sequence, torch.Tensor, or wp.array, got {type(body_ids).__name__}"
-        )
+        return resolve_ids(ids=body_ids, all_ids=self._ALL_BODY_INDICES)
 
     def _ensure_composed(self):
         """Compose input buffers into output buffers if dirty."""

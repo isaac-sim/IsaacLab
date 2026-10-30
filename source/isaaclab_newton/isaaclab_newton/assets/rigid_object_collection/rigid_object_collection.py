@@ -22,6 +22,7 @@ import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object_collection.base_rigid_object_collection import BaseRigidObjectCollection
 from isaaclab.utils import clone, validate
 from isaaclab.utils.warp import ProxyArray, memory
+from isaaclab.utils.warp.memory import resolve_1d_mask, resolve_ids, write_2d_with_mask
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
@@ -308,16 +309,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
-        if env_mask is not None:
-            env_ids = self._resolve_env_mask(env_mask)
-        else:
-            env_ids = self._ALL_ENV_INDICES
-        if body_mask is not None:
-            body_ids = self._resolve_body_mask(body_mask)
-        else:
-            body_ids = self._ALL_BODY_INDICES
-        self.write_body_link_pose_to_sim_index(
-            body_poses=body_poses, env_ids=env_ids, body_ids=body_ids, full_data=True, skip_forward=skip_forward
+        self.write_body_link_pose_to_sim_mask(
+            body_poses=body_poses, body_mask=body_mask, env_mask=env_mask, skip_forward=skip_forward
         )
 
     def write_body_velocity_to_sim_index(
@@ -386,20 +379,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
-        if env_mask is not None:
-            env_ids = self._resolve_env_mask(env_mask)
-        else:
-            env_ids = self._ALL_ENV_INDICES
-        if body_mask is not None:
-            body_ids = self._resolve_body_mask(body_mask)
-        else:
-            body_ids = self._ALL_BODY_INDICES
-        self.write_body_com_velocity_to_sim_index(
-            body_velocities=body_velocities,
-            env_ids=env_ids,
-            body_ids=body_ids,
-            full_data=True,
-            skip_forward=skip_forward,
+        self.write_body_com_velocity_to_sim_mask(
+            body_velocities=body_velocities, body_mask=body_mask, env_mask=env_mask, skip_forward=skip_forward
         )
 
     def write_body_link_pose_to_sim_index(
@@ -492,16 +473,18 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
-        if env_mask is not None:
-            env_ids = self._resolve_env_mask(env_mask)
-        else:
-            env_mask = self._ALL_ENV_MASK
-            env_ids = self._ALL_ENV_INDICES
-        if body_mask is not None:
-            body_ids = self._resolve_body_mask(body_mask)
-        self.write_body_link_pose_to_sim_index(
-            body_poses=body_poses, env_ids=env_ids, body_ids=body_ids, full_data=True, skip_forward=skip_forward
+        env_mask = resolve_1d_mask(mask=env_mask, all_mask=self._ALL_ENV_MASK)
+        # a body selection given as ids becomes a body mask on the device, so the same mask kernel applies
+        body_mask = resolve_1d_mask(
+            ids=body_ids,
+            mask=body_mask,
+            all_mask=self._ALL_BODY_MASK,
+            scratch_mask=self._scratch_body_mask,
         )
+        self.assert_shape_and_dtype_mask(body_poses, (env_mask, body_mask), wp.transformf, "body_poses")
+        write_2d_with_mask(body_poses, env_mask, body_mask, self.data.body_link_pose_w)
+        if not skip_forward:
+            self.data._reset_pose(env_mask=env_mask)
 
     def write_body_com_pose_to_sim_index(
         self,
@@ -597,17 +580,24 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
-        if env_mask is not None:
-            env_ids = self._resolve_env_mask(env_mask)
-        else:
-            env_mask = self._ALL_ENV_MASK
-            env_ids = self._ALL_ENV_INDICES
-        if body_mask is not None:
-            body_ids = self._resolve_body_mask(body_mask)
-        # The index writer owns the invalidation (with from_link=False); forward skip_forward to it.
-        self.write_body_com_pose_to_sim_index(
-            body_poses=body_poses, env_ids=env_ids, body_ids=body_ids, full_data=True, skip_forward=skip_forward
+        env_mask = resolve_1d_mask(mask=env_mask, all_mask=self._ALL_ENV_MASK)
+        # a body selection given as ids becomes a body mask on the device, so the same mask kernel applies
+        body_mask = resolve_1d_mask(
+            ids=body_ids,
+            mask=body_mask,
+            all_mask=self._ALL_BODY_MASK,
+            scratch_mask=self._scratch_body_mask,
         )
+        self.assert_shape_and_dtype_mask(body_poses, (env_mask, body_mask), wp.transformf, "body_poses")
+        wp.launch(
+            shared_kernels.set_body_com_pose_to_sim_mask,
+            dim=(env_mask.shape[0], body_mask.shape[0]),
+            inputs=[body_poses, self.data.body_com_pos_b, env_mask, body_mask],
+            outputs=[self.data.body_com_pose_w, self.data.body_link_pose_w],
+            device=self.device,
+        )
+        if not skip_forward:
+            self.data._reset_pose(env_mask=env_mask, from_link=False)
 
     def write_body_com_velocity_to_sim_index(
         self,
@@ -711,21 +701,24 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
-        if env_mask is not None:
-            env_ids = self._resolve_env_mask(env_mask)
-        else:
-            env_mask = self._ALL_ENV_MASK
-            env_ids = self._ALL_ENV_INDICES
-        if body_mask is not None:
-            body_ids = self._resolve_body_mask(body_mask)
-        # The index writer owns the invalidation; forward skip_forward to it.
-        self.write_body_com_velocity_to_sim_index(
-            body_velocities=body_velocities,
-            env_ids=env_ids,
-            body_ids=body_ids,
-            full_data=True,
-            skip_forward=skip_forward,
+        env_mask = resolve_1d_mask(mask=env_mask, all_mask=self._ALL_ENV_MASK)
+        # a body selection given as ids becomes a body mask on the device, so the same mask kernel applies
+        body_mask = resolve_1d_mask(
+            ids=body_ids,
+            mask=body_mask,
+            all_mask=self._ALL_BODY_MASK,
+            scratch_mask=self._scratch_body_mask,
         )
+        self.assert_shape_and_dtype_mask(body_velocities, (env_mask, body_mask), wp.spatial_vectorf, "body_velocities")
+        wp.launch(
+            shared_kernels.set_body_com_velocity_to_sim_mask,
+            dim=(env_mask.shape[0], body_mask.shape[0]),
+            inputs=[body_velocities, env_mask, body_mask],
+            outputs=[self.data.body_com_vel_w, self.data.body_com_acc_w],
+            device=self.device,
+        )
+        if not skip_forward:
+            self.data._reset_velocity(env_mask=env_mask)
 
     def write_body_link_velocity_to_sim_index(
         self,
@@ -831,21 +824,24 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
-        if env_mask is not None:
-            env_ids = self._resolve_env_mask(env_mask)
-        else:
-            env_mask = self._ALL_ENV_MASK
-            env_ids = self._ALL_ENV_INDICES
-        if body_mask is not None:
-            body_ids = self._resolve_body_mask(body_mask)
-        # The index writer owns the invalidation (with from_com=False); forward skip_forward to it.
-        self.write_body_link_velocity_to_sim_index(
-            body_velocities=body_velocities,
-            env_ids=env_ids,
-            body_ids=body_ids,
-            full_data=True,
-            skip_forward=skip_forward,
+        env_mask = resolve_1d_mask(mask=env_mask, all_mask=self._ALL_ENV_MASK)
+        # a body selection given as ids becomes a body mask on the device, so the same mask kernel applies
+        body_mask = resolve_1d_mask(
+            ids=body_ids,
+            mask=body_mask,
+            all_mask=self._ALL_BODY_MASK,
+            scratch_mask=self._scratch_body_mask,
         )
+        self.assert_shape_and_dtype_mask(body_velocities, (env_mask, body_mask), wp.spatial_vectorf, "body_velocities")
+        wp.launch(
+            shared_kernels.set_body_link_velocity_to_sim_mask,
+            dim=(env_mask.shape[0], body_mask.shape[0]),
+            inputs=[body_velocities, self.data.body_com_pos_b, self.data.body_link_pose_w, env_mask, body_mask],
+            outputs=[self.data.body_link_vel_w, self.data.body_com_vel_w, self.data.body_com_acc_w],
+            device=self.device,
+        )
+        if not skip_forward:
+            self.data._reset_velocity(env_mask=env_mask, from_com=False)
 
     """
     Operations - Setters.
@@ -1228,6 +1224,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         self._ALL_ENV_MASK = wp.ones((self.num_instances,), dtype=wp.bool, device=self.device)
         self._ALL_BODY_MASK = wp.ones((self.num_bodies,), dtype=wp.bool, device=self.device)
+        self._scratch_body_mask = wp.zeros((self.num_bodies,), dtype=wp.bool, device=self.device)
 
         # external wrench composer
         self._instantaneous_wrench_composer = WrenchComposer(self)
@@ -1269,13 +1266,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         Returns:
             Environment indices.
         """
-        if (env_ids is None) or (env_ids == slice(None)):
-            return self._ALL_ENV_INDICES
-        if isinstance(env_ids, slice):
-            return wp.from_torch(wp.to_torch(self._ALL_ENV_INDICES)[env_ids])
-        if isinstance(env_ids, list):
-            return wp.array(env_ids, dtype=wp.int32, device=self.device)
-        return env_ids
+        return resolve_ids(ids=env_ids, all_ids=self._ALL_ENV_INDICES)
 
     def _resolve_body_ids(self, body_ids) -> wp.array | torch.Tensor:
         """Resolve body indices.
@@ -1286,37 +1277,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         Returns:
             Body indices.
         """
-        if isinstance(body_ids, ProxyArray):
-            raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
-        if isinstance(body_ids, list):
-            return wp.array(body_ids, dtype=wp.int32, device=self.device)
-        if (body_ids is None) or (body_ids == slice(None)):
-            return self._ALL_BODY_INDICES
-        if isinstance(body_ids, slice):
-            return wp.from_torch(
-                torch.arange(self.num_bodies, dtype=torch.int32, device=self.device)[body_ids], dtype=wp.int32
-            )
-        return body_ids
-
-    def _resolve_env_mask(self, env_mask: wp.array | None) -> wp.array | torch.Tensor:
-        """Resolve environment mask to indices via torch.nonzero."""
-        if env_mask is not None:
-            if isinstance(env_mask, wp.array):
-                env_mask = wp.to_torch(env_mask)
-            env_ids = torch.nonzero(env_mask)[:, 0]
-        else:
-            env_ids = self._ALL_ENV_INDICES
-        return env_ids
-
-    def _resolve_body_mask(self, body_mask: wp.array | None) -> wp.array | torch.Tensor:
-        """Resolve body mask to indices via torch.nonzero."""
-        if body_mask is not None:
-            if isinstance(body_mask, wp.array):
-                body_mask = wp.to_torch(body_mask)
-            body_ids = torch.nonzero(body_mask)[:, 0]
-        else:
-            body_ids = self._ALL_BODY_INDICES
-        return body_ids
+        return resolve_ids(ids=body_ids, all_ids=self._ALL_BODY_INDICES)
 
     """
     Internal simulation callbacks.
