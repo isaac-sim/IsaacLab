@@ -353,8 +353,6 @@ def author_actuator_prims(
             if delay_steps > 0:
                 schemas.append("NewtonActuatorDelayAPI")
                 attrs["delay_steps"] = delay_steps
-                if not is_bam:
-                    attrs["max_delay"] = delay_steps
 
             if is_bam and cfg.backlash_joint_template is not None:
                 # The encoder reads servo plus play angle; the motor keeps the servo velocity.

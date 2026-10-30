@@ -805,7 +805,7 @@ def _create_actuators_from_usd(
             ]
             clamp_shared = {key: value for key, value in resolved_clampings[0].items() if key in shared_clamp}
             # Clamps such as ClampingCurrentPWM bound the motor command with the motor's own parameter arrays.
-            motor_params = {name: getattr(motor, name) for name in getattr(comp_cls, "MOTOR_PARAMS", set())}
+            motor_params = {name: getattr(motor, name) for name in comp_cls.MOTOR_PARAMS}
             clampings.append(
                 comp_cls(
                     **_tile_per_dof_arguments(clamp_arguments, num_envs, wp.float32, wp_device),
