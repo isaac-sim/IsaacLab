@@ -1,0 +1,153 @@
+{
+  "repository": "isaac-sim/IsaacLab",
+  "base": "main",
+  "integration_pr": 6952,
+  "integration_branch": "maximiliank/conveyor-franka-env",
+  "components": [
+    {
+      "pr": 8327,
+      "name": "Experimental conveyor support in Contrib"
+    },
+    {
+      "pr": 8331,
+      "name": "Racetrack transfer task"
+    },
+    {
+      "pr": 8332,
+      "name": "Warehouse sorting task"
+    },
+    {
+      "pr": 8794,
+      "name": "Optional native CPU PhysX support"
+    }
+  ],
+  "snapshot": {
+    "base": "ce2900d9bbb2f0e932f4c0e863cf149f40c8eca2",
+    "components": [
+      {
+        "pr": 8327,
+        "name": "Experimental conveyor support in Contrib",
+        "head": "295d702e04f7d1a54b4558ed28293fd0e6a69257",
+        "merged": false
+      },
+      {
+        "pr": 8331,
+        "name": "Racetrack transfer task",
+        "head": "f723371ae8d71c412eb0edf9dfe2608de5d92ca5",
+        "merged": false
+      },
+      {
+        "pr": 8332,
+        "name": "Warehouse sorting task",
+        "head": "8d0f6731e4bc55c43e08fb9b83019701e9a98fa3",
+        "merged": false
+      },
+      {
+        "pr": 8794,
+        "name": "Optional native CPU PhysX support",
+        "head": "9c3aeb3be6e82364e0ce42d81ed6afde9832bcb6",
+        "merged": false
+      }
+    ],
+    "checks": [
+      "37 focused pytest cases passed on the combined tree: native Newton transport/reset/close, conveyor specifications, racetrack/warehouse task contracts and assets, geometry, and optional PhysX contracts.",
+      "A separate real OpenUSD/Newton-stage probe passed the native mesh rigid-body, mass, collision, convex-hull and normalized-color assertions without Kit.",
+      "Combined environment-browser generation check passed for 143 training environments; dependency lock consistency passed.",
+      "All formatting/lint/changelog hooks passed before each history-preserving component merge commit.",
+      "A clean strict Sphinx HTML build passed on the combined public API and task-registration tree."
+    ],
+    "limitations": [
+      "The original Kit-dependent native mesh pytest invocation was unavailable in this environment; it was not counted as passed. The separate OpenUSD/Newton authoring probe does not qualify the Kit fixture lifecycle.",
+      "Full racetrack/warehouse policy rollouts and native PhysX task acceptance remain historical; warehouse policy success is not established."
+    ],
+    "checked_at": "2026-10-28T05:39:26.307612+00:00",
+    "refresh_mode": "normal merges preserving prior integration and component history",
+    "source_tree_before_snapshot": "8a8520b7c3794180d9764e5a8b927758c64eda58",
+    "source_composition": "75 effective files matched reviewed published component blobs. Three unchanged combined documentation/registration files and the warehouse/PhysX package-data dependency union retained the prior integration composition."
+  },
+  "snapshot_history": [
+    {
+      "base": "259e1a8cf79de53c52ca395599ac1cd9bc395b28",
+      "components": [
+        {
+          "pr": 8327,
+          "name": "Experimental conveyor support in Contrib",
+          "head": "619e4d24e125a45668a8c95249984376c5e8a82c",
+          "merged": false
+        },
+        {
+          "pr": 8331,
+          "name": "Racetrack transfer task",
+          "head": "b702f94a3074fc3816df7aa35c5240c771ff65fa",
+          "merged": false
+        },
+        {
+          "pr": 8332,
+          "name": "Warehouse sorting task",
+          "head": "8ff9bf90dbc270fd9fe51b4070118e585db2d13e",
+          "merged": false
+        },
+        {
+          "pr": 8794,
+          "name": "Optional native CPU PhysX support",
+          "head": "fbe9220ded233c3cf102bfa8c14251d3e2350872",
+          "merged": false
+        }
+      ],
+      "checks": [
+        "38 focused cases passed: 13 task/geometry, 4 warehouse assets, 15 Newton/spec, 5 optional PhysX and the existing native triangle-mesh owner case",
+        "Native mesh replacement matches 90 mesh inputs and 16 finalized Newton geometry/material arrays; stock cuboid colors match all six original callers",
+        "Single-pass visual stripping preserves physics ownership; normalized warehouse geometry/materials/cameras match after correcting the old duplicate robot height",
+        "84 action/tool/reset tensors and 261 dispatcher tensors match; existing keepers reject duplicate robot elevation and cross-environment slot broadcast mutations",
+        "Newton GPU checkpoint: eight environments, 1200 steps, 15 transfers, zero failures/non-finite observations",
+        "Optional PhysX native probe: two CPU environments, 135 steps, 16 surfaces, no fall-through; partial/full/hard reset and repeated close passed",
+        "Full formatting/lint/changelog/LFS, lock consistency and generated environment-browser checks passed",
+        "Clean strict Sphinx HTML build passed; existing JPEG previews retained"
+      ],
+      "limitations": [
+        "Warehouse checkpoint model_1100: paired corrected historical/new scenes each completed zero transfers in two environments over 2400 steps (seed 41), with zero failures/non-finite observations; sorting capability remains unvalidated"
+      ],
+      "checked_at": "2026-10-25T18:51:48.568549+00:00"
+    },
+    {
+      "base": "d78054af53e326385b5e01f13bccf8964b431442",
+      "components": [
+        {
+          "pr": 8327,
+          "head": "471d248be7deac4cd0abb179994472040ac42fef",
+          "merged": false,
+          "name": "Experimental conveyor support in Contrib"
+        },
+        {
+          "pr": 8331,
+          "head": "b02ce3980a46e3f9a11e2155773d8c56c4da001b",
+          "merged": false,
+          "name": "Racetrack transfer task"
+        },
+        {
+          "pr": 8332,
+          "head": "6408fc369205c5d6a67b2e511c32e05b157955c6",
+          "merged": false,
+          "name": "Warehouse sorting task"
+        },
+        {
+          "pr": 8794,
+          "head": "bdf751ea5d681e84d2d8eef9f1e4e8372db5210f",
+          "merged": false,
+          "name": "Optional native CPU PhysX support"
+        }
+      ],
+      "checks": [
+        "Combined CPU and CUDA physical transport/reset/close tests passed.",
+        "Conveyor specification, optional PhysX, geometry, warehouse asset, MDP and clone-ownership tests passed.",
+        "Every changed source file matches a freshly reviewed component; three integration-only files are unchanged.",
+        "Full formatting/lint/changelog hooks passed on the combined tree."
+      ],
+      "limitations": [
+        "Full racetrack/warehouse policy rollouts and native PhysX task acceptance remain historical; warehouse policy success is not established."
+      ],
+      "checked_at": "2026-10-27T05:33:25.419524+00:00",
+      "refresh_mode": "normal merges preserving prior integration and component history"
+    }
+  ]
+}
