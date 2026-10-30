@@ -15,9 +15,9 @@ resolution and shape checking rather than restating them. The command buffer its
 :class:`~isaaclab_newton.assets.ArticulationData`, beside the other fixed-tendon buffers.
 
 Tendon submission is solver-specific -- ``mujoco.ctrl`` exists only under MJWarp -- so it lives
-beside the MJWarp manager rather than in the backend-neutral actuator control. The articulation
-owns the target buffer and asks its manager to submit; only
-:class:`~isaaclab_newton.physics.NewtonMJWarpManager` imports this module.
+beside the MJWarp solver rather than in the backend-neutral actuator control. The articulation
+owns the target buffer and asks its manager to submit; only :class:`~isaaclab_newton.physics.MJWarpSolver`
+imports this module.
 """
 
 from __future__ import annotations
@@ -31,7 +31,8 @@ import torch
 import warp as wp
 from newton.solvers import SolverMuJoCo
 
-from isaaclab_newton.assets import kernels as shared_kernels
+from isaaclab.utils.warp import memory
+
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
 
 if TYPE_CHECKING:
@@ -46,29 +47,12 @@ logger = logging.getLogger(__name__)
 class MjWarpTendonControl:
     """Drives an articulation's fixed tendons through MuJoCo's native tendon actuators.
 
-    Created on demand by :meth:`~isaaclab_newton.physics.NewtonMJWarpManager.fixed_tendon_control`
+    Created on demand by :meth:`~isaaclab_newton.physics.MJWarpSolver.fixed_tendon_control`
     when the model carries tendon actuators. Command tendons through the articulation's
     backend-neutral
     :meth:`~isaaclab.assets.articulation.BaseArticulation.set_fixed_tendon_position_target_index`
     rather than through this internal adapter.
     """
-
-    @classmethod
-    def create(cls, articulation: Articulation, model: Model) -> MjWarpTendonControl | None:
-        """Build the adapter, or None when no actuator drives any of the tendons.
-
-        Args:
-            articulation: Newton articulation owning the fixed tendons.
-            model: Newton model the articulation's view selects from.
-
-        Returns:
-            The adapter, or None when the articulation's tendons are all passive.
-        """
-        view = articulation.root_view
-        mapping = resolve_fixed_tendon_actuator_columns(view, model)
-        if mapping is None or mapping[0].size == 0:
-            return None
-        return cls(articulation, mapping, view)
 
     def __init__(self, articulation: Articulation, mapping: tuple[np.ndarray, np.ndarray], view: ArticulationView):
         """Bind a tendon-to-actuator mapping to the articulation it drives.
@@ -129,17 +113,12 @@ class MjWarpTendonControl:
             env_ids: Environment indices. If None, then all indices are used.
         """
         articulation = self._articulation
-        env_ids = articulation._resolve_env_ids(env_ids)
-        fixed_tendon_ids = articulation._resolve_fixed_tendon_ids(fixed_tendon_ids)
+        env_ids = memory.resolve_1d_indices(articulation._resolve_env_ids(env_ids))
+        fixed_tendon_ids = memory.resolve_1d_indices(articulation._resolve_fixed_tendon_ids(fixed_tendon_ids))
         articulation.assert_shape_and_dtype(target, (env_ids.shape[0], fixed_tendon_ids.shape[0]), wp.float32, "target")
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, fixed_tendon_ids),
-            dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-            inputs=[target, env_ids, fixed_tendon_ids],
-            outputs=[articulation.data._fixed_tendon_position_target],
-            device=articulation.device,
-        )
+        selected = wp.indexedarray(articulation.data._fixed_tendon_position_target, [env_ids, fixed_tendon_ids])
+        values = wp.from_torch(target, dtype=wp.float32) if isinstance(target, torch.Tensor) else target
+        wp.copy(selected, values)
 
     def set_position_target_mask(
         self,
@@ -166,7 +145,7 @@ class MjWarpTendonControl:
         env_mask = articulation._resolve_mask(env_mask, articulation._ALL_ENV_MASK)
         fixed_tendon_mask = articulation._resolve_mask(fixed_tendon_mask, articulation._ALL_FIXED_TENDON_MASK)
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask,
+            memory.make_masked_copy(wp.float32, 2),
             dim=buffer.shape,
             inputs=[target, env_mask, fixed_tendon_mask],
             outputs=[buffer],
@@ -273,3 +252,20 @@ def _actuator_template_rows(view: ArticulationView, model: Model) -> np.ndarray:
 def _to_numpy(value) -> np.ndarray:
     """Return *value* as a numpy array, whether it is a Warp array already or a sequence."""
     return value.numpy() if hasattr(value, "numpy") else np.asarray(value)
+
+
+def create_mjwarp_tendon_control(articulation: Articulation, model: Model) -> MjWarpTendonControl | None:
+    """Build the MuJoCo tendon command adapter, or None when no actuator drives any of the tendons.
+
+    Args:
+        articulation: Newton articulation owning the fixed tendons.
+        model: Newton model the articulation's view selects from.
+
+    Returns:
+        The adapter, or None when the articulation's tendons are all passive.
+    """
+    view = articulation.root_view
+    mapping = resolve_fixed_tendon_actuator_columns(view, model)
+    if mapping is None or mapping[0].size == 0:
+        return None
+    return MjWarpTendonControl(articulation, mapping, view)

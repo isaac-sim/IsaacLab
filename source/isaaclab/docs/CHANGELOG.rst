@@ -3,6 +3,59 @@ Changelog
 
 .. towncrier release notes start
 
+42.3.0 (2026-10-30)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Centralized Warp wrench composition with on-demand writer/reset kernels and one host owner for destination selection.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the wrench entry points in ``isaaclab.utils.warp.kernels`` for removal in Isaac Lab 3.2. Existing imports and launch signatures remain supported with a ``DeprecationWarning``; use ``WrenchComposer`` or ``isaaclab.utils.warp.wrench`` instead. The new writer factory takes selected force/torque destinations rather than five buffers and ``is_global``.
+
+Fixed
+^^^^^
+
+* Fixed ``configclass`` raising ``FrozenInstanceError`` when a field holds a frozen dataclass with no callable
+  strings to wrap.
+
+
+42.2.0 (2026-10-29)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed ``isaaclab teleop`` to call :func:`isaaclab_teleop.entrypoints.run_cli` in process, like
+  ``isaaclab train``, instead of launching the scripts under ``scripts/``.
+* Reused native Warp views/copy/fill for ordinary data movement. Shared memory utilities own selector normalization, component views, boolean-masked updates, and fused packing/splitting. Callers supply layouts and own simulator row-ID bookkeeping. Custom kernels and articulation ordering use cached concrete factories without enumerating unused variants. Warm the execution path before graph capture.
+* Added tiled component concatenation through ``memory.concat(first, second, result)``. The operation owns scalar views and launch dimensions, preserves strided layouts, and supports native recorded launches without rebuilding views on each read.
+
+
+42.1.0 (2026-10-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab.managers.ObservationTermCfg.history_newest_first` and
+  :attr:`~isaaclab.managers.ObservationGroupCfg.history_newest_first` to place the current step first along the
+  history dimension for policies whose deployment runtime builds observation history in that order.
+
+Fixed
+^^^^^
+
+* Fixed ``--checkpoint latest`` in the skrl and rl_games benchmark play entrypoints loading the best-reward
+  checkpoint instead of the newest one, matching the fix in the training and play entrypoints.
+* Fixed :func:`~isaaclab.utils.math.sample_triangle` sampling a V-shaped distribution with the least density at the
+  midpoint and the most at the bounds. It now samples the documented symmetric triangular distribution, with its mode
+  at the midpoint of ``lower`` and ``upper``.
+* Preserved tuple containers when serializing and restoring nested ``slice`` values in dictionary utilities.
+
+
 42.0.0 (2026-10-27)
 ~~~~~~~~~~~~~~~~~~~
 

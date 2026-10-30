@@ -125,22 +125,25 @@ For documentation media, only small ``.jpg`` files should be committed directly 
 Upload larger images, videos, animations, and other media to an external hosting location, then link to or embed
 the externally hosted file from the documentation.
 
-Browser-demo bundles and exporter sources are distributed through the permanent
+Browser-demo runtime archives are distributed through the permanent
 `interactive-demos release <https://github.com/isaac-sim/IsaacLab/releases/tag/interactive-demos>`_.
-Reuse the ``interactive-releases`` publishing branch and upload commit-named archives to that same release.
-Keep earlier assets, then update the reviewed archive URL and SHA-256 together in
+Upload reviewed, commit-named archives to that same release. Keep earlier release assets,
+then update the reviewed archive URL and SHA-256 together in
 ``.github/actions/_lib/stage-browser-demos.sh``. No new release tag or numbered gallery is needed.
-The docs workflow downloads that archive, verifies its checksum, and stages its ``site/`` directory
-under ``docs/_build/demos/`` before publishing Pages. Keep the existing legacy directories: they provide shared
-assets and preserve older links. The development source tree contains the staging script, documentation links,
-and small thumbnails. Run the staging step from the repository root:
+The current archive contains the generated gallery, physics bundles, policy assets, and licenses.
+Exporter sources remain in the private browser-demo project and are not included in this archive.
+The docs workflow downloads the archive, verifies its checksum, and stages only its ``site/`` directory
+under ``docs/_build/demos/`` before publishing Pages. This contains one current gallery under
+``interactive/``; earlier gallery entry points redirect there without retaining older physics builds.
+The documentation source tree contains the staging script, documentation links, and thumbnails used on
+the Demos page. Gallery thumbnails stay in the runtime archive.
+Run the staging step from the repository root:
 
 .. code-block:: bash
 
    bash .github/actions/_lib/stage-browser-demos.sh
 
-The staging step also resolves demo links relative to each documentation version. To preview the
-complete site locally, serve ``docs/_build`` over HTTP:
+To preview the complete site locally, serve ``docs/_build`` over HTTP:
 
 .. code-block:: bash
 
@@ -150,6 +153,25 @@ Open ``http://localhost:8000/current/index.html`` for the docs or
 ``http://localhost:8000/demos/interactive/`` for the demos. Downloaded ``docs-html`` artifacts include
 ``PREVIEW.txt`` with the equivalent command to run from the extracted artifact's root directory.
 The browser must load the demos over HTTP so it can fetch their WebAssembly modules and data.
+
+Use ``isaaclab-demos`` to embed the gallery in a guide without copying its catalog or simulator bundles
+into the documentation sources:
+
+.. code-block:: rst
+
+   .. isaaclab-demos:: stiffness, cloth_bending
+      :title: Explore cloth stiffness
+      :physics: vbd
+      :activity: tuning
+
+Use stable gallery IDs, or omit the IDs for the full gallery. The ``title``, ``physics``
+(``rigid``, ``vbd``, ``mpm``), and ``activity`` (``tuning``, ``policy``, ``scripted``) options are optional.
+The embed loads near the viewport and starts a simulation only when the reader chooses a demo.
+It follows the documentation theme and provides a link to open the same selection in a separate tab.
+By default, embeds use the staged gallery on the documentation's own host, with links relative to
+each documentation page. To use a separate gallery host, set the Sphinx ``isaaclab_demo_base_url``
+configuration value to an absolute HTTP or HTTPS URL. For a local development server, pass
+``-D isaaclab_demo_base_url=http://localhost:8805/lab/`` to Sphinx.
 
 .. caution::
 
@@ -558,10 +580,15 @@ See the `Lazy Loading & Module Exports`_ section for details.
 
 Pass ``ProxyArray`` objects directly to Warp kernels. Keep one proxy per owned array, without
 parallel ``_ta``, ``_warp``, or ``_torch`` attributes; timestamped array caches can own the proxy in
-``data``. Use explicit native access only where the receiving API requires it.
+``data``. Use explicit native access only where the receiving API requires it. In particular,
+host operations such as ``memory.concat`` that inspect Warp shapes, strides, and views require
+``proxy.warp``; they do not perform the automatic argument conversion of ``wp.launch``.
+When replacing a kernel launch with a host operation, validate the real callers as well as the kernel.
 When a kernel operation is known before launch, specialize it with dedicated kernels or static Warp
 branches instead of a runtime mode switch. Keep shared indexing in one implementation and benchmark
 the generated kernels against the original path.
+When a thread exclusively owns an output cell, use explicit read-add-write assignments.
+Warp array ``+=`` may lower to atomic addition; reserve atomics for concurrent reduction.
 
 Python does not have a concept of private and public classes and functions. However, we follow the
 convention of prefixing the private functions and classes with an underscore.
@@ -621,6 +648,42 @@ Specialize structural choices; numerical values remain runtime inputs. Name fact
 Select generated variants by rank, such as ``quat_rotate_inv[2]``. Where a device operation and
 an array launch coexist, express cardinality: ``scale_interval`` and ``scale_intervals``.
 Verify ownership and dependency direction as well as numerical behavior and capture replay.
+
+
+Shared Warp memory operations
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Use native ``wp.copy``, ``array.fill_`` and ``array.zero_`` for ordinary data movement.
+Represent selections with ``wp.indexedarray`` and component layouts with scalar slices/views.
+Do not add project-owned kernels or forwarding wrappers for operations Warp already provides.
+``isaaclab.utils.warp.memory`` owns selector normalization, component views, boolean-masked
+updates and fused operations justified by measured launch or memory-access costs. Callers
+supply frequency through shapes, strides and selectors; memory must not own body, joint,
+environment or physical-quantity concepts. Native solver mappings and simulator row-ID
+bookkeeping belong to backends. Delete superseded implementations and unused aliases.
+
+Warp indexed views require contiguous int32 index arrays. Normalize supported Torch/Warp
+selectors with ``resolve_1d_indices``: existing contiguous int32 storage is reused, while
+strided or int64 selectors require a copy/cast. Keep the result alive with the view and
+warm conversions before capture; conversion during CUDA capture requires the memory pool.
+Select both source and destination views for full-shaped sources. Do not compact dynamic
+boolean masks into indices in captured paths; use the small masked copy/fill kernels.
+
+For a required custom kernel, use a cached factory that defines and returns a concrete ``wp.Kernel``, following the
+`MuJoCo Warp factory pattern <https://github.com/google-deepmind/mujoco_warp/blob/main/mujoco_warp/_src/collision_driver.py>`_.
+Name factories ``make_<operation>``; use ``functools.cache`` for hashable type/rank arguments
+and ``@wp.kernel(module="unique")`` to isolate each specialization. Keep copy and fill signatures
+explicit. Do not return a dispatcher from a kernel factory or eagerly enumerate layout/type products.
+
+Call the factory where the configuration is known. Repeated calls reuse the same kernel; they do
+not redefine it. If a named variant improves readability, define only a used variant next to its
+factory in the owning kernel module, then import it. Do not scatter variant constants across
+implementation modules. Keep semantic configuration at the caller and preserve array strides.
+
+Python factory caching reuses kernel objects; Warp separately owns compilation and its disk cache.
+Warm up the actual execution path before graph capture, including the needed selector dtypes.
+Later specializations must not invalidate kernels already compiled or captured. Check this alongside
+dependency direction, aliasing, selector widths, and replay with changed inputs.
 
 Circular Imports
 ^^^^^^^^^^^^^^^^
