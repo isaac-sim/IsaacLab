@@ -8,6 +8,8 @@ __all__ = [
     "PPISP_DEFAULT_INPUTS",
     "PpispCfg",
     "PpispPipeline",
+    "PpispProcessor",
+    "PpispProcessorCfg",
     "apply_ppisp_to_rgba",
     "apply_ppisp_to_rgba_with_controller_params",
     "apply_rtx_exposure_overrides",
@@ -26,6 +28,7 @@ from .cfg import (
     PPISP_CONTROLLER_EXPECTED_WEIGHTS_LEN,
     PPISP_DEFAULT_INPUTS,
     PpispCfg,
+    PpispProcessorCfg,
     auto_any_ppisp_cfg,
     auto_camera_ppisp_cfg,
     default_ppisp_inputs,
@@ -36,5 +39,5 @@ from .cfg import (
     resolve_and_normalize,
 )
 from .kernels import apply_ppisp_to_rgba, apply_ppisp_to_rgba_with_controller_params, compute_ppisp_controller_params
-from .pipeline import PpispPipeline
+from .pipeline import PpispPipeline, PpispProcessor
 from .rtx_camera_overrides import apply_rtx_exposure_overrides

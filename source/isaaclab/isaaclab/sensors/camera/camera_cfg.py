@@ -16,6 +16,7 @@ from ..sensor_base_cfg import SensorBaseCfg
 from .camera_isp import CameraISPMode
 
 if TYPE_CHECKING:
+    from ...utils.tensor_processors import TensorProcessorCfg
     from .camera import Camera
 
 # Default values for the RTX-flavored fields kept on :class:`CameraCfg` for
@@ -206,29 +207,28 @@ class CameraCfg(SensorBaseCfg):
     renderer_cfg: RendererCfg = field(default_factory=RendererCfg)
     """Renderer configuration for camera sensor."""
 
+    tensor_processors: list[TensorProcessorCfg] = []
+    """Processors that compute camera outputs from render outputs. Defaults to an empty list.
+
+    Each ``func`` is a :class:`~isaaclab.utils.tensor_processors.TensorProcessor` class, constructed at the first
+    published capture. After each published capture, processors run in order on the render outputs and earlier
+    processors' outputs, and their outputs are added to :attr:`CameraData.output`. The renderer produces every
+    input that no earlier processor produces, so a processor can filter an output in place. Camera construction
+    calls an optional ``func.prepare_camera(cfg, stage, camera_prim_paths, renderer_cfg)`` class method before
+    the scene is cloned or exported; it returns the configuration to use, or None to remove the processor.
+
+    With ``update_period > 0``, environments capture on different steps, so a call can mix new rows with rows that
+    still hold the previous capture. A stateful processor can list ``"env_mask"`` in its ``inputs`` to receive a
+    boolean mask of shape ``(N,)`` marking the environments with a new capture. The name is reserved and the mask
+    is not published as a camera output.
+    """
+
     isp_cfg: Any | CameraISPMode | None = None
-    """Post-render ISP cfg applied by the renderer backend after it produces HDR output.
+    """PPISP coefficients or discovery mode. Defaults to None (no PPISP).
 
-    Defaults to ``None`` (ISP disabled). Auto-discovery is opt-in via a
-    :class:`CameraISPMode` sentinel — see below.
-
-    Accepted values:
-
-    * ``None`` — ISP disabled. No HDR AOV is requested and no RTX-side
-      tonemapping flags are flipped.
-    * A :class:`CameraISPMode` sentinel — camera construction walks the USD stage to
-      discover an ISP shader (e.g. via the :mod:`isaaclab_ppisp` package).
-    * A concrete ISP cfg dataclass (e.g. :class:`isaaclab_ppisp.PpispCfg`) — used directly.
-
-    The cfg applies once per Camera sensor batch. The PPISP Warp kernel takes
-    scalar coefficients, so every cloned view in a tiled batch shares the same
-    ISP configuration — there is no per-view ISP today.
-
-    Camera construction resolves the configuration and, for RTX renderers, neutralizes the
-    camera prim's exposure before the scene is cloned or imported. This also applies to existing
-    camera prims with ``spawn=None``; author their PPISP attributes before constructing the sensor.
-    Renderers receive the resolved configuration and apply PPISP to their HDR output. The PPISP
-    package is imported only when this option is enabled.
+    .. deprecated:: 42.0.0
+        Add ``isaaclab_ppisp.PpispProcessorCfg(isp_cfg=...)`` to :attr:`tensor_processors` instead. Camera
+        construction moves a non-None value there with a :class:`FutureWarning`.
     """
 
     def __post_init__(self):
@@ -268,10 +268,25 @@ class CameraCfg(SensorBaseCfg):
         if supported_specs is None:
             return
         supported = {str(kind) for kind in supported_specs}
-        unsupported = sorted(set(self.data_types) - supported)
+        unsupported = sorted(set(_render_data_types(self)) - supported)
         if unsupported:
             raise ValueError(
                 f"Renderer {type(self.renderer_cfg).__name__} only supports data types {sorted(supported)}, "
                 f"but the camera is configured with unsupported types: {unsupported}. "
                 "Choose supported data types or select a different renderer."
             )
+
+
+CAPTURE_MASK_NAME = "env_mask"
+"""Processor input holding the boolean mask of environments with a new capture."""
+
+
+def _render_data_types(cfg: CameraCfg) -> list[str]:
+    """Return the data types that no processor produces and the inputs that no earlier processor produces."""
+    produced, inputs = set(), []
+    for processor_cfg in cfg.tensor_processors:
+        if CAPTURE_MASK_NAME in processor_cfg.outputs:
+            raise ValueError(f"Processor output name {CAPTURE_MASK_NAME!r} is reserved for the capture mask.")
+        inputs += [name for name in processor_cfg.inputs if name not in produced and name != CAPTURE_MASK_NAME]
+        produced.update(processor_cfg.outputs)
+    return list(dict.fromkeys([name for name in cfg.data_types if name not in produced] + inputs))

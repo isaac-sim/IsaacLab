@@ -1,8 +1,7 @@
 # Isaac Lab PPISP
 
-This extension provides a renderer-backend-agnostic PPISP (Physically Plausible
-Image Signal Processing) pipeline for Isaac Lab camera outputs.
+This extension provides PPISP (Physically Plausible Image Signal Processing) as a
+camera tensor processor for Isaac Lab.
 
-PPISP consumes HDR scene-linear color from renderer backends and writes LDR
-`rgb` / `rgba` camera output after each render tick when `CameraCfg.isp_cfg` is
-set.
+Add `PpispProcessorCfg` to `CameraCfg.tensor_processors` to convert the camera's
+scene-linear `rgb_hdr` output to LDR `rgb` / `rgba` after each capture.
