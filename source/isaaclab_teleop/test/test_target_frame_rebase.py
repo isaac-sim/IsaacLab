@@ -178,3 +178,50 @@ def test_advance_selects_target_frame(configured, explicit, expected):
         assert step_kwargs["target_T_world"] is expected
     else:
         np.testing.assert_allclose(step_kwargs["target_T_world"], expected, atol=1e-6)
+
+
+def test_external_replay_reads_resolved_target_frame(monkeypatch):
+    """A cloned target path reaches the scene reader without mutating the task template."""
+    import ast
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    from isaaclab_teleop import IsaacTeleopCfg
+    from isaaclab_teleop.isaac_teleop_device import create_isaac_teleop_device
+
+    from pxr import Usd, UsdGeom
+
+    stage = Usd.Stage.CreateInMemory()
+    frame = UsdGeom.Xform.Define(stage, "/Lab/Cells/Cell0/Robot/base")
+    frame.AddTranslateOp().Set(Gf.Vec3d(4, 5, 6))
+    cfg = IsaacTeleopCfg(target_frame_prim_path="{ENV_REGEX_NS}/Robot/base", sim_device="cpu")
+    lifecycle = MagicMock()
+    monkeypatch.setattr("isaaclab_teleop.isaac_teleop_device.TeleopSessionLifecycle", lambda *a, **k: lifecycle)
+    monkeypatch.setattr("isaaclab_teleop.isaac_teleop_device.XrAnchorManager", lambda *a, **k: MagicMock())
+    device = create_isaac_teleop_device(
+        cfg, env_prim_path="/Lab/Cells/Cell0", use_kit_xr_bridge=False, ovxr_session=True
+    )
+    device._dispatch_control_callbacks = lambda: None
+
+    def read_target(path):
+        prim = stage.GetPrimAtPath(path)
+        assert prim.IsValid(), f"Target path did not resolve to the scene: {path}"
+        return np.asarray(UsdGeom.XformCache().GetLocalToWorldTransform(prim).GetInverse()).T
+
+    source = (
+        Path(__file__).resolve().parents[3]
+        / "source/isaaclab_teleop/isaaclab_teleop/entrypoints/teleop_replay_agent.py"
+    )
+    node = next(
+        n
+        for n in ast.parse(source.read_text()).body
+        if isinstance(n, ast.FunctionDef) and n.name == "_advance_replay_input"
+    )
+    namespace = {}
+    exec(compile(ast.Module(body=[node], type_ignores=[]), str(source), "exec"), namespace)
+    presentation = SimpleNamespace(session=SimpleNamespace(get_target_frame_T_world=read_target))
+    namespace["_advance_replay_input"](device, presentation)
+    expected = np.eye(4)
+    expected[:3, 3] = [-4, -5, -6]
+    np.testing.assert_allclose(lifecycle.step.call_args.kwargs["target_T_world"], expected)
+    assert cfg.target_frame_prim_path == "{ENV_REGEX_NS}/Robot/base"

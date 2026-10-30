@@ -133,6 +133,110 @@ def _make_failing_lifecycle(error: Exception) -> TeleopSessionLifecycle:
 
 
 class TestStepFailureDiagnosis:
+    @pytest.mark.parametrize("error_type", [RuntimeError, KeyboardInterrupt])
+    def test_failed_drain_retains_owner_and_original_step_error(self, error_type):
+        step_error = ValueError("retarget worker failed")
+        drain_error = error_type("worker did not join")
+        lifecycle = _make_failing_lifecycle(step_error)
+        session = lifecycle._session
+        session.__exit__.side_effect = drain_error
+        with (
+            patch.object(TeleopSessionLifecycle, "_kit_xr_session_is_active", return_value=False),
+            patch.object(lifecycle, "_build_external_inputs", return_value=None),
+            pytest.raises(ValueError, match="retarget worker failed") as raised,
+        ):
+            lifecycle.step()
+        assert raised.value is step_error
+        assert raised.value.__cause__ is drain_error
+        assert lifecycle._session is session
+        assert any("worker did not join" in note for note in step_error.__notes__)
+        notes = tuple(step_error.__notes__)
+        lifecycle.stop(type(step_error), step_error, step_error.__traceback__)
+        assert tuple(step_error.__notes__) == notes
+
+    def test_replay_step_failure_is_not_restarted_from_the_beginning(self):
+        error = ValueError("invalid recorded input")
+        lifecycle = _make_failing_lifecycle(error)
+        lifecycle._is_replay = True
+        session = lifecycle._session
+        with (
+            patch.object(lifecycle, "_build_external_inputs", return_value=None),
+            pytest.raises(ValueError, match="invalid recorded input") as raised,
+        ):
+            lifecycle.step()
+        assert raised.value is error
+        session.__exit__.assert_called_once()
+        assert lifecycle._session is None
+
+    def test_xr_shutdown_drain_failure_remains_visible_and_owned(self):
+        lifecycle = _make_failing_lifecycle(RuntimeError("unused"))
+        session = lifecycle._session
+        session.__exit__.side_effect = RuntimeError("native drain failed")
+        with pytest.raises(RuntimeError, match="native drain failed"):
+            lifecycle._on_pre_shutdown(None)
+        assert lifecycle._session is session
+
+    @pytest.mark.parametrize("error_type", [RuntimeError, KeyboardInterrupt])
+    def test_terminal_exit_failure_is_latched_across_callbacks_and_restart(self, error_type):
+        lifecycle = _make_lifecycle()
+        lifecycle._pipeline = object()
+        error = error_type("terminal native cleanup failed")
+
+        class TerminalSession:
+            def __init__(self):
+                self.entered = True
+                self.steps = 0
+                self.exits = 0
+
+            def __exit__(self, *_exc):
+                self.exits += 1
+                if self.entered:
+                    self.entered = False
+                    raise error
+
+            def step(self, **_kwargs):
+                self.steps += 1
+                raise AssertionError("must not step a terminal session")
+
+        session = TerminalSession()
+        lifecycle._session = session
+        with pytest.raises(error_type) as raised:
+            lifecycle._on_pre_shutdown(None)
+        assert raised.value is error
+        assert lifecycle.session_cleanup_failed
+        for operation in (lifecycle.step, lifecycle.step, lifecycle.try_start_session, lifecycle.start, lifecycle.stop):
+            with pytest.raises(error_type) as raised:
+                operation()
+            assert raised.value is error
+        assert session.exits == 1
+        assert session.steps == 0
+        assert lifecycle.session_cleanup_failed
+        assert lifecycle._session is session
+
+    def test_failed_submission_keeps_pending_host_reset_for_reentry(self):
+        lifecycle = _make_failing_lifecycle(ValueError("persistent pipeline error"))
+        lifecycle._pending_reset = True
+        with (
+            patch.object(TeleopSessionLifecycle, "_kit_xr_session_is_active", return_value=False),
+            patch.object(lifecycle, "_build_external_inputs", return_value=None),
+        ):
+            assert lifecycle.step() is None
+        assert lifecycle._pending_reset
+
+    def test_ovxr_session_pipeline_failure_also_bounds_restart_rate(self):
+        lifecycle = _make_failing_lifecycle(ValueError("persistent pipeline error"))
+        lifecycle._external_oxr_handles_provider = lambda: object()
+        with (
+            patch.object(TeleopSessionLifecycle, "_kit_xr_session_is_active", return_value=False),
+            patch.object(lifecycle, "_build_external_inputs", return_value=None),
+        ):
+            assert lifecycle.step() is None
+        assert lifecycle._restart_holdoff_until > time.monotonic()
+        with patch.object(lifecycle, "_try_start_session") as try_start:
+            for _ in range(5):
+                assert lifecycle.step() is None
+        try_start.assert_not_called()
+
     def test_pipeline_error_with_active_xr_sets_holdoff(self):
         lifecycle = _make_failing_lifecycle(ValueError("Found zero norm quaternions in `quat`."))
         session = lifecycle._session

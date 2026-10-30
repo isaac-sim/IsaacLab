@@ -59,11 +59,13 @@ def kit_timeline(monkeypatch):
 
 
 @pytest.mark.parametrize("headless", [False, True])
-def test_viewport_pose_publication_is_deferred_for_headless_capture(monkeypatch, kit_app, headless):
+@pytest.mark.parametrize("xr", [False, True])
+def test_viewport_pose_publication_is_deferred_only_for_headless_capture(monkeypatch, kit_app, headless, xr):
     visualizer = KitVisualizer(VisualizerCfg(headless=headless, backend=KitBackendCfg(origin_type="asset")))
     visualizer._is_initialized = True
     visualizer._fabric = MagicMock()
     visualizer._sim = sim = MagicMock(render_generation=12)
+    sim.get_setting.side_effect = lambda key: xr if key == "/isaaclab/xr/enabled" else None
     provider = sim.get_scene_data_provider.return_value
     monkeypatch.setattr(visualizer, "is_training_paused", lambda: True)
     tracking = MagicMock()
@@ -75,8 +77,8 @@ def test_viewport_pose_publication_is_deferred_for_headless_capture(monkeypatch,
 
     visualizer.step(0.1)
 
-    assert tracking.call_count == int(not headless)
-    if headless:
+    assert tracking.call_count == int(not headless or xr)
+    if headless and not xr:
         visualizer._fabric.update_transforms.assert_not_called()
         visualizer._fabric.update_geometries.assert_not_called()
         settings.set.assert_not_called()

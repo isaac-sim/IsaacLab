@@ -6,6 +6,7 @@
 from dataclasses import MISSING
 
 import numpy as np
+from isaaclab_ov.physics import OvPhysxCfg
 
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.utils import configclass, replace
@@ -37,8 +38,15 @@ _SO101_GRIPPER_SCALE = SO101_GRIPPER_CLOSE - SO101_GRIPPER_OPEN  # [rad] c=1 -> 
 # the home orientation target. Capture 1.7 seeds both channels from this transform on reset and
 # applies controller motion relative to each engage, retaining the commanded pose on re-clutch.
 # The base rebase is handled upstream by ``target_frame_prim_path``; no live EE pose is read here.
-_BASE_T_GRIPPER_HOME = np.eye(4, dtype=np.float32)
-_BASE_T_GRIPPER_HOME[:3, 3] = (0.01918, -0.18852, 0.18887)
+_BASE_T_GRIPPER_HOME = np.array(
+    [
+        [0.00000711, 1.0, -0.00000682, 0.02061444],
+        [-0.71735179, 0.00000985, 0.69671114, -0.18883384],
+        [0.69671114, -0.00000006, 0.71735179, 0.19226513],
+        [0.0, 0.0, 0.0, 1.0],
+    ],
+    dtype=np.float32,
+)
 
 
 def _build_so101_stack_pipeline():
@@ -181,6 +189,16 @@ class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
+        # The clutch resets to a configured full pose, so the arm must return to the same
+        # nominal joints on every reset. Keep the reset event active, without joint noise.
+        self.events.randomize_joint_state.params["std"] = 0.0
+        self.sim.physics = preset(
+            default=self.sim.physics.default,
+            isaacsim_physx=self.sim.physics.isaacsim_physx,
+            physx=self.sim.physics.physx,
+            newton_mjwarp=self.sim.physics.newton_mjwarp,
+            ovphysx=OvPhysxCfg(),
+        )
 
         # Switch to a stiffer PD controller so the arm tracks IK targets well. Replace the robot
         # configured by the parent so its task-specific seated root and stack joint pose are retained.
@@ -201,7 +219,9 @@ class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
                 variants={
                     "Robot": "robot",
                     "Sensor": "sensors",
-                    "Physics": preset(default="physx", isaacsim_physx="physx", physx="physx", newton_mjwarp="physics"),
+                    "Physics": preset(
+                        default="physx", isaacsim_physx="physx", physx="physx", ovphysx="physx", newton_mjwarp="physics"
+                    ),
                 },
             ),
             actuators={

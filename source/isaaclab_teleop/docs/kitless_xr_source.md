@@ -3,8 +3,8 @@
 Use Python 3.12 on Linux x86-64. The Isaac Capture wheel includes the
 OVXR session integration.
 
-Complete the CloudXR, client, network and license prerequisites before
-starting a session.
+Complete the [CloudXR, client, network and license prerequisites](kitless_xr.md#prerequisites)
+before starting a session.
 
 From the Isaac Lab root, select the Capture version in an `ovxr` project
 extra. Lab already configures NVIDIA's public Python index and allows prereleases:
@@ -60,4 +60,4 @@ Repeat this selection if a later lock upgrade replaces it. Isaac Capture's
 `ovxr` extra selects OVXR and its compatible OVRTX/OVStage dependencies; see its
 OVXR guide for application version overrides.
 
-Continue with the [OVXR application adapter](OVXR_ADAPTER.md).
+Continue with [live teleoperation](kitless_xr.md#live-teleoperation).
