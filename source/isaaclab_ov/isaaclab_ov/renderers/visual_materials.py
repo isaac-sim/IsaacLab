@@ -79,6 +79,11 @@ class OVRTXVisualMaterialWriter:
                 self._addresses.append((channel, address, attribute_name, rows))
             self._resources = resources.pop_all()
 
+    @property
+    def has_pending_updates(self) -> bool:
+        """Whether material changes require a scene publication even without a physics step."""
+        return bool(self._dirty_channels)
+
     def __call__(self, material_offsets: dict[str, Any] | None = None, env_ids: Any | None = None) -> None:
         """Mark channels dirty; OVRTX currently copies each dirty channel's full device buffer."""
         del env_ids
