@@ -69,6 +69,7 @@ from isaaclab_tasks.utils.hydra import PresetTarget  # noqa: E402
 
 def test_is_training_task_filters_non_training_variants():
     assert is_training_task("Isaac-Cartpole")
+    assert not is_training_task("IsaacContrib-Inhand-Rotate-Grasp-Allegro-v0")
     assert not is_training_task("IsaacContrib-Assemble-Trocar-G129-Dex3-Eval")
     assert not is_training_task("Isaac-Repose-Cube-Shadow-Vision-Benchmark-Direct-v0")
     assert not is_training_task("Isaac-RenderBenchmark-Franka-Cabinet")
@@ -223,6 +224,7 @@ def test_collect_environment_doc_rows_reports_curated_mjwarp_support():
     # Exercise every explicit stack-task exclusion plus representative supported and guarded rows.
     expected = {
         "IsaacContrib-Factory-Franka": False,
+        "IsaacContrib-Inhand-Roll-Allegro-v0": True,
         "IsaacContrib-Place-Mug-Agibot-Left-Arm-RmpFlow": False,
         "IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic": False,
         "IsaacContrib-Stack-Cube-BlueGreen-Franka-IK-Rel": False,
