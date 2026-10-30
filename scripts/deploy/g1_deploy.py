@@ -5,8 +5,7 @@
 
 """Run a G1 LEAPP bundle using Isaac ROS Deploy and the official Unitree ros2_control driver.
 
-Source the Isaac ROS environment before running. No Isaac Lab installation is needed at runtime.
-The exported ONNX models and feedback state remain unchanged; only ROS port metadata is adapted.
+Source the Isaac ROS environment before running.
 """
 
 from __future__ import annotations
@@ -43,7 +42,7 @@ MAX_AGE = 0.2
 
 
 def prepare_pipeline(pipeline: str, directory: Path) -> tuple[Path, dict]:
-    """Map LEAPP ports to official converters without changing model weights or graph edges."""
+    """Configure ROS message converters for the LEAPP input and output ports."""
     source = Path(pipeline).expanduser().resolve(strict=True)
     config = yaml.safe_load(source.read_text())
     ports = {}
@@ -65,7 +64,6 @@ def prepare_pipeline(pipeline: str, directory: Path) -> tuple[Path, dict]:
                     # Each converted value needs its own source even when ROS topics are shared.
                     spec["source"] = spec["name"]
                     if connection == "command:base_velocity":
-                        # The official Twist converter exposes six axes; this policy uses three.
                         spec["element_names"] = [[], ["lin_vel_x", "lin_vel_y", "ang_vel_z"]]
                 else:
                     spec["kind"] = OUTPUTS[connection]
@@ -258,11 +256,7 @@ def run_runtime(manifest: dict) -> int:
 
 
 class InputWatchdog:
-    """Latch faults and request the official damping controller; never send motor commands.
-
-    InputBuilder warns on stale inputs but continues inference. The forward controller also
-    retains its last command, so a missing camera or stopped graph needs an explicit stop.
-    """
+    """Check policy inputs and outputs and request damping on a fault."""
 
     def __init__(self, names: list[str], imu_topic: str, depth_name: str):
         import rclpy
