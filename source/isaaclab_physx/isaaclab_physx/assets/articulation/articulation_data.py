@@ -1765,6 +1765,8 @@ class ArticulationData(BaseArticulationData):
             self._fixed_tendon_rest_length = wp.clone(self._root_view.get_fixed_tendon_rest_lengths(), device=device)
             self._fixed_tendon_offset = wp.clone(self._root_view.get_fixed_tendon_offsets(), device=device)
             self._fixed_tendon_pos_limits = wp.clone(self._root_view.get_fixed_tendon_limits(), device=device)
+            # scratch for the masked target setter: rest_length - target before the masked write
+            self._fixed_tendon_offset_scratch = wp.zeros_like(self._fixed_tendon_offset)
         else:
             self._fixed_tendon_stiffness = None
             self._fixed_tendon_damping = None
@@ -1772,6 +1774,7 @@ class ArticulationData(BaseArticulationData):
             self._fixed_tendon_rest_length = None
             self._fixed_tendon_offset = None
             self._fixed_tendon_pos_limits = None
+            self._fixed_tendon_offset_scratch = None
         # -- Spatial tendon properties
         if self._num_spatial_tendons > 0:
             self._spatial_tendon_stiffness = wp.clone(self._root_view.get_spatial_tendon_stiffnesses(), device=device)

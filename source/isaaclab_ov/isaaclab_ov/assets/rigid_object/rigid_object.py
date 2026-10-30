@@ -22,6 +22,7 @@ from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
 from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.warp import ProxyArray, memory
+from isaaclab.utils.warp.memory import resolve_1d_mask, resolve_ids
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_ov import tensor_types as TT
@@ -1061,17 +1062,7 @@ class RigidObject(BaseRigidObject):
         Returns:
             Environment indices on ``self._device``.
         """
-        if env_ids is None or env_ids == slice(None):
-            return self._ALL_INDICES
-        if isinstance(env_ids, slice):
-            return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids])
-        if isinstance(env_ids, list):
-            return wp.array(env_ids, dtype=wp.int32, device=self._device)
-        if isinstance(env_ids, torch.Tensor):
-            return env_ids.to(device=self._device)
-        if isinstance(env_ids, wp.array) and str(env_ids.device) != self._device:
-            env_ids = wp.clone(env_ids, device=self._device)
-        return env_ids
+        return resolve_ids(ids=env_ids, all_ids=self._ALL_INDICES)
 
     def _sim_env_ids_view(self, count: int) -> wp.array:
         """Return a cached prefix of the simulator-index scratch buffer."""
@@ -1094,13 +1085,7 @@ class RigidObject(BaseRigidObject):
         Returns:
             Body indices.
         """
-        if isinstance(body_ids, ProxyArray):
-            raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
-        if body_ids is None or body_ids == slice(None):
-            return self._ALL_BODY_INDICES
-        if isinstance(body_ids, list):
-            return wp.array(body_ids, dtype=wp.int32, device=self._device)
-        return body_ids
+        return resolve_ids(ids=body_ids, all_ids=self._ALL_BODY_INDICES)
 
     def _resolve_env_mask(self, env_mask: wp.array | None) -> wp.array:
         """Resolve an environment mask to a ``wp.bool`` array.
@@ -1111,13 +1096,7 @@ class RigidObject(BaseRigidObject):
         Returns:
             A warp ``wp.bool`` array on ``self._device``.
         """
-        if env_mask is None:
-            return self._ALL_TRUE_ENV_MASK
-        if isinstance(env_mask, torch.Tensor):
-            return wp.from_torch(env_mask.to(torch.bool), dtype=wp.bool)
-        if isinstance(env_mask, wp.array) and str(env_mask.device) != self._device:
-            env_mask = wp.clone(env_mask, device=self._device)
-        return env_mask
+        return resolve_1d_mask(mask=env_mask, all_mask=self._ALL_TRUE_ENV_MASK)
 
     def _resolve_body_mask(self, body_mask: wp.array | None) -> wp.array:
         """Resolve a body mask to a ``wp.bool`` array.
@@ -1128,13 +1107,7 @@ class RigidObject(BaseRigidObject):
         Returns:
             A warp ``wp.bool`` array on ``self._device``.
         """
-        if body_mask is None:
-            return self._ALL_TRUE_BODY_MASK
-        if isinstance(body_mask, torch.Tensor):
-            return wp.from_torch(body_mask.to(torch.bool), dtype=wp.bool)
-        if isinstance(body_mask, wp.array) and str(body_mask.device) != self._device:
-            body_mask = wp.clone(body_mask, device=self._device)
-        return body_mask
+        return resolve_1d_mask(mask=body_mask, all_mask=self._ALL_TRUE_BODY_MASK)
 
     def _get_cpu_env_mask(self, env_mask: wp.array) -> wp.array:
         """Return a pinned-host CPU copy of *env_mask* for a CPU-only binding write.

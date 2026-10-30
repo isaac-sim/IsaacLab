@@ -34,7 +34,7 @@ from .backends import backends, read_backend_joint_state, requires
 pytestmark = pytest.mark.integration
 
 # Distinct instance, joint, body, and tendon counts so any swapped axis shows up.
-N, J, B, FT, ST = 2, 6, 7, 3, 2
+N, J, B, FT, ST = 2, 6, 7, 3, 4
 _AXIS_COUNTS = {"joint": J, "body": B, "fixed_tendon": FT, "spatial_tendon": ST}
 
 
@@ -139,20 +139,12 @@ def test_finders(monkeypatch, backend):
             finder("nonexistent_xyz")
 
 
-def test_resolve_ids_accept_tensor_views(monkeypatch, backend):
-    """Selector resolution honors tensor views, and environment slices alias the cached indices without copies."""
-    art, _ = _articulation(backend, "cpu", monkeypatch, num_instances=4, num_joints=4, num_bodies=4)
-    ids = torch.arange(4, dtype=torch.int32)
-    for resolve in (art._resolve_env_ids, art._resolve_joint_ids, art._resolve_body_ids):
-        assert resolve(ids).shape[0] == 4
-        assert resolve(ids[:2]).shape[0] == 2
-
-    cached = wp.to_torch(art._ALL_INDICES)
-    for selection in (slice(None), slice(1, None, 2), slice(0, 0)):
-        resolved = wp.to_torch(art._resolve_env_ids(selection))
-        torch.testing.assert_close(resolved, cached[selection])
-        assert resolved.data_ptr() == cached[selection].data_ptr()
-        assert resolved.stride() == cached[selection].stride()
+def test_resolvers_select_from_their_own_cached_indices(monkeypatch, backend):
+    """Each selector resolver returns its own cached indices for a selection of every element."""
+    art, _ = _articulation(backend, "cpu", monkeypatch)
+    assert art._resolve_env_ids(slice(None)) is art._ALL_INDICES
+    assert art._resolve_joint_ids(slice(None)) is art._ALL_JOINT_INDICES
+    assert art._resolve_body_ids(slice(None)) is art._ALL_BODY_INDICES
 
 
 # ---------------------------------------------------------------------------
@@ -162,8 +154,24 @@ def test_resolve_ids_accept_tensor_views(monkeypatch, backend):
 
 @pytest.mark.parametrize("backend", backends("physx", "ovphysx"))
 def test_commanding_a_tendon_target_schedules_the_write(monkeypatch, backend):
+    """Index and masked length targets schedule the tendon write that ``write_data_to_sim`` performs.
+
+    A masked target buffers ``rest_length - target`` for the selected environments and tendons only.
+    """
     art, _ = _articulation(backend, "cpu", monkeypatch, num_fixed_tendons=2)
     art.set_fixed_tendon_position_target_index(target=torch.zeros((N, 2)))
+    assert art._fixed_tendon_target_dirty is True
+    art.write_data_to_sim()
+    assert art._fixed_tendon_target_dirty is False
+
+    rest_length = art.data.fixed_tendon_rest_length.torch.clone()
+    expected = art.data.fixed_tendon_offset.torch.clone()
+    target = torch.arange(2 * N, dtype=torch.float32).reshape(N, 2) + 0.5
+    art.set_fixed_tendon_position_target_mask(
+        target=target, env_mask=_mask(N, [1], "cpu"), fixed_tendon_mask=_mask(2, [1], "cpu")
+    )
+    expected[1, 1] = rest_length[1, 1] - target[1, 1]
+    torch.testing.assert_close(art.data.fixed_tendon_offset.torch, expected)
     assert art._fixed_tendon_target_dirty is True
 
 
@@ -527,13 +535,74 @@ def test_writer(monkeypatch, backend, device, selection, writer, kwarg, axis, tr
             method(**{kwarg: 1.0})
             _assert_reads_back(read(), torch.ones_like(expected), f"{writer} scalar")
 
-    if backend == "newton" and selection == "mask" and is_tendon:
-        return  # pinned by test_newton_fixed_tendon_mask_setters_reject_extra_environments
+    if writer == "set_fixed_tendon_position_limit":
+        # Limit pairs whose components are strided in memory write as contiguous ones do.
+        expected = _payload(shape, trailing, dtype, device, offset=200.0)
+        method(**{kwarg: expected.repeat_interleave(2, dim=-1)[..., ::2]})
+        _assert_reads_back(read(), expected, f"{writer} strided")
+
+    if backend == "newton" and selection == "mask" and not writer.endswith("_target"):
+        # A short mask writes only the rows it covers, even when the memory past its end selects more rows.
+        expected = read().torch.clone()
+        values = _payload(shape, trailing, dtype, device, offset=300.0)
+        method(**{kwarg: values[: N - 1], "env_mask": _mask(N, range(N), device)[: N - 1]})
+        expected[: N - 1] = values[: N - 1]
+        _assert_reads_back(read(), expected, f"{writer} short mask")
+
     extra_env = _payload((N + 1, *shape[1:]), trailing, dtype, device)
     with pytest.raises((AssertionError, RuntimeError)):
         method(**{kwarg: extra_env})
     with pytest.raises((AssertionError, RuntimeError)):
         method(**{kwarg: wp.from_torch(extra_env.contiguous(), dtype=dtype)})
+
+
+_TENDON_MASK_SETTERS = [
+    *[writer for writer in _WRITERS if writer[2] in ("fixed_tendon", "spatial_tendon")],
+    ("set_fixed_tendon_position_target", "target", "fixed_tendon", 0, wp.float32, "data.fixed_tendon_offset"),
+]
+
+
+@pytest.mark.parametrize("backend", backends("physx"))
+@pytest.mark.parametrize(
+    "writer, kwarg, axis, trailing, dtype, getter", _TENDON_MASK_SETTERS, ids=[w[0] for w in _TENDON_MASK_SETTERS]
+)
+def test_tendon_mask_setters_write_only_what_short_masks_cover(
+    monkeypatch, backend, writer, kwarg, axis, trailing, dtype, getter
+):
+    """Masks shorter than their axes write only the entries they cover, like the Newton kernel writers.
+
+    Masks and data are views into full-size arrays, so a launch past the mask lengths would write defined values.
+    """
+    art, _ = _articulation(backend, "cpu", monkeypatch)
+    count = _AXIS_COUNTS[axis]
+    push = getattr(art, f"write_{axis}_properties_to_sim_index")
+    push()
+    expected = attrgetter(getter)(art).torch.clone()
+    values = _payload((N, count), trailing, dtype, "cpu", offset=100.0)
+    data = wp.from_torch(values.contiguous(), dtype=dtype)
+    covered = (slice(N - 1), slice(count - 1))
+    if writer == "set_fixed_tendon_position_target":
+        expected[covered] = art.data.fixed_tendon_rest_length.torch[covered] - values[covered]
+    else:
+        data = data[covered]
+        expected[covered] = values[covered]
+    masks = {
+        "env_mask": _mask(N, range(N), "cpu")[: N - 1],
+        f"{axis}_mask": _mask(count, range(count), "cpu")[: count - 1],
+    }
+    getattr(art, f"{writer}_mask")(**{kwarg: data}, **masks)
+    push()
+    _assert_reads_back(attrgetter(getter)(art), expected, writer)
+
+
+@pytest.mark.parametrize("backend", backends("physx"))
+def test_tendon_position_limit_mask_accepts_strided_torch_limits(monkeypatch, backend):
+    """A torch view whose limit pairs are not adjacent in memory writes like contiguous data, as the index setter."""
+    art, _ = _articulation(backend, "cpu", monkeypatch)
+    limit = _payload((N, FT), 2, wp.vec2f, "cpu")
+    art.set_fixed_tendon_position_limit_mask(limit=torch.stack((limit, limit), dim=-1)[..., 0])
+    art.write_fixed_tendon_properties_to_sim_index()
+    _assert_reads_back(art.data.fixed_tendon_pos_limits, limit, "strided limit")
 
 
 @pytest.mark.parametrize("backend", backends("physx", "ovphysx"))
@@ -566,18 +635,6 @@ def test_friction_mixed_inputs_preserve_other_cells_and_components(monkeypatch, 
                 reference[1, joints] = value[1, joints] if isinstance(value, torch.Tensor) else value
             _assert_reads_back(getattr(art.data, name), reference, name)
             torch.testing.assert_close(actual[prop], reference)
-
-
-@requires("newton")
-@pytest.mark.xfail(
-    raises=pytest.fail.Exception,
-    strict=True,
-    reason="Newton fixed-tendon mask setters slice full data without validating its shape",
-)
-def test_newton_fixed_tendon_mask_setters_reject_extra_environments(monkeypatch):
-    art, _ = _articulation("newton", "cpu", monkeypatch)
-    with pytest.raises((AssertionError, RuntimeError)):
-        art.set_fixed_tendon_stiffness_mask(stiffness=torch.ones((N + 1, FT)))
 
 
 # quantity -> (writer, keyword, trailing size). Joint partial writes are covered by the ordering contract.
