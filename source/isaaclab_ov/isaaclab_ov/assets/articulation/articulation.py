@@ -47,7 +47,7 @@ from .kernels import (
     clamp_default_joint_pos_and_update_soft_limits_index_kernel,
     clamp_default_joint_pos_and_update_soft_limits_mask,
     write_joint_friction_data_to_buffer_index_kernel,
-    write_joint_friction_data_to_buffer_mask,
+    write_joint_friction_data_to_buffer_mask_kernel,
     write_joint_position_with_sim_ids_kernel,
     write_joint_state_with_sim_ids_kernel,
     write_joint_velocity_with_sim_ids_kernel,
@@ -1977,11 +1977,6 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         shape = (env_ids.shape[0], joint_ids.shape[0])
-        joint_friction_coeff = self._broadcast_scalar_to_2d(joint_friction_coeff, shape)
-        if joint_dynamic_friction_coeff is not None:
-            joint_dynamic_friction_coeff = self._broadcast_scalar_to_2d(joint_dynamic_friction_coeff, shape)
-        if joint_viscous_friction_coeff is not None:
-            joint_viscous_friction_coeff = self._broadcast_scalar_to_2d(joint_viscous_friction_coeff, shape)
         self.assert_shape_and_dtype(joint_friction_coeff, shape, wp.float32, "joint_friction_coeff")
         if joint_dynamic_friction_coeff is not None:
             self.assert_shape_and_dtype(joint_dynamic_friction_coeff, shape, wp.float32, "joint_dynamic_friction_coeff")
@@ -1994,7 +1989,9 @@ class Articulation(BaseArticulation):
         # components are preserved on the round-trip
         self._data._read_joint_friction_binding()
         wp.launch(
-            write_joint_friction_data_to_buffer_index_kernel(env_ids, joint_ids),
+            write_joint_friction_data_to_buffer_index_kernel(
+                env_ids, joint_ids, joint_friction_coeff, joint_dynamic_friction_coeff, joint_viscous_friction_coeff
+            ),
             dim=shape,
             inputs=[
                 joint_friction_coeff,
@@ -2037,11 +2034,6 @@ class Articulation(BaseArticulation):
         env_mask_wp = self._resolve_env_mask(env_mask)
         joint_mask_wp = self._resolve_joint_mask(joint_mask)
         shape = (self._num_instances, self._num_joints)
-        joint_friction_coeff = self._broadcast_scalar_to_2d(joint_friction_coeff, shape)
-        if joint_dynamic_friction_coeff is not None:
-            joint_dynamic_friction_coeff = self._broadcast_scalar_to_2d(joint_dynamic_friction_coeff, shape)
-        if joint_viscous_friction_coeff is not None:
-            joint_viscous_friction_coeff = self._broadcast_scalar_to_2d(joint_viscous_friction_coeff, shape)
         self.assert_shape_and_dtype(joint_friction_coeff, shape, wp.float32, "joint_friction_coeff")
         if joint_dynamic_friction_coeff is not None:
             self.assert_shape_and_dtype(joint_dynamic_friction_coeff, shape, wp.float32, "joint_dynamic_friction_coeff")
@@ -2050,7 +2042,9 @@ class Articulation(BaseArticulation):
         # refresh the (N, J, 3) buffer first (see ``_index`` variant)
         self._data._read_joint_friction_binding()
         wp.launch(
-            write_joint_friction_data_to_buffer_mask,
+            write_joint_friction_data_to_buffer_mask_kernel(
+                joint_friction_coeff, joint_dynamic_friction_coeff, joint_viscous_friction_coeff
+            ),
             dim=shape,
             inputs=[
                 joint_friction_coeff,
@@ -2106,7 +2100,6 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         shape = (env_ids.shape[0], joint_ids.shape[0])
-        joint_dynamic_friction_coeff = self._broadcast_scalar_to_2d(joint_dynamic_friction_coeff, shape)
         self.assert_shape_and_dtype(joint_dynamic_friction_coeff, shape, wp.float32, "joint_dynamic_friction_coeff")
         if shape[0] == 0 or shape[1] == 0:
             return
@@ -2115,7 +2108,9 @@ class Articulation(BaseArticulation):
         # components are preserved on the round-trip
         self._data._read_joint_friction_binding()
         wp.launch(
-            write_joint_friction_data_to_buffer_index_kernel(env_ids, joint_ids),
+            write_joint_friction_data_to_buffer_index_kernel(
+                env_ids, joint_ids, None, joint_dynamic_friction_coeff, None
+            ),
             dim=shape,
             inputs=[
                 None,  # in_static — preserved
@@ -2156,12 +2151,11 @@ class Articulation(BaseArticulation):
         env_mask_wp = self._resolve_env_mask(env_mask)
         joint_mask_wp = self._resolve_joint_mask(joint_mask)
         shape = (self._num_instances, self._num_joints)
-        joint_dynamic_friction_coeff = self._broadcast_scalar_to_2d(joint_dynamic_friction_coeff, shape)
         self.assert_shape_and_dtype(joint_dynamic_friction_coeff, shape, wp.float32, "joint_dynamic_friction_coeff")
         # refresh the (N, J, 3) buffer first (see ``_index`` variant)
         self._data._read_joint_friction_binding()
         wp.launch(
-            write_joint_friction_data_to_buffer_mask,
+            write_joint_friction_data_to_buffer_mask_kernel(None, joint_dynamic_friction_coeff, None),
             dim=shape,
             inputs=[
                 None,  # in_static — preserved
@@ -2218,7 +2212,6 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         shape = (env_ids.shape[0], joint_ids.shape[0])
-        joint_viscous_friction_coeff = self._broadcast_scalar_to_2d(joint_viscous_friction_coeff, shape)
         self.assert_shape_and_dtype(joint_viscous_friction_coeff, shape, wp.float32, "joint_viscous_friction_coeff")
         if shape[0] == 0 or shape[1] == 0:
             return
@@ -2227,7 +2220,9 @@ class Articulation(BaseArticulation):
         # components are preserved on the round-trip
         self._data._read_joint_friction_binding()
         wp.launch(
-            write_joint_friction_data_to_buffer_index_kernel(env_ids, joint_ids),
+            write_joint_friction_data_to_buffer_index_kernel(
+                env_ids, joint_ids, None, None, joint_viscous_friction_coeff
+            ),
             dim=shape,
             inputs=[
                 None,  # in_static — preserved
@@ -2270,12 +2265,11 @@ class Articulation(BaseArticulation):
         env_mask_wp = self._resolve_env_mask(env_mask)
         joint_mask_wp = self._resolve_joint_mask(joint_mask)
         shape = (self._num_instances, self._num_joints)
-        joint_viscous_friction_coeff = self._broadcast_scalar_to_2d(joint_viscous_friction_coeff, shape)
         self.assert_shape_and_dtype(joint_viscous_friction_coeff, shape, wp.float32, "joint_viscous_friction_coeff")
         # refresh the (N, J, 3) buffer first (see ``_index`` variant)
         self._data._read_joint_friction_binding()
         wp.launch(
-            write_joint_friction_data_to_buffer_mask,
+            write_joint_friction_data_to_buffer_mask_kernel(None, None, joint_viscous_friction_coeff),
             dim=shape,
             inputs=[
                 None,  # in_static — preserved
