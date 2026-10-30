@@ -200,6 +200,8 @@ class CableObject(BaseCableObject):
 
         self._ALL_INDICES = wp.array(list(range(self.num_instances)), dtype=wp.int32, device=self.device)
         self._ALL_ENV_MASK = wp.ones((self.num_instances,), dtype=wp.bool, device=self.device)
+        # Environments of the last index write, cleared again by the FK flagging that consumes them.
+        self._index_env_mask = wp.zeros((self.num_instances,), dtype=wp.bool, device=self.device)
 
         self._data = CableObjectData(self.root_view, self.device, backend_manager=self._backend_manager)
 
@@ -230,18 +232,17 @@ class CableObject(BaseCableObject):
         if isinstance(value, torch.Tensor):
             value = value.contiguous()
 
+        # Index kernels flag their environments in the scratch mask that the invalidation consumes.
+        env_mask = selector if use_mask else self._index_env_mask
         for state in self._iter_states():
             wp.launch(
                 kernel,
                 dim=(selector.shape[0], self.num_segments),
                 inputs=[value, selector, self.data._sim_bind_body_ids],
-                outputs=[getattr(state, state_attribute)],
+                outputs=[getattr(state, state_attribute)] + ([] if use_mask else [env_mask]),
                 device=self.device,
             )
-        if use_mask:
-            self._backend_manager.invalidate_body_state(env_mask=selector)
-        else:
-            self._backend_manager.invalidate_body_state(selector)
+        self._backend_manager.invalidate_body_state(env_mask, consume_mask=not use_mask)
         self.update(0.0)
 
     def _iter_states(self):

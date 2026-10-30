@@ -129,14 +129,14 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         self,
         from_link: bool = True,
         *,
-        env_ids: wp.array | None = None,
         env_mask: wp.array | None = None,
+        consume_mask: bool = False,
     ) -> None:
         """Reset pose-dependent cached rigid object collection properties.
 
         Args:
-            env_ids: Environment indices. If None, then all indices are used.
             env_mask: Environment mask. If None, then all instances are updated. Shape is (num_instances,).
+            consume_mask: Clear ``env_mask`` while flagging it, for an asset scratch mask.
             from_link: Set ``True`` when the body link poses were written so the derived body
                 center-of-mass poses (:attr:`body_com_pose_w`) are also invalidated; set ``False`` when
                 the center-of-mass poses were written directly so they are not clobbered. Defaults to True.
@@ -158,22 +158,20 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
                 self._body_com_state_w,
             ]
         )
-        self._backend_manager.invalidate_fk(
-            env_mask=env_mask, env_ids=env_ids, articulation_ids=self._root_view.articulation_ids
-        )
+        self._backend_manager.invalidate_fk(env_mask, self._root_view.articulation_ids, consume_mask=consume_mask)
 
     def _reset_velocity(
         self,
         from_com: bool = True,
         *,
-        env_ids: wp.array | None = None,
         env_mask: wp.array | None = None,
+        consume_mask: bool = False,
     ) -> None:
         """Reset velocity-dependent cached rigid object collection properties.
 
         Args:
-            env_ids: Environment indices. If None, then all indices are used.
             env_mask: Environment mask. If None, then all instances are updated. Shape is (num_instances,).
+            consume_mask: Clear ``env_mask`` while flagging it, for an asset scratch mask.
             from_com: Set ``True`` when the body center-of-mass velocities were written so the derived body
                 link velocities (:attr:`body_link_vel_w`) are also invalidated; set ``False`` when the link
                 velocities were written directly so they are not clobbered. Defaults to True.
@@ -192,9 +190,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
                 self._body_com_state_w,
             ]
         )
-        self._backend_manager.invalidate_fk(
-            env_mask=env_mask, env_ids=env_ids, articulation_ids=self._root_view.articulation_ids
-        )
+        self._backend_manager.invalidate_fk(env_mask, self._root_view.articulation_ids, consume_mask=consume_mask)
 
     def _reset_body_com_pose_b_dependents(self) -> None:
         """Reset cached properties derived from body-frame center-of-mass offsets."""

@@ -105,6 +105,7 @@ def _newton_rigid_object(num_instances: int, device: str, monkeypatch: pytest.Mo
     obj._ALL_INDICES = indices(num_instances, device)
     obj._ALL_BODY_INDICES = indices(1, device)
     obj._ALL_ENV_MASK = wp.ones((num_instances,), dtype=wp.bool, device=device)
+    obj._index_env_mask = wp.zeros((num_instances,), dtype=wp.bool, device=device)
     obj._ALL_BODY_MASK = wp.ones((1,), dtype=wp.bool, device=device)
     return obj, view
 
@@ -194,6 +195,7 @@ def _newton_collection(num_instances: int, num_bodies: int, device: str, monkeyp
     collection._ALL_ENV_INDICES = indices(num_instances, device)
     collection._ALL_BODY_INDICES = indices(num_bodies, device)
     collection._ALL_ENV_MASK = wp.ones((num_instances,), dtype=wp.bool, device=device)
+    collection._index_env_mask = wp.zeros((num_instances,), dtype=wp.bool, device=device)
     collection._ALL_BODY_MASK = wp.ones((num_bodies,), dtype=wp.bool, device=device)
     return collection, view
 

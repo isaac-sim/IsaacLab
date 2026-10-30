@@ -450,15 +450,17 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 env_ids,
                 body_ids,
                 full_data,
+                not skip_forward,
             ],
             outputs=[
                 self.data.body_link_pose_w,
+                self._index_env_mask,
             ],
             device=self.device,
         )
         # Invalidate dependent timestamps
         if not skip_forward:
-            self.data._reset_pose(env_ids=env_ids)
+            self.data._reset_pose(env_mask=self._index_env_mask, consume_mask=True)
 
     def write_body_link_pose_to_sim_mask(
         self,
@@ -553,16 +555,18 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 env_ids,
                 body_ids,
                 full_data,
+                not skip_forward,
             ],
             outputs=[
                 self.data.body_com_pose_w,
                 self.data.body_link_pose_w,
+                self._index_env_mask,
             ],
             device=self.device,
         )
         # Invalidate dependent timestamps. The com poses were just written, so they must not be invalidated.
         if not skip_forward:
-            self.data._reset_pose(env_ids=env_ids, from_link=False)
+            self.data._reset_pose(env_mask=self._index_env_mask, consume_mask=True, from_link=False)
 
     def write_body_com_pose_to_sim_mask(
         self,
@@ -664,16 +668,18 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 env_ids,
                 body_ids,
                 full_data,
+                not skip_forward,
             ],
             outputs=[
                 self.data.body_com_vel_w,
                 self.data.body_com_acc_w,
+                self._index_env_mask,
             ],
             device=self.device,
         )
         # Invalidate dependent timestamps
         if not skip_forward:
-            self.data._reset_velocity(env_ids=env_ids)
+            self.data._reset_velocity(env_mask=self._index_env_mask, consume_mask=True)
 
     def write_body_com_velocity_to_sim_mask(
         self,
@@ -784,17 +790,19 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 env_ids,
                 body_ids,
                 full_data,
+                not skip_forward,
             ],
             outputs=[
                 self.data.body_link_vel_w,
                 self.data.body_com_vel_w,
                 self.data.body_com_acc_w,
+                self._index_env_mask,
             ],
             device=self.device,
         )
         # Invalidate dependent timestamps.
         if not skip_forward:
-            self.data._reset_velocity(env_ids=env_ids, from_com=False)
+            self.data._reset_velocity(env_mask=self._index_env_mask, consume_mask=True, from_com=False)
 
     def write_body_link_velocity_to_sim_mask(
         self,
@@ -1227,6 +1235,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             np.arange(self.num_bodies, dtype=np.int32), device=self.device, dtype=wp.int32
         )
         self._ALL_ENV_MASK = wp.ones((self.num_instances,), dtype=wp.bool, device=self.device)
+        # Environments of the last index write, cleared again by the FK flagging that consumes them.
+        self._index_env_mask = wp.zeros((self.num_instances,), dtype=wp.bool, device=self.device)
         self._ALL_BODY_MASK = wp.ones((self.num_bodies,), dtype=wp.bool, device=self.device)
 
         # external wrench composer

@@ -350,28 +350,23 @@ class NewtonManager(PhysicsManager):
         self.backend.model_changes.add(change)
 
     def invalidate_fk(
-        self,
-        env_mask: wp.array | None = None,
-        env_ids: wp.array | None = None,
-        articulation_ids: wp.array | None = None,
+        self, env_mask: wp.array | None = None, articulation_ids: wp.array | None = None, *, consume_mask: bool = False
     ) -> None:
         """Mark environments as needing FK recomputation and solver reset; see :meth:`NewtonBackend.invalidate_fk`.
 
-        Called by asset write methods that modify joint coordinates or root transforms. The masks are consumed by the
+        Called by asset write methods that modify joint coordinates or root transforms. The flags are consumed by the
         next forward, raw-state, rendering, or physics-step boundary.
         """
         self._mark_transforms_changed()
-        self.backend.invalidate_fk(env_mask, env_ids, articulation_ids)
+        self.backend.invalidate_fk(env_mask, articulation_ids, consume_mask=consume_mask)
 
-    def invalidate_body_state(
-        self, env_ids: wp.array(dtype=wp.int32) | None = None, env_mask: wp.array(dtype=wp.bool) | None = None
-    ) -> None:
+    def invalidate_body_state(self, env_mask: wp.array | None = None, *, consume_mask: bool = False) -> None:
         """Mark selected maximal-coordinate body state as changed without requesting FK.
 
         See :meth:`NewtonBackend.invalidate_body_state`.
         """
         self._mark_transforms_changed()
-        self.backend.invalidate_body_state(env_ids, env_mask)
+        self.backend.invalidate_body_state(env_mask, consume_mask=consume_mask)
 
     def _drain_stale_cuda_error(self) -> None:
         """Clear a stale CUDA error latched on the device before (re)initialization.

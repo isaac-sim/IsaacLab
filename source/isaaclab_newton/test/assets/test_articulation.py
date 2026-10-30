@@ -37,7 +37,6 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from types import SimpleNamespace
 
-import isaaclab_newton.physics.newton_backend as newton_backend_module
 import newton
 import numpy as np
 import pytest
@@ -382,27 +381,6 @@ def test_write_joint_limit_data_to_user_and_backend_mask_reorders_backend_buffer
     )
     np.testing.assert_allclose(default_pos.numpy(), np.asarray([[0.0, 3.0, 4.0], [0.0, 0.0, 0.0]], dtype=np.float32))
     assert clamped_defaults.numpy()[0] == 2
-
-
-@pytest.mark.parametrize("index_dtype", [wp.int32, wp.int64])
-def test_scatter_reset_masks_from_ids_accepts_index_dtype(index_dtype: type) -> None:
-    """Set exact world and articulation reset masks from nonidentity environment IDs."""
-
-    env_ids = _selector([2, 0], index_dtype)
-    articulation_ids = wp.array(np.asarray([[0, 1], [2, 3], [4, 5]], dtype=np.int32), dtype=int, device="cpu")
-    world_mask = wp.zeros(3, dtype=wp.bool, device="cpu")
-    fk_mask = wp.zeros(6, dtype=wp.bool, device="cpu")
-
-    wp.launch(
-        newton_backend_module._flag_worlds_and_articulations_indexed,
-        dim=(env_ids.shape[0], articulation_ids.shape[1]),
-        inputs=[env_ids, articulation_ids],
-        outputs=[world_mask, fk_mask],
-        device="cpu",
-    )
-
-    np.testing.assert_array_equal(world_mask.numpy(), np.asarray([True, False, True]))
-    np.testing.assert_array_equal(fk_mask.numpy(), np.asarray([True, True, False, False, True, True]))
 
 
 def test_num_shapes_per_body_follows_public_body_order() -> None:
