@@ -47,6 +47,11 @@
       "type": ["string", "null"],
       "maxLength": 4096
     },
+    "profileDetailString": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "maxLength": 1024
+    },
     "artifactRelativePath": {
       "type": "string",
       "minLength": 1,
@@ -135,6 +140,10 @@
           "type": ["boolean", "null"],
           "default": false
         },
+        "error": {
+          "type": ["boolean", "null"],
+          "default": false
+        },
         "unreliable": {
           "type": ["boolean", "null"],
           "default": false
@@ -152,6 +161,47 @@
           "minimum": 0,
           "maximum": 100,
           "default": 0
+        },
+        "failure_layer": {
+          "type": ["string", "null"],
+          "enum": [
+            "code",
+            "infrastructure",
+            "environment",
+            "upstream",
+            "downstream",
+            null
+          ]
+        },
+        "failure_component": {
+          "$ref": "#/$defs/profileDetailString"
+        },
+        "test_category": {
+          "type": ["string", "null"],
+          "enum": ["unit", "integration", "e2e", "smoke", null]
+        },
+        "reliability_class": {
+          "type": ["string", "null"],
+          "enum": [
+            "stable",
+            "flaky",
+            "known-failure-rate",
+            "experimental",
+            null
+          ]
+        },
+        "retry_kind": {
+          "type": ["string", "null"],
+          "enum": [
+            "infrastructure",
+            "environment",
+            "reliability_policy",
+            "explicit",
+            null
+          ]
+        },
+        "retry_reason": {
+          "$ref": "#/$defs/profileDetailString"
         },
         "owner": {
           "$ref": "#/$defs/nullableShortString"
@@ -221,7 +271,7 @@
       }
     },
     "customValue": {
-      "oneOf": [
+      "anyOf": [
         {
           "type": "string",
           "maxLength": 1024
@@ -241,23 +291,24 @@
         {
           "type": "array",
           "maxItems": 100,
-          "items": {
-            "oneOf": [
-              {
+          "anyOf": [
+            {
+              "items": {
                 "type": "string",
                 "maxLength": 1024
-              },
-              {
-                "type": "integer"
-              },
-              {
+              }
+            },
+            {
+              "items": {
                 "type": "number"
-              },
-              {
+              }
+            },
+            {
+              "items": {
                 "type": "boolean"
               }
-            ]
-          }
+            }
+          ]
         },
         {
           "type": "object",
