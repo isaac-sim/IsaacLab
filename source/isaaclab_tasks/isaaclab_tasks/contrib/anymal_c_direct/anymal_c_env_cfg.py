@@ -16,6 +16,7 @@ from isaaclab.sensors import ContactSensorCfg, RayCasterCfg, patterns
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass, replace
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 ##
 # Pre-defined configs
@@ -90,7 +91,7 @@ class AnymalCRoughSceneCfg(AnymalCFlatSceneCfg):
             dynamic_friction=1.0,
         ),
         visual_material=sim_utils.MdlFileCfg(
-            mdl_path="{NVIDIA_NUCLEUS_DIR}/Materials/Base/Architecture/Shingles_01.mdl",
+            mdl_path=f"{ISAAC_NUCLEUS_DIR}/Materials/Base/Architecture/Shingles_01.mdl",
             project_uvw=True,
         ),
         debug_vis=False,
@@ -130,7 +131,7 @@ class AnymalCFlatEnvCfg(DirectRLEnvCfg):
     )
 
     # scene
-    scene: AnymalCFlatSceneCfg = AnymalCFlatSceneCfg(num_envs=4096, env_spacing=4.0, replicate_physics=True)
+    scene: AnymalCFlatSceneCfg = AnymalCFlatSceneCfg(num_envs=4096, env_spacing=4.0)
 
     # events
     events: EventCfg = EventCfg()
@@ -162,7 +163,7 @@ class AnymalCRoughEnvCfg(AnymalCFlatEnvCfg):
     # env
     observation_space = 235
 
-    scene: AnymalCRoughSceneCfg = AnymalCRoughSceneCfg(num_envs=4096, env_spacing=4.0, replicate_physics=True)
+    scene: AnymalCRoughSceneCfg = AnymalCRoughSceneCfg(num_envs=4096, env_spacing=4.0)
 
     # reward scales (override from flat config)
     flat_orientation_reward_scale = 0.0

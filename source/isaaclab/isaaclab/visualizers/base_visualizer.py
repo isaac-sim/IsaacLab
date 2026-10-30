@@ -19,26 +19,29 @@ from urllib.parse import urlparse
 import numpy as np
 import warp as wp
 
-from ..envs.utils.camera_colorizer import sensor_key_for_gt_type
-from ..envs.utils.camera_view import image_grid_columns, resolve_streaming_envs
 from ..utils import validate
-from ..utils.buffers import TimestampedBuffer
-from ..utils.images import compose_image
-from .visualizer_cfg import PerspectiveCameraCfg
+from ..utils.backend_utils import FactoryBase
+from .image_view import ImageView
+from .key_event_source import KeyEventSource
+from .visualizer_cfg import (
+    ImageViewCfg,
+    PerspectiveCameraCfg,
+    VisualizerBackendCfg,
+    VisualizerCfg,
+    migrate_visualizer_cfgs,
+)
 
 if TYPE_CHECKING:
-    from pxr import Usd
-
     from ..managers import ManagerBase
     from ..renderers.base_renderer import VisualMaterialBatch
-    from ..scene_data import SceneDataProvider
     from ..sensors import Camera
-    from .visualizer_cfg import VisualizerCfg
+    from ..sim import SimulationContext
 
 
 logger = logging.getLogger(__name__)
 
 _USD_DEFAULT_VERTICAL_APERTURE_MM = 15.2908
+_VISUALIZER_MAX_TILES = 100
 
 
 class BaseVisualizer(ABC):
@@ -53,11 +56,11 @@ class BaseVisualizer(ABC):
         Args:
             cfg: Visualizer configuration.
         """
+        if isinstance(cfg, VisualizerBackendCfg):
+            cfg = migrate_visualizer_cfgs(cfg)[0]
         validate(cfg)
         self.cfg = cfg
-        self._scene_data_provider = None
-        self._scene_stage = None
-        self._camera_choices: list[PerspectiveCameraCfg | Camera] = []
+        self._sim: SimulationContext | None = None
         self._is_initialized = False
         self._is_closed = False
         self._env_ids: list[int] | None = None
@@ -67,16 +70,9 @@ class BaseVisualizer(ABC):
         self._live_plots_step_counter: int = 0
         self._reset_requested: bool = False
         self._sim_time = 0.0
-        self._camera_sensor: Camera | None = None
-        self._camera_sensor_indices: list[int] = []
-        self._streaming_aspect = 1.0
-        self._streaming_frame = TimestampedBuffer()
-        self._streaming_host_frame = TimestampedBuffer()
-        self._streaming_env_ids: wp.array | None = None
-        self._streaming_depth_colors: wp.array | None = None
-        self._streaming_layout: tuple | None = None
-        self._streaming_view_key: tuple | None = None
-        self._streaming_keys: tuple[str, ...] = ()
+        self.current_image_view: ImageView | None = None
+        self._image_views: list[ImageView] = []
+        self._key_event_source: KeyEventSource | None = None
 
     @property
     def visual_material_writer(self) -> Callable[[tuple[VisualMaterialBatch, ...]], Any] | None:
@@ -87,132 +83,73 @@ class BaseVisualizer(ABC):
         """
         return None
 
-    def initialize(
-        self,
-        scene_data_provider: SceneDataProvider,
-        *,
-        cameras: list[PerspectiveCameraCfg | Camera],
-        stage: Usd.Stage | None = None,
-    ) -> None:
-        """Bind the scene dependencies supplied by SimulationContext.
+    def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
+        """Bind scene inputs and the simulation-owned resource registry.
 
         Args:
-            scene_data_provider: Scene data and scene-owned sensors.
+            sim: Simulation owner that provides the scene and backend resources.
             cameras: Resolved perspective settings and borrowed scene sensors, in display order.
-            stage: Authored scene stage, when the visualizer consumes USD.
         """
-        if scene_data_provider is None:
-            raise RuntimeError(f"{self.__class__.__name__} requires a scene_data_provider.")
-        self._scene_data_provider = scene_data_provider
-        self._scene_stage = stage
-        self._camera_choices = list(cameras)
+        scene_data_provider = sim.get_scene_data_provider()
+        self._sim = sim
 
-        cfg = self.cfg
         num_envs = scene_data_provider.num_envs
         self._env_ids = None
         if num_envs > 0:
-            count = num_envs if cfg.max_visible_envs is None else max(0, min(int(cfg.max_visible_envs), num_envs))
-            if cfg.visible_env_indices is not None:
-                self._env_ids = list(dict.fromkeys(i for i in cfg.visible_env_indices if 0 <= i < num_envs))[:count]
-            elif cfg.max_visible_envs is not None and cfg.randomly_sample_visible_envs:
+            count = num_envs
+            if self.cfg.max_visible_envs is not None:
+                count = max(0, min(int(self.cfg.max_visible_envs), num_envs))
+            if self.cfg.visible_env_indices is not None:
+                self._env_ids = [i for i in dict.fromkeys(self.cfg.visible_env_indices) if 0 <= i < num_envs][:count]
+            elif self.cfg.max_visible_envs is not None and self.cfg.randomly_sample_visible_envs:
                 self._env_ids = sorted(random.sample(range(num_envs), count))
-            elif cfg.max_visible_envs is not None:
+            elif self.cfg.max_visible_envs is not None:
                 self._env_ids = list(range(count))
 
-    def _setup_streaming_view(
-        self,
-        num_envs: int,
-        *,
-        visible_env_ids: list[int] | None = None,
-        target_aspect: float = 1.0,
-        select_camera: bool = True,
-    ) -> None:
-        """Configure tiles and optionally select a camera; interactive selectors can defer binding."""
-        if not self.cfg.streaming_view:
+        self._image_views.clear()
+        if self.cfg.view is not None:
+            camera = None
+            if isinstance(self.cfg.view.source, str):
+                camera = scene_data_provider.get_camera_sensors().get(self.cfg.view.source)
+            self.current_image_view = sim.get_or_create_backend(self.cfg.view, camera=camera)
+            self._image_views.append(self.current_image_view)
             return
-        self._streaming_aspect = target_aspect
-        self._camera_sensor_indices = resolve_streaming_envs(
-            num_envs, self.cfg.streaming_envs, sample_from=visible_env_ids
-        )
-        if select_camera:
-            self._camera_sensor = next(
-                (camera for camera in self._camera_choices if not isinstance(camera, PerspectiveCameraCfg)), None
-            )
+        env_ids = []
+        if any(not isinstance(camera, PerspectiveCameraCfg) for camera in cameras):
+            if isinstance(self.cfg.streaming_envs, list):
+                env_ids = sorted([i for i in self.cfg.streaming_envs if 0 <= i < num_envs][:_VISUALIZER_MAX_TILES])
+            else:
+                pool = self._env_ids if self._env_ids is not None else range(num_envs)
+                num_tiles = min(int(self.cfg.streaming_envs), _VISUALIZER_MAX_TILES, len(pool))
+                env_ids = sorted(random.sample(pool, num_tiles))
+        for camera in cameras:
+            if isinstance(camera, PerspectiveCameraCfg):
+                if self.cfg.backend.visualizer_type not in ("newton_gl", "newton_rtx"):
+                    continue
+                view = sim.get_or_create_backend(ImageViewCfg(source=camera))
+            else:
+                view_cfg = ImageViewCfg(
+                    source=camera.cfg.prim_path, envs=(0,) if camera.num_instances == 1 else tuple(map(int, env_ids)),
+                    channels=tuple(self.cfg.streaming_gt_types),
+                    depth_range=(self.cfg.streaming_depth_min, self.cfg.streaming_depth_max),
+                )  # fmt: skip
+                view = sim.get_or_create_backend(view_cfg, camera=camera)
+            if self.cfg.backend.visualizer_type in ("newton_gl", "newton_rtx", "kit"):
+                view.aspect = self.cfg.window.size[0] / self.cfg.window.size[1]
+            self._image_views.append(view)
+        self.current_image_view = next((view for view in self._image_views if view.camera is not None), None)
 
-    def render_tiled_rgba(self) -> wp.array | None:
-        """Acquire the selected camera frame and compose a device-resident display image.
-
-        Returns:
-            Reused uint8 RGBA storage of shape [H, W, 4], or None without a selected camera.
-            Acquisition uses the sensor's normal lazy update. Composition itself only reads published arrays.
-        """
-        camera, env_ids, cfg = self._camera_sensor, self._camera_sensor_indices, self.cfg
-        if camera is None or not env_ids:
+    def render_tiled_rgba_array(self) -> wp.array | None:
+        """Read the selected sensor view's shared GPU frame."""
+        if self.current_image_view is None or self.current_image_view.camera is None:
             return None
-        gt_types = tuple(cfg.streaming_gt_types)
-        aspect, depth_min, depth_max = self._streaming_aspect, cfg.streaming_depth_min, cfg.streaming_depth_max
-        view_key = (camera, tuple(env_ids), gt_types, aspect, depth_min, depth_max)
-        frame = self._streaming_frame
-        if view_key != self._streaming_view_key:
-            available = frozenset(camera.cfg.data_types)
-            self._streaming_keys = tuple(sensor_key_for_gt_type(gt, available) for gt in gt_types)
-            self._streaming_layout = None
-            self._streaming_view_key = view_key
-            frame.timestamp = -1.0
-        if frame.timestamp == self._sim_time:
-            return frame.data
-
-        outputs = camera.data.output
-        sources = tuple(outputs[key].warp for key in self._streaming_keys)
-        layout = tuple((source.shape, source.dtype, source.device) for source in sources)
-        if self._streaming_layout != layout:
-            if not sources:
-                raise ValueError("Image composition requires at least one display channel.")
-            for source, gt in zip(sources, gt_types, strict=True):
-                channels = 3 if gt in ("rgb", "normals") else 1
-                if source.ndim != 4 or min(source.shape) < 1 or source.shape[3] < channels:
-                    raise ValueError(
-                        f"Channel {gt!r} requires nonempty [N, H, W, C] arrays with at least {channels} channels."
-                    )
-            device = sources[0].device
-            n, height, width, _ = sources[0].shape
-            if any(source.device != device or source.shape[:3] != (n, height, width) for source in sources):
-                raise ValueError("Image channels must have the same batch size, resolution, and device.")
-            if min(env_ids) < 0 or max(env_ids) >= n:
-                raise ValueError(f"Image row selection is outside the source batch of {n} rows.")
-            columns = image_grid_columns(len(env_ids), len(sources), height, width, aspect)
-            shape = (math.ceil(len(env_ids) / columns) * height, columns * len(sources) * width, 4)
-            colors = np.empty((0, 3), dtype=np.uint8)
-            if "depth" in gt_types:
-                from matplotlib import colormaps
-
-                colors = (colormaps["turbo"](np.arange(256) / 255.0)[..., :3] * 255).astype(np.uint8)
-            self._streaming_env_ids = wp.array(env_ids, dtype=wp.int32, device=device)
-            self._streaming_depth_colors = wp.array(colors, dtype=wp.uint8, device=device)
-            frame.data = wp.empty(shape, dtype=wp.uint8, device=device)
-            self._streaming_layout = layout
-        compose_image(
-            frame.data, sources, self._streaming_env_ids, gt_types, self._streaming_depth_colors,
-            depth_min=depth_min, depth_max=depth_max,
-        )  # fmt: skip
-        frame.timestamp = self._sim_time
-        self._streaming_host_frame.timestamp = -1.0
-        return frame.data
+        return self.current_image_view.read(self._sim.get_physics_step_count())
 
     def render_tiled_rgb_array(self) -> np.ndarray | None:
-        """Read back the tiled image for CPU consumers such as recording and web transports.
-
-        Returns:
-            Cached contiguous uint8 RGB image of shape [H, W, 3], or None without a selected camera.
-        """
-        image = self.render_tiled_rgba()
-        if image is None:
+        """Download the selected sensor view's shared frame for CPU consumers."""
+        if self.current_image_view is None or self.current_image_view.camera is None:
             return None
-        frame = self._streaming_host_frame
-        if frame.timestamp != self._streaming_frame.timestamp:
-            frame.data = np.ascontiguousarray(image.numpy()[..., :3])
-            frame.timestamp = self._streaming_frame.timestamp
-        return frame.data
+        return self.current_image_view.read_rgb(self._sim.get_physics_step_count())
 
     @abstractmethod
     def step(self, dt: float) -> None:
@@ -229,14 +166,9 @@ class BaseVisualizer(ABC):
 
         Subclasses must call ``super().close()`` when their resource teardown finishes, including on failure.
         """
-        self._camera_sensor = None
-        self._camera_choices.clear()
-        self._streaming_frame = TimestampedBuffer()
-        self._streaming_host_frame = TimestampedBuffer()
-        self._streaming_env_ids = self._streaming_depth_colors = None
-        self._streaming_layout = self._streaming_view_key = None
-        self._streaming_keys = ()
-        self._scene_data_provider = self._scene_stage = None
+        self.current_image_view = None
+        self._image_views.clear()
+        self._sim = None
         self._is_closed = True
 
     @abstractmethod
@@ -299,15 +231,30 @@ class BaseVisualizer(ABC):
         Returns:
             Backend name string, or ``None`` when no simulation context is active yet.
         """
-        try:
-            from ..sim.simulation_context import SimulationContext
-            from ..utils.backend_utils import FactoryBase
+        return FactoryBase._get_backend(sim=self._sim) if self._sim is not None else None
 
-            if SimulationContext.instance() is None:
-                return None
-            return FactoryBase._get_backend()
-        except Exception:
-            return None
+    @property
+    def key_event_source(self) -> KeyEventSource | None:
+        """Keyboard input from this visualizer's local window, or ``None`` when there is none.
+
+        Consumers subscribe to the keys pressed and released while the window has focus, e.g. for
+        keyboard teleoperation or script hotkeys. The source connects when the visualizer initializes
+        its window, and the visualizer closes it before releasing that window. ``None``
+        before initialization, after close, and for backends or modes with no local window that can
+        report keys (the default).
+        """
+        return self._key_event_source
+
+    def set_camera_keys_enabled(self, enabled: bool) -> None:
+        """Enable or disable moving this visualizer's camera with the keyboard.
+
+        A keyboard consumer such as keyboard teleoperation disables it, so the motion keys it uses
+        (e.g. WASD/QE and the arrow keys) do not also move the camera. Mouse camera control is
+        unaffected. Visualizers whose camera takes no keyboard input ignore it (the default).
+
+        Args:
+            enabled: Whether keyboard camera movement is enabled.
+        """
 
     def supports_markers(self) -> bool:
         """Check if visualizer supports VisualizationMarkers.
@@ -348,9 +295,7 @@ class BaseVisualizer(ABC):
                 ``None`` (default) collects all terms for every manager.
             env_idx: Environment index to sample each step.  Defaults to ``0``.
         """
-        if not self.supports_live_plots():
-            return
-        if not getattr(self.cfg, "enable_live_plots", True):
+        if not self.supports_live_plots() or not self.cfg.enable_live_plots:
             return
 
         if os.environ.get("ISAACLAB_DISABLE_LIVE_PLOTS", "0") == "1":
@@ -363,11 +308,9 @@ class BaseVisualizer(ABC):
         for name, mgr in managers.items():
             # Skip managers that have no active terms — they contribute nothing to plots
             # and would create empty panels in Rerun, Viser, and the Kit live-plot window.
-            active = getattr(mgr, "active_terms", None)
-            if active is not None:
-                has_terms = any(active.values()) if isinstance(active, dict) else bool(active)
-                if not has_terms:
-                    continue
+            active = mgr.active_terms
+            if not (any(active.values()) if isinstance(active, dict) else active):
+                continue
             self._live_plot_sources.append(ManagerLivePlots(name, mgr, (term_names or {}).get(name)))
         self._live_plot_env_idx = env_idx
 
@@ -436,8 +379,7 @@ class BaseVisualizer(ABC):
         Args:
             soft: Whether to perform a soft reset.
         """
-        self._streaming_frame.timestamp = -1.0
-        self._streaming_host_frame.timestamp = -1.0
+        pass
 
     def _log_initialization_table(self, logger: logging.Logger, title: str, rows: list[tuple[str, Any]]) -> None:
         """Log a compact initialization table for a visualizer.
@@ -505,3 +447,12 @@ class BaseVisualizer(ABC):
     def stop(self) -> None:
         """Handle simulation stop. No-op by default."""
         pass
+
+    def _close_key_event_source(self) -> None:
+        """Close window input before native teardown; cleanup failures must not retain the window."""
+        source, self._key_event_source = self._key_event_source, None
+        if source is not None:
+            try:
+                source.close()
+            except Exception:
+                logger.exception("[%s] Keyboard input cleanup failed", type(self).__name__)

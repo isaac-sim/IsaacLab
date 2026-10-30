@@ -1,7 +1,36 @@
 Agent Skills
 ============
 
-Isaac Lab agent skills are repository-owned instructions that help coding agents follow Isaac Lab workflows. They are markdown guidance assets, not runtime Python packages.
+Agent skills help coding agents follow Isaac Lab workflows for installation,
+training, debugging, migration, and contributions. They are Markdown instructions
+in the repository. Codex and Claude discover them automatically (see `Discovery`_);
+``skills/README.md`` lists the available skills.
+
+Skill categories
+----------------
+
+Skills typically fall into two groups: ones you invoke and ones the agent applies automatically.
+The groups are not exclusive. The audience directory (``user/`` or ``developer/``) says who a skill
+is for.
+
+Typically user-invoked skills
+  Ask for these by task or by name, for example ``/isaaclab-installing-isaac-lab`` in Claude Code.
+  They cover work you start yourself: installing Isaac Lab, creating and converting environments,
+  training and debugging RL, choosing backends and presets, preparing assets for Newton, migrating from
+  Isaac Gym or Isaac Lab 2.x, and troubleshooting setup. They live under ``skills/user/``. Some
+  maintainer tasks under ``skills/developer/`` are also run on request: ``isaaclab-auditing-an-issue``
+  and ``isaaclab-triaging-issue-backlog``.
+
+Typically agent-automated skills
+  The agent usually loads these on its own when a task matches the skill description, following ``AGENTS.md``.
+  They cover contribution conventions: coding style, test audits, changelog fragments, environment
+  docs synchronization, and PR preparation. They live under ``skills/developer/``.
+
+User skills also trigger automatically when a request matches their description, so naming a skill is
+optional. Name it when you want to be sure it is used.
+
+Layout
+------
 
 Skills live under the repository-level ``skills/`` directory:
 
@@ -18,12 +47,6 @@ Skills live under the repository-level ``skills/`` directory:
            ├── evaluations.md
            ├── reference.md       # optional, recommended for longer guidance
            └── examples.md        # optional, recommended for concrete workflows
-
-Developer skills
-  Help contributors and maintainers follow Isaac Lab workflows such as PR preparation, changelog fragments, testing, and documentation rules.
-
-User skills
-  Ship with the repository as supported guidance for users building on top of Isaac Lab. Some user skills are intentionally router-only and may only need ``SKILL.md`` plus ``evaluations.md`` when the official docs and source examples already contain the details.
 
 Skill files
 -----------
@@ -172,7 +195,10 @@ Skills should not become parallel documentation. The source of truth is the Isaa
 
 Each skill must include a ``Maintenance`` section that names the authoritative files to review when code changes. When a skill needs documentation-level content, update the official docs first and link to them from the skill.
 
-Keep the link bidirectional. When a documentation page under ``docs/source/`` is the source of truth for a skill, add a ``.. seealso::`` admonition near the top of that page that names the skill and links back to it. This reminds documentation authors to update the associated skill in the same change, so the two never drift apart. Treat a missing back-link as a review issue whenever a skill's ``Maintenance`` section names a documentation page.
+Keep the link bidirectional. In each authoritative documentation page, add an RST
+source comment naming the associated skills and their paths. Keep this maintenance
+guidance out of the rendered page. When the documented behavior changes, update
+the skills in the same change.
 
 Use these rules during review:
 

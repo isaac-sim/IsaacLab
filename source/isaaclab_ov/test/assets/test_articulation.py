@@ -558,12 +558,9 @@ def test_process_tendons_scopes_to_articulation_root():
     """Tendon discovery should ignore joints that live outside the current articulation subtree."""
     articulation = _make_articulation_shell()
     stage_usda = _make_articulation_root_stage_usda()
-    old_stage_usda = OvPhysxManager._stage_usda
-    OvPhysxManager._stage_usda = stage_usda
-    try:
-        articulation._process_tendons()
-    finally:
-        OvPhysxManager._stage_usda = old_stage_usda
+    articulation._backend_manager = OvPhysxManager(OvPhysxCfg())
+    articulation._backend_manager._stage_usda = stage_usda
+    articulation._process_tendons()
 
     # the tendon is reported by its schema INSTANCE name, matching PhysX; scope leakage would
     # add the identically-named instance from /World/unrelated, giving two entries
@@ -593,21 +590,6 @@ def test_root_worker_accepts_selector_widths(env_dtype: type) -> None:
 
     np.testing.assert_array_equal(output.numpy(), data.numpy()[[1, 0]])
     np.testing.assert_array_equal(sim_env_ids.numpy(), [1, 0])
-
-
-@pytest.mark.parametrize(("env_dtype", "item_dtype"), [(wp.int32, wp.int32), (wp.int64, wp.int64)])
-def test_item_worker_accepts_selector_widths(env_dtype: type, item_dtype: type) -> None:
-    env_ids = _selector([1, 0], env_dtype)
-    item_ids = _selector([2, 0], item_dtype)
-    data = wp.array([[11.0, 12.0], [21.0, 22.0]], dtype=wp.float32, device="cpu")
-    output = wp.full((2, 3), value=-1.0, dtype=wp.float32, device="cpu")
-    kernel = kernels.write_2d_data_to_buffer_with_indices
-    if env_dtype != wp.int32 or item_dtype != wp.int32:
-        kernel = kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, item_ids)
-
-    wp.launch(kernel, dim=(2, 2), inputs=[data, env_ids, item_ids], outputs=[output], device="cpu")
-
-    np.testing.assert_array_equal(output.numpy(), [[22.0, -1.0, 21.0], [12.0, -1.0, 11.0]])
 
 
 def test_prepare_native_actuators_leaves_implicit_only_articulation_on_standard_path(monkeypatch):
@@ -781,7 +763,7 @@ def test_heterogeneous_articulation_clone_indexed_state(device, variant, tmp_pat
         expected[selected] = positions
         torch.testing.assert_close(robot.data.joint_pos.torch, expected, atol=1e-4, rtol=0.0)
         for env_id in range(scene.num_envs):
-            binding = sim.physics_manager.get_physx_instance().create_tensor_binding(
+            binding = sim.backend_manager.get_physx_instance().create_tensor_binding(
                 pattern=f"/World/envs/env_{env_id}/Robot", tensor_type=TT.DOF_POSITION
             )
             try:
@@ -1666,8 +1648,8 @@ def test_native_actuator_reset_and_gain_event_are_environment_selective(scene: _
     event = randomize_actuator_gains(EventTermCfg(func=randomize_actuator_gains, params=event_params), env)
     event(env, env_ids=torch.tensor([0], device=device), **event_params)
 
-    stiffness = read_group_parameter(articulation.actuators, "joint", "controller", "kp")
-    damping = read_group_parameter(articulation.actuators, "joint", "controller", "kd")
+    stiffness = read_group_parameter(articulation.actuators, "joint", "drive", "kp")
+    damping = read_group_parameter(articulation.actuators, "joint", "drive", "kd")
     torch.testing.assert_close(stiffness, torch.tensor([[101.0], [20.0]], device=device).repeat(1, num_joints))
     torch.testing.assert_close(damping, torch.tensor([[3.0], [1.0]], device=device).repeat(1, num_joints))
 
@@ -1692,13 +1674,13 @@ def test_root_link_vel_w_refreshes_fk_before_body_com_vel_w_read(scene: _Articul
         articulation.write_joint_velocity_to_sim_index(velocity=joint_vel)
         articulation.write_joint_position_to_sim_index(position=articulation.data.joint_pos.torch.clone())
         with monkeypatch.context() as patch:
-            physx = Mock(wraps=OvPhysxManager.backend.physx)
-            patch.setattr(OvPhysxManager.backend, "physx", physx)
+            physx = Mock(wraps=scene.sim.backend_manager.backend.physx)
+            patch.setattr(scene.sim.backend_manager.backend, "physx", physx)
             if render_first:
-                OvPhysxManager.pre_render()
+                scene.sim.backend_manager.pre_render()
             articulation.data.root_link_vel_w
             body_com_vel_w = articulation.data.body_com_vel_w.torch
-            OvPhysxManager.pre_render()
+            scene.sim.backend_manager.pre_render()
             physx.update_articulations_kinematic.assert_called_once()
             assert torch.linalg.norm(body_com_vel_w[:, 1, :]) > 1e-3
 

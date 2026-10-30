@@ -11,10 +11,11 @@ import csv
 import inspect
 import json
 import posixpath
-from html import escape
 import re
 import sys
+from html import escape
 from pathlib import Path
+from urllib.parse import parse_qsl, urlencode, urlsplit
 
 from docutils import nodes
 from docutils.parsers.rst import directives
@@ -24,6 +25,7 @@ from sphinx.builders.html import StandaloneHTMLBuilder
 from sphinx.config import Config
 from sphinx.util.docutils import SphinxDirective, SphinxRole
 from sphinx.util.nodes import split_explicit_title
+from sphinx.util.osutil import relative_uri
 
 _UPSTREAM_SOURCE_REF_PATTERN = re.compile(r"^(main|develop|release/.*|v[1-9]\d*\.\d+\.\d+(-[A-Za-z0-9.]+)?)$")
 
@@ -60,7 +62,7 @@ def _source_branch(config) -> str:
     branch = _branch(config)
     if _UPSTREAM_SOURCE_REF_PATTERN.match(branch):
         return branch
-    return getattr(config, "isaaclab_latest_branch", "develop")
+    return getattr(config, "isaaclab_latest_branch", "main")
 
 
 def _configure_source_links(app: Sphinx, config: Config) -> None:
@@ -91,7 +93,9 @@ def _configure_source_links(app: Sphinx, config: Config) -> None:
         except (AttributeError, KeyError, OSError, TypeError, ValueError):
             # External, mocked, or generated objects may have no repository source.
             return None
-        return f"https://github.com/isaac-sim/IsaacLab/blob/{branch}/{path.as_posix()}#L{start}-L{start + len(lines) - 1}"
+        return (
+            f"https://github.com/isaac-sim/IsaacLab/blob/{branch}/{path.as_posix()}#L{start}-L{start + len(lines) - 1}"
+        )
 
     config.linkcode_resolve = resolve
 
@@ -119,6 +123,67 @@ class IsaacLabBenchmarkData(SphinxDirective):
         payload = json.dumps(snapshots).replace("<", "\\u003c")
         html = f'<script type="application/json" data-environment-benchmark-rows>{payload}</script>'
         return [nodes.raw("", html, format="html")]
+
+
+class IsaacLabDemos(SphinxDirective):
+    """Embed the staged interactive gallery without maintaining a second catalog."""
+
+    optional_arguments = 1
+    final_argument_whitespace = True
+    has_content = False
+    option_spec = {
+        "title": directives.unchanged_required,
+        "physics": lambda value: directives.choice(value, ("rigid", "vbd", "mpm")),
+        "activity": lambda value: directives.choice(value, ("tuning", "policy", "scripted")),
+    }
+
+    def run(self) -> list[nodes.Node]:
+        base = self.config.isaaclab_demo_base_url
+        if base:
+            address = urlsplit(base)
+            if address.scheme not in {"http", "https"} or not address.netloc:
+                raise self.error("isaaclab_demo_base_url must be empty or an absolute HTTP or HTTPS URL.")
+        else:
+            base = relative_uri(self.env.app.builder.get_target_uri(self.env.docname), "../demos/interactive/")
+        ids = [value.strip() for value in self.arguments[0].split(",")] if self.arguments else []
+        if any(not re.fullmatch(r"[A-Za-z0-9_-]+", value) for value in ids):
+            raise self.error("Demo IDs must use letters, numbers, underscores or hyphens, separated by commas.")
+        address = urlsplit(base)
+        parameters = dict(parse_qsl(address.query, keep_blank_values=True))
+        parameters["demos"] = ",".join(ids) or "all"
+        for key in ("physics", "activity"):
+            if key in self.options:
+                parameters[key] = self.options[key]
+        gallery_url = address._replace(query=urlencode(parameters)).geturl()
+        title = escape(self.options.get("title", "Interactive demos"), quote=True)
+        html = (
+            '<section class="isaaclab-demos" data-isaaclab-demos '
+            f'data-base-url="{escape(base, quote=True)}" data-demo-ids="{escape(",".join(ids), quote=True)}" '
+            f'data-physics="{self.options.get("physics", "")}" data-activity="{self.options.get("activity", "")}" '
+            f'aria-label="{title}">'
+            '<div class="isaaclab-demos-heading">'
+            f"<strong>{title}</strong>"
+            f'<a href="{escape(gallery_url, quote=True)}" target="_blank" rel="noopener noreferrer" '
+            'aria-label="Open demo gallery in a new tab">Open gallery</a>'
+            "</div>"
+            '<p class="isaaclab-demos-status" role="status" aria-live="polite">'
+            "Interactive demos load when this section is visible.</p>"
+            f'<iframe class="isaaclab-demos-frame" title="{title}" loading="lazy" '
+            'height="320" allow="fullscreen" aria-busy="true"></iframe>'
+            "<noscript><p>Enable JavaScript to use the embedded gallery, or open the demo gallery above.</p></noscript>"
+            "</section>"
+        )
+        return [nodes.raw("", html, format="html", isaaclab_demos=True)]
+
+
+def _add_demo_assets(
+    app: Sphinx, pagename: str, templatename: str, context: dict, doctree: nodes.document | None
+) -> None:
+    """Load the embed bridge only on pages that contain a gallery."""
+    if doctree is not None and any(node.get("isaaclab_demos") for node in doctree.findall(nodes.raw)):
+        # Sphinx resets page assets before emitting html-page-context.
+        app.add_css_file("css/interactive-demos.css")
+        app.add_js_file("css/interactive-demos.js", loading_method="defer")
 
 
 class IsaacLabCloneCommands(SphinxDirective):
@@ -184,6 +249,28 @@ class IsaacLabCloneHttps(SphinxDirective):
         return _parse_rst(self, content)
 
 
+class IsaacLabIsaacSimInstall(SphinxDirective):
+    """Render the Isaac Sim install command used by historical documentation versions."""
+
+    optional_arguments = 1  # installer: "pip" (default is "uv pip")
+
+    def run(self) -> list[nodes.Node]:
+        version = self.config.isaacsim_version
+        if self.arguments and self.arguments[0] == "pip":
+            content = f"""\
+.. code-block:: bash
+
+   python -m pip install "isaacsim[all,extscache]=={version}" --extra-index-url https://pypi.nvidia.com
+"""
+        else:
+            content = f"""\
+.. code-block:: bash
+
+   uv pip install "isaacsim[all,extscache]=={version}" --extra-index-url https://pypi.nvidia.com --index-strategy unsafe-best-match --prerelease=allow
+"""
+        return _parse_rst(self, content)
+
+
 class IsaacLabUvIsaacSimWheelInstall(SphinxDirective):
     """Render the Isaac Lab wheel command for the current Isaac Sim version."""
 
@@ -200,6 +287,7 @@ class IsaacLabUvIsaacSimWheelInstall(SphinxDirective):
    uv pip install "isaaclab[isaacsim]=={self.config.isaaclab_wheel_version}" \\
      --overrides "{overrides_url}" \\
      --extra-index-url https://pypi.nvidia.com \\
+     --torch-backend cu130 \\
      --index-strategy unsafe-best-match
 """
         return _parse_rst(self, content)
@@ -221,6 +309,7 @@ class IsaacLabUvImportersWheelInstall(SphinxDirective):
    uv pip install "isaaclab[importers]=={self.config.isaaclab_wheel_version}" \\
      --overrides "{overrides_url}" \\
      --index https://pypi.nvidia.com \\
+     --torch-backend cu130 \\
      --index-strategy unsafe-best-match
 """
         return _parse_rst(self, content)
@@ -235,18 +324,21 @@ class IsaacLabTorchInstall(SphinxDirective):
     Usage::
 
         .. isaaclab-torch-install:: cu130
+        .. isaaclab-torch-install:: cu130 pip
     """
 
     required_arguments = 1  # CUDA build tag, e.g. "cu128"
+    optional_arguments = 1  # installer: "pip" (default is "uv pip")
 
     def run(self) -> list[nodes.Node]:
         cuda_tag = self.arguments[0]
+        installer = "python -m pip" if len(self.arguments) > 1 and self.arguments[1] == "pip" else "uv pip"
         torch_version = self.config.torch_version
         torchvision_version = self.config.torchvision_version
         content = f"""\
 .. code-block:: bash
 
-   uv pip install -U torch=={torch_version} torchvision=={torchvision_version} --index-url https://download.pytorch.org/whl/{cuda_tag}
+   {installer} install -U torch=={torch_version} torchvision=={torchvision_version} --index-url https://download.pytorch.org/whl/{cuda_tag}
 """
         return _parse_rst(self, content)
 
@@ -276,31 +368,40 @@ def _write_doc_redirects(app: Sphinx, exception: Exception | None) -> None:
         return
     is_multiversion_build = bool(getattr(app.config, "smv_current_version", ""))
     for old, new in app.config.isaaclab_doc_redirects.items():
-        destination = Path(app.builder.get_outfilename(new))
-        if not destination.is_file():
-            # The current config is also used to build tags that predate these redirect targets.
-            if is_multiversion_build:
-                continue
-            raise ValueError(f"Documentation redirect target was not built: {new}")
         output = Path(app.builder.get_outfilename(old))
-        target = posixpath.relpath(destination.as_posix(), output.parent.as_posix())
+        if is_multiversion_build and output.is_file():
+            # Preserve pages built from historical refs instead of replacing them with current redirects.
+            continue
+        if new.startswith(("https://", "http://")):
+            target = new
+        else:
+            destination = Path(app.builder.get_outfilename(new))
+            if not destination.is_file():
+                # The current config is also used to build tags that predate these redirect targets.
+                if is_multiversion_build:
+                    continue
+                raise ValueError(f"Documentation redirect target was not built: {new}")
+            target = posixpath.relpath(destination.as_posix(), output.parent.as_posix())
         sections = {}
         for fragment, route in getattr(app.config, "isaaclab_doc_redirect_fragments", {}).get(old, {}).items():
             doc, separator, anchor = route.partition("#")
             page = Path(app.builder.get_outfilename(doc))
             if not page.is_file():
+                if is_multiversion_build:
+                    continue
                 raise ValueError(f"Documentation redirect target was not built: {doc}")
-            sections[f"#{fragment}"] = [
-                posixpath.relpath(page.as_posix(), output.parent.as_posix()), separator + anchor
+            sections[f"#{fragment}" if fragment else ""] = [
+                posixpath.relpath(page.as_posix(), output.parent.as_posix()),
+                separator + anchor,
             ]
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(
             '<!doctype html><meta charset="utf-8"><title>Page moved</title>'
             f'<noscript><meta http-equiv="refresh" content="0; url={escape(target, quote=True)}"></noscript>'
             f'<link rel="canonical" href="{escape(target, quote=True)}">'
-            f'<script>const sections = {json.dumps(sections)};\n'
-            f'const target = sections[location.hash] || [{json.dumps(target)}, location.hash];\n'
-            'location.replace(target[0] + location.search + target[1]);</script>'
+            f"<script>const sections = {json.dumps(sections)};\n"
+            f"const target = sections[location.hash] || [{json.dumps(target)}, location.hash];\n"
+            "location.replace(target[0] + location.search + target[1]);</script>"
             f'<p>This page moved to <a href="{escape(target, quote=True)}">{escape(new)}</a>.</p>',
             encoding="utf-8",
         )
@@ -311,9 +412,11 @@ def setup(app):
     app.add_builder(IsaacLabHTMLBuilder, override=True)
     app.add_config_value("isaaclab_doc_redirects", {}, "html")
     app.add_config_value("isaaclab_doc_redirect_fragments", {}, "html")
+    app.add_config_value("isaaclab_demo_base_url", "", "env")
     app.connect("build-finished", _write_doc_redirects)
     app.connect("config-inited", _configure_source_links)
-    app.add_config_value("isaaclab_latest_branch", "develop", "env")
+    app.connect("html-page-context", _add_demo_assets)
+    app.add_config_value("isaaclab_latest_branch", "main", "env")
     app.add_config_value("isaaclab_wheel_version", "", "env")
     app.add_config_value("isaaclab_wheel_source_tag", "", "env")
     app.add_config_value("isaacsim_version", "", "env")
@@ -322,8 +425,10 @@ def setup(app):
     app.add_config_value("ovrtx_spec", "", "env")
     app.add_role("isaaclab-source", IsaacLabSourceLink())
     app.add_directive("isaaclab-benchmark-data", IsaacLabBenchmarkData)
+    app.add_directive("isaaclab-demos", IsaacLabDemos)
     app.add_directive("isaaclab-clone-commands", IsaacLabCloneCommands)
     app.add_directive("isaaclab-clone-https", IsaacLabCloneHttps)
+    app.add_directive("isaaclab-isaacsim-install", IsaacLabIsaacSimInstall)
     app.add_directive("isaaclab-uv-isaacsim-wheel-install", IsaacLabUvIsaacSimWheelInstall)
     app.add_directive("isaaclab-uv-importers-wheel-install", IsaacLabUvImportersWheelInstall)
     app.add_directive("isaaclab-torch-install", IsaacLabTorchInstall)

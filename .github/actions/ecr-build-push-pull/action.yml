@@ -23,6 +23,10 @@ inputs:
     description: 'Path to Dockerfile, relative to the repository root'
     default: 'docker/Dockerfile.base'
     required: false
+  platform:
+    description: 'Target platform for the build and its dependency-cache identity'
+    default: 'linux/amd64'
+    required: false
   ecr-url:
     description: >
       ECR repository URL (e.g. "123456789.dkr.ecr.us-west-2.amazonaws.com/my-repo").
@@ -208,6 +212,7 @@ runs:
         dockerfile-path: ${{ inputs.dockerfile-path }}
         isaacsim-base-image: ${{ inputs.isaacsim-base-image }}
         isaacsim-version: ${{ inputs.isaacsim-version }}
+        platform: ${{ inputs.platform }}
 
     - name: Check deps cache
       id: deps-cache
@@ -250,6 +255,7 @@ runs:
         isaacsim-base-image: ${{ inputs.isaacsim-base-image }}
         isaacsim-version: ${{ inputs.isaacsim-version }}
         dockerfile-path: ${{ inputs.dockerfile-path }}
+        platform: ${{ inputs.platform }}
         cache-from: ${{ steps.resolve-ecr.outputs.available == 'true' && format('type=registry,ref={0}', env.CACHE_IMAGE) || '' }}
         cache-to: ${{ steps.resolve-ecr.outputs.available == 'true' && format('type=registry,ref={0},mode=max', env.CACHE_IMAGE) || '' }}
         deps-hash: ${{ steps.deps-hash.outputs.hash }}

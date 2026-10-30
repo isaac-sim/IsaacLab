@@ -64,18 +64,18 @@ def randomize_rigid_body_scale(
     .. attention::
         Since this function modifies USD properties that are parsed by the physics engine once the simulation
         starts, the term should only be used before the simulation starts playing. This corresponds to the
-        event mode named "usd". Using it at simulation time, may lead to unpredictable behaviors.
+        event mode named "prestartup". Using it at simulation time may lead to unpredictable behaviors.
 
     .. note::
-        When randomizing the scale of individual assets, please make sure to set
-        :attr:`isaaclab.scene.InteractiveSceneCfg.replicate_physics` to False. This ensures that physics
-        parser will parse the individual asset properties separately.
+        In scenes with multiple environments, physics replication does not parse independent USD scale
+        overrides. Declare size variants with :class:`~isaaclab.sim.MultiAssetSpawnerCfg` and select
+        world compositions with :class:`~isaaclab.cloner.CloneCfg.clone_combinations` when needed.
     """
     # check if sim is running
     if env.sim.is_playing():
         raise RuntimeError(
             "Randomizing scale while simulation is running leads to unpredictable behaviors."
-            " Please ensure that the event term is called before the simulation starts by using the 'usd' mode."
+            " Please ensure that the event term is called before the simulation starts by using the 'prestartup' mode."
         )
 
     from ...assets import BaseArticulation  # noqa: PLC0415
@@ -98,9 +98,15 @@ def randomize_rigid_body_scale(
     else:
         env_ids = env_ids.cpu()
 
+    prim_paths = sim_utils.find_matching_prim_paths(asset.cfg.prim_path)
+    if len(prim_paths) > 1:
+        raise RuntimeError(
+            "Per-environment rigid-body scale randomization is unsupported with replicated physics. "
+            "Declare size variants with MultiAssetSpawnerCfg instead."
+        )
+
     # acquire stage
     stage = env.sim.stage
-    prim_paths = sim_utils.find_matching_prim_paths(asset.cfg.prim_path)
 
     if isinstance(scale_range, dict):
         range_list = [scale_range.get(key, (1.0, 1.0)) for key in ["x", "y", "z"]]
@@ -175,6 +181,9 @@ class randomize_rigid_body_material(ManagerTermBase):
 
     If the flag ``make_consistent`` is set to ``True``, the dynamic friction is set to be less than or equal to
     the static friction (PhysX and OVPhysX only). This obeys the physics constraint on friction values.
+
+    On PhysX and OVPhysX, compliant-contact stiffness stored as negative native restitution is
+    preserved. Restitution samples apply only to non-compliant shapes; friction is randomized for both.
 
     .. attention::
         On PhysX, this function uses CPU tensors to assign the material properties. It is recommended to
@@ -683,8 +692,8 @@ class randomize_actuator_gains(ManagerTermBase):
         for name, actuator in self._gain_actuators.items():
             joint_ids = self._group_joint_indices[name]
             if name in self._native_group_names:
-                stiffness = read_group_parameter(collection, name, "controller", "kp")
-                damping = read_group_parameter(collection, name, "controller", "kd")
+                stiffness = read_group_parameter(collection, name, "drive", "kp")
+                damping = read_group_parameter(collection, name, "drive", "kd")
             else:
                 stiffness = actuator.stiffness
                 damping = actuator.damping
@@ -769,7 +778,7 @@ class randomize_actuator_gains(ManagerTermBase):
                     write_group_parameter(
                         self.asset.actuators,
                         actuator_name,
-                        "controller",
+                        "drive",
                         "kp",
                         values=stiffness[:, actuator_indices],
                         env_ids=env_ids,
@@ -795,7 +804,7 @@ class randomize_actuator_gains(ManagerTermBase):
                     write_group_parameter(
                         self.asset.actuators,
                         actuator_name,
-                        "controller",
+                        "drive",
                         "kd",
                         values=damping[:, actuator_indices],
                         env_ids=env_ids,
@@ -1728,8 +1737,7 @@ class randomize_visual_texture_material(ManagerTermBase):
     The default prim pattern is ``{asset_prim_path}/{body_name}/visuals``; assets
     without that layout use all descendants of the asset root.
 
-    Requires Kit and ``InteractiveSceneCfg.replicate_physics=False``. All matched
-    prims are updated; ``env_ids`` does not restrict the update.
+    Requires Kit. All matched prims are updated; ``env_ids`` does not restrict the update.
     """
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv) -> None:
@@ -1781,8 +1789,7 @@ class randomize_visual_color(ManagerTermBase):
     ``mesh_name`` selects a path relative to the asset root. Otherwise, the term
     matches the selected bodies' ``visuals`` prims, falling back to all descendants.
 
-    Requires Kit and ``InteractiveSceneCfg.replicate_physics=False``. All matched
-    prims are updated; ``env_ids`` does not restrict the update.
+    Requires Kit. All matched prims are updated; ``env_ids`` does not restrict the update.
     """
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv) -> None:

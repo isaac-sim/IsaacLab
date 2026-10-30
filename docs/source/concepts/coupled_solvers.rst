@@ -10,23 +10,17 @@ Coupled Solvers
 
 .. warning::
 
-   Coupled solvers are experimental and exposed through
-   :mod:`isaaclab_contrib.coupling`. Their API, behavior, feature support,
-   performance, and implementation may change.
+   Coupled solvers are experimental. Their API and behavior may change.
 
 Newton can partition one model between multiple solvers and exchange state and
 forces between them during each simulation step. This lets a task combine
 solver families that target different physics, such as an MJWarp rigid robot
 interacting with VBD cloth or an MPM material.
 
-Isaac Lab exposes this framework through
-:mod:`isaaclab_contrib.coupling`. The adapter turns configuration selectors
-into named Newton solver entries, constructs the selected coupling algorithm,
-and integrates it with :class:`~isaaclab_newton.physics.NewtonCfg`. For the
-shared-model architecture, iteration algorithms, supported constraint rows,
-and solver-specific implementation details, see Newton's
-`Coupled Solvers concept page
-<https://newton-physics.github.io/newton/stable/concepts/coupling.html>`_.
+Configure coupling through :mod:`isaaclab_contrib.coupling` and
+:class:`~isaaclab_newton.physics.NewtonCfg`. Newton's `Coupled Solvers guide
+<https://newton-physics.github.io/newton/stable/concepts/coupling.html>`_ describes
+the algorithms, constraints, and solver internals.
 
 
 The coupling model
@@ -288,7 +282,7 @@ interaction.
 
 Current Isaac Lab limitations include no support for nested couplers or Newton
 contact sensors, and proxy coupling supports at most two entries. Some solver
-modes require manager-specific lifecycle work and cannot be nested in a
-coupler. Validate each entry independently before tuning the coupled result,
+modes require solver-specific lifecycle work and cannot be nested in a
+coupler; their specification reports why (``coupling_error``). Validate each entry independently before tuning the coupled result,
 and consult the Newton concept page for current algorithm-level support and
 limitations.

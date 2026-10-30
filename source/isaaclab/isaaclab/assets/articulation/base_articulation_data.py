@@ -852,6 +852,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind="state/body/wrench")
     def body_joint_wrench(self) -> ProxyArray:
         """Incoming joint reaction wrench ``[force, torque]`` for each body.
 
@@ -899,6 +900,7 @@ class BaseArticulationData(ABC):
     ##
 
     @property
+    @leapp_tensor_semantics(kind="state/body/link_jacobian")
     def body_link_jacobian_w(self) -> ProxyArray:
         """Per-body geometric Jacobian referenced at each body's link origin in world frame.
 
@@ -927,6 +929,7 @@ class BaseArticulationData(ABC):
         raise NotImplementedError(f"{type(self).__name__} does not implement body_link_jacobian_w.")
 
     @property
+    @leapp_tensor_semantics(kind="state/body/com_jacobian")
     def body_com_jacobian_w(self) -> ProxyArray:
         """Per-body geometric Jacobian referenced at each body's center of mass in world frame.
 
@@ -945,20 +948,22 @@ class BaseArticulationData(ABC):
         raise NotImplementedError(f"{type(self).__name__} does not implement body_com_jacobian_w.")
 
     @property
+    @leapp_tensor_semantics(kind="state/joint/mass_matrix")
     def mass_matrix(self) -> ProxyArray:
-        """Per-env rigid-body mass matrix ``M_body(q)`` in joint space.
+        """Per-env generalized mass matrix ``M(q)`` in joint space.
 
         Shape: ``(num_instances, num_joints + num_base_dofs, num_joints + num_base_dofs)``,
         dtype ``wp.float32`` [kg·m² or kg, per DoF type]. DoF-axis convention matches
         :attr:`body_link_jacobian_w`.
 
-        ``M_body(q)`` is symmetric positive-definite and excludes :attr:`joint_armature`.
-        Controllers that model joint armature as additional inertia can add it to the
-        joint diagonal explicitly. Other solver-specific inertial terms may also be absent.
+        ``M(q)`` is symmetric positive-definite. ``M[i, j]`` is the coefficient
+        relating DoF ``j``'s acceleration to the inertial torque on DoF ``i`` in
+        ``M(q) q_ddot + C(q, q_dot) q_dot + g(q) = tau``.
         """
         raise NotImplementedError(f"{type(self).__name__} does not implement mass_matrix.")
 
     @property
+    @leapp_tensor_semantics(kind="state/joint/gravity_compensation")
     def gravity_compensation_forces(self) -> ProxyArray:
         """Per-env gravity compensation torques ``g(q)`` in joint space.
 

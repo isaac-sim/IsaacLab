@@ -44,7 +44,6 @@ from isaaclab.paths import ISAACLAB_ROOT
 from isaaclab.utils import has_kit
 from isaaclab.utils.device import set_cuda_device
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
-from isaaclab.visualizers.visualizer_cfg import parse_visualizer_csv
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -225,9 +224,9 @@ class KitLauncher(SimulationLauncher):
         signal.signal(signal.SIGINT, signal.default_int_handler)
 
     def close(self, exit_code: int = 0) -> None:
-        """Close the Kit app this launcher started; Kit fast shutdown exits with *exit_code*."""
+        """Close the Kit app this launcher started; another SIGINT forces exit."""
         if self._app is not None:
-            previous_handler = signal.signal(signal.SIGINT, signal.SIG_IGN)
+            previous_handler = signal.signal(signal.SIGINT, signal.SIG_DFL)
             try:
                 # let callbacks queued by the closing simulation run before shutdown
                 self._app.update()
@@ -351,12 +350,10 @@ class KitLauncher(SimulationLauncher):
         arg_group.add_argument(
             "--visualizer",
             "--viz",
-            type=parse_visualizer_csv,
+            type=lambda value: value.split(","),
+            action=_StoreAndMarkExplicit,
             default=None,
-            help=(
-                "Visualizer backends to run as CSV (e.g., kit,newton_gl,rerun,viser); none run without it. A"
-                " visualizer configured in the task's sim.visualizer_cfgs supplies the settings of its type."
-            ),
+            help="Alias for visualizer=NAME (comma-separated names enable multiple viewers).",
         )
         arg_group.add_argument(
             "--verbose",  # Note: This is read by SimulationApp through sys.argv
@@ -436,7 +433,7 @@ class KitLauncher(SimulationLauncher):
         Args:
             launcher_args: A dictionary of all input arguments passed to the class object.
         """
-        self._kit_visualizer = "kit" in (launcher_args.get("visualizer") or ())
+        self._kit_visualizer = launcher_args.get("kit_visualizer", "kit" in (launcher_args.get("visualizer") or ()))
         self._resolve_livestream_settings(launcher_args)
         self._resolve_xr_settings(launcher_args)
         self._resolve_headless_settings()
@@ -738,33 +735,21 @@ class KitLauncher(SimulationLauncher):
 
     def _create_app(self):
         """Launch and create the SimulationApp based on the parsed simulation config."""
-        # Initialize SimulationApp
-        # hack sys module to make sure that the SimulationApp is initialized correctly
-        # this is to avoid the warnings from the simulation app about not ok modules
-        r = re.compile(".*lab.*")
-        found_modules = list(filter(r.match, list(sys.modules.keys())))
-        # remove Isaac Lab modules from sys.modules
-        hacked_modules = dict()
-        for key in found_modules:
-            hacked_modules[key] = sys.modules[key]
-            del sys.modules[key]
-
         # disable sys stdout and stderr to avoid printing the warning messages
         # this is mainly done to purge the print statements from the simulation app
+        stdout = sys.stdout
         if "--verbose" not in sys.argv and "--info" not in sys.argv:
             sys.stdout = open(os.devnull, "w")  # noqa: SIM115
 
         sys.argv = _sanitize_sys_argv_for_kit(sys.argv)
 
-        report_activity("Starting Isaac Sim")
-        self._app = SimulationApp(self._sim_app_config, experience=self._sim_experience_file)
-        report_activity(None)
+        try:
+            report_activity("Starting Isaac Sim")
+            self._app = SimulationApp(self._sim_app_config, experience=self._sim_experience_file)
+            report_activity(None)
+        finally:
+            sys.stdout = stdout
 
-        sys.stdout = sys.__stdout__
-
-        # add Isaac Lab modules back to sys.modules
-        for key, value in hacked_modules.items():
-            sys.modules[key] = value
         # remove the threadCount argument from sys.argv if it was added for distributed training
         pattern = r"--/plugins/carb\.tasking\.plugin/threadCount=\d+"
         sys.argv = [arg for arg in sys.argv if not re.match(pattern, arg)]

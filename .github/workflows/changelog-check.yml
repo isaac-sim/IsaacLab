@@ -11,9 +11,8 @@ on:
   workflow_dispatch:
     inputs:
       base_ref:
-        description: 'Base branch to diff against'
-        required: true
-        default: 'develop'
+        description: 'Base branch to diff against (defaults to the repository default branch)'
+        required: false
 
 concurrency:
   group: changelog-check-${{ github.ref }}
@@ -43,7 +42,7 @@ jobs:
 
       - name: Resolve base ref
         id: base
-        run: echo "ref=${{ github.event.inputs.base_ref || github.base_ref }}" >> "$GITHUB_OUTPUT"
+        run: echo "ref=${{ github.event.inputs.base_ref || github.base_ref || github.event.repository.default_branch }}" >> "$GITHUB_OUTPUT"
 
       - name: Fetch base branch
         run: git fetch origin ${{ steps.base.outputs.ref }}

@@ -17,6 +17,7 @@ import torch
 import warp as wp
 
 from isaaclab.benchmark.stepping import RENDER_PROFILE_SCOPE, profile_renderers
+from isaaclab.cloner import ReplicateContext
 from isaaclab.renderers.base_renderer import BaseRenderer
 from isaaclab.renderers.render_context import RenderContext
 from isaaclab.renderers.renderer_cfg import RendererCfg
@@ -36,17 +37,19 @@ from isaaclab_physx.renderers import IsaacRtxRendererCfg
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
 
-def _renderer(cfg):
+def _renderer(cfg, *, sim):
     renderer = Mock(spec=BaseRenderer)
+    renderer._sim = sim
     renderer.visual_material_writer = None
     return renderer
 
 
 @pytest.fixture
-def sim():
+def sim(monkeypatch):
     sim = object.__new__(SimulationContext)
     sim._backend_registry = []
     sim._render_context = RenderContext(sim._backend_registry)
+    monkeypatch.setattr(SimulationContext, "_instance", sim)
     return sim
 
 
@@ -57,7 +60,7 @@ def test_renderer_registry_sharing_and_early_clone_requirements(sim):
 
     assert sim.get_or_create_backend(cfg) is renderer
     assert sim.get_or_create_backend(replace(cfg)) is renderer
-    constructor.assert_called_once_with(cfg)
+    constructor.assert_called_once_with(cfg, sim=sim)
     assert constructor.call_args.args[0] is cfg
     assert sim.render_context.clone_contexts == set(cfg.cloning_contexts)
     renderer.initialize.assert_not_called()
@@ -76,8 +79,22 @@ def test_renderer_initializes_once_before_or_after_physics_ready(sim):
     sim.render_context.ensure_initialize()
     first.initialize.assert_called_once_with()
 
-    second_cfg = replace(cfg, renderer_type="second")
+    prepared = []
+
+    class LateContext(ReplicateContext):
+        @staticmethod
+        def prepare(context, routing):
+            assert context is sim
+            pending = next(renderer for cfg, renderer in sim._backend_registry if cfg == second_cfg)
+            pending.initialize.assert_not_called()
+            prepared.append(True)
+
+        def replicate(self, plan, asset_prototype_ids):
+            pytest.fail("Standalone renderer preparation must not execute cloning.")
+
+    second_cfg = replace(cfg, renderer_type="second", cloning_contexts=(LateContext,))
     second = sim.get_or_create_backend(second_cfg)
+    assert prepared == [True]
     second.initialize.assert_called_once_with()
     assert sim.get_or_create_backend(second_cfg) is second
     sim.render_context.ensure_initialize()
@@ -94,7 +111,7 @@ def test_conflicting_global_settings_are_rejected_before_construction(sim):
     with pytest.raises(ValueError, match="global settings differ"):
         sim.get_or_create_backend(conflicting)
 
-    constructor.assert_called_once_with(cfg)
+    constructor.assert_called_once_with(cfg, sim=sim)
     assert sim.get_or_create_backend(cfg) is renderer
     assert sim.render_context.renderer_types == ("isaac_rtx",)
 
@@ -122,7 +139,7 @@ def test_finalized_consumers_allow_cache_hits_but_reject_new_renderers_with_mate
     if has_materials:
         with pytest.raises(RuntimeError, match="before rendering consumers are finalized"):
             sim.get_or_create_backend(late_cfg)
-        constructor.assert_called_once_with(cfg)
+        constructor.assert_called_once_with(cfg, sim=sim)
     else:
         assert sim.get_or_create_backend(late_cfg) is not renderer
         assert constructor.call_count == 2
@@ -249,7 +266,7 @@ def test_legacy_render_profile_scope_warns_and_preserves_import():
 
 
 @pytest.mark.parametrize("fail_writer", [False, True])
-def test_context_close_only_releases_writers_and_resets_bookkeeping(sim, fail_writer):
+def test_context_close_releases_writers_and_preserves_prepared_renderers(sim, fail_writer):
     cfg = RendererCfg(class_type=_renderer, cloning_contexts=("example:CloneContext",))
     renderer = sim.get_or_create_backend(cfg)
     context = sim.render_context
@@ -274,9 +291,10 @@ def test_context_close_only_releases_writers_and_resets_bookkeeping(sim, fail_wr
     assert not context.clone_contexts
 
     context.ensure_initialize()
-    context.ensure_prepare_stage(None, 8)
+    context.ensure_prepare_stage(None, 4)
     context.update_scene_state(1)
-    assert renderer.initialize.call_count == renderer.prepare_stage.call_count == 2
+    assert renderer.initialize.call_count == 2
+    renderer.prepare_stage.assert_called_once_with(None, 4)
     assert renderer.update_transforms.call_count == renderer.update_geometries.call_count == 2
 
 
@@ -285,8 +303,10 @@ class _CpuCamera(Camera):
 
     def __init__(self, renderer, name, update_period=0.0):
         self.cfg = SimpleNamespace(update_period=update_period, update_latest_camera_pose=True)
+        self._sim = renderer._sim
         self._device = "cpu"
         self._num_envs = 2
+        self._is_global = False
         self._is_initialized = True
         self._is_visualizing = False
         self._renderer = renderer
@@ -297,8 +317,9 @@ class _CpuCamera(Camera):
         self._frame = ProxyArray(wp.zeros(2, dtype=wp.int64, device="cpu"))
         self._ALL_INDICES = wp.array([0, 1], dtype=wp.int32, device="cpu")
         self._ALL_ENV_MASK = wp.ones(2, dtype=wp.bool, device="cpu")
+        self._reset_mask = wp.zeros_like(self._ALL_ENV_MASK)
         self._create_timing_buffers()
-        self._data_dirty = True
+        self._invalidate_buffers(self._ALL_ENV_MASK)
         self.pose = 0.0
         self._view = SimpleNamespace(count=2, xform_world_space_writer=self._pose_writer)
         self.update(0.0)
@@ -328,7 +349,7 @@ class _CpuSensor(SensorBase):
         self._is_initialized = True
         self._is_visualizing = False
         self._create_timing_buffers()
-        self._data_dirty = True
+        self._data_dirty = False
         self._data = np.zeros(2, dtype=int)
         self.name = name
         self.batches = batches
@@ -395,7 +416,7 @@ def _camera_scene(cameras, lazy=False, **sensors):
     )
 
 
-def test_camera_eager_updates_render_shared_batch_with_current_poses(camera_batch_context):
+def test_camera_eager_updates_render_shared_batch_with_current_poses(camera_batch_context, monkeypatch):
     """Eager scene updates batch initialized cameras and still update other sensor types."""
     _, renderer, batches = camera_batch_context
     cameras = [_CpuCamera(renderer, "wide"), _CpuCamera(renderer, "tele")]
@@ -404,6 +425,7 @@ def test_camera_eager_updates_render_shared_batch_with_current_poses(camera_batc
     uninitialized._is_initialized = False
     other_sensor = Mock(supports_batch_update=False)
     scene = _camera_scene([*cameras, uninitialized], other=other_sensor)
+    monkeypatch.setattr(SimulationContext, "_instance", None)
 
     InteractiveScene.update(scene, 0.01)
     assert batches == [[("wide", 1.0), ("tele", 2.0)]]
@@ -418,13 +440,14 @@ def test_camera_eager_updates_render_shared_batch_with_current_poses(camera_batc
     np.testing.assert_array_equal(uninitialized.frame.warp.numpy(), [0, 0])
 
 
-def test_camera_lazy_reads_leave_peer_cameras_outdated(camera_batch_context):
+def test_camera_lazy_reads_leave_peer_cameras_outdated(camera_batch_context, monkeypatch):
     """Reading a lazy camera captures only that camera, even when a peer shares its renderer."""
     _, renderer, batches = camera_batch_context
     cameras = [_CpuCamera(renderer, "wide"), _CpuCamera(renderer, "tele")]
     cameras[0].pose, cameras[1].pose = 1.0, 2.0
     other_sensor = Mock(supports_batch_update=False)
     scene = _camera_scene(cameras, lazy=True, other=other_sensor)
+    monkeypatch.setattr(SimulationContext, "_instance", None)
 
     InteractiveScene.update(scene, 0.01)
     assert not batches
@@ -432,7 +455,7 @@ def test_camera_lazy_reads_leave_peer_cameras_outdated(camera_batch_context):
     assert cameras[0].data.info["pose"] == 1.0
     assert batches == [[("wide", 1.0)]]
     np.testing.assert_array_equal(cameras[1].frame.warp.numpy(), [0, 0])
-    np.testing.assert_array_equal(cameras[1]._timestamp_last_update.numpy(), [0.0, 0.0])
+    np.testing.assert_array_equal(cameras[1]._timestamp_last_update.numpy(), [-1.0, -1.0])
 
     assert cameras[1].data.info["pose"] == 2.0
     for camera in cameras:
@@ -514,7 +537,7 @@ def test_sensor_batch_advances_time_once_and_preserves_update_hooks():
         np.testing.assert_allclose(sensor._timestamp_last_update.numpy(), [0.25, 0.25])
         assert len(sensor.captures) == 1
     assert not uninitialized.captures
-    np.testing.assert_array_equal(uninitialized._timestamp_last_update.numpy(), [0.0, 0.0])
+    np.testing.assert_array_equal(uninitialized._timestamp_last_update.numpy(), [-1.0, -1.0])
 
 
 def test_sensor_batch_rejects_unsupported_input_before_updating():
@@ -604,11 +627,11 @@ def test_failed_eager_capture_can_retry_one_camera(camera_batch_context, failure
     with pytest.raises(RuntimeError, match="capture failed"):
         InteractiveScene.update(scene, 0.1)
     for camera in cameras:
-        np.testing.assert_array_equal(camera._timestamp_last_update.numpy(), [0.0, 0.0])
+        np.testing.assert_array_equal(camera._timestamp_last_update.numpy(), [-1.0, -1.0])
     setattr(renderer, failure, original)
     batches.clear()
 
     assert cameras[0].data.info["pose"] == 0.0
     assert batches == [[("wide", 0.0)]]
     np.testing.assert_allclose(cameras[0]._timestamp_last_update.numpy(), [0.1, 0.1])
-    np.testing.assert_array_equal(cameras[1]._timestamp_last_update.numpy(), [0.0, 0.0])
+    np.testing.assert_array_equal(cameras[1]._timestamp_last_update.numpy(), [-1.0, -1.0])

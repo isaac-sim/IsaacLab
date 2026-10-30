@@ -49,6 +49,8 @@ import sys
 import gymnasium as gym
 import torch
 
+from isaaclab.visualizers import VisualizerCfg, WindowCfg
+
 import isaaclab_tasks  # noqa: F401
 
 with contextlib.suppress(ImportError):
@@ -100,10 +102,10 @@ def _shadow_env_cfg(num_envs: int, env_spacing: float = _SHADOW_ENV_SPACING):
 
 def _build_env_cfg_example_1(num_envs: int):
     """Shadow Hand + Kit viewport: one clip from the interactive viewport."""
-    from isaaclab_visualizers.kit import KitVisualizerCfg
+    from isaaclab_visualizers.kit import KitBackendCfg
 
     env_cfg = _shadow_env_cfg(num_envs)
-    env_cfg.sim.visualizer_cfgs = [KitVisualizerCfg(eye=_SHADOW_EYE, lookat=_SHADOW_LOOKAT)]
+    env_cfg.sim.visualizer_cfgs = [VisualizerCfg(eye=_SHADOW_EYE, lookat=_SHADOW_LOOKAT, backend=KitBackendCfg())]
 
     out = _output_dir(1)
     env_cfg.video_recorders = [
@@ -140,29 +142,27 @@ def _build_env_cfg_example_3(num_envs: int):
     """Shadow Hand + Kit viewport + Kit tiled grid + Newton viewport + sensor: four simultaneous streams.
 
     Note: ``source='viz:newton_gl'`` captures the full Newton GL window. When
-    ``streaming_view=True`` is set on :class:`~isaaclab_visualizers.newton.NewtonGLVisualizerCfg`,
+    ``streaming_view=True`` is set on :class:`~isaaclab_visualizers.newton.NewtonGLBackendCfg`,
     the GL window displays the per-environment camera panel, so this effectively records
     a Newton streaming view without a separate ``render_tiled_rgb_array()`` call.
     """
-    from isaaclab_visualizers.kit import KitVisualizerCfg
-    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+    from isaaclab_visualizers.kit import KitBackendCfg
+    from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
     env_cfg = _shadow_env_cfg(num_envs)
-    kit_cfg = KitVisualizerCfg(
+    kit_cfg = VisualizerCfg(
         eye=_SHADOW_EYE,
         lookat=_SHADOW_LOOKAT,
         streaming_view=True,
         streaming_envs=min(num_envs, 16),
-        # No streaming_sensor_prim_path: selects the existing
-        # tiled_camera sensor automatically, so the streaming panel shows the same
-        # RTX-rendered views as source="sensor:tiled_camera".
+        backend=KitBackendCfg(),
     )
-    newton_cfg = NewtonGLVisualizerCfg(
+    newton_cfg = VisualizerCfg(
         eye=_SHADOW_EYE,
         lookat=_SHADOW_LOOKAT,
-        window_width=1280,
-        window_height=720,
+        window=WindowCfg(size=(1280, 720)),
         focal_length=25.0,
+        backend=NewtonGLBackendCfg(),
     )
     env_cfg.sim.visualizer_cfgs = [kit_cfg, newton_cfg]
 

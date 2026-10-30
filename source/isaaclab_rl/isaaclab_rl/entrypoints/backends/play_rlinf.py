@@ -76,7 +76,7 @@ def run(argv: list[str]) -> None:
     logger.info(f"Using config: {config_name}")
     logger.info(f"Config path: {config_dir}")
     GlobalHydra.instance().clear()
-    initialize_config_dir(config_dir=config_dir, version_base="1.1")
+    initialize_config_dir(config_dir=config_dir)
     cfg = compose(config_name=config_name)
 
     task_id = cfg.env.eval.init_params.id

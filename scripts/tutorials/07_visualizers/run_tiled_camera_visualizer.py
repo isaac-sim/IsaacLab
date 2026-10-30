@@ -14,7 +14,7 @@ This script demonstrates the visualizer tiled camera panel.
 
     # Newton visualizer tiled camera panel
     uv run python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py \
-        --task IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor --num_envs 25 --viz newton
+        --task IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor --num_envs 25 --viz newton_gl
 
 """
 
@@ -22,15 +22,14 @@ from __future__ import annotations
 
 import argparse
 import contextlib
-import logging
 import sys
 
 import gymnasium as gym
 import torch
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
-from isaaclab_visualizers.kit import KitVisualizerCfg
-from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+from isaaclab_visualizers.kit import KitBackendCfg
+from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
 import isaaclab_tasks  # noqa: F401
 
@@ -44,16 +43,35 @@ from isaaclab.visualizers import SceneCameraCfg
 
 from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
 
-logger = logging.getLogger(__name__)
-
 KIT_DEFAULT_TASK = "Isaac-Velocity-Rough-AnymalD"
 NEWTON_DEFAULT_TASK = "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor"
 
 
-def _configure_visualizers(env_cfg, args_cli: argparse.Namespace) -> None:
-    """Declare a scene camera before launch; every viewer borrows the same sensor."""
-    visualizers = args_cli.visualizer
-    if any(kind not in ("kit", "newton_gl") for kind in visualizers):
+# add argparse arguments
+parser = argparse.ArgumentParser(description="Showcase the Kit/Newton visualizer tiled camera panel.")
+parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
+parser.add_argument("--task", type=str, default=None, help="Name of the task.")
+# append simulation launcher cli args
+add_launcher_args(parser)
+parser.set_defaults(visualizer=["kit"])
+args_cli, hydra_args = setup_preset_cli(parser)
+if args_cli.task is None:
+    visualizers = next(arg.split("=", 1)[1].split(",") for arg in hydra_args if arg.startswith("visualizer="))
+    args_cli.task = NEWTON_DEFAULT_TASK if {"newton", "newton_gl"}.intersection(visualizers) else KIT_DEFAULT_TASK
+sys.argv = [sys.argv[0]] + hydra_args
+
+
+def main():
+    """Run a random-action environment with a tiled camera visualizer."""
+    # parse configuration via Hydra (supports preset selection, e.g. presets=newton_mjwarp)
+    env_cfg, _ = resolve_task_config(args_cli.task, "")
+    # Declare the shared scene camera before launching either viewer.
+    visualizers = env_cfg.sim.visualizer_cfgs
+    visualizers = visualizers if isinstance(visualizers, list) else [visualizers]
+    backends = [
+        backend for cfg in visualizers for backend in (cfg.backend if isinstance(cfg.backend, list) else [cfg.backend])
+    ]
+    if not backends or any(not isinstance(backend, (KitBackendCfg, NewtonGLBackendCfg)) for backend in backends):
         raise ValueError("This tutorial supports --viz kit or --viz newton_gl.")
     camera_cfg = next((cfg for cfg in vars(env_cfg.scene).values() if isinstance(cfg, CameraCfg)), None)
     if camera_cfg is None:
@@ -67,42 +85,21 @@ def _configure_visualizers(env_cfg, args_cli: argparse.Namespace) -> None:
             data_types=["rgb"],
             spawn=PinholeCameraCfg(focal_length=24.0, clipping_range=(0.1, 1.0e5)),
             offset=CameraCfg.OffsetCfg(pos=(3.0, 3.0, 3.0), rot=tuple(rotation.tolist()), convention="opengl"),
-            renderer_cfg=IsaacRtxRendererCfg() if "kit" in visualizers else NewtonWarpRendererCfg(),
+            renderer_cfg=(
+                IsaacRtxRendererCfg()
+                if any(isinstance(backend, KitBackendCfg) for backend in backends)
+                else NewtonWarpRendererCfg()
+            ),
         )
         env_cfg.scene.streaming_camera = camera_cfg
-    env_cfg.sim.visualizer_cfgs = [
-        (KitVisualizerCfg if kind == "kit" else NewtonGLVisualizerCfg)(
-            streaming_view=True,
-            streaming_envs=36 if kind == "kit" else 12,
-            cameras=[SceneCameraCfg(prim_path=camera_cfg.prim_path)],
-        )
-        for kind in visualizers
-    ]
-
-
-# add argparse arguments
-parser = argparse.ArgumentParser(description="Showcase the Kit/Newton visualizer tiled camera panel.")
-parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
-parser.add_argument("--task", type=str, default=None, help="Name of the task.")
-# append simulation launcher cli args
-add_launcher_args(parser)
-parser.set_defaults(visualizer=["kit"])
-args_cli, hydra_args = setup_preset_cli(parser)
-if args_cli.task is None:
-    args_cli.task = NEWTON_DEFAULT_TASK if "newton_gl" in args_cli.visualizer else KIT_DEFAULT_TASK
-sys.argv = [sys.argv[0]] + hydra_args
-
-
-def main():
-    """Run a random-action environment with a tiled camera visualizer."""
-    # parse configuration via Hydra (supports preset selection, e.g. presets=newton_mjwarp)
-    env_cfg, _ = resolve_task_config(args_cli.task, "")
-    _configure_visualizers(env_cfg, args_cli)
+    for cfg in visualizers:
+        cfg.streaming_view = True
+        cfg.streaming_envs = 12
+        cfg.cameras = [SceneCameraCfg(prim_path=camera_cfg.prim_path)]
 
     with launch_simulation(env_cfg, args_cli):
         # override with CLI arguments
         env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
-        env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
 
         # create environment
         env = gym.make(args_cli.task, cfg=env_cfg)
@@ -113,15 +110,7 @@ def main():
         env.reset()
 
         # keep stepping until all visualizer windows have been closed
-        sim = env.unwrapped.sim
-        if not sim.visualizers:
-            logger.warning("No visualizers found. Exiting.")
-            env.close()
-            return
-
-        while True:
-            if sim.visualizers and not any(v.is_running() and not v.is_closed for v in sim.visualizers):
-                break
+        while env.unwrapped.sim.is_running():
             with torch.inference_mode():
                 actions = 2 * torch.rand(env.action_space.shape, device=env.unwrapped.device) - 1
                 env.step(actions)

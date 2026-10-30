@@ -192,8 +192,7 @@ class DisassemblyEnv(DirectRLEnv):
         self.left_finger_jacobian = jacobians[:, self.left_finger_body_idx - 1, 0:6, 0:7]
         self.right_finger_jacobian = jacobians[:, self.right_finger_body_idx - 1, 0:6, 0:7]
         self.fingertip_midpoint_jacobian = (self.left_finger_jacobian + self.right_finger_jacobian) * 0.5
-        self.arm_mass_matrix = self._robot.data.mass_matrix.torch[:, 0:7, 0:7].clone()
-        self.arm_mass_matrix.diagonal(dim1=-2, dim2=-1).add_(self._robot.data.joint_armature.torch[:, 0:7])
+        self.arm_mass_matrix = self._robot.data.mass_matrix.torch[:, 0:7, 0:7]
         self.joint_pos = self._robot.data.joint_pos.torch.clone()
         self.joint_vel = self._robot.data.joint_vel.torch.clone()
 
@@ -690,7 +689,7 @@ class DisassemblyEnv(DirectRLEnv):
     def randomize_initial_state(self, env_ids):
         """Randomize initial state and perform any episode-level randomization."""
         # Disable gravity.
-        self.sim.physics_manager.set_gravity((0.0, 0.0, 0.0))
+        self.sim.backend_manager.set_gravity((0.0, 0.0, 0.0))
 
         self.randomize_fixed_initial_state(env_ids)
 
@@ -729,7 +728,7 @@ class DisassemblyEnv(DirectRLEnv):
         # Set initial gains for the episode.
         self._set_gains(self.default_gains)
 
-        self.sim.physics_manager.set_gravity(tuple(self.cfg.sim.gravity))
+        self.sim.backend_manager.set_gravity(tuple(self.cfg.sim.gravity))
 
     def _disassemble_plug_from_socket(self):
         """Lift plug from socket till disassembly and then randomize end-effector pose."""

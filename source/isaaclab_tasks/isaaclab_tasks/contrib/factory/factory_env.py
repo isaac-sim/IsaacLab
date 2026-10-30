@@ -107,8 +107,7 @@ class FactoryEnv(DirectRLEnv):
         self.left_finger_jacobian = jacobians[:, self.left_finger_body_idx - 1, 0:6, 0:7]
         self.right_finger_jacobian = jacobians[:, self.right_finger_body_idx - 1, 0:6, 0:7]
         self.fingertip_midpoint_jacobian = (self.left_finger_jacobian + self.right_finger_jacobian) * 0.5
-        self.arm_mass_matrix = self._robot.data.mass_matrix.torch[:, 0:7, 0:7].clone()
-        self.arm_mass_matrix.diagonal(dim1=-2, dim2=-1).add_(self._robot.data.joint_armature.torch[:, 0:7])
+        self.arm_mass_matrix = self._robot.data.mass_matrix.torch[:, 0:7, 0:7]
         self.joint_pos = self._robot.data.joint_pos.torch.clone()
         self.joint_vel = self._robot.data.joint_vel.torch.clone()
 
@@ -594,7 +593,7 @@ class FactoryEnv(DirectRLEnv):
     def randomize_initial_state(self, env_ids):
         """Randomize initial state and perform any episode-level randomization."""
         # Disable gravity.
-        self.sim.physics_manager.set_gravity((0.0, 0.0, 0.0))
+        self.sim.backend_manager.set_gravity((0.0, 0.0, 0.0))
 
         # (1.) Randomize fixed asset pose.
         fixed_pose = self._fixed_asset.data.default_root_pose.torch.clone()[env_ids]
@@ -800,4 +799,4 @@ class FactoryEnv(DirectRLEnv):
         self.task_prop_gains = self.default_gains
         self.task_deriv_gains = factory_utils.get_deriv_gains(self.default_gains)
 
-        self.sim.physics_manager.set_gravity(tuple(self.cfg.sim.gravity))
+        self.sim.backend_manager.set_gravity(tuple(self.cfg.sim.gravity))
