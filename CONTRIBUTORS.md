@@ -246,6 +246,7 @@ Guidelines for modifications:
 * YuTeh Shen
 * Zehao Wang
 * Zeng Qingcheng
+* Zeng Zhi
 * Zijian Li
 * Ziqi Fan
 * Zoe McCarthy
