@@ -374,10 +374,22 @@
             : new URL(`../../_static/${imagePath}`, window.location.href).href;
     };
 
-    // Each preview video shares its image's file name, so tasks without an uploaded clip fall back to the image.
-    const previewVideoUrl = (task) => (
-        new URL(previewImageFor(task).replace(/\.[^.]+$/, ".mp4"), previewBaseUrl).href
+    // Preview clips live next to the remote task images, one folder per category, and share the image's file name.
+    // Tasks without an uploaded clip fall back to the image.
+    const previewClipNames = {
+        classic: ["ant", "cart_double_pendulum", "cartpole", "fourbar_pole", "humanoid"],
+        locomotion: ["agility_digit_flat", "anymal_d_flat", "anymal_d_rough", "cassie_flat", "cassie_rough", "dr_legs", "g1_flat", "g1_rough", "go2_flat", "go2_rough", "h1_flat", "h1_rough"],
+        manipulation: ["allegro_cube", "franka_lift", "franka_lift_cable", "franka_lift_cloth", "franka_lift_soft", "franka_open_drawer", "franka_reach", "kuka_allegro_lift", "kuka_allegro_reorient", "shadow_cube", "shadow_hand_over", "ur10_reach"],
+    };
+    const previewClipFolders = Object.fromEntries(
+        Object.entries(previewClipNames).flatMap(([folder, names]) => names.map((name) => [name, folder])),
     );
+
+    const previewVideoUrl = (task) => {
+        const name = previewImageFor(task).split("/").pop().replace(/\.[^.]+$/, "");
+        const folder = previewClipFolders[name];
+        return folder ? new URL(`environments/previews/${folder}/${name}.mp4`, previewBaseUrl).href : null;
+    };
 
     const updateTaskControls = () => {
         const task = selectedTask();
@@ -528,7 +540,7 @@
                 previewVideo.play().catch(() => {});
             }
         };
-        if (!failedPreviewVideos.has(videoUrl)) {
+        if (videoUrl && !failedPreviewVideos.has(videoUrl)) {
             previewVideo.onerror = () => {
                 if (previewVideo.src === videoUrl) {
                     failedPreviewVideos.add(videoUrl);
