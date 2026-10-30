@@ -203,6 +203,8 @@ teleop = [
     "isaaccapture[retargeters,ui,cloudxr]==1.7.68a1 ; platform_system == 'Linux'",
     "dex-retargeting==0.5.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
 ]
+# SimReady USD-Search asset discovery (isaaclab.utils.assets.search_simready_usd_paths).
+simready = ["simready-search>=2026.4.2"]
 rlinf = [
     "ray[default]>=2.47.0",
     "virtualenv>=21.7.13",
@@ -436,6 +438,10 @@ override-dependencies = [
     "packaging>=20,<27",
     # isaacsim-kernel 6.2 pins the urllib3 release affected by GHSA-vxq7-64xx-v4gw.
     "urllib3>=2.8.0",
+    # isaacsim-kernel 6.2 pins requests ==2.32.3, below the simready-search floor.
+    "requests>=2.33.0",
+    # simready-search pins boto3 ==1.42.58; keep the AWS stack Isaac Sim 6.2 pins.
+    "boto3==1.41.5",
 ]
 python-preference = "only-managed"
 package = false

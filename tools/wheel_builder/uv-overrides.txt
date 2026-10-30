@@ -12,3 +12,5 @@ torchvision==0.26.0
 fsspec>=2026.6.0
 packaging>=20,<27
 urllib3>=2.8.0
+requests>=2.33.0
+boto3==1.41.5

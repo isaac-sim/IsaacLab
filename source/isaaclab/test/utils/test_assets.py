@@ -12,6 +12,7 @@ import os
 import sys
 import threading
 import time
+import types
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
@@ -691,3 +692,94 @@ def test_newton_asset_dir_uses_environment_override(tmp_path, monkeypatch):
     finally:
         monkeypatch.delenv("NEWTON_ASSET_DIR", raising=False)
         importlib.reload(assets_utils)
+
+
+# -- SimReady USD-Search asset resolution.
+# The tests install a fake `simready.search` module so they run without the optional
+# `simready-search` package and without network access.
+
+
+@pytest.fixture
+def fake_simready(monkeypatch):
+    """Install a fake ``simready.search`` module and return its call-recording state."""
+    state = types.SimpleNamespace(results=[], calls=[], endpoint=None, raise_on_network_error=None)
+
+    class FakeFilter:
+        def __init__(self, value="", **kwargs):
+            self.value = value
+            self.kwargs = kwargs
+
+    class FakeAssetLibrary:
+        def __init__(self, log_func=None, raise_on_network_error=False):
+            state.raise_on_network_error = raise_on_network_error
+
+        def add_service_source(self, endpoint):
+            state.endpoint = endpoint
+
+        def search(self, include_all=None, exclude_any=None, max_count=None, **kwargs):
+            state.calls.append({"include_all": include_all, "exclude_any": exclude_any, "max_count": max_count})
+            matches = state.results
+            if max_count is not None:
+                matches = matches[:max_count]
+            return list(matches)
+
+    module = types.ModuleType("simready.search")
+    module.AssetLibrary = FakeAssetLibrary
+    for name in ("SearchFilterFeature", "SearchFilterPhrase", "SearchFilterProfile", "SearchFilterRelevance"):
+        setattr(module, name, type(name, (FakeFilter,), {}))
+    package = types.ModuleType("simready")
+    package.search = module
+    monkeypatch.setitem(sys.modules, "simready", package)
+    monkeypatch.setitem(sys.modules, "simready.search", module)
+    return state
+
+
+def _match(asset_path):
+    return types.SimpleNamespace(asset_path=asset_path)
+
+
+def test_simready_search_returns_library_order(fake_simready):
+    """Paths keep the library's relevance order, and network failures raise."""
+    fake_simready.results = [_match("omniverse://best.usd"), _match("omniverse://next.usd")]
+    paths = assets_utils.search_simready_usd_paths("food box")
+    assert paths == ["omniverse://best.usd", "omniverse://next.usd"]
+    # network and auth failures must raise instead of looking like an empty result
+    assert fake_simready.raise_on_network_error is True
+
+
+def test_simready_search_top_k_limits_result_count(fake_simready):
+    fake_simready.results = [_match(f"omniverse://asset_{i}.usd") for i in range(5)]
+    paths = assets_utils.search_simready_usd_paths("food box", top_k=2)
+    assert len(paths) == 2
+    assert fake_simready.calls[0]["max_count"] == 2
+
+
+def test_simready_search_applies_optional_filters(fake_simready):
+    fake_simready.results = [_match("omniverse://asset.usd")]
+    assets_utils.search_simready_usd_paths(
+        "can",
+        min_relevance=0.5,
+        filter_profiles=["Prop-Robotics-Isaac"],
+        filter_features=["FET003_BASE_PHYSX"],
+        exclude_features=["FET004_BASE_PHYSX"],
+    )
+    filter_names = [type(f).__name__ for f in fake_simready.calls[0]["include_all"]]
+    assert filter_names == [
+        "SearchFilterPhrase",
+        "SearchFilterRelevance",
+        "SearchFilterProfile",
+        "SearchFilterFeature",
+    ]
+    excluded = fake_simready.calls[0]["exclude_any"]
+    assert [(type(f).__name__, f.value) for f in excluded] == [("SearchFilterFeature", "FET004_BASE_PHYSX")]
+
+
+def test_simready_search_raises_on_empty_results(fake_simready):
+    fake_simready.results = []
+    with pytest.raises(ValueError, match="no results.*food box"):
+        assets_utils.search_simready_usd_paths("food box")
+
+
+def test_simready_search_requires_a_criterion(fake_simready):
+    with pytest.raises(ValueError, match="At least one of"):
+        assets_utils.search_simready_usd_paths()
