@@ -1289,6 +1289,27 @@ def test_decimation_loop_orders_callbacks_and_ends_each_physics_step_in_state_0(
     assert events == step * 2 + [("post",)]
 
 
+def test_solver_model_sync_requests_share_one_notification_after_the_pre_actuator_writes():
+    """Consumers that write model properties before the actuators each request a sync; the solver is notified once."""
+    events = []
+    manager = _recording_manager(events, single_state=True, num_substeps=1)
+    manager.backend.solver = SimpleNamespace(notify_model_changed=lambda flags: events.append(("notify", flags)))
+    flags = (ModelFlags.JOINT_DOF_FORCE_PROPERTIES, ModelFlags.JOINT_PROPERTIES)
+    for flag in flags:
+        manager.request_solver_model_sync(flag)
+        manager.register_pre_actuator_callback(lambda flag=flag: events.append(("write", flag)))
+
+    manager._simulate_full()
+
+    assert events == [
+        ("write", flags[0]),
+        ("write", flags[1]),
+        ("notify", flags[0] | flags[1]),
+        ("step", "state_0", "state_0"),
+        ("clear", "state_0"),
+    ]
+
+
 @wp.kernel
 def _count_steps(counter: wp.array(dtype=wp.int32)):
     counter[0] += 1

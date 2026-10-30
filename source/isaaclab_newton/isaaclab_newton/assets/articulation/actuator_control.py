@@ -420,6 +420,8 @@ class NewtonActuatorControl(ArticulationActuatorControl):
                 "BAM actuators require Newton's MJWarp solver (MJWarpSolverCfg), which exports joint loads."
             )
         self._articulation._backend_manager.request_solver_observables(kinds)
+        # The solver applies the published budgets once it re-reads the joint friction.
+        self._articulation._backend_manager.request_solver_model_sync(ModelFlags.JOINT_DOF_FORCE_PROPERTIES)
         model = self._articulation._backend_manager.backend.model
         for group in self.bam_groups.values():
 
@@ -439,9 +441,6 @@ class NewtonActuatorControl(ArticulationActuatorControl):
 
             self._articulation._backend_manager.register_pre_actuator_callback(update_budget)
             self._articulation._backend_manager.register_post_actuator_callback(record_effort)
-        self._articulation._backend_manager.register_pre_actuator_callback(
-            lambda: solver.notify_model_changed(ModelFlags.JOINT_DOF_FORCE_PROPERTIES)
-        )
 
     def _joint_dof_offset(self) -> int:
         """Return the first selected joint DOF's model offset within an environment."""

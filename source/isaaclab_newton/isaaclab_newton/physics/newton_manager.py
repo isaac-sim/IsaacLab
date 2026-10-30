@@ -319,6 +319,7 @@ class NewtonManager(PhysicsManager):
             self._pre_actuator_callbacks.clear()
             self._post_actuator_callbacks.clear()
             self._post_step_callbacks.clear()
+            self._solver_model_sync_flags = 0
         # The CUDA graph points at the old model's freed buffers (CUDA 700 on the next step).
         self._graph = None
         self._graph_capture_pending = False
@@ -504,6 +505,8 @@ class NewtonManager(PhysicsManager):
         self._post_actuator_callbacks: list[Callable[[], None]] = []
         self._state_force_callbacks: list[Callable[[State], None]] = []
         self._post_step_callbacks: list[Callable[[], None]] = []
+        # Model properties the solver re-reads after every actuator step (ModelFlags), see request_solver_model_sync.
+        self._solver_model_sync_flags = 0
         # Substeps clear the input state's forces, so each one re-applies this copy of the staged body forces.
         self._staged_body_f: wp.array | None = None
         # Set by an articulation that took the ``use_newton_actuators=True``
@@ -1169,6 +1172,23 @@ class NewtonManager(PhysicsManager):
                 return
             kinds |= observables.kinds
         backend.solver_observables = backend.solver.observables(kinds)
+
+    def request_solver_model_sync(self, flags: int) -> None:
+        """Have the solver re-read the model properties in *flags* after every actuator step.
+
+        For hooks that write model properties every step, such as a joint friction published from a pre-actuator
+        hook. Requests accumulate into one :meth:`~newton.solvers.SolverBase.notify_model_changed` call per step, a
+        post-actuator hook that runs after every pre-actuator hook. Call before CUDA graph capture, e.g. from a
+        :meth:`register_solver_init_callback` hook. Hard resets discard the requests.
+
+        Args:
+            flags: :class:`~newton.ModelFlags` of the properties to re-read.
+        """
+        if not self._solver_model_sync_flags:
+            self.register_post_actuator_callback(
+                lambda: self.backend.solver.notify_model_changed(self._solver_model_sync_flags)
+            )
+        self._solver_model_sync_flags |= flags
 
     def register_solver_init_callback(self, callback: Callable[[], None]) -> None:
         """Append a one-shot hook invoked once the solver exists, before any CUDA graph capture.
