@@ -13,6 +13,8 @@ import math
 import time
 from typing import TYPE_CHECKING
 
+from pxr import Usd
+
 from isaaclab.sim import SimulationContext
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg
@@ -87,7 +89,14 @@ class IS7Visualizer(BaseVisualizer):
         from isaacsim.rendering.ovgl import StageRenderer
         from isaacsim.viewports.adapters import Viewport, define_viewport
 
-        usda = sim.stage.Flatten().ExportToString()
+        layer = sim.stage.Flatten()
+        if self.cfg.deinstance:
+            expanded = Usd.Stage.Open(layer)
+            for prim in expanded.Traverse():
+                if prim.IsInstance():
+                    prim.SetInstanceable(False)
+            layer = expanded.Flatten()
+        usda = layer.ExportToString()
         context = make_simulation_context()
         context.create_from_string(usda)
         self._context = context

@@ -49,3 +49,10 @@ class IS7VisualizerCfg(VisualizerCfg):
 
     render_every: int = 1
     """Render once every ``N`` visualizer steps. Poses are still published every step."""
+
+    deinstance: bool = True
+    """Expand USD instanceable prims in the exported scene.
+
+    The viewer's renderer re-resolves instanced geometry whenever poses change, which makes
+    per-frame pose updates about 2.5x slower on instanced assets such as the cartpole.
+    """
