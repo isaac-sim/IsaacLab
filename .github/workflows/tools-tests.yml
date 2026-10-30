@@ -11,13 +11,13 @@ on:
     paths:
       # The repo-root conftest.py writes the crash journal these tests read back.
       - "conftest.py"
-      # Top-level tools modules and their tests. Deliberately not "tools/**": the
-      # subpackages (changelog/, skills/, wheel_builder/) have their own gates.
+      # Tools subpackages run their own checks.
       - "tools/*.py"
       - "tools/perf_smoke/**"
       - "tools/perf_smoke_thresholds.json"
       # Shared CI action helpers and their co-located tests.
       - ".github/actions/_lib/**"
+      - ".github/workflows/build.yaml"
       - ".github/workflows/tools-tests.yml"
   workflow_dispatch:
 
@@ -32,8 +32,7 @@ jobs:
   tools-tests:
     name: Tools tests
     runs-on: ubuntu-latest
-    # The crash-journal tests spawn pytest subprocesses and kill them; cap the job so a
-    # subprocess that fails to die cannot hold a runner for the default six hours.
+    # Bound stalled crash-test subprocesses.
     timeout-minutes: 10
 
     steps:
@@ -43,18 +42,10 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          # Keyed on this workflow file, not pyproject.toml: the pip cache key is
-          # otherwise identical across every 3.12 ubuntu job here, so they collide
-          # and all but the first fail to save. Hashing the workflow also ties
-          # invalidation to the install list below rather than to unrelated
-          # dependency churn.
+          # Separate this job's pip cache by its dependency list.
           cache-dependency-path: .github/workflows/tools-tests.yml
 
-      # These tests only need pytest, junitparser (imported by tools/crash_journal.py) and
-      # flaky, so they run without an Isaac Sim install or a full project sync. flaky drives the
-      # rerun in test_crash_during_a_flaky_retry_is_blamed_on_the_retried_test; without it
-      # installed that test skips itself rather than failing, so keep it in this list.
-      # pytest-xdist likewise drives test_an_xdist_run_journals_each_event_once.
+      # These tests run without Isaac Sim; flaky and pytest-xdist enable retry and parallel crash tests.
       - name: Install test dependencies
         run: bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" python3 -m pip install pytest pytest-xdist junitparser flaky pyyaml
 
@@ -62,14 +53,10 @@ jobs:
         env:
           # The tests import the modules under test (crash_journal) directly.
           PYTHONPATH: tools
-        # Files are listed explicitly rather than collected from tools/: test_settings.py is a
-        # configuration module, not a test, and tools/test/ needs the full Isaac Lab install.
-        #
-        # --noconftest keeps tools/conftest.py out of the session. That file is the CI test
-        # orchestrator - its pytest_sessionstart scans source/ and scripts/ and runs the whole
-        # suite, so loading it here would ignore the files named below.
+        # Explicit files avoid tests that need Isaac Sim; --noconftest prevents the full-suite orchestrator from running.
         run: python3 -m pytest tools/test_crash_journal.py tools/test_file_scheduler.py
-          .github/actions/_lib/test_registry_credential_fallback.py -v --noconftest
+          .github/actions/_lib/test_registry_credential_fallback.py
+          .github/actions/_lib/test_performance_workflow.py -v --noconftest
 
       - uses: astral-sh/setup-uv@v6
         with:

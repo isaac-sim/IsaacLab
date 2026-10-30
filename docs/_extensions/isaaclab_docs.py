@@ -25,7 +25,6 @@ from sphinx.builders.html import StandaloneHTMLBuilder
 from sphinx.config import Config
 from sphinx.util.docutils import SphinxDirective, SphinxRole
 from sphinx.util.nodes import split_explicit_title
-from sphinx.util.osutil import relative_uri
 
 _UPSTREAM_SOURCE_REF_PATTERN = re.compile(r"^(main|develop|release/.*|v[1-9]\d*\.\d+\.\d+(-[A-Za-z0-9.]+)?)$")
 
@@ -126,7 +125,7 @@ class IsaacLabBenchmarkData(SphinxDirective):
 
 
 class IsaacLabDemos(SphinxDirective):
-    """Embed the staged interactive gallery without maintaining a second catalog."""
+    """Embed the hosted interactive gallery without maintaining a second catalog."""
 
     optional_arguments = 1
     final_argument_whitespace = True
@@ -139,16 +138,12 @@ class IsaacLabDemos(SphinxDirective):
 
     def run(self) -> list[nodes.Node]:
         base = self.config.isaaclab_demo_base_url
-        if base:
-            address = urlsplit(base)
-            if address.scheme not in {"http", "https"} or not address.netloc:
-                raise self.error("isaaclab_demo_base_url must be empty or an absolute HTTP or HTTPS URL.")
-        else:
-            base = relative_uri(self.env.app.builder.get_target_uri(self.env.docname), "../demos/interactive/")
+        address = urlsplit(base)
+        if address.scheme not in {"http", "https"} or not address.netloc:
+            raise self.error("isaaclab_demo_base_url must be an absolute HTTP or HTTPS URL.")
         ids = [value.strip() for value in self.arguments[0].split(",")] if self.arguments else []
         if any(not re.fullmatch(r"[A-Za-z0-9_-]+", value) for value in ids):
             raise self.error("Demo IDs must use letters, numbers, underscores or hyphens, separated by commas.")
-        address = urlsplit(base)
         parameters = dict(parse_qsl(address.query, keep_blank_values=True))
         parameters["demos"] = ",".join(ids) or "all"
         for key in ("physics", "activity"):
@@ -412,7 +407,7 @@ def setup(app):
     app.add_builder(IsaacLabHTMLBuilder, override=True)
     app.add_config_value("isaaclab_doc_redirects", {}, "html")
     app.add_config_value("isaaclab_doc_redirect_fragments", {}, "html")
-    app.add_config_value("isaaclab_demo_base_url", "", "env")
+    app.add_config_value("isaaclab_demo_base_url", "https://isaac-sim.github.io/IsaacLab-Web-Demos/", "env")
     app.connect("build-finished", _write_doc_redirects)
     app.connect("config-inited", _configure_source_links)
     app.connect("html-page-context", _add_demo_assets)
