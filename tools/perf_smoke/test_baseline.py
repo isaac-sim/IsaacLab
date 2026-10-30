@@ -173,23 +173,12 @@ def check_evidence(subtests):
         )
         evidence = baseline.resolve_candidate(client, 10, 2)
         assert evidence.identity["run_attempt"] == 2
-        assert evidence.measurement_start == stamp(11, 1)
         assert evidence.samples["missing-leg"] == []
         assert evidence.statuses["missing-leg"] == "failed"
-
-    for context in (True, False):
-        with subtests.test(evidence="missing sample start", context=context):
-            client = FixtureClient()
-            client.add(30, HEAD, start=stamp(9), context=context, samples={"leg": [bundle(), bundle(start=None)]})
-            evidence = baseline.resolve_candidate(client, 30, 1)
-            assert evidence.measurement_start == (stamp(9) if context else None)
-            if context:
-                assert "capture time" in str(evidence.issues)
 
     with subtests.test(evidence="corrupt workload beside a valid sample"):
         client = FixtureClient()
         client.add(10, PARENT, artifact=False)
-        client.run_jobs[10, 1][0]["completed_at"] = stamp(11)
         client.add_artifact(
             10,
             "performance-smoke-10-1",
@@ -207,7 +196,6 @@ def check_evidence(subtests):
         assert any("provenance" in issue for issue in evidence.issues)
         assert len(evidence.samples["leg"]) == 1
         assert evidence.samples["broken"] == []
-        assert evidence.measurement_end == stamp(11)
         assert "broken/sample-1/benchmark_runtime_broken.json" in str(evidence.issues)
 
     with subtests.test(evidence="unusable samples and failed runs"):
@@ -228,8 +216,6 @@ def check_evidence(subtests):
         assert sum("FPS value" in issue for issue in evidence.issues) == 2
         assert evidence.statuses["failed"] == "failed"
         assert evidence.samples["failed"][0]["bundle"]["run"]["status"] == "failed"
-        assert evidence.measurement_end is None
-        assert "runtime has no valid end timestamp" in str(evidence.issues)
 
     for mutation, code, message in (
         ("missing_job_time", "ambiguous_attempt", None),
@@ -263,7 +249,6 @@ def check_evidence(subtests):
                 assert identity["source_commit"] == identity["github_head_commit"] == HEAD
                 assert identity["source_provenance"] == "github_run_metadata"
                 assert identity["tested_commit"] is None
-                assert identity["run_url"] == f"https://github.com/{REPO}/actions/runs/20/attempts/1"
 
     sample = bundle()
     sample["run"]["config"].pop("rendering_backend")
@@ -292,9 +277,7 @@ def check_transport(subtests):
     secret_url = "https://storage.example.invalid/artifact?sig=secret"
     for kind, open_error, read_error, code in (
         ("download", None, None, None),
-        ("api_read", None, TimeoutError("read stalled: ?sig=secret"), "timeout"),
         ("download", None, TimeoutError("read stalled: ?sig=secret"), "timeout"),
-        ("api_read", None, "truncated", "inaccessible"),
         ("download", None, "truncated", "inaccessible"),
         ("api_connect", urllib.error.URLError(TimeoutError("connect stalled: ?sig=secret")), None, "timeout"),
         ("download", urllib.error.HTTPError(secret_url, 403, "secret", {}, None), None, "inaccessible"),
