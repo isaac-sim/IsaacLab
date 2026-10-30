@@ -3,6 +3,16 @@ Changelog
 
 .. towncrier release notes start
 
+12.0.2 (2026-10-30)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed graph-replay invalidation from before a hard ``sim.reset()`` carrying over to the rebuilt model, which
+  could make asset pose reads in ``PHYSICS_READY`` callbacks raise a ``RuntimeError`` before the solver is rebuilt.
+
+
 12.0.1 (2026-10-29)
 ~~~~~~~~~~~~~~~~~~~
 
