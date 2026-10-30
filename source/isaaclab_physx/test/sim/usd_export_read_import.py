@@ -46,7 +46,10 @@ def main(source: str, output: str, articulations: list[str], bodies: list[str]):
 
 
 def simulate_deformables(source: str, output: str, bodies: dict, dt: float, steps: int):
-    """Import ``source`` on the GPU, set each deformable's nodal state, step, and write its nodal positions."""
+    """Import ``source`` on the GPU, set each deformable's nodal state, step, and write its nodal positions.
+
+    A deformable given no positions keeps the import's, which are written as its ``initial`` positions.
+    """
     from isaaclab.app import AppLauncher
 
     app = AppLauncher(headless=True).app
@@ -74,7 +77,7 @@ def simulate_deformables(source: str, output: str, bodies: dict, dt: float, step
         simulation.fetch_results()
         sim_view = omni.physics.tensors.create_simulation_view("torch", stage_id=context.get_stage_id())
         sim_view.set_subspace_roots("/")
-        views = {}
+        views, initial = {}, {}
         for path, (kind, positions, velocities) in bodies.items():
             create = (
                 sim_view.create_volume_deformable_body_view
@@ -83,16 +86,18 @@ def simulate_deformables(source: str, output: str, bodies: dict, dt: float, step
             )
             view = create(path)
             indices = torch.arange(view.count, dtype=torch.int32, device="cuda:0")
-            view.set_simulation_nodal_positions(torch.tensor(positions, device="cuda:0"), indices)
+            if positions is None:
+                initial[path] = view.get_simulation_nodal_positions().cpu().numpy()
+            else:
+                view.set_simulation_nodal_positions(torch.tensor(positions, device="cuda:0"), indices)
             view.set_simulation_nodal_velocities(torch.tensor(velocities, device="cuda:0"), indices)
             views[path] = view
         for step in range(steps):
             simulation.simulate(dt, (step + 1) * dt)
             simulation.fetch_results()
         with open(output, "wb") as file:
-            pickle.dump(
-                {path: view.get_simulation_nodal_positions().cpu().numpy() for path, view in views.items()}, file
-            )
+            final = {path: view.get_simulation_nodal_positions().cpu().numpy() for path, view in views.items()}
+            pickle.dump({"initial": initial, "final": final}, file)
     finally:
         app.close()
 

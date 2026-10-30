@@ -15,7 +15,7 @@ from collections.abc import Callable
 
 import numpy as np
 
-from pxr import Usd, UsdPhysics
+from pxr import Usd, UsdGeom, UsdPhysics, Vt
 
 from ..utils.queries import find_matching_prim_paths, resolve_matching_prims_from_source
 from .base_usd_exporter import (
@@ -69,6 +69,9 @@ COLLIDER_ATTRIBUTES = {"contact_offset": "physxCollision:contactOffset", "rest_o
 
 COLLIDER_READINGS = ("material", *COLLIDER_ATTRIBUTES)
 """Per-shape engine values of a rigid body outside articulations, which the asset data does not hold."""
+
+DEFORMABLE_SIM_APIS = {"volume": "OmniPhysicsVolumeDeformableSimAPI", "surface": "OmniPhysicsSurfaceDeformableSimAPI"}
+"""Deformable kind -> API schema of its simulation mesh, whose points are its nodes."""
 
 
 class PhysxUsdExporter(BaseUsdExporter):
@@ -177,7 +180,45 @@ class PhysxUsdExporter(BaseUsdExporter):
         applied = {(edit.path, edit.schema) for edit in edits}
         edits += [edit for key, group in skipped.items() if key not in applied for edit in group]
         edits += self._material_edits(stage, materials)
+        edits += self._deformable_edits(stage)
         return edits + self._gravity_edits(stage, self.scene.sim.backend_manager.get_gravity())
+
+    def _deformable_edits(self, stage: Usd.Stage) -> list[UsdEdit]:
+        """Write the nodal state Isaac Lab resets each volume deformable to on its simulation mesh.
+
+        The engine starts a deformable at its simulation mesh's points and velocities; Isaac Lab resets it to the
+        nodal positions the engine holds after its warm-up step, at rest. PhysX diverges from the authored points
+        of a surface deformable, so its state is not written.
+        """
+        edits, unwritten = [], []
+        for deformable in self.scene.deformable_objects.values():
+            root = stage.GetPrimAtPath(self._asset_path(stage, deformable.cfg.prim_path))
+            state = self._row(deformable.data.default_nodal_state_w)
+            for prim in Usd.PrimRange(root, Usd.TraverseInstanceProxies()):
+                kind = next((k for k, api in DEFORMABLE_SIM_APIS.items() if api in prim.GetAppliedSchemas()), None)
+                if kind is None:
+                    continue
+                mesh = UsdGeom.PointBased(prim)
+                points = np.asarray(mesh.GetPointsAttr().Get(), dtype=float)
+                velocities = self._stated(prim, "velocities")
+                velocities = np.zeros_like(points) if velocities is None else np.asarray(velocities, dtype=float)
+                # The engine holds the nodes in world coordinates, the mesh in its own.
+                to_local = np.asarray(UsdGeom.XformCache().GetLocalToWorldTransform(prim).GetInverse())
+                reset = {
+                    "points": state[: len(points), :3] @ to_local[:3, :3] + to_local[3, :3],
+                    "velocities": state[: len(points), 3:] @ to_local[:3, :3],
+                }
+                usd = {"points": points, "velocities": velocities}
+                changed = [name for name, value in reset.items() if not self._close(usd[name], value)]
+                if kind == "surface":
+                    unwritten += [str(prim.GetPath())] if changed else []
+                    continue
+                for name in changed:
+                    value = Vt.Vec3fArray.FromNumpy(reset[name].astype(np.float32))
+                    edits.append(UsdEdit(str(prim.GetPath()), name, value, "vector3f[]"))
+        if unwritten:
+            logger.warning(f"The initial nodal state of surface deformables is not written: {unwritten}.")
+        return edits
 
     def _joint_table(self, axis: str) -> dict[str, JointAttribute]:
         """The USD attributes of a joint axis's properties, as the backend's import reads them."""

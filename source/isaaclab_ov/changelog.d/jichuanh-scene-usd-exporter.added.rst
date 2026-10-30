@@ -1,1 +1,1 @@
-* Added OVPhysX support for :meth:`~isaaclab.scene.InteractiveScene.export_to_usd`.
+* Added OVPhysX support for :meth:`~isaaclab.scene.InteractiveScene.export_to_usd`, including deformable objects.

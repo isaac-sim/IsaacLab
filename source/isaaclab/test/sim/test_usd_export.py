@@ -85,7 +85,13 @@ def _articulation(joint_names, body_names):
 
 def _scene(base=None, **assets):
     """A scene of one environment, before its first physics step; articulations load as zeros unless ``base``."""
-    assets = {"articulations": {}, "rigid_objects": {}, "rigid_object_collections": {}, **assets}
+    assets = {
+        "articulations": {},
+        "rigid_objects": {},
+        "rigid_object_collections": {},
+        "deformable_objects": {},
+        **assets,
+    }
     base = {name: _articulation_engine(a) for name, a in assets["articulations"].items()} | (base or {})
     sim = SimpleNamespace(get_physics_step_count=lambda: 0)
     return SimpleNamespace(num_envs=1, sim=sim, _usd_export_base=base, **assets)

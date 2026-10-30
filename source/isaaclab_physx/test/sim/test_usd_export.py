@@ -84,7 +84,7 @@ def test_importing_the_export_reproduces_the_initialized_engine(tmp_path):
 
 @pytest.mark.skipif(not __import__("torch").cuda.is_available(), reason="PhysX simulates deformables on the GPU")
 def test_importing_the_export_reproduces_deformables(tmp_path):
-    """Deformables of a PhysX import step like the live engine's from the same nodal state."""
+    """A PhysX import starts volume deformables at Isaac Lab's reset state and steps them like the live engine."""
     import warp as wp
     from isaaclab_physx.physics import PhysxCfg
     from isaaclab_physx.sim.schemas import PhysxDeformableBodyCfg
@@ -127,7 +127,11 @@ def test_importing_the_export_reproduces_deformables(tmp_path):
         scene = InteractiveScene(cfg)
         sim.reset()
         output = scene.export_to_usd(str(tmp_path / "exported.usda"))
-        initial, live = {}, {}
+        for asset in scene.deformable_objects.values():
+            asset.write_nodal_state_to_sim_index(asset.data.default_nodal_state_w)
+        # The import takes one step before it can write nodal state.
+        sim.step(render=False)
+        initial, start, live = {}, {}, {}
         for name, asset in scene.deformable_objects.items():
             view = asset.root_view
             positions = view.get_simulation_nodal_positions().numpy()
@@ -137,7 +141,10 @@ def test_importing_the_export_reproduces_deformables(tmp_path):
             view.set_simulation_nodal_velocities(
                 wp.array(velocities, device="cuda:0"), wp.array([0], dtype=wp.int32, device="cuda:0")
             )
-            initial[view.prim_paths[0]] = (kinds[name], positions.tolist(), velocities.tolist())
+            # The import keeps the positions the export states for a volume deformable.
+            stated = None if kinds[name] == "volume" else positions.tolist()
+            initial[view.prim_paths[0]] = (kinds[name], stated, velocities.tolist())
+            start[view.prim_paths[0]] = positions
         for _ in range(steps):
             sim.step(render=False)
         for name, asset in scene.deformable_objects.items():
@@ -151,9 +158,13 @@ def test_importing_the_export_reproduces_deformables(tmp_path):
         with open(result, "rb") as file:
             loaded = pickle.load(file)
 
+    # Without the export's state the import starts one warm-up step (measured 1.3 mm) above the reset state.
+    beam = "/World/envs/env_0/Beam"
+    np.testing.assert_allclose(loaded["initial"][beam], start[beam], atol=1e-5)
+    loaded = loaded["final"]
     assert loaded.keys() == live.keys()
     for path, positions in live.items():
-        moved = np.abs(positions - np.asarray(initial[path][1])).max()
+        moved = np.abs(positions - start[path]).max()
         assert moved > 0.01, f"{path} barely moved"
         # PhysX GPU runs differ by up to about 0.2 mm; a 10x stiffer material moves the beam by about 15 mm.
         np.testing.assert_allclose(loaded[path], positions, atol=1e-3, err_msg=path)

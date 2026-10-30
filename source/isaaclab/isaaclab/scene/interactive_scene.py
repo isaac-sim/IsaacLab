@@ -448,8 +448,9 @@ class InteractiveScene:
 
         The file keeps the scene's USD, with assets as references to their source files, and adds
         the values the physics engine holds that an import of that USD would not produce, and the
-        initial joint state articulations reset to. Call it after asset initialization and before the
-        first physics step. Other state, events after initialization, and controllers are not exported.
+        initial state that articulation joints and volume deformables reset to. Call it after asset
+        initialization and before the first physics step. Other state, events after initialization, and
+        controllers are not exported.
 
         Args:
             path: Destination USD file.

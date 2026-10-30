@@ -40,7 +40,7 @@ RIGID_BODY_GETTERS = {
 class UsdExporter(PhysxUsdExporter):
     """Export an Isaac Sim PhysX scene environment: its USD plus every engine value Isaac Lab changed."""
 
-    # PhysX loads deformables from their USD schemas; Isaac Lab writes only their nodal state.
+    # PhysX loads deformables from their USD schemas.
     exports_deformables = True
 
     def _read_engine(self, path_expr: str, articulation: bool) -> dict[str, np.ndarray]:

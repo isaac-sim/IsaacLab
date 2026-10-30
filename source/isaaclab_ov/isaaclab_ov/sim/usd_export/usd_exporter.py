@@ -67,6 +67,9 @@ NEWTON_JOINT_ATTRIBUTES = {
 class UsdExporter(PhysxUsdExporter):
     """Export an OVPhysX scene environment: its USD plus every engine value Isaac Lab changed."""
 
+    # OVPhysX loads deformables from their USD schemas.
+    exports_deformables = True
+
     def compute_diff(self, stage: Usd.Stage) -> list[UsdEdit]:
         edits = super().compute_diff(stage)
         if not self._uses_tasks():

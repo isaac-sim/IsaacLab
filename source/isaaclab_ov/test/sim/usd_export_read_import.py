@@ -49,6 +49,63 @@ def read_import(source: str, articulations: list[str], bodies: list[str]) -> dic
         backend.close()
 
 
+def simulate_deformables(source: str, bodies: dict, dt: float, steps: int) -> dict:
+    """Import a USD layer string into a new OVPhysX instance on the GPU, set nodal states, step, and read positions.
+
+    Args:
+        source: USD layer contents.
+        bodies: Per deformable prim path, its kind (``"volume"`` or ``"surface"``), nodal positions (None keeps the
+            import's) and nodal velocities [m/s], in world coordinates.
+        dt: Step size [s].
+        steps: Number of steps.
+
+    Returns:
+        The ``initial`` positions of the deformables given none, and the ``final`` positions of all.
+    """
+    import ovstage
+    import warp as wp
+    from isaaclab_ov.physics import OvPhysxManager, ovphysx_compat
+    from isaaclab_ov.physics.ovphysx_manager import OvPhysxBackend
+    from isaaclab_ov.physics.ovphysx_manager_cfg import OvPhysxBackendCfg
+    from isaaclab_ov.stage import create_ovstage
+
+    OvPhysxManager._ensure_physx_schemas_registered()
+    backend = OvPhysxBackend(OvPhysxBackendCfg(device="cuda:0"))
+    try:
+        backend.stage = create_ovstage("usd_export_deformables")
+        ovstage.population.open_usd_from_string(backend.stage, source, ordinal=1, domains=ovstage.PopulationDomain.ALL)
+        backend.stage.advance_write_floor(ordinal=1).wait()
+        ovphysx_compat.finish_stage_operation(
+            backend.physx, backend.physx.attach_ovstage(backend.stage, read_ordinal=1)
+        )
+        views, initial = {}, {}
+        for path, (kind, positions, velocities) in bodies.items():
+            position, velocity = DEFORMABLE_TENSORS[kind]
+            view = OvPhysxView(
+                backend.physx, prim_paths=[path], device="cuda:0", tensor_types=[position, velocity], eager=True
+            )
+            if positions is None:
+                initial[path] = view.get_attribute(position).numpy().copy()
+            else:
+                view.set_attribute(position, wp.array(np.asarray(positions, dtype=np.float32), device="cuda:0"))
+            view.set_attribute(velocity, wp.array(np.asarray(velocities, dtype=np.float32), device="cuda:0"))
+            views[path] = view, position
+        for _ in range(steps):
+            backend.physx.step_sync(dt=dt)
+        final = {path: view.get_attribute(position).numpy().copy() for path, (view, position) in views.items()}
+        for view, _ in views.values():
+            view.close()
+        return {"initial": initial, "final": final}
+    finally:
+        backend.close()
+
+
+DEFORMABLE_TENSORS = {
+    "volume": (TT.DEFORMABLE_SIM_NODAL_POSITION, TT.DEFORMABLE_SIM_NODAL_VELOCITY),
+    "surface": (TT.SURFACE_DEFORMABLE_SIM_POSITION, TT.SURFACE_DEFORMABLE_SIM_VELOCITY),
+}
+"""Deformable kind -> OVPhysX nodal position and velocity bindings."""
+
 _DOF_READINGS = ("stiffness", "damping", "max_force", "max_velocity", "armature", "position", "velocity")
 
 # The exporter's bindings, and gravity and the joint state, which the round trip also compares.
