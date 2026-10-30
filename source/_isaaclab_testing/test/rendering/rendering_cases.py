@@ -172,9 +172,23 @@ SPECIALIZED_KITLESS_CASES = tuple(
 )
 # Cable instance segmentation crashes native OVRTX (NVBUG#6463802); exercise its other channels.
 _CABLE_AOVS = (RenderBufferKind.RGB, RenderBufferKind.ALBEDO, RenderBufferKind.DEPTH, RenderBufferKind.NORMALS)
+# Gaussian-splat scenes (see ``rendering_scene_cfgs``).
+_GAUSSIAN_RGB_DEPTH = (RenderBufferKind.RGB, RenderBufferKind.DISTANCE_TO_IMAGE_PLANE)
+GAUSSIAN_KIT_CASES = tuple(
+    RenderCase(physics, renderer, _GAUSSIAN_RGB_DEPTH, scene=scene)
+    for scene in ("gaussian_splats_valiant_1env", "gaussian_splats_endeavor_4envs")
+    for physics, renderer in (("physx", "isaac_rtx"), ("newton", "newton_warp"))
+)
+# OVRTX 0.6 returns no finite splat depth, so these scenes are compared on RGB only.
+GAUSSIAN_KITLESS_CASES = tuple(
+    (stage, RenderCase("newton", "ovrtx", (RenderBufferKind.RGB,), scene=scene))
+    for scene in ("gaussian_splats_valiant_1env", "gaussian_splats_raspberry_4envs")
+    for stage in ("legacy", "ovstage")
+)
 KIT_RENDERING_CASES = (
     KIT_CASES
     + SPECIALIZED_KIT_CASES
+    + GAUSSIAN_KIT_CASES
     + (
         RenderCase(
             "newton",
@@ -199,6 +213,7 @@ KIT_RENDERING_CASES = (
 KITLESS_RENDERING_CASES = (
     KITLESS_CASES
     + SPECIALIZED_KITLESS_CASES
+    + GAUSSIAN_KITLESS_CASES
     + (
         *((stage, RenderCase("newton", "ovrtx", _CABLE_AOVS, scene="franka_cable")) for stage in ("legacy", "ovstage")),
         ("legacy", RenderCase("newton", "newton_warp", (RenderBufferKind.RGB,), scene="kuka_materials")),

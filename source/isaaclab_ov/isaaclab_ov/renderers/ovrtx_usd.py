@@ -200,6 +200,10 @@ def build_render_product_as_string(
     # Workaround: ovrtx 0.5 misses GPU-read transform changes, so eco mode freezes output after 500 frames.
     render_mode_lines.append("bool omni:rtx:rt:ecoMode:enabled = false")
 
+    # An ISP needs Gaussian splats tonemapped with the rest of the frame.
+    if spec.cfg.isp_cfg is not None:
+        render_mode_lines.append("bool omni:rtx:gaussian:skipTonemapping:enabled = false")
+
     render_mode_block = "\n        ".join(render_mode_lines)
     ordered_vars = ", ".join(f"<{path}>" for path, _, _ in render_var_configs)
     render_var_defs = "\n".join(
