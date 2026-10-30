@@ -5,8 +5,8 @@
 
 """Stepping without auto-reset, on Newton.
 
-Each environment holds a cube resting on the ground. The odd environments terminate at once, and all environments
-time out after two steps.
+Each environment holds a cube resting on the ground. The odd environments terminate at once, and environment 0
+terminates at the first step of its episodes only.
 """
 
 from collections.abc import Iterator
@@ -30,6 +30,10 @@ pytestmark = [pytest.mark.integration, pytest.mark.kitless]
 
 def _odd_environments(env: ManagerBasedRLEnv) -> torch.Tensor:
     return torch.arange(env.num_envs, device=env.device) % 2 == 1
+
+
+def _first_step_of_environment_0(env: ManagerBasedRLEnv) -> torch.Tensor:
+    return (torch.arange(env.num_envs, device=env.device) == 0) & (env.episode_length_buf == 1)
 
 
 @configclass
@@ -69,8 +73,8 @@ class _EventsCfg:
 
 @configclass
 class _TerminationsCfg:
-    time_out = DoneTerm(func=mdp.time_out, time_out=True)
     odd = DoneTerm(func=_odd_environments)
+    first_step = DoneTerm(func=_first_step_of_environment_0)
 
 
 @configclass
@@ -78,7 +82,7 @@ class _EnvCfg(ManagerBasedRLEnvCfg):
     scene = _SceneCfg(num_envs=4, env_spacing=3.0)
     sim = SimulationCfg(dt=0.01, physics=NewtonCfg(use_cuda_graph=False))
     decimation = 2
-    episode_length_s = 0.04
+    episode_length_s = 1.0
     observations = _ObservationsCfg()
     actions = _ActionsCfg()
     events = _EventsCfg()
@@ -97,21 +101,28 @@ def env(request) -> Iterator[ManagerBasedRLEnv]:
         env.close()
 
 
-def test_step_without_auto_reset_leaves_resets_to_the_caller(env: ManagerBasedRLEnv, monkeypatch):
-    """Without auto-reset, terminated environments continue their episodes until the caller or a visualizer resets
-    them."""
+def test_step_without_auto_reset_keeps_ended_episodes_pending(env: ManagerBasedRLEnv, monkeypatch):
+    """Without auto-reset, environments whose episodes ended stay pending, even once their termination no longer
+    holds, until a step with auto-reset, the caller or a visualizer resets them."""
     env.reset()
     actions = torch.zeros(env.num_envs, 0, device=env.device)
-    for _ in range(3):
-        _, _, terminated, time_outs, _ = env.step(actions, auto_reset=False)
+    _, _, terminated, _, _ = env.step(actions, auto_reset=False)
+    assert terminated.tolist() == [True, True, False, True]
+    _, _, terminated, _, _ = env.step(actions, auto_reset=False)
     assert terminated.tolist() == [False, True, False, True]
-    assert time_outs.all()
-    assert env.episode_length_buf.tolist() == [3, 3, 3, 3]
+    assert env.pending_reset_buf.tolist() == [True, True, False, True]
+    assert env.episode_length_buf.tolist() == [2, 2, 2, 2]
 
-    env.reset(env_ids=torch.tensor([1, 3], device=env.device))
-    assert env.episode_length_buf.tolist() == [3, 0, 3, 0]
+    env.step(actions)
+    assert env.episode_length_buf.tolist() == [0, 0, 3, 0]
+    assert not env.pending_reset_buf.any()
 
-    # A reset requested from a visualizer resets the terminated environments too: they were not reset in the step.
+    env.step(actions, auto_reset=False)
+    env.reset(env_ids=torch.tensor([1], device=env.device))
+    assert env.pending_reset_buf.tolist() == [True, False, False, True]
+
+    # A reset requested from a visualizer resets every environment, the pending ones included.
     monkeypatch.setattr(env.sim, "consume_reset_request", lambda: True)
     env.step(actions, auto_reset=False)
     assert env.episode_length_buf.tolist() == [0, 0, 0, 0]
+    assert not env.pending_reset_buf.any()
