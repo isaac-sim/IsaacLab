@@ -164,9 +164,19 @@ class NewtonSolver:
         control: Control,
         contacts: Contacts | None,
         dt: float,
+        *,
+        observables: SolverBase.Observables | None = None,
     ) -> None:
-        """Advance one substep of ``dt`` [s]."""
-        solver.step(state_in, state_out, control, contacts, dt)
+        """Advance one substep of ``dt`` [s], exporting the requested ``observables`` when given.
+
+        The manager passes ``observables`` once a consumer requested some (see
+        :meth:`NewtonManager.request_solver_observables`), and ``None`` before. ``None`` is not forwarded, so solvers
+        that override :meth:`~newton.solvers.SolverBase.step` without ``observables`` keep stepping.
+        """
+        if observables is None:
+            solver.step(state_in, state_out, control, contacts, dt)
+        else:
+            solver.step(state_in, state_out, control, contacts, dt, observables=observables)
 
     @classmethod
     def post_step(cls, cfg: NewtonSolverCfg, solver: SolverBase, state: State) -> None:

@@ -104,7 +104,9 @@ MICRODUCK_CFG = ArticulationCfg(
             kp_fw=200.0,
             vin=7.4,
             vin_range=(6.5, 8.2),
-            vin_drop_gain_range=(0.0, 0.2),
+            # 0.2 V per N.m-equivalent of supply current (kt * duty * I). The supply of the 14 servos settles
+            # only below motor resistance / 14 = 0.2 Ohm.
+            battery_resistance_range=(0.0, 0.2 * _XL330_MOTOR_CFG.kt),
             vin_min=6.0,
             min_delay=3,
             max_delay=6,

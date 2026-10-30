@@ -1195,8 +1195,8 @@ def _recording_manager(events, *, single_state, num_substeps, device="cpu", capt
             return False
 
         @classmethod
-        def step(cls, cfg, solver, state_in, state_out, *_args):
-            events.append(("step", state_in.name, state_out.name))
+        def step(cls, cfg, solver, state_in, state_out, *_args, observables=None):
+            events.append(("step", state_in.name, state_out.name, *([] if observables is None else [observables])))
 
         @classmethod
         def reset(cls, cfg, solver, state, worlds):
@@ -1213,6 +1213,7 @@ def _recording_manager(events, *, single_state, num_substeps, device="cpu", capt
     manager._sim = SimpleNamespace(is_playing=lambda: True, has_gui=False, has_offscreen_render=False)
     manager.backend = SimpleNamespace(
         solver=object(),
+        solver_observables=None,
         state_0=_State("state_0", events),
         state_1=_State("state_1", events),
         control=object(),
@@ -1260,6 +1261,19 @@ def test_state_force_callback_runs_before_every_solver_substep(use_single_state)
         ]
 
 
+def test_requested_solver_observables_reach_every_substep():
+    """Once a consumer requests observables, every solver substep exports them; before, the step runs without."""
+    events = []
+    manager = _recording_manager(events, single_state=True, num_substeps=2)
+    manager._run_solver_substeps(contacts=None)
+    observables = object()
+    manager.backend.solver_observables = observables
+    manager._run_solver_substeps(contacts=None)
+
+    steps = [event for event in events if event[0] == "step"]
+    assert steps == [("step", "state_0", "state_0")] * 2 + [("step", "state_0", "state_0", observables)] * 2
+
+
 def test_decimation_loop_orders_callbacks_and_ends_each_physics_step_in_state_0():
     """Each physics step runs pre-actuator callbacks before substeps and ends in the canonical state; post-step runs
     once."""
@@ -1273,6 +1287,27 @@ def test_decimation_loop_orders_callbacks_and_ends_each_physics_step_in_state_0(
 
     step = [("pre",), ("step", "state_0", "state_1"), ("assign", "state_0", "state_1"), ("clear", "state_0")]
     assert events == step * 2 + [("post",)]
+
+
+def test_solver_model_sync_requests_share_one_notification_after_the_pre_actuator_writes():
+    """Consumers that write model properties before the actuators each request a sync; the solver is notified once."""
+    events = []
+    manager = _recording_manager(events, single_state=True, num_substeps=1)
+    manager.backend.solver = SimpleNamespace(notify_model_changed=lambda flags: events.append(("notify", flags)))
+    flags = (ModelFlags.JOINT_DOF_FORCE_PROPERTIES, ModelFlags.JOINT_PROPERTIES)
+    for flag in flags:
+        manager.request_solver_model_sync(flag)
+        manager.register_pre_actuator_callback(lambda flag=flag: events.append(("write", flag)))
+
+    manager._simulate_full()
+
+    assert events == [
+        ("write", flags[0]),
+        ("write", flags[1]),
+        ("notify", flags[0] | flags[1]),
+        ("step", "state_0", "state_0"),
+        ("clear", "state_0"),
+    ]
 
 
 @wp.kernel

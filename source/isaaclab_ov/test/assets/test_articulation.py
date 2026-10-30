@@ -1626,15 +1626,16 @@ def test_native_actuator_reset_and_gain_event_are_environment_selective(scene: _
     scene.step(articulation, count=3)
 
     adapter = articulation.newton_actuator_adapter
-    stateful_pairs = [
-        state
+    # The PhysX-family mirror builds only delay input processors, so a processor state is a delay buffer.
+    delay_states = [
+        state.input_processor_states[0]
         for actuator, state in zip(adapter.actuators, adapter._states_a)
-        if state is not None and getattr(state, "delay_state", None) is not None
+        if state is not None and state.input_processor_states
     ]
-    assert len(stateful_pairs) == 1
+    assert len(delay_states) == 1
     articulation.reset(env_ids=torch.tensor([0], device=device, dtype=torch.long))
     # The delay state is flattened environment-major over the group's joints.
-    assert stateful_pairs[0].delay_state.num_pushes.numpy().tolist() == [0] * num_joints + [1] * num_joints
+    assert delay_states[0].num_pushes.numpy().tolist() == [0] * num_joints + [1] * num_joints
 
     env = Env(articulation)
     asset_cfg = SceneEntityCfg("robot")

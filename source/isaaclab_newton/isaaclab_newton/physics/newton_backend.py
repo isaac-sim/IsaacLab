@@ -116,6 +116,8 @@ class NewtonBackend:
         """Joint targets and applied forces read by the solver."""
         self.solver: SolverBase | None = None
         """Newton solver, set when the manager initializes it."""
+        self.solver_observables: SolverBase.Observables | None = None
+        """Observables the solver exports on every substep, or ``None`` until a consumer requests some."""
         self.collision_pipeline: CollisionPipeline | None = None
         """Collision pipeline, or ``None`` when the solver collides internally."""
         self.contacts: Contacts | None = None
@@ -143,6 +145,6 @@ class NewtonBackend:
         self.particle_ranges, self.deformable_ranges, self.geometry_offsets = {}, {}, {}
         self.bvh_refit = TimestampedBuffer()
         if self.cfg is not None:
-            self.solver = self.collision_pipeline = self.contacts = self.actuators = None
+            self.solver = self.solver_observables = self.collision_pipeline = self.contacts = self.actuators = None
             self.contact_sensors, self.imu_sensors = {}, []
             self.world_mask = self.fk_mask = None

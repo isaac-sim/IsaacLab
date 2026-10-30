@@ -11,8 +11,11 @@ from isaaclab.utils.configclass import configclass
 
 from .actuator_base_cfg import ActuatorBaseCfg
 
-BAM_DRIVE_API = "NewtonBamDriveAPI"
-"""USD API schema token of the BAM drive."""
+BAM_STIFF_SOLREF_FRICTION: tuple[float, float] = (-5.0e4, -2.0e2)
+"""Stiff ``(-stiffness, -damping)`` friction solref from the reference BAM implementation [N.m/rad, N.m.s/rad]."""
+
+BAM_STIFF_SOLIMP_FRICTION: tuple[float, float, float, float, float] = (0.99, 0.9999, 0.001, 0.5, 2.0)
+"""Friction-constraint impedance profile paired with :data:`BAM_STIFF_SOLREF_FRICTION` [-]."""
 
 BAM_MODEL_FLAGS: dict[str, dict[str, int]] = {
     "m1": {"stribeck": 0, "load_dependent": 0, "quadratic": 0},
@@ -20,7 +23,7 @@ BAM_MODEL_FLAGS: dict[str, dict[str, int]] = {
     "m5": {"stribeck": 1, "load_dependent": 1, "quadratic": 0},
     "m6": {"stribeck": 1, "load_dependent": 1, "quadratic": 1},
 }
-"""Drive flags of the friction terms each BAM model enables."""
+"""Gearbox friction terms each BAM model enables."""
 
 
 @configclass
@@ -93,11 +96,16 @@ class BamActuatorCfg(ActuatorBaseCfg):
     """Configuration for the BAM voltage-domain servo actuator.
 
     Requires ``use_newton_actuators=True`` with Newton's MJWarp solver. Like other explicit
-    actuators, it replaces existing USD actuators on the selected joints.
+    actuators, it replaces existing USD actuators on the selected joints. Newton runs the firmware
+    (:class:`~newton.actuators.DriveVoltageControlled`), the current and PWM limits
+    (:class:`~newton.actuators.ClampingCurrentPWM`), the DC motor (:class:`~newton.actuators.MotorDC`), the
+    supply (:class:`~newton.actuators.BatteryConstantResistance`), the command delay
+    (:class:`~newton.actuators.InputProcessorDelay`) and the play-angle read
+    (:class:`~newton.actuators.InputProcessorEncoder`); Isaac Lab adds the random command lag and the gearbox
+    friction.
 
-    If :attr:`~isaaclab.actuators.ActuatorBaseCfg.actuator_effort_limit` is None, the torque
-    limit is the stall torque ``max(vin_range) * motor.kt / motor.resistance``, using
-    :attr:`vin` when :attr:`vin_range` is unset.
+    The motor torque is not clamped further: the current limit and the PWM range bound it.
+    :attr:`~isaaclab.actuators.ActuatorBaseCfg.actuator_effort_limit` must stay unset.
     """
 
     class_type: type | None = None
@@ -121,11 +129,23 @@ class BamActuatorCfg(ActuatorBaseCfg):
     vin_range: tuple[float, float] | None = None
     """Range of the per-environment supply voltage [V], sampled once and held across resets."""
 
-    vin_drop_gain_range: tuple[float, float] | None = None
-    """Range of the per-environment supply sag gain [V/(N.m)], sampled once and held across resets.
+    battery_resistance: float = 0.0
+    """Internal resistance of the battery [Ohm]. Overridden by :attr:`battery_resistance_range` when set.
 
-    The sagged supply is ``vin - gain * sum_j |tau_j|``, floored at :attr:`vin_min` and 0 V. None
-    disables sag.
+    Each environment's group joints share one battery. Its voltage is
+    ``max(vin - battery_resistance * max(sum_j duty_j * I_j, 0), vin_min, 0)`` from the supply current the motors
+    drew on the previous step, where ``duty_j * I_j`` is the current servo ``j`` draws during its PWM on-time. The
+    sum is signed, so a back-driven servo returns current. Zero disables sag.
+    """
+
+    battery_resistance_range: tuple[float, float] | None = None
+    """Range of the per-environment battery resistance [Ohm], sampled once and held across resets."""
+
+    vin_drop_gain_range: tuple[float, float] | None = None
+    """Unsupported supply sag gain range [V/(N.m)]. Setting it raises :class:`ValueError`.
+
+    The battery drops its voltage with the supply current, not the motor torque, so no gain converts to the same sag.
+    Set :attr:`battery_resistance_range` instead.
     """
 
     vin_min: float = -math.inf
@@ -146,9 +166,54 @@ class BamActuatorCfg(ActuatorBaseCfg):
     backlash_joint_template: str | None = None
     """Name of each servo's passive gearbox-play hinge, formatted with the servo joint name.
 
-    For example ``"passive_{}_backlash"``. When set, the firmware reads servo plus play angle, while back-EMF,
-    friction, and applied torque stay on the servo joint. None disables backlash.
+    For example ``"passive_{}_backlash"``. The hinge must be a revolute sibling of the servo joint. When set, the
+    firmware reads servo plus play angle through Newton's ``NewtonActuatorEncoderAPI``, while back-EMF, friction,
+    and applied torque stay on the servo joint. None disables backlash.
     """
 
     stiff_frictionloss: bool = True
-    """Use a stiff friction-constraint solver reference, since MJWarp has no noslip solver."""
+    """Use a stiff friction-constraint solver reference, since MJWarp has no noslip solver.
+
+    Authored as the servo joints' ``mjc:solreffriction`` and ``mjc:solimpfriction``, which Newton's MuJoCo solver
+    imports.
+    """
+
+    def validate_config(self) -> None:
+        """Reject settings the native composition cannot run.
+
+        Raises:
+            ValueError: If an effort limit or :attr:`vin_drop_gain_range` is set, the battery resistance or its range
+                is negative or the range reversed, :attr:`vin_min` exceeds :attr:`vin` or the lowest sampled supply
+                voltage, the lag range is negative or reversed, :attr:`delay_hold_prob` lies outside [0, 1], or
+                :attr:`delay_update_period` is negative.
+        """
+        if self.vin_drop_gain_range is not None:
+            raise ValueError(
+                "vin_drop_gain_range [V/(N.m)] is unsupported: the battery drops its voltage with the supply current,"
+                " not the motor torque. Set battery_resistance_range [Ohm] instead; vin_drop_gain_range * motor.kt"
+                " drops the same voltage per ampere, which sags less since the duty cycle weights the supply current."
+            )
+        if self.actuator_effort_limit is not None:
+            raise ValueError(
+                "BAM has no effort limit: Newton's clamps bound the motor voltage, not its torque. Limit the torque"
+                " through motor.max_current and motor.max_pwm instead."
+            )
+        # The battery prim carries the scalar values, which Newton validates on import; the ranges replace them
+        # per environment at start-up.
+        low, high = self.battery_resistance_range or (self.battery_resistance, self.battery_resistance)
+        if min(low, self.battery_resistance) < 0.0 or low > high:
+            raise ValueError(
+                f"The battery resistance must be non-negative and ordered, got {self.battery_resistance} and range"
+                f" {self.battery_resistance_range}"
+            )
+        lowest_voltage = min((self.vin, *(self.vin_range or ())))
+        if self.vin_min > lowest_voltage:
+            raise ValueError(f"vin_min ({self.vin_min}) must not exceed the lowest supply voltage ({lowest_voltage})")
+        if self.min_delay < 0:
+            raise ValueError(f"min_delay must not be negative, got {self.min_delay}")
+        if self.max_delay < self.min_delay:
+            raise ValueError(f"max_delay ({self.max_delay}) must not be below min_delay ({self.min_delay})")
+        if not 0.0 <= self.delay_hold_prob <= 1.0:
+            raise ValueError(f"delay_hold_prob must lie in [0, 1], got {self.delay_hold_prob}")
+        if self.delay_update_period < 0:
+            raise ValueError(f"delay_update_period must not be negative, got {self.delay_update_period}")

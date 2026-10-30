@@ -238,6 +238,7 @@ def test_vbd_rebuilds_particle_bvh_before_physics_step():
     manager.backend = SimpleNamespace(
         model=SimpleNamespace(particle_count=1),
         solver=NativeSolver(),
+        solver_observables=None,
         state_0=state_0,
         state_1=state_1,
         control=None,

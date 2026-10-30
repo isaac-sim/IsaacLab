@@ -20,7 +20,6 @@ __all__ = [
     "KaminoSolver",
     "MJWarpSolver",
     "MJWarpSolverCfg",
-    "MjWarpActuatorBridge",
     "MPMSolver",
     "MPMSolverCfg",
     "NewtonBackend",
@@ -57,7 +56,6 @@ from .kamino_solver_cfg import (
     KaminoPADMMCfg,
     KaminoPADMMSolverCfg,
 )
-from .mjwarp_actuator_bridge import MjWarpActuatorBridge
 from .mjwarp_solver import MJWarpSolver
 from .mjwarp_solver_cfg import MJWarpSolverCfg
 from .mpm_solver import MPMSolver, reset_mpm_solver_state

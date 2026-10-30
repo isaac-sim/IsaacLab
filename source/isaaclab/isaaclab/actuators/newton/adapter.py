@@ -5,11 +5,12 @@
 
 """Newton-actuator adapter shared by Newton, PhysX, and OVPhysX.
 
-Owns the actuator-state lifecycle, the pre-clamp computed-effort buffer,
-and the per-step ``step`` / ``reset`` / ``finalize`` calls. The
+Owns the actuator-state lifecycle, the stepping and reset of the model's
+batteries, the computed-effort buffer, and the per-step ``step`` / ``reset`` /
+``finalize`` calls. The
 :meth:`~NewtonActuatorAdapter.from_usd` classmethod parses
 ``NewtonActuator`` USD prims for PhysX and OVPhysX. Newton populates
-``model.actuators`` itself.
+``model.actuators`` and ``model.batteries`` itself.
 
 DR gain updates bypass the adapter — the articulation writes straight
 to drive arrays.
@@ -19,7 +20,7 @@ from __future__ import annotations
 
 import warnings
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, TypeAlias
 
@@ -28,13 +29,22 @@ import torch
 import warp as wp
 from newton import Model
 from newton._src.utils.selection import FrequencyLayout
-from newton.actuators import Actuator, ClampingBase, Delay, parse_actuator_prim
+from newton.actuators import (
+    Actuator,
+    BatteryBase,
+    ClampingBase,
+    InputProcessorBase,
+    InputProcessorDelay,
+    MotorDC,
+    parse_actuator_prim,
+)
 from newton.selection import ArticulationView
 
 from ...utils import index_fill_
 from .kernels import (
     build_implicit_dof_mask,
     build_per_dof_env_mask_kernel,
+    copy_at_indices_kernel,
     set_mask_kernel,
     zero_at_indices_kernel,
 )
@@ -50,9 +60,10 @@ if TYPE_CHECKING:
 class NewtonActuatorAdapter:
     """Adapter that wraps a list of :class:`newton.actuators.Actuator`.
 
-    Owns the actuator-state lifecycle, DOF-to-actuator bookkeeping,
-    stepping, reset, and the pre-clamp computed-effort buffer the
-    in-graph telemetry kernel reads on the post-actuator hook.
+    Owns the actuator-state lifecycle, DOF-to-actuator bookkeeping, stepping,
+    reset, the stepping and reset of the batteries that power the actuators'
+    motors, and the computed-effort buffer the in-graph telemetry kernel reads
+    on the post-actuator hook.
     """
 
     @dataclass(frozen=True)
@@ -70,7 +81,7 @@ class NewtonActuatorAdapter:
         """Torch tensor owning the memory :attr:`implicit_dof_mask` aliases; keep referenced for the mask's lifetime."""
 
         computed_effort_view: wp.array
-        """This articulation's slice of the adapter's pre-clamp computed-effort buffer, ``(num_envs, num_joints)``."""
+        """This articulation's slice of the adapter's computed-effort buffer, ``(num_envs, num_joints)``."""
 
     def __init__(
         self,
@@ -79,8 +90,24 @@ class NewtonActuatorAdapter:
         num_joints: int,
         dof_offset: int,
         device: str,
+        *,
+        batteries: Sequence[BatteryBase] = (),
     ):
+        """Wrap the actuators and the batteries powering their motors.
+
+        Args:
+            actuators: Newton actuators to step.
+            num_envs: Number of environments.
+            num_joints: DOFs per environment in the layout of the actuators' ``indices``.
+            dof_offset: Offset of the adapter's first DOF in that layout.
+            device: Warp device string.
+            batteries: Batteries powering the actuators' motors, e.g. Newton's ``model.batteries``, with one world
+                per environment. :meth:`step` updates them after the actuators and :meth:`reset` restores the
+                batteries of the reset environments.
+        """
         self.actuators = actuators
+        self.batteries = list(batteries)
+        """Batteries stepped after the actuators and reset with their environments."""
         self.num_joints = num_joints
 
         self._num_envs = num_envs
@@ -107,9 +134,9 @@ class NewtonActuatorAdapter:
         self._states_a = [act.state() for act in actuators]
         self._states_b = [act.state() for act in actuators]
 
-        # Pre-clamp computed effort buffer. Each Newton actuator scatter-adds
-        # its raw drive output to ``sim_control.joint_computed_f`` when
-        # ``control_computed_output_attr`` is set; we route that to this
+        # Computed effort buffer. Each Newton actuator without a motor
+        # scatter-adds its raw drive output to ``sim_control.joint_computed_f``
+        # when ``control_computed_output_attr`` is set; we route that to this
         # buffer so the post-actuator telemetry kernel can report the actual
         # computed (pre-clamp) effort instead of mirroring ``joint_f``. The
         # binding onto ``sim_control`` happens in :meth:`finalize`.
@@ -119,23 +146,52 @@ class NewtonActuatorAdapter:
             device=device,
         )
         self.computed_effort_2d = self._computed_effort.reshape((num_envs, num_joints))
+        # With a motor, the drive computes the motor command (e.g. a voltage), not an effort. Nothing clamps the
+        # motor torque, so :meth:`step` copies the applied torque into the computed effort instead.
+        self._motor_effort_indices: list[wp.array] = []
         for act in actuators:
-            act.control_computed_output_attr = "joint_computed_f"
+            if act.motor is None:
+                act.control_computed_output_attr = "joint_computed_f"
+            else:
+                act.control_computed_output_attr = None
+                self._motor_effort_indices.append(act.effort_indices)
+
+        self._sim_control: Any = None
+        self._battery_world_mask = wp.zeros(num_envs + 1, dtype=wp.bool, device=device) if self.batteries else None
+        self._reset_callbacks: list[Callable[[wp.array | None], None]] = []
+
+    def register_reset_callback(self, callback: Callable[[wp.array | None], None]) -> None:
+        """Append a hook that :meth:`reset` calls after resetting the actuator states and batteries.
+
+        Hooks reset per-environment state kept outside the Newton actuators. They are called on
+        every reset of at least one environment, in registration order.
+
+        Args:
+            callback: Called with the per-environment boolean reset mask, shape ``(num_envs,)``, or
+                None when every environment is reset.
+        """
+        self._reset_callbacks.append(callback)
 
     def finalize(self, sim_control: Any) -> None:
-        """Bind the pre-clamp computed-effort buffer onto ``sim_control``.
+        """Bind the computed-effort buffer onto ``sim_control``, and keep ``sim_control`` to reset the batteries.
 
         Args:
             sim_control: The ``sim_control`` object that will be passed
                 to :meth:`step` for this adapter's lifetime. Newton's
                 ``Control`` on the Newton backend, an
                 :class:`~isaaclab.actuators.newton.physx_wrapper.PhysxActuatorWrapper`
-                on the PhysX backend.
+                on the PhysX backend. With batteries, it carries their
+                ``actuator_supply_voltage`` and ``actuator_supply_current``
+                arrays, which Newton's model builder registers on its ``Control``.
         """
         sim_control.joint_computed_f = self._computed_effort
+        self._sim_control = sim_control
 
     def step(self, sim_state: Any, sim_control: Any, dt: float, *, swap_state: bool = True) -> None:
-        """Zero actuated DOFs, step all actuators, and advance state buffers.
+        """Zero actuated DOFs, step all actuators and then the batteries, and advance state buffers.
+
+        The motors of this step read the supply voltage the batteries computed from the current they drew on
+        the previous step.
 
         Args:
             sim_state: Object with ``joint_q``, ``joint_qd``, etc.
@@ -161,6 +217,15 @@ class NewtonActuatorAdapter:
             )
         for act, sa, sb in zip(self.actuators, self._states_a, self._states_b):
             act.step(sim_state, sim_control, sa, sb, dt=dt)
+        for indices in self._motor_effort_indices:
+            wp.launch(
+                copy_at_indices_kernel,
+                dim=indices.shape[0],
+                inputs=[sim_control.joint_f, indices],
+                outputs=[self._computed_effort],
+            )
+        for battery in self.batteries:
+            battery.step(sim_control)
         if swap_state:
             self._swap_state_buffers()
         else:
@@ -173,7 +238,9 @@ class NewtonActuatorAdapter:
         self._states_a, self._states_b = self._states_b, self._states_a
 
     def reset(self, env_ids: Sequence[int] | torch.Tensor | slice | None = None) -> None:
-        """Reset actuator states for the given environments.
+        """Reset actuator states, batteries, and registered reset hooks for the given environments.
+
+        A reset battery supplies its nominal voltage on the next step.
 
         Args:
             env_ids: Environment indices to reset. ``None`` (or
@@ -189,40 +256,51 @@ class NewtonActuatorAdapter:
         env mask before delegating to each state.
         """
         if env_ids is None or env_ids == slice(None):
+            env_mask = None
             for sa, sb in zip(self._states_a, self._states_b):
                 if sa is not None:
                     sa.reset(None)
                 if sb is not None:
                     sb.reset(None)
-            return
-
-        num_envs = len(range(self._num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
-        if num_envs == 0:
-            return
-        env_mask = wp.zeros(self._num_envs, dtype=wp.bool, device=self._device)
-        if isinstance(env_ids, slice):
-            wp.to_torch(env_mask)[env_ids] = True
         else:
-            # Torch indexed scalar assignment uploads True and synchronizes on CUDA.
-            indices = (
-                wp.from_torch(env_ids)
-                if isinstance(env_ids, torch.Tensor)
-                else wp.array(env_ids, dtype=wp.int32, device=self._device)
-            )
-            wp.launch(set_mask_kernel, dim=num_envs, inputs=[env_mask, indices], device=self._device)
+            num_envs = len(range(self._num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+            if num_envs == 0:
+                return
+            env_mask = wp.zeros(self._num_envs, dtype=wp.bool, device=self._device)
+            if isinstance(env_ids, slice):
+                wp.to_torch(env_mask)[env_ids] = True
+            else:
+                # Torch indexed scalar assignment uploads True and synchronizes on CUDA.
+                indices = (
+                    wp.from_torch(env_ids)
+                    if isinstance(env_ids, torch.Tensor)
+                    else wp.array(env_ids, dtype=wp.int32, device=self._device)
+                )
+                wp.launch(set_mask_kernel, dim=num_envs, inputs=[env_mask, indices], device=self._device)
 
-        for act, sa, sb in zip(self.actuators, self._states_a, self._states_b):
-            per_dof_mask = wp.zeros(act.indices.shape[0], dtype=wp.bool, device=self._device)
-            wp.launch(
-                build_per_dof_env_mask_kernel,
-                dim=act.indices.shape[0],
-                inputs=[act.indices, env_mask, self._dof_offset, self.num_joints, per_dof_mask],
-                device=self._device,
-            )
-            if sa is not None:
-                sa.reset(per_dof_mask)
-            if sb is not None:
-                sb.reset(per_dof_mask)
+            for act, sa, sb in zip(self.actuators, self._states_a, self._states_b):
+                per_dof_mask = wp.zeros(act.indices.shape[0], dtype=wp.bool, device=self._device)
+                wp.launch(
+                    build_per_dof_env_mask_kernel,
+                    dim=act.indices.shape[0],
+                    inputs=[act.indices, env_mask, self._dof_offset, self.num_joints, per_dof_mask],
+                    device=self._device,
+                )
+                if sa is not None:
+                    sa.reset(per_dof_mask)
+                if sb is not None:
+                    sb.reset(per_dof_mask)
+
+        if self.batteries:
+            world_mask = None
+            if env_mask is not None:
+                # Newton's world mask has a trailing entry for global batteries, which Isaac Lab never resets.
+                world_mask = self._battery_world_mask
+                wp.copy(world_mask, env_mask, count=self._num_envs)
+            for battery in self.batteries:
+                battery.reset(self._sim_control, world_mask=world_mask)
+        for callback in self._reset_callbacks:
+            callback(env_mask)
 
     def bind_articulation(
         self,
@@ -455,7 +533,7 @@ def resolve_actuator_component(actuator: Actuator, component: str, attr: str) ->
     if component == "drive":
         owner = actuator.drive
     elif component == "delay":
-        owner = getattr(actuator, "delay", None)
+        owner = next((p for p in actuator.input_processors if isinstance(p, InputProcessorDelay)), None)
     elif component == "clamping":
         matches = [entry for entry in (getattr(actuator, "clamping", None) or []) if hasattr(entry, attr)]
         if len(matches) > 1:
@@ -549,15 +627,24 @@ def _actuator_signature(
         shared_names = getattr(component_class, "SHARED_PARAMS", set())
         return tuple(sorted((name, make_hashable(resolved[name])) for name in shared_names if name in resolved))
 
+    processor_key: list[tuple] = []
     clamping_key: list[tuple] = []
-    has_delay = False
+    motor_key: tuple = ()
     for comp_cls, resolved in component_arguments:
-        if issubclass(comp_cls, Delay):
-            has_delay = True
+        if issubclass(comp_cls, InputProcessorBase):
+            processor_key.append((comp_cls, shared_key(comp_cls, resolved)))
         elif issubclass(comp_cls, ClampingBase):
             clamping_key.append((comp_cls, shared_key(comp_cls, resolved)))
+        elif issubclass(comp_cls, MotorDC):
+            motor_key = (comp_cls, shared_key(comp_cls, resolved))
 
-    return (drive_class, has_delay, tuple(clamping_key), shared_key(drive_class, drive_arguments))
+    return (
+        drive_class,
+        tuple(processor_key),
+        tuple(clamping_key),
+        shared_key(drive_class, drive_arguments),
+        motor_key,
+    )
 
 
 def _tile_per_dof_arguments(
@@ -601,11 +688,14 @@ def _create_actuators_from_usd(
     ``indices`` array is therefore sufficient for all index roles
     (``indices``, ``pos_indices``, ``target_pos_indices``).
 
-    Joints with the same drive and clamping structure are merged into
+    Joints with the same drive, clamping and motor structure are merged into
     one :class:`Actuator`. Scalar parameters (``kp``, ``kd``,
     ``saturation_effort``, delay, etc.) are packed per DOF. Parameters marked
     as ``SHARED_PARAMS`` (e.g. ``model_path``, ``lookup_positions``) remain
     part of the grouping key and are passed through directly.
+
+    A motor, such as :class:`~newton.actuators.MotorDC`, runs on its authored
+    ``vin``: batteries (``newton:battery``) need a Newton model and are ignored.
     """
     from pxr import Usd  # noqa: PLC0415
 
@@ -665,25 +755,44 @@ def _create_actuators_from_usd(
             **drive_shared,
         )
 
-        # Components (delay + clampings)
+        # Components (input processors + clampings + motor)
+        motor_components = [
+            [(comp_cls, resolved) for comp_cls, resolved in components if issubclass(comp_cls, MotorDC)]
+            for components in resolved_components
+        ]
+        motor = None
+        if motor_components[0]:
+            motor_class = motor_components[0][0][0]
+            motor = motor_class(
+                **_tile_per_dof_arguments(
+                    [components[0][1] for components in motor_components], num_envs, wp.float32, wp_device
+                )
+            )
+
         clamping_components = [
             [(comp_cls, resolved) for comp_cls, resolved in components if issubclass(comp_cls, ClampingBase)]
             for components in resolved_components
         ]
-        delay_arguments = [
-            resolved
+        processor_components = [
+            [(comp_cls, resolved) for comp_cls, resolved in components if issubclass(comp_cls, InputProcessorBase)]
             for components in resolved_components
-            for comp_cls, resolved in components
-            if issubclass(comp_cls, Delay)
         ]
 
-        delay = None
-        if delay_arguments:
+        input_processors = []
+        for component_index, (comp_cls, _) in enumerate(processor_components[0]):
+            if comp_cls is not InputProcessorDelay:
+                raise ValueError(
+                    f"Input processor {comp_cls.__name__} is not supported without a Newton model; only"
+                    " InputProcessorDelay is."
+                )
+            delay_arguments = [components[component_index][1] for components in processor_components]
             max_delay = max(int(arguments["delay_steps"]) for arguments in delay_arguments)
             if max_delay > 0:
-                delay = Delay(
-                    **_tile_per_dof_arguments(delay_arguments, num_envs, wp.int32, wp_device),
-                    max_delay=max_delay,
+                input_processors.append(
+                    InputProcessorDelay(
+                        **_tile_per_dof_arguments(delay_arguments, num_envs, wp.int32, wp_device),
+                        max_delay=max_delay,
+                    )
                 )
 
         clampings = []
@@ -695,9 +804,12 @@ def _create_actuators_from_usd(
                 for resolved in resolved_clampings
             ]
             clamp_shared = {key: value for key, value in resolved_clampings[0].items() if key in shared_clamp}
+            # Clamps such as ClampingCurrentPWM bound the motor command with the motor's own parameter arrays.
+            motor_params = {name: getattr(motor, name) for name in comp_cls.MOTOR_PARAMS}
             clampings.append(
                 comp_cls(
                     **_tile_per_dof_arguments(clamp_arguments, num_envs, wp.float32, wp_device),
+                    **motor_params,
                     **clamp_shared,
                 )
             )
@@ -705,10 +817,11 @@ def _create_actuators_from_usd(
         actuator = Actuator(
             indices=indices,
             drive=drive,
-            delay=delay,
+            input_processors=input_processors,
             clamping=clampings if clampings else None,
             control_target_pos_attr="joint_target_pos",
             control_target_vel_attr="joint_target_vel",
+            motor=motor,
         )
         actuators.append(actuator)
 

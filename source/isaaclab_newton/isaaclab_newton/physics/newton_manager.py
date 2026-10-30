@@ -11,7 +11,7 @@ import contextlib
 import gc
 import logging
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from functools import partial
 from typing import TYPE_CHECKING, Any
 
@@ -319,6 +319,7 @@ class NewtonManager(PhysicsManager):
             self._pre_actuator_callbacks.clear()
             self._post_actuator_callbacks.clear()
             self._post_step_callbacks.clear()
+            self._solver_model_sync_flags = 0
         # The CUDA graph points at the old model's freed buffers (CUDA 700 on the next step).
         self._graph = None
         self._graph_capture_pending = False
@@ -504,6 +505,8 @@ class NewtonManager(PhysicsManager):
         self._post_actuator_callbacks: list[Callable[[], None]] = []
         self._state_force_callbacks: list[Callable[[State], None]] = []
         self._post_step_callbacks: list[Callable[[], None]] = []
+        # Model properties the solver re-reads after every actuator step (ModelFlags), see request_solver_model_sync.
+        self._solver_model_sync_flags = 0
         # Substeps clear the input state's forces, so each one re-applies this copy of the staged body forces.
         self._staged_body_f: wp.array | None = None
         # Set by an articulation that took the ``use_newton_actuators=True``
@@ -977,7 +980,7 @@ class NewtonManager(PhysicsManager):
         """
         backend = self.backend
         solver_cfg, solver = self._cfg.solver_cfg, backend.solver
-        step = solver_cfg.class_type.step
+        step = partial(solver_cfg.class_type.step, observables=backend.solver_observables)
         num_substeps = backend.num_substeps
         collide_every = self._cfg.collision_decimation
         # Last substep is skipped: its contact set would only feed the next tick's
@@ -1126,8 +1129,9 @@ class NewtonManager(PhysicsManager):
            :meth:`_is_all_graphable` checks (adapter presence alone
            cannot distinguish the fast path from the standard Lab path).
         2. On first call, builds the single sim-level
-           :class:`NewtonActuatorAdapter` over the full flat DOF layout as
-           :attr:`NewtonBackend.actuators`; later calls reuse it.
+           :class:`NewtonActuatorAdapter` over the full flat DOF layout and the
+           model's batteries as :attr:`NewtonBackend.actuators`; later calls
+           reuse it.
         """
         self._use_newton_actuators_active = True
 
@@ -1143,8 +1147,46 @@ class NewtonManager(PhysicsManager):
             num_joints=backend.model.joint_dof_count // num_envs,
             dof_offset=0,
             device=self._device,
+            batteries=backend.model.batteries,
         )
         backend.actuators.finalize(backend.control)
+
+    def request_solver_observables(self, kinds: Iterable[str]) -> None:
+        """Have the solver export *kinds* on every substep, in addition to the kinds requested before.
+
+        Call once the solver exists and before CUDA graph capture, e.g. from a :meth:`register_solver_init_callback`
+        hook. A request for new kinds reallocates :attr:`NewtonBackend.solver_observables`, so read the arrays from
+        there when stepping rather than keeping them. The solver writes them only while stepping: a world's values,
+        also a reset world's, are those of its last solve until it solves again.
+
+        Raises:
+            ValueError: If the solver does not export a requested kind.
+        """
+        backend = self.backend
+        kinds = set(kinds)
+        observables = backend.solver_observables
+        if observables is not None:
+            if kinds <= observables.kinds:
+                return
+            kinds |= observables.kinds
+        backend.solver_observables = backend.solver.observables(kinds)
+
+    def request_solver_model_sync(self, flags: int) -> None:
+        """Have the solver re-read the model properties in *flags* after every actuator step.
+
+        For hooks that write model properties every step, such as a joint friction published from a pre-actuator
+        hook. Requests accumulate into one :meth:`~newton.solvers.SolverBase.notify_model_changed` call per step, a
+        post-actuator hook that runs after every pre-actuator hook. Call before CUDA graph capture, e.g. from a
+        :meth:`register_solver_init_callback` hook. Hard resets discard the requests.
+
+        Args:
+            flags: :class:`~newton.ModelFlags` of the properties to re-read.
+        """
+        if not self._solver_model_sync_flags:
+            self.register_post_actuator_callback(
+                lambda: self.backend.solver.notify_model_changed(self._solver_model_sync_flags)
+            )
+        self._solver_model_sync_flags |= flags
 
     def register_solver_init_callback(self, callback: Callable[[], None]) -> None:
         """Append a one-shot hook invoked once the solver exists, before any CUDA graph capture.

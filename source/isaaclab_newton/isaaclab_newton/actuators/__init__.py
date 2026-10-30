@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Newton-native actuator drives."""
+"""Isaac Lab parts of Newton-native actuators."""
 
 from isaaclab.utils.module import lazy_export
 
