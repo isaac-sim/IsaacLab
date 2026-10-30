@@ -973,7 +973,7 @@ def test_reset_binds_consumers_before_constructing_the_solver(monkeypatch):
         sim.reset()
         assert isinstance(sim.backend_manager.backend.solver, SolverMuJoCo)
         # as a write during graph capture does
-        monkeypatch.setattr(sim.backend_manager, "transforms_may_change_on_graph_replay", True)
+        sim.backend_manager.backend.transforms_may_change_on_graph_replay = True
         sim.reset()
 
     assert events == ["ready", "prepare"] * 2

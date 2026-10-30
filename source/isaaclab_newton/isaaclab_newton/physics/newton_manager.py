@@ -155,8 +155,6 @@ class NewtonManager(PhysicsManager):
     def _close_backend(self, *, dispatch_stop: bool = True) -> None:
         """Stop consumers, drop their views, and close the backend."""
         backend = self.backend
-        # Graph-replay invalidation belongs to the captured step closed with the backend.
-        self.transforms_may_change_on_graph_replay = False
         if backend is None:
             return
         if dispatch_stop:
