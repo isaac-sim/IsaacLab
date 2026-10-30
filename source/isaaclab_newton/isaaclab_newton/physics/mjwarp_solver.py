@@ -96,16 +96,22 @@ class MJWarpSolver(NewtonSolver):
 
     @classmethod
     def reset(cls, cfg: MJWarpSolverCfg, solver: SolverMuJoCo, state: State, world_mask: wp.array) -> None:
-        """Clear MuJoCo Warp warm-start and applied-force buffers for masked worlds.
+        """Clear solver history and synchronize authored joint state for masked worlds.
 
         With ``flags=0`` MuJoCo zeroes only solver-owned buffers that persist across steps, leaving the authored joint
         state untouched; otherwise a NaN from one solve persists across resets through the warm start
-        (https://github.com/newton-physics/newton/issues/1266). The CPU backend's one global ``MjData`` resets every
-        world, so it resets only when a world is flagged.
+        (https://github.com/newton-physics/newton/issues/1266). Sparse or disabled imports require an explicit
+        synchronization before the next substep can overwrite the authored state. The native CPU backend owns
+        one ``MjData`` for template world 0, so other worlds' resets must leave its state and history untouched.
         """
-        if solver.use_mujoco_cpu and not world_mask.numpy().any():
+        if solver.use_mujoco_cpu and not world_mask.numpy()[0]:
             return
         solver.reset(state, world_mask=world_mask, flags=0)
+        if solver.update_data_interval != 1:
+            # Newton has no public masked import. With sleeping disabled,
+            # reset(flags=0) skips it, so reuse the pinned solver's conversion.
+            data = solver.mj_data if solver.use_mujoco_cpu else solver.mjw_data
+            solver._update_mjc_data(data, solver.model, state, world_mask=world_mask)
 
     @classmethod
     def check_step(cls, cfg: MJWarpSolverCfg, solver: SolverMuJoCo, captured: bool, debug: bool) -> None:
