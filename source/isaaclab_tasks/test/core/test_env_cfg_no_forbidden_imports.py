@@ -194,10 +194,11 @@ def test_config_load_does_not_import_backend_modules(task_name: str, all_cfg_che
 
 
 def test_teleop_configs_resolve_and_validate_without_teleop():
-    """Configs with optional Isaac Teleop integrations must resolve and validate without the package."""
+    """Optional teleop integrations must not block task validation or standalone physics preparation."""
     script = textwrap.dedent("""\
         import builtins
         import importlib.util
+        from pathlib import Path
 
         original_import = builtins.__import__
         original_find_spec = importlib.util.find_spec
@@ -252,6 +253,51 @@ def test_teleop_configs_resolve_and_validate_without_teleop():
                 assert cfg.scene.left_hand_contact is not None
                 assert cfg.scene.right_hand_contact is not None
                 assert cfg.scene.robot.spawn.activate_contact_sensors
+
+        from isaaclab_tasks.contrib.locomanip_pick_place.g1_kitless_newton import (
+            G1NewtonBoundedPinkInverseKinematicsAction,
+        )
+        from isaaclab.envs import ManagerBasedRLEnv
+
+        class ConstructionReached(Exception):
+            pass
+
+        def stop_before_simulation(self, cfg, *args, **kwargs):
+            self._is_closed = True
+            raise ConstructionReached
+
+        ManagerBasedRLEnv.__init__ = stop_before_simulation
+
+        standalone_tasks = (
+            ("IsaacContrib-PickPlace-GR1T2-Abs", "ovphysx"),
+            ("IsaacContrib-PickPlace-GR1T2-Abs", "newton_mjwarp"),
+            ("IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs", "ovphysx"),
+            ("IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs", "newton_mjwarp"),
+            ("IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs", "newton_mjwarp"),
+        )
+        for task_name, physics in standalone_tasks:
+            cfg, _ = resolve_task_config(task_name, "", overrides=[f"physics={physics}"])
+            assert cfg.isaac_teleop is None
+            controlled_joints = list(cfg.actions.upper_body_ik.pink_controlled_joint_names)
+            try:
+                gymnasium.make(task_name, cfg=cfg)
+            except ConstructionReached:
+                pass
+            else:
+                raise AssertionError("Registered constructor did not reach the simulation boundary")
+            validate(cfg)
+            assert cfg.xr is None
+            assert cfg.isaac_teleop is None
+            action = cfg.actions.upper_body_ik
+            assert action.pink_controlled_joint_names == controlled_joints
+            if "GR1T2" in task_name:
+                assert action.kitless_target_conditioning_enabled
+                assert Path(action.controller.urdf_path).is_file()
+            else:
+                assert action.class_type is G1NewtonBoundedPinkInverseKinematicsAction
+            if physics == "newton_mjwarp":
+                assert cfg.sim.physics.solver_cfg.nconmax == 4096
+                assert cfg.sim.physics.solver_cfg.njmax == 1536
     """)
     result = subprocess.run(
         [sys.executable, "-c", script],

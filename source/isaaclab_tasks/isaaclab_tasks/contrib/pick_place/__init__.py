@@ -9,7 +9,7 @@ from . import agents
 
 gym.register(
     id="IsaacContrib-PickPlace-GR1T2-Abs",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab_tasks.contrib.teleop_env:HumanoidTeleopEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.pickplace_gr1t2_env_cfg:PickPlaceGR1T2EnvCfg",
         "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_low_dim.json",
@@ -39,7 +39,7 @@ gym.register(
 
 gym.register(
     id="IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab_tasks.contrib.teleop_env:HumanoidTeleopEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.pickplace_gr1t2_waist_enabled_env_cfg:PickPlaceGR1T2WaistEnabledEnvCfg",
         "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_low_dim.json",

@@ -1,0 +1,778 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+All rights reserved.
+
+SPDX-License-Identifier: BSD-3-Clause
+-->
+<robot name="GR1T2_fourier_hand_6dof">
+  <joint name="FixedJoint" type="fixed">
+    <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+    <parent link="GR1T2_fourier_hand_6dof"/>
+    <child link="base_link"/>
+  </joint>
+  <joint name="L_index_intermediate_joint" type="revolute">
+    <origin xyz="0.031532 -0.0054551 -0. " rpy="-0. 0.0000002 -0.0000683"/>
+    <parent link="L_index_proximal_link"/>
+    <child link="L_index_intermediate_link"/>
+    <axis xyz="0. 0. 1."/>
+    <limit lower="-2.1251519" upper="0.354192" effort="10000000." velocity="87.2664626"/>
+  </joint>
+  <joint name="L_index_proximal_joint" type="revolute">
+    <origin xyz="0.026869 -0.012293 -0.116989" rpy="0.0013057 1.5184 0.0013039"/>
+    <parent link="left_hand_pitch_link"/>
+    <child link="L_index_proximal_link"/>
+    <axis xyz="0. 0. 1."/>
+    <limit lower="-1.5699999" upper="0." effort="2000." velocity="87.2664626"/>
+  </joint>
+  <joint name="L_middle_intermediate_joint" type="revolute">
+    <origin xyz="0.031662 -0.0046408 0. " rpy="0. 0. -0.0000683"/>
+    <parent link="L_middle_proximal_link"/>
+    <child link="L_middle_intermediate_link"/>
+    <axis xyz="0. 0. 1."/>
+    <limit lower="-2.130804" upper="0.355134" effort="10000000." velocity="87.2664626"/>
+  </joint>
+  <joint name="L_middle_proximal_joint" type="revolute">
+    <origin xyz="0.0085012 -0.012293 -0.118993 " rpy="1.3931339 1.5706999 1.3931339"/>
+    <parent link="left_hand_pitch_link"/>
+    <child link="L_middle_proximal_link"/>
+    <axis xyz="0. 0. 1."/>
+    <limit lower="-1.5699999" upper="0." effort="2000." velocity="87.2664626"/>
+  </joint>
+  <joint name="L_pinky_intermediate_joint" type="revolute">
+    <origin xyz="0.031338 -0.0064763 0. " rpy="0. -0. -0.000068"/>
+    <parent link="L_pinky_proximal_link"/>
+    <child link="L_pinky_intermediate_link"/>
+    <axis xyz="0. 0. 1."/>
+    <limit lower="-2.1270359" upper="0.354506" effort="10000000." velocity="87.2664626"/>
+  </joint>
+  <joint name="L_pinky_proximal_joint" type="revolute">
+    <origin xyz="-0.028227 -0.012293 -0.117013" rpy="3.1409 1.4661 3.1409"/>
+    <parent link="left_hand_pitch_link"/>
+    <child link="L_pinky_proximal_link"/>
+    <axis xyz="0. 0. 1."/>
+    <limit lower="-1.5699999" upper="0." effort="2000." velocity="87.2664626"/>
+  </joint>
+  <joint name="L_ring_intermediate_joint" type="revolute">
+    <origin xyz="0.031532 -0.0054551 -0. " rpy="0. 0.0000002 -0.0000683"/>
+    <parent link="L_ring_proximal_link"/>
+    <child link="L_ring_intermediate_link"/>
+    <axis xyz="0. 0. 1."/>
+    <limit lower="-2.153412" upper="0.358902" effort="10000000." velocity="87.2664626"/>
+  </joint>
+  <joint name="L_ring_proximal_joint" type="revolute">
+    <origin xyz="-0.00996 -0.012293 -0.118938" rpy="3.1403 1.5184 3.1403"/>
+    <parent link="left_hand_pitch_link"/>
+    <child link="L_ring_proximal_link"/>
+    <axis xyz="0. 0. 1."/>
+    <limit lower="-1.5699999" upper="0." effort="2000." velocity="87.2664626"/>
+  </joint>
+  <joint name="L_thumb_distal_joint" type="revolute">
+    <origin xyz="0.0615491 0.0074606 -0. " rpy="-0. -0. 0."/>
+    <parent link="L_thumb_proximal_link"/>
+    <child link="L_thumb_distal_link"/>
+    <axis xyz="0. 0. 1."/>
+    <limit lower="-0.237656" upper="1.4259359" effort="10000000." velocity="87.2664626"/>
+  </joint>
+  <joint name="L_thumb_proximal_pitch_joint" type="revolute">
+    <origin xyz="0.02175 0. -0.0000003" rpy="-1.5707 0.0000122 0. "/>
+    <parent link="L_thumb_proximal_base_link"/>
+    <child link="L_thumb_proximal_link"/>
+    <axis xyz="0. 0. 1."/>
+    <limit lower="0." upper="1.22" effort="2000." velocity="87.2664626"/>
+  </joint>
+  <joint name="L_thumb_proximal_yaw_joint" type="revolute">
+    <origin xyz="0.022 -0.015498 -0.046093" rpy="0. -0.0000122 0. "/>
+    <parent link="left_hand_pitch_link"/>
+    <child link="L_thumb_proximal_base_link"/>
+    <axis xyz="0. 0. 1."/>
+    <limit lower="-1.7399999" upper="0." effort="2000." velocity="87.2664626"/>
+  </joint>
+  <joint name="R_index_intermediate_joint" type="revolute">
+    <origin xyz="0.031532 -0.0054551 0. " rpy="0. 0. 0."/>
+    <parent link="R_index_proximal_link"/>
+    <child link="R_index_intermediate_link"/>
+    <axis xyz="0. 0. 1."/>
+    <limit lower="-2.1251519" upper="0.354192" effort="10000000." velocity="87.2664626"/>
+  </joint>
+  <joint name="R_index_proximal_joint" type="revolute">
+    <origin xyz="0.0268628 0.0123004 -0.1168932" rpy="3.14158 1.5184121 0.0000006"/>
+    <parent link="right_hand_pitch_link"/>
+    <child link="R_index_proximal_link"/>
+    <axis xyz="0. 0. 1."/>
+    <limit lower="-1.5699999" upper="0." effort="2000." velocity="87.2664626"/>
+  </joint>
+  <joint name="R_middle_intermediate_joint" type="revolute">
+    <origin xyz="0.031662 -0.0046408 0. " rpy="0. 0. 0."/>
+    <parent link="R_middle_proximal_link"/>
+    <child link="R_middle_intermediate_link"/>
+    <axis xyz="0. 0. 1."/>
+    <limit lower="-2.130804" upper="0.355134" effort="10000000." velocity="87.2664626"/>
+  </joint>
+  <joint name="R_middle_proximal_joint" type="revolute">
+    <origin xyz="0.008495 0.0123003 -0.1188969" rpy="-1.7533723 1.5707694 1.3882277"/>
+    <parent link="right_hand_pitch_link"/>
+    <child link="R_middle_proximal_link"/>
+    <axis xyz="0. 0. 1."/>
+    <limit lower="-1.5699999" upper="0." effort="2000." velocity="87.2664626"/>
+  </joint>
+  <joint name="R_pinky_intermediate_joint" type="revolute">
+    <origin xyz="0.031338 -0.0064763 -0. " rpy="0. 0. 0.000068"/>
+    <parent link="R_pinky_proximal_link"/>
+    <child link="R_pinky_intermediate_link"/>
+    <axis xyz="0. 0. 1."/>
+    <limit lower="-2.1270359" upper="0.354506" effort="10000000." velocity="87.2664626"/>
+  </joint>
+  <joint name="R_pinky_proximal_joint" type="revolute">
+    <origin xyz="-0.0282332 0.0123004 -0.1169165" rpy="0.0000001 1.4660878 3.1415503"/>
+    <parent link="right_hand_pitch_link"/>
+    <child link="R_pinky_proximal_link"/>
+    <axis xyz="0. 0. 1."/>
+    <limit lower="-1.5699999" upper="0." effort="2000." velocity="87.2664626"/>
+  </joint>
+  <joint name="R_ring_intermediate_joint" type="revolute">
+    <origin xyz="0.031531 -0.0054572 -0. " rpy="0. 0. 0."/>
+    <parent link="R_ring_proximal_link"/>
+    <child link="R_ring_intermediate_link"/>
+    <axis xyz="0. 0. 1."/>
+    <limit lower="-2.153412" upper="0.358902" effort="10000000." velocity="87.2664626"/>
+  </joint>
+  <joint name="R_ring_proximal_joint" type="revolute">
+    <origin xyz="-0.0099662 0.0123003 -0.1188417" rpy="0.0013048 1.5183877 -3.1402824"/>
+    <parent link="right_hand_pitch_link"/>
+    <child link="R_ring_proximal_link"/>
+    <axis xyz="0. 0. 1."/>
+    <limit lower="-1.5699999" upper="0." effort="2000." velocity="87.2664626"/>
+  </joint>
+  <joint name="R_thumb_distal_joint" type="revolute">
+    <origin xyz="0.061444 0.0082822 0. " rpy="0. 0. 0.0000122"/>
+    <parent link="R_thumb_proximal_link"/>
+    <child link="R_thumb_distal_link"/>
+    <axis xyz="0. 0. 1."/>
+    <limit lower="-0.237656" upper="1.4259359" effort="10000000." velocity="87.2664626"/>
+  </joint>
+  <joint name="R_thumb_proximal_pitch_joint" type="revolute">
+    <origin xyz="0.02175 0. 0. " rpy="1.5709 0.0000122 0. "/>
+    <parent link="R_thumb_proximal_base_link"/>
+    <child link="R_thumb_proximal_link"/>
+    <axis xyz="0. 0. 1."/>
+    <limit lower="0." upper="1.22" effort="2000." velocity="87.2664626"/>
+  </joint>
+  <joint name="R_thumb_proximal_yaw_joint" type="revolute">
+    <origin xyz="0.0219947 0.0155003 -0.0459963" rpy="3.1415315 0.0000122 0. "/>
+    <parent link="right_hand_pitch_link"/>
+    <child link="R_thumb_proximal_base_link"/>
+    <axis xyz="0. 0. 1."/>
+    <limit lower="-1.7399999" upper="0." effort="2000." velocity="87.2664626"/>
+  </joint>
+  <joint name="head_pitch_joint" type="revolute">
+    <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+    <parent link="head_roll_link"/>
+    <child link="head_pitch_link"/>
+    <axis xyz="0. 1. 0."/>
+    <limit lower="-0.8699999" upper="0.8699999" effort="25." velocity="27.9599978"/>
+  </joint>
+  <joint name="head_roll_joint" type="revolute">
+    <origin xyz="-0.00025 0.0010928 0.305 " rpy="0. 0. 0."/>
+    <parent link="waist_roll_link"/>
+    <child link="head_roll_link"/>
+    <axis xyz="1. 0. 0."/>
+    <limit lower="-0.35" upper="0.35" effort="25." velocity="27.9599978"/>
+  </joint>
+  <joint name="head_yaw_joint" type="revolute">
+    <origin xyz="0. 0. 0.0513" rpy="0. 0. 0."/>
+    <parent link="head_pitch_link"/>
+    <child link="head_yaw_link"/>
+    <axis xyz="0. 0. 1."/>
+    <limit lower="-2.71" upper="2.71" effort="25." velocity="27.9599978"/>
+  </joint>
+  <joint name="left_ankle_pitch_joint" type="revolute">
+    <origin xyz="0. -0.00125 -0.34 " rpy="0. 0. 0."/>
+    <parent link="left_shank_pitch_link"/>
+    <child link="left_foot_pitch_link"/>
+    <axis xyz="0. 1. 0."/>
+    <limit lower="-1.0499999" upper="0.5199999" effort="5." velocity="20.3199979"/>
+  </joint>
+  <joint name="left_ankle_roll_joint" type="revolute">
+    <origin xyz="0. 0. -0." rpy="0. 0. 0."/>
+    <parent link="left_foot_pitch_link"/>
+    <child link="left_foot_roll_link"/>
+    <axis xyz="1. 0. 0."/>
+    <limit lower="-0.44" upper="0.44" effort="5." velocity="20.3199979"/>
+  </joint>
+  <joint name="left_elbow_pitch_joint" type="revolute">
+    <origin xyz="0. 0.0010503 -0.1786 " rpy="0. 0. 0."/>
+    <parent link="left_upper_arm_yaw_link"/>
+    <child link="left_lower_arm_pitch_link"/>
+    <axis xyz="0. 1. 0."/>
+    <limit lower="-2.2699999" upper="2.2699999" effort="30." velocity="7.3299994"/>
+  </joint>
+  <joint name="left_hip_pitch_joint" type="revolute">
+    <origin xyz="0. 0.0223 -0.14027" rpy="0. 0. 0."/>
+    <parent link="left_thigh_yaw_link"/>
+    <child link="left_thigh_pitch_link"/>
+    <axis xyz="0. 1. 0."/>
+    <limit lower="-1.7499999" upper="0.7" effort="5." velocity="37.379997"/>
+  </joint>
+  <joint name="left_hip_roll_joint" type="revolute">
+    <origin xyz="-0.031635 0.105 -0.0276 " rpy="0. 0. 0."/>
+    <parent link="base_link"/>
+    <child link="left_thigh_roll_link"/>
+    <axis xyz="1. 0. 0."/>
+    <limit lower="-0.09" upper="0.79" effort="5." velocity="12.1499992"/>
+  </joint>
+  <joint name="left_hip_yaw_joint" type="revolute">
+    <origin xyz="0.033135 0. 0.00075 " rpy="0. 0. 0."/>
+    <parent link="left_thigh_roll_link"/>
+    <child link="left_thigh_yaw_link"/>
+    <axis xyz="0. 0. 1."/>
+    <limit lower="-0.7" upper="0.7" effort="5." velocity="16.7599993"/>
+  </joint>
+  <joint name="left_knee_pitch_joint" type="revolute">
+    <origin xyz="0. -0.019512 -0.36 " rpy="0. 0. 0."/>
+    <parent link="left_thigh_pitch_link"/>
+    <child link="left_shank_pitch_link"/>
+    <axis xyz="0. 1. 0."/>
+    <limit lower="-0.09" upper="1.9199999" effort="5." velocity="37.379997"/>
+  </joint>
+  <joint name="left_shoulder_pitch_joint" type="revolute">
+    <origin xyz="-0.00225 0.1018544 0.207001 " rpy="0.43275 0. 0. "/>
+    <parent link="waist_roll_link"/>
+    <child link="left_upper_arm_pitch_link"/>
+    <axis xyz="0. 1. 0."/>
+    <limit lower="-2.7899997" upper="1.9199999" effort="38." velocity="9.1099987"/>
+  </joint>
+  <joint name="left_shoulder_roll_joint" type="revolute">
+    <origin xyz="0. 0.09515 -0. " rpy="-0.4327501 0. 0. "/>
+    <parent link="left_upper_arm_pitch_link"/>
+    <child link="left_upper_arm_roll_link"/>
+    <axis xyz="1. 0. 0."/>
+    <limit lower="-0.57" upper="2.5299998" effort="38." velocity="9.1099987"/>
+  </joint>
+  <joint name="left_shoulder_yaw_joint" type="revolute">
+    <origin xyz="0. 0.04 -0.0709" rpy="0.0000001 0. 0. "/>
+    <parent link="left_upper_arm_roll_link"/>
+    <child link="left_upper_arm_yaw_link"/>
+    <axis xyz="0. 0. 1."/>
+    <limit lower="-2.9699999" upper="2.9699999" effort="30." velocity="7.3299994"/>
+  </joint>
+  <joint name="left_wrist_pitch_joint" type="revolute">
+    <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+    <parent link="left_hand_roll_link"/>
+    <child link="left_hand_pitch_link"/>
+    <axis xyz="0. 1. 0."/>
+    <limit lower="-0.61" upper="0.61" effort="3.95" velocity="27.9599978"/>
+  </joint>
+  <joint name="left_wrist_roll_joint" type="revolute">
+    <origin xyz="0. 0. -0.19115" rpy="0. 0. 0."/>
+    <parent link="left_hand_yaw_link"/>
+    <child link="left_hand_roll_link"/>
+    <axis xyz="1. 0. 0."/>
+    <limit lower="-0.8699999" upper="0.9599999" effort="3.95" velocity="27.9599978"/>
+  </joint>
+  <joint name="left_wrist_yaw_joint" type="revolute">
+    <origin xyz="0. 0. -0.05945" rpy="0. 0. 0."/>
+    <parent link="left_lower_arm_pitch_link"/>
+    <child link="left_hand_yaw_link"/>
+    <axis xyz="0. 0. 1."/>
+    <limit lower="-2.9699999" upper="2.9699999" effort="10.1999998" velocity="24.3999991"/>
+  </joint>
+  <joint name="right_ankle_pitch_joint" type="revolute">
+    <origin xyz="0. 0.00125 -0.34 " rpy="0. 0. 0."/>
+    <parent link="right_shank_pitch_link"/>
+    <child link="right_foot_pitch_link"/>
+    <axis xyz="0. 1. 0."/>
+    <limit lower="-1.0499999" upper="0.5199999" effort="5." velocity="20.3199979"/>
+  </joint>
+  <joint name="right_ankle_roll_joint" type="revolute">
+    <origin xyz="0. -0. -0." rpy="0. 0. 0."/>
+    <parent link="right_foot_pitch_link"/>
+    <child link="right_foot_roll_link"/>
+    <axis xyz="1. 0. 0."/>
+    <limit lower="-0.44" upper="0.44" effort="5." velocity="20.3199979"/>
+  </joint>
+  <joint name="right_elbow_pitch_joint" type="revolute">
+    <origin xyz="0. -0.0010503 -0.1786 " rpy="0. 0. 0."/>
+    <parent link="right_upper_arm_yaw_link"/>
+    <child link="right_lower_arm_pitch_link"/>
+    <axis xyz="0. 1. 0."/>
+    <limit lower="-2.2699999" upper="2.2699999" effort="30." velocity="7.3299994"/>
+  </joint>
+  <joint name="right_hip_pitch_joint" type="revolute">
+    <origin xyz="0. -0.0223 -0.14027" rpy="0. 0. 0."/>
+    <parent link="right_thigh_yaw_link"/>
+    <child link="right_thigh_pitch_link"/>
+    <axis xyz="0. 1. 0."/>
+    <limit lower="-1.7499999" upper="0.7" effort="5." velocity="37.379997"/>
+  </joint>
+  <joint name="right_hip_roll_joint" type="revolute">
+    <origin xyz="-0.031635 -0.105 -0.0276 " rpy="0. 0. 0."/>
+    <parent link="base_link"/>
+    <child link="right_thigh_roll_link"/>
+    <axis xyz="1. 0. 0."/>
+    <limit lower="-0.79" upper="0.09" effort="5." velocity="12.1499992"/>
+  </joint>
+  <joint name="right_hip_yaw_joint" type="revolute">
+    <origin xyz="0.033135 0. 0.00075 " rpy="0. 0. 0."/>
+    <parent link="right_thigh_roll_link"/>
+    <child link="right_thigh_yaw_link"/>
+    <axis xyz="0. 0. 1."/>
+    <limit lower="-0.7" upper="0.7" effort="5." velocity="16.7599993"/>
+  </joint>
+  <joint name="right_knee_pitch_joint" type="revolute">
+    <origin xyz="0. 0.019762 -0.36 " rpy="0. 0. 0."/>
+    <parent link="right_thigh_pitch_link"/>
+    <child link="right_shank_pitch_link"/>
+    <axis xyz="0. 1. 0."/>
+    <limit lower="-0.09" upper="1.9199999" effort="5." velocity="37.379997"/>
+  </joint>
+  <joint name="right_shoulder_pitch_joint" type="revolute">
+    <origin xyz="-0.00225 -0.1007056 0.207001 " rpy="-0.43275 0. 0. "/>
+    <parent link="waist_roll_link"/>
+    <child link="right_upper_arm_pitch_link"/>
+    <axis xyz="0. 1. 0."/>
+    <limit lower="-2.7899997" upper="1.9199999" effort="38." velocity="9.1099987"/>
+  </joint>
+  <joint name="right_shoulder_roll_joint" type="revolute">
+    <origin xyz="0. -0.09515 -0. " rpy="0.4327501 0. 0. "/>
+    <parent link="right_upper_arm_pitch_link"/>
+    <child link="right_upper_arm_roll_link"/>
+    <axis xyz="1. 0. 0."/>
+    <limit lower="-2.5299998" upper="0.57" effort="38." velocity="9.1099987"/>
+  </joint>
+  <joint name="right_shoulder_yaw_joint" type="revolute">
+    <origin xyz="0. -0.04 -0.0709" rpy="-0.0000001 0. 0. "/>
+    <parent link="right_upper_arm_roll_link"/>
+    <child link="right_upper_arm_yaw_link"/>
+    <axis xyz="0. 0. 1."/>
+    <limit lower="-2.9699999" upper="2.9699999" effort="30." velocity="7.3299994"/>
+  </joint>
+  <joint name="right_wrist_pitch_joint" type="revolute">
+    <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+    <parent link="right_hand_roll_link"/>
+    <child link="right_hand_pitch_link"/>
+    <axis xyz="0. 1. 0."/>
+    <limit lower="-0.61" upper="0.61" effort="3.95" velocity="27.9599978"/>
+  </joint>
+  <joint name="right_wrist_roll_joint" type="revolute">
+    <origin xyz="0. 0. -0.19115" rpy="0. 0. 0."/>
+    <parent link="right_hand_yaw_link"/>
+    <child link="right_hand_roll_link"/>
+    <axis xyz="1. 0. 0."/>
+    <limit lower="-0.9599999" upper="0.8699999" effort="3.95" velocity="27.9599978"/>
+  </joint>
+  <joint name="right_wrist_yaw_joint" type="revolute">
+    <origin xyz="0. 0. -0.05945" rpy="0. 0. 0."/>
+    <parent link="right_lower_arm_pitch_link"/>
+    <child link="right_hand_yaw_link"/>
+    <axis xyz="0. 0. 1."/>
+    <limit lower="-2.9699999" upper="2.9699999" effort="10.1999998" velocity="24.3999991"/>
+  </joint>
+  <joint name="waist_pitch_joint" type="revolute">
+    <origin xyz="0. 0. 0.0869" rpy="0. 0. 0."/>
+    <parent link="waist_yaw_link"/>
+    <child link="waist_pitch_link"/>
+    <axis xyz="0. 1. 0."/>
+    <limit lower="-0.5199999" upper="1.22" effort="50." velocity="16.7599993"/>
+  </joint>
+  <joint name="waist_roll_joint" type="revolute">
+    <origin xyz="0.00525 -0.0005 0.081 " rpy="0. 0. 0."/>
+    <parent link="waist_pitch_link"/>
+    <child link="waist_roll_link"/>
+    <axis xyz="1. 0. 0."/>
+    <limit lower="-0.7" upper="0.7" effort="50." velocity="16.7599993"/>
+  </joint>
+  <joint name="waist_yaw_joint" type="revolute">
+    <origin xyz="0. 0. 0." rpy="0. 0. 0."/>
+    <parent link="base_link"/>
+    <child link="waist_yaw_link"/>
+    <axis xyz="0. 0. 1."/>
+    <limit lower="-1.0499999" upper="1.0499999" effort="50." velocity="16.7599993"/>
+  </joint>
+  <link name="GR1T2_fourier_hand_6dof"/>
+  <link name="L_index_intermediate_link">
+    <inertial>
+      <origin xyz="0.0180042 0.0030004 -0.0000092" rpy="0. 0. 0."/>
+      <mass value="0.0129254"/>
+      <inertia ixx="0.0000004" ixy="0.0000002" ixz="0." iyy="0.000002" iyz="0." izz="0.000002"/>
+    </inertial>
+  </link>
+  <link name="L_index_proximal_link">
+    <inertial>
+      <origin xyz="0.0095993 0.000443 0.000003 " rpy="0. 0. 0."/>
+      <mass value="0.019117"/>
+      <inertia ixx="0.0000009" ixy="0.0000001" ixz="0." iyy="0.0000037" iyz="0." izz="0.0000039"/>
+    </inertial>
+  </link>
+  <link name="L_middle_intermediate_link">
+    <inertial>
+      <origin xyz="0.0212793 0.0040846 -0.00001 " rpy="0. 0. 0."/>
+      <mass value="0.0153501"/>
+      <inertia ixx="0.0000004" ixy="0.0000002" ixz="0." iyy="0.0000033" iyz="0." izz="0.0000033"/>
+    </inertial>
+  </link>
+  <link name="L_middle_proximal_link">
+    <inertial>
+      <origin xyz="0.0095571 0.0007186 0.000003 " rpy="0. 0. 0."/>
+      <mass value="0.0191177"/>
+      <inertia ixx="0.0000009" ixy="0.0000001" ixz="0." iyy="0.0000037" iyz="0." izz="0.0000039"/>
+    </inertial>
+  </link>
+  <link name="L_pinky_intermediate_link">
+    <inertial>
+      <origin xyz="0.016096 0.0011882 -0.0000087" rpy="0. 0. 0."/>
+      <mass value="0.0056871"/>
+      <inertia ixx="0.0000002" ixy="0.0000001" ixz="0." iyy="0.0000006" iyz="0." izz="0.0000007"/>
+    </inertial>
+  </link>
+  <link name="L_pinky_proximal_link">
+    <inertial>
+      <origin xyz="0.0096441 0.0000938 0.000003 " rpy="0. 0. 0."/>
+      <mass value="0.0191177"/>
+      <inertia ixx="0.0000009" ixy="0.0000002" ixz="0." iyy="0.0000037" iyz="0." izz="0.0000039"/>
+    </inertial>
+  </link>
+  <link name="L_ring_intermediate_link">
+    <inertial>
+      <origin xyz="0.0180042 0.0030004 -0.0000092" rpy="0. 0. 0."/>
+      <mass value="0.0129254"/>
+      <inertia ixx="0.0000004" ixy="0.0000002" ixz="0." iyy="0.000002" iyz="0." izz="0.000002"/>
+    </inertial>
+  </link>
+  <link name="L_ring_proximal_link">
+    <inertial>
+      <origin xyz="0.0095998 0.0004431 0.000003 " rpy="0. 0. 0."/>
+      <mass value="0.0191177"/>
+      <inertia ixx="0.0000009" ixy="0.0000001" ixz="0." iyy="0.0000037" iyz="0." izz="0.0000039"/>
+    </inertial>
+  </link>
+  <link name="L_thumb_distal_link">
+    <inertial>
+      <origin xyz="0.0132153 -0.0032613 0. " rpy="0. 0. 0."/>
+      <mass value="0.0203177"/>
+      <inertia ixx="0.0000009" ixy="-0.0000001" ixz="0." iyy="0.0000025" iyz="0." izz="0.0000023"/>
+    </inertial>
+  </link>
+  <link name="L_thumb_proximal_base_link">
+    <inertial>
+      <origin xyz="0.011017 -0.0000248 0.000776 " rpy="0. 0. 0."/>
+      <mass value="0.0094853"/>
+      <inertia ixx="0.0000003" ixy="0." ixz="-0." iyy="0.0000009" iyz="-0." izz="0.000001"/>
+    </inertial>
+  </link>
+  <link name="L_thumb_proximal_link">
+    <inertial>
+      <origin xyz="0.0319631 -0.0001412 -0.0000286" rpy="0. 0. 0."/>
+      <mass value="0.0734761"/>
+      <inertia ixx="0.0000113" ixy="0.0000001" ixz="0." iyy="0.0000318" iyz="-0." izz="0.0000338"/>
+    </inertial>
+  </link>
+  <link name="R_index_intermediate_link">
+    <inertial>
+      <origin xyz="0.0180044 0.0029992 -0.0000092" rpy="0. 0. 0."/>
+      <mass value="0.0129254"/>
+      <inertia ixx="0.0000004" ixy="0.0000002" ixz="0." iyy="0.000002" iyz="0." izz="0.000002"/>
+    </inertial>
+  </link>
+  <link name="R_index_proximal_link">
+    <inertial>
+      <origin xyz="0.0095998 0.0004431 0.000003 " rpy="0. 0. 0."/>
+      <mass value="0.0191177"/>
+      <inertia ixx="0.0000009" ixy="0.0000001" ixz="0." iyy="0.0000037" iyz="0." izz="0.0000039"/>
+    </inertial>
+  </link>
+  <link name="R_middle_intermediate_link">
+    <inertial>
+      <origin xyz="0.02128 0.0040831 -0.00001 " rpy="0. 0. 0."/>
+      <mass value="0.01535"/>
+      <inertia ixx="0.0000004" ixy="0.0000002" ixz="0." iyy="0.0000033" iyz="0." izz="0.0000033"/>
+    </inertial>
+  </link>
+  <link name="R_middle_proximal_link">
+    <inertial>
+      <origin xyz="0.0095571 0.0007186 0.000003 " rpy="0. 0. 0."/>
+      <mass value="0.0191177"/>
+      <inertia ixx="0.0000009" ixy="0.0000001" ixz="0." iyy="0.0000037" iyz="0." izz="0.0000039"/>
+    </inertial>
+  </link>
+  <link name="R_pinky_intermediate_link">
+    <inertial>
+      <origin xyz="0.0160962 0.001186 -0.0000087" rpy="0. 0. 0."/>
+      <mass value="0.0056871"/>
+      <inertia ixx="0.0000002" ixy="0.0000001" ixz="0." iyy="0.0000006" iyz="0." izz="0.0000007"/>
+    </inertial>
+  </link>
+  <link name="R_pinky_proximal_link">
+    <inertial>
+      <origin xyz="0.0096441 0.0000938 0.000003 " rpy="0. 0. 0."/>
+      <mass value="0.0191177"/>
+      <inertia ixx="0.0000009" ixy="0.0000002" ixz="0." iyy="0.0000037" iyz="0." izz="0.0000039"/>
+    </inertial>
+  </link>
+  <link name="R_ring_intermediate_link">
+    <inertial>
+      <origin xyz="0.018005 0.002998 -0.0000092" rpy="0. 0. 0."/>
+      <mass value="0.012925"/>
+      <inertia ixx="0.0000004" ixy="0.0000002" ixz="0." iyy="0.000002" iyz="0." izz="0.000002"/>
+    </inertial>
+  </link>
+  <link name="R_ring_proximal_link">
+    <inertial>
+      <origin xyz="0.0095999 0.0004424 0.000003 " rpy="0. 0. 0."/>
+      <mass value="0.0191177"/>
+      <inertia ixx="0.0000009" ixy="0.0000001" ixz="0." iyy="0.0000037" iyz="0." izz="0.0000039"/>
+    </inertial>
+  </link>
+  <link name="R_thumb_distal_link">
+    <inertial>
+      <origin xyz="0.013732 -0.0027742 0. " rpy="0. 0. 0."/>
+      <mass value="0.0197414"/>
+      <inertia ixx="0.0000009" ixy="-0.0000001" ixz="0." iyy="0.0000023" iyz="0." izz="0.0000022"/>
+    </inertial>
+  </link>
+  <link name="R_thumb_proximal_base_link">
+    <inertial>
+      <origin xyz="0.0110212 -0.0000245 -0.0007768" rpy="0. 0. 0."/>
+      <mass value="0.0094822"/>
+      <inertia ixx="0.0000003" ixy="0." ixz="0." iyy="0.0000009" iyz="0." izz="0.000001"/>
+    </inertial>
+  </link>
+  <link name="R_thumb_proximal_link">
+    <inertial>
+      <origin xyz="0.032189 0.000287 -0.0000284" rpy="0. 0. 0."/>
+      <mass value="0.0740524"/>
+      <inertia ixx="0.0000113" ixy="-0.0000002" ixz="0." iyy="0.0000323" iyz="-0." izz="0.0000342"/>
+    </inertial>
+  </link>
+  <link name="base_link">
+    <inertial>
+      <origin xyz="-0.0603426 -0.0000978 -0.0092492" rpy="0. 0. 0."/>
+      <mass value="4.0100002"/>
+      <inertia ixx="0.041246" ixy="-0.000006" ixz="-0.002" iyy="0.0135217" iyz="-0.0000087" izz="0.04271"/>
+    </inertial>
+  </link>
+  <link name="head_pitch_link">
+    <inertial>
+      <origin xyz="-0.0021765 -0.0000004 0.017509 " rpy="0. 0. 0."/>
+      <mass value="0.06"/>
+      <inertia ixx="0.0000251" ixy="0." ixz="-0.0000013" iyy="0.0000171" iyz="0." izz="0.0000246"/>
+    </inertial>
+  </link>
+  <link name="head_roll_link">
+    <inertial>
+      <origin xyz="0.00425 0. 0. " rpy="0. 0. 0."/>
+      <mass value="0.01"/>
+      <inertia ixx="0.0000004" ixy="0." ixz="0." iyy="0.0000004" iyz="0." izz="0.0000007"/>
+    </inertial>
+  </link>
+  <link name="head_yaw_link">
+    <inertial>
+      <origin xyz="0.0271 -0.00206 0.09577" rpy="0. 0. 0."/>
+      <mass value="1.58"/>
+      <inertia ixx="0.0075444" ixy="0.0000721" ixz="0.0009518" iyy="0.0101343" iyz="0.0000505" izz="0.0056598"/>
+    </inertial>
+  </link>
+  <link name="left_foot_pitch_link">
+    <inertial>
+      <origin xyz="0.0367 0.00031 -0.03643" rpy="0. 0. 0."/>
+      <mass value="1.13"/>
+      <inertia ixx="0.000852" ixy="0.000001" ixz="0.000323" iyy="0.005248" iyz="-0.000001" izz="0.005643"/>
+    </inertial>
+  </link>
+  <link name="left_foot_roll_link">
+    <inertial>
+      <origin xyz="0.0367 0.00031 -0.03643" rpy="0. 0. 0."/>
+      <mass value="1.13"/>
+      <inertia ixx="0.000852" ixy="0.000001" ixz="0.000323" iyy="0.005248" iyz="-0.000001" izz="0.005643"/>
+    </inertial>
+  </link>
+  <link name="left_hand_pitch_link">
+    <inertial>
+      <origin xyz="-0.0003786 -0.0069851 -0.0557539" rpy="0. 0. 0."/>
+      <mass value="0.361"/>
+      <inertia ixx="0.0004697" ixy="-0.0000008" ixz="-0.0000011" iyy="0.000576" iyz="-0.000038" izz="0.0002256"/>
+    </inertial>
+  </link>
+  <link name="left_hand_roll_link">
+    <inertial>
+      <origin xyz="0. 0.005104 -0.008485" rpy="0. 0. 0."/>
+      <mass value="0.055"/>
+      <inertia ixx="0.000011" ixy="0." ixz="0." iyy="0.00002" iyz="-0.000001" izz="0.000021"/>
+    </inertial>
+  </link>
+  <link name="left_hand_yaw_link">
+    <inertial>
+      <origin xyz="0.00044 0.00196 -0.07313" rpy="0. 0. 0."/>
+      <mass value="0.99"/>
+      <inertia ixx="0.0026215" ixy="0.0000013" ixz="0.0000061" iyy="0.0025491" iyz="-0.0000158" izz="0.0004978"/>
+    </inertial>
+  </link>
+  <link name="left_lower_arm_pitch_link">
+    <inertial>
+      <origin xyz="0. 0.008102 -0.02528 " rpy="0. 0. 0."/>
+      <mass value="0.33"/>
+      <inertia ixx="0.0002956" ixy="0." ixz="0.0000001" iyy="0.000287" iyz="-0.0000501" izz="0.0001117"/>
+    </inertial>
+  </link>
+  <link name="left_shank_pitch_link">
+    <inertial>
+      <origin xyz="0.001482 -0.0008 -0.1154 " rpy="0. 0. 0."/>
+      <mass value="1.76"/>
+      <inertia ixx="0.01079" ixy="-0.000007" ixz="-0.000149" iyy="0.01068" iyz="-0.000146" izz="0.001262"/>
+    </inertial>
+  </link>
+  <link name="left_thigh_pitch_link">
+    <inertial>
+      <origin xyz="0.001387 -0.02832 -0.064 " rpy="0. 0. 0."/>
+      <mass value="8.3500004"/>
+      <inertia ixx="0.09287" ixy="0.000089" ixz="0.001262" iyy="0.08956" iyz="-0.001832" izz="0.02835"/>
+    </inertial>
+  </link>
+  <link name="left_thigh_roll_link">
+    <inertial>
+      <origin xyz="0.001095 0.000024 0.001761" rpy="0. 0. 0."/>
+      <mass value="1.47"/>
+      <inertia ixx="0.001575" ixy="0.000004" ixz="-0.000006" iyy="0.002478" iyz="-0.000009" izz="0.002575"/>
+    </inertial>
+  </link>
+  <link name="left_thigh_yaw_link">
+    <inertial>
+      <origin xyz="-0.000705 0.0384 -0.1103 " rpy="0. 0. 0."/>
+      <mass value="3.47"/>
+      <inertia ixx="0.02003" ixy="-0.00165" ixz="0.000145" iyy="0.02123" iyz="0.005516" izz="0.01146"/>
+    </inertial>
+  </link>
+  <link name="left_upper_arm_pitch_link">
+    <inertial>
+      <origin xyz="0.0033 0.05361 -0.00011" rpy="0. 0. 0."/>
+      <mass value="0.82"/>
+      <inertia ixx="0.0020421" ixy="-0.0001085" ixz="-0.0000057" iyy="0.000502" iyz="-0.0000029" izz="0.0019818"/>
+    </inertial>
+  </link>
+  <link name="left_upper_arm_roll_link">
+    <inertial>
+      <origin xyz="0.005026 0.0174 -0.02398 " rpy="0. 0. 0."/>
+      <mass value="0.61"/>
+      <inertia ixx="0.0010175" ixy="0.0000009" ixz="-0.0000269" iyy="0.0008035" iyz="0.0003101" izz="0.0005652"/>
+    </inertial>
+  </link>
+  <link name="left_upper_arm_yaw_link">
+    <inertial>
+      <origin xyz="-0.000017 -0.0002 -0.08761 " rpy="0. 0. 0."/>
+      <mass value="0.54"/>
+      <inertia ixx="0.0035571" ixy="-0.0000002" ixz="-0.0000007" iyy="0.003544" iyz="0.0000456" izz="0.0002603"/>
+    </inertial>
+  </link>
+  <link name="right_foot_pitch_link">
+    <inertial>
+      <origin xyz="0.037 -0.000306 -0.03642 " rpy="0. 0. 0."/>
+      <mass value="1.13"/>
+      <inertia ixx="0.000852" ixy="-0.000001" ixz="0.000332" iyy="0.005248" iyz="-0." izz="0.005675"/>
+    </inertial>
+  </link>
+  <link name="right_foot_roll_link">
+    <inertial>
+      <origin xyz="0.037 -0.000306 -0.03642 " rpy="0. 0. 0."/>
+      <mass value="1.13"/>
+      <inertia ixx="0.000852" ixy="-0.000001" ixz="0.000332" iyy="0.005248" iyz="-0." izz="0.005675"/>
+    </inertial>
+  </link>
+  <link name="right_hand_pitch_link">
+    <inertial>
+      <origin xyz="-0.0003938 0.0085406 -0.0556603" rpy="0. 0. 0."/>
+      <mass value="0.361"/>
+      <inertia ixx="0.0004602" ixy="0.0000006" ixz="-0.0000012" iyy="0.0005753" iyz="0.0000095" izz="0.0002169"/>
+    </inertial>
+  </link>
+  <link name="right_hand_roll_link">
+    <inertial>
+      <origin xyz="0. 0.005104 -0.008485" rpy="0. 0. 0."/>
+      <mass value="0.055"/>
+      <inertia ixx="0.000011" ixy="0." ixz="0." iyy="0.00002" iyz="-0.000001" izz="0.000021"/>
+    </inertial>
+  </link>
+  <link name="right_hand_yaw_link">
+    <inertial>
+      <origin xyz="0.00047 -0.00196 -0.07239" rpy="0. 0. 0."/>
+      <mass value="0.99"/>
+      <inertia ixx="0.0025979" ixy="0.0000035" ixz="0.0000029" iyy="0.0025255" iyz="0.0000162" izz="0.0004978"/>
+    </inertial>
+  </link>
+  <link name="right_lower_arm_pitch_link">
+    <inertial>
+      <origin xyz="0. -0.008102 -0.02528 " rpy="0. 0. 0."/>
+      <mass value="0.33"/>
+      <inertia ixx="0.0002956" ixy="0." ixz="-0.0000001" iyy="0.000287" iyz="0.0000501" izz="0.000112"/>
+    </inertial>
+  </link>
+  <link name="right_shank_pitch_link">
+    <inertial>
+      <origin xyz="0.001486 0.000785 -0.1152 " rpy="0. 0. 0."/>
+      <mass value="1.76"/>
+      <inertia ixx="0.01075" ixy="0.000007" ixz="-0.000087" iyy="0.01063" iyz="0.00014" izz="0.001242"/>
+    </inertial>
+  </link>
+  <link name="right_thigh_pitch_link">
+    <inertial>
+      <origin xyz="0.001386 0.02815 -0.06399 " rpy="0. 0. 0."/>
+      <mass value="8.3500004"/>
+      <inertia ixx="0.09315" ixy="0.00009" ixz="0.001548" iyy="0.08956" iyz="-0.001825" izz="0.028"/>
+    </inertial>
+  </link>
+  <link name="right_thigh_roll_link">
+    <inertial>
+      <origin xyz="0.001319 -0.000098 0.001752" rpy="0. 0. 0."/>
+      <mass value="1.47"/>
+      <inertia ixx="0.001572" ixy="0.000012" ixz="-0.000005" iyy="0.002502" iyz="0.000006" izz="0.002594"/>
+    </inertial>
+  </link>
+  <link name="right_thigh_yaw_link">
+    <inertial>
+      <origin xyz="-0.000705 -0.03841 -0.1104 " rpy="0. 0. 0."/>
+      <mass value="3.47"/>
+      <inertia ixx="0.01912" ixy="-0.000058" ixz="0.0000146" iyy="0.02124" iyz="-0.005568" izz="0.01149"/>
+    </inertial>
+  </link>
+  <link name="right_upper_arm_pitch_link">
+    <inertial>
+      <origin xyz="0.00338 -0.05364 0.00021" rpy="0. 0. 0."/>
+      <mass value="0.82"/>
+      <inertia ixx="0.0020452" ixy="0.0001107" ixz="-0.0000003" iyy="0.0005061" iyz="-0.0000033" izz="0.0019775"/>
+    </inertial>
+  </link>
+  <link name="right_upper_arm_roll_link">
+    <inertial>
+      <origin xyz="0.004503 -0.0174 -0.02398 " rpy="0. 0. 0."/>
+      <mass value="0.61"/>
+      <inertia ixx="0.0010174" ixy="-0.0000008" ixz="-0.0000269" iyy="0.0008033" iyz="-0.0003104" izz="0.0005654"/>
+    </inertial>
+  </link>
+  <link name="right_upper_arm_yaw_link">
+    <inertial>
+      <origin xyz="-0.00001 0.0002 -0.08761" rpy="0. 0. 0."/>
+      <mass value="0.54"/>
+      <inertia ixx="0.0035706" ixy="0." ixz="0.0000001" iyy="0.0035441" iyz="-0.0000456" izz="0.0002603"/>
+    </inertial>
+  </link>
+  <link name="waist_pitch_link">
+    <inertial>
+      <origin xyz="0.004581 -0.004697 0.04034 " rpy="0. 0. 0."/>
+      <mass value="1.54"/>
+      <inertia ixx="0.0046064" ixy="-0.000023" ixz="-0.0002608" iyy="0.0045722" iyz="-0.0002459" izz="0.0018747"/>
+    </inertial>
+  </link>
+  <link name="waist_roll_link">
+    <inertial>
+      <origin xyz="-0.012064 0.0007468 0.1470475" rpy="0. 0. 0."/>
+      <mass value="6.6300001"/>
+      <inertia ixx="0.0622211" ixy="0.0000146" ixz="0.0027002" iyy="0.059453" iyz="-0.0001215" izz="0.0356021"/>
+    </inertial>
+  </link>
+  <link name="waist_yaw_link">
+    <inertial>
+      <origin xyz="-0.00152 -0.00691 0.05223" rpy="0. 0. 0."/>
+      <mass value="1.66"/>
+      <inertia ixx="0.003573" ixy="0.0000148" ixz="0.000058" iyy="0.0031429" iyz="0.0003978" izz="0.0023119"/>
+    </inertial>
+  </link>
+</robot>
