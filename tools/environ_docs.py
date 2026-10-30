@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import collections
 import contextlib
+import copy
 import itertools
 import json
 import multiprocessing
@@ -24,15 +25,24 @@ from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
 from functools import partial
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import gymnasium as gym
+import tomllib
+from isaaclab_ov.physics import OvPhysxCfg
+from isaaclab_ov.renderers import OVRTXRendererCfg
+
+from isaaclab.app import validate_launch
+from isaaclab.utils import validate
+from isaaclab.visualizers.visualizer_cfg import VISUALIZER_ALIASES, VISUALIZER_TYPES
 
 from isaaclab_tasks.utils.hydra import (
     _LEGACY_PRESET_ALIASES,
     PresetTarget,
     enumerate_task_presets,
-    is_task_run_launchable,
+    resolve_task_config,
+    task_run_overrides,
 )
 
 if TYPE_CHECKING:
@@ -150,6 +160,10 @@ class EnvironmentDocRow:
     # Launchable (physics, renderer, presets) combinations of the displayed names, ``None`` leaving an
     # axis to the config. Empty for tasks with nothing to select.
     launchable_runs: tuple[tuple[str | None, str | None, str | None], ...] = ()
+    # Viewer choices and their source-install extras for each launchable run; empty name uses config defaults.
+    visualizer_runs: dict[tuple[str | None, str | None, str | None], dict[str, tuple[str, ...]]] = field(
+        default_factory=dict
+    )
 
 
 def _supports_warp_frontend(
@@ -632,6 +646,50 @@ def _task_sort_key(row) -> tuple:
     return (base, is_vision, not is_direct)
 
 
+def _launchable_visualizers_for_run(
+    task_name: str,
+    run: tuple[str | None, str | None, str | None],
+    visualizer_names: tuple[str, ...],
+    optional_extras: frozenset[str],
+) -> dict[str, tuple[str, ...]] | None:
+    """Check a resolved task run and each viewer without starting a runtime."""
+    try:
+        env_cfg, _ = resolve_task_config(task_name, None, overrides=task_run_overrides(run))
+        validate(env_cfg)
+        default_launch = validate_launch(copy.deepcopy(env_cfg), {"livestream": 0})
+    except ValueError:
+        return None
+
+    def required_extras(launch: tuple) -> tuple[str, ...]:
+        configs, kit_sources = launch
+        launcher_types = {cfg.launcher_type for cfg in configs if hasattr(cfg, "launcher_type")}
+        needs_ovphysx = any(isinstance(cfg, OvPhysxCfg) for cfg in configs)
+        needs_ovrtx = OVRTXRendererCfg.launcher_type in launcher_types
+        extras = {
+            visualizer_type
+            for cfg in configs
+            if (visualizer_type := getattr(cfg, "visualizer_type", None)) in optional_extras
+        }
+        if kit_sources:
+            extras.add("isaacsim")
+        if needs_ovphysx and needs_ovrtx:
+            extras.add("ov")
+        elif needs_ovphysx:
+            extras.add("ovphysx")
+        elif needs_ovrtx:
+            extras.add("ovrtx")
+        return tuple(sorted(extras))
+
+    choices = {"": required_extras(default_launch)}
+    for name in visualizer_names:
+        try:
+            launch = validate_launch(copy.deepcopy(env_cfg), {"livestream": 0, "visualizer": name})
+        except ValueError:
+            continue
+        choices[name] = required_extras(launch)
+    return choices
+
+
 def collect_environment_doc_rows(
     specs: list[EnvSpec] | None = None,
 ) -> list[EnvironmentDocRow]:
@@ -645,6 +703,9 @@ def collect_environment_doc_rows(
     """
     if specs is None:
         specs = list(gym.registry.values())
+
+    with (Path(__file__).resolve().parents[1] / "pyproject.toml").open("rb") as pyproject_file:
+        optional_extras = frozenset(tomllib.load(pyproject_file)["project"]["optional-dependencies"])
 
     rows: list[EnvironmentDocRow] = []
     # Each launch check resolves a full env config; workers spread them out. Each worker imports Isaac Lab,
@@ -661,6 +722,7 @@ def collect_environment_doc_rows(
 
         preset_map = enumerate_task_presets(spec.id)
         launchable_runs = ()
+        visualizer_runs = {}
         if preset_map is not None:
             preset_map = dict(preset_map)
             preset_map[PresetTarget.PHYSICS] = _physics_names_for_docs(spec.id, preset_map)
@@ -668,10 +730,24 @@ def collect_environment_doc_rows(
             targets = (PresetTarget.PHYSICS, PresetTarget.RENDERER, PresetTarget.DOMAIN)
             selectors = _selector_names_for_docs(preset_map)
             options = [sorted(selectors[target]) for target in targets]
+            visualizer_names = tuple(
+                name
+                for name in sorted(preset_map.get(PresetTarget.VISUALIZER, []))
+                if (name in VISUALIZER_TYPES or name == "none") and name not in VISUALIZER_ALIASES
+            )
+            combinations = list(itertools.product(*([None, *names] for names in options)))
+            checked_runs = pool.map(
+                partial(
+                    _launchable_visualizers_for_run,
+                    spec.id,
+                    visualizer_names=visualizer_names,
+                    optional_extras=optional_extras,
+                ),
+                combinations,
+            )
+            visualizer_runs = {run: choices for run, choices in zip(combinations, checked_runs) if choices is not None}
             if any(options):
-                combinations = list(itertools.product(*([None, *names] for names in options)))
-                launchable = pool.map(partial(is_task_run_launchable, spec.id), combinations)
-                launchable_runs = tuple(run for run, ok in zip(combinations, launchable) if ok)
+                launchable_runs = tuple(visualizer_runs)
                 if not launchable_runs:
                     raise ValueError(f"{spec.id}: no displayed preset combination can launch.")
                 # A displayed name no launchable combination uses can never produce a working command.
@@ -715,6 +791,7 @@ def collect_environment_doc_rows(
                 required_extras=TASK_REQUIRED_EXTRAS.get(spec.id, ()),
                 warp_presets=warp_presets,
                 launchable_runs=launchable_runs,
+                visualizer_runs=visualizer_runs,
             )
         )
 
@@ -801,6 +878,10 @@ def render_environment_browser_task_rows(
             if aliases:
                 preview_image = max(aliases, key=lambda item: len(item[0]))[1]
         default_algorithms = {"skrl": "MAPPO"} if "MAPPO" in row.rl_libraries.get("skrl", []) else {}
+        visualizer_groups: dict[tuple[tuple[str, tuple[str, ...]], ...], list[str]] = {}
+        for run, choices in row.visualizer_runs.items():
+            choice_key = tuple(sorted(choices.items()))
+            visualizer_groups.setdefault(choice_key, []).append("|".join(name or "" for name in run))
         optional_values = [
             preview_image,
             row.supports_warp_frontend,
@@ -809,8 +890,9 @@ def render_environment_browser_task_rows(
             ",".join(row.required_extras),
             row.warp_presets,
             ["|".join(name or "" for name in run) for run in row.launchable_runs],
+            [[runs, dict(choices)] for choices, runs in visualizer_groups.items()],
         ]
-        optional_defaults = ["", False, {}, {}, "", None, []]
+        optional_defaults = ["", False, {}, {}, "", None, [], []]
         last_value = next(
             (
                 index
