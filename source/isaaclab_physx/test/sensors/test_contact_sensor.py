@@ -27,7 +27,8 @@ from pxr import Gf, UsdGeom, UsdPhysics
 import isaaclab.sim as sim_utils
 import isaaclab.sim.schemas as schemas
 from isaaclab.app.settings_manager import get_settings_manager
-from isaaclab.assets import RigidObject, RigidObjectCfg
+from isaaclab.assets import AssetBaseCfg, RigidObject, RigidObjectCfg
+from isaaclab.cloner import CloneCfg, clone_plan_from_env_0, replicate
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ContactSensor, ContactSensorCfg
 from isaaclab.sensors.contact_sensor import BaseContactSensor
@@ -578,15 +579,16 @@ def _author_nested_chain(prim_path: str):
 
 @pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
-def test_nested_rigid_body_hierarchy(setup_simulation, device):
+@pytest.mark.parametrize("cloned", [False, True])
+def test_nested_rigid_body_hierarchy(setup_simulation, device, cloned):
     """Checks contact sensor creation and per-body data ordering on nested rigid-body hierarchies.
 
     Regression test for issue #5126: the sensor views were created from a single
     parent-level name alternation, which cannot address bodies nested under other
     bodies, so sensor initialization failed on URDF-importer-style assets.
 
-    The chains are authored directly under each environment prim (no scene/cloner):
-    the sensor path under test only depends on the prims existing on the stage.
+    The chains are authored directly under each environment prim, or authored once and
+    cloned with a clone plan; both must give the same body-major rows.
     """
     sim_dt = setup_simulation[0]
     # several envs are needed to distinguish body-major from env-major ordering
@@ -594,11 +596,18 @@ def test_nested_rigid_body_hierarchy(setup_simulation, device):
     with build_simulation_context(device=device, dt=sim_dt, add_lighting=False) as sim:
         sim._app_control_on_stop_handle = None
         stage = get_current_stage()
-        env_origins = [(3.0 * env_id, 0.0, 0.0) for env_id in range(num_envs)]
-        for env_id, origin in enumerate(env_origins):
-            env_xform = UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_id}")
-            env_xform.AddTranslateOp().Set(Gf.Vec3d(*origin))
-            _author_nested_chain(f"/World/envs/env_{env_id}/Robot")
+        if cloned:
+            robot_cfg = AssetBaseCfg(prim_path="/World/envs/env_.*/Robot", spawn=sim_utils.SpawnerCfg())
+            plan = clone_plan_from_env_0(CloneCfg(), [robot_cfg], num_envs, 3.0)
+            _author_nested_chain("/World/envs/env_0/Robot")
+            replicate(plan)
+            env_origins = plan.positions.tolist()
+        else:
+            env_origins = [(3.0 * env_id, 0.0, 0.0) for env_id in range(num_envs)]
+            for env_id, origin in enumerate(env_origins):
+                env_xform = UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_id}")
+                env_xform.AddTranslateOp().Set(Gf.Vec3d(*origin))
+                _author_nested_chain(f"/World/envs/env_{env_id}/Robot")
         contact_sensor = ContactSensor(
             ContactSensorCfg(
                 prim_path="{ENV_REGEX_NS}/Robot/[^/]*",
@@ -926,6 +935,44 @@ def test_invalid_contact_data_config(setup_simulation, use_filter, max_contact_d
         with pytest.raises(ValueError, match=match):
             _ = InteractiveScene(scene_cfg)
             sim.reset()
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+def test_rows_follow_environment_prim_order(setup_simulation, device):
+    """Checks that the sensor rows follow the order of the environment prims, like the rows of their asset.
+
+    Heterogeneous clone plans can author the environment prims out of index order. The asset views then list the
+    environments in the order of the prims, and so must the views of a sensor on a cloned asset, here an asset with
+    two variants.
+    """
+    sim_dt = setup_simulation[0]
+    num_envs = 4
+    with build_simulation_context(device=device, dt=sim_dt, add_lighting=False) as sim:
+        sim._app_control_on_stop_handle = None
+        scene_cfg = InteractiveSceneCfg(num_envs=num_envs, env_spacing=2.0)
+        scene_cfg.shape = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Shape",
+            spawn=sim_utils.MultiAssetSpawnerCfg(
+                assets_cfg=[sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)), sim_utils.SphereCfg(radius=0.05)],
+                rigid_props=PhysxRigidBodyCfg(disable_gravity=True),
+                mass_props=sim_utils.MassCfg(mass=1.0),
+                collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+                activate_contact_sensors=True,
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 1.0)),
+        )
+        scene_cfg.shape_contact = ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Shape", track_pose=True)
+        scene = InteractiveScene(scene_cfg)
+        env_names = [f"env_{env_id}" for env_id in (0, 2, 1, 3)]
+        stage = get_current_stage()
+        stage.GetRootLayer().GetPrimAtPath("/World/envs").nameChildrenOrder = env_names
+        assert stage.GetPrimAtPath("/World/envs").GetChildrenNames() == env_names
+        sim.reset()
+        scene.update(sim_dt)
+
+        sensor_pos = scene["shape_contact"].data.pos_w.torch[:, 0]
+        torch.testing.assert_close(sensor_pos, scene["shape"].data.root_pos_w.torch)
 
 
 """

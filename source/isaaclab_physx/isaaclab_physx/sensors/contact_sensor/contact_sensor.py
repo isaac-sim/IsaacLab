@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Sequence
+from fnmatch import fnmatchcase
 from typing import TYPE_CHECKING
 
 import torch
@@ -18,6 +19,7 @@ import warp as wp
 
 import omni.physics.tensors as physx
 
+from isaaclab import cloner
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.contact_sensor import BaseContactSensor
@@ -36,9 +38,63 @@ from .kernels import (
 )
 
 if TYPE_CHECKING:
+    from pxr import Usd
+
     from isaaclab.sensors.contact_sensor import ContactSensorCfg
 
 logger = logging.getLogger(__name__)
+
+
+def _expand_env_patterns(patterns: list[str], plan: cloner.ClonePlan | None, stage: Usd.Stage) -> list[str]:
+    """Expand the environment slot of patterns into the concrete paths of the planned instances.
+
+    The paths of a pattern are ordered like the environment prims below their parent, the order in which PhysX
+    lists the matches of the pattern. This differs from the world order of ``_expand_env_pattern`` in the OVPhysX
+    views when a heterogeneous plan authors the environment prims out of index order.
+
+    Args:
+        patterns: The PhysX patterns, one per body.
+        plan: The clone plan of the scene, if any.
+        stage: The stage holding the environment prims.
+
+    Returns:
+        The concrete paths of each pattern in turn. A pattern that matches no planned instance is kept, and so are
+        all patterns if an environment prim of the plan is not on the stage.
+    """
+    if plan is None:
+        return patterns
+    env_parent, _ = plan.env_template.rsplit("/", 1)
+    parent_prim = stage.GetPrimAtPath(env_parent) if env_parent else None
+    if not parent_prim:
+        return patterns
+    child_rank = {name: rank for rank, name in enumerate(parent_prim.GetChildrenNames())}
+    templates, starts, worlds, world_starts = cloner.path.get_world_prototype_asset_templates(
+        plan, include_world_indices=True
+    )
+    # the ordered instance roots of a template in a world group, shared by the patterns of all bodies below it
+    roots: dict[tuple[int, str, str], list[tuple[int, str]]] = {}
+    paths = []
+    for pattern in patterns:
+        matches = {}
+        for group in range(1, len(starts) - 1):
+            env_ids = worlds[world_starts[group] : world_starts[group + 1]]
+            for template in templates[starts[group] : starts[group + 1]]:
+                matched = cloner.path.match(pattern, template)
+                if matched is None:
+                    continue
+                key = (group, template, matched.instance)
+                if key not in roots:
+                    roots[key] = []
+                    for env_id in env_ids:
+                        if fnmatchcase(str(env_id), matched.instance):
+                            name = plan.env_template.format(env_id).rsplit("/", 1)[1]
+                            if name not in child_rank:
+                                return patterns
+                            roots[key].append((child_rank[name], template.format(env_id)))
+                for rank, root in roots[key]:
+                    matches.setdefault(root + matched.suffix, rank)
+        paths.extend(sorted(matches, key=matches.get) if matches else [pattern])
+    return paths
 
 
 class ContactSensor(BaseContactSensor):
@@ -391,15 +447,21 @@ class ContactSensor(BaseContactSensor):
         body_path_globs = [path_expr_to_glob(expr) for _, expr in body_matches]
         filter_prim_paths_glob = [path_expr_to_glob(expr) for expr in self.cfg.filter_prim_paths_expr]
 
+        # PhysX resolves each pattern in every environment (bodies x environments walks) but looks up concrete
+        # paths directly. Filtered sensors keep the patterns: each filter list pairs with all matches of one sensor
+        # pattern.
+        body_paths = body_path_globs
+        if not self.cfg.filter_prim_paths_expr:
+            body_paths = _expand_env_patterns(body_path_globs, self._sim.get_clone_plan(), self._sim.stage)
         # create a rigid prim view for the sensor
-        self._body_physx_view = self._physics_sim_view.create_rigid_body_view(body_path_globs)
+        self._body_physx_view = self._physics_sim_view.create_rigid_body_view(body_paths)
         self._num_sensors = len(body_names)
         self._check_env_count(self.body_physx_view.count, " or ".join(body_path_globs), self._num_sensors)
         # with a list of sensor patterns, the contact view expects one filter list per pattern;
         # keep the no-filter case as a flat empty list, matching the API default
         filter_patterns = [filter_prim_paths_glob] * len(body_path_globs) if filter_prim_paths_glob else []
         self._contact_view = self._physics_sim_view.create_rigid_contact_view(
-            body_path_globs,
+            body_paths,
             filter_patterns=filter_patterns,
             max_contact_data_count=self.cfg.max_contact_data_count_per_prim * len(body_names) * self._num_envs,
         )
