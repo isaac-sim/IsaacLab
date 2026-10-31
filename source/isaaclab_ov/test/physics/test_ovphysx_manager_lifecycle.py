@@ -557,6 +557,31 @@ def test_scene_settings(monkeypatch, manager, device, rate, override, expected):
     assert prim.GetAttribute("physxScene:enableSceneQuerySupport").Get() is sim_cfg.enable_scene_query_support
 
 
+@pytest.mark.parametrize("device", ["cpu", "gpu"])
+def test_scene_contact_settings_are_authored_only_when_selected(monkeypatch, manager, device):
+    """Optional contact tuning reaches the scene prim; unset fields keep the stage value."""
+    from isaaclab_ov.physics.ovphysx_manager_cfg import OvPhysxCfg
+
+    from pxr import Usd
+
+    monkeypatch.setattr(
+        manager, "_sim", SimpleNamespace(cfg=SimpleNamespace(dt=1.0 / 60.0, enable_scene_query_support=False))
+    )
+    stage = Usd.Stage.CreateInMemory()
+    default_prim = stage.DefinePrim("/World/DefaultScene", "PhysicsScene")
+    manager._configure_physx_scene_prim(default_prim, OvPhysxCfg(), device)
+    for attr in ("bounceThreshold", "frictionCorrelationDistance", "solveArticulationContactLast"):
+        assert not default_prim.GetAttribute(f"physxScene:{attr}").HasAuthoredValue()
+    prim = stage.DefinePrim("/World/PhysicsScene", "PhysicsScene")
+    cfg = OvPhysxCfg(
+        bounce_threshold_velocity=0.01, friction_correlation_distance=0.00625, solve_articulation_contact_last=True
+    )
+    manager._configure_physx_scene_prim(prim, cfg, device)
+    assert prim.GetAttribute("physxScene:bounceThreshold").Get() == pytest.approx(0.01)
+    assert prim.GetAttribute("physxScene:frictionCorrelationDistance").Get() == pytest.approx(0.00625)
+    assert prim.GetAttribute("physxScene:solveArticulationContactLast").Get() is True
+
+
 @pytest.mark.parametrize(("device", "gpu_dynamics", "broadphase"), [("cpu", False, "MBP"), ("gpu", True, "GPU")])
 def test_scenes_author_device_dynamics_and_broadphase(monkeypatch, manager, device, gpu_dynamics, broadphase):
     """Every physics scene selects the simulation device, since CPU and GPU scenes share one process."""

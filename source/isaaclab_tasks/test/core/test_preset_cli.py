@@ -291,11 +291,11 @@ def test_teleop_tasks_resolve_public_physics_selectors(physics):
     expected_type = {None: PhysxCfg, "isaacsim_physx": PhysxCfg, "ovphysx": OvPhysxCfg, "newton_mjwarp": NewtonCfg}
     assert isinstance(cfg.sim.physics, expected_type[physics])
     assert cfg.scene.num_envs == 1 and cfg.sim.device == "cpu"
-    if "SO101" in task_name:
-        assert cfg.scene.robot.spawn.variants["Physics"] == ("physics" if physics == "newton_mjwarp" else "physx")
+    assert cfg.scene.robot.spawn.variants["Physics"] == ("physics" if physics == "newton_mjwarp" else "physx")
     if physics == "newton_mjwarp":
         assert isinstance(cfg.sim.physics.solver_cfg, MJWarpSolverCfg)
-        if "SO101" in task_name:
-            assert cfg.sim.physics.solver_cfg.iterations == 100
-            assert cfg.sim.physics.solver_cfg.impratio == 10.0
-            assert cfg.sim.physics.solver_cfg.nconmax == 600
+    if physics == "ovphysx":
+        # The kitless OvPhysX selection keeps the stack family's PhysX grasp tuning.
+        assert cfg.sim.physics.bounce_threshold_velocity == pytest.approx(0.01)
+        assert cfg.sim.physics.friction_correlation_distance == pytest.approx(0.00625)
+        assert cfg.sim.physics.solve_articulation_contact_last is True
