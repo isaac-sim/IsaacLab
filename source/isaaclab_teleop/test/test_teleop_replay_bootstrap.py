@@ -37,6 +37,9 @@ def test_replay_failed_input_drain_requests_stop_without_releasing_borrowers(rep
 @pytest.mark.parametrize("layout_mode", ["horizontal", "manual", None])
 def test_replay_presentation_preserves_camera_layout(monkeypatch, replay_presentation_type, layout_mode):
     """The forced head-locked placement keeps task packing, and the viewer receives the CLI rates."""
+    # Session construction needs a Capture release with OVXR session support; the Kit
+    # ``teleop`` extra selects an older release, so skip there like ``run_live_workflow``.
+    pytest.importorskip("isaaccapture.ovxr_session_manager")
     import isaaclab_teleop
     from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg, XrCameraFeedCfg, XrCameraFeedLayoutCfg
 

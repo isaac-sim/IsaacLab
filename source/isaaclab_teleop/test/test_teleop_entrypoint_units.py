@@ -843,6 +843,9 @@ def test_auxiliary_camera_pip_cli_is_explicit_and_bounded(monkeypatch):
 )
 def test_ovxr_mirror_cli_reaches_session_construction(monkeypatch, entrypoint, flags, expected):
     """The real entrypoint parser controls the config passed to XR session preparation."""
+    # Session construction needs a Capture release with OVXR session support; the Kit
+    # ``teleop`` extra selects an older release, so skip there like ``run_live_workflow``.
+    pytest.importorskip("isaaccapture.ovxr_session_manager")
     import isaaclab_teleop
     from isaaclab_teleop.entrypoints import teleop_replay_agent, teleop_se3_agent
 
@@ -965,7 +968,9 @@ def _run_ovxr_pip_workflow(monkeypatch, entrypoint, layout, flags, calls):
     monkeypatch.setattr(module, "validate_launch", lambda *_args: ((), ()))
     monkeypatch.setattr(module, "launch_simulation", launch)
     monkeypatch.setattr(isaaclab_teleop, "remove_camera_configs", remove_camera_configs)
-    monkeypatch.setattr(isaaclab_teleop.OvLibrariesXrSession, "prepare", prepare)
+    # The Kit Capture release has no OVXR session; layout rejection never reaches the session.
+    with suppress(ModuleNotFoundError):
+        monkeypatch.setattr(isaaclab_teleop.OvLibrariesXrSession, "prepare", prepare)
     monkeypatch.setattr(SimulationContext, "instance", lambda: None)
     monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1")
     arguments = ["--task", "Test", "--ovxr", "--cloudxr_env", "none", "--ovxr_pip_camera", "head_cam", *flags]
@@ -998,6 +1003,9 @@ def _run_ovxr_pip_workflow(monkeypatch, entrypoint, layout, flags, calls):
 )
 def test_ovxr_pip_cli_reaches_session_construction(monkeypatch, entrypoint, placement, flags, position):
     """The PiP and mirror options of both workflows reach the OVXR session configuration."""
+    # Session construction needs a Capture release with OVXR session support; the Kit
+    # ``teleop`` extra selects an older release, so skip there like ``run_live_workflow``.
+    pytest.importorskip("isaaccapture.ovxr_session_manager")
     from isaaclab_ov.renderers import OVRTXRendererCfg
     from isaaclab_teleop import XrCameraFeedLayoutCfg
 
