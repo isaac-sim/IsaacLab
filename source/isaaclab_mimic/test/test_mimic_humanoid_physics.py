@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Humanoid Mimic tasks keep Isaac Sim PhysX; their environments skip kitless preparation."""
+"""Humanoid Mimic and SDG tasks keep Isaac Sim PhysX; their environments skip kitless preparation."""
 
 import pytest
 
@@ -14,12 +14,14 @@ import pytest
         "Isaac-PickPlace-GR1T2-Abs-Mimic-v0",
         "Isaac-PickPlace-GR1T2-WaistEnabled-Abs-Mimic-v0",
         "Isaac-Locomanipulation-G1-Abs-Mimic-v0",
+        "Isaac-G1-SteeringWheel-Locomanipulation",
     ],
 )
 def test_humanoid_mimic_tasks_offer_only_isaac_sim_physx(task):
     from isaaclab_physx.physics import PhysxCfg
 
     import isaaclab_mimic.envs  # noqa: F401 -- registers the Mimic task IDs
+    import isaaclab_mimic.locomanipulation_sdg.envs  # noqa: F401 -- registers the SDG task ID
 
     import isaaclab_tasks  # noqa: F401
     from isaaclab_tasks.utils import parse_env_cfg
