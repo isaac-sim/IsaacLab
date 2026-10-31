@@ -505,6 +505,18 @@ def test_host_rejects_a_missing_selected_auxiliary_camera(xr_module, monkeypatch
 
     with pytest.raises(RuntimeError, match="not present"):
         host.attach_on_render_thread(host.offer_render_owner_transfer())
+    # The selection fails before native Stage binding and partition export.
+    assert not any(isinstance(event, tuple) and event[0] == "bind" for event in bootstrap.events)
+
+
+def test_headless_attach_does_not_import_the_desktop_mirror(xr_module, monkeypatch):
+    """``--headless`` must work without the optional desktop-mirror modules."""
+    host, _bootstrap, _env = _make_host(xr_module, monkeypatch)
+    monkeypatch.setitem(sys.modules, "isaaccapture.ovxr_session_manager.owned_mirror", None)
+    monkeypatch.setitem(sys.modules, "isaaccapture.ovxr_session_manager.desktop_mirror", None)
+    assert not host._cfg.desktop_mirror_enabled
+    binding = host.attach_on_render_thread(host.offer_render_owner_transfer())
+    assert binding.frame_consumers == ()
 
 
 def test_selected_camera_poses_follow_motion_and_reset_before_publication(xr_module, monkeypatch):

@@ -292,6 +292,12 @@ class _IsaacLabOvxrApplicationInterface(OvxrApplicationInterface):
 
         self._bootstrap.claim_render_owner_transfer(capability)
         unwrapped = getattr(self._env, "unwrapped", self._env)
+        if self._auxiliary_cameras:
+            # Fail before native Stage binding and partition export.
+            sensors = unwrapped.scene.sensors
+            for camera in self._auxiliary_cameras:
+                if sensors.get(camera.name) is None:
+                    raise RuntimeError(f"Configured auxiliary camera {camera.name!r} is not present in the environment")
         _apply_hidden_visual_prims(self._env, self._hidden_visual_prims)
         _declare_ovxr_runtime_prims(self._env, self._cfg)
         from .xr_scene_partition import partition_visual_meshes
@@ -301,10 +307,6 @@ class _IsaacLabOvxrApplicationInterface(OvxrApplicationInterface):
             self._lease = self._bootstrap.bind_environment(self._env)
         auxiliary_paths = ()
         if self._auxiliary_cameras:
-            sensors = unwrapped.scene.sensors
-            for camera in self._auxiliary_cameras:
-                if sensors.get(camera.name) is None:
-                    raise RuntimeError(f"Configured auxiliary camera {camera.name!r} is not present in the environment")
             auxiliary_paths = self._lease.auxiliary_render_product_paths
         with self._lease.ovstage_owner_lane():
             self._lease.configure_external_camera_scene_partitions(_ENVIRONMENT_ROOT_PATH, self._cfg.camera_paths)
@@ -329,8 +331,6 @@ class _IsaacLabOvxrApplicationInterface(OvxrApplicationInterface):
                         setup_error.add_note(f"Anchor query cleanup also failed: {cleanup_error!r}")
                     raise
         from isaaccapture.ovxr_session_manager.camera_panels import CameraPanelConfig, CameraPanelConsumer
-        from isaaccapture.ovxr_session_manager.desktop_mirror import DesktopMirrorConfig
-        from isaaccapture.ovxr_session_manager.owned_mirror import MirrorProduct, OwnedDesktopMirror
 
         panels = tuple(
             CameraPanelConfig(
@@ -346,6 +346,10 @@ class _IsaacLabOvxrApplicationInterface(OvxrApplicationInterface):
         )
         consumers = [CameraPanelConsumer(panels)] if panels else []
         if self._cfg.desktop_mirror_enabled:
+            # Headless sessions never import the optional mirror modules.
+            from isaaccapture.ovxr_session_manager.desktop_mirror import DesktopMirrorConfig
+            from isaaccapture.ovxr_session_manager.owned_mirror import MirrorProduct, OwnedDesktopMirror
+
             self.desktop_mirror = OwnedDesktopMirror(
                 DesktopMirrorConfig(
                     max_fps=self._cfg.desktop_mirror_max_fps,

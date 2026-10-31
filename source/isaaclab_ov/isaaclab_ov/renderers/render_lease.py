@@ -74,6 +74,12 @@ class OvLibrariesRenderLease:
 
     @property
     def auxiliary_render_product_paths(self) -> tuple[str, ...]:
+        """RenderProduct paths of the selected auxiliary cameras, in configuration order.
+
+        Raises:
+            RuntimeError: If the lease is not bound and live, or a selected camera did not
+                materialize exactly one product.
+        """
         self.validate_live()
         return cast("RenderLeaseController", self._controller).product_paths(self)
 
