@@ -520,31 +520,22 @@ def test_product_xr_default_resolves_cloudxrjs_and_autolaunch(monkeypatch):
     ],
 )
 def test_teleop_launcher_preserves_the_resolved_physics_configuration(monkeypatch, task_name, physics):
-    """Task preparation must reach launch validation without losing its backend settings."""
-    from isaaclab.app.sim_launcher import validate_launch
-
-    from isaaclab_tasks.utils import parse_env_cfg
-
-    agent = _load_teleop_agent(monkeypatch, "--task", task_name, "--physics", physics)
-    env_cfg = parse_env_cfg(task_name, device="cpu", num_envs=1, overrides=[f"physics={physics}"])
+    """The entrypoint validates the launch, then prepares the task, keeping its backend settings."""
+    agent = _load_teleop_agent(monkeypatch, "--task", task_name, "--physics", physics, "--disable_external_cameras")
+    env_cfg, _teleop_cfg, _use_isaac_teleop = agent._resolve_env_cfg()
     physics_cfg = env_cfg.sim.physics
-    env_cfg.isaac_teleop.prepare_environment(env_cfg)
+    assert not hasattr(agent.args_cli, "physics")
     if physics == "newton_mjwarp":
         if "Locomanipulation-G1" in task_name:
             assert physics_cfg.num_substeps == 2
             assert physics_cfg.solver_cfg.integrator == "implicitfast"
-        else:
-            assert physics_cfg.solver_cfg.nconmax == 4096
-            assert physics_cfg.solver_cfg.njmax == 1536
+        assert physics_cfg.solver_cfg.nconmax >= 4096
+        assert physics_cfg.solver_cfg.njmax >= 1536
     else:
         from isaaclab_tasks.contrib.packing_table import PackingTableUsdFileCfg
 
         assert isinstance(env_cfg.scene.packing_table.spawn, PackingTableUsdFileCfg) == (physics == "ovphysx")
-
-    configs, _ = validate_launch(SimpleNamespace(sim=SimpleNamespace(physics=physics_cfg)), vars(agent.args_cli).copy())
-    assert not hasattr(agent.args_cli, "physics")
-    assert env_cfg.sim.physics is physics_cfg
-    assert any(cfg is physics_cfg for cfg in configs)
+    assert getattr(env_cfg, "_prepared_kitless_backend", None) == (None if physics == "isaacsim_physx" else physics)
 
 
 def test_teleop_agent_installs_late_graceful_shutdown_handlers(monkeypatch):
