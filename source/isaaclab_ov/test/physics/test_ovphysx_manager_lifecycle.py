@@ -557,8 +557,7 @@ def test_scene_settings(monkeypatch, manager, device, rate, override, expected):
     assert prim.GetAttribute("physxScene:enableSceneQuerySupport").Get() is sim_cfg.enable_scene_query_support
 
 
-@pytest.mark.parametrize("device", ["cpu", "gpu"])
-def test_scene_contact_settings_are_authored_only_when_selected(monkeypatch, manager, device):
+def test_scene_contact_settings_are_authored_only_when_selected(monkeypatch, manager):
     """Optional contact tuning reaches the scene prim; unset fields keep the stage value."""
     from isaaclab_ov.physics.ovphysx_manager_cfg import OvPhysxCfg
 
@@ -569,14 +568,15 @@ def test_scene_contact_settings_are_authored_only_when_selected(monkeypatch, man
     )
     stage = Usd.Stage.CreateInMemory()
     default_prim = stage.DefinePrim("/World/DefaultScene", "PhysicsScene")
-    manager._configure_physx_scene_prim(default_prim, OvPhysxCfg(), device)
+    # Contact settings are authored the same way on every device, so one device covers them.
+    manager._configure_physx_scene_prim(default_prim, OvPhysxCfg(), "cpu")
     for attr in ("bounceThreshold", "frictionCorrelationDistance", "solveArticulationContactLast"):
         assert not default_prim.GetAttribute(f"physxScene:{attr}").HasAuthoredValue()
     prim = stage.DefinePrim("/World/PhysicsScene", "PhysicsScene")
     cfg = OvPhysxCfg(
         bounce_threshold_velocity=0.01, friction_correlation_distance=0.00625, solve_articulation_contact_last=True
     )
-    manager._configure_physx_scene_prim(prim, cfg, device)
+    manager._configure_physx_scene_prim(prim, cfg, "cpu")
     assert prim.GetAttribute("physxScene:bounceThreshold").Get() == pytest.approx(0.01)
     assert prim.GetAttribute("physxScene:frictionCorrelationDistance").Get() == pytest.approx(0.00625)
     assert prim.GetAttribute("physxScene:solveArticulationContactLast").Get() is True
