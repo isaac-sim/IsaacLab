@@ -186,17 +186,37 @@ def test_render_device_cli_rejects_malformed_values_at_parse_time(monkeypatch, c
     assert message in capsys.readouterr().err
 
 
+def _set_physics_cuda_device(monkeypatch, index):
+    """Make ``/physics/cudaDevice``, which resolves a bare ``cuda`` device at launch, read ``index``."""
+    from isaaclab_teleop.entrypoints import teleop_se3_agent as agent
+
+    settings = SimpleNamespace(get=lambda path, default=None: index if path == "/physics/cudaDevice" else default)
+    monkeypatch.setattr(agent, "get_settings_manager", lambda: settings)
+
+
 @pytest.mark.parametrize(
-    ("arguments", "sim_device"),
+    ("arguments", "message"),
     [
-        (["--ovrtx_active_cuda_gpus", "0", "--geometry_publication_device", "cuda:1"], "cuda:1"),
-        (["--device", "cuda:1", "--geometry_publication_device", "cuda:0"], "cuda:1"),
+        (["--ovrtx_active_cuda_gpus", "0", "--geometry_publication_device", "cuda:1"], r"rendering GPU \[0\]"),
+        (["--device", "cuda:1", "--geometry_publication_device", "cuda:0"], r"rendering GPU \[1\]"),
+        (["--device", "cuda", "--geometry_publication_device", "cuda:0"], r"rendering GPU \[1\]"),
+        (["--device", "cpu", "--geometry_publication_device", "cuda:0"], "requires --ovrtx_active_cuda_gpus"),
     ],
 )
-def test_geometry_publication_device_must_be_a_rendering_gpu(monkeypatch, arguments, sim_device):
+def test_geometry_publication_device_must_be_a_rendering_gpu(monkeypatch, arguments, message):
     """Copies to a GPU that does not render add work without helping the renderer."""
-    with pytest.raises(ValueError, match="is not a rendering GPU"):
-        _run_ovxr_until_session_prepare(monkeypatch, arguments, sim_device=sim_device)
+    _set_physics_cuda_device(monkeypatch, 1)
+    with pytest.raises(ValueError, match=message):
+        _run_ovxr_until_session_prepare(monkeypatch, arguments)
+
+
+@pytest.mark.parametrize(("physics_cuda_device", "publication"), [(None, "cuda:0"), (1, "cuda:1")])
+def test_bare_cuda_physics_renders_on_the_gpu_that_launch_selects(monkeypatch, physics_cuda_device, publication):
+    """``--device cuda`` follows ``/physics/cudaDevice`` as the launcher does before the check runs."""
+    _set_physics_cuda_device(monkeypatch, physics_cuda_device)
+    arguments = ["--device", "cuda", "--geometry_publication_device", publication]
+    _, renderer = _run_ovxr_until_session_prepare(monkeypatch, arguments)
+    assert renderer.geometry_publication_device == publication
 
 
 @pytest.mark.parametrize(
