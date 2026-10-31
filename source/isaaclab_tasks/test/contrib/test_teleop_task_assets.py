@@ -95,3 +95,39 @@ def test_gr1t2_kitless_kinematics_urdf_matches_the_spawned_asset():
     assert set(urdf_limits) == set(usd_limits)
     for name, (lower, upper) in usd_limits.items():
         assert urdf_limits[name] == pytest.approx((lower, upper), abs=1.0e-4), name
+
+
+@pytest.mark.parametrize("task", ["fixed_base_g1", "gr1t2", "gr1t2_waist"])
+def test_xr_head_exclusions_match_only_visual_head_meshes(task):
+    """OVXR attach fails closed when an exclusion matches nothing; check the patterns on the real assets."""
+    from pxr import UsdGeom
+
+    from isaaclab_tasks.contrib.locomanip_pick_place.fixed_base_upper_body_ik_g1_env_cfg import (
+        FixedBaseUpperBodyIKG1EnvCfg,
+    )
+    from isaaclab_tasks.contrib.pick_place.pickplace_gr1t2_env_cfg import PickPlaceGR1T2EnvCfg
+    from isaaclab_tasks.contrib.pick_place.pickplace_gr1t2_waist_enabled_env_cfg import (
+        PickPlaceGR1T2WaistEnabledEnvCfg,
+    )
+
+    cfg_type = {
+        "fixed_base_g1": FixedBaseUpperBodyIKG1EnvCfg,
+        "gr1t2": PickPlaceGR1T2EnvCfg,
+        "gr1t2_waist": PickPlaceGR1T2WaistEnabledEnvCfg,
+    }[task]
+    cfg = cfg_type()
+    if cfg.xr is None or not cfg.xr.excluded_visual_meshes:
+        pytest.skip("The teleoperation configuration is unavailable")
+    stage = _open_asset(cfg.scene.robot.spawn.usd_path)
+    for pattern in cfg.xr.excluded_visual_meshes:
+        assert pattern.startswith("/World/envs/env_0/Robot/"), pattern
+        meshes = [
+            prim
+            for prim in _robot_paths(stage, _ENV_ROBOT + pattern[len("/World/envs/env_0/Robot") :])
+            if prim.IsA(UsdGeom.Mesh)
+        ]
+        assert meshes, pattern
+        for prim in meshes:
+            assert "collisions" not in str(prim.GetPath()).split("/")
+            assert not prim.HasAPI(UsdPhysics.CollisionAPI)
+            assert "head" in str(prim.GetPath())
