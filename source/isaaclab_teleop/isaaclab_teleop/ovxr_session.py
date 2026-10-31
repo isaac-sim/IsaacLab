@@ -32,7 +32,14 @@ def validate_ovxr_session_preparation() -> None:
 
 
 class OvxrSessionBootstrap:
-    """Reserve an OVRTX/OVStage lease before a real environment is constructed."""
+    """Reserve an OVRTX/OVStage lease before a real environment is constructed.
+
+    The bootstrap creates the :class:`~isaaclab.sim.SimulationContext` from the ``sim_cfg``
+    given here, and the environment reuses it. Only environments that accept a pre-created
+    context are supported (manager-based environments; :class:`~isaaclab.envs.DirectRLEnv`
+    always creates its own). :meth:`validate_environment` rejects an environment whose
+    simulation device or time step disagrees with the prepared context.
+    """
 
     def __init__(self, sim_cfg: SimulationCfg, renderer_cfg: OVRTXRendererCfg | None = None) -> None:
         validate_ovxr_session_preparation()
@@ -57,6 +64,10 @@ class OvxrSessionBootstrap:
             if not isinstance(renderer, OVRTXRenderer):
                 raise TypeError(f"OVRTXRendererCfg resolved to unexpected renderer {type(renderer).__name__}")
             lease = renderer.acquire_ov_libraries_render_lease()
+            # Camera sensors prepare every registered renderer on the application thread
+            # during environment construction. Only the claimed render owner materializes
+            # this pair, so that call is recorded and completed in bind_environment().
+            lease.defer_stage_until_owner_transfer()
         except BaseException as preparation_error:
             sim = SimulationContext.instance()
             try:
@@ -85,23 +96,50 @@ class OvxrSessionBootstrap:
         assert self._sim is not None
         return self._sim
 
+    def validate_environment(self, env: Any) -> None:
+        """Check that a constructed environment uses the prepared simulation context.
+
+        Args:
+            env: Constructed environment, possibly wrapped.
+
+        Raises:
+            RuntimeError: If the environment did not reuse the prepared context, has no
+                completed stage or a non-positive environment count, or its simulation
+                configuration selects a different device or physics time step [s].
+        """
+        self._require_open()
+        unwrapped = getattr(env, "unwrapped", env)
+        if unwrapped.sim is not self._sim:
+            raise RuntimeError("Environment did not reuse the exact pre-created SimulationContext")
+        if unwrapped.scene.stage is None:
+            raise RuntimeError("Environment has no completed InteractiveScene Stage")
+        num_envs = unwrapped.num_envs
+        if not isinstance(num_envs, int) or num_envs <= 0:
+            raise RuntimeError(f"Environment has invalid num_envs: {num_envs!r}")
+        env_sim_cfg = getattr(getattr(unwrapped, "cfg", None), "sim", None)
+        prepared_cfg = self._sim.cfg
+        if env_sim_cfg is not None and env_sim_cfg is not prepared_cfg:
+            for field in ("device", "dt"):
+                if getattr(env_sim_cfg, field, None) != getattr(prepared_cfg, field, None):
+                    raise RuntimeError(
+                        f"Environment sim.{field}={getattr(env_sim_cfg, field, None)!r} differs from the OVXR"
+                        f" prepared simulation context ({getattr(prepared_cfg, field, None)!r}); prepare the"
+                        " session with the environment's sim configuration"
+                    )
+
     def bind_environment(self, env: Any) -> OvLibrariesRenderLease:
         """Prepare and bind the completed environment Stage to the reserved pair."""
         self._require_open()
         if self._bound:
             raise RuntimeError("OVXR bootstrap is already bound")
         try:
+            self.validate_environment(env)
             unwrapped = getattr(env, "unwrapped", env)
-            if unwrapped.sim is not self._sim:
-                raise RuntimeError("Environment did not reuse the exact pre-created SimulationContext")
             scene = unwrapped.scene
-            if scene.stage is None:
-                raise RuntimeError("Environment has no completed InteractiveScene Stage")
             num_envs = unwrapped.num_envs
-            if not isinstance(num_envs, int) or num_envs <= 0:
-                raise RuntimeError(f"Environment has invalid num_envs: {num_envs!r}")
             assert self._sim is not None and self._lease is not None
-            self._sim.render_context.ensure_prepare_stage(scene.stage, num_envs)
+            if not self._lease.materialize_deferred_stage(scene.stage, num_envs):
+                self._sim.render_context.ensure_prepare_stage(scene.stage, num_envs)
             self._lease.validate_live()
             self._bound = True
             return self._lease
@@ -158,7 +196,10 @@ class OvxrSessionBootstrap:
         if output.matrices is None:
             raise RuntimeError(f"SceneData returned no matrix buffer for target frame {prim_path!r}")
 
-        wp.synchronize_device(str(output.matrices.device))
+        # SceneData converts on the device's current stream. Wait only for that stream so a
+        # publication does not serialize with unrelated work (such as in-flight XR rendering).
+        if output.matrices.device.is_cuda:
+            wp.synchronize_stream(wp.get_stream(output.matrices.device))
         world_T_target = np.asarray(output.matrices.numpy()[0], dtype=np.float64)
         if world_T_target.shape != (4, 4) or not np.all(np.isfinite(world_T_target)):
             raise RuntimeError(f"Target-frame transform {prim_path!r} is missing or non-finite")
