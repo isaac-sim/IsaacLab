@@ -253,14 +253,22 @@ class OvstageBackend:
         return ordinal
 
     def close(self) -> None:
-        """Release borrowers, then the path dictionary and stage."""
+        """Release borrowers, then the path dictionary and stage.
+
+        Raises:
+            RuntimeError: If an :class:`~isaaclab_ov.renderers.OvLibrariesRenderLease` is active.
+        """
         if self._render_lease_owner is not None:
             raise RuntimeError("Cannot destroy or reset a stage with an active render lease")
         self.resources.close()
         self.stage = self.paths = None
 
     def reset(self) -> None:
-        """Recreate the native stage after all consumers detach, retaining the prepared clone operations."""
+        """Recreate the native stage after all consumers detach, retaining the prepared clone operations.
+
+        Raises:
+            RuntimeError: If an :class:`~isaaclab_ov.renderers.OvLibrariesRenderLease` is active.
+        """
         self.close()
         self.ordinal = self.next_camera_id = 0
         with contextlib.ExitStack() as resources:
@@ -301,15 +309,13 @@ def export_stage_to_string(
     export_session.subLayerPaths = [stage.GetSessionLayer().identifier]
     export_stage = Usd.Stage.Open(stage.GetRootLayer(), export_session)
     export_stage.SetEditTarget(export_session)
-    # Preserve authored partition visibility; default to every partition when absent.
+    # Perspective cameras see every partition; sensor cameras retain their explicit partition.
     settings_path = export_stage.GetMetadata("renderSettingsPrimPath") or "/Render/IsaacLabSettings"
     settings = UsdRender.Settings.Define(export_stage, settings_path)
     settings.GetPrim().AddAppliedSchema("OmniRtxSettingsGlobalCommonAPI_1")
-    show_all = settings.GetPrim().CreateAttribute(
+    settings.GetPrim().CreateAttribute(
         "omni:rtx:scenePartitioning:showAllPartitionsByDefault", Sdf.ValueTypeNames.Bool
-    )
-    if not show_all.HasAuthoredValueOpinion():
-        show_all.Set(True)
+    ).Set(True)
     export_stage.SetMetadata("renderSettingsPrimPath", settings_path)
     prim_paths = []
     if len(clone_env_paths) > 1:
