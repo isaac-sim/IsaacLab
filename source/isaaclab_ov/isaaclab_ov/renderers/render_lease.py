@@ -111,6 +111,10 @@ class OvLibrariesRenderLease:
 
         Returns:
             Whether a deferred preparation was completed. ``False`` means nothing was deferred.
+
+        Raises:
+            RuntimeError: If called off the render-owner thread, or deferral is selected and
+                the owner transfer has not been claimed.
         """
         return cast("RenderLeaseController", self._controller).materialize_deferred_stage(self, stage, num_envs)
 
@@ -484,12 +488,13 @@ class RenderLeaseController:
     def materialize_deferred_stage(self, lease: OvLibrariesRenderLease, stage: Any, num_envs: int) -> bool:
         """Materialize a deferred Stage after render-thread ownership transfer."""
         self.require_owner_thread("materialize a deferred Stage")
+        # Unclaimed, a fallback prepare_stage would only defer again; reject even if nothing is deferred yet.
+        if self.defer_until_transfer and not self._transfer_claimed:
+            raise RuntimeError("Deferred Stage materialization requires a claimed owner transfer")
         if not self.stage_deferred:
             return False
         if self.active is not lease or lease._state is not _OvLibrariesRenderLeaseState.UNBOUND:
             raise RuntimeError("Deferred Stage is not eligible for materialization")
-        if not self._transfer_claimed:
-            raise RuntimeError("Deferred Stage materialization requires a claimed owner transfer")
         self._renderer.prepare_stage(stage, num_envs)
         return True
 
