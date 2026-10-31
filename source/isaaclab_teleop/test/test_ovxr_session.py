@@ -128,3 +128,9 @@ def test_environment_validation_resolves_devices_and_requires_one_environment(bo
     else:
         with pytest.raises(RuntimeError, match=error):
             bootstrap.validate_environment(env)
+
+
+def test_binding_requires_the_claimed_owner_transfer(bootstrap):
+    """Binding before the claim names the missing claim, even when no camera deferred the Stage yet."""
+    with pytest.raises(RuntimeError, match="requires a claimed owner transfer"):
+        bootstrap.bind_environment(_environment(bootstrap))

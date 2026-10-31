@@ -137,7 +137,21 @@ class OvxrSessionBootstrap:
                     )
 
     def bind_environment(self, env: Any) -> OvLibrariesRenderLease:
-        """Prepare and bind the completed environment Stage to the reserved pair."""
+        """Prepare and bind the completed environment Stage to the reserved pair.
+
+        The bootstrap defers Stage materialization to the render owner, so call this on the
+        worker after :meth:`claim_render_owner_transfer`.
+
+        Args:
+            env: Constructed environment, possibly wrapped.
+
+        Returns:
+            The bound lease.
+
+        Raises:
+            RuntimeError: If the bootstrap is closed or already bound, the owner transfer has not
+                been claimed, or :meth:`validate_environment` rejects the environment.
+        """
         self._require_open()
         if self._bound:
             raise RuntimeError("OVXR bootstrap is already bound")
