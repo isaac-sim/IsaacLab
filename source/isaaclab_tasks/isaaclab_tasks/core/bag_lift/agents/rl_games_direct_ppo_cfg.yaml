@@ -1,0 +1,104 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# PPO + MLP for Isaac-BagLift-Direct. See ../README.md.
+# Constraint: (num_envs * horizon_length) % minibatch_size == 0.
+params:
+  seed: 42
+
+  # environment wrapper clipping
+  env:
+    # added to the wrapper
+    clip_observations: 5.0
+    # can make custom wrapper?
+    clip_actions: 1.0
+
+  algo:
+    name: a2c_continuous
+
+  model:
+    name: continuous_a2c_logstd
+
+  # doesn't have this fine grained control but made it close
+  network:
+    name: actor_critic
+    separate: False
+    space:
+      continuous:
+        mu_activation: None
+        sigma_activation: None
+
+        # Zero action-head weights (biases already start at zero), so a fresh policy outputs a zero residual and
+        # replays the demo. With the default init the first rollouts pushed the arm off the teacher and grasp went
+        # to 0 within 25 epochs.
+        mu_init:
+          name: const_initializer
+          val: 0.0
+        sigma_init:
+          name: const_initializer
+          # log-std = -1.5 => std ≈ 0.22. Residual action_scale 0.35 rad => ~4.5 deg of noise on the teacher.
+          # Larger noise knocks the strap out of the jaws; val 0 previously exploded KL.
+          val: -1.5
+        fixed_sigma: True
+    mlp:
+      units: [256, 128]
+      activation: elu
+      d2rl: False
+
+      initializer:
+        name: default
+      regularizer:
+        name: None
+
+  load_checkpoint: False # flag which sets whether to load the checkpoint
+  load_path: '' # path to the checkpoint to load
+
+  config:
+    # v2 = 30 Hz policy, 47 observations, debounced grasp, physical success. Logs go to logs/rl_games/bag_lift_v2;
+    # the older 39-observation bag_lift_direct checkpoints do not load into this env.
+    name: bag_lift_v2
+    env_name: rlgpu
+    device: 'cuda:0'
+    device_name: 'cuda:0'
+    multi_gpu: False
+    ppo: True
+    mixed_precision: False
+    normalize_input: True
+    normalize_value: True
+    num_actors: -1  # configured from the script (based on num_envs)
+    reward_shaper:
+      scale_value: 1.0   # env already scales reward by step_dt
+    normalize_advantage: True
+    # At 30 Hz, gamma 0.997 is a ~11 s horizon: a reward 20 s away keeps ~16% of its value
+    # (0.99 at 60 Hz was ~1.7 s, so the success bonus at the end of the demo was invisible).
+    gamma: 0.997
+    tau : 0.97
+    # 3e-4 solved the teacher-residual task (~75% final-pose at epoch 10985) then overwrote it
+    # (reward 136 -> 80); 1e-4 was too slow to recover. 2e-4 with bigger batches for a fresh run.
+    learning_rate: 2e-4
+    # constant: linear decay to 0 over 1000 epochs left the second half of training with a vanishing LR
+    # while reach_rate was still 0. Do NOT use adaptive: it previously froze at ~1e-6 or jumped to 0.01.
+    lr_schedule: constant
+    kl_threshold: 0.08
+    score_to_win: 20000
+    max_epochs: 4000
+    save_best_after: 100
+    save_frequency: 25
+    grad_norm: 1.0
+    # 0.002 kept exploring after the peak and knocked the strap out. Fine-tune should sit on the teacher.
+    entropy_coef: 0.001
+    truncate_grads: True
+    e_clip: 0.2
+    horizon_length: 64
+    # rl_games needs (num_envs * horizon_length) % minibatch_size == 0.
+    # 2048 fits 128 envs (8192 steps = 4 minibatches) and 256 envs. For the 4-env smoke test pass
+    # `agent.params.config.minibatch_size=256`.
+    minibatch_size: 2048
+    # 2 passes x 4 minibatches = 8 gradient steps per epoch. 4 passes started with KL 0.29 and drifted off the demo.
+    mini_epochs: 2
+    critic_coef: 4
+    clip_value: True
+    seq_length: 4
+    bounds_loss_coef: 0.0001
