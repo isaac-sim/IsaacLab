@@ -440,6 +440,22 @@ def test_humanoid_preparation_preserves_caller_changes_and_rejects_backend_switc
             gym.make(task_name, cfg=prepared)
 
 
+def test_humanoid_preparation_resolves_directly_built_configs():
+    """A configuration built without task resolution is prepared with the default of every preset."""
+    from isaaclab_physx.physics import PhysxCfg
+    from isaaclab_physx.renderers import IsaacRtxRendererCfg
+
+    from isaaclab_tasks.contrib.locomanip_pick_place.fixed_base_upper_body_ik_g1_env_cfg import (
+        FixedBaseUpperBodyIKG1EnvCfg,
+    )
+    from isaaclab_tasks.contrib.teleop_physics_cfg import prepare_humanoid_teleop_environment
+
+    cfg = FixedBaseUpperBodyIKG1EnvCfg()
+    prepare_humanoid_teleop_environment(cfg)
+    assert type(cfg.sim.physics) is PhysxCfg
+    assert type(cfg.scene.robot_pov_cam.renderer_cfg) is IsaacRtxRendererCfg
+
+
 def _spawn_task_roundtrip_fixture(path, _cfg, **_kwargs):
     """Module-level source spawner, preserving the public callable serialization contract."""
     from pxr import UsdGeom, UsdPhysics
