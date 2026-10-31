@@ -64,6 +64,10 @@ The adapter retains the environment if lease retirement cannot establish complet
   default `OVRTXRendererCfg()`) is rejected while the lease is active.
 - Eager scene updates (`lazy_sensor_update=False`) skip the leased renderer; its
   scene publisher writes the same physics state at the reserved ordinal.
+- CPU simulation devices publish scene transforms, but visual-material
+  publication requires CUDA material buffers, as it does for ordinary OVRTX
+  cameras. With `--device cpu`, an environment that has `VisualMaterial` assets
+  fails at `sim.reset()`.
 - Dynamic anchoring takes any object implementing
   `OvLibrariesXrSession.ExternalAnchorState`; `start_render_worker()` rejects
   other objects before the worker claims the lease.
