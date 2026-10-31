@@ -1674,6 +1674,109 @@ def test_render_lease_complete_publication_deduplicates_and_poison_fails_closed(
     lease.release()
 
 
+def test_render_lease_poison_blocks_publication_but_not_retirement(leased_renderer, monkeypatch):
+    """A failed producer write must not prevent the borrower from retiring the pair (Capture's close order)."""
+    renderer = leased_renderer
+    lease = renderer.acquire_ov_libraries_render_lease()
+    publisher = lease.capture_scene_publisher()
+    _prepare_leased_renderer(renderer)
+    monkeypatch.setattr(renderer, "_update_transforms", MagicMock(side_effect=ValueError("write failed")))
+    monkeypatch.setattr(renderer, "_update_geometries", lambda: None)
+    with pytest.raises(RuntimeError, match="scene publication failed"):
+        publisher.write_complete_scene(19, "step-1")
+    with pytest.raises(RuntimeError, match="unavailable"):
+        publisher.publication_required("step-2")
+    with pytest.raises(RuntimeError, match="poisoned"):
+        lease.validate_live()
+    # OvxrFramePump.close: close publication, destroy the OVXR context inside the owner lane, release the lease.
+    publisher.close()
+    with lease.ovstage_owner_lane():
+        pass
+    ordinal = renderer.scene.ordinal
+    lease.release()
+    assert renderer.backend._render_lease_owner is None
+    assert renderer.scene.ordinal == ordinal  # The abandoned ordinal is not rebased onto a sealed floor.
+    with pytest.raises(RuntimeError, match="poisoned this OVRTX/OVStage pair; recreate it"):
+        renderer.render_batch((object(),))
+    with pytest.raises(RuntimeError, match="recreate it"):
+        renderer.update_transforms()
+    renderer.close()
+
+
+def test_render_lease_release_rebases_ordinal_and_restores_ordinary_use(leased_renderer):
+    renderer = leased_renderer
+    lease = renderer.acquire_ov_libraries_render_lease()
+    _prepare_leased_renderer(renderer)
+    floor = renderer.scene.stage.get_attribute_write_floor.return_value.__enter__.return_value
+    floor.fetch.return_value = 41
+    lease.release()
+    assert renderer.scene.ordinal == 42
+    renderer.update_transforms()
+    renderer.update_geometries()
+
+
+@pytest.mark.parametrize(
+    ("variable", "value"), [("ISAAC_LAB_OVRTX_USE_OVSTAGE", "0"), ("ISAAC_LAB_SHARE_OVSTAGE", "1")]
+)
+def test_render_lease_rejects_explicit_stage_opt_out(leased_renderer, monkeypatch, variable, value):
+    monkeypatch.setenv(variable, value)
+    with pytest.raises(RuntimeError, match="OVSTAGE=1|private rendering OVStage"):
+        leased_renderer.acquire_ov_libraries_render_lease()
+
+
+def test_render_lease_defers_application_thread_stage_until_owner_transfer(leased_renderer):
+    """Camera initialization prepares every renderer on the application thread before XR transfers ownership."""
+    import threading
+
+    renderer = leased_renderer
+    lease = renderer.acquire_ov_libraries_render_lease()
+    lease.defer_stage_until_owner_transfer()
+    _prepare_leased_renderer(renderer, bind=False)
+    context = renderer._sim.render_context
+    context.ensure_prepare_stage(renderer._sim.stage, 1)
+    assert not renderer._initialized_scene
+    assert renderer._render_lease.stage_deferred
+    # The deferred call must leave the pair eligible for the XR worker handoff.
+    publisher = lease.capture_scene_publisher()
+    token = lease.offer_owner_transfer()
+    errors = []
+
+    def owner():
+        try:
+            lease.claim_owner_transfer(token)
+            assert lease.materialize_deferred_stage(renderer._sim.stage, 1)
+            assert not lease.materialize_deferred_stage(renderer._sim.stage, 1)
+            lease.validate_live()
+            publisher.close()
+            lease.release()
+        except BaseException as error:
+            errors.append(error)
+
+    thread = threading.Thread(target=owner)
+    thread.start()
+    thread.join(timeout=5)
+    assert not thread.is_alive()
+    assert not errors
+    assert renderer._initialized_scene
+
+
+def test_render_lease_eager_scene_updates_defer_to_the_publisher(leased_renderer, monkeypatch):
+    """``lazy_sensor_update=False`` refreshes every renderer; the leased renderer's publisher owns those writes."""
+    renderer = leased_renderer
+    lease = renderer.acquire_ov_libraries_render_lease()
+    _prepare_leased_renderer(renderer)
+    transforms, geometries = MagicMock(), MagicMock()
+    monkeypatch.setattr(renderer, "_update_transforms", transforms)
+    monkeypatch.setattr(renderer, "_update_geometries", geometries)
+    renderer._sim.render_context.update_scene_state(1)
+    transforms.assert_not_called()
+    geometries.assert_not_called()
+    lease.release()
+    renderer._sim.render_context.update_scene_state(2)
+    transforms.assert_called_once_with()
+    geometries.assert_called_once_with()
+
+
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA material buffers")
 def test_leased_material_updates_reach_the_reserved_scene(leased_renderer, monkeypatch):
     """Real material composition and the lease publisher must reach native writes, including before physics changes."""
@@ -1681,7 +1784,9 @@ def test_leased_material_updates_reach_the_reserved_scene(leased_renderer, monke
     lease = renderer.acquire_ov_libraries_render_lease()
     publisher = lease.capture_scene_publisher()
     context = renderer._sim.render_context
-    _prepare_leased_renderer(renderer)
+    # Real lifecycle: clone preparation, then environment reset finalizes material consumers,
+    # then the XR borrower binds the Stage.
+    _prepare_leased_renderer(renderer, bind=False)
     material = types.SimpleNamespace(
         channels=("color",),
         is_per_env=False,
@@ -1694,6 +1799,8 @@ def test_leased_material_updates_reach_the_reserved_scene(leased_renderer, monke
     )
     context.register_visual_material(material)
     context.finalize_consumers([])
+    assert renderer._visual_material_writer_ref is not None
+    renderer.prepare_stage(renderer._sim.stage, 1)
     stage = renderer.scene.stage
     try:
         for ordinal, color in ((23, [0.0, 1.0, 0.0]), (24, [0.0, 0.0, 1.0])):
