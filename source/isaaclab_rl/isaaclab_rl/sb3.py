@@ -419,7 +419,7 @@ class Sb3VecEnvWrapper(VecEnv):
             return infos
 
         # create empty list of dictionaries to fill
-        extra_keys = [key for key in extras.keys() if key != "final_obs"]
+        extra_keys = [key for key in extras.keys() if key not in ("final_obs", "final_obs_every_step")]
         infos: list[dict[str, Any]] = [dict.fromkeys(extra_keys) for _ in range(self.num_envs)]
         # fill-in information for each sub-environment
         # note: This loop becomes slow when number of environments is large.
@@ -435,7 +435,7 @@ class Sb3VecEnvWrapper(VecEnv):
             infos[idx]["TimeLimit.truncated"] = truncated[idx] and not terminated[idx]
             # fill-in information from extras
             for key, value in extras.items():
-                if key == "final_obs":
+                if key in ("final_obs", "final_obs_every_step"):
                     continue
                 # 1. remap extra episodes information safely
                 # 2. for others just store their values

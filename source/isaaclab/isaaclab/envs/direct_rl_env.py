@@ -18,6 +18,7 @@ from typing import Any, ClassVar
 import gymnasium as gym
 import numpy as np
 import torch
+from torch.utils._pytree import tree_map
 
 from ..managers import EventManager
 from ..sim import SimulationContext
@@ -329,6 +330,7 @@ class DirectRLEnv(gym.Env):
         Returns:
             A tuple containing the observations and extras.
         """
+        self.extras.pop("final_obs_every_step", None)
         # set the seed
         if seed is not None:
             self.seed(seed)
@@ -393,6 +395,7 @@ class DirectRLEnv(gym.Env):
         Returns:
             A tuple containing the observations, rewards, resets (terminated and truncated) and extras.
         """
+        self.extras.pop("final_obs_every_step", None)
         action = action.to(self.device)
         # add action noise
         if self.cfg.action_noise_model:
@@ -427,9 +430,12 @@ class DirectRLEnv(gym.Env):
         self.reward_buf = self._get_rewards()
 
         # -- reset envs that terminated/timed-out and log the episode information
+        if self.cfg.final_obs_every_step:
+            self.extras["final_obs"] = tree_map(torch.clone, self._compute_observations())
+            self.extras["final_obs_every_step"] = True
         reset_env_ids = self._reset_envs_from_buffer()
         if reset_env_ids is None:
-            if self.cfg.compute_final_obs:
+            if self.cfg.compute_final_obs and not self.cfg.final_obs_every_step:
                 raise RuntimeError(
                     "Mask-native reset overrides must return reset indices when compute_final_obs is enabled."
                 )
@@ -666,8 +672,9 @@ class DirectRLEnv(gym.Env):
         environments synchronize while determining the dynamic output size of
         ``torch.Tensor.nonzero``. Tasks with backend-native mask reset support may
         override this hook and return None to avoid that synchronization. Returning None
-        is only supported when terminal-observation capture and RTX reset rerenders are
-        disabled. Overrides must delegate to this implementation in those configurations.
+        is only supported when done-only observation capture and RTX reset rerenders are
+        disabled. Every-step observation capture runs before this hook. Overrides must delegate
+        to this implementation when done-only capture or RTX reset rerenders are enabled.
 
         Returns:
             Reset environment indices, or None when an override completed reset
@@ -678,7 +685,7 @@ class DirectRLEnv(gym.Env):
             # capture the terminal observation before reset and expose it for Same-Step autoreset.
             # apply the same observation noise as the returned obs (policy space only) so the
             # bootstrapped terminal value matches the distribution the policy is trained on.
-            if self.cfg.compute_final_obs:
+            if self.cfg.compute_final_obs and not self.cfg.final_obs_every_step:
                 self.extras["final_obs"] = self._compute_observations()
             self._reset_idx(reset_env_ids)
         return reset_env_ids

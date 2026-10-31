@@ -23,6 +23,7 @@ from isaaclab.sim import SimulationCfg  # noqa: E402
 
 import isaaclab_tasks  # noqa: F401, E402
 from isaaclab_tasks.core.velocity.config.g1.flat_env_cfg import G1FlatEnvCfg  # noqa: E402
+from isaaclab_tasks.utils import resolve_presets  # noqa: E402
 
 _NEWTON_CFG = NewtonCfg(
     solver_cfg=MJWarpSolverCfg(
@@ -39,7 +40,7 @@ _NEWTON_CFG = NewtonCfg(
 
 def test_newton_actuators_present_for_g1_manager_env():
     """Explicit actuator groups must author NewtonActuator prims and populate the Newton model."""
-    env_cfg = G1FlatEnvCfg()
+    env_cfg = resolve_presets(G1FlatEnvCfg())
     env_cfg.scene.num_envs = 1
     env_cfg.decimation = 1
     env_cfg.scene.contact_forces = None

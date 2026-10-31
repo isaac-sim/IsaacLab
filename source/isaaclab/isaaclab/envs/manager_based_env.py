@@ -427,6 +427,7 @@ class ManagerBasedEnv:
         Returns:
             A tuple containing the observations and extras.
         """
+        self.extras.pop("final_obs_every_step", None)
         if env_ids is None:
             env_ids = slice(None)
         # trigger recorder terms for pre-reset calls
@@ -487,6 +488,7 @@ class ManagerBasedEnv:
             is_relative: If set to True, the state is considered relative to the environment origins.
                 Defaults to False.
         """
+        self.extras.pop("final_obs_every_step", None)
         if env_ids is None:
             env_ids = slice(None)
         # trigger recorder terms for pre-reset calls
