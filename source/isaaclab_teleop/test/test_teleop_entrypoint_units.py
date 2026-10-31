@@ -869,6 +869,7 @@ def test_task_preparation_precedes_ovxr_simulation_context(monkeypatch, entrypoi
 
 
 _UNSET_PHYSICS_TASK = "IsaacContrib-PickPlace-GR1T2-Abs"
+_UNSET_PHYSICS_OVXR_ERROR = rf"task '{_UNSET_PHYSICS_TASK}' leaves sim.physics unset.*Run this task with --xr"
 
 
 def _unset_task_physics(monkeypatch, module):
@@ -899,7 +900,7 @@ def test_live_ovxr_rejects_unset_task_physics_before_launch(monkeypatch):
     monkeypatch.delenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", raising=False)
     agent = _load_teleop_agent(monkeypatch, "--task", _UNSET_PHYSICS_TASK, "--ovxr")
     _unset_task_physics(monkeypatch, agent)
-    with pytest.raises(ValueError, match="kitless physics preset"):
+    with pytest.raises(ValueError, match=_UNSET_PHYSICS_OVXR_ERROR):
         agent._resolve_env_cfg()
 
 
@@ -917,7 +918,7 @@ def test_replay_unset_task_physics_keeps_simulation_default_or_rejects_ovxr(monk
     replay._parse_args()
     _unset_task_physics(monkeypatch, replay)
     if ovxr:
-        with pytest.raises(ValueError, match="kitless physics preset"):
+        with pytest.raises(ValueError, match=_UNSET_PHYSICS_OVXR_ERROR):
             replay._prepare_env_cfg(_UNSET_PHYSICS_TASK, 1, None, overrides=replay.hydra_overrides)
         return
     env_cfg, _success = replay._prepare_env_cfg(_UNSET_PHYSICS_TASK, 1, None, overrides=replay.hydra_overrides)

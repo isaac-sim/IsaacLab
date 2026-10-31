@@ -1120,7 +1120,7 @@ def _prepare_env_cfg(
         if os.environ.get("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1").strip() != "1":
             raise ValueError("--ovxr requires ISAAC_LAB_OVRTX_USE_OVSTAGE=1")
         env_cfg = remove_camera_configs(env_cfg)
-        require_kitless_physics(env_cfg)
+        require_kitless_physics(env_cfg, task)
     elif args_cli.disable_external_cameras:
         env_cfg = remove_camera_configs(env_cfg)
     # A task without a physics selection keeps None: SimulationContext defaults it to PhysxCfg.
