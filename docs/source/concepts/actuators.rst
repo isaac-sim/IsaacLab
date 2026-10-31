@@ -268,7 +268,11 @@ and emit a :class:`DeprecationWarning`:
 
 LEAPP-exported action terms must keep using the annotated articulation ``*_index`` or ``*_mask``
 setters until the exporter supports collection setters. Other runtime code should migrate to the
-collection API.
+collection API. If a write models behavior supplied by the real controller, declare its
+``{method_name: capability_name}`` mapping through
+:attr:`~isaaclab.managers.ActionTermCfg.controller_owned_write_methods`. LEAPP records that
+requirement instead of exporting a second command; deployment fails closed unless an adapter
+explicitly supplies the capability. See :doc:`/source/policy_deployment/05_leapp/exporting_policies_with_leapp`.
 
 The data accessors also moved: ``articulation.data.joint_pos_target`` becomes
 ``robot.actuators.target_command.position``, and ``data.computed_torque`` / ``data.applied_torque`` become

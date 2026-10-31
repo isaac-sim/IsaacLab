@@ -752,6 +752,15 @@ def test_failed_rsl_training_restores_torch_backend_state(monkeypatch) -> None:
     assert _torch_backend_state() == caller_state
 
 
+def test_rsl_distillation_runner_requires_checkpoint_with_custom_algorithm() -> None:
+    """A custom distillation algorithm still needs weights for its frozen teacher."""
+    from isaaclab_rl.entrypoints.backends.train_rsl_rl import _resolve_checkpoint
+
+    cfg = SimpleNamespace(class_name="DistillationRunner", algorithm=SimpleNamespace(class_name="custom:Distillation"))
+    with pytest.raises(ValueError, match="Distillation training requires --checkpoint"):
+        _resolve_checkpoint(SimpleNamespace(checkpoint=None), cfg, "/unused")
+
+
 @pytest.mark.parametrize("mode", ["train", "play"])
 def test_rsl_registers_external_task_before_agent_discovery(monkeypatch, mode) -> None:
     """External task registration preserves selector aliases through callback filtering."""

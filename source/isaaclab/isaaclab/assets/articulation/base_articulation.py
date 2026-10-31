@@ -1106,6 +1106,7 @@ class BaseArticulation(AssetBase):
     """
 
     @abstractmethod
+    @leapp_tensor_semantics(kind="kp", element_names_resolver=joint_names_resolver)
     def write_joint_stiffness_to_sim_index(
         self,
         *,
@@ -1130,6 +1131,7 @@ class BaseArticulation(AssetBase):
         raise NotImplementedError()
 
     @abstractmethod
+    @leapp_tensor_semantics(kind="kp", element_names_resolver=joint_names_resolver)
     def write_joint_stiffness_to_sim_mask(
         self,
         *,
@@ -1154,6 +1156,7 @@ class BaseArticulation(AssetBase):
         raise NotImplementedError()
 
     @abstractmethod
+    @leapp_tensor_semantics(kind="kd", element_names_resolver=joint_names_resolver)
     def write_joint_damping_to_sim_index(
         self,
         *,
@@ -1178,6 +1181,7 @@ class BaseArticulation(AssetBase):
         raise NotImplementedError()
 
     @abstractmethod
+    @leapp_tensor_semantics(kind="kd", element_names_resolver=joint_names_resolver)
     def write_joint_damping_to_sim_mask(
         self,
         *,
