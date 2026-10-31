@@ -58,16 +58,10 @@ class ContactSensor(BaseContactSensor):
     bodies in the scene. The data can be accessed using the :attr:`ContactSensorData.normal_force_matrix_w`.
     Please check the documentation on `RigidContact`_ for more details.
 
-    The reporting of the filtered contact forces is only possible as one-to-many. This means that only one
-    sensor body in an environment can be filtered against multiple bodies in that environment. If you need to
-    filter multiple sensor bodies against multiple bodies, you need to create separate sensors for each sensor
-    body.
-
-    As an example, suppose you want to report the contact forces for all the feet of a robot against an object
-    exclusively. In that case, setting the :attr:`ContactSensorCfg.prim_path` and
-    :attr:`ContactSensorCfg.filter_prim_paths_expr` with ``{ENV_REGEX_NS}/Robot/.*_FOOT`` and ``{ENV_REGEX_NS}/Object``
-    respectively will not work. Instead, you need to create a separate sensor for each foot and filter
-    it against the object.
+    The reporting of the filtered contact forces is many-to-many: every sensor body is filtered against every
+    filter body. As an example, to report the contact forces for all the feet of a robot against an object
+    exclusively, set the :attr:`ContactSensorCfg.prim_path` and :attr:`ContactSensorCfg.filter_prim_paths_expr`
+    with ``{ENV_REGEX_NS}/Robot/.*_FOOT`` and ``{ENV_REGEX_NS}/Object`` respectively.
 
     .. _PhysX ContactReporter: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_contact_report_a_p_i.html
     .. _RigidContact: https://docs.isaacsim.omniverse.nvidia.com/latest/py/source/extensions/isaacsim.core.experimental.prims/docs/index.html
@@ -389,7 +383,8 @@ class ContactSensor(BaseContactSensor):
         # note: with a list of patterns, the views order bodies pattern-major:
         #   view_id = body_id * num_envs + env_id
         body_path_globs = [path_expr_to_glob(expr) for _, expr in body_matches]
-        filter_prim_paths_glob = [path_expr_to_glob(expr) for expr in self.cfg.filter_prim_paths_expr]
+        # a filter pattern must match one prim per sensor body, so each filter body gets its own pattern
+        filter_prim_paths_glob = [path_expr_to_glob(expr) for expr in self._resolve_filter_body_exprs()]
 
         # create a rigid prim view for the sensor
         self._body_physx_view = self._physics_sim_view.create_rigid_body_view(body_path_globs)
@@ -403,6 +398,13 @@ class ContactSensor(BaseContactSensor):
             filter_patterns=filter_patterns,
             max_contact_data_count=self.cfg.max_contact_data_count_per_prim * len(body_names) * self._num_envs,
         )
+        if self._contact_view._backend is None:
+            raise RuntimeError(
+                "Failed to create the contact view. Each filter pattern must match one prim per environment, or one"
+                " prim for all environments; the PhysX log names the pattern it rejected."
+                f"\n\tSensor patterns: {body_path_globs}"
+                f"\n\tFilter patterns: {filter_prim_paths_glob}"
+            )
         self._supports_total_contact_forces = hasattr(self.contact_view, "get_net_friction_contact_forces")
         # check if filter paths are valid
         if self.cfg.track_contact_points or (
