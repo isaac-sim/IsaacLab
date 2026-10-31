@@ -8,10 +8,9 @@
 import sys
 
 import pytest
-
 from isaaclab_teleop import check_cuda_peer
 
-torch = pytest.importorskip("torch")
+from isaaclab.test.utils import DeviceScope, test_devices
 
 
 def _run(monkeypatch, *devices):
@@ -24,6 +23,14 @@ def _publication_buffers():
     return pytest.importorskip("isaaclab_ov.renderers.publication_buffers")._GeometryPublicationBuffers
 
 
+def _cuda_devices(count: int) -> list[str]:
+    """Return ``count`` distinct CUDA devices selected for this run, or skip."""
+    devices = test_devices(DeviceScope.CUDA)
+    if len(devices) < count:
+        pytest.skip(f"requires {count} selected CUDA device(s)")
+    return [devices[0], devices[-1]][:count]
+
+
 def test_preflight_explains_a_selection_without_the_ov_rendering_packages(monkeypatch, capsys):
     # A None entry fails the import as in a Kit or teleop-only environment.
     monkeypatch.setitem(sys.modules, "isaaclab_ov.renderers.publication_buffers", None)
@@ -33,16 +40,17 @@ def test_preflight_explains_a_selection_without_the_ov_rendering_packages(monkey
     assert "PCIe" not in error
 
 
-@pytest.mark.parametrize("devices", [("cuda:0", "cuda:0"), ("cpu", "cuda:0")])
-def test_preflight_rejects_non_split_selections(monkeypatch, capsys, devices):
+@pytest.mark.parametrize("other", ["same-gpu", "cpu"])
+def test_preflight_rejects_non_split_selections(monkeypatch, capsys, other):
     _publication_buffers()
-    assert _run(monkeypatch, *devices) == 1
+    (device,) = _cuda_devices(1)
+    assert _run(monkeypatch, device if other == "same-gpu" else "cpu", device) == 1
     assert "two distinct CUDA devices" in capsys.readouterr().err
 
 
-@pytest.mark.skipif(torch.cuda.device_count() < 2, reason="requires two CUDA devices")
 def test_preflight_passes_and_exercises_the_publication_copy(monkeypatch, capsys):
     publication_buffers = _publication_buffers()
+    first, second = _cuda_devices(2)
     calls = []
     copy = publication_buffers.copy_completed
 
@@ -51,12 +59,11 @@ def test_preflight_passes_and_exercises_the_publication_copy(monkeypatch, capsys
         return copy(self, key, source)
 
     monkeypatch.setattr(publication_buffers, "copy_completed", record)
-    assert _run(monkeypatch, "cuda:0", "cuda:1") == 0
-    assert sorted(set(calls)) == [("cuda:0", "cuda:1"), ("cuda:1", "cuda:0")]
+    assert _run(monkeypatch, first, second) == 0
+    assert sorted(set(calls)) == sorted([(first, second), (second, first)])
     assert "PASS" in capsys.readouterr().out
 
 
-@pytest.mark.skipif(torch.cuda.device_count() < 2, reason="requires two CUDA devices")
 def test_preflight_fails_on_a_corrupted_publication_copy(monkeypatch, capsys):
     import warp as wp
 
@@ -65,7 +72,7 @@ def test_preflight_fails_on_a_corrupted_publication_copy(monkeypatch, capsys):
         "copy_completed",
         lambda self, _key, source: wp.zeros(source.shape, dtype=source.dtype, device=self._device),
     )
-    assert _run(monkeypatch, "cuda:0", "cuda:1") == 1
+    assert _run(monkeypatch, *_cuda_devices(2)) == 1
     captured = capsys.readouterr()
     assert "4096/4096 incorrect values" in captured.out
     assert "Do not use this split-GPU path" in captured.err
