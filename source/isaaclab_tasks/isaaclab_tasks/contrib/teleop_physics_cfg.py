@@ -16,7 +16,7 @@ from isaaclab_physx.physics import PhysxCfg
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils import PresetCfg, resolve_presets
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -27,7 +27,9 @@ def prepare_humanoid_teleop_environment(cfg: ManagerBasedRLEnvCfg) -> None:
 
     Dispatches to the configuration's ``stabilize_for_kitless_ovphysx`` or
     ``stabilize_for_kitless_newton_mjwarp`` for the selected standalone backend. Kit PhysX
-    needs no preparation. Repeated calls on a prepared configuration are no-ops.
+    needs no preparation. Repeated calls on a prepared configuration are no-ops. A
+    configuration constructed directly, without task resolution, uses the default of every
+    remaining preset.
 
     Args:
         cfg: Resolved humanoid teleoperation task configuration.
@@ -35,6 +37,7 @@ def prepare_humanoid_teleop_environment(cfg: ManagerBasedRLEnvCfg) -> None:
     Raises:
         ValueError: If ``cfg`` was already prepared for a different physics backend.
     """
+    resolve_presets(cfg)
     physics = cfg.sim.physics
     if isinstance(physics, OvPhysxCfg):
         cfg.stabilize_for_kitless_ovphysx()

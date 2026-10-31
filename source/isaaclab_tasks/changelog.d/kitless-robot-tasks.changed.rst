@@ -2,8 +2,9 @@
   ``IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs``, ``IsaacContrib-PickPlace-Locomanipulation-G1-Abs``
   and ``IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs`` to
   :class:`~isaaclab_tasks.contrib.teleop_env.HumanoidTeleopEnv`, which prepares the selected physics
-  backend before construction. Code that constructs these configurations directly should call
-  :func:`~isaaclab_tasks.contrib.teleop_physics_cfg.prepare_humanoid_teleop_environment` first.
+  backend before construction. Code that constructs the environment without that entry point should
+  first call :func:`~isaaclab_tasks.contrib.teleop_physics_cfg.prepare_humanoid_teleop_environment`,
+  which also applies the preset defaults to a configuration built without task resolution.
 * Changed the GR1T2 upper-body action term to
   :class:`~isaaclab_tasks.contrib.pick_place.pickplace_gr1t2_env_cfg.GR1T2KitlessPinkInverseKinematicsActionCfg`.
   With Isaac Sim PhysX it behaves as the previous Pink term.
