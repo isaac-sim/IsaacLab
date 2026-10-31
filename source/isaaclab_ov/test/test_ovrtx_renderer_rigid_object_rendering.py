@@ -251,6 +251,7 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
 
 def _run_readback_contract(sim_device: str, active_cuda_gpus: str) -> None:
     """Render the rigid-object contract on ``sim_device`` with OVRTX limited to ``active_cuda_gpus``."""
+    import warp as wp
     from isaaclab_ov.renderers import parse_active_cuda_gpus
     from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer
 
@@ -260,7 +261,13 @@ def _run_readback_contract(sim_device: str, active_cuda_gpus: str) -> None:
 
     def record_rendering_gpu(renderer, render_data, tiled_buffer, output_buffer):
         rendered_on.add(tiled_buffer.device.ordinal)
-        extract(renderer, render_data, tiled_buffer, output_buffer)
+        # Extraction must read only simulation-device memory, so it cannot depend on CUDA peer access.
+        access_mode = wp.config.launch_array_access_mode
+        wp.config.launch_array_access_mode = wp.config.LaunchArrayAccessMode.STRICT
+        try:
+            extract(renderer, render_data, tiled_buffer, output_buffer)
+        finally:
+            wp.config.launch_array_access_mode = access_mode
 
     @contextmanager
     def simulation():

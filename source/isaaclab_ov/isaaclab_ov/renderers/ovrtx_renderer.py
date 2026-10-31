@@ -523,8 +523,7 @@ class OVRTXRenderer(BaseRenderer):
         Products request the simulation GPU so render vars map there. When an explicit
         ``active_cuda_gpus`` excludes that GPU, OVRTX would skip the request on every frame and
         assign a device automatically; request automatic assignment directly. Render vars then map
-        on a rendering GPU, and output extraction on the simulation GPU reads them through CUDA
-        peer access.
+        on a rendering GPU and are copied to the simulation GPU before extraction.
         """
         if not self._warp_device.is_cuda:
             return None
@@ -876,6 +875,19 @@ class OVRTXRenderer(BaseRenderer):
         finally:
             mapping.unmap(stream=stream)
 
+    def _on_simulation_device(self, tiled_buffer: wp.array) -> wp.array:
+        """Return ``tiled_buffer`` on the simulation device, copying it when OVRTX mapped it elsewhere.
+
+        OVRTX maps a render var on the GPU that rendered it, which differs from the simulation GPU when
+        :attr:`OVRTXRendererCfg.active_cuda_gpus` excludes that GPU. Copying keeps the extraction kernels
+        on device-local memory, so readback does not depend on CUDA peer access between the two GPUs.
+        Warp runs the copy on the simulation device's current stream, the stream that waited for the
+        render and on which the mapping is released.
+        """
+        if str(tiled_buffer.device) == self._device:
+            return tiled_buffer
+        return wp.clone(tiled_buffer, device=self._device)
+
     def _process_segmentation(
         self, render_data: OVRTXCameraRenderData, frame: FrameOutput, output_buffers: dict[str, wp.array]
     ) -> None:
@@ -904,6 +916,7 @@ class OVRTXRenderer(BaseRenderer):
                 if tiled_data.dtype != wp.uint32:
                     continue
                 if colorize:
+                    tiled_data = self._on_simulation_device(tiled_data)
                     color_buffer = self._output_id_color_buffers.get(key)
                     if color_buffer is None or color_buffer.shape != tiled_data.shape:
                         color_buffer = wp.zeros(tiled_data.shape, dtype=wp.uint32, device=self._device)
@@ -965,6 +978,7 @@ class OVRTXRenderer(BaseRenderer):
                 " extract_all_tiles_kernel would read out of bounds."
             )
 
+        tiled_buffer = self._on_simulation_device(tiled_buffer)
         wp.launch(
             kernel=extract_all_tiles_kernel,
             dim=(render_data.num_envs, render_data.height, render_data.width),
@@ -1028,10 +1042,6 @@ class OVRTXRenderer(BaseRenderer):
         hdr_color = frame.render_vars.get(render_data.render_var_keys[_HDR_COLOR_VAR])
         if hdr_color is not None and "rgb_hdr" in output_buffers:
             with self._map_render_var_to_dlpack(hdr_color) as tiled_hdr_data:
-                # OVRTX can fall back from deviceIds to automatic assignment; PPISP needs the output device.
-                output_device = str(output_buffers["rgb_hdr"].device)
-                if render_data.ppisp_pipeline is not None and str(tiled_hdr_data.device) != output_device:
-                    tiled_hdr_data = wp.clone(tiled_hdr_data, device=output_device)
                 if tiled_hdr_data.dtype not in (wp.float16, wp.float32):
                     raise TypeError(f"Unsupported OVRTX HdrColor dtype: {tiled_hdr_data.dtype}.")
                 self._launch_extract_all_tiles(render_data, tiled_hdr_data, output_buffers["rgb_hdr"])

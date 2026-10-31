@@ -123,8 +123,8 @@ class OVRTXRendererCfg(RendererCfg):
     The first OVRTX renderer in a process fixes the set for that process. This does not change
     physics or the geometry publication destination. Camera outputs are still returned on the
     simulation device. When the set excludes the simulation GPU, render products use automatic
-    device assignment, and the simulation GPU reads their outputs from a rendering GPU through
-    CUDA peer access.
+    device assignment and their outputs are copied from the rendering GPU to the simulation GPU
+    before extraction, which costs one device-to-device copy per output and frame.
     """
 
     geometry_publication_device: str | None = None

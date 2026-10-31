@@ -789,24 +789,22 @@ def test_ovrtx_set_outputs_routes_ppisp_buffers_through_warp_buffers():
     assert render_data.warp_buffers["rgb_hdr"].dtype is wp.float32
 
 
+@pytest.mark.parametrize("ppisp", [True, False], ids=["ppisp", "plain"])
 @pytest.mark.parametrize("source_device", ["cpu", "cuda:1"])
-def test_ovrtx_process_frame_routes_ppisp_hdr_to_output_device(monkeypatch, source_device):
-    """PPISP reads HDR on the output device and leaves RGBA for its own pipeline."""
+def test_ovrtx_process_frame_routes_hdr_to_output_device(monkeypatch, source_device, ppisp):
+    """Extraction reads HDR on the output device, and PPISP leaves RGBA for its own pipeline."""
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._device = "cpu"
     render_data = _make_ovrtx_camera_render_data()
-    render_data.ppisp_pipeline = object()
+    render_data.ppisp_pipeline = object() if ppisp else None
     hdr = wp.full((8, 32, 4), 0.5, dtype=wp.float32, device="cpu")
-    source = hdr if source_device == "cpu" else types.SimpleNamespace(device=source_device, dtype=wp.float32)
+    source = (
+        hdr
+        if source_device == "cpu"
+        else types.SimpleNamespace(device=source_device, dtype=wp.float32, shape=hdr.shape)
+    )
     clone = MagicMock(return_value=hdr)
     monkeypatch.setattr(wp, "clone", clone)
-    extract = renderer._launch_extract_all_tiles
-
-    def extract_hdr(data, tiled, output):
-        assert str(tiled.device) == str(output.device)
-        extract(data, tiled, output)
-
-    monkeypatch.setattr(renderer, "_launch_extract_all_tiles", extract_hdr)
 
     @contextlib.contextmanager
     def map_hdr(render_var):
@@ -821,7 +819,8 @@ def test_ovrtx_process_frame_routes_ppisp_hdr_to_output_device(monkeypatch, sour
         }
     )
     output = wp.zeros((2, 8, 16, 3), dtype=wp.float32, device="cpu")
-    renderer._process_render_frame(render_data, frame, {"rgba": object(), "rgb_hdr": output})
+    outputs = {"rgba": object(), "rgb_hdr": output} if ppisp else {"rgb_hdr": output}
+    renderer._process_render_frame(render_data, frame, outputs)
     np.testing.assert_array_equal(output.numpy(), 0.5)
     if source_device == "cpu":
         clone.assert_not_called()
