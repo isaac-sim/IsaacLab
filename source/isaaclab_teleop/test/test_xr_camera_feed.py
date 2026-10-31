@@ -818,9 +818,9 @@ def test_ovxr_automatic_panels_use_shared_layout_without_mutating_feeds():
 
 def test_remove_camera_configs_keeps_selected_sensors_but_drops_their_observations():
     """OVXR keeps selected PiP sensors for its renderer while no observation requests a second render."""
-    import isaaclab_tasks  # noqa: F401
     from isaaclab_teleop import remove_camera_configs
 
+    import isaaclab_tasks  # noqa: F401
     from isaaclab_tasks.utils import parse_env_cfg
 
     cfg = parse_env_cfg(
