@@ -28,7 +28,8 @@ _ENV_ROBOT = "{ENV_REGEX_NS}/Robot"
 def _open_asset(usd_path: str) -> Usd.Stage:
     try:
         local_path = retrieve_file_path(usd_path)
-    except Exception as exc:  # The asset server is optional for local test runs.
+    except (FileNotFoundError, RuntimeError) as exc:
+        # The asset server is optional for local test runs: it may be unreachable or fail the download.
         pytest.skip(f"Robot asset is unavailable: {exc}")
     stage = Usd.Stage.Open(local_path)
     assert stage is not None, local_path
