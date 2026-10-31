@@ -13,7 +13,9 @@ For more information, please check information on `Omniverse Nucleus`_.
 .. _Omniverse Nucleus: https://docs.omniverse.nvidia.com/nucleus/latest/overview/overview.html
 """
 
+import asyncio
 import contextlib
+import functools
 import io
 import json
 import logging
@@ -21,14 +23,19 @@ import ntpath
 import os
 import posixpath
 import re
+import shutil
 import tempfile
+import threading
 import uuid
-from collections.abc import Iterator
-from types import ModuleType
-from typing import Literal, NotRequired, TypedDict
+import warnings
+from collections.abc import Coroutine, Iterator
+from typing import Any, Literal, NotRequired, TypedDict
 from urllib.parse import urlparse
 
+import ovstorage
 from filelock import FileLock
+from ovstorage.plugin import PluginBackend
+from ovstorage.redirect_follower import RedirectFollower
 
 from ..paths import ISAACLAB_ROOT
 
@@ -71,14 +78,11 @@ _US_ASSET_ROOT = _parse_kit_asset_root()
 
 
 class _StorageProfile(TypedDict):
-    """OmniClient routing and asset-root values for a named asset region profile."""
+    """Asset root of a named asset region profile, and the CDN serving its object-storage endpoint."""
 
     asset_root: str
     endpoint: NotRequired[str]
-    bucket: NotRequired[str]
-    region: NotRequired[str]
     cdn_url: NotRequired[str]
-    cdn_for_list: NotRequired[bool]
 
 
 _STORAGE_PROFILES: dict[str, _StorageProfile] = {
@@ -87,14 +91,10 @@ _STORAGE_PROFILES: dict[str, _StorageProfile] = {
     },
     "china": {
         "endpoint": _CHINA_ASSET_ENDPOINT,
-        "bucket": "simready-cn",
-        "region": "oss-cn-shanghai",
         "cdn_url": "https://assets.simready.cn/",
-        "cdn_for_list": False,
         "asset_root": f"https://{_CHINA_ASSET_ENDPOINT}/Assets/Isaac/{_ISAAC_SIM_ASSET_RELEASE}",
     },
 }
-_CONFIGURED_STORAGE_PROFILES: set[str] = set()
 
 
 def _selected_storage_profile() -> tuple[str, _StorageProfile] | None:
@@ -110,67 +110,135 @@ def _selected_storage_profile() -> tuple[str, _StorageProfile] | None:
     return profile_name, profile
 
 
-def _configure_storage_profile(omni_client: ModuleType) -> None:
-    """Configure the selected profile on an imported ``omni.client`` module."""
-    selected_profile = _selected_storage_profile()
-    if selected_profile is None:
-        return
-
-    profile_name, profile = selected_profile
-    if profile_name in _CONFIGURED_STORAGE_PROFILES:
-        return
-
-    endpoint = profile.get("endpoint")
-    if endpoint:
-        result = omni_client.set_s3_configuration(
-            url=endpoint,
-            bucket=profile.get("bucket"),
-            region=profile.get("region"),
-            cloudfrontUrl=profile.get("cdn_url"),
-            cloudfrontForList=profile.get("cdn_for_list", False),
-            writeConfig=False,
-        )
-        if result != omni_client.Result.OK:
-            raise RuntimeError(f"Asset region profile '{profile_name}' failed to configure {endpoint}: {result}")
-
-    _CONFIGURED_STORAGE_PROFILES.add(profile_name)
-    logger.info("Applied asset region profile '%s'", profile_name)
+def configure_asset_region_profile() -> None:
+    """Deprecated: Isaac Lab's asset helpers apply the selected asset region profile themselves."""
+    warnings.warn(
+        "configure_asset_region_profile() is deprecated and has no effect: Isaac Lab's asset helpers apply the"
+        " selected asset region profile themselves.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
 
 
 def configure_storage_profile() -> None:
-    """Configure OmniClient routing for the selected asset region profile.
+    """Deprecated: Isaac Lab's asset helpers apply the selected asset region profile themselves."""
+    warnings.warn(
+        "configure_storage_profile() is deprecated and has no effect: Isaac Lab's asset helpers apply the"
+        " selected asset region profile themselves.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
 
-    The configuration is applied in memory and at most once per profile. Isaac Lab
-    launchers and asset helpers call this automatically. Standalone kitless scripts
-    should call it before using ``omni.client`` directly.
+
+def _route_to_profile_cdn(url: str) -> str:
+    """Return ``url`` with ``/`` separators, routed through the selected asset region profile's CDN.
+
+    The China profile's asset root names its object-storage endpoint, as Isaac Sim's does, but that endpoint
+    does not serve anonymous reads; its CDN serves the same keys over HTTPS.
+    """
+    url = url.replace(os.sep, "/")
+    selected_profile = _selected_storage_profile()
+    if selected_profile is None:
+        return url
+    endpoint, cdn_url = selected_profile[1].get("endpoint"), selected_profile[1].get("cdn_url")
+    parsed = urlparse(url)
+    if not endpoint or not cdn_url or parsed.netloc != endpoint:
+        return url
+    return cdn_url.rstrip("/") + parsed.path
+
+
+_OVSTORAGE_LOCK = threading.Lock()
+"""Guards the lazily built OVStorage stacks."""
+
+_OVSTORAGE_STACKS: dict[str, ovstorage.LayerBase] = {}
+"""Built OVStorage stack per URL origin, since each OVStorage connection serves one origin."""
+
+
+@functools.cache
+def _ovstorage_loop() -> ovstorage.OwnedLoop:
+    """Event loop thread driving every OVStorage stack, started on first use."""
+    return ovstorage.OwnedLoop()
+
+
+def _ovstorage_run(coroutine: Coroutine[Any, Any, Any]) -> Any:
+    """Run an OVStorage coroutine on its event loop thread and return the result."""
+    return asyncio.run_coroutine_threadsafe(coroutine, _ovstorage_loop().loop).result()
+
+
+def _ovstorage_stack(url: str) -> ovstorage.LayerBase:
+    """Return the OVStorage stack serving ``url``'s origin, building it on first use."""
+    parsed = urlparse(url)
+    origin = f"{parsed.scheme}://{parsed.netloc}"
+    with _OVSTORAGE_LOCK:
+        if origin not in _OVSTORAGE_STACKS:
+            if parsed.scheme == "omniverse":
+                kind, config = "nucleus", {"server": parsed.netloc}
+            else:
+                kind, config = "http", {"root_url": f"{origin}/"}
+            request = ovstorage.ConnectionRequest(kind)
+            for key, value in config.items():
+                request.add_config(key, ovstorage.ConfigValue.string(value))
+            stack = (
+                ovstorage.Stack(root="redirects")
+                .with_registry(ovstorage.PluginRegistry([str(ovstorage.bundled_plugins_dir())]))
+                .wrapper(RedirectFollower("redirects", "origin"))
+                .backend(PluginBackend(kind, "origin"))
+                .connection("origin", request)
+            )
+            _OVSTORAGE_STACKS[origin] = _ovstorage_run(stack.build())
+        return _OVSTORAGE_STACKS[origin]
+
+
+def _remote_stat(url: str) -> dict | None:
+    """Revision metadata of ``url``, or ``None`` when the server does not report the file."""
+    url = _route_to_profile_cdn(url)
+    try:
+        info = _ovstorage_run(_ovstorage_stack(url).stat(url))
+    except ovstorage.Error:
+        # an unreachable server reads as unreported too, so offline runs keep using their local copies
+        return None
+    return {
+        "hash": info.etag or "",
+        "version": info.version or "",
+        "size": info.size or 0,
+        "modified_time": str(info.mtime_unix_nanos or ""),
+    }
+
+
+async def _materialize(stack: ovstorage.LayerBase, url: str, target: str) -> None:
+    """Copy ``url`` to the local file ``target``, releasing OVStorage's lease on its local copy."""
+    async with await stack.materialize(url) as delegate:
+        shutil.copyfile(delegate.path, target)
+
+
+def _remote_copy(url: str, target: str) -> None:
+    """Download ``url`` to the local file ``target``.
 
     Raises:
-        RuntimeError: When OmniClient rejects the selected asset region profile.
+        FileNotFoundError: When the server does not have the file.
+        RuntimeError: When the download fails.
     """
-    selected_profile = _selected_storage_profile()
-    if selected_profile is None or not selected_profile[1].get("endpoint"):
-        return
+    url = _route_to_profile_cdn(url)
+    try:
+        _ovstorage_run(_materialize(_ovstorage_stack(url), url, target))
+    except ovstorage.NotFoundError as exc:
+        raise FileNotFoundError(f"Unable to find the file: {url}") from exc
+    except ovstorage.Error as exc:
+        raise RuntimeError(f"Unable to copy file: '{url}' ({exc})") from exc
 
-    import omni.client  # noqa: PLC0415
 
-    _configure_storage_profile(omni.client)
+def _remote_read(url: str) -> bytes:
+    """Read the contents of ``url``.
 
-
-def configure_asset_region_profile() -> None:
-    """Configure the selected asset region profile.
-
-    This name matches the public Asset Region Profile terminology. The existing
-    :func:`configure_storage_profile` initializer remains supported.
+    Raises:
+        FileNotFoundError: When the server does not have the file.
     """
-    configure_storage_profile()
-
-
-def _get_omni_client() -> ModuleType:
-    """Import OmniClient lazily and apply the selected asset region profile."""
-    import omni.client  # noqa: PLC0415
-
-    _configure_storage_profile(omni.client)
-    return omni.client
+    url = _route_to_profile_cdn(url)
+    try:
+        data, _ = _ovstorage_run(_ovstorage_stack(url).read_bytes(url))
+    except ovstorage.NotFoundError as exc:
+        raise FileNotFoundError(f"Unable to find the file: {url}") from exc
+    return data
 
 
 def _resolve_asset_root() -> str:
@@ -288,21 +356,13 @@ def _remote_fingerprint(url: str) -> dict | None:
 
     Returns:
         The reported metadata, or ``None`` when the server does not report the file. That
-        covers both a missing file and an unreachable server, which ``omni.client`` does not
-        distinguish here.
+        covers both a missing file and an unreachable server, which are not distinguished here.
     """
     if url not in _REMOTE_FINGERPRINTS:
-        omni_client = _get_omni_client()
-
-        result, entry = omni_client.stat(url.replace(os.sep, "/"))
-        if result != omni_client.Result.OK:
+        fingerprint = _remote_stat(url)
+        if fingerprint is None:
             return None
-        _REMOTE_FINGERPRINTS[url] = {
-            "hash": str(entry.hash or ""),
-            "version": str(entry.version or ""),
-            "size": int(entry.size or 0),
-            "modified_time": str(entry.modified_time or ""),
-        }
+        _REMOTE_FINGERPRINTS[url] = fingerprint
     return _REMOTE_FINGERPRINTS[url]
 
 
@@ -532,18 +592,13 @@ def _download_file(source: str, download_dir: str, force_download: bool) -> Iter
             raise FileNotFoundError(f"Unable to find the file: {source}")
         yield source
         return
-    omni_client = _get_omni_client()
     target = _mirror_path(source, download_dir)
     os.makedirs(os.path.dirname(target), exist_ok=True)
     with FileLock(target + ".lock"):
         if force_download or not _usable_mirror(source, download_dir):
             temporary_path = f"{target}.{uuid.uuid4().hex}.partial"
             try:
-                result = omni_client.copy(source, temporary_path, omni_client.CopyBehavior.OVERWRITE)
-                if result != omni_client.Result.OK:
-                    if check_file_path(source) == 0:
-                        raise FileNotFoundError(f"Unable to find the file: {source}")
-                    raise RuntimeError(f"Unable to copy file: '{source}' ({result})")
+                _remote_copy(source, temporary_path)
                 os.replace(temporary_path, target)
                 _write_mirror_fingerprint(source, target)
             finally:
@@ -578,10 +633,7 @@ def read_file(path: str) -> io.BytesIO:
             with open(mirrored, "rb") as f:
                 return io.BytesIO(f.read())
 
-        omni_client = _get_omni_client()
-
-        file_content = omni_client.read_file(path.replace(os.sep, "/"))[2]
-        data = memoryview(file_content).tobytes()
+        data = _remote_read(path)
         # cache what was just downloaded, so the next run reads it from disk
         _store_mirror(path, data)
         return io.BytesIO(data)

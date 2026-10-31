@@ -12,7 +12,7 @@ but runs kitless under uv run python -m pytest — no Kit launch needed.
 SimulationContext is instantiated directly (it does not require Kit).
 
 All tests use procedural USD assets so the kitless suite does not depend on
-Nucleus or ``omni.client`` loader state.
+Nucleus.
 """
 
 from __future__ import annotations
