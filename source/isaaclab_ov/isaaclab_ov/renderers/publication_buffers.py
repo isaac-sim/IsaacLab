@@ -95,21 +95,9 @@ class _GeometryPublicationBuffers:
         for index, (path, source) in enumerate(zip(paths, sources, strict=True)):
             if not source.device.is_cuda or source.device == self._device:
                 continue
-            if self._stream is None:
-                # Retain Torch's nonblocking stream; Warp-created streams are blocking.
-                self._torch_stream = torch.cuda.Stream(device=str(self._device))
-                self._stream = wp.stream_from_torch(self._torch_stream)
-            target = self._buffers.get(path)
-            if target is None or target.shape != source.shape or target.dtype != source.dtype:
-                # Warp pool allocations and their first copy must use the same stream.
-                with wp.ScopedStream(self._stream, sync_enter=False):
-                    target = wp.empty_like(source, device=self._device)
-                self._buffers[path] = target
-            producer_stream = source.device.stream
-            self._stream.wait_stream(producer_stream)
-            wp.copy(target, source, stream=self._stream)
-            published[index] = target
+            published[index] = self._copy_to_device(path, source)
         if self._stream is not None:
+            # Surface copy failures here, before Stage consumes the batch.
             wp.synchronize_stream(self._stream)
         # Include same-device producer work in Stage's input dependency.
         stream = self._device.stream if any(point.device.is_cuda for point in published) else None
@@ -129,6 +117,41 @@ class _GeometryPublicationBuffers:
         self._sources = []
         self._source_streams = []
         self._failed = False
+
+    def _copy_to_device(self, key: str, source: wp.array) -> wp.array:
+        """Enqueue one foreign-GPU copy into reusable target storage on the transfer stream.
+
+        This is the exact transfer used for publication: the target comes from Warp's default
+        allocator on the publication device, peer access is left to the driver, and the copy waits
+        on the producer's current stream. ``isaaclab_teleop.check_cuda_peer`` exercises it.
+        """
+        if self._stream is None:
+            # Retain Torch's nonblocking stream; Warp-created streams are blocking.
+            self._torch_stream = torch.cuda.Stream(device=str(self._device))
+            self._stream = wp.stream_from_torch(self._torch_stream)
+        target = self._buffers.get(key)
+        if target is None or target.shape != source.shape or target.dtype != source.dtype:
+            # Warp pool allocations and their first copy must use the same stream.
+            with wp.ScopedStream(self._stream, sync_enter=False):
+                target = wp.empty_like(source, device=self._device)
+            self._buffers[key] = target
+        self._stream.wait_stream(source.device.stream)
+        wp.copy(target, source, stream=self._stream)
+        return target
+
+    def copy_completed(self, key: str, source: wp.array) -> wp.array:
+        """Copy ``source`` through the publication transfer path and wait for completion.
+
+        Args:
+            key: Reusable target-storage key.
+            source: CUDA array on another device.
+
+        Returns:
+            The completed copy on the publication device.
+        """
+        target = self._copy_to_device(key, source)
+        wp.synchronize_stream(self._stream)
+        return target
 
     def close(self) -> None:
         """Drain exact transfer streams before releasing storage; retain it if draining fails."""

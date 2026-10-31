@@ -172,8 +172,9 @@ grasp placement; validate them separately from the input controls.
 ## Physics and rendering on separate GPUs
 
 For GPU-intensive physics, select the physics device with `--device` and the
-rendering devices with `--ovrtx_active_cuda_gpus`. Both rendering device options
-require `--ovxr` in the live teleoperation CLI. The MCAP replay entrypoint does
+rendering devices with `--ovrtx_active_cuda_gpus`; `--geometry_publication_device`
+selects where completed geometry copies land and must be one of the rendering GPUs.
+Both options require `--ovxr` in the live teleoperation CLI. The MCAP replay entrypoint does
 not expose these GPU-selection options.
 
 For live teleoperation:
@@ -210,8 +211,12 @@ uv run --extra ovxr python -m isaaclab_teleop.check_cuda_peer --devices cuda:0 c
 ```
 
 Run this with the same `CUDA_VISIBLE_DEVICES` selection as the application. It
-prints each device's UUID and PCI identity, checks two patterns in each direction,
-and exits nonzero on unsupported access, a detected transfer error or a value mismatch. This
+prints each device's UUID and PCI identity and checks two patterns in each direction
+through the renderer's own `--geometry_publication_device` copy: default (pooled) allocators,
+no explicit peer enable, and a transfer stream ordered after the producer stream, so the
+CUDA driver chooses the route exactly as in the application. Where direct peer access is
+supported it also checks peer-mapped copies between plain allocations. It exits nonzero on
+a detected transfer error or a value mismatch. A PASS covers those copies on this host; this
 small transfer check does not qualify rendering, physics or performance.
 Peer-capability flags and CUDA
 completion alone do not establish data integrity. NVIDIA documents a
@@ -220,4 +225,10 @@ GPU-only identity/passthrough can bypass translation while leaving IOMMU enabled
 globally. Validate the selected configuration before use. Host preparation belongs to an administrator
 with idle GPUs; application startup must not detach drivers or change IOMMU or
 host services. Keep physics, rendering and compositor on one physical GPU when
-the required peer-transfer path is unsupported. No automatic CPU staging is used.
+the check fails. Isaac Lab adds no CPU staging of its own; without direct peer access the
+CUDA driver may stage copies itself, which the check above exercises.
+
+Only rigid transforms and geometry points use the completed-copy publication path. Camera
+poses, markers and runtime meshes, and visual materials are small per-publication writes that
+OVStage still reads from the physics GPU; they use the same driver-selected route that the
+check above validates, without the completed-copy guarantee.

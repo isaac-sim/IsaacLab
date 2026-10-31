@@ -3,10 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Check synchronized peer-copy values before selecting split-GPU teleoperation.
+"""Check synchronized cross-GPU copy values before selecting split-GPU teleoperation.
 
 Run as ``python -m isaaclab_teleop.check_cuda_peer --devices cuda:0 cuda:1``.
-This is a small transfer-integrity check, not an application or performance test.
+This is a small transfer-integrity check, not an application or performance test. It runs the
+renderer's geometry-publication copy (``--geometry_publication_device``) in both directions, then,
+where supported, direct peer copies between plain allocations.
 """
 
 from __future__ import annotations
@@ -28,6 +30,7 @@ def main() -> int:
 
     import numpy as np
     import warp as wp
+    from isaaclab_ov.renderers.publication_buffers import _GeometryPublicationBuffers
 
     try:
         wp.init()
@@ -39,30 +42,55 @@ def main() -> int:
             print(f"{device}: {device.name}; UUID={device.uuid}; PCI={device.pci_bus_id}")
 
         passed = True
-        with ExitStack() as scope:
-            for device in devices:
-                # Exercise direct peer access with ordinary CUDA allocations.
-                scope.enter_context(wp.ScopedMempool(device, enable=False))
-            for source, target in (devices, devices[::-1]):
-                if not wp.is_peer_access_supported(source, target):
-                    raise RuntimeError(f"Direct peer access is unsupported: {source} -> {target}.")
-                scope.enter_context(wp.ScopedPeerAccess(source, target, enable=True))
-            for source, target in (devices, devices[::-1]):
-                stream = wp.Stream(target)
+        # The renderer's geometry-publication transfer: default allocators, no explicit peer
+        # enable, a nonblocking target stream ordered after the producer's stream.
+        for source, target in (devices, devices[::-1]):
+            buffers = _GeometryPublicationBuffers(str(target))
+            try:
                 for sign in (1, -1):
                     expected = np.arange(1, _VALUE_COUNT + 1, dtype=np.float32) * sign
                     source_values = wp.array(expected, device=source)
-                    target_values = wp.zeros(_VALUE_COUNT, dtype=wp.float32, device=target)
-                    # Initialize both allocations before the foreign-device copy.
                     wp.synchronize_device(source)
-                    wp.synchronize_device(target)
-                    wp.copy(target_values, source_values, stream=stream)
-                    wp.synchronize_stream(stream)
-                    wrong = int(np.count_nonzero(target_values.numpy() != expected))
+                    copied = buffers.copy_completed("check", source_values)
+                    wrong = int(np.count_nonzero(copied.numpy() != expected))
                     passed = passed and wrong == 0
-                    print(f"{source} -> {target}, sign={sign:+d}: {wrong}/{_VALUE_COUNT} incorrect values")
+                    print(
+                        f"publication path {source} -> {target}, sign={sign:+d}: "
+                        f"{wrong}/{_VALUE_COUNT} incorrect values"
+                    )
+            finally:
+                buffers.close()
+
+        # Direct peer mapping between plain allocations, reported separately. The publication path
+        # does not require it; the driver stages copies when peer access is unavailable.
+        peer_pairs = [(source, target) for source, target in (devices, devices[::-1])]
+        if not all(wp.is_peer_access_supported(source, target) for source, target in peer_pairs):
+            print("direct peer access: unsupported; the publication path above used the driver's staged route")
+        else:
+            with ExitStack() as scope:
+                for device in devices:
+                    scope.enter_context(wp.ScopedMempool(device, enable=False))
+                for source, target in peer_pairs:
+                    scope.enter_context(wp.ScopedPeerAccess(source, target, enable=True))
+                for source, target in peer_pairs:
+                    stream = wp.Stream(target)
+                    for sign in (1, -1):
+                        expected = np.arange(1, _VALUE_COUNT + 1, dtype=np.float32) * sign
+                        source_values = wp.array(expected, device=source)
+                        target_values = wp.zeros(_VALUE_COUNT, dtype=wp.float32, device=target)
+                        # Initialize both allocations before the foreign-device copy.
+                        wp.synchronize_device(source)
+                        wp.synchronize_device(target)
+                        wp.copy(target_values, source_values, stream=stream)
+                        wp.synchronize_stream(stream)
+                        wrong = int(np.count_nonzero(target_values.numpy() != expected))
+                        passed = passed and wrong == 0
+                        print(
+                            f"direct peer access {source} -> {target}, sign={sign:+d}: "
+                            f"{wrong}/{_VALUE_COUNT} incorrect values"
+                        )
         if passed:
-            print("PASS: all four peer-copy value comparisons are exact.")
+            print("PASS: every cross-GPU copy above is exact.")
             return 0
     except (RuntimeError, ValueError) as error:
         print(f"Peer-copy check failed: {error}", file=sys.stderr)
