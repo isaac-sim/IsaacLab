@@ -7,7 +7,7 @@
 
 """Tests for hand joint debug visualization plumbing.
 
-Covers :meth:`TeleopSessionLifecycle._chain_hand_debug_outputs` (HandsSource
+Covers :meth:`TeleopSessionLifecycle._chain_hand_presence_outputs` (HandsSource
 auto-discovery),
 :func:`~isaaclab_teleop.visualizers.hand_joint_visualizer._extract_world_joint_positions`,
 and :func:`~isaaclab_teleop.visualizers.controller_aim_visualizer._aim_world_pose`
@@ -21,7 +21,6 @@ out via ``sys.modules`` so these tests run in a plain Python environment.
 from __future__ import annotations
 
 import sys
-from types import ModuleType
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -64,7 +63,7 @@ _MODULES_TO_STUB = [
     "omni.kit.xr.system.openxr",
 ]
 
-_stubs_installed: dict[str, ModuleType | MagicMock] = {}
+_stub_patch: pytest.MonkeyPatch | None = None
 
 
 class _FakeHandsSource:
@@ -122,41 +121,37 @@ class _FakeBaseRetargeter:
 
 
 def _install_stubs():
-    """Insert MagicMock modules for all heavy dependencies."""
+    """Temporarily replace dependencies, including attributes on already loaded modules."""
+    global _stub_patch
+    assert _stub_patch is None
+    _stub_patch = pytest.MonkeyPatch()
     for name in _MODULES_TO_STUB:
         if name not in sys.modules:
-            sys.modules[name] = _stubs_installed.setdefault(name, MagicMock())
+            _stub_patch.setitem(sys.modules, name, MagicMock())
         if "." in name:
             parent_name, child_name = name.rsplit(".", 1)
-            setattr(sys.modules[parent_name], child_name, sys.modules[name])
+            _stub_patch.setattr(sys.modules[parent_name], child_name, sys.modules[name], raising=False)
 
     dsn_mod = sys.modules["isaacteleop.retargeting_engine.deviceio_source_nodes"]
-    dsn_mod.HandsSource = _FakeHandsSource  # type: ignore[attr-defined]
-    dsn_mod.ControllersSource = _FakeControllersSource  # type: ignore[attr-defined]
+    _stub_patch.setattr(dsn_mod, "HandsSource", _FakeHandsSource, raising=False)
+    _stub_patch.setattr(dsn_mod, "ControllersSource", _FakeControllersSource, raising=False)
 
     iface_mod = sys.modules["isaacteleop.retargeting_engine.interface"]
-    iface_mod.OutputCombiner = _FakeOutputCombiner  # type: ignore[attr-defined]
-    iface_mod.BaseRetargeter = _FakeBaseRetargeter  # type: ignore[attr-defined]
-    iface_mod.RetargeterIOType = dict  # type: ignore[attr-defined]
+    _stub_patch.setattr(iface_mod, "OutputCombiner", _FakeOutputCombiner, raising=False)
+    _stub_patch.setattr(iface_mod, "BaseRetargeter", _FakeBaseRetargeter, raising=False)
+    _stub_patch.setattr(iface_mod, "RetargeterIOType", dict, raising=False)
 
     tt_mod = sys.modules["isaacteleop.retargeting_engine.tensor_types"]
-    tt_mod.HandInputIndex = _FakeHandInputIndex  # type: ignore[attr-defined]
-    tt_mod.ControllerInputIndex = _FakeControllerInputIndex  # type: ignore[attr-defined]
+    _stub_patch.setattr(tt_mod, "HandInputIndex", _FakeHandInputIndex, raising=False)
+    _stub_patch.setattr(tt_mod, "ControllerInputIndex", _FakeControllerInputIndex, raising=False)
 
 
 def _restore_stubs():
-    """Remove stubs installed for this test module from ``sys.modules``."""
-    for name in reversed(_MODULES_TO_STUB):
-        stub = _stubs_installed.get(name)
-        if stub is None:
-            continue
-        if "." in name:
-            parent_name, child_name = name.rsplit(".", 1)
-            parent = sys.modules.get(parent_name)
-            if parent is not None and getattr(parent, child_name, None) is stub:
-                delattr(parent, child_name)
-        if sys.modules.get(name) is stub:
-            del sys.modules[name]
+    """Restore both inserted modules and overwritten attributes exactly."""
+    global _stub_patch
+    if _stub_patch is not None:
+        _stub_patch.undo()
+        _stub_patch = None
 
 
 _install_stubs()
@@ -192,8 +187,9 @@ class _FakeLeaf:
 class _FakePipeline:
     """Stand-in for a user pipeline (leaf nodes + action output)."""
 
-    def __init__(self, leaves: list) -> None:
+    def __init__(self, leaves: list, outputs: tuple[str, ...] = ()) -> None:
         self._leaves = leaves
+        self._outputs = outputs
 
     def get_leaf_nodes(self) -> list:
         return self._leaves
@@ -202,7 +198,7 @@ class _FakePipeline:
         return f"selector:user_pipeline:{key}"
 
     def output_types(self) -> dict:
-        return {"action": None}
+        return dict.fromkeys(("action", *self._outputs), object())
 
 
 class _FakeTensorGroup:
@@ -218,16 +214,35 @@ class _FakeTensorGroup:
 
 
 # ===========================================================================
-# _chain_hand_debug_outputs: HandsSource auto-discovery
+# _chain_hand_presence_outputs: HandsSource auto-discovery
 # ===========================================================================
 
 
 class TestChainHandDebugOutputs:
+    def test_chains_when_hands_source_present(self):
+        pipeline = _FakePipeline([_FakeLeaf("controllers"), _FakeHandsSource("hands")])
+        mapping: dict = {}
+        TeleopSessionLifecycle._chain_hand_presence_outputs(pipeline, mapping)
+        assert mapping[TeleopSessionLifecycle.HAND_LEFT_KEY] == "selector:hands:hand_left"
+        assert mapping[TeleopSessionLifecycle.HAND_RIGHT_KEY] == "selector:hands:hand_right"
+
     def test_mapping_untouched_without_hands_source(self):
         pipeline = _FakePipeline([_FakeLeaf("controllers"), _FakeLeaf("head")])
         mapping: dict = {"action": "selector:user_pipeline:action"}
-        TeleopSessionLifecycle._chain_hand_debug_outputs(pipeline, mapping)
+        TeleopSessionLifecycle._chain_hand_presence_outputs(pipeline, mapping)
         assert mapping == {"action": "selector:user_pipeline:action"}
+
+    def test_explicit_filtered_hand_outputs_take_precedence_over_raw_source(self):
+        pipeline = _FakePipeline(
+            [_FakeHandsSource("hands")],
+            outputs=(TeleopSessionLifecycle.HAND_LEFT_KEY, TeleopSessionLifecycle.HAND_RIGHT_KEY),
+        )
+        mapping: dict = {}
+        TeleopSessionLifecycle._chain_hand_presence_outputs(pipeline, mapping)
+        assert mapping == {
+            TeleopSessionLifecycle.HAND_LEFT_KEY: "selector:user_pipeline:hand_left",
+            TeleopSessionLifecycle.HAND_RIGHT_KEY: "selector:user_pipeline:hand_right",
+        }
 
 
 # ===========================================================================
@@ -251,10 +266,10 @@ class TestStartChaining:
         assert lifecycle.pipeline.output_mapping[TeleopSessionLifecycle.HAND_RIGHT_KEY] == "selector:hands:hand_right"
         assert TeleopSessionLifecycle._CONTROLLER_LEFT_KEY in lifecycle.pipeline.output_mapping
 
-    def test_start_does_not_chain_when_disabled(self):
+    def test_start_chains_hand_presence_but_not_left_controller_when_disabled(self):
         lifecycle = self._start(enable_debug_visualization=False)
-        assert TeleopSessionLifecycle.HAND_LEFT_KEY not in lifecycle.pipeline.output_mapping
-        assert TeleopSessionLifecycle.HAND_RIGHT_KEY not in lifecycle.pipeline.output_mapping
+        assert TeleopSessionLifecycle.HAND_LEFT_KEY in lifecycle.pipeline.output_mapping
+        assert TeleopSessionLifecycle.HAND_RIGHT_KEY in lifecycle.pipeline.output_mapping
         assert TeleopSessionLifecycle._CONTROLLER_LEFT_KEY not in lifecycle.pipeline.output_mapping
         # The right controller is always chained for button polling.
         assert TeleopSessionLifecycle._CONTROLLER_RIGHT_KEY in lifecycle.pipeline.output_mapping

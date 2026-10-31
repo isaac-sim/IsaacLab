@@ -15,6 +15,9 @@ __all__ = [
     "HapticFeedbackReceiver",
     "IsaacTeleopCfg",
     "IsaacTeleopDevice",
+    "OvLibrariesXrCameraConfig",
+    "OvLibrariesXrConfig",
+    "OvLibrariesXrSession",
     "SupportsControlEvents",
     "SystemCheckItem",
     "SystemCheckResult",
@@ -42,8 +45,12 @@ __all__ = [
 from .camera_feed import XrCameraFeedSession
 from .control_events import TELEOP_CONTROL_CHANNEL_UUID, ControlEvents, SupportsControlEvents, poll_control_events
 from .device_pipelines import (
-    se2_gamepad_teleop_cfg, se2_keyboard_teleop_cfg, se2_spacemouse_teleop_cfg,
-    se3_gamepad_teleop_cfg, se3_keyboard_teleop_cfg, se3_spacemouse_teleop_cfg,
+    se2_gamepad_teleop_cfg,
+    se2_keyboard_teleop_cfg,
+    se2_spacemouse_teleop_cfg,
+    se3_gamepad_teleop_cfg,
+    se3_keyboard_teleop_cfg,
+    se3_spacemouse_teleop_cfg,
 )
 from .haptic_feedback import (
     ControllerHapticFeedbackCfg,
@@ -62,6 +69,7 @@ from .isaac_teleop_cfg import (
     XrCameraFeedLayoutCfg,
 )
 from .isaac_teleop_device import IsaacTeleopDevice, create_isaac_teleop_device
+from .ov_libraries_xr import OvLibrariesXrCameraConfig, OvLibrariesXrConfig, OvLibrariesXrSession
 from .session_lifecycle import cloudxr_eula_accepted
 from .system_check import SystemCheckItem, SystemCheckResult, check_system_requirements
 from .xr_anchor_utils import XrAnchorSynchronizer

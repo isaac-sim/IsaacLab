@@ -33,6 +33,75 @@ def test_layout_preserves_positional_constructor():
     assert camera_feed._PanelDescriptor(**descriptor).use_scene_partition is False
 
 
+def test_ovxr_feed_selection_preserves_order_shared_renderer_and_rate_limits():
+    from isaaclab_ov.renderers import OVRTXRendererCfg
+
+    feeds = [
+        XrCameraFeedCfg(camera_name="robot_pov_cam", max_update_hz=12.0),
+        XrCameraFeedCfg(camera_name="wrist_cam", max_update_hz=0.0, offset_m=(0.1, -0.2), distance_m=0.9),
+    ]
+    cfg = _teleop_env_cfg(feeds, camera=_camera_cfg())
+    cfg.scene.wrist_cam = _camera_cfg()
+    original = cfg.scene.robot_pov_cam.renderer_cfg
+    renderer = OVRTXRendererCfg()
+    with pytest.raises(ValueError, match="missing.*CameraCfg"):
+        camera_feed.select_ovxr_camera_feeds(cfg, ["robot_pov_cam", "missing"], renderer)
+    assert cfg.scene.robot_pov_cam.renderer_cfg is original
+
+    selected = camera_feed.select_ovxr_camera_feeds(cfg, ["wrist_cam", "robot_pov_cam"], renderer)
+    cameras = camera_feed.resolve_ovxr_camera_configs(
+        selected, XrCameraFeedLayoutCfg(placement="head_locked"), max_fps=20.0
+    )
+    assert [camera.name for camera in cameras] == ["wrist_cam", "robot_pov_cam"]
+    assert [camera.max_fps for camera in cameras] == [20.0, 12.0]
+    assert all(camera.camera_cfg.renderer_cfg is renderer for camera in cameras)
+    assert all(camera.space == "head_locked" for camera in cameras)
+    assert cameras[0].position == (0.1, -0.2, -0.9)
+    with pytest.raises(ValueError, match="position override requires one camera"):
+        camera_feed.resolve_ovxr_camera_configs(
+            selected,
+            XrCameraFeedLayoutCfg(placement="head_locked"),
+            max_fps=20.0,
+            position_override=(0.1, 0.2, -0.8),
+        )
+    overridden = camera_feed.resolve_ovxr_camera_configs(
+        selected[:1],
+        XrCameraFeedLayoutCfg(placement="head_locked"),
+        max_fps=20.0,
+        position_override=(0.1, 0.2, -0.8),
+    )
+    assert overridden[0].position == (0.1, 0.2, -0.8)
+
+
+@pytest.mark.parametrize("placement", ["viewer_start", "world"])
+def test_ovxr_rejects_unsupported_panel_placement(placement):
+    selected = [("robot_pov_cam", _camera_cfg(), XrCameraFeedCfg(camera_name="robot_pov_cam"))]
+    layout = XrCameraFeedLayoutCfg(placement=placement, world_position_m=(0.0, 0.8, 1.6))
+    with pytest.raises(ValueError, match="require head_locked"):
+        camera_feed.resolve_ovxr_camera_configs(selected, layout, max_fps=20.0)
+
+
+@pytest.mark.parametrize(
+    "field,value,mode",
+    [
+        ("max_update_hz", -1.0, "manual"),
+        ("max_update_hz", float("nan"), "manual"),
+        ("max_update_hz", float("inf"), "manual"),
+        ("distance_m", 0.0, "manual"),
+        ("distance_m", -0.5, "manual"),
+        ("offset_m", (0.0, 0.0, 1.0), "manual"),
+        ("offset_m", (float("nan"), 0.0), "horizontal"),
+    ],
+)
+def test_ovxr_rejects_invalid_feed_before_layout_conversion(field, value, mode):
+    feed = XrCameraFeedCfg(camera_name="robot_pov_cam", **{field: value})
+    selected = [(feed.camera_name, _camera_cfg(), feed)]
+    with pytest.raises(ValueError, match=field):
+        camera_feed.resolve_ovxr_camera_configs(
+            selected, XrCameraFeedLayoutCfg(mode=mode, placement="head_locked"), max_fps=20.0
+        )
+
+
 @pytest.fixture
 def isolated_settings(monkeypatch):
     values = {ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING: True}
@@ -729,3 +798,19 @@ def test_isaac_teleop_default_has_no_camera_feeds():
     cfg = IsaacTeleopCfg(pipeline_builder=lambda: None)
 
     assert cfg.xr_camera_feeds == []
+
+
+def test_ovxr_automatic_panels_use_shared_layout_without_mutating_feeds():
+    feeds = [XrCameraFeedCfg(camera_name=name, panel_width_m=0.4) for name in ("left", "right")]
+    selected = [(feed.camera_name, _camera_cfg(), feed) for feed in feeds]
+    layout = XrCameraFeedLayoutCfg(
+        mode="horizontal",
+        placement="head_locked",
+        center_offset_m=(0.1, -0.2),
+        panel_gap_m=0.1,
+        distance_m=1.2,
+    )
+    panels = camera_feed.resolve_ovxr_camera_configs(selected, layout, max_fps=20.0)
+    assert panels[0].position == pytest.approx((-0.15, -0.2, -1.2))
+    assert panels[1].position == pytest.approx((0.35, -0.2, -1.2))
+    assert feeds[0].offset_m == XrCameraFeedCfg().offset_m

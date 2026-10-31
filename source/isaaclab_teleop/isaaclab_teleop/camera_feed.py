@@ -12,6 +12,7 @@ import logging
 import math
 import time
 from collections import Counter
+from collections.abc import Sequence
 from contextlib import suppress
 from copy import deepcopy
 from dataclasses import dataclass
@@ -25,11 +26,85 @@ from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SE
 from .isaac_teleop_cfg import XrCameraFeedCfg, XrCameraFeedLayoutCfg
 
 if TYPE_CHECKING:
-    from isaaclab.sensors import Camera
+    from types import TracebackType
+
+    from isaaclab_ov.renderers import OVRTXRendererCfg
+
+    from isaaclab.sensors import Camera, CameraCfg
+
+    from .ov_libraries_xr import OvLibrariesXrCameraConfig
 
 logger = logging.getLogger(__name__)
 
 _DLSS_EXEC_MODES = frozenset({"performance", "balanced", "quality", "auto", "rtxaa", "manual"})
+
+
+def select_ovxr_camera_feeds(
+    env_cfg: Any, names: Sequence[str], renderer_cfg: OVRTXRendererCfg
+) -> list[tuple[str, CameraCfg, XrCameraFeedCfg]]:
+    """Validate selected PiP cameras and assign their shared renderer before launch.
+
+    Selection order is retained. Each name must identify a scene camera and exactly
+    one enabled feed. Validation completes before any camera configuration changes.
+    """
+    from isaaclab.sensors import CameraCfg
+
+    if len(names) > 3 or len(names) != len(set(names)):
+        raise ValueError("Select up to three unique OVXR PiP cameras")
+    selected = []
+    for name in names:
+        camera = getattr(env_cfg.scene, name, None)
+        if not isinstance(camera, CameraCfg):
+            raise ValueError(f"OVXR PiP camera {name!r} is not a configured CameraCfg")
+        feeds = [feed for feed in env_cfg.isaac_teleop.xr_camera_feeds if feed.enabled and feed.camera_name == name]
+        if len(feeds) != 1:
+            raise ValueError(f"OVXR PiP camera {name!r} must have exactly one enabled XrCameraFeedCfg")
+        selected.append((name, camera, feeds[0]))
+    for _name, camera, _feed in selected:
+        camera.renderer_cfg = renderer_cfg
+    return selected
+
+
+def resolve_ovxr_camera_configs(
+    selected: Sequence[tuple[str, CameraCfg, XrCameraFeedCfg]],
+    layout: XrCameraFeedLayoutCfg,
+    *,
+    max_fps: float,
+    position_override: tuple[float, float, float] | None = None,
+) -> tuple[OvLibrariesXrCameraConfig, ...]:
+    """Resolve selected feeds into OVXR panels without creating native resources.
+
+    A feed's positive update cap limits the caller's rate; zero leaves that rate
+    unchanged. A position override applies only to a single selected panel.
+    """
+    from .ov_libraries_xr import OvLibrariesXrCameraConfig
+
+    _validate_layout_cfg(layout)
+    if selected and layout.placement != "head_locked":
+        raise ValueError("Kitless XR camera quads require head_locked placement")
+    if position_override is not None and len(selected) > 1:
+        raise ValueError("A PiP position override requires one camera; multiple panels use task layout")
+    for _name, _camera, feed in selected:
+        _validate_feed_cfg(feed, layout.placement)
+    feeds = _layout_feed_cfgs(
+        [feed for _name, _camera, feed in selected],
+        [(camera.width, camera.height) for _name, camera, _feed in selected],
+        layout,
+    )
+    cameras = []
+    for (name, camera, _feed), feed in zip(selected, feeds, strict=True):
+        cameras.append(
+            OvLibrariesXrCameraConfig(
+                name=name,
+                camera_cfg=camera,
+                max_fps=min(max_fps, feed.max_update_hz) if feed.max_update_hz > 0.0 else max_fps,
+                panel_width_m=feed.panel_width_m,
+                position=(float(feed.offset_m[0]), float(feed.offset_m[1]), -float(feed.distance_m))
+                if position_override is None
+                else tuple(position_override),
+            )
+        )
+    return tuple(cameras)
 
 
 @lru_cache(maxsize=1)
@@ -64,7 +139,7 @@ def _prepare_camera_feed_cfgs(env_cfg: Any, cfgs: list[XrCameraFeedCfg]) -> list
     if duplicates:
         raise ValueError(f"XR camera feeds must have unique camera names. Duplicates: {duplicates}.")
 
-    scene = getattr(env_cfg, "scene", None)
+    scene = env_cfg.scene
     if scene is None:
         raise ValueError("XR camera feeds require an environment configuration with a scene.")
     for cfg in enabled_cfgs:
@@ -159,7 +234,7 @@ class XrCameraFeedSession:
         presenter: Any | None,
         *,
         requires_responsive_denoising: bool,
-    ):
+    ) -> None:
         self._cfgs = cfgs
         self._layout_cfg = layout_cfg
         self._presenter = presenter
@@ -345,8 +420,22 @@ class XrCameraFeedSession:
             raise RuntimeError("Call bind(env) before entering an XR camera feed session.")
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback) -> None:
+    def __exit__(
+        self, exc_type: type[BaseException] | None, exc_value: BaseException | None, traceback: TracebackType | None
+    ) -> None:
         self.close()
+
+
+def _validate_feed_cfg(cfg: XrCameraFeedCfg, placement: str) -> None:
+    """Validate original feed values before layout or backend conversion."""
+    if not math.isfinite(cfg.panel_width_m) or cfg.panel_width_m <= 0.0:
+        raise ValueError(f"panel_width_m for XR camera feed {cfg.camera_name!r} must be positive.")
+    if len(cfg.offset_m) != 2 or not all(math.isfinite(value) for value in cfg.offset_m):
+        raise ValueError(f"offset_m for XR camera feed {cfg.camera_name!r} must contain two finite values.")
+    if placement != "world" and (not math.isfinite(cfg.distance_m) or cfg.distance_m <= 0.0):
+        raise ValueError(f"distance_m for XR camera feed {cfg.camera_name!r} must be positive.")
+    if not math.isfinite(cfg.max_update_hz) or cfg.max_update_hz < 0.0:
+        raise ValueError(f"max_update_hz for XR camera feed {cfg.camera_name!r} must be finite and non-negative.")
 
 
 def _panel_size_m(cfg: XrCameraFeedCfg, image_size: tuple[int, int]) -> tuple[float, float]:
@@ -474,7 +563,7 @@ class _XrCameraFeedManager:
         cfgs: list[XrCameraFeedCfg],
         layout_cfg: XrCameraFeedLayoutCfg | None,
         presenter: Any,
-    ):
+    ) -> None:
         self._env = env
         self._feeds: list[_ActiveFeed] = []
         self._presenter = presenter
@@ -484,7 +573,7 @@ class _XrCameraFeedManager:
         try:
             bound_feeds = []
             for cfg in cfgs:
-                self._validate_cfg(cfg, self._layout_cfg.placement)
+                _validate_feed_cfg(cfg, self._layout_cfg.placement)
                 camera, image = self._bind_image(cfg)
                 bound_feeds.append((camera, image))
             image_sizes = [(int(image.shape[1]), int(image.shape[0])) for _, image in bound_feeds]
@@ -516,19 +605,8 @@ class _XrCameraFeedManager:
     def _on_frame(self, _event: Any) -> None:
         self.update()
 
-    @staticmethod
-    def _validate_cfg(cfg: XrCameraFeedCfg, placement: str) -> None:
-        if not math.isfinite(cfg.panel_width_m) or cfg.panel_width_m <= 0.0:
-            raise ValueError(f"panel_width_m for XR camera feed {cfg.camera_name!r} must be positive.")
-        if len(cfg.offset_m) != 2 or not all(math.isfinite(value) for value in cfg.offset_m):
-            raise ValueError(f"offset_m for XR camera feed {cfg.camera_name!r} must contain two finite values.")
-        if placement != "world" and (not math.isfinite(cfg.distance_m) or cfg.distance_m <= 0.0):
-            raise ValueError(f"distance_m for XR camera feed {cfg.camera_name!r} must be positive.")
-        if not math.isfinite(cfg.max_update_hz) or cfg.max_update_hz < 0.0:
-            raise ValueError(f"max_update_hz for XR camera feed {cfg.camera_name!r} must be finite and non-negative.")
-
     def _bind_image(self, cfg: XrCameraFeedCfg) -> tuple[Camera, torch.Tensor]:
-        sensors = getattr(getattr(self._env, "scene", None), "sensors", {})
+        sensors = self._env.scene.sensors
         if cfg.camera_name not in sensors:
             raise ValueError(
                 f"XR camera feed {cfg.camera_name!r} is not present in the interactive scene. "

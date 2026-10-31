@@ -72,8 +72,12 @@ class PinkInverseKinematicsAction(ActionTerm):
         self._isaaclab_all_joint_ids = list(range(len(self._asset.data.joint_names)))
         self.cfg.controller.all_joint_names = self._asset.data.joint_names
 
-        # Resolve hand joints
-        self._hand_joint_ids, self._hand_joint_names = self._asset.find_joints(self.cfg.hand_joint_names)
+        # Hand targets occupy the action tensor in configuration order. Newton's
+        # articulation order groups these joints differently, so preserve the
+        # declared order when resolving ids instead of silently permuting targets.
+        self._hand_joint_ids, self._hand_joint_names = self._asset.find_joints(
+            self.cfg.hand_joint_names, preserve_order=True
+        )
 
         # Combine all joint information
         self._controlled_joint_ids = self._isaaclab_controlled_joint_ids + self._hand_joint_ids
