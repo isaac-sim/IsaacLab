@@ -43,9 +43,13 @@ class OvPhysxBackendCfg(BackendCfg):
 class OvPhysxCfg(PhysicsCfg):
     """Configuration for the ovphysx physics manager.
 
-    PhysX scene-level parameters (solver iterations, GPU buffer sizes, etc.) are
-    read from the USD PhysicsScene prim.  Only ovphysx-specific settings that are
-    not captured in USD live here.
+    PhysX scene-level parameters that this config does not set, such as solver iterations,
+    are read from the USD PhysicsScene prim. Before loading, the manager authors the scene
+    settings held here onto that prim: determinism, external forces, GPU buffer sizes (GPU
+    only) and the optional contact parameters :attr:`bounce_threshold_velocity`,
+    :attr:`friction_correlation_distance` and :attr:`solve_articulation_contact_last`. A
+    contact parameter left at ``None`` keeps the stage value, or the ``PhysxSceneAPI``
+    schema default when the stage does not author it.
     """
 
     class_type = "{DIR}.ovphysx_manager:OvPhysxManager"
@@ -92,22 +96,23 @@ class OvPhysxCfg(PhysicsCfg):
     bounce_threshold_velocity: float | None = None
     """Relative contact velocity below which contacts do not bounce [m/s].
 
-    ``None`` leaves the stage value (OvPhysX's default is effectively 0, so every contact bounces).
+    ``None`` leaves the stage value. The ``PhysxSceneAPI`` schema default is 0, which sets no speed
+    threshold, so contact restitution alone decides whether a contact bounces.
     Authored as ``physxScene:bounceThreshold``.
     """
 
     friction_correlation_distance: float | None = None
     """Distance below which contact points merge into one friction anchor [m].
 
-    ``None`` leaves the stage value (OvPhysX's default is 0.025 / metersPerUnit).
-    Authored as ``physxScene:frictionCorrelationDistance``.
+    ``None`` leaves the stage value. The ``PhysxSceneAPI`` schema default is ``0.025 * tolerancesLength``,
+    which is 0.025 m on a meter-based stage. Authored as ``physxScene:frictionCorrelationDistance``.
     """
 
     solve_articulation_contact_last: bool | None = None
     """Whether the solver resolves articulation contacts after other constraints.
 
     Enable it so object contacts can stall position-driven grippers before they tunnel through a
-    grasp. ``None`` leaves the stage value (off by default). Authored as
+    grasp. ``None`` leaves the stage value. The ``PhysxSceneAPI`` schema default is off. Authored as
     ``physxScene:solveArticulationContactLast``.
     """
 
