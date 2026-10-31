@@ -8,7 +8,10 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import MISSING, dataclass, field
+from functools import partial
+from typing import Any
 
 import torch
 from isaaclab_newton.assets import MPMObjectCfg
@@ -31,6 +34,7 @@ from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxDeformableBodyPropertiesCfg
 from isaaclab_physx.sim.spawners.materials import PhysxSurfaceDeformableBodyMaterialCfg
+from rendering_runtime import RenderingScene
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import (
@@ -43,12 +47,19 @@ from isaaclab.assets import (
 )
 from isaaclab.physics import PhysicsCfg
 from isaaclab.renderers.output_contract import RenderBufferKind
-from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
+from isaaclab.sensors.camera.camera_isp import CameraISPMode
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.configclass import configclass
-from isaaclab.utils.math import create_rotation_matrix_from_view, quat_from_matrix
+from isaaclab.utils.math import (
+    create_rotation_matrix_from_view,
+    quat_apply,
+    quat_from_angle_axis,
+    quat_from_matrix,
+    quat_mul,
+)
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
@@ -691,6 +702,199 @@ class AnymalRenderingSceneCfg(RenderingSceneCfg):
     )
 
 
+# Gaussian-splat scenes: one asset referenced under each environment, one camera per environment, no task.
+#
+# Which scene runs on which renderer follows from three limitations of the assets and renderers:
+#
+# * Raspberry animation (Isaac RTX): the raspberry authors two identical time samples on its splat arrays. While the
+#   Kit timeline advances, RTX re-reads that data whenever the time changes and returns empty frames in between, so
+#   the capture is black. Avoiding it needs a test-side timeline freeze, which we do not want, so the raspberry does
+#   not run on Isaac RTX. OVRTX has no timeline and the two samples are identical, so it renders correctly.
+# * Raspberry mesh (Newton Warp): the raspberry carries a physics-only ``SimulationMesh`` TetMesh (``purpose=guide``).
+#   Newton imports it as a soft body and its Warp raytracer draws every soft-body triangle, with no purpose or
+#   visibility check, so the mesh is drawn over the splats. The raspberry therefore does not run on Newton Warp.
+# * Scene partitioning (OVRTX): OVRTX authors ``showAllPartitionsByDefault`` on the stage, which keeps partitioned
+#   content in world space instead of the isolating per-partition grid (``ScenePartitioning.md`` in kit-public). Each
+#   camera is then separated from the other environments only by its partition's world-space bounding box, so
+#   Gaussian scenes whose bounds overlap across environments bleed into each other's views. The Valiant bounds span
+#   about 660 m and the Endeavor background about 3000 m, against environment spacings of tens of meters, so neither
+#   runs on OVRTX across several environments. Valiant runs with one environment there, and the compact raspberry
+#   (a few centimeters) runs with several. Isaac RTX and Newton Warp isolate environments structurally and are not
+#   affected.
+#
+# Known-bad splat depth, kept out of the cases until it is fixed:
+#
+# * OVRTX 0.6 returns no finite depth for splats in RealTimePathTracing: the synthetic-data depth pass only traces
+#   Gaussians when ``omni:rtx:minimal:mode`` is 3, so every ray misses and the output is blank. Fixed in kit-public
+#   (OMPE-116439); expected in OVRTX 0.7, when the OVRTX Valiant depth case can be added.
+# * Isaac RTX returns stochastic, speckled depth (the accumulated-depth settings have no effect), so its depth
+#   comparison uses a loose pixel tolerance and no SSIM.
+# * Newton Warp depth is smooth but inherits the camera FOV mismatch on Valiant.
+
+# Per-pixel L2 limit for the Isaac RTX ``rgb`` comparison, in place of the default (10). Isaac RTX speckles splats
+# with low-amplitude noise from stochastic transparency: its render differs from the golden on 34 % (Valiant) and
+# 41 % (Endeavor) of pixels at the default limit, but on 5.3 % and 9.9 % at 30.
+_GAUSSIAN_SPLATS_RGB_PIXEL_L2_THRESHOLD = 30.0
+
+# Frames rendered before the capture so renderer-side splat sorting, stage streaming and exposure settle.
+_GAUSSIAN_SPLATS_WARMUP_STEPS = 200
+
+
+def _gaussian_splats_asset(asset: str) -> AssetBaseCfg:
+    """Reference a Gaussian-splat asset (a path under ``ISAAC_NUCLEUS_DIR``) under each environment."""
+    return AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Scene", spawn=sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/{asset}")
+    )
+
+
+@configclass
+class GaussianSplatsSceneCfg(InteractiveSceneCfg):
+    """One Gaussian-splat asset and one camera per environment; scenes subclass it to set the asset and camera."""
+
+    gaussian_splats: AssetBaseCfg = MISSING
+    # Newton cannot build a model from a scene with no bodies, so every environment holds a tiny invisible one.
+    anchor = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Anchor",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.01, 0.01, 0.01),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=0.001),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0)),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, -100.0)),
+    )
+    # A scene sensor, so that renderers cloning environments natively (OVRTX) replicate it per environment.
+    camera: CameraCfg = MISSING
+
+
+@configclass
+class ValiantGaussianSplatsSceneCfg(GaussianSplatsSceneCfg):
+    """Valiant street scene, seen by the PPISP camera authored in the asset."""
+
+    gaussian_splats = _gaussian_splats_asset("Samples/Scene_ParticleField/valiant_auto.usdz")
+    camera = CameraCfg(
+        prim_path="{ENV_REGEX_NS}/Scene/rig_trajectories/sensor_rig_0/camera1_ppisp",
+        update_period=0.0,
+        width=128,
+        height=96,
+        spawn=None,
+        # ``AUTO_CAMERA`` reads the camera's authored ``ppisp:*`` attributes.
+        isp_cfg=CameraISPMode.AUTO_CAMERA,
+    )
+
+
+@configclass
+class EndeavorGaussianSplatsSceneCfg(GaussianSplatsSceneCfg):
+    """Endeavor entrance, seen by the camera authored in the asset."""
+
+    gaussian_splats = _gaussian_splats_asset("IsaacLab/Environments/NuRec/endeavor_entrance.usd")
+    camera = CameraCfg(
+        prim_path="{ENV_REGEX_NS}/Scene/Cameras/C05_Entrance_Overview",
+        update_period=0.0,
+        width=192,
+        height=108,
+        spawn=None,
+    )
+
+
+@configclass
+class RaspberryGaussianSplatsSceneCfg(GaussianSplatsSceneCfg):
+    """A raspberry, seen by a pinhole camera 6 cm from its centre at 30 degrees of elevation, looking at it."""
+
+    gaussian_splats = _gaussian_splats_asset("IsaacLab/Objects/Berries/raspberry.usdz")
+    camera = CameraCfg(
+        prim_path="{ENV_REGEX_NS}/Camera",
+        update_period=0.0,
+        width=128,
+        height=128,
+        offset=CameraCfg.OffsetCfg(
+            pos=(0.05196, 0.0, 0.04), rot=(0.35355, 0.35355, 0.61237, 0.61237), convention="opengl"
+        ),
+        spawn=sim_utils.PinholeCameraCfg(focal_length=24.0, horizontal_aperture=20.955, clipping_range=(0.01, 1000.0)),
+    )
+
+
+# Scene name -> scene config, environment count, env spacing, the asset transform to freeze at its first frame
+# (relative to the referenced scene prim; ``None`` when nothing animates), and how environment ``i`` turns its camera
+# about the vertical axis by ``i * orbit_step_deg`` degrees (around the pivot in the environment frame, or around the
+# camera itself when it is ``None``).
+_GAUSSIAN_SPLATS_SCENES = {
+    "gaussian_splats_valiant_1env": {
+        "cfg": ValiantGaussianSplatsSceneCfg,
+        "num_envs": 1,
+        "env_spacing": 20.0,
+        "animated_xform": "rig_trajectories/sensor_rig_0",
+        "orbit_step_deg": 0.0,
+        "orbit_pivot": None,
+    },
+    "gaussian_splats_endeavor_4envs": {
+        "cfg": EndeavorGaussianSplatsSceneCfg,
+        "num_envs": 4,
+        "env_spacing": 50.0,
+        "animated_xform": None,
+        "orbit_step_deg": 20.0,
+        "orbit_pivot": None,
+    },
+    "gaussian_splats_raspberry_4envs": {
+        "cfg": RaspberryGaussianSplatsSceneCfg,
+        "num_envs": 4,
+        "env_spacing": 1.0,
+        "animated_xform": None,
+        "orbit_step_deg": 90.0,
+        "orbit_pivot": (0.0, 0.0, 0.01),
+    },
+}
+
+
+def _freeze_gaussian_splats_xform(scene: InteractiveScene, prim_rel_path: str) -> None:
+    """Replace an animated transform of the scene asset with its first-frame value in every environment.
+
+    The scene's camera rig carries a time-sampled trajectory that the timeline replays while the simulation steps,
+    which would move the camera and make the capture depend on how many frames have been rendered.
+
+    Args:
+        scene: The instantiated scene.
+        prim_rel_path: Path of the animated prim relative to the referenced scene prim.
+    """
+    from pxr import Usd, UsdGeom
+
+    stage = sim_utils.get_current_stage()
+    for env_id in range(scene.num_envs):
+        prim = stage.GetPrimAtPath(f"/World/envs/env_{env_id}/Scene/{prim_rel_path}")
+        if not prim.IsValid():
+            # Renderers that clone environments natively keep only the first environment on the USD stage.
+            continue
+        (transform_op,) = UsdGeom.Xformable(prim).GetOrderedXformOps()
+        attr = transform_op.GetAttr()
+        # The time samples live in the referenced asset, a weaker layer than the stage's edit target, so a default
+        # written here overrides them at every time code.
+        attr.Set(attr.Get(Usd.TimeCode(0.0)))
+
+
+def _turn_gaussian_splats_cameras(
+    runtime: RenderingScene, orbit_step_deg: float, orbit_pivot: tuple[float, float, float] | None
+) -> None:
+    """Give environment ``i`` a camera turned about the vertical axis by ``i * orbit_step_deg`` degrees.
+
+    The cameras start from the same pose in every environment (an asset camera or the configured offset), so the
+    turned poses show a different part of the scene per environment.
+    """
+    camera = runtime.camera
+    positions = camera.data.pos_w.torch.clone()
+    orientations = camera.data.quat_w_opengl.torch.clone()
+    angles = torch.deg2rad(orbit_step_deg * torch.arange(len(positions), device=positions.device))
+    up = torch.tensor([0.0, 0.0, 1.0], device=positions.device).expand(len(positions), 3)
+    turns = quat_from_angle_axis(angles, up)
+    if orbit_pivot is None:
+        pivots = positions
+    else:
+        pivots = runtime.scene.env_origins + torch.tensor(orbit_pivot, device=positions.device)
+    camera.set_world_poses(
+        pivots + quat_apply(turns, positions - pivots), quat_mul(turns, orientations), convention="opengl"
+    )
+
+
 @dataclass(frozen=True)
 class RenderingSceneSpec:
     """Scene-owned inputs and golden-image tolerances consumed by the shared runner."""
@@ -704,6 +908,12 @@ class RenderingSceneSpec:
     dt: float = 1.0 / 60.0
     steps_before_capture: int = 0
     image_tolerance_overrides: dict[tuple[str, RenderBufferKind], tuple[float, float]] = field(default_factory=dict)
+    # Per-pixel L2 limits replacing the default of the golden comparison, keyed like ``image_tolerance_overrides``.
+    pixel_l2_thresholds: dict[tuple[str, RenderBufferKind], float] = field(default_factory=dict)
+    # Runs on the instantiated scene before the simulation resets.
+    on_scene_created: Callable[[InteractiveScene], None] | None = None
+    # Runs after the reset, once sensor data is populated and before the capture steps.
+    after_reset: Callable[[RenderingScene], None] | None = None
 
     def image_tolerance(self, renderer: str, aov: RenderBufferKind) -> tuple[float, float]:
         threshold = self.image_max_diff_pct
@@ -717,8 +927,51 @@ class RenderingSceneSpec:
         return self.image_tolerance_overrides.get((renderer, aov), default)
 
 
+def _make_gaussian_splats_spec(scene: str) -> RenderingSceneSpec:
+    """Resolve a Gaussian-splat scene's configuration, hooks and golden-image tolerances."""
+    config: dict[str, Any] = _GAUSSIAN_SPLATS_SCENES[scene]
+    cfg = config["cfg"](num_envs=config["num_envs"], env_spacing=config["env_spacing"])
+    # Starting allowances for splat renders, not measured needs: soft Gaussian edges and the per-renderer sorting of
+    # overlapping splats differ more across GPUs than mesh silhouettes do. Isaac RTX RGB is compared at
+    # ``_GAUSSIAN_SPLATS_RGB_PIXEL_L2_THRESHOLD``, where it measures 2.6 % (Valiant) and 6.7 % (Endeavor) of pixels
+    # differing, so the pixel gate keeps about 3x headroom and SSIM (0.95 and 0.83 measured) is the structural check.
+    # Isaac RTX depth is stochastic and speckled; SSIM is not enforced on depth.
+    tolerances = {
+        ("gaussian_splats_valiant_1env", "isaac_rtx"): (12.0, 0.92),
+        ("gaussian_splats_endeavor_4envs", "isaac_rtx"): (20.0, 0.70),
+    }
+    overrides = {(renderer, RenderBufferKind.RGB): tol for (name, renderer), tol in tolerances.items() if name == scene}
+    pixel_l2_thresholds = {key: _GAUSSIAN_SPLATS_RGB_PIXEL_L2_THRESHOLD for key in overrides}
+    if scene == "gaussian_splats_raspberry_4envs":
+        # The legacy and ovstage scene readers share one golden and shade the berries slightly differently: 7.06 % of
+        # pixels at 0.975 SSIM, above the 3 % cap OVRTX otherwise gets.
+        overrides[("ovrtx", RenderBufferKind.RGB)] = (10.0, 0.95)
+    else:
+        overrides[("isaac_rtx", RenderBufferKind.DISTANCE_TO_IMAGE_PLANE)] = (40.0, 0.0)
+    animated_xform = config["animated_xform"]
+    orbit_step_deg = config["orbit_step_deg"]
+    return RenderingSceneSpec(
+        cfg=cfg,
+        image_max_diff_pct=8.0,
+        min_ssim=0.95,
+        steps_before_capture=_GAUSSIAN_SPLATS_WARMUP_STEPS,
+        image_tolerance_overrides=overrides,
+        pixel_l2_thresholds=pixel_l2_thresholds,
+        on_scene_created=(
+            partial(_freeze_gaussian_splats_xform, prim_rel_path=animated_xform) if animated_xform else None
+        ),
+        after_reset=(
+            partial(_turn_gaussian_splats_cameras, orbit_step_deg=orbit_step_deg, orbit_pivot=config["orbit_pivot"])
+            if orbit_step_deg
+            else None
+        ),
+    )
+
+
 def make_rendering_scene_spec(scene: str, physics: str) -> RenderingSceneSpec:
     """Resolve scene-owned configuration while leaving lifecycle behavior to the runner."""
+    if scene in _GAUSSIAN_SPLATS_SCENES:
+        return _make_gaussian_splats_spec(scene)
     if scene == "franka_cable":
         physics_cfg = NewtonCfg(
             solver_cfg=CouplerProxyCfg(

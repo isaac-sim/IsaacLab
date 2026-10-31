@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import copy
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from types import SimpleNamespace
@@ -77,8 +77,13 @@ def build_rendering_scene(
     device: str = "cuda:0",
     visualizer_cfgs: Sequence[VisualizerCfg] = (),
     dt: float = 1.0 / 60.0,
+    on_scene_created: Callable[[InteractiveScene], None] | None = None,
 ) -> Iterator[RenderingScene]:
-    """Build a caller-owned rendering scene without an RL/task environment."""
+    """Build a caller-owned rendering scene without an RL/task environment.
+
+    ``on_scene_created`` runs on the instantiated scene before the simulation resets, for stage edits that renderers
+    and physics backends must see when they initialize.
+    """
     scene_cfg = copy.deepcopy(scene_cfg)
     scene_cfg.camera.data_types = list(data_types)
     scene_cfg.camera.background_color = background_color
@@ -99,11 +104,16 @@ def build_rendering_scene(
         build_simulation_context(sim_cfg=sim_cfg) as sim,
     ):
         runtime = RenderingScene(sim, instantiate(scene_cfg))
+        if on_scene_created is not None:
+            on_scene_created(runtime.scene)
         sim.reset()
         runtime.scene.reset()
         for asset in runtime.scene.rigid_objects.values():
             asset.write_root_velocity_to_sim_index(root_velocity=asset.data.default_root_vel.torch)
         runtime.scene.write_data_to_sim()
         sim.forward()
+        if sim.get_setting("/isaaclab/render/rtx_sensors") and hasattr(sim.backend_manager, "assets_loading"):
+            while sim.backend_manager.assets_loading():
+                sim.render()
         runtime.scene.update(0.0)
         yield runtime
