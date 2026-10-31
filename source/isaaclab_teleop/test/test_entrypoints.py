@@ -20,9 +20,9 @@ def test_live_entrypoint_preserves_resolved_camera_selection(monkeypatch):
     """The public workflow carries its resolved PiP selection into the selected runtime."""
     from isaaclab_teleop.entrypoints import teleop_se3_agent as workflow
 
-    config, teleop_config, camera = object(), object(), object()
-    selection = [("robot_pov_cam", camera, object())]
-    resolved = (config, teleop_config, True, selection)
+    config, teleop_config = object(), object()
+    selected_cameras = (object(),)
+    resolved = (config, teleop_config, True, selected_cameras)
     monkeypatch.setattr(workflow, "_resolve_env_cfg", lambda: resolved)
     calls = []
 

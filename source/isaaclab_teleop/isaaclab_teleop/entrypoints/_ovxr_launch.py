@@ -9,25 +9,32 @@ from __future__ import annotations
 
 import argparse
 import math
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from ..ovxr_cfg import OvLibrariesXrCameraConfig
 
 
-def require_kitless_physics(env_cfg: Any) -> None:
+def require_kitless_physics(env_cfg: Any, task: str) -> None:
     """Reject a task whose physics selection needs the Kit runtime before an OVXR launch.
 
     A task that leaves ``sim.physics`` unset selects Isaac Sim PhysX, which needs Kit.
-    The kitless OVXR session cannot run it, so fail before launch with the selector to use.
+    The kitless OVXR session cannot run it, so fail before launch. Such a task normally
+    declares no physics preset, so the error points at ``--xr`` or the task configuration
+    rather than at a ``physics=`` selector.
 
     Args:
         env_cfg: Resolved environment configuration.
+        task: Task name, for the error message.
 
     Raises:
         ValueError: If ``env_cfg.sim.physics`` is ``None``.
     """
     if env_cfg.sim.physics is None:
         raise ValueError(
-            "--ovxr requires a kitless physics preset, but the task leaves sim.physics unset (Isaac Sim"
-            " PhysX through Kit). Select one, for example physics=ovphysx or physics=newton_mjwarp."
+            f"--ovxr needs a task that selects kitless physics (OvPhysxCfg or NewtonCfg), but task '{task}' leaves"
+            " sim.physics unset, which runs Isaac Sim PhysX through Kit. Run this task with --xr instead, or give"
+            " its configuration a kitless physics preset."
         )
 
 
@@ -105,11 +112,42 @@ def validate_ovxr_presentation_args(
         parser.error("--ovxr_desktop_mirror_fps must be finite and positive")
 
 
-def ovxr_camera_layout(env_cfg: Any, head_locked: bool) -> Any:
-    """Return the task's camera-panel layout, forced to head-locked placement when requested."""
+def resolve_ovxr_pip_cameras(
+    env_cfg: Any, args: argparse.Namespace, renderer_cfg: Any
+) -> tuple[OvLibrariesXrCameraConfig, ...]:
+    """Select the requested PiP cameras and resolve their OVXR panels before launch.
+
+    Selection assigns ``renderer_cfg`` to each selected camera, so the OVXR session and its panels
+    share one OVRTX configuration. Resolution creates no native resources, so an invalid selection or
+    task layout fails before the simulation launches.
+
+    Args:
+        env_cfg: Resolved environment configuration.
+        args: Parsed namespace with the shared OVXR presentation options.
+        renderer_cfg: OVRTX configuration shared by the OVXR session and its PiP cameras.
+
+    Returns:
+        The resolved panels in selection order, or an empty tuple without ``--ovxr_pip_camera``.
+
+    Raises:
+        ValueError: If a selected camera or its feed is invalid, or if the task layout is not
+            head-locked and ``--ovxr_pip_head_locked`` is not given.
+    """
+    if args.ovxr_pip_camera is None:
+        return ()
+
+    from ..camera_feed import resolve_ovxr_camera_configs, select_ovxr_camera_feeds
     from ..isaac_teleop_cfg import XrCameraFeedLayoutCfg
 
-    layout = env_cfg.isaac_teleop.xr_camera_feed_layout
-    if head_locked:
-        layout = (layout or XrCameraFeedLayoutCfg()).replace(placement="head_locked")
-    return layout
+    selected = select_ovxr_camera_feeds(env_cfg, args.ovxr_pip_camera, renderer_cfg)
+    layout = env_cfg.isaac_teleop.xr_camera_feed_layout or XrCameraFeedLayoutCfg()
+    if args.ovxr_pip_head_locked:
+        layout = layout.replace(placement="head_locked")
+    elif layout.placement != "head_locked":
+        raise ValueError(
+            f"OVXR camera panels are head-locked, but the task places them with {layout.placement!r} placement."
+            " Pass --ovxr_pip_head_locked to place them in the OpenXR VIEW space."
+        )
+    return resolve_ovxr_camera_configs(
+        selected, layout, max_fps=args.ovxr_pip_fps, position_override=args.ovxr_pip_view_position
+    )

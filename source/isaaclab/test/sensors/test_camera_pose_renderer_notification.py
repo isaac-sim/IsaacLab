@@ -8,9 +8,12 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import pytest
 import warp as wp
 
 from isaaclab.sensors.camera.camera import Camera
+
+pytestmark = pytest.mark.unit
 
 
 def test_camera_pose_refresh_notifies_its_renderer():
@@ -20,10 +23,13 @@ def test_camera_pose_refresh_notifies_its_renderer():
     publication; a refactor that stops notifying the renderer would leave those panels stale.
     """
     camera = Camera.__new__(Camera)
+    # ``__new__`` skips ``__init__``; set the callback handles that the destructor clears.
+    camera._initialize_handle = camera._invalidate_initialize_handle = camera._prim_deletion_handle = None
+    camera._debug_vis_handle = None
     pose = SimpleNamespace(warp=wp.zeros(1, dtype=wp.vec3f, device="cpu"))
     orientation = SimpleNamespace(warp=wp.array([[0.0, 0.0, 0.0, 1.0]], dtype=wp.quatf, device="cpu"))
     camera._sensor_prims = [object()]
-    camera._view = SimpleNamespace(get_world_poses=lambda _env_ids: (pose, orientation))
+    camera._view = SimpleNamespace(get_world_poses=lambda _env_ids: (pose, orientation), close=lambda: None)
     camera._update_camera_state = MagicMock()
     camera._render_data = object()
     camera._renderer = MagicMock()

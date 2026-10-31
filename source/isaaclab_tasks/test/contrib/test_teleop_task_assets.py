@@ -25,11 +25,16 @@ from isaaclab.utils.assets import retrieve_file_path
 _ENV_ROBOT = "{ENV_REGEX_NS}/Robot"
 
 
-def _open_asset(usd_path: str) -> Usd.Stage:
+def _retrieve_asset(usd_path: str) -> str:
     try:
-        local_path = retrieve_file_path(usd_path)
-    except Exception as exc:  # The asset server is optional for local test runs.
+        return retrieve_file_path(usd_path)
+    except (FileNotFoundError, RuntimeError) as exc:
+        # The asset server is optional for local test runs: it may be unreachable or fail the download.
         pytest.skip(f"Robot asset is unavailable: {exc}")
+
+
+def _open_asset(usd_path: str) -> Usd.Stage:
+    local_path = _retrieve_asset(usd_path)
     stage = Usd.Stage.Open(local_path)
     assert stage is not None, local_path
     return stage
@@ -47,7 +52,7 @@ def _robot_paths(stage: Usd.Stage, pattern: str) -> list[Usd.Prim]:
 
 @pytest.mark.parametrize("task", ["fixed_base", "locomanipulation"])
 def test_g1_hand_contact_sensors_resolve_to_rigid_hand_links(task):
-    """The Isaac 6.2 G1 nests its hand links under ``left_hand``/``right_hand``; flat paths match nothing."""
+    """Newton matches whole paths, so the patterns must name the ``left_hand``/``right_hand`` parent prims."""
     from isaaclab_tasks.contrib.locomanip_pick_place.fixed_base_upper_body_ik_g1_env_cfg import (
         FixedBaseUpperBodyIKG1EnvCfg,
     )
@@ -98,8 +103,8 @@ def test_gr1t2_kitless_kinematics_urdf_matches_the_spawned_asset():
 
 
 @pytest.mark.parametrize("task", ["fixed_base_g1", "gr1t2", "gr1t2_waist"])
-def test_xr_head_exclusions_match_only_visual_head_meshes(task):
-    """OVXR attach fails closed when an exclusion matches nothing; check the patterns on the real assets."""
+def test_xr_head_exclusions_partition_only_visual_head_meshes(task):
+    """OVXR attach fails closed when an exclusion matches nothing; partition the real spawned asset."""
     from pxr import UsdGeom
 
     from isaaclab_tasks.contrib.locomanip_pick_place.fixed_base_upper_body_ik_g1_env_cfg import (
@@ -118,16 +123,23 @@ def test_xr_head_exclusions_match_only_visual_head_meshes(task):
     cfg = cfg_type()
     if cfg.xr is None or not cfg.xr.excluded_visual_meshes:
         pytest.skip("The teleoperation configuration is unavailable")
-    stage = _open_asset(cfg.scene.robot.spawn.usd_path)
-    for pattern in cfg.xr.excluded_visual_meshes:
-        assert pattern.startswith("/World/envs/env_0/Robot/"), pattern
-        meshes = [
-            prim
-            for prim in _robot_paths(stage, _ENV_ROBOT + pattern[len("/World/envs/env_0/Robot") :])
-            if prim.IsA(UsdGeom.Mesh)
-        ]
-        assert meshes, pattern
-        for prim in meshes:
-            assert "collisions" not in str(prim.GetPath()).split("/")
+    from isaaclab_teleop.xr_scene_partition import partition_visual_meshes
+
+    # Reference the robot where the single-environment scene spawns it.
+    stage = Usd.Stage.CreateInMemory()
+    stage.DefinePrim("/World/envs/env_0/Robot").GetReferences().AddReference(
+        _retrieve_asset(cfg.scene.robot.spawn.usd_path)
+    )
+    session_sublayers = list(stage.GetSessionLayer().subLayerPaths)
+    with partition_visual_meshes(stage, cfg.xr.excluded_visual_meshes) as paths:
+        assert paths
+        for path in paths:
+            prim = stage.GetPrimAtPath(path)
+            assert prim.IsA(UsdGeom.Mesh), path
+            assert "head" in path and "collisions" not in path.split("/")
             assert not prim.HasAPI(UsdPhysics.CollisionAPI)
-            assert "head" in str(prim.GetPath())
+            assert UsdGeom.PrimvarsAPI(prim).GetPrimvar("omni:scenePartition").Get() == "xr_excluded"
+    # The partition is temporary: exiting removes its session sublayer and the authored primvars.
+    assert list(stage.GetSessionLayer().subLayerPaths) == session_sublayers
+    for path in paths:
+        assert not UsdGeom.PrimvarsAPI(stage.GetPrimAtPath(path)).HasPrimvar("omni:scenePartition")

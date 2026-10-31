@@ -208,8 +208,9 @@ recorders or rolling-shutter playback.
 
 ## Utilities
 
-- **`remove_camera_configs(env_cfg)`** -- strips camera sensors and their associated policy
-  observation terms.
+- **`remove_camera_configs(env_cfg, keep=())`** -- strips camera sensors and their associated policy
+  observation terms. Cameras named in `keep` stay in the scene, but their observation terms are
+  still removed.
 
 ## Run with Docker
 

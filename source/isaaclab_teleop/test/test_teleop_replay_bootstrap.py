@@ -36,7 +36,10 @@ def test_replay_failed_input_drain_requests_stop_without_releasing_borrowers(rep
 
 @pytest.mark.parametrize("layout_mode", ["horizontal", "manual", None])
 def test_replay_presentation_preserves_camera_layout(monkeypatch, replay_presentation_type, layout_mode):
-    """The actual viewer constructor changes placement without discarding task packing."""
+    """The forced head-locked placement keeps task packing, and the viewer receives the CLI rates."""
+    # Session construction needs a Capture release with OVXR session support; the Kit
+    # ``teleop`` extra selects an older release, so skip there like ``run_live_workflow``.
+    pytest.importorskip("isaaccapture.ovxr_session_manager")
     import isaaclab_teleop
     from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg, XrCameraFeedCfg, XrCameraFeedLayoutCfg
 
@@ -65,35 +68,32 @@ def test_replay_presentation_preserves_camera_layout(monkeypatch, replay_present
     original_layout_fields = original_layout.to_dict() if original_layout is not None else None
     original_feeds = [feed.to_dict() for feed in config.isaac_teleop.xr_camera_feeds]
     from isaaclab_ov.renderers import OVRTXRendererCfg
-    from isaaclab_teleop.camera_feed import select_ovxr_camera_feeds
+    from isaaclab_teleop.entrypoints._ovxr_launch import resolve_ovxr_pip_cameras
 
-    monkeypatch.setitem(
-        replay_presentation_type.__init__.__globals__,
-        "args_cli",
-        SimpleNamespace(
-            ovxr_pip_camera=names,
-            ovxr_pip_head_locked=True,
-            ovxr_pip_fps=30.0,
-            ovxr_pip_view_position=None,
-            task="Test",
-            ovxr_session_mode="ar",
-            cloudxr_env="none",
-            auto_launch_cloudxr=False,
-            ovxr_desktop_mirror=False,
-            ovxr_desktop_mirror_fps=30.0,
-        ),
+    args = SimpleNamespace(
+        ovxr_pip_camera=names,
+        ovxr_pip_head_locked=True,
+        ovxr_pip_fps=15.0,
+        ovxr_pip_view_position=None,
+        task="Test",
+        ovxr_session_mode="ar",
+        cloudxr_env="none",
+        auto_launch_cloudxr=False,
+        ovxr_desktop_mirror=True,
+        ovxr_desktop_mirror_fps=20.0,
     )
-    # Environment preparation records the validated selection that the presentation reuses.
-    monkeypatch.setitem(
-        replay_presentation_type.__init__.__globals__,
-        "ovxr_pip_selection",
-        select_ovxr_camera_feeds(config, names, OVRTXRendererCfg()),
-    )
+    monkeypatch.setitem(replay_presentation_type.__init__.__globals__, "args_cli", args)
+    # Environment preparation resolves the panels that the presentation receives.
+    cameras = resolve_ovxr_pip_cameras(config, args, OVRTXRendererCfg())
     prepare = Mock()
     monkeypatch.setattr(isaaclab_teleop.OvLibrariesXrSession, "prepare", prepare)
-    presentation = replay_presentation_type(config)
+    presentation = replay_presentation_type(config, cameras)
     assert presentation.session is prepare.return_value
     session_config = prepare.call_args.args[1]
+    assert session_config.desktop_mirror_enabled is True
+    assert session_config.desktop_mirror_max_fps == 20.0
+    assert [camera.max_fps for camera in session_config.auxiliary_cameras] == [15.0, 15.0]
+    assert prepare.call_args.args[2] is config.scene.left.renderer_cfg
     expected = (
         [(-0.15, -0.2, -1.2), (0.35, -0.2, -1.2)]
         if layout_mode == "horizontal"
@@ -241,7 +241,8 @@ def test_presented_replay_preserves_startup_ownership_and_batch_completion(monke
     )
 
     class Presentation:
-        def __init__(self, cfg):
+        def __init__(self, cfg, cameras):
+            assert cameras == ()
             self.session = session
             self.started = False
 
@@ -291,15 +292,15 @@ def test_presented_replay_preserves_startup_ownership_and_batch_completion(monke
         monkeypatch.setattr(replay_agent, name, value, raising=False)
     if stop_at.startswith("startup"):
         with pytest.raises(KeyboardInterrupt):
-            replay_agent._run_replay_batch(SimpleNamespace(isaac_teleop=None), None)
+            replay_agent._run_replay_batch(SimpleNamespace(isaac_teleop=None), None, ())
         assert calls == ["presentation-close"]
     elif stop_at.startswith("construction"):
         with pytest.raises(RuntimeError, match="environment construction failed"):
-            replay_agent._run_replay_batch(SimpleNamespace(isaac_teleop=None), None)
+            replay_agent._run_replay_batch(SimpleNamespace(isaac_teleop=None), None, ())
         assert calls == ["presentation-close"] + (["context-clear"] if stop_at == "construction-new" else [])
         assert context_state["current"] is (None if stop_at == "construction-new" else previous)
     else:
-        result = replay_agent._run_replay_batch(SimpleNamespace(isaac_teleop=None), None)
+        result = replay_agent._run_replay_batch(SimpleNamespace(isaac_teleop=None), None, ())
         assert result == (0 if requested == 1 else 1)
         assert reports[0]["num_replays"] == 1
         assert reports[0]["requested_num_replays"] == requested
