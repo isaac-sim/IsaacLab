@@ -18,7 +18,6 @@ from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
 import pytest
-
 from isaaclab_teleop.ovxr_cfg import OvLibrariesXrConfig
 
 
