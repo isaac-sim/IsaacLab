@@ -54,6 +54,12 @@ from ..action_policy import (
 )
 from ..action_policy import prepare_teleop_action
 from ..device_selection import create_teleop_device, select_teleop_cfg
+from ._ovxr_launch import (
+    add_ovxr_presentation_args,
+    ovxr_camera_layout,
+    require_kitless_physics,
+    validate_ovxr_presentation_args,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -152,44 +158,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "Requires --ovxr; does not select physics or rendering placement."
         ),
     )
-    parser.add_argument(
-        "--ovxr_desktop_mirror",
-        action="store_true",
-        default=False,
-        help="Show the OVXR desktop mirror (enabled by default; --headless disables it).",
-    )
-    parser.add_argument("--headless", action="store_true", help="Disable the OVXR desktop mirror.")
-    parser.add_argument(
-        "--ovxr_desktop_mirror_fps",
-        type=float,
-        default=30.0,
-        help="Maximum desktop-mirror update rate (default: 30 Hz).",
-    )
-    parser.add_argument(
-        "--ovxr_pip_camera",
-        type=str,
-        nargs="+",
-        default=None,
-        help="Show up to three task-configured cameras as application-owned XR panels.",
-    )
-    parser.add_argument(
-        "--ovxr_pip_fps",
-        type=float,
-        default=30.0,
-        help="Maximum OVXR PiP update rate (default: 30 Hz).",
-    )
-    parser.add_argument(
-        "--ovxr_pip_head_locked",
-        action="store_true",
-        help="Place the application camera quad in the OpenXR VIEW space.",
-    )
-    parser.add_argument(
-        "--ovxr_pip_view_position",
-        type=float,
-        nargs=3,
-        metavar=("X", "Y", "Z"),
-        help="Optional VIEW-space camera panel center in meters; requires --ovxr_pip_head_locked.",
-    )
+    add_ovxr_presentation_args(parser)
 
     add_launcher_args(parser)
     return parser
@@ -212,22 +181,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         args_cli.geometry_publication_device is not None or args_cli.ovrtx_active_cuda_gpus is not None
     ):
         parser.error("--geometry_publication_device and --ovrtx_active_cuda_gpus require --ovxr")
-    if args_cli.ovxr_desktop_mirror and not args_cli.using_ovxr:
-        parser.error("--ovxr_desktop_mirror requires --ovxr")
-    args_cli.ovxr_desktop_mirror = args_cli.using_ovxr and not args_cli.headless
-    if args_cli.ovxr_pip_camera is not None and not args_cli.using_ovxr:
-        parser.error("--ovxr_pip_camera requires --ovxr")
-    if args_cli.ovxr_pip_camera is not None and args_cli.disable_external_cameras:
-        parser.error("--ovxr_pip_camera cannot be combined with --disable_external_cameras")
-    if not math.isfinite(args_cli.ovxr_pip_fps) or args_cli.ovxr_pip_fps <= 0.0:
-        parser.error("--ovxr_pip_fps must be finite and positive")
-    if args_cli.ovxr_pip_view_position is not None:
-        if not args_cli.ovxr_pip_head_locked or args_cli.ovxr_pip_camera is None:
-            parser.error("--ovxr_pip_view_position requires a head-locked PiP camera")
-        if not all(math.isfinite(value) for value in args_cli.ovxr_pip_view_position):
-            parser.error("--ovxr_pip_view_position must be finite")
-    if not math.isfinite(args_cli.ovxr_desktop_mirror_fps) or args_cli.ovxr_desktop_mirror_fps <= 0:
-        parser.error("--ovxr_desktop_mirror_fps must be finite and positive")
+    validate_ovxr_presentation_args(parser, args_cli, using_ovxr=args_cli.using_ovxr)
 
     # Call an external callback if requested.
     if args_cli.external_callback:
@@ -280,16 +234,18 @@ def _rtx_rendering_requested(args: argparse.Namespace) -> bool:
     """Return whether the CLI selects a renderer that actually drives RTX rendering.
 
     The RTX/DLSS global settings are only meaningful when something renders through RTX.
-    That happens when the Kit visualizer is enabled (``--viz kit``), when external cameras
-    are rendered (on by default; see ``--disable_external_cameras``), or in XR mode (``--xr``).
-    A pure-headless session with none of these renders nothing.
+    That happens when the Kit visualizer is enabled (``--viz kit`` or a task-declared Kit
+    visualizer), when external cameras are rendered (on by default; see
+    ``--disable_external_cameras``), or in XR mode (``--xr``). A pure-headless session with
+    none of these renders nothing.
 
-    This reads the resolved namespace intent rather than any Kit/carb runtime state so the
-    check keeps working as these scripts grow support for other rendering backends.
+    This reads the resolved launcher namespace rather than any Kit/carb runtime state.
+    :func:`~isaaclab.app.launch_simulation` records ``kit_visualizer`` on it; ``--viz`` itself
+    is consumed by the preset CLI and is not kept on the namespace.
     """
-    visualizers = getattr(args, "visualizer", None) or []
     external_cameras = not getattr(args, "disable_external_cameras", False)
-    return external_cameras or ("kit" in visualizers) or bool(getattr(args, "xr", False))
+    kit_visualizer = bool(getattr(args, "kit_visualizer", False))
+    return external_cameras or kit_visualizer or bool(getattr(args, "xr", False))
 
 
 def _make_haptic_io(env, teleop_interface, env_cfg, use_isaac_teleop: bool):
@@ -311,10 +267,14 @@ def _make_haptic_io(env, teleop_interface, env_cfg, use_isaac_teleop: bool):
     return driver.update, driver.stop
 
 
-def _apply_teleop_frame(env, action, issue: str | None, haptic_update, haptic_stop) -> bool:
-    """Step one valid action, or render-only while an unsafe tracker frame is held."""
+def _apply_teleop_frame(env, action, issue: str | None, haptic_update, haptic_stop, *, render: bool = True) -> bool:
+    """Step one valid action, or hold the scene while an unsafe tracker frame is rejected.
+
+    ``render`` is false under OVXR, which owns rendering and republishes the unchanged scene.
+    """
     if issue is not None:
-        env.sim.render()
+        if render:
+            env.sim.render()
         haptic_stop()
         return False
     env.step(action.repeat(env.num_envs, 1))
@@ -397,8 +357,6 @@ def _resolve_env_cfg() -> tuple[
         from ..camera_feed import select_ovxr_camera_feeds
 
         names = args_cli.ovxr_pip_camera
-        if len(names) > 1 and args_cli.ovxr_pip_view_position is not None:
-            raise ValueError("A PiP position override requires one camera; multiple panels use task layout")
         renderer_cfg = OVRTXRendererCfg(
             active_cuda_gpus=args_cli.ovrtx_active_cuda_gpus,
             geometry_publication_device=args_cli.geometry_publication_device,
@@ -406,17 +364,16 @@ def _resolve_env_cfg() -> tuple[
         pip_selection = select_ovxr_camera_feeds(env_cfg, names, renderer_cfg)
         keep_cameras = tuple(names)
 
-    # The leased OVRTX renderer is the only render path in OVXR. Strip
-    # every task camera before the launcher scans the config.
+    # The leased OVRTX renderer is the only render path in OVXR. Strip every task camera
+    # except the selected PiP cameras before the launcher scans the config.
     if args_cli.using_ovxr or args_cli.disable_external_cameras:
         from .. import remove_camera_configs
 
         env_cfg = remove_camera_configs(env_cfg, keep=keep_cameras)
 
-    if env_cfg.sim.physics is None:
-        from isaaclab.physics import PhysicsCfg
-
-        env_cfg.sim.physics = PhysicsCfg()
+    if args_cli.using_ovxr:
+        require_kitless_physics(env_cfg)
+    # A task without a physics selection keeps None: SimulationContext defaults it to PhysxCfg.
     configs, kit_sources = validate_launch(env_cfg, vars(args_cli).copy())
     if args_cli.using_ovxr:
         from isaaclab.visualizers import VisualizerBackendCfg
@@ -571,14 +528,10 @@ def run_teleoperation(  # noqa: C901
 
             from .. import OvLibrariesXrConfig, OvLibrariesXrSession
             from ..camera_feed import resolve_ovxr_camera_configs
-            from ..isaac_teleop_cfg import XrCameraFeedLayoutCfg
 
-            layout = env_cfg.isaac_teleop.xr_camera_feed_layout
-            if args_cli.ovxr_pip_head_locked:
-                layout = (layout or XrCameraFeedLayoutCfg()).replace(placement="head_locked")
             selected_cameras = resolve_ovxr_camera_configs(
                 pip_selection,
-                layout,
+                ovxr_camera_layout(env_cfg, args_cli.ovxr_pip_head_locked),
                 max_fps=args_cli.ovxr_pip_fps,
                 position_override=args_cli.ovxr_pip_view_position,
             )
@@ -788,7 +741,9 @@ def run_teleoperation(  # noqa: C901
                                 action, issue = prepare_teleop_action(
                                     env, action, action_conditioner, action_validator, action_state
                                 )
-                            action_applied = _apply_teleop_frame(env, action, issue, haptic_update, haptic_stop)
+                            action_applied = _apply_teleop_frame(
+                                env, action, issue, haptic_update, haptic_stop, render=ov_libraries_xr_session is None
+                            )
                             if issue is not None:
                                 skipped_tracking_frames += 1
                                 if skipped_tracking_frames <= 5 or skipped_tracking_frames % 200 == 0:
@@ -798,7 +753,6 @@ def run_teleoperation(  # noqa: C901
                                         skipped_tracking_frames,
                                     )
                         else:
-                            action_state.clear()
                             if ov_libraries_xr_session is None:
                                 env.sim.render()
                             # not stepping: zero haptics so a paused grip stops buzzing

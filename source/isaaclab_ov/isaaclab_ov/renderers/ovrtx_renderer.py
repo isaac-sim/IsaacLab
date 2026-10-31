@@ -254,7 +254,11 @@ class OVRTXBackend:
         self.renderer = Renderer(native_cfg)
 
     def detach(self) -> None:
-        """Release the borrowed stage before it is rebuilt or destroyed."""
+        """Release the borrowed stage before it is rebuilt or destroyed.
+
+        Raises:
+            RuntimeError: If an :class:`~isaaclab_ov.renderers.OvLibrariesRenderLease` is active.
+        """
         if self._render_lease_owner is not None:
             raise RuntimeError("Cannot detach a backend with an active render lease")
         if self.attached:
@@ -262,7 +266,11 @@ class OVRTXBackend:
             self.attached = False
 
     def close(self) -> None:
-        """Destroy the engine; the simulation's backend registry releases any borrowed stage afterward."""
+        """Destroy the engine; the simulation's backend registry releases any borrowed stage afterward.
+
+        Raises:
+            RuntimeError: If an :class:`~isaaclab_ov.renderers.OvLibrariesRenderLease` is active.
+        """
         if self._render_lease_owner is not None:
             raise RuntimeError("Cannot destroy a backend with an active render lease")
         if self.renderer is not None:
@@ -385,10 +393,15 @@ class OVRTXRenderer(BaseRenderer):
 
     @property
     def visual_material_writer(self):
-        """Register materials for an initialized or deferred leased scene consumer."""
+        """Return a writer factory once this renderer has a scene consumer.
+
+        A leased pair registers its writer before the borrower binds the Stage, because
+        environment reset finalizes material consumers first; addresses compile on the
+        first publication after population.
+        """
         return (
             self._create_visual_material_writer
-            if self._initialized_scene or self._render_lease.stage_deferred
+            if self._initialized_scene or self._render_lease.active is not None
             else None
         )
 
@@ -1065,7 +1078,13 @@ class OVRTXRenderer(BaseRenderer):
                 )
 
     def update_transforms(self) -> None:
-        """Publish ordinary scene data when the native pair is not leased."""
+        """Publish ordinary scene data when the native pair is not leased.
+
+        While a lease is active its scene publisher owns these writes, so eager scene
+        updates (for example ``lazy_sensor_update=False``) return without writing.
+        """
+        if self._render_lease.owns_scene_updates():
+            return
         self._render_lease.reject_ordinary_operation("update ordinary transforms")
         self._update_transforms()
 
@@ -1108,7 +1127,12 @@ class OVRTXRenderer(BaseRenderer):
         self._transforms_timestamp = timestamp
 
     def update_geometries(self) -> None:
-        """Publish ordinary scene data when the native pair is not leased."""
+        """Publish ordinary scene data when the native pair is not leased.
+
+        While a lease is active its scene publisher owns these writes.
+        """
+        if self._render_lease.owns_scene_updates():
+            return
         self._render_lease.reject_ordinary_operation("update ordinary geometries")
         self._update_geometries()
 
@@ -1328,8 +1352,12 @@ class OVRTXRenderer(BaseRenderer):
         ovstage.population.apply_usd_changes(self.scene.stage, ordinal=self.scene.ordinal)
 
     def close(self) -> None:
-        """Complete borrowed-buffer reads and release bindings; the registry owns the native engine."""
-        self._render_lease.reject_ordinary_operation("close the renderer")
+        """Complete borrowed-buffer reads and release bindings; the registry owns the native engine.
+
+        Raises:
+            RuntimeError: If an :class:`~isaaclab_ov.renderers.OvLibrariesRenderLease` is active.
+        """
+        self._render_lease.reject_ordinary_operation("close the renderer", retiring=True)
         # A failed drain must preserve publication storage and its scene bindings for retry.
         if self._geometry_publication is not None:
             self._geometry_publication.close()

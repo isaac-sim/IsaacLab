@@ -58,14 +58,20 @@ def test_g1_xr_camera_uses_calibration_and_head_locked_panel(env_cfg_type):
     assert camera_cfg.renderer_cfg.isaacsim_rtx == IsaacRtxRendererCfg()
 
 
-def test_fixed_base_g1_pip_preserves_policy_observations_and_fixed_root():
-    """Retain the existing three-camera observation contract and fixed-base root."""
-    cfg = FixedBaseUpperBodyIKG1EnvCfg()
+@pytest.mark.parametrize("selection", [[], ["presets=rgb"]])
+def test_fixed_base_g1_pip_keeps_state_policy_unless_rgb_selected_and_fixed_root(selection):
+    """Three cameras feed XR panels; their policy image terms are opt-in through ``presets=rgb``."""
+    import isaaclab_tasks  # noqa: F401
+    from isaaclab_tasks.utils import parse_env_cfg
+
+    cfg = parse_env_cfg(
+        "IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs", device="cpu", num_envs=1, overrides=selection
+    )
 
     assert cfg.image_obs_list == ["robot_pov_cam", "left_wrist_cam", "right_wrist_cam"]
-    assert hasattr(cfg.scene, "robot_pov_cam")
     for name in ("robot_pov_cam", "left_wrist_cam", "right_wrist_cam"):
-        assert hasattr(cfg.observations.policy, name)
+        assert hasattr(cfg.scene, name)
+        assert hasattr(cfg.observations.policy, name) is bool(selection)
     assert cfg.scene.robot.spawn.fix_root_link is True
     assert [feed.camera_name for feed in cfg.isaac_teleop.xr_camera_feeds] == [
         "robot_pov_cam",

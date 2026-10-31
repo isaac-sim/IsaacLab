@@ -50,6 +50,7 @@ selectors apply to live input and MCAP replay:
 | Task | Physics selectors |
 | --- | --- |
 | `IsaacContrib-PickPlace-GR1T2-Abs` | `ovphysx`, `newton_mjwarp`, `isaacsim_physx` |
+| `IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs` | `ovphysx`, `newton_mjwarp`, `isaacsim_physx` |
 | `IsaacContrib-PickPlace-Locomanipulation-G1-Abs` | `ovphysx`, `newton_mjwarp`, `isaacsim_physx` |
 | `IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs` | `ovphysx`, `newton_mjwarp`, `isaacsim_physx` |
 | `IsaacContrib-Stack-Cube-SO101-IK-Abs-v0` | `ovphysx`, `newton_mjwarp`, `isaacsim_physx` |
@@ -71,7 +72,7 @@ For example, replace the task in this command with any row above:
 ```bash
 uv run --python 3.12 --extra ovxr --locked isaaclab teleop run \
     --task IsaacContrib-PickPlace-GR1T2-Abs --num_envs 1 \
-    --device cpu --physics ovphysx --ovxr --cloudxr_env cloudxrjs
+    --device cpu --physics ovphysx --ovxr
 ```
 
 `--ovxr` selects OVStage and starts CloudXR with the `cloudxrjs` profile by default. Connect a supported

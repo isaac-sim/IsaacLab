@@ -4,5 +4,4 @@
   standalone backend preparation without optional teleoperation configuration.
   Registered construction prepares the selected backend and preserves prepared configuration copies
   and serialized spawn callbacks.
-* Batched G1 joint-limit preparation and device validation without changing action safety bounds.
 * Prepared packing-table mesh collisions for standalone physics.

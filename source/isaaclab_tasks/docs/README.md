@@ -77,28 +77,19 @@ cameras: `robot_pov_cam` at 20 Hz, and `left_wrist_cam` and `right_wrist_cam` at
 are mounted on their respective wrist-yaw links and look along wrist-local +X
 with +Z up. Their offsets are configurable in the task's scene configuration.
 
-These cameras and image observations are task defaults, including outside XR.
-They add image keys to the policy observation space and require camera rendering.
+The cameras feed the task's XR camera panels. The policy observation space stays
+state-only by default. Select `presets=rgb` to add the three images to the policy
+group, for example to record demonstrations with them:
 
-To retain the previous state-only observation space for an existing policy or
-checkpoint, remove the three sensors, their policy terms, and their image metadata
-from the resolved environment configuration before calling `gym.make()` or
-`instantiate(cfg)`. This migration does not require the teleoperation package:
-
-```python
-env_cfg.scene.robot_pov_cam = None
-env_cfg.scene.left_wrist_cam = None
-env_cfg.scene.right_wrist_cam = None
-env_cfg.observations.policy.robot_pov_cam = None
-env_cfg.observations.policy.left_wrist_cam = None
-env_cfg.observations.policy.right_wrist_cam = None
-env_cfg.image_obs_list = []
+```bash
+uv run isaaclab teleop record --task IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs \
+    --xr presets=rgb
 ```
 
-To use the new defaults, update the policy's observation schema to consume all
-three image terms and configure a supported camera renderer.
+`image_obs_list` names the three cameras; image consumers such as robomimic use
+only the names present in the policy observations.
 
-The same names identify policy image observations and the task's XR camera
+The same names identify the policy image observations and the task's XR camera
 feeds, with the head panel centered and wrist panels to its left and right.
 Sensor `update_period` controls image sampling in simulation time; feed
 `max_update_hz` caps uploads. Actual delivery also depends on simulation and

@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 
     from isaaclab.sensors import Camera, CameraCfg
 
-    from .ov_libraries_xr import OvLibrariesXrCameraConfig
+    from .ovxr_cfg import OvLibrariesXrCameraConfig
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +77,7 @@ def resolve_ovxr_camera_configs(
     A feed's positive update cap limits the caller's rate; zero leaves that rate
     unchanged. A position override applies only to a single selected panel.
     """
-    from .ov_libraries_xr import OvLibrariesXrCameraConfig
+    from .ovxr_cfg import OvLibrariesXrCameraConfig
 
     _validate_layout_cfg(layout)
     if selected and layout.placement != "head_locked":
@@ -139,7 +139,7 @@ def _prepare_camera_feed_cfgs(env_cfg: Any, cfgs: list[XrCameraFeedCfg]) -> list
     if duplicates:
         raise ValueError(f"XR camera feeds must have unique camera names. Duplicates: {duplicates}.")
 
-    scene = env_cfg.scene
+    scene = getattr(env_cfg, "scene", None)
     if scene is None:
         raise ValueError("XR camera feeds require an environment configuration with a scene.")
     for cfg in enabled_cfgs:

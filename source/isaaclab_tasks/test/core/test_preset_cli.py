@@ -312,6 +312,11 @@ def test_teleop_tasks_resolve_public_physics_selectors(monkeypatch, task_name, p
             assert cfg.sim.physics.solver_cfg.iterations == 100
             assert cfg.sim.physics.solver_cfg.impratio == 10.0
             assert cfg.sim.physics.solver_cfg.nconmax == 600
+    if physics == "ovphysx" and "SO101" in task_name:
+        # The kitless OvPhysX selection keeps the stack family's PhysX grasp tuning.
+        assert cfg.sim.physics.bounce_threshold_velocity == pytest.approx(0.01)
+        assert cfg.sim.physics.friction_correlation_distance == pytest.approx(0.00625)
+        assert cfg.sim.physics.solve_articulation_contact_last is True
 
     class ConstructionReached(Exception):
         pass

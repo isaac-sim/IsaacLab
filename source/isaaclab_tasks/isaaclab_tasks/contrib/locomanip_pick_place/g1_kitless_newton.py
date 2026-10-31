@@ -178,12 +178,32 @@ def _step_quaternion_towards(current: torch.Tensor, target: torch.Tensor, max_st
     return torch.nn.functional.normalize(torch.where(angle < 1.0e-6, target, interpolated), dim=0)
 
 
+_WRIST_RAMP_KEYS = ("left_pos", "left_quat", "right_pos", "right_quat")
+
+
+def _episode_step(env) -> int | None:
+    """Return environment 0's episode step, or ``None`` when the environment has no counter."""
+    buffer = getattr(getattr(env, "unwrapped", env), "episode_length_buf", None)
+    return None if buffer is None else int(buffer[0])
+
+
 def condition_kitless_newton_g1_action(env, action: torch.Tensor, state: dict[str, Any]) -> torch.Tensor:
-    """Ramp both wrist targets from the current G1 poses before Pink solves IK."""
+    """Ramp both wrist targets from the current G1 poses before Pink solves IK.
+
+    The ramp re-seeds from the measured wrist poses whenever the episode restarts, including
+    termination auto-resets inside ``env.step`` that the teleoperation loop does not observe.
+    """
     flat = action.detach().flatten()
     if flat.numel() != EXPECTED_ACTION_DIM:
         state.clear()
         return action
+
+    episode_step = _episode_step(env)
+    previous_step = state.get("_episode_step")
+    if episode_step is not None and previous_step is not None and episode_step < previous_step:
+        for key in _WRIST_RAMP_KEYS:
+            state.pop(key, None)
+    state["_episode_step"] = episode_step
 
     conditioned = action.clone()
     conditioned_flat = conditioned.flatten()
