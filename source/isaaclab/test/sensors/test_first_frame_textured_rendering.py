@@ -19,6 +19,7 @@ from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.test.env_cfgs import make_empty_manager_based_env_cfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
+from isaaclab.utils.math import matrix_from_quat
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
@@ -138,7 +139,10 @@ def test_first_frame_is_textured_camera(setup_sim, device):
 @pytest.mark.parametrize("device", ["cuda:0"])
 @pytest.mark.isaacsim_ci
 def test_env_reset_restores_initial_pose_in_camera_observation(device: str):
-    """The first and subsequent resets must return the reset pose without stepping physics."""
+    """The first and subsequent resets must publish the reset pose to Fabric and return it in the camera observation.
+
+    Neither reset may step physics.
+    """
 
     @configclass
     class CameraObservationsCfg(ObservationGroupCfg):
@@ -200,6 +204,7 @@ def test_env_reset_restores_initial_pose_in_camera_observation(device: str):
         first_reset_depth = first_reset_obs["camera"]["depth"].clone()
         assert env.sim.get_physics_step_count() == 0
         torch.testing.assert_close(cube.data.root_link_pose_w.torch, initial_pose)
+        _assert_fabric_world_poses(cube.root_view.prim_paths, initial_pose)
 
         action = torch.zeros_like(env.action_manager.action)
         # Establish rendered references at both poses before testing the reset boundary.
@@ -214,6 +219,8 @@ def test_env_reset_restores_initial_pose_in_camera_observation(device: str):
             moved_obs, _ = env.step(action)
         moved_depth = moved_obs["camera"]["depth"].clone()
         torch.testing.assert_close(cube.data.root_link_pose_w.torch, moved_pose)
+        # Fabric must show a different pose before the later reset, so a stale Fabric cannot match the reset pose.
+        _assert_fabric_world_poses(cube.root_view.prim_paths, moved_pose)
 
         step_before_reset = env.sim.get_physics_step_count()
         reset_obs, _ = env.reset()
@@ -221,6 +228,7 @@ def test_env_reset_restores_initial_pose_in_camera_observation(device: str):
 
         assert env.sim.get_physics_step_count() == step_before_reset
         torch.testing.assert_close(cube.data.root_link_pose_w.torch, initial_pose)
+        _assert_fabric_world_poses(cube.root_view.prim_paths, initial_pose)
 
         # Depth silhouettes check geometry, independent of RGB exposure and temporal denoising.
         initial_mask = torch.isfinite(initial_depth) & (initial_depth > 0.0) & (initial_depth < 10.0)
@@ -238,6 +246,24 @@ def test_env_reset_restores_initial_pose_in_camera_observation(device: str):
 """
 Helper functions.
 """
+
+
+def _assert_fabric_world_poses(prim_paths: list[str], poses: torch.Tensor) -> None:
+    """Assert that the Fabric world matrices of prims equal poses given as position [m] and quaternion (x, y, z, w).
+
+    The renderer reads these matrices. This helper does not prefetch USD data into Fabric, and it does not use
+    Fabric frame views, because both seed Fabric with the authored spawn pose.
+    """
+    stage = sim_utils.get_current_stage(fabric=True)
+    attributes = [
+        stage.GetPrimAtPath(path, prefetchFromUsd=False).GetAttribute("omni:fabric:worldMatrix") for path in prim_paths
+    ]
+    assert all(attributes), f"Fabric has no omni:fabric:worldMatrix attribute at {prim_paths}."
+    matrices = torch.tensor([[list(row) for row in attribute.Get()] for attribute in attributes], dtype=torch.float32)
+    # USD matrices use row vectors: the rows of the upper 3x3 block are the scaled axes of the prim frame.
+    torch.testing.assert_close(matrices[:, 3, :3], poses[:, :3].cpu())
+    orientation_matrices = torch.nn.functional.normalize(matrices[:, :3, :3], dim=-1).transpose(1, 2)
+    torch.testing.assert_close(orientation_matrices, matrix_from_quat(poses[:, 3:]).cpu())
 
 
 def _populate_scene():
