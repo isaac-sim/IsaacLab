@@ -9,7 +9,8 @@ import numpy as np
 import pytest
 from scipy.spatial.transform import Rotation
 
-pytest.importorskip("isaacteleop")
+# The test drives Capture's retargeting-engine internals; skip releases that do not ship them.
+pytest.importorskip("isaacteleop.retargeting_engine.interface.retargeter_core_types")
 
 from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
 from isaacteleop.retargeting_engine.interface import (
@@ -75,21 +76,18 @@ def test_so101_pipeline_full_pose_clutch_and_action_order():
     home_rotation = Rotation.from_matrix(_BASE_T_GRIPPER_HOME[:3, :3])
     origin = Rotation.from_euler("xyz", [0.2, -0.4, 0.3])
     position = np.array([0.3, -0.1, 0.5])
-    reset_rotation = home_rotation
-    engaged_rotation = home_rotation
-    check(step(position, origin, running=False, reset=True), home_position, reset_rotation, 0.0)
-    check(step(position, origin), home_position, engaged_rotation, 0.0)
+    check(step(position, origin, running=False, reset=True), home_position, home_rotation, 0.0)
+    check(step(position, origin), home_position, home_rotation, 0.0)
     delta = Rotation.from_rotvec([0.0, 0.0, 0.3])
     displacement = np.array([0.02, -0.03, 0.01])
     moved_position = home_position + displacement
-    moved_rotation = delta * engaged_rotation
+    moved_rotation = delta * home_rotation
     check(step(position + displacement, delta * origin, trigger=1.0), moved_position, moved_rotation, 1.0)
     other = Rotation.from_euler("xyz", [-0.5, 0.2, 0.8])
     check(step(-position, other, running=False), moved_position, moved_rotation, 0.0)
-    resumed_rotation = moved_rotation
-    check(step(-position, other), moved_position, resumed_rotation, 0.0)
+    check(step(-position, other), moved_position, moved_rotation, 0.0)
     # Re-engaging composes from the held full pose.
     delta2 = Rotation.from_rotvec([0.2, 0.0, 0.0])
-    check(step(-position + displacement, delta2 * other), moved_position + displacement, delta2 * resumed_rotation, 0.0)
-    check(step(position, origin, running=False, reset=True), home_position, reset_rotation, 0.0)
+    check(step(-position + displacement, delta2 * other), moved_position + displacement, delta2 * moved_rotation, 0.0)
+    check(step(position, origin, running=False, reset=True), home_position, home_rotation, 0.0)
     check(step(-position, other), home_position, home_rotation, 0.0)
