@@ -23,16 +23,25 @@ if TYPE_CHECKING:
 
 
 def prepare_humanoid_teleop_environment(cfg: ManagerBasedRLEnvCfg) -> None:
-    """Prepare humanoid task settings before simulation or environment construction."""
+    """Prepare humanoid task settings before simulation or environment construction.
+
+    Dispatches to the configuration's ``stabilize_for_kitless_ovphysx`` or
+    ``stabilize_for_kitless_newton_mjwarp`` for the selected standalone backend. Kit PhysX
+    needs no preparation. Repeated calls on a prepared configuration are no-ops.
+
+    Args:
+        cfg: Resolved humanoid teleoperation task configuration.
+
+    Raises:
+        ValueError: If ``cfg`` was already prepared for a different physics backend.
+    """
     physics = cfg.sim.physics
     if isinstance(physics, OvPhysxCfg):
-        kitless_backend_prepared(cfg, "ovphysx")
         cfg.stabilize_for_kitless_ovphysx()
     elif isinstance(physics, NewtonCfg) and isinstance(physics.solver_cfg, MJWarpSolverCfg):
-        kitless_backend_prepared(cfg, "newton_mjwarp")
         cfg.stabilize_for_kitless_newton_mjwarp()
     else:
-        kitless_backend_prepared(cfg, None)
+        check_kitless_backend_preparation(cfg, None)
 
 
 @configclass
@@ -46,8 +55,22 @@ class TeleopPhysicsCfg(PresetCfg):
     default = isaacsim_physx
 
 
-def kitless_backend_prepared(env_cfg, backend: str | None) -> bool:
-    """Keep completed task preparation stable across repeated callers and config copies."""
+def check_kitless_backend_preparation(env_cfg: ManagerBasedRLEnvCfg, backend: str | None) -> bool:
+    """Check a task's kitless preparation against the selected backend.
+
+    Preparation is recorded on the configuration, so it stays stable across repeated callers and
+    configuration copies.
+
+    Args:
+        env_cfg: Task configuration that may carry ``_prepared_kitless_backend``.
+        backend: Selected backend name (``"ovphysx"``, ``"newton_mjwarp"``) or ``None`` for Kit PhysX.
+
+    Returns:
+        Whether ``env_cfg`` is already prepared for ``backend``.
+
+    Raises:
+        ValueError: If ``env_cfg`` was prepared for a different backend.
+    """
     prepared = getattr(env_cfg, "_prepared_kitless_backend", None)
     if prepared is not None and prepared != backend:
         raise ValueError(
