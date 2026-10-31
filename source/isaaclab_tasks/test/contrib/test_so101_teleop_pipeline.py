@@ -9,8 +9,14 @@ import numpy as np
 import pytest
 from scipy.spatial.transform import Rotation
 
-# The test drives Capture's retargeting-engine internals; skip releases that do not ship them.
-pytest.importorskip("isaacteleop.retargeting_engine.interface.retargeter_core_types")
+# The test drives Capture's retargeting-engine cache execution; skip releases without the parts it uses.
+_core_types = pytest.importorskip("isaacteleop.retargeting_engine.interface.retargeter_core_types")
+if not (
+    hasattr(_core_types, "ExecutionCache")
+    and hasattr(_core_types, "GraphTime")
+    and hasattr(getattr(_core_types, "GraphExecutable", None), "execute_pipeline_with_cache")
+):
+    pytest.skip("Capture does not provide retargeting-engine cache execution", allow_module_level=True)
 
 from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
 from isaacteleop.retargeting_engine.interface import (
