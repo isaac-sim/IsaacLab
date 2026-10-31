@@ -437,6 +437,10 @@ class OVRTXRenderer(BaseRenderer):
         A leased pair registers its writer before the borrower binds the Stage, because
         environment reset finalizes material consumers first; addresses compile on the
         first publication after population.
+
+        The writer requires material buffers on one CUDA device. On a CPU simulation device,
+        an environment with :class:`~isaaclab.assets.VisualMaterial` assets therefore fails at
+        reset, with or without a lease.
         """
         return (
             self._create_visual_material_writer
