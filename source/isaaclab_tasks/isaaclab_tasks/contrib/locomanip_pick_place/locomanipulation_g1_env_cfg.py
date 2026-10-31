@@ -28,7 +28,7 @@ from isaaclab_tasks.contrib.packing_table import configure_packing_table_collisi
 from isaaclab_tasks.contrib.pick_place import mdp as manip_mdp
 from isaaclab_tasks.contrib.teleop_physics_cfg import (
     TeleopPhysicsCfg,
-    kitless_backend_prepared,
+    check_kitless_backend_preparation,
     prepare_humanoid_teleop_environment,
 )
 
@@ -519,20 +519,24 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
 
     def stabilize_for_kitless_ovphysx(self) -> None:
         """Provide the packing-table support shape required by standalone OVPhysX."""
-        if kitless_backend_prepared(self, "ovphysx"):
+        if check_kitless_backend_preparation(self, "ovphysx"):
             return
         configure_packing_table_collisions(self.scene.packing_table, physx_offsets=True)
         self._prepared_kitless_backend = "ovphysx"
 
     def stabilize_for_kitless_newton_mjwarp(self) -> None:
         """Prepare shared task collision geometry without replacing the locomotion policy."""
-        if kitless_backend_prepared(self, "newton_mjwarp"):
+        if check_kitless_backend_preparation(self, "newton_mjwarp"):
             return
         from isaaclab_tasks.contrib.steering_wheel import condition_newton_steering_wheel_detail_collisions
 
         # Match the common locomotion integrator for the floating-base robot.
         self.sim.physics.solver_cfg.integrator = "implicitfast"
         self.sim.physics.num_substeps = 2
+        # The upper body, hands, packing table and wheel match fixed-base G1, plus foot-ground
+        # contacts; keep at least its contact/constraint budget (MJWarp defaults: njmax=300).
+        self.sim.physics.solver_cfg.nconmax = max(self.sim.physics.solver_cfg.nconmax or 0, 4096)
+        self.sim.physics.solver_cfg.njmax = max(self.sim.physics.solver_cfg.njmax or 0, 1536)
         configure_packing_table_collisions(self.scene.packing_table)
         condition_newton_steering_wheel_detail_collisions(self.scene.object)
         self._prepared_kitless_backend = "newton_mjwarp"

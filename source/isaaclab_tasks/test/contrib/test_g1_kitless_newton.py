@@ -142,6 +142,9 @@ def test_locomanipulation_preserves_agile_policy_order_and_action_contract() -> 
     assert cfg.isaac_teleop.action_conditioner is None
     assert cfg.sim.physics.solver_cfg.integrator == "implicitfast"
     assert cfg.sim.physics.num_substeps == 2
+    # Same robot and props as fixed-base G1, plus foot contacts: keep at least its MJWarp budget.
+    assert cfg.sim.physics.solver_cfg.nconmax >= 4096
+    assert cfg.sim.physics.solver_cfg.njmax >= 1536
 
 
 def test_recorded_first_action_is_ramped_and_finite() -> None:
@@ -157,6 +160,26 @@ def test_recorded_first_action_is_ramped_and_finite() -> None:
     assert torch.equal(conditioned[14:], RECORDED_FIRST_ACTION[14:])
 
 
+def test_wrist_ramp_reseeds_after_termination_auto_reset() -> None:
+    """A success/drop auto-reset inside env.step moves the wrists; the ramp must restart from there."""
+    env, left, right = _fake_env()
+    env.episode_length_buf = torch.tensor([0])
+    state = {}
+    target = RECORDED_FIRST_ACTION.clone()
+    for step in range(1, 60):
+        conditioned = condition_kitless_newton_g1_action(env, target, state)
+        env.episode_length_buf[0] = step
+    # The ramp has converged near the operator's hands, far from the reset pose.
+    assert float(torch.linalg.norm(conditioned[:3] - left[:3])) > 2 * POSITION_MAX_STEP_M
+    # Auto-reset: the robot returns to a different pose and the episode counter restarts.
+    poses = env.scene["robot"].data.body_link_pose_w
+    poses[0, :, :3] += torch.tensor([0.0, 0.0, -0.2])
+    env.episode_length_buf[0] = 0
+    conditioned = condition_kitless_newton_g1_action(env, target, state)
+    assert float(torch.linalg.norm(conditioned[:3] - poses[0, 0, :3])) <= POSITION_MAX_STEP_M + 1.0e-6
+    assert float(torch.linalg.norm(conditioned[7:10] - poses[0, 1, :3])) <= POSITION_MAX_STEP_M + 1.0e-6
+
+
 @pytest.mark.parametrize(
     "angle, axis, sign", [(0.9, (1, 0, 0), 1), (1.2, (0, 1, 1), -1), (0.1, (0, 0, 1), 1), (0, (1, 0, 0), -1)]
 )
@@ -164,17 +187,19 @@ def test_conditioned_wrist_rotation_obeys_angular_cap(angle, axis, sign):
     """The public action conditioner follows the short rotation without exceeding its cap."""
     env, _, _ = _fake_env()
     pose = env.scene["robot"].data.body_link_pose_w
+    # Any fixed unit quaternion works as the start: slerp is convention-independent. This is the
+    # (x, y, z, w) = (1, 0, 0, 0) half-turn about x, not identity.
     pose[0, :, 3:7] = torch.tensor([1.0, 0, 0, 0])
     direction = torch.nn.functional.normalize(torch.tensor(axis, dtype=torch.float32), dim=0)
     target = sign * torch.cat((torch.tensor([math.cos(angle / 2)]), direction * math.sin(angle / 2)))
     action = RECORDED_FIRST_ACTION.clone()
     action[3:7] = action[10:14] = target
     conditioned = condition_kitless_newton_g1_action(env, action, {})
-    identity = torch.tensor([1.0, 0, 0, 0])
+    start = torch.tensor([1.0, 0, 0, 0])
     for result in (conditioned[3:7], conditioned[10:14]):
         assert torch.isfinite(result).all()
         assert torch.linalg.norm(result).item() == pytest.approx(1, abs=1.0e-6)
-        assert _quat_angle(identity, result) <= min(angle, ROTATION_MAX_STEP_RAD) + 1.0e-5
+        assert _quat_angle(start, result) <= min(angle, ROTATION_MAX_STEP_RAD) + 1.0e-5
         assert _quat_angle(result, target) == pytest.approx(max(0, angle - ROTATION_MAX_STEP_RAD), abs=1.0e-5)
 
 
