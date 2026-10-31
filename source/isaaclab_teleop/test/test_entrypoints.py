@@ -8,11 +8,38 @@
 import importlib
 import importlib.metadata
 import sys
+from contextlib import contextmanager
 from unittest import mock
 
 import pytest
 
 pytestmark = pytest.mark.unit
+
+
+def test_live_entrypoint_preserves_resolved_camera_selection(monkeypatch):
+    """The public workflow carries its resolved PiP selection into the selected runtime."""
+    from isaaclab_teleop.entrypoints import teleop_se3_agent as workflow
+
+    config, teleop_config, camera = object(), object(), object()
+    selection = [("robot_pov_cam", camera, object())]
+    resolved = (config, teleop_config, True, selection)
+    monkeypatch.setattr(workflow, "_resolve_env_cfg", lambda: resolved)
+    calls = []
+
+    @contextmanager
+    def launch(env_config, args, *, cleanup_context):
+        assert env_config is config and args.using_ovxr
+        assert not cleanup_context
+        calls.append("launch")
+        yield
+        calls.append("close")
+
+    monkeypatch.setattr(workflow, "launch_simulation", launch)
+    monkeypatch.setattr(workflow, "run_teleoperation", lambda *args: calls.append(args))
+    monkeypatch.setattr(sys, "argv", ["caller"])
+    assert workflow.run_teleop_se3_agent_cli(["--ovxr", "--ovxr_pip_camera", "robot_pov_cam"]) == 0
+    assert calls == ["launch", resolved, "close"]
+    assert sys.argv == ["caller"]
 
 
 @pytest.mark.parametrize(

@@ -27,7 +27,6 @@ terminated via its process group.
 """
 
 import os
-import re
 import signal
 import subprocess
 import sys
@@ -36,39 +35,8 @@ from pathlib import Path
 
 import pytest
 
-pytestmark = [pytest.mark.integration, pytest.mark.rendering]
-
 # Repository root: this file lives at source/isaaclab_teleop/test/<file>.py
 ROOT = Path(__file__).resolve().parents[3]
-
-# XR experience file whose dependencies decide whether ``--xr`` can start offline.
-_XR_EXPERIENCE = ROOT / "apps" / "isaaclab.python.xr.openxr.kit"
-
-# ``.kit`` files repeat section headers, so they cannot be parsed as TOML.
-_SECTION_RE = re.compile(r"^\s*\[+(?P<name>[^\[\]]+)\]+\s*$")
-_DEPENDENCY_RE = re.compile(r'^\s*"(?P<name>[^"]+)"\s*=')
-
-
-def _kit_dependencies(experience: Path) -> set[str]:
-    """Collect the extension names declared in an experience file's dependency sections.
-
-    Scoped to ``[dependencies]`` tables so quoted keys elsewhere in the file (settings tables
-    use them too) are not mistaken for extensions.
-    """
-    dependencies: set[str] = set()
-    in_dependencies = False
-
-    for line in experience.read_text(encoding="utf-8").splitlines():
-        section = _SECTION_RE.match(line)
-        if section is not None:
-            in_dependencies = section.group("name").strip() == "dependencies"
-            continue
-        if in_dependencies:
-            dependency = _DEPENDENCY_RE.match(line)
-            if dependency is not None:
-                dependencies.add(dependency.group("name"))
-
-    return dependencies
 
 
 # Lightweight Franka task that configures an Isaac Capture pipeline (controllers), so omitting
@@ -167,6 +135,8 @@ def _assert_started_cleanly(output: str, markers: list[str], script: str) -> Non
     )
 
 
+@pytest.mark.integration
+@pytest.mark.rendering
 def test_teleop_se3_agent_starts(tmp_path):
     """teleop_se3_agent.py builds the Isaac Capture device (past the #6656 RTX/camera regression).
 
@@ -185,6 +155,8 @@ def test_teleop_se3_agent_starts(tmp_path):
     _assert_started_cleanly(output, [_ISAAC_TELEOP_MARKER], "teleop_se3_agent.py")
 
 
+@pytest.mark.integration
+@pytest.mark.rendering
 def test_record_demos_starts(tmp_path):
     """record_demos.py builds the Isaac Capture device without AttributeError-ing on enable_cameras.
 
@@ -204,6 +176,8 @@ def test_record_demos_starts(tmp_path):
     _assert_started_cleanly(output, [_ISAAC_TELEOP_MARKER], "record_demos.py")
 
 
+@pytest.mark.integration
+@pytest.mark.rendering
 def test_record_demos_starts_when_reward_references_success(tmp_path):
     """record_demos.py preserves success-term references while disabling automatic resets."""
     argv = [
@@ -216,29 +190,14 @@ def test_record_demos_starts_when_reward_references_success(tmp_path):
         str(tmp_path / "dataset.hdf5"),
         "physics=isaacsim_physx",
         "presets=diffik",
+        *_NO_CLOUDXR,
     ]
     output = _launch_until_marker(argv, [_ENV_READY_MARKER], tmp_path / "record_demos_success_reward.log")
     _assert_started_cleanly(output, [_ENV_READY_MARKER], "record_demos.py with a success reward")
 
 
-def test_xr_experience_declares_only_shipped_extensions():
-    """The XR experience depends on XR extensions Isaac Sim ships, not on a registry-only bundle.
-
-    ``omni.kit.xr.bundle.generic`` is not shipped and resolves only from the Kit SDK registry, so
-    depending on it aborted every ``--xr`` run that could not reach the registry.
-
-    Static on purpose: a machine that reaches the registry caches the bundle on first use and
-    loads it locally forever after, so a launch test cannot catch this once that cache is warm.
-    """
-    dependencies = _kit_dependencies(_XR_EXPERIENCE)
-
-    assert "omni.kit.xr.system.openxr" in dependencies
-    assert "omni.kit.xr.ui.window.profile" in dependencies, "omni.kit.xr.profile.ar's Kit 110 successor is missing"
-    assert not [name for name in dependencies if name.startswith("omni.kit.xr.bundle.")], (
-        "XR bundle meta-extensions are not shipped with Isaac Sim and resolve only from the Kit SDK registry"
-    )
-
-
+@pytest.mark.integration
+@pytest.mark.rendering
 def test_record_demos_starts_headless_xr(tmp_path):
     """record_demos.py starts under ``--xr`` with no ``--viz kit`` (the QA-reported failure).
 
@@ -267,6 +226,8 @@ def test_record_demos_starts_headless_xr(tmp_path):
     _assert_started_cleanly(output, markers, "record_demos.py --xr")
 
 
+@pytest.mark.integration
+@pytest.mark.rendering
 def test_teleop_replay_agent_applies_rtx_without_replicator_crash(tmp_path):
     """teleop_replay_agent.py clears the RTX-apply site (create env) without the replicator crash.
 

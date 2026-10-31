@@ -412,11 +412,18 @@ def validate_launch(  # noqa: C901
 def launch_simulation(
     cfg,
     launcher_args: argparse.Namespace | dict | None = None,
+    *,
+    cleanup_context: bool = True,
 ) -> Generator[PhysicsCfg | None, None, None]:
     """Context manager that launches the appropriate simulation runtime for *cfg*.
 
     Resolves configured consumers before starting their required runtimes. Each runtime starts
     once and closes on exit. Cameras are auto-enabled for Kit-renderer sensors.
+
+    On exit, stops and releases a simulation context created inside the scope before closing
+    its runtimes. An existing context owned by the caller is preserved. Applications
+    with asynchronous resource owners can set ``cleanup_context=False`` and take
+    responsibility for context cleanup, including failed construction and drain.
 
     Resolve viewer and physics choices on the same config used to construct the simulation::
 
@@ -437,6 +444,10 @@ def launch_simulation(
               a tool that reaches a Kit-only extension API. This is additive -- it can only turn a
               kitless launch into a Kit one, never the reverse, so a config that already needs Kit
               still launches it when the key is absent or ``False``.
+        cleanup_context: Automatically release a context created inside this scope.
+            Disable only when the application owns its cleanup and must retain it
+            if asynchronous consumers cannot prove they have drained. This controls
+            context release only; configured runtime launchers still close on exit.
     """
     launcher_args = {} if launcher_args is None else launcher_args
     launcher_args = vars(launcher_args) if isinstance(launcher_args, argparse.Namespace) else launcher_args
@@ -500,7 +511,7 @@ def launch_simulation(
         finally:
             # Release runtime consumers before a launcher can terminate the process.
             context = SimulationContext.instance()
-            if context is not None and context is not previous_context:
+            if cleanup_context and context is not None and context is not previous_context:
                 SimulationContext.clear_instance()
     except KeyboardInterrupt:
         exit_code = 130

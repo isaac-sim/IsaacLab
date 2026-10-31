@@ -58,3 +58,55 @@ gym.register(
 > **Note:** As a practice, we specify all the environments in a single file to avoid name conflicts between different
 > tasks or environments. However, this practice is debatable and we are open to suggestions to deal with a large
 > scaling in the number of tasks or environments.
+
+## Fixed-base G1 manipulation cameras
+
+For standalone OVPhysX, the task's backend preparation hook moves the tabletop
+collision anchor onto its existing meshes, using the same preparation as GR1T2.
+OVPhysX cooks the steering wheel's authored collision meshes. The bin's existing
+primitive colliders and the object's drop termination remain enabled.
+Registered GR1T2 and G1 tasks prepare the selected backend before scene construction,
+including when created through `gym.make()` or `instantiate(cfg)` without the
+teleoperation launcher. Newton uses its separate backend preparation. Resolve a
+fresh task configuration when changing backends after preparation; copying a prepared
+configuration preserves its selected backend and caller overrides.
+
+`IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs` provides three 640×480 RGB
+cameras: `robot_pov_cam` at 20 Hz, and `left_wrist_cam` and `right_wrist_cam` at
+10 Hz each. The head uses the calibrated G1 head-camera pose; wrist cameras
+are mounted on their respective wrist-yaw links and look along wrist-local +X
+with +Z up. Their offsets are configurable in the task's scene configuration.
+
+These cameras and image observations are task defaults, including outside XR.
+They add image keys to the policy observation space and require camera rendering.
+
+To retain the previous state-only observation space for an existing policy or
+checkpoint, remove the three sensors, their policy terms, and their image metadata
+from the resolved environment configuration before calling `gym.make()` or
+`instantiate(cfg)`. This migration does not require the teleoperation package:
+
+```python
+env_cfg.scene.robot_pov_cam = None
+env_cfg.scene.left_wrist_cam = None
+env_cfg.scene.right_wrist_cam = None
+env_cfg.observations.policy.robot_pov_cam = None
+env_cfg.observations.policy.left_wrist_cam = None
+env_cfg.observations.policy.right_wrist_cam = None
+env_cfg.image_obs_list = []
+```
+
+To use the new defaults, update the policy's observation schema to consume all
+three image terms and configure a supported camera renderer.
+
+The same names identify policy image observations and the task's XR camera
+feeds, with the head panel centered and wrist panels to its left and right.
+Sensor `update_period` controls image sampling in simulation time; feed
+`max_update_hz` caps uploads. Actual delivery also depends on simulation and
+renderer throughput. Camera sampling rates are configuration targets, not
+measured headset frame rates.
+
+The teleoperation launcher's `--disable_external_cameras` option removes these
+cameras and their image observations. The kitless XR launcher accepts up to
+three camera names with `--ovxr_pip_camera`. Camera feeds are opt-in: without
+this option, live OVXR and MCAP replay omit task cameras and PiP layers.
+Selected feeds keep their own sampling cadence.

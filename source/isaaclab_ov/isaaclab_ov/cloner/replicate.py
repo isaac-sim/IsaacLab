@@ -177,6 +177,7 @@ class OvrtxReplicateContext(cloner.ReplicateContext):
         renderers = sim.get_backends(OVRTXRendererCfg)
         if not renderers:
             return
+        leased = [renderer for renderer in renderers if renderer._render_lease.active is not None]
         initialized = next((renderer for renderer in renderers if renderer.backend is not None), None)
         if initialized is not None:
             use_ovstage = initialized._use_ovstage
@@ -185,13 +186,16 @@ class OvrtxReplicateContext(cloner.ReplicateContext):
             # Default to native OVRTX cloning to preserve camera-task throughput on both physics backends.
             # Keep sharing opt-in until OVPhysX cold binding and shared-stage update performance are fixed.
             with_ovphysx = sim.backend_manager.clone_context_type is OvPhysxReplicateContext
-            value = os.environ.get("ISAAC_LAB_OVRTX_USE_OVSTAGE", "0").strip()
+            # An explicit lease selects its private OVStage without changing process globals.
+            value = os.environ.get("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1" if leased else "0").strip()
             if value not in {"0", "1"}:
                 raise ValueError(f"Invalid ISAAC_LAB_OVRTX_USE_OVSTAGE: {value!r}. Expected 0 or 1.")
             share_ovstage = os.environ.get("ISAAC_LAB_SHARE_OVSTAGE") == "1"
             use_ovstage = share_ovstage or value == "1"
             if share_ovstage and not with_ovphysx:
                 raise ValueError("Shared OVStage cloning requires OVPhysX.")
+        if leased and (not use_ovstage or share_ovstage):
+            raise RuntimeError("The render lease requires a private rendering OVStage")
         if share_ovstage and sim.backend_manager.backend is not None and sim.backend_manager.backend.owns_scene:
             raise RuntimeError("Configure OVRTX cameras before the first OVPhysX reset to share its OVStage.")
         if use_ovstage:
@@ -213,6 +217,7 @@ class OvrtxReplicateContext(cloner.ReplicateContext):
                 scene_key=None if share_ovstage else renderer.cfg,
                 log_file_path=renderer.cfg.log_file_path,
                 log_level=renderer.cfg.log_level,
+                active_cuda_gpus=renderer.cfg.active_cuda_gpus,
                 use_ovstage=use_ovstage,
                 read_gpu_transforms=read_gpu_transforms == "1",
                 device=sim.device,
@@ -230,6 +235,8 @@ class OvrtxReplicateContext(cloner.ReplicateContext):
             renderer.backend = sim.get_or_create_backend(backend_cfg)
             renderer.scene = scene if use_ovstage else renderer.backend
             renderer._use_ovstage = use_ovstage
+            if renderer in leased:
+                renderer._render_lease.reserve_pair()
             if renderer.cfg.async_rendering and use_ovstage:
                 logger.warning("Asynchronous OVRTX rendering is unsupported with ovstage; rendering synchronously.")
 
