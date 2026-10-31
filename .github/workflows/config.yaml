@@ -8,6 +8,6 @@
 # Follow the Isaac Sim 6.3 release stream.
 isaacsim_image_name: nvcr.io/0947644777160149/internal/isaac-sim
 # Pin the multi-arch manifest list digest, not a per-architecture one: ARM CI pulls linux/arm64.
-isaacsim_image_tag: latest-release-6-3@sha256:34e69d02e0dbbf8b7a34795044ed51ca45d186f944c064ff584dfac8b8f9de10
+isaacsim_image_tag: latest-release-6-3@sha256:e7817d4957c1c7d7509ae7b207e6625ee90a626b62796218e9b49ad4823bc96c
 isaaclab_image_name: nvcr.io/0947644777160149/internal/isaac-lab
 ovphysx_wheelhouse_image: ""
