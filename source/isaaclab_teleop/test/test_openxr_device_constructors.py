@@ -7,6 +7,11 @@ import importlib
 from typing import cast
 
 import pytest
+
+from isaaclab.test.utils import launch_test_simulation
+
+launch_test_simulation()
+
 from isaaclab_teleop.deprecated.openxr import OpenXRDevice, OpenXRDeviceCfg, XrCfg
 from isaaclab_teleop.deprecated.openxr.retargeters import (
     GripperRetargeter,

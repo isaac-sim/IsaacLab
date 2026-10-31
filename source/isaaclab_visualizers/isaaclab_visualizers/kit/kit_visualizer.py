@@ -170,6 +170,9 @@ class KitVisualizer(BaseVisualizer):
     def step(self, dt: float) -> None:
         """Advance visualizer/UI updates for one simulation step.
 
+        Headless XR still publishes scene updates and pumps the Kit application.
+        Ordinary headless image capture renders only when an image is requested.
+
         Args:
             dt: Simulation time-step in seconds.
         """
@@ -178,9 +181,9 @@ class KitVisualizer(BaseVisualizer):
         self._app_pumped_this_step = False
         self._sim_time += dt
         self._step_counter += 1
-        # Headless mode: skip the app update and camera panel refresh; rendering is
-        # triggered on demand by render_rgb_array() / render_tiled_rgb_array().
-        if self._runtime_headless:
+        # Headless capture renders on demand, but XR needs continuous app updates
+        # to create its session and submit frames even without a desktop viewport.
+        if self._runtime_headless and not self._sim.get_setting("/isaaclab/xr/enabled"):
             return
         provider = self._sim.get_scene_data_provider()
         self._fabric.update_transforms(provider)

@@ -151,6 +151,30 @@ def _make_lifecycle(
     )
 
 
+@pytest.mark.parametrize("entry", ["lifecycle", "device", "factory"])
+def test_positional_recording_options_preserve_public_constructor_contract(entry):
+    """Existing positional MCAP/debug/haptic arguments must not become XR handles.
+
+    Exercise all three public argument-binding boundaries without opening an XR
+    session. Native recording/playback correctness has a separate owner.
+    """
+    from isaaclab_teleop.isaac_teleop_device import IsaacTeleopDevice, create_isaac_teleop_device
+
+    cfg = _make_cfg()
+    if entry == "lifecycle":
+        lifecycle = TeleopSessionLifecycle(cfg, None, False, False, "capture.mcap", None, True, None)
+    elif entry == "device":
+        device = IsaacTeleopDevice(cfg, None, False, False, "capture.mcap", None, True, None)
+        lifecycle = device._session_lifecycle
+    else:
+        device = create_isaac_teleop_device(cfg, "cpu", None, None, False, False, "capture.mcap", None, True, None)
+        lifecycle = device._session_lifecycle
+    assert lifecycle._mcap_record_path == "capture.mcap"
+    assert lifecycle._mcap_replay_path is None
+    assert lifecycle._enable_debug_visualization is True
+    assert lifecycle._external_oxr_handles_provider is None
+
+
 # ============================================================================
 # Shipped .env profile paths
 # ============================================================================
@@ -207,6 +231,172 @@ class TestRetargetingExecutionConfig:
         resolved_execution = session_config_cls.call_args.kwargs["retargeting_execution"]
         assert resolved_execution.mode == "pipelined"
         assert resolved_execution.pacing.safety_margin_s == 0.025
+
+
+class TestExternalOpenXRHandles:
+    """Tests for borrowing OVXR-owned OpenXR handles without the Kit bridge."""
+
+    def test_provider_handles_are_passed_to_teleop_session(self):
+        handles = object()
+        lifecycle = TeleopSessionLifecycle(
+            _make_cfg(),
+            use_kit_xr_bridge=False,
+            external_oxr_handles_provider=lambda: handles,
+        )
+        lifecycle._pipeline = MagicMock()
+        lifecycle._teleop_control_pipeline = None
+        session_config_cls = MagicMock(return_value=MagicMock())
+        session_cls = MagicMock()
+        fake_tsm_module = sys.modules["isaacteleop.teleop_session_manager"]
+
+        with (
+            patch.object(fake_tsm_module, "TeleopSessionConfig", session_config_cls),
+            patch.object(fake_tsm_module, "TeleopSession", session_cls),
+        ):
+            assert lifecycle.try_start_session() is True
+
+        assert session_config_cls.call_args.kwargs["oxr_handles"] is handles
+
+    def test_provider_none_defers_session_creation(self):
+        lifecycle = TeleopSessionLifecycle(
+            _make_cfg(),
+            use_kit_xr_bridge=False,
+            external_oxr_handles_provider=lambda: None,
+        )
+        lifecycle._pipeline = MagicMock()
+        lifecycle._teleop_control_pipeline = None
+
+        assert lifecycle.try_start_session() is False
+        assert lifecycle.is_active is False
+
+
+@pytest.mark.parametrize("replay", [False, True])
+@pytest.mark.parametrize("rollback_fails", [False, True])
+@pytest.mark.parametrize("error_type", [RuntimeError, KeyboardInterrupt])
+def test_failed_session_entry_is_not_published_as_active(tmp_path, monkeypatch, replay, rollback_fails, error_type):
+    recording = tmp_path / "recording.mcap"
+    recording.touch()
+    replay_module = ModuleType("isaacteleop.deviceio_session")
+    replay_module.McapReplayConfig = MagicMock()
+    monkeypatch.setitem(sys.modules, replay_module.__name__, replay_module)
+    lifecycle = TeleopSessionLifecycle(
+        _make_cfg(),
+        use_kit_xr_bridge=False,
+        mcap_replay_path=str(recording) if replay else None,
+    )
+    lifecycle._pipeline = MagicMock()
+    startup_error = error_type("session entry failed")
+    session_cls = MagicMock()
+    session_cls.return_value.cleanup_failed = rollback_fails
+    session_cls.return_value.__enter__.side_effect = startup_error
+    fake_tsm_module = sys.modules["isaacteleop.teleop_session_manager"]
+    with patch.object(fake_tsm_module, "TeleopSession", session_cls):
+        with pytest.raises(error_type) as caught:
+            lifecycle.try_start_session()
+        assert caught.value is startup_error
+        assert not lifecycle.is_active
+        if rollback_fails:
+            assert lifecycle._session is session_cls.return_value
+            assert lifecycle.session_cleanup_failed
+            for operation in (lifecycle.try_start_session, lifecycle.step, lifecycle.stop):
+                with pytest.raises(error_type) as repeated:
+                    operation()
+                assert repeated.value is startup_error
+            assert session_cls.call_count == 1
+            session_cls.return_value.__exit__.assert_not_called()
+        else:
+            assert lifecycle._session is None
+            session_cls.return_value.__enter__.side_effect = None
+            assert lifecycle.try_start_session()
+            assert session_cls.call_count == 2
+            assert lifecycle._session is session_cls.return_value
+
+
+def test_device_failed_entry_stops_partial_session():
+    """Python does not call __exit__ when __enter__ fails after runtime launch."""
+    from isaaclab_teleop.isaac_teleop_device import IsaacTeleopDevice
+
+    startup_error = RuntimeError("pipeline construction failed")
+    cfg = _make_cfg()
+    cfg.pipeline_builder = MagicMock(side_effect=startup_error)
+    device = IsaacTeleopDevice(cfg, cloudxr_env_file="test.env", use_kit_xr_bridge=False)
+    launcher_class = MagicMock()
+    launcher = launcher_class.return_value
+    with (
+        patch.object(device._session_lifecycle, "_run_system_check"),
+        patch.object(sys.modules["isaacteleop.cloudxr"], "CloudXRLauncher", launcher_class),
+        patch.dict(os.environ, {"ISAACLAB_CXR_SKIP_AUTOLAUNCH": "0"}),
+        pytest.raises(RuntimeError) as caught,
+    ):
+        with device:
+            pytest.fail("entry must fail")
+    assert caught.value is startup_error
+    launcher.stop.assert_called_once()
+    assert device._session_lifecycle._cloudxr_launcher is None
+
+
+@pytest.mark.parametrize("body_error", [False, True])
+def test_device_anchor_cleanup_does_not_skip_session_stop(body_error):
+    from isaaclab_teleop.isaac_teleop_device import IsaacTeleopDevice
+
+    device = IsaacTeleopDevice(_make_cfg(), use_kit_xr_bridge=False)
+    cleanup_error = RuntimeError("anchor subscription cleanup failed")
+    primary = ValueError("body failed") if body_error else None
+    device._anchor_manager.cleanup = MagicMock(side_effect=cleanup_error)
+    device._session_lifecycle.stop = MagicMock()
+    try:
+        if primary is None:
+            with pytest.raises(RuntimeError) as caught:
+                device.__exit__(None, None, None)
+            assert caught.value is cleanup_error
+        else:
+            assert device.__exit__(type(primary), primary, None) is False
+            assert any("anchor subscription" in note for note in primary.__notes__)
+        device._session_lifecycle.stop.assert_called_once()
+    finally:
+        device._anchor_manager.cleanup = MagicMock()
+
+
+@pytest.mark.parametrize("error_type", [RuntimeError, KeyboardInterrupt])
+def test_ui_cleanup_failure_still_drains_session_and_runtime(error_type):
+    lifecycle = _make_lifecycle()
+    cleanup_error = error_type("UI cleanup failed")
+    lifecycle._retargeting_ui_ctx = MagicMock()
+    lifecycle._retargeting_ui_ctx.__exit__.side_effect = cleanup_error
+    session, launcher = MagicMock(), MagicMock()
+    lifecycle._session, lifecycle._cloudxr_launcher = session, launcher
+    with pytest.raises(error_type) as caught:
+        lifecycle.stop()
+    assert caught.value is cleanup_error
+    session.__exit__.assert_called_once()
+    launcher.stop.assert_called_once()
+    assert lifecycle._session is None
+    assert lifecycle._cloudxr_launcher is None
+
+
+@pytest.mark.parametrize("body_error", [False, True])
+@pytest.mark.parametrize("error_type", [RuntimeError, KeyboardInterrupt])
+def test_session_cleanup_failure_is_visible_and_retains_runtime(body_error, error_type):
+    lifecycle = _make_lifecycle()
+    session, launcher = MagicMock(), MagicMock()
+    cleanup_error = error_type("native drain failed")
+    primary = ValueError("body failed") if body_error else None
+    session.__exit__.side_effect = cleanup_error
+    lifecycle._session, lifecycle._cloudxr_launcher = session, launcher
+    if primary is None:
+        with pytest.raises(error_type) as caught:
+            lifecycle.stop()
+        assert caught.value is cleanup_error
+    else:
+        try:
+            lifecycle.stop(type(primary), primary, None)
+        except BaseException as error:
+            pytest.fail(f"Cleanup replaced the original body failure with {error!r}")
+        assert any("native drain failed" in note for note in primary.__notes__)
+    assert lifecycle._session is session
+    assert lifecycle.session_cleanup_failed
+    assert lifecycle._cloudxr_launcher is launcher
+    launcher.stop.assert_not_called()
 
 
 # ============================================================================
@@ -382,7 +572,8 @@ class TestLifecycleCloudXRIntegration:
         lifecycle, mock_launcher = self._make_started_lifecycle()
         mock_launcher.stop.side_effect = RuntimeError("process not found")
 
-        lifecycle.stop()
+        with pytest.raises(RuntimeError, match="process not found"):
+            lifecycle.stop()
 
         assert lifecycle._cloudxr_launcher is mock_launcher
 

@@ -24,6 +24,10 @@ XR anchor synchronization, retargeting pipelines, and action-tensor generation.
 
 ## Architecture
 
+The [OVXR application adapter](OVXR_ADAPTER.md) connects a simulation-owned
+renderer to Isaac Capture. XR session integration belongs to `isaaclab_teleop`;
+`isaaclab_ov` supplies the generic renderer/scene lease and lifetime checks.
+
 `IsaacTeleopDevice` composes three focused collaborators:
 
 | Component | Responsibility |
@@ -72,7 +76,8 @@ class MyEnvCfg(ManagerBasedRLEnvCfg):
 
 Create a function that builds your Isaac Capture retargeting pipeline. The builder should return an
 `OutputCombiner` with an `"action"` key containing the flattened action tensor (typically via
-`TensorReorderer`). Optionally return a list of retargeters to expose in the tuning UI:
+`TensorReorderer`). A setup factory may also return retargeters for the tuning UI;
+unpack those before assigning the two configuration callbacks:
 
 ```python
 from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
@@ -91,6 +96,12 @@ def my_pipeline_builder():
 
 ### 3. Run Teleoperation
 
+The upstream device factory also supports keyboard, gamepad and SpaceMouse input
+without Kit when the selected task and visualizers do not require it. Kit XR uses
+`--xr` and its own installation selection; it continues updating a headless Kit
+application without requiring a desktop viewport. Anchor helpers defer native
+USD imports until use so that the selected runtime initializes its own provider.
+
 The existing teleop scripts automatically detect `isaac_teleop` in the environment config:
 
 ```bash
@@ -108,7 +119,11 @@ reference tasks, camera selection, layout, placement, renderer, disable, and kit
 ```python
 from isaaclab_teleop import IsaacTeleopCfg, IsaacTeleopDevice
 
-cfg = IsaacTeleopCfg(pipeline_builder=my_pipeline_builder)
+pipeline, retargeters = my_pipeline_builder()
+cfg = IsaacTeleopCfg(
+    pipeline_builder=lambda: pipeline,
+    retargeters_to_tune=lambda: retargeters,
+)
 
 with IsaacTeleopDevice(cfg) as device:
     device.add_callback("RESET", env.reset)
@@ -162,20 +177,12 @@ contend for the GIL at the start of the step.
 
 ## Run with Docker
 
-Teleoperation with Isaac Lab runs in a **single container**. Build the image yourself and run a single container. **Do not use Docker Compose** for this workflow (no multi-container setup). Everything runs inside one container with Isaac Lab.
-
-Inside the container: install Isaac Capture once (`uv pip install 'isaacteleop[retargeters,cloudxr]~=1.0.0' --extra-index-url https://pypi.nvidia.com`), then start the CloudXR runtime with `--accept-eula` so there is no interactive EULA prompt, and run your teleop script. Example:
-
-```bash
-uv run python -m isaacteleop.cloudxr --accept-eula &
-source ~/.cloudxr/run/cloudxr.env
-uv run python scripts/tools/record_demos.py --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs --num_demos 5 --dataset_file ./datasets/dataset.hdf5 --xr --visualizer kit
-```
-
-In the Isaac Sim UI, set the AR panel to **System OpenXR Runtime** and click **Start XR**. For the full flow and options, see the [CloudXR teleoperation how-to](https://isaac-sim.github.io/IsaacLab/main/source/how-to/cloudxr_teleoperation.html) and [Isaac Capture Quick Start](https://nvidia.github.io/IsaacCapture/main/getting_started/quick_start.html).
-
-For a fully headless experience, omit `--visualizer kit` when running Docker, and the XR teleop session will
-run automatically.
+For Kit XR, follow the canonical
+[CloudXR installation guide](https://isaac-sim.github.io/IsaacLab/main/source/how-to/cloudxr_teleoperation.html#install-isaac-capture)
+and its [Docker instructions](https://isaac-sim.github.io/IsaacLab/main/source/how-to/cloudxr_teleoperation.html#run-with-docker).
+They cover the current `teleop` dependency selection, container setup, runtime
+startup and client connection. For OVXR, use the separate
+[kitless XR installation and runtime guide](kitless_xr.md).
 
 ## Dependencies
 

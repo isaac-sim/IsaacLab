@@ -81,6 +81,7 @@ def _make_ovrtx_camera_render_data() -> OVRTXCameraRenderData:
 def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer = OVRTXRenderer(OVRTXRendererCfg(), sim=SimulationContext.instance())
     renderer.backend = OVRTXBackend.__new__(OVRTXBackend)
+    renderer.backend._render_lease_owner = None
     renderer.scene = renderer.backend
     from isaaclab_ov.stage import OvstageBackend
 
@@ -1041,7 +1042,7 @@ def test_ovrtx_render_var_sync_rejects_non_boolean_values(monkeypatch, value):
 
 @pytest.mark.parametrize(
     ("gpu_side", "cuda_stream", "expected_stream", "consumer_fails"),
-    [(True, 0, 1, False), (True, 99, 99, True), (False, 0, 1, False)],
+    [(True, 0, 1, False), (True, 99, 99, True), (False, 0, 1, False), (False, None, None, True)],
 )
 def test_ovrtx_map_render_var_orders_the_read_against_render_completion(
     monkeypatch, gpu_side, cuda_stream, expected_stream, consumer_fails
@@ -1049,15 +1050,17 @@ def test_ovrtx_map_render_var_orders_the_read_against_render_completion(
     """Order reads after rendering and release after reads, including when the consumer raises."""
     events = []
     mapping = types.SimpleNamespace(
-        wait=lambda: events.append("wait"), unmap=lambda *, stream: events.append(("release", stream))
+        wait=lambda: events.append("wait"), unmap=lambda *, stream=None: events.append(("release", stream))
     )
     render_var = types.SimpleNamespace(map=MagicMock(return_value=mapping))
     sentinel = object()
     monkeypatch.setattr(ovrtx_renderer_module, "_gpu_side_render_var_sync_enabled", lambda: gpu_side)
-    monkeypatch.setattr(ovrtx_renderer_module.wp, "from_dlpack", lambda mapping: sentinel)
+    monkeypatch.setattr(ovrtx_renderer_module.wp, "from_dlpack", lambda mapping: events.append("wrap") or sentinel)
 
     renderer = _make_ovrtx_renderer_without_backend()
-    renderer._warp_device = types.SimpleNamespace(stream=types.SimpleNamespace(cuda_stream=cuda_stream))
+    renderer._warp_device = types.SimpleNamespace(
+        is_cuda=cuda_stream is not None, stream=types.SimpleNamespace(cuda_stream=cuda_stream)
+    )
     with pytest.raises(ValueError, match="consumer failed") if consumer_fails else contextlib.nullcontext():
         with renderer._map_render_var_to_dlpack(render_var) as array:
             assert array is sentinel
@@ -1065,8 +1068,11 @@ def test_ovrtx_map_render_var_orders_the_read_against_render_completion(
             if consumer_fails:
                 raise ValueError("consumer failed")
 
-    assert render_var.map.call_args.kwargs["sync_stream"] == (expected_stream if gpu_side else 0)
-    assert events == ([] if gpu_side else ["wait"]) + ["consume", ("release", expected_stream)]
+    if cuda_stream is None:
+        assert render_var.map.call_args.kwargs == {"device": ovrtx_renderer_module.Device.CPU}
+    else:
+        assert render_var.map.call_args.kwargs["sync_stream"] == (expected_stream if gpu_side else 0)
+    assert events == ([] if gpu_side else ["wait"]) + ["wrap", "consume", ("release", expected_stream)]
 
 
 @pytest.mark.parametrize(
@@ -1188,7 +1194,7 @@ def test_pose_and_intrinsic_updates_target_the_given_camera(monkeypatch, use_ovs
     assert not vars(renderer).keys() & {"_camera_xform_binding", "_camera_xform_query", "_camera_paths_list"}
     monkeypatch.setattr(wp, "get_stream", lambda device: types.SimpleNamespace(cuda_stream=99))
     monkeypatch.setattr(wp, "synchronize_stream", lambda stream: None)
-    renderer._warp_device = types.SimpleNamespace(stream=types.SimpleNamespace(cuda_stream=99))
+    renderer._warp_device = types.SimpleNamespace(is_cuda=True, stream=types.SimpleNamespace(cuda_stream=99))
     monkeypatch.setattr(ovrtx_renderer_module, "xform_tensor_from_warp", lambda value: value)
     positions = wp.array([[1, 2, 3], [4, 5, 6]], dtype=wp.vec3f, device="cpu")
     rotations = np.array([[1, 2, 3, 4], [0, 0, 0, 1]], dtype=np.float32)
@@ -1212,6 +1218,7 @@ def test_pose_and_intrinsic_updates_target_the_given_camera(monkeypatch, use_ovs
     renderer.update_camera_intrinsics(cameras[1], wp.zeros(2, dtype=wp.mat33f, device="cpu"), parameters)
     if use_ovstage:
         assert renderer.scene.stage.write_attributes.call_args.args[0] is cameras[1].camera_xform_binding
+        assert all(desc.cuda_stream is None for desc in renderer.scene.stage.write_attributes.call_args.args[1])
         bound_paths = [call.args[0] for call in renderer.scene.paths.create_path_list_from_strings.call_args_list]
         assert bound_paths == [
             entry
@@ -1270,6 +1277,7 @@ def _make_renderer_with_backend(events: list[str], use_ovstage: bool) -> OVRTXRe
                 events.append(f"release_query:{paths}")
 
         renderer.scene = OvstageBackend.__new__(OvstageBackend)
+        renderer.scene._render_lease_owner = None
         SimulationContext.instance()._backend_registry.insert(
             0, (OvstageBackendCfg(scene_key=renderer.cfg), renderer.scene)
         )
@@ -1412,3 +1420,303 @@ def test_camera_transform_mode_is_set_before_scene_attachment(monkeypatch, runti
     assert events.count("disable-camera-reads") == (needs_fallback and stage_mode != "legacy")
     if stage_mode != "legacy":
         assert events[-2:] == ["commit", "attach"]
+
+
+@pytest.fixture
+def leased_renderer(monkeypatch):
+    """Exercise real deferred resource acquisition with native SDK endpoints doubled."""
+    import isaaclab_ov.stage as stage_module
+
+    monkeypatch.delenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", raising=False)
+    native, stage, paths = MagicMock(), MagicMock(), MagicMock()
+    floor = stage.get_attribute_write_floor.return_value.__enter__.return_value
+    floor.fetch.return_value = 0
+
+    def advance(*, ordinal, **kwargs):
+        return types.SimpleNamespace(wait=lambda: setattr(floor.fetch, "return_value", ordinal))
+
+    stage.advance_write_floor.side_effect = advance
+    monkeypatch.setattr(ovrtx_renderer_module, "Renderer", lambda _cfg: native)
+    monkeypatch.setattr(ovrtx_renderer_module, "redirect_shader_cache", lambda _cfg: None)
+    monkeypatch.setattr(stage_module, "create_ovstage", lambda _name: contextlib.nullcontext(stage))
+    monkeypatch.setattr(stage_module.ovstage, "PathDictionary", lambda _: contextlib.nullcontext(paths))
+    monkeypatch.setattr(stage_module.ovstage.population, "open_usd_from_string", lambda *args, **kwargs: None)
+    renderer = SimulationContext.instance().get_or_create_backend(OVRTXRendererCfg())
+    assert renderer.backend is renderer.scene is None
+    return renderer
+
+
+def _prepare_leased_renderer(renderer, *, bind=True):
+    from isaaclab_ov.cloner import OvrtxReplicateContext
+
+    OvrtxReplicateContext.prepare(renderer._sim, {})
+    if bind:
+        renderer.prepare_stage(renderer._sim.stage, 1)
+
+
+def test_render_lease_lease_borrows_registry_pair_and_blocks_shared_users(leased_renderer, monkeypatch):
+    renderer = leased_renderer
+    shared = SimulationContext.instance().get_or_create_backend(renderer.cfg)
+    assert shared is renderer
+    lease = renderer.acquire_ov_libraries_render_lease()
+    with pytest.raises(RuntimeError, match="already active"):
+        shared.acquire_ov_libraries_render_lease()
+    _prepare_leased_renderer(renderer)
+    with pytest.raises(RuntimeError, match="Lease"):
+        shared.render_batch((object(),))
+    shared.render_batch(())
+    with monkeypatch.context() as patch:
+        patch.setattr(ovrtx_renderer_module, "OVRTXMesh", lambda *_: pytest.fail("constructed a mesh while leased"))
+        with pytest.raises(RuntimeError, match="log runtime meshes"):
+            shared.log_mesh("blocked")
+    assert "blocked" not in shared.meshes
+    with pytest.raises(RuntimeError, match="active render lease"):
+        SimulationContext.instance().close_backend(renderer.backend)
+    with pytest.raises(RuntimeError, match="active render lease"):
+        renderer.scene.reset()
+    native = lease.ovrtx_renderer
+    assert native is shared.backend.renderer
+    assert lease.ovstage is shared.scene.stage
+    lease.release()
+    lease.release()
+    assert renderer.backend._render_lease_owner is None
+    assert renderer.scene._render_lease_owner is None
+    native.destroy.assert_not_called()
+    SimulationContext.instance().close_backend(renderer.backend)
+    native.destroy.assert_called_once_with()
+
+
+def test_render_lease_rejects_acquisition_after_clone_preparation(leased_renderer):
+    renderer = leased_renderer
+    _prepare_leased_renderer(renderer, bind=False)
+    with pytest.raises(RuntimeError, match="before clone preparation"):
+        renderer.acquire_ov_libraries_render_lease()
+    assert renderer.backend._render_lease_owner is None
+
+
+def test_render_lease_lease_rejects_calibration_before_scene_access(leased_renderer, monkeypatch):
+    """An ordinary calibration write cannot bypass the external owner's publication lane."""
+    renderer = leased_renderer
+    lease = renderer.acquire_ov_libraries_render_lease()
+    camera = _make_ovrtx_camera_render_data()
+    intrinsics = wp.zeros(2, dtype=wp.mat33f, device="cpu")
+    parameters = wp.zeros((5, 2), dtype=wp.float32, device="cpu")
+    drain = MagicMock(return_value=[])
+    monkeypatch.setattr(renderer, "drain_pending_renders", drain)
+    monkeypatch.setattr(wp, "get_stream", lambda device: types.SimpleNamespace(cuda_stream=99))
+    try:
+        with pytest.raises(RuntimeError, match="Lease"):
+            renderer.update_camera_intrinsics(camera, intrinsics, parameters)
+        drain.assert_not_called()
+        assert renderer.backend is renderer.scene is None
+    finally:
+        lease.release()
+
+
+def test_render_lease_owner_transfer_is_single_use(leased_renderer):
+    import threading
+
+    renderer = leased_renderer
+    lease = renderer.acquire_ov_libraries_render_lease()
+    with pytest.raises(RuntimeError, match="capability is invalid"):
+        lease.claim_owner_transfer(None)
+    token = lease.offer_owner_transfer()
+    errors = []
+
+    def owner():
+        try:
+            lease.claim_owner_transfer(token)
+            with pytest.raises(RuntimeError, match="capability is invalid"):
+                lease.claim_owner_transfer(token)
+            lease.release()
+        except BaseException as error:
+            errors.append(error)
+
+    thread = threading.Thread(target=owner)
+    thread.start()
+    thread.join(timeout=5)
+    assert not thread.is_alive()
+    assert not errors
+    assert renderer._render_lease._owner_thread is thread
+    assert renderer.backend is renderer.scene is None
+
+
+def test_render_lease_complete_publication_deduplicates_and_poison_fails_closed(leased_renderer, monkeypatch):
+    renderer = leased_renderer
+    lease = renderer.acquire_ov_libraries_render_lease()
+    publisher = lease.capture_scene_publisher()
+    _prepare_leased_renderer(renderer)
+    renderer.scene.stage.advance_write_floor.reset_mock()
+    transforms = MagicMock()
+    monkeypatch.setattr(renderer, "_update_transforms", transforms)
+    monkeypatch.setattr(renderer, "_update_geometries", lambda: None)
+    assert publisher.publication_required("step-1")
+    publisher.write_complete_scene(18, "step-1")
+    assert not publisher.publication_required("step-1")
+    transforms.assert_called_once_with()
+    renderer.scene.stage.advance_write_floor.assert_not_called()
+    transforms.side_effect = ValueError("write failed")
+    with pytest.raises(RuntimeError, match="scene publication failed"):
+        publisher.write_complete_scene(19, "step-2")
+    with pytest.raises(RuntimeError, match="poisoned"):
+        _ = lease.ovstage
+    publisher.close()
+    lease.release()
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA material buffers")
+def test_leased_material_updates_reach_the_reserved_scene(leased_renderer, monkeypatch):
+    """Real material composition and the lease publisher must reach native writes, including before physics changes."""
+    renderer = leased_renderer
+    lease = renderer.acquire_ov_libraries_render_lease()
+    publisher = lease.capture_scene_publisher()
+    context = renderer._sim.render_context
+    _prepare_leased_renderer(renderer)
+    material = types.SimpleNamespace(
+        channels=("color",),
+        is_per_env=False,
+        num_instances=1,
+        _material_paths=("/Looks/Feedback",),
+        _shader_paths=("/Looks/Feedback/Shader",),
+        _input_names={"color": "diffuseColor"},
+        _offsets={},
+        _values={"color": torch.tensor([[1.0, 0.0, 0.0]], device="cuda")},
+    )
+    context.register_visual_material(material)
+    context.finalize_consumers([])
+    stage = renderer.scene.stage
+    try:
+        for ordinal, color in ((23, [0.0, 1.0, 0.0]), (24, [0.0, 0.0, 1.0])):
+            context.write_visual_materials([material], {"color": torch.tensor([color], device="cuda")})
+            assert publisher.publication_required("unchanged-physics")
+            stage.write_attribute.reset_mock()
+            completion = MagicMock()
+            stage.write_attribute.return_value = completion
+            publisher.write_complete_scene(ordinal, "unchanged-physics")
+            writes = [c for c in stage.write_attribute.call_args_list if c.args[1] == "inputs:diffuseColor"]
+            assert len(writes) == 1
+            assert writes[0].kwargs["ordinal"] == ordinal
+            torch.testing.assert_close(writes[0].kwargs["tensors"].cpu(), torch.tensor([color]))
+            assert completion.wait.called
+            assert not publisher.publication_required("unchanged-physics")
+    finally:
+        lease.release()
+        for writer in context._visual_material_writers:
+            writer.close()
+
+
+@pytest.mark.parametrize("use_ovstage, asynchronous", [(True, False), (False, False), (False, True)])
+def test_cpu_scene_publication_uses_host_tensors_without_a_cuda_stream(use_ovstage, asynchronous):
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._use_ovstage = use_ovstage
+    renderer.cfg = OVRTXRendererCfg(async_rendering=asynchronous)
+    renderer._warp_device = wp.get_device("cpu")
+    renderer._device = "cpu"
+    renderer._object_xform_binding = MagicMock()
+    renderer._geometry_points_binding = MagicMock()
+    renderer._transforms_timestamp = renderer._geometry_timestamp = None
+    renderer._object_scales = None
+    renderer._geometry_paths = ["/World/Object"]
+    matrices = wp.array(np.eye(4, dtype=np.float64)[None], dtype=wp.mat44d, device="cpu")
+    points = wp.array([[1.0, 2.0, 3.0]], dtype=wp.vec3f, device="cpu")
+    renderer._transform_writes = _AsyncWriteBuffers([types.SimpleNamespace(matrices=matrices)])
+    renderer._geometry_writes = _AsyncWriteBuffers([wp.empty_like(points)])
+    renderer._geometry_offsets = {"/World/Object": 0}
+
+    def get_points(*, output=None, offsets=None):
+        if output is None:
+            return {"/World/Object": points}
+        wp.copy(output, points)
+        return None
+
+    renderer._sdp = types.SimpleNamespace(
+        backend=types.SimpleNamespace(transforms_timestamp=1, geometry_timestamp=1),
+        get_transforms=lambda *_args, **_kwargs: True,
+        get_geometry_points=get_points,
+    )
+    stage = MagicMock()
+    renderer.scene = types.SimpleNamespace(stage=stage, ordinal=11)
+    renderer.update_transforms()
+    renderer.update_geometries()
+    bindings = (renderer._object_xform_binding, renderer._geometry_points_binding)
+    writes = [getattr(binding, "write_async" if asynchronous else "write") for binding in bindings]
+    calls = stage.write_attribute.call_args_list if use_ovstage else [write.call_args for write in writes]
+    assert len(calls) == 2 and all(c.kwargs["cuda_stream"] is None for c in calls)
+    if use_ovstage:
+        assert [c.args[1] for c in calls] == ["omni:xform", "points"]
+        assert all(c.kwargs["ordinal"] == 11 for c in calls)
+    else:
+        np.testing.assert_array_equal(calls[0].args[0].numpy(), matrices.numpy())
+        np.testing.assert_array_equal(calls[1].args[0][0].numpy(), points.numpy())
+    # A repeated publication of unchanged state must not duplicate either write.
+    renderer.update_transforms()
+    renderer.update_geometries()
+    assert stage.write_attribute.call_count == 2 if use_ovstage else all(write.call_count == 1 for write in writes)
+    camera = _make_ovrtx_camera_render_data()
+    camera.camera_xform_binding = MagicMock()
+    camera.camera_writes = _AsyncWriteBuffers([wp.empty(2, dtype=wp.mat44d, device="cpu")])
+    positions = wp.array([[1.0, 2.0, 3.0]] * 2, dtype=wp.vec3f, device="cpu")
+    orientations = wp.array([[0.0, 0.0, 0.0, 1.0]] * 2, dtype=wp.quatf, device="cpu")
+    update = renderer.update_camera
+    update(camera, positions, orientations, None)
+    call = stage.write_attribute.call_args if use_ovstage else camera.camera_xform_binding.write_async.call_args
+    assert call.kwargs["cuda_stream"] is None
+    if use_ovstage:
+        assert call.args == (camera.camera_xform_binding, "omni:xform")
+        assert call.kwargs["ordinal"] == 11
+    else:
+        # Reusing the camera ring waits for previous writes without a CUDA stream.
+        update(camera, positions, orientations, None)
+        update(camera, positions, orientations, None)
+        camera.camera_writes.close()
+        renderer._transform_writes.close()
+        renderer._geometry_writes.close()
+
+
+@pytest.mark.parametrize("cuda_ordinal", [None, 2])
+def test_camera_registration_authors_valid_render_device_selection(monkeypatch, cuda_ordinal):
+    """CPU camera consumers leave GPU selection automatic; CUDA consumers retain their device."""
+    from pxr import Usd
+
+    class AuthoredProduct(Exception):
+        pass
+
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer.cfg = OVRTXRendererCfg()
+
+    class Device:
+        is_cuda = cuda_ordinal is not None
+        ordinal = cuda_ordinal
+
+        def __str__(self):
+            return f"cuda:{cuda_ordinal}" if self.is_cuda else "cpu"
+
+    renderer._warp_device = Device()
+    renderer._device = str(renderer._warp_device)
+    monkeypatch.setattr(ovrtx_renderer_module.wp, "get_device", lambda _device: renderer._warp_device)
+    renderer.scene.clone_env_paths = []
+    renderer.drain_pending_renders = lambda: []
+    spec = types.SimpleNamespace(
+        cfg=_make_camera_cfg(["rgb"]),
+        device=renderer._device,
+        num_instances=1,
+        camera_prim_paths=["/World/envs/env_0/Camera"],
+        render_settings={},
+    )
+    build_product = ovrtx_renderer_module.build_render_product_as_string
+
+    def consume_product(spec, render_data, **kwargs):
+        stage = Usd.Stage.CreateInMemory()
+        assert stage.GetRootLayer().ImportFromString(build_product(spec, render_data, **kwargs))
+        product = stage.GetPrimAtPath(render_data.render_product_path)
+        devices = product.GetAttribute("deviceIds")
+        if cuda_ordinal is None:
+            assert not devices.HasAuthoredValueOpinion()
+        else:
+            assert list(devices.Get()) == [cuda_ordinal]
+        # Native population is outside this parser/selection regression.
+        raise AuthoredProduct
+
+    monkeypatch.setattr(ovrtx_renderer_module, "build_render_product_as_string", consume_product)
+    with pytest.raises(AuthoredProduct):
+        renderer.create_render_data(spec)
