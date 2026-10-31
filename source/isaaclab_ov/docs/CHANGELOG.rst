@@ -3,6 +3,16 @@ Changelog
 
 .. towncrier release notes start
 
+8.0.3 (2026-10-31)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVRTX cameras selecting an intermediate DLSS image instead of the latest capture when
+  frame generation returned multiple frames.
+
+
 8.0.2 (2026-10-30)
 ~~~~~~~~~~~~~~~~~~
 
