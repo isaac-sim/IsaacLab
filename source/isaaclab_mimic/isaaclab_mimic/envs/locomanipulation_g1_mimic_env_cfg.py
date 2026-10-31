@@ -3,7 +3,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from isaaclab_physx.physics import PhysxCfg
+
 from isaaclab.envs.mimic_env_cfg import MimicEnvCfg, SubTaskConfig
+from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.locomanip_pick_place.locomanipulation_g1_env_cfg import (
@@ -16,6 +19,9 @@ class LocomanipulationG1MimicEnvCfg(LocomanipulationG1EnvCfg, MimicEnvCfg):
     """Configuration for G1 Locomanipulation Mimic environment."""
 
     class_type: type | str = "{DIR}.locomanipulation_g1_mimic_env:LocomanipulationG1MimicEnv"
+    sim: SimulationCfg = SimulationCfg(physics=PhysxCfg())
+    """Isaac Sim PhysX only: the Mimic environment does not run the teleoperation task's kitless
+    backend preparation, so the inherited ``ovphysx``/``newton_mjwarp`` selectors are not offered."""
 
     def __post_init__(self):
         # Call parent post-init
