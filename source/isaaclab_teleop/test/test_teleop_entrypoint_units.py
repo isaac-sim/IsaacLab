@@ -191,6 +191,9 @@ def run_live_workflow(monkeypatch):
     """Run the imported live owner with finite input, renderer, and simulation endpoints."""
     import contextlib
 
+    # The live OVXR owner imports the session adapter, which needs a Capture release with OVXR
+    # session support. The Kit ``teleop`` extra selects an older release; skip rather than error there.
+    pytest.importorskip("isaaccapture.ovxr_session_manager")
     import isaaclab_teleop
     from isaaclab_teleop.entrypoints import teleop_se3_agent as agent
 
