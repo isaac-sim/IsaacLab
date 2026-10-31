@@ -10,6 +10,7 @@ from __future__ import annotations
 import builtins
 import contextlib
 import importlib
+import subprocess
 import sys
 import threading
 from contextlib import contextmanager
@@ -18,9 +19,7 @@ from types import ModuleType, SimpleNamespace
 
 import pytest
 
-# The adapter needs a Capture release with OVXR session support. The Kit ``teleop`` extra
-# selects an older release without it; skip rather than error in that environment.
-pytest.importorskip("isaaccapture.ovxr_session_manager")
+from isaaclab_teleop.ovxr_cfg import OvLibrariesXrConfig
 
 
 class _FakeLease:
@@ -131,6 +130,9 @@ def xr_module(monkeypatch, real_lease_type):
     The stub-bound adapter is removed from ``sys.modules`` and its package on teardown so
     later tests import the real module.
     """
+    # The adapter needs a Capture release with OVXR session support. The Kit ``teleop`` extra
+    # selects an older release without it; skip rather than error in that environment.
+    pytest.importorskip("isaaccapture.ovxr_session_manager")
     import isaaclab_teleop
 
     isaaclab_ov = ModuleType("isaaclab_ov")
@@ -692,15 +694,15 @@ def test_caller_renderer_settings_precede_renderer_creation(xr_module, monkeypat
     xr_module.OvLibrariesXrSession.prepare(object(), xr_module.OvLibrariesXrConfig(renderer_settings=settings))
 
 
-def test_config_rejects_unknown_session_mode(xr_module):
+def test_config_rejects_unknown_session_mode():
     with pytest.raises(ValueError, match="session_mode must be 'ar' or 'vr'"):
-        xr_module.OvLibrariesXrConfig(session_mode="automatic")
+        OvLibrariesXrConfig(session_mode="automatic")
 
 
 @pytest.mark.parametrize("scale", [0.0, -1.0, float("nan"), float("inf")])
-def test_config_rejects_invalid_scene_scale(xr_module, scale):
+def test_config_rejects_invalid_scene_scale(scale):
     with pytest.raises(ValueError, match="meters_per_unit must be finite and positive"):
-        xr_module.OvLibrariesXrConfig(meters_per_unit=scale)
+        OvLibrariesXrConfig(meters_per_unit=scale)
 
 
 def test_prepare_revalidates_changed_scale_before_global_settings(xr_module, monkeypatch):
@@ -885,9 +887,14 @@ def test_start_rejects_anchor_state_without_the_protocol_before_owner_creation(x
     assert isinstance(_FakeAnchorState(), xr_module.OvLibrariesXrSession.ExternalAnchorState)
 
 
-def test_config_imports_without_native_ovxr(monkeypatch):
-    """Launchers build the configuration without importing Capture's OVXR session stack."""
-    monkeypatch.setitem(sys.modules, "isaaccapture.ovxr_session_manager", None)
-    from isaaclab_teleop.ovxr_cfg import OvLibrariesXrConfig
-
-    assert OvLibrariesXrConfig(session_mode="vr").session_mode == "vr"
+def test_config_imports_without_native_ovxr():
+    """Launchers build the configuration in a fresh process where Capture and the native OV packages are absent."""
+    script = (
+        "import sys\n"
+        "for name in ('isaaccapture', 'ovxr', 'ovrtx', 'ovstage'):\n"
+        "    sys.modules[name] = None\n"
+        "from isaaclab_teleop.ovxr_cfg import OvLibrariesXrConfig\n"
+        "assert OvLibrariesXrConfig(session_mode='vr').session_mode == 'vr'\n"
+    )
+    result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, timeout=60)
+    assert result.returncode == 0, result.stderr
