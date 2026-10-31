@@ -89,6 +89,28 @@ class OvPhysxCfg(PhysicsCfg):
     setting can affect simulated velocities and contact forces.
     """
 
+    bounce_threshold_velocity: float | None = None
+    """Relative contact velocity below which contacts do not bounce [m/s].
+
+    ``None`` leaves the stage value (OvPhysX's default is effectively 0, so every contact bounces).
+    Authored as ``physxScene:bounceThreshold``.
+    """
+
+    friction_correlation_distance: float | None = None
+    """Distance below which contact points merge into one friction anchor [m].
+
+    ``None`` leaves the stage value (OvPhysX's default is 0.025 / metersPerUnit).
+    Authored as ``physxScene:frictionCorrelationDistance``.
+    """
+
+    solve_articulation_contact_last: bool | None = None
+    """Whether the solver resolves articulation contacts after other constraints.
+
+    Enable it so object contacts can stall position-driven grippers before they tunnel through a
+    grasp. ``None`` leaves the stage value (off by default). Authored as
+    ``physxScene:solveArticulationContactLast``.
+    """
+
     gpu_max_rigid_contact_count: int = 2**23
     """Size of the GPU rigid-body contact buffer."""
 

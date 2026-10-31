@@ -197,7 +197,12 @@ class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
             isaacsim_physx=self.sim.physics.isaacsim_physx,
             physx=self.sim.physics.physx,
             newton_mjwarp=self.sim.physics.newton_mjwarp,
-            ovphysx=OvPhysxCfg(),
+            # Match the stack family's Isaac Sim PhysX grasp tuning on the kitless OvPhysX backend.
+            ovphysx=OvPhysxCfg(
+                bounce_threshold_velocity=self.sim.physics.isaacsim_physx.bounce_threshold_velocity,
+                friction_correlation_distance=self.sim.physics.isaacsim_physx.friction_correlation_distance,
+                solve_articulation_contact_last=self.sim.physics.isaacsim_physx.solve_articulation_contact_last,
+            ),
         )
 
         # Switch to a stiffer PD controller so the arm tracks IK targets well. Replace the robot
