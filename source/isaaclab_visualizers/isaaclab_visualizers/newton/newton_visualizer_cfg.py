@@ -82,6 +82,12 @@ class NewtonGLBackendCfg(VisualizerBackendCfg):
     light_color: tuple[float, float, float] = (1.0, 1.0, 1.0)
     """Light color RGB [0, 1]."""
 
+    exposure: float | None = None
+    """Exposure multiplier for the native GL perspective render. Defaults to None.
+
+    None preserves the Newton renderer's default exposure. Scene-camera images are unchanged.
+    """
+
 
 @configclass
 class NewtonRTXBackendCfg(VisualizerBackendCfg):
