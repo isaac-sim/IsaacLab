@@ -249,7 +249,7 @@ def run_live_workflow(monkeypatch):
         monkeypatch.setattr(agent, "_install_ovxr_shutdown_handlers", lambda *_args: {})
         monkeypatch.setattr(isaaclab_teleop.XrCameraFeedSession, "prepare", lambda *_args, **_kwargs: camera)
         monkeypatch.setattr(isaaclab_teleop.OvLibrariesXrSession, "prepare", lambda *_args, **_kwargs: session)
-        agent.run_teleoperation(cfg, cfg.isaac_teleop, True, [])
+        agent.run_teleoperation(cfg, cfg.isaac_teleop, True, ())
 
     return run
 
@@ -483,9 +483,11 @@ def test_teleop_replay_agent_resolves_typed_presets_without_reapplying_physics(m
     monkeypatch.setattr(replay, "resolve_task_config", resolve)
     monkeypatch.setattr(isaaclab_teleop, "remove_camera_configs", lambda cfg, **_kwargs: cfg)
     monkeypatch.setattr(replay, "remove_camera_configs", isaaclab_teleop.remove_camera_configs)
-    prepared, success = namespace["_prepare_env_cfg"]("test-task", 1, None, overrides=namespace["hydra_overrides"])
+    prepared, success, cameras = namespace["_prepare_env_cfg"](
+        "test-task", 1, None, overrides=namespace["hydra_overrides"]
+    )
     assert resolutions == [("test-task", "", ["physics=ovphysx"])]
-    assert prepared is cfg and success is not None
+    assert prepared is cfg and success is not None and cameras == ()
     assert cfg.sim.physics is physics
     assert namespace["args_cli"].require_kit is False
     assert not namespace["args_cli"].start_on_replay
@@ -873,10 +875,10 @@ def test_ovxr_mirror_cli_reaches_session_construction(monkeypatch, entrypoint, f
             lambda *_args, **_kwargs: SimpleNamespace(close=lambda: None),
         )
         with pytest.raises(PreparationReached):
-            module.run_teleoperation(cfg, cfg.isaac_teleop, True, [])
+            module.run_teleoperation(cfg, cfg.isaac_teleop, True, ())
     else:
         with pytest.raises(PreparationReached):
-            module._ReplayPresentation(cfg)
+            module._ReplayPresentation(cfg, ())
     assert received == [expected]
     assert isaaclab_teleop.OvLibrariesXrConfig().desktop_mirror_enabled is False
 
@@ -905,6 +907,129 @@ def test_non_ovxr_cli_keeps_mirror_disabled(monkeypatch, entrypoint, flags):
     args = module._parse_args(argv)
     assert args.ovxr_desktop_mirror is False
     assert args.headless is ("--headless" in flags)
+
+
+def _run_ovxr_pip_workflow(monkeypatch, entrypoint, layout, flags, calls):
+    """Run an entrypoint's ``main`` with one PiP camera until it prepares the OVXR session.
+
+    Task resolution and launch are stubbed; CLI parsing, pre-launch preparation and session
+    construction are production code. ``calls`` records the kept cameras, launch and preparation.
+
+    Returns:
+        The task configuration and the arguments passed to session preparation.
+    """
+    from contextlib import contextmanager, suppress
+
+    import isaaclab_teleop
+    from isaaclab_ov.physics import OvPhysxCfg
+    from isaaclab_teleop.entrypoints import teleop_replay_agent, teleop_se3_agent
+
+    from isaaclab.sensors import CameraCfg
+    from isaaclab.sim import SimulationContext
+
+    config = SimpleNamespace(
+        sim=SimpleNamespace(device="cpu", physics=OvPhysxCfg()),
+        scene=SimpleNamespace(num_envs=1, head_cam=CameraCfg(prim_path="/World/head_cam", width=640, height=480)),
+        terminations=SimpleNamespace(success=None, time_out=None),
+        isaac_teleop=isaaclab_teleop.IsaacTeleopCfg(
+            xr_camera_feeds=[isaaclab_teleop.XrCameraFeedCfg(camera_name="head_cam", offset_m=(0.1, -0.15))],
+            xr_camera_feed_layout=layout,
+        ),
+    )
+    prepared = []
+
+    class SessionReached(RuntimeError):
+        pass
+
+    @contextmanager
+    def launch(selected_cfg, _args, *, cleanup_context):
+        assert selected_cfg is config
+        calls.append("launch")
+        yield
+
+    def prepare(sim_cfg, xr_cfg, renderer_cfg=None):
+        assert sim_cfg is config.sim
+        calls.append("prepare")
+        prepared.append((xr_cfg, renderer_cfg))
+        raise SessionReached
+
+    def remove_camera_configs(selected_cfg, *, keep=()):
+        calls.append(("keep", keep))
+        return selected_cfg
+
+    module = teleop_se3_agent if entrypoint == "live" else teleop_replay_agent
+    monkeypatch.setattr(sys, "argv", ["teleop-test"])
+    monkeypatch.setattr(module, "args_cli", None, raising=False)
+    monkeypatch.setattr(module, "ManagerBasedRLEnvCfg", SimpleNamespace)
+    monkeypatch.setattr(module, "resolve_task_config", lambda *_args, **_kwargs: (config, None))
+    monkeypatch.setattr(module, "validate_launch", lambda *_args: ((), ()))
+    monkeypatch.setattr(module, "launch_simulation", launch)
+    monkeypatch.setattr(isaaclab_teleop, "remove_camera_configs", remove_camera_configs)
+    monkeypatch.setattr(isaaclab_teleop.OvLibrariesXrSession, "prepare", prepare)
+    monkeypatch.setattr(SimulationContext, "instance", lambda: None)
+    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1")
+    arguments = ["--task", "Test", "--ovxr", "--cloudxr_env", "none", "--ovxr_pip_camera", "head_cam", *flags]
+    if entrypoint == "live":
+        monkeypatch.setattr(module, "has_kit", lambda: False)
+        monkeypatch.setattr(
+            isaaclab_teleop.XrCameraFeedSession,
+            "prepare",
+            lambda *_args, **_kwargs: SimpleNamespace(close=lambda: None),
+        )
+    else:
+        monkeypatch.setattr(module, "hydra_overrides", None, raising=False)
+        monkeypatch.setattr(module, "remove_camera_configs", remove_camera_configs)
+        arguments += ["--replay_file", "recording.mcap"]
+    module._parse_args(arguments)
+    with suppress(SessionReached):
+        module.main()
+    return config, prepared
+
+
+@pytest.mark.parametrize("entrypoint", ["live", "replay"])
+@pytest.mark.parametrize(
+    "placement, flags, position",
+    [
+        # A head-locked task layout keeps its panel placement without the flag.
+        ("head_locked", [], (0.1, -0.15, -0.8)),
+        # The flag places a world layout in the VIEW space, at the requested position.
+        ("world", ["--ovxr_pip_head_locked", "--ovxr_pip_view_position", "0", "-0.1", "-0.6"], (0.0, -0.1, -0.6)),
+    ],
+)
+def test_ovxr_pip_cli_reaches_session_construction(monkeypatch, entrypoint, placement, flags, position):
+    """The PiP and mirror options of both workflows reach the OVXR session configuration."""
+    from isaaclab_ov.renderers import OVRTXRendererCfg
+    from isaaclab_teleop import XrCameraFeedLayoutCfg
+
+    layout = XrCameraFeedLayoutCfg(placement=placement, world_position_m=(1.0, 0.0, 1.5))
+    rates = ["--ovxr_pip_fps", "15", "--ovxr_desktop_mirror_fps", "20"]
+    calls = []
+    config, prepared = _run_ovxr_pip_workflow(monkeypatch, entrypoint, layout, flags + rates, calls)
+
+    assert calls == [("keep", ("head_cam",)), "launch", "prepare"]
+    [(xr_cfg, renderer_cfg)] = prepared
+    assert xr_cfg.desktop_mirror_enabled is True
+    assert xr_cfg.desktop_mirror_max_fps == 20.0
+    [camera] = xr_cfg.auxiliary_cameras
+    assert camera.name == "head_cam" and camera.camera_cfg is config.scene.head_cam
+    assert camera.max_fps == 15.0
+    assert camera.position == pytest.approx(position)
+    assert isinstance(renderer_cfg, OVRTXRendererCfg) and renderer_cfg is config.scene.head_cam.renderer_cfg
+    # Forcing head-locked placement leaves the task layout unchanged.
+    assert config.isaac_teleop.xr_camera_feed_layout.placement == placement
+
+
+@pytest.mark.parametrize("entrypoint", ["live", "replay"])
+@pytest.mark.parametrize("placement", ["viewer_start", "world"])
+def test_ovxr_pip_rejects_task_layout_that_is_not_head_locked_before_launch(monkeypatch, entrypoint, placement):
+    """Without ``--ovxr_pip_head_locked``, a task layout OVXR cannot present fails before launch."""
+    from isaaclab_teleop import XrCameraFeedLayoutCfg
+
+    layout = XrCameraFeedLayoutCfg(placement=placement, world_position_m=(1.0, 0.0, 1.5))
+    calls = []
+    with pytest.raises(ValueError, match=rf"{placement!r} placement.*--ovxr_pip_head_locked"):
+        _run_ovxr_pip_workflow(monkeypatch, entrypoint, layout, [], calls)
+    assert calls == []
 
 
 @pytest.mark.parametrize("entrypoint", ["live", "replay"])
@@ -1045,7 +1170,9 @@ def test_replay_unset_task_physics_keeps_simulation_default_or_rejects_ovxr(monk
         with pytest.raises(ValueError, match=_UNSET_PHYSICS_OVXR_ERROR):
             replay._prepare_env_cfg(_UNSET_PHYSICS_TASK, 1, None, overrides=replay.hydra_overrides)
         return
-    env_cfg, _success = replay._prepare_env_cfg(_UNSET_PHYSICS_TASK, 1, None, overrides=replay.hydra_overrides)
+    env_cfg, _success, _cameras = replay._prepare_env_cfg(
+        _UNSET_PHYSICS_TASK, 1, None, overrides=replay.hydra_overrides
+    )
     assert env_cfg.sim.physics is None
     assert replay.args_cli.require_kit
 

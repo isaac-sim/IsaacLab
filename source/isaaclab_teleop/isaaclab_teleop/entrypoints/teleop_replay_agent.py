@@ -294,14 +294,15 @@ from .. import (
     CLOUDXR_JS_ENV,
     CLOUDXR_STANDALONE_ENV,
     IsaacTeleopDevice,
+    OvLibrariesXrCameraConfig,
     create_isaac_teleop_device,
     poll_control_events,
 )
 from ..action_policy import initial_hand_tracking_issue, prepare_teleop_action
 from ._ovxr_launch import (
     add_ovxr_presentation_args,
-    ovxr_camera_layout,
     require_kitless_physics,
+    resolve_ovxr_pip_cameras,
     validate_ovxr_presentation_args,
 )
 
@@ -310,8 +311,6 @@ logger = logging.getLogger(__name__)
 args_cli: argparse.Namespace
 """Parsed command line, set by :func:`_parse_args`."""
 hydra_overrides: list[str]
-ovxr_pip_selection: list = []
-"""OVXR PiP cameras selected while preparing the environment configuration."""
 """Unrecognized arguments, forwarded as Hydra task config overrides."""
 
 
@@ -1074,7 +1073,7 @@ def _prepare_env_cfg(
     num_envs: int,
     device: str,
     overrides: Sequence[str] = (),
-) -> tuple[ManagerBasedRLEnvCfg, object | None]:
+) -> tuple[ManagerBasedRLEnvCfg, object | None, tuple[OvLibrariesXrCameraConfig, ...]]:
     """Build and tweak an env config suitable for non-interactive replay.
 
     Mirrors the env-config mutations performed by ``record_demos.py``'s
@@ -1110,8 +1109,10 @@ def _prepare_env_cfg(
         overrides: Hydra-style ``key=value`` overrides passed to :func:`resolve_task_config`.
 
     Returns:
-        Tuple ``(env_cfg, success_term)``. ``success_term`` is ``None`` when
-        the env doesn't define a ``success`` termination term.
+        Tuple ``(env_cfg, success_term, selected_cameras)``. ``success_term`` is
+        ``None`` when the env doesn't define a ``success`` termination term.
+        ``selected_cameras`` holds the resolved OVXR PiP panels, empty without
+        ``--ovxr_pip_camera``.
     """
     overrides = list(overrides)
     env_cfg, _ = resolve_task_config(task, "", overrides=overrides)
@@ -1135,6 +1136,7 @@ def _prepare_env_cfg(
     # OVXR renders only through its leased renderer: keep just the selected PiP cameras.
     # Otherwise keep camera configs when external cameras are enabled (defaulted on) so the
     # replay renders them for production parity, or strip them for a lighter headless replay.
+    selected_cameras = ()
     if args_cli.ovxr:
         if args_cli.num_envs != 1 or args_cli.xr:
             raise ValueError("--ovxr requires one environment and no Kit XR or local visualizer")
@@ -1142,13 +1144,9 @@ def _prepare_env_cfg(
             raise ValueError("--ovxr requires ISAAC_LAB_OVRTX_USE_OVSTAGE=1")
         from isaaclab_ov.renderers import OVRTXRendererCfg
 
-        from ..camera_feed import select_ovxr_camera_feeds
-
-        global ovxr_pip_selection
-        names = args_cli.ovxr_pip_camera or []
-        # The presentation reuses this validated selection and its shared renderer configuration.
-        ovxr_pip_selection = select_ovxr_camera_feeds(env_cfg, names, OVRTXRendererCfg())
-        env_cfg = remove_camera_configs(env_cfg, keep=tuple(names))
+        # Resolve the panels now so that an invalid selection or task layout fails before launch.
+        selected_cameras = resolve_ovxr_pip_cameras(env_cfg, args_cli, OVRTXRendererCfg())
+        env_cfg = remove_camera_configs(env_cfg, keep=tuple(args_cli.ovxr_pip_camera or ()))
         require_kitless_physics(env_cfg, task)
     elif args_cli.disable_external_cameras:
         env_cfg = remove_camera_configs(env_cfg)
@@ -1162,7 +1160,7 @@ def _prepare_env_cfg(
     args_cli.require_kit = bool(kit_sources)
     if env_cfg.isaac_teleop is not None and env_cfg.isaac_teleop.prepare_environment is not None:
         env_cfg.isaac_teleop.prepare_environment(env_cfg)
-    return (env_cfg, success_term)
+    return (env_cfg, success_term, selected_cameras)
 
 
 def _replay_requires_hard_sim_reset(physics_backend: str | None) -> bool:
@@ -1236,18 +1234,11 @@ This legacy Kit warmup is not a kitless renderer-completion or FPS guarantee.
 class _ReplayPresentation:
     """Own a batch's viewer independently of each recorded-input session."""
 
-    def __init__(self, env_cfg):
+    def __init__(self, env_cfg, selected_cameras: tuple[OvLibrariesXrCameraConfig, ...]):
         from isaaclab_ov.renderers import OVRTXRendererCfg
 
         from .. import OvLibrariesXrConfig, OvLibrariesXrSession
-        from ..camera_feed import resolve_ovxr_camera_configs
 
-        cameras = resolve_ovxr_camera_configs(
-            ovxr_pip_selection,
-            ovxr_camera_layout(env_cfg, args_cli.ovxr_pip_head_locked),
-            max_fps=args_cli.ovxr_pip_fps,
-            position_override=args_cli.ovxr_pip_view_position,
-        )
         self.session = OvLibrariesXrSession.prepare(
             env_cfg.sim,
             OvLibrariesXrConfig(
@@ -1257,9 +1248,9 @@ class _ReplayPresentation:
                 auto_launch_cloudxr=args_cli.auto_launch_cloudxr,
                 desktop_mirror_enabled=args_cli.ovxr_desktop_mirror,
                 desktop_mirror_max_fps=args_cli.ovxr_desktop_mirror_fps,
-                auxiliary_cameras=cameras,
+                auxiliary_cameras=selected_cameras,
             ),
-            cameras[0].camera_cfg.renderer_cfg if cameras else OVRTXRendererCfg(),
+            selected_cameras[0].camera_cfg.renderer_cfg if selected_cameras else OVRTXRendererCfg(),
         )
         self.xr_cfg = env_cfg.isaac_teleop.xr_cfg
         self.device = None
@@ -1751,7 +1742,7 @@ def main() -> int:
     if args_cli.num_replays < 1:
         raise ValueError(f"--num_replays must be >= 1; got {args_cli.num_replays}")
 
-    env_cfg, success_term = _prepare_env_cfg(
+    env_cfg, success_term, selected_cameras = _prepare_env_cfg(
         args_cli.task,
         args_cli.num_envs,
         args_cli.device,
@@ -1765,12 +1756,21 @@ def main() -> int:
         )
 
     with launch_simulation(env_cfg, args_cli, cleanup_context=not args_cli.ovxr):
-        exit_code = _run_replay_batch(env_cfg, success_term)
+        exit_code = _run_replay_batch(env_cfg, success_term, selected_cameras)
     return exit_code
 
 
-def _run_replay_batch(env_cfg: ManagerBasedRLEnvCfg, success_term: object | None) -> int:
+def _run_replay_batch(
+    env_cfg: ManagerBasedRLEnvCfg,
+    success_term: object | None,
+    selected_cameras: tuple[OvLibrariesXrCameraConfig, ...],
+) -> int:
     """Build the env, run the ``--num_replays`` replays, and report the stats; see :func:`main`.
+
+    Args:
+        env_cfg: Environment configuration prepared by :func:`_prepare_env_cfg`.
+        success_term: Extracted ``success`` termination term, or ``None``.
+        selected_cameras: OVXR PiP panels resolved by :func:`_prepare_env_cfg`.
 
     Returns:
         The host process exit code, see :func:`main`.
@@ -1794,7 +1794,7 @@ def _run_replay_batch(env_cfg: ManagerBasedRLEnvCfg, success_term: object | None
         # work in XR-active mode without losing the OpenXR runtime
         # IPC between runs.
         if args_cli.ovxr:
-            presentation = _ReplayPresentation(env_cfg)
+            presentation = _ReplayPresentation(env_cfg, selected_cameras)
 
             def request_shutdown(_signum, _frame):
                 nonlocal shutting_down

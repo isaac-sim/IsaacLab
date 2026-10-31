@@ -149,7 +149,9 @@ uv run --extra ovxr isaaclab teleop run --ovxr \
 `--ovxr_pip_fps` limits panel updates. `--ovxr_pip_view_position X Y Z` overrides
 one panel's position; multiple panels use the task layout. Panel cameras must be
 enabled in the task's `xr_camera_feeds`. World and viewer-start layouts are not
-supported by the OVXR presenter. The session snapshots its camera selection at
+supported by the OVXR presenter: `--ovxr_pip_head_locked` places such a layout's
+panels in the OpenXR VIEW space, and without it the command fails before launch.
+The session snapshots its camera selection at
 preparation; create a new session to change it. Panels use the same renderer as
 the headset and do not require a desktop display.
 

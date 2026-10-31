@@ -45,6 +45,7 @@ from .. import (
     CLOUDXR_JS_ENV,
     CLOUDXR_STANDALONE_ENV,
     IsaacTeleopCfg,
+    OvLibrariesXrCameraConfig,
     se3_gamepad_teleop_cfg,
     se3_keyboard_teleop_cfg,
     se3_spacemouse_teleop_cfg,
@@ -56,8 +57,8 @@ from ..action_policy import prepare_teleop_action
 from ..device_selection import create_teleop_device, select_teleop_cfg
 from ._ovxr_launch import (
     add_ovxr_presentation_args,
-    ovxr_camera_layout,
     require_kitless_physics,
+    resolve_ovxr_pip_cameras,
     validate_ovxr_presentation_args,
 )
 
@@ -271,7 +272,7 @@ def _ovxr_publication_identity(
 
 
 def _resolve_env_cfg() -> tuple[
-    ManagerBasedRLEnvCfg, IsaacTeleopCfg | DeviceCfg, bool, list[tuple[str, object, object]]
+    ManagerBasedRLEnvCfg, IsaacTeleopCfg | DeviceCfg, bool, tuple[OvLibrariesXrCameraConfig, ...]
 ]:
     """Resolve task configuration and teleop ownership before runtime launch."""
     overrides = list(sys.argv[1:])
@@ -328,16 +329,14 @@ def _resolve_env_cfg() -> tuple[
         if stage_mode.strip() != "1":
             raise ValueError("--ovxr requires OVStage (ISAAC_LAB_OVRTX_USE_OVSTAGE=1)")
 
-    pip_selection = []
+    selected_cameras = ()
     keep_cameras: tuple[str, ...] = ()
     if args_cli.ovxr_pip_camera is not None:
         from isaaclab_ov.renderers import OVRTXRendererCfg
 
-        from ..camera_feed import select_ovxr_camera_feeds
-
-        names = args_cli.ovxr_pip_camera
-        pip_selection = select_ovxr_camera_feeds(env_cfg, names, OVRTXRendererCfg())
-        keep_cameras = tuple(names)
+        # Resolve the panels now so that an invalid selection or task layout fails before launch.
+        selected_cameras = resolve_ovxr_pip_cameras(env_cfg, args_cli, OVRTXRendererCfg())
+        keep_cameras = tuple(args_cli.ovxr_pip_camera)
 
     # The leased OVRTX renderer is the only render path in OVXR. Strip every task camera
     # except the selected PiP cameras before the launcher scans the config.
@@ -357,7 +356,7 @@ def _resolve_env_cfg() -> tuple[
             raise ValueError("--ovxr requires no Kit runtime or local visualizer")
     if use_isaac_teleop and teleop_cfg.prepare_environment is not None:
         teleop_cfg.prepare_environment(env_cfg)
-    return env_cfg, teleop_cfg, use_isaac_teleop, pip_selection
+    return env_cfg, teleop_cfg, use_isaac_teleop, selected_cameras
 
 
 def _install_ovxr_shutdown_handlers(ov_libraries_xr_session) -> dict:
@@ -459,7 +458,7 @@ def run_teleoperation(  # noqa: C901
     env_cfg: ManagerBasedRLEnvCfg,
     teleop_cfg: IsaacTeleopCfg | DeviceCfg,
     use_isaac_teleop: bool,
-    pip_selection: list[tuple[str, object, object]],
+    selected_cameras: tuple[OvLibrariesXrCameraConfig, ...],
 ) -> None:
     """Run teleoperation through the selected Kit or OVXR runtime."""
 
@@ -502,14 +501,7 @@ def run_teleoperation(  # noqa: C901
             from isaaclab_ov.renderers import OVRTXRendererCfg
 
             from .. import OvLibrariesXrConfig, OvLibrariesXrSession
-            from ..camera_feed import resolve_ovxr_camera_configs
 
-            selected_cameras = resolve_ovxr_camera_configs(
-                pip_selection,
-                ovxr_camera_layout(env_cfg, args_cli.ovxr_pip_head_locked),
-                max_fps=args_cli.ovxr_pip_fps,
-                position_override=args_cli.ovxr_pip_view_position,
-            )
             ov_libraries_xr_session = OvLibrariesXrSession.prepare(
                 env_cfg.sim,
                 OvLibrariesXrConfig(
@@ -817,9 +809,9 @@ def run_teleoperation(  # noqa: C901
 
 def main() -> None:
     """Resolve the task and run teleoperation with its selected runtime."""
-    resolved_env_cfg, selected_teleop_cfg, uses_isaac_teleop, pip_selection = _resolve_env_cfg()
+    resolved_env_cfg, selected_teleop_cfg, uses_isaac_teleop, selected_cameras = _resolve_env_cfg()
     with launch_simulation(resolved_env_cfg, args_cli, cleanup_context=not args_cli.using_ovxr):
-        run_teleoperation(resolved_env_cfg, selected_teleop_cfg, uses_isaac_teleop, pip_selection)
+        run_teleoperation(resolved_env_cfg, selected_teleop_cfg, uses_isaac_teleop, selected_cameras)
 
 
 def run_teleop_se3_agent_cli(argv: list[str] | None = None) -> int:
