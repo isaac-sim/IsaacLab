@@ -76,7 +76,10 @@ def _fake_env():
             )
         )
     )
-    return SimpleNamespace(scene={"robot": robot}, cfg=cfg), left, right
+    env = SimpleNamespace(
+        scene={"robot": robot}, cfg=cfg, common_step_counter=0, episode_length_buf=torch.zeros(1, dtype=torch.long)
+    )
+    return env, left, right
 
 
 def test_g1_newton_contract_is_backend_scoped_and_complete() -> None:
@@ -162,22 +165,32 @@ def test_recorded_first_action_is_ramped_and_finite() -> None:
 
 def test_wrist_ramp_reseeds_after_termination_auto_reset() -> None:
     """A success/drop auto-reset inside env.step moves the wrists; the ramp must restart from there."""
-    env, left, right = _fake_env()
-    env.episode_length_buf = torch.tensor([0])
+    env, left, _ = _fake_env()
+    poses = env.scene["robot"].data.body_link_pose_w
+
+    def step(terminated: bool = False) -> None:
+        # Advance the counters like ManagerBasedRLEnv.step; a terminated episode resets to a lower pose.
+        env.common_step_counter += 1
+        env.episode_length_buf += 1
+        if terminated:
+            env.episode_length_buf[0] = 0
+            poses[0, :, :3] += torch.tensor([0.0, 0.0, -0.2])
+
     state = {}
     target = RECORDED_FIRST_ACTION.clone()
-    for step in range(1, 60):
+    conditioned = condition_kitless_newton_g1_action(env, target, state)
+    for _ in range(58):
+        step()
         conditioned = condition_kitless_newton_g1_action(env, target, state)
-        env.episode_length_buf[0] = step
     # The ramp has converged near the operator's hands, far from the reset pose.
     assert float(torch.linalg.norm(conditioned[:3] - left[:3])) > 2 * POSITION_MAX_STEP_M
-    # Auto-reset: the robot returns to a different pose and the episode counter restarts.
-    poses = env.scene["robot"].data.body_link_pose_w
-    poses[0, :, :3] += torch.tensor([0.0, 0.0, -0.2])
-    env.episode_length_buf[0] = 0
-    conditioned = condition_kitless_newton_g1_action(env, target, state)
-    assert float(torch.linalg.norm(conditioned[:3] - poses[0, 0, :3])) <= POSITION_MAX_STEP_M + 1.0e-6
-    assert float(torch.linalg.norm(conditioned[7:10] - poses[0, 1, :3])) <= POSITION_MAX_STEP_M + 1.0e-6
+    # The episode terminates, then the next one terminates on its first step: its counter goes
+    # 0 -> 1 -> 0 between two frames without decreasing.
+    for _ in range(2):
+        step(terminated=True)
+        conditioned = condition_kitless_newton_g1_action(env, target, state)
+        assert float(torch.linalg.norm(conditioned[:3] - poses[0, 0, :3])) <= POSITION_MAX_STEP_M + 1.0e-6
+        assert float(torch.linalg.norm(conditioned[7:10] - poses[0, 1, :3])) <= POSITION_MAX_STEP_M + 1.0e-6
 
 
 @pytest.mark.parametrize(
@@ -213,7 +226,8 @@ def test_invalid_actions_fail_closed() -> None:
     assert teleop_action_target_issue(oversized) == "unreasonable hand joint target magnitude"
     assert "unexpected G1 controller action size" in teleop_action_target_issue(torch.zeros(27))
 
-    missing_wrist_env = SimpleNamespace(scene={}, cfg=SimpleNamespace())
+    missing_wrist_env, _, _ = _fake_env()
+    missing_wrist_env.scene = {}
     with pytest.raises(RuntimeError, match="could not resolve the task-selected G1 wrist poses"):
         condition_kitless_newton_g1_action(missing_wrist_env, RECORDED_FIRST_ACTION, {})
 

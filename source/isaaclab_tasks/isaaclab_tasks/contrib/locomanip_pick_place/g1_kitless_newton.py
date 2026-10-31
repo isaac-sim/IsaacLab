@@ -181,29 +181,24 @@ def _step_quaternion_towards(current: torch.Tensor, target: torch.Tensor, max_st
 _WRIST_RAMP_KEYS = ("left_pos", "left_quat", "right_pos", "right_quat")
 
 
-def _episode_step(env) -> int | None:
-    """Return environment 0's episode step, or ``None`` when the environment has no counter."""
-    buffer = getattr(getattr(env, "unwrapped", env), "episode_length_buf", None)
-    return None if buffer is None else int(buffer[0])
-
-
 def condition_kitless_newton_g1_action(env, action: torch.Tensor, state: dict[str, Any]) -> torch.Tensor:
     """Ramp both wrist targets from the current G1 poses before Pink solves IK.
 
-    The ramp re-seeds from the measured wrist poses whenever the episode restarts, including
-    termination auto-resets inside ``env.step`` that the teleoperation loop does not observe.
+    The ramp re-seeds from the measured wrist poses whenever environment 0 starts a new episode,
+    including termination auto-resets inside ``env.step`` that the teleoperation loop does not observe.
     """
     flat = action.detach().flatten()
     if flat.numel() != EXPECTED_ACTION_DIM:
         state.clear()
         return action
 
-    episode_step = _episode_step(env)
-    previous_step = state.get("_episode_step")
-    if episode_step is not None and previous_step is not None and episode_step < previous_step:
+    # The global step at which environment 0's episode began changes with every reset, including a
+    # termination on the episode's first step, which leaves the episode counter at 0 between frames.
+    episode_start = env.common_step_counter - int(env.episode_length_buf[0])
+    if state.get("_episode_start") != episode_start:
         for key in _WRIST_RAMP_KEYS:
             state.pop(key, None)
-    state["_episode_step"] = episode_step
+    state["_episode_start"] = episode_start
 
     conditioned = action.clone()
     conditioned_flat = conditioned.flatten()
