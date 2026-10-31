@@ -192,7 +192,7 @@ Complete these steps first:
 #. ``isaacteleop`` ships as part of the ``teleop`` extra, so no separate pip install step is
    required — but note that it comes from the extra rather than from the ``isaaclab_teleop``
    package metadata, so installing ``isaaclab_teleop`` on its own does **not** pull it in.
-   For Capture APIs and plugin development, see the `Isaac Capture GitHub
+   For building from source or plugin development, see the `Isaac Capture GitHub
    <https://github.com/NVIDIA/IsaacCapture>`_.
 
 #. Configure the firewall to allow CloudXR traffic. The required ports depend on the

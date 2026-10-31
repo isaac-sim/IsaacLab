@@ -435,11 +435,11 @@ def test_export_stage_homogeneous_keeps_only_env0_prototype():
 
 
 def test_export_stage_without_keep_env_roots_trims_non_source_env_roots():
-    """Whole-environment cloning trims the non-source environment roots themselves.
+    """The ovstage clone path also trims the non-source env roots themselves.
 
     ``ovstage.Stage.clone`` requires every target path to not already exist, so the exported stage
-    must not retain environment roots that the clone will recreate. Asset-level clone plans
-    retain typed parent roots on both renderer paths.
+    must not retain env roots that the clone will recreate. This is the only difference from the
+    legacy ``renderer.clone_usd`` path, which keeps the roots as placeholders.
     """
     num_envs = 4
     stage = _make_multi_env_stage(num_envs)
