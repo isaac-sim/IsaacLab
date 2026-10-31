@@ -9,8 +9,8 @@ SPDX-License-Identifier: BSD-3-Clause
 
 `IsaacContrib-Conveyor-Suction-Sorting` demonstrates replicated force-based Newton suction
 and shared success-guided reset sampling. Twelve differently sized parcels circulate through
-a compact workcell with a gravity-drop feeder. A Franka places parcels onto five size-coded
-outlets, whose powered belts deliver them into physical bins. The policy controls the arm
+a compact workcell with a gravity-drop feeder. A Franka places parcels at commanded positions
+on five receiving belts, which deliver them into physical bins. The policy controls the arm
 and vacuum; belts run continuously.
 
 ![Franka suction parcel sorting](../../../../../docs/source/_static/environment-previews/conveyor_suction_sorting.jpg)
@@ -45,29 +45,42 @@ uv run isaaclab play --task IsaacContrib-Conveyor-Suction-Sorting \
 With Isaac Sim installed, use `--viz kit` for RTX visualization.
 
 The policy outputs three Cartesian target increments and one binary vacuum command. Standard
-differential IK maintains a downward tool orientation. State observations include the
-selected parcel's pose, velocity and dimensions, robot and tool states, and suction state.
-The 52 observations include whether the selected parcel has completed its required lift;
-this history remains observable after lowering or releasing it. Earlier 51-input checkpoints
-require their matching configuration.
+differential IK maintains a downward tool orientation, with bounded target lead and normal
+Franka joint velocity limits. Observations include the selected parcel's pose, velocity and
+dimensions, robot and tool states, pickup and placement qualification, and the commanded
+parcel-center goal in the robot frame. A small overhead ray scan observes collision geometry
+as robot-frame points and hit-validity bits. It uses Newton physics rather than an RTX camera;
+the 20 cm ray spacing can miss thin obstacles, and occluded surfaces are not observed.
+Earlier checkpoints require retraining with
+the new observations and controlled-placement objective.
 Parcel dimensions vary across twelve fixed cuboid assets spanning five size classes.
 Parcels are 8.5–19 cm long and weigh approximately 64–431 g. The receiving lanes have
 24 cm openings to accommodate the largest packages. Earlier suction checkpoints require
 their matching parcel catalogue and tool configuration; the observation shape alone does not imply compatibility.
-The correct destination is determined by package dimensions; a destination command or
-size-class label is not supplied to the actor. Colors make the scene readable without
-becoming policy inputs.
+Training samples the destination independently of package dimensions, with small placement
+offsets within each supported receiving area. Playback routes each size class to its original
+outlet. Both modes supply the goal explicitly, so dimensions cannot replace following the
+command. Colors make the scene readable without becoming policy inputs. Goals are restricted
+to these reachable, supported receiving areas; this example does not establish transfer to
+arbitrary facilities or obstacles.
 
 ## Reset distribution and success
 
 The public `isaaclab_tasks.utils.ResetStateSampler` tracks recent outcomes and chooses
-reset rows. Task-local generators produce belt, approach/grasp, carry and near-release states;
+reset rows. Task-local generators produce belt, approach/grasp, carry and near-release states
+for each parcel and destination. Near-release states use the same goal given to the actor;
 ordinary scene/asset writers restore them. Other parcels are shuffled among the remaining
 belt and feeder slots to vary the order of subsequent pickups. The same sampler is used by the original
 conveyor curriculum and can select procedurally generated or cached reset states.
 It does not add another environment manager or a second scene-state serializer.
 
-All twelve parcels begin unsorted in every reset phase. A verified physical receipt earns
+All twelve parcels begin unsorted in every reset phase. Release is checked before detachment:
+the parcel must be upright, close to its commanded position, at most 2 cm above the receiving
+surface, and moving slowly relative to either the stationary world or the moving belt.
+Excessive vertical or angular velocity, an uncontrolled release, or nongripper arm contact fails
+the attempt. Only a qualified placement followed by a settled receipt in the commanded bin
+earns credit; a thrown parcel cannot qualify merely by landing in that bin.
+A verified physical receipt earns
 a reward of +10 and selects the next reachable unsorted parcel without resetting the world.
 The first receipt after a sampled reset immediately records a successful outcome for that
 reset row. Later receipts still earn rewards and increment delivery counters, but are not
@@ -86,13 +99,14 @@ twelve physical receipts from that start. A single delivery is a success without
 a complete batch. Receiving all twelve parcels ends the episode to replenish the scene;
 timeout or losing an unsorted parcel also ends it.
 
-Development results used staged warm-started checkpoints. Resume a compatible checkpoint with
-`--checkpoint /path/to/model.pt`; optimizer state is retained by default.
+Evaluate the retrained policy from full starts, with held-out reset seeds and destination
+commands. Report controlled-placement success and arm contacts alongside physical receipts;
+the earlier receipt-only policies are not evidence for this stricter objective.
 
 ## Facility references
 
 The induction-loop/offload layout follows ordinary distribution-center organization,
-including [Dematic's crossbelt sorter layouts](https://www.dematic.com/content/dam/dematic/downloads/brochures/NA_BR_1056_Crossbelt_Sorter.pdf).
+including [Vanderlande's robotic induction at DHL](https://www.vanderlande.com/news-insights/vanderlande-delivers-robot-technology-to-dhl/).
 The scene uses native primitives with physical decks, guards and bins; decorative
 supports remain visual only.
 

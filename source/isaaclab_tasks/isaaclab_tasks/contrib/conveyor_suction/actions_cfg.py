@@ -18,6 +18,8 @@ class CartesianSuctionArmCfg(DifferentialInverseKinematicsActionCfg):
     """Three Cartesian residuals, with orientation constrained by the tool."""
 
     class_type: type | str = "{DIR}.actions:CartesianSuctionArm"
+    max_target_error: float = 0.04
+    """Maximum Cartesian target lead from the measured tool position [m]."""
 
 
 @configclass

@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import math
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from isaaclab_newton.sim.schemas import NewtonMaterialPropertiesCfg
@@ -35,6 +36,8 @@ INTAKE_WIDTH = 0.24
 FEEDER_POSITION = (2.40, -0.75, 0.42)
 SUCTION_PAD_RADIUS = 0.012
 SUCTION_PAD_SPACING = 0.014
+RECEIVING_PAD_RADIAL_BOUNDS = (0.58, 0.83)
+RECEIVING_PAD_HALF_WIDTH = 0.12
 PARCEL_DIMENSIONS = (
     (0.09, 0.075, 0.055),
     (0.11, 0.085, 0.065),
@@ -58,8 +61,8 @@ PARCEL_SIZES = (
 CLASS_COLORS = ((0.20, 0.53, 0.79), (0.88, 0.48, 0.19), (0.26, 0.66, 0.46), (0.68, 0.39, 0.66), (0.74, 0.60, 0.35))
 GOAL_ANGLES = tuple(math.radians(value) for value in (10, 35, 60, 85, 110))
 GOAL_DIRECTIONS = tuple((math.cos(angle), math.sin(angle), 0.0) for angle in GOAL_ANGLES)
-GOAL_POSITIONS = tuple((0.70 * x, 0.70 * y, 0.08) for x, y, _ in GOAL_DIRECTIONS)
-"""Sloped receiving-deck positions in the robot's environment frame [m]."""
+GOAL_POSITIONS = tuple((0.70 * x, 0.70 * y, BELT_TOP_Z) for x, y, _ in GOAL_DIRECTIONS)
+"""Flat receiving-pad positions in the robot's environment frame [m]."""
 BIN_POSITIONS = tuple((2.17 * x, 2.17 * y, -0.48) for x, y, _ in GOAL_DIRECTIONS)
 BIN_INTERIOR_SIZE = (0.60, 0.56, 0.56)
 """Bin interior dimensions [m], with local X pointing along its outfeed."""
@@ -79,9 +82,22 @@ _PARCEL_XY = (
 PARCEL_POSITIONS = tuple(
     (x, y, BELT_TOP_Z + 0.5 * size[2] + 0.002) for (x, y), size in zip(_PARCEL_XY, PARCEL_SIZES[:-1], strict=True)
 ) + (FEEDER_POSITION,)
-_BELT_COLOR = (0.085, 0.105, 0.12)
-_FRAME_COLOR = (0.13, 0.28, 0.40)
-_METAL_COLOR = (0.62, 0.66, 0.70)
+_ASSETS_DIR = Path(__file__).with_name("assets")
+_BELT_COLOR = (0.025, 0.032, 0.038)
+_FRAME_COLOR = (0.065, 0.095, 0.12)
+_METAL_COLOR = (0.42, 0.46, 0.50)
+
+
+@sim_utils.clone
+def _spawn_floor(
+    prim_path: str,
+    cfg: sim_utils.SpawnerCfg,
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+) -> Usd.Prim:
+    """Cover the shared ground with one collision-free concrete surface."""
+    del cfg
+    return _spawn_textured_surface(prim_path, "concrete.png", (100.0, 100.0), translation, orientation, tiles=32.0)
 
 
 @configclass
@@ -97,22 +113,25 @@ class SuctionSortingSceneCfg(InteractiveSceneCfg):
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -0.80)),
         spawn=sim_utils.GroundPlaneCfg(color=(0.30, 0.32, 0.34)),
     )
+    floor_finish = AssetBaseCfg(
+        prim_path="/World/ConcreteFloor",
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -0.7998)),
+        spawn=sim_utils.SpawnerCfg(func=_spawn_floor),
+    )
     dome_light = AssetBaseCfg(
         prim_path="/World/DomeLight",
-        spawn=sim_utils.DomeLightCfg(color=(0.83, 0.89, 1.0), intensity=1100.0),
+        spawn=sim_utils.DomeLightCfg(color=(0.95, 0.97, 1.0), intensity=450.0),
     )
     key_light = AssetBaseCfg(
         prim_path="/World/KeyLight",
         init_state=AssetBaseCfg.InitialStateCfg(rot=(0.2798, -0.3647, -0.1159, 0.8805)),
-        spawn=sim_utils.DistantLightCfg(color=(1.0, 0.93, 0.84), intensity=1800.0, angle=1.0),
+        spawn=sim_utils.DistantLightCfg(color=(1.0, 0.95, 0.89), intensity=1400.0, angle=8.0),
     )
 
     def __post_init__(self) -> None:
         """Author small native primitives; no warehouse asset download is required."""
         super().__post_init__()
-        for index, (size, position, class_id) in enumerate(
-            zip(PARCEL_SIZES, PARCEL_POSITIONS, PARCEL_CLASS_IDS, strict=True)
-        ):
+        for index, (size, position) in enumerate(zip(PARCEL_SIZES, PARCEL_POSITIONS, strict=True)):
             setattr(
                 self,
                 f"parcel_{index}",
@@ -120,14 +139,13 @@ class SuctionSortingSceneCfg(InteractiveSceneCfg):
                     prim_path=f"{{ENV_REGEX_NS}}/Cube{index}",
                     init_state=RigidObjectCfg.InitialStateCfg(pos=position),
                     spawn=sim_utils.CuboidCfg(
+                        func=_spawn_carton,
                         size=size,
                         rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
                         mass_props=sim_utils.MassCfg(mass=max(0.03, 180.0 * math.prod(size))),
                         collision_props=_collision_properties(contact_margin=0.002),
                         physics_material=NewtonMaterialPropertiesCfg(static_friction=0.65, dynamic_friction=0.5),
-                        visual_material=sim_utils.PreviewSurfaceCfg(
-                            diffuse_color=CLASS_COLORS[class_id], roughness=0.75
-                        ),
+                        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.34, 0.21, 0.11), roughness=0.9),
                     ),
                 ),
             )
@@ -147,16 +165,40 @@ class SuctionSortingSceneCfg(InteractiveSceneCfg):
             _add_destination(self, index, angle)
         _add_box(self, "RobotMount", (0.36, 0.36, 0.05), (0.0, 0.0, -0.025), _METAL_COLOR)
         _add_box(self, "RobotPedestal", (0.24, 0.24, 0.73), (0.0, 0.0, -0.415), _FRAME_COLOR)
-        _add_box(self, "BackWall", (0.08, 5.9, 3.0), (3.05, 0.25, 0.70), (0.74, 0.77, 0.79), colliding=False)
-        _add_box(self, "SideWall", (6.1, 0.08, 3.0), (0.0, 2.9, 0.70), (0.80, 0.82, 0.83), colliding=False)
+        _add_box(self, "RobotFoot", (0.36, 0.36, 0.025), (0.0, 0.0, -0.7875), _METAL_COLOR, colliding=False)
+        _add_box(self, "BackWall", (0.08, 7.0, 4.8), (3.25, 0.0, 1.6), (0.43, 0.46, 0.48), colliding=False)
+        _add_box(self, "SideWall", (6.6, 0.08, 4.8), (0.0, 3.25, 1.6), (0.48, 0.50, 0.51), colliding=False)
+        for index, y in enumerate((-2.1, 0.0, 2.4)):
+            _add_box(self, f"HallColumn{index}", (0.14, 0.14, 4.5), (3.13, y, 1.45), _METAL_COLOR, colliding=False)
+        for index, x in enumerate((-1.8, -0.4, 1.0)):
+            _add_box(self, f"RoofBeam{index}", (0.12, 6.5, 0.18), (x, 0.0, 3.4), _METAL_COLOR, colliding=False)
+            _add_box(self, f"RackPost{index}", (0.055, 0.45, 3.0), (x, 2.88, 0.7), _FRAME_COLOR, colliding=False)
+        for level, z in enumerate((0.15, 1.15, 2.15)):
+            _add_box(
+                self, f"RackShelf{level}", (2.92, 0.5, 0.065), (-0.4, 2.88, z), (0.48, 0.16, 0.035), colliding=False
+            )
+            for index, x in enumerate((-1.4, -0.45, 0.45)):
+                _add_box(
+                    self,
+                    f"StoredCarton{level}{index}",
+                    (0.58, 0.38, 0.45),
+                    (x, 2.88, z + 0.2575),
+                    (0.34, 0.21, 0.11),
+                    colliding=False,
+                )
+        _add_box(self, "LoadingDoor", (0.02, 1.45, 2.3), (3.19, -1.1, 0.35), (0.18, 0.20, 0.22), colliding=False)
         for index in range(7):
             _add_box(
                 self,
-                f"FloorMark{index}",
-                (0.14, 0.04, 0.003),
-                (-0.45 + index * 0.16, -1.10, -0.797),
-                (0.95, 0.73, 0.15),
+                f"DoorSlat{index}",
+                (0.025, 1.42, 0.012),
+                (3.17, -1.1, -0.65 + 0.3 * index),
+                _METAL_COLOR,
                 colliding=False,
+            )
+        for index, y in enumerate((-1.16, -1.5)):
+            _add_box(
+                self, f"AisleLine{index}", (4.5, 0.04, 0.001), (0.5, y, -0.799), (0.75, 0.49, 0.045), colliding=False
             )
 
     def build_conveyor_belt_specs(self, **kwargs: float) -> tuple[SurfaceVelocitySpec, ...]:
@@ -212,14 +254,19 @@ def _conveyor_sections(
     # A short drop onto the return leg avoids two opposing contact fields at the merge.
     add(CuboidSpec("InductionBelt", (1.20, 0.24, 0.04), (2.0, -0.75, 0.24)), (-1.0, 0.0, 0.0))
     for index, (angle, direction) in enumerate(zip(GOAL_ANGLES, GOAL_DIRECTIONS, strict=True)):
-        x, y, _ = direction
-        slope = 0.25
         add(
-            _deck(f"ReceivingDeck{index}", angle, 0.64, 0.79, 0.24, 0.24, 0.095, 0.0575),
-            (x, y, -slope),
-            surface_normal=(slope * x, slope * y, 1.0),
+            _deck(
+                f"ReceivingDeck{index}",
+                angle,
+                *RECEIVING_PAD_RADIAL_BOUNDS,
+                2.0 * RECEIVING_PAD_HALF_WIDTH,
+                2.0 * RECEIVING_PAD_HALF_WIDTH,
+                BELT_TOP_Z,
+                BELT_TOP_Z,
+            ),
+            direction,
         )
-        add(_deck(f"Outfeed{index}", angle, 0.775, 1.95, 0.24, 0.24, 0.04, 0.04), direction)
+        add(_deck(f"Outfeed{index}", angle, 0.815, 1.95, 0.24, 0.24, BELT_TOP_Z, BELT_TOP_Z), direction)
     return tuple(sections)
 
 
@@ -284,6 +331,7 @@ def _add_box(
     yaw: float = 0.0,
     *,
     colliding: bool = True,
+    metallic: float = 0.0,
 ) -> None:
     """Add one fixed native cuboid with material appropriate to a facility frame."""
     asset = AssetBaseCfg(
@@ -295,7 +343,7 @@ def _add_box(
             physics_material=NewtonMaterialPropertiesCfg(static_friction=0.4, dynamic_friction=0.3)
             if colliding
             else None,
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=color, roughness=0.45, metallic=0.25),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=color, roughness=0.6, metallic=metallic),
         ),
     )
     setattr(scene, name, asset)
@@ -311,6 +359,7 @@ def _add_intake_frame(scene: SuctionSortingSceneCfg) -> None:
                 (0.90, 0.018, 0.045),
                 (0.95, y + sign * 0.13, 0.045),
                 _METAL_COLOR,
+                metallic=0.7,
             )
         _add_box(
             scene,
@@ -370,17 +419,72 @@ def _add_destination(scene: SuctionSortingSceneCfg, index: int, angle: float) ->
         )
 
     for side, offset in (("Left", -0.129), ("Right", 0.129)):
-        box(f"Mouth{side}", (0.17, 0.018, 0.13), 0.715, offset, 0.125, CLASS_COLORS[index])
+        box(f"Mouth{side}", (0.25, 0.018, 0.13), 0.705, offset, 0.125, CLASS_COLORS[index])
         box(f"Outfeed{side}", (1.20, 0.020, 0.045), 1.35, math.copysign(0.13, offset), 0.05, _METAL_COLOR)
     box("Frame", (1.20, 0.28, 0.08), 1.35, 0.0, -0.045, _FRAME_COLOR, colliding=False)
     for leg, radius in enumerate((0.92, 1.78)):
-        box(f"Leg{leg}", (0.065, 0.24, 0.72), radius, 0.0, -0.44, _FRAME_COLOR, colliding=False)
+        box(f"Leg{leg}", (0.065, 0.065, 0.72), radius, 0.0, -0.44, _FRAME_COLOR, colliding=False)
     # Extend below ground to prevent small parcels from crossing the floor during impact.
     box("BinFloor", (0.64, 0.60, 0.20), 2.17, 0.0, -0.86, _FRAME_COLOR)
     for part, radius in (("BinFront", 1.86), ("BinBack", 2.48)):
-        box(part, (0.02, 0.60, 0.56), radius, 0.0, -0.48, CLASS_COLORS[index])
+        box(part, (0.02, 0.60, 0.56), radius, 0.0, -0.48, _FRAME_COLOR)
     for part, offset in (("BinLeft", -0.29), ("BinRight", 0.29)):
-        box(part, (0.60, 0.02, 0.56), 2.17, offset, -0.48, CLASS_COLORS[index])
+        box(part, (0.60, 0.02, 0.56), 2.17, offset, -0.48, _FRAME_COLOR)
+
+
+def _spawn_textured_surface(
+    prim_path: str,
+    texture: str,
+    size: tuple[float, float],
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+    tiles: float = 1.0,
+) -> Usd.Prim:
+    """Author a render-only paper or concrete quad with one repeating local texture."""
+    from pxr import Sdf, UsdGeom, UsdShade
+
+    prim = sim_utils.create_prim(prim_path, translation=translation, orientation=orientation, scale=(*size, 1.0))
+    stage = prim.GetStage()
+    mesh = UsdGeom.Mesh.Define(stage, f"{prim_path}/Mesh")
+    mesh.CreatePointsAttr([(-0.5, -0.5, 0.0), (0.5, -0.5, 0.0), (0.5, 0.5, 0.0), (-0.5, 0.5, 0.0)])
+    mesh.CreateFaceVertexCountsAttr([4])
+    mesh.CreateFaceVertexIndicesAttr([0, 1, 2, 3])
+    mesh.CreateSubdivisionSchemeAttr("none")
+    UsdGeom.PrimvarsAPI(mesh).CreatePrimvar("st", Sdf.ValueTypeNames.TexCoord2fArray, "vertex").Set(
+        [(0.0, 0.0), (tiles, 0.0), (tiles, tiles), (0.0, tiles)]
+    )
+    material_path = f"{prim_path}/Material"
+    shader = UsdShade.Shader(sim_utils.spawn_preview_surface(material_path, sim_utils.PreviewSurfaceCfg(roughness=0.9)))
+    sim_utils.bind_visual_material(str(mesh.GetPath()), material_path)
+    uv = UsdShade.Shader.Define(stage, f"{material_path}/UV")
+    uv.CreateIdAttr("UsdPrimvarReader_float2")
+    uv.CreateInput("varname", Sdf.ValueTypeNames.Token).Set("st")
+    uv.CreateOutput("result", Sdf.ValueTypeNames.Float2)
+    image = UsdShade.Shader.Define(stage, f"{material_path}/Texture")
+    image.CreateIdAttr("UsdUVTexture")
+    image.CreateInput("file", Sdf.ValueTypeNames.Asset).Set(str(_ASSETS_DIR / texture))
+    image.CreateInput("sourceColorSpace", Sdf.ValueTypeNames.Token).Set("sRGB")
+    for axis in ("S", "T"):
+        image.CreateInput(f"wrap{axis}", Sdf.ValueTypeNames.Token).Set("repeat")
+    image.CreateInput("st", Sdf.ValueTypeNames.Float2).ConnectToSource(uv.ConnectableAPI(), "result")
+    image.CreateOutput("rgb", Sdf.ValueTypeNames.Float3)
+    shader.GetInput("diffuseColor").ConnectToSource(image.ConnectableAPI(), "rgb")
+    return prim
+
+
+@sim_utils.clone
+def _spawn_carton(
+    prim_path: str,
+    cfg: sim_utils.CuboidCfg,
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+) -> Usd.Prim:
+    """Keep the physical cuboid and attach one paper-textured, collision-free top face."""
+    prim = sim_utils.spawn_cuboid(prim_path, cfg, translation=translation, orientation=orientation)
+    _spawn_textured_surface(
+        f"{prim_path}/CartonTop", "carton_top.png", cfg.size[:2], translation=(0.0, 0.0, cfg.size[2] / 2.0 + 0.0002)
+    )
+    return prim
 
 
 def spawn_suction_franka(
@@ -406,7 +510,11 @@ def spawn_suction_franka(
         ("Mount", (0.0, 0.0, 0.05), (0.045, 0.045, 0.05), (0.08, 0.28, 0.36)),
         ("Plate", (0.0, 0.0, 0.079), (0.075, 0.075, 0.008), (0.22, 0.27, 0.31)),
     ):
-        geometry = sim_utils.CuboidCfg(size=size, visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=color))
+        geometry = sim_utils.CuboidCfg(
+            size=size,
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=color),
+            collision_props=_collision_properties(contact_margin=0.001),
+        )
         geometry.func(f"{tool}/{name}", geometry, translation=position)
     for part, radius, height, z, color in (
         ("Stem", 0.008, 0.016, 0.091, (0.025, 0.035, 0.04)),

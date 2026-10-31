@@ -12,3 +12,8 @@
   its success history; subsequent receipts cannot duplicate that outcome or be erased by a
   later failure. All twelve parcels start unsorted, and complete-batch metrics remain separate
   from per-delivery success within 240-second episodes.
+  Goal-conditioned placement observes independently sampled receiving positions and an overhead
+  collision-geometry point cloud. Controlled release, arm-contact rejection, bounded Cartesian
+  target lead, and normal arm velocity limits replace receipt-only throwing behavior.
+  Earlier suction checkpoints require retraining for the changed observations and objective.
+  Local carton and concrete textures, warehouse framing, racks, and a loading bay improve the scene.

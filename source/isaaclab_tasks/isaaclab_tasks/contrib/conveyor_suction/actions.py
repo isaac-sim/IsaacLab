@@ -50,6 +50,9 @@ class CartesianSuctionArm(DifferentialInverseKinematicsAction):
         displacement = desired - self._shoulder
         radius = torch.linalg.vector_norm(displacement, dim=-1, keepdim=True).clamp_min(1.0e-6)
         desired = self._shoulder + displacement * (0.78 / radius).clamp(max=1.0)
+        lead = desired - position
+        distance = torch.linalg.vector_norm(lead, dim=-1, keepdim=True).clamp_min(1.0e-6)
+        desired = position + lead * (self.cfg.max_target_error / distance).clamp(max=1.0)
         self._ik_controller.set_command(torch.cat((desired, self._down), dim=-1), position, rotation)
         self._needs_reference[:] = False
 
@@ -87,6 +90,7 @@ class VacuumAction(ActionTerm):
         self.previous_actions.copy_(self._raw_actions)
         self._raw_actions[:] = torch.nan_to_num(actions).clamp(-1.0, 1.0)
         self._processed_actions[:] = torch.where(self._raw_actions < 0.0, -1.0, 1.0)
+        self._env.command_manager.get_term("sort").record_release(self._processed_actions[:, 0] > 0.0)
 
     def apply_actions(self) -> None:
         self._env.gripper.set_command(self._processed_actions[:, 0] < 0.0, self._env.active_ids)
