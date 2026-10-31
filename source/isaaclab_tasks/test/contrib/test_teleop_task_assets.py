@@ -47,7 +47,7 @@ def _robot_paths(stage: Usd.Stage, pattern: str) -> list[Usd.Prim]:
 
 @pytest.mark.parametrize("task", ["fixed_base", "locomanipulation"])
 def test_g1_hand_contact_sensors_resolve_to_rigid_hand_links(task):
-    """The Isaac 6.2 G1 nests its hand links under ``left_hand``/``right_hand``; flat paths match nothing."""
+    """Newton matches whole paths, so the patterns must name the ``left_hand``/``right_hand`` parent prims."""
     from isaaclab_tasks.contrib.locomanip_pick_place.fixed_base_upper_body_ik_g1_env_cfg import (
         FixedBaseUpperBodyIKG1EnvCfg,
     )
