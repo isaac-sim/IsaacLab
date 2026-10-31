@@ -108,27 +108,65 @@ class OvLibrariesRenderLease:
         return owner.offer_owner_transfer(self)
 
     def claim_owner_transfer(self, capability: object) -> None:
+        """Make the calling thread the render owner using the offered capability.
+
+        Args:
+            capability: The object returned by :meth:`offer_owner_transfer`.
+
+        Raises:
+            RuntimeError: If the capability is stale, already claimed, or the lease is no longer unbound.
+        """
         cast("RenderLeaseController", self._controller).claim_owner_transfer(self, capability)
 
     def cancel_owner_transfer(self, capability: object) -> None:
+        """Withdraw an unclaimed offer on the original owner thread.
+
+        Args:
+            capability: The object returned by :meth:`offer_owner_transfer`.
+
+        Raises:
+            RuntimeError: If called off the original owner thread or with a stale capability.
+        """
         cast("RenderLeaseController", self._controller).cancel_owner_transfer(self, capability)
+
+    def defer_stage_until_owner_transfer(self) -> None:
+        """Defer Stage materialization requested before the owner transfer is claimed.
+
+        Camera initialization calls ``prepare_stage`` for every registered renderer on the
+        application thread. With deferral, that call only records the request; the claimed
+        render owner completes it with :meth:`materialize_deferred_stage`.
+        """
+        self._validate_active()
+        if self._state is not _OvLibrariesRenderLeaseState.UNBOUND:
+            raise RuntimeError("Stage deferral must be selected before Stage materialization")
+        cast("RenderLeaseController", self._controller).defer_until_transfer = True
+
+    def materialize_deferred_stage(self, stage: Any, num_envs: int) -> bool:
+        """Complete a deferred Stage preparation on the claimed render owner.
+
+        Args:
+            stage: The environment USD stage.
+            num_envs: Number of environments; the lease supports exactly one.
+
+        Returns:
+            Whether a deferred preparation was completed. ``False`` means nothing was deferred.
+        """
+        return cast("RenderLeaseController", self._controller).materialize_deferred_stage(self, stage, num_envs)
 
     def capture_scene_publisher(self) -> OvLibrariesScenePublisher:
         """Capture the application-thread scene publisher before render ownership transfers."""
         return cast("RenderLeaseController", self._controller).capture_scene_publisher(self)
-
-    def materialize_deferred_auxiliary_camera_stage(self, stage: Any, num_envs: int) -> bool:
-        """Complete the selected camera's deferred Stage on the claimed owner."""
-        return cast("RenderLeaseController", self._controller).materialize_deferred_stage(self, stage, num_envs)
 
     @contextlib.contextmanager
     def ovstage_owner_lane(self) -> Iterator[None]:
         """Guard one non-reentrant operation on the render-owner thread.
 
         The application's publication guard must separately exclude concurrent
-        producer writes while this operation uses the borrowed stage.
+        producer writes while this operation uses the borrowed stage. A failed
+        producer write poisons publication only: the lane stays available so the
+        borrower can destroy its consumers and retire the pair.
         """
-        self.validate_live()
+        self._validate_live(allow_poisoned=True)
         owner = cast("RenderLeaseController", self._controller)
         with owner.owner_lane("external renderer operation", lease=self):
             yield
@@ -163,7 +201,10 @@ class OvLibrariesRenderLease:
         self._state = _OvLibrariesRenderLeaseState.RELEASED
 
     def validate_live(self) -> None:
-        """Verify that this lease still refers to its live renderer and stage."""
+        """Verify that this lease still refers to its live, unpoisoned renderer and stage."""
+        self._validate_live(allow_poisoned=False)
+
+    def _validate_live(self, *, allow_poisoned: bool) -> None:
         self._validate_active()
         if self._state is not _OvLibrariesRenderLeaseState.BOUND:
             raise RuntimeError("OvLibrariesRenderLease is not bound to a prepared Stage")
@@ -173,6 +214,7 @@ class OvLibrariesRenderLease:
             cast("Renderer", self._renderer),
             cast("OvStage", self._stage),
             self._generation,
+            allow_poisoned=allow_poisoned,
         )
 
     @classmethod
@@ -215,6 +257,15 @@ class OvLibrariesScenePublisher:
         self._closed = False
 
     def publication_required(self, physics_step_id: Hashable) -> bool:
+        """Return whether a new physics step or dirty material requires a scene write.
+
+        Args:
+            physics_step_id: Hashable identity of the complete physics state to publish.
+
+        Raises:
+            RuntimeError: If the lease is not bound, the publisher is inactive, or a failed
+                write poisoned the pair.
+        """
         self._require_application_thread()
         return self._controller.producer_publication_required(self._lease, physics_step_id)
 
@@ -256,6 +307,7 @@ class RenderLeaseController:
         self._lane_lease: OvLibrariesRenderLease | None = None
         self._last_step_id: Hashable = _NO_PHYSICS_STEP_ID
         self._poisoned = False
+        self.defer_until_transfer = False
         self.stage_deferred = False
 
     def acquire(self) -> OvLibrariesRenderLease:
@@ -373,10 +425,15 @@ class RenderLeaseController:
         ovrtx_renderer: Renderer,
         ovstage_instance: OvStage,
         generation: int,
+        *,
+        allow_poisoned: bool = False,
     ) -> None:
-        """Validate retained Python-object identity for the live attached pair."""
+        """Validate retained Python-object identity for the live attached pair.
+
+        ``allow_poisoned`` admits retirement work after a failed publication.
+        """
         self.validate_active(lease)
-        if self._poisoned:
+        if self._poisoned and not allow_poisoned:
             raise RuntimeError("OvLibrariesRenderLease owner pair is poisoned")
         if generation != self._generation:
             raise RuntimeError("OvLibrariesRenderLease has a stale Stage generation")
@@ -398,18 +455,33 @@ class RenderLeaseController:
             self._publisher.close()
             self._publisher = None
         self._transfer_claimed = False
+        self.defer_until_transfer = False
+        self.stage_deferred = False
         self.active = None
         if self._renderer.backend is not None:
             self._renderer.backend._render_lease_owner = None
         if self._renderer.scene is not None:
             self._renderer.scene._render_lease_owner = None
 
-    def reject_ordinary_operation(self, operation: str) -> None:
-        """Reject ordinary OVRTX operations while an external lease is active."""
+    def reject_ordinary_operation(self, operation: str, *, retiring: bool = False) -> None:
+        """Reject ordinary OVRTX operations while an external lease is active.
+
+        A pair poisoned by a failed leased write keeps rejecting ordinary use after
+        release, because its ordinal is not rebased; only ``retiring`` operations
+        (closing the renderer) are admitted so the pair can be recreated.
+        """
         if self.active is not None or (
             self._renderer.backend is not None and self._renderer.backend._render_lease_owner is not None
         ):
             raise RuntimeError(f"Cannot {operation} while an OvLibrariesRenderLease is active")
+        if self._poisoned and not retiring:
+            raise RuntimeError(
+                f"Cannot {operation}: a failed leased publication poisoned this OVRTX/OVStage pair; recreate it"
+            )
+
+    def owns_scene_updates(self) -> bool:
+        """Whether an active lease's scene publisher owns transform and geometry writes."""
+        return self.active is not None
 
     def _next_ordinal(self) -> int:
         """Return ``floor + 1`` from the exact renderer-owned Stage."""
@@ -485,17 +557,15 @@ class RenderLeaseController:
         return True
 
     def materialize_deferred_stage(self, lease: OvLibrariesRenderLease, stage: Any, num_envs: int) -> bool:
-        """Materialize the selected camera after render-thread ownership transfer."""
-        self.require_owner_thread("materialize the auxiliary camera Stage")
+        """Materialize a deferred Stage, with any selected cameras, after render-thread ownership transfer."""
+        self.require_owner_thread("materialize a deferred Stage")
         if not self.stage_deferred:
             return False
-        if (
-            self.active is not lease
-            or lease._state is not _OvLibrariesRenderLeaseState.UNBOUND
-            or not self._transfer_claimed
-            or not lease._auxiliary_cameras
-            or any(camera.spec is None or camera.render_data is None for camera in lease._auxiliary_cameras)
-        ):
+        if self.active is not lease or lease._state is not _OvLibrariesRenderLeaseState.UNBOUND:
+            raise RuntimeError("Deferred Stage is not eligible for materialization")
+        if not self._transfer_claimed:
+            raise RuntimeError("Deferred Stage materialization requires a claimed owner transfer")
+        if any(camera.spec is None or camera.render_data is None for camera in lease._auxiliary_cameras):
             raise RuntimeError("Deferred auxiliary camera Stage is not eligible for materialization")
         self._renderer.prepare_stage(stage, num_envs)
         return True
@@ -694,10 +764,19 @@ class RenderLeaseController:
             self._renderer._update_camera(*camera.state)
 
     def prepare_stage(self, num_envs: int) -> bool:
-        """Validate or defer preparation; ordinary rendering is immediately allowed."""
+        """Validate or defer leased preparation; ordinary rendering is immediately allowed.
+
+        Preparation is deferred until the owner transfer is claimed when the borrower opted in
+        or selected auxiliary cameras.
+
+        Returns:
+            Whether the renderer should materialize the Stage now.
+        """
         lease = self.active
         if lease is not None:
-            if lease._auxiliary_cameras and not self._transfer_claimed:
+            if (self.defer_until_transfer or lease._auxiliary_cameras) and not self._transfer_claimed:
+                if lease._state is not _OvLibrariesRenderLeaseState.UNBOUND:
+                    raise RuntimeError("Cannot replace the Stage of a bound renderer/scene pair")
                 self.stage_deferred = True
                 return False
             self.require_owner_thread("prepare the leased Stage")

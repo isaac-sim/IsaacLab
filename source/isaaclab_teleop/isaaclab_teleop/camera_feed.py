@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 
     from isaaclab.sensors import Camera, CameraCfg
 
-    from .ov_libraries_xr import OvLibrariesXrCameraConfig
+    from .ovxr_cfg import OvLibrariesXrCameraConfig
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +77,7 @@ def resolve_ovxr_camera_configs(
     A feed's positive update cap limits the caller's rate; zero leaves that rate
     unchanged. A position override applies only to a single selected panel.
     """
-    from .ov_libraries_xr import OvLibrariesXrCameraConfig
+    from .ovxr_cfg import OvLibrariesXrCameraConfig
 
     _validate_layout_cfg(layout)
     if selected and layout.placement != "head_locked":

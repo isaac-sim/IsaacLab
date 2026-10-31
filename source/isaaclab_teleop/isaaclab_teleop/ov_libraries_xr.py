@@ -14,13 +14,24 @@ import re
 import threading
 import time
 from collections import deque
-from collections.abc import Hashable, Iterable
-from dataclasses import dataclass, field, replace
-from typing import TYPE_CHECKING, Any, Literal
+from collections.abc import Callable, Hashable, Iterable
+from dataclasses import replace
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
-from isaaccapture.ovxr_session_manager import OvxrApplicationInterface, StageOrdinalLedger
+try:
+    from isaaccapture.ovxr_session_manager import OvxrApplicationInterface, StageOrdinalLedger
+except ModuleNotFoundError as exc:
+    if not (exc.name or "").startswith("isaaccapture"):
+        raise
+    raise ModuleNotFoundError(
+        "OvLibrariesXrSession requires an Isaac Capture release with OVXR session support"
+        " (isaaccapture[ovxr]>=1.7.93a1). The 'teleop' extra selects the Kit release; install the"
+        " kitless selection described in source/isaaclab_teleop/docs/kitless_xr_source.md.",
+        name=exc.name,
+    ) from exc
 from isaaclab_ov.renderers import OVRTXRendererCfg
 
+from .ovxr_cfg import OvLibrariesXrCameraConfig, OvLibrariesXrConfig
 from .ovxr_session import OvxrSessionBootstrap, validate_ovxr_session_preparation
 
 if TYPE_CHECKING:
@@ -28,17 +39,12 @@ if TYPE_CHECKING:
     from isaaccapture.ovxr_session_manager.ovxr_session import OvxrSessionBinding
     from isaacteleop.oxr import OpenXRSessionHandles
 
-    from isaaclab.sensors import CameraCfg
     from isaaclab.sim import SimulationCfg
 
-    from .xr_anchor_manager import XrAnchorManager
+__all__ = ["OvLibrariesXrCameraConfig", "OvLibrariesXrConfig", "OvLibrariesXrSession"]
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_OVXR_CAMERA_PATHS = (
-    "/OVXRGeneratedCameras/OVXR_LeftEyeCamera",
-    "/OVXRGeneratedCameras/OVXR_RightEyeCamera",
-)
 _DEFAULT_OVXR_RENDER_PRODUCT_PATHS = (
     "/Render/OmniverseKit/HydraTextures/omni_kit_widget_viewport_ViewportTexture_0_OVXR_Left",
     "/Render/OmniverseKit/HydraTextures/omni_kit_widget_viewport_ViewportTexture_0_OVXR_Right",
@@ -244,102 +250,6 @@ class _StageOrdinalLedger(StageOrdinalLedger):
             self._closed = True
 
 
-@dataclass(frozen=True)
-class OvLibrariesXrCameraConfig:
-    """One application-selected sensor and its camera-panel policy."""
-
-    name: str
-    """Scene sensor name used for camera selection and panel labeling."""
-    camera_cfg: CameraCfg = field(repr=False)
-    """Selected sensor configuration, assigned to the session's shared renderer."""
-    max_fps: float = 30.0
-    """Finite positive image update cap [Hz]."""
-    panel_width_m: float = 0.48
-    """Physical panel width [m]; image aspect ratio determines its height."""
-    position: tuple[float, float, float] = (0.0, -0.15, -0.8)
-    """Panel center in OpenXR head space [m], with forward along negative Z."""
-    orientation_xyzw: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
-    """Panel orientation in head space as an (x, y, z, w) quaternion."""
-    space: Literal["head_locked"] = "head_locked"
-    """Placement space; only head-locked panels are supported."""
-
-    def __post_init__(self) -> None:
-        if not self.name or self.camera_cfg is None:
-            raise ValueError("camera name and configuration are required")
-        from isaaccapture.ovxr_session_manager import CameraPanelConfig
-
-        if not math.isfinite(self.max_fps) or self.max_fps <= 0:
-            raise ValueError("camera max_fps must be finite and positive")
-        # Validate panel policy before native preparation; bind the resolved path later.
-        CameraPanelConfig(
-            render_product_path=f"/{self.name}",
-            panel_width_m=self.panel_width_m,
-            position=self.position,
-            orientation_xyzw=self.orientation_xyzw,
-            space=self.space,
-        )
-
-
-@dataclass
-class OvLibrariesXrConfig:
-    """Isaac Lab configuration for an IsaacTeleop-owned OVXR session."""
-
-    application_name: str = "isaaclab-kitless-teleop"
-    """Application identifier passed to the OpenXR runtime."""
-    session_mode: Literal["ar", "vr"] = "ar"
-    """OpenXR presentation mode: augmented or virtual reality."""
-    renderer_settings: str = "--/app/hydra/aperture/conform=stretch"
-    """Process-global OVXR renderer settings applied before renderer construction."""
-    cloudxr_env_file: str | None = None
-    """CloudXR environment-file path; None leaves runtime launch to the caller."""
-    auto_launch_cloudxr: bool = True
-    """Whether the session owner launches the CloudXR runtime automatically."""
-    render_products: tuple[str, ...] = ()
-    """Stereo RenderProduct paths; an empty selection uses OVXR's default paths."""
-    camera_paths: tuple[str, ...] = _DEFAULT_OVXR_CAMERA_PATHS
-    """Exactly two non-empty USD camera paths, ordered left eye then right eye."""
-    create_render_products: bool = True
-    """Whether to declare and configure the selected stereo rendering prims."""
-    meters_per_unit: float = 1.0
-    """Finite positive scene scale [m per USD unit]."""
-    depth_near_z: float = 0.0
-    """Near depth distance [m]; both depth distances zero select provider defaults."""
-    depth_far_z: float = 0.0
-    """Far depth distance [m]; explicit distances must satisfy 0 < near < far."""
-    tracking_anchor_path: str = ""
-    """USD tracking-anchor path; an empty path uses the stage origin."""
-    host_wait_render_output: bool = True
-    """Whether OVXR waits for render output before returning from frame rendering."""
-    desktop_mirror_enabled: bool = False
-    """Whether to display the owner-managed desktop mirror."""
-    desktop_mirror_max_fps: float = 30.0
-    """Finite positive desktop mirror refresh cap [Hz]."""
-    auxiliary_cameras: tuple[OvLibrariesXrCameraConfig, ...] = ()
-    """Up to three uniquely named camera panels; an empty selection disables panels."""
-    extra_openxr_extensions: tuple[str, ...] = ()
-    """Additional OpenXR extension names requested when creating the session."""
-
-    def __post_init__(self) -> None:
-        cameras = self.auxiliary_cameras
-        if len(cameras) > 3 or len({camera.name for camera in cameras}) != len(cameras):
-            raise ValueError("Select at most three uniquely named auxiliary cameras")
-        if self.session_mode not in ("ar", "vr"):
-            raise ValueError("session_mode must be 'ar' or 'vr'")
-        if not math.isfinite(self.meters_per_unit) or self.meters_per_unit <= 0:
-            raise ValueError("meters_per_unit must be finite and positive")
-        if not math.isfinite(self.desktop_mirror_max_fps) or self.desktop_mirror_max_fps <= 0.0:
-            raise ValueError("desktop_mirror_max_fps must be finite and positive")
-        if (self.depth_near_z, self.depth_far_z) != (0.0, 0.0) and (
-            not math.isfinite(self.depth_near_z)
-            or not math.isfinite(self.depth_far_z)
-            or self.depth_near_z <= 0.0
-            or self.depth_far_z <= self.depth_near_z
-        ):
-            raise ValueError("depth_near_z and depth_far_z must both be zero or finite with 0 < near < far")
-        if len(self.camera_paths) != 2 or any(not path for path in self.camera_paths):
-            raise ValueError("Kitless stereo requires exactly two non-empty OVXR camera paths")
-
-
 class _IsaacLabOvxrApplicationInterface(OvxrApplicationInterface):
     """Supply only the renderer/Stage/coordinator and simulation publication."""
 
@@ -350,7 +260,7 @@ class _IsaacLabOvxrApplicationInterface(OvxrApplicationInterface):
         cfg: OvLibrariesXrConfig,
         hidden_visual_prims: Iterable[str],
         excluded_visual_meshes: Iterable[str] = (),
-        external_anchor_state: XrAnchorManager | None = None,
+        external_anchor_state: OvLibrariesXrSession.ExternalAnchorState | None = None,
     ) -> None:
         self._bootstrap = bootstrap
         self._env = env
@@ -575,7 +485,7 @@ class _IsaacLabOvxrApplicationInterface(OvxrApplicationInterface):
         if self._external_anchor.commit_external_pose(reference, dt, epoch, commit):
             self._last_anchor_frame_time = now
 
-    def set_external_anchor_state(self, state: XrAnchorManager | None) -> None:
+    def set_external_anchor_state(self, state: OvLibrariesXrSession.ExternalAnchorState | None) -> None:
         """Replace a replay device's policy while preserving native query ownership."""
         if self._external_anchor is not None:
             # A new replay manager must not revive a failed borrowed native pair.
@@ -637,6 +547,53 @@ class _IsaacLabOvxrApplicationInterface(OvxrApplicationInterface):
 class OvLibrariesXrSession:
     """Thin Isaac Lab adapter around IsaacTeleop's OVXR session."""
 
+    @runtime_checkable
+    class ExternalAnchorState(Protocol):
+        """Dynamic XR-anchor policy sealed together with complete scene publications.
+
+        :class:`~isaaclab_teleop.xr_anchor_manager.XrAnchorManager` implements this protocol
+        when it is constructed for an OVXR session.
+        """
+
+        @property
+        def external_anchor_paths(self) -> tuple[str, ...]:
+            """Anchor Xform paths written together at each committed pose."""
+            ...
+
+        @property
+        def external_reference_path(self) -> str | None:
+            """Physics prim whose world transform drives the anchor."""
+            ...
+
+        @property
+        def external_epoch(self) -> tuple[int, bool]:
+            """Reset identity and whether that epoch still needs its seeding publication.
+
+            Raises:
+                RuntimeError: If a previous anchor publication failed.
+            """
+            ...
+
+        def commit_external_pose(
+            self,
+            reference: np.ndarray,
+            rendering_dt: float,
+            epoch: int,
+            commit: Callable[[np.ndarray], None],
+        ) -> bool:
+            """Advance the policy from ``reference`` and seal its matrices through ``commit``.
+
+            Args:
+                reference: World transform of :attr:`external_reference_path` [4, 4].
+                rendering_dt: Elapsed XR-frame time since the last committed pose [s].
+                epoch: Reset identity read from :attr:`external_epoch`.
+                commit: Callable that writes and seals the anchor matrices [N, 4, 4].
+
+            Returns:
+                ``False`` when ``epoch`` is stale and nothing was committed.
+            """
+            ...
+
     def __init__(self, bootstrap: OvxrSessionBootstrap, cfg: OvLibrariesXrConfig) -> None:
         self._bootstrap = bootstrap
         self._cfg = cfg
@@ -692,7 +649,7 @@ class OvLibrariesXrSession:
         excluded_visual_meshes: Iterable[str] = (),
         max_blank_frames: int = 1,
         timeout_s: float = 30.0,
-        external_anchor_state: XrAnchorManager | None = None,
+        external_anchor_state: OvLibrariesXrSession.ExternalAnchorState | None = None,
     ) -> bool:
         """Give IsaacTeleop the application pair and report whether XR started.
 
@@ -705,12 +662,18 @@ class OvLibrariesXrSession:
             max_blank_frames: Nonnegative integer bootstrap-frame count; zero skips bootstrap frames.
             timeout_s: Maximum worker startup wait [s].
             external_anchor_state: Dynamic anchor policy seeded from committed scene publications.
+
+        Raises:
+            TypeError: If ``external_anchor_state`` does not implement :class:`ExternalAnchorState`.
         """
         self._require_open()
         if self._owner is not None:
             raise RuntimeError("OVXR async render worker is already started")
         if isinstance(max_blank_frames, bool) or not isinstance(max_blank_frames, int) or max_blank_frames < 0:
             raise ValueError("max_blank_frames must be a non-negative integer")
+        _require_external_anchor_state(external_anchor_state)
+        # Reject an inconsistent environment before the worker claims the lease.
+        self._bootstrap.validate_environment(env)
         from isaaccapture.ovxr_session_manager.ovxr_session import (
             OvxrSession,
             OvxrSessionConfig,
@@ -814,9 +777,10 @@ class OvLibrariesXrSession:
         if self._owner is not None:
             self._owner.request_shutdown()
 
-    def set_external_anchor_state(self, state: XrAnchorManager | None) -> None:
+    def set_external_anchor_state(self, state: OvLibrariesXrSession.ExternalAnchorState | None) -> None:
         """Adopt the current replay device's anchor policy between runs."""
         self._require_started()
+        _require_external_anchor_state(state)
         with self._host.publication_guard():
             self._host.set_external_anchor_state(state)
 
@@ -840,3 +804,11 @@ class OvLibrariesXrSession:
 
     def __exit__(self, *_exc: object) -> None:
         self.close()
+
+
+def _require_external_anchor_state(state: object) -> None:
+    """Reject anchor policies that lack the external-publication protocol on the caller's thread."""
+    if state is not None and not isinstance(state, OvLibrariesXrSession.ExternalAnchorState):
+        raise TypeError(
+            f"external_anchor_state must implement OvLibrariesXrSession.ExternalAnchorState; got {type(state).__name__}"
+        )

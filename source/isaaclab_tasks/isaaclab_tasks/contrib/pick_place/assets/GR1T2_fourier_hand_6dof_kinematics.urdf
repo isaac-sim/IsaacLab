@@ -4,6 +4,13 @@ Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/is
 All rights reserved.
 
 SPDX-License-Identifier: BSD-3-Clause
+
+Kinematics-only model of the Isaac 6.2 asset
+Robots/FourierIntelligence/GR-1/GR1T2_fourier_hand_6dof/GR1T2_fourier_hand_6dof.usd, the robot
+spawned by GR1T2_CFG. Kit regenerates the equivalent URDF from that USD at runtime; kitless Pink
+uses this copy. Regenerate it whenever the asset changes:
+source/isaaclab_tasks/test/contrib/test_teleop_task_assets.py checks its joints and limits against
+the spawned USD.
 -->
 <robot name="GR1T2_fourier_hand_6dof">
   <joint name="FixedJoint" type="fixed">

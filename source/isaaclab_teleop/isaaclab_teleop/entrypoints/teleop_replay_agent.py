@@ -296,6 +296,7 @@ from .. import (
     poll_control_events,
 )
 from ..action_policy import initial_hand_tracking_issue, prepare_teleop_action
+from ._ovxr_launch import require_kitless_physics
 
 logger = logging.getLogger(__name__)
 
@@ -1148,14 +1149,12 @@ def _prepare_env_cfg(
             raise ValueError("OVXR replay PiP requires --ovxr_pip_head_locked")
         select_ovxr_camera_feeds(env_cfg, names, OVRTXRendererCfg())
         env_cfg = remove_camera_configs(env_cfg, keep=tuple(names))
+        require_kitless_physics(env_cfg)
     elif args_cli.ovxr_pip_camera or args_cli.ovxr_desktop_mirror or args_cli.ovxr_pip_head_locked:
         raise ValueError("OVXR presentation options require --ovxr")
     elif args_cli.disable_external_cameras:
         env_cfg = remove_camera_configs(env_cfg)
-    if env_cfg.sim.physics is None:
-        from isaaclab.physics import PhysicsCfg
-
-        env_cfg.sim.physics = PhysicsCfg()
+    # A task without a physics selection keeps None: SimulationContext defaults it to PhysxCfg.
     configs, kit_sources = validate_launch(env_cfg, vars(args_cli).copy())
     if args_cli.ovxr:
         from isaaclab.visualizers import VisualizerBackendCfg
