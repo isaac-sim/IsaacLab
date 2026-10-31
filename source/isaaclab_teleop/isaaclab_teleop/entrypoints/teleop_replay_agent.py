@@ -1149,7 +1149,7 @@ def _prepare_env_cfg(
         # The presentation reuses this validated selection and its shared renderer configuration.
         ovxr_pip_selection = select_ovxr_camera_feeds(env_cfg, names, OVRTXRendererCfg())
         env_cfg = remove_camera_configs(env_cfg, keep=tuple(names))
-        require_kitless_physics(env_cfg)
+        require_kitless_physics(env_cfg, task)
     elif args_cli.disable_external_cameras:
         env_cfg = remove_camera_configs(env_cfg)
     # A task without a physics selection keeps None: SimulationContext defaults it to PhysxCfg.

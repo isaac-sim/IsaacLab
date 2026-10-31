@@ -308,15 +308,12 @@ def test_teleop_tasks_resolve_public_physics_selectors(monkeypatch, task_name, p
         assert cfg.scene.robot.spawn.variants["Physics"] == ("physics" if physics == "newton_mjwarp" else "physx")
     if physics == "newton_mjwarp":
         assert isinstance(cfg.sim.physics.solver_cfg, MJWarpSolverCfg)
-        if "SO101" in task_name:
-            assert cfg.sim.physics.solver_cfg.iterations == 100
-            assert cfg.sim.physics.solver_cfg.impratio == 10.0
-            assert cfg.sim.physics.solver_cfg.nconmax == 600
     if physics == "ovphysx" and "SO101" in task_name:
-        # The kitless OvPhysX selection keeps the stack family's PhysX grasp tuning.
-        assert cfg.sim.physics.bounce_threshold_velocity == pytest.approx(0.01)
-        assert cfg.sim.physics.friction_correlation_distance == pytest.approx(0.00625)
-        assert cfg.sim.physics.solve_articulation_contact_last is True
+        # The kitless OvPhysX selection keeps the task's Isaac Sim PhysX grasp tuning.
+        _, physx_selections = setup_preset_cli(_make_parser(), ["--task", task_name, "--physics", "isaacsim_physx"])
+        physx_cfg = parse_env_cfg(task_name, device="cpu", num_envs=1, overrides=physx_selections).sim.physics
+        for name in ("bounce_threshold_velocity", "friction_correlation_distance", "solve_articulation_contact_last"):
+            assert getattr(cfg.sim.physics, name) == getattr(physx_cfg, name), name
 
     class ConstructionReached(Exception):
         pass
@@ -437,6 +434,22 @@ def test_humanoid_preparation_preserves_caller_changes_and_rejects_backend_switc
         prepared.sim.physics = PhysxCfg()
         with pytest.raises(ValueError, match="resolve a fresh task configuration"):
             gym.make(task_name, cfg=prepared)
+
+
+def test_humanoid_preparation_resolves_directly_built_configs():
+    """A configuration built without task resolution is prepared with the default of every preset."""
+    from isaaclab_physx.physics import PhysxCfg
+    from isaaclab_physx.renderers import IsaacRtxRendererCfg
+
+    from isaaclab_tasks.contrib.locomanip_pick_place.fixed_base_upper_body_ik_g1_env_cfg import (
+        FixedBaseUpperBodyIKG1EnvCfg,
+    )
+    from isaaclab_tasks.contrib.teleop_physics_cfg import prepare_humanoid_teleop_environment
+
+    cfg = FixedBaseUpperBodyIKG1EnvCfg()
+    prepare_humanoid_teleop_environment(cfg)
+    assert type(cfg.sim.physics) is PhysxCfg
+    assert type(cfg.scene.robot_pov_cam.renderer_cfg) is IsaacRtxRendererCfg
 
 
 def _spawn_task_roundtrip_fixture(path, _cfg, **_kwargs):

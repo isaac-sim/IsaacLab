@@ -191,6 +191,9 @@ def run_live_workflow(monkeypatch):
     """Run the imported live owner with finite input, renderer, and simulation endpoints."""
     import contextlib
 
+    # The live OVXR owner imports the session adapter, which needs a Capture release with OVXR
+    # session support. The Kit ``teleop`` extra selects an older release; skip rather than error there.
+    pytest.importorskip("isaaccapture.ovxr_session_manager")
     import isaaclab_teleop
     from isaaclab_teleop.entrypoints import teleop_se3_agent as agent
 
@@ -907,6 +910,7 @@ def test_non_ovxr_cli_keeps_mirror_disabled(monkeypatch, entrypoint, flags):
 @pytest.mark.parametrize("entrypoint", ["live", "replay"])
 def test_task_preparation_precedes_ovxr_simulation_context(monkeypatch, entrypoint):
     """Both actual workflows finalize the selected config before OVXR allocates its context."""
+    pytest.importorskip("ovrtx")
     from contextlib import contextmanager
 
     import isaaclab_teleop
@@ -989,6 +993,7 @@ def test_task_preparation_precedes_ovxr_simulation_context(monkeypatch, entrypoi
 
 
 _UNSET_PHYSICS_TASK = "IsaacContrib-PickPlace-GR1T2-Abs"
+_UNSET_PHYSICS_OVXR_ERROR = rf"task '{_UNSET_PHYSICS_TASK}' leaves sim.physics unset.*Run this task with --xr"
 
 
 def _unset_task_physics(monkeypatch, module):
@@ -1019,7 +1024,7 @@ def test_live_ovxr_rejects_unset_task_physics_before_launch(monkeypatch):
     monkeypatch.delenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", raising=False)
     agent = _load_teleop_agent(monkeypatch, "--task", _UNSET_PHYSICS_TASK, "--ovxr")
     _unset_task_physics(monkeypatch, agent)
-    with pytest.raises(ValueError, match="kitless physics preset"):
+    with pytest.raises(ValueError, match=_UNSET_PHYSICS_OVXR_ERROR):
         agent._resolve_env_cfg()
 
 
@@ -1037,7 +1042,7 @@ def test_replay_unset_task_physics_keeps_simulation_default_or_rejects_ovxr(monk
     replay._parse_args()
     _unset_task_physics(monkeypatch, replay)
     if ovxr:
-        with pytest.raises(ValueError, match="kitless physics preset"):
+        with pytest.raises(ValueError, match=_UNSET_PHYSICS_OVXR_ERROR):
             replay._prepare_env_cfg(_UNSET_PHYSICS_TASK, 1, None, overrides=replay.hydra_overrides)
         return
     env_cfg, _success = replay._prepare_env_cfg(_UNSET_PHYSICS_TASK, 1, None, overrides=replay.hydra_overrides)
@@ -1065,11 +1070,54 @@ def test_rtx_gate_reads_the_launcher_kit_visualizer(monkeypatch, arguments, expe
     assert agent._rtx_rendering_requested(agent.args_cli) is expected
 
 
-def test_rejected_ovxr_frame_does_not_render_on_the_control_thread(monkeypatch):
-    agent = _load_teleop_agent(monkeypatch)
-    env = SimpleNamespace(sim=SimpleNamespace(render=lambda: pytest.fail("rendered under OVXR")))
-    stops = []
-    assert not agent._apply_teleop_frame(
-        env, torch.zeros(1, 2), "missing left hand tracking", lambda: None, lambda: stops.append(True), render=False
+def test_rejected_ovxr_frame_does_not_render_on_the_control_thread(monkeypatch, run_live_workflow):
+    """OVXR owns rendering, so a rejected frame holds the scene without a control-thread render or step."""
+    from isaaclab_teleop.entrypoints import teleop_se3_agent as agent
+
+    advances = 0
+    renders = []
+    steps = []
+    requests = []
+    waits = []
+
+    def advance():
+        nonlocal advances
+        advances += 1
+        return torch.ones((1, 2))
+
+    def request(identity, *, force):
+        requests.append(force)
+        return 1
+
+    monkeypatch.setattr(agent, "time", SimpleNamespace(perf_counter=lambda: 0.0, sleep=waits.append))
+    env = SimpleNamespace(
+        num_envs=1,
+        step_dt=0.02,
+        reset=lambda: None,
+        step=steps.append,
+        sim=SimpleNamespace(
+            is_running=lambda: advances < 1,
+            get_physics_step_count=lambda: len(steps),
+            get_physics_dt=lambda: 0.005,
+            render=lambda: renders.append(True),
+        ),
     )
-    assert stops == [True]
+    run_live_workflow(
+        env,
+        SimpleNamespace(
+            advance=advance,
+            reset=lambda: None,
+            control_events=lambda: SimpleNamespace(is_active=True, should_reset=False),
+        ),
+        SimpleNamespace(
+            shutdown_requested=False,
+            request_render=request,
+            wait_for_shutdown=waits.append,
+            report_host_timing=lambda *args: None,
+        ),
+        validator=lambda _action: "rejected",
+    )
+    assert advances == 1
+    assert renders == [] and steps == []
+    assert requests == [True]  # Only the reset publication; the held scene is not republished.
+    assert waits == [0.02]  # A rejected frame waits one action period, like a paused one.

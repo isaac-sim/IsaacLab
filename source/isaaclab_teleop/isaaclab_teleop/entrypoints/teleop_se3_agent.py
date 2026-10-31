@@ -347,7 +347,7 @@ def _resolve_env_cfg() -> tuple[
         env_cfg = remove_camera_configs(env_cfg, keep=keep_cameras)
 
     if args_cli.using_ovxr:
-        require_kitless_physics(env_cfg)
+        require_kitless_physics(env_cfg, args_cli.task)
     # A task without a physics selection keeps None: SimulationContext defaults it to PhysxCfg.
     configs, kit_sources = validate_launch(env_cfg, vars(args_cli).copy())
     if args_cli.using_ovxr:

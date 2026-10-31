@@ -28,7 +28,8 @@ _ENV_ROBOT = "{ENV_REGEX_NS}/Robot"
 def _open_asset(usd_path: str) -> Usd.Stage:
     try:
         local_path = retrieve_file_path(usd_path)
-    except Exception as exc:  # The asset server is optional for local test runs.
+    except (FileNotFoundError, RuntimeError) as exc:
+        # The asset server is optional for local test runs: it may be unreachable or fail the download.
         pytest.skip(f"Robot asset is unavailable: {exc}")
     stage = Usd.Stage.Open(local_path)
     assert stage is not None, local_path
@@ -47,7 +48,7 @@ def _robot_paths(stage: Usd.Stage, pattern: str) -> list[Usd.Prim]:
 
 @pytest.mark.parametrize("task", ["fixed_base", "locomanipulation"])
 def test_g1_hand_contact_sensors_resolve_to_rigid_hand_links(task):
-    """The Isaac 6.2 G1 nests its hand links under ``left_hand``/``right_hand``; flat paths match nothing."""
+    """Newton matches whole paths, so the patterns must name the ``left_hand``/``right_hand`` parent prims."""
     from isaaclab_tasks.contrib.locomanip_pick_place.fixed_base_upper_body_ik_g1_env_cfg import (
         FixedBaseUpperBodyIKG1EnvCfg,
     )

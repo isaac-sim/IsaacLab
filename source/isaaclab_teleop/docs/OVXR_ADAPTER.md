@@ -52,8 +52,9 @@ The adapter retains the environment if lease retirement cannot establish complet
 
 - `OvLibrariesXrSession.prepare()` creates the `SimulationContext` from the
   `sim_cfg` it receives, and the environment reuses that context. Pass the
-  environment's own `env_cfg.sim`; `start_render_worker()` rejects an
-  environment whose simulation device or time step differs.
+  environment's own `env_cfg.sim`; before the worker claims the lease,
+  `start_render_worker()` rejects an environment whose simulation device or
+  time step differs, or whose `num_envs` is not 1.
 - Only environments that accept a pre-created simulation context are
   supported. Manager-based environments do; `DirectRLEnv` always creates its own
   context and fails with "Simulation context already exists".
@@ -64,6 +65,10 @@ The adapter retains the environment if lease retirement cannot establish complet
   default `OVRTXRendererCfg()`) is rejected while the lease is active.
 - Eager scene updates (`lazy_sensor_update=False`) skip the leased renderer; its
   scene publisher writes the same physics state at the reserved ordinal.
+- CPU simulation devices publish scene transforms, but visual-material
+  publication requires CUDA material buffers, as it does for ordinary OVRTX
+  cameras. With `--device cpu`, an environment that has `VisualMaterial` assets
+  fails at `sim.reset()`.
 - Dynamic anchoring takes any object implementing
   `OvLibrariesXrSession.ExternalAnchorState`; `start_render_worker()` rejects
   other objects before the worker claims the lease.

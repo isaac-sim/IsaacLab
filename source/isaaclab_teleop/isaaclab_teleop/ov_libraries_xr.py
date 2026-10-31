@@ -555,8 +555,9 @@ class OvLibrariesXrSession:
     class ExternalAnchorState(Protocol):
         """Dynamic XR-anchor policy sealed together with complete scene publications.
 
-        :class:`~isaaclab_teleop.xr_anchor_manager.XrAnchorManager` implements this protocol
-        when it is constructed for an OVXR session.
+        :class:`~isaaclab_teleop.xr_anchor_manager.XrAnchorManager` implements this protocol. It
+        drives the anchor when constructed for an OVXR session with ``XrCfg.anchor_prim_path`` set,
+        which is when :attr:`~isaaclab_teleop.IsaacTeleopDevice.external_anchor_state` returns it.
         """
 
         @property
@@ -668,7 +669,11 @@ class OvLibrariesXrSession:
             external_anchor_state: Dynamic anchor policy seeded from committed scene publications.
 
         Raises:
+            RuntimeError: If the session is closed or already started, or ``env`` does not reuse the
+                prepared simulation context, has no completed stage or not exactly one environment,
+                or selects a different simulation device or physics time step.
             TypeError: If ``external_anchor_state`` does not implement :class:`ExternalAnchorState`.
+            ValueError: If ``max_blank_frames`` is not a nonnegative integer.
         """
         self._require_open()
         if self._owner is not None:
