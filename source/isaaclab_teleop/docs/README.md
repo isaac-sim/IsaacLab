@@ -24,6 +24,10 @@ XR anchor synchronization, retargeting pipelines, and action-tensor generation.
 
 ## Architecture
 
+The [OVXR application adapter](OVXR_ADAPTER.md) connects a simulation-owned
+renderer to Isaac Capture. XR session integration belongs to `isaaclab_teleop`;
+`isaaclab_ov` supplies the generic renderer/scene lease and lifetime checks.
+
 `IsaacTeleopDevice` composes three focused collaborators:
 
 | Component | Responsibility |
