@@ -98,7 +98,7 @@ def test_live_entry_failure_closes_resources_and_preserves_cause(monkeypatch, en
     assert env.close.call_count == int(stage != "environment")
 
 
-def _run_ovxr_until_session_prepare(monkeypatch, arguments, camera_names=(), sim_device="cuda:0"):
+def _run_ovxr_until_session_prepare(monkeypatch, arguments, camera_names=()):
     """Drive the real parser and entrypoint up to OVXR session preparation; return its configs."""
     import isaaclab_teleop
     from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg, XrCameraFeedCfg
@@ -122,7 +122,7 @@ def _run_ovxr_until_session_prepare(monkeypatch, arguments, camera_names=(), sim
             num_envs=1,
             **{name: CameraCfg(prim_path=f"/World/{name}", width=640, height=480) for name in camera_names},
         ),
-        sim=SimpleNamespace(device=sim_device, physics=object()),
+        sim=SimpleNamespace(device="cuda:0", physics=object()),
         terminations=SimpleNamespace(time_out=1),
         isaac_teleop=IsaacTeleopCfg(
             xr_camera_feeds=[XrCameraFeedCfg(camera_name=name, panel_width_m=0.4) for name in camera_names]
@@ -141,8 +141,12 @@ def _run_ovxr_until_session_prepare(monkeypatch, arguments, camera_names=(), sim
         captured.append((cfg, renderer_cfg))
         raise stopped
 
-    monkeypatch.setattr(isaaclab_teleop.OvLibrariesXrSession, "prepare", prepare)
+    # Pre-launch validation rejects before any session exists, so rejection tests run in every environment.
     resolved = agent._resolve_env_cfg()
+    # Session construction needs a Capture release with OVXR session support; the Kit
+    # ``teleop`` extra selects an older release, so skip there like ``run_live_workflow``.
+    pytest.importorskip("isaaccapture.ovxr_session_manager")
+    monkeypatch.setattr(isaaclab_teleop.OvLibrariesXrSession, "prepare", prepare)
     with pytest.raises(RuntimeError) as caught:
         agent.run_teleoperation(*resolved)
     assert caught.value is stopped
