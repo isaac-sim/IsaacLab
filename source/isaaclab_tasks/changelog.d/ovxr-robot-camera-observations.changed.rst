@@ -1,6 +1,4 @@
-* **Breaking:** Added head and wrist RGB terms to the default policy observation space of
-  ``IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs``, including non-teleoperation consumers.
-  Existing state-only policies must set ``robot_pov_cam``, ``left_wrist_cam``, and
-  ``right_wrist_cam`` to ``None`` in both ``env_cfg.scene`` and ``env_cfg.observations.policy``,
-  and clear ``env_cfg.image_obs_list`` before environment construction. Policies using the
-  new defaults must accept the three image terms and configure camera rendering.
+* Changed Kit ``--xr`` camera panels for the fixed-base G1 task: it shows head and wrist panels,
+  and head-panel uploads are capped at 20 Hz (wrist panels at 10 Hz).
+* Changed GR1T2 Kit ``--xr`` camera panels to a world-fixed layout. OVXR presents head-locked
+  panels only; pass ``--ovxr_pip_head_locked`` there.

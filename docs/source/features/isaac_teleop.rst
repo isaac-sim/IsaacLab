@@ -1447,8 +1447,10 @@ vertical, and grid layouts. The following registered tasks enable PiP by default
 * ``IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs``
 
 Both G1 tasks present the calibrated head camera in a ``head_locked`` panel that follows headset
-position and orientation. Locomanipulation retains the camera as a recorded policy observation;
-fixed-base G1 uses it only for PiP and keeps its policy observation schema unchanged.
+position and orientation. Fixed-base G1 also shows its left and right wrist cameras in panels
+0.43 m to either side of the head panel. Locomanipulation retains the head camera as a recorded
+policy observation. Fixed-base G1 keeps a state-only policy observation schema by default; add
+``presets=rgb`` to record its head and wrist images as policy observations.
 
 To run fixed-base G1 upper-body teleoperation with its default head-locked PiP:
 
@@ -1465,9 +1467,9 @@ use the GPU.
 
 ``teleop_se3_agent.py`` and ``record_demos.py`` show every enabled feed when an Isaac Capture-enabled
 environment runs with ``--xr``. PiP is absent unless the task explicitly selects an existing
-``CameraCfg`` through ``xr_camera_feeds``. Except for fixed-base G1, the selected
-``robot_pov_cam`` is also a policy image observation, so the normal demonstration recorder stores
-the same view shown to the operator. Each camera is parented to a physical robot body link, so the
+``CameraCfg`` through ``xr_camera_feeds``. Except for fixed-base G1 without ``presets=rgb``, the
+selected cameras are also policy image observations, so the normal demonstration recorder stores
+the same views shown to the operator. Each camera is parented to a physical robot body link, so the
 camera view follows robot motion:
 
 .. figure:: ../_static/teleop/xr-camera-pip.jpg

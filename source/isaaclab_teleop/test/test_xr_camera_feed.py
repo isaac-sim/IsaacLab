@@ -814,3 +814,22 @@ def test_ovxr_automatic_panels_use_shared_layout_without_mutating_feeds():
     assert panels[0].position == pytest.approx((-0.15, -0.2, -1.2))
     assert panels[1].position == pytest.approx((0.35, -0.2, -1.2))
     assert feeds[0].offset_m == XrCameraFeedCfg().offset_m
+
+
+def test_remove_camera_configs_keeps_selected_sensors_but_drops_their_observations():
+    """OVXR keeps selected PiP sensors for its renderer while no observation requests a second render."""
+    import isaaclab_tasks  # noqa: F401
+    from isaaclab_teleop import remove_camera_configs
+
+    from isaaclab_tasks.utils import parse_env_cfg
+
+    cfg = parse_env_cfg(
+        "IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs", device="cpu", num_envs=1, overrides=["presets=rgb"]
+    )
+    assert hasattr(cfg.observations.policy, "left_wrist_cam")
+    remove_camera_configs(cfg, keep=("robot_pov_cam", "left_wrist_cam"))
+    assert hasattr(cfg.scene, "robot_pov_cam") and hasattr(cfg.scene, "left_wrist_cam")
+    assert not hasattr(cfg.scene, "right_wrist_cam")
+    for name in ("robot_pov_cam", "left_wrist_cam", "right_wrist_cam"):
+        assert not hasattr(cfg.observations.policy, name)
+    assert hasattr(cfg.observations.policy, "robot_joint_pos")

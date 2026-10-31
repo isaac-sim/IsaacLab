@@ -27,6 +27,7 @@ from isaaclab_tasks.contrib.teleop_physics_cfg import (
     check_kitless_backend_preparation,
     prepare_humanoid_teleop_environment,
 )
+from isaaclab_tasks.utils import preset
 
 from isaaclab_assets.robots.unitree import G1_29DOF_CFG
 
@@ -328,11 +329,11 @@ class ActionsCfg:
 
 @configclass
 class ObservationsCfg:
-    """State and camera observations for fixed-base manipulation."""
+    """State observations, with opt-in head and wrist RGB images (``presets=rgb``)."""
 
     @configclass
     class PolicyCfg(ObsGroup):
-        """Policy observations with state values and head/wrist RGB images."""
+        """Policy observations with state values."""
 
         actions = ObsTerm(func=manip_mdp.last_action)
         robot_joint_pos = ObsTerm(
@@ -358,6 +359,14 @@ class ObservationsCfg:
             params={"left_eef_link_name": "left_wrist_yaw_link", "right_eef_link_name": "right_wrist_yaw_link"},
         )
 
+        def __post_init__(self):
+            self.enable_corruption = False
+            self.concatenate_terms = False
+
+    @configclass
+    class RgbPolicyCfg(PolicyCfg):
+        """Policy observations with state values and head/wrist RGB images [uint8, H x W x 3]."""
+
         robot_pov_cam = ObsTerm(
             func=base_mdp.image_rgb,
             params={
@@ -380,12 +389,8 @@ class ObservationsCfg:
             },
         )
 
-        def __post_init__(self):
-            self.enable_corruption = False
-            self.concatenate_terms = False
-
-    # observation groups
-    policy: PolicyCfg = PolicyCfg()
+    # observation groups; the XR camera panels do not need the image terms
+    policy: PolicyCfg = preset(default=PolicyCfg(), rgb=RgbPolicyCfg())
 
 
 @configclass
