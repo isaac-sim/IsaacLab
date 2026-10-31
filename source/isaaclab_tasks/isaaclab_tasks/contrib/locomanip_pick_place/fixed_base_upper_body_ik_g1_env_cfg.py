@@ -24,7 +24,7 @@ from isaaclab_tasks.contrib.pick_place import mdp as manip_mdp
 from isaaclab_tasks.contrib.robot_pov_camera_cfg import g1_robot_pov_camera_cfg
 from isaaclab_tasks.contrib.teleop_physics_cfg import (
     TeleopPhysicsCfg,
-    kitless_backend_prepared,
+    check_kitless_backend_preparation,
     prepare_humanoid_teleop_environment,
 )
 
@@ -460,7 +460,7 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
 
     def stabilize_for_kitless_ovphysx(self) -> None:
         """Prepare the table collision authoring; let OVPhysX cook the wheel meshes."""
-        if kitless_backend_prepared(self, "ovphysx"):
+        if check_kitless_backend_preparation(self, "ovphysx"):
             return
         from isaaclab_tasks.contrib.packing_table import configure_packing_table_collisions
 
@@ -469,7 +469,7 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
 
     def stabilize_for_kitless_newton_mjwarp(self) -> None:
         """Configure G1 actions, assets and contacts for kitless Newton."""
-        if kitless_backend_prepared(self, "newton_mjwarp"):
+        if check_kitless_backend_preparation(self, "newton_mjwarp"):
             return
         from .g1_kitless_newton import configure_g1_for_kitless_newton
 

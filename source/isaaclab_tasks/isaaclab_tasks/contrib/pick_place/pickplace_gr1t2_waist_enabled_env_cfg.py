@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import os
 import tempfile
 
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -11,10 +10,8 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib import ISAACLAB_TELEOP_AVAILABLE
-from isaaclab_tasks.contrib.packing_table import configure_packing_table_collisions
 from isaaclab_tasks.contrib.teleop_physics_cfg import (
     TeleopPhysicsCfg,
-    kitless_backend_prepared,
     prepare_humanoid_teleop_environment,
 )
 
@@ -24,11 +21,9 @@ from .pickplace_gr1t2_env_cfg import (
     ObjectTableSceneCfg,
     ObservationsCfg,
     TerminationsCfg,
-    apply_kitless_ovphysx_drive_gains,
     build_gr1t2_pickplace_pipeline,
-    condition_kitless_gr1t2_stage,
-    condition_kitless_ovphysx_robot_spawn_properties,
     prepare_gr1t2_for_kitless_newton_mjwarp,
+    prepare_gr1t2_for_kitless_ovphysx,
 )
 
 
@@ -105,21 +100,7 @@ class PickPlaceGR1T2WaistEnabledEnvCfg(ManagerBasedRLEnvCfg):
 
     def stabilize_for_kitless_ovphysx(self) -> None:
         """Prepare the existing GR asset while retaining the movable waist."""
-        if kitless_backend_prepared(self, "ovphysx"):
-            condition_kitless_gr1t2_stage(self.scene.robot, self.actions.upper_body_ik)
-            return
-        action_cfg = self.actions.upper_body_ik
-        action_cfg.controller.urdf_path = os.path.join(
-            os.path.dirname(__file__), "assets", "GR1T2_fourier_hand_6dof_kinematics.urdf"
-        )
-        action_cfg.kitless_target_conditioning_enabled = True
-        if self.isaac_teleop is not None:
-            self.isaac_teleop.require_initial_bimanual_hand_tracking = True
-        apply_kitless_ovphysx_drive_gains(self.scene.robot)
-        condition_kitless_ovphysx_robot_spawn_properties(self.scene.robot)
-        condition_kitless_gr1t2_stage(self.scene.robot, action_cfg)
-        configure_packing_table_collisions(self.scene.packing_table, physx_offsets=True)
-        self._prepared_kitless_backend = "ovphysx"
+        prepare_gr1t2_for_kitless_ovphysx(self)
 
     def stabilize_for_kitless_newton_mjwarp(self) -> None:
         """Configure GR1T2 actuators and contacts for kitless Newton."""

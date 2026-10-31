@@ -35,7 +35,7 @@ from isaaclab_tasks.contrib.steering_wheel import (
 )
 from isaaclab_tasks.contrib.teleop_physics_cfg import (
     TeleopPhysicsCfg,
-    kitless_backend_prepared,
+    check_kitless_backend_preparation,
     prepare_humanoid_teleop_environment,
 )
 
@@ -275,13 +275,8 @@ def build_gr1t2_pickplace_pipeline():
         }
     )
 
-    pipeline = OutputCombiner(
-        {
-            "action": connected_reorderer.output("output"),
-            HandsSource.LEFT: hands.output(HandsSource.LEFT),
-            HandsSource.RIGHT: hands.output(HandsSource.RIGHT),
-        }
-    )
+    # The session lifecycle discovers the raw HandsSource outputs for hand-presence safety.
+    pipeline = OutputCombiner({"action": connected_reorderer.output("output")})
     return pipeline, [left_dex, right_dex]
 
 
@@ -723,31 +718,59 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
 
     def stabilize_for_kitless_ovphysx(self) -> None:
         """Configure the GR1T2 asset and action boundaries for kitless OVPhysX."""
-        if kitless_backend_prepared(self, "ovphysx"):
-            condition_kitless_gr1t2_stage(self.scene.robot, self.actions.upper_body_ik)
-            return
-        action_cfg = self.actions.upper_body_ik
-        action_cfg.controller.urdf_path = os.path.join(
-            os.path.dirname(__file__), "assets", "GR1T2_fourier_hand_6dof_kinematics.urdf"
-        )
-        action_cfg.kitless_target_conditioning_enabled = True
-        # Do not apply retargeter defaults before hand tracking starts.
-        if self.isaac_teleop is not None:
-            self.isaac_teleop.require_initial_bimanual_hand_tracking = True
-        apply_kitless_ovphysx_drive_gains(self.scene.robot)
-        condition_kitless_ovphysx_robot_spawn_properties(self.scene.robot)
-        condition_kitless_gr1t2_stage(self.scene.robot, action_cfg)
-        configure_packing_table_collisions(self.scene.packing_table, physx_offsets=True)
-        self._prepared_kitless_backend = "ovphysx"
+        prepare_gr1t2_for_kitless_ovphysx(self)
 
     def stabilize_for_kitless_newton_mjwarp(self) -> None:
         """Configure GR1T2 actuators and contacts for kitless Newton."""
         prepare_gr1t2_for_kitless_newton_mjwarp(self)
 
 
+def prepare_gr1t2_for_kitless_ovphysx(env_cfg: ManagerBasedRLEnvCfg) -> None:
+    """Configure a GR1T2 task's asset and action boundaries for kitless OVPhysX.
+
+    Selects the vendored kinematics URDF for Pink, enables target conditioning, requires initial
+    bimanual hand tracking, restores actuator coverage, conditions the robot spawn, and authors
+    PhysX contact offsets on the packing table. The configured controlled joints (with or without
+    the waist) are kept. A prepared configuration only re-attaches its spawn conditioning.
+
+    Args:
+        env_cfg: GR1T2 pick-place task configuration.
+
+    Raises:
+        ValueError: If ``env_cfg`` was already prepared for a different backend.
+    """
+    if check_kitless_backend_preparation(env_cfg, "ovphysx"):
+        condition_kitless_gr1t2_stage(env_cfg.scene.robot, env_cfg.actions.upper_body_ik)
+        return
+    action_cfg = env_cfg.actions.upper_body_ik
+    action_cfg.controller.urdf_path = os.path.join(
+        os.path.dirname(__file__), "assets", "GR1T2_fourier_hand_6dof_kinematics.urdf"
+    )
+    action_cfg.kitless_target_conditioning_enabled = True
+    # Do not apply retargeter defaults before hand tracking starts.
+    if env_cfg.isaac_teleop is not None:
+        env_cfg.isaac_teleop.require_initial_bimanual_hand_tracking = True
+    apply_kitless_ovphysx_drive_gains(env_cfg.scene.robot)
+    condition_kitless_ovphysx_robot_spawn_properties(env_cfg.scene.robot)
+    condition_kitless_gr1t2_stage(env_cfg.scene.robot, action_cfg)
+    configure_packing_table_collisions(env_cfg.scene.packing_table, physx_offsets=True)
+    env_cfg._prepared_kitless_backend = "ovphysx"
+
+
 def prepare_gr1t2_for_kitless_newton_mjwarp(env_cfg: ManagerBasedRLEnvCfg) -> None:
-    """Share Newton preparation without replacing the configured controlled joints."""
-    if kitless_backend_prepared(env_cfg, "newton_mjwarp"):
+    """Configure a GR1T2 task's actuators, contacts and action boundaries for kitless Newton.
+
+    Shares the URDF and target conditioning with :func:`prepare_gr1t2_for_kitless_ovphysx`,
+    applies Newton actuator gains and MJWarp contact budgets, and keeps the configured
+    controlled joints. Hand joint limits are not widened on Newton.
+
+    Args:
+        env_cfg: GR1T2 pick-place task configuration.
+
+    Raises:
+        ValueError: If ``env_cfg`` was already prepared for a different backend.
+    """
+    if check_kitless_backend_preparation(env_cfg, "newton_mjwarp"):
         condition_kitless_gr1t2_stage(env_cfg.scene.robot, env_cfg.actions.upper_body_ik, widen_hand_limits=False)
         return
     action_cfg = env_cfg.actions.upper_body_ik
@@ -793,17 +816,14 @@ def _stabilize_gr1t2_for_kitless_newton_mjwarp(env_cfg: ManagerBasedRLEnvCfg) ->
         actuator.armature = armature
         actuator.joint_effort_limit = effort_limit
 
-    for side, name in (("L", "left-hand"), ("R", "right-hand")):
-        # The action conditions all eleven targets to the asset's mimic
-        # relation. Driving the whole hand gives Newton the same compliant
-        # hand targets as the OVPhysX path.
+    for name in ("left-hand", "right-hand"):
+        # The action conditions all eleven targets to the asset's mimic relation. Give Newton the
+        # same compliant hand drives as the OVPhysX path.
         hand = groups[name]
-        hand.joint_names_expr = [f"{side}_.*"]
         hand.stiffness = 5.0
         hand.damping = 0.5
         hand.armature = 0.02
         hand.joint_effort_limit = 20.0
-        groups.pop(f"{name}-slaved", None)
 
     solver_cfg = env_cfg.sim.physics.solver_cfg
     solver_cfg.nconmax = 4096
@@ -846,8 +866,12 @@ def condition_kitless_ovphysx_robot_spawn_properties(robot_cfg: ArticulationCfg)
                 fragment.max_depenetration_velocity = 0.1
 
 
-def _author_kitless_ovphysx_contact_offsets(prim) -> bool:
-    """Author Kit-parity offsets on a collision prim before OVPhysX parses it."""
+def _author_kitless_contact_offsets(prim) -> bool:
+    """Author Kit-parity PhysX contact offsets on a collision prim before kitless parsing.
+
+    Both kitless backends receive the same spawned stage: OVPhysX consumes these
+    ``physxCollision`` offsets, and Newton parses the same collision prims.
+    """
     from pxr import Sdf
 
     schemas = prim.GetMetadata("apiSchemas")
@@ -881,7 +905,7 @@ def _spawn_and_condition(prim_path, cfg, *args, **kwargs):
             child.SetInstanceable(False)
 
     for child in Usd.PrimRange(prim):
-        _author_kitless_ovphysx_contact_offsets(child)
+        _author_kitless_contact_offsets(child)
         inertia = child.GetAttribute("physics:diagonalInertia")
         if inertia and inertia.HasValue():
             value = inertia.Get()
@@ -947,11 +971,19 @@ def condition_kitless_gr1t2_stage(
     The raw asset has near-singular finger inertia, hard PhysX-only mimic
     constraints, and hand rest poses exactly on physical limits. Those inputs
     are stable after Kit's asset preparation but are ill-conditioned when read
-    directly by OVPhysX. This spawn boundary floors inertia, removes the hard
-    constraints that conflict with direct hand drives, and optionally keeps the
-    physical limits inactive for OVPhysX. Newton retains the anatomical limits
-    because bounding drive targets alone does not bound simulated positions. The
-    original mimic relations and anatomical limits are recorded on the typed
+    directly by a kitless backend. This spawn boundary runs for both OVPhysX and
+    Newton. It:
+
+    - de-instances ``collisions`` scopes and authors Kit-parity PhysX contact
+      offsets (contact 1 mm, rest 0) on every collision prim;
+    - floors every diagonal inertia component below 1e-4 [kg·m²] on every body,
+      which in this asset affects the finger links;
+    - removes the hard mimic constraints that conflict with direct hand drives;
+    - optionally widens the hand joint limits (``widen_hand_limits``, used for
+      OVPhysX). Newton retains the anatomical limits because bounding drive
+      targets alone does not bound simulated positions.
+
+    The original mimic relations and anatomical limits are recorded on the typed
     action config for target conditioning. The source USD and normal Kit path
     remain unchanged.
     """
