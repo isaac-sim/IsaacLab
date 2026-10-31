@@ -30,7 +30,18 @@ def main() -> int:
 
     import numpy as np
     import warp as wp
-    from isaaclab_ov.renderers.publication_buffers import _GeometryPublicationBuffers
+
+    try:
+        # Imported here so that a selection without the OV rendering packages gets guidance.
+        from isaaclab_ov.renderers.publication_buffers import _GeometryPublicationBuffers
+    except ImportError as error:
+        print(
+            f"Cannot import the renderer's geometry-publication copy: {error}. Run this check in the kitless XR"
+            " selection: uv run --extra ovxr python -m isaaclab_teleop.check_cuda_peer --devices"
+            f" {' '.join(args.devices)}",
+            file=sys.stderr,
+        )
+        return 1
 
     try:
         wp.init()
