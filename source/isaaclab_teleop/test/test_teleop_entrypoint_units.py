@@ -866,3 +866,90 @@ def test_task_preparation_precedes_ovxr_simulation_context(monkeypatch, entrypoi
     with pytest.raises(ContextReached):
         module.main()
     assert calls == ["prepare", "launch", "context"]
+
+
+_UNSET_PHYSICS_TASK = "IsaacContrib-PickPlace-GR1T2-Abs"
+
+
+def _unset_task_physics(monkeypatch, module):
+    """Resolve the real task configuration, then leave ``sim.physics`` at its default ``None``."""
+    real_resolve = module.resolve_task_config
+
+    def resolve(*args, **kwargs):
+        env_cfg, agent_cfg = real_resolve(*args, **kwargs)
+        env_cfg.sim.physics = None
+        return env_cfg, agent_cfg
+
+    monkeypatch.setattr(module, "resolve_task_config", resolve)
+
+
+def test_live_unset_task_physics_keeps_simulation_default(monkeypatch):
+    """``physics=None`` must reach SimulationContext's PhysxCfg default and launch Kit for it."""
+    from isaaclab.app.sim_launcher import validate_launch
+
+    agent = _load_teleop_agent(monkeypatch, "--task", _UNSET_PHYSICS_TASK, "--disable_external_cameras")
+    _unset_task_physics(monkeypatch, agent)
+    env_cfg, _teleop_cfg, _use_isaac_teleop = agent._resolve_env_cfg()
+    assert env_cfg.sim.physics is None
+    _configs, kit_sources = validate_launch(env_cfg, vars(agent.args_cli).copy())
+    assert kit_sources
+
+
+def test_live_ovxr_rejects_unset_task_physics_before_launch(monkeypatch):
+    monkeypatch.delenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", raising=False)
+    agent = _load_teleop_agent(monkeypatch, "--task", _UNSET_PHYSICS_TASK, "--ovxr")
+    _unset_task_physics(monkeypatch, agent)
+    with pytest.raises(ValueError, match="kitless physics preset"):
+        agent._resolve_env_cfg()
+
+
+@pytest.mark.parametrize("ovxr", [False, True])
+def test_replay_unset_task_physics_keeps_simulation_default_or_rejects_ovxr(monkeypatch, ovxr):
+    from isaaclab_teleop.entrypoints import teleop_replay_agent as replay
+
+    argv = ["teleop_replay_agent.py", "--task", _UNSET_PHYSICS_TASK, "--replay_file", "recording.mcap"]
+    if ovxr:
+        argv.append("--ovxr")
+    monkeypatch.setattr(sys, "argv", argv)
+    monkeypatch.delenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", raising=False)
+    monkeypatch.setattr(replay, "args_cli", None, raising=False)
+    monkeypatch.setattr(replay, "hydra_overrides", None, raising=False)
+    replay._parse_args()
+    _unset_task_physics(monkeypatch, replay)
+    if ovxr:
+        with pytest.raises(ValueError, match="kitless physics preset"):
+            replay._prepare_env_cfg(_UNSET_PHYSICS_TASK, 1, None, overrides=replay.hydra_overrides)
+        return
+    env_cfg, _success = replay._prepare_env_cfg(_UNSET_PHYSICS_TASK, 1, None, overrides=replay.hydra_overrides)
+    assert env_cfg.sim.physics is None
+    assert replay.args_cli.require_kit
+
+
+@pytest.mark.parametrize(
+    "arguments,expected",
+    [
+        (("--viz", "kit", "--disable_external_cameras"), True),
+        (("--disable_external_cameras",), False),
+        ((), True),
+    ],
+)
+def test_rtx_gate_reads_the_launcher_kit_visualizer(monkeypatch, arguments, expected):
+    """``setup_preset_cli`` consumes ``--viz``; the gate must read what the launcher resolved from it."""
+    from isaaclab.app.sim_launcher import validate_launch
+
+    agent = _load_teleop_agent(monkeypatch, "--task", _UNSET_PHYSICS_TASK, *arguments)
+    assert not hasattr(agent.args_cli, "visualizer")
+    env_cfg, _teleop_cfg, _use_isaac_teleop = agent._resolve_env_cfg()
+    # launch_simulation validates against the live namespace, which records kit_visualizer.
+    validate_launch(env_cfg, vars(agent.args_cli))
+    assert agent._rtx_rendering_requested(agent.args_cli) is expected
+
+
+def test_rejected_ovxr_frame_does_not_render_on_the_control_thread(monkeypatch):
+    agent = _load_teleop_agent(monkeypatch)
+    env = SimpleNamespace(sim=SimpleNamespace(render=lambda: pytest.fail("rendered under OVXR")))
+    stops = []
+    assert not agent._apply_teleop_frame(
+        env, torch.zeros(1, 2), "missing left hand tracking", lambda: None, lambda: stops.append(True), render=False
+    )
+    assert stops == [True]
