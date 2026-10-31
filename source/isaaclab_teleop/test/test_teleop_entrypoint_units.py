@@ -946,11 +946,49 @@ def test_rtx_gate_reads_the_launcher_kit_visualizer(monkeypatch, arguments, expe
     assert agent._rtx_rendering_requested(agent.args_cli) is expected
 
 
-def test_rejected_ovxr_frame_does_not_render_on_the_control_thread(monkeypatch):
-    agent = _load_teleop_agent(monkeypatch)
-    env = SimpleNamespace(sim=SimpleNamespace(render=lambda: pytest.fail("rendered under OVXR")))
-    stops = []
-    assert not agent._apply_teleop_frame(
-        env, torch.zeros(1, 2), "missing left hand tracking", lambda: None, lambda: stops.append(True), render=False
+def test_rejected_ovxr_frame_does_not_render_on_the_control_thread(monkeypatch, run_live_workflow):
+    """OVXR owns rendering, so a rejected frame holds the scene without a control-thread render or step."""
+    from isaaclab_teleop.entrypoints import teleop_se3_agent as agent
+
+    advances = 0
+    renders = []
+    steps = []
+    requests = []
+    waits = []
+
+    def advance():
+        nonlocal advances
+        advances += 1
+        return torch.ones((1, 2))
+
+    def request(identity, *, force):
+        requests.append(force)
+        return 1
+
+    monkeypatch.setattr(agent, "time", SimpleNamespace(perf_counter=lambda: 0.0, sleep=waits.append))
+    env = SimpleNamespace(
+        num_envs=1,
+        step_dt=0.02,
+        reset=lambda: None,
+        step=steps.append,
+        sim=SimpleNamespace(
+            is_running=lambda: advances < 1,
+            get_physics_step_count=lambda: len(steps),
+            get_physics_dt=lambda: 0.005,
+            render=lambda: renders.append(True),
+        ),
     )
-    assert stops == [True]
+    run_live_workflow(
+        env,
+        SimpleNamespace(
+            advance=advance,
+            reset=lambda: None,
+            control_events=lambda: SimpleNamespace(is_active=True, should_reset=False),
+        ),
+        SimpleNamespace(shutdown_requested=False, request_render=request, wait_for_shutdown=waits.append),
+        validator=lambda _action: "rejected",
+    )
+    assert advances == 1
+    assert renders == [] and steps == []
+    assert requests == [True]  # Only the reset publication; the held scene is not republished.
+    assert waits == [0.02]  # A rejected frame waits one action period, like a paused one.
