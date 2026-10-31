@@ -48,6 +48,12 @@ class OVRTXBackendCfg(BackendCfg):
 def parse_active_cuda_gpus(value: str) -> tuple[int, ...]:
     """Parse an ``active_cuda_gpus`` selection such as ``"0"`` or ``"0,1"``.
 
+    Args:
+        value: Comma-separated CUDA device indices.
+
+    Returns:
+        The CUDA device indices in the given order.
+
     Raises:
         ValueError: If the value is not a comma-separated list of unique non-negative CUDA indices.
     """
@@ -61,6 +67,12 @@ def parse_active_cuda_gpus(value: str) -> tuple[int, ...]:
 
 def parse_cuda_device_index(value: str) -> int:
     """Return ``N`` for an explicit ``"cuda:N"`` device.
+
+    Args:
+        value: Device name, such as a ``geometry_publication_device`` value.
+
+    Returns:
+        The CUDA device index.
 
     Raises:
         ValueError: If the value is not an explicit ``"cuda:N"`` device.

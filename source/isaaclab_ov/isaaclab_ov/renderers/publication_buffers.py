@@ -9,7 +9,6 @@
 from __future__ import annotations
 
 import contextlib
-import re
 from collections import deque
 from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING, Generic, TypeVar
@@ -21,6 +20,7 @@ from ovrtx import DataAccess
 
 from isaaclab.scene_data import SceneDataFormat
 
+from isaaclab_ov.renderers.ovrtx_renderer_cfg import parse_cuda_device_index
 from isaaclab_ov.stage import points_tensor_from_warp, xform_tensor_from_warp
 
 if TYPE_CHECKING:
@@ -32,8 +32,7 @@ class _GeometryPublicationBuffers:
     """Own completed cross-device geometry and rigid-pose snapshots through Stage copy-in."""
 
     def __init__(self, device: str):
-        if re.fullmatch(r"cuda:(0|[1-9][0-9]*)", device) is None:
-            raise ValueError("geometry_publication_device must name an explicit CUDA device, e.g. 'cuda:0'")
+        parse_cuda_device_index(device)
         self._device = wp.get_device(device)
         self._torch_stream: torch.cuda.Stream | None = None
         self._stream: wp.Stream | None = None

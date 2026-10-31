@@ -233,7 +233,7 @@ def _pace_ovxr_control_loop(
 
 def _cuda_index_list(value: str) -> str:
     """Validate ``--ovrtx_active_cuda_gpus`` at parse time."""
-    from isaaclab_ov.renderers.ovrtx_renderer_cfg import parse_active_cuda_gpus
+    from isaaclab_ov.renderers import parse_active_cuda_gpus
 
     try:
         parse_active_cuda_gpus(value)
@@ -244,7 +244,7 @@ def _cuda_index_list(value: str) -> str:
 
 def _cuda_device(value: str) -> str:
     """Validate ``--geometry_publication_device`` at parse time."""
-    from isaaclab_ov.renderers.ovrtx_renderer_cfg import parse_cuda_device_index
+    from isaaclab_ov.renderers import parse_cuda_device_index
 
     try:
         parse_cuda_device_index(value)
@@ -260,8 +260,7 @@ def _ovxr_renderer_cfg(sim_device: str | None):
     or the simulation GPU when the renderer follows it. Otherwise the copies would land on a GPU
     that does not render.
     """
-    from isaaclab_ov.renderers import OVRTXRendererCfg
-    from isaaclab_ov.renderers.ovrtx_renderer_cfg import parse_active_cuda_gpus, parse_cuda_device_index
+    from isaaclab_ov.renderers import OVRTXRendererCfg, parse_active_cuda_gpus, parse_cuda_device_index
 
     publication = args_cli.geometry_publication_device
     if publication is not None:

@@ -87,7 +87,7 @@ from isaaclab_ov.renderers.ovrtx_annotator_utils import (
 )
 from isaaclab_ov.renderers.ovrtx_compat import OVRTX_USES_NAMED_SEGMENTATION_MAPS
 from isaaclab_ov.renderers.ovrtx_compat import OVRTX_VERSION as _OVRTX_VERSION
-from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg, OVRTXRendererCfg
+from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg, OVRTXRendererCfg, parse_active_cuda_gpus
 from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
     accumulate_mesh_normals,
     create_camera_transforms_kernel,
@@ -528,7 +528,7 @@ class OVRTXRenderer(BaseRenderer):
         if not self._warp_device.is_cuda:
             return None
         active = self.cfg.active_cuda_gpus
-        if active is not None and self._warp_device.ordinal not in {int(index) for index in active.split(",")}:
+        if active is not None and self._warp_device.ordinal not in parse_active_cuda_gpus(active):
             return None
         return self._warp_device.ordinal
 
