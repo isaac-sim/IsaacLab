@@ -215,11 +215,16 @@ uv run --extra ovxr python -m isaaclab_teleop.check_cuda_peer --devices cuda:0 c
 Run this with the same `CUDA_VISIBLE_DEVICES` selection as the application. It
 prints each device's UUID and PCI identity and checks two patterns in each direction
 through the renderer's own `--geometry_publication_device` copy: default (pooled) allocators,
-no explicit peer enable, and a transfer stream ordered after the producer stream, so the
-CUDA driver chooses the route exactly as in the application. Where direct peer access is
-supported it also checks peer-mapped copies between plain allocations. It exits nonzero on
-a detected transfer error or a value mismatch. A PASS covers those copies on this host; this
-small transfer check does not qualify rendering, physics or performance.
+a reused target overwritten with a sentinel before each copy, and a transfer stream ordered
+after the producer stream. Nothing in the check's process has enabled peer access at that
+point, so the CUDA driver chooses that copy's route without it. Where direct peer access is
+supported, the check then enables it and checks copies between plain, zero-initialized
+allocations. It exits nonzero on a detected transfer error or a value mismatch.
+
+A PASS covers only those copies on this host. The application can differ: other components
+in its process may enable peer access between the same GPUs, which can change the route the
+driver takes for the publication copy, and producers supply their own source allocations.
+This small transfer check does not qualify rendering, physics or performance.
 Peer-capability flags and CUDA
 completion alone do not establish data integrity. NVIDIA documents a
 [bare-metal Linux IOMMU limitation for PCIe peer copies](https://docs.nvidia.com/cuda/cuda-programming-guide/03-advanced/multi-gpu-systems.html#host-iommu-hardware-pci-access-control-services-and-vms).
@@ -228,9 +233,9 @@ globally. Validate the selected configuration before use. Host preparation belon
 with idle GPUs; application startup must not detach drivers or change IOMMU or
 host services. Keep physics, rendering and compositor on one physical GPU when
 the check fails. Isaac Lab adds no CPU staging of its own; without direct peer access the
-CUDA driver may stage copies itself, which the check above exercises.
+CUDA driver may stage copies itself, which the check's publication-path copies exercise.
 
 Only rigid transforms and geometry points use the completed-copy publication path. Camera
 poses, markers and runtime meshes, and visual materials are small per-publication writes that
-OVStage still reads from the physics GPU; they use the same driver-selected route that the
-check above validates, without the completed-copy guarantee.
+OVStage still reads from the physics GPU. OVStage chooses how it reads them; the check above
+does not cover that route, and these writes have no completed-copy guarantee.

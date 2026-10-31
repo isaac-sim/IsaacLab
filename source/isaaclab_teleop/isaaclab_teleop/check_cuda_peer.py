@@ -57,11 +57,14 @@ def main() -> int:
         # enable, a nonblocking target stream ordered after the producer's stream.
         for source, target in (devices, devices[::-1]):
             buffers = _GeometryPublicationBuffers(str(target))
+            sentinel = wp.full(_VALUE_COUNT, np.nan, dtype=wp.float32, device=target)
             try:
                 for sign in (1, -1):
                     expected = np.arange(1, _VALUE_COUNT + 1, dtype=np.float32) * sign
                     source_values = wp.array(expected, device=source)
                     wp.synchronize_device(source)
+                    # Overwrite the reused target first; a skipped copy must not pass on recycled values.
+                    buffers.copy_completed("check", sentinel)
                     copied = buffers.copy_completed("check", source_values)
                     wrong = int(np.count_nonzero(copied.numpy() != expected))
                     passed = passed and wrong == 0

@@ -143,7 +143,7 @@ class _GeometryPublicationBuffers:
 
         Args:
             key: Reusable target-storage key.
-            source: CUDA array on another device.
+            source: CUDA array, normally on another device.
 
         Returns:
             The completed copy on the publication device.
