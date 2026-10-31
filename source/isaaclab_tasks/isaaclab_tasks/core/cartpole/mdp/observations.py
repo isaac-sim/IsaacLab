@@ -47,4 +47,8 @@ class CameraImageStack(ManagerTermBase):
         images = camera.data.output[data_type].torch
         if data_type == "albedo":
             images = images[..., :3]
-        return self._frames(images, functools.partial(normalize_camera_image, data_type=data_type))
+        return self._frames(
+            images,
+            functools.partial(normalize_camera_image, data_type=data_type),
+            preview=env.is_observation_preview,
+        )

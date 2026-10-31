@@ -220,7 +220,7 @@ class ShadowHandCameraFeatures(ManagerTermBase):
             data_type: value if isinstance(value, torch.Tensor) else value.torch
             for data_type, value in camera.data.output.items()
         }
-        pose_loss, embeddings = self._feature_extractor.step(camera_output, target)
+        pose_loss, embeddings = self._feature_extractor.step(camera_output, target, preview=env.is_observation_preview)
         embeddings = embeddings.clone().detach()
         env._shadow_hand_camera_embeddings = embeddings
         if pose_loss is not None:

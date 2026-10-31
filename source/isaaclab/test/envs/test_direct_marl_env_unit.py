@@ -35,6 +35,23 @@ class _StubMARLEnv(DirectMARLEnv):
         self.sim = SimpleNamespace(device=cfg.sim.device)
 
 
+def test_step_clears_agent_final_observations_without_touching_metadata(monkeypatch):
+    """Wrapper timeout tensors and dictionary metadata survive terminal-observation cleanup."""
+    env = _StubMARLEnv(make_empty_direct_marl_env_cfg(device="cpu"))
+    env.extras = {agent: {"final_obs": torch.ones(1)} for agent in env.cfg.possible_agents}
+    metadata = {"final_obs": "keep"}
+    env.extras.update(time_outs=torch.zeros(1, dtype=torch.bool), log=metadata)
+
+    def stop_before_physics(actions):
+        raise RuntimeError("physics boundary reached")
+
+    monkeypatch.setattr(env, "_pre_physics_step", stop_before_physics)
+    with pytest.raises(RuntimeError, match="physics boundary reached"):
+        env.step({agent: torch.zeros(1) for agent in env.cfg.possible_agents})
+    assert all("final_obs" not in env.extras[agent] for agent in env.cfg.possible_agents)
+    assert env.extras["log"] == {"final_obs": "keep"}
+
+
 def test_agent_and_space_configuration():
     """Agent counts and spaces are configured without initializing the simulator."""
     env = _StubMARLEnv(make_empty_direct_marl_env_cfg(device="cpu"))

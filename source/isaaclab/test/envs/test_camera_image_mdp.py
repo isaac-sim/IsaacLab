@@ -20,6 +20,7 @@ import warp as wp
 
 pytestmark = pytest.mark.unit
 
+from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
 from isaaclab.envs.mdp.observations import (
     CameraImageBase,
     image_depth,
@@ -39,6 +40,11 @@ CHANNELS = 3
 SENSOR_CFG = SceneEntityCfg("tiled_camera")
 
 
+class _CameraEnv(SimpleNamespace):
+    _is_observation_preview = False
+    is_observation_preview = ManagerBasedEnv.is_observation_preview
+
+
 def _make_env(outputs: dict[str, torch.Tensor], device: str = "cpu") -> SimpleNamespace:
     """Mock env exposing ``env.scene.sensors["tiled_camera"].data.output`` over ``outputs``."""
     camera = SimpleNamespace(
@@ -46,7 +52,7 @@ def _make_env(outputs: dict[str, torch.Tensor], device: str = "cpu") -> SimpleNa
     )
     sensors = {"tiled_camera": camera}
     scene = SimpleNamespace(sensors=sensors, keys=sensors.keys)
-    return SimpleNamespace(num_envs=NUM_ENVS, device=device, scene=scene)
+    return _CameraEnv(num_envs=NUM_ENVS, device=device, scene=scene)
 
 
 def _make_term(term_cls, env: SimpleNamespace, **params):
@@ -258,3 +264,44 @@ def test_rgb_manager_destination(frame_stack, channel_first, normalize, dtype):
     manager.reset()
     manager.compute()
     torch.testing.assert_close(result, expected, atol=1e-5, rtol=1e-5)
+
+
+@pytest.mark.parametrize(
+    ("channel_first", "dtype", "normalize"),
+    [(False, torch.uint8, False), (True, torch.uint8, True), (False, torch.float32, True)],
+)
+def test_camera_terminal_preview_preserves_survivor_history(channel_first, dtype, normalize):
+    """Terminal capture must not append an extra frame to surviving camera histories."""
+    camera = _random_rgb().to(dtype)
+    env = _make_env({"rgb": camera})
+    env.sim = SimpleNamespace(is_playing=lambda: True)
+    cfg = ObservationGroupCfg()
+    cfg.image = ObservationTermCfg(
+        func=image_rgb,
+        params={"frame_stack": 2, "channel_first": channel_first, "normalize": normalize},
+    )
+    manager = ObservationManager({"policy": cfg}, env)
+    manager.reset()
+    manager.compute(update_history=True)
+    camera.copy_(_random_rgb())
+    previous = camera.clone()
+    manager.compute(update_history=True)
+    camera.copy_(_random_rgb())
+    successor = camera.clone()
+    env.observation_manager = manager
+    env.extras = {}
+    ManagerBasedRLEnv._capture_final_obs(env)
+    terminal = env.extras["final_obs"]["policy"]
+    manager.reset(torch.tensor([0]))
+    camera[0].zero_()
+    live = manager.compute(update_history=True)["policy"]
+
+    expected = torch.cat([_rgb_reference(frame) if normalize else frame for frame in (previous, successor)], dim=-1)
+    if channel_first:
+        expected = expected.permute(0, 3, 1, 2)
+    torch.testing.assert_close(terminal, expected, atol=1e-5, rtol=1e-5)
+    torch.testing.assert_close(live[1:], expected[1:], atol=1e-5, rtol=1e-5)
+    assert not live[0].any()
+    camera.zero_()
+    manager.compute(update_history=True)
+    torch.testing.assert_close(terminal, expected, atol=1e-5, rtol=1e-5)

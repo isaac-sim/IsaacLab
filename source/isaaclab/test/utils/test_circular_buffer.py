@@ -305,3 +305,27 @@ def test_stack_dim_stacked_raises_when_default_mode():
     buf.append(torch.zeros(4, 3))
     with pytest.raises(RuntimeError, match="stack_dim"):
         _ = buf.stacked
+
+
+@pytest.mark.parametrize("stack_dim", [None, 1, -1])
+def test_peek_append_preserves_history_and_partial_resets(stack_dim):
+    """Preview follows append's fill and layout rules without committing a sample."""
+    buffer = CircularBuffer(3, 2, "cpu", stack_dim=stack_dim)
+    first = torch.full((2, 2, 4), 10.0)
+    preview = buffer.peek_append(first)
+    torch.testing.assert_close(preview, first.unsqueeze(1).expand(-1, 3, -1, -1))
+    assert buffer.current_length.tolist() == [0, 0]
+    buffer.append(first)
+    buffer.append(first + 10)
+    buffer.reset([1])
+    before = buffer.buffer.clone()
+    preview = buffer.peek_append((first + 20).double())
+    expected = torch.stack((first, first + 10, first + 20), dim=1)
+    expected[1].fill_(30)
+    torch.testing.assert_close(preview, expected)
+    torch.testing.assert_close(buffer.buffer, before)
+    assert buffer.current_length.tolist() == [2, 0]
+    buffer.append(first + 20)
+    torch.testing.assert_close(buffer.buffer, expected)
+    buffer.append(first + 30)
+    torch.testing.assert_close(preview, expected)

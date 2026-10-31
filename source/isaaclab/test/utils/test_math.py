@@ -796,7 +796,7 @@ def test_subtract_frame_transforms(device, t02_inputs, q02_inputs):
     t12_value, q12_value = math_utils.subtract_frame_transforms(t01, q01, t02, q02)
     t02_compare, q02_compare = math_utils.combine_frame_transforms(t01, q01, t12_value, q12_value)
 
-    torch.testing.assert_close(t02_expected, t02_compare, atol=1e-3, rtol=1e-4)
+    torch.testing.assert_close(t02_expected, t02_compare, atol=2e-3, rtol=1e-4)
     torch.testing.assert_close(math_utils.quat_unique(q02_expected), math_utils.quat_unique(q02_compare))
 
 

@@ -45,19 +45,19 @@ class ManagerBasedRLEnvCfg(ManagerBasedEnvCfg):
     """
 
     compute_final_obs: bool = False
-    """Whether to capture the terminal observation before a Same-Step autoreset and expose it.
+    """Whether to preview terminal observations before Same-Step autoreset. Defaults to False.
 
-    Under Same-Step autoreset (see :attr:`~isaaclab.envs.ManagerBasedRLEnv.metadata`), an environment
-    that terminates is reset within the same :meth:`~isaaclab.envs.ManagerBasedRLEnv.step` call, so the
-    returned observation belongs to the *new* episode. When this flag is True, the observation is
-    computed once more *before* the reset and stored under ``extras["final_obs"]``, so wrappers can
-    report it as the true terminal observation for value bootstrapping.
+    When any environment terminates, times out or is manually reset, capture every observation
+    group once before reset, command updates and interval events in ``extras["final_obs"]``.
+    The tensors live on ``env.device`` and own their storage. Only rows for environments that
+    reset are valid for bootstrapping; they use the command from before this step's command update.
+    The key is absent on steps without resets.
 
-    Defaults to False, which preserves the previous behavior: no terminal observation is captured,
-    ``extras["final_obs"]`` is not populated, and the extra observation computation is skipped.
-
-    Note:
-        Currently consumed by the :class:`~isaaclab_rl.sb3.Sb3VecEnvWrapper` wrapper.
+    Preview reads include the current sample in delay and observation history without committing
+    it. Custom stateful observation terms should check ``env.is_observation_preview``; stateful
+    tensor processors should override their ``preview`` method. Observation noise is evaluated as
+    in ordinary observations. Extra reads from active recorder terms remain outside this guarantee.
+    Warp environments do not support terminal capture and warn when this flag is enabled.
     """
 
     episode_length_s: float = MISSING
