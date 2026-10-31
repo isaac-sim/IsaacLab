@@ -522,8 +522,9 @@ class OVRTXRenderer(BaseRenderer):
 
         Products request the simulation GPU so render vars map there. When an explicit
         ``active_cuda_gpus`` excludes that GPU, OVRTX would skip the request on every frame and
-        assign a device automatically; request automatic assignment directly. Mapped outputs are
-        still returned on the simulation device for readback.
+        assign a device automatically; request automatic assignment directly. Render vars then map
+        on a rendering GPU, and output extraction on the simulation GPU reads them through CUDA
+        peer access.
         """
         if not self._warp_device.is_cuda:
             return None

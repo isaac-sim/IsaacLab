@@ -6,13 +6,17 @@
 """OVRTX adapter for the shared rigid-object rendering contract."""
 
 import importlib.util
+import os
+import subprocess
 import sys
 from contextlib import contextmanager
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
 from isaaclab.sim import SimulationCfg, build_simulation_context
+from isaaclab.test.utils import DeviceScope, test_devices
 
 _CONTRACT_DIR = Path(__file__).resolve().parents[2] / "isaaclab" / "test" / "renderers"
 if str(_CONTRACT_DIR) not in sys.path:
@@ -245,29 +249,67 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
             scene["other_camera"]._invalidate_initialize_callback(None)
 
 
-@pytest.mark.skipif(
-    importlib.util.find_spec("torch") is None or __import__("torch").cuda.device_count() < 2,
-    reason="requires two CUDA devices",
-)
-@pytest.mark.parametrize("active_cuda_gpus", ["1", "0,1"])
-def test_camera_readback_with_rendering_gpus_excluding_or_including_the_simulation_gpu(
-    monkeypatch: pytest.MonkeyPatch, active_cuda_gpus: str
-) -> None:
-    """Ordinary camera outputs stay correct on the simulation GPU when OVRTX renders on other GPUs."""
-    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1")
-    monkeypatch.delenv("ISAAC_LAB_SHARE_OVSTAGE", raising=False)
-    sim_cfg = SimulationCfg(device="cuda:0", gravity=(0.0, 0.0, 0.0), physics=OvPhysxCfg())
+def _run_readback_contract(sim_device: str, active_cuda_gpus: str) -> None:
+    """Render the rigid-object contract on ``sim_device`` with OVRTX limited to ``active_cuda_gpus``."""
+    from isaaclab_ov.renderers import parse_active_cuda_gpus
+    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer
+
+    sim_cfg = SimulationCfg(device=sim_device, gravity=(0.0, 0.0, 0.0), physics=OvPhysxCfg())
+    rendered_on = set()
+    extract = OVRTXRenderer._launch_extract_all_tiles
+
+    def record_rendering_gpu(renderer, render_data, tiled_buffer, output_buffer):
+        rendered_on.add(tiled_buffer.device.ordinal)
+        extract(renderer, render_data, tiled_buffer, output_buffer)
 
     @contextmanager
     def simulation():
         with build_simulation_context(sim_cfg=sim_cfg) as sim:
             yield sim
 
-    run_rigid_object_scale_and_pose_rendering_contract(
-        RigidObjectRenderingBackend(
-            name=f"OVRTX active_cuda_gpus={active_cuda_gpus}",
-            simulation_context_factory=simulation,
-            renderer_cfg=OVRTXRendererCfg(active_cuda_gpus=active_cuda_gpus),
-            with_articulation=False,
+    with patch.object(OVRTXRenderer, "_launch_extract_all_tiles", record_rendering_gpu):
+        run_rigid_object_scale_and_pose_rendering_contract(
+            RigidObjectRenderingBackend(
+                name=f"OVRTX sim={sim_device} active_cuda_gpus={active_cuda_gpus}",
+                simulation_context_factory=simulation,
+                renderer_cfg=OVRTXRendererCfg(active_cuda_gpus=active_cuda_gpus),
+                with_articulation=False,
+            )
         )
+    # Outputs must come from the selected GPUs, not merely arrive on the simulation GPU.
+    assert rendered_on and rendered_on <= set(parse_active_cuda_gpus(active_cuda_gpus)), rendered_on
+
+
+@pytest.mark.parametrize(
+    ("simulation", "rendering"),
+    [("first", ("second",)), ("first", ("first", "second")), ("second", ("first",))],
+    ids=["sim-first-render-second", "sim-first-render-both", "sim-second-render-first"],
+)
+def test_camera_readback_with_rendering_gpus_excluding_or_including_the_simulation_gpu(
+    simulation: str, rendering: tuple[str, ...]
+) -> None:
+    """Ordinary camera outputs come from the selected rendering GPUs and stay correct on the simulation GPU.
+
+    The first OVRTX renderer fixes the rendering GPUs for its process, so each selection runs in a fresh one.
+    """
+    devices = test_devices(DeviceScope.CUDA)
+    if len(devices) < 2:
+        pytest.skip("requires two selected CUDA devices")
+    pair = {"first": devices[0], "second": devices[-1]}
+    active_cuda_gpus = ",".join(pair[name].removeprefix("cuda:") for name in rendering)
+    env = {**os.environ, "ISAAC_LAB_OVRTX_USE_OVSTAGE": "1"}
+    env.pop("ISAAC_LAB_SHARE_OVSTAGE", None)
+    # A cold shader cache can take several minutes to fill.
+    completed = subprocess.run(
+        [sys.executable, __file__, pair[simulation], active_cuda_gpus],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=900,
+        check=False,
     )
+    assert completed.returncode == 0, completed.stdout[-4000:] + completed.stderr[-8000:]
+
+
+if __name__ == "__main__":
+    _run_readback_contract(*sys.argv[1:])
