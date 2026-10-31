@@ -130,3 +130,16 @@ def test_xr_camera_reference_renderer_resolves_for_supported_backends():
     assert default == expected_rtx
     assert isaacsim_rtx == expected_rtx
     assert isinstance(ovrtx, OVRTXRendererCfg)
+
+
+def test_fixed_base_g1_direct_construction_prepares_the_state_policy_default():
+    """Registered construction without task resolution uses the state-only policy preset default."""
+    from isaaclab.managers import ObservationGroupCfg
+
+    from isaaclab_tasks.contrib.teleop_physics_cfg import prepare_humanoid_teleop_environment
+
+    cfg = FixedBaseUpperBodyIKG1EnvCfg()
+    prepare_humanoid_teleop_environment(cfg)
+    assert isinstance(cfg.observations.policy, ObservationGroupCfg)
+    assert not hasattr(cfg.observations.policy, "robot_pov_cam")
+    assert hasattr(cfg.observations.policy, "robot_joint_pos")
