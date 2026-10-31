@@ -76,14 +76,8 @@ from isaaclab.sensors.camera.camera_data import CameraData
 from isaaclab.sim import PreviewSurfaceCfg, SimulationContext, use_stage
 from isaaclab.utils.warp import ProxyArray
 
-from ..cloner import ovrtx_replicate
-from ..stage import (
-    export_stage_to_string,
-    points_tensor_from_warp,
-    xform_tensor_from_numpy,
-    xform_tensor_from_warp,
-)
-from .ovrtx_annotator_utils import (
+from isaaclab_ov.cloner import ovrtx_replicate
+from isaaclab_ov.renderers.ovrtx_annotator_utils import (
     IdentifierMap,
     build_instance_id_to_labels_and_semantics,
     build_semantic_id_to_labels,
@@ -91,10 +85,10 @@ from .ovrtx_annotator_utils import (
     decode_stable_id_map,
     decode_stable_id_semantic_id_map,
 )
-from .ovrtx_compat import OVRTX_USES_NAMED_SEGMENTATION_MAPS
-from .ovrtx_compat import OVRTX_VERSION as _OVRTX_VERSION
-from .ovrtx_renderer_cfg import OVRTXBackendCfg, OVRTXRendererCfg
-from .ovrtx_renderer_kernels import (
+from isaaclab_ov.renderers.ovrtx_compat import OVRTX_USES_NAMED_SEGMENTATION_MAPS
+from isaaclab_ov.renderers.ovrtx_compat import OVRTX_VERSION as _OVRTX_VERSION
+from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg, OVRTXRendererCfg
+from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
     accumulate_mesh_normals,
     create_camera_transforms_kernel,
     create_marker_transforms_kernel,
@@ -102,15 +96,21 @@ from .ovrtx_renderer_kernels import (
     generate_random_colors_from_ids_kernel,
     normalize_mesh_normals,
 )
-from .ovrtx_shader_cache import redirect_shader_cache
-from .ovrtx_usd import (
+from isaaclab_ov.renderers.ovrtx_shader_cache import redirect_shader_cache
+from isaaclab_ov.renderers.ovrtx_usd import (
     _RTX_MINIMAL_MODES,
     build_render_product_as_string,
     render_var_prim_names_by_source,
 )
-from .publication_buffers import _AsyncWriteBuffers, _GeometryPublicationBuffers
-from .render_lease import OvLibrariesRenderLease, RenderLeaseController
-from .visual_materials import OVRTXVisualMaterialWriter
+from isaaclab_ov.renderers.publication_buffers import _AsyncWriteBuffers, _GeometryPublicationBuffers
+from isaaclab_ov.renderers.render_lease import OvLibrariesRenderLease, RenderLeaseController
+from isaaclab_ov.renderers.visual_materials import OVRTXVisualMaterialWriter
+from isaaclab_ov.stage import (
+    export_stage_to_string,
+    points_tensor_from_warp,
+    xform_tensor_from_numpy,
+    xform_tensor_from_warp,
+)
 
 if TYPE_CHECKING:
     from isaaclab_ppisp import PpispPipeline
@@ -118,7 +118,7 @@ if TYPE_CHECKING:
 
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
 
-    from ..stage import OvstageBackend
+    from isaaclab_ov.stage import OvstageBackend
 
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 

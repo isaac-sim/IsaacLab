@@ -302,10 +302,11 @@ logger = logging.getLogger(__name__)
 args_cli: argparse.Namespace
 """Parsed command line, set by :func:`_parse_args`."""
 hydra_overrides: list[str]
+"""Unrecognized arguments, forwarded as Hydra task config overrides."""
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    """Build workflow and simulation launcher arguments."""
+    """Build the command-line parser, including the simulation launcher arguments."""
     parser = argparse.ArgumentParser(
         description=(
             "Replay a captured Isaac Capture MCAP session against an Isaac Lab environment. "
@@ -1032,7 +1033,8 @@ def _maybe_launch_cloudxr(cloudxr_env_path: str | None, auto_launch: bool):
     Mirrors the gating in :meth:`TeleopSessionLifecycle._ensure_cloudxr_runtime`
     (``--cloudxr_env`` set, ``--auto_launch_cloudxr`` enabled,
     ``ISAACLAB_CXR_SKIP_AUTOLAUNCH=1`` env var not set) so behavior parity
-    is preserved.
+    is preserved, including ``ISAACLAB_CXR_ACCEPT_EULA=1`` for the CloudXR
+    license, which is read through the same shared helper.
 
     Args:
         cloudxr_env_path: Resolved CloudXR ``.env`` file path, or ``None``
@@ -1207,7 +1209,7 @@ def _process_success_condition(
 ) -> tuple[int, bool]:
     """Track consecutive success steps and decide whether to reset.
 
-    Mirrors :func:`scripts.tools.record_demos.process_success_condition`
+    Mirrors :func:`isaaclab_teleop.entrypoints.record_demos.process_success_condition`
     minus the recorder-export side effects, which this script does not own.
 
     Returns:
