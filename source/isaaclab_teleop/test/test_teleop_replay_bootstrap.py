@@ -64,17 +64,30 @@ def test_replay_presentation_preserves_camera_layout(monkeypatch, replay_present
     original_layout = config.isaac_teleop.xr_camera_feed_layout
     original_layout_fields = original_layout.to_dict() if original_layout is not None else None
     original_feeds = [feed.to_dict() for feed in config.isaac_teleop.xr_camera_feeds]
+    from isaaclab_ov.renderers import OVRTXRendererCfg
+    from isaaclab_teleop.camera_feed import select_ovxr_camera_feeds
+
     monkeypatch.setitem(
         replay_presentation_type.__init__.__globals__,
         "args_cli",
         SimpleNamespace(
             ovxr_pip_camera=names,
+            ovxr_pip_head_locked=True,
+            ovxr_pip_fps=30.0,
+            ovxr_pip_view_position=None,
             task="Test",
             ovxr_session_mode="ar",
             cloudxr_env="none",
             auto_launch_cloudxr=False,
             ovxr_desktop_mirror=False,
+            ovxr_desktop_mirror_fps=30.0,
         ),
+    )
+    # Environment preparation records the validated selection that the presentation reuses.
+    monkeypatch.setitem(
+        replay_presentation_type.__init__.__globals__,
+        "ovxr_pip_selection",
+        select_ovxr_camera_feeds(config, names, OVRTXRendererCfg()),
     )
     prepare = Mock()
     monkeypatch.setattr(isaaclab_teleop.OvLibrariesXrSession, "prepare", prepare)
@@ -404,3 +417,54 @@ def test_replay_control_timing_uses_recorded_events_or_explicit_legacy_start(mon
     assert conditioning_frames == ([0, 1, 2, 3, 4, 0, 1, 2] if start_on_replay else [0, 1, 0, 1])
     assert stats.active_iterations == len(applied)
     assert stats.outcome == "incomplete"
+
+
+@pytest.mark.parametrize(
+    ("arguments", "message"),
+    [
+        (["--ovxr_pip_head_locked"], "OVXR presentation options require --ovxr"),
+        (["--ovxr", "--ovxr_pip_fps", "0"], "--ovxr_pip_fps must be finite and positive"),
+        (
+            [
+                "--ovxr",
+                "--ovxr_pip_camera",
+                "a",
+                "b",
+                "--ovxr_pip_head_locked",
+                "--ovxr_pip_view_position",
+                "0",
+                "0",
+                "-1",
+            ],
+            "A PiP position override requires one camera",
+        ),
+    ],
+)
+def test_replay_and_live_share_ovxr_presentation_validation(monkeypatch, capsys, arguments, message):
+    """Replay accepts the live OVXR presentation options and rejects the same invalid selections."""
+    from isaaclab_teleop.entrypoints import teleop_replay_agent, teleop_se3_agent
+
+    for module, required in (
+        (teleop_replay_agent, ["--task", "Test", "--replay_file", "recording.mcap"]),
+        (teleop_se3_agent, ["--task", "Test"]),
+    ):
+        monkeypatch.setattr(sys, "argv", ["agent.py", *required, *arguments])
+        monkeypatch.setattr(module, "args_cli", None, raising=False)
+        with pytest.raises(SystemExit):
+            module._parse_args()
+        assert message in capsys.readouterr().err
+
+
+def test_replay_accepts_live_ovxr_rate_and_position_options(monkeypatch):
+    from isaaclab_teleop.entrypoints import teleop_replay_agent
+
+    arguments = ["--task", "Test", "--replay_file", "recording.mcap", "--ovxr", "--ovxr_pip_camera", "head"]
+    arguments += ["--ovxr_pip_head_locked", "--ovxr_pip_view_position", "0", "-0.1", "-0.8"]
+    arguments += ["--ovxr_pip_fps", "15", "--ovxr_desktop_mirror_fps", "20", "--headless"]
+    monkeypatch.setattr(sys, "argv", ["teleop_replay_agent.py", *arguments])
+    monkeypatch.setattr(teleop_replay_agent, "args_cli", None, raising=False)
+    args = teleop_replay_agent._parse_args()
+    assert args.ovxr_pip_fps == 15.0
+    assert args.ovxr_desktop_mirror_fps == 20.0
+    assert args.ovxr_pip_view_position == [0.0, -0.1, -0.8]
+    assert args.ovxr_desktop_mirror is False

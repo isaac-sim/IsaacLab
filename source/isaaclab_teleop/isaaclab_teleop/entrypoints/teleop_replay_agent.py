@@ -14,9 +14,11 @@ teleop script remains ``teleop_se3_agent.py``.
 
 OVXR viewer:
     ``--ovxr`` presents replay through an independently owned OVXR session while
-    tracker and control input remain sourced from MCAP. Optional camera quads
-    use ``--ovxr_pip_camera NAME --ovxr_pip_head_locked``. The desktop mirror is enabled
-    by default; ``--headless`` disables it. See ``source/isaaclab_teleop/docs/kitless_xr.md``
+    tracker and control input remain sourced from MCAP. Optional camera quads use
+    ``--ovxr_pip_camera NAME`` with the same rate, placement and position options as live
+    teleoperation (``--ovxr_pip_head_locked`` overrides a task layout that is not head-locked).
+    The desktop mirror is enabled by default; ``--headless`` disables it. See
+    ``source/isaaclab_teleop/docs/kitless_xr.md``
     for installation and launch instructions.
 
 Inputs:
@@ -296,13 +298,20 @@ from .. import (
     poll_control_events,
 )
 from ..action_policy import initial_hand_tracking_issue, prepare_teleop_action
-from ._ovxr_launch import require_kitless_physics
+from ._ovxr_launch import (
+    add_ovxr_presentation_args,
+    ovxr_camera_layout,
+    require_kitless_physics,
+    validate_ovxr_presentation_args,
+)
 
 logger = logging.getLogger(__name__)
 
 args_cli: argparse.Namespace
 """Parsed command line, set by :func:`_parse_args`."""
 hydra_overrides: list[str]
+ovxr_pip_selection: list = []
+"""OVXR PiP cameras selected while preparing the environment configuration."""
 """Unrecognized arguments, forwarded as Hydra task config overrides."""
 
 
@@ -319,14 +328,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--ovxr", action="store_true", help="Present recorded motion through kitless OVXR; input stays MCAP."
     )
-    parser.add_argument("--ovxr_pip_camera", nargs="+", default=None, help="Task camera names to show as OVXR panels.")
-    parser.add_argument("--ovxr_pip_head_locked", action="store_true", help="Use the supported head-locked PiP layout.")
-    parser.add_argument(
-        "--ovxr_desktop_mirror",
-        action="store_true",
-        help="Show the OVXR desktop mirror (enabled by default; --headless disables it).",
-    )
-    parser.add_argument("--headless", action="store_true", help="Disable the OVXR desktop mirror.")
+    add_ovxr_presentation_args(parser)
     parser.add_argument("--ovxr_session_mode", choices=("ar", "vr"), default="ar")
     parser.add_argument(
         "--replay_file",
@@ -454,8 +456,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = _build_parser()
 
     args_cli, hydra_overrides = setup_preset_cli(parser)
-    if args_cli.ovxr:
-        args_cli.ovxr_desktop_mirror = not args_cli.headless
+    validate_ovxr_presentation_args(parser, args_cli, using_ovxr=args_cli.ovxr)
     sys.argv = [sys.argv[0]] + hydra_overrides
 
     # Enable external camera rendering by default so the replay mimics the production teleop env (perf
@@ -1131,8 +1132,9 @@ def _prepare_env_cfg(
         )
     if hasattr(env_cfg.terminations, "time_out"):
         env_cfg.terminations.time_out = None
-    # Keep camera configs when external cameras are enabled (defaulted on) so the replay
-    # renders them for production parity; otherwise strip them for a lighter headless replay.
+    # OVXR renders only through its leased renderer: keep just the selected PiP cameras.
+    # Otherwise keep camera configs when external cameras are enabled (defaulted on) so the
+    # replay renders them for production parity, or strip them for a lighter headless replay.
     if args_cli.ovxr:
         if args_cli.num_envs != 1 or args_cli.xr:
             raise ValueError("--ovxr requires one environment and no Kit XR or local visualizer")
@@ -1142,16 +1144,12 @@ def _prepare_env_cfg(
 
         from ..camera_feed import select_ovxr_camera_feeds
 
+        global ovxr_pip_selection
         names = args_cli.ovxr_pip_camera or []
-        if names and args_cli.disable_external_cameras:
-            raise ValueError("OVXR PiP conflicts with --disable_external_cameras")
-        if names and not args_cli.ovxr_pip_head_locked:
-            raise ValueError("OVXR replay PiP requires --ovxr_pip_head_locked")
-        select_ovxr_camera_feeds(env_cfg, names, OVRTXRendererCfg())
+        # The presentation reuses this validated selection and its shared renderer configuration.
+        ovxr_pip_selection = select_ovxr_camera_feeds(env_cfg, names, OVRTXRendererCfg())
         env_cfg = remove_camera_configs(env_cfg, keep=tuple(names))
         require_kitless_physics(env_cfg)
-    elif args_cli.ovxr_pip_camera or args_cli.ovxr_desktop_mirror or args_cli.ovxr_pip_head_locked:
-        raise ValueError("OVXR presentation options require --ovxr")
     elif args_cli.disable_external_cameras:
         env_cfg = remove_camera_configs(env_cfg)
     # A task without a physics selection keeps None: SimulationContext defaults it to PhysxCfg.
@@ -1243,22 +1241,13 @@ class _ReplayPresentation:
 
         from .. import OvLibrariesXrConfig, OvLibrariesXrSession
         from ..camera_feed import resolve_ovxr_camera_configs
-        from ..isaac_teleop_cfg import XrCameraFeedLayoutCfg
 
-        selected = [
-            (
-                name,
-                getattr(env_cfg.scene, name),
-                next(
-                    feed for feed in env_cfg.isaac_teleop.xr_camera_feeds if feed.enabled and feed.camera_name == name
-                ),
-            )
-            for name in args_cli.ovxr_pip_camera or []
-        ]
-        layout = (env_cfg.isaac_teleop.xr_camera_feed_layout or XrCameraFeedLayoutCfg()).replace(
-            placement="head_locked"
+        cameras = resolve_ovxr_camera_configs(
+            ovxr_pip_selection,
+            ovxr_camera_layout(env_cfg, args_cli.ovxr_pip_head_locked),
+            max_fps=args_cli.ovxr_pip_fps,
+            position_override=args_cli.ovxr_pip_view_position,
         )
-        cameras = resolve_ovxr_camera_configs(selected, layout, max_fps=30.0)
         self.session = OvLibrariesXrSession.prepare(
             env_cfg.sim,
             OvLibrariesXrConfig(
@@ -1267,6 +1256,7 @@ class _ReplayPresentation:
                 cloudxr_env_file=args_cli.cloudxr_env,
                 auto_launch_cloudxr=args_cli.auto_launch_cloudxr,
                 desktop_mirror_enabled=args_cli.ovxr_desktop_mirror,
+                desktop_mirror_max_fps=args_cli.ovxr_desktop_mirror_fps,
                 auxiliary_cameras=cameras,
             ),
             cameras[0].camera_cfg.renderer_cfg if cameras else OVRTXRendererCfg(),

@@ -166,7 +166,7 @@ rendering without blocking.
 | `require_initial_bimanual_hand_tracking` | `bool` | `False` | Wait for initial hand presence before stepping |
 | `action_conditioner` | `Callable \| None` | `None` | Task-owned stateful pre-step action conditioning |
 | `action_validator` | `Callable \| None` | `None` | Task-owned fail-closed action validation |
-| `app_name` | `str` | `"IsaacLabTeleop"` | Application name for the IsaacTeleop session |
+| `app_name` | `str` | `"IsaacLabTeleop"` | Application name for the Isaac Capture session |
 
 The 25 ms `DeadlinePacingConfig` safety margin staggers Isaac Capture's Python work behind Isaac Lab's
 step Python, giving native work such as rendering time to overlap instead of having both Python stacks
@@ -224,7 +224,7 @@ startup and client connection. For OVXR, use the separate
 
 - **`isaaclab`** -- core Isaac Lab framework
 - **`isaaclab_ov`** -- required by the optional OVXR session adapter; the standalone `isaaclab_teleop` package does not install this backend automatically
-- **`isaacteleop`** -- IsaacTeleop retargeting engine, device I/O, and session management
+- **`isaacteleop`** -- Isaac Capture retargeting engine, device I/O, and session management
 - **`isaacsim`** -- required for the Kit XR bridge, not for the OVXR session path
 - **OVXR / OVRTX / OVStage** -- matched native runtime and stock peers for OVXR
 - **OVUI** -- optional desktop-mirror extra; headset-only operation does not import it

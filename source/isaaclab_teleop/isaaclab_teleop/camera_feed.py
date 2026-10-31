@@ -139,7 +139,7 @@ def _prepare_camera_feed_cfgs(env_cfg: Any, cfgs: list[XrCameraFeedCfg]) -> list
     if duplicates:
         raise ValueError(f"XR camera feeds must have unique camera names. Duplicates: {duplicates}.")
 
-    scene = env_cfg.scene
+    scene = getattr(env_cfg, "scene", None)
     if scene is None:
         raise ValueError("XR camera feeds require an environment configuration with a scene.")
     for cfg in enabled_cfgs:
