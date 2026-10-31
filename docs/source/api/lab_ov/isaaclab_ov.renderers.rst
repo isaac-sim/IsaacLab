@@ -16,15 +16,30 @@ The following classes are part of the public :mod:`isaaclab_ov.renderers` API.
    OVRTXRenderer
    OVRTXRendererCfg
    OVRTXBackendCfg
+   OvLibrariesRenderLease
 
 .. autoclass:: OVRTXRenderer
    :show-inheritance:
+   :members: acquire_ov_libraries_render_lease
 
 .. autoclass:: OVRTXRendererCfg
    :show-inheritance:
 
 .. autoclass:: OVRTXBackendCfg
    :show-inheritance:
+
+Renderer leases
+---------------
+
+An external consumer, such as the OVXR teleoperation adapter, can borrow one exact OVRTX
+renderer and its private OVStage with :meth:`OVRTXRenderer.acquire_ov_libraries_render_lease`
+before clone preparation. While the lease is active, ordinary camera rendering, scene writes and
+renderer/stage destruction are rejected; eager scene updates are left to the lease's scene
+publisher. A failed leased publication poisons publication only; the borrower can still retire
+the pair, after which the renderer must be recreated.
+
+.. autoclass:: OvLibrariesRenderLease
+   :members:
 
 Simulation-owned stages
 -----------------------
