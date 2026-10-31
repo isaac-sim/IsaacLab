@@ -18,6 +18,10 @@ from types import ModuleType, SimpleNamespace
 
 import pytest
 
+# The adapter needs a Capture release with OVXR session support. The Kit ``teleop`` extra
+# selects an older release without it; skip rather than error in that environment.
+pytest.importorskip("isaaccapture.ovxr_session_manager")
+
 
 class _FakeLease:
     def __init__(self):
@@ -103,6 +107,9 @@ class _FakeBootstrap:
         self.events.append(("bind", env))
         return self.lease
 
+    def validate_environment(self, env):
+        pass
+
     def get_target_frame_T_world(self, path):
         return ("target", path)
 
@@ -119,7 +126,13 @@ def real_lease_type():
 
 @pytest.fixture
 def xr_module(monkeypatch, real_lease_type):
-    """Import the adapter with native renderer dependencies stubbed."""
+    """Import the adapter with native renderer dependencies stubbed.
+
+    The stub-bound adapter is removed from ``sys.modules`` and its package on teardown so
+    later tests import the real module.
+    """
+    import isaaclab_teleop
+
     isaaclab_ov = ModuleType("isaaclab_ov")
     isaaclab_ov.__path__ = []
     renderers = ModuleType("isaaclab_ov.renderers")
@@ -133,10 +146,20 @@ def xr_module(monkeypatch, real_lease_type):
     ovxr_session = importlib.util.module_from_spec(spec)
     monkeypatch.setitem(sys.modules, spec.name, ovxr_session)
     spec.loader.exec_module(ovxr_session)
-    sys.modules.pop("isaaclab_teleop.ov_libraries_xr", None)
-    module = importlib.import_module("isaaclab_teleop.ov_libraries_xr")
-    monkeypatch.setitem(sys.modules, "ovxr", _fake_ovxr())
-    return module
+    name = "isaaclab_teleop.ov_libraries_xr"
+    saved_module = sys.modules.pop(name, None)
+    saved_attribute = isaaclab_teleop.__dict__.pop("ov_libraries_xr", None)
+    try:
+        module = importlib.import_module(name)
+        monkeypatch.setitem(sys.modules, "ovxr", _fake_ovxr())
+        yield module
+    finally:
+        sys.modules.pop(name, None)
+        isaaclab_teleop.__dict__.pop("ov_libraries_xr", None)
+        if saved_module is not None:
+            sys.modules[name] = saved_module
+        if saved_attribute is not None:
+            isaaclab_teleop.ov_libraries_xr = saved_attribute
 
 
 def _fake_ovxr():
@@ -604,7 +627,9 @@ def bootstrap_context(xr_module, monkeypatch):
         def get_or_create_backend(self, _cfg):
             if self.failure is not None:
                 raise self.failure
-            lease = SimpleNamespace(release=lambda: events.append("lease-release"))
+            lease = SimpleNamespace(
+                release=lambda: events.append("lease-release"), defer_stage_until_owner_transfer=lambda: None
+            )
             return SimpleNamespace(acquire_ov_libraries_render_lease=lambda: lease)
 
     monkeypatch.setattr(module, "SimulationContext", Context)
@@ -705,3 +730,164 @@ def test_public_xr_exports_resolve_to_implemented_types(xr_module):
 
     assert isaaclab_teleop.OvLibrariesXrConfig is xr_module.OvLibrariesXrConfig
     assert isaaclab_teleop.OvLibrariesXrSession is xr_module.OvLibrariesXrSession
+
+
+def test_poisoned_publication_still_retires_in_capture_order(xr_module, monkeypatch, real_lease_type):
+    """After a failed scene write, Capture's OvxrFramePump.close must still retire the pair and the env."""
+    host, bootstrap, env = _make_host(xr_module, monkeypatch)
+    controller_type = sys.modules[real_lease_type.__module__].RenderLeaseController
+    stage = SimpleNamespace(floor=10)
+    stage.get_attribute_write_floor = lambda: contextlib.nullcontext(
+        SimpleNamespace(wait=lambda: None, fetch=lambda: stage.floor)
+    )
+    native = object()
+
+    def failed_transforms():
+        raise ValueError("geometry callback failed")
+
+    renderer = SimpleNamespace(
+        _closed=False,
+        _initialized_scene=False,
+        backend=None,
+        scene=None,
+        _update_transforms=failed_transforms,
+        _update_geometries=lambda: None,
+        _visual_material_writer_ref=None,
+        _publish_visual_materials=contextlib.nullcontext,
+    )
+    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1")
+    monkeypatch.delenv("ISAAC_LAB_SHARE_OVSTAGE", raising=False)
+    controller = controller_type(renderer)
+    lease = controller.acquire()
+    bootstrap.publisher = lease.capture_scene_publisher()
+    # Stand in for clone preparation and Stage binding of the reserved pair.
+    renderer.backend = SimpleNamespace(renderer=native, attached=True, _render_lease_owner=renderer)
+    renderer.scene = SimpleNamespace(stage=stage, ordinal=10, _render_lease_owner=renderer)
+    renderer._initialized_scene = True
+    controller._generation = 1
+    lease._bind(native, stage, 1)
+    bootstrap.lease = lease
+
+    def close_bootstrap():
+        lease.release()
+        bootstrap.closed = True
+
+    bootstrap.close = close_bootstrap
+    host.attach_on_render_thread(host.offer_render_owner_transfer())
+    with host.publication_guard(), pytest.raises(RuntimeError, match="recreate the exact pair"):
+        host.publish_complete_scene("step-1")
+
+    # OvxrFramePump.close(): close publication, destroy the context in the owner lane, then retire.
+    with host.publication_guard():
+        host.close_publication()
+    with host.publication_guard():
+        with host.owner_lane():
+            pass
+    host.close_on_render_thread()
+    host.close_environment_on_render_thread()
+    assert bootstrap.closed
+    assert controller.active is None
+    assert bootstrap.events[-1] == "environment-close"
+
+
+class _FakeAnchorState:
+    """Minimal :class:`OvLibrariesXrSession.ExternalAnchorState` with scripted epochs."""
+
+    external_anchor_paths = ("/World/XrAnchor", "/World/XrRenderAnchor")
+    external_reference_path = "/World/Robot"
+
+    def __init__(self):
+        self.epoch = (0, True)
+        self.commits = []
+        self.accept = True
+
+    @property
+    def external_epoch(self):
+        return self.epoch
+
+    def commit_external_pose(self, reference, rendering_dt, epoch, commit):
+        if not self.accept or epoch != self.epoch[0]:
+            return False
+        import numpy as np
+
+        self.commits.append((reference.copy(), rendering_dt, epoch))
+        commit(np.stack([reference, reference]))
+        self.epoch = (self.epoch[0], False)
+        return True
+
+
+def _make_anchor_host(xr_module, monkeypatch, anchor):
+    import numpy as np
+
+    bootstrap = _FakeBootstrap()
+    bootstrap.get_world_transform = lambda _path: np.eye(4)
+    host = xr_module._IsaacLabOvxrApplicationInterface(
+        bootstrap, SimpleNamespace(), xr_module.OvLibrariesXrConfig(), (), external_anchor_state=anchor
+    )
+    host._scene_publisher = bootstrap.publisher
+    host._ordinal_ledger = _FakeOrdinalLedger(None)
+    writes = []
+    monkeypatch.setattr(host, "_write_anchor_matrices", lambda matrices, ordinal: writes.append(ordinal))
+    return host, writes
+
+
+def test_anchor_seed_is_sealed_with_scene_and_frames_use_the_xr_clock(xr_module, monkeypatch):
+    anchor = _FakeAnchorState()
+    host, writes = _make_anchor_host(xr_module, monkeypatch, anchor)
+    times = iter((5.0, 5.25))
+    monkeypatch.setattr(xr_module.time, "monotonic", lambda: next(times))
+
+    seed = host.publish_complete_scene("initial")
+    assert writes == [seed] == host._ordinal_ledger.published
+    assert anchor.commits[-1][1] == 0.0  # The seed has no elapsed interval.
+    host.prepare_frame_scene()
+    host.prepare_frame_scene()
+    assert [commit[1] for commit in anchor.commits] == [0.0, 0.0, 0.25]
+    assert writes == host._ordinal_ledger.published
+
+
+def test_anchor_epoch_change_during_seed_fails_closed(xr_module, monkeypatch):
+    anchor = _FakeAnchorState()
+    anchor.accept = False
+    host, writes = _make_anchor_host(xr_module, monkeypatch, anchor)
+    with pytest.raises(RuntimeError, match="anchor reset changed"):
+        host.publish_complete_scene("initial")
+    assert writes == []
+    assert host._ordinal_ledger.abandoned == [11]
+    with pytest.raises(RuntimeError, match="publication is not available"):
+        host.publish_complete_scene("initial")
+
+
+def test_anchor_state_readoption_requires_the_same_paths(xr_module, monkeypatch):
+    anchor = _FakeAnchorState()
+    host, _writes = _make_anchor_host(xr_module, monkeypatch, anchor)
+    host.publish_complete_scene("initial")
+    replacement = _FakeAnchorState()
+    host.set_external_anchor_state(replacement)
+    assert host._anchor_snapshot is None and host._last_anchor_frame_time is None
+    moved = _FakeAnchorState()
+    moved.external_anchor_paths = ("/World/Other",)
+    with pytest.raises(ValueError, match="preserve its anchor paths"):
+        host.set_external_anchor_state(moved)
+    with pytest.raises(ValueError, match="preserve its anchor paths"):
+        host.set_external_anchor_state(None)
+
+
+def test_start_rejects_anchor_state_without_the_protocol_before_owner_creation(xr_module, monkeypatch):
+    """A policy lacking the external-anchor API must fail on the caller, before the worker claims the lease."""
+    external = importlib.import_module("isaaccapture.ovxr_session_manager.ovxr_session")
+    monkeypatch.setattr(external, "OvxrSession", lambda *_args, **_kwargs: pytest.fail("created an XR owner"))
+    bootstrap = _FakeBootstrap()
+    session = xr_module.OvLibrariesXrSession(bootstrap, xr_module.OvLibrariesXrConfig())
+    with pytest.raises(TypeError, match="ExternalAnchorState"):
+        session.start_render_worker(SimpleNamespace(), external_anchor_state=SimpleNamespace(reset=lambda: None))
+    assert bootstrap.events == []
+    assert isinstance(_FakeAnchorState(), xr_module.OvLibrariesXrSession.ExternalAnchorState)
+
+
+def test_config_imports_without_native_ovxr(monkeypatch):
+    """Launchers build the configuration without importing Capture's OVXR session stack."""
+    monkeypatch.setitem(sys.modules, "isaaccapture.ovxr_session_manager", None)
+    from isaaclab_teleop.ovxr_cfg import OvLibrariesXrConfig
+
+    assert OvLibrariesXrConfig(session_mode="vr").session_mode == "vr"

@@ -22,6 +22,8 @@ isaaclab_teleop
     XrCfg
     XrAnchorRotationMode
     XrAnchorSynchronizer
+    OvLibrariesXrConfig
+    OvLibrariesXrSession
 
   .. rubric:: Functions
 
@@ -59,6 +61,15 @@ XR Camera Feedback
     :members:
 
 .. autoclass:: XrCameraFeedSession
+    :members:
+
+Kitless OVXR Session
+--------------------
+
+.. autoclass:: OvLibrariesXrConfig
+    :members:
+
+.. autoclass:: OvLibrariesXrSession
     :members:
 
 Device

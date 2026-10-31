@@ -33,13 +33,40 @@ shutdown and retain the borrowed resources until their retirement is proved.
 The lease currently requires one environment and a private rendering OVStage.
 Ownership transfer is single-use. Failed retirement must preserve resources
 for the owning thread to finish cleanup; a failed drain is not successful
-shutdown. Importing the adapter requires the compatible Capture OVXR packages.
+shutdown. Importing `OvLibrariesXrSession` requires a Capture release with OVXR
+session support; see [Installing kitless XR](kitless_xr_source.md). The
+`OvLibrariesXrConfig` dataclass lives in `isaaclab_teleop.ovxr_cfg` and imports
+without those packages.
 
 A failed scene write or seal stops further publication. Recreate the session
 after retiring the failed pair; retrying the same generation cannot return an
-older scene as if the failed update succeeded. During shutdown, publication
-storage drains before lease guards are removed. The adapter retains the
-environment if lease retirement cannot establish completion.
+older scene as if the failed update succeeded. The failure poisons producer
+publication only: the render-owner lane stays available so Capture can destroy
+its OVXR context and the adapter can release the lease and close the
+environment. After a poisoned lease is released, the renderer keeps rejecting
+ordinary use (except closing it) because its write ordinal was not rebased.
+During shutdown, publication storage drains before lease guards are removed.
+The adapter retains the environment if lease retirement cannot establish completion.
+
+## Environment requirements
+
+- `OvLibrariesXrSession.prepare()` creates the `SimulationContext` from the
+  `sim_cfg` it receives, and the environment reuses that context. Pass the
+  environment's own `env_cfg.sim`; `start_render_worker()` rejects an
+  environment whose simulation device or time step differs.
+- Only environments that accept a pre-created simulation context are
+  supported. Manager-based environments do; `DirectRLEnv` always creates its own
+  context and fails with "Simulation context already exists".
+- Camera sensors on other renderers are supported: their initialization
+  prepares every registered renderer on the application thread, and the leased
+  renderer defers its Stage until the XR worker claims ownership. A camera that
+  resolves to the leased renderer itself (for example an OVRTX camera with the
+  default `OVRTXRendererCfg()`) is rejected while the lease is active.
+- Eager scene updates (`lazy_sensor_update=False`) skip the leased renderer; its
+  scene publisher writes the same physics state at the reserved ordinal.
+- Dynamic anchoring takes any object implementing
+  `OvLibrariesXrSession.ExternalAnchorState`; `start_render_worker()` rejects
+  other objects before the worker claims the lease.
 
 ## Backend implementation
 
