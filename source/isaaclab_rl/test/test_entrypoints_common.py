@@ -68,6 +68,26 @@ def _make_capture_wrapper(tmp_path: Path, **kwargs: Any) -> Any:
     return CaptureEnvSensors(**defaults)
 
 
+def test_run_playback_stops_when_simulation_closes() -> None:
+    """Closing the last viewer ends playback before the remaining video budget."""
+    completed_steps = 0
+
+    def step() -> None:
+        nonlocal completed_steps
+        assert completed_steps < 2, "Playback stepped after the simulation closed."
+        completed_steps += 1
+
+    rl_common.run_playback(
+        step,
+        dt=0.01,
+        args_cli=argparse.Namespace(video=True, real_time=False),
+        env_cfg=SimpleNamespace(video_recorders=[SimpleNamespace(step_offset=0, video_length=5)]),
+        is_running=lambda: completed_steps < 2,
+    )
+
+    assert completed_steps == 2
+
+
 def test_capture_env_sensors_saves_file_outputs_on_scheduled_steps(tmp_path: Path) -> None:
     """File capture writes image grids during the active capture window."""
     rgb = torch.tensor(
@@ -185,6 +205,36 @@ def test_common_train_args_register_frontend_with_torch_default() -> None:
     assert parser.parse_args(["--frontend", "warp"]).frontend == "warp"
     with pytest.raises(SystemExit):
         parser.parse_args(["--frontend", "tensorflow"])
+
+
+@pytest.mark.parametrize(
+    ("workflow", "record_history", "expected"),
+    [("train", None, False), ("train", True, True), ("play", None, True), ("play", False, False)],
+)
+def test_workspace_history_launch_default_respects_workflow_and_configuration(
+    workflow: str, record_history: bool | None, expected: bool
+) -> None:
+    """Parsed training disables automatic snapshots; an explicit backend choice remains authoritative."""
+    from isaaclab_visualizers.newton import NewtonGLBackendCfg
+
+    from isaaclab.app import add_launcher_args, validate_launch
+    from isaaclab.visualizers import VisualizerCfg
+
+    parser = argparse.ArgumentParser()
+    if workflow == "train":
+        add_common_train_args(parser, agent_default=None, agent_help="", include_agent=False)
+    else:
+        rl_common.add_common_play_args(parser, agent_default=None, agent_help="")
+    add_launcher_args(parser)
+    args_cli = parser.parse_args(["--viz", "newton_gl"])
+    cfg = SimulationCfg(
+        physics=NewtonCfg(),
+        visualizer_cfgs=[VisualizerCfg(backend=NewtonGLBackendCfg(record_history=record_history))],
+    )
+
+    validate_launch(cfg, args_cli)
+
+    assert cfg.visualizer_cfgs[0].backend.record_history is expected
 
 
 @pytest.mark.parametrize(

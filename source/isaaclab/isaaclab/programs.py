@@ -8,8 +8,8 @@
 from __future__ import annotations
 
 import argparse
-import os
 import sys
+from contextlib import ExitStack, nullcontext
 from dataclasses import dataclass
 from importlib.util import find_spec
 from pathlib import Path
@@ -297,73 +297,87 @@ def run_program(command: str, program: ProgramSpec, args: list[str] | None = Non
         FileNotFoundError: If the program script is unavailable.
         ModuleNotFoundError: If an optional dependency is unavailable.
     """
-    missing_modules = program.missing_modules()
-    if missing_modules:
-        missing = ", ".join(missing_modules)
-        raise ModuleNotFoundError(
-            f"{command} {program.name!r} requires missing module(s): {missing}. Run: {program.uvx_command(command)}"
-        )
-    path = program.path
-    if not path.is_file():
-        raise FileNotFoundError(f"{command} {program.name!r} is not installed at {path}")
-
-    import warp as wp
-
-    # Programs only run inference. Warp fixes this option when each kernel module is imported, so set it
-    # before anything below imports one; it also matches the kernel cache keys produced by the test suites.
-    wp.config.enable_backward = False
-
-    from .program_browser import ProgramBrowser
-
-    browser = ProgramBrowser({"demo": DEMOS, "example": EXAMPLES})
     original_argv = sys.argv
-    try:
-        forwarded_args = list(args or [])
-        sys.argv = [f"isaaclab {command} {program.name}", *forwarded_args]
-        if any(arg in ("-h", "--help") for arg in forwarded_args):
-            _run_script(path)
-        else:
-            from .app.loading_screen import LoadingScreen
-            from .sim import SimulationContext
+    forwarded_args = list(args or [])
+    runtime_session_started = False
+    window_session = None
+    with ExitStack() as cleanup:
+        try:
+            while True:
+                missing_modules = program.missing_modules()
+                if missing_modules:
+                    missing = ", ".join(missing_modules)
+                    raise ModuleNotFoundError(
+                        f"{command} {program.name!r} requires missing module(s): {missing}."
+                        f" Run: {program.uvx_command(command)}"
+                    )
+                path = program.path
+                if not path.is_file():
+                    raise FileNotFoundError(f"{command} {program.name!r} is not installed at {path}")
 
-            verbose = any(arg in ("--info", "--verbose") for arg in forwarded_args)
-            with LoadingScreen(1, enabled=False if verbose else None) as screen:
-                screen.summary(
-                    f"Isaac Lab · {command}",
-                    {"Program": program.name, "Description": program.summary},
-                )
-                screen.stage("Launching simulation")
+                import warp as wp
 
-                def on_reset(sim: SimulationContext) -> None:
-                    # Hand the console to the program once its simulation is ready.
-                    screen.close()
-                    browser.attach(sim)
+                # Warp fixes this option when a kernel module is imported. Set it before program imports
+                # to skip backward code for inference and reuse the test suites' kernel cache entries.
+                wp.config.enable_backward = False
 
-                SimulationContext.add_reset_callback(_RESET_CALLBACK_NAME, on_reset)
-                try:
+                from .program_browser import ProgramBrowser
+
+                browser = ProgramBrowser({"demo": DEMOS, "example": EXAMPLES})
+                sys.argv = [f"isaaclab {command} {program.name}", *forwarded_args]
+                if any(arg in ("-h", "--help") for arg in forwarded_args):
                     _run_script(path)
-                finally:
-                    SimulationContext.remove_reset_callback(_RESET_CALLBACK_NAME)
-                screen.close()
-    finally:
-        sys.argv = original_argv
-    if browser.selected is not None:
-        next_command, next_program = browser.selected
-        sys.stdout.flush()
-        sys.stderr.flush()
-        os.execv(
-            sys.executable,
-            [
-                sys.executable,
-                "-m",
-                "isaaclab",
-                next_command,
-                next_program.name,
-                *(next_program.newton_gl_args or ()),
-                "--viz",
-                "newton_gl",
-            ],
-        )
+                    return
+
+                from .app.loading_screen import LoadingScreen
+                from .app.sim_launcher import SimulationLauncher
+                from .sim import SimulationContext
+
+                if not runtime_session_started:
+                    cleanup.enter_context(SimulationLauncher.session())
+                    runtime_session_started = True
+                verbose = any(arg in ("--info", "--verbose") for arg in forwarded_args)
+                loading = (
+                    window_session.loading(f"Loading {program.name}") if window_session is not None else nullcontext()
+                )
+                with loading, LoadingScreen(1, enabled=False if verbose else None) as screen:
+                    screen.summary(
+                        f"Isaac Lab · {command}",
+                        {"Program": program.name, "Description": program.summary},
+                    )
+                    screen.stage("Launching simulation")
+
+                    def on_reset(sim: SimulationContext) -> None:
+                        nonlocal window_session
+                        # Hand the console to the program once its simulation is ready.
+                        screen.close()
+                        if window_session is None:
+                            for visualizer in sim.visualizers:
+                                if visualizer.cfg.backend.visualizer_type == "newton_gl":
+                                    window_session = cleanup.enter_context(visualizer.window_session())
+                                    break
+                        browser.attach(sim)
+
+                    SimulationContext.add_reset_callback(_RESET_CALLBACK_NAME, on_reset)
+                    try:
+                        try:
+                            _run_script(path)
+                        except SystemExit as exc:
+                            if exc.code not in (None, 0) or (
+                                browser.selected is None and not browser.restart_requested
+                            ):
+                                raise
+                    finally:
+                        SimulationContext.remove_reset_callback(_RESET_CALLBACK_NAME)
+                    screen.close()
+                if browser.restart_requested:
+                    continue
+                if browser.selected is None:
+                    return
+                command, program = browser.selected
+                forwarded_args = [*(program.newton_gl_args or ()), "--viz", "newton_gl"]
+        finally:
+            sys.argv = original_argv
 
 
 def run_program_cli(command: str, catalog: tuple[ProgramSpec, ...], args: list[str] | None = None) -> None:

@@ -140,4 +140,10 @@ def run(argv: list[str]) -> None:
                     _, tensordict = env.step_and_maybe_reset(actor(tensordict))
 
             screen.close()
-            run_playback(step, dt=env.unwrapped.step_dt, args_cli=args_cli, env_cfg=env_cfg)
+            run_playback(
+                step,
+                dt=env.unwrapped.step_dt,
+                args_cli=args_cli,
+                env_cfg=env_cfg,
+                is_running=env.unwrapped.sim.is_running,
+            )
