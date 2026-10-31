@@ -52,8 +52,9 @@ The adapter retains the environment if lease retirement cannot establish complet
 
 - `OvLibrariesXrSession.prepare()` creates the `SimulationContext` from the
   `sim_cfg` it receives, and the environment reuses that context. Pass the
-  environment's own `env_cfg.sim`; `start_render_worker()` rejects an
-  environment whose simulation device or time step differs.
+  environment's own `env_cfg.sim`; before the worker claims the lease,
+  `start_render_worker()` rejects an environment whose simulation device or
+  time step differs, or whose `num_envs` is not 1.
 - Only environments that accept a pre-created simulation context are
   supported. Manager-based environments do; `DirectRLEnv` always creates its own
   context and fails with "Simulation context already exists".

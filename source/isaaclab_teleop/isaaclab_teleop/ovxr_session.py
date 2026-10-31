@@ -37,8 +37,8 @@ class OvxrSessionBootstrap:
     The bootstrap creates the :class:`~isaaclab.sim.SimulationContext` from the ``sim_cfg``
     given here, and the environment reuses it. Only environments that accept a pre-created
     context are supported (manager-based environments; :class:`~isaaclab.envs.DirectRLEnv`
-    always creates its own). :meth:`validate_environment` rejects an environment whose
-    simulation device or time step disagrees with the prepared context.
+    always creates its own). :meth:`validate_environment` requires ``num_envs == 1`` and
+    rejects a simulation device or time step that disagrees with the prepared context.
     """
 
     def __init__(self, sim_cfg: SimulationCfg, renderer_cfg: OVRTXRendererCfg | None = None) -> None:
@@ -104,7 +104,7 @@ class OvxrSessionBootstrap:
 
         Raises:
             RuntimeError: If the environment did not reuse the prepared context, has no
-                completed stage or a non-positive environment count, or its simulation
+                completed stage or not exactly one environment, or its simulation
                 configuration selects a different device or physics time step [s].
         """
         self._require_open()
@@ -113,17 +113,26 @@ class OvxrSessionBootstrap:
             raise RuntimeError("Environment did not reuse the exact pre-created SimulationContext")
         if unwrapped.scene.stage is None:
             raise RuntimeError("Environment has no completed InteractiveScene Stage")
-        num_envs = unwrapped.num_envs
-        if not isinstance(num_envs, int) or num_envs <= 0:
-            raise RuntimeError(f"Environment has invalid num_envs: {num_envs!r}")
+        if unwrapped.num_envs != 1:
+            raise RuntimeError(
+                f"The OVXR render lease requires exactly one environment; got num_envs={unwrapped.num_envs!r}"
+            )
         env_sim_cfg = getattr(getattr(unwrapped, "cfg", None), "sim", None)
         prepared_cfg = self._sim.cfg
         if env_sim_cfg is not None and env_sim_cfg is not prepared_cfg:
-            for field in ("device", "dt"):
-                if getattr(env_sim_cfg, field, None) != getattr(prepared_cfg, field, None):
+            env_device = env_sim_cfg.device
+            if env_device == "cuda":
+                # SimulationContext resolved the prepared configuration's bare CUDA selection the same way.
+                cuda_device = self._sim.get_setting("/physics/cudaDevice")
+                env_device = f"cuda:{max(0, int(cuda_device) if cuda_device is not None else 0)}"
+            for field, env_value, prepared_value in (
+                ("device", env_device, prepared_cfg.device),
+                ("dt", env_sim_cfg.dt, prepared_cfg.dt),
+            ):
+                if env_value != prepared_value:
                     raise RuntimeError(
-                        f"Environment sim.{field}={getattr(env_sim_cfg, field, None)!r} differs from the OVXR"
-                        f" prepared simulation context ({getattr(prepared_cfg, field, None)!r}); prepare the"
+                        f"Environment sim.{field}={getattr(env_sim_cfg, field)!r} differs from the OVXR"
+                        f" prepared simulation context ({prepared_value!r}); prepare the"
                         " session with the environment's sim configuration"
                     )
 
