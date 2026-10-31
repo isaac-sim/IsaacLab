@@ -1,2 +1,2 @@
-* Fixed standalone OvPhysX selection for SO101 teleoperation while retaining the Kit default and Newton settings.
-* Updated SO101 clutch construction and nominal gripper reset poses for the supported Isaac Capture API.
+* Fixed standalone OvPhysX selection for SO101 teleoperation while retaining the Kit default and
+  Newton settings. The OvPhysX selection applies the stack family's grasp contact tuning.
