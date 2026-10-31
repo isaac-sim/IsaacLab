@@ -54,6 +54,7 @@ from ..action_policy import (
 )
 from ..action_policy import prepare_teleop_action
 from ..device_selection import create_teleop_device, select_teleop_cfg
+from ._ovxr_launch import require_kitless_physics
 
 logger = logging.getLogger(__name__)
 
@@ -205,16 +206,18 @@ def _rtx_rendering_requested(args: argparse.Namespace) -> bool:
     """Return whether the CLI selects a renderer that actually drives RTX rendering.
 
     The RTX/DLSS global settings are only meaningful when something renders through RTX.
-    That happens when the Kit visualizer is enabled (``--viz kit``), when external cameras
-    are rendered (on by default; see ``--disable_external_cameras``), or in XR mode (``--xr``).
-    A pure-headless session with none of these renders nothing.
+    That happens when the Kit visualizer is enabled (``--viz kit`` or a task-declared Kit
+    visualizer), when external cameras are rendered (on by default; see
+    ``--disable_external_cameras``), or in XR mode (``--xr``). A pure-headless session with
+    none of these renders nothing.
 
-    This reads the resolved namespace intent rather than any Kit/carb runtime state so the
-    check keeps working as these scripts grow support for other rendering backends.
+    This reads the resolved launcher namespace rather than any Kit/carb runtime state.
+    :func:`~isaaclab.app.launch_simulation` records ``kit_visualizer`` on it; ``--viz`` itself
+    is consumed by the preset CLI and is not kept on the namespace.
     """
-    visualizers = getattr(args, "visualizer", None) or []
     external_cameras = not getattr(args, "disable_external_cameras", False)
-    return external_cameras or ("kit" in visualizers) or bool(getattr(args, "xr", False))
+    kit_visualizer = bool(getattr(args, "kit_visualizer", False))
+    return external_cameras or kit_visualizer or bool(getattr(args, "xr", False))
 
 
 def _make_haptic_io(env, teleop_interface, env_cfg, use_isaac_teleop: bool):
@@ -236,10 +239,14 @@ def _make_haptic_io(env, teleop_interface, env_cfg, use_isaac_teleop: bool):
     return driver.update, driver.stop
 
 
-def _apply_teleop_frame(env, action, issue: str | None, haptic_update, haptic_stop) -> bool:
-    """Step one valid action, or render-only while an unsafe tracker frame is held."""
+def _apply_teleop_frame(env, action, issue: str | None, haptic_update, haptic_stop, *, render: bool = True) -> bool:
+    """Step one valid action, or hold the scene while an unsafe tracker frame is rejected.
+
+    ``render`` is false under OVXR, which owns rendering and republishes the unchanged scene.
+    """
     if issue is not None:
-        env.sim.render()
+        if render:
+            env.sim.render()
         haptic_stop()
         return False
     env.step(action.repeat(env.num_envs, 1))
@@ -315,10 +322,9 @@ def _resolve_env_cfg() -> tuple[ManagerBasedRLEnvCfg, IsaacTeleopCfg | DeviceCfg
         from .. import remove_camera_configs
 
         env_cfg = remove_camera_configs(env_cfg)
-    if env_cfg.sim.physics is None:
-        from isaaclab.physics import PhysicsCfg
-
-        env_cfg.sim.physics = PhysicsCfg()
+    if args_cli.using_ovxr:
+        require_kitless_physics(env_cfg)
+    # A task without a physics selection keeps None: SimulationContext defaults it to PhysxCfg.
     configs, kit_sources = validate_launch(env_cfg, vars(args_cli).copy())
     if args_cli.using_ovxr:
         from isaaclab.visualizers import VisualizerBackendCfg
@@ -668,7 +674,9 @@ def run_teleoperation(  # noqa: C901
                                 action, issue = prepare_teleop_action(
                                     env, action, action_conditioner, action_validator, action_state
                                 )
-                            action_applied = _apply_teleop_frame(env, action, issue, haptic_update, haptic_stop)
+                            action_applied = _apply_teleop_frame(
+                                env, action, issue, haptic_update, haptic_stop, render=ov_libraries_xr_session is None
+                            )
                             if issue is not None:
                                 skipped_tracking_frames += 1
                                 if skipped_tracking_frames <= 5 or skipped_tracking_frames % 200 == 0:
@@ -678,7 +686,6 @@ def run_teleoperation(  # noqa: C901
                                         skipped_tracking_frames,
                                     )
                         else:
-                            action_state.clear()
                             if ov_libraries_xr_session is None:
                                 env.sim.render()
                             # not stepping: zero haptics so a paused grip stops buzzing
