@@ -475,11 +475,7 @@ class OvLibrariesXrSession:
 
     @runtime_checkable
     class ExternalAnchorState(Protocol):
-        """Dynamic XR-anchor policy sealed together with complete scene publications.
-
-        :class:`~isaaclab_teleop.xr_anchor_manager.XrAnchorManager` implements this protocol
-        when it is constructed for an OVXR session.
-        """
+        """Dynamic XR-anchor policy sealed together with complete scene publications."""
 
         @property
         def external_anchor_paths(self) -> tuple[str, ...]:
