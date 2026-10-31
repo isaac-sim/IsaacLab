@@ -528,14 +528,20 @@ def test_export_stage_heterogeneous_keeps_multiple_sources():
     assert 'def Camera "Camera"' not in exported
 
 
-@pytest.mark.parametrize("settings_path", [None, "/Render/AuthoredSettings"])
-def test_export_stage_preserves_authored_scene(settings_path):
+@pytest.mark.parametrize(
+    "settings_path, authored_show_all",
+    [(None, None), ("/Render/AuthoredSettings", False), ("/Render/AuthoredSettings", True)],
+)
+def test_export_stage_preserves_authored_scene(settings_path, authored_show_all):
     """Renderer settings and clone trimming are confined to the exported scene."""
     num_envs = 4
     stage = _make_multi_env_stage(num_envs)
     if settings_path is not None:
         settings = UsdRender.Settings.Define(stage, settings_path)
         settings.CreateResolutionAttr(Gf.Vec2i(1280, 720))
+        settings.GetPrim().CreateAttribute(
+            "omni:rtx:scenePartitioning:showAllPartitionsByDefault", Sdf.ValueTypeNames.Bool
+        ).Set(authored_show_all)
         stage.SetMetadata("renderSettingsPrimPath", settings_path)
     before = stage.ExportToString()
     layer = Sdf.Layer.CreateAnonymous()
@@ -548,7 +554,7 @@ def test_export_stage_preserves_authored_scene(settings_path):
     assert exported.HasAuthoredMetadata("renderSettingsPrimPath")
     settings = exported.GetPrimAtPath(exported.GetMetadata("renderSettingsPrimPath"))
     show_all = settings.GetAttribute("omni:rtx:scenePartitioning:showAllPartitionsByDefault")
-    assert show_all and show_all.Get() is True
+    assert show_all and show_all.Get() is (True if authored_show_all is None else authored_show_all)
     if settings_path is not None:
         assert settings.GetPath() == settings_path
         assert settings.GetAttribute("resolution").Get() == (1280, 720)

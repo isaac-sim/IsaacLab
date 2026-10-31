@@ -287,13 +287,16 @@ def export_stage_to_string(
     export_session.subLayerPaths = [stage.GetSessionLayer().identifier]
     export_stage = Usd.Stage.Open(stage.GetRootLayer(), export_session)
     export_stage.SetEditTarget(export_session)
-    # Perspective cameras see every partition; sensor cameras retain their explicit partition.
+    # Perspective cameras see every partition unless the scene authors otherwise (the XR scene
+    # partition hides excluded meshes this way); sensor cameras retain their explicit partition.
     settings_path = export_stage.GetMetadata("renderSettingsPrimPath") or "/Render/IsaacLabSettings"
     settings = UsdRender.Settings.Define(export_stage, settings_path)
     settings.GetPrim().AddAppliedSchema("OmniRtxSettingsGlobalCommonAPI_1")
-    settings.GetPrim().CreateAttribute(
+    show_all = settings.GetPrim().CreateAttribute(
         "omni:rtx:scenePartitioning:showAllPartitionsByDefault", Sdf.ValueTypeNames.Bool
-    ).Set(True)
+    )
+    if not show_all.HasAuthoredValueOpinion():
+        show_all.Set(True)
     export_stage.SetMetadata("renderSettingsPrimPath", settings_path)
     prim_paths = []
     if len(clone_env_paths) > 1:
