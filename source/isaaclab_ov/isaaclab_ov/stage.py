@@ -295,7 +295,7 @@ def export_stage_to_string(
     show_all = settings.GetPrim().CreateAttribute(
         "omni:rtx:scenePartitioning:showAllPartitionsByDefault", Sdf.ValueTypeNames.Bool
     )
-    if not show_all.HasAuthoredValueOpinion():
+    if not show_all.HasAuthoredValue():
         show_all.Set(True)
     export_stage.SetMetadata("renderSettingsPrimPath", settings_path)
     prim_paths = []
