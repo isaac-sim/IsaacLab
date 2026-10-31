@@ -243,3 +243,31 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
             sim.register_interactive_scene(None)
             scene["camera"]._invalidate_initialize_callback(None)
             scene["other_camera"]._invalidate_initialize_callback(None)
+
+
+@pytest.mark.skipif(
+    importlib.util.find_spec("torch") is None or __import__("torch").cuda.device_count() < 2,
+    reason="requires two CUDA devices",
+)
+@pytest.mark.parametrize("active_cuda_gpus", ["1", "0,1"])
+def test_camera_readback_with_rendering_gpus_excluding_or_including_the_simulation_gpu(
+    monkeypatch: pytest.MonkeyPatch, active_cuda_gpus: str
+) -> None:
+    """Ordinary camera outputs stay correct on the simulation GPU when OVRTX renders on other GPUs."""
+    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1")
+    monkeypatch.delenv("ISAAC_LAB_SHARE_OVSTAGE", raising=False)
+    sim_cfg = SimulationCfg(device="cuda:0", gravity=(0.0, 0.0, 0.0), physics=OvPhysxCfg())
+
+    @contextmanager
+    def simulation():
+        with build_simulation_context(sim_cfg=sim_cfg) as sim:
+            yield sim
+
+    run_rigid_object_scale_and_pose_rendering_contract(
+        RigidObjectRenderingBackend(
+            name=f"OVRTX active_cuda_gpus={active_cuda_gpus}",
+            simulation_context_factory=simulation,
+            renderer_cfg=OVRTXRendererCfg(active_cuda_gpus=active_cuda_gpus),
+            with_articulation=False,
+        )
+    )

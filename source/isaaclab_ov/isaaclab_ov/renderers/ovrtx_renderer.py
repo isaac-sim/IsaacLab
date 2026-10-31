@@ -513,6 +513,21 @@ class OVRTXRenderer(BaseRenderer):
         self._needs_transform_initialization = not self._use_ovstage and self.backend.cfg.read_gpu_transforms
         self._render_lease.bind_stage()
 
+    def _render_product_device_id(self) -> int | None:
+        """CUDA index that render products request, or ``None`` for OVRTX's automatic assignment.
+
+        Products request the simulation GPU so render vars map there. When an explicit
+        ``active_cuda_gpus`` excludes that GPU, OVRTX would skip the request on every frame and
+        assign a device automatically; request automatic assignment directly. Mapped outputs are
+        still returned on the simulation device for readback.
+        """
+        if not self._warp_device.is_cuda:
+            return None
+        active = self.cfg.active_cuda_gpus
+        if active is not None and self._warp_device.ordinal not in {int(index) for index in active.split(",")}:
+            return None
+        return self._warp_device.ordinal
+
     def acquire_ov_libraries_render_lease(self) -> OvLibrariesRenderLease:
         """Reserve the native renderer/scene pair before stage preparation."""
         return self._render_lease.acquire()
@@ -664,7 +679,7 @@ class OVRTXRenderer(BaseRenderer):
         usd = build_render_product_as_string(
             spec,
             render_data,
-            device_id=self._warp_device.ordinal if self._warp_device.is_cuda else None,
+            device_id=self._render_product_device_id(),
             enable_shadows=self.cfg.enable_shadows,
         )
         try:

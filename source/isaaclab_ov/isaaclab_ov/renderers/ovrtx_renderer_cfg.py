@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import os
+import re
 import tempfile
 from dataclasses import MISSING
 from typing import TYPE_CHECKING, ClassVar
@@ -42,6 +43,32 @@ class OVRTXBackendCfg(BackendCfg):
     """Whether OVRTX reads its GPU transform cache, resolved before native construction."""
     device: str = MISSING
     """Normalized simulation device: ``cpu`` or ``cuda:<index>``."""
+
+
+def parse_active_cuda_gpus(value: str) -> tuple[int, ...]:
+    """Parse an ``active_cuda_gpus`` selection such as ``"0"`` or ``"0,1"``.
+
+    Raises:
+        ValueError: If the value is not a comma-separated list of unique non-negative CUDA indices.
+    """
+    if re.fullmatch(r"(0|[1-9][0-9]*)(,(0|[1-9][0-9]*))*", value) is None:
+        raise ValueError(f"active_cuda_gpus must list CUDA indices such as '0' or '0,1'; got {value!r}")
+    indices = tuple(int(index) for index in value.split(","))
+    if len(set(indices)) != len(indices):
+        raise ValueError(f"active_cuda_gpus lists a CUDA index more than once: {value!r}")
+    return indices
+
+
+def parse_cuda_device_index(value: str) -> int:
+    """Return ``N`` for an explicit ``"cuda:N"`` device.
+
+    Raises:
+        ValueError: If the value is not an explicit ``"cuda:N"`` device.
+    """
+    match = re.fullmatch(r"cuda:(0|[1-9][0-9]*)", value)
+    if match is None:
+        raise ValueError(f"Expected an explicit CUDA device such as 'cuda:0'; got {value!r}")
+    return int(match.group(1))
 
 
 @configclass
@@ -81,8 +108,9 @@ class OVRTXRendererCfg(RendererCfg):
     """Comma-separated CUDA device indices used by the native renderer (e.g. ``"0,1"``).
 
     Defaults to the simulation CUDA device; CPU simulations use native GPU selection.
-    Set before native initialization; this does not
-    change physics, camera output placement, or the geometry publication destination.
+    Set before native initialization; this does not change physics or the geometry publication
+    destination. Camera outputs are still read back on the simulation device; when the set
+    excludes the simulation GPU, render products use automatic device assignment.
     """
 
     geometry_publication_device: str | None = None
@@ -176,3 +204,10 @@ class OVRTXRendererCfg(RendererCfg):
             RenderBufferKind.NORMALS: RenderBufferSpec(3, wp.float32),
             RenderBufferKind.MOTION_VECTORS: RenderBufferSpec(2, wp.float32),
         }
+
+    def __post_init__(self) -> None:
+        # Reject malformed GPU selections before any environment or native resource exists.
+        if self.active_cuda_gpus is not None:
+            parse_active_cuda_gpus(self.active_cuda_gpus)
+        if self.geometry_publication_device is not None:
+            parse_cuda_device_index(self.geometry_publication_device)

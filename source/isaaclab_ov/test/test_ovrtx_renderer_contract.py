@@ -2294,3 +2294,26 @@ def test_rigid_publication_uses_target_device_and_retains_failed_producer(monkey
         original_sync(producer)
     finally:
         renderer.close()
+
+
+@pytest.mark.parametrize(
+    ("device", "active", "expected"),
+    [("cuda:1", None, 1), ("cuda:1", "1", 1), ("cuda:1", "0,1", 1), ("cuda:1", "0", None), ("cpu", "0", None)],
+)
+def test_render_products_request_the_simulation_gpu_only_when_it_renders(device, active, expected):
+    """An explicit GPU set that excludes the simulation GPU must not pin products to it on every frame."""
+    renderer = OVRTXRenderer.__new__(OVRTXRenderer)
+    renderer.cfg = OVRTXRendererCfg(active_cuda_gpus=active)
+    renderer._warp_device = types.SimpleNamespace(
+        is_cuda=device != "cpu", ordinal=int(device[-1]) if device != "cpu" else -1
+    )
+    assert renderer._render_product_device_id() == expected
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("active_cuda_gpus", "cuda:0"), ("active_cuda_gpus", "0,,1"), ("geometry_publication_device", "cuda")],
+)
+def test_renderer_cfg_rejects_malformed_gpu_selection(field, value):
+    with pytest.raises(ValueError):
+        OVRTXRendererCfg(**{field: value})
