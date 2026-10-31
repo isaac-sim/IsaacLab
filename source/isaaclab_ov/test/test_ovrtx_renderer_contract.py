@@ -1967,16 +1967,21 @@ def test_cpu_scene_publication_uses_host_tensors_without_a_cuda_stream(use_ovsta
         renderer._geometry_writes.close()
 
 
-@pytest.mark.parametrize("cuda_ordinal", [None, 2])
-def test_camera_registration_authors_valid_render_device_selection(monkeypatch, cuda_ordinal):
-    """CPU camera consumers leave GPU selection automatic; CUDA consumers retain their device."""
+@pytest.mark.parametrize(
+    ("cuda_ordinal", "active_cuda_gpus", "requested"),
+    [(None, None, None), (None, "0", None), (2, None, 2), (2, "0,2", 2), (2, "0", None)],
+)
+def test_camera_registration_authors_valid_render_device_selection(
+    monkeypatch, cuda_ordinal, active_cuda_gpus, requested
+):
+    """Products request the simulation GPU only when it renders; otherwise OVRTX assigns a rendering GPU."""
     from pxr import Usd
 
     class AuthoredProduct(Exception):
         pass
 
     renderer = _make_ovrtx_renderer_without_backend()
-    renderer.cfg = OVRTXRendererCfg()
+    renderer.cfg = OVRTXRendererCfg(active_cuda_gpus=active_cuda_gpus)
 
     class Device:
         is_cuda = cuda_ordinal is not None
@@ -2004,10 +2009,10 @@ def test_camera_registration_authors_valid_render_device_selection(monkeypatch, 
         assert stage.GetRootLayer().ImportFromString(build_product(spec, render_data, **kwargs))
         product = stage.GetPrimAtPath(render_data.render_product_path)
         devices = product.GetAttribute("deviceIds")
-        if cuda_ordinal is None:
+        if requested is None:
             assert not devices.HasAuthoredValueOpinion()
         else:
-            assert list(devices.Get()) == [cuda_ordinal]
+            assert list(devices.Get()) == [requested]
         # Native population is outside this parser/selection regression.
         raise AuthoredProduct
 
@@ -2294,20 +2299,6 @@ def test_rigid_publication_uses_target_device_and_retains_failed_producer(monkey
         original_sync(producer)
     finally:
         renderer.close()
-
-
-@pytest.mark.parametrize(
-    ("device", "active", "expected"),
-    [("cuda:1", None, 1), ("cuda:1", "1", 1), ("cuda:1", "0,1", 1), ("cuda:1", "0", None), ("cpu", "0", None)],
-)
-def test_render_products_request_the_simulation_gpu_only_when_it_renders(device, active, expected):
-    """An explicit GPU set that excludes the simulation GPU must not pin products to it on every frame."""
-    renderer = OVRTXRenderer.__new__(OVRTXRenderer)
-    renderer.cfg = OVRTXRendererCfg(active_cuda_gpus=active)
-    renderer._warp_device = types.SimpleNamespace(
-        is_cuda=device != "cpu", ordinal=int(device[-1]) if device != "cpu" else -1
-    )
-    assert renderer._render_product_device_id() == expected
 
 
 @pytest.mark.parametrize(
