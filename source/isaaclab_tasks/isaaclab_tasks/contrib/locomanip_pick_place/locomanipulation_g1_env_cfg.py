@@ -13,6 +13,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
@@ -23,7 +24,13 @@ from isaaclab_tasks.contrib.locomanip_pick_place.configs.action_cfg import Agile
 from isaaclab_tasks.contrib.locomanip_pick_place.configs.agile_locomotion_observation_cfg import (
     AgileTeacherPolicyObservationsCfg,
 )
+from isaaclab_tasks.contrib.packing_table import configure_packing_table_collisions
 from isaaclab_tasks.contrib.pick_place import mdp as manip_mdp
+from isaaclab_tasks.contrib.teleop_physics_cfg import (
+    TeleopPhysicsCfg,
+    kitless_backend_prepared,
+    prepare_humanoid_teleop_environment,
+)
 
 from isaaclab_assets.robots.unitree import G1_29DOF_CFG
 
@@ -296,12 +303,12 @@ class LocomanipulationG1SceneCfg(InteractiveSceneCfg):
     # haptics (see HapticFeedbackCfg below). Requires activate_contact_sensors
     # on the robot spawn, enabled in the env __post_init__.
     left_hand_contact = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/left_hand_[^/]*_link",
+        prim_path="{ENV_REGEX_NS}/Robot/left_hand/left_hand_[^/]*_link",
         update_period=0.0,
         history_length=3,
     )
     right_hand_contact = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/right_hand_[^/]*_link",
+        prim_path="{ENV_REGEX_NS}/Robot/right_hand/right_hand_[^/]*_link",
         update_period=0.0,
         history_length=3,
     )
@@ -430,6 +437,12 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
     behaviors.
     """
 
+    class_type: type | str = "isaaclab_tasks.contrib.teleop_env:HumanoidTeleopEnv"
+    _prepared_kitless_backend: str | None = None
+    haptic_feedback: object | None = None
+    image_obs_list: list[str] = ["robot_pov_cam"]
+    sim: SimulationCfg = SimulationCfg(physics=TeleopPhysicsCfg())
+
     # Scene settings
     scene: LocomanipulationG1SceneCfg = LocomanipulationG1SceneCfg(num_envs=1, env_spacing=2.5)
     # MDP settings
@@ -444,6 +457,10 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
 
     def __post_init__(self):
         """Post initialization."""
+        if self._prepared_kitless_backend is not None:
+            return
+        # The pretrained Agile policy consumes and produces PhysX-ordered joints.
+        self.scene.robot.joint_ordering = "physx"
         # general settings
         self.decimation = 4
         self.episode_length_s = 20.0
@@ -454,8 +471,6 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
 
         # Set the URDF path for the IK controller. Path resolution (Nucleus → local) happens at runtime.
         self.actions.upper_body_ik.controller.urdf_path = f"{ISAACLAB_NUCLEUS_DIR}/Controllers/LocomanipulationAssets/unitree_g1_kinematics_asset/g1_29dof_with_hand_only_kinematics.urdf"  # noqa: E501
-
-        self.image_obs_list = ["robot_pov_cam"]
 
         # The scene always contains hand contact sensors, so their target bodies must have the
         # contact reporter API even when the optional teleop package is unavailable.
@@ -480,10 +495,10 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
             self.xr.anchor_rotation_mode = XrAnchorRotationMode.FOLLOW_PRIM_SMOOTHED
 
             self.isaac_teleop = IsaacTeleopCfg(
+                prepare_environment=prepare_humanoid_teleop_environment,
                 pipeline_builder=_build_g1_locomanipulation_pipeline,
                 sim_device=self.sim.device,
                 xr_cfg=self.xr,
-                xr_camera_feed_layout=XrCameraFeedLayoutCfg(placement="head_locked", use_scene_partition=True),
                 xr_camera_feeds=[
                     XrCameraFeedCfg(
                         camera_name="robot_pov_cam",
@@ -493,6 +508,7 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
                         max_update_hz=0.0,
                     )
                 ],
+                xr_camera_feed_layout=XrCameraFeedLayoutCfg(placement="head_locked", use_scene_partition=True),
             )
 
             # Drive controller haptics from the per-hand contact sensors.
@@ -500,3 +516,23 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
                 left_sensor_name="left_hand_contact",
                 right_sensor_name="right_hand_contact",
             )
+
+    def stabilize_for_kitless_ovphysx(self) -> None:
+        """Provide the packing-table support shape required by standalone OVPhysX."""
+        if kitless_backend_prepared(self, "ovphysx"):
+            return
+        configure_packing_table_collisions(self.scene.packing_table, physx_offsets=True)
+        self._prepared_kitless_backend = "ovphysx"
+
+    def stabilize_for_kitless_newton_mjwarp(self) -> None:
+        """Prepare shared task collision geometry without replacing the locomotion policy."""
+        if kitless_backend_prepared(self, "newton_mjwarp"):
+            return
+        from isaaclab_tasks.contrib.steering_wheel import condition_newton_steering_wheel_detail_collisions
+
+        # Match the common locomotion integrator for the floating-base robot.
+        self.sim.physics.solver_cfg.integrator = "implicitfast"
+        self.sim.physics.num_substeps = 2
+        configure_packing_table_collisions(self.scene.packing_table)
+        condition_newton_steering_wheel_detail_collisions(self.scene.object)
+        self._prepared_kitless_backend = "newton_mjwarp"
