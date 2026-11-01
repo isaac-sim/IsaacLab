@@ -109,7 +109,7 @@ def test_input_cleanup_failure_prevents_borrowed_owner_release(entry_namespace):
 
 @pytest.mark.parametrize(
     ("cleanup_stage", "has_primary_error"),
-    [("xr", True), ("environment", True), ("camera", False), ("signals", False)],
+    [("xr", True), ("environment", True), ("camera", False), ("camera", True), ("signals", False)],
 )
 def test_cleanup_preserves_first_error_and_never_frees_undrained_stage(
     entry_namespace, cleanup_stage, has_primary_error
@@ -140,7 +140,7 @@ def test_cleanup_preserves_first_error_and_never_frees_undrained_stage(
         exercise()
     assert caught.value is (primary_error if has_primary_error else cleanup_error)
     assert events == (
-        ["xr", "camera", "signals"] if cleanup_stage == "xr" else ["xr", "camera", "environment", "signals"]
+        ["xr", "camera", "signals"] if cleanup_stage in ("xr", "camera") else ["xr", "camera", "environment", "signals"]
     )
     if has_primary_error:
         assert any("cleanup failed" in note for note in primary_error.__notes__)

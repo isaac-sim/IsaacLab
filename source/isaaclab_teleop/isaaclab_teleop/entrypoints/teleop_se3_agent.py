@@ -403,7 +403,7 @@ def _close_teleop_resources(
             except Exception as error:
                 camera_drained = False
                 report_cleanup_error(error)
-        if env is not None and xr_drained:
+        if env is not None and xr_drained and camera_drained:
             if ov_libraries_xr_session is None or not ov_libraries_xr_session.async_worker_owns_environment:
                 try:
                     env.close()
@@ -427,7 +427,7 @@ def _close_teleop_resources(
             report_cleanup_error(error)
     if cleanup_failure is not None:
         raise cleanup_failure
-    if env is not None and xr_drained:
+    if env is not None and xr_drained and camera_drained:
         print("Environment closed")
 
 
