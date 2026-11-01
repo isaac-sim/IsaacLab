@@ -115,6 +115,8 @@ def validate_ovxr_presentation_args(
         parser.error("--ovxr_pip_camera requires --ovxr")
     if (args.ovxr_pip_head_locked or args.ovxr_pip_view_position is not None) and not using_ovxr:
         parser.error("OVXR presentation options require --ovxr")
+    if args.headless and not using_ovxr:
+        parser.error("--headless requires --ovxr; Kit runs headless unless --visualizer is given")
     if args.ovxr_pip_camera is not None and getattr(args, "disable_external_cameras", False):
         parser.error("--ovxr_pip_camera cannot be combined with --disable_external_cameras")
     if not math.isfinite(args.ovxr_pip_fps) or args.ovxr_pip_fps <= 0.0:

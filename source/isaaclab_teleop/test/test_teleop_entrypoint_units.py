@@ -792,18 +792,9 @@ def test_ovxr_mirror_cli_reaches_session_construction(monkeypatch, entrypoint, f
     assert isaaclab_teleop.OvLibrariesXrCfg().desktop_mirror_enabled is False
 
 
-@pytest.mark.parametrize(
-    "entrypoint, flags",
-    [
-        ("live", []),
-        ("live", ["--headless"]),
-        ("live", ["--xr"]),
-        ("live", ["--xr", "--headless"]),
-        ("replay", []),
-        ("replay", ["--headless"]),
-    ],
-)
-def test_non_ovxr_cli_keeps_mirror_disabled(monkeypatch, entrypoint, flags):
+@pytest.mark.parametrize("entrypoint, flags", [("live", ["--xr", "--headless"]), ("replay", ["--headless"])])
+def test_headless_requires_ovxr(monkeypatch, capsys, entrypoint, flags):
+    """Kit runs headless by default, so only the OVXR desktop mirror accepts ``--headless``."""
     from isaaclab_teleop.entrypoints import teleop_replay_agent, teleop_se3_agent
 
     module = teleop_se3_agent if entrypoint == "live" else teleop_replay_agent
@@ -813,8 +804,9 @@ def test_non_ovxr_cli_keeps_mirror_disabled(monkeypatch, entrypoint, flags):
     if entrypoint == "replay":
         argv += ["--replay_file", "recording.mcap"]
         monkeypatch.setattr(module, "hydra_overrides", None, raising=False)
-    args = module._parse_args(argv)
-    assert args.headless is ("--headless" in flags)
+    with pytest.raises(SystemExit):
+        module._parse_args(argv)
+    assert "--headless requires --ovxr" in capsys.readouterr().err
 
 
 def _run_ovxr_pip_workflow(monkeypatch, entrypoint, layout, flags, calls):
