@@ -30,6 +30,9 @@ _TASK = "Isaac-Cartpole"
 _TRANSFER_DEVICES = ("cuda:0", "cpu")
 """Simulation devices for the transfer case; CPU physics publishes host scene tensors."""
 
+_GR1T2_TASK = "IsaacContrib-PickPlace-GR1T2-Abs"
+"""Humanoid task whose registered entry point prepares it for kitless OvPhysX."""
+
 
 @dataclass
 class _CaseResult:
@@ -45,6 +48,7 @@ def _make_env_and_bootstrap(task: str, device: str):
     import gymnasium as gym
     from isaaclab_ov.physics import OvPhysxCfg
     from isaaclab_ov.renderers import OVRTXRendererCfg
+    from isaaclab_teleop import remove_camera_configs
     from isaaclab_teleop.ovxr_session import OvxrSessionBootstrap
 
     import isaaclab_tasks  # noqa: F401 -- registers the task
@@ -56,6 +60,8 @@ def _make_env_and_bootstrap(task: str, device: str):
     assert isinstance(cfg.sim.physics, OvPhysxCfg)
     cfg.sim.device = device
     cfg.scene.num_envs = 1
+    # Like an --ovxr launch, keep task cameras off the leased renderer.
+    cfg = remove_camera_configs(cfg)
     bootstrap = OvxrSessionBootstrap(cfg.sim, OVRTXRendererCfg())
     try:
         return bootstrap, gym.make(task, cfg=cfg).unwrapped
@@ -172,6 +178,12 @@ def test_same_thread_ovxr_session_native_control():
 def test_cross_thread_preuse_owner_transfer_native(device):
     """The application publishes while the render thread binds, renders and closes the pair."""
     _run_native_subprocess(_TASK, device, True)
+
+
+@pytest.mark.parametrize("transfer", [False, True], ids=["same-thread", "transfer"])
+def test_gr1t2_cpu_ovphysx_native(transfer):
+    """The prepared GR1T2 scene publishes from CPU OvPhysX, with and without the owner transfer."""
+    _run_native_subprocess(_GR1T2_TASK, "cpu", transfer)
 
 
 if __name__ == "__main__":
