@@ -155,7 +155,7 @@ def run_live_workflow(monkeypatch):
         env.sim.device = "cpu"
         env.sim.visualizers = ()
         cfg = SimpleNamespace(
-            sim=object(),
+            sim=SimpleNamespace(device="cpu"),
             isaac_teleop=isaaclab_teleop.IsaacTeleopCfg(
                 action_conditioner=conditioner,
                 action_validator=validator,
@@ -766,7 +766,7 @@ def test_ovxr_mirror_cli_reaches_session_construction(monkeypatch, entrypoint, f
         monkeypatch.setattr(module, "hydra_overrides", None, raising=False)
     module._parse_args(argv)
     assert module.args_cli.headless is ("--headless" in flags)
-    cfg = SimpleNamespace(sim=object(), isaac_teleop=isaaclab_teleop.IsaacTeleopCfg())
+    cfg = SimpleNamespace(sim=SimpleNamespace(device="cpu"), isaac_teleop=isaaclab_teleop.IsaacTeleopCfg())
     received = []
 
     class PreparationReached(Exception):

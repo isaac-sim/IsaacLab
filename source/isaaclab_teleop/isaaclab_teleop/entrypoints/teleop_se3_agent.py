@@ -357,7 +357,7 @@ def _cuda_device(value: str) -> str:
     return value
 
 
-def _ovxr_renderer_cfg(sim_device: str | None):
+def _ovxr_renderer_cfg(sim_device: str):
     """Build the one OVRTX configuration shared by the OVXR session and its PiP cameras.
 
     The geometry publication device must be a rendering GPU: one of ``--ovrtx_active_cuda_gpus``,
@@ -370,7 +370,7 @@ def _ovxr_renderer_cfg(sim_device: str | None):
     if publication is not None:
         if args_cli.ovrtx_active_cuda_gpus is not None:
             rendering = parse_active_cuda_gpus(args_cli.ovrtx_active_cuda_gpus)
-        elif sim_device is not None and sim_device.startswith("cuda"):
+        elif sim_device.startswith("cuda"):
             # Only this path needs the session module, which loads the OVRTX renderer before launch.
             from ..ovxr_session import resolve_cuda_device
 
@@ -573,7 +573,7 @@ def run_teleoperation(  # noqa: C901
                 renderer_cfg=(
                     selected_cameras[0].camera_cfg.renderer_cfg
                     if selected_cameras
-                    else _ovxr_renderer_cfg(getattr(env_cfg.sim, "device", None))
+                    else _ovxr_renderer_cfg(env_cfg.sim.device)
                 ),
             )
 
