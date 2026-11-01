@@ -58,14 +58,17 @@ The same registered-task selectors apply to live input and MCAP replay:
 | `IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs` | `ovphysx`, `newton_mjwarp`, `isaacsim_physx` |
 | `IsaacContrib-PickPlace-Locomanipulation-G1-Abs` | `ovphysx`, `newton_mjwarp`, `isaacsim_physx` |
 | `IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs` | `ovphysx`, `newton_mjwarp`, `isaacsim_physx` |
-| `IsaacContrib-Stack-Cube-SO101-IK-Abs-v0` | `ovphysx`, `newton_mjwarp`, `isaacsim_physx` |
+| `IsaacContrib-Stack-Cube-SO101-IK-Abs-v0` | `ovphysx`, `isaacsim_physx` |
 
 Omitting `--physics` retains the Kit/Isaac Sim default. Use `--physics ovphysx
 --device cpu` for standalone CPU physics, or `--physics newton_mjwarp --device
 cuda:0` for Newton; these standalone selections support `--ovxr`. Kit's
 `isaacsim_physx` selection uses its separate `--xr` workflow and Isaac Sim
 installation, not `--ovxr`. The task presets retain backend-specific solver
-settings and, for SO101, choose the matching USD Physics variant.
+settings and, for SO101, choose the matching USD Physics variant. SO101 also
+defines a `newton_mjwarp` preset, but the environment catalog
+(`tools/environ_docs.py`) disables that combination after the environment smoke
+matrix found runtime constraints, so it is not listed here.
 
 The SO101 IK task resets its joints to the configured nominal pose without
 joint-position noise, giving the clutch a repeatable reset pose. Its configured
