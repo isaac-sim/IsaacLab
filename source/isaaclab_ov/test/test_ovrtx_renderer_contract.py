@@ -236,7 +236,8 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
     assert config_kwargs.get("active_cuda_gpus") == (
         active_override if active_override is not None else "1" if use_ovstage else None
     )
-    # Camera compatibility preserves GPU instance transforms for every simulation device.
+    # Camera compatibility must retain the requested GPU scene-transform path,
+    # including when simulation tensors originate on the CPU.
     assert config_kwargs["read_gpu_transforms"] is True
     assert config_kwargs["suppress_deprecation_warnings"] is True
     assert config_kwargs["texture_streaming_mode"] is ovrtx_renderer_module.TextureStreamingMode.SYNCHRONOUS
