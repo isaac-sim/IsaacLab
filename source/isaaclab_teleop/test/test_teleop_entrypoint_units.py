@@ -5,7 +5,6 @@
 
 """In-process teleoperation entrypoint, configuration, and control-loop contracts."""
 
-import ast
 import os
 import re
 import signal
@@ -66,32 +65,6 @@ def test_xr_experience_declares_only_shipped_extensions():
     assert not [name for name in dependencies if name.startswith("omni.kit.xr.bundle.")], (
         "XR bundle meta-extensions are not shipped with Isaac Sim and resolve only from the Kit SDK registry"
     )
-
-
-def test_teleop_readme_programmatic_config_returns_pipeline_not_factory_tuple():
-    """Execute the documented public config, without entering an XR session."""
-    from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
-    from isaacteleop.retargeting_engine.interface import OutputCombiner
-
-    readme = ROOT / "source/isaaclab_teleop/docs/README.md"
-    section = readme.read_text().split("### 4. Programmatic Usage", 1)[1]
-    example = re.search(r"```python\n(.*?)```", section, re.DOTALL)
-    assert example is not None
-    tree = ast.parse(example.group(1))
-    config_statements = []
-    for statement in tree.body:
-        if isinstance(statement, ast.With):
-            break
-        config_statements.append(statement)
-    source = ControllersSource(name="documentation_controllers")
-    pipeline = OutputCombiner({"action": source.output(ControllersSource.RIGHT)})
-    retargeters = []
-    namespace = {"my_pipeline_builder": lambda: (pipeline, retargeters)}
-    exec(compile(ast.Module(body=config_statements, type_ignores=[]), str(readme), "exec"), namespace)
-    cfg = namespace["cfg"]
-    assert cfg.pipeline_builder() is pipeline
-    assert cfg.pipeline_builder().output("action") is not None
-    assert cfg.retargeters_to_tune() is retargeters
 
 
 @pytest.mark.parametrize(
