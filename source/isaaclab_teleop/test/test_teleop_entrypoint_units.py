@@ -128,7 +128,6 @@ def test_teleop_ovxr_validates_external_stage_without_changing_environment(
         "sys": sys,
         "ManagerBasedRLEnvCfg": SimpleNamespace,
         "resolve_task_config": lambda *_args, **_kwargs: (config, None),
-        "remove_camera_configs": lambda cfg, **_kwargs: cfg,
         "validate_launch": lambda *_args: (scans.append(os.environ.get(name)) or ((), ())),
         "args_cli": SimpleNamespace(
             task="Test",
@@ -448,8 +447,6 @@ def test_teleop_replay_agent_resolves_typed_presets_without_reapplying_physics(m
 
     monkeypatch.setattr(replay, "ManagerBasedRLEnvCfg", SimpleNamespace)
     monkeypatch.setattr(replay, "resolve_task_config", resolve)
-    monkeypatch.setattr(isaaclab_teleop, "remove_camera_configs", lambda cfg, **_kwargs: cfg)
-    monkeypatch.setattr(replay, "remove_camera_configs", isaaclab_teleop.remove_camera_configs)
     prepared, success = namespace["_prepare_env_cfg"]("test-task", 1, None, overrides=namespace["hydra_overrides"])
     assert resolutions == [("test-task", "", ["physics=ovphysx"])]
     assert prepared is cfg and success is not None
@@ -819,7 +816,6 @@ def test_task_preparation_precedes_ovxr_simulation_context(monkeypatch, entrypoi
     monkeypatch.setattr(module, "resolve_task_config", lambda *_args, **_kwargs: (config, None))
     monkeypatch.setattr(module, "validate_launch", validate_launch)
     monkeypatch.setattr(module, "launch_simulation", launch)
-    monkeypatch.setattr(module, "remove_camera_configs", lambda cfg, **_kwargs: cfg)
     monkeypatch.setattr(SimulationContext, "instance", lambda: None)
     monkeypatch.setattr(ovxr_session, "SimulationContext", ContextAllocation)
     monkeypatch.setitem(sys.modules, "ovxr", SimpleNamespace(apply_renderer_settings=lambda _settings: None))

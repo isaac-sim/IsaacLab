@@ -19,7 +19,6 @@ The script automatically detects which stack to use based on the environment con
 import argparse
 import logging
 import math
-import os
 import signal
 import sys
 import time
@@ -56,7 +55,7 @@ from ..action_policy import (
 )
 from ..action_policy import prepare_teleop_action
 from ..device_selection import create_teleop_device, select_teleop_cfg
-from ._ovxr_launch import require_kitless_physics
+from ._ovxr_launch import prepare_ovxr_launch
 
 logger = logging.getLogger(__name__)
 
@@ -289,12 +288,6 @@ def _resolve_env_cfg() -> tuple[ManagerBasedRLEnvCfg, IsaacTeleopCfg | DeviceCfg
     use_isaac_teleop = isinstance(teleop_cfg, IsaacTeleopCfg)
     if args_cli.using_ovxr and not use_isaac_teleop:
         raise ValueError("--ovxr requires a task configured with env_cfg.isaac_teleop")
-    if args_cli.using_ovxr and args_cli.num_envs != 1:
-        raise ValueError("--ovxr currently requires --num_envs 1")
-    if args_cli.using_ovxr:
-        stage_mode = os.environ.get("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1")
-        if stage_mode.strip() != "1":
-            raise ValueError("--ovxr requires OVStage (ISAAC_LAB_OVRTX_USE_OVSTAGE=1)")
     # XR-rendering setup (camera removal + DLSS) is only needed for the Kit XR
     # path. Without --xr, Isaac Capture runs standalone (I/O only) and renders
     # normally, so gate on --xr alone.
@@ -304,8 +297,7 @@ def _resolve_env_cfg() -> tuple[ManagerBasedRLEnvCfg, IsaacTeleopCfg | DeviceCfg
         if args_cli.disable_external_cameras:
             env_cfg = remove_camera_configs(env_cfg)
     if args_cli.using_ovxr:
-        env_cfg = remove_camera_configs(env_cfg)
-        require_kitless_physics(env_cfg, args_cli.task)
+        env_cfg = prepare_ovxr_launch(env_cfg, args_cli.task, args_cli.num_envs)
     # A task without a physics selection keeps None: SimulationContext defaults it to PhysxCfg.
     configs, kit_sources = validate_launch(env_cfg, vars(args_cli).copy())
     if args_cli.using_ovxr:

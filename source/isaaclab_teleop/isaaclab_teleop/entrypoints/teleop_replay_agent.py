@@ -295,7 +295,7 @@ from .. import (
     poll_control_events,
 )
 from ..action_policy import initial_hand_tracking_issue, prepare_teleop_action
-from ._ovxr_launch import require_kitless_physics
+from ._ovxr_launch import prepare_ovxr_launch
 
 logger = logging.getLogger(__name__)
 
@@ -1114,15 +1114,14 @@ def _prepare_env_cfg(
         )
     if hasattr(env_cfg.terminations, "time_out"):
         env_cfg.terminations.time_out = None
+    # Keep camera configs when external cameras are enabled (defaulted on) so the replay
+    # renders them for production parity; otherwise strip them for a lighter headless replay.
+    if args_cli.disable_external_cameras:
+        env_cfg = remove_camera_configs(env_cfg)
     if args_cli.ovxr:
-        if args_cli.num_envs != 1 or args_cli.xr:
-            raise ValueError("--ovxr requires one environment and no Kit XR or local visualizer")
-        if os.environ.get("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1").strip() != "1":
-            raise ValueError("--ovxr requires ISAAC_LAB_OVRTX_USE_OVSTAGE=1")
-        env_cfg = remove_camera_configs(env_cfg)
-        require_kitless_physics(env_cfg, task)
-    elif args_cli.disable_external_cameras:
-        env_cfg = remove_camera_configs(env_cfg)
+        if args_cli.xr:
+            raise ValueError("--xr and --ovxr are mutually exclusive OpenXR frame-loop owners")
+        env_cfg = prepare_ovxr_launch(env_cfg, task, num_envs)
     # A task without a physics selection keeps None: SimulationContext defaults it to PhysxCfg.
     configs, kit_sources = validate_launch(env_cfg, vars(args_cli).copy())
     if args_cli.ovxr:
