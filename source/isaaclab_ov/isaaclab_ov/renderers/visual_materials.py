@@ -67,6 +67,11 @@ class OVRTXVisualMaterialWriter:
         if renderer._initialized_scene:
             self._compile_addresses(renderer)
 
+    @property
+    def has_pending_updates(self) -> bool:
+        """Whether material changes require a scene publication even without a physics step."""
+        return bool(self._dirty_channels)
+
     def _compile_addresses(self, renderer: OVRTXRenderer) -> None:
         """Bind addresses only after the leased or ordinary scene has been populated."""
         if not renderer._initialized_scene:
@@ -90,11 +95,6 @@ class OVRTXVisualMaterialWriter:
             self._resources = resources.pop_all()
         self._addresses = addresses
         self._pending_groups = []
-
-    @property
-    def has_pending_updates(self) -> bool:
-        """Whether material changes require a scene publication even without a physics step."""
-        return bool(self._dirty_channels)
 
     def __call__(self, material_offsets: dict[str, Any] | None = None, env_ids: Any | None = None) -> None:
         """Mark channels dirty; OVRTX currently copies each dirty channel's full device buffer."""
