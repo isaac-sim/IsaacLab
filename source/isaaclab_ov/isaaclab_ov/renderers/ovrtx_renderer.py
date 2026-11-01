@@ -444,7 +444,7 @@ class OVRTXRenderer(BaseRenderer):
         )
 
     def _create_visual_material_writer(self, batches: tuple[VisualMaterialBatch, ...]) -> OVRTXVisualMaterialWriter:
-        """Create the detached-scene material writer after scene population."""
+        """Retain material buffers; deferred scenes compile addresses after population."""
         writer = OVRTXVisualMaterialWriter(self, batches)
         self._visual_material_writer_ref = weakref.ref(writer)
         return writer
