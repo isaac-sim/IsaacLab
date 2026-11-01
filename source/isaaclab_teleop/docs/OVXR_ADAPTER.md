@@ -35,7 +35,7 @@ Ownership transfer is single-use. Failed retirement must preserve resources
 for the owning thread to finish cleanup; a failed drain is not successful
 shutdown. Importing `OvLibrariesXrSession` requires a Capture release with OVXR
 session support; see [Installing kitless XR](kitless_xr_source.md). The
-`OvLibrariesXrConfig` dataclass lives in `isaaclab_teleop.ovxr_cfg` and imports
+`OvLibrariesXrCfg` dataclass lives in `isaaclab_teleop.ovxr_cfg` and imports
 without those packages.
 
 A failed scene write or seal stops further publication. Recreate the session
