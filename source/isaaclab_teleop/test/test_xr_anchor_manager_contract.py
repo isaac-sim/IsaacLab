@@ -112,7 +112,6 @@ def test_public_device_exposes_dynamic_anchor_only_for_ovxr_session(monkeypatch,
         kwargs.update(ovxr_session=True, mcap_replay_path="recording.mcap")
     with use_stage(Usd.Stage.CreateInMemory()):
         device = isaac_teleop_device.IsaacTeleopDevice(cfg, **kwargs)
-    assert device.xr_anchor_path == "/World/Robot/XRAnchor"
     assert (device.external_anchor_state is not None) == (capability != "none")
     lifecycle.assert_called_once()
 

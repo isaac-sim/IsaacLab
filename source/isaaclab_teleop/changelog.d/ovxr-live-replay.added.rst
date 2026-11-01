@@ -6,6 +6,6 @@
 * Added ``render_anchor_pos`` and ``render_anchor_rot`` to :class:`~isaaclab_teleop.XrCfg` for a
   render-only anchor offset.
 * Added external OVXR inputs to :class:`~isaaclab_teleop.IsaacTeleopDevice`, together with the
-  ``target_frame_prim_path``, ``xr_anchor_path``, ``xr_render_anchor_path``,
-  ``external_anchor_state``, ``required_openxr_extensions``, ``session_cleanup_failed`` and
-  ``hand_tracking_presence`` properties.
+  ``target_frame_prim_path``, ``xr_render_anchor_path``, ``external_anchor_state``,
+  ``required_openxr_extensions``, ``session_cleanup_failed`` and ``hand_tracking_presence``
+  properties.

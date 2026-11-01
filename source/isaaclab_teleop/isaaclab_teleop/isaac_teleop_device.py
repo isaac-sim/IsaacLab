@@ -314,15 +314,6 @@ class IsaacTeleopDevice:
         return self._cfg.target_frame_prim_path
 
     @property
-    def xr_anchor_path(self) -> str:
-        """Return the tracking-anchor prim path that maps OpenXR poses into the scene.
-
-        External OVXR frames its cameras from :attr:`xr_render_anchor_path`; the two paths differ
-        only when :attr:`~isaaclab_teleop.XrCfg.render_anchor_pos` or ``render_anchor_rot`` is set.
-        """
-        return self._anchor_manager.anchor_headset_path
-
-    @property
     def xr_render_anchor_path(self) -> str:
         """Return the anchor prim path used to frame XR cameras."""
         return self._anchor_manager.render_anchor_path
