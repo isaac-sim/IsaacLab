@@ -52,19 +52,23 @@ uv run --extra ovxr isaaclab teleop run \
 
 Use `--physics ovphysx --device cpu` for CPU OVPhysX. `--ovxr` selects OVStage
 and starts CloudXR with the `cloudxrjs` profile by default. Connect a supported
-CloudXR client, then use Play, Pause and Reset as in Kit-based teleoperation.
+CloudXR client, then use its Play and Reset controls. Pause/resume is available
+only on clients that expose it; Reset is a separate action.
 
 The SO101 IK task resets its joints to the configured nominal pose without
 joint-position noise, giving the clutch a repeatable reset pose. Its configured
 home transform supplies the clutch calibration. This applies to its Kit and
 kitless backends. The separate joint-control task retains its randomized reset.
 
+For SO101, check right-controller grip/squeeze engagement, release and
+re-engagement, proportional trigger control and Reset separately from cube
+grasping. Object retention and cube stacking also depend on contact properties
+and grasp placement; validate them separately from the input controls.
+
 For desktop IWER, select **VR** and set **Reference Space** to **local-floor**
 under **Teleoperator adjustment** before connecting. This keeps the emulated
 head and controllers relative to the floor. Between trials, end the previous XR
 session and reload the client page before reconnecting; recheck both settings.
-A blank or below-scene main view with a working camera panel warrants checking
-this client origin before changing the renderer.
 
 `--ovxr` and Kit's `--xr` select separate XR runtimes and are mutually exclusive.
 An explicit `ISAAC_LAB_OVRTX_USE_OVSTAGE=0` is incompatible with OVXR.
@@ -76,8 +80,7 @@ client to establish its OpenXR session. Installing Capture and resolving
 Python packages do not warm application-specific RTX shaders or Newton/Warp
 physics kernels. First runtime preparation and the first physics step can take
 longer than subsequent runs. Retain startup logs and distinguish stage/render
-preparation from client connection and active simulation; do not treat a warm
-retry as proof that an earlier timeout was fixed.
+preparation from client connection and active simulation.
 
 Use `--step_hz 20` to cap live control at 20 updates per second while XR rendering
 runs independently. Time spent reading input, stepping physics and publishing
