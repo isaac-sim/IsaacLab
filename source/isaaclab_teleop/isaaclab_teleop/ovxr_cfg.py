@@ -22,7 +22,7 @@ _DEFAULT_OVXR_CAMERA_PATHS = (
 
 
 @dataclass
-class OvLibrariesXrConfig:
+class OvLibrariesXrCfg:
     """Isaac Lab configuration for an IsaacTeleop-owned OVXR session."""
 
     application_name: str = "isaaclab-kitless-teleop"
