@@ -660,12 +660,16 @@ class TeleopSessionLifecycle:
         """Shut down the session and clean up resources.
 
         Closes the retargeting tuning UI and exits the ``TeleopSession``
-        context manager before stopping CloudXR. Cleanup failures propagate
-        (or are attached to the caller's original exception). If native drain
-        fails, latch the error and prohibit reuse or restart. The retained session
-        reference does not prove native drain; the application must not release
-        borrowed resources or stop the runtime after that failure. Native owners
-        classify expected disconnects.
+        context manager.  If the underlying OpenXR session was already torn
+        down externally (e.g. "Stop AR"), cleanup errors are suppressed.
+
+        A retargeting UI failure does not skip session cleanup; it propagates
+        afterwards, or is attached to the caller's original exception. With an
+        external OVXR handle provider, a failed session exit is not suppressed:
+        it is reported the same way and latched, and the lifecycle prohibits
+        reuse or restart. The retained session reference does not prove native
+        drain; the application must not release borrowed resources or stop the
+        runtime after that failure.
 
         Args:
             exc_type: Exception type (for context manager protocol).
@@ -675,7 +679,6 @@ class TeleopSessionLifecycle:
         self._detach_keyboards()
         self._pressed_keys.clear()
 
-        # Close the retargeting tuning UI first
         error = exc_val
 
         def record_failure(cleanup_error: BaseException) -> None:
@@ -685,6 +688,7 @@ class TeleopSessionLifecycle:
             else:
                 error.add_note(f"Isaac Capture cleanup failed: {cleanup_error!r}")
 
+        # Close the retargeting tuning UI first
         # A UI failure must not prevent native/session cleanup.
         if self._retargeting_ui_ctx is not None:
             try:
@@ -704,12 +708,21 @@ class TeleopSessionLifecycle:
                 return
             try:
                 self._session.__exit__(exc_type, exc_val, exc_tb)
-            except BaseException as cleanup_error:
-                self._session_cleanup_error = cleanup_error
-                record_failure(cleanup_error)
-                if exc_val is None:
-                    raise error
-                return
+            except BaseException as e:
+                if self._external_oxr_handles_provider is not None:
+                    # Borrowed OVXR handles must be proven drained before their owner releases them.
+                    self._session_cleanup_error = e
+                    record_failure(e)
+                    if exc_val is None:
+                        raise error
+                    return
+                if not isinstance(e, Exception):
+                    raise
+                # The OpenXR session may have already been torn down externally
+                # (e.g. user clicked "Stop AR"), so destroying spaces/action
+                # sets will fail with XR_ERROR_HANDLE_INVALID.  This is
+                # expected and safe to suppress.
+                logger.debug(f"Suppressed error during Isaac Capture session cleanup: {e}")
             self._session = None
 
         # Always clear pipeline state (session may never have been created if
@@ -1430,6 +1443,8 @@ class TeleopSessionLifecycle:
             try:
                 self._teardown_dead_session()
             except BaseException as cleanup_error:
+                if self._external_oxr_handles_provider is None:
+                    raise
                 # Failed drain retains the owner; never restart over live resources.
                 self._session_cleanup_error = e
                 e.add_note(f"Teleop session drain also failed: {cleanup_error!r}")
@@ -1481,18 +1496,27 @@ class TeleopSessionLifecycle:
 
         This is called when :meth:`step` detects that the XR session was
         destroyed externally (e.g. user clicked "Stop AR").  The
-        ``TeleopSession`` classifies expected native disconnects. Failed drain
-        propagates and latches a terminal error; only successful drain resets
-        state so deferred start can re-acquire handles when the user restarts AR.
+        ``TeleopSession`` is exited with error suppression (since its XR
+        resources are already gone), and the internal state is reset so that
+        the deferred-start logic in :meth:`step` can re-acquire handles if
+        the user restarts AR.
+
+        With an external OVXR handle provider, a failed exit propagates instead
+        and latches a terminal error, so borrowed handles are never reused or
+        restarted before they are proven drained.
         """
         if self._session is not None:
             try:
                 self._session.__exit__(None, None, None)
-            except BaseException as error:
-                # Exit may already be terminal. Never infer successful drain from
-                # a later no-op __exit__, or resume/restart after this failure.
-                self._session_cleanup_error = error
-                raise
+            except BaseException as e:
+                if self._external_oxr_handles_provider is not None:
+                    # Exit may already be terminal. Never infer successful drain from
+                    # a later no-op __exit__, or resume/restart after this failure.
+                    self._session_cleanup_error = e
+                    raise
+                if not isinstance(e, Exception):
+                    raise
+                logger.debug(f"Suppressed error tearing down dead session: {e}")
             self._session = None
         self._session_start_deferred_logged = False
         self._last_step_result = None
