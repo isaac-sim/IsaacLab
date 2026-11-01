@@ -2,5 +2,4 @@
   :meth:`~isaaclab_ov.renderers.OVRTXRenderer.acquire_ov_libraries_render_lease` for application-owned
   OVRTX/OVStage borrowing by external consumers, with private-stage selection, capability-checked
   render-thread ownership transfer, deferred Stage materialization, scene publication, and ordered cleanup.
-* Supported CPU scene transforms and camera buffers alongside GPU rendering.
 * Published dirty visual materials with leased scene updates, including material-only changes.
