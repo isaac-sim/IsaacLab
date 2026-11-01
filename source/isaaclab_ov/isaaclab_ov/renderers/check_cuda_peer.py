@@ -3,12 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Check synchronized cross-GPU copy values before selecting split-GPU teleoperation.
+"""Check synchronized cross-GPU copy values before splitting physics and rendering across GPUs.
 
-Run as ``python -m isaaclab_teleop.check_cuda_peer --devices cuda:0 cuda:1``.
+Run as ``python -m isaaclab_ov.renderers.check_cuda_peer --devices cuda:0 cuda:1``.
 This is a small transfer-integrity check, not an application or performance test. It runs the
-renderer's geometry-publication copy (``--geometry_publication_device``) in both directions, then,
-where supported, direct peer copies between plain allocations.
+renderer's geometry-publication copy (``OVRTXRendererCfg.geometry_publication_device``) in both
+directions, then, where supported, direct peer copies between plain allocations.
 """
 
 from __future__ import annotations

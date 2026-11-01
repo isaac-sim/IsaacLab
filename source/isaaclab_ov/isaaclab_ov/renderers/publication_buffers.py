@@ -145,7 +145,7 @@ class _GeometryPublicationBuffers:
 
         This is the exact transfer used for publication: the target comes from Warp's default
         allocator on the publication device, peer access is left to the driver, and the copy waits
-        on the producer's current stream. ``isaaclab_teleop.check_cuda_peer`` exercises it.
+        on the producer's current stream. ``isaaclab_ov.renderers.check_cuda_peer`` exercises it.
         """
         if self._stream is None:
             # Retain Torch's nonblocking stream; Warp-created streams are blocking.

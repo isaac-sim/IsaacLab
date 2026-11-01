@@ -5,3 +5,5 @@
   are copied to the simulation device before extraction. Malformed values are rejected
   when the configuration is created; :func:`~isaaclab_ov.renderers.parse_active_cuda_gpus` and
   :func:`~isaaclab_ov.renderers.parse_cuda_device_index` apply the same checks beforehand.
+* Added ``python -m isaaclab_ov.renderers.check_cuda_peer``, a preflight that checks the geometry
+  publication copy between two GPUs before splitting physics and rendering across them.

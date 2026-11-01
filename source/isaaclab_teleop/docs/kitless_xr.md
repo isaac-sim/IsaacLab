@@ -214,7 +214,7 @@ Before using PCIe peer transfers, verify synchronized copy **values** in both
 directions with initialized destination buffers:
 
 ```bash
-uv run --extra ovxr python -m isaaclab_teleop.check_cuda_peer --devices cuda:0 cuda:1
+uv run --extra ovxr python -m isaaclab_ov.renderers.check_cuda_peer --devices cuda:0 cuda:1
 ```
 
 Run this with the same `CUDA_VISIBLE_DEVICES` selection as the application. It
