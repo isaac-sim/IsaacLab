@@ -9,10 +9,37 @@ from __future__ import annotations
 
 import argparse
 import math
+import os
 from typing import TYPE_CHECKING, Any
 
+from ..xr_cfg import remove_camera_configs
+
 if TYPE_CHECKING:
-    from ..ovxr_cfg import OvLibrariesXrCameraConfig
+    from ..ovxr_cfg import OvLibrariesXrCameraCfg
+
+
+def prepare_ovxr_launch(env_cfg: Any, task: str, num_envs: int, *, keep: tuple[str, ...] = ()) -> Any:
+    """Check an OVXR launch before runtime startup and remove the task's camera sensors.
+
+    Args:
+        env_cfg: Resolved environment configuration.
+        task: Task name, for the error message.
+        num_envs: Requested number of environments.
+        keep: Camera sensor names to retain for the OVXR camera panels.
+
+    Returns:
+        The configuration without camera sensors other than ``keep``.
+
+    Raises:
+        ValueError: If ``num_envs`` is not 1, ``ISAAC_LAB_OVRTX_USE_OVSTAGE`` is set to a value
+            other than ``1``, or the task needs Kit physics (see :func:`require_kitless_physics`).
+    """
+    if num_envs != 1:
+        raise ValueError("--ovxr currently requires --num_envs 1")
+    if os.environ.get("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1").strip() != "1":
+        raise ValueError("--ovxr requires OVStage (ISAAC_LAB_OVRTX_USE_OVSTAGE=1)")
+    require_kitless_physics(env_cfg, task)
+    return remove_camera_configs(env_cfg, keep=keep)
 
 
 def require_kitless_physics(env_cfg: Any, task: str) -> None:
@@ -40,12 +67,6 @@ def require_kitless_physics(env_cfg: Any, task: str) -> None:
 
 def add_ovxr_presentation_args(parser: argparse.ArgumentParser) -> None:
     """Add the OVXR camera-panel and desktop-mirror options shared by live teleoperation and replay."""
-    parser.add_argument(
-        "--ovxr_desktop_mirror",
-        action="store_true",
-        default=False,
-        help="Show the OVXR desktop mirror (enabled by default; --headless disables it).",
-    )
     parser.add_argument("--headless", action="store_true", help="Disable the OVXR desktop mirror.")
     parser.add_argument(
         "--ovxr_desktop_mirror_fps",
@@ -83,21 +104,20 @@ def add_ovxr_presentation_args(parser: argparse.ArgumentParser) -> None:
 def validate_ovxr_presentation_args(
     parser: argparse.ArgumentParser, args: argparse.Namespace, *, using_ovxr: bool
 ) -> None:
-    """Validate the shared OVXR presentation options and resolve the desktop-mirror default.
+    """Validate the shared OVXR presentation options.
 
     Args:
         parser: Parser used to report errors.
-        args: Parsed namespace; ``ovxr_desktop_mirror`` is set to the resolved selection.
+        args: Parsed namespace.
         using_ovxr: Whether the command selected ``--ovxr``.
     """
-    if args.ovxr_desktop_mirror and not using_ovxr:
-        parser.error("--ovxr_desktop_mirror requires --ovxr")
     if args.ovxr_pip_camera is not None and not using_ovxr:
         parser.error("--ovxr_pip_camera requires --ovxr")
     if (args.ovxr_pip_head_locked or args.ovxr_pip_view_position is not None) and not using_ovxr:
         parser.error("OVXR presentation options require --ovxr")
-    args.ovxr_desktop_mirror = using_ovxr and not args.headless
-    if args.ovxr_pip_camera is not None and getattr(args, "disable_external_cameras", False):
+    if args.headless and not using_ovxr:
+        parser.error("--headless requires --ovxr; Kit runs headless unless --visualizer is given")
+    if args.ovxr_pip_camera is not None and args.disable_external_cameras:
         parser.error("--ovxr_pip_camera cannot be combined with --disable_external_cameras")
     if not math.isfinite(args.ovxr_pip_fps) or args.ovxr_pip_fps <= 0.0:
         parser.error("--ovxr_pip_fps must be finite and positive")
@@ -114,7 +134,7 @@ def validate_ovxr_presentation_args(
 
 def resolve_ovxr_pip_cameras(
     env_cfg: Any, args: argparse.Namespace, renderer_cfg: Any
-) -> tuple[OvLibrariesXrCameraConfig, ...]:
+) -> tuple[OvLibrariesXrCameraCfg, ...]:
     """Select the requested PiP cameras and resolve their OVXR panels before launch.
 
     Selection assigns ``renderer_cfg`` to each selected camera, so the OVXR session and its panels

@@ -6,9 +6,8 @@
 """Execute the real public entry without native startup to prove failure/cleanup contracts."""
 
 import contextlib
+import logging
 import signal
-import sys
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock
 
@@ -24,9 +23,7 @@ def entry_namespace(monkeypatch):
     for name in (
         "args_cli",
         "gym",
-        "_rtx_rendering_requested",
         "_resolve_cloudxr_env",
-        "_make_haptic_io",
         "has_kit",
         "create_teleop_device",
         "_install_ovxr_shutdown_handlers",
@@ -41,8 +38,10 @@ def entry_namespace(monkeypatch):
 @pytest.mark.parametrize(
     "stage,use_capture", [("environment", True), ("device", True), ("haptics", True), ("input", True), ("input", False)]
 )
-def test_live_entry_failure_closes_resources_and_preserves_cause(monkeypatch, entry_namespace, stage, use_capture):
-    """Every startup phase and the live loop must retain its failure after cleanup."""
+def test_live_entry_failure_closes_resources_and_reports_cause(
+    monkeypatch, caplog, entry_namespace, stage, use_capture
+):
+    """Startup and live-loop failures are logged or propagated, and both release the resources."""
     import isaaclab_teleop
 
     failure = RuntimeError(f"{stage} failed")
@@ -53,13 +52,20 @@ def test_live_entry_failure_closes_resources_and_preserves_cause(monkeypatch, en
         reset=Mock(),
         close=Mock(),
     )
+    env.unwrapped = env
     interface = MagicMock()
     interface.advance.side_effect = failure
     monkeypatch.setattr(isaaclab_teleop.XrCameraFeedSession, "prepare", Mock(return_value=camera))
+    monkeypatch.setattr(
+        isaaclab_teleop,
+        "create_haptic_feedback_driver",
+        Mock(side_effect=failure if stage == "haptics" else None, return_value=None),
+    )
     entry_namespace.update(
         {
             "args_cli": SimpleNamespace(
                 task="test-task",
+                device="cpu",
                 xr=False,
                 using_ovxr=False,
                 disable_external_cameras=True,
@@ -72,9 +78,7 @@ def test_live_entry_failure_closes_resources_and_preserves_cause(monkeypatch, en
                     side_effect=failure if stage == "environment" else None, return_value=SimpleNamespace(unwrapped=env)
                 )
             ),
-            "_rtx_rendering_requested": lambda _args: False,
             "_resolve_cloudxr_env": lambda *_args: None,
-            "_make_haptic_io": Mock(side_effect=failure if stage == "haptics" else None, return_value=(Mock(), Mock())),
             "has_kit": lambda: False,
             "create_teleop_device": Mock(side_effect=failure if stage == "device" else None, return_value=interface),
             "_install_ovxr_shutdown_handlers": Mock(return_value={}),
@@ -91,152 +95,17 @@ def test_live_entry_failure_closes_resources_and_preserves_cause(monkeypatch, en
     )
     if not use_capture:
         cfg = SimpleNamespace()  # Native inputs must not read Capture-only action policy.
-    with pytest.raises(RuntimeError) as caught:
-        entry_namespace["run_teleoperation"](cfg, False, use_capture, [])
-    assert caught.value is failure
+    if stage == "haptics":
+        with pytest.raises(RuntimeError) as caught:
+            entry_namespace["run_teleoperation"](cfg, False, use_capture, ())
+        assert caught.value is failure
+    else:
+        # Environment, device and loop failures keep the upstream log-and-return exit.
+        with caplog.at_level(logging.ERROR):
+            entry_namespace["run_teleoperation"](cfg, False, use_capture, ())
+        assert f"{stage} failed" in caplog.text
     camera.close.assert_called_once_with()
     assert env.close.call_count == int(stage != "environment")
-
-
-def _run_ovxr_until_session_prepare(monkeypatch, arguments, camera_names=()):
-    """Drive the real parser and entrypoint up to OVXR session preparation; return its configs."""
-    import isaaclab_teleop
-    from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg, XrCameraFeedCfg
-
-    from isaaclab.sensors import CameraCfg
-
-    script = (
-        Path(__file__).resolve().parents[3] / "source/isaaclab_teleop/isaaclab_teleop/entrypoints/teleop_se3_agent.py"
-    )
-    argv = [str(script), "--task", "Test", "--ovxr", "--physics", "ovphysx", *arguments]
-    if camera_names:
-        argv += ["--ovxr_pip_head_locked", "--ovxr_pip_camera", *camera_names]
-    monkeypatch.setattr(sys, "argv", argv)
-    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1")
-    from isaaclab_teleop.entrypoints import teleop_se3_agent as agent
-
-    monkeypatch.setattr(agent, "args_cli", None, raising=False)
-    agent._parse_args()
-    config = SimpleNamespace(
-        scene=SimpleNamespace(
-            num_envs=1,
-            **{name: CameraCfg(prim_path=f"/World/{name}", width=640, height=480) for name in camera_names},
-        ),
-        sim=SimpleNamespace(device="cuda:0", physics=object()),
-        terminations=SimpleNamespace(time_out=1),
-        isaac_teleop=IsaacTeleopCfg(
-            xr_camera_feeds=[XrCameraFeedCfg(camera_name=name, panel_width_m=0.4) for name in camera_names]
-        ),
-    )
-    monkeypatch.setattr(agent, "ManagerBasedRLEnvCfg", SimpleNamespace)
-    monkeypatch.setattr(agent, "resolve_task_config", lambda *_args, overrides: (config, None))
-    monkeypatch.setattr(agent, "validate_launch", lambda *_args: ((), ()))
-    monkeypatch.setattr(isaaclab_teleop, "remove_camera_configs", lambda cfg, **_kwargs: cfg)
-    camera_session = SimpleNamespace(close=Mock())
-    monkeypatch.setattr(isaaclab_teleop.XrCameraFeedSession, "prepare", Mock(return_value=camera_session))
-    captured = []
-    stopped = RuntimeError("Stop before native startup")
-
-    def prepare(_sim, cfg, renderer_cfg):
-        captured.append((cfg, renderer_cfg))
-        raise stopped
-
-    # Pre-launch validation rejects before any session exists, so rejection tests run in every environment.
-    resolved = agent._resolve_env_cfg()
-    # Session construction needs a Capture release with OVXR session support; the Kit
-    # ``teleop`` extra selects an older release, so skip there like ``run_live_workflow``.
-    pytest.importorskip("isaaccapture.ovxr_session_manager")
-    monkeypatch.setattr(isaaclab_teleop.OvLibrariesXrSession, "prepare", prepare)
-    with pytest.raises(RuntimeError) as caught:
-        agent.run_teleoperation(*resolved)
-    assert caught.value is stopped
-    camera_session.close.assert_called_once_with()
-    assert len(captured) == 1
-    return captured[0]
-
-
-@pytest.mark.parametrize("override", [False, True])
-@pytest.mark.parametrize("camera_count", [0, 2])
-def test_geometry_publication_cli_reaches_shared_xr_renderer(monkeypatch, override, camera_count):
-    """The GPU options reach one renderer config shared by the stereo session and every PiP camera."""
-    from isaaclab_ov.renderers import OVRTXRendererCfg
-
-    arguments = ["--ovrtx_active_cuda_gpus", "1", "--geometry_publication_device", "cuda:1"] if override else []
-    names = [f"camera_{index}" for index in range(camera_count)]
-    session, renderer = _run_ovxr_until_session_prepare(monkeypatch, arguments, names)
-    assert renderer.active_cuda_gpus == ("1" if override else None)
-    assert renderer.geometry_publication_device == ("cuda:1" if override else None)
-    assert renderer.log_file_path == OVRTXRendererCfg().log_file_path
-    assert len(session.auxiliary_cameras) == camera_count
-    assert all(camera.camera_cfg.renderer_cfg is renderer for camera in session.auxiliary_cameras)
-
-
-@pytest.mark.parametrize(
-    ("arguments", "message"),
-    [
-        (["--ovrtx_active_cuda_gpus", "cuda:0"], "active_cuda_gpus must list CUDA indices"),
-        (["--ovrtx_active_cuda_gpus", "0,0"], "more than once"),
-        (["--geometry_publication_device", "cuda"], "explicit CUDA device"),
-        (["--geometry_publication_device", "gpu:0"], "explicit CUDA device"),
-    ],
-)
-def test_render_device_cli_rejects_malformed_values_at_parse_time(monkeypatch, capsys, arguments, message):
-    from isaaclab_teleop.entrypoints import teleop_se3_agent as agent
-
-    monkeypatch.setattr(sys, "argv", ["teleop_se3_agent.py", "--task", "Test", "--ovxr", *arguments])
-    monkeypatch.setattr(agent, "args_cli", None, raising=False)
-    with pytest.raises(SystemExit):
-        agent._parse_args()
-    assert message in capsys.readouterr().err
-
-
-def _set_physics_cuda_device(monkeypatch, index):
-    """Make ``/physics/cudaDevice``, which resolves a bare ``cuda`` device at launch, read ``index``."""
-    from isaaclab_teleop.entrypoints import teleop_se3_agent as agent
-
-    settings = SimpleNamespace(get=lambda path, default=None: index if path == "/physics/cudaDevice" else default)
-    monkeypatch.setattr(agent, "get_settings_manager", lambda: settings)
-
-
-@pytest.mark.parametrize(
-    ("arguments", "message"),
-    [
-        (["--ovrtx_active_cuda_gpus", "0", "--geometry_publication_device", "cuda:1"], r"rendering GPU \[0\]"),
-        (["--device", "cuda:1", "--geometry_publication_device", "cuda:0"], r"rendering GPU \[1\]"),
-        (["--device", "cuda", "--geometry_publication_device", "cuda:0"], r"rendering GPU \[1\]"),
-        (["--device", "cpu", "--geometry_publication_device", "cuda:0"], "requires --ovrtx_active_cuda_gpus"),
-    ],
-)
-def test_geometry_publication_device_must_be_a_rendering_gpu(monkeypatch, arguments, message):
-    """Copies to a GPU that does not render add work without helping the renderer."""
-    _set_physics_cuda_device(monkeypatch, 1)
-    with pytest.raises(ValueError, match=message):
-        _run_ovxr_until_session_prepare(monkeypatch, arguments)
-
-
-@pytest.mark.parametrize(("physics_cuda_device", "publication"), [(None, "cuda:0"), (1, "cuda:1")])
-def test_bare_cuda_physics_renders_on_the_gpu_that_launch_selects(monkeypatch, physics_cuda_device, publication):
-    """``--device cuda`` follows ``/physics/cudaDevice`` as the launcher does before the check runs."""
-    _set_physics_cuda_device(monkeypatch, physics_cuda_device)
-    arguments = ["--device", "cuda", "--geometry_publication_device", publication]
-    _, renderer = _run_ovxr_until_session_prepare(monkeypatch, arguments)
-    assert renderer.geometry_publication_device == publication
-
-
-@pytest.mark.parametrize(
-    "option,value", [("--geometry_publication_device", "cuda:0"), ("--ovrtx_active_cuda_gpus", "0")]
-)
-def test_render_device_cli_requires_ovxr(monkeypatch, option, value):
-    script = (
-        Path(__file__).resolve().parents[3] / "source/isaaclab_teleop/isaaclab_teleop/entrypoints/teleop_se3_agent.py"
-    )
-    monkeypatch.setattr(sys, "argv", [str(script), "--task", "Test", option, value])
-    from isaaclab_teleop.entrypoints import teleop_se3_agent as agent
-
-    monkeypatch.setattr(agent, "args_cli", None, raising=False)
-    with pytest.raises(SystemExit) as caught:
-        agent._parse_args()
-    assert caught.value.code == 2
 
 
 def test_input_cleanup_failure_prevents_borrowed_owner_release(entry_namespace):

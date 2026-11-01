@@ -59,10 +59,10 @@ gym.register(
 > tasks or environments. However, this practice is debatable and we are open to suggestions to deal with a large
 > scaling in the number of tasks or environments.
 
-## Fixed-base G1 manipulation cameras
+## Standalone physics for GR1T2 and G1 teleoperation tasks
 
-For standalone OVPhysX, the task's backend preparation hook moves the tabletop
-collision anchor onto its existing meshes, using the same preparation as GR1T2.
+For standalone OVPhysX, the fixed-base G1 task's backend preparation hook moves the
+tabletop collision anchor onto its existing meshes, using the same preparation as GR1T2.
 OVPhysX cooks the steering wheel's authored collision meshes. The bin's existing
 primitive colliders and the object's drop termination remain enabled.
 Registered GR1T2 and G1 tasks prepare the selected backend before scene construction,
@@ -70,6 +70,8 @@ including when created through `gym.make()` or `instantiate(cfg)` without the
 teleoperation launcher. Newton uses its separate backend preparation. Resolve a
 fresh task configuration when changing backends after preparation; copying a prepared
 configuration preserves its selected backend and caller overrides.
+
+## Fixed-base G1 manipulation cameras
 
 `IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs` provides three 640×480 RGB
 cameras: `robot_pov_cam` at 20 Hz, and `left_wrist_cam` and `right_wrist_cam` at
@@ -91,13 +93,13 @@ only the names present in the policy observations.
 
 The same names identify the policy image observations and the task's XR camera
 feeds, with the head panel centered and wrist panels to its left and right.
-Sensor `update_period` controls image sampling in simulation time; feed
-`max_update_hz` caps uploads. Actual delivery also depends on simulation and
-renderer throughput. Camera sampling rates are configuration targets, not
-measured headset frame rates.
+In Kit, sensor `update_period` controls image sampling in simulation time; feed
+`max_update_hz` caps uploads. In OVXR, each panel renders natively at the lower of
+`--ovxr_pip_fps` and its feed's nonzero `max_update_hz`; `update_period` does not
+apply. Actual delivery also depends on simulation and renderer throughput. Camera
+sampling rates are configuration targets, not measured headset frame rates.
 
-The teleoperation launcher's `--disable_external_cameras` option removes these
-cameras and their image observations. The kitless XR launcher accepts up to
+With `--xr`, the teleoperation launcher's `--disable_external_cameras` option removes
+these cameras and their image observations. The kitless XR launcher accepts up to
 three camera names with `--ovxr_pip_camera`. Camera feeds are opt-in: without
 this option, live OVXR and MCAP replay omit task cameras and PiP layers.
-Selected feeds keep their own sampling cadence.

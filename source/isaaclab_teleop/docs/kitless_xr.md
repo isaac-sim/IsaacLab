@@ -65,22 +65,28 @@ defines a `newton_mjwarp` preset, but the environment catalog
 (`tools/environ_docs.py`) disables that combination after the environment smoke
 matrix found runtime constraints, so it is not listed here.
 
+For example, replace the task in this command with any row above:
+
+```bash
+uv run --extra ovxr isaaclab teleop run \
+    --task IsaacContrib-PickPlace-GR1T2-Abs --num_envs 1 \
+    --device cpu --physics ovphysx --ovxr
+```
+
+`--ovxr` selects OVStage and starts CloudXR with the `cloudxrjs` profile by
+default. Connect a supported CloudXR client, then use its Play and Reset
+controls. Pause/resume is available only on clients that expose it; Reset is a
+separate action.
+
 The SO101 IK task resets its joints to the configured nominal pose without
 joint-position noise, giving the clutch a repeatable reset pose. Its configured
 home transform supplies the clutch calibration. This applies to its Kit and
 kitless backends. The separate joint-control task retains its randomized reset.
 
-For example, replace the task in this command with any row above:
-
-```bash
-uv run --python 3.12 --extra ovxr --locked isaaclab teleop run \
-    --task IsaacContrib-PickPlace-GR1T2-Abs --num_envs 1 \
-    --device cpu --physics ovphysx --ovxr
-```
-
-`--ovxr` selects OVStage and starts CloudXR with the `cloudxrjs` profile by default. Connect a supported
-CloudXR client, then use its Play and Reset controls. Pause/resume is available only on clients
-that expose it; Reset is a separate action.
+For SO101, check right-controller grip/squeeze engagement, release and
+re-engagement, proportional trigger control and Reset separately from cube
+grasping. Object retention and cube stacking also depend on contact properties
+and grasp placement; validate them separately from the input controls.
 
 For desktop IWER, select **VR** and set **Reference Space** to **local-floor**
 under **Teleoperator adjustment** before connecting. This keeps the emulated
@@ -151,16 +157,16 @@ supported by the OVXR presenter: `--ovxr_pip_head_locked` places such a layout's
 panels in the OpenXR VIEW space, and without it the command fails before launch.
 The session snapshots its camera selection at
 preparation; create a new session to change it. Panels use the same renderer as
-the headset and do not require a desktop display.
+the headset and do not require a desktop display. OVXR panels show no label; a
+feed's `label` applies to Kit panels only, and the desktop mirror lists each camera
+by its sensor name.
 
 GR1T2 and G1 locomanipulation provide `robot_pov_cam`; fixed-base G1 also provides
 `left_wrist_cam` and `right_wrist_cam`. SO101 does not declare a PiP camera in
 its scene. Use the desktop mirror without `--ovxr_pip_camera` for that task.
 
 The default desktop mirror shows completed eye or camera images locally.
-`--headless` disables it and takes precedence over `--ovxr_desktop_mirror`.
-The explicit mirror flag is also accepted, but is unnecessary for the default.
-`--ovxr_desktop_mirror_fps` limits its update rate. The mirror requires the
+`--headless` disables it. `--ovxr_desktop_mirror_fps` limits its update rate. The mirror requires the
 `desktop-mirror` extra, Python 3.12 or newer, and a usable display. On Linux,
 use a GPU-backed desktop session for the mirror. OVUI's default Vulkan backend
 requires no `OMNIUI_BACKEND` setting. Lab and Capture preserve the application's
@@ -169,10 +175,6 @@ The mirror requires Vulkan; remove conflicting backend settings before OVUI
 initialization. The mirror opens after the first submitted
 XR image; closing it requests application shutdown. Eye images exclude the
 separate OpenXR camera panels; select a camera product to inspect that feed.
-
-For SO101, check right-controller grip/squeeze engagement, release and re-engagement,
-proportional trigger control and Reset separately from cube grasping. Object retention and cube stacking also depend on contact properties and
-grasp placement; validate them separately from the input controls.
 
 ## Physics and rendering on separate GPUs
 

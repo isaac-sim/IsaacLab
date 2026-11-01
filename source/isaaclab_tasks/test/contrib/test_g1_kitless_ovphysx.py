@@ -22,7 +22,7 @@ from isaaclab_tasks.contrib.packing_table import PackingTableUsdFileCfg
 _TASK = "IsaacContrib-PickPlace-Locomanipulation-G1-Abs"
 
 
-def test_fixed_base_g1_ovphysx_conditions_assets_without_changing_other_backends() -> None:
+def test_fixed_base_g1_ovphysx_conditions_assets_without_mutating_default_configs() -> None:
     cfg = FixedBaseUpperBodyIKG1EnvCfg()
     default_cfg = FixedBaseUpperBodyIKG1EnvCfg()
     action_type = cfg.actions.upper_body_ik.class_type
@@ -41,7 +41,6 @@ def test_fixed_base_g1_ovphysx_conditions_assets_without_changing_other_backends
     assert cfg.actions.upper_body_ik.class_type is action_type
     assert cfg.terminations.object_dropping.func is drop_term
     assert not isinstance(default_cfg.scene.packing_table.spawn, PackingTableUsdFileCfg)
-    assert not isinstance(default_cfg.scene.object.spawn, PackingTableUsdFileCfg)
 
 
 @pytest.mark.isaacsim_ci

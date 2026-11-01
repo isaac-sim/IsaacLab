@@ -16,8 +16,6 @@ How it fits together
 
 - **render_lease.py**: External borrowing, ownership transfer and scene publication ordering.
 
-- **publication_buffers.py**: Producer-buffer retention and native write completion.
-
 - **ovrtx_renderer_kernels.py**: Warp GPU kernels for OVRTX rendering pipeline.
 
 - **ovrtx_usd.py**: USD helpers for OVRTX: render var config, camera injection, etc.
@@ -34,9 +32,10 @@ import sys
 import tempfile
 import weakref
 from builtins import ExceptionGroup
+from collections import deque
 from collections.abc import Callable, Iterable, Iterator, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +109,7 @@ from isaaclab_ov.stage import (
     xform_tensor_from_warp,
 )
 
-from .publication_buffers import _AsyncWriteBuffers, _GeometryPublicationBuffers
+from .publication_buffers import _GeometryPublicationBuffers
 from .render_lease import OvLibrariesRenderLease, RenderLeaseController
 
 if TYPE_CHECKING:
@@ -419,26 +418,27 @@ class OVRTXRenderer(BaseRenderer):
     @contextlib.contextmanager
     def _publish_visual_materials(self) -> Iterator[None]:
         """Publish dirty materials and complete their reads before buffers may change."""
-        writer = self._visual_material_writer_ref() if self._visual_material_writer_ref is not None else None
+        material_writer = self._visual_material_writer_ref() if self._visual_material_writer_ref is not None else None
         try:
-            if writer is not None:
-                writer.publish()
+            if material_writer is not None:
+                material_writer.publish()
             yield
         finally:
-            if writer is not None:
+            if material_writer is not None:
+                # When another exception is already propagating, log the drain failure instead of
+                # replacing it. Losing it silently would hide a failed material write.
                 primary_active = sys.exc_info()[0] is not None
                 try:
-                    writer.drain()
-                except Exception as exc:
+                    material_writer.drain()
+                except Exception as e:
                     if not primary_active:
                         raise
-                    logger.warning("Error draining material writes after a failed scene update: %s", exc, exc_info=True)
+                    logger.warning("Error draining material writes after a failed scene update: %s", e, exc_info=True)
 
     def prepare_stage(self, stage: Usd.Stage, num_envs: int) -> None:
         """Load, clone, and bind the shared scene before any camera products are registered."""
         if not self._render_lease.prepare_stage(num_envs):
             return
-        lease = self._render_lease.active
         if self.cfg.geometry_publication_device is not None and self._geometry_publication is None:
             if not self._use_ovstage:
                 raise ValueError("geometry_publication_device requires OVStage")
@@ -472,10 +472,7 @@ class OVRTXRenderer(BaseRenderer):
             if self.cfg.temp_usd_dir is not None:
                 _write_file(Path(self.cfg.temp_usd_dir), "ovrtx_renderer_stage.usda", usd)
             if self._use_ovstage:
-                if lease is not None:
-                    self._render_lease.populate_stage(usd)
-                else:
-                    self.scene.populate(usd)
+                self._render_lease.populate_stage(usd)
             else:
                 self.backend.renderer.open_usd_from_string(usd)
                 ovrtx_replicate(self.backend.renderer, self.scene.clone_copies, env_paths, self.scene.clone_positions)
@@ -657,7 +654,7 @@ class OVRTXRenderer(BaseRenderer):
         env_partitions = {Sdf.Path(path): f"env_{i}" for i, path in enumerate(self.scene.clone_env_paths)}
         source_root = next((root for root in Sdf.Path(camera_paths[0]).GetPrefixes() if root in env_partitions), None)
         if source_root is not None and len(camera_paths) < spec.num_instances:
-            # Native cloning may leave only the source camera in USD. Preserve complete path row order.
+            # Native cloning may leave only the source camera in USD. Complete paths retain their row order.
             suffix = camera_paths[0][len(str(source_root)) :]
             camera_paths = [path + suffix for path in self.scene.clone_env_paths]
         data = OVRTXCameraRenderData(spec, f"RenderCamera_{self.scene.next_camera_id}", camera_paths)
@@ -1756,3 +1753,45 @@ class OVRTXMarkers:
                 raise ExceptionGroup("OVRTX renders failed before marker cleanup", errors)
         self._transforms = self._selection = self._stage = None
         self._local_transforms = None
+
+
+_BufferT = TypeVar("_BufferT", wp.array, SceneDataFormat.TransposedMatrix44d)
+
+
+class _AsyncWriteBuffers(Generic[_BufferT]):
+    """Retain buffers until native writes finish; reuse them in submission order."""
+
+    def __init__(self, buffers: Iterable[_BufferT] = ()):
+        self._writes: deque[tuple[_BufferT, Operation[bool] | None, wp.Stream | None]] = deque(
+            (buffer, None, None) for buffer in buffers
+        )
+
+    def acquire(self, stream: wp.Stream | None) -> _BufferT:
+        """Wait until the next buffer is writable on the given stream."""
+        buffer, operation, producer = self._writes[0]
+        if operation is not None:
+            operation.wait()
+            if stream is not None and producer is not None and producer != stream:
+                stream.wait_stream(producer)
+        return buffer
+
+    def submit(
+        self, binding: AttributeBinding, values: wp.array | list[wp.array], stream: wp.Stream | None
+    ) -> Operation[bool]:
+        """Submit a write and retain its inputs; a failed submission does not advance the buffers."""
+        operation = binding.write_async(
+            values, data_access=DataAccess.ASYNC, cuda_stream=(stream.cuda_stream or 1) if stream is not None else None
+        )
+        self._writes[0] = (self._writes[0][0], operation, stream)
+        self._writes.rotate(-1)
+        return operation
+
+    def close(self) -> None:
+        """Complete every pending write before releasing storage, including on failure."""
+        with contextlib.ExitStack() as writes:
+            writes.callback(self._writes.clear)
+            for _, operation, producer in self._writes:
+                if operation is not None:
+                    if producer is not None:
+                        writes.callback(wp.synchronize_stream, producer)
+                    writes.callback(operation.wait)

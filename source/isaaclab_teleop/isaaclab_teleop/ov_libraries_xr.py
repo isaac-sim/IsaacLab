@@ -10,7 +10,6 @@ from __future__ import annotations
 import contextlib
 import logging
 import math
-import re
 import threading
 import time
 from collections import deque
@@ -18,20 +17,20 @@ from collections.abc import Callable, Hashable, Iterable
 from dataclasses import replace
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
+import numpy as np
 from isaaccapture.ovxr_session_manager import OvxrApplicationInterface, StageOrdinalLedger
 from isaaclab_ov.renderers import OVRTXRendererCfg
 
-from .ovxr_cfg import OvLibrariesXrCameraConfig, OvLibrariesXrConfig
+from .ovxr_cfg import OvLibrariesXrCameraCfg, OvLibrariesXrCfg
 from .ovxr_session import OvxrSessionBootstrap, validate_ovxr_session_preparation
 
 if TYPE_CHECKING:
-    import numpy as np
     from isaaccapture.ovxr_session_manager.ovxr_session import OvxrSessionBinding
     from isaacteleop.oxr import OpenXRSessionHandles
 
     from isaaclab.sim import SimulationCfg
 
-__all__ = ["OvLibrariesXrCameraConfig", "OvLibrariesXrConfig", "OvLibrariesXrSession"]
+__all__ = ["OvLibrariesXrCameraCfg", "OvLibrariesXrCfg", "OvLibrariesXrSession"]
 
 logger = logging.getLogger(__name__)
 
@@ -68,52 +67,7 @@ class _CounterRate:
         return 0.0 if elapsed_s <= 0.0 else max(0, count_delta) / elapsed_s
 
 
-def _apply_hidden_visual_prims(env: Any, patterns: Iterable[str]) -> tuple[str, ...]:
-    """Author persistent application-stage visibility before materialization.
-
-    This affects every view of the application scene, not just the XR eyes.
-    Use scene partitions when source visibility must remain unchanged.
-    """
-    patterns = tuple(patterns)
-    if not patterns:
-        return ()
-
-    from pxr import UsdGeom
-
-    unwrapped = getattr(env, "unwrapped", env)
-    stage = unwrapped.scene.stage
-    if stage is None:
-        raise RuntimeError("Configured hidden visual prims require an environment Stage")
-
-    compiled = [(pattern, re.compile(pattern)) for pattern in patterns]
-    matches: dict[str, list[Any]] = {pattern: [] for pattern in patterns}
-    for prim in stage.Traverse():
-        if not prim.IsA(UsdGeom.Imageable):
-            continue
-        path = str(prim.GetPath())
-        for pattern, expression in compiled:
-            if expression.fullmatch(path):
-                matches[pattern].append(prim)
-
-    missing = [pattern for pattern, prims in matches.items() if not prims]
-    if missing:
-        raise RuntimeError(f"Hidden visual prim patterns matched no imageable prims: {missing}")
-
-    hidden_paths: list[str] = []
-    hidden_path_set: set[str] = set()
-    for pattern in patterns:
-        for prim in matches[pattern]:
-            path = str(prim.GetPath())
-            if path in hidden_path_set:
-                continue
-            UsdGeom.Imageable(prim).MakeInvisible()
-            hidden_paths.append(path)
-            hidden_path_set.add(path)
-    logger.info("Hid %d prim(s) from all camera views (%s)", len(hidden_paths), list(patterns))
-    return tuple(hidden_paths)
-
-
-def _declare_ovxr_runtime_prims(env: Any, cfg: OvLibrariesXrConfig) -> None:
+def _declare_ovxr_runtime_prims(env: Any, cfg: OvLibrariesXrCfg) -> None:
     """Declare type-only OVXR prims for the application Stage's lifetime."""
     if not cfg.create_render_products:
         return
@@ -247,15 +201,13 @@ class _IsaacLabOvxrApplicationInterface(OvxrApplicationInterface):
         self,
         bootstrap: OvxrSessionBootstrap,
         env: Any,
-        cfg: OvLibrariesXrConfig,
-        hidden_visual_prims: Iterable[str],
+        cfg: OvLibrariesXrCfg,
         excluded_visual_meshes: Iterable[str] = (),
         external_anchor_state: OvLibrariesXrSession.ExternalAnchorState | None = None,
     ) -> None:
         self._bootstrap = bootstrap
         self._env = env
         self._cfg = cfg
-        self._hidden_visual_prims = tuple(hidden_visual_prims)
         self._excluded_visual_meshes = tuple(excluded_visual_meshes)
         self._publication_lock = threading.Lock()
         self._scene_publisher = None
@@ -288,7 +240,6 @@ class _IsaacLabOvxrApplicationInterface(OvxrApplicationInterface):
             for camera in self._auxiliary_cameras:
                 if sensors.get(camera.name) is None:
                     raise RuntimeError(f"Configured auxiliary camera {camera.name!r} is not present in the environment")
-        _apply_hidden_visual_prims(self._env, self._hidden_visual_prims)
         _declare_ovxr_runtime_prims(self._env, self._cfg)
         from .xr_scene_partition import partition_visual_meshes
 
@@ -426,7 +377,6 @@ class _IsaacLabOvxrApplicationInterface(OvxrApplicationInterface):
         return ordinal
 
     def _write_anchor_matrices(self, matrices: np.ndarray, ordinal: int) -> None:
-        import numpy as np
         import ovstage
         from isaaclab_ov.stage import xform_tensor_from_numpy
 
@@ -589,7 +539,7 @@ class OvLibrariesXrSession:
             """
             ...
 
-    def __init__(self, bootstrap: OvxrSessionBootstrap, cfg: OvLibrariesXrConfig) -> None:
+    def __init__(self, bootstrap: OvxrSessionBootstrap, cfg: OvLibrariesXrCfg) -> None:
         self._bootstrap = bootstrap
         self._cfg = cfg
         self._owner = None
@@ -602,7 +552,7 @@ class OvLibrariesXrSession:
     def prepare(
         cls,
         sim_cfg: SimulationCfg,
-        cfg: OvLibrariesXrConfig,
+        cfg: OvLibrariesXrCfg,
         renderer_cfg: OVRTXRendererCfg | None = None,
     ) -> OvLibrariesXrSession:
         """Snapshot session selection, create simulation and reserve its OVRTX lease.
@@ -611,11 +561,7 @@ class OvLibrariesXrSession:
         use one configured session per process. No supported readback exists
         here to restore a previous renderer's settings on close.
         """
-        cameras = tuple(cfg.auxiliary_cameras)
-        for camera in cameras:
-            if camera.space != "head_locked":
-                raise ValueError("Kitless XR camera quads currently require head_locked placement")
-        cfg = replace(cfg, auxiliary_cameras=cameras)
+        cfg = replace(cfg, auxiliary_cameras=tuple(cfg.auxiliary_cameras))
         validate_ovxr_session_preparation()
         import ovxr
 
@@ -623,7 +569,7 @@ class OvLibrariesXrSession:
         ovxr.apply_renderer_settings(cfg.renderer_settings.strip())
         bootstrap = OvxrSessionBootstrap(sim_cfg, renderer_cfg)
         try:
-            for camera in cameras:
+            for camera in cfg.auxiliary_cameras:
                 bootstrap.configure_auxiliary_camera(camera.camera_cfg, max_fps=camera.max_fps)
             return cls(bootstrap, cfg)
         except BaseException as preparation_error:
@@ -640,7 +586,6 @@ class OvLibrariesXrSession:
         *,
         tracking_anchor_path: str | None = None,
         required_openxr_extensions: Iterable[str] = (),
-        hidden_visual_prims: Iterable[str] = (),
         excluded_visual_meshes: Iterable[str] = (),
         max_blank_frames: int = 1,
         timeout_s: float = 30.0,
@@ -652,7 +597,6 @@ class OvLibrariesXrSession:
             env: Constructed environment sharing the prepared simulation context.
             tracking_anchor_path: Override the configured USD tracking-anchor path.
             required_openxr_extensions: Extensions required by the input pipeline.
-            hidden_visual_prims: Patterns hidden persistently from every scene view.
             excluded_visual_meshes: Mesh patterns excluded from the XR eye partition.
             max_blank_frames: Nonnegative integer bootstrap-frame count; zero skips bootstrap frames.
             timeout_s: Maximum worker startup wait [s].
@@ -682,7 +626,7 @@ class OvLibrariesXrSession:
 
         anchor_path = self._cfg.tracking_anchor_path if tracking_anchor_path is None else tracking_anchor_path
         host = _IsaacLabOvxrApplicationInterface(
-            self._bootstrap, env, self._cfg, hidden_visual_prims, excluded_visual_meshes, external_anchor_state
+            self._bootstrap, env, self._cfg, excluded_visual_meshes, external_anchor_state
         )
         self._host = host
         self._owner = OvxrSession(

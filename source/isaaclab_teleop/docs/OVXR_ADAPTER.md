@@ -35,7 +35,7 @@ Ownership transfer is single-use. Failed retirement must preserve resources
 for the owning thread to finish cleanup; a failed drain is not successful
 shutdown. Importing `OvLibrariesXrSession` requires a Capture release with OVXR
 session support; see [Installing kitless XR](kitless_xr_source.md). The
-`OvLibrariesXrConfig` dataclass lives in `isaaclab_teleop.ovxr_cfg` and imports
+`OvLibrariesXrCfg` dataclass lives in `isaaclab_teleop.ovxr_cfg` and imports
 without those packages.
 
 A failed scene write or seal stops further publication. Recreate the session
@@ -78,8 +78,7 @@ The adapter retains the environment if lease retirement cannot establish complet
 The ordinary renderer remains in `isaaclab_ov.renderers.ovrtx_renderer`.
 `render_lease.RenderLeaseController` owns the lease state, thread-transfer
 capability and per-owner operation guards; it borrows the renderer's native resources
-and delegates component writes back to that renderer. `publication_buffers`
-retains producer storage until native writes complete. Public renderer and lease
+and delegates component writes back to that renderer. Public renderer and lease
 imports remain available from `isaaclab_ov.renderers`.
 
 Acquiring a lease selects a private rendering OVStage without changing process
@@ -106,3 +105,24 @@ application-neutral and do not require Lab-specific scene types.
 The mirror uses OVUI's default Vulkan backend. Neither Lab nor Capture modifies
 `OMNIUI_BACKEND`; the mirror rejects an active non-Vulkan backend. Neither optional
 consumer is created when disabled.
+
+## Native validation
+
+The adapter and lease unit tests double the native OVRTX and OVStage endpoints.
+An opt-in harness runs the render-owner transfer and complete scene publication
+against the real libraries, on the manager-based `Isaac-Cartpole` task with its
+`ovphysx` physics preset and one environment on `cuda:0`. The transfer case
+also runs with CPU physics, which publishes host scene tensors to the GPU
+renderer. Both cases also run `IsaacContrib-PickPlace-GR1T2-Abs` with CPU
+OvPhysX, which its registered entry point prepares for kitless physics; its
+cameras are removed as in an `--ovxr` launch. The harness needs a CUDA GPU,
+OVRTX, OVStage, OvPhysX and an Isaac Capture release with OVXR session support;
+it starts no XR session or CloudXR runtime.
+Each case runs in a child process:
+
+```bash
+ISAACLAB_RUN_NATIVE_OVRTX_TRANSFER=1 uv run python -m pytest \
+    source/isaaclab_teleop/test/test_ovrtx_transfer_native_harness.py
+```
+
+Without `ISAACLAB_RUN_NATIVE_OVRTX_TRANSFER=1`, every case is skipped.

@@ -25,11 +25,11 @@ _DEFAULT_OVXR_CAMERA_PATHS = (
 
 
 @dataclass(frozen=True)
-class OvLibrariesXrCameraConfig:
+class OvLibrariesXrCameraCfg:
     """One application-selected sensor and its camera-panel policy."""
 
     name: str
-    """Scene sensor name used for camera selection and panel labeling."""
+    """Scene sensor name used for camera selection and as the desktop mirror's camera label."""
     camera_cfg: CameraCfg = field(repr=False)
     """Selected sensor configuration, assigned to the session's shared renderer."""
     max_fps: float = 30.0
@@ -63,7 +63,7 @@ class OvLibrariesXrCameraConfig:
 
 
 @dataclass
-class OvLibrariesXrConfig:
+class OvLibrariesXrCfg:
     """Isaac Lab configuration for an IsaacTeleop-owned OVXR session."""
 
     application_name: str = "isaaclab-kitless-teleop"
@@ -96,7 +96,7 @@ class OvLibrariesXrConfig:
     """Whether to display the owner-managed desktop mirror."""
     desktop_mirror_max_fps: float = 30.0
     """Finite positive desktop mirror refresh cap [Hz]."""
-    auxiliary_cameras: tuple[OvLibrariesXrCameraConfig, ...] = ()
+    auxiliary_cameras: tuple[OvLibrariesXrCameraCfg, ...] = ()
     """Up to three uniquely named camera panels; an empty selection disables panels."""
     extra_openxr_extensions: tuple[str, ...] = ()
     """Additional OpenXR extension names requested when creating the session."""

@@ -1490,7 +1490,7 @@ def _prepare_leased_renderer(renderer, *, bind=True):
         renderer.prepare_stage(renderer._sim.stage, 1)
 
 
-def test_render_lease_lease_borrows_registry_pair_and_blocks_shared_users(leased_renderer, monkeypatch):
+def test_render_lease_borrows_registry_pair_and_blocks_shared_users(leased_renderer, monkeypatch):
     renderer = leased_renderer
     shared = SimulationContext.instance().get_or_create_backend(renderer.cfg)
     assert shared is renderer
@@ -1549,7 +1549,7 @@ def test_render_lease_rejects_acquisition_after_clone_preparation(leased_rendere
     assert renderer.backend._render_lease_owner is None
 
 
-def test_render_lease_lease_rejects_calibration_before_scene_access(leased_renderer, monkeypatch):
+def test_render_lease_rejects_calibration_before_scene_access(leased_renderer, monkeypatch):
     """An ordinary calibration write cannot bypass the external owner's publication lane."""
     renderer = leased_renderer
     lease = renderer.acquire_ov_libraries_render_lease()
@@ -1963,6 +1963,20 @@ def test_cpu_scene_publication_uses_host_tensors_without_a_cuda_stream(use_ovsta
     renderer.update_transforms()
     renderer.update_geometries()
     assert stage.write_attribute.call_count == 2 if use_ovstage else all(write.call_count == 1 for write in writes)
+    # Draining the retained buffers waits for previous writes without a CUDA stream.
+    renderer._transform_writes.close()
+    renderer._geometry_writes.close()
+
+
+@pytest.mark.parametrize("use_ovstage", [True, False])
+def test_cpu_camera_pose_updates_use_host_tensors_without_a_cuda_stream(use_ovstage):
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._use_ovstage = use_ovstage
+    renderer.cfg = OVRTXRendererCfg()
+    renderer._warp_device = wp.get_device("cpu")
+    renderer._device = "cpu"
+    stage = MagicMock()
+    renderer.scene = types.SimpleNamespace(stage=stage, ordinal=11)
     camera = _make_ovrtx_camera_render_data()
     camera.camera_xform_binding = MagicMock()
     camera.camera_writes = _AsyncWriteBuffers([wp.empty(2, dtype=wp.mat44d, device="cpu")])
@@ -1979,9 +1993,7 @@ def test_cpu_scene_publication_uses_host_tensors_without_a_cuda_stream(use_ovsta
         # Reusing the camera ring waits for previous writes without a CUDA stream.
         update(camera, positions, orientations, None)
         update(camera, positions, orientations, None)
-        camera.camera_writes.close()
-        renderer._transform_writes.close()
-        renderer._geometry_writes.close()
+    camera.camera_writes.close()
 
 
 @pytest.mark.parametrize(
@@ -2002,7 +2014,7 @@ def test_camera_registration_authors_valid_render_device_selection(
 
     class Device:
         is_cuda = cuda_ordinal is not None
-        ordinal = cuda_ordinal
+        ordinal = -1 if cuda_ordinal is None else cuda_ordinal  # Warp reports ordinal -1 for the CPU.
 
         def __str__(self):
             return f"cuda:{cuda_ordinal}" if self.is_cuda else "cpu"
@@ -2068,29 +2080,6 @@ def test_leased_camera_cleanup_waits_for_lease_release(leased_renderer, monkeypa
     assert data not in renderer._camera_render_data
 
 
-def test_external_camera_native_rate_is_authored_only_on_export(leased_renderer):
-    from pxr import Usd, UsdGeom
-
-    renderer = leased_renderer
-    lease = renderer.acquire_ov_libraries_render_lease()
-    cfg = _make_camera_cfg(["rgb"])
-    cfg.prim_path = "/World/envs/env_0/Camera"
-    lease.configure_auxiliary_camera(cfg, max_fps=20.0)
-    lease._auxiliary_cameras[0].spec = types.SimpleNamespace(camera_prim_paths=[cfg.prim_path])
-    stage = Usd.Stage.CreateInMemory()
-    camera = UsdGeom.Camera.Define(stage, cfg.prim_path).GetPrim()
-    exported = Usd.Stage.CreateInMemory()
-    assert exported.GetRootLayer().ImportFromString(
-        renderer._render_lease._author_camera_schedules(stage.ExportToString(), lease)
-    )
-    assert not camera.HasAttribute("omni:sensor:frameRate")
-    assert not camera.HasAttribute("omni:sensor:Core:partialOutputs")
-    prim = exported.GetPrimAtPath(cfg.prim_path)
-    assert tuple(prim.GetAttribute("omni:sensor:frameRate").Get()) == (20.0, 1.0)
-    assert prim.GetAttribute("omni:sensor:Core:partialOutputs").Get() is False
-    lease.release()
-
-
 def test_selected_external_camera_order_is_independent_of_sensor_preparation(leased_renderer):
     renderer = leased_renderer
     lease = renderer.acquire_ov_libraries_render_lease()
@@ -2130,24 +2119,22 @@ def test_external_camera_partition_validation_is_not_stereo_specific(leased_rend
         lease.release()
 
 
-def test_external_camera_schedules_reach_native_stage(monkeypatch):
-    """The renderer's real population path retains only selected camera scheduling properties."""
+def test_external_camera_schedules_reach_native_stage():
+    """Leased population authors the selected cameras' native rates and retains only those properties."""
     import ovrtx
     import ovstage
+    from isaaclab_ov.stage import OvstageBackend, OvstageBackendCfg
 
     ovrtx.register_schema_paths()
     camera_paths = [f"/World/envs/env_0/{name}" for name in ("Head", "Wrist", "Unselected")]
+    # The application export has no camera schedules; the unselected camera's own rate must not populate.
     source = """#usda 1.0
 def Xform "World" {
  def Xform "envs" {
   def Xform "env_0" {
    def Camera "Head" {
-    double2 omni:sensor:frameRate = (20, 1)
-    bool omni:sensor:Core:partialOutputs = false
    }
    def Camera "Wrist" {
-    double2 omni:sensor:frameRate = (10, 1)
-    bool omni:sensor:Core:partialOutputs = false
    }
    def Camera "Unselected" {
     double2 omni:sensor:frameRate = (999, 1)
@@ -2156,66 +2143,50 @@ def Xform "World" {
  }
 }
 """
-    cfg = _make_camera_cfg(["rgb"])
-    cfg.prim_path = camera_paths[0]
-    spec = types.SimpleNamespace(cfg=cfg, num_instances=1, camera_prim_paths=[camera_paths[0]], render_settings={})
-    data = OVRTXCameraRenderData(spec, "RenderCamera_0", list(spec.camera_prim_paths))
-    from isaaclab_ov.stage import OvstageBackend, OvstageBackendCfg
-
-    renderer = _make_ovrtx_renderer_without_backend()
-    renderer._use_ovstage = True
-    renderer._render_lease.stage_deferred = False
-    renderer._render_lease.active = None
-    renderer.backend.renderer = MagicMock()
+    renderer = OVRTXRenderer(OVRTXRendererCfg(), sim=SimulationContext.instance())
+    lease = renderer.acquire_ov_libraries_render_lease()
     with contextlib.ExitStack() as resources:
+        resources.callback(lease.release)
+        for path, max_fps in zip(camera_paths[:2], (20.0, 10.0), strict=True):
+            cfg = _make_camera_cfg(["rgb"])
+            cfg.prim_path = path
+            lease.configure_auxiliary_camera(cfg, max_fps=max_fps)
+        for camera in lease._auxiliary_cameras:
+            camera.spec = types.SimpleNamespace(camera_prim_paths=[camera.cfg.prim_path])
         renderer.scene = OvstageBackend(OvstageBackendCfg())
         resources.callback(renderer.scene.close)
+        renderer._render_lease.populate_stage(source)
+
         stage, paths = renderer.scene.stage, renderer.scene.paths
-        population = ovstage.population
-        description = population.Desc(
-            domains=ovstage.PopulationDomain.RENDERING,
-            selectors=[
-                population.Selector(
-                    population.PrimPredicate.has_path(*camera_paths[:2]),
-                    population.PropertyPredicate.has_name("omni:sensor:frameRate", "omni:sensor:Core:partialOutputs"),
-                )
-            ],
-        )
-        renderer.scene.populate(source, population_desc=description)
+        names = ("omni:sensor:frameRate", "omni:sensor:Core:partialOutputs")
+        resolved = {}
+        plist = paths.create_path_list_from_strings(camera_paths)
         try:
-            renderer._register_camera(spec, data)
-            renderer.scene.commit()
-            resolved = {}
-            plist = paths.create_path_list_from_strings(camera_paths)
-            try:
-                with stage.query_from_path_list(plist) as query:
-                    query.wait()
-                    names = ("omni:sensor:frameRate", "omni:sensor:Core:partialOutputs")
-                    with stage.read_attributes(
-                        query,
-                        [paths.intern_token(name) for name in names],
-                        ovstage.OrdinalRange.latest(renderer.scene.ordinal - 1),
-                    ) as read:
-                        read.wait()
-                        for group in read.groups():
-                            try:
-                                values = np.asarray(group.array(0).copy()).reshape(group.data_count, -1)
-                                group_paths = paths.get_path_strings(group.prim_list)
-                                attribute = paths.token_to_string(group.attribute)
-                                for index in range(min(group.prim_count, group.data_count)):
-                                    path = group_paths[group.prim_index(index)]
-                                    resolved[path, attribute] = values[group.data_row_index(index)].tolist()
-                            finally:
-                                stage.release_group(group)
-            finally:
-                paths.destroy_path_list(plist)
-            assert resolved.get((camera_paths[0], names[0])) == [20.0, 1.0]
-            assert resolved.get((camera_paths[1], names[0])) == [10.0, 1.0]
-            assert resolved.get((camera_paths[0], names[1])) == [False]
-            assert resolved.get((camera_paths[1], names[1])) == [False]
-            assert (camera_paths[2], names[0]) not in resolved
+            with stage.query_from_path_list(plist) as query:
+                query.wait()
+                with stage.read_attributes(
+                    query,
+                    [paths.intern_token(name) for name in names],
+                    ovstage.OrdinalRange.latest(renderer.scene.ordinal - 1),
+                ) as read:
+                    read.wait()
+                    for group in read.groups():
+                        try:
+                            values = np.asarray(group.array(0).copy()).reshape(group.data_count, -1)
+                            group_paths = paths.get_path_strings(group.prim_list)
+                            attribute = paths.token_to_string(group.attribute)
+                            for index in range(min(group.prim_count, group.data_count)):
+                                path = group_paths[group.prim_index(index)]
+                                resolved[path, attribute] = values[group.data_row_index(index)].tolist()
+                        finally:
+                            stage.release_group(group)
         finally:
-            data.resources.close()
+            paths.destroy_path_list(plist)
+    assert resolved.get((camera_paths[0], names[0])) == [20.0, 1.0]
+    assert resolved.get((camera_paths[1], names[0])) == [10.0, 1.0]
+    assert resolved.get((camera_paths[0], names[1])) == [False]
+    assert resolved.get((camera_paths[1], names[1])) == [False]
+    assert (camera_paths[2], names[0]) not in resolved
 
 
 def test_geometry_publication_cuda_devices_resize_and_failed_consumption(monkeypatch):

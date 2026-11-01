@@ -26,13 +26,11 @@ from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SE
 from .isaac_teleop_cfg import XrCameraFeedCfg, XrCameraFeedLayoutCfg
 
 if TYPE_CHECKING:
-    from types import TracebackType
-
     from isaaclab_ov.renderers import OVRTXRendererCfg
 
     from isaaclab.sensors import Camera, CameraCfg
 
-    from .ovxr_cfg import OvLibrariesXrCameraConfig
+    from .ovxr_cfg import OvLibrariesXrCameraCfg
 
 logger = logging.getLogger(__name__)
 
@@ -71,13 +69,13 @@ def resolve_ovxr_camera_configs(
     *,
     max_fps: float,
     position_override: tuple[float, float, float] | None = None,
-) -> tuple[OvLibrariesXrCameraConfig, ...]:
+) -> tuple[OvLibrariesXrCameraCfg, ...]:
     """Resolve selected feeds into OVXR panels without creating native resources.
 
     A feed's positive update cap limits the caller's rate; zero leaves that rate
     unchanged. A position override applies only to a single selected panel.
     """
-    from .ovxr_cfg import OvLibrariesXrCameraConfig
+    from .ovxr_cfg import OvLibrariesXrCameraCfg
 
     _validate_layout_cfg(layout)
     if selected and layout.placement != "head_locked":
@@ -85,7 +83,7 @@ def resolve_ovxr_camera_configs(
     if position_override is not None and len(selected) > 1:
         raise ValueError("A PiP position override requires one camera; multiple panels use task layout")
     for _name, _camera, feed in selected:
-        _validate_feed_cfg(feed, layout.placement)
+        _XrCameraFeedManager._validate_cfg(feed, layout.placement)
     feeds = _layout_feed_cfgs(
         [feed for _name, _camera, feed in selected],
         [(camera.width, camera.height) for _name, camera, _feed in selected],
@@ -94,7 +92,7 @@ def resolve_ovxr_camera_configs(
     cameras = []
     for (name, camera, _feed), feed in zip(selected, feeds, strict=True):
         cameras.append(
-            OvLibrariesXrCameraConfig(
+            OvLibrariesXrCameraCfg(
                 name=name,
                 camera_cfg=camera,
                 max_fps=min(max_fps, feed.max_update_hz) if feed.max_update_hz > 0.0 else max_fps,
@@ -234,7 +232,7 @@ class XrCameraFeedSession:
         presenter: Any | None,
         *,
         requires_responsive_denoising: bool,
-    ) -> None:
+    ):
         self._cfgs = cfgs
         self._layout_cfg = layout_cfg
         self._presenter = presenter
@@ -420,22 +418,8 @@ class XrCameraFeedSession:
             raise RuntimeError("Call bind(env) before entering an XR camera feed session.")
         return self
 
-    def __exit__(
-        self, exc_type: type[BaseException] | None, exc_value: BaseException | None, traceback: TracebackType | None
-    ) -> None:
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
         self.close()
-
-
-def _validate_feed_cfg(cfg: XrCameraFeedCfg, placement: str) -> None:
-    """Validate original feed values before layout or backend conversion."""
-    if not math.isfinite(cfg.panel_width_m) or cfg.panel_width_m <= 0.0:
-        raise ValueError(f"panel_width_m for XR camera feed {cfg.camera_name!r} must be positive.")
-    if len(cfg.offset_m) != 2 or not all(math.isfinite(value) for value in cfg.offset_m):
-        raise ValueError(f"offset_m for XR camera feed {cfg.camera_name!r} must contain two finite values.")
-    if placement != "world" and (not math.isfinite(cfg.distance_m) or cfg.distance_m <= 0.0):
-        raise ValueError(f"distance_m for XR camera feed {cfg.camera_name!r} must be positive.")
-    if not math.isfinite(cfg.max_update_hz) or cfg.max_update_hz < 0.0:
-        raise ValueError(f"max_update_hz for XR camera feed {cfg.camera_name!r} must be finite and non-negative.")
 
 
 def _panel_size_m(cfg: XrCameraFeedCfg, image_size: tuple[int, int]) -> tuple[float, float]:
@@ -563,7 +547,7 @@ class _XrCameraFeedManager:
         cfgs: list[XrCameraFeedCfg],
         layout_cfg: XrCameraFeedLayoutCfg | None,
         presenter: Any,
-    ) -> None:
+    ):
         self._env = env
         self._feeds: list[_ActiveFeed] = []
         self._presenter = presenter
@@ -573,7 +557,7 @@ class _XrCameraFeedManager:
         try:
             bound_feeds = []
             for cfg in cfgs:
-                _validate_feed_cfg(cfg, self._layout_cfg.placement)
+                self._validate_cfg(cfg, self._layout_cfg.placement)
                 camera, image = self._bind_image(cfg)
                 bound_feeds.append((camera, image))
             image_sizes = [(int(image.shape[1]), int(image.shape[0])) for _, image in bound_feeds]
@@ -605,8 +589,19 @@ class _XrCameraFeedManager:
     def _on_frame(self, _event: Any) -> None:
         self.update()
 
+    @staticmethod
+    def _validate_cfg(cfg: XrCameraFeedCfg, placement: str) -> None:
+        if not math.isfinite(cfg.panel_width_m) or cfg.panel_width_m <= 0.0:
+            raise ValueError(f"panel_width_m for XR camera feed {cfg.camera_name!r} must be positive.")
+        if len(cfg.offset_m) != 2 or not all(math.isfinite(value) for value in cfg.offset_m):
+            raise ValueError(f"offset_m for XR camera feed {cfg.camera_name!r} must contain two finite values.")
+        if placement != "world" and (not math.isfinite(cfg.distance_m) or cfg.distance_m <= 0.0):
+            raise ValueError(f"distance_m for XR camera feed {cfg.camera_name!r} must be positive.")
+        if not math.isfinite(cfg.max_update_hz) or cfg.max_update_hz < 0.0:
+            raise ValueError(f"max_update_hz for XR camera feed {cfg.camera_name!r} must be finite and non-negative.")
+
     def _bind_image(self, cfg: XrCameraFeedCfg) -> tuple[Camera, torch.Tensor]:
-        sensors = self._env.scene.sensors
+        sensors = getattr(getattr(self._env, "scene", None), "sensors", {})
         if cfg.camera_name not in sensors:
             raise ValueError(
                 f"XR camera feed {cfg.camera_name!r} is not present in the interactive scene. "

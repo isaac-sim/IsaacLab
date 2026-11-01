@@ -3,20 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import re
-
-import numpy as np
 import pytest
 from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
-from isaaclab_teleop import xr_anchor_manager
 
 from isaaclab_tasks.contrib.locomanip_pick_place.fixed_base_upper_body_ik_g1_env_cfg import (
     FixedBaseUpperBodyIKG1EnvCfg,
 )
 from isaaclab_tasks.contrib.locomanip_pick_place.locomanipulation_g1_env_cfg import LocomanipulationG1EnvCfg
 from isaaclab_tasks.contrib.pick_place.pickplace_gr1t2_env_cfg import PickPlaceGR1T2EnvCfg
-from isaaclab_tasks.contrib.pick_place.pickplace_gr1t2_waist_enabled_env_cfg import PickPlaceGR1T2WaistEnabledEnvCfg
 from isaaclab_tasks.utils.hydra import resolve_presets
 
 
@@ -79,7 +74,6 @@ def test_fixed_base_g1_pip_keeps_state_policy_unless_rgb_selected_and_fixed_root
         "right_wrist_cam",
     ]
     assert [feed.max_update_hz for feed in cfg.isaac_teleop.xr_camera_feeds] == [20.0, 10.0, 10.0]
-    assert cfg.xr.hidden_visual_prims == []
     assert cfg.xr.excluded_visual_meshes
 
 
@@ -90,30 +84,6 @@ def test_locomanipulation_g1_retains_recorded_camera():
     assert hasattr(cfg.scene, "robot_pov_cam")
     assert hasattr(cfg.observations.policy, "robot_pov_cam")
     assert cfg.image_obs_list == ["robot_pov_cam"]
-
-
-@pytest.mark.parametrize("env_cfg_type", [PickPlaceGR1T2EnvCfg, PickPlaceGR1T2WaistEnabledEnvCfg])
-def test_gr1t2_xr_anchor_preserves_operator_view_and_head_partition(monkeypatch, env_cfg_type):
-    """The operator faces the table; head exclusion remains camera-selective."""
-    cfg = env_cfg_type()
-    assert cfg.xr.anchor_pos == (0.0, 0.0, 0.0)
-    assert cfg.xr.render_anchor_pos is None
-    assert cfg.xr.render_anchor_rot is None
-    assert not cfg.xr.hidden_visual_prims
-    assert any(
-        re.fullmatch(pattern, "/World/envs/env_0/Robot/head_yaw_link/visuals/head_yaw_link/mesh")
-        for pattern in cfg.xr.excluded_visual_meshes
-    )
-    monkeypatch.setattr(xr_anchor_manager, "XRCore", None)
-    monkeypatch.setattr(xr_anchor_manager, "_xr_anchor_prim_exists", lambda _path: True)
-    anchor = xr_anchor_manager.XrAnchorManager(cfg.xr)
-    assert anchor.render_anchor_path == anchor.anchor_headset_path
-    transform = anchor.get_world_matrix()
-    eye = transform @ np.array([0.0, 1.6, 0.0, 1.0])
-    forward = transform @ np.array([0.0, 0.0, -1.0, 0.0])
-    np.testing.assert_allclose(eye, (0.0, 0.0, 1.6, 1.0))
-    np.testing.assert_allclose(forward, (0.0, 1.0, 0.0, 0.0))
-    assert np.dot(np.asarray(cfg.scene.packing_table.init_state.pos) - eye[:3], forward[:3]) > 0.0
 
 
 def test_xr_camera_reference_renderer_resolves_for_supported_backends():

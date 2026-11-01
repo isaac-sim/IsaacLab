@@ -67,8 +67,7 @@ class PickPlaceGR1T2WaistEnabledEnvCfg(ManagerBasedRLEnvCfg):
         # Add waist joint to pink_ik_cfg
         waist_joint_names = ["waist_yaw_joint", "waist_pitch_joint", "waist_roll_joint"]
         for joint_name in waist_joint_names:
-            if joint_name not in self.actions.upper_body_ik.pink_controlled_joint_names:
-                self.actions.upper_body_ik.pink_controlled_joint_names.append(joint_name)
+            self.actions.upper_body_ik.pink_controlled_joint_names.append(joint_name)
 
         # Defer USD→URDF conversion to controller initialization (requires Isaac Sim at runtime).
         self.actions.upper_body_ik.controller.usd_path = self.scene.robot.spawn.usd_path

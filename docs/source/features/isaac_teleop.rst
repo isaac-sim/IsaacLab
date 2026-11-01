@@ -1344,8 +1344,6 @@ through this variable -- later runs no longer prompt. The variable applies to ev
 that launches the runtime, including the process-scoped launcher in
 ``teleop_replay_agent.py``.
 
-.. _isaac-teleop-ovxr-mcap:
-
 Replay MCAP with a Kitless OVXR Viewer
 --------------------------------------
 
@@ -1370,7 +1368,6 @@ Add ``--ovxr_pip_camera robot_pov_cam --ovxr_pip_head_locked`` for a camera
 panel. OVXR live and MCAP replay open a desktop mirror by default; add
 ``--headless`` to disable that window while keeping XR and PiP rendering.
 See the kitless XR guide for installation, camera selection and display requirements.
-
 
 .. _isaac-teleop-xr-anchor:
 
@@ -1626,10 +1623,8 @@ Kit Scene UI presentation
 PiP presentation uses Kit Scene UI and ``SpatialSource`` placement. Kit imports are deferred until
 an enabled feed is requested. If the Scene UI modules cannot be imported, the scripts log a warning
 and continue without PiP; task-owned cameras and recording observations remain unchanged. This keeps
-the camera selection configuration usable without Scene UI. The
-:ref:`kitless XR guide <kitless-xr>` uses separate OpenXR quad
-layers and does not import Scene UI; those layers are visible in the headset/client, not in the
-passive eye-image desktop mirror. Render-product tuning is also best-effort: backends without a compatible render product
+the camera selection configuration usable by the :ref:`kitless XR path <kitless-xr>`, whose OpenXR quad layers need no
+Scene UI. Render-product tuning is also best-effort: backends without a compatible render product
 keep the Camera-buffer path, and schema-authoring failures warn while PiP continues. Other
 configuration, camera-buffer, and panel-initialization errors still fail during startup.
 
@@ -2063,8 +2058,9 @@ Optimize XR Performance
 
    .. note::
 
-      For Kit XR, omit ``--visualizer`` to run without the local viewport.
-      For kitless ``--ovxr``, pass ``--headless`` to disable its default desktop mirror.
+      The ``--headless`` CLI flag was removed in Isaac Lab 3.0. Headless is now the **default**
+      (omit ``--visualizer``), or set ``HEADLESS=1`` in the environment.
+      Kitless ``--ovxr`` accepts ``--headless`` to disable its default desktop mirror.
 
 .. dropdown:: Configure retargeting execution
    :open:
