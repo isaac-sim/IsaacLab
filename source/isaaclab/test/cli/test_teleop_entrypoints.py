@@ -60,7 +60,6 @@ def test_teleop_workflow_help_exposes_task_preset_selectors(source_checkout_root
     if command == "run":
         assert re.search(r"^\s+--ovxr(?:\s|$)", result.stdout, re.MULTILINE)
         assert "--ovxr_pip_camera" in result.stdout
-        assert "--ovxr_desktop_mirror" in result.stdout
 
 
 def test_ovxr_omitted_launch_options_match_documented_defaults(source_checkout_root, monkeypatch):

@@ -67,12 +67,6 @@ def require_kitless_physics(env_cfg: Any, task: str) -> None:
 
 def add_ovxr_presentation_args(parser: argparse.ArgumentParser) -> None:
     """Add the OVXR camera-panel and desktop-mirror options shared by live teleoperation and replay."""
-    parser.add_argument(
-        "--ovxr_desktop_mirror",
-        action="store_true",
-        default=False,
-        help="Show the OVXR desktop mirror (enabled by default; --headless disables it).",
-    )
     parser.add_argument("--headless", action="store_true", help="Disable the OVXR desktop mirror.")
     parser.add_argument(
         "--ovxr_desktop_mirror_fps",
@@ -110,20 +104,17 @@ def add_ovxr_presentation_args(parser: argparse.ArgumentParser) -> None:
 def validate_ovxr_presentation_args(
     parser: argparse.ArgumentParser, args: argparse.Namespace, *, using_ovxr: bool
 ) -> None:
-    """Validate the shared OVXR presentation options and resolve the desktop-mirror default.
+    """Validate the shared OVXR presentation options.
 
     Args:
         parser: Parser used to report errors.
-        args: Parsed namespace; ``ovxr_desktop_mirror`` is set to the resolved selection.
+        args: Parsed namespace.
         using_ovxr: Whether the command selected ``--ovxr``.
     """
-    if args.ovxr_desktop_mirror and not using_ovxr:
-        parser.error("--ovxr_desktop_mirror requires --ovxr")
     if args.ovxr_pip_camera is not None and not using_ovxr:
         parser.error("--ovxr_pip_camera requires --ovxr")
     if (args.ovxr_pip_head_locked or args.ovxr_pip_view_position is not None) and not using_ovxr:
         parser.error("OVXR presentation options require --ovxr")
-    args.ovxr_desktop_mirror = using_ovxr and not args.headless
     if args.ovxr_pip_camera is not None and getattr(args, "disable_external_cameras", False):
         parser.error("--ovxr_pip_camera cannot be combined with --disable_external_cameras")
     if not math.isfinite(args.ovxr_pip_fps) or args.ovxr_pip_fps <= 0.0:

@@ -164,9 +164,7 @@ GR1T2 and G1 locomanipulation provide `robot_pov_cam`; fixed-base G1 also provid
 its scene. Use the desktop mirror without `--ovxr_pip_camera` for that task.
 
 The default desktop mirror shows completed eye or camera images locally.
-`--headless` disables it and takes precedence over `--ovxr_desktop_mirror`.
-The explicit mirror flag is also accepted, but is unnecessary for the default.
-`--ovxr_desktop_mirror_fps` limits its update rate. The mirror requires the
+`--headless` disables it. `--ovxr_desktop_mirror_fps` limits its update rate. The mirror requires the
 `desktop-mirror` extra, Python 3.12 or newer, and a usable display. On Linux,
 use a GPU-backed desktop session for the mirror. OVUI's default Vulkan backend
 requires no `OMNIUI_BACKEND` setting. Lab and Capture preserve the application's

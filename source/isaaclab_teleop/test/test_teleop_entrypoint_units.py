@@ -745,9 +745,6 @@ def test_kitless_hand_guard_renders_without_step_and_next_valid_frame_resumes(mo
     [
         ([], True),
         (["--headless"], False),
-        (["--ovxr_desktop_mirror"], True),
-        (["--headless", "--ovxr_desktop_mirror"], False),
-        (["--ovxr_desktop_mirror", "--headless"], False),
     ],
 )
 def test_ovxr_mirror_cli_reaches_session_construction(monkeypatch, entrypoint, flags, expected):
@@ -817,7 +814,6 @@ def test_non_ovxr_cli_keeps_mirror_disabled(monkeypatch, entrypoint, flags):
         argv += ["--replay_file", "recording.mcap"]
         monkeypatch.setattr(module, "hydra_overrides", None, raising=False)
     args = module._parse_args(argv)
-    assert args.ovxr_desktop_mirror is False
     assert args.headless is ("--headless" in flags)
 
 

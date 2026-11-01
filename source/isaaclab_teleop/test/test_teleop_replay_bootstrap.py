@@ -79,7 +79,7 @@ def test_replay_presentation_preserves_camera_layout(monkeypatch, replay_present
         ovxr_session_mode="ar",
         cloudxr_env="none",
         auto_launch_cloudxr=False,
-        ovxr_desktop_mirror=True,
+        headless=False,
         ovxr_desktop_mirror_fps=20.0,
     )
     monkeypatch.setitem(replay_presentation_type.__init__.__globals__, "args_cli", args)

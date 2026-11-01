@@ -491,7 +491,7 @@ def run_teleoperation(  # noqa: C901
                     session_mode=args_cli.ovxr_session_mode,
                     cloudxr_env_file=args_cli.cloudxr_env,
                     auto_launch_cloudxr=args_cli.auto_launch_cloudxr,
-                    desktop_mirror_enabled=args_cli.ovxr_desktop_mirror,
+                    desktop_mirror_enabled=not args_cli.headless,
                     desktop_mirror_max_fps=args_cli.ovxr_desktop_mirror_fps,
                     auxiliary_cameras=selected_cameras,
                 ),
