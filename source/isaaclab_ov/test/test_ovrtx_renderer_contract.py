@@ -2020,29 +2020,6 @@ def test_leased_camera_cleanup_waits_for_lease_release(leased_renderer, monkeypa
     assert data not in renderer._camera_render_data
 
 
-def test_external_camera_native_rate_is_authored_only_on_export(leased_renderer):
-    from pxr import Usd, UsdGeom
-
-    renderer = leased_renderer
-    lease = renderer.acquire_ov_libraries_render_lease()
-    cfg = _make_camera_cfg(["rgb"])
-    cfg.prim_path = "/World/envs/env_0/Camera"
-    lease.configure_auxiliary_camera(cfg, max_fps=20.0)
-    lease._auxiliary_cameras[0].spec = types.SimpleNamespace(camera_prim_paths=[cfg.prim_path])
-    stage = Usd.Stage.CreateInMemory()
-    camera = UsdGeom.Camera.Define(stage, cfg.prim_path).GetPrim()
-    exported = Usd.Stage.CreateInMemory()
-    assert exported.GetRootLayer().ImportFromString(
-        renderer._render_lease._author_camera_schedules(stage.ExportToString(), lease)
-    )
-    assert not camera.HasAttribute("omni:sensor:frameRate")
-    assert not camera.HasAttribute("omni:sensor:Core:partialOutputs")
-    prim = exported.GetPrimAtPath(cfg.prim_path)
-    assert tuple(prim.GetAttribute("omni:sensor:frameRate").Get()) == (20.0, 1.0)
-    assert prim.GetAttribute("omni:sensor:Core:partialOutputs").Get() is False
-    lease.release()
-
-
 def test_selected_external_camera_order_is_independent_of_sensor_preparation(leased_renderer):
     renderer = leased_renderer
     lease = renderer.acquire_ov_libraries_render_lease()
@@ -2082,24 +2059,22 @@ def test_external_camera_partition_validation_is_not_stereo_specific(leased_rend
         lease.release()
 
 
-def test_external_camera_schedules_reach_native_stage(monkeypatch):
-    """The renderer's real population path retains only selected camera scheduling properties."""
+def test_external_camera_schedules_reach_native_stage():
+    """Leased population authors the selected cameras' native rates and retains only those properties."""
     import ovrtx
     import ovstage
+    from isaaclab_ov.stage import OvstageBackend, OvstageBackendCfg
 
     ovrtx.register_schema_paths()
     camera_paths = [f"/World/envs/env_0/{name}" for name in ("Head", "Wrist", "Unselected")]
+    # The application export has no camera schedules; the unselected camera's own rate must not populate.
     source = """#usda 1.0
 def Xform "World" {
  def Xform "envs" {
   def Xform "env_0" {
    def Camera "Head" {
-    double2 omni:sensor:frameRate = (20, 1)
-    bool omni:sensor:Core:partialOutputs = false
    }
    def Camera "Wrist" {
-    double2 omni:sensor:frameRate = (10, 1)
-    bool omni:sensor:Core:partialOutputs = false
    }
    def Camera "Unselected" {
     double2 omni:sensor:frameRate = (999, 1)
@@ -2108,63 +2083,47 @@ def Xform "World" {
  }
 }
 """
-    cfg = _make_camera_cfg(["rgb"])
-    cfg.prim_path = camera_paths[0]
-    spec = types.SimpleNamespace(cfg=cfg, num_instances=1, camera_prim_paths=[camera_paths[0]], render_settings={})
-    data = OVRTXCameraRenderData(spec, "RenderCamera_0", list(spec.camera_prim_paths))
-    from isaaclab_ov.stage import OvstageBackend, OvstageBackendCfg
-
-    renderer = _make_ovrtx_renderer_without_backend()
-    renderer._use_ovstage = True
-    renderer._render_lease.stage_deferred = False
-    renderer._render_lease.active = None
-    renderer.backend.renderer = MagicMock()
+    renderer = OVRTXRenderer(OVRTXRendererCfg(), sim=SimulationContext.instance())
+    lease = renderer.acquire_ov_libraries_render_lease()
     with contextlib.ExitStack() as resources:
+        resources.callback(lease.release)
+        for path, max_fps in zip(camera_paths[:2], (20.0, 10.0), strict=True):
+            cfg = _make_camera_cfg(["rgb"])
+            cfg.prim_path = path
+            lease.configure_auxiliary_camera(cfg, max_fps=max_fps)
+        for camera in lease._auxiliary_cameras:
+            camera.spec = types.SimpleNamespace(camera_prim_paths=[camera.cfg.prim_path])
         renderer.scene = OvstageBackend(OvstageBackendCfg())
         resources.callback(renderer.scene.close)
+        renderer._render_lease.populate_stage(source)
+
         stage, paths = renderer.scene.stage, renderer.scene.paths
-        population = ovstage.population
-        description = population.Desc(
-            domains=ovstage.PopulationDomain.RENDERING,
-            selectors=[
-                population.Selector(
-                    population.PrimPredicate.has_path(*camera_paths[:2]),
-                    population.PropertyPredicate.has_name("omni:sensor:frameRate", "omni:sensor:Core:partialOutputs"),
-                )
-            ],
-        )
-        renderer.scene.populate(source, population_desc=description)
+        names = ("omni:sensor:frameRate", "omni:sensor:Core:partialOutputs")
+        resolved = {}
+        plist = paths.create_path_list_from_strings(camera_paths)
         try:
-            renderer._register_camera(spec, data)
-            renderer.scene.commit()
-            resolved = {}
-            plist = paths.create_path_list_from_strings(camera_paths)
-            try:
-                with stage.query_from_path_list(plist) as query:
-                    query.wait()
-                    names = ("omni:sensor:frameRate", "omni:sensor:Core:partialOutputs")
-                    with stage.read_attributes(
-                        query,
-                        [paths.intern_token(name) for name in names],
-                        ovstage.OrdinalRange.latest(renderer.scene.ordinal - 1),
-                    ) as read:
-                        read.wait()
-                        for group in read.groups():
-                            try:
-                                values = np.asarray(group.array(0).copy()).reshape(group.data_count, -1)
-                                group_paths = paths.get_path_strings(group.prim_list)
-                                attribute = paths.token_to_string(group.attribute)
-                                for index in range(min(group.prim_count, group.data_count)):
-                                    path = group_paths[group.prim_index(index)]
-                                    resolved[path, attribute] = values[group.data_row_index(index)].tolist()
-                            finally:
-                                stage.release_group(group)
-            finally:
-                paths.destroy_path_list(plist)
-            assert resolved.get((camera_paths[0], names[0])) == [20.0, 1.0]
-            assert resolved.get((camera_paths[1], names[0])) == [10.0, 1.0]
-            assert resolved.get((camera_paths[0], names[1])) == [False]
-            assert resolved.get((camera_paths[1], names[1])) == [False]
-            assert (camera_paths[2], names[0]) not in resolved
+            with stage.query_from_path_list(plist) as query:
+                query.wait()
+                with stage.read_attributes(
+                    query,
+                    [paths.intern_token(name) for name in names],
+                    ovstage.OrdinalRange.latest(renderer.scene.ordinal - 1),
+                ) as read:
+                    read.wait()
+                    for group in read.groups():
+                        try:
+                            values = np.asarray(group.array(0).copy()).reshape(group.data_count, -1)
+                            group_paths = paths.get_path_strings(group.prim_list)
+                            attribute = paths.token_to_string(group.attribute)
+                            for index in range(min(group.prim_count, group.data_count)):
+                                path = group_paths[group.prim_index(index)]
+                                resolved[path, attribute] = values[group.data_row_index(index)].tolist()
+                        finally:
+                            stage.release_group(group)
         finally:
-            data.resources.close()
+            paths.destroy_path_list(plist)
+    assert resolved.get((camera_paths[0], names[0])) == [20.0, 1.0]
+    assert resolved.get((camera_paths[1], names[0])) == [10.0, 1.0]
+    assert resolved.get((camera_paths[0], names[1])) == [False]
+    assert resolved.get((camera_paths[1], names[1])) == [False]
+    assert (camera_paths[2], names[0]) not in resolved
