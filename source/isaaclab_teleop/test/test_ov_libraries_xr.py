@@ -89,6 +89,7 @@ class _FakeBootstrap:
         self.publisher = _FakePublisher()
         self.events = []
         self.closed = False
+        self.aborted = False
 
     def capture_scene_publisher(self):
         self.events.append("capture")
@@ -113,6 +114,9 @@ class _FakeBootstrap:
 
     def close(self):
         self.closed = True
+
+    def abort(self):
+        self.aborted = True
 
 
 @pytest.fixture
@@ -649,6 +653,31 @@ def test_caller_renderer_settings_precede_renderer_creation(xr_module, monkeypat
     xr_module.OvLibrariesXrSession.prepare(object(), xr_module.OvLibrariesXrCfg(renderer_settings=settings))
 
 
+def test_prepare_rejects_existing_context_before_global_settings(xr_module, monkeypatch):
+    from isaaclab.sim import SimulationContext
+
+    monkeypatch.setattr(SimulationContext, "instance", lambda: object())
+    monkeypatch.setitem(
+        sys.modules,
+        "ovxr",
+        SimpleNamespace(apply_renderer_settings=lambda _: pytest.fail("changed existing renderer settings")),
+    )
+    monkeypatch.setattr(xr_module, "OvxrSessionBootstrap", lambda *_: pytest.fail("allocated second bootstrap"))
+    with pytest.raises(RuntimeError, match="must create the SimulationContext"):
+        xr_module.OvLibrariesXrSession.prepare(object(), xr_module.OvLibrariesXrCfg())
+
+
+@pytest.mark.parametrize("terminal_mode", [False, None, 1])
+def test_prepare_rejects_extension_mode_before_global_settings(xr_module, monkeypatch, terminal_mode):
+    monkeypatch.setattr(builtins, "ISAAC_LAUNCHED_FROM_TERMINAL", terminal_mode, raising=False)
+    monkeypatch.setitem(
+        sys.modules, "ovxr", SimpleNamespace(apply_renderer_settings=lambda _: pytest.fail("changed renderer settings"))
+    )
+    monkeypatch.setattr(xr_module, "OvxrSessionBootstrap", lambda *_: pytest.fail("allocated bootstrap"))
+    with pytest.raises(RuntimeError, match="extension mode"):
+        xr_module.OvLibrariesXrSession.prepare(object(), xr_module.OvLibrariesXrCfg())
+
+
 def test_config_rejects_unknown_session_mode():
     with pytest.raises(ValueError, match="session_mode must be 'ar' or 'vr'"):
         OvLibrariesXrCfg(session_mode="automatic")
@@ -658,6 +687,12 @@ def test_config_rejects_unknown_session_mode():
 def test_config_rejects_invalid_scene_scale(scale):
     with pytest.raises(ValueError, match="meters_per_unit must be finite and positive"):
         OvLibrariesXrCfg(meters_per_unit=scale)
+
+
+@pytest.mark.parametrize("camera_paths", [("/Camera/mono",), ("/Camera/left", "")])
+def test_config_rejects_non_stereo_camera_paths(camera_paths):
+    with pytest.raises(ValueError, match="exactly two"):
+        OvLibrariesXrCfg(camera_paths=camera_paths)
 
 
 def test_prepare_revalidates_changed_scale_before_global_settings(xr_module, monkeypatch):
@@ -680,6 +715,38 @@ def test_start_rejects_invalid_bootstrap_count_before_owner_creation(xr_module, 
     with pytest.raises(ValueError, match="max_blank_frames must be a non-negative integer"):
         session.start_render_worker(SimpleNamespace(), max_blank_frames=count)
     assert bootstrap.events == []
+
+
+@pytest.mark.parametrize("abort_fails", [False, True])
+def test_prepare_aborts_partial_bootstrap_and_preserves_first_error(xr_module, monkeypatch, abort_fails):
+    bootstrap = _FakeBootstrap()
+    first_error = RuntimeError("preparation failed")
+    original_cause = ValueError("invalid session input")
+    first_error.add_note("Original preparation diagnostic")
+    abort_error = RuntimeError("abort failed")
+    monkeypatch.setitem(sys.modules, "ovxr", _fake_ovxr())
+    monkeypatch.setattr(xr_module, "OvxrSessionBootstrap", lambda *_: bootstrap)
+
+    def fail(*_args, **_kwargs):
+        raise first_error from original_cause
+
+    def abort():
+        bootstrap.aborted = True
+        if abort_fails:
+            raise abort_error
+
+    monkeypatch.setattr(bootstrap, "abort", abort)
+    monkeypatch.setattr(xr_module.OvLibrariesXrSession, "__init__", fail)
+
+    with pytest.raises(RuntimeError) as caught:
+        xr_module.OvLibrariesXrSession.prepare(object(), xr_module.OvLibrariesXrCfg())
+
+    assert bootstrap.aborted
+    assert caught.value is first_error
+    assert caught.value.__cause__ is original_cause
+    assert caught.value.__notes__ == ["Original preparation diagnostic"] + (
+        [f"Cleanup after failed XR preparation also failed: {abort_error!r}"] if abort_fails else []
+    )
 
 
 def test_public_xr_exports_resolve_to_implemented_types(xr_module):
