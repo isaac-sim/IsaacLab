@@ -18,6 +18,10 @@ from .xr_anchor_utils import XrAnchorSynchronizer, _relative_anchor_transform, _
 from .xr_cfg import XrCfg
 
 # Import Kit components with fallback for sessions without Kit
+carb = None
+with contextlib.suppress(ModuleNotFoundError):
+    import carb
+
 XRCore = None
 XRCoreEventType = None
 with contextlib.suppress(ModuleNotFoundError):
@@ -172,15 +176,11 @@ class XrAnchorManager:
                 self._xr_anchor_headset_path, self._xr_render_anchor_path
             )
 
-        # Configure settings only when Kit owns a live XRCore. Kitless external-
-        # present sessions retain this anchor but have no carb settings interface.
-        if self._xr_core is not None and has_kit():
-            import carb.settings  # noqa: PLC0415
-
-            settings = carb.settings.get_settings()
-            settings.set_float("/persistent/xr/render/nearPlane", self._xr_cfg.near_plane)
-            settings.set_string("/persistent/xr/anchorMode", "custom anchor")
-            settings.set_string("/xrstage/customAnchor", self._xr_render_anchor_path)
+        # Configure carb settings for XR rendering; carb can import while Kit is not running
+        if carb is not None and has_kit():
+            carb.settings.get_settings().set_float("/persistent/xr/render/nearPlane", self._xr_cfg.near_plane)
+            carb.settings.get_settings().set_string("/persistent/xr/anchorMode", "custom anchor")
+            carb.settings.get_settings().set_string("/xrstage/customAnchor", self._xr_render_anchor_path)
 
         self._anchor_sync: XrAnchorSynchronizer | None = None
         if self._xr_core is not None:

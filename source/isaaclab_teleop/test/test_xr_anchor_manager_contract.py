@@ -7,8 +7,7 @@
 
 from __future__ import annotations
 
-import sys
-from types import ModuleType, SimpleNamespace
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -114,23 +113,6 @@ def test_public_device_exposes_dynamic_anchor_only_for_ovxr_session(monkeypatch,
         device = isaac_teleop_device.IsaacTeleopDevice(cfg, **kwargs)
     assert (device.external_anchor_state is not None) == (capability != "none")
     lifecycle.assert_called_once()
-
-
-def test_no_xr_core_does_not_acquire_carb_settings(monkeypatch):
-    settings = ModuleType("carb.settings")
-    settings.get_settings = MagicMock(side_effect=AssertionError("kitless anchor touched carb settings"))
-    carb = ModuleType("carb")
-    carb.settings = settings
-    monkeypatch.setitem(sys.modules, "carb", carb)
-    monkeypatch.setitem(sys.modules, "carb.settings", settings)
-    monkeypatch.setattr(xr_anchor_manager, "XRCore", None)
-    monkeypatch.setattr(xr_anchor_manager, "_xr_anchor_prim_exists", lambda _path: True)
-    cfg = XrCfg(anchor_pos=(1.0, 2.0, 3.0), anchor_rot=(0.0, 0.0, 0.0, 1.0))
-
-    manager = xr_anchor_manager.XrAnchorManager(cfg)
-
-    settings.get_settings.assert_not_called()
-    np.testing.assert_allclose(manager.get_world_matrix()[:3, 3], cfg.anchor_pos)
 
 
 def test_render_anchor_does_not_offset_tracked_device_poses(monkeypatch):

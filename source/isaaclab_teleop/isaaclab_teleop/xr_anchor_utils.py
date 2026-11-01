@@ -40,12 +40,18 @@ class _XrAnchorPosePolicy:
         self.__smoothed_anchor_quat = None
         self.__last_anchor_quat = None
         self.__anchor_rotation_enabled = True
-        self.__cached_world_pos = None
-        self.__cached_world_quat_xyzw = None
+
+        # Cached anchor world transform (pos, quat_xyzw) set by update().
+        # Reading back from the prim hierarchy is unreliable when the anchor is a child of a
+        # physics-driven prim (e.g. the pelvis) because Fabric computes the hierarchy world
+        # matrix using the physics-updated parent while the local xform was decomposed against
+        # the USD-level parent, which can diverge.
+        self.__cached_world_pos: np.ndarray | None = None
+        self.__cached_world_quat_xyzw: np.ndarray | None = None
 
     def toggle_anchor_rotation(self):
         self.__anchor_rotation_enabled = not self.__anchor_rotation_enabled
-        logger.info("XR: Toggling anchor rotation: %s", self.__anchor_rotation_enabled)
+        logger.info(f"XR: Toggling anchor rotation: {self.__anchor_rotation_enabled}")
 
     def get_world_transform(self):
         if self.__cached_world_pos is None:
@@ -167,7 +173,7 @@ class XrAnchorSynchronizer:
         self._policy = _XrAnchorPosePolicy(xr_cfg)
         stage = get_current_stage()
         anchor = stage.GetPrimAtPath(xr_anchor_headset_path)
-        self._layer_identifier = anchor.GetPrimStack()[0].layer.identifier
+        self.__anchor_headset_layer_identifier = anchor.GetPrimStack()[0].layer.identifier
         self._render_anchor_path = xr_render_anchor_path
         self._render_anchor_offset = None
         if xr_render_anchor_path is not None and xr_render_anchor_path != xr_anchor_headset_path:
@@ -192,11 +198,37 @@ class XrAnchorSynchronizer:
     def toggle_anchor_rotation(self):
         self._policy.toggle_anchor_rotation()
 
-    def get_world_transform(self):
+    def get_world_transform(self) -> tuple[np.ndarray, np.ndarray] | None:
+        """Return the anchor world transform.
+
+        Returns the cached world transform that was computed by the most recent
+        call to :meth:`sync_headset_to_anchor`.  Using the cached value avoids
+        a Fabric/USD layer mismatch: when the XR anchor prim is a child of a
+        physics-driven prim (e.g. the robot pelvis), reading
+        ``GetFabricHierarchyWorldMatrixAttr`` would compose the Fabric-side
+        parent transform (updated by physics) with a local xform that was
+        decomposed against the USD-side parent (which can lag behind),
+        producing an incorrect world matrix that drifts as the robot moves.
+
+        Returns:
+            A ``(position, quat_xyzw)`` tuple of numpy float64 arrays,
+            or ``None`` if :meth:`sync_headset_to_anchor` has not run yet.
+        """
         return self._policy.get_world_transform()
 
     def sync_headset_to_anchor(self):
-        """Read the Fabric reference and update the Kit anchor once per pre-sync."""
+        """Sync XR anchor pose in USD for both dynamic and static anchoring.
+
+        For **dynamic** anchoring (``anchor_prim_path`` is set), the reference
+        prim's world position is read from Fabric and ``anchor_pos`` is added
+        as an offset.  For **static** anchoring (no prim path), ``anchor_pos``
+        is used directly as the world position.
+
+        In both cases the function calls ``set_world_transform_matrix`` on the
+        XR core so that the rendering anchor and the pipeline's
+        ``world_T_anchor`` matrix are guaranteed to agree, and caches the
+        world transform for :meth:`get_world_transform`.
+        """
         try:
             reference = None
             if self._reference_world_matrix is not None:
@@ -207,11 +239,13 @@ class XrAnchorSynchronizer:
                 lambda: SimulationContext.instance().get_rendering_dt(),
                 getattr(self, "_previous_headpose", None),
             )
-            self._xr_core.set_world_transform_matrix(self._xr_anchor_headset_path, matrix, self._layer_identifier)
+            self._xr_core.set_world_transform_matrix(
+                self._xr_anchor_headset_path, matrix, self.__anchor_headset_layer_identifier
+            )
             if self._render_anchor_offset is not None:
                 # Gf uses row vectors: apply the view offset before the filtered world pose.
                 self._xr_core.set_world_transform_matrix(
                     self._render_anchor_path, self._render_anchor_offset * matrix, self._render_layer_identifier
                 )
-        except Exception as exc:
-            logger.warning("XR: Anchor sync failed: %s", exc)
+        except Exception as e:
+            logger.warning(f"XR: Anchor sync failed: {e}")
