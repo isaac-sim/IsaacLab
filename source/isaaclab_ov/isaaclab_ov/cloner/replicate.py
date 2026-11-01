@@ -224,8 +224,7 @@ class OvrtxReplicateContext(cloner.ReplicateContext):
             )
             if share_ovstage and any(other.cfg != backend_cfg for other in sim.get_backends(OVRTXBackendCfg)):
                 raise ValueError(
-                    "A shared OVStage requires one OVRTX engine; use the same native logging, transform and"
-                    " GPU selection (active_cuda_gpus) settings."
+                    "A shared OVStage requires one OVRTX engine; use the same native logging/transform/GPU settings."
                 )
             scene = None
             if use_ovstage:

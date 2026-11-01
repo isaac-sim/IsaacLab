@@ -37,6 +37,7 @@ consumer attaches.
 
 Configure shared-stage cameras before the initial simulation reset. Cameras may have different product
 settings, but share one native renderer and must agree on native logging and transform-cache settings.
+They must also select the same rendering GPUs (:attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.active_cuda_gpus`).
 Full-stage physics imports, including deformable scenes that require authored environment copies, are
 not supported in shared mode. Disable ``ISAAC_LAB_SHARE_OVSTAGE``
 for those scenes; sharing rejects them before native population rather than dropping their USD overrides.
