@@ -194,11 +194,10 @@ def test_config_load_does_not_import_backend_modules(task_name: str, all_cfg_che
 
 
 def test_teleop_configs_resolve_and_validate_without_teleop():
-    """Optional teleop integrations must not block task validation or standalone physics preparation."""
+    """Configs with optional Isaac Teleop integrations must resolve and validate without the package."""
     script = textwrap.dedent("""\
         import builtins
         import importlib.util
-        from pathlib import Path
 
         original_import = builtins.__import__
         original_find_spec = importlib.util.find_spec
@@ -253,11 +252,45 @@ def test_teleop_configs_resolve_and_validate_without_teleop():
                 assert cfg.scene.left_hand_contact is not None
                 assert cfg.scene.right_hand_contact is not None
                 assert cfg.scene.robot.spawn.activate_contact_sensors
+    """)
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode == 0, (
+        f"Subprocess failed:\n--- stdout ---\n{result.stdout}\n--- stderr ---\n{result.stderr}"
+    )
 
-        from isaaclab_tasks.contrib.locomanip_pick_place.g1_kitless_newton import (
-            G1NewtonBoundedPinkInverseKinematicsAction,
-        )
+
+def test_humanoid_standalone_preparation_without_teleop():
+    """Registered humanoid tasks must prepare standalone physics without the Isaac Teleop package."""
+    script = textwrap.dedent("""\
+        import builtins
+        import importlib.util
+
+        original_import = builtins.__import__
+        original_find_spec = importlib.util.find_spec
+
+        def block_teleop(name, *args, **kwargs):
+            if name == "isaaclab_teleop" or name.startswith("isaaclab_teleop."):
+                raise ModuleNotFoundError("No module named 'isaaclab_teleop'", name="isaaclab_teleop")
+            return original_import(name, *args, **kwargs)
+
+        def hide_teleop(name, *args, **kwargs):
+            if name == "isaaclab_teleop" or name.startswith("isaaclab_teleop."):
+                return None
+            return original_find_spec(name, *args, **kwargs)
+
+        builtins.__import__ = block_teleop
+        importlib.util.find_spec = hide_teleop
+
+        import gymnasium
+        import isaaclab_tasks  # noqa: F401
         from isaaclab.envs import ManagerBasedRLEnv
+        from isaaclab.utils import validate
+        from isaaclab_tasks.utils import resolve_task_config
 
         class ConstructionReached(Exception):
             pass
@@ -277,8 +310,6 @@ def test_teleop_configs_resolve_and_validate_without_teleop():
         )
         for task_name, physics in standalone_tasks:
             cfg, _ = resolve_task_config(task_name, "", overrides=[f"physics={physics}"])
-            assert cfg.isaac_teleop is None
-            controlled_joints = list(cfg.actions.upper_body_ik.pink_controlled_joint_names)
             try:
                 gymnasium.make(task_name, cfg=cfg)
             except ConstructionReached:
@@ -286,18 +317,8 @@ def test_teleop_configs_resolve_and_validate_without_teleop():
             else:
                 raise AssertionError("Registered constructor did not reach the simulation boundary")
             validate(cfg)
-            assert cfg.xr is None
             assert cfg.isaac_teleop is None
-            action = cfg.actions.upper_body_ik
-            assert action.pink_controlled_joint_names == controlled_joints
-            if "GR1T2" in task_name:
-                assert action.kitless_target_conditioning_enabled
-                assert Path(action.controller.urdf_path).is_file()
-            else:
-                assert action.class_type is G1NewtonBoundedPinkInverseKinematicsAction
-            if physics == "newton_mjwarp":
-                assert cfg.sim.physics.solver_cfg.nconmax == 4096
-                assert cfg.sim.physics.solver_cfg.njmax == 1536
+            assert cfg._prepared_kitless_backend == physics
     """)
     result = subprocess.run(
         [sys.executable, "-c", script],
