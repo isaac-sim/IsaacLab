@@ -68,16 +68,6 @@ class XrCfg:
     effective only when either render-anchor override is configured.
     """
 
-    hidden_visual_prims: list[str] = []
-    """Prim-path regex patterns hidden from the kitless OVXR view.
-
-    Tasks can use this to hide robot geometry that encloses the eye cameras.
-    The OVXR session authors visibility on the live stage before
-    renderer materialization and fails if a configured pattern matches no
-    imageable prim. Visibility persists for the application Stage's lifetime
-    and affects all cameras, including PiP; it is not restored on XR close.
-    """
-
     anchor_prim_path: str | None = None
     """Specifies the prim path to attach the XR anchor to for dynamic positioning.
 
