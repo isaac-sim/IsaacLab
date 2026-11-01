@@ -122,13 +122,9 @@ def _make_lifecycle(**kwargs) -> TeleopSessionLifecycle:
     return TeleopSessionLifecycle(cfg, **kwargs)
 
 
-_BORROWED_OVXR_HANDLES = {"use_kit_xr_bridge": False, "external_oxr_handles_provider": lambda: object()}
-"""Lifecycle options for an OVXR session whose handles must be proven drained."""
-
-
-def _make_failing_lifecycle(error: Exception, **kwargs) -> TeleopSessionLifecycle:
+def _make_failing_lifecycle(error: Exception) -> TeleopSessionLifecycle:
     """Lifecycle with a live session mock whose step raises *error*."""
-    lifecycle = _make_lifecycle(**kwargs)
+    lifecycle = _make_lifecycle()
     lifecycle._pipeline = object()
     session = MagicMock()
     session.step.side_effect = error
@@ -141,7 +137,8 @@ class TestStepFailureDiagnosis:
     def test_failed_drain_retains_owner_and_original_step_error(self, error_type):
         step_error = ValueError("retarget worker failed")
         drain_error = error_type("worker did not join")
-        lifecycle = _make_failing_lifecycle(step_error, **_BORROWED_OVXR_HANDLES)
+        lifecycle = _make_failing_lifecycle(step_error)
+        lifecycle._external_oxr_handles_provider = lambda: object()  # Borrowed OVXR handles.
         session = lifecycle._session
         session.__exit__.side_effect = drain_error
         with (
@@ -191,7 +188,7 @@ class TestStepFailureDiagnosis:
 
     @pytest.mark.parametrize("error_type", [RuntimeError, KeyboardInterrupt])
     def test_terminal_exit_failure_is_latched_across_callbacks_and_restart(self, error_type):
-        lifecycle = _make_lifecycle(**_BORROWED_OVXR_HANDLES)
+        lifecycle = _make_lifecycle(use_kit_xr_bridge=False, external_oxr_handles_provider=lambda: object())
         lifecycle._pipeline = object()
         error = error_type("terminal native cleanup failed")
 
