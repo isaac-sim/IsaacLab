@@ -1645,27 +1645,120 @@ def test_render_lease_owner_transfer_is_single_use(leased_renderer):
     assert renderer.backend is renderer.scene is None
 
 
-def test_render_lease_complete_publication_deduplicates_and_poison_fails_closed(leased_renderer, monkeypatch):
+@pytest.fixture
+def complete_scene_publication(leased_renderer, monkeypatch):
+    """Exercise the application publisher with native component endpoints doubled."""
     renderer = leased_renderer
     lease = renderer.acquire_ov_libraries_render_lease()
     publisher = lease.capture_scene_publisher()
     _prepare_leased_renderer(renderer)
-    renderer.scene.stage.advance_write_floor.reset_mock()
-    transforms = MagicMock()
-    monkeypatch.setattr(renderer, "_update_transforms", transforms)
-    monkeypatch.setattr(renderer, "_update_geometries", lambda: None)
-    assert publisher.publication_required("step-1")
-    publisher.write_complete_scene(18, "step-1")
-    assert not publisher.publication_required("step-1")
-    transforms.assert_called_once_with()
+    stage = renderer.scene.stage
+    stage.get_attribute_write_floor.reset_mock()
+    stage.advance_write_floor.reset_mock()
+    state = types.SimpleNamespace(
+        renderer=renderer,
+        lease=lease,
+        publisher=publisher,
+        ordinal=23,
+        events=[],
+        failure=None,
+        cause=ValueError("component endpoint failed"),
+        initial_id=renderer._render_lease._last_step_id,
+    )
+
+    def component(name):
+        state.events.append((name, renderer.scene.ordinal))
+        if state.failure == name:
+            raise state.cause
+
+    writer = types.SimpleNamespace(
+        has_pending_updates=False,
+        publish=lambda: component("material"),
+        drain=lambda: component("material-drain"),
+    )
+    monkeypatch.setattr(renderer, "_visual_material_writer_ref", lambda: writer)
+    monkeypatch.setattr(renderer, "_update_transforms", lambda: component("transform"))
+    monkeypatch.setattr(renderer, "_update_geometries", lambda: component("geometry"))
+    state.publish = lambda step_id="step": publisher.write_complete_scene(state.ordinal, step_id)
+    try:
+        yield state
+    finally:
+        lease.release()
+
+
+def test_render_lease_complete_scene_components_share_the_supplied_ordinal(complete_scene_publication):
+    state = complete_scene_publication
+    renderer = state.renderer
+    assert state.publisher.publication_required("step")
+    assert state.publish() is None
+    names = ["material", "transform", "geometry", "material-drain"]
+    assert state.events == [(name, state.ordinal) for name in names]
+    assert renderer._render_lease._last_step_id == "step"
+    assert renderer.scene.ordinal == state.ordinal
+    assert not state.publisher.publication_required("step")
+    with pytest.raises(RuntimeError, match="publication is not required"):
+        state.publish()
+    assert state.events == [(name, state.ordinal) for name in names]
+    renderer.scene.stage.get_attribute_write_floor.assert_not_called()
     renderer.scene.stage.advance_write_floor.assert_not_called()
-    transforms.side_effect = ValueError("write failed")
-    with pytest.raises(RuntimeError, match="scene publication failed"):
-        publisher.write_complete_scene(19, "step-2")
+    assert not renderer._render_lease._poisoned
+
+
+@pytest.mark.parametrize("failure", ["material", "transform", "geometry", "material-drain"])
+def test_render_lease_complete_scene_failure_preserves_commit_boundary(complete_scene_publication, failure):
+    state = complete_scene_publication
+    renderer, lease = state.renderer, state.lease
+    state.failure = failure
+    with pytest.raises(RuntimeError, match="Producer scene publication failed") as caught:
+        state.publish()
+    assert caught.value.__cause__ is state.cause
+    order = ["material", "transform", "geometry", "material-drain"]
+    expected = order[: order.index(failure) + 1]
+    if failure != "material-drain":
+        expected.append("material-drain")
+    assert state.events == [(name, state.ordinal) for name in expected]
+    assert renderer._render_lease._last_step_id == state.initial_id
+    assert renderer.scene.ordinal == state.ordinal
+    assert renderer._render_lease._poisoned
     with pytest.raises(RuntimeError, match="poisoned"):
         _ = lease.ovstage
-    publisher.close()
-    lease.release()
+    previous_events = list(state.events)
+    with pytest.raises(RuntimeError, match="unavailable|poisoned"):
+        state.publish("next-step")
+    assert state.events == previous_events
+    renderer.scene.stage.advance_write_floor.assert_not_called()
+    renderer.scene.stage.get_attribute_write_floor.assert_not_called()
+
+
+def test_render_lease_complete_scene_public_authority_precedes_components(complete_scene_publication):
+    import threading
+
+    state = complete_scene_publication
+    errors = []
+
+    def foreign_thread():
+        try:
+            state.publish()
+        except BaseException as exc:
+            errors.append(exc)
+
+    thread = threading.Thread(target=foreign_thread)
+    thread.start()
+    thread.join(timeout=5)
+    assert not thread.is_alive()
+    assert len(errors) == 1 and isinstance(errors[0], RuntimeError)
+    assert "thread" in str(errors[0])
+    with pytest.raises(TypeError, match="physics_step_id must be hashable"):
+        state.publish([])
+    with pytest.raises(ValueError, match="ordinal must be nonzero"):
+        state.publisher.write_complete_scene(0, "step")
+    state.publisher.close()
+    with pytest.raises(RuntimeError, match="publisher is closed"):
+        state.publish()
+    assert not state.events
+    state.renderer.scene.stage.get_attribute_write_floor.assert_not_called()
+    state.renderer.scene.stage.advance_write_floor.assert_not_called()
+    assert not state.renderer._render_lease._poisoned
 
 
 def test_render_lease_closed_publisher_reports_no_pending_publication(leased_renderer, monkeypatch):
