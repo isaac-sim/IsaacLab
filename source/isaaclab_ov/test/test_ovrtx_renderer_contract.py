@@ -2351,9 +2351,13 @@ def test_rigid_publication_uses_target_device_and_retains_failed_producer(monkey
 
 
 @pytest.mark.parametrize(
-    ("field", "value"),
-    [("active_cuda_gpus", "cuda:0"), ("active_cuda_gpus", "0,,1"), ("geometry_publication_device", "cuda")],
+    ("field", "value", "message"),
+    [
+        ("active_cuda_gpus", "cuda:0", "must list CUDA indices"),
+        ("active_cuda_gpus", "0,,1", "must list CUDA indices"),
+        ("geometry_publication_device", "cuda", "explicit CUDA device"),
+    ],
 )
-def test_renderer_cfg_rejects_malformed_gpu_selection(field, value):
-    with pytest.raises(ValueError):
+def test_renderer_cfg_rejects_malformed_gpu_selection(field, value, message):
+    with pytest.raises(ValueError, match=message):
         OVRTXRendererCfg(**{field: value})
