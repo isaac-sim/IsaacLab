@@ -36,10 +36,10 @@ Gating:
     :func:`~isaaclab_teleop.poll_control_events`, gates ``env.step()`` on
     ``ctrl.is_active`` (so pre-START operator setup frames are rendered
     without stepping), and handles mid-demo ``ctrl.should_reset`` events
-    by running the full sim/env/teleop reset cycle. Recorded controls govern
-    playback by default. For legacy captures started locally without recorded
-    START messages, pass ``--start_on_replay`` to start at replay startup and
-    resume after each recorded RESET.
+    by running the full sim/env/teleop reset cycle.
+    Recorded controls govern playback by default. For legacy captures started
+    locally without recorded START messages, pass ``--start_on_replay`` to start
+    at replay startup and resume after each recorded RESET.
 
 End-of-replay termination:
     Four distinct signals end the current run by breaking out of the
@@ -95,9 +95,9 @@ Stats output:
     too quickly), it raises ``RuntimeError`` immediately, so the
     remaining replays never start and no stdout summary or JSON file
     is written. Partial reports are never emitted: CI relies on
-    "no JSON output" as an unambiguous failure signal. OVXR owns rendering
-    independently, so application render-call timing statistics remain empty
-    for OVXR replays.
+    "no JSON output" as an unambiguous failure signal.
+    OVXR owns rendering independently, so application render-call timing
+    statistics remain empty for OVXR replays.
 
     Each active iteration also emits one ``GpuStatsProvider.sample()``
     call. The default :class:`NvmlGpuStatsProvider` snapshots GPU
@@ -1169,12 +1169,14 @@ def _handle_reset(env: gym.Env, teleop_interface: IsaacTeleopDevice, *, hard_sim
 
     Mirrors :func:`isaaclab_teleop.entrypoints.record_demos.handle_reset` (sans the
     instruction-display update, which the headless replay agent doesn't
-    own). The optional hard physics reset keeps Pink seeded against fresh
-    articulation views on PhysX backends. Newton instead retains the solver
-    constructed before replay. ``env.recorder_manager.reset()`` is a no-op
-    when no recorders are configured (the default for this script), but kept
-    for parity with record_demos.py so future recorder additions don't have
-    to re-derive the call sequence.
+    own). ``env.sim.reset()`` does the hard physics reinit that keeps Pink
+    IK seeded against fresh articulation views; see the initial-reset note
+    in :func:`main`. ``env.recorder_manager.reset()`` is a no-op when no
+    recorders are configured (the default for this script), but kept for
+    parity with record_demos.py so future recorder additions don't have to
+    re-derive the call sequence.
+    With ``hard_sim_reset=False`` (Newton), the hard reinit is skipped so the
+    solver constructed before replay stays alive.
     """
     print("Resetting environment...")
     _reset_replay_environment(env, hard_sim_reset=hard_sim_reset, reset_recorder=True)
@@ -1725,18 +1727,22 @@ def main() -> int:
         persisted to disk; a one-line-per-run stdout summary is always
         printed. See the module docstring for the full JSON schema.
 
-    Cleanup drains replay input before the optional OVXR owner releases its
-    borrowed environment. Without that owner the batch closes the environment
-    directly. Failed input drain retains borrowed resources and raises rather
-    than releasing a stage that a worker may still use. Repeated shutdown signals
-    request owner shutdown without interrupting its drain.
+    Resource cleanup is wrapped in a ``try/finally`` so that ``env.close()``
+    always runs, even when device construction or any subsequent setup
+    raises -- otherwise the USD stage would leak across CI runs.
+    With ``--ovxr``, cleanup first drains replay input and the OVXR viewer,
+    which may own the environment. A failed input drain retains the borrowed
+    environment and raises rather than releasing a stage that a worker may
+    still use. Repeated shutdown signals request owner shutdown without
+    interrupting its drain.
 
     Returns:
-        ``1`` if the requested batch did not finish. For a complete batch,
-        return the worst-of-N outcome: ``0`` if every run met task success,
-        ``2`` if any run hit
-        ``--max_replay_duration_s``, otherwise ``1`` (any failure or incomplete
-        run). The report retains each completed run's outcome in either case.
+        The host process exit code, mapped from the worst-of-N outcome
+        across the multi-run batch: ``0`` if every run's
+        ``success_term`` fired, ``2`` if any run hit
+        ``--max_replay_duration_s``, otherwise ``1`` (any failure or
+        incomplete run).
+        A batch that stops before ``--num_replays`` runs complete returns ``1``.
     """
     if args_cli.num_replays < 1:
         raise ValueError(f"--num_replays must be >= 1; got {args_cli.num_replays}")
