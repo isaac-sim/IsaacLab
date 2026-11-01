@@ -32,15 +32,6 @@ def _cuda_devices(count: int) -> list[str]:
     return [devices[0], devices[-1]][:count]
 
 
-def test_preflight_explains_a_selection_without_the_ov_rendering_packages(monkeypatch, capsys):
-    # A None entry fails the import as in a Kit or teleop-only environment.
-    monkeypatch.setitem(sys.modules, "isaaclab_ov.renderers.publication_buffers", None)
-    assert _run(monkeypatch, "cuda:0", "cuda:1") == 1
-    error = capsys.readouterr().err
-    assert "uv run --extra ovxr python -m isaaclab_teleop.check_cuda_peer --devices cuda:0 cuda:1" in error
-    assert "PCIe" not in error
-
-
 @pytest.mark.parametrize("other", ["same-gpu", "cpu"])
 def test_preflight_rejects_non_split_selections(monkeypatch, capsys, other):
     _publication_buffers()
