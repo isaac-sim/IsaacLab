@@ -296,56 +296,13 @@ def test_runtime_render_prim_declaration_preserves_disabled_and_fails_on_conflic
         xr_module._declare_ovxr_runtime_prims(env, xr_module.OvLibrariesXrConfig())
 
 
-def test_hidden_visual_prims_fullmatch_imageables_and_fail_closed(xr_module, monkeypatch):
-    class FakePrim:
-        def __init__(self, path):
-            self.path = path
-            self.visible = True
-
-        def GetPath(self):
-            return self.path
-
-        def IsA(self, _schema):
-            return True
-
-    class FakeImageable:
-        def __init__(self, prim):
-            self.prim = prim
-
-        def MakeInvisible(self):
-            self.prim.visible = False
-
-    pxr = ModuleType("pxr")
-    pxr.UsdGeom = SimpleNamespace(Imageable=FakeImageable)
-    monkeypatch.setitem(sys.modules, "pxr", pxr)
-    head = FakePrim("/World/envs/env_0/Robot/head_yaw_link")
-    body = FakePrim("/World/envs/env_0/Robot/base_link")
-    stage = SimpleNamespace(Traverse=lambda: iter((head, body)))
-    env = SimpleNamespace(unwrapped=SimpleNamespace(scene=SimpleNamespace(stage=stage)))
-
-    assert xr_module._apply_hidden_visual_prims(env, ("/World/envs/env_.*/Robot/head_.*",)) == (head.path,)
-    assert not head.visible and body.visible
-    with pytest.raises(RuntimeError, match="matched no imageable prims"):
-        xr_module._apply_hidden_visual_prims(env, ("/World/missing/.*",))
-
-
 def _make_host(xr_module, monkeypatch):
     bootstrap = _FakeBootstrap()
     env = SimpleNamespace(scene=SimpleNamespace(stage=None), close=lambda: bootstrap.events.append("environment-close"))
     monkeypatch.setitem(sys.modules, "ovxr", _fake_ovxr())
     monkeypatch.setattr(xr_module, "_StageOrdinalLedger", _FakeOrdinalLedger)
-    monkeypatch.setattr(
-        xr_module,
-        "_apply_hidden_visual_prims",
-        lambda _env, _patterns: bootstrap.events.append("hide"),
-    )
     monkeypatch.setattr(xr_module, "_declare_ovxr_runtime_prims", lambda _env, _cfg: bootstrap.events.append("declare"))
-    host = xr_module._IsaacLabOvxrApplicationInterface(
-        bootstrap,
-        env,
-        xr_module.OvLibrariesXrConfig(),
-        ("/hidden",),
-    )
+    host = xr_module._IsaacLabOvxrApplicationInterface(bootstrap, env, xr_module.OvLibrariesXrConfig())
     return host, bootstrap, env
 
 
@@ -360,7 +317,7 @@ def test_host_lends_exact_pair_and_keeps_application_publication(xr_module, monk
     assert binding.renderer is bootstrap.lease.ovrtx_renderer
     assert binding.stage is bootstrap.lease.ovstage
     assert binding.ordinal_ledger.stage is bootstrap.lease.ovstage
-    assert bootstrap.events == ["capture", "offer", ("claim", "capability"), "hide", "declare", ("bind", env)]
+    assert bootstrap.events == ["capture", "offer", ("claim", "capability"), "declare", ("bind", env)]
     assert ordinal == 11
     assert bootstrap.publisher.calls[0][:2] == (11, "step-1")
     host.validate_first_published_scene(ordinal)
@@ -823,7 +780,7 @@ def _make_anchor_host(xr_module, monkeypatch, anchor):
     bootstrap = _FakeBootstrap()
     bootstrap.get_world_transform = lambda _path: np.eye(4)
     host = xr_module._IsaacLabOvxrApplicationInterface(
-        bootstrap, SimpleNamespace(), xr_module.OvLibrariesXrConfig(), (), external_anchor_state=anchor
+        bootstrap, SimpleNamespace(), xr_module.OvLibrariesXrConfig(), external_anchor_state=anchor
     )
     host._scene_publisher = bootstrap.publisher
     host._ordinal_ledger = _FakeOrdinalLedger(None)
