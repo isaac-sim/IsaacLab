@@ -993,33 +993,51 @@ def test_gpu_selection_cli_rejects_invalid_options_at_parse_time(monkeypatch, ca
     "flags, message",
     [
         (["--ovrtx_active_cuda_gpus", "0", "--geometry_publication_device", "cuda:1"], r"rendering GPU \[0\]"),
-        (["--device", "cuda:1", "--geometry_publication_device", "cuda:0"], r"rendering GPU \[1\]"),
-        (["--device", "cuda", "--geometry_publication_device", "cuda:0"], r"rendering GPU \[1\]"),
         (["--device", "cpu", "--geometry_publication_device", "cuda:0"], "requires --ovrtx_active_cuda_gpus"),
     ],
 )
-def test_geometry_publication_device_must_be_a_rendering_gpu(monkeypatch, physics_cuda_device, flags, message):
+def test_geometry_publication_device_must_be_a_rendering_gpu(monkeypatch, flags, message):
     """Copies to a GPU that does not render add work without helping the renderer, so launch never starts."""
     from isaaclab_teleop import XrCameraFeedLayoutCfg
 
-    physics_cuda_device(1)
     calls = []
     with pytest.raises(ValueError, match=message):
         _run_ovxr_pip_workflow(monkeypatch, "live", XrCameraFeedLayoutCfg(), flags, calls, pip_camera=False)
     assert calls == []
 
 
-@pytest.mark.parametrize("physics_cuda_index, publication", [(None, "cuda:0"), (1, "cuda:1")])
-def test_bare_cuda_physics_renders_on_the_gpu_that_launch_selects(
-    monkeypatch, physics_cuda_device, physics_cuda_index, publication
+@pytest.mark.parametrize(
+    "device, physics_cuda_index, publication, accepted",
+    [
+        ("cuda:1", None, "cuda:0", False),
+        ("cuda", 1, "cuda:0", False),
+        ("cuda", None, "cuda:0", True),
+        ("cuda", 1, "cuda:1", True),
+    ],
+)
+def test_geometry_publication_device_follows_the_simulation_gpu(
+    monkeypatch, physics_cuda_device, device, physics_cuda_index, publication, accepted
 ):
-    """``--device cuda`` follows ``/physics/cudaDevice`` as the launcher does before the check runs."""
-    pytest.importorskip("isaaccapture.ovxr_session_manager")
+    """Without explicit rendering GPUs, publication must target the simulation GPU that launch selects.
+
+    A bare ``cuda`` device follows ``/physics/cudaDevice``, as the launcher does.
+    """
+    # The simulation GPU resolves through the OVXR session module, which loads the OVRTX renderer.
+    pytest.importorskip("isaaclab_teleop.ovxr_session")
+    if accepted:
+        # Session construction needs a Capture release with OVXR session support.
+        pytest.importorskip("isaaccapture.ovxr_session_manager")
     from isaaclab_teleop import XrCameraFeedLayoutCfg
 
     physics_cuda_device(physics_cuda_index)
-    flags = ["--device", "cuda", "--geometry_publication_device", publication]
-    _, prepared = _run_ovxr_pip_workflow(monkeypatch, "live", XrCameraFeedLayoutCfg(), flags, [], pip_camera=False)
+    flags = ["--device", device, "--geometry_publication_device", publication]
+    calls = []
+    if not accepted:
+        with pytest.raises(ValueError, match=r"rendering GPU \[1\]"):
+            _run_ovxr_pip_workflow(monkeypatch, "live", XrCameraFeedLayoutCfg(), flags, calls, pip_camera=False)
+        assert calls == []
+        return
+    _, prepared = _run_ovxr_pip_workflow(monkeypatch, "live", XrCameraFeedLayoutCfg(), flags, calls, pip_camera=False)
     [(_, renderer_cfg)] = prepared
     assert renderer_cfg.geometry_publication_device == publication
 
