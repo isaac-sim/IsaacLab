@@ -117,9 +117,9 @@ class OvxrSessionBootstrap:
             raise RuntimeError(
                 f"The OVXR render lease requires exactly one environment; got num_envs={unwrapped.num_envs!r}"
             )
-        env_sim_cfg = getattr(getattr(unwrapped, "cfg", None), "sim", None)
+        env_sim_cfg = unwrapped.cfg.sim
         prepared_cfg = self._sim.cfg
-        if env_sim_cfg is not None and env_sim_cfg is not prepared_cfg:
+        if env_sim_cfg is not prepared_cfg:
             env_device = env_sim_cfg.device
             if env_device == "cuda":
                 # SimulationContext resolved the prepared configuration's bare CUDA selection the same way.
