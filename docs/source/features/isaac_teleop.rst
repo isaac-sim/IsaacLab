@@ -1356,14 +1356,14 @@ Capture with its OVXR extra and select the compatible rendering dependencies.
 
    uv run --extra ovxr python \
        scripts/environments/teleoperation/teleop_replay_agent.py \
-       --task IsaacContrib-Stack-Cube-SO101-IK-Abs-v0 --physics ovphysx \
+       --task IsaacContrib-PickPlace-GR1T2-Abs --physics ovphysx \
        --device cpu --num_envs 1 --ovxr \
        --replay_file /absolute/path/to/session.mcap
 
-MCAP supplies tracker and control input; the connected client supplies the view.
-A recorded STOP, task success or failure, or the replay duration limit ends the
-run. The separate ``isaaclab teleop replay`` command replays HDF5 demonstrations
-through Kit.
+Use ``--physics newton_mjwarp`` for Newton. MCAP supplies tracker and control
+input; the connected client supplies the view. A recorded STOP, task success
+or failure, or the replay duration limit ends the run. The separate
+``isaaclab teleop replay`` command replays HDF5 demonstrations through Kit.
 
 .. _isaac-teleop-xr-anchor:
 
