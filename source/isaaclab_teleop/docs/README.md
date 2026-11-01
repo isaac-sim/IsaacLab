@@ -19,9 +19,10 @@ XR anchor synchronization, retargeting pipelines, and action-tensor generation.
   modes for controlling how the anchor orientation tracks the reference prim.
 - **Retargeting tuning UI** -- optional ImGui window for real-time adjustment of retargeter
   parameters when `retargeters_to_tune` is provided.
-- **XR camera feedback** -- selected scene cameras use Kit Scene UI or the optional
-  [OVXR path](kitless_xr.md)'s OpenXR quad layers. The latter also
-  supports a passive desktop eye-image mirror; separate quad layers are not in that image.
+- **XR camera feedback** -- selected scene cameras can be shown through Kit Scene UI using a
+  feed-owned CUDA view of their existing RTX render product, with camera-buffer fallback.
+  The optional [OVXR path](kitless_xr.md) shows them as OpenXR quad layers; its desktop mirror
+  shows eye images without those layers.
 
 ## Architecture
 
@@ -116,7 +117,7 @@ For kitless teleoperation, installation, MCAP replay, camera panels and the
 optional desktop mirror, see [Kitless XR teleoperation](kitless_xr.md).
 
 See [XR Camera Feedback](../../../docs/source/features/isaac_teleop.rst#xr-camera-feedback) for
-reference tasks, camera selection, layout, placement, renderer, disable, and OVXR behavior.
+reference tasks, camera selection, layout, placement, renderer, disable, and kitless behavior.
 
 ### 4. Programmatic Usage
 
@@ -198,8 +199,8 @@ scenes; they are not lossless recorders or rolling-shutter playback.
 ## Utilities
 
 - **`remove_camera_configs(env_cfg, keep=())`** -- strips camera sensors and their associated policy
-  observation terms. Cameras named in `keep` stay in the scene, but their observation terms are
-  still removed.
+  observation terms.
+  Cameras named in `keep` stay in the scene, but their observation terms are still removed.
 
 ## Run with Docker
 

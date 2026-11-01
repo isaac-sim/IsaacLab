@@ -2060,8 +2060,9 @@ Optimize XR Performance
 
    .. note::
 
-      For Kit XR, omit ``--visualizer`` to run without the local viewport.
-      For kitless ``--ovxr``, pass ``--headless`` to disable its default desktop mirror.
+      The ``--headless`` CLI flag was removed in Isaac Lab 3.0. Headless is now the **default**
+      (omit ``--visualizer``), or set ``HEADLESS=1`` in the environment.
+      Kitless ``--ovxr`` accepts ``--headless`` to disable its default desktop mirror.
 
 .. dropdown:: Configure retargeting execution
    :open:

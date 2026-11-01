@@ -329,11 +329,13 @@ class ActionsCfg:
 
 @configclass
 class ObservationsCfg:
-    """State observations, with opt-in head and wrist RGB images (``presets=rgb``)."""
+    """Observation specifications for the MDP.
+    This class is required by the environment configuration but not used in this implementation
+    """
 
     @configclass
     class PolicyCfg(ObsGroup):
-        """Policy observations with state values."""
+        """Observations for policy group with state values."""
 
         actions = ObsTerm(func=manip_mdp.last_action)
         robot_joint_pos = ObsTerm(
@@ -389,7 +391,7 @@ class ObservationsCfg:
             },
         )
 
-    # observation groups; the XR camera panels do not need the image terms
+    # observation groups
     policy: PolicyCfg = preset(default=PolicyCfg(), rgb=RgbPolicyCfg())
 
 

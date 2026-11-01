@@ -431,7 +431,6 @@ class OVRTXRenderer(BaseRenderer):
         """Load, clone, and bind the shared scene before any camera products are registered."""
         if not self._render_lease.prepare_stage(num_envs):
             return
-        lease = self._render_lease.active
         logger.info("Preparing stage (%d envs)...", num_envs)
         env_paths = self.scene.clone_env_paths
         if self.cfg.temp_usd_dir is not None or not self._use_ovstage or not self.scene.ordinal:
@@ -461,10 +460,7 @@ class OVRTXRenderer(BaseRenderer):
             if self.cfg.temp_usd_dir is not None:
                 _write_file(Path(self.cfg.temp_usd_dir), "ovrtx_renderer_stage.usda", usd)
             if self._use_ovstage:
-                if lease is not None:
-                    self._render_lease.populate_stage(usd)
-                else:
-                    self.scene.populate(usd)
+                self._render_lease.populate_stage(usd)
             else:
                 self.backend.renderer.open_usd_from_string(usd)
                 ovrtx_replicate(self.backend.renderer, self.scene.clone_copies, env_paths, self.scene.clone_positions)
@@ -631,7 +627,7 @@ class OVRTXRenderer(BaseRenderer):
         env_partitions = {Sdf.Path(path): f"env_{i}" for i, path in enumerate(self.scene.clone_env_paths)}
         source_root = next((root for root in Sdf.Path(camera_paths[0]).GetPrefixes() if root in env_partitions), None)
         if source_root is not None and len(camera_paths) < spec.num_instances:
-            # Native cloning may leave only the source camera in USD. Preserve complete path row order.
+            # Native cloning may leave only the source camera in USD. Complete paths retain their row order.
             suffix = camera_paths[0][len(str(source_root)) :]
             camera_paths = [path + suffix for path in self.scene.clone_env_paths]
         data = OVRTXCameraRenderData(spec, f"RenderCamera_{self.scene.next_camera_id}", camera_paths)

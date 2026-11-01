@@ -749,7 +749,7 @@ class RenderLeaseController:
             lease._bind(self._renderer.backend.renderer, self._renderer.scene.stage, self._generation)
 
     def populate_stage(self, usd: str) -> None:
-        """Populate the borrowed scene with the authorized camera schedule."""
+        """Populate the renderer's scene, with the camera schedule an active lease authorizes."""
         lease = self.active
         if lease is not None and lease._auxiliary_cameras:
             usd = self._author_camera_schedules(usd, lease)
