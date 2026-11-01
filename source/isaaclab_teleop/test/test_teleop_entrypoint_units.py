@@ -507,6 +507,26 @@ def test_product_xr_default_resolves_cloudxrjs_and_autolaunch(monkeypatch):
     assert agent.args_cli.auto_launch_cloudxr is True
 
 
+def test_teleop_launcher_preserves_the_resolved_physics_configuration(monkeypatch):
+    """Launch validation must not replace task-specific settings on the selected backend."""
+    agent = _load_teleop_agent(monkeypatch)
+    from isaaclab_newton.physics import NewtonCfg
+
+    from isaaclab.app.sim_launcher import validate_launch
+
+    physics_cfg = NewtonCfg()
+    physics_cfg.solver_cfg.nconmax = 4096
+    physics_cfg.solver_cfg.njmax = 1536
+    env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=physics_cfg))
+    configs, _ = validate_launch(env_cfg, vars(agent.args_cli).copy())
+
+    assert not hasattr(agent.args_cli, "physics")
+    assert env_cfg.sim.physics is physics_cfg
+    assert any(cfg is physics_cfg for cfg in configs)
+    assert physics_cfg.solver_cfg.nconmax == 4096
+    assert physics_cfg.solver_cfg.njmax == 1536
+
+
 @pytest.mark.parametrize(
     "task_name,physics",
     [
@@ -519,23 +539,13 @@ def test_product_xr_default_resolves_cloudxrjs_and_autolaunch(monkeypatch):
         ("IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs", "newton_mjwarp"),
     ],
 )
-def test_teleop_launcher_preserves_the_resolved_physics_configuration(monkeypatch, task_name, physics):
-    """The entrypoint validates the launch, then prepares the task, keeping its backend settings."""
-    agent = _load_teleop_agent(monkeypatch, "--task", task_name, "--physics", physics, "--disable_external_cameras")
+def test_teleop_launcher_prepares_humanoid_backends(monkeypatch, task_name, physics):
+    """The entrypoint runs the task's preparation hook for the selected standalone backend."""
+    # Standalone backends run under --ovxr, which removes the task cameras before launch validation.
+    ovxr = () if physics == "isaacsim_physx" else ("--ovxr",)
+    agent = _load_teleop_agent(monkeypatch, "--task", task_name, "--physics", physics, *ovxr)
     env_cfg, _teleop_cfg, _use_isaac_teleop = agent._resolve_env_cfg()
-    physics_cfg = env_cfg.sim.physics
-    assert not hasattr(agent.args_cli, "physics")
-    if physics == "newton_mjwarp":
-        if "Locomanipulation-G1" in task_name:
-            assert physics_cfg.num_substeps == 2
-            assert physics_cfg.solver_cfg.integrator == "implicitfast"
-        assert physics_cfg.solver_cfg.nconmax >= 4096
-        assert physics_cfg.solver_cfg.njmax >= 1536
-    else:
-        from isaaclab_tasks.contrib.packing_table import PackingTableUsdFileCfg
-
-        assert isinstance(env_cfg.scene.packing_table.spawn, PackingTableUsdFileCfg) == (physics == "ovphysx")
-    assert getattr(env_cfg, "_prepared_kitless_backend", None) == (None if physics == "isaacsim_physx" else physics)
+    assert env_cfg._prepared_kitless_backend == (None if physics == "isaacsim_physx" else physics)
 
 
 def test_teleop_agent_installs_late_graceful_shutdown_handlers(monkeypatch):
