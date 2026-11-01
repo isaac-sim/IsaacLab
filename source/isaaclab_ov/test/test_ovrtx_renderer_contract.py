@@ -1926,3 +1926,55 @@ def test_leased_material_updates_reach_the_reserved_scene(leased_renderer, monke
         lease.release()
         for writer in context._visual_material_writers:
             writer.close()
+
+
+@pytest.mark.parametrize("use_ovstage, asynchronous", [(True, False), (False, False), (False, True)])
+def test_cpu_scene_publication_uses_host_tensors_without_a_cuda_stream(use_ovstage, asynchronous):
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._use_ovstage = use_ovstage
+    renderer.cfg = OVRTXRendererCfg(async_rendering=asynchronous)
+    renderer._warp_device = wp.get_device("cpu")
+    renderer._device = "cpu"
+    renderer._object_xform_binding = MagicMock()
+    renderer._geometry_points_binding = MagicMock()
+    renderer._transforms_timestamp = renderer._geometry_timestamp = None
+    renderer._object_scales = None
+    renderer._geometry_paths = ["/World/Object"]
+    matrices = wp.array(np.eye(4, dtype=np.float64)[None], dtype=wp.mat44d, device="cpu")
+    points = wp.array([[1.0, 2.0, 3.0]], dtype=wp.vec3f, device="cpu")
+    renderer._transform_writes = _AsyncWriteBuffers([types.SimpleNamespace(matrices=matrices)])
+    renderer._geometry_writes = _AsyncWriteBuffers([wp.empty_like(points)])
+    renderer._geometry_offsets = {"/World/Object": 0}
+
+    def get_points(*, output=None, offsets=None):
+        if output is None:
+            return {"/World/Object": points}
+        wp.copy(output, points)
+        return None
+
+    renderer._sdp = types.SimpleNamespace(
+        backend=types.SimpleNamespace(transforms_timestamp=1, geometry_timestamp=1),
+        get_transforms=lambda *_args, **_kwargs: True,
+        get_geometry_points=get_points,
+    )
+    stage = MagicMock()
+    renderer.scene = types.SimpleNamespace(stage=stage, ordinal=11)
+    renderer.update_transforms()
+    renderer.update_geometries()
+    bindings = (renderer._object_xform_binding, renderer._geometry_points_binding)
+    writes = [getattr(binding, "write_async" if asynchronous else "write") for binding in bindings]
+    calls = stage.write_attribute.call_args_list if use_ovstage else [write.call_args for write in writes]
+    assert len(calls) == 2 and all(c.kwargs["cuda_stream"] is None for c in calls)
+    if use_ovstage:
+        assert [c.args[1] for c in calls] == ["omni:xform", "points"]
+        assert all(c.kwargs["ordinal"] == 11 for c in calls)
+    else:
+        np.testing.assert_array_equal(calls[0].args[0].numpy(), matrices.numpy())
+        np.testing.assert_array_equal(calls[1].args[0][0].numpy(), points.numpy())
+    # A repeated publication of unchanged state must not duplicate either write.
+    renderer.update_transforms()
+    renderer.update_geometries()
+    assert stage.write_attribute.call_count == 2 if use_ovstage else all(write.call_count == 1 for write in writes)
+    # Draining the retained buffers waits for previous writes without a CUDA stream.
+    renderer._transform_writes.close()
+    renderer._geometry_writes.close()
