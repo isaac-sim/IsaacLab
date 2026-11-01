@@ -561,11 +561,7 @@ class OvLibrariesXrSession:
         use one configured session per process. No supported readback exists
         here to restore a previous renderer's settings on close.
         """
-        cameras = tuple(cfg.auxiliary_cameras)
-        for camera in cameras:
-            if camera.space != "head_locked":
-                raise ValueError("Kitless XR camera quads currently require head_locked placement")
-        cfg = replace(cfg, auxiliary_cameras=cameras)
+        cfg = replace(cfg, auxiliary_cameras=tuple(cfg.auxiliary_cameras))
         validate_ovxr_session_preparation()
         import ovxr
 
@@ -573,7 +569,7 @@ class OvLibrariesXrSession:
         ovxr.apply_renderer_settings(cfg.renderer_settings.strip())
         bootstrap = OvxrSessionBootstrap(sim_cfg, renderer_cfg)
         try:
-            for camera in cameras:
+            for camera in cfg.auxiliary_cameras:
                 bootstrap.configure_auxiliary_camera(camera.camera_cfg, max_fps=camera.max_fps)
             return cls(bootstrap, cfg)
         except BaseException as preparation_error:

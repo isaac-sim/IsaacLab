@@ -888,6 +888,8 @@ def test_auxiliary_camera_config_is_preconfigured(xr_module, monkeypatch):
         xr_module.OvLibrariesXrCameraCfg("robot_pov_cam", None)
     with pytest.raises(ValueError, match="max_fps"):
         xr_module.OvLibrariesXrCameraCfg("robot_pov_cam", object(), max_fps=0.0)
+    with pytest.raises(ValueError, match="head_locked"):
+        xr_module.OvLibrariesXrCameraCfg("robot_pov_cam", object(), space="world")
 
     bootstrap = _FakeBootstrap()
     camera_cfg = SimpleNamespace(width=720, height=450)
@@ -1063,21 +1065,6 @@ def test_prepare_aborts_partial_bootstrap_and_preserves_first_error(xr_module, m
     assert caught.value.__notes__ == ["Original preparation diagnostic"] + (
         [f"Cleanup after failed XR preparation also failed: {abort_error!r}"] if abort_fails else []
     )
-
-
-@pytest.mark.parametrize("space", ["viewer_start", "world"])
-def test_prepare_rejects_unsupported_quad_placement_before_native_preparation(xr_module, monkeypatch, space):
-    monkeypatch.setitem(
-        sys.modules,
-        "ovxr",
-        SimpleNamespace(apply_renderer_settings=lambda _: pytest.fail("renderer settings changed before validation")),
-    )
-    monkeypatch.setattr(xr_module, "OvxrSessionBootstrap", lambda *_: pytest.fail("allocated before validation"))
-    with pytest.raises(ValueError, match="head_locked"):
-        camera = xr_module.OvLibrariesXrCameraCfg(
-            name="robot_pov_cam", camera_cfg=SimpleNamespace(width=640, height=480), space=space
-        )
-        xr_module.OvLibrariesXrSession.prepare(object(), xr_module.OvLibrariesXrCfg(auxiliary_cameras=(camera,)))
 
 
 def test_public_xr_exports_resolve_to_implemented_types(xr_module):
