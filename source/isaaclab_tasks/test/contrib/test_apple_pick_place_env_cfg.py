@@ -112,7 +112,7 @@ def test_evaluation_setup_is_native_isaac_lab():
     events = [name for name, term in vars(cfg.events).items() if hasattr(term, "func")]
     assert events.index("reset_head_camera") > events.index("reset_to_start_states")
     # The table's colliders are shrink-wrapped, and it does not slide when touched.
-    assert cfg.scene.table.spawn.mesh_collision_props.shrink_wrap is True
+    assert cfg.scene.table.spawn.mesh_collision_props.default.shrink_wrap is True
     assert cfg.scene.table.spawn.rigid_props.kinematic_enabled is True
     # Environments share one warehouse; a copy per environment would overlap its neighbors.
     assert not cfg.scene.warehouse.prim_path.startswith("{ENV_REGEX_NS}")
@@ -163,6 +163,19 @@ def test_backends_are_selected_with_presets(overrides, physics, renderer):
     cfg = parse_env_cfg("IsaacContrib-PickPlace-Apple-G1-Dex3", overrides=overrides)
     assert type(cfg.sim.physics).__name__ == physics
     assert type(cfg.scene.head_camera.renderer_cfg).__name__ == renderer
+
+
+def test_newton_uses_convex_hulls_and_physx_keeps_the_authored_colliders():
+    """Newton would decompose the apple, plate and table meshes on the CPU at startup, for minutes per mesh."""
+    physx = parse_env_cfg("IsaacContrib-PickPlace-Apple-G1-Dex3", overrides=("physics=ovphysx",))
+    newton = parse_env_cfg("IsaacContrib-PickPlace-Apple-G1-Dex3", overrides=("physics=newton_mjwarp",))
+    assert type(newton.sim.physics).__name__ == "NewtonCfg"
+    for name in ("apple", "plate"):
+        assert getattr(newton.scene, name).spawn.mesh_collision_props.mesh_approximation_name == "convexHull"
+    # A hull around the table's legs would fill the space under it.
+    assert type(newton.scene.table.spawn.mesh_collision_props).__name__ == "NewtonSDFCollisionCfg"
+    assert physx.scene.apple.spawn.mesh_collision_props is None
+    assert physx.scene.table.spawn.mesh_collision_props.shrink_wrap is True
 
 
 def test_every_actuator_sets_armature():

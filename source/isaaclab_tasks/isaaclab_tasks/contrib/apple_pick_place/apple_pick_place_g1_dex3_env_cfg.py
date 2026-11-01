@@ -14,6 +14,8 @@ head camera's rendered image with one Cosmos generates from its depth.
 import os
 
 from isaaclab_experimental.cosmos import CosmosModelCfg, CosmosTransferProcessorCfg, cosmos_camera, episode_frame_budget
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg, NewtonSDFCollisionCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
@@ -37,7 +39,7 @@ from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_tasks.contrib.apple_pick_place import mdp
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils import PresetCfg, preset
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
 # Joint groups in the order of the policy's state inputs.
@@ -148,7 +150,11 @@ G1_DEX3_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/G1_29DOF_Dex3/G1_29DOF_Dex3.usd",
         rigid_props=[PhysxRigidBodyCfg(disable_gravity=False)],
-        articulation_props=[PhysxArticulationCfg(enabled_self_collisions=True)],
+        # Newton's self-collisions push the thighs at the hips, so only PhysX, as evaluated, keeps them.
+        articulation_props=[
+            PhysxArticulationCfg(enabled_self_collisions=True),
+            NewtonArticulationCfg(self_collision_enabled=False),
+        ],
         fix_root_link=True,
     ),
     init_state=ArticulationCfg.InitialStateCfg(pos=(0.0003, -0.0001, 0.7749), joint_pos=START_JOINT_POS),
@@ -231,12 +237,31 @@ HEAD_CAMERA_CFG = CameraCfg(
 
 @configclass
 class ApplePhysicsCfg(PresetCfg):
-    """Physics backends: ``physics=ovphysx`` runs PhysX without Isaac Sim, ``physics=isaacsim_physx`` inside it."""
+    """Physics backends: ``physics=ovphysx`` runs PhysX without Isaac Sim, ``physics=isaacsim_physx`` inside it, and
+    ``physics=newton_mjwarp`` runs Newton, which every Isaac Lab install includes."""
 
     isaacsim_physx = PhysxCfg()
     ovphysx = OvPhysxCfg()
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
+    newton_mjwarp = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            njmax=1000,
+            nconmax=1000,
+            cone="elliptic",
+            impratio=10.0,
+            integrator="implicitfast",
+            use_mujoco_contacts=False,
+        ),
+        collision_cfg=NewtonCollisionPipelineCfg(),
+    )
     default = isaacsim_physx
+
+
+# The apple, plate and table assets author convex decomposition, which Newton computes on the CPU at startup, taking
+# minutes per mesh; Newton uses convex hulls for the apple and plate instead. PhysX keeps the authored decomposition.
+NEWTON_CONVEX_HULLS = preset(
+    default=None, newton_mjwarp=sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="convexHull")
+)
 
 
 @configclass
@@ -261,7 +286,14 @@ class ApplePickPlaceSceneCfg(InteractiveSceneCfg):
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Objects/Table/table.usd",
             scale=(0.5, 0.9125, 1.0),
             rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
-            mesh_collision_props=PhysxConvexDecompositionCfg(shrink_wrap=True),
+            mesh_collision_props=preset(
+                default=PhysxConvexDecompositionCfg(shrink_wrap=True),
+                # Newton collides with the table's exact shape through a signed distance field; one hull around its
+                # four legs would fill the space under it.
+                newton_mjwarp=NewtonSDFCollisionCfg(
+                    sdf_max_resolution=256, sdf_narrow_band_inner=-0.01, sdf_narrow_band_outer=0.01
+                ),
+            ),
         ),
     )
 
@@ -272,6 +304,7 @@ class ApplePickPlaceSceneCfg(InteractiveSceneCfg):
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Objects/Apple002/apple.usd",
             rigid_props=[PhysxRigidBodyCfg(solver_position_iteration_count=16, solver_velocity_iteration_count=8)],
             mass_props=sim_utils.MassCfg(mass=0.05),
+            mesh_collision_props=NEWTON_CONVEX_HULLS,
             activate_contact_sensors=True,
         ),
     )
@@ -284,6 +317,7 @@ class ApplePickPlaceSceneCfg(InteractiveSceneCfg):
             scale=(0.7, 0.7, 0.7),
             rigid_props=[PhysxRigidBodyCfg(solver_position_iteration_count=16, solver_velocity_iteration_count=8)],
             mass_props=sim_utils.MassCfg(mass=0.2),
+            mesh_collision_props=NEWTON_CONVEX_HULLS,
         ),
     )
 
