@@ -499,6 +499,7 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
                 pipeline_builder=_build_g1_locomanipulation_pipeline,
                 sim_device=self.sim.device,
                 xr_cfg=self.xr,
+                xr_camera_feed_layout=XrCameraFeedLayoutCfg(placement="head_locked", use_scene_partition=True),
                 xr_camera_feeds=[
                     XrCameraFeedCfg(
                         camera_name="robot_pov_cam",
@@ -508,7 +509,6 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
                         max_update_hz=0.0,
                     )
                 ],
-                xr_camera_feed_layout=XrCameraFeedLayoutCfg(placement="head_locked", use_scene_partition=True),
             )
 
             # Drive controller haptics from the per-hand contact sensors.
