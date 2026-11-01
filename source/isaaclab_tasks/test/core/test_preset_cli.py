@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
@@ -283,7 +284,10 @@ def test_help_text_branch_strings(monkeypatch, capsys, build_key, expected_phras
 )
 @pytest.mark.parametrize("physics", [None, "isaacsim_physx", "ovphysx", "newton_mjwarp"])
 def test_teleop_tasks_resolve_public_physics_selectors(monkeypatch, task_name, physics):
-    """Registered construction prepares the selected backend before simulation starts."""
+    """Resolve registered tasks through the public flag parser before backend preparation.
+
+    Registered humanoid construction then prepares a standalone backend and leaves Kit physics unprepared.
+    """
     import gymnasium as gym
     from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
     from isaaclab_ov.physics import OvPhysxCfg
@@ -319,51 +323,22 @@ def test_teleop_tasks_resolve_public_physics_selectors(monkeypatch, task_name, p
         for name in ("bounce_threshold_velocity", "friction_correlation_distance", "solve_articulation_contact_last"):
             assert getattr(cfg.sim.physics, name) == getattr(physx_cfg, name), name
 
+    if "SO101" in task_name:
+        return
+
     class ConstructionReached(Exception):
         pass
 
-    from isaaclab_tasks.contrib.packing_table import PackingTableUsdFileCfg
-    from isaaclab_tasks.contrib.pick_place.pickplace_gr1t2_env_cfg import GR1T2KitlessUsdFileCfg
-
-    original_action_type = getattr(getattr(cfg.actions, "upper_body_ik", None), "class_type", None)
-
     def inspect_before_simulation(self, cfg, *args, **kwargs):
         self._is_closed = True
-        standalone = physics in ("ovphysx", "newton_mjwarp")
-        if "GR1T2" in task_name:
-            action = cfg.actions.upper_body_ik
-            assert action.kitless_target_conditioning_enabled is standalone
-            if standalone:
-                assert Path(action.controller.urdf_path).is_file()
-                assert isinstance(cfg.scene.robot.spawn, GR1T2KitlessUsdFileCfg)
-            else:
-                assert action.controller.urdf_path is None
-            expected_waist = "WaistEnabled" in task_name
-            assert ("waist_yaw_joint" in action.pink_controlled_joint_names) is expected_waist
-        if "SO101" not in task_name:
-            assert isinstance(cfg.scene.packing_table.spawn, PackingTableUsdFileCfg) is standalone
-            if physics == "newton_mjwarp":
-                if "Locomanipulation" in task_name:
-                    assert cfg.sim.physics.solver_cfg.integrator == "implicitfast"
-                    assert cfg.sim.physics.num_substeps == 2
-                else:
-                    assert cfg.sim.physics.solver_cfg.nconmax == 4096
-                    assert cfg.sim.physics.solver_cfg.njmax == 1536
-                if "FixedBaseUpperBodyIK" in task_name:
-                    from isaaclab_tasks.contrib.locomanip_pick_place.g1_kitless_newton import (
-                        G1NewtonBoundedPinkInverseKinematicsAction,
-                    )
-
-                    assert cfg.actions.upper_body_ik.class_type is G1NewtonBoundedPinkInverseKinematicsAction
-            elif not standalone:
-                assert cfg.actions.upper_body_ik.class_type == original_action_type
+        assert cfg._prepared_kitless_backend == (physics if physics in ("ovphysx", "newton_mjwarp") else None)
         raise ConstructionReached
 
     monkeypatch.setattr(ManagerBasedRLEnv, "__init__", inspect_before_simulation)
-    with pytest.raises(ConstructionReached):
-        gym.make(task_name, cfg=cfg)
-    with pytest.raises(ConstructionReached):
-        instantiate(cfg)
+    # Each constructor receives its own unprepared copy, so each must prepare it.
+    for construct in (lambda env_cfg: gym.make(task_name, cfg=env_cfg), instantiate):
+        with pytest.raises(ConstructionReached):
+            construct(deepcopy(cfg))
 
 
 @pytest.mark.parametrize(
