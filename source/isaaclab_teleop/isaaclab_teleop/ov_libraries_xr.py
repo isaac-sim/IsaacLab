@@ -15,6 +15,7 @@ from collections.abc import Callable, Hashable, Iterable
 from dataclasses import replace
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
+import numpy as np
 from isaaccapture.ovxr_session_manager import OvxrApplicationInterface, StageOrdinalLedger
 from isaaclab_ov.renderers import OVRTXRendererCfg
 
@@ -22,7 +23,6 @@ from .ovxr_cfg import OvLibrariesXrCfg
 from .ovxr_session import OvxrSessionBootstrap, validate_ovxr_session_preparation
 
 if TYPE_CHECKING:
-    import numpy as np
     from isaaccapture.ovxr_session_manager.ovxr_session import OvxrSessionBinding
     from isaacteleop.oxr import OpenXRSessionHandles
 
@@ -299,7 +299,6 @@ class _IsaacLabOvxrApplicationInterface(OvxrApplicationInterface):
         return ordinal
 
     def _write_anchor_matrices(self, matrices: np.ndarray, ordinal: int) -> None:
-        import numpy as np
         import ovstage
         from isaaclab_ov.stage import xform_tensor_from_numpy
 
