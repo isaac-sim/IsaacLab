@@ -730,8 +730,8 @@ class TeleopSessionLifecycle:
         if self._cloudxr_launcher is not None:
             try:
                 self._cloudxr_launcher.stop()
-            except RuntimeError as cleanup_error:
-                record_failure(cleanup_error)
+            except RuntimeError:
+                logger.warning("CloudXR runtime process could not be terminated; handle retained for atexit cleanup")
             else:
                 self._cloudxr_launcher = None
                 logger.info("CloudXR runtime stopped")

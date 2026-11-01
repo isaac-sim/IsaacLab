@@ -572,8 +572,7 @@ class TestLifecycleCloudXRIntegration:
         lifecycle, mock_launcher = self._make_started_lifecycle()
         mock_launcher.stop.side_effect = RuntimeError("process not found")
 
-        with pytest.raises(RuntimeError, match="process not found"):
-            lifecycle.stop()
+        lifecycle.stop()
 
         assert lifecycle._cloudxr_launcher is mock_launcher
 
