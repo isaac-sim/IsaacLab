@@ -367,7 +367,6 @@ def test_host_reconciles_failed_publication_without_reusing_generation(xr_module
         _initialized_scene=False,
         backend=None,
         scene=None,
-        _geometry_publication=None,
         _update_transforms=lambda: None,
         _update_geometries=lambda: None,
         _visual_material_writer_ref=None,
