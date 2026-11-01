@@ -106,6 +106,7 @@ def test_replay_bootstrap_waits_only_for_an_active_kit_application(
 
     namespace = {
         "args_cli": SimpleNamespace(
+            device="cpu",
             replay_file="fixture.mcap",
             enable_debug_visualization=False,
             max_stage_load_wait_s=5,
@@ -319,6 +320,7 @@ def test_replay_control_timing_uses_recorded_events_or_explicit_legacy_start(mon
         replay,
         "args_cli",
         SimpleNamespace(
+            device="cpu",
             replay_file="recording.mcap",
             start_on_replay=start_on_replay,
             enable_debug_visualization=False,
