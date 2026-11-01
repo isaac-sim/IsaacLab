@@ -35,10 +35,14 @@ An external consumer, such as the OVXR teleoperation adapter, can borrow one exa
 renderer and its private OVStage with :meth:`OVRTXRenderer.acquire_ov_libraries_render_lease`
 before clone preparation. While the lease is active, ordinary camera rendering, scene writes and
 renderer/stage destruction are rejected; eager scene updates are left to the lease's scene
-publisher. A failed leased publication poisons publication only; the borrower can still retire
-the pair, after which the renderer must be recreated.
+publisher, which :meth:`OvLibrariesRenderLease.capture_scene_publisher` returns. A failed leased
+publication poisons publication only; the borrower can still retire the pair, after which the
+renderer must be recreated.
 
 .. autoclass:: OvLibrariesRenderLease
+   :members:
+
+.. autoclass:: isaaclab_ov.renderers.render_lease.OvLibrariesScenePublisher
    :members:
 
 Simulation-owned stages

@@ -119,7 +119,20 @@ class OvLibrariesRenderLease:
         return cast("RenderLeaseController", self._controller).materialize_deferred_stage(self, stage, num_envs)
 
     def capture_scene_publisher(self) -> OvLibrariesScenePublisher:
-        """Capture the application-thread scene publisher before render ownership transfers."""
+        """Capture the application-thread scene publisher before render ownership transfers.
+
+        Call this on the owner thread while the lease is unbound and before
+        :meth:`offer_owner_transfer`. The publisher stays bound to the calling thread; see
+        :class:`~isaaclab_ov.renderers.render_lease.OvLibrariesScenePublisher` for the publication
+        protocol.
+
+        Returns:
+            The lease's only scene publisher.
+
+        Raises:
+            RuntimeError: If called off the owner thread or while a transfer is offered, after the
+                Stage is bound, or when the lease already has a publisher.
+        """
         return cast("RenderLeaseController", self._controller).capture_scene_publisher(self)
 
     @contextlib.contextmanager
@@ -189,7 +202,26 @@ class OvLibrariesRenderLease:
 
 
 class OvLibrariesScenePublisher:
-    """Application-thread writer for complete provider-derived OVStage batches."""
+    """Application-thread writer for complete provider-derived OVStage batches.
+
+    Obtain it with :meth:`~isaaclab_ov.renderers.OvLibrariesRenderLease.capture_scene_publisher`.
+    While the lease is active, the renderer skips its own eager transform, geometry and material
+    writes, and the borrower publishes each complete physics state through this object instead:
+
+    1. On the application thread, call :meth:`publication_required` with the identity of the
+       current physics state.
+    2. If it returns ``True``, reserve a nonzero Stage ordinal and call
+       :meth:`write_complete_scene` with it. The write does not advance the Stage write floor:
+       the borrower seals that ordinal afterwards, or abandons it if the write fails.
+    3. Hold one application publication guard around both calls and around every operation the
+       render owner performs in :meth:`~isaaclab_ov.renderers.OvLibrariesRenderLease.ovstage_owner_lane`, so that scene
+       writes and native frame operations never interleave.
+
+    A failed write poisons the pair: later publication and ordinary renderer use are rejected,
+    but the borrower can still retire its consumers and release the lease. The renderer must then
+    be recreated. :meth:`close` stops publication; releasing the lease also closes the publisher.
+    The OVXR teleoperation adapter, ``isaaclab_teleop.OvLibrariesXrSession``, follows this protocol.
+    """
 
     def __init__(self, owner: RenderLeaseController, lease: OvLibrariesRenderLease) -> None:
         self._controller = owner
@@ -202,17 +234,41 @@ class OvLibrariesScenePublisher:
         """Return whether a new physics step or dirty material requires a scene write.
 
         Args:
-            physics_step_id: Hashable identity of the complete physics state to publish.
+            physics_step_id: Hashable identity of the complete physics state to publish. Only the
+                last written identity is remembered, so the identity must change whenever the
+                state does, including after a reset that does not advance the physics step count.
+
+        Returns:
+            Whether ``physics_step_id`` differs from the last written batch or a visual material
+            has pending updates.
 
         Raises:
-            RuntimeError: If the lease is not bound, the publisher is inactive, or a failed
-                write poisoned the pair.
+            RuntimeError: If called off the captured application thread, the publisher is closed
+                or inactive, the lease is not bound, or a failed write poisoned the pair.
+            TypeError: If ``physics_step_id`` is not hashable.
         """
         self._require_application_thread()
-        return self._controller.producer_publication_required(self._lease, physics_step_id)
+        with self._lock:
+            if self._closed:
+                raise RuntimeError("OVStage scene publisher is closed")
+            return self._controller.producer_publication_required(self._lease, physics_step_id)
 
     def write_complete_scene(self, ordinal: int, physics_step_id: Hashable) -> None:
-        """Write, but do not publish, one complete batch at ``ordinal``."""
+        """Write, but do not publish, one complete batch at ``ordinal``.
+
+        Writes the current transforms, geometries and pending visual materials at ``ordinal`` and
+        records ``physics_step_id`` as written. The caller seals the ordinal afterwards.
+
+        Args:
+            ordinal: Nonzero Stage ordinal reserved by the caller for this batch.
+            physics_step_id: The identity passed to the preceding :meth:`publication_required` call.
+
+        Raises:
+            ValueError: If ``ordinal`` is not positive.
+            RuntimeError: If called off the captured application thread, the publisher is closed or
+                inactive, the state needs no publication, or the write failed. A failed write
+                poisons the pair.
+        """
         self._require_application_thread()
         with self._lock:
             if self._closed:
@@ -220,7 +276,7 @@ class OvLibrariesScenePublisher:
             self._controller.write_producer_scene(self._lease, ordinal, physics_step_id)
 
     def close(self) -> None:
-        """Stop scene publication and wait for an in-flight batch to finish."""
+        """Stop scene publication after any in-flight batch finishes. Safe to call repeatedly."""
         with self._lock:
             self._closed = True
 
@@ -422,17 +478,6 @@ class RenderLeaseController:
         """Whether an active lease's scene publisher owns transform and geometry writes."""
         return self.active is not None
 
-    def _next_ordinal(self) -> int:
-        """Return ``floor + 1`` from the exact renderer-owned Stage."""
-        if self._renderer.scene.stage is None:
-            raise RuntimeError("Cannot query an OVStage floor before scene materialization")
-        with self._renderer.scene.stage.get_attribute_write_floor() as floor_query:
-            floor_query.wait()
-            floor = int(floor_query.fetch())
-        if floor >= (1 << 64) - 1:
-            raise RuntimeError("OVStage ordinal range is exhausted")
-        return floor + 1
-
     def producer_publication_required(self, lease: OvLibrariesRenderLease, physics_step_id: Hashable) -> bool:
         """Check publication on the application thread without entering the render thread."""
         if self.active is not lease or self._publisher is None:
@@ -517,3 +562,14 @@ class RenderLeaseController:
                 raise RuntimeError("The render lease requires an unused private OVStage")
         renderer.backend._render_lease_owner = renderer
         renderer.scene._render_lease_owner = renderer
+
+    def _next_ordinal(self) -> int:
+        """Return ``floor + 1`` from the exact renderer-owned Stage."""
+        if self._renderer.scene.stage is None:
+            raise RuntimeError("Cannot query an OVStage floor before scene materialization")
+        with self._renderer.scene.stage.get_attribute_write_floor() as floor_query:
+            floor_query.wait()
+            floor = int(floor_query.fetch())
+        if floor >= (1 << 64) - 1:
+            raise RuntimeError("OVStage ordinal range is exhausted")
+        return floor + 1
