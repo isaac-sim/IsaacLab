@@ -29,7 +29,7 @@ class OvLibrariesXrCameraCfg:
     """One application-selected sensor and its camera-panel policy."""
 
     name: str
-    """Scene sensor name used for camera selection and panel labeling."""
+    """Scene sensor name used for camera selection and as the desktop mirror's camera label."""
     camera_cfg: CameraCfg = field(repr=False)
     """Selected sensor configuration, assigned to the session's shared renderer."""
     max_fps: float = 30.0

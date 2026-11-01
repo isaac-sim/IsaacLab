@@ -69,7 +69,7 @@ class XrCfg:
     """
 
     excluded_visual_meshes: list[str] = []
-    """Mesh-path regexes excluded from kitless environment cameras by scene partition.
+    """Mesh-path regexes excluded from the OVXR eye cameras and camera panels by scene partition.
 
     This leaves USD visibility and the source scene unchanged. Only matching
     visual meshes in the single-environment render export enter the

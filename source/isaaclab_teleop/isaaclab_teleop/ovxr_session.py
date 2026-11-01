@@ -112,7 +112,7 @@ class OvxrSessionBootstrap:
         return self._lease.capture_scene_publisher()
 
     def configure_auxiliary_camera(self, camera_cfg: CameraCfg, *, max_fps: float | None = None) -> None:
-        """Authorize a camera with an update cap [Hz]; None retains its configured cadence."""
+        """Authorize a camera with an update cap [Hz]; ``None`` renders it with every frame of its product."""
         self._require_open()
         if self._bound or self._lease is None:
             raise RuntimeError("Auxiliary camera must be configured before OVXR Stage binding")

@@ -157,7 +157,9 @@ supported by the OVXR presenter: `--ovxr_pip_head_locked` places such a layout's
 panels in the OpenXR VIEW space, and without it the command fails before launch.
 The session snapshots its camera selection at
 preparation; create a new session to change it. Panels use the same renderer as
-the headset and do not require a desktop display.
+the headset and do not require a desktop display. OVXR panels show no label; a
+feed's `label` applies to Kit panels only, and the desktop mirror lists each camera
+by its sensor name.
 
 GR1T2 and G1 locomanipulation provide `robot_pov_cam`; fixed-base G1 also provides
 `left_wrist_cam` and `right_wrist_cam`. SO101 does not declare a PiP camera in

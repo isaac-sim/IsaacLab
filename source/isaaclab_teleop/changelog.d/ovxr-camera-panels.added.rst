@@ -8,7 +8,6 @@
   not head-locked in the OpenXR VIEW space. Replay accepts the live ``--ovxr_pip_fps``,
   ``--ovxr_pip_view_position`` and ``--ovxr_desktop_mirror_fps`` options.
 * Added :attr:`~isaaclab_teleop.XrCfg.excluded_visual_meshes`, which hides matching visual meshes
-  from the OVXR eye cameras and from environment cameras selecting the ``env_0`` partition, such
-  as camera panels and recorded camera images.
+  from the OVXR eye cameras and camera panels without changing the source scene's visibility.
 * Added the ``keep`` argument to :func:`~isaaclab_teleop.remove_camera_configs` to retain selected
   cameras while removing their observation terms.
