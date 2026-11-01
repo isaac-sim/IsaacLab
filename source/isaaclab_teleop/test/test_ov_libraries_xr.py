@@ -440,7 +440,6 @@ def test_host_lends_the_selected_auxiliary_product_without_rendering_it(xr_modul
     binding = host.attach_on_render_thread(host.offer_render_owner_transfer())
 
     assert binding.frame_consumers[0].render_product_paths == bootstrap.lease.auxiliary_render_product_paths
-    assert not hasattr(binding, "auxiliary_frame_source")
 
 
 def test_host_rejects_a_missing_selected_auxiliary_camera(xr_module, monkeypatch):

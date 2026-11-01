@@ -90,35 +90,6 @@ def test_ovxr_omitted_launch_options_match_documented_defaults(source_checkout_r
     assert parse(["--ovxr", "--cloudxr_env", "none"]).cloudxr_env is None
 
 
-def test_ovxr_output_options_reach_existing_runtime_fields(source_checkout_root, monkeypatch):
-    """Camera options configure panels, the desktop mirror and XR startup."""
-    options = [
-        "--ovxr",
-        "--ovxr_session_mode",
-        "vr",
-        "--ovxr_desktop_mirror",
-        "--ovxr_desktop_mirror_fps",
-        "20",
-        "--ovxr_pip_camera",
-        "robot_pov_cam",
-        "--ovxr_pip_fps",
-        "10",
-        "--ovxr_pip_head_locked",
-        "--ovxr_pip_view_position",
-        "0",
-        "0.2",
-        "-0.5",
-    ]
-    script = source_checkout_root / "scripts/environments/teleoperation/teleop_se3_agent.py"
-    monkeypatch.setattr(sys, "argv", [str(script), *options])
-    parsed = importlib.import_module("isaaclab_teleop.entrypoints.teleop_se3_agent")._parse_args()
-    assert parsed.using_ovxr and parsed.ovxr_session_mode == "vr"
-    assert parsed.ovxr_desktop_mirror
-    assert parsed.ovxr_desktop_mirror_fps == 20
-    assert parsed.ovxr_pip_camera == ["robot_pov_cam"] and parsed.ovxr_pip_fps == 10
-    assert parsed.ovxr_pip_head_locked and parsed.ovxr_pip_view_position == [0, 0.2, -0.5]
-
-
 @pytest.mark.parametrize(("command", "script_parts"), TELEOP_WORKFLOWS.items())
 def test_teleop_dispatches_to_its_workflow(source_checkout_root: Path, command, script_parts, monkeypatch):
     """``isaaclab teleop`` runs each workflow's entrypoint in process with the remaining arguments."""

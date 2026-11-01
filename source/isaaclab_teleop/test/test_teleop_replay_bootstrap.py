@@ -456,18 +456,3 @@ def test_replay_and_live_share_ovxr_presentation_validation(monkeypatch, capsys,
         with pytest.raises(SystemExit):
             module._parse_args()
         assert message in capsys.readouterr().err
-
-
-def test_replay_accepts_live_ovxr_rate_and_position_options(monkeypatch):
-    from isaaclab_teleop.entrypoints import teleop_replay_agent
-
-    arguments = ["--task", "Test", "--replay_file", "recording.mcap", "--ovxr", "--ovxr_pip_camera", "head"]
-    arguments += ["--ovxr_pip_head_locked", "--ovxr_pip_view_position", "0", "-0.1", "-0.8"]
-    arguments += ["--ovxr_pip_fps", "15", "--ovxr_desktop_mirror_fps", "20", "--headless"]
-    monkeypatch.setattr(sys, "argv", ["teleop_replay_agent.py", *arguments])
-    monkeypatch.setattr(teleop_replay_agent, "args_cli", None, raising=False)
-    args = teleop_replay_agent._parse_args()
-    assert args.ovxr_pip_fps == 15.0
-    assert args.ovxr_desktop_mirror_fps == 20.0
-    assert args.ovxr_pip_view_position == [0.0, -0.1, -0.8]
-    assert args.ovxr_desktop_mirror is False

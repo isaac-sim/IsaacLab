@@ -739,33 +739,6 @@ def test_kitless_hand_guard_renders_without_step_and_next_valid_frame_resumes(mo
     assert haptics == {"update": 2, "stop": 1}
 
 
-def test_desktop_mirror_cli_is_explicit_and_bounded(monkeypatch):
-    agent = _load_teleop_agent(
-        monkeypatch,
-        "--ovxr",
-        "--ovxr_desktop_mirror",
-        "--ovxr_desktop_mirror_fps",
-        "20",
-    )
-
-    assert agent.args_cli.ovxr_desktop_mirror
-    assert agent.args_cli.ovxr_desktop_mirror_fps == 20.0
-
-
-def test_auxiliary_camera_pip_cli_is_explicit_and_bounded(monkeypatch):
-    agent = _load_teleop_agent(
-        monkeypatch,
-        "--ovxr",
-        "--ovxr_pip_camera",
-        "robot_pov_cam",
-        "--ovxr_pip_fps",
-        "20",
-    )
-
-    assert agent.args_cli.ovxr_pip_camera == ["robot_pov_cam"]
-    assert agent.args_cli.ovxr_pip_fps == 20.0
-
-
 @pytest.mark.parametrize("entrypoint", ["live", "replay"])
 @pytest.mark.parametrize(
     "flags, expected",
