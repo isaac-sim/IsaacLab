@@ -3,31 +3,16 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Exercise the real SO-101 Capture graph after hardware controller conversion, without XR/GPU."""
+"""Run the SO-101 Capture graph with encoded controller snapshots and verify its 8D action contract."""
 
 import numpy as np
 import pytest
 from scipy.spatial.transform import Rotation
 
-# The test drives Capture's retargeting-engine cache execution; skip releases without the parts it uses.
-_core_types = pytest.importorskip("isaacteleop.retargeting_engine.interface.retargeter_core_types")
-if not (
-    hasattr(_core_types, "ExecutionCache")
-    and hasattr(_core_types, "GraphTime")
-    and hasattr(getattr(_core_types, "GraphExecutable", None), "execute_pipeline_with_cache")
-):
-    pytest.skip("Capture does not provide retargeting-engine cache execution", allow_module_level=True)
+pytest.importorskip("isaacteleop")
 
-from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
-from isaacteleop.retargeting_engine.interface import (
-    ComputeContext,
-    ExecutionEvents,
-    ExecutionState,
-    OptionalTensorGroup,
-    TensorGroup,
-)
-from isaacteleop.retargeting_engine.interface.retargeter_core_types import ExecutionCache, GraphTime
-from isaacteleop.retargeting_engine.tensor_types import ControllerInput, ControllerInputIndex, TransformMatrix
+from isaacteleop.retargeting_engine.interface import ComputeContext, ExecutionEvents, ExecutionState, TensorGroup
+from isaacteleop.schema import ControllerInputState, ControllerPose, ControllerSnapshot, Point, Pose, Quaternion
 
 from isaaclab_tasks.contrib.stack.config.so101.stack_ik_abs_env_cfg import (
     _BASE_T_GRIPPER_HOME,
@@ -35,65 +20,38 @@ from isaaclab_tasks.contrib.stack.config.so101.stack_ik_abs_env_cfg import (
 )
 
 
-def test_so101_pipeline_full_pose_clutch_and_action_order():
-    """Home, motion, re-clutch and reset survive the real transform/retarget/flatten graph."""
+def test_so101_pipeline_tracks_engage_relative_pose_and_gripper():
+    """Pose/closedness occupy the declared slots, and clutching holds the pose across release and re-engage."""
     pipeline = _build_so101_stack_pipeline()
-    controllers = next(node for node in pipeline.get_leaf_nodes() if isinstance(node, ControllersSource))
-    anchor = TensorGroup(TransformMatrix())
-    anchor[0] = np.eye(4, dtype=np.float32)
+    assert pipeline.output_types()["action"].types[0].shape == (8,)
+    inputs = {
+        leaf.name: {name: TensorGroup(group_type) for name, group_type in leaf.input_spec().items()}
+        for leaf in pipeline.get_leaf_nodes()
+    }
+    inputs["world_T_anchor"]["value"][0] = np.eye(4, dtype=np.float32)
+    inputs["controllers"]["deviceio_controller_left"][0] = None
 
-    def step(position, rotation, *, running=True, trigger=0.0, reset=False):
-        controller = TensorGroup(ControllerInput())
-        # Populate the same complete typed input as ControllersSource, replacing hardware polling
-        # only. Cached source output still traverses the real frame transform and all retargeters.
-        for index in ControllerInputIndex:
-            if index in (ControllerInputIndex.GRIP_POSITION, ControllerInputIndex.AIM_POSITION):
-                controller[index] = np.asarray(position, dtype=np.float32)
-            elif index in (ControllerInputIndex.GRIP_ORIENTATION, ControllerInputIndex.AIM_ORIENTATION):
-                controller[index] = rotation.as_quat().astype(np.float32)
-            elif index in (ControllerInputIndex.GRIP_IS_VALID, ControllerInputIndex.AIM_IS_VALID):
-                controller[index] = True
-            else:
-                controller[index] = 0.0
-        controller[ControllerInputIndex.SQUEEZE_VALUE] = float(running)
-        controller[ControllerInputIndex.TRIGGER_VALUE] = trigger
-        context = ComputeContext(
-            graph_time=GraphTime(sim_time_ns=0, real_time_ns=0),
-            execution_events=ExecutionEvents(
-                reset=reset, execution_state=ExecutionState.RUNNING if running else ExecutionState.STOPPED
-            ),
+    def step(position, orientation, squeeze=1.0, trigger=1.0, reset=False):
+        inputs["controllers"]["deviceio_controller_right"][0] = ControllerSnapshot(
+            grip_pose=ControllerPose(Pose(Point(*position), Quaternion(*orientation)), True),
+            inputs=ControllerInputState(False, False, False, False, 0.0, 0.0, squeeze, trigger),
         )
-        cache = ExecutionCache({"world_T_anchor": {"value": anchor}}, context)
-        cache.cache(
-            id(controllers),
-            {ControllersSource.LEFT: OptionalTensorGroup(ControllerInput()), ControllersSource.RIGHT: controller},
-        )
-        action = np.from_dlpack(pipeline.execute_pipeline_with_cache(cache)["action"][0]).copy()
-        assert action.shape == (8,)
-        assert np.isfinite(action).all()
-        return action
+        context = ComputeContext(execution_events=ExecutionEvents(reset=reset, execution_state=ExecutionState.RUNNING))
+        action = pipeline.execute_pipeline(inputs, context)["action"][0]
+        assert action.shape == (8,) and action.dtype == np.float32
+        return action.copy()
 
-    def check(action, position, rotation, gripper):
-        np.testing.assert_allclose(action[:3], position, atol=1e-6)
-        np.testing.assert_allclose(Rotation.from_quat(action[3:7]).as_matrix(), rotation.as_matrix(), atol=1e-6)
-        assert action[7] == pytest.approx(gripper)
-
-    home_position = _BASE_T_GRIPPER_HOME[:3, 3]
     home_rotation = Rotation.from_matrix(_BASE_T_GRIPPER_HOME[:3, :3])
-    origin = Rotation.from_euler("xyz", [0.2, -0.4, 0.3])
-    position = np.array([0.3, -0.1, 0.5])
-    check(step(position, origin, running=False, reset=True), home_position, home_rotation, 0.0)
-    check(step(position, origin), home_position, home_rotation, 0.0)
-    delta = Rotation.from_rotvec([0.0, 0.0, 0.3])
-    displacement = np.array([0.02, -0.03, 0.01])
-    moved_position = home_position + displacement
-    moved_rotation = delta * home_rotation
-    check(step(position + displacement, delta * origin, trigger=1.0), moved_position, moved_rotation, 1.0)
-    other = Rotation.from_euler("xyz", [-0.5, 0.2, 0.8])
-    check(step(-position, other, running=False), moved_position, moved_rotation, 0.0)
-    check(step(-position, other), moved_position, moved_rotation, 0.0)
-    # Re-engaging composes from the held full pose.
-    delta2 = Rotation.from_rotvec([0.2, 0.0, 0.0])
-    check(step(-position + displacement, delta2 * other), moved_position + displacement, delta2 * moved_rotation, 0.0)
-    check(step(position, origin, running=False, reset=True), home_position, home_rotation, 0.0)
-    check(step(-position, other), home_position, home_rotation, 0.0)
+    home = [*_BASE_T_GRIPPER_HOME[:3, 3], *home_rotation.as_quat(), 1.0]
+    # The first squeeze emits the configured home even with a rotated controller.
+    np.testing.assert_allclose(step((0.2, 0.3, 0.4), (0.0, 0.0, 2**-0.5, 2**-0.5)), home, atol=1e-6)
+    # Relative to the initial Z quarter-turn, this controller quaternion gives [1, 2, 3, 4] / sqrt(30).
+    # The clutch applies that world-frame rotation and the controller displacement to the full home pose.
+    delta = Rotation.from_quat(np.array([1, 2, 3, 4]) / np.sqrt(30))
+    moved = [*np.add(home[:3], (0.1, 0.2, 0.3)), *(delta * home_rotation).as_quat(), 1.0]
+    np.testing.assert_allclose(step((0.3, 0.5, 0.7), np.array([3, 1, 7, 1]) / np.sqrt(60)), moved, atol=1e-6)
+    # Release at another pose, then re-engage there: the commanded arm pose stays held.
+    held = [*moved[:7], 0.0]
+    np.testing.assert_allclose(step((0.8, 0.9, 1.0), (0.0, 0.0, 0.0, 1.0), squeeze=0.0, trigger=0.0), held, atol=1e-6)
+    np.testing.assert_allclose(step((0.8, 0.9, 1.0), (0.0, 0.0, 0.0, 1.0), trigger=0.0), held, atol=1e-6)
+    np.testing.assert_allclose(step((0.8, 0.9, 1.0), (0.0, 0.0, 0.0, 1.0), reset=True), home, atol=1e-6)
