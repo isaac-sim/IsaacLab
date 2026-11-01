@@ -476,11 +476,11 @@ def run_teleoperation(  # noqa: C901
         if args_cli.using_ovxr:
             from isaaclab_ov.renderers import OVRTXRendererCfg
 
-            from .. import OvLibrariesXrConfig, OvLibrariesXrSession
+            from .. import OvLibrariesXrCfg, OvLibrariesXrSession
 
             ov_libraries_xr_session = OvLibrariesXrSession.prepare(
                 env_cfg.sim,
-                OvLibrariesXrConfig(
+                OvLibrariesXrCfg(
                     application_name=f"isaaclab-ovxr-teleop-{args_cli.task}",
                     session_mode=args_cli.ovxr_session_mode,
                     cloudxr_env_file=args_cli.cloudxr_env,
@@ -752,7 +752,6 @@ def run_teleoperation(  # noqa: C901
                         env,
                         tracking_anchor_path=teleop_interface.xr_render_anchor_path,
                         required_openxr_extensions=teleop_interface.required_openxr_extensions,
-                        hidden_visual_prims=env_cfg.isaac_teleop.xr_cfg.hidden_visual_prims,
                         external_anchor_state=teleop_interface.external_anchor_state,
                         timeout_s=_RENDERER_ATTACH_TIMEOUT_S,
                     )

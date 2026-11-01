@@ -35,7 +35,7 @@ Ownership transfer is single-use. Failed retirement must preserve resources
 for the owning thread to finish cleanup; a failed drain is not successful
 shutdown. Importing `OvLibrariesXrSession` requires a Capture release with OVXR
 session support; see [Installing kitless XR](kitless_xr_source.md). The
-`OvLibrariesXrConfig` dataclass lives in `isaaclab_teleop.ovxr_cfg` and imports
+`OvLibrariesXrCfg` dataclass lives in `isaaclab_teleop.ovxr_cfg` and imports
 without those packages.
 
 A failed scene write or seal stops further publication. Recreate the session
@@ -65,10 +65,6 @@ The adapter retains the environment if lease retirement cannot establish complet
   default `OVRTXRendererCfg()`) is rejected while the lease is active.
 - Eager scene updates (`lazy_sensor_update=False`) skip the leased renderer; its
   scene publisher writes the same physics state at the reserved ordinal.
-- CPU simulation devices publish scene transforms, but visual-material
-  publication requires CUDA material buffers, as it does for ordinary OVRTX
-  cameras. With `--device cpu`, an environment that has `VisualMaterial` assets
-  fails at `sim.reset()`.
 - Dynamic anchoring takes any object implementing
   `OvLibrariesXrSession.ExternalAnchorState`; `start_render_worker()` rejects
   other objects before the worker claims the lease.
@@ -78,8 +74,7 @@ The adapter retains the environment if lease retirement cannot establish complet
 The ordinary renderer remains in `isaaclab_ov.renderers.ovrtx_renderer`.
 `render_lease.RenderLeaseController` owns the lease state, thread-transfer
 capability and per-owner operation guards; it borrows the renderer's native resources
-and delegates component writes back to that renderer. `publication_buffers`
-retains producer storage until native writes complete. Public renderer and lease
+and delegates component writes back to that renderer. Public renderer and lease
 imports remain available from `isaaclab_ov.renderers`.
 
 Acquiring a lease selects a private rendering OVStage without changing process
@@ -89,3 +84,19 @@ ordinary renderer operations and does not start an XR session. While a consumer
 holds the lease, ordinary camera rendering, scene writes and renderer destruction
 are rejected to prevent concurrent access to the borrowed resources. The same
 generic borrowing interface is available to applications outside teleoperation.
+
+## Native validation
+
+The adapter and lease unit tests double the native OVRTX and OVStage endpoints.
+An opt-in harness runs the render-owner transfer and complete scene publication
+against the real libraries, on the manager-based `Isaac-Cartpole` task with its
+`ovphysx` physics preset and one environment on `cuda:0`. It needs a CUDA GPU,
+OVRTX, OVStage, OvPhysX and an Isaac Capture release with OVXR session support;
+it starts no XR session or CloudXR runtime. Each case runs in a child process:
+
+```bash
+ISAACLAB_RUN_NATIVE_OVRTX_TRANSFER=1 uv run python -m pytest \
+    source/isaaclab_teleop/test/test_ovrtx_transfer_native_harness.py
+```
+
+Without `ISAACLAB_RUN_NATIVE_OVRTX_TRANSFER=1`, both cases are skipped.

@@ -19,7 +19,7 @@ from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
 import pytest
-from isaaclab_teleop.ovxr_cfg import OvLibrariesXrConfig
+from isaaclab_teleop.ovxr_cfg import OvLibrariesXrCfg
 
 
 class _FakeLease:
@@ -90,6 +90,7 @@ class _FakeBootstrap:
         self.publisher = _FakePublisher()
         self.events = []
         self.closed = False
+        self.aborted = False
 
     def capture_scene_publisher(self):
         self.events.append("capture")
@@ -114,6 +115,9 @@ class _FakeBootstrap:
 
     def close(self):
         self.closed = True
+
+    def abort(self):
+        self.aborted = True
 
 
 @pytest.fixture
@@ -268,7 +272,7 @@ def test_runtime_render_prims_have_the_declared_paths_and_types(xr_module):
 
     stage = FakeStage()
     env = SimpleNamespace(unwrapped=SimpleNamespace(scene=SimpleNamespace(stage=stage)))
-    xr_module._declare_ovxr_runtime_prims(env, xr_module.OvLibrariesXrConfig())
+    xr_module._declare_ovxr_runtime_prims(env, xr_module.OvLibrariesXrCfg())
 
     assert stage.definitions == [
         ("/OVXRGeneratedCameras/OVXR_LeftEyeCamera", "Camera"),
@@ -292,42 +296,9 @@ def test_runtime_render_prim_declaration_preserves_disabled_and_fails_on_conflic
     stage = SimpleNamespace(GetPrimAtPath=lambda _path: ExistingPrim(), DefinePrim=lambda *_args: None)
     env = SimpleNamespace(unwrapped=SimpleNamespace(scene=SimpleNamespace(stage=stage)))
 
-    xr_module._declare_ovxr_runtime_prims(env, xr_module.OvLibrariesXrConfig(create_render_products=False))
+    xr_module._declare_ovxr_runtime_prims(env, xr_module.OvLibrariesXrCfg(create_render_products=False))
     with pytest.raises(RuntimeError, match="incompatible type"):
-        xr_module._declare_ovxr_runtime_prims(env, xr_module.OvLibrariesXrConfig())
-
-
-def test_hidden_visual_prims_fullmatch_imageables_and_fail_closed(xr_module, monkeypatch):
-    class FakePrim:
-        def __init__(self, path):
-            self.path = path
-            self.visible = True
-
-        def GetPath(self):
-            return self.path
-
-        def IsA(self, _schema):
-            return True
-
-    class FakeImageable:
-        def __init__(self, prim):
-            self.prim = prim
-
-        def MakeInvisible(self):
-            self.prim.visible = False
-
-    pxr = ModuleType("pxr")
-    pxr.UsdGeom = SimpleNamespace(Imageable=FakeImageable)
-    monkeypatch.setitem(sys.modules, "pxr", pxr)
-    head = FakePrim("/World/envs/env_0/Robot/head_yaw_link")
-    body = FakePrim("/World/envs/env_0/Robot/base_link")
-    stage = SimpleNamespace(Traverse=lambda: iter((head, body)))
-    env = SimpleNamespace(unwrapped=SimpleNamespace(scene=SimpleNamespace(stage=stage)))
-
-    assert xr_module._apply_hidden_visual_prims(env, ("/World/envs/env_.*/Robot/head_.*",)) == (head.path,)
-    assert not head.visible and body.visible
-    with pytest.raises(RuntimeError, match="matched no imageable prims"):
-        xr_module._apply_hidden_visual_prims(env, ("/World/missing/.*",))
+        xr_module._declare_ovxr_runtime_prims(env, xr_module.OvLibrariesXrCfg())
 
 
 def _make_host(xr_module, monkeypatch):
@@ -335,18 +306,8 @@ def _make_host(xr_module, monkeypatch):
     env = SimpleNamespace(scene=SimpleNamespace(stage=None), close=lambda: bootstrap.events.append("environment-close"))
     monkeypatch.setitem(sys.modules, "ovxr", _fake_ovxr())
     monkeypatch.setattr(xr_module, "_StageOrdinalLedger", _FakeOrdinalLedger)
-    monkeypatch.setattr(
-        xr_module,
-        "_apply_hidden_visual_prims",
-        lambda _env, _patterns: bootstrap.events.append("hide"),
-    )
     monkeypatch.setattr(xr_module, "_declare_ovxr_runtime_prims", lambda _env, _cfg: bootstrap.events.append("declare"))
-    host = xr_module._IsaacLabOvxrApplicationInterface(
-        bootstrap,
-        env,
-        xr_module.OvLibrariesXrConfig(),
-        ("/hidden",),
-    )
+    host = xr_module._IsaacLabOvxrApplicationInterface(bootstrap, env, xr_module.OvLibrariesXrCfg())
     return host, bootstrap, env
 
 
@@ -361,7 +322,7 @@ def test_host_lends_exact_pair_and_keeps_application_publication(xr_module, monk
     assert binding.renderer is bootstrap.lease.ovrtx_renderer
     assert binding.stage is bootstrap.lease.ovstage
     assert binding.ordinal_ledger.stage is bootstrap.lease.ovstage
-    assert bootstrap.events == ["capture", "offer", ("claim", "capability"), "hide", "declare", ("bind", env)]
+    assert bootstrap.events == ["capture", "offer", ("claim", "capability"), "declare", ("bind", env)]
     assert ordinal == 11
     assert bootstrap.publisher.calls[0][:2] == (11, "step-1")
     host.validate_first_published_scene(ordinal)
@@ -404,7 +365,7 @@ def test_host_smooths_committed_anchor_on_xr_clock_and_reseeds_reset(xr_module, 
     bootstrap.get_world_transform = lambda _path: reference.copy()
     env = SimpleNamespace(sim=SimpleNamespace(get_rendering_dt=lambda: 0.25))
     host = xr_module._IsaacLabOvxrApplicationInterface(
-        bootstrap, env, xr_module.OvLibrariesXrConfig(), (), external_anchor_state=manager
+        bootstrap, env, xr_module.OvLibrariesXrCfg(), external_anchor_state=manager
     )
     host._scene_publisher = bootstrap.publisher
     host._ordinal_ledger = _FakeOrdinalLedger(None)
@@ -479,7 +440,6 @@ def test_host_reconciles_failed_publication_without_reusing_generation(xr_module
         _initialized_scene=False,
         backend=None,
         scene=None,
-        _geometry_publication=None,
         _update_transforms=lambda: None,
         _update_geometries=lambda: None,
         _visual_material_writer_ref=None,
@@ -638,9 +598,9 @@ def test_session_delegates_lifecycle_to_isaacteleop_owner(xr_module, monkeypatch
     external = importlib.import_module("isaaccapture.ovxr_session_manager.ovxr_session")
     monkeypatch.setattr(external, "OvxrSession", FakeOwner)
     bootstrap = _FakeBootstrap()
-    assert xr_module.OvLibrariesXrConfig().extra_openxr_extensions == ()
+    assert xr_module.OvLibrariesXrCfg().extra_openxr_extensions == ()
     session = xr_module.OvLibrariesXrSession(
-        bootstrap, xr_module.OvLibrariesXrConfig(extra_openxr_extensions=("XR_EXT_debug_utils",))
+        bootstrap, xr_module.OvLibrariesXrCfg(extra_openxr_extensions=("XR_EXT_debug_utils",))
     )
     env = SimpleNamespace()
     assert session.start_render_worker(
@@ -713,7 +673,7 @@ def test_failed_start_releases_lease_before_environment_and_context(xr_module, b
     module, context, events = bootstrap_context
     bootstrap = module.OvxrSessionBootstrap(object())
     if route == "before_owner":
-        session = xr_module.OvLibrariesXrSession(bootstrap, xr_module.OvLibrariesXrConfig())
+        session = xr_module.OvLibrariesXrSession(bootstrap, xr_module.OvLibrariesXrCfg())
         session.close()
     else:
         # Capture calls host.abort when validation fails before its worker exists.
@@ -759,22 +719,53 @@ def test_caller_renderer_settings_precede_renderer_creation(xr_module, monkeypat
         return bootstrap
 
     monkeypatch.setattr(xr_module, "OvxrSessionBootstrap", create_bootstrap)
-    xr_module.OvLibrariesXrSession.prepare(object(), xr_module.OvLibrariesXrConfig(renderer_settings=settings))
+    xr_module.OvLibrariesXrSession.prepare(object(), xr_module.OvLibrariesXrCfg(renderer_settings=settings))
+
+
+def test_prepare_rejects_existing_context_before_global_settings(xr_module, monkeypatch):
+    from isaaclab.sim import SimulationContext
+
+    monkeypatch.setattr(SimulationContext, "instance", lambda: object())
+    monkeypatch.setitem(
+        sys.modules,
+        "ovxr",
+        SimpleNamespace(apply_renderer_settings=lambda _: pytest.fail("changed existing renderer settings")),
+    )
+    monkeypatch.setattr(xr_module, "OvxrSessionBootstrap", lambda *_: pytest.fail("allocated second bootstrap"))
+    with pytest.raises(RuntimeError, match="must create the SimulationContext"):
+        xr_module.OvLibrariesXrSession.prepare(object(), xr_module.OvLibrariesXrCfg())
+
+
+@pytest.mark.parametrize("terminal_mode", [False, None, 1])
+def test_prepare_rejects_extension_mode_before_global_settings(xr_module, monkeypatch, terminal_mode):
+    monkeypatch.setattr(builtins, "ISAAC_LAUNCHED_FROM_TERMINAL", terminal_mode, raising=False)
+    monkeypatch.setitem(
+        sys.modules, "ovxr", SimpleNamespace(apply_renderer_settings=lambda _: pytest.fail("changed renderer settings"))
+    )
+    monkeypatch.setattr(xr_module, "OvxrSessionBootstrap", lambda *_: pytest.fail("allocated bootstrap"))
+    with pytest.raises(RuntimeError, match="extension mode"):
+        xr_module.OvLibrariesXrSession.prepare(object(), xr_module.OvLibrariesXrCfg())
 
 
 def test_config_rejects_unknown_session_mode():
     with pytest.raises(ValueError, match="session_mode must be 'ar' or 'vr'"):
-        OvLibrariesXrConfig(session_mode="automatic")
+        OvLibrariesXrCfg(session_mode="automatic")
 
 
 @pytest.mark.parametrize("scale", [0.0, -1.0, float("nan"), float("inf")])
 def test_config_rejects_invalid_scene_scale(scale):
     with pytest.raises(ValueError, match="meters_per_unit must be finite and positive"):
-        OvLibrariesXrConfig(meters_per_unit=scale)
+        OvLibrariesXrCfg(meters_per_unit=scale)
+
+
+@pytest.mark.parametrize("camera_paths", [("/Camera/mono",), ("/Camera/left", "")])
+def test_config_rejects_non_stereo_camera_paths(camera_paths):
+    with pytest.raises(ValueError, match="exactly two"):
+        OvLibrariesXrCfg(camera_paths=camera_paths)
 
 
 def test_prepare_revalidates_changed_scale_before_global_settings(xr_module, monkeypatch):
-    cfg = xr_module.OvLibrariesXrConfig()
+    cfg = xr_module.OvLibrariesXrCfg()
     cfg.meters_per_unit = float("nan")
     monkeypatch.setitem(
         sys.modules, "ovxr", SimpleNamespace(apply_renderer_settings=lambda _: pytest.fail("changed renderer settings"))
@@ -789,16 +780,48 @@ def test_start_rejects_invalid_bootstrap_count_before_owner_creation(xr_module, 
     external = importlib.import_module("isaaccapture.ovxr_session_manager.ovxr_session")
     monkeypatch.setattr(external, "OvxrSession", lambda *_args, **_kwargs: pytest.fail("created an XR owner"))
     bootstrap = _FakeBootstrap()
-    session = xr_module.OvLibrariesXrSession(bootstrap, xr_module.OvLibrariesXrConfig())
+    session = xr_module.OvLibrariesXrSession(bootstrap, xr_module.OvLibrariesXrCfg())
     with pytest.raises(ValueError, match="max_blank_frames must be a non-negative integer"):
         session.start_render_worker(SimpleNamespace(), max_blank_frames=count)
     assert bootstrap.events == []
 
 
+@pytest.mark.parametrize("abort_fails", [False, True])
+def test_prepare_aborts_partial_bootstrap_and_preserves_first_error(xr_module, monkeypatch, abort_fails):
+    bootstrap = _FakeBootstrap()
+    first_error = RuntimeError("preparation failed")
+    original_cause = ValueError("invalid session input")
+    first_error.add_note("Original preparation diagnostic")
+    abort_error = RuntimeError("abort failed")
+    monkeypatch.setitem(sys.modules, "ovxr", _fake_ovxr())
+    monkeypatch.setattr(xr_module, "OvxrSessionBootstrap", lambda *_: bootstrap)
+
+    def fail(*_args, **_kwargs):
+        raise first_error from original_cause
+
+    def abort():
+        bootstrap.aborted = True
+        if abort_fails:
+            raise abort_error
+
+    monkeypatch.setattr(bootstrap, "abort", abort)
+    monkeypatch.setattr(xr_module.OvLibrariesXrSession, "__init__", fail)
+
+    with pytest.raises(RuntimeError) as caught:
+        xr_module.OvLibrariesXrSession.prepare(object(), xr_module.OvLibrariesXrCfg())
+
+    assert bootstrap.aborted
+    assert caught.value is first_error
+    assert caught.value.__cause__ is original_cause
+    assert caught.value.__notes__ == ["Original preparation diagnostic"] + (
+        [f"Cleanup after failed XR preparation also failed: {abort_error!r}"] if abort_fails else []
+    )
+
+
 def test_public_xr_exports_resolve_to_implemented_types(xr_module):
     import isaaclab_teleop
 
-    assert isaaclab_teleop.OvLibrariesXrConfig is xr_module.OvLibrariesXrConfig
+    assert isaaclab_teleop.OvLibrariesXrCfg is xr_module.OvLibrariesXrCfg
     assert isaaclab_teleop.OvLibrariesXrSession is xr_module.OvLibrariesXrSession
 
 
@@ -892,7 +915,7 @@ def _make_anchor_host(xr_module, monkeypatch, anchor):
     bootstrap = _FakeBootstrap()
     bootstrap.get_world_transform = lambda _path: np.eye(4)
     host = xr_module._IsaacLabOvxrApplicationInterface(
-        bootstrap, SimpleNamespace(), xr_module.OvLibrariesXrConfig(), (), external_anchor_state=anchor
+        bootstrap, SimpleNamespace(), xr_module.OvLibrariesXrCfg(), external_anchor_state=anchor
     )
     host._scene_publisher = bootstrap.publisher
     host._ordinal_ledger = _FakeOrdinalLedger(None)
@@ -948,7 +971,7 @@ def test_start_rejects_anchor_state_without_the_protocol_before_owner_creation(x
     external = importlib.import_module("isaaccapture.ovxr_session_manager.ovxr_session")
     monkeypatch.setattr(external, "OvxrSession", lambda *_args, **_kwargs: pytest.fail("created an XR owner"))
     bootstrap = _FakeBootstrap()
-    session = xr_module.OvLibrariesXrSession(bootstrap, xr_module.OvLibrariesXrConfig())
+    session = xr_module.OvLibrariesXrSession(bootstrap, xr_module.OvLibrariesXrCfg())
     with pytest.raises(TypeError, match="ExternalAnchorState"):
         session.start_render_worker(SimpleNamespace(), external_anchor_state=SimpleNamespace(reset=lambda: None))
     assert bootstrap.events == []
@@ -961,8 +984,8 @@ def test_config_imports_without_native_ovxr():
         "import sys\n"
         "for name in ('isaaccapture', 'ovxr', 'ovrtx', 'ovstage'):\n"
         "    sys.modules[name] = None\n"
-        "from isaaclab_teleop.ovxr_cfg import OvLibrariesXrConfig\n"
-        "assert OvLibrariesXrConfig(session_mode='vr').session_mode == 'vr'\n"
+        "from isaaclab_teleop.ovxr_cfg import OvLibrariesXrCfg\n"
+        "assert OvLibrariesXrCfg(session_mode='vr').session_mode == 'vr'\n"
     )
     result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, timeout=60)
     assert result.returncode == 0, result.stderr

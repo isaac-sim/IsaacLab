@@ -1213,11 +1213,11 @@ class _ReplayPresentation:
     def __init__(self, env_cfg):
         from isaaclab_ov.renderers import OVRTXRendererCfg
 
-        from .. import OvLibrariesXrConfig, OvLibrariesXrSession
+        from .. import OvLibrariesXrCfg, OvLibrariesXrSession
 
         self.session = OvLibrariesXrSession.prepare(
             env_cfg.sim,
-            OvLibrariesXrConfig(
+            OvLibrariesXrCfg(
                 application_name=f"isaaclab-ovxr-replay-{args_cli.task}",
                 session_mode=args_cli.ovxr_session_mode,
                 cloudxr_env_file=args_cli.cloudxr_env,
@@ -1225,7 +1225,6 @@ class _ReplayPresentation:
             ),
             OVRTXRendererCfg(),
         )
-        self.xr_cfg = env_cfg.isaac_teleop.xr_cfg
         self.device = None
         self.started = False
         self.reset_generation = 0
@@ -1237,7 +1236,6 @@ class _ReplayPresentation:
             if not self.session.start_render_worker(
                 env,
                 tracking_anchor_path=device.xr_render_anchor_path,
-                hidden_visual_prims=self.xr_cfg.hidden_visual_prims,
                 external_anchor_state=device.external_anchor_state,
                 timeout_s=args_cli.max_stage_load_wait_s,
             ):
