@@ -21,6 +21,7 @@ out via ``sys.modules`` so these tests run in a plain Python environment.
 from __future__ import annotations
 
 import sys
+from types import ModuleType
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -63,7 +64,7 @@ _MODULES_TO_STUB = [
     "omni.kit.xr.system.openxr",
 ]
 
-_stub_patch: pytest.MonkeyPatch | None = None
+_stubs_installed: dict[str, ModuleType | MagicMock] = {}
 
 
 class _FakeHandsSource:
@@ -121,37 +122,41 @@ class _FakeBaseRetargeter:
 
 
 def _install_stubs():
-    """Temporarily replace dependencies, including attributes on already loaded modules."""
-    global _stub_patch
-    assert _stub_patch is None
-    _stub_patch = pytest.MonkeyPatch()
+    """Insert MagicMock modules for all heavy dependencies."""
     for name in _MODULES_TO_STUB:
         if name not in sys.modules:
-            _stub_patch.setitem(sys.modules, name, MagicMock())
+            sys.modules[name] = _stubs_installed.setdefault(name, MagicMock())
         if "." in name:
             parent_name, child_name = name.rsplit(".", 1)
-            _stub_patch.setattr(sys.modules[parent_name], child_name, sys.modules[name], raising=False)
+            setattr(sys.modules[parent_name], child_name, sys.modules[name])
 
     dsn_mod = sys.modules["isaacteleop.retargeting_engine.deviceio_source_nodes"]
-    _stub_patch.setattr(dsn_mod, "HandsSource", _FakeHandsSource, raising=False)
-    _stub_patch.setattr(dsn_mod, "ControllersSource", _FakeControllersSource, raising=False)
+    dsn_mod.HandsSource = _FakeHandsSource  # type: ignore[attr-defined]
+    dsn_mod.ControllersSource = _FakeControllersSource  # type: ignore[attr-defined]
 
     iface_mod = sys.modules["isaacteleop.retargeting_engine.interface"]
-    _stub_patch.setattr(iface_mod, "OutputCombiner", _FakeOutputCombiner, raising=False)
-    _stub_patch.setattr(iface_mod, "BaseRetargeter", _FakeBaseRetargeter, raising=False)
-    _stub_patch.setattr(iface_mod, "RetargeterIOType", dict, raising=False)
+    iface_mod.OutputCombiner = _FakeOutputCombiner  # type: ignore[attr-defined]
+    iface_mod.BaseRetargeter = _FakeBaseRetargeter  # type: ignore[attr-defined]
+    iface_mod.RetargeterIOType = dict  # type: ignore[attr-defined]
 
     tt_mod = sys.modules["isaacteleop.retargeting_engine.tensor_types"]
-    _stub_patch.setattr(tt_mod, "HandInputIndex", _FakeHandInputIndex, raising=False)
-    _stub_patch.setattr(tt_mod, "ControllerInputIndex", _FakeControllerInputIndex, raising=False)
+    tt_mod.HandInputIndex = _FakeHandInputIndex  # type: ignore[attr-defined]
+    tt_mod.ControllerInputIndex = _FakeControllerInputIndex  # type: ignore[attr-defined]
 
 
 def _restore_stubs():
-    """Restore both inserted modules and overwritten attributes exactly."""
-    global _stub_patch
-    if _stub_patch is not None:
-        _stub_patch.undo()
-        _stub_patch = None
+    """Remove stubs installed for this test module from ``sys.modules``."""
+    for name in reversed(_MODULES_TO_STUB):
+        stub = _stubs_installed.get(name)
+        if stub is None:
+            continue
+        if "." in name:
+            parent_name, child_name = name.rsplit(".", 1)
+            parent = sys.modules.get(parent_name)
+            if parent is not None and getattr(parent, child_name, None) is stub:
+                delattr(parent, child_name)
+        if sys.modules.get(name) is stub:
+            del sys.modules[name]
 
 
 _install_stubs()
