@@ -811,11 +811,12 @@ def test_headless_requires_ovxr(monkeypatch, capsys, entrypoint, flags):
     assert "--headless requires --ovxr" in capsys.readouterr().err
 
 
-def _run_ovxr_pip_workflow(monkeypatch, entrypoint, layout, flags, calls):
+def _run_ovxr_pip_workflow(monkeypatch, entrypoint, layout, flags, calls, *, pip_camera=True):
     """Run an entrypoint's ``main`` with one PiP camera until it prepares the OVXR session.
 
     Task resolution and launch are stubbed; CLI parsing, pre-launch preparation and session
     construction are production code. ``calls`` records the kept cameras, launch and preparation.
+    With ``pip_camera=False`` the task camera exists but no PiP camera is selected.
 
     Returns:
         The task configuration and the arguments passed to session preparation.
@@ -875,7 +876,8 @@ def _run_ovxr_pip_workflow(monkeypatch, entrypoint, layout, flags, calls):
         monkeypatch.setattr(isaaclab_teleop.OvLibrariesXrSession, "prepare", prepare)
     monkeypatch.setattr(SimulationContext, "instance", lambda: None)
     monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1")
-    arguments = ["--task", "Test", "--ovxr", "--cloudxr_env", "none", "--ovxr_pip_camera", "head_cam", *flags]
+    pip = ["--ovxr_pip_camera", "head_cam"] if pip_camera else []
+    arguments = ["--task", "Test", "--ovxr", "--cloudxr_env", "none", *pip, *flags]
     if entrypoint == "live":
         monkeypatch.setattr(module, "has_kit", lambda: False)
         monkeypatch.setattr(
@@ -939,6 +941,87 @@ def test_ovxr_pip_rejects_task_layout_that_is_not_head_locked_before_launch(monk
     with pytest.raises(ValueError, match=rf"{placement!r} placement.*--ovxr_pip_head_locked"):
         _run_ovxr_pip_workflow(monkeypatch, entrypoint, layout, [], calls)
     assert calls == []
+
+
+@pytest.fixture
+def physics_cuda_device():
+    """Set ``/physics/cudaDevice``, which resolves a bare ``cuda`` simulation device, for one test."""
+    from isaaclab.app import get_settings_manager
+
+    settings = get_settings_manager()
+    previous = settings.get("/physics/cudaDevice")
+    yield lambda index: settings.set("/physics/cudaDevice", index)
+    settings.set("/physics/cudaDevice", previous)
+
+
+@pytest.mark.parametrize("pip_camera", [False, True])
+def test_gpu_selection_cli_reaches_the_shared_xr_renderer(monkeypatch, pip_camera):
+    """The GPU options reach the one renderer configuration of the stereo session and its PiP camera."""
+    # Session construction needs a Capture release with OVXR session support; the Kit
+    # ``teleop`` extra selects an older release, so skip there like ``run_live_workflow``.
+    pytest.importorskip("isaaccapture.ovxr_session_manager")
+    from isaaclab_teleop import XrCameraFeedLayoutCfg
+
+    flags = ["--ovrtx_active_cuda_gpus", "1", "--geometry_publication_device", "cuda:1"]
+    layout = XrCameraFeedLayoutCfg(placement="head_locked")
+    config, prepared = _run_ovxr_pip_workflow(monkeypatch, "live", layout, flags, [], pip_camera=pip_camera)
+
+    [(xr_cfg, renderer_cfg)] = prepared
+    assert renderer_cfg.active_cuda_gpus == "1"
+    assert renderer_cfg.geometry_publication_device == "cuda:1"
+    assert [camera.camera_cfg for camera in xr_cfg.auxiliary_cameras] == ([config.scene.head_cam] if pip_camera else [])
+    assert all(camera.camera_cfg.renderer_cfg is renderer_cfg for camera in xr_cfg.auxiliary_cameras)
+
+
+@pytest.mark.parametrize(
+    "arguments, message",
+    [
+        (["--ovxr", "--ovrtx_active_cuda_gpus", "cuda:0"], "active_cuda_gpus must list CUDA indices"),
+        (["--ovxr", "--ovrtx_active_cuda_gpus", "0,0"], "more than once"),
+        (["--ovxr", "--geometry_publication_device", "cuda"], "explicit CUDA device"),
+        (["--ovrtx_active_cuda_gpus", "0"], "require --ovxr"),
+        (["--geometry_publication_device", "cuda:0"], "require --ovxr"),
+    ],
+)
+def test_gpu_selection_cli_rejects_invalid_options_at_parse_time(monkeypatch, capsys, arguments, message):
+    with pytest.raises(SystemExit):
+        _load_teleop_agent(monkeypatch, *arguments)
+    assert message in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "flags, message",
+    [
+        (["--ovrtx_active_cuda_gpus", "0", "--geometry_publication_device", "cuda:1"], r"rendering GPU \[0\]"),
+        (["--device", "cuda:1", "--geometry_publication_device", "cuda:0"], r"rendering GPU \[1\]"),
+        (["--device", "cuda", "--geometry_publication_device", "cuda:0"], r"rendering GPU \[1\]"),
+        (["--device", "cpu", "--geometry_publication_device", "cuda:0"], "requires --ovrtx_active_cuda_gpus"),
+    ],
+)
+def test_geometry_publication_device_must_be_a_rendering_gpu(monkeypatch, physics_cuda_device, flags, message):
+    """Copies to a GPU that does not render add work without helping the renderer, so launch never starts."""
+    from isaaclab_teleop import XrCameraFeedLayoutCfg
+
+    physics_cuda_device(1)
+    calls = []
+    with pytest.raises(ValueError, match=message):
+        _run_ovxr_pip_workflow(monkeypatch, "live", XrCameraFeedLayoutCfg(), flags, calls, pip_camera=False)
+    assert "launch" not in calls
+
+
+@pytest.mark.parametrize("physics_cuda_index, publication", [(None, "cuda:0"), (1, "cuda:1")])
+def test_bare_cuda_physics_renders_on_the_gpu_that_launch_selects(
+    monkeypatch, physics_cuda_device, physics_cuda_index, publication
+):
+    """``--device cuda`` follows ``/physics/cudaDevice`` as the launcher does before the check runs."""
+    pytest.importorskip("isaaccapture.ovxr_session_manager")
+    from isaaclab_teleop import XrCameraFeedLayoutCfg
+
+    physics_cuda_device(physics_cuda_index)
+    flags = ["--device", "cuda", "--geometry_publication_device", publication]
+    _, prepared = _run_ovxr_pip_workflow(monkeypatch, "live", XrCameraFeedLayoutCfg(), flags, [], pip_camera=False)
+    [(_, renderer_cfg)] = prepared
+    assert renderer_cfg.geometry_publication_device == publication
 
 
 @pytest.mark.parametrize("entrypoint", ["live", "replay"])
