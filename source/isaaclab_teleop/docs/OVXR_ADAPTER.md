@@ -94,13 +94,15 @@ generic borrowing interface is available to applications outside teleoperation.
 The adapter and lease unit tests double the native OVRTX and OVStage endpoints.
 An opt-in harness runs the render-owner transfer and complete scene publication
 against the real libraries, on the manager-based `Isaac-Cartpole` task with its
-`ovphysx` physics preset and one environment on `cuda:0`. It needs a CUDA GPU,
-OVRTX, OVStage, OvPhysX and an Isaac Capture release with OVXR session support;
-it starts no XR session or CloudXR runtime. Each case runs in a child process:
+`ovphysx` physics preset and one environment on `cuda:0`. The transfer case
+also runs with CPU physics, which publishes host scene tensors to the GPU
+renderer. It needs a CUDA GPU, OVRTX, OVStage, OvPhysX and an Isaac Capture
+release with OVXR session support; it starts no XR session or CloudXR runtime.
+Each case runs in a child process:
 
 ```bash
 ISAACLAB_RUN_NATIVE_OVRTX_TRANSFER=1 uv run python -m pytest \
     source/isaaclab_teleop/test/test_ovrtx_transfer_native_harness.py
 ```
 
-Without `ISAACLAB_RUN_NATIVE_OVRTX_TRANSFER=1`, both cases are skipped.
+Without `ISAACLAB_RUN_NATIVE_OVRTX_TRANSFER=1`, every case is skipped.
