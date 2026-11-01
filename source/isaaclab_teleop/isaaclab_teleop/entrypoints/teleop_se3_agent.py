@@ -288,15 +288,15 @@ def _resolve_env_cfg() -> tuple[
             env_cfg = remove_camera_configs(env_cfg)
     selected_cameras = ()
     if args_cli.using_ovxr:
+        # Reject an inconsistent GPU placement before launch.
+        renderer_cfg = _ovxr_renderer_cfg(env_cfg.sim.device)
         if args_cli.ovxr_pip_camera is not None:
             # Resolve the panels before launch preparation removes the other cameras, so that an
             # invalid selection or task layout fails before launch.
-            selected_cameras = resolve_ovxr_pip_cameras(env_cfg, args_cli, _ovxr_renderer_cfg(env_cfg.sim.device))
+            selected_cameras = resolve_ovxr_pip_cameras(env_cfg, args_cli, renderer_cfg)
         env_cfg = prepare_ovxr_launch(
             env_cfg, args_cli.task, args_cli.num_envs, keep=tuple(args_cli.ovxr_pip_camera or ())
         )
-        # Reject an inconsistent GPU placement before launch.
-        _ovxr_renderer_cfg(env_cfg.sim.device)
     # A task without a physics selection keeps None: SimulationContext defaults it to PhysxCfg.
     configs, kit_sources = validate_launch(env_cfg, vars(args_cli).copy())
     if args_cli.using_ovxr:

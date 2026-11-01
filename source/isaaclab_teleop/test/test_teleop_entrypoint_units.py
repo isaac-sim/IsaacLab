@@ -1006,7 +1006,7 @@ def test_geometry_publication_device_must_be_a_rendering_gpu(monkeypatch, physic
     calls = []
     with pytest.raises(ValueError, match=message):
         _run_ovxr_pip_workflow(monkeypatch, "live", XrCameraFeedLayoutCfg(), flags, calls, pip_camera=False)
-    assert "launch" not in calls
+    assert calls == []
 
 
 @pytest.mark.parametrize("physics_cuda_index, publication", [(None, "cuda:0"), (1, "cuda:1")])
