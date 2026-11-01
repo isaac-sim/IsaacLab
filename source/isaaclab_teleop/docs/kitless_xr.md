@@ -44,13 +44,8 @@ and restore the caller's arguments on return. The scripts under
 
 ## Live teleoperation
 
-```bash
-uv run --extra ovxr isaaclab teleop run \
-    --task IsaacContrib-PickPlace-GR1T2-Abs --num_envs 1 \
-    --device cuda:0 --physics newton_mjwarp --ovxr
-```
-
-The same registered-task selectors apply to live input and MCAP replay:
+Start with CPU OvPhysX using the command below. The same registered-task
+selectors apply to live input and MCAP replay:
 
 | Task | Physics selectors |
 | --- | --- |
@@ -70,6 +65,19 @@ defines a `newton_mjwarp` preset, but the environment catalog
 (`tools/environ_docs.py`) disables that combination after the environment smoke
 matrix found runtime constraints, so it is not listed here.
 
+For example, replace the task in this command with any row above:
+
+```bash
+uv run --extra ovxr isaaclab teleop run \
+    --task IsaacContrib-PickPlace-GR1T2-Abs --num_envs 1 \
+    --device cpu --physics ovphysx --ovxr
+```
+
+`--ovxr` selects OVStage and starts CloudXR with the `cloudxrjs` profile by
+default. Connect a supported CloudXR client, then use its Play and Reset
+controls. Pause/resume is available only on clients that expose it; Reset is a
+separate action.
+
 The SO101 IK task resets its joints to the configured nominal pose without
 joint-position noise, giving the clutch a repeatable reset pose. Its configured
 home transform supplies the clutch calibration. This applies to its Kit and
@@ -79,18 +87,6 @@ For SO101, check right-controller grip/squeeze engagement, release and
 re-engagement, proportional trigger control and Reset separately from cube
 grasping. Object retention and cube stacking also depend on contact properties
 and grasp placement; validate them separately from the input controls.
-
-For example, replace the task in this command with any row above:
-
-```bash
-uv run --python 3.12 --extra ovxr --locked isaaclab teleop run \
-    --task IsaacContrib-PickPlace-GR1T2-Abs --num_envs 1 \
-    --device cpu --physics ovphysx --ovxr
-```
-
-`--ovxr` selects OVStage and starts CloudXR with the `cloudxrjs` profile by default. Connect a supported
-CloudXR client, then use its Play and Reset controls. Pause/resume is available
-only on clients that expose it; Reset is a separate action.
 
 For desktop IWER, select **VR** and set **Reference Space** to **local-floor**
 under **Teleoperator adjustment** before connecting. This keeps the emulated
