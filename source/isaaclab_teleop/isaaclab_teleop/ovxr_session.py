@@ -10,14 +10,16 @@ from __future__ import annotations
 import builtins
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
+import warp as wp
 from isaaclab_ov.renderers import OvLibrariesRenderLease, OVRTXRenderer, OVRTXRendererCfg
 
+from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationContext
 
 _TERMINAL_MODE_SENTINEL = "ISAAC_LAUNCHED_FROM_TERMINAL"
 
 if TYPE_CHECKING:
-    import numpy as np
     from isaaclab_ov.renderers.render_lease import OvLibrariesScenePublisher
 
     from isaaclab.sim import SimulationCfg
@@ -194,11 +196,6 @@ class OvxrSessionBootstrap:
         if not isinstance(prim_path, str) or not prim_path.startswith("/"):
             raise ValueError(f"Target-frame prim path must be absolute: {prim_path!r}")
 
-        import numpy as np
-        import warp as wp
-
-        from isaaclab.scene_data import SceneDataFormat
-
         provider = self._sim.get_scene_data_provider()
         cached = self._target_frame_readers.get(prim_path)
         if cached is None or cached[0] is not provider:
@@ -232,8 +229,6 @@ class OvxrSessionBootstrap:
 
     def get_target_frame_T_world(self, prim_path: str) -> np.ndarray:
         """Read world-to-target transform [4, 4], float32, with translation in scene units."""
-        import numpy as np
-
         world_T_target = self.get_world_transform(prim_path)
         try:
             target_T_world = np.linalg.inv(world_T_target)
