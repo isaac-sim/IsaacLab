@@ -14,12 +14,14 @@ teleop script remains ``teleop_se3_agent.py``.
 
 OVXR viewer:
     ``--ovxr`` presents replay through an independently owned OVXR session while
-    tracker and control input remain sourced from MCAP. Optional camera quads use
-    ``--ovxr_pip_camera NAME`` with the same rate, placement and position options as live
-    teleoperation (``--ovxr_pip_head_locked`` overrides a task layout that is not head-locked).
-    The desktop mirror is enabled by default; ``--headless`` disables it. See
-    ``source/isaaclab_teleop/docs/kitless_xr.md``
-    for installation and launch instructions.
+    tracker and control input remain sourced from MCAP. See
+    ``source/isaaclab_teleop/docs/kitless_xr.md`` for installation and launch
+    instructions.
+
+    Optional camera quads use ``--ovxr_pip_camera NAME`` with the same rate, placement
+    and position options as live teleoperation (``--ovxr_pip_head_locked`` overrides a
+    task layout that is not head-locked). The desktop mirror is enabled by default;
+    ``--headless`` disables it.
 
 Inputs:
     ``--replay_file`` is an MCAP capture produced by Isaac Capture's

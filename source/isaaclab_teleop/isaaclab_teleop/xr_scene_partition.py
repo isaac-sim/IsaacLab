@@ -5,17 +5,36 @@
 
 """Camera-selective visual exclusions for the single-environment XR export."""
 
+from __future__ import annotations
+
 import re
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pxr import Usd
 
 
 @contextmanager
-def partition_visual_meshes(stage, patterns):
+def partition_visual_meshes(stage: Usd.Stage, patterns: Sequence[str]) -> Iterator[tuple[str, ...]]:
     """Exclude matching visual meshes from environment cameras during export.
 
     A temporary session sublayer is flattened into the borrowed render Stage.
     The application's source layers, visibility, physics and cameras are not
     changed. Patterns match mesh paths, including instance proxies, not links.
+
+    Args:
+        stage: Application Stage with exactly one environment, ``/World/envs/env_0``.
+        patterns: Regular expressions that must each fully match at least one visual mesh path.
+
+    Yields:
+        The excluded mesh paths, or an empty tuple without patterns.
+
+    Raises:
+        ValueError: If the Stage has other environments, a pattern matches no visual mesh,
+            or a match is collision geometry.
+        RuntimeError: If a stronger source opinion prevents the partition or deinstancing.
     """
     if not patterns:
         yield ()

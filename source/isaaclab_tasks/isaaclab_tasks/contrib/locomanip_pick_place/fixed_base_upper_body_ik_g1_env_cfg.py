@@ -21,7 +21,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab_tasks.contrib import ISAACLAB_TELEOP_AVAILABLE
 from isaaclab_tasks.contrib.locomanip_pick_place import mdp as locomanip_mdp
 from isaaclab_tasks.contrib.pick_place import mdp as manip_mdp
-from isaaclab_tasks.contrib.robot_pov_camera_cfg import g1_robot_pov_camera_cfg
+from isaaclab_tasks.contrib.robot_pov_camera_cfg import g1_robot_pov_camera_cfg, robot_pov_camera_cfg
 from isaaclab_tasks.contrib.teleop_physics_cfg import (
     TeleopPhysicsCfg,
     check_kitless_backend_preparation,
@@ -34,7 +34,6 @@ from isaaclab_assets.robots.unitree import G1_29DOF_CFG
 from isaaclab_tasks.contrib.locomanip_pick_place.configs.pink_controller_cfg import (  # isort: skip
     G1_UPPER_BODY_IK_ACTION_CFG,
 )
-from isaaclab_tasks.contrib.robot_pov_camera_cfg import robot_pov_camera_cfg  # isort: skip
 
 
 def _build_g1_upper_body_pipeline():
@@ -269,7 +268,7 @@ class FixedBaseUpperBodyIKG1SceneCfg(InteractiveSceneCfg):
     # Unitree G1 Humanoid robot - fixed base configuration
     robot: ArticulationCfg = replace(G1_29DOF_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
-    # Share the calibrated head view with the locomomanipulation G1 task.
+    # Share the calibrated head view with the locomanipulation G1 task.
     robot_pov_cam = g1_robot_pov_camera_cfg().replace(update_period=1.0 / 20.0)
 
     # Mount above each hand, looking along wrist-local +X with +Z up.
