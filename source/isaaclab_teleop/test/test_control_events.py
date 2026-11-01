@@ -18,14 +18,81 @@ from __future__ import annotations
 
 import dataclasses
 import json
-from types import SimpleNamespace
+import sys
+from types import ModuleType, SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
 
-# Capture's retargeting API is usable without starting a simulator. Use the real
-# optional dependency so this module cannot replace packages seen by other tests.
-pytest.importorskip("isaacteleop.retargeting_engine.interface")
+# ---------------------------------------------------------------------------
+# Stub out isaacteleop modules before any isaaclab_teleop imports so the
+# tests can run in a plain Python environment without Omniverse.
+# ---------------------------------------------------------------------------
+
+_MODULES_TO_STUB = [
+    "isaacteleop",
+    "isaacteleop.deviceio",
+    "isaacteleop.deviceio_trackers",
+    "isaacteleop.retargeting_engine",
+    "isaacteleop.retargeting_engine.deviceio_source_nodes",
+    "isaacteleop.retargeting_engine.deviceio_source_nodes.deviceio_tensor_types",
+    "isaacteleop.retargeting_engine.interface",
+    "isaacteleop.retargeting_engine.interface.retargeter_core_types",
+    "isaacteleop.retargeting_engine.interface.tensor_group_type",
+    "isaacteleop.retargeting_engine_ui",
+    "isaacteleop.schema",
+    "isaacteleop.teleop_session_manager",
+    "isaacteleop.teleop_session_manager.teleop_state_manager_retargeter",
+    "isaacteleop.teleop_session_manager.teleop_state_manager_types",
+]
+
+_stubs: dict[str, ModuleType | MagicMock] = {}
+
+
+def _install_stubs():
+    for name in _MODULES_TO_STUB:
+        if name not in sys.modules:
+            _stubs[name] = MagicMock()
+            sys.modules[name] = _stubs[name]
+
+    from enum import Enum
+
+    class ExecutionState(str, Enum):
+        UNKNOWN = "unknown"
+        STOPPED = "stopped"
+        PAUSED = "paused"
+        RUNNING = "running"
+
+    @dataclasses.dataclass
+    class ExecutionEvents:
+        reset: bool = False
+        execution_state: ExecutionState = ExecutionState.UNKNOWN
+
+    ee_mod = sys.modules["isaacteleop.retargeting_engine.interface.execution_events"] = ModuleType(
+        "isaacteleop.retargeting_engine.interface.execution_events"
+    )
+    ee_mod.ExecutionState = ExecutionState  # type: ignore[attr-defined]
+    ee_mod.ExecutionEvents = ExecutionEvents  # type: ignore[attr-defined]
+
+    iface = sys.modules["isaacteleop.retargeting_engine.interface"]
+    iface.ExecutionState = ExecutionState  # type: ignore[attr-defined]
+    iface.ExecutionEvents = ExecutionEvents  # type: ignore[attr-defined]
+    iface.RetargeterIOType = dict  # type: ignore[attr-defined]
+
+    class FakeBaseRetargeter:
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+    iface.BaseRetargeter = FakeBaseRetargeter  # type: ignore[attr-defined]
+
+    tsm_types = sys.modules["isaacteleop.teleop_session_manager.teleop_state_manager_types"]
+    tsm_types.bool_signal = MagicMock  # type: ignore[attr-defined]
+
+    dt_mod = sys.modules["isaacteleop.retargeting_engine.deviceio_source_nodes.deviceio_tensor_types"]
+    dt_mod.MessageChannelMessagesTrackedGroup = MagicMock  # type: ignore[attr-defined]
+
+
+_install_stubs()
 
 from isaaclab_teleop.control_events import ControlEvents, poll_control_events  # noqa: E402
 from isaaclab_teleop.session_lifecycle import TeleopSessionLifecycle  # noqa: E402
