@@ -6,6 +6,7 @@
 """Execute the real public entry without native startup to prove failure/cleanup contracts."""
 
 import contextlib
+import logging
 import signal
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock
@@ -37,8 +38,10 @@ def entry_namespace(monkeypatch):
 @pytest.mark.parametrize(
     "stage,use_capture", [("environment", True), ("device", True), ("haptics", True), ("input", True), ("input", False)]
 )
-def test_live_entry_failure_closes_resources_and_preserves_cause(monkeypatch, entry_namespace, stage, use_capture):
-    """Every startup phase and the live loop must retain its failure after cleanup."""
+def test_live_entry_failure_closes_resources_and_reports_cause(
+    monkeypatch, caplog, entry_namespace, stage, use_capture
+):
+    """Startup and live-loop failures are logged or propagated, and both release the resources."""
     import isaaclab_teleop
 
     failure = RuntimeError(f"{stage} failed")
@@ -91,9 +94,15 @@ def test_live_entry_failure_closes_resources_and_preserves_cause(monkeypatch, en
     )
     if not use_capture:
         cfg = SimpleNamespace()  # Native inputs must not read Capture-only action policy.
-    with pytest.raises(RuntimeError) as caught:
-        entry_namespace["run_teleoperation"](cfg, False, use_capture)
-    assert caught.value is failure
+    if stage == "haptics":
+        with pytest.raises(RuntimeError) as caught:
+            entry_namespace["run_teleoperation"](cfg, False, use_capture)
+        assert caught.value is failure
+    else:
+        # Environment, device and loop failures keep the upstream log-and-return exit.
+        with caplog.at_level(logging.ERROR):
+            entry_namespace["run_teleoperation"](cfg, False, use_capture)
+        assert f"{stage} failed" in caplog.text
     camera.close.assert_called_once_with()
     assert env.close.call_count == int(stage != "environment")
 
