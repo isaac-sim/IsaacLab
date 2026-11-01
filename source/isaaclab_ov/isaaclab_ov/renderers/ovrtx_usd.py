@@ -144,7 +144,7 @@ def build_render_product_as_string(
     spec: CameraRenderSpec,
     render_data: OVRTXCameraRenderData,
     *,
-    device_id: int,
+    device_id: int | None = None,
     enable_shadows: bool = False,
 ) -> str:
     """Build a complete render product USD layer as a string.
@@ -160,6 +160,7 @@ def build_render_product_as_string(
         render_data: Camera's render scope and product identity.
         device_id: CUDA device index the render product is pinned to, so its render var buffers are
             allocated on the same device as the Warp kernels that read them.
+            When None, leave native GPU selection automatic for CPU consumers.
         enable_shadows: Whether lights cast shadows. Defaults to False. Only honored for the
             ``simple_shading_*`` data types, which are the ones that select RTX Minimal mode.
 
@@ -210,6 +211,8 @@ def build_render_product_as_string(
         for _, name, source in render_var_configs
     )
 
+    device_ids_line = "" if device_id is None else f"uint[] deviceIds = [{device_id}]"
+
     layer = f'''#usda 1.0
 (defaultPrim = "{render_data.render_scope_name}")
 
@@ -219,7 +222,7 @@ def Scope "{render_data.render_scope_name}"
         prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1"]
     ) {{
         rel camera = [<{render_data.camera_paths[0]}>]
-        uint[] deviceIds = [{device_id}]
+        {device_ids_line}
         {bg_type_line}
         {render_mode_block}
         token[] omni:rtx:waitForEvents = ["AllLoadingFinished", "OnlyOnFirstRequest"]
