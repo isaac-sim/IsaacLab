@@ -14,6 +14,7 @@ import numpy as np
 import warp as wp
 from isaaclab_ov.renderers import OvLibrariesRenderLease, OVRTXRenderer, OVRTXRendererCfg
 
+from isaaclab.app import get_settings_manager
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationContext
 
@@ -31,6 +32,24 @@ def validate_ovxr_session_preparation() -> None:
         raise RuntimeError("OVXR bootstrap must create the SimulationContext immediately before the environment")
     if hasattr(builtins, _TERMINAL_MODE_SENTINEL) and getattr(builtins, _TERMINAL_MODE_SENTINEL) is not True:
         raise RuntimeError("OVXR bootstrap cannot reuse a context in extension mode")
+
+
+def resolve_cuda_device(device: str) -> str:
+    """Resolve a bare ``"cuda"`` device to the GPU that the simulation selects for it.
+
+    :class:`~isaaclab.sim.SimulationContext` and :func:`~isaaclab.app.launch_simulation` read
+    the ``/physics/cudaDevice`` setting the same way.
+
+    Args:
+        device: Simulation device, for example ``"cpu"``, ``"cuda"`` or ``"cuda:1"``.
+
+    Returns:
+        ``"cuda:<index>"`` for a bare ``"cuda"``; any other device unchanged.
+    """
+    if device != "cuda":
+        return device
+    cuda_device = get_settings_manager().get("/physics/cudaDevice")
+    return f"cuda:{max(0, int(cuda_device) if cuda_device is not None else 0)}"
 
 
 class OvxrSessionBootstrap:
@@ -122,11 +141,8 @@ class OvxrSessionBootstrap:
         env_sim_cfg = unwrapped.cfg.sim
         prepared_cfg = self._sim.cfg
         if env_sim_cfg is not prepared_cfg:
-            env_device = env_sim_cfg.device
-            if env_device == "cuda":
-                # SimulationContext resolved the prepared configuration's bare CUDA selection the same way.
-                cuda_device = self._sim.get_setting("/physics/cudaDevice")
-                env_device = f"cuda:{max(0, int(cuda_device) if cuda_device is not None else 0)}"
+            # SimulationContext resolved the prepared configuration's bare CUDA selection the same way.
+            env_device = resolve_cuda_device(env_sim_cfg.device)
             for field, env_value, prepared_value in (
                 ("device", env_device, prepared_cfg.device),
                 ("dt", env_sim_cfg.dt, prepared_cfg.dt),
