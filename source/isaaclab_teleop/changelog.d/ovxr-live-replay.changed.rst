@@ -8,8 +8,6 @@
 * **Breaking:** Live teleoperation now exits non-zero when environment creation, device
   creation or a teleoperation step fails, instead of logging the error and exiting 0.
   Automation that inspected the log for failures should check the exit code.
-* Changed ``--disable_external_cameras`` to remove camera sensors in every live teleoperation
-  mode, not only with ``--xr``.
 * Changed replay to launch Kit only when the resolved task configuration requires it (for
   example Isaac Sim PhysX, ``--xr`` or a Kit visualizer) instead of always. Select a Kit
   physics preset to keep the previous runtime for a kitless task.

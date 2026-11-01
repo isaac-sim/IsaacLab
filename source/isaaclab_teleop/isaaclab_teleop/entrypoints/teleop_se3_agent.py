@@ -32,6 +32,7 @@ from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
 from isaaclab.app import add_launcher_args, launch_simulation, validate_launch
 from isaaclab.cli import load_external_tasks
 from isaaclab.devices import DeviceCfg
+from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.utils.string import string_to_callable
@@ -294,11 +295,16 @@ def _resolve_env_cfg() -> tuple[ManagerBasedRLEnvCfg, IsaacTeleopCfg | DeviceCfg
         stage_mode = os.environ.get("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1")
         if stage_mode.strip() != "1":
             raise ValueError("--ovxr requires OVStage (ISAAC_LAB_OVRTX_USE_OVSTAGE=1)")
-    if args_cli.using_ovxr or args_cli.disable_external_cameras:
-        from .. import remove_camera_configs
-
-        env_cfg = remove_camera_configs(env_cfg)
+    # XR-rendering setup (camera removal + DLSS) is only needed for the Kit XR
+    # path. Without --xr, Isaac Capture runs standalone (I/O only) and renders
+    # normally, so gate on --xr alone.
+    if args_cli.xr:
+        # Keep camera configs when external cameras are enabled (defaulted on); otherwise
+        # strip them so the XR headset view is the sole render product.
+        if args_cli.disable_external_cameras:
+            env_cfg = remove_camera_configs(env_cfg)
     if args_cli.using_ovxr:
+        env_cfg = remove_camera_configs(env_cfg)
         require_kitless_physics(env_cfg, args_cli.task)
     # A task without a physics selection keeps None: SimulationContext defaults it to PhysxCfg.
     configs, kit_sources = validate_launch(env_cfg, vars(args_cli).copy())

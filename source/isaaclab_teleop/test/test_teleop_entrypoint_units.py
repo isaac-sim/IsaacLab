@@ -84,7 +84,6 @@ def test_teleop_ovxr_validates_external_stage_without_changing_environment(
     """The task resolver preserves the process setting and rejects incompatible explicit modes before launch."""
     from types import SimpleNamespace
 
-    import isaaclab_teleop
     from isaaclab_teleop import (
         IsaacTeleopCfg,
         se3_gamepad_teleop_cfg,
@@ -103,7 +102,6 @@ def test_teleop_ovxr_validates_external_stage_without_changing_environment(
         monkeypatch.delenv(name, raising=False)
     else:
         monkeypatch.setenv(name, selection)
-    monkeypatch.setattr(isaaclab_teleop, "remove_camera_configs", lambda cfg, **_kwargs: cfg)
     preparations = []
     from isaaclab_ov.physics import OvPhysxCfg
 
@@ -130,6 +128,7 @@ def test_teleop_ovxr_validates_external_stage_without_changing_environment(
         "sys": sys,
         "ManagerBasedRLEnvCfg": SimpleNamespace,
         "resolve_task_config": lambda *_args, **_kwargs: (config, None),
+        "remove_camera_configs": lambda cfg, **_kwargs: cfg,
         "validate_launch": lambda *_args: (scans.append(os.environ.get(name)) or ((), ())),
         "args_cli": SimpleNamespace(
             task="Test",
@@ -137,6 +136,7 @@ def test_teleop_ovxr_validates_external_stage_without_changing_environment(
             num_envs=1,
             teleop_device=None,
             sensitivity=1.0,
+            xr=False,
             using_ovxr=kitless,
             disable_external_cameras=False,
             physics=None,
@@ -819,7 +819,7 @@ def test_task_preparation_precedes_ovxr_simulation_context(monkeypatch, entrypoi
     monkeypatch.setattr(module, "resolve_task_config", lambda *_args, **_kwargs: (config, None))
     monkeypatch.setattr(module, "validate_launch", validate_launch)
     monkeypatch.setattr(module, "launch_simulation", launch)
-    monkeypatch.setattr(isaaclab_teleop, "remove_camera_configs", lambda cfg, **_kwargs: cfg)
+    monkeypatch.setattr(module, "remove_camera_configs", lambda cfg, **_kwargs: cfg)
     monkeypatch.setattr(SimulationContext, "instance", lambda: None)
     monkeypatch.setattr(ovxr_session, "SimulationContext", ContextAllocation)
     monkeypatch.setitem(sys.modules, "ovxr", SimpleNamespace(apply_renderer_settings=lambda _settings: None))
@@ -835,7 +835,6 @@ def test_task_preparation_precedes_ovxr_simulation_context(monkeypatch, entrypoi
         )
     else:
         monkeypatch.setattr(module, "hydra_overrides", None, raising=False)
-        monkeypatch.setattr(module, "remove_camera_configs", isaaclab_teleop.remove_camera_configs)
         arguments += ["--replay_file", "recording.mcap"]
     module._parse_args(arguments)
 
