@@ -1127,8 +1127,8 @@ def _prepare_env_cfg(
 
     Returns:
         Tuple ``(env_cfg, success_term, selected_cameras)``. ``success_term`` is ``None`` when
-        the env doesn't define a ``success`` termination term. ``selected_cameras`` holds the
-        resolved OVXR PiP panels, empty without ``--ovxr_pip_camera``.
+        the env doesn't define a ``success`` termination term.
+        ``selected_cameras`` holds the resolved OVXR PiP panels, empty without ``--ovxr_pip_camera``.
     """
     env_cfg = parse_env_cfg(task, device=device, num_envs=num_envs, overrides=overrides)
     env_cfg.env_name = task.split(":")[-1]

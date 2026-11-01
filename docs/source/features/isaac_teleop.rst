@@ -1623,10 +1623,8 @@ Kit Scene UI presentation
 PiP presentation uses Kit Scene UI and ``SpatialSource`` placement. Kit imports are deferred until
 an enabled feed is requested. If the Scene UI modules cannot be imported, the scripts log a warning
 and continue without PiP; task-owned cameras and recording observations remain unchanged. This keeps
-the camera selection configuration usable without Scene UI. The
-:ref:`kitless XR guide <kitless-xr>` uses separate OpenXR quad
-layers and does not import Scene UI; those layers are visible in the headset/client, not in the
-passive eye-image desktop mirror. Render-product tuning is also best-effort: backends without a compatible render product
+the camera selection configuration usable by the :ref:`kitless XR path <kitless-xr>`, whose OpenXR quad layers need no
+Scene UI. Render-product tuning is also best-effort: backends without a compatible render product
 keep the Camera-buffer path, and schema-authoring failures warn while PiP continues. Other
 configuration, camera-buffer, and panel-initialization errors still fail during startup.
 
