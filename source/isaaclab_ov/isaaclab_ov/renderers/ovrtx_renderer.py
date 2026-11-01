@@ -102,8 +102,6 @@ from isaaclab_ov.renderers.ovrtx_usd import (
     build_render_product_as_string,
     render_var_prim_names_by_source,
 )
-from isaaclab_ov.renderers.publication_buffers import _AsyncWriteBuffers, _GeometryPublicationBuffers
-from isaaclab_ov.renderers.render_lease import OvLibrariesRenderLease, RenderLeaseController
 from isaaclab_ov.renderers.visual_materials import OVRTXVisualMaterialWriter
 from isaaclab_ov.stage import (
     export_stage_to_string,
@@ -111,6 +109,9 @@ from isaaclab_ov.stage import (
     xform_tensor_from_numpy,
     xform_tensor_from_warp,
 )
+
+from .publication_buffers import _AsyncWriteBuffers, _GeometryPublicationBuffers
+from .render_lease import OvLibrariesRenderLease, RenderLeaseController
 
 if TYPE_CHECKING:
     from isaaclab_ppisp import PpispPipeline
@@ -1364,9 +1365,15 @@ class OVRTXRenderer(BaseRenderer):
 
         Each camera owns its product and pose binding. Scene and physics bindings remain alive
         until :meth:`close`, so other cameras can continue rendering.
+
+        Raises:
+            RuntimeError: If an :class:`~isaaclab_ov.renderers.OvLibrariesRenderLease` is active.
+                Releasing a product removes it from the borrowed Stage, so the camera keeps its
+                resources until the lease is released; :meth:`close` releases them afterwards.
         """
         if render_data is None:
             return
+        self._render_lease.reject_ordinary_operation("release camera render data", retiring=True)
         try:
             self.reset(render_data)
         finally:

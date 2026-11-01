@@ -7,12 +7,18 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import torch
 
 from isaaclab.envs.mdp.actions.pink_task_space_actions import PinkInverseKinematicsAction
+
+if TYPE_CHECKING:
+    from isaaclab.assets import ArticulationCfg
+    from isaaclab.envs import ManagerBasedRLEnv
+
+    from .fixed_base_upper_body_ik_g1_env_cfg import FixedBaseUpperBodyIKG1EnvCfg
 
 POSITION_MAX_STEP_M = 0.10
 """Maximum Cartesian wrist-target change accepted in one active frame."""
@@ -44,7 +50,16 @@ ACTUATOR_PROFILE = {
 
 
 def teleop_action_target_issue(action: torch.Tensor) -> str | None:
-    """Return why an incoming G1 controller action must not reach Pink/Newton."""
+    """Return why an incoming G1 controller action must not reach Pink/Newton.
+
+    Args:
+        action: One G1 action of :data:`EXPECTED_ACTION_DIM` elements, in any shape that flattens to
+            it: left wrist position [m] and quaternion (x, y, z, w), right wrist position [m] and
+            quaternion, then fourteen hand joint targets [rad].
+
+    Returns:
+        A description of the first problem found, or ``None`` when the action is acceptable.
+    """
     flat = action.detach().flatten()
     if flat.numel() != EXPECTED_ACTION_DIM:
         return f"unexpected G1 controller action size {flat.numel()} (expected {EXPECTED_ACTION_DIM})"
@@ -73,7 +88,25 @@ def bound_pink_joint_targets(
     lower: torch.Tensor,
     upper: torch.Tensor,
 ) -> torch.Tensor:
-    """Keep one Pink update finite, inside limits, and close to current state."""
+    """Keep one Pink update finite, inside limits, and close to current state.
+
+    Each target moves at most :data:`JOINT_TARGET_MAX_STEP_RAD` from ``current`` and stays
+    :data:`JOINT_LIMIT_MARGIN_RAD` inside ``[lower, upper]``.
+
+    Args:
+        current: Current joint positions [rad]. Shape is (num_envs, num_joints), in the Pink action's
+            Isaac Lab controlled-joint order.
+        proposed: Pink joint targets [rad], with the same shape and joint order.
+        lower: Lower joint limits [rad], with the same shape and joint order.
+        upper: Upper joint limits [rad], with the same shape and joint order.
+
+    Returns:
+        The bounded targets [rad], with the same shape and joint order.
+
+    Raises:
+        RuntimeError: If any input element is non-finite, or the margin-reduced limits of any joint do
+            not overlap. The check covers the whole batch, so no environment's targets are returned.
+    """
     safe_lower = lower + JOINT_LIMIT_MARGIN_RAD
     safe_upper = upper - JOINT_LIMIT_MARGIN_RAD
     flags = (
@@ -181,11 +214,30 @@ def _step_quaternion_towards(current: torch.Tensor, target: torch.Tensor, max_st
 _WRIST_RAMP_KEYS = ("left_pos", "left_quat", "right_pos", "right_quat")
 
 
-def condition_kitless_newton_g1_action(env, action: torch.Tensor, state: dict[str, Any]) -> torch.Tensor:
+def condition_kitless_newton_g1_action(
+    env: ManagerBasedRLEnv, action: torch.Tensor, state: dict[str, Any]
+) -> torch.Tensor:
     """Ramp both wrist targets from the current G1 poses before Pink solves IK.
 
+    Each call moves the left and right wrist targets at most :data:`POSITION_MAX_STEP_M` and
+    :data:`ROTATION_MAX_STEP_RAD` toward the requested poses; hand targets pass through unchanged.
     The ramp re-seeds from the measured wrist poses whenever environment 0 starts a new episode,
     including termination auto-resets inside ``env.step`` that the teleoperation loop does not observe.
+
+    Args:
+        env: The single-environment G1 teleoperation environment.
+        action: One G1 action in the layout described by :func:`teleop_action_target_issue`. The Pink
+            action reads its wrist poses relative to the environment origin, while the ramp seeds from
+            the measured world-frame wrist poses, so environment 0's origin must be the world origin.
+        state: Mutable dictionary owned by the caller; pass the same dictionary to every call of one
+            session, starting empty. The ramp stores its targets and cached wrist body indices there.
+
+    Returns:
+        A conditioned copy of ``action`` with the same shape. An action whose size is not
+        :data:`EXPECTED_ACTION_DIM` is returned unchanged and clears ``state``.
+
+    Raises:
+        RuntimeError: If the task-selected wrist bodies cannot be resolved. ``state`` is cleared.
     """
     flat = action.detach().flatten()
     if flat.numel() != EXPECTED_ACTION_DIM:
@@ -224,8 +276,15 @@ def condition_kitless_newton_g1_action(env, action: torch.Tensor, state: dict[st
     return conditioned
 
 
-def apply_g1_newton_actuator_profile(robot_cfg) -> None:
-    """Configure the G1 actuator groups used by teleoperation."""
+def apply_g1_newton_actuator_profile(robot_cfg: ArticulationCfg) -> None:
+    """Apply :data:`ACTUATOR_PROFILE` to the G1 actuator groups used by teleoperation.
+
+    Args:
+        robot_cfg: The G1 articulation configuration, modified in place.
+
+    Raises:
+        RuntimeError: If the configuration lacks the ``waist``, ``arms`` or ``hands`` actuator group.
+    """
     groups = robot_cfg.actuators
     if not set(ACTUATOR_PROFILE).issubset(groups):
         raise RuntimeError(f"Expected G1 waist/arms/hands actuator groups; found {sorted(groups)}")
@@ -235,8 +294,17 @@ def apply_g1_newton_actuator_profile(robot_cfg) -> None:
             setattr(actuator, key, value)
 
 
-def configure_g1_for_kitless_newton(env_cfg) -> None:
-    """Configure the controller, asset and solver for kitless Newton."""
+def configure_g1_for_kitless_newton(env_cfg: FixedBaseUpperBodyIKG1EnvCfg) -> None:
+    """Configure the controller, asset and solver for kitless Newton.
+
+    Args:
+        env_cfg: The G1 environment configuration with a Newton MJWarp physics selection, modified
+            in place.
+
+    Raises:
+        RuntimeError: If the physics configuration has no MJWarp solver configuration, or the robot
+            lacks an expected actuator group.
+    """
     from isaaclab_tasks.contrib.packing_table import configure_packing_table_collisions
     from isaaclab_tasks.contrib.steering_wheel import condition_newton_steering_wheel_detail_collisions
 

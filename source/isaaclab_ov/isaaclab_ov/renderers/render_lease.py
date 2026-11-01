@@ -96,7 +96,26 @@ class OvLibrariesRenderLease:
         return cast("OvStage", self._stage)
 
     def configure_auxiliary_camera(self, camera_cfg: Any, *, max_fps: float | None = None) -> None:
-        """Authorize an exact camera before Stage materialization."""
+        """Authorize an exact camera before Stage materialization.
+
+        The leased renderer then accepts the one camera sensor whose specification matches
+        ``camera_cfg`` exactly: a single camera view with the same width, height and ordered
+        ``data_types``, at ``prim_path`` (``{ENV_REGEX_NS}`` matches any environment) or its
+        ``camera`` child prim. Every other camera on the leased renderer remains rejected.
+
+        Args:
+            camera_cfg: Configuration of the camera sensor to authorize, such as a
+                :class:`~isaaclab.sensors.camera.CameraCfg`. Its ``prim_path`` must be unique among
+                the lease's cameras.
+            max_fps: Maximum native rate of the camera's frames [Hz], authored on its prim in the
+                exported Stage. ``None`` authors no rate, so the camera renders with every frame of
+                its render product.
+
+        Raises:
+            RuntimeError: If the lease is released or already bound to a Stage, or ``prim_path`` is
+                already configured.
+            ValueError: If ``camera_cfg`` is ``None``, or ``max_fps`` is not finite and positive.
+        """
         self._validate_active()
         if self._state is not _OvLibrariesRenderLeaseState.UNBOUND:
             raise RuntimeError("Auxiliary camera configuration must precede Stage materialization")
@@ -164,7 +183,20 @@ class OvLibrariesRenderLease:
         return cast("RenderLeaseController", self._controller).materialize_deferred_stage(self, stage, num_envs)
 
     def capture_scene_publisher(self) -> OvLibrariesScenePublisher:
-        """Capture the application-thread scene publisher before render ownership transfers."""
+        """Capture the application-thread scene publisher before render ownership transfers.
+
+        Call this on the owner thread while the lease is unbound and before
+        :meth:`offer_owner_transfer`. The publisher stays bound to the calling thread; see
+        :class:`~isaaclab_ov.renderers.render_lease.OvLibrariesScenePublisher` for the publication
+        protocol.
+
+        Returns:
+            The lease's only scene publisher.
+
+        Raises:
+            RuntimeError: If called off the owner thread or while a transfer is offered, after the
+                Stage is bound, or when the lease already has a publisher.
+        """
         return cast("RenderLeaseController", self._controller).capture_scene_publisher(self)
 
     @contextlib.contextmanager
@@ -257,7 +289,26 @@ class OvLibrariesRenderLease:
 
 
 class OvLibrariesScenePublisher:
-    """Application-thread writer for complete provider-derived OVStage batches."""
+    """Application-thread writer for complete provider-derived OVStage batches.
+
+    Obtain it with :meth:`~isaaclab_ov.renderers.OvLibrariesRenderLease.capture_scene_publisher`.
+    While the lease is active, the renderer skips its own eager transform, geometry and material
+    writes, and the borrower publishes each complete physics state through this object instead:
+
+    1. On the application thread, call :meth:`publication_required` with the identity of the
+       current physics state.
+    2. If it returns ``True``, reserve a nonzero Stage ordinal and call
+       :meth:`write_complete_scene` with it. The write does not advance the Stage write floor:
+       the borrower seals that ordinal afterwards, or abandons it if the write fails.
+    3. Hold one application publication guard around both calls and around every operation the
+       render owner performs in :meth:`~isaaclab_ov.renderers.OvLibrariesRenderLease.ovstage_owner_lane`, so that scene
+       writes and native frame operations never interleave.
+
+    A failed write poisons the pair: later publication and ordinary renderer use are rejected,
+    but the borrower can still retire its consumers and release the lease. The renderer must then
+    be recreated. :meth:`close` stops publication; releasing the lease also closes the publisher.
+    The OVXR teleoperation adapter, ``isaaclab_teleop.OvLibrariesXrSession``, follows this protocol.
+    """
 
     def __init__(self, owner: RenderLeaseController, lease: OvLibrariesRenderLease) -> None:
         self._controller = owner
@@ -270,17 +321,41 @@ class OvLibrariesScenePublisher:
         """Return whether a new physics step or dirty material requires a scene write.
 
         Args:
-            physics_step_id: Hashable identity of the complete physics state to publish.
+            physics_step_id: Hashable identity of the complete physics state to publish. Only the
+                last written identity is remembered, so the identity must change whenever the
+                state does, including after a reset that does not advance the physics step count.
+
+        Returns:
+            Whether ``physics_step_id`` differs from the last written batch or a visual material
+            has pending updates.
 
         Raises:
-            RuntimeError: If the lease is not bound, the publisher is inactive, or a failed
-                write poisoned the pair.
+            RuntimeError: If called off the captured application thread, the publisher is closed
+                or inactive, the lease is not bound, or a failed write poisoned the pair.
+            TypeError: If ``physics_step_id`` is not hashable.
         """
         self._require_application_thread()
-        return self._controller.producer_publication_required(self._lease, physics_step_id)
+        with self._lock:
+            if self._closed:
+                raise RuntimeError("OVStage scene publisher is closed")
+            return self._controller.producer_publication_required(self._lease, physics_step_id)
 
     def write_complete_scene(self, ordinal: int, physics_step_id: Hashable) -> None:
-        """Write, but do not publish, one complete batch at ``ordinal``."""
+        """Write, but do not publish, one complete batch at ``ordinal``.
+
+        Writes the current transforms, geometries and pending visual materials at ``ordinal`` and
+        records ``physics_step_id`` as written. The caller seals the ordinal afterwards.
+
+        Args:
+            ordinal: Nonzero Stage ordinal reserved by the caller for this batch.
+            physics_step_id: The identity passed to the preceding :meth:`publication_required` call.
+
+        Raises:
+            ValueError: If ``ordinal`` is not positive.
+            RuntimeError: If called off the captured application thread, the publisher is closed or
+                inactive, the state needs no publication, or the write failed. A failed write
+                poisons the pair.
+        """
         self._require_application_thread()
         with self._lock:
             if self._closed:
@@ -288,7 +363,7 @@ class OvLibrariesScenePublisher:
             self._controller.write_producer_scene(self._lease, ordinal, physics_step_id)
 
     def close(self) -> None:
-        """Stop scene publication and wait for an in-flight batch to finish."""
+        """Stop scene publication after any in-flight batch finishes. Safe to call repeatedly."""
         with self._lock:
             self._closed = True
 
@@ -497,17 +572,6 @@ class RenderLeaseController:
         """Whether an active lease's scene publisher owns transform and geometry writes."""
         return self.active is not None
 
-    def _next_ordinal(self) -> int:
-        """Return ``floor + 1`` from the exact renderer-owned Stage."""
-        if self._renderer.scene.stage is None:
-            raise RuntimeError("Cannot query an OVStage floor before scene materialization")
-        with self._renderer.scene.stage.get_attribute_write_floor() as floor_query:
-            floor_query.wait()
-            floor = int(floor_query.fetch())
-        if floor >= (1 << 64) - 1:
-            raise RuntimeError("OVStage ordinal range is exhausted")
-        return floor + 1
-
     def producer_publication_required(self, lease: OvLibrariesRenderLease, physics_step_id: Hashable) -> bool:
         """Check publication on the application thread without entering the render thread."""
         if self.active is not lease or self._publisher is None:
@@ -595,16 +659,6 @@ class RenderLeaseController:
             raise RuntimeError("Auxiliary camera did not materialize exactly one RenderProduct per selection")
         return paths
 
-    def _write_scene_components(self, ordinal: int, *, partition_lease: OvLibrariesRenderLease | None) -> None:
-        """Write selected scene components; the caller owns validation and commit."""
-        self._renderer.scene.ordinal = ordinal
-        with self._renderer._publish_visual_materials():
-            self._renderer._update_transforms()
-            self._renderer._update_geometries()
-            self._update_cameras()
-            if partition_lease is not None:
-                self._write_camera_partitions(partition_lease, ordinal)
-
     def configure_camera_partitions(
         self,
         lease: OvLibrariesRenderLease,
@@ -632,83 +686,6 @@ class RenderLeaseController:
         lease._external_camera_scene_partitions = tuple((str(path), token) for path in camera_paths)
         lease._external_camera_scene_partitions_pending = True
         return token
-
-    def _write_camera_partitions(self, lease: OvLibrariesRenderLease, ordinal: int) -> None:
-        """Write the external camera tokens inside the complete scene batch."""
-        if self._renderer.scene.stage is None or self._renderer.scene.paths is None:
-            raise RuntimeError("Cannot write external camera partitions before Stage materialization")
-        camera_scene_partitions = lease._external_camera_scene_partitions
-        if not camera_scene_partitions:
-            raise RuntimeError("No external camera scene partitions are configured")
-        camera_paths = [path for path, _token in camera_scene_partitions]
-        token_ids = np.array(
-            [self._renderer.scene.paths.intern_token(token) for _path, token in camera_scene_partitions],
-            dtype=np.uint64,
-        )
-        camera_paths_list = self._renderer.scene.paths.create_path_list_from_strings(camera_paths)
-        camera_query = None
-        try:
-            camera_query = self._renderer.scene.stage.query_from_path_list(camera_paths_list)
-            if camera_query is None:
-                raise RuntimeError("External camera scene-partition query is None")
-            self._renderer.scene.stage.write_attribute(
-                camera_query,
-                "omni:scenePartition",
-                ordinal=ordinal,
-                tensors=token_ids,
-                is_array=False,
-                semantic=ovstage.AttributeSemantic.TOKEN_ID,
-            ).wait()
-        finally:
-            if camera_query is not None:
-                self._renderer.scene.stage.release_query(camera_query).wait()
-            self._renderer.scene.paths.destroy_path_list(camera_paths_list)
-
-    def _read_partition_tokens(
-        self, paths: list[str], attributes: tuple[str, ...], ordinal: int
-    ) -> dict[tuple[str, str], str]:
-        """Read resolved partition tokens from the exact renderer-owned Stage."""
-        if self._renderer.scene.stage is None or self._renderer.scene.paths is None:
-            raise RuntimeError("Cannot read scene partitions before Stage materialization")
-        path_list = self._renderer.scene.paths.create_path_list_from_strings(paths)
-        attribute_tokens = [self._renderer.scene.paths.intern_token(attribute) for attribute in attributes]
-        resolved: dict[tuple[str, str], str] = {}
-        try:
-            with self._renderer.scene.stage.query_from_path_list(path_list) as query:
-                query.wait()
-                with self._renderer.scene.stage.read_attributes(
-                    query, attribute_tokens, ovstage.OrdinalRange.latest(ordinal)
-                ) as read:
-                    read.wait()
-                    for group in read.groups():
-                        try:
-                            if group.is_delete or group.is_array or group.tensor_count != 1:
-                                continue
-                            attribute = self._renderer.scene.paths.token_to_string(group.attribute)
-                            if attribute not in attributes:
-                                continue
-                            group_paths = self._renderer.scene.paths.get_path_strings(group.prim_list)
-                            try:
-                                values = np.asarray(group.array(0).copy()).reshape(-1)
-                            except NotImplementedError:
-                                values = torch.from_dlpack(group.dlpack(0)).detach().cpu().numpy().copy().reshape(-1)
-                            logical_count = min(group.prim_count, group.data_count)
-                            for local_index in range(logical_count):
-                                prim_index = group.prim_index(local_index)
-                                data_row_index = group.data_row_index(local_index)
-                                if prim_index >= len(group_paths) or data_row_index >= len(values):
-                                    raise RuntimeError("OVStage scene-partition read escaped its group-owned rows")
-                                token_id = int(values[data_row_index])
-                                token = self._renderer.scene.paths.token_to_string(token_id) if token_id else ""
-                                key = (group_paths[prim_index], attribute)
-                                if key in resolved and resolved[key] != token:
-                                    raise RuntimeError(f"OVStage returned conflicting scene-partition rows for {key}")
-                                resolved[key] = token
-                        finally:
-                            self._renderer.scene.stage.release_group(group)
-        finally:
-            self._renderer.scene.paths.destroy_path_list(path_list)
-        return resolved
 
     def validate_partitions(self, lease: OvLibrariesRenderLease, ordinal: int) -> dict[str, str]:
         """Prove the configured root and external cameras resolve to one valid token."""
@@ -740,43 +717,6 @@ class RenderLeaseController:
         if mismatches:
             raise RuntimeError("External scene-partition proof failed: " + "; ".join(mismatches))
         return partitions
-
-    def _author_camera_schedules(self, usd: str, lease: OvLibrariesRenderLease) -> str:
-        """Author selected native camera rates on the private export, preserving the application stage."""
-
-        layer = Sdf.Layer.CreateAnonymous("borrowed-renderer.usda")
-        if not layer.ImportFromString(usd):
-            raise RuntimeError("Cannot parse the exported leased Stage")
-        stage = Usd.Stage.Open(layer)
-        for camera in lease._auxiliary_cameras:
-            if camera.max_fps is None:
-                continue
-            if camera.spec is None:
-                raise RuntimeError("Native-rate auxiliary camera was not prepared")
-            prim = stage.GetPrimAtPath(camera.spec.camera_prim_paths[0])
-            if not prim.IsValid():
-                raise RuntimeError("Native-rate auxiliary camera is absent from the exported Stage")
-            prim.CreateAttribute("omni:sensor:frameRate", Sdf.ValueTypeNames.Double2).Set(Gf.Vec2d(camera.max_fps, 1.0))
-            prim.CreateAttribute("omni:sensor:Core:partialOutputs", Sdf.ValueTypeNames.Bool).Set(False)
-        return stage.ExportToString()
-
-    def _materialize_camera_products(self, lease: OvLibrariesRenderLease) -> None:
-        for camera in lease._auxiliary_cameras:
-            if camera.spec is None or camera.render_data is None:
-                raise RuntimeError("Selected auxiliary camera was not prepared")
-            self._renderer._register_camera(camera.spec, camera.render_data)
-            camera.product_path = camera.render_data.render_product_path
-        if lease._auxiliary_cameras:
-            self._renderer.scene.commit()
-
-    def _update_cameras(self) -> None:
-        lease = self.active
-        if lease is None:
-            return
-        for camera in lease._auxiliary_cameras:
-            if camera.state is None or camera.render_data.camera_xform_binding is None:
-                raise RuntimeError("Auxiliary camera has no live world-pose sample")
-            self._renderer._update_camera(*camera.state)
 
     def prepare_stage(self, num_envs: int) -> bool:
         """Validate or defer leased preparation; ordinary rendering is immediately allowed.
@@ -859,3 +799,138 @@ class RenderLeaseController:
                 raise RuntimeError("The render lease requires an unused private OVStage")
         renderer.backend._render_lease_owner = renderer
         renderer.scene._render_lease_owner = renderer
+
+    def _next_ordinal(self) -> int:
+        """Return ``floor + 1`` from the exact renderer-owned Stage."""
+        if self._renderer.scene.stage is None:
+            raise RuntimeError("Cannot query an OVStage floor before scene materialization")
+        with self._renderer.scene.stage.get_attribute_write_floor() as floor_query:
+            floor_query.wait()
+            floor = int(floor_query.fetch())
+        if floor >= (1 << 64) - 1:
+            raise RuntimeError("OVStage ordinal range is exhausted")
+        return floor + 1
+
+    def _write_scene_components(self, ordinal: int, *, partition_lease: OvLibrariesRenderLease | None) -> None:
+        """Write selected scene components; the caller owns validation and commit."""
+        self._renderer.scene.ordinal = ordinal
+        with self._renderer._publish_visual_materials():
+            self._renderer._update_transforms()
+            self._renderer._update_geometries()
+            self._update_cameras()
+            if partition_lease is not None:
+                self._write_camera_partitions(partition_lease, ordinal)
+
+    def _write_camera_partitions(self, lease: OvLibrariesRenderLease, ordinal: int) -> None:
+        """Write the external camera tokens inside the complete scene batch."""
+        if self._renderer.scene.stage is None or self._renderer.scene.paths is None:
+            raise RuntimeError("Cannot write external camera partitions before Stage materialization")
+        camera_scene_partitions = lease._external_camera_scene_partitions
+        if not camera_scene_partitions:
+            raise RuntimeError("No external camera scene partitions are configured")
+        camera_paths = [path for path, _token in camera_scene_partitions]
+        token_ids = np.array(
+            [self._renderer.scene.paths.intern_token(token) for _path, token in camera_scene_partitions],
+            dtype=np.uint64,
+        )
+        camera_paths_list = self._renderer.scene.paths.create_path_list_from_strings(camera_paths)
+        camera_query = None
+        try:
+            camera_query = self._renderer.scene.stage.query_from_path_list(camera_paths_list)
+            if camera_query is None:
+                raise RuntimeError("External camera scene-partition query is None")
+            self._renderer.scene.stage.write_attribute(
+                camera_query,
+                "omni:scenePartition",
+                ordinal=ordinal,
+                tensors=token_ids,
+                is_array=False,
+                semantic=ovstage.AttributeSemantic.TOKEN_ID,
+            ).wait()
+        finally:
+            if camera_query is not None:
+                self._renderer.scene.stage.release_query(camera_query).wait()
+            self._renderer.scene.paths.destroy_path_list(camera_paths_list)
+
+    def _read_partition_tokens(
+        self, paths: list[str], attributes: tuple[str, ...], ordinal: int
+    ) -> dict[tuple[str, str], str]:
+        """Read resolved partition tokens from the exact renderer-owned Stage."""
+        if self._renderer.scene.stage is None or self._renderer.scene.paths is None:
+            raise RuntimeError("Cannot read scene partitions before Stage materialization")
+        path_list = self._renderer.scene.paths.create_path_list_from_strings(paths)
+        attribute_tokens = [self._renderer.scene.paths.intern_token(attribute) for attribute in attributes]
+        resolved: dict[tuple[str, str], str] = {}
+        try:
+            with self._renderer.scene.stage.query_from_path_list(path_list) as query:
+                query.wait()
+                with self._renderer.scene.stage.read_attributes(
+                    query, attribute_tokens, ovstage.OrdinalRange.latest(ordinal)
+                ) as read:
+                    read.wait()
+                    for group in read.groups():
+                        try:
+                            if group.is_delete or group.is_array or group.tensor_count != 1:
+                                continue
+                            attribute = self._renderer.scene.paths.token_to_string(group.attribute)
+                            if attribute not in attributes:
+                                continue
+                            group_paths = self._renderer.scene.paths.get_path_strings(group.prim_list)
+                            try:
+                                values = np.asarray(group.array(0).copy()).reshape(-1)
+                            except NotImplementedError:
+                                values = torch.from_dlpack(group.dlpack(0)).detach().cpu().numpy().copy().reshape(-1)
+                            logical_count = min(group.prim_count, group.data_count)
+                            for local_index in range(logical_count):
+                                prim_index = group.prim_index(local_index)
+                                data_row_index = group.data_row_index(local_index)
+                                if prim_index >= len(group_paths) or data_row_index >= len(values):
+                                    raise RuntimeError("OVStage scene-partition read escaped its group-owned rows")
+                                token_id = int(values[data_row_index])
+                                token = self._renderer.scene.paths.token_to_string(token_id) if token_id else ""
+                                key = (group_paths[prim_index], attribute)
+                                if key in resolved and resolved[key] != token:
+                                    raise RuntimeError(f"OVStage returned conflicting scene-partition rows for {key}")
+                                resolved[key] = token
+                        finally:
+                            self._renderer.scene.stage.release_group(group)
+        finally:
+            self._renderer.scene.paths.destroy_path_list(path_list)
+        return resolved
+
+    def _author_camera_schedules(self, usd: str, lease: OvLibrariesRenderLease) -> str:
+        """Author selected native camera rates on the private export, preserving the application stage."""
+
+        layer = Sdf.Layer.CreateAnonymous("borrowed-renderer.usda")
+        if not layer.ImportFromString(usd):
+            raise RuntimeError("Cannot parse the exported leased Stage")
+        stage = Usd.Stage.Open(layer)
+        for camera in lease._auxiliary_cameras:
+            if camera.max_fps is None:
+                continue
+            if camera.spec is None:
+                raise RuntimeError("Native-rate auxiliary camera was not prepared")
+            prim = stage.GetPrimAtPath(camera.spec.camera_prim_paths[0])
+            if not prim.IsValid():
+                raise RuntimeError("Native-rate auxiliary camera is absent from the exported Stage")
+            prim.CreateAttribute("omni:sensor:frameRate", Sdf.ValueTypeNames.Double2).Set(Gf.Vec2d(camera.max_fps, 1.0))
+            prim.CreateAttribute("omni:sensor:Core:partialOutputs", Sdf.ValueTypeNames.Bool).Set(False)
+        return stage.ExportToString()
+
+    def _materialize_camera_products(self, lease: OvLibrariesRenderLease) -> None:
+        for camera in lease._auxiliary_cameras:
+            if camera.spec is None or camera.render_data is None:
+                raise RuntimeError("Selected auxiliary camera was not prepared")
+            self._renderer._register_camera(camera.spec, camera.render_data)
+            camera.product_path = camera.render_data.render_product_path
+        if lease._auxiliary_cameras:
+            self._renderer.scene.commit()
+
+    def _update_cameras(self) -> None:
+        lease = self.active
+        if lease is None:
+            return
+        for camera in lease._auxiliary_cameras:
+            if camera.state is None or camera.render_data.camera_xform_binding is None:
+                raise RuntimeError("Auxiliary camera has no live world-pose sample")
+            self._renderer._update_camera(*camera.state)
