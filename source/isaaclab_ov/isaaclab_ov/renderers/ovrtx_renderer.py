@@ -16,8 +16,6 @@ How it fits together
 
 - **render_lease.py**: External borrowing, ownership transfer and scene publication ordering.
 
-- **publication_buffers.py**: Producer-buffer retention and native write completion.
-
 - **ovrtx_renderer_kernels.py**: Warp GPU kernels for OVRTX rendering pipeline.
 
 - **ovrtx_usd.py**: USD helpers for OVRTX: render var config, camera injection, etc.
@@ -34,9 +32,10 @@ import sys
 import tempfile
 import weakref
 from builtins import ExceptionGroup
+from collections import deque
 from collections.abc import Callable, Iterable, Iterator, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +110,6 @@ from isaaclab_ov.stage import (
     xform_tensor_from_warp,
 )
 
-from .publication_buffers import _AsyncWriteBuffers
 from .render_lease import OvLibrariesRenderLease, RenderLeaseController
 
 if TYPE_CHECKING:
@@ -1706,3 +1704,42 @@ class OVRTXMarkers:
                 raise ExceptionGroup("OVRTX renders failed before marker cleanup", errors)
         self._transforms = self._selection = self._stage = None
         self._local_transforms = None
+
+
+_BufferT = TypeVar("_BufferT", wp.array, SceneDataFormat.TransposedMatrix44d)
+
+
+class _AsyncWriteBuffers(Generic[_BufferT]):
+    """Retain GPU buffers until native writes finish; reuse them in submission order."""
+
+    def __init__(self, buffers: Iterable[_BufferT] = ()):
+        self._writes: deque[tuple[_BufferT, Operation[bool] | None, wp.Stream | None]] = deque(
+            (buffer, None, None) for buffer in buffers
+        )
+
+    def acquire(self, stream: wp.Stream) -> _BufferT:
+        """Wait until the next buffer is writable on the given stream."""
+        buffer, operation, producer = self._writes[0]
+        if operation is not None:
+            operation.wait()
+            if producer != stream:
+                stream.wait_stream(producer)
+        return buffer
+
+    def submit(
+        self, binding: AttributeBinding, values: wp.array | list[wp.array], stream: wp.Stream
+    ) -> Operation[bool]:
+        """Submit a write and retain its inputs; a failed submission does not advance the buffers."""
+        operation = binding.write_async(values, data_access=DataAccess.ASYNC, cuda_stream=stream.cuda_stream or 1)
+        self._writes[0] = (self._writes[0][0], operation, stream)
+        self._writes.rotate(-1)
+        return operation
+
+    def close(self) -> None:
+        """Complete every pending write before releasing storage, including on failure."""
+        with contextlib.ExitStack() as writes:
+            writes.callback(self._writes.clear)
+            for _, operation, producer in self._writes:
+                if operation is not None:
+                    writes.callback(wp.synchronize_stream, producer)
+                    writes.callback(operation.wait)

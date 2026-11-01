@@ -74,8 +74,7 @@ The adapter retains the environment if lease retirement cannot establish complet
 The ordinary renderer remains in `isaaclab_ov.renderers.ovrtx_renderer`.
 `render_lease.RenderLeaseController` owns the lease state, thread-transfer
 capability and per-owner operation guards; it borrows the renderer's native resources
-and delegates component writes back to that renderer. `publication_buffers`
-retains producer storage until native writes complete. Public renderer and lease
+and delegates component writes back to that renderer. Public renderer and lease
 imports remain available from `isaaclab_ov.renderers`.
 
 Acquiring a lease selects a private rendering OVStage without changing process
