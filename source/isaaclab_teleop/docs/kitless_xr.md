@@ -92,6 +92,8 @@ For desktop IWER, select **VR** and set **Reference Space** to **local-floor**
 under **Teleoperator adjustment** before connecting. This keeps the emulated
 head and controllers relative to the floor. Between trials, end the previous XR
 session and reload the client page before reconnecting; recheck both settings.
+A blank or below-scene main view with a working camera panel warrants checking
+this client origin before changing the renderer.
 
 `--ovxr` and Kit's `--xr` select separate XR runtimes and are mutually exclusive.
 An explicit `ISAAC_LAB_OVRTX_USE_OVSTAGE=0` is incompatible with OVXR.
