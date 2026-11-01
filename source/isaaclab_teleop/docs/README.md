@@ -36,6 +36,11 @@ renderer to Isaac Capture. XR session integration belongs to `isaaclab_teleop`;
 | `TeleopSessionLifecycle` | Pipeline building, OpenXR handle acquisition, session create/destroy, action-tensor extraction |
 | `CommandHandler` | Callback registration and XR message-bus command dispatch |
 
+For kitless XR, `isaaclab_teleop` owns session preparation and tracking anchors.
+It borrows the application renderer through `isaaclab_ov`'s `OvLibrariesRenderLease`
+interface. The renderer retains ownership of native resources, thread synchronization
+and GPU scene publication.
+
 ## Usage
 
 ### 1. Configure Your Environment
@@ -184,5 +189,7 @@ run automatically.
 ## Dependencies
 
 - **`isaaclab`** -- core Isaac Lab framework
+- **`isaaclab_ov`** -- required by the optional OVXR session adapter; the standalone `isaaclab_teleop` package does not install this backend automatically
 - **`isaacteleop`** -- Isaac Capture retargeting engine, device I/O, and session management
 - **`isaacsim`** -- Isaac Sim runtime (provides the Kit XR bridge for OpenXR handle acquisition)
+- **OVXR / OVRTX / OVStage** -- matched native runtime and stock peers for OVXR
