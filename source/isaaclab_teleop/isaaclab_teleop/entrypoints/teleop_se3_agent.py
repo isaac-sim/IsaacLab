@@ -27,6 +27,7 @@ from collections.abc import Callable
 
 import gymnasium as gym
 import torch
+from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation, validate_launch
 from isaaclab.cli import load_external_tasks
@@ -202,44 +203,7 @@ def _pace_ovxr_control_loop(
             wait_for_shutdown(remaining_s)
 
 
-def _rtx_rendering_requested(args: argparse.Namespace) -> bool:
-    """Return whether the CLI selects a renderer that actually drives RTX rendering.
-
-    The RTX/DLSS global settings are only meaningful when something renders through RTX.
-    That happens when the Kit visualizer is enabled (``--viz kit`` or a task-declared Kit
-    visualizer), when external cameras are rendered (on by default; see
-    ``--disable_external_cameras``), or in XR mode (``--xr``). A pure-headless session with
-    none of these renders nothing.
-
-    This reads the resolved launcher namespace rather than any Kit/carb runtime state.
-    :func:`~isaaclab.app.launch_simulation` records ``kit_visualizer`` on it; ``--viz`` itself
-    is consumed by the preset CLI and is not kept on the namespace.
-    """
-    external_cameras = not getattr(args, "disable_external_cameras", False)
-    kit_visualizer = bool(getattr(args, "kit_visualizer", False))
-    return external_cameras or kit_visualizer or bool(getattr(args, "xr", False))
-
-
-def _make_haptic_io(env, teleop_interface, env_cfg, use_isaac_teleop: bool):
-    """Return ``(update, stop)`` callables driving controller haptics, or no-ops.
-
-    Keeps haptics opt-in without branching in the main loop: both callables are
-    no-ops unless the active device is an Isaac Capture device and the env declares
-    a ``haptic_feedback`` config. ``update`` renders the current contact force;
-    ``stop`` zeroes it so a stale pulse does not persist while teleop is paused.
-    """
-    noop = lambda: None  # noqa: E731
-    if not use_isaac_teleop:
-        return noop, noop
-    from .. import create_haptic_feedback_driver
-
-    driver = create_haptic_feedback_driver(env.unwrapped, teleop_interface, env_cfg)
-    if driver is None:
-        return noop, noop
-    return driver.update, driver.stop
-
-
-def _apply_teleop_frame(env, action, issue: str | None, haptic_update, haptic_stop, *, render: bool = True) -> bool:
+def _apply_teleop_frame(env, action, issue: str | None, haptic_driver, *, render: bool = True) -> bool:
     """Step one valid action, or hold the scene while an unsafe tracker frame is rejected.
 
     ``render`` is false under OVXR, which owns rendering and republishes the unchanged scene.
@@ -247,10 +211,16 @@ def _apply_teleop_frame(env, action, issue: str | None, haptic_update, haptic_st
     if issue is not None:
         if render:
             env.sim.render()
-        haptic_stop()
+        if haptic_driver is not None:
+            haptic_driver.stop()
         return False
-    env.step(action.repeat(env.num_envs, 1))
-    haptic_update()
+    # process actions
+    actions = action.repeat(env.num_envs, 1)
+    # apply actions
+    env.step(actions)
+    # render controller haptics from post-step contact forces
+    if haptic_driver is not None:
+        haptic_driver.update()
     return True
 
 
@@ -454,14 +424,11 @@ def run_teleoperation(  # noqa: C901
     ov_libraries_xr_session = None
     previous_shutdown_handlers = {}
     try:
-        # Apply the RTX/DLSS global settings when an RTX render pipeline will run (Kit visualizer,
-        # external cameras, or XR). ``apply_isaac_rtx_global_settings`` uses ``omni.replicator``,
-        # which some experiences do not preload, so ensure it is loaded first.
-        if has_kit() and _rtx_rendering_requested(args_cli):
-            from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
+        # Apply the RTX/DLSS global settings when Kit runs an RTX render pipeline (Kit visualizer,
+        # external cameras, or XR).
+        if has_kit() and (not args_cli.disable_external_cameras or args_cli.kit_visualizer or args_cli.xr):
             from isaaclab_physx.renderers.isaac_rtx_renderer_utils import apply_isaac_rtx_global_settings
 
-            # The renderer's public helper loads Replicator when its settings need it.
             apply_isaac_rtx_global_settings(
                 IsaacRtxRendererGlobalSettingsCfg(
                     antialiasing_mode="DLSS",
@@ -574,9 +541,11 @@ def run_teleoperation(  # noqa: C901
 
         print(f"Using teleop device: {teleop_interface}")
 
-        # Optional controller haptics: no-ops unless the env declares a
-        # ``haptic_feedback`` config and the device can render it (Isaac Capture).
-        haptic_update, haptic_stop = _make_haptic_io(env, teleop_interface, env_cfg, use_isaac_teleop)
+        haptic_driver = None
+        if use_isaac_teleop:
+            from .. import create_haptic_feedback_driver
+
+            haptic_driver = create_haptic_feedback_driver(env.unwrapped, teleop_interface, env_cfg)
 
         require_initial_bimanual_tracking = (
             env_cfg.isaac_teleop.require_initial_bimanual_hand_tracking if use_isaac_teleop else False
@@ -659,12 +628,13 @@ def run_teleoperation(  # noqa: C901
 
                         # action is None when Isaac Capture session hasn't started yet
                         # (e.g. waiting for user to click "Start AR")
-                        if action is None:
+                        if action is None or not teleoperation_active:
                             if ov_libraries_xr_session is None:
                                 env.sim.render()
-                            haptic_stop()
+                            if haptic_driver is not None:
+                                haptic_driver.stop()
                             action_applied = False
-                        elif teleoperation_active:
+                        else:
                             issue = (
                                 _required_hand_tracking_issue(teleop_interface, initialized_hand_tracking)
                                 if require_initial_bimanual_tracking
@@ -675,7 +645,7 @@ def run_teleoperation(  # noqa: C901
                                     env, action, action_conditioner, action_validator, action_state
                                 )
                             action_applied = _apply_teleop_frame(
-                                env, action, issue, haptic_update, haptic_stop, render=ov_libraries_xr_session is None
+                                env, action, issue, haptic_driver, render=ov_libraries_xr_session is None
                             )
                             if issue is not None:
                                 skipped_tracking_frames += 1
@@ -685,12 +655,6 @@ def run_teleoperation(  # noqa: C901
                                         issue,
                                         skipped_tracking_frames,
                                     )
-                        else:
-                            if ov_libraries_xr_session is None:
-                                env.sim.render()
-                            # not stepping: zero haptics so a paused grip stops buzzing
-                            haptic_stop()
-                            action_applied = False
 
                         state_changed = action_applied
                         force_publication = False
@@ -742,7 +706,7 @@ def run_teleoperation(  # noqa: C901
         # Install after environment/device initialization because embedded native
         # libraries may replace inherited signal dispositions during startup.
         previous_shutdown_handlers = _install_ovxr_shutdown_handlers(ov_libraries_xr_session)
-        # IsaacTeleop requires a context manager, native devices do not.
+        # Isaac Capture requires a context manager, native devices don't
         if use_isaac_teleop:
             if ov_libraries_xr_session is not None:
                 # Capture releases borrowed handles before the outer cleanup

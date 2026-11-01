@@ -196,6 +196,7 @@ def run_live_workflow(monkeypatch):
         session.close = lambda: None
         session.async_worker_owns_environment = False
         env.close = lambda: None
+        env.unwrapped = env
         env.scene = SimpleNamespace(env_prim_paths=["/World/envs/env_0"])
         env.sim.device = "cpu"
         env.sim.visualizers = ()
@@ -215,7 +216,7 @@ def run_live_workflow(monkeypatch):
         monkeypatch.setattr(agent, "has_kit", lambda: False)
         monkeypatch.setattr(agent.gym, "make", lambda *_args, **_kwargs: SimpleNamespace(unwrapped=env))
         monkeypatch.setattr(agent, "create_teleop_device", lambda *_args, **_kwargs: Device())
-        monkeypatch.setattr(agent, "_make_haptic_io", lambda *_args: (lambda: None, lambda: None))
+        monkeypatch.setattr(isaaclab_teleop, "create_haptic_feedback_driver", lambda *_args: None)
         monkeypatch.setattr(agent, "_install_ovxr_shutdown_handlers", lambda *_args: {})
         monkeypatch.setattr(isaaclab_teleop.XrCameraFeedSession, "prepare", lambda *_args, **_kwargs: camera)
         monkeypatch.setattr(isaaclab_teleop.OvLibrariesXrSession, "prepare", lambda *_args, **_kwargs: session)
@@ -738,17 +739,19 @@ def test_kitless_hand_guard_renders_without_step_and_next_valid_frame_resumes(mo
     env = Env()
     haptics = {"update": 0, "stop": 0}
 
-    def update():
-        haptics["update"] += 1
+    class HapticDriver:
+        def update(self):
+            haptics["update"] += 1
 
-    def stop():
-        haptics["stop"] += 1
+        def stop(self):
+            haptics["stop"] += 1
 
+    driver = HapticDriver()
     valid = torch.arange(36, dtype=torch.float32)
 
-    assert agent._apply_teleop_frame(env, valid, None, update, stop)
-    assert not agent._apply_teleop_frame(env, torch.zeros_like(valid), "missing left hand tracking", update, stop)
-    assert agent._apply_teleop_frame(env, valid, None, update, stop)
+    assert agent._apply_teleop_frame(env, valid, None, driver)
+    assert not agent._apply_teleop_frame(env, torch.zeros_like(valid), "missing left hand tracking", driver)
+    assert agent._apply_teleop_frame(env, valid, None, driver)
 
     assert env.sim.render_count == 1
     assert len(env.actions) == 2
@@ -897,26 +900,6 @@ def test_replay_unset_task_physics_keeps_simulation_default_or_rejects_ovxr(monk
     env_cfg, _success = replay._prepare_env_cfg(_UNSET_PHYSICS_TASK, 1, None, overrides=replay.hydra_overrides)
     assert env_cfg.sim.physics is None
     assert replay.args_cli.require_kit
-
-
-@pytest.mark.parametrize(
-    "arguments,expected",
-    [
-        (("--viz", "kit", "--disable_external_cameras"), True),
-        (("--disable_external_cameras",), False),
-        ((), True),
-    ],
-)
-def test_rtx_gate_reads_the_launcher_kit_visualizer(monkeypatch, arguments, expected):
-    """``setup_preset_cli`` consumes ``--viz``; the gate must read what the launcher resolved from it."""
-    from isaaclab.app.sim_launcher import validate_launch
-
-    agent = _load_teleop_agent(monkeypatch, "--task", _UNSET_PHYSICS_TASK, *arguments)
-    assert not hasattr(agent.args_cli, "visualizer")
-    env_cfg, _teleop_cfg, _use_isaac_teleop = agent._resolve_env_cfg()
-    # launch_simulation validates against the live namespace, which records kit_visualizer.
-    validate_launch(env_cfg, vars(agent.args_cli))
-    assert agent._rtx_rendering_requested(agent.args_cli) is expected
 
 
 def test_rejected_ovxr_frame_does_not_render_on_the_control_thread(monkeypatch, run_live_workflow):
