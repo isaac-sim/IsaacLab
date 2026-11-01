@@ -160,7 +160,8 @@ def build_render_product_as_string(
         render_data: Camera's render scope and product identity.
         device_id: CUDA device index the render product is pinned to, so its render var buffers are
             allocated on the same device as the Warp kernels that read them.
-            When None, leave native GPU selection automatic for CPU consumers.
+            When None, leave native GPU selection automatic, for CPU consumers or when
+            ``active_cuda_gpus`` excludes the simulation GPU.
         enable_shadows: Whether lights cast shadows. Defaults to False. Only honored for the
             ``simple_shading_*`` data types, which are the ones that select RTX Minimal mode.
 
