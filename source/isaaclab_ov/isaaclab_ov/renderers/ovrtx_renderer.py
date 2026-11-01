@@ -452,20 +452,22 @@ class OVRTXRenderer(BaseRenderer):
     @contextlib.contextmanager
     def _publish_visual_materials(self) -> Iterator[None]:
         """Publish dirty materials and complete their reads before buffers may change."""
-        writer = self._visual_material_writer_ref() if self._visual_material_writer_ref is not None else None
+        material_writer = self._visual_material_writer_ref() if self._visual_material_writer_ref is not None else None
         try:
-            if writer is not None:
-                writer.publish()
+            if material_writer is not None:
+                material_writer.publish()
             yield
         finally:
-            if writer is not None:
+            if material_writer is not None:
+                # When another exception is already propagating, log the drain failure instead of
+                # replacing it. Losing it silently would hide a failed material write.
                 primary_active = sys.exc_info()[0] is not None
                 try:
-                    writer.drain()
-                except Exception as exc:
+                    material_writer.drain()
+                except Exception as e:
                     if not primary_active:
                         raise
-                    logger.warning("Error draining material writes after a failed scene update: %s", exc, exc_info=True)
+                    logger.warning("Error draining material writes after a failed scene update: %s", e, exc_info=True)
 
     def prepare_stage(self, stage: Usd.Stage, num_envs: int) -> None:
         """Load, clone, and bind the shared scene before any camera products are registered."""
