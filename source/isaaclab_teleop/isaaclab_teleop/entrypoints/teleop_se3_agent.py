@@ -149,6 +149,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         sys.argv = [sys.argv[0], *argv]
     parser = _build_parser()
     args_cli, hydra_args = setup_preset_cli(parser)
+
+    # Enable external camera rendering by default (``--disable_external_cameras`` turns it off). The
+    # ``--enable_cameras`` CLI flag was removed in Isaac Lab 3.0 (see #6656), so pass the intent to
+    # the launcher; this selects a camera-rendering experience that provides RTX/DLSS support.
+    # Everywhere else we read ``args_cli.disable_external_cameras`` directly.
+    args_cli.enable_cameras = not args_cli.disable_external_cameras
     if args_cli.xr and args_cli.using_ovxr:
         parser.error("--xr and --ovxr are mutually exclusive OpenXR frame-loop owners")
     if not math.isfinite(args_cli.step_hz) or args_cli.step_hz < 0.0:
