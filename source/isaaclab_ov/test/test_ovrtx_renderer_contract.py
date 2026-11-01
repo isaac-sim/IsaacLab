@@ -1978,6 +1978,36 @@ def test_camera_registration_authors_valid_render_device_selection(monkeypatch, 
         renderer.create_render_data(spec)
 
 
+def test_leased_camera_cleanup_waits_for_lease_release(leased_renderer, monkeypatch):
+    """Releasing a leased camera would remove its product from the borrowed Stage; it waits for release."""
+    renderer = leased_renderer
+    lease = renderer.acquire_ov_libraries_render_lease()
+    cfg = _make_camera_cfg(["rgb"])
+    cfg.prim_path = "/World/Camera"
+    lease.configure_auxiliary_camera(cfg)
+    _prepare_leased_renderer(renderer, bind=False)
+    renderer.prepare_stage(renderer._sim.stage, 1)
+    data = renderer.create_render_data(CameraRenderSpec(cfg, "cpu", 1, (cfg.prim_path,), 1))
+    population = ovrtx_renderer_module.ovstage.population
+    removed = []
+    monkeypatch.setattr(population, "add_usd_reference_from_string", lambda *args: 7)
+    monkeypatch.setattr(population, "apply_usd_changes", lambda *args, **kwargs: None)
+    monkeypatch.setattr(population, "remove_usd", lambda _stage, reference: removed.append(reference))
+    lease.claim_owner_transfer(lease.offer_owner_transfer())
+    assert lease.materialize_deferred_stage(renderer._sim.stage, 1)
+
+    with pytest.raises(RuntimeError, match="release camera render data while an OvLibrariesRenderLease is active"):
+        renderer.cleanup(data)
+    assert removed == []
+    assert data in renderer._camera_render_data
+    assert data.camera_xform_binding is not None
+
+    lease.release()
+    renderer.close()
+    assert removed == [7]
+    assert data not in renderer._camera_render_data
+
+
 def test_external_camera_native_rate_is_authored_only_on_export(leased_renderer):
     from pxr import Usd, UsdGeom
 

@@ -1322,9 +1322,15 @@ class OVRTXRenderer(BaseRenderer):
 
         Each camera owns its product and pose binding. Scene and physics bindings remain alive
         until :meth:`close`, so other cameras can continue rendering.
+
+        Raises:
+            RuntimeError: If an :class:`~isaaclab_ov.renderers.OvLibrariesRenderLease` is active.
+                Releasing a product removes it from the borrowed Stage, so the camera keeps its
+                resources until the lease is released; :meth:`close` releases them afterwards.
         """
         if render_data is None:
             return
+        self._render_lease.reject_ordinary_operation("release camera render data", retiring=True)
         try:
             self.reset(render_data)
         finally:
