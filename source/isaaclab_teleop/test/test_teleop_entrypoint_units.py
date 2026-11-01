@@ -413,6 +413,8 @@ def test_teleop_replay_agent_resolves_typed_presets_without_reapplying_physics(m
     from isaaclab.managers import TerminationTermCfg
     from isaaclab.sim import SimulationCfg
 
+    from isaaclab_tasks.utils import parse_cfg
+
     source_path = ROOT / "source/isaaclab_teleop/isaaclab_teleop/entrypoints/teleop_replay_agent.py"
     argv = [str(source_path), "--task", "Test", "--replay_file", "recording.mcap", *selector]
     if ovxr:
@@ -446,9 +448,9 @@ def test_teleop_replay_agent_resolves_typed_presets_without_reapplying_physics(m
         return cfg, None
 
     monkeypatch.setattr(replay, "ManagerBasedRLEnvCfg", SimpleNamespace)
-    monkeypatch.setattr(replay, "resolve_task_config", resolve)
+    monkeypatch.setattr(parse_cfg, "resolve_task_config", resolve)
     prepared, success = namespace["_prepare_env_cfg"]("test-task", 1, None, overrides=namespace["hydra_overrides"])
-    assert resolutions == [("test-task", "", ["physics=ovphysx"])]
+    assert resolutions == [("test-task", None, ["physics=ovphysx"])]
     assert prepared is cfg and success is not None
     assert cfg.sim.physics is physics
     assert namespace["args_cli"].require_kit is False
@@ -519,6 +521,7 @@ def test_recorded_environment_reset_preserves_backend_policy_and_hand_cursor(mon
         replay,
         "args_cli",
         SimpleNamespace(
+            device="cpu",
             replay_file="recording.mcap",
             start_on_replay=True,
             enable_debug_visualization=False,
@@ -769,6 +772,8 @@ def test_task_preparation_precedes_ovxr_simulation_context(monkeypatch, entrypoi
 
     from isaaclab.sim import SimulationCfg, SimulationContext
 
+    from isaaclab_tasks.utils import parse_cfg
+
     calls = []
 
     def prepare_environment(selected_cfg):
@@ -813,7 +818,8 @@ def test_task_preparation_precedes_ovxr_simulation_context(monkeypatch, entrypoi
     monkeypatch.setattr(sys, "argv", ["teleop-test"])
     monkeypatch.setattr(module, "args_cli", None, raising=False)
     monkeypatch.setattr(module, "ManagerBasedRLEnvCfg", SimpleNamespace)
-    monkeypatch.setattr(module, "resolve_task_config", lambda *_args, **_kwargs: (config, None))
+    resolver_owner = teleop_se3_agent if entrypoint == "live" else parse_cfg
+    monkeypatch.setattr(resolver_owner, "resolve_task_config", lambda *_args, **_kwargs: (config, None))
     monkeypatch.setattr(module, "validate_launch", validate_launch)
     monkeypatch.setattr(module, "launch_simulation", launch)
     monkeypatch.setattr(SimulationContext, "instance", lambda: None)
@@ -879,6 +885,8 @@ def test_live_ovxr_rejects_unset_task_physics_before_launch(monkeypatch):
 def test_replay_unset_task_physics_keeps_simulation_default_or_rejects_ovxr(monkeypatch, ovxr):
     from isaaclab_teleop.entrypoints import teleop_replay_agent as replay
 
+    from isaaclab_tasks.utils import parse_cfg
+
     argv = ["teleop_replay_agent.py", "--task", _UNSET_PHYSICS_TASK, "--replay_file", "recording.mcap"]
     if ovxr:
         argv.append("--ovxr")
@@ -887,7 +895,7 @@ def test_replay_unset_task_physics_keeps_simulation_default_or_rejects_ovxr(monk
     monkeypatch.setattr(replay, "args_cli", None, raising=False)
     monkeypatch.setattr(replay, "hydra_overrides", None, raising=False)
     replay._parse_args()
-    _unset_task_physics(monkeypatch, replay)
+    _unset_task_physics(monkeypatch, parse_cfg)
     if ovxr:
         with pytest.raises(ValueError, match=_UNSET_PHYSICS_OVXR_ERROR):
             replay._prepare_env_cfg(_UNSET_PHYSICS_TASK, 1, None, overrides=replay.hydra_overrides)
