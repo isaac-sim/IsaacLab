@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 from isaaccapture.ovxr_session_manager import OvxrApplicationInterface, StageOrdinalLedger
 from isaaclab_ov.renderers import OVRTXRendererCfg
 
-from .ovxr_cfg import OvLibrariesXrConfig
+from .ovxr_cfg import OvLibrariesXrCfg
 from .ovxr_session import OvxrSessionBootstrap, validate_ovxr_session_preparation
 
 if TYPE_CHECKING:
@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 
     from isaaclab.sim import SimulationCfg
 
-__all__ = ["OvLibrariesXrConfig", "OvLibrariesXrSession"]
+__all__ = ["OvLibrariesXrCfg", "OvLibrariesXrSession"]
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ _DEFAULT_OVXR_RENDER_VAR_PATHS = (
 _DEFAULT_OVXR_RENDER_SETTINGS_PATH = "/Render/OmniverseGlobalRenderSettings"
 
 
-def _declare_ovxr_runtime_prims(env: Any, cfg: OvLibrariesXrConfig) -> None:
+def _declare_ovxr_runtime_prims(env: Any, cfg: OvLibrariesXrCfg) -> None:
     """Declare type-only OVXR prims for the application Stage's lifetime."""
     if not cfg.create_render_products:
         return
@@ -177,7 +177,7 @@ class _IsaacLabOvxrApplicationInterface(OvxrApplicationInterface):
         self,
         bootstrap: OvxrSessionBootstrap,
         env: Any,
-        cfg: OvLibrariesXrConfig,
+        cfg: OvLibrariesXrCfg,
         external_anchor_state: OvLibrariesXrSession.ExternalAnchorState | None = None,
     ) -> None:
         self._bootstrap = bootstrap
@@ -457,7 +457,7 @@ class OvLibrariesXrSession:
             """
             ...
 
-    def __init__(self, bootstrap: OvxrSessionBootstrap, cfg: OvLibrariesXrConfig) -> None:
+    def __init__(self, bootstrap: OvxrSessionBootstrap, cfg: OvLibrariesXrCfg) -> None:
         self._bootstrap = bootstrap
         self._cfg = cfg
         self._owner = None
@@ -468,7 +468,7 @@ class OvLibrariesXrSession:
     def prepare(
         cls,
         sim_cfg: SimulationCfg,
-        cfg: OvLibrariesXrConfig,
+        cfg: OvLibrariesXrCfg,
         renderer_cfg: OVRTXRendererCfg | None = None,
     ) -> OvLibrariesXrSession:
         """Snapshot session selection, create simulation and reserve its OVRTX lease.
