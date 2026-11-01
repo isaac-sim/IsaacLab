@@ -30,6 +30,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retri
 from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.contrib import ISAACLAB_TELEOP_AVAILABLE
+from isaaclab_tasks.contrib.packing_table import configure_packing_table_collisions
 from isaaclab_tasks.contrib.steering_wheel import (
     condition_newton_steering_wheel_detail_collisions,
 )
@@ -43,9 +44,7 @@ from . import mdp
 from .gr1t2_kitless_action_cfg import GR1T2KitlessPinkInverseKinematicsActionCfg
 
 from isaaclab_assets.robots.fourier import GR1T2_HIGH_PD_CFG  # isort: skip
-
 from isaaclab_tasks.contrib.robot_pov_camera_cfg import robot_pov_camera_cfg  # isort: skip
-from isaaclab_tasks.contrib.packing_table import configure_packing_table_collisions  # isort: skip
 
 
 def build_gr1t2_pickplace_pipeline():
@@ -275,7 +274,6 @@ def build_gr1t2_pickplace_pipeline():
         }
     )
 
-    # The session lifecycle discovers the raw HandsSource outputs for hand-presence safety.
     pipeline = OutputCombiner({"action": connected_reorderer.output("output")})
     return pipeline, [left_dex, right_dex]
 
