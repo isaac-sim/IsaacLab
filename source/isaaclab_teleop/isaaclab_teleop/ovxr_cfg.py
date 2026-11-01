@@ -63,7 +63,7 @@ class OvLibrariesXrCameraConfig:
 
 
 @dataclass
-class OvLibrariesXrConfig:
+class OvLibrariesXrCfg:
     """Isaac Lab configuration for an IsaacTeleop-owned OVXR session."""
 
     application_name: str = "isaaclab-kitless-teleop"

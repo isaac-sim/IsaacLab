@@ -16,7 +16,7 @@ __all__ = [
     "IsaacTeleopCfg",
     "IsaacTeleopDevice",
     "OvLibrariesXrCameraConfig",
-    "OvLibrariesXrConfig",
+    "OvLibrariesXrCfg",
     "OvLibrariesXrSession",
     "SupportsControlEvents",
     "SystemCheckItem",
@@ -70,7 +70,7 @@ from .isaac_teleop_cfg import (
 )
 from .isaac_teleop_device import IsaacTeleopDevice, create_isaac_teleop_device
 from .ov_libraries_xr import OvLibrariesXrSession
-from .ovxr_cfg import OvLibrariesXrCameraConfig, OvLibrariesXrConfig
+from .ovxr_cfg import OvLibrariesXrCameraConfig, OvLibrariesXrCfg
 from .session_lifecycle import cloudxr_eula_accepted
 from .system_check import SystemCheckItem, SystemCheckResult, check_system_requirements
 from .xr_anchor_utils import XrAnchorSynchronizer

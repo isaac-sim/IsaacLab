@@ -151,6 +151,10 @@ to capture demonstrations, and ``replay`` to play a dataset back. :ref:`The next
    Isaac Capture wheel and its optional OVXR dependencies. The Kit setup below
    uses the published ``teleop`` extra.
 
+For XR teleoperation without Isaac Sim, follow the :ref:`kitless XR guide <kitless-xr>`. It
+explains how to select a public Isaac Capture wheel and its optional OVXR dependencies. The Kit
+setup below uses the published ``teleop`` extra.
+
 Complete these steps first:
 
 #. Install the system libraries required by the CloudXR runtime:

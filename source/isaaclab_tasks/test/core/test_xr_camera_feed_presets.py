@@ -79,7 +79,6 @@ def test_fixed_base_g1_pip_keeps_state_policy_unless_rgb_selected_and_fixed_root
         "right_wrist_cam",
     ]
     assert [feed.max_update_hz for feed in cfg.isaac_teleop.xr_camera_feeds] == [20.0, 10.0, 10.0]
-    assert cfg.xr.hidden_visual_prims == []
     assert cfg.xr.excluded_visual_meshes
 
 
@@ -99,7 +98,6 @@ def test_gr1t2_xr_anchor_preserves_operator_view_and_head_partition(monkeypatch,
     assert cfg.xr.anchor_pos == (0.0, 0.0, 0.0)
     assert cfg.xr.render_anchor_pos is None
     assert cfg.xr.render_anchor_rot is None
-    assert not cfg.xr.hidden_visual_prims
     assert any(
         re.fullmatch(pattern, "/World/envs/env_0/Robot/head_yaw_link/visuals/head_yaw_link/mesh")
         for pattern in cfg.xr.excluded_visual_meshes

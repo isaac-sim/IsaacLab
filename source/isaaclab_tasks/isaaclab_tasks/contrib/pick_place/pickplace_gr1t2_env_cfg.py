@@ -16,6 +16,7 @@ from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.controllers.pink_ik import DampingTaskCfg, FrameTaskCfg, NullSpacePostureTaskCfg, PinkIKControllerCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
+from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -30,6 +31,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retri
 from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.contrib import ISAACLAB_TELEOP_AVAILABLE
+from isaaclab_tasks.contrib.packing_table import configure_packing_table_collisions
 from isaaclab_tasks.contrib.steering_wheel import (
     condition_newton_steering_wheel_detail_collisions,
 )
@@ -43,9 +45,7 @@ from . import mdp
 from .gr1t2_kitless_action_cfg import GR1T2KitlessPinkInverseKinematicsActionCfg
 
 from isaaclab_assets.robots.fourier import GR1T2_HIGH_PD_CFG  # isort: skip
-
 from isaaclab_tasks.contrib.robot_pov_camera_cfg import robot_pov_camera_cfg  # isort: skip
-from isaaclab_tasks.contrib.packing_table import configure_packing_table_collisions  # isort: skip
 
 
 def build_gr1t2_pickplace_pipeline():
@@ -275,7 +275,6 @@ def build_gr1t2_pickplace_pipeline():
         }
     )
 
-    # The session lifecycle discovers the raw HandsSource outputs for hand-presence safety.
     pipeline = OutputCombiner({"action": connected_reorderer.output("output")})
     return pipeline, [left_dex, right_dex]
 
@@ -400,7 +399,7 @@ class PickPlaceGR1T2SceneCfg(ObjectTableSceneCfg):
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    upper_body_ik = GR1T2KitlessPinkInverseKinematicsActionCfg(
+    upper_body_ik = PinkInverseKinematicsActionCfg(
         pink_controlled_joint_names=[
             "left_shoulder_pitch_joint",
             "left_shoulder_roll_joint",
@@ -742,10 +741,11 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
 def prepare_gr1t2_for_kitless_ovphysx(env_cfg: ManagerBasedRLEnvCfg) -> None:
     """Configure a GR1T2 task's asset and action boundaries for kitless OVPhysX.
 
-    Selects the vendored kinematics URDF for Pink, enables target conditioning, requires initial
-    bimanual hand tracking, restores actuator coverage, conditions the robot spawn, and authors
-    PhysX contact offsets on the packing table. The configured controlled joints (with or without
-    the waist) are kept. A prepared configuration only re-attaches its spawn conditioning.
+    Replaces the Pink action term with the kitless GR1T2 term and selects the vendored kinematics
+    URDF for it, requires initial bimanual hand tracking, restores actuator coverage, conditions the
+    robot spawn, and authors PhysX contact offsets on the packing table. The configured controlled
+    joints (with or without the waist) are kept. A prepared configuration only re-attaches its spawn
+    conditioning.
 
     Args:
         env_cfg: GR1T2 pick-place task configuration.
@@ -756,11 +756,7 @@ def prepare_gr1t2_for_kitless_ovphysx(env_cfg: ManagerBasedRLEnvCfg) -> None:
     if check_kitless_backend_preparation(env_cfg, "ovphysx"):
         condition_kitless_gr1t2_stage(env_cfg.scene.robot, env_cfg.actions.upper_body_ik)
         return
-    action_cfg = env_cfg.actions.upper_body_ik
-    action_cfg.controller.urdf_path = os.path.join(
-        os.path.dirname(__file__), "assets", "GR1T2_fourier_hand_6dof_kinematics.urdf"
-    )
-    action_cfg.kitless_target_conditioning_enabled = True
+    action_cfg = _use_kitless_action_term(env_cfg)
     # Do not apply retargeter defaults before hand tracking starts.
     if env_cfg.isaac_teleop is not None:
         env_cfg.isaac_teleop.require_initial_bimanual_hand_tracking = True
@@ -774,7 +770,7 @@ def prepare_gr1t2_for_kitless_ovphysx(env_cfg: ManagerBasedRLEnvCfg) -> None:
 def prepare_gr1t2_for_kitless_newton_mjwarp(env_cfg: ManagerBasedRLEnvCfg) -> None:
     """Configure a GR1T2 task's actuators, contacts and action boundaries for kitless Newton.
 
-    Shares the URDF and target conditioning with :func:`prepare_gr1t2_for_kitless_ovphysx`,
+    Shares the kitless action term and its URDF with :func:`prepare_gr1t2_for_kitless_ovphysx`,
     applies Newton actuator gains and MJWarp contact budgets, and keeps the configured
     controlled joints. Hand joint limits are not widened on Newton.
 
@@ -787,17 +783,29 @@ def prepare_gr1t2_for_kitless_newton_mjwarp(env_cfg: ManagerBasedRLEnvCfg) -> No
     if check_kitless_backend_preparation(env_cfg, "newton_mjwarp"):
         condition_kitless_gr1t2_stage(env_cfg.scene.robot, env_cfg.actions.upper_body_ik, widen_hand_limits=False)
         return
-    action_cfg = env_cfg.actions.upper_body_ik
-    action_cfg.controller.urdf_path = os.path.join(
-        os.path.dirname(__file__), "assets", "GR1T2_fourier_hand_6dof_kinematics.urdf"
-    )
-    action_cfg.kitless_target_conditioning_enabled = True
+    action_cfg = _use_kitless_action_term(env_cfg)
     if env_cfg.isaac_teleop is not None:
         env_cfg.isaac_teleop.require_initial_bimanual_hand_tracking = True
     _stabilize_gr1t2_for_kitless_newton_mjwarp(env_cfg)
     condition_kitless_gr1t2_stage(env_cfg.scene.robot, action_cfg, widen_hand_limits=False)
     configure_packing_table_collisions(env_cfg.scene.packing_table)
     env_cfg._prepared_kitless_backend = "newton_mjwarp"
+
+
+def _use_kitless_action_term(env_cfg: ManagerBasedRLEnvCfg) -> GR1T2KitlessPinkInverseKinematicsActionCfg:
+    """Replace the Pink action term with the kitless GR1T2 term and select the vendored URDF.
+
+    The kitless term keeps the task's Pink settings, including caller changes made before preparation.
+    """
+    action_cfg = env_cfg.actions.upper_body_ik
+    if not isinstance(action_cfg, GR1T2KitlessPinkInverseKinematicsActionCfg):
+        settings = {name: value for name, value in vars(action_cfg).items() if name != "class_type"}
+        action_cfg = GR1T2KitlessPinkInverseKinematicsActionCfg(**settings)
+        env_cfg.actions.upper_body_ik = action_cfg
+    action_cfg.controller.urdf_path = os.path.join(
+        os.path.dirname(__file__), "assets", "GR1T2_fourier_hand_6dof_kinematics.urdf"
+    )
+    return action_cfg
 
 
 def _stabilize_gr1t2_for_kitless_newton_mjwarp(env_cfg: ManagerBasedRLEnvCfg) -> None:

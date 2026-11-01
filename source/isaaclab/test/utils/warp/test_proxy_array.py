@@ -461,7 +461,7 @@ class TestWpToTorchShim:
         assert not deprecation, "shim must not re-warn after the first call"
 
     def test_requires_grad_forwarded_to_raw_wp_array(self):
-        """Native and empty CPU views preserve dtype, shape and gradient selection."""
+        """``wp.to_torch(wp.array)`` still produces a torch view and forwards ``requires_grad``."""
         import isaaclab.utils.warp  # noqa: F401  # ensure shim is installed
 
         arr = wp.array([1.0, 2.0], dtype=wp.float32, device="cpu")
@@ -469,6 +469,10 @@ class TestWpToTorchShim:
         assert isinstance(t, torch.Tensor)
         assert t.shape == (2,)
         assert t.requires_grad is False
+
+    def test_empty_cpu_arrays_convert_through_dlpack(self):
+        """Empty CPU views preserve dtype, shape and gradient selection."""
+        import isaaclab.utils.warp  # noqa: F401  # ensure shim is installed
 
         empty_ids = wp.from_torch(torch.arange(4, dtype=torch.int32)[:0])
         ids = wp.to_torch(empty_ids)

@@ -6,6 +6,7 @@
 """Execute the real public entry without native startup to prove failure/cleanup contracts."""
 
 import contextlib
+import logging
 import signal
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock
@@ -22,9 +23,7 @@ def entry_namespace(monkeypatch):
     for name in (
         "args_cli",
         "gym",
-        "_rtx_rendering_requested",
         "_resolve_cloudxr_env",
-        "_make_haptic_io",
         "has_kit",
         "create_teleop_device",
         "_install_ovxr_shutdown_handlers",
@@ -39,8 +38,10 @@ def entry_namespace(monkeypatch):
 @pytest.mark.parametrize(
     "stage,use_capture", [("environment", True), ("device", True), ("haptics", True), ("input", True), ("input", False)]
 )
-def test_live_entry_failure_closes_resources_and_preserves_cause(monkeypatch, entry_namespace, stage, use_capture):
-    """Every startup phase and the live loop must retain its failure after cleanup."""
+def test_live_entry_failure_closes_resources_and_reports_cause(
+    monkeypatch, caplog, entry_namespace, stage, use_capture
+):
+    """Startup and live-loop failures are logged or propagated, and both release the resources."""
     import isaaclab_teleop
 
     failure = RuntimeError(f"{stage} failed")
@@ -51,13 +52,20 @@ def test_live_entry_failure_closes_resources_and_preserves_cause(monkeypatch, en
         reset=Mock(),
         close=Mock(),
     )
+    env.unwrapped = env
     interface = MagicMock()
     interface.advance.side_effect = failure
     monkeypatch.setattr(isaaclab_teleop.XrCameraFeedSession, "prepare", Mock(return_value=camera))
+    monkeypatch.setattr(
+        isaaclab_teleop,
+        "create_haptic_feedback_driver",
+        Mock(side_effect=failure if stage == "haptics" else None, return_value=None),
+    )
     entry_namespace.update(
         {
             "args_cli": SimpleNamespace(
                 task="test-task",
+                device="cpu",
                 xr=False,
                 using_ovxr=False,
                 disable_external_cameras=True,
@@ -70,9 +78,7 @@ def test_live_entry_failure_closes_resources_and_preserves_cause(monkeypatch, en
                     side_effect=failure if stage == "environment" else None, return_value=SimpleNamespace(unwrapped=env)
                 )
             ),
-            "_rtx_rendering_requested": lambda _args: False,
             "_resolve_cloudxr_env": lambda *_args: None,
-            "_make_haptic_io": Mock(side_effect=failure if stage == "haptics" else None, return_value=(Mock(), Mock())),
             "has_kit": lambda: False,
             "create_teleop_device": Mock(side_effect=failure if stage == "device" else None, return_value=interface),
             "_install_ovxr_shutdown_handlers": Mock(return_value={}),
@@ -89,9 +95,15 @@ def test_live_entry_failure_closes_resources_and_preserves_cause(monkeypatch, en
     )
     if not use_capture:
         cfg = SimpleNamespace()  # Native inputs must not read Capture-only action policy.
-    with pytest.raises(RuntimeError) as caught:
-        entry_namespace["run_teleoperation"](cfg, False, use_capture, [])
-    assert caught.value is failure
+    if stage == "haptics":
+        with pytest.raises(RuntimeError) as caught:
+            entry_namespace["run_teleoperation"](cfg, False, use_capture, ())
+        assert caught.value is failure
+    else:
+        # Environment, device and loop failures keep the upstream log-and-return exit.
+        with caplog.at_level(logging.ERROR):
+            entry_namespace["run_teleoperation"](cfg, False, use_capture, ())
+        assert f"{stage} failed" in caplog.text
     camera.close.assert_called_once_with()
     assert env.close.call_count == int(stage != "environment")
 

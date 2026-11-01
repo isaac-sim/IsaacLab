@@ -1344,8 +1344,6 @@ through this variable -- later runs no longer prompt. The variable applies to ev
 that launches the runtime, including the process-scoped launcher in
 ``teleop_replay_agent.py``.
 
-.. _isaac-teleop-ovxr-mcap:
-
 Replay MCAP with a Kitless OVXR Viewer
 --------------------------------------
 
@@ -1370,7 +1368,6 @@ Add ``--ovxr_pip_camera robot_pov_cam --ovxr_pip_head_locked`` for a camera
 panel. OVXR live and MCAP replay open a desktop mirror by default; add
 ``--headless`` to disable that window while keeping XR and PiP rendering.
 See the kitless XR guide for installation, camera selection and display requirements.
-
 
 .. _isaac-teleop-xr-anchor:
 

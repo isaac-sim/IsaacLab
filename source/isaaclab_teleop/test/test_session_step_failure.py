@@ -138,6 +138,7 @@ class TestStepFailureDiagnosis:
         step_error = ValueError("retarget worker failed")
         drain_error = error_type("worker did not join")
         lifecycle = _make_failing_lifecycle(step_error)
+        lifecycle._external_oxr_handles_provider = lambda: object()  # Borrowed OVXR handles.
         session = lifecycle._session
         session.__exit__.side_effect = drain_error
         with (
@@ -168,17 +169,26 @@ class TestStepFailureDiagnosis:
         session.__exit__.assert_called_once()
         assert lifecycle._session is None
 
-    def test_xr_shutdown_drain_failure_remains_visible_and_owned(self):
-        lifecycle = _make_failing_lifecycle(RuntimeError("unused"))
+    def test_stop_ar_exit_error_without_borrowed_handles_allows_restart(self):
+        """Kit "Stop AR" invalidates the handles; a failed exit is suppressed so Start AR can restart."""
+        lifecycle = _make_failing_lifecycle(RuntimeError("XR_ERROR_INSTANCE_LOST"))
         session = lifecycle._session
-        session.__exit__.side_effect = RuntimeError("native drain failed")
-        with pytest.raises(RuntimeError, match="native drain failed"):
-            lifecycle._on_pre_shutdown(None)
-        assert lifecycle._session is session
+        session.__exit__.side_effect = RuntimeError("XR_ERROR_HANDLE_INVALID")
+        with (
+            patch.object(TeleopSessionLifecycle, "_kit_xr_session_is_active", return_value=False),
+            patch.object(lifecycle, "_build_external_inputs", return_value=None),
+        ):
+            assert lifecycle.step() is None
+        session.__exit__.assert_called_once()
+        assert lifecycle._session is None
+        assert not lifecycle.session_cleanup_failed
+        with patch.object(lifecycle, "_try_start_session", return_value=False) as try_start:
+            assert lifecycle.step() is None
+        try_start.assert_called_once()
 
     @pytest.mark.parametrize("error_type", [RuntimeError, KeyboardInterrupt])
     def test_terminal_exit_failure_is_latched_across_callbacks_and_restart(self, error_type):
-        lifecycle = _make_lifecycle()
+        lifecycle = _make_lifecycle(use_kit_xr_bridge=False, external_oxr_handles_provider=lambda: object())
         lifecycle._pipeline = object()
         error = error_type("terminal native cleanup failed")
 

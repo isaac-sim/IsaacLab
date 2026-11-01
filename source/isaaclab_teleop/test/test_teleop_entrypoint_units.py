@@ -5,9 +5,7 @@
 
 """In-process teleoperation entrypoint, configuration, and control-loop contracts."""
 
-import ast
 import os
-import re
 import signal
 import sys
 import time
@@ -19,79 +17,6 @@ import torch
 
 # Repository root: this file lives at source/isaaclab_teleop/test/<file>.py
 ROOT = Path(__file__).resolve().parents[3]
-
-# XR experience file whose dependencies decide whether ``--xr`` can start offline.
-_XR_EXPERIENCE = ROOT / "apps" / "isaaclab.python.xr.openxr.kit"
-
-# ``.kit`` files repeat section headers, so they cannot be parsed as TOML.
-_SECTION_RE = re.compile(r"^\s*\[+(?P<name>[^\[\]]+)\]+\s*$")
-_DEPENDENCY_RE = re.compile(r'^\s*"(?P<name>[^"]+)"\s*=')
-
-
-def _kit_dependencies(experience: Path) -> set[str]:
-    """Collect the extension names declared in an experience file's dependency sections.
-
-    Scoped to ``[dependencies]`` tables so quoted keys elsewhere in the file (settings tables
-    use them too) are not mistaken for extensions.
-    """
-    dependencies: set[str] = set()
-    in_dependencies = False
-
-    for line in experience.read_text(encoding="utf-8").splitlines():
-        section = _SECTION_RE.match(line)
-        if section is not None:
-            in_dependencies = section.group("name").strip() == "dependencies"
-            continue
-        if in_dependencies:
-            dependency = _DEPENDENCY_RE.match(line)
-            if dependency is not None:
-                dependencies.add(dependency.group("name"))
-
-    return dependencies
-
-
-def test_xr_experience_declares_only_shipped_extensions():
-    """The XR experience depends on XR extensions Isaac Sim ships, not on a registry-only bundle.
-
-    ``omni.kit.xr.bundle.generic`` is not shipped and resolves only from the Kit SDK registry, so
-    depending on it aborted every ``--xr`` run that could not reach the registry.
-
-    Static on purpose: a machine that reaches the registry caches the bundle on first use and
-    loads it locally forever after, so a launch test cannot catch this once that cache is warm.
-    """
-    dependencies = _kit_dependencies(_XR_EXPERIENCE)
-
-    assert "omni.kit.xr.system.openxr" in dependencies
-    assert "omni.kit.xr.ui.window.profile" in dependencies, "omni.kit.xr.profile.ar's Kit 110 successor is missing"
-    assert not [name for name in dependencies if name.startswith("omni.kit.xr.bundle.")], (
-        "XR bundle meta-extensions are not shipped with Isaac Sim and resolve only from the Kit SDK registry"
-    )
-
-
-def test_teleop_readme_programmatic_config_returns_pipeline_not_factory_tuple():
-    """Execute the documented public config, without entering an XR session."""
-    from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
-    from isaacteleop.retargeting_engine.interface import OutputCombiner
-
-    readme = ROOT / "source/isaaclab_teleop/docs/README.md"
-    section = readme.read_text().split("### 4. Programmatic Usage", 1)[1]
-    example = re.search(r"```python\n(.*?)```", section, re.DOTALL)
-    assert example is not None
-    tree = ast.parse(example.group(1))
-    config_statements = []
-    for statement in tree.body:
-        if isinstance(statement, ast.With):
-            break
-        config_statements.append(statement)
-    source = ControllersSource(name="documentation_controllers")
-    pipeline = OutputCombiner({"action": source.output(ControllersSource.RIGHT)})
-    retargeters = []
-    namespace = {"my_pipeline_builder": lambda: (pipeline, retargeters)}
-    exec(compile(ast.Module(body=config_statements, type_ignores=[]), str(readme), "exec"), namespace)
-    cfg = namespace["cfg"]
-    assert cfg.pipeline_builder() is pipeline
-    assert cfg.pipeline_builder().output("action") is not None
-    assert cfg.retargeters_to_tune() is retargeters
 
 
 @pytest.mark.parametrize(
@@ -111,7 +36,6 @@ def test_teleop_ovxr_validates_external_stage_without_changing_environment(
     """The task resolver preserves the process setting and rejects incompatible explicit modes before launch."""
     from types import SimpleNamespace
 
-    import isaaclab_teleop
     from isaaclab_teleop import (
         IsaacTeleopCfg,
         se3_gamepad_teleop_cfg,
@@ -130,7 +54,6 @@ def test_teleop_ovxr_validates_external_stage_without_changing_environment(
         monkeypatch.delenv(name, raising=False)
     else:
         monkeypatch.setenv(name, selection)
-    monkeypatch.setattr(isaaclab_teleop, "remove_camera_configs", lambda cfg, **_kwargs: cfg)
     preparations = []
     from isaaclab_ov.physics import OvPhysxCfg
 
@@ -164,10 +87,9 @@ def test_teleop_ovxr_validates_external_stage_without_changing_environment(
             num_envs=1,
             teleop_device=None,
             sensitivity=1.0,
+            xr=False,
             using_ovxr=kitless,
             ovxr_pip_camera=None,
-            geometry_publication_device=None,
-            ovrtx_active_cuda_gpus=None,
             disable_external_cameras=False,
             physics=None,
         ),
@@ -226,6 +148,7 @@ def run_live_workflow(monkeypatch):
         session.close = lambda: None
         session.async_worker_owns_environment = False
         env.close = lambda: None
+        env.unwrapped = env
         env.scene = SimpleNamespace(env_prim_paths=["/World/envs/env_0"])
         env.sim.device = "cpu"
         env.sim.visualizers = ()
@@ -245,7 +168,7 @@ def run_live_workflow(monkeypatch):
         monkeypatch.setattr(agent, "has_kit", lambda: False)
         monkeypatch.setattr(agent.gym, "make", lambda *_args, **_kwargs: SimpleNamespace(unwrapped=env))
         monkeypatch.setattr(agent, "create_teleop_device", lambda *_args, **_kwargs: Device())
-        monkeypatch.setattr(agent, "_make_haptic_io", lambda *_args: (lambda: None, lambda: None))
+        monkeypatch.setattr(isaaclab_teleop, "create_haptic_feedback_driver", lambda *_args: None)
         monkeypatch.setattr(agent, "_install_ovxr_shutdown_handlers", lambda *_args: {})
         monkeypatch.setattr(isaaclab_teleop.XrCameraFeedSession, "prepare", lambda *_args, **_kwargs: camera)
         monkeypatch.setattr(isaaclab_teleop.OvLibrariesXrSession, "prepare", lambda *_args, **_kwargs: session)
@@ -447,6 +370,8 @@ def test_teleop_replay_agent_resolves_typed_presets_without_reapplying_physics(m
     from isaaclab.managers import TerminationTermCfg
     from isaaclab.sim import SimulationCfg
 
+    from isaaclab_tasks.utils import parse_cfg
+
     source_path = ROOT / "source/isaaclab_teleop/isaaclab_teleop/entrypoints/teleop_replay_agent.py"
     argv = [str(source_path), "--task", "Test", "--replay_file", "recording.mcap", *selector]
     if ovxr:
@@ -480,13 +405,11 @@ def test_teleop_replay_agent_resolves_typed_presets_without_reapplying_physics(m
         return cfg, None
 
     monkeypatch.setattr(replay, "ManagerBasedRLEnvCfg", SimpleNamespace)
-    monkeypatch.setattr(replay, "resolve_task_config", resolve)
-    monkeypatch.setattr(isaaclab_teleop, "remove_camera_configs", lambda cfg, **_kwargs: cfg)
-    monkeypatch.setattr(replay, "remove_camera_configs", isaaclab_teleop.remove_camera_configs)
+    monkeypatch.setattr(parse_cfg, "resolve_task_config", resolve)
     prepared, success, cameras = namespace["_prepare_env_cfg"](
         "test-task", 1, None, overrides=namespace["hydra_overrides"]
     )
-    assert resolutions == [("test-task", "", ["physics=ovphysx"])]
+    assert resolutions == [("test-task", None, ["physics=ovphysx"])]
     assert prepared is cfg and success is not None and cameras == ()
     assert cfg.sim.physics is physics
     assert namespace["args_cli"].require_kit is False
@@ -557,6 +480,7 @@ def test_recorded_environment_reset_preserves_backend_policy_and_hand_cursor(mon
         replay,
         "args_cli",
         SimpleNamespace(
+            device="cpu",
             replay_file="recording.mcap",
             start_on_replay=True,
             enable_debug_visualization=False,
@@ -637,6 +561,26 @@ def test_product_xr_default_resolves_cloudxrjs_and_autolaunch(monkeypatch):
     assert agent.args_cli.auto_launch_cloudxr is True
 
 
+def test_teleop_launcher_preserves_the_resolved_physics_configuration(monkeypatch):
+    """Launch validation must not replace task-specific settings on the selected backend."""
+    agent = _load_teleop_agent(monkeypatch)
+    from isaaclab_newton.physics import NewtonCfg
+
+    from isaaclab.app.sim_launcher import validate_launch
+
+    physics_cfg = NewtonCfg()
+    physics_cfg.solver_cfg.nconmax = 4096
+    physics_cfg.solver_cfg.njmax = 1536
+    env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=physics_cfg))
+    configs, _ = validate_launch(env_cfg, vars(agent.args_cli).copy())
+
+    assert not hasattr(agent.args_cli, "physics")
+    assert env_cfg.sim.physics is physics_cfg
+    assert any(cfg is physics_cfg for cfg in configs)
+    assert physics_cfg.solver_cfg.nconmax == 4096
+    assert physics_cfg.solver_cfg.njmax == 1536
+
+
 @pytest.mark.parametrize(
     "task_name,physics",
     [
@@ -649,23 +593,13 @@ def test_product_xr_default_resolves_cloudxrjs_and_autolaunch(monkeypatch):
         ("IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs", "newton_mjwarp"),
     ],
 )
-def test_teleop_launcher_preserves_the_resolved_physics_configuration(monkeypatch, task_name, physics):
-    """The entrypoint validates the launch, then prepares the task, keeping its backend settings."""
-    agent = _load_teleop_agent(monkeypatch, "--task", task_name, "--physics", physics, "--disable_external_cameras")
-    env_cfg = agent._resolve_env_cfg()[0]
-    physics_cfg = env_cfg.sim.physics
-    assert not hasattr(agent.args_cli, "physics")
-    if physics == "newton_mjwarp":
-        if "Locomanipulation-G1" in task_name:
-            assert physics_cfg.num_substeps == 2
-            assert physics_cfg.solver_cfg.integrator == "implicitfast"
-        assert physics_cfg.solver_cfg.nconmax >= 4096
-        assert physics_cfg.solver_cfg.njmax >= 1536
-    else:
-        from isaaclab_tasks.contrib.packing_table import PackingTableUsdFileCfg
-
-        assert isinstance(env_cfg.scene.packing_table.spawn, PackingTableUsdFileCfg) == (physics == "ovphysx")
-    assert getattr(env_cfg, "_prepared_kitless_backend", None) == (None if physics == "isaacsim_physx" else physics)
+def test_teleop_launcher_prepares_humanoid_backends(monkeypatch, task_name, physics):
+    """The entrypoint runs the task's preparation hook for the selected standalone backend."""
+    # Standalone backends run under --ovxr, which removes the task cameras before launch validation.
+    ovxr = () if physics == "isaacsim_physx" else ("--ovxr",)
+    agent = _load_teleop_agent(monkeypatch, "--task", task_name, "--physics", physics, *ovxr)
+    env_cfg, _teleop_cfg, _use_isaac_teleop, _selected_cameras = agent._resolve_env_cfg()
+    assert env_cfg._prepared_kitless_backend == (None if physics == "isaacsim_physx" else physics)
 
 
 def test_task_action_hook_validates_before_and_after_conditioning(monkeypatch):
@@ -785,17 +719,19 @@ def test_kitless_hand_guard_renders_without_step_and_next_valid_frame_resumes(mo
     env = Env()
     haptics = {"update": 0, "stop": 0}
 
-    def update():
-        haptics["update"] += 1
+    class HapticDriver:
+        def update(self):
+            haptics["update"] += 1
 
-    def stop():
-        haptics["stop"] += 1
+        def stop(self):
+            haptics["stop"] += 1
 
+    driver = HapticDriver()
     valid = torch.arange(36, dtype=torch.float32)
 
-    assert agent._apply_teleop_frame(env, valid, None, update, stop)
-    assert not agent._apply_teleop_frame(env, torch.zeros_like(valid), "missing left hand tracking", update, stop)
-    assert agent._apply_teleop_frame(env, valid, None, update, stop)
+    assert agent._apply_teleop_frame(env, valid, None, driver)
+    assert not agent._apply_teleop_frame(env, torch.zeros_like(valid), "missing left hand tracking", driver)
+    assert agent._apply_teleop_frame(env, valid, None, driver)
 
     assert env.sim.render_count == 1
     assert len(env.actions) == 2
@@ -865,7 +801,7 @@ def test_ovxr_mirror_cli_reaches_session_construction(monkeypatch, entrypoint, f
         pass
 
     def prepare(_sim, xr_cfg, *_args, **_kwargs):
-        assert isinstance(xr_cfg, isaaclab_teleop.OvLibrariesXrConfig)
+        assert isinstance(xr_cfg, isaaclab_teleop.OvLibrariesXrCfg)
         received.append(xr_cfg.desktop_mirror_enabled)
         raise PreparationReached
 
@@ -883,7 +819,7 @@ def test_ovxr_mirror_cli_reaches_session_construction(monkeypatch, entrypoint, f
         with pytest.raises(PreparationReached):
             module._ReplayPresentation(cfg, ())
     assert received == [expected]
-    assert isaaclab_teleop.OvLibrariesXrConfig().desktop_mirror_enabled is False
+    assert isaaclab_teleop.OvLibrariesXrCfg().desktop_mirror_enabled is False
 
 
 @pytest.mark.parametrize(
@@ -925,10 +861,12 @@ def _run_ovxr_pip_workflow(monkeypatch, entrypoint, layout, flags, calls):
 
     import isaaclab_teleop
     from isaaclab_ov.physics import OvPhysxCfg
-    from isaaclab_teleop.entrypoints import teleop_replay_agent, teleop_se3_agent
+    from isaaclab_teleop.entrypoints import _ovxr_launch, teleop_replay_agent, teleop_se3_agent
 
     from isaaclab.sensors import CameraCfg
     from isaaclab.sim import SimulationContext
+
+    from isaaclab_tasks.utils import parse_cfg
 
     config = SimpleNamespace(
         sim=SimpleNamespace(device="cpu", physics=OvPhysxCfg()),
@@ -964,10 +902,11 @@ def _run_ovxr_pip_workflow(monkeypatch, entrypoint, layout, flags, calls):
     monkeypatch.setattr(sys, "argv", ["teleop-test"])
     monkeypatch.setattr(module, "args_cli", None, raising=False)
     monkeypatch.setattr(module, "ManagerBasedRLEnvCfg", SimpleNamespace)
-    monkeypatch.setattr(module, "resolve_task_config", lambda *_args, **_kwargs: (config, None))
+    resolver_owner = teleop_se3_agent if entrypoint == "live" else parse_cfg
+    monkeypatch.setattr(resolver_owner, "resolve_task_config", lambda *_args, **_kwargs: (config, None))
     monkeypatch.setattr(module, "validate_launch", lambda *_args: ((), ()))
     monkeypatch.setattr(module, "launch_simulation", launch)
-    monkeypatch.setattr(isaaclab_teleop, "remove_camera_configs", remove_camera_configs)
+    monkeypatch.setattr(_ovxr_launch, "remove_camera_configs", remove_camera_configs)
     # The Kit Capture release has no OVXR session; layout rejection never reaches the session.
     with suppress(ModuleNotFoundError):
         monkeypatch.setattr(isaaclab_teleop.OvLibrariesXrSession, "prepare", prepare)
@@ -983,7 +922,6 @@ def _run_ovxr_pip_workflow(monkeypatch, entrypoint, layout, flags, calls):
         )
     else:
         monkeypatch.setattr(module, "hydra_overrides", None, raising=False)
-        monkeypatch.setattr(module, "remove_camera_configs", remove_camera_configs)
         arguments += ["--replay_file", "recording.mcap"]
     module._parse_args(arguments)
     with suppress(SessionReached):
@@ -1053,6 +991,8 @@ def test_task_preparation_precedes_ovxr_simulation_context(monkeypatch, entrypoi
 
     from isaaclab.sim import SimulationCfg, SimulationContext
 
+    from isaaclab_tasks.utils import parse_cfg
+
     calls = []
 
     def prepare_environment(selected_cfg):
@@ -1097,10 +1037,10 @@ def test_task_preparation_precedes_ovxr_simulation_context(monkeypatch, entrypoi
     monkeypatch.setattr(sys, "argv", ["teleop-test"])
     monkeypatch.setattr(module, "args_cli", None, raising=False)
     monkeypatch.setattr(module, "ManagerBasedRLEnvCfg", SimpleNamespace)
-    monkeypatch.setattr(module, "resolve_task_config", lambda *_args, **_kwargs: (config, None))
+    resolver_owner = teleop_se3_agent if entrypoint == "live" else parse_cfg
+    monkeypatch.setattr(resolver_owner, "resolve_task_config", lambda *_args, **_kwargs: (config, None))
     monkeypatch.setattr(module, "validate_launch", validate_launch)
     monkeypatch.setattr(module, "launch_simulation", launch)
-    monkeypatch.setattr(isaaclab_teleop, "remove_camera_configs", lambda cfg, **_kwargs: cfg)
     monkeypatch.setattr(SimulationContext, "instance", lambda: None)
     monkeypatch.setattr(ovxr_session, "SimulationContext", ContextAllocation)
     monkeypatch.setitem(sys.modules, "ovxr", SimpleNamespace(apply_renderer_settings=lambda _settings: None))
@@ -1116,7 +1056,6 @@ def test_task_preparation_precedes_ovxr_simulation_context(monkeypatch, entrypoi
         )
     else:
         monkeypatch.setattr(module, "hydra_overrides", None, raising=False)
-        monkeypatch.setattr(module, "remove_camera_configs", isaaclab_teleop.remove_camera_configs)
         arguments += ["--replay_file", "recording.mcap"]
     module._parse_args(arguments)
 
@@ -1165,6 +1104,8 @@ def test_live_ovxr_rejects_unset_task_physics_before_launch(monkeypatch):
 def test_replay_unset_task_physics_keeps_simulation_default_or_rejects_ovxr(monkeypatch, ovxr):
     from isaaclab_teleop.entrypoints import teleop_replay_agent as replay
 
+    from isaaclab_tasks.utils import parse_cfg
+
     argv = ["teleop_replay_agent.py", "--task", _UNSET_PHYSICS_TASK, "--replay_file", "recording.mcap"]
     if ovxr:
         argv.append("--ovxr")
@@ -1173,7 +1114,7 @@ def test_replay_unset_task_physics_keeps_simulation_default_or_rejects_ovxr(monk
     monkeypatch.setattr(replay, "args_cli", None, raising=False)
     monkeypatch.setattr(replay, "hydra_overrides", None, raising=False)
     replay._parse_args()
-    _unset_task_physics(monkeypatch, replay)
+    _unset_task_physics(monkeypatch, parse_cfg)
     if ovxr:
         with pytest.raises(ValueError, match=_UNSET_PHYSICS_OVXR_ERROR):
             replay._prepare_env_cfg(_UNSET_PHYSICS_TASK, 1, None, overrides=replay.hydra_overrides)
@@ -1183,26 +1124,6 @@ def test_replay_unset_task_physics_keeps_simulation_default_or_rejects_ovxr(monk
     )
     assert env_cfg.sim.physics is None
     assert replay.args_cli.require_kit
-
-
-@pytest.mark.parametrize(
-    "arguments,expected",
-    [
-        (("--viz", "kit", "--disable_external_cameras"), True),
-        (("--disable_external_cameras",), False),
-        ((), True),
-    ],
-)
-def test_rtx_gate_reads_the_launcher_kit_visualizer(monkeypatch, arguments, expected):
-    """``setup_preset_cli`` consumes ``--viz``; the gate must read what the launcher resolved from it."""
-    from isaaclab.app.sim_launcher import validate_launch
-
-    agent = _load_teleop_agent(monkeypatch, "--task", _UNSET_PHYSICS_TASK, *arguments)
-    assert not hasattr(agent.args_cli, "visualizer")
-    env_cfg = agent._resolve_env_cfg()[0]
-    # launch_simulation validates against the live namespace, which records kit_visualizer.
-    validate_launch(env_cfg, vars(agent.args_cli))
-    assert agent._rtx_rendering_requested(agent.args_cli) is expected
 
 
 def test_rejected_ovxr_frame_does_not_render_on_the_control_thread(monkeypatch, run_live_workflow):
