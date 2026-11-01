@@ -789,14 +789,13 @@ def test_ovrtx_set_outputs_routes_ppisp_buffers_through_warp_buffers():
     assert render_data.warp_buffers["rgb_hdr"].dtype is wp.float32
 
 
-@pytest.mark.parametrize("ppisp", [True, False], ids=["ppisp", "plain"])
 @pytest.mark.parametrize("source_device", ["cpu", "cuda:1"])
-def test_ovrtx_process_frame_routes_hdr_to_output_device(monkeypatch, source_device, ppisp):
-    """Extraction reads HDR on the output device, and PPISP leaves RGBA for its own pipeline."""
+def test_ovrtx_process_frame_routes_ppisp_hdr_to_output_device(monkeypatch, source_device):
+    """PPISP reads HDR on the output device and leaves RGBA for its own pipeline."""
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._device = "cpu"
     render_data = _make_ovrtx_camera_render_data()
-    render_data.ppisp_pipeline = object() if ppisp else None
+    render_data.ppisp_pipeline = object()
     hdr = wp.full((8, 32, 4), 0.5, dtype=wp.float32, device="cpu")
     source = (
         hdr
@@ -819,13 +818,44 @@ def test_ovrtx_process_frame_routes_hdr_to_output_device(monkeypatch, source_dev
         }
     )
     output = wp.zeros((2, 8, 16, 3), dtype=wp.float32, device="cpu")
-    outputs = {"rgba": object(), "rgb_hdr": output} if ppisp else {"rgb_hdr": output}
-    renderer._process_render_frame(render_data, frame, outputs)
+    renderer._process_render_frame(render_data, frame, {"rgba": object(), "rgb_hdr": output})
     np.testing.assert_array_equal(output.numpy(), 0.5)
     if source_device == "cpu":
         clone.assert_not_called()
     else:
         clone.assert_called_once_with(source, device="cpu")
+
+
+def test_ovrtx_extraction_copies_foreign_render_vars_to_simulation_device(monkeypatch):
+    """Render vars mapped on another GPU, including colorized segmentation IDs, are extracted from copies."""
+    from isaaclab.renderers.segmentation_colors import random_color_from_id
+
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._device = "cpu"
+    renderer.cfg.colorize_semantic_segmentation = True
+    render_data = _make_ovrtx_camera_render_data()
+    copies = [
+        wp.full((8, 32, 4), 7, dtype=wp.uint8, device="cpu"),
+        wp.full((8, 32, 1), 2, dtype=wp.uint32, device="cpu"),
+    ]
+    # Stand-ins for render vars mapped on a rendering GPU; extraction kernels cannot read them.
+    sources = [types.SimpleNamespace(device="cuda:1", dtype=copy.dtype, shape=copy.shape) for copy in copies]
+    copy_of = {id(source): copy for source, copy in zip(sources, copies, strict=True)}
+    clone = MagicMock(side_effect=lambda array, device: copy_of[id(array)])
+    monkeypatch.setattr(wp, "clone", clone)
+    monkeypatch.setattr(renderer, "_map_render_var_to_dlpack", contextlib.nullcontext)
+    frame = types.SimpleNamespace(
+        render_vars={
+            render_data.render_var_keys["LdrColor"]: sources[0],
+            render_data.render_var_keys["SemanticSegmentation"]: sources[1],
+        }
+    )
+    rgba = wp.zeros((2, 8, 16, 4), dtype=wp.uint8, device="cpu")
+    segmentation = wp.zeros((2, 8, 16, 4), dtype=wp.uint8, device="cpu")
+    renderer._process_render_frame(render_data, frame, {"rgba": rgba, "semantic_segmentation": segmentation})
+    np.testing.assert_array_equal(rgba.numpy(), 7)
+    np.testing.assert_array_equal(segmentation.numpy(), np.broadcast_to(random_color_from_id(2), segmentation.shape))
+    assert clone.call_args_list == [((source,), {"device": "cpu"}) for source in sources]
 
 
 @pytest.mark.parametrize("use_ovstage", [False, True])
