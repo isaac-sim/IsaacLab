@@ -14,10 +14,10 @@ OvPhysX
 
 OvPhysX runs PhysX without Omniverse Kit. It reads scene-level solver settings
 from the USD ``PhysicsScene`` prim. :class:`~isaaclab_ov.physics.OvPhysxCfg` holds
-GPU buffer settings and can also author selected contact settings onto that prim:
-``bounce_threshold_velocity``, ``friction_correlation_distance`` and
-``solve_articulation_contact_last``. Contact settings left at ``None`` keep the
-stage value.
+GPU buffer settings that USD does not represent. It can also author selected
+contact settings onto that prim: ``bounce_threshold_velocity``,
+``friction_correlation_distance`` and ``solve_articulation_contact_last``.
+Contact settings left at ``None`` keep the stage value.
 
 OvPhysX is selected through :class:`~isaaclab_ov.physics.OvPhysxCfg`:
 

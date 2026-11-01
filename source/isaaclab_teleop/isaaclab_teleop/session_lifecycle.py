@@ -882,7 +882,7 @@ class TeleopSessionLifecycle:
                 pipeline_outputs[TeleopSessionLifecycle.HAND_RIGHT_KEY] = leaf.output(HandsSource.RIGHT)
                 logger.debug(f"Auto-discovered HandsSource '{leaf.name}'; chained raw hand-presence outputs")
                 return
-        logger.info("No HandsSource found in the teleop pipeline; raw hand presence unavailable")
+        logger.debug("No HandsSource found in the teleop pipeline; raw hand presence unavailable")
 
     # ------------------------------------------------------------------
     # Control pipeline construction
