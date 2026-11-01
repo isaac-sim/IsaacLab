@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import contextlib
 import logging
-import re
 import threading
 import time
 from collections.abc import Callable, Hashable, Iterable
@@ -42,51 +41,6 @@ _DEFAULT_OVXR_RENDER_VAR_PATHS = (
     "/Render/Vars/XRDepth",
 )
 _DEFAULT_OVXR_RENDER_SETTINGS_PATH = "/Render/OmniverseGlobalRenderSettings"
-
-
-def _apply_hidden_visual_prims(env: Any, patterns: Iterable[str]) -> tuple[str, ...]:
-    """Author persistent application-stage visibility before materialization.
-
-    This affects every view of the application scene, not just the XR eyes.
-    Use scene partitions when source visibility must remain unchanged.
-    """
-    patterns = tuple(patterns)
-    if not patterns:
-        return ()
-
-    from pxr import UsdGeom
-
-    unwrapped = getattr(env, "unwrapped", env)
-    stage = unwrapped.scene.stage
-    if stage is None:
-        raise RuntimeError("Configured hidden visual prims require an environment Stage")
-
-    compiled = [(pattern, re.compile(pattern)) for pattern in patterns]
-    matches: dict[str, list[Any]] = {pattern: [] for pattern in patterns}
-    for prim in stage.Traverse():
-        if not prim.IsA(UsdGeom.Imageable):
-            continue
-        path = str(prim.GetPath())
-        for pattern, expression in compiled:
-            if expression.fullmatch(path):
-                matches[pattern].append(prim)
-
-    missing = [pattern for pattern, prims in matches.items() if not prims]
-    if missing:
-        raise RuntimeError(f"Hidden visual prim patterns matched no imageable prims: {missing}")
-
-    hidden_paths: list[str] = []
-    hidden_path_set: set[str] = set()
-    for pattern in patterns:
-        for prim in matches[pattern]:
-            path = str(prim.GetPath())
-            if path in hidden_path_set:
-                continue
-            UsdGeom.Imageable(prim).MakeInvisible()
-            hidden_paths.append(path)
-            hidden_path_set.add(path)
-    logger.info("Hid %d prim(s) from all camera views (%s)", len(hidden_paths), list(patterns))
-    return tuple(hidden_paths)
 
 
 def _declare_ovxr_runtime_prims(env: Any, cfg: OvLibrariesXrConfig) -> None:
@@ -224,13 +178,11 @@ class _IsaacLabOvxrApplicationInterface(OvxrApplicationInterface):
         bootstrap: OvxrSessionBootstrap,
         env: Any,
         cfg: OvLibrariesXrConfig,
-        hidden_visual_prims: Iterable[str],
         external_anchor_state: OvLibrariesXrSession.ExternalAnchorState | None = None,
     ) -> None:
         self._bootstrap = bootstrap
         self._env = env
         self._cfg = cfg
-        self._hidden_visual_prims = tuple(hidden_visual_prims)
         self._publication_lock = threading.Lock()
         self._scene_publisher = None
         self._lease = None
@@ -253,7 +205,6 @@ class _IsaacLabOvxrApplicationInterface(OvxrApplicationInterface):
         from isaaccapture.ovxr_session_manager.ovxr_session import OvxrSessionBinding
 
         self._bootstrap.claim_render_owner_transfer(capability)
-        _apply_hidden_visual_prims(self._env, self._hidden_visual_prims)
         _declare_ovxr_runtime_prims(self._env, self._cfg)
         self._lease = self._bootstrap.bind_environment(self._env)
         with self._lease.ovstage_owner_lane():
@@ -549,7 +500,6 @@ class OvLibrariesXrSession:
         *,
         tracking_anchor_path: str | None = None,
         required_openxr_extensions: Iterable[str] = (),
-        hidden_visual_prims: Iterable[str] = (),
         max_blank_frames: int = 1,
         timeout_s: float = 30.0,
         external_anchor_state: OvLibrariesXrSession.ExternalAnchorState | None = None,
@@ -560,7 +510,6 @@ class OvLibrariesXrSession:
             env: Constructed environment sharing the prepared simulation context.
             tracking_anchor_path: Override the configured USD tracking-anchor path.
             required_openxr_extensions: Extensions required by the input pipeline.
-            hidden_visual_prims: Patterns hidden persistently from every scene view.
             max_blank_frames: Nonnegative integer bootstrap-frame count; zero skips bootstrap frames.
             timeout_s: Maximum worker startup wait [s].
             external_anchor_state: Dynamic anchor policy seeded from committed scene publications.
@@ -588,9 +537,7 @@ class OvLibrariesXrSession:
         from .session_lifecycle import cloudxr_eula_accepted
 
         anchor_path = self._cfg.tracking_anchor_path if tracking_anchor_path is None else tracking_anchor_path
-        host = _IsaacLabOvxrApplicationInterface(
-            self._bootstrap, env, self._cfg, hidden_visual_prims, external_anchor_state
-        )
+        host = _IsaacLabOvxrApplicationInterface(self._bootstrap, env, self._cfg, external_anchor_state)
         self._host = host
         self._owner = OvxrSession(
             host,
