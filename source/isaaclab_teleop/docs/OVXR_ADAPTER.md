@@ -96,8 +96,11 @@ An opt-in harness runs the render-owner transfer and complete scene publication
 against the real libraries, on the manager-based `Isaac-Cartpole` task with its
 `ovphysx` physics preset and one environment on `cuda:0`. The transfer case
 also runs with CPU physics, which publishes host scene tensors to the GPU
-renderer. It needs a CUDA GPU, OVRTX, OVStage, OvPhysX and an Isaac Capture
-release with OVXR session support; it starts no XR session or CloudXR runtime.
+renderer. Both cases also run `IsaacContrib-PickPlace-GR1T2-Abs` with CPU
+OvPhysX, which its registered entry point prepares for kitless physics; its
+cameras are removed as in an `--ovxr` launch. The harness needs a CUDA GPU,
+OVRTX, OVStage, OvPhysX and an Isaac Capture release with OVXR session support;
+it starts no XR session or CloudXR runtime.
 Each case runs in a child process:
 
 ```bash
