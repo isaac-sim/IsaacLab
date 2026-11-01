@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 
     from isaaclab.sensors import Camera, CameraCfg
 
-    from .ovxr_cfg import OvLibrariesXrCameraConfig
+    from .ovxr_cfg import OvLibrariesXrCameraCfg
 
 logger = logging.getLogger(__name__)
 
@@ -71,13 +71,13 @@ def resolve_ovxr_camera_configs(
     *,
     max_fps: float,
     position_override: tuple[float, float, float] | None = None,
-) -> tuple[OvLibrariesXrCameraConfig, ...]:
+) -> tuple[OvLibrariesXrCameraCfg, ...]:
     """Resolve selected feeds into OVXR panels without creating native resources.
 
     A feed's positive update cap limits the caller's rate; zero leaves that rate
     unchanged. A position override applies only to a single selected panel.
     """
-    from .ovxr_cfg import OvLibrariesXrCameraConfig
+    from .ovxr_cfg import OvLibrariesXrCameraCfg
 
     _validate_layout_cfg(layout)
     if selected and layout.placement != "head_locked":
@@ -94,7 +94,7 @@ def resolve_ovxr_camera_configs(
     cameras = []
     for (name, camera, _feed), feed in zip(selected, feeds, strict=True):
         cameras.append(
-            OvLibrariesXrCameraConfig(
+            OvLibrariesXrCameraCfg(
                 name=name,
                 camera_cfg=camera,
                 max_fps=min(max_fps, feed.max_update_hz) if feed.max_update_hz > 0.0 else max_fps,

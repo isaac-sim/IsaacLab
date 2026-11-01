@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any
 from ..xr_cfg import remove_camera_configs
 
 if TYPE_CHECKING:
-    from ..ovxr_cfg import OvLibrariesXrCameraConfig
+    from ..ovxr_cfg import OvLibrariesXrCameraCfg
 
 
 def prepare_ovxr_launch(env_cfg: Any, task: str, num_envs: int, *, keep: tuple[str, ...] = ()) -> Any:
@@ -134,7 +134,7 @@ def validate_ovxr_presentation_args(
 
 def resolve_ovxr_pip_cameras(
     env_cfg: Any, args: argparse.Namespace, renderer_cfg: Any
-) -> tuple[OvLibrariesXrCameraConfig, ...]:
+) -> tuple[OvLibrariesXrCameraCfg, ...]:
     """Select the requested PiP cameras and resolve their OVXR panels before launch.
 
     Selection assigns ``renderer_cfg`` to each selected camera, so the OVXR session and its panels

@@ -46,7 +46,7 @@ from .. import (
     CLOUDXR_JS_ENV,
     CLOUDXR_STANDALONE_ENV,
     IsaacTeleopCfg,
-    OvLibrariesXrCameraConfig,
+    OvLibrariesXrCameraCfg,
     se3_gamepad_teleop_cfg,
     se3_keyboard_teleop_cfg,
     se3_spacemouse_teleop_cfg,
@@ -208,7 +208,7 @@ def main() -> None:  # noqa: C901
 
 
 def _resolve_env_cfg() -> tuple[
-    ManagerBasedRLEnvCfg, IsaacTeleopCfg | DeviceCfg, bool, tuple[OvLibrariesXrCameraConfig, ...]
+    ManagerBasedRLEnvCfg, IsaacTeleopCfg | DeviceCfg, bool, tuple[OvLibrariesXrCameraCfg, ...]
 ]:
     """Resolve task configuration and teleop ownership before runtime launch."""
     # Resolve the task configuration through Hydra so CLI presets are applied.
@@ -443,7 +443,7 @@ def run_teleoperation(  # noqa: C901
     env_cfg: ManagerBasedRLEnvCfg,
     teleop_cfg: IsaacTeleopCfg | DeviceCfg,
     use_isaac_teleop: bool,
-    selected_cameras: tuple[OvLibrariesXrCameraConfig, ...],
+    selected_cameras: tuple[OvLibrariesXrCameraCfg, ...],
 ) -> None:
     """Create the environment and teleop device, then run the teleoperation loop until the app is closed."""
 

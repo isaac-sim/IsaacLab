@@ -299,7 +299,7 @@ from .. import (
     CLOUDXR_JS_ENV,
     CLOUDXR_STANDALONE_ENV,
     IsaacTeleopDevice,
-    OvLibrariesXrCameraConfig,
+    OvLibrariesXrCameraCfg,
     create_isaac_teleop_device,
     poll_control_events,
 )
@@ -1079,7 +1079,7 @@ def _prepare_env_cfg(
     num_envs: int,
     device: str,
     overrides: Sequence[str] = (),
-) -> tuple[ManagerBasedRLEnvCfg, object | None, tuple[OvLibrariesXrCameraConfig, ...]]:
+) -> tuple[ManagerBasedRLEnvCfg, object | None, tuple[OvLibrariesXrCameraCfg, ...]]:
     """Build and tweak an env config suitable for non-interactive replay.
 
     Mirrors the env-config mutations performed by ``record_demos.py``'s
@@ -1249,7 +1249,7 @@ Used only when Kit is active.
 class _ReplayPresentation:
     """Own a batch's viewer independently of each recorded-input session."""
 
-    def __init__(self, env_cfg, selected_cameras: tuple[OvLibrariesXrCameraConfig, ...]):
+    def __init__(self, env_cfg, selected_cameras: tuple[OvLibrariesXrCameraCfg, ...]):
         from isaaclab_ov.renderers import OVRTXRendererCfg
 
         from .. import OvLibrariesXrCfg, OvLibrariesXrSession
@@ -1794,7 +1794,7 @@ def main() -> int:
 def _run_replay_batch(
     env_cfg: ManagerBasedRLEnvCfg,
     success_term: object | None,
-    selected_cameras: tuple[OvLibrariesXrCameraConfig, ...],
+    selected_cameras: tuple[OvLibrariesXrCameraCfg, ...],
 ) -> int:
     """Build the env, run the ``--num_replays`` replays, and report the stats; see :func:`main`.
 

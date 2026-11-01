@@ -25,7 +25,7 @@ _DEFAULT_OVXR_CAMERA_PATHS = (
 
 
 @dataclass(frozen=True)
-class OvLibrariesXrCameraConfig:
+class OvLibrariesXrCameraCfg:
     """One application-selected sensor and its camera-panel policy."""
 
     name: str
@@ -96,7 +96,7 @@ class OvLibrariesXrCfg:
     """Whether to display the owner-managed desktop mirror."""
     desktop_mirror_max_fps: float = 30.0
     """Finite positive desktop mirror refresh cap [Hz]."""
-    auxiliary_cameras: tuple[OvLibrariesXrCameraConfig, ...] = ()
+    auxiliary_cameras: tuple[OvLibrariesXrCameraCfg, ...] = ()
     """Up to three uniquely named camera panels; an empty selection disables panels."""
     extra_openxr_extensions: tuple[str, ...] = ()
     """Additional OpenXR extension names requested when creating the session."""

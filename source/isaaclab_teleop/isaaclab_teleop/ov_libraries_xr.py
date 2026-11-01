@@ -21,7 +21,7 @@ import numpy as np
 from isaaccapture.ovxr_session_manager import OvxrApplicationInterface, StageOrdinalLedger
 from isaaclab_ov.renderers import OVRTXRendererCfg
 
-from .ovxr_cfg import OvLibrariesXrCameraConfig, OvLibrariesXrCfg
+from .ovxr_cfg import OvLibrariesXrCameraCfg, OvLibrariesXrCfg
 from .ovxr_session import OvxrSessionBootstrap, validate_ovxr_session_preparation
 
 if TYPE_CHECKING:
@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 
     from isaaclab.sim import SimulationCfg
 
-__all__ = ["OvLibrariesXrCameraConfig", "OvLibrariesXrCfg", "OvLibrariesXrSession"]
+__all__ = ["OvLibrariesXrCameraCfg", "OvLibrariesXrCfg", "OvLibrariesXrSession"]
 
 logger = logging.getLogger(__name__)
 
