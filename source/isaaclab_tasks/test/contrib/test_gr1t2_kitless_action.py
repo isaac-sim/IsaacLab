@@ -16,6 +16,8 @@ from isaaclab_ov.physics import OvPhysxCfg
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
+from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
+
 from isaaclab_tasks.contrib.pick_place import pickplace_gr1t2_env_cfg as gr1t2_env_cfg
 from isaaclab_tasks.contrib.pick_place.gr1t2_kitless_action import (
     GR1T2KitlessPinkInverseKinematicsAction,
@@ -67,8 +69,8 @@ def test_newton_contract_is_backend_scoped_and_complete(config_type):
     assert newton_cfg.sim.physics.solver_cfg.nconmax == 4096
     assert newton_cfg.sim.physics.solver_cfg.njmax == 1536
     assert newton_cfg.isaac_teleop.require_initial_bimanual_hand_tracking is True
-    assert newton_cfg.actions.upper_body_ik.kitless_target_conditioning_enabled is True
-    assert default_cfg.actions.upper_body_ik.kitless_target_conditioning_enabled is False
+    assert isinstance(newton_cfg.actions.upper_body_ik, GR1T2KitlessPinkInverseKinematicsActionCfg)
+    assert type(default_cfg.actions.upper_body_ik) is PinkInverseKinematicsActionCfg
     assert isinstance(newton_cfg.scene.robot.spawn, gr1t2_env_cfg.GR1T2KitlessUsdFileCfg)
     assert not isinstance(default_cfg.scene.robot.spawn, gr1t2_env_cfg.GR1T2KitlessUsdFileCfg)
     assert default_cfg.isaac_teleop.require_initial_bimanual_hand_tracking is False
@@ -240,13 +242,12 @@ def test_kitless_kinematics_model_loads_without_the_kit_exporter(config_type, ba
             np.testing.assert_allclose(world_axis, [0.0, 0.0, 1.0], atol=1e-6)
 
 
-def test_kitless_conditioning_is_opt_in_and_metadata_is_not_shared():
+def test_kitless_action_metadata_is_not_shared():
     first = GR1T2KitlessPinkInverseKinematicsActionCfg()
     second = GR1T2KitlessPinkInverseKinematicsActionCfg()
 
     first.hand_joint_limits["joint"] = (-1.0, 1.0)
 
-    assert not first.kitless_target_conditioning_enabled
     assert second.hand_joint_limits == {}
 
 

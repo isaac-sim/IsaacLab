@@ -78,20 +78,13 @@ class GR1T2KitlessPinkInverseKinematicsAction(PinkInverseKinematicsAction):
     this term reproduces their target relation in software and bounds hand
     targets. OVPhysX widens physical hand limits; Newton retains them. It also
     bounds cold-start IK demands against measured state to avoid a first-step
-    drive impulse. With the feature disabled, behavior is the base Pink action.
+    drive impulse.
     """
 
     cfg: GR1T2KitlessPinkInverseKinematicsActionCfg
 
     def __init__(self, cfg: GR1T2KitlessPinkInverseKinematicsActionCfg, env: ManagerBasedEnv) -> None:
         super().__init__(cfg, env)
-        self._kitless_target_conditioning_enabled = cfg.kitless_target_conditioning_enabled
-        self._mimic_pairs: tuple[tuple[int, int, float, float], ...] = ()
-        self._hand_lower: torch.Tensor | None = None
-        self._hand_upper: torch.Tensor | None = None
-        self._hand_target_slew: _HandTargetSlewState | None = None
-        if not self._kitless_target_conditioning_enabled:
-            return
 
         from .pickplace_gr1t2_env_cfg import GR1T2KitlessUsdFileCfg
 
@@ -151,27 +144,21 @@ class GR1T2KitlessPinkInverseKinematicsAction(PinkInverseKinematicsAction):
     def process_actions(self, actions: torch.Tensor) -> None:
         """Process input without mutating the action-manager input during coupling."""
         super().process_actions(actions)
-        if self._kitless_target_conditioning_enabled:
-            assert self._hand_lower is not None and self._hand_upper is not None
-            assert self._hand_target_slew is not None
-            constrained = constrain_hand_joint_targets(
-                self._target_hand_joint_positions,
-                self._mimic_pairs,
-                self._hand_lower,
-                self._hand_upper,
-            )
-            self._target_hand_joint_positions = self._hand_target_slew.condition(constrained)
+        constrained = constrain_hand_joint_targets(
+            self._target_hand_joint_positions,
+            self._mimic_pairs,
+            self._hand_lower,
+            self._hand_upper,
+        )
+        self._target_hand_joint_positions = self._hand_target_slew.condition(constrained)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         """Clear commanded-target history when the owning session/environment resets."""
         super().reset(env_ids)
-        if self._hand_target_slew is not None:
-            self._hand_target_slew.reset(env_ids)
+        self._hand_target_slew.reset(env_ids)
 
     def _compute_ik_solutions(self) -> torch.Tensor:
         targets = super()._compute_ik_solutions()
-        if not self._kitless_target_conditioning_enabled:
-            return targets
         current = self._asset.data.joint_pos.torch[:, self._isaaclab_controlled_joint_ids]
         return bound_ik_joint_targets(
             targets,

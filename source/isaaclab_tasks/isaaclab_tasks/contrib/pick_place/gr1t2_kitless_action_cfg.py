@@ -19,19 +19,17 @@ if TYPE_CHECKING:
 
 @configclass
 class GR1T2KitlessPinkInverseKinematicsActionCfg(PinkInverseKinematicsActionCfg):
-    """Pink action with opt-in, backend-specific target conditioning for GR1T2.
+    """Pink action with backend-specific target conditioning for GR1T2.
 
-    The feature is disabled by default, preserving the regular Kit/PhysX action
-    path. The task enables it for kitless OVPhysX or Newton and fills the
-    hand metadata while conditioning the spawned USD before physics parses it.
+    Kitless OVPhysX and Newton preparation replace the task's Pink action term
+    with this one; the regular Kit/PhysX path keeps the base term. Preparation
+    fills the hand metadata while conditioning the spawned USD before physics
+    parses it.
     """
 
     class_type: type[GR1T2KitlessPinkInverseKinematicsAction] | str = (
         "{DIR}.gr1t2_kitless_action:GR1T2KitlessPinkInverseKinematicsAction"
     )
-
-    kitless_target_conditioning_enabled: bool = False
-    """Enable the shared raw-GR1T2 joint/target policy for standalone OVPhysX and Newton."""
 
     max_ik_joint_delta_rad: float = 0.2
     """Maximum IK target offset from measured joint position on each IK application [rad].
