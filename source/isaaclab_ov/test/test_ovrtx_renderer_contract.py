@@ -1558,7 +1558,7 @@ def _prepare_leased_renderer(renderer, *, bind=True):
         renderer.prepare_stage(renderer._sim.stage, 1)
 
 
-def test_render_lease_lease_borrows_registry_pair_and_blocks_shared_users(leased_renderer, monkeypatch):
+def test_render_lease_borrows_registry_pair_and_blocks_shared_users(leased_renderer, monkeypatch):
     renderer = leased_renderer
     shared = SimulationContext.instance().get_or_create_backend(renderer.cfg)
     assert shared is renderer
@@ -1598,7 +1598,7 @@ def test_render_lease_rejects_acquisition_after_clone_preparation(leased_rendere
     assert renderer.backend._render_lease_owner is None
 
 
-def test_render_lease_lease_rejects_calibration_before_scene_access(leased_renderer, monkeypatch):
+def test_render_lease_rejects_calibration_before_scene_access(leased_renderer, monkeypatch):
     """An ordinary calibration write cannot bypass the external owner's publication lane."""
     renderer = leased_renderer
     lease = renderer.acquire_ov_libraries_render_lease()
