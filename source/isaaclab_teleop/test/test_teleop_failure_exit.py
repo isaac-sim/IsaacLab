@@ -22,9 +22,7 @@ def entry_namespace(monkeypatch):
     for name in (
         "args_cli",
         "gym",
-        "_rtx_rendering_requested",
         "_resolve_cloudxr_env",
-        "_make_haptic_io",
         "has_kit",
         "create_teleop_device",
         "_install_ovxr_shutdown_handlers",
@@ -51,9 +49,15 @@ def test_live_entry_failure_closes_resources_and_preserves_cause(monkeypatch, en
         reset=Mock(),
         close=Mock(),
     )
+    env.unwrapped = env
     interface = MagicMock()
     interface.advance.side_effect = failure
     monkeypatch.setattr(isaaclab_teleop.XrCameraFeedSession, "prepare", Mock(return_value=camera))
+    monkeypatch.setattr(
+        isaaclab_teleop,
+        "create_haptic_feedback_driver",
+        Mock(side_effect=failure if stage == "haptics" else None, return_value=None),
+    )
     entry_namespace.update(
         {
             "args_cli": SimpleNamespace(
@@ -70,9 +74,7 @@ def test_live_entry_failure_closes_resources_and_preserves_cause(monkeypatch, en
                     side_effect=failure if stage == "environment" else None, return_value=SimpleNamespace(unwrapped=env)
                 )
             ),
-            "_rtx_rendering_requested": lambda _args: False,
             "_resolve_cloudxr_env": lambda *_args: None,
-            "_make_haptic_io": Mock(side_effect=failure if stage == "haptics" else None, return_value=(Mock(), Mock())),
             "has_kit": lambda: False,
             "create_teleop_device": Mock(side_effect=failure if stage == "device" else None, return_value=interface),
             "_install_ovxr_shutdown_handlers": Mock(return_value={}),

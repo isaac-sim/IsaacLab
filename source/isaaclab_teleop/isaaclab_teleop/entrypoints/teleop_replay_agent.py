@@ -1069,7 +1069,7 @@ def _prepare_env_cfg(
       ``--num_success_steps``. This matches record_demos.py's pattern of
       manually counting consecutive success steps before resetting.
     * The ``time_out`` term is cleared for the same reason it is cleared in
-      :file:`scripts/tools/record_demos.py` and
+      :mod:`isaaclab_teleop.entrypoints.record_demos` and
       :file:`scripts/imitation_learning/robomimic/play.py`: a recorded
       trajectory often exceeds ``episode_length_s`` (pick-place is 20s by
       default; a successful operator demo can easily run 25-30s). With the
@@ -1155,7 +1155,7 @@ def _reset_replay_environment(env: object, *, hard_sim_reset: bool, reset_record
 def _handle_reset(env: gym.Env, teleop_interface: IsaacTeleopDevice, *, hard_sim_reset: bool) -> None:
     """Run the full env+teleop reset cycle used by ``record_demos.py``.
 
-    Mirrors :func:`scripts.tools.record_demos.handle_reset` (sans the
+    Mirrors :func:`isaaclab_teleop.entrypoints.record_demos.handle_reset` (sans the
     instruction-display update, which the headless replay agent doesn't
     own). The optional hard physics reset keeps Pink seeded against fresh
     articulation views on PhysX backends. Newton instead retains the solver

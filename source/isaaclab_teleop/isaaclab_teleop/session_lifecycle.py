@@ -1226,7 +1226,7 @@ class TeleopSessionLifecycle:
             oxr_handles = self._external_oxr_handles_provider()
             if oxr_handles is None:
                 if not self._session_start_deferred_logged:
-                    logger.info("External OpenXR handles are not ready; IsaacTeleop session creation deferred")
+                    logger.info("External OpenXR handles are not ready; Isaac Capture session creation deferred")
                     self._session_start_deferred_logged = True
                 return False
         else:
@@ -1421,7 +1421,7 @@ class TeleopSessionLifecycle:
                 self._external_oxr_handles_provider is not None or self._kit_xr_session_is_active()
             ):
                 logger.warning(
-                    "IsaacTeleop retargeting step failed (owned/existing XR session); "
+                    "Isaac Capture retargeting step failed (pipeline error, XR session still active); "
                     f"restarting the teleop session in {self._STEP_FAILURE_RESTART_COOLDOWN_S:.0f}s: {e}"
                 )
                 self._restart_holdoff_until = time.monotonic() + self._STEP_FAILURE_RESTART_COOLDOWN_S
@@ -1498,7 +1498,7 @@ class TeleopSessionLifecycle:
         self._last_step_result = None
         self._last_control_events = _NO_OP_EVENTS
         self._last_control_event_frame_id = None
-        logger.info("IsaacTeleop session torn down after external XR shutdown")
+        logger.info("Isaac Capture session torn down after external XR shutdown")
 
     # ------------------------------------------------------------------
     # External input building
