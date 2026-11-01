@@ -67,7 +67,7 @@ args_cli: argparse.Namespace
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    """Build workflow and simulation launcher arguments."""
+    """Build the command-line parser, including the simulation launcher arguments."""
     parser = argparse.ArgumentParser(description="Teleoperation for Isaac Lab environments.")
     parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to simulate.")
     parser.add_argument(
@@ -75,8 +75,9 @@ def _build_parser() -> argparse.ArgumentParser:
         type=str,
         default=None,
         help=(
-            "Teleop device name: a task device or keyboard, spacemouse, gamepad. When omitted, use the task's"
-            " Isaac Capture pipeline, otherwise keyboard. Built-in devices run through Isaac Capture."
+            "Teleop device name: an entry of env_cfg.teleop_devices.devices, or a built-in device (keyboard,"
+            " spacemouse, gamepad). When omitted, the Isaac Capture pipeline is used if configured in the env,"
+            " otherwise keyboard. Keyboard, gamepad and spacemouse run through Isaac Capture (the teleop extra)."
         ),
     )
     parser.add_argument("--task", type=str, default=None, help="Name of the task.")
@@ -143,7 +144,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    """Parse workflow arguments, leaving task overrides in ``sys.argv``."""
+    """Parse ``argv`` (default ``sys.argv[1:]``) into :data:`args_cli`; Hydra task overrides stay in ``sys.argv``."""
     global args_cli
     if argv is not None:
         sys.argv = [sys.argv[0], *argv]
@@ -183,68 +184,26 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return args_cli
 
 
-def _pace_ovxr_control_loop(
-    using_ovxr: bool,
-    action_applied: bool,
-    *,
-    iteration_started_s: float,
-    action_period_s: float,
-    step_hz: float = 0.0,
-    wait_for_shutdown: Callable[[float], bool] | None = None,
-) -> None:
-    """Limit host control independently of the XR frame clock.
-
-    Credit elapsed input, physics and publication work; an overrun adds no wait
-    or catch-up steps. With no explicit limit, active control remains unpaced
-    and paused polling retains the environment's action interval.
+def main() -> None:  # noqa: C901
     """
-    if not using_ovxr or (action_applied and step_hz == 0.0):
-        return
-    period_s = 1.0 / step_hz if step_hz > 0.0 else action_period_s
-    remaining_s = period_s - (time.perf_counter() - iteration_started_s)
-    if remaining_s > 0.0:
-        if wait_for_shutdown is None:
-            time.sleep(remaining_s)
-        else:
-            wait_for_shutdown(remaining_s)
+    Run teleoperation with an Isaac Lab manipulation environment.
 
+    Creates the environment, sets up teleoperation interfaces and callbacks,
+    and runs the main simulation loop until the application is closed.
 
-def _apply_teleop_frame(env, action, issue: str | None, haptic_driver, *, render: bool = True) -> bool:
-    """Step one valid action, or hold the scene while an unsafe tracker frame is rejected.
-
-    ``render`` is false under OVXR, which owns rendering and republishes the unchanged scene.
+    Returns:
+        None
     """
-    if issue is not None:
-        if render:
-            env.sim.render()
-        if haptic_driver is not None:
-            haptic_driver.stop()
-        return False
-    # process actions
-    actions = action.repeat(env.num_envs, 1)
-    # apply actions
-    env.step(actions)
-    # render controller haptics from post-step contact forces
-    if haptic_driver is not None:
-        haptic_driver.update()
-    return True
-
-
-def _ovxr_publication_identity(
-    physics_step_id: int, *, reset_generation: int | None = None
-) -> int | tuple[str, int, int]:
-    """Return a dedup identity that also represents a reset at an unchanged physics step."""
-    if reset_generation is None:
-        return physics_step_id
-    return ("reset", reset_generation, physics_step_id)
+    env_cfg, teleop_cfg, use_isaac_teleop = _resolve_env_cfg()
+    with launch_simulation(env_cfg, args_cli, cleanup_context=not args_cli.using_ovxr):
+        run_teleoperation(env_cfg, teleop_cfg, use_isaac_teleop)
 
 
 def _resolve_env_cfg() -> tuple[ManagerBasedRLEnvCfg, IsaacTeleopCfg | DeviceCfg, bool]:
     """Resolve task configuration and teleop ownership before runtime launch."""
-    overrides = list(sys.argv[1:])
-    env_cfg, _ = resolve_task_config(args_cli.task, "", overrides=overrides)
-    if args_cli.device is not None:
-        env_cfg.sim.device = args_cli.device
+    # Resolve the task configuration through Hydra so CLI presets are applied.
+    env_cfg, _ = resolve_task_config(args_cli.task, "")
+    env_cfg.sim.device = args_cli.device
     env_cfg.scene.num_envs = args_cli.num_envs
     env_cfg.env_name = args_cli.task
     if not isinstance(env_cfg, ManagerBasedRLEnvCfg):
@@ -308,6 +267,62 @@ def _resolve_env_cfg() -> tuple[ManagerBasedRLEnvCfg, IsaacTeleopCfg | DeviceCfg
     if use_isaac_teleop and teleop_cfg.prepare_environment is not None:
         teleop_cfg.prepare_environment(env_cfg)
     return (env_cfg, teleop_cfg, use_isaac_teleop)
+
+
+def _pace_ovxr_control_loop(
+    using_ovxr: bool,
+    action_applied: bool,
+    *,
+    iteration_started_s: float,
+    action_period_s: float,
+    step_hz: float = 0.0,
+    wait_for_shutdown: Callable[[float], bool] | None = None,
+) -> None:
+    """Limit host control independently of the XR frame clock.
+
+    Credit elapsed input, physics and publication work; an overrun adds no wait
+    or catch-up steps. With no explicit limit, active control remains unpaced
+    and paused polling retains the environment's action interval.
+    """
+    if not using_ovxr or (action_applied and step_hz == 0.0):
+        return
+    period_s = 1.0 / step_hz if step_hz > 0.0 else action_period_s
+    remaining_s = period_s - (time.perf_counter() - iteration_started_s)
+    if remaining_s > 0.0:
+        if wait_for_shutdown is None:
+            time.sleep(remaining_s)
+        else:
+            wait_for_shutdown(remaining_s)
+
+
+def _apply_teleop_frame(env, action, issue: str | None, haptic_driver, *, render: bool = True) -> bool:
+    """Step one valid action, or hold the scene while an unsafe tracker frame is rejected.
+
+    ``render`` is false under OVXR, which owns rendering and republishes the unchanged scene.
+    """
+    if issue is not None:
+        if render:
+            env.sim.render()
+        if haptic_driver is not None:
+            haptic_driver.stop()
+        return False
+    # process actions
+    actions = action.repeat(env.num_envs, 1)
+    # apply actions
+    env.step(actions)
+    # render controller haptics from post-step contact forces
+    if haptic_driver is not None:
+        haptic_driver.update()
+    return True
+
+
+def _ovxr_publication_identity(
+    physics_step_id: int, *, reset_generation: int | None = None
+) -> int | tuple[str, int, int]:
+    """Return a dedup identity that also represents a reset at an unchanged physics step."""
+    if reset_generation is None:
+        return physics_step_id
+    return ("reset", reset_generation, physics_step_id)
 
 
 def _install_ovxr_shutdown_handlers(ov_libraries_xr_session) -> dict:
@@ -410,11 +425,11 @@ def run_teleoperation(  # noqa: C901
     teleop_cfg: IsaacTeleopCfg | DeviceCfg,
     use_isaac_teleop: bool,
 ) -> None:
-    """Run teleoperation through the selected Kit or OVXR runtime."""
+    """Create the environment and teleop device, then run the teleoperation loop until the app is closed."""
 
     from isaaclab.sim import SimulationContext
 
-    from .. import XrCameraFeedSession
+    from .. import XrCameraFeedSession, poll_control_events
 
     previous_context = SimulationContext.instance()
     camera_feed_session = XrCameraFeedSession.prepare(
@@ -480,19 +495,40 @@ def run_teleoperation(  # noqa: C901
 
         # Callback handlers
         def reset_recording_instance() -> None:
-            """Request an environment reset at the next simulation step."""
+            """
+            Reset the environment to its initial state.
+
+            Sets a flag to reset the environment on the next simulation step.
+
+            Returns:
+                None
+            """
             nonlocal should_reset_recording_instance
             should_reset_recording_instance = True
             print("Reset triggered - Environment will reset on next step")
 
         def start_teleoperation() -> None:
-            """Resume applying teleoperation commands to the environment."""
+            """
+            Activate teleoperation control of the robot.
+
+            Enables the application of teleoperation commands to the environment.
+
+            Returns:
+                None
+            """
             nonlocal teleoperation_active
             teleoperation_active = True
             print("Teleoperation activated")
 
         def stop_teleoperation() -> None:
-            """Pause applying teleoperation commands to the environment."""
+            """
+            Deactivate teleoperation control of the robot.
+
+            Disables the application of teleoperation commands to the environment.
+
+            Returns:
+                None
+            """
             nonlocal teleoperation_active
             teleoperation_active = False
             print("Teleoperation deactivated")
@@ -515,14 +551,11 @@ def run_teleoperation(  # noqa: C901
             # Always active for other devices
             teleoperation_active = True
 
-        # Use the upstream device factory for Capture and native inputs alike.
-        from .. import poll_control_events
-
         try:
             teleop_interface = create_teleop_device(
                 teleop_cfg,
                 env_prim_path=env.scene.env_prim_paths[0],
-                sim_device=env.sim.device,
+                sim_device=args_cli.device,
                 callbacks=teleoperation_callbacks,
                 visualizers=env.sim.visualizers,
                 cloudxr_env_file=(None if args_cli.using_ovxr else args_cli.cloudxr_env),
@@ -556,6 +589,7 @@ def run_teleoperation(  # noqa: C901
         action_state: dict = {}
 
         if use_isaac_teleop:
+            # the device reads these from the focused visualizer window
             print("Isaac Capture control keys: [B] start/resume  [P] pause  [R] reset")
 
         def run_loop():
@@ -705,6 +739,7 @@ def run_teleoperation(  # noqa: C901
         # Install after environment/device initialization because embedded native
         # libraries may replace inherited signal dispositions during startup.
         previous_shutdown_handlers = _install_ovxr_shutdown_handlers(ov_libraries_xr_session)
+        # Run the teleoperation loop
         # Isaac Capture requires a context manager, native devices don't
         if use_isaac_teleop:
             if ov_libraries_xr_session is not None:
@@ -736,13 +771,6 @@ def run_teleoperation(  # noqa: C901
             teleop_interface,
             previous_context=previous_context,
         )
-
-
-def main() -> None:
-    """Resolve the task and run teleoperation with its selected runtime."""
-    resolved_env_cfg, selected_teleop_cfg, uses_isaac_teleop = _resolve_env_cfg()
-    with launch_simulation(resolved_env_cfg, args_cli, cleanup_context=not args_cli.using_ovxr):
-        run_teleoperation(resolved_env_cfg, selected_teleop_cfg, uses_isaac_teleop)
 
 
 def run_teleop_se3_agent_cli(argv: list[str] | None = None) -> int:

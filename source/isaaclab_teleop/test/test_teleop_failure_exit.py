@@ -65,6 +65,7 @@ def test_live_entry_failure_closes_resources_and_reports_cause(
         {
             "args_cli": SimpleNamespace(
                 task="test-task",
+                device="cpu",
                 xr=False,
                 using_ovxr=False,
                 disable_external_cameras=True,
