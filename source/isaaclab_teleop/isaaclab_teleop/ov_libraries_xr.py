@@ -16,17 +16,7 @@ from collections.abc import Callable, Hashable, Iterable
 from dataclasses import replace
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
-try:
-    from isaaccapture.ovxr_session_manager import OvxrApplicationInterface, StageOrdinalLedger
-except ModuleNotFoundError as exc:
-    if not (exc.name or "").startswith("isaaccapture"):
-        raise
-    raise ModuleNotFoundError(
-        "OvLibrariesXrSession requires an Isaac Capture release with OVXR session support"
-        " (isaaccapture[ovxr]>=1.7.93a1). The 'teleop' extra selects the Kit release; install the"
-        " kitless selection described in source/isaaclab_teleop/docs/kitless_xr_source.md.",
-        name=exc.name,
-    ) from exc
+from isaaccapture.ovxr_session_manager import OvxrApplicationInterface, StageOrdinalLedger
 from isaaclab_ov.renderers import OVRTXRendererCfg
 
 from .ovxr_cfg import OvLibrariesXrConfig
