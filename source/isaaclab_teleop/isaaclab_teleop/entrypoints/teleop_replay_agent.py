@@ -1522,8 +1522,9 @@ def _run_single_replay(
                     # ``ctrl.is_active`` does not flip. Recordings
                     # without an operator STOP are terminated instead by
                     # the success / failure / wall-clock terminators
-                    # below. RESET also pauses the control graph, but must
-                    # reach the reset handler instead of ending the replay.
+                    # below.
+                    # RESET also pauses the control graph, but must reach
+                    # the reset handler instead of ending the replay.
                     if prev_active and not teleop_active and teleop_was_active and not ctrl.should_reset:
                         print("Replay end observed (STOP edge); ending run.")
                         break
@@ -1673,11 +1674,11 @@ def main() -> int:
     multi-run batches start essentially instantly.
 
     Per-replay control flow (see :func:`_run_single_replay` for details):
-        * First-run Kit warmup: ``wait_for_stage_load`` polls
+        * Pre-loop warmup: ``wait_for_stage_load`` polls
           ``omni.usd.UsdContext.get_stage_loading_status`` until the
           simulator reports zero pending assets, then renders a fixed number of
-          settle frames only when Kit is active and ``run_index == 0``.
-          Kitless runs do not import Kit's asset loader. An optional
+          settle frames (only on ``run_index == 0`` and only when Kit is
+          active; kitless runs do not import Kit's asset loader). An optional
           ``--replay_start_delay_s`` buffer can be appended for hardware
           that needs more grace. ``advance()`` is not called during
           warmup so ``ReplaySession.update`` does not consume MCAP
