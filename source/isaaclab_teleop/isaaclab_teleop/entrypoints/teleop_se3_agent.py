@@ -469,10 +469,9 @@ def run_teleoperation(  # noqa: C901
                     f"The environment '{args_cli.task}' does not support gripper control. The device command will be"
                     " ignored."
                 )
-
-        except Exception:
-            logger.exception("Failed to create environment")
-            raise
+        except Exception as e:
+            logger.error(f"Failed to create environment: {e}")
+            return
 
         # Flags for controlling teleoperation flow
         should_reset_recording_instance = False
@@ -535,13 +534,9 @@ def run_teleoperation(  # noqa: C901
                 ),
                 haptic_cfg=getattr(env_cfg, "haptic_feedback", None),
             )
-        except Exception:
-            logger.exception("Failed to create teleop device")
-            raise
-
-        if teleop_interface is None:
-            logger.error("Failed to create teleop interface")
-            raise RuntimeError("Failed to create teleop interface")
+        except Exception as e:
+            logger.error(f"Failed to create teleop device: {e}")
+            return
 
         print(f"Using teleop device: {teleop_interface}")
 
@@ -704,8 +699,8 @@ def run_teleoperation(  # noqa: C901
                             ),
                         )
                 except Exception as e:
-                    logger.exception("Error during simulation step: %s", e)
-                    raise
+                    logger.error(f"Error during simulation step: {e}")
+                    break
 
         # Install after environment/device initialization because embedded native
         # libraries may replace inherited signal dispositions during startup.
