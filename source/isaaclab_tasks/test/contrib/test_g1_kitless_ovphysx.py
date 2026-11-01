@@ -61,13 +61,9 @@ def test_g1_wheel_remains_supported_on_ovphysx_cpu(cfg_type, task) -> None:
     env_cfg.sim.device = "cpu"
     env_cfg.sim.physics = OvPhysxCfg()
     env_cfg.scene.robot_pov_cam = None
-    env_cfg.observations.policy.robot_pov_cam = None
-    if isinstance(env_cfg, FixedBaseUpperBodyIKG1EnvCfg):
-        env_cfg.scene.left_wrist_cam = None
-        env_cfg.scene.right_wrist_cam = None
-        env_cfg.observations.policy.left_wrist_cam = None
-        env_cfg.observations.policy.right_wrist_cam = None
-    env_cfg.image_obs_list = []
+    if isinstance(env_cfg, LocomanipulationG1EnvCfg):
+        env_cfg.observations.policy.robot_pov_cam = None
+        env_cfg.image_obs_list = []
     env_cfg.stabilize_for_kitless_ovphysx()
 
     env = None
