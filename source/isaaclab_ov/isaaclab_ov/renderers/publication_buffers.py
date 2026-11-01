@@ -20,8 +20,8 @@ from ovrtx import DataAccess
 
 from isaaclab.scene_data import SceneDataFormat
 
-from isaaclab_ov.renderers.ovrtx_renderer_cfg import parse_cuda_device_index
-from isaaclab_ov.stage import points_tensor_from_warp, xform_tensor_from_warp
+from ..stage import points_tensor_from_warp, xform_tensor_from_warp
+from .ovrtx_renderer_cfg import parse_cuda_device_index
 
 if TYPE_CHECKING:
     from ovrtx import AttributeBinding, Operation
@@ -69,6 +69,30 @@ class _GeometryPublicationBuffers:
             semantic=ovstage.AttributeSemantic.MATRIX,
             convert=xform_tensor_from_warp,
         )
+
+    def copy_completed(self, key: str, source: wp.array) -> wp.array:
+        """Copy ``source`` through the publication transfer path and wait for completion.
+
+        Args:
+            key: Reusable target-storage key.
+            source: CUDA array, normally on another device.
+
+        Returns:
+            The completed copy on the publication device.
+        """
+        target = self._copy_to_device(key, source)
+        wp.synchronize_stream(self._stream)
+        return target
+
+    def close(self) -> None:
+        """Drain exact transfer streams before releasing storage; retain it if draining fails."""
+        for stream in self._source_streams:
+            wp.synchronize_stream(stream)
+        if self._stream is not None:
+            wp.synchronize_stream(self._stream)
+        self._sources.clear()
+        self._source_streams.clear()
+        self._buffers.clear()
 
     def _write(
         self,
@@ -137,30 +161,6 @@ class _GeometryPublicationBuffers:
         self._stream.wait_stream(source.device.stream)
         wp.copy(target, source, stream=self._stream)
         return target
-
-    def copy_completed(self, key: str, source: wp.array) -> wp.array:
-        """Copy ``source`` through the publication transfer path and wait for completion.
-
-        Args:
-            key: Reusable target-storage key.
-            source: CUDA array, normally on another device.
-
-        Returns:
-            The completed copy on the publication device.
-        """
-        target = self._copy_to_device(key, source)
-        wp.synchronize_stream(self._stream)
-        return target
-
-    def close(self) -> None:
-        """Drain exact transfer streams before releasing storage; retain it if draining fails."""
-        for stream in self._source_streams:
-            wp.synchronize_stream(stream)
-        if self._stream is not None:
-            wp.synchronize_stream(self._stream)
-        self._sources.clear()
-        self._source_streams.clear()
-        self._buffers.clear()
 
 
 class _AsyncWriteBuffers(Generic[_BufferT]):
