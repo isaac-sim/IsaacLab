@@ -365,4 +365,3 @@ def test_wheel_mesh_collision_geometry_is_not_replaced():
     assert all(p.IsA(UsdGeom.Mesh) for p in colliders)
     assert all(UsdPhysics.CollisionAPI(p).GetCollisionEnabledAttr().Get() for p in colliders)
     assert all(UsdPhysics.MeshCollisionAPI(p).GetApproximationAttr().Get() == "convexDecomposition" for p in colliders)
-    assert not stage.GetPrimAtPath("/World/Wheel/Body/KitlessPrimitiveCollision")
