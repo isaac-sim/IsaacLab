@@ -374,10 +374,25 @@ def test_ui_cleanup_failure_still_drains_session_and_runtime(error_type):
     assert lifecycle._cloudxr_launcher is None
 
 
+def test_session_cleanup_error_without_borrowed_handles_is_suppressed():
+    """Kit "Stop AR" invalidates the handles, so a failed exit still releases the session and runtime."""
+    lifecycle = _make_lifecycle()
+    session, launcher = MagicMock(), MagicMock()
+    session.__exit__.side_effect = RuntimeError("XR_ERROR_HANDLE_INVALID")
+    lifecycle._session, lifecycle._cloudxr_launcher = session, launcher
+    lifecycle.stop()
+    session.__exit__.assert_called_once()
+    assert lifecycle._session is None
+    assert not lifecycle.session_cleanup_failed
+    launcher.stop.assert_called_once()
+
+
 @pytest.mark.parametrize("body_error", [False, True])
 @pytest.mark.parametrize("error_type", [RuntimeError, KeyboardInterrupt])
-def test_session_cleanup_failure_is_visible_and_retains_runtime(body_error, error_type):
-    lifecycle = _make_lifecycle()
+def test_borrowed_session_cleanup_failure_is_visible_and_retains_runtime(body_error, error_type):
+    lifecycle = TeleopSessionLifecycle(
+        _make_cfg(), use_kit_xr_bridge=False, external_oxr_handles_provider=lambda: object()
+    )
     session, launcher = MagicMock(), MagicMock()
     cleanup_error = error_type("native drain failed")
     primary = ValueError("body failed") if body_error else None
