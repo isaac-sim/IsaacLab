@@ -1674,6 +1674,24 @@ def test_render_lease_complete_publication_deduplicates_and_poison_fails_closed(
     lease.release()
 
 
+def test_render_lease_closed_publisher_reports_no_pending_publication(leased_renderer, monkeypatch):
+    """A closed publisher must not report a write that :meth:`write_complete_scene` would then reject."""
+    renderer = leased_renderer
+    lease = renderer.acquire_ov_libraries_render_lease()
+    publisher = lease.capture_scene_publisher()
+    _prepare_leased_renderer(renderer)
+    monkeypatch.setattr(renderer, "_update_transforms", lambda: None)
+    monkeypatch.setattr(renderer, "_update_geometries", lambda: None)
+    assert publisher.publication_required("step-1")
+    publisher.close()
+    publisher.close()
+    with pytest.raises(RuntimeError, match="publisher is closed"):
+        publisher.publication_required("step-1")
+    with pytest.raises(RuntimeError, match="publisher is closed"):
+        publisher.write_complete_scene(18, "step-1")
+    lease.release()
+
+
 def test_render_lease_poison_blocks_publication_but_not_retirement(leased_renderer, monkeypatch):
     """A failed producer write must not prevent the borrower from retiring the pair (Capture's close order)."""
     renderer = leased_renderer

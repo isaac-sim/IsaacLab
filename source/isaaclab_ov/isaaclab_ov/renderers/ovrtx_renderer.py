@@ -102,8 +102,6 @@ from isaaclab_ov.renderers.ovrtx_usd import (
     build_render_product_as_string,
     render_var_prim_names_by_source,
 )
-from isaaclab_ov.renderers.publication_buffers import _AsyncWriteBuffers
-from isaaclab_ov.renderers.render_lease import OvLibrariesRenderLease, RenderLeaseController
 from isaaclab_ov.renderers.visual_materials import OVRTXVisualMaterialWriter
 from isaaclab_ov.stage import (
     _handle_raw_id,
@@ -112,6 +110,9 @@ from isaaclab_ov.stage import (
     xform_tensor_from_numpy,
     xform_tensor_from_warp,
 )
+
+from .publication_buffers import _AsyncWriteBuffers
+from .render_lease import OvLibrariesRenderLease, RenderLeaseController
 
 if TYPE_CHECKING:
     from isaaclab_ppisp import PpispPipeline
