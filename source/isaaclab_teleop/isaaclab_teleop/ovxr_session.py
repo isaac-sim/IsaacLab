@@ -10,14 +10,17 @@ from __future__ import annotations
 import builtins
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
+import warp as wp
 from isaaclab_ov.renderers import OvLibrariesRenderLease, OVRTXRenderer, OVRTXRendererCfg
 
+from isaaclab.app import get_settings_manager
+from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationContext
 
 _TERMINAL_MODE_SENTINEL = "ISAAC_LAUNCHED_FROM_TERMINAL"
 
 if TYPE_CHECKING:
-    import numpy as np
     from isaaclab_ov.renderers.render_lease import OvLibrariesScenePublisher
 
     from isaaclab.sim import SimulationCfg
@@ -29,6 +32,24 @@ def validate_ovxr_session_preparation() -> None:
         raise RuntimeError("OVXR bootstrap must create the SimulationContext immediately before the environment")
     if hasattr(builtins, _TERMINAL_MODE_SENTINEL) and getattr(builtins, _TERMINAL_MODE_SENTINEL) is not True:
         raise RuntimeError("OVXR bootstrap cannot reuse a context in extension mode")
+
+
+def resolve_cuda_device(device: str) -> str:
+    """Resolve a bare ``"cuda"`` device to the GPU that the simulation selects for it.
+
+    :class:`~isaaclab.sim.SimulationContext` and :func:`~isaaclab.app.launch_simulation` read
+    the ``/physics/cudaDevice`` setting the same way.
+
+    Args:
+        device: Simulation device, for example ``"cpu"``, ``"cuda"`` or ``"cuda:1"``.
+
+    Returns:
+        ``"cuda:<index>"`` for a bare ``"cuda"``; any other device unchanged.
+    """
+    if device != "cuda":
+        return device
+    cuda_device = get_settings_manager().get("/physics/cudaDevice")
+    return f"cuda:{max(0, int(cuda_device) if cuda_device is not None else 0)}"
 
 
 class OvxrSessionBootstrap:
@@ -117,14 +138,11 @@ class OvxrSessionBootstrap:
             raise RuntimeError(
                 f"The OVXR render lease requires exactly one environment; got num_envs={unwrapped.num_envs!r}"
             )
-        env_sim_cfg = getattr(getattr(unwrapped, "cfg", None), "sim", None)
+        env_sim_cfg = unwrapped.cfg.sim
         prepared_cfg = self._sim.cfg
-        if env_sim_cfg is not None and env_sim_cfg is not prepared_cfg:
-            env_device = env_sim_cfg.device
-            if env_device == "cuda":
-                # SimulationContext resolved the prepared configuration's bare CUDA selection the same way.
-                cuda_device = self._sim.get_setting("/physics/cudaDevice")
-                env_device = f"cuda:{max(0, int(cuda_device) if cuda_device is not None else 0)}"
+        if env_sim_cfg is not prepared_cfg:
+            # SimulationContext resolved the prepared configuration's bare CUDA selection the same way.
+            env_device = resolve_cuda_device(env_sim_cfg.device)
             for field, env_value, prepared_value in (
                 ("device", env_device, prepared_cfg.device),
                 ("dt", env_sim_cfg.dt, prepared_cfg.dt),
@@ -194,11 +212,6 @@ class OvxrSessionBootstrap:
         if not isinstance(prim_path, str) or not prim_path.startswith("/"):
             raise ValueError(f"Target-frame prim path must be absolute: {prim_path!r}")
 
-        import numpy as np
-        import warp as wp
-
-        from isaaclab.scene_data import SceneDataFormat
-
         provider = self._sim.get_scene_data_provider()
         cached = self._target_frame_readers.get(prim_path)
         if cached is None or cached[0] is not provider:
@@ -232,8 +245,6 @@ class OvxrSessionBootstrap:
 
     def get_target_frame_T_world(self, prim_path: str) -> np.ndarray:
         """Read world-to-target transform [4, 4], float32, with translation in scene units."""
-        import numpy as np
-
         world_T_target = self.get_world_transform(prim_path)
         try:
             target_T_world = np.linalg.inv(world_T_target)

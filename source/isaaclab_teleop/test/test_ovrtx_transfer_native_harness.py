@@ -24,6 +24,12 @@ pytestmark = [
     ),
 ]
 
+_TASK = "Isaac-Cartpole"
+"""Manager-based task with an ``ovphysx`` physics preset and no camera sensors."""
+
+_TRANSFER_DEVICES = ("cuda:0", "cpu")
+"""Simulation devices for the transfer case; CPU physics publishes host scene tensors."""
+
 
 @dataclass
 class _CaseResult:
@@ -35,34 +41,36 @@ class _CaseResult:
     error: BaseException | None = None
 
 
-def _make_env_and_bootstrap():
+def _make_env_and_bootstrap(task: str, device: str):
     import gymnasium as gym
     from isaaclab_ov.physics import OvPhysxCfg
     from isaaclab_ov.renderers import OVRTXRendererCfg
-    from isaaclab_teleop import remove_camera_configs
     from isaaclab_teleop.ovxr_session import OvxrSessionBootstrap
 
-    import isaaclab_tasks.contrib.pick_place  # noqa: F401 -- registers the exact GR1T2 task
-    from isaaclab_tasks.utils import parse_env_cfg
+    import isaaclab_tasks  # noqa: F401 -- registers the task
+    from isaaclab_tasks.utils.hydra import resolve_presets
+    from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
-    cfg = parse_env_cfg("IsaacContrib-PickPlace-GR1T2-Abs", device="cpu", num_envs=1)
-    cfg.sim.physics = OvPhysxCfg()
-    cfg.stabilize_for_kitless_ovphysx()
-    cfg = remove_camera_configs(cfg)
+    # parse_env_cfg resolves every preset to its default, so select OvPhysX while resolving.
+    cfg = resolve_presets(load_cfg_from_registry(task, "env_cfg_entry_point"), selected=("ovphysx",))
+    assert isinstance(cfg.sim.physics, OvPhysxCfg)
+    cfg.sim.device = device
+    cfg.scene.num_envs = 1
     bootstrap = OvxrSessionBootstrap(cfg.sim, OVRTXRendererCfg())
     try:
-        return bootstrap, gym.make("IsaacContrib-PickPlace-GR1T2-Abs", cfg=cfg).unwrapped
+        return bootstrap, gym.make(task, cfg=cfg).unwrapped
     except BaseException:
         bootstrap.abort()
         raise
 
 
-def _run_case(*, transfer: bool) -> _CaseResult:
-    from isaaclab_teleop.ov_libraries_xr import OvLibrariesXrConfig, _IsaacLabOvxrApplicationInterface
+def _run_case(task: str, device: str, *, transfer: bool) -> _CaseResult:
+    from isaaclab_teleop.ov_libraries_xr import _IsaacLabOvxrApplicationInterface
+    from isaaclab_teleop.ovxr_cfg import OvLibrariesXrCfg
 
-    bootstrap, env = _make_env_and_bootstrap()
+    bootstrap, env = _make_env_and_bootstrap(task, device)
     result = _CaseResult(offer_thread=threading.get_native_id())
-    host = _IsaacLabOvxrApplicationInterface(bootstrap, env, OvLibrariesXrConfig(auto_launch_cloudxr=False), ())
+    host = _IsaacLabOvxrApplicationInterface(bootstrap, env, OvLibrariesXrCfg(auto_launch_cloudxr=False))
     capability = host.offer_render_owner_transfer()
     ready, published = threading.Event(), threading.Event()
 
@@ -140,11 +148,11 @@ def _run_case(*, transfer: bool) -> _CaseResult:
     return result
 
 
-def _run_native_subprocess(transfer: bool) -> None:
+def _run_native_subprocess(task: str, device: str, transfer: bool) -> None:
     # A native non-daemon thread cannot be bounded by Thread.join alone.
     # Keep the native lifetime in a child that the standard subprocess timeout owns.
     completed = subprocess.run(
-        [sys.executable, str(Path(__file__).resolve()), "transfer" if transfer else "same-thread"],
+        [sys.executable, str(Path(__file__).resolve()), task, device, "transfer" if transfer else "same-thread"],
         env={**os.environ, "ISAAC_LAB_OVRTX_USE_OVSTAGE": "1"},
         capture_output=True,
         text=True,
@@ -155,20 +163,21 @@ def _run_native_subprocess(transfer: bool) -> None:
     assert completed.returncode == 0, completed.stderr
 
 
-def test_gr1t2_same_thread_ovxr_session_native_control():
+def test_same_thread_ovxr_session_native_control():
     """One-thread production scene publication remains viable."""
-    _run_native_subprocess(False)
+    _run_native_subprocess(_TASK, "cuda:0", False)
 
 
-def test_gr1t2_cross_thread_preuse_owner_transfer_native():
+@pytest.mark.parametrize("device", _TRANSFER_DEVICES)
+def test_cross_thread_preuse_owner_transfer_native(device):
     """The application publishes while the render thread binds, renders and closes the pair."""
-    _run_native_subprocess(True)
+    _run_native_subprocess(_TASK, device, True)
 
 
 if __name__ == "__main__":
     if os.environ.get("ISAACLAB_RUN_NATIVE_OVRTX_TRANSFER") != "1":
         raise RuntimeError("native transfer harness requires its explicit opt-in")
-    result = _run_case(transfer=sys.argv[1] == "transfer")
+    result = _run_case(sys.argv[1], sys.argv[2], transfer=sys.argv[3] == "transfer")
     assert result.renderer_id is not None and result.stage_id is not None
     assert result.ordinal is not None
     print(

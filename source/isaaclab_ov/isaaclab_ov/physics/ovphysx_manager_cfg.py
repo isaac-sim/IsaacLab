@@ -43,13 +43,11 @@ class OvPhysxBackendCfg(BackendCfg):
 class OvPhysxCfg(PhysicsCfg):
     """Configuration for the ovphysx physics manager.
 
-    PhysX scene-level parameters that this config does not set, such as solver iterations,
-    are read from the USD PhysicsScene prim. Before loading, the manager authors the scene
-    settings held here onto that prim: determinism, external forces, GPU buffer sizes (GPU
-    only) and the optional contact parameters :attr:`bounce_threshold_velocity`,
-    :attr:`friction_correlation_distance` and :attr:`solve_articulation_contact_last`. A
-    contact parameter left at ``None`` keeps the stage value, or the ``PhysxSceneAPI``
-    schema default when the stage does not author it.
+    PhysX scene-level parameters (solver iterations, GPU buffer sizes, etc.) are
+    read from the USD PhysicsScene prim.  Before loading, the manager authors the
+    settings held here onto that prim, including the optional contact parameters
+    :attr:`bounce_threshold_velocity`, :attr:`friction_correlation_distance` and
+    :attr:`solve_articulation_contact_last`, which keep the stage value when ``None``.
     """
 
     class_type = "{DIR}.ovphysx_manager:OvPhysxManager"

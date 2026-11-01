@@ -7,7 +7,33 @@
 
 from __future__ import annotations
 
+import os
 from typing import Any
+
+from ..xr_cfg import remove_camera_configs
+
+
+def prepare_ovxr_launch(env_cfg: Any, task: str, num_envs: int) -> Any:
+    """Check an OVXR launch before runtime startup and remove the task's camera sensors.
+
+    Args:
+        env_cfg: Resolved environment configuration.
+        task: Task name, for the error message.
+        num_envs: Requested number of environments.
+
+    Returns:
+        The configuration without camera sensors.
+
+    Raises:
+        ValueError: If ``num_envs`` is not 1, ``ISAAC_LAB_OVRTX_USE_OVSTAGE`` is set to a value
+            other than ``1``, or the task needs Kit physics (see :func:`require_kitless_physics`).
+    """
+    if num_envs != 1:
+        raise ValueError("--ovxr currently requires --num_envs 1")
+    if os.environ.get("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1").strip() != "1":
+        raise ValueError("--ovxr requires OVStage (ISAAC_LAB_OVRTX_USE_OVSTAGE=1)")
+    require_kitless_physics(env_cfg, task)
+    return remove_camera_configs(env_cfg)
 
 
 def require_kitless_physics(env_cfg: Any, task: str) -> None:
