@@ -63,6 +63,7 @@ def bootstrap(monkeypatch):
     """Run the real bootstrap constructor and renderer lease; only the physics-backed context is replaced."""
     from isaaclab_teleop import ovxr_session
 
+    from isaaclab.app import get_settings_manager
     from isaaclab.renderers import RenderContext
 
     monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1")
@@ -91,15 +92,18 @@ def bootstrap(monkeypatch):
         def get_or_create_backend(self, _cfg):
             return renderer
 
-        def get_setting(self, path):
-            # SimulationContext resolves a bare "cuda" device from this setting.
-            return 1 if path == "/physics/cudaDevice" else None
-
     monkeypatch.setattr(ovxr_session, "SimulationContext", Context)
-    bootstrap = ovxr_session.OvxrSessionBootstrap(SimulationCfg(device="cuda:1", dt=0.01))
-    yield bootstrap
-    bootstrap.abort()
-    assert renderer._render_lease.active is None
+    # SimulationContext resolves a bare "cuda" device from this setting.
+    settings = get_settings_manager()
+    previous_cuda_device = settings.get("/physics/cudaDevice")
+    settings.set("/physics/cudaDevice", 1)
+    try:
+        bootstrap = ovxr_session.OvxrSessionBootstrap(SimulationCfg(device="cuda:1", dt=0.01))
+        yield bootstrap
+        bootstrap.abort()
+        assert renderer._render_lease.active is None
+    finally:
+        settings.set("/physics/cudaDevice", previous_cuda_device)
 
 
 def _environment(bootstrap, *, num_envs=1, device="cuda:1", dt=0.01):
