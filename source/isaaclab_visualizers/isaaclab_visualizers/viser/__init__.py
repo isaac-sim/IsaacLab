@@ -13,12 +13,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .viser_visualizer_cfg import ViserVisualizerCfg
+from .viser_visualizer_cfg import ViserBackendCfg, ViserVisualizerCfg
 
 if TYPE_CHECKING:
     from .viser_visualizer import ViserVisualizer
 
-__all__ = ["ViserVisualizer", "ViserVisualizerCfg"]
+__all__ = ["ViserVisualizer", "ViserBackendCfg", "ViserVisualizerCfg"]
 
 
 def __getattr__(name: str):

@@ -91,17 +91,16 @@ class SceneCfg(InteractiveSceneCfg):
     )
 
     contact_forces = ContactSensorCfg(
-        prim_path="/World/envs/env_.*/TiltedWall",
+        prim_path="{ENV_REGEX_NS}/TiltedWall",
         update_period=0.0,
         history_length=2,
         debug_vis=False,
     )
 
     robot = replace(FRANKA_PANDA_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot")
-    robot.actuators["panda_shoulder"].stiffness = 0.0
-    robot.actuators["panda_shoulder"].damping = 0.0
-    robot.actuators["panda_forearm"].stiffness = 0.0
-    robot.actuators["panda_forearm"].damping = 0.0
+    robot.spawn.variants["Physics"] = "physx"
+    robot.actuators["panda_arm"].stiffness = 0.0
+    robot.actuators["panda_arm"].damping = 0.0
     robot.spawn.rigid_props.disable_gravity = True
 
 

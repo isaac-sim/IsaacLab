@@ -337,22 +337,3 @@ def test_replace_newton_builder_shape_colors_updates_source_builder():
     assert _replace_newton_builder_shape_colors_wrapper(builder, stage) == 1
     assert tuple(builder.shape_color[0]) == pytest.approx(_reference_linear_to_srgb(color))
     assert tuple(builder.shape_color[1]) == pytest.approx((0.0, 0.0, 0.0))
-
-
-def test_replace_newton_builder_shape_colors_skips_missing_prim_labels():
-    """Labels with no matching USD prim leave the corresponding ``shape_color`` entry unchanged."""
-    stage = Usd.Stage.CreateInMemory()
-    mesh = UsdGeom.Mesh.Define(stage, "/World/envs/env_0/Robot/Mesh")
-    primvar = UsdGeom.PrimvarsAPI(mesh).CreatePrimvar(
-        "displayColor", Sdf.ValueTypeNames.Color3fArray, UsdGeom.Tokens.constant, 1
-    )
-    primvar.Set([Gf.Vec3f(0.2, 0.4, 0.6)])
-
-    initial = (0.1, 0.2, 0.3)
-    builder = SimpleNamespace(
-        shape_label=["/World/envs/env_1/Robot/Mesh"],
-        shape_color=[wp.vec3(*initial)],
-    )
-
-    assert _replace_newton_builder_shape_colors_wrapper(builder, stage) == 0
-    assert tuple(builder.shape_color[0]) == pytest.approx(initial)

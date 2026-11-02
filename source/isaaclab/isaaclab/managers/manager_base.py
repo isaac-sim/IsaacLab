@@ -9,14 +9,14 @@ import copy
 import inspect
 import weakref
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import fields
 from typing import TYPE_CHECKING, Any
 
 from ..physics import PhysicsEvent, PhysicsManager
 from ..utils import string as string_utils
 from ..utils import string_to_callable, to_dict
-from ..utils.modifiers import ModifierCfg
+from ..utils.tensor_processors import TensorProcessorCfg
 from .manager_term_cfg import ManagerTermBaseCfg
 from .scene_entity_cfg import SceneEntityCfg
 
@@ -61,6 +61,8 @@ class ManagerTermBase(ABC):
             cfg: The configuration object.
             env: The environment instance.
         """
+        if isinstance(cfg, ManagerTermBaseCfg):
+            _populate_term_defaults(self.__call__, cfg.params)
         # store the inputs
         self.cfg = cfg
         self._env = env
@@ -159,12 +161,12 @@ class ManagerBase(ABC):
             # is called. The order is set to 20 to allow asset/sensor initialization to complete before the
             # scene entities are resolved. Those have the order 10.
 
-            physics_mgr_cls = self._env.sim.physics_manager
+            physics_mgr = self._env.sim.backend_manager
             obj_ref = weakref.proxy(self)
 
-            self._resolve_terms_handle = physics_mgr_cls.register_callback(
+            self._resolve_terms_handle = physics_mgr.register_callback(
                 lambda payload: PhysicsManager.safe_callback_invoke(
-                    obj_ref._resolve_terms_callback, None, physics_manager=physics_mgr_cls
+                    obj_ref._resolve_terms_callback, None, backend_manager=physics_mgr
                 ),
                 PhysicsEvent.PHYSICS_READY,
                 order=20,
@@ -372,6 +374,8 @@ class ManagerBase(ABC):
                     f" and optional parameters: {args_with_defaults}, but received: {term_params}."
                 )
 
+        _populate_term_defaults(func_static, term_cfg.params)
+
         # process attributes at runtime
         # these properties are only resolvable once the simulation starts playing
         if self._env.sim.is_playing():
@@ -393,6 +397,8 @@ class ManagerBase(ABC):
             term_name: The name of the term.
             term_cfg: The term configuration.
         """
+        term_cfg.func = self._resolve_param_value(term_name, "func", term_cfg.func, resolve_callable=True)
+        _populate_term_defaults(term_cfg.func, term_cfg.params)
         for field in fields(term_cfg):
             value = getattr(term_cfg, field.name)
             resolved_value = self._resolve_param_value(
@@ -428,7 +434,7 @@ class ManagerBase(ABC):
             self._scene_entity_cfgs.append(value)
         elif isinstance(value, ManagerTermBaseCfg):
             self._process_term_cfg_at_play(f"{term_name}.{key}", value)
-        elif isinstance(value, ModifierCfg):
+        elif isinstance(value, TensorProcessorCfg):
             for field in fields(value):
                 field_value = getattr(value, field.name)
                 resolved_value = self._resolve_param_value(
@@ -449,3 +455,17 @@ class ManagerBase(ABC):
             if any(resolved is not original for resolved, original in zip(resolved_items, value, strict=True)):
                 value = resolved_items
         return value
+
+
+def _populate_term_defaults(func: Callable[..., Any], params: dict[str, Any]) -> None:
+    """Give each term its own omitted keyword defaults without replacing explicit parameters."""
+    if inspect.isclass(func):
+        func = func.__call__
+    defaults = {
+        name: parameter.default
+        for name, parameter in inspect.signature(func).parameters.items()
+        if parameter.kind in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
+        and parameter.default is not inspect.Parameter.empty
+        and name not in params
+    }
+    params.update(copy.deepcopy(defaults))

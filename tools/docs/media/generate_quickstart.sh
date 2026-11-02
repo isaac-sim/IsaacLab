@@ -28,7 +28,7 @@ mkdir -p "${OUTPUT_DIR}"
 cd "${REPO_ROOT}"
 
 UV_EXTRAS="ovrtx,ovphysx,video"
-CAPTURE_STEPS=300
+CAPTURE_STEPS=360
 
 record_simple_agent() {
     local policy="$1"
@@ -67,7 +67,7 @@ record_simple_agent random "${WORK_DIR}/random"
 record_policy Isaac-Open-Drawer-Franka physx play "${WORK_DIR}/play"
 
 record_policy Isaac-Cartpole newton_mjwarp cartpole "${WORK_DIR}/cartpole"
-record_policy Isaac-Velocity-Flat-G1 newton_mjwarp g1 "${WORK_DIR}/g1"
+record_policy Isaac-Velocity-Rough-G1 newton_mjwarp g1 "${WORK_DIR}/g1"
 record_policy Isaac-Lift-KukaAllegro newton_mjwarp kuka_allegro "${WORK_DIR}/kuka_allegro"
 
 ffmpeg -y -v error \
@@ -75,30 +75,57 @@ ffmpeg -y -v error \
     -i "${WORK_DIR}/random/random_0000.mp4" \
     -i "${WORK_DIR}/play/play_0000.mp4" \
     -filter_complex \
-    "[0:v]select='not(mod(n,5))',setpts=N/(12*TB),hqdn3d=2:2:6:6,drawbox=x=8:y=8:w=112:h=28:color=black@0.65:t=fill,drawtext=font='DejaVu Sans':text='zero_agent':fontcolor=white:fontsize=16:x=16:y=13[zero];
-     [1:v]select='not(mod(n,5))',setpts=N/(12*TB),hqdn3d=2:2:6:6,drawbox=x=8:y=8:w=134:h=28:color=black@0.65:t=fill,drawtext=font='DejaVu Sans':text='random_agent':fontcolor=white:fontsize=16:x=16:y=13[random];
-     [2:v]select='not(mod(n,5))',setpts=N/(12*TB),hqdn3d=2:2:6:6,drawbox=x=8:y=8:w=58:h=28:color=black@0.65:t=fill,drawtext=font='DejaVu Sans':text='play':fontcolor=white:fontsize=16:x=16:y=13[play];
-     [zero][random][play]hstack=inputs=3,split[frames][palette_frames];
-     [palette_frames]palettegen=max_colors=128:stats_mode=diff[palette];
-     [frames][palette]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle" \
-    -loop 0 "${OUTPUT_DIR}/agent-comparison.gif"
+    "[0:v]fps=20,scale=1280:720:flags=lanczos,drawbox=x=24:y=24:w=336:h=84:color=black@0.65:t=fill,drawtext=font='DejaVu Sans':text='zero_agent':fontcolor=white:fontsize=48:x=48:y=39[zero];
+     [1:v]fps=20,scale=1280:720:flags=lanczos,drawbox=x=24:y=24:w=402:h=84:color=black@0.65:t=fill,drawtext=font='DejaVu Sans':text='random_agent':fontcolor=white:fontsize=48:x=48:y=39[random];
+     [2:v]fps=20,scale=1280:720:flags=lanczos,drawbox=x=24:y=24:w=174:h=84:color=black@0.65:t=fill,drawtext=font='DejaVu Sans':text='play':fontcolor=white:fontsize=48:x=48:y=39[play];
+     [zero][random][play]hstack=inputs=3" \
+    -c:v libx264 -pix_fmt yuv420p -crf 18 -preset slow -movflags +faststart \
+    -threads 8 -g 60 -an "${OUTPUT_DIR}/agent-comparison.mp4"
 
 ffmpeg -y -v error \
     -i "${WORK_DIR}/cartpole/cartpole_0000.mp4" \
     -i "${WORK_DIR}/g1/g1_0000.mp4" \
     -i "${WORK_DIR}/kuka_allegro/kuka_allegro_0000.mp4" \
     -filter_complex \
-    "[0:v]crop=320:180:0:30,select='not(mod(n,5))',setpts=N/(12*TB),hqdn3d=2:2:6:6,drawbox=x=8:y=8:w=82:h=28:color=black@0.65:t=fill,drawtext=font='DejaVu Sans':text='Cartpole':fontcolor=white:fontsize=16:x=16:y=13[cartpole];
-     [1:v]crop=320:180:0:30,select='not(mod(n,5))',setpts=N/(12*TB),hqdn3d=2:2:6:6,drawbox=x=8:y=8:w=128:h=28:color=black@0.65:t=fill,drawtext=font='DejaVu Sans':text='G1 locomotion':fontcolor=white:fontsize=16:x=16:y=13[g1];
-     [2:v]crop=320:180:0:30,select='not(mod(n,5))',setpts=N/(12*TB),hqdn3d=2:2:6:6,drawbox=x=8:y=8:w=116:h=28:color=black@0.65:t=fill,drawtext=font='DejaVu Sans':text='Kuka Allegro':fontcolor=white:fontsize=16:x=16:y=13[kuka];
-     [cartpole][g1][kuka]hstack=inputs=3,split[frames][palette_frames];
-     [palette_frames]palettegen=max_colors=128:stats_mode=diff[palette];
-     [frames][palette]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle" \
-    -loop 0 "${OUTPUT_DIR}/task-sampler.gif"
+    "[0:v]fps=20,scale=1280:720:flags=lanczos,drawbox=x=24:y=24:w=246:h=84:color=black@0.65:t=fill,drawtext=font='DejaVu Sans':text='Cartpole':fontcolor=white:fontsize=48:x=48:y=39[cartpole];
+     [1:v]fps=20,scale=1280:720:flags=lanczos,drawbox=x=24:y=24:w=480:h=84:color=black@0.65:t=fill,drawtext=font='DejaVu Sans':text='G1 rough terrain':fontcolor=white:fontsize=48:x=48:y=39[g1];
+     [2:v]fps=20,scale=1280:720:flags=lanczos,drawbox=x=24:y=24:w=348:h=84:color=black@0.65:t=fill,drawtext=font='DejaVu Sans':text='Kuka Allegro':fontcolor=white:fontsize=48:x=48:y=39[kuka];
+     [cartpole][g1][kuka]hstack=inputs=3" \
+    -c:v libx264 -pix_fmt yuv420p -crf 18 -preset slow -movflags +faststart \
+    -threads 8 -g 60 -an "${OUTPUT_DIR}/task-sampler.mp4"
 
-for output in agent-comparison.gif task-sampler.gif; do
-    ffprobe -v error \
-        -show_entries stream=width,height,nb_frames,r_frame_rate:format=duration,size \
-        -of default=noprint_wrappers=1 \
-        "${OUTPUT_DIR}/${output}"
-done
+uv run --frozen --extra "${UV_EXTRAS}" python - "${OUTPUT_DIR}" <<'PY'
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+for name in ("agent-comparison.mp4", "task-sampler.mp4"):
+    path = Path(sys.argv[1]) / name
+    probe = json.loads(
+        subprocess.check_output(
+            [
+                "ffprobe", "-v", "error", "-select_streams", "v:0", "-count_frames",
+                "-show_entries", "stream=codec_name,width,height,nb_read_frames,r_frame_rate:format=duration,size",
+                "-of", "json", str(path),
+            ],
+            text=True,
+        )
+    )
+    stream = probe["streams"][0]
+    if (
+        stream["codec_name"] != "h264"
+        or (stream["width"], stream["height"]) != (3840, 720)
+        or int(stream["nb_read_frames"]) != 120
+        or stream["r_frame_rate"] != "20/1"
+    ):
+        raise ValueError(f"Unexpected quickstart video format: {path}")
+    duration = float(probe["format"]["duration"])
+    if abs(duration - 6.0) > 0.01:
+        raise ValueError(f"Expected six-second video, got {duration} s: {path}")
+    print(
+        f"{name}: codec={stream['codec_name']}, size={stream['width']}x{stream['height']}, "
+        f"frames={stream['nb_read_frames']}, fps={stream['r_frame_rate']}, "
+        f"duration={duration} s, bytes={probe['format']['size']}"
+    )
+PY

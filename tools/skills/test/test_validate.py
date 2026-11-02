@@ -89,6 +89,17 @@ def test_validate_current_repo_skills():
 def test_validate_accepts_well_formed_user_skill(tmp_path):
     skill = _write_skill(tmp_path)
     assert cli.Skill(skill).validate() == []
+    catalog = tmp_path / "README.md"
+    catalog.write_text(
+        "- `user/example/`: example workflow.\n\nPlanned user skills:\n\n- `user/planned/`\n", encoding="utf-8"
+    )
+    assert cli.validate_catalog([cli.Skill(skill)], tmp_path) == []
+    with catalog.open("a", encoding="utf-8") as file:
+        file.write("- `user/removed/`: stale workflow.\n")
+    assert any(
+        "stale skill catalog entry 'user/removed'" in error
+        for error in cli.validate_catalog([cli.Skill(skill)], tmp_path)
+    )
 
 
 def test_validate_rejects_empty_skill_root(tmp_path):

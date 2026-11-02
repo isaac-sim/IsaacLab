@@ -46,16 +46,16 @@ class randomize_rigid_body_material(ManagerTermBase):
         asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         asset: RigidObject | Articulation = env.scene[asset_cfg.name]
 
-        static_friction_range = cfg.params.get("static_friction_range", (1.0, 1.0))
-        dynamic_friction_range = cfg.params.get("dynamic_friction_range", (1.0, 1.0))
-        restitution_range = cfg.params.get("restitution_range", (0.0, 0.0))
-        num_buckets = int(cfg.params.get("num_buckets", 1))
+        static_friction_range = cfg.params["static_friction_range"]
+        dynamic_friction_range = cfg.params["dynamic_friction_range"]
+        restitution_range = cfg.params["restitution_range"]
+        num_buckets = int(cfg.params["num_buckets"])
 
         range_list = [static_friction_range, dynamic_friction_range, restitution_range]
         ranges = torch.tensor(range_list, device="cpu")
         self.material_buckets = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (num_buckets, 3), device="cpu")
 
-        make_consistent = cfg.params.get("make_consistent", False)
+        make_consistent = cfg.params["make_consistent"]
         if make_consistent:
             self.material_buckets[:, 1] = torch.min(self.material_buckets[:, 0], self.material_buckets[:, 1])
 
@@ -116,6 +116,9 @@ class randomize_rigid_body_material(ManagerTermBase):
         material_samples = self.material_buckets[bucket_ids]
 
         materials = wp.to_torch(self.asset.root_view.get_material_properties())
+        # Negative restitution encodes compliant stiffness, not bounce.
+        restitution = materials[env_ids, :, 2]
+        material_samples[..., 2] = torch.where(restitution < 0.0, restitution, material_samples[..., 2])
         if self.num_shapes_per_body is not None:
             for body_id in self._backend_body_ids:
                 start_idx = sum(self.num_shapes_per_body[:body_id])
@@ -258,16 +261,8 @@ class randomize_visual_color(ManagerTermBase):
         if env.cfg.seed is not None:
             rep.set_global_seed(env.cfg.seed)
 
-        asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg")
-        mesh_name: str = cfg.params.get("mesh_name", "")  # type: ignore
-
-        # EventManager checks replication only for prestartup terms.
-        if env.cfg.scene.replicate_physics:
-            raise RuntimeError(
-                "Unable to randomize visual color with scene replication enabled."
-                " For stable USD-level randomization, please disable scene replication"
-                " by setting 'replicate_physics' to False in 'InteractiveSceneCfg'."
-            )
+        asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
+        mesh_name: str = cfg.params["mesh_name"]  # type: ignore
 
         asset = env.scene[asset_cfg.name]
 
@@ -293,8 +288,8 @@ class randomize_visual_color(ManagerTermBase):
         version = re.match(r"^(\d+\.\d+\.\d+)", rep.__file__.split("/")[-5][21:]).group(1)
 
         if compare_versions(version, "1.12.4") < 0:
-            colors = cfg.params.get("colors")
-            event_name = cfg.params.get("event_name")
+            colors = cfg.params["colors"]
+            event_name = cfg.params["event_name"]
             if isinstance(colors, dict):
                 color_low = [colors[key][0] for key in ["r", "g", "b"]]
                 color_high = [colors[key][1] for key in ["r", "g", "b"]]
@@ -345,7 +340,7 @@ class randomize_visual_color(ManagerTermBase):
         if compare_versions(version, "1.12.4") < 0:
             rep.utils.send_og_event(event_name)
         else:
-            colors = colors if colors else self._cfg.params.get("colors")
+            colors = colors if colors else self._cfg.params["colors"]
 
             if isinstance(colors, dict):
                 color_low = [colors[key][0] for key in ["r", "g", "b"]]
@@ -372,20 +367,12 @@ class randomize_visual_texture_material(ManagerTermBase):
         """
         super().__init__(cfg, env)
 
-        # EventManager checks replication only for prestartup terms.
-        if env.cfg.scene.replicate_physics:
-            raise RuntimeError(
-                "Unable to randomize visual texture material with scene replication enabled."
-                " For stable USD-level randomization, please disable scene replication"
-                " by setting 'replicate_physics' to False in 'InteractiveSceneCfg'."
-            )
-
         self._rep = rep = _get_replicator()
         # this term draws from Replicator's random streams, so they follow the environment seed
         if env.cfg.seed is not None:
             rep.set_global_seed(env.cfg.seed)
 
-        asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg")
+        asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         asset = env.scene[asset_cfg.name]
 
         body_names = asset_cfg.body_names
@@ -407,9 +394,9 @@ class randomize_visual_texture_material(ManagerTermBase):
         version = re.match(r"^(\d+\.\d+\.\d+)", rep.__file__.split("/")[-5][21:]).group(1)
 
         if compare_versions(version, "1.12.4") < 0:
-            texture_paths = cfg.params.get("texture_paths")
-            event_name = cfg.params.get("event_name")
-            texture_rotation = cfg.params.get("texture_rotation", (0.0, 0.0))
+            texture_paths = cfg.params["texture_paths"]
+            event_name = cfg.params["event_name"]
+            texture_rotation = cfg.params["texture_rotation"]
 
             texture_rotation = tuple(math.degrees(angle) for angle in texture_rotation)
 
@@ -460,10 +447,8 @@ class randomize_visual_texture_material(ManagerTermBase):
         if compare_versions(version, "1.12.4") < 0:
             rep.utils.send_og_event(event_name)
         else:
-            texture_paths = texture_paths if texture_paths else self._cfg.params.get("texture_paths")
-            texture_rotation = (
-                texture_rotation if texture_rotation else self._cfg.params.get("texture_rotation", (0.0, 0.0))
-            )
+            texture_paths = texture_paths if texture_paths else self._cfg.params["texture_paths"]
+            texture_rotation = texture_rotation if texture_rotation else self._cfg.params["texture_rotation"]
 
             texture_rotation = tuple(math.degrees(angle) for angle in texture_rotation)
 

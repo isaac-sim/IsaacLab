@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.envs import DirectRLEnv
+from isaaclab.envs.mdp.actions import EMAJointPositionToLimitsAction
 from isaaclab.utils import index_fill_
 from isaaclab.utils.math import combine_frame_transforms, matrix_from_quat
 
@@ -29,8 +30,12 @@ class CabinetDirectEnv(DirectRLEnv):
         super().__init__(cfg, render_mode, **kwargs)
 
         self._robot, self._cabinet = self.scene["robot"], self.scene["cabinet"]
-        self.arm_joint_ids, _ = self._robot.find_joints(self.cfg.arm_joint_names)
-        self.finger_joint_ids, _ = self._robot.find_joints(self.cfg.finger_joint_names)
+        arm_joint_ids, _ = self._robot.find_joints(
+            self.cfg.arm_action.joint_names, preserve_order=self.cfg.arm_action.preserve_order
+        )
+        finger_joint_ids, _ = self._robot.find_joints(self.cfg.finger_joint_names)
+        self.arm_joint_ids = torch.tensor(arm_joint_ids, dtype=torch.long, device=self.device)
+        self.finger_joint_ids = torch.tensor(finger_joint_ids, dtype=torch.long, device=self.device)
         self.ee_body_idx = self._robot.find_bodies(self.cfg.ee_body_name)[0][0]
         self.left_finger_body_idx = self._robot.find_bodies(self.cfg.left_finger_body_name)[0][0]
         self.right_finger_body_idx = self._robot.find_bodies(self.cfg.right_finger_body_name)[0][0]
@@ -51,7 +56,7 @@ class CabinetDirectEnv(DirectRLEnv):
             )
 
         self.previous_actions = torch.zeros_like(self.actions)
-        self.arm_joint_targets = torch.zeros((self.num_envs, len(self.arm_joint_ids)), device=self.device)
+        self._arm_action = EMAJointPositionToLimitsAction(self.cfg.arm_action, self)
         self.finger_joint_targets = torch.zeros((self.num_envs, len(self.finger_joint_ids)), device=self.device)
 
         # frame offsets, repeated for every environment
@@ -81,6 +86,8 @@ class CabinetDirectEnv(DirectRLEnv):
                 "multi_stage_open_drawer",
                 "action_rate_l2",
                 "joint_vel",
+                "joint_pos_limits",
+                "joint_vel_limits",
             )
         }
 
@@ -88,10 +95,7 @@ class CabinetDirectEnv(DirectRLEnv):
         self.previous_actions[:] = self.actions
         self.actions[:] = actions
 
-        self.arm_joint_targets[:] = (
-            self._robot.data.default_joint_pos.torch[:, self.arm_joint_ids]
-            + self.cfg.arm_action_scale * self.actions[:, : len(self.arm_joint_ids)]
-        )
+        self._arm_action.process_actions(self.actions[:, : len(self.arm_joint_ids)])
         self.finger_joint_targets[:] = torch.where(
             self.actions[:, -1:] < 0.0,
             self.cfg.gripper_close_command,
@@ -99,14 +103,9 @@ class CabinetDirectEnv(DirectRLEnv):
         )
 
     def _apply_action(self) -> None:
-        self._robot.set_joint_position_target_index(
-            target=self.arm_joint_targets,
-            joint_ids=self.arm_joint_ids,
-        )
-        self._robot.set_joint_position_target_index(
-            target=self.finger_joint_targets,
-            joint_ids=self.finger_joint_ids,
-        )
+        target_command = self._robot.actuators.target_command
+        self._arm_action.apply_actions()
+        target_command.set_position_index(value=self.finger_joint_targets, joint_ids=self.finger_joint_ids)
 
     def _get_observations(self) -> dict[str, torch.Tensor]:
         robot_joint_pos = self._robot.data.joint_pos.torch - self._robot.data.default_joint_pos.torch
@@ -182,6 +181,17 @@ class CabinetDirectEnv(DirectRLEnv):
 
         action_rate = torch.sum(torch.square(self.actions - self.previous_actions), dim=-1)
         joint_vel = torch.sum(torch.square(self._robot.data.joint_vel.torch), dim=-1)
+        arm_joint_pos = self._robot.data.joint_pos.torch[:, self.arm_joint_ids]
+        arm_joint_vel = self._robot.data.joint_vel.torch[:, self.arm_joint_ids]
+        position_limits = self._robot.data.soft_joint_pos_limits.torch[:, self.arm_joint_ids]
+        joint_pos_limits = torch.sum(
+            (position_limits[..., 0] - arm_joint_pos).clamp(min=0.0)
+            + (arm_joint_pos - position_limits[..., 1]).clamp(min=0.0),
+            dim=-1,
+        )
+        # Match the standard joint_vel_limits reward's 1 rad/s excess cap per joint.
+        velocity_limits = self._robot.data.soft_joint_vel_limits.torch[:, self.arm_joint_ids]
+        joint_vel_limits = torch.sum((arm_joint_vel.abs() - velocity_limits).clamp(min=0.0, max=1.0), dim=-1)
 
         reward_terms = {
             "approach_ee_handle": self.cfg.approach_ee_handle_reward_scale * approach_ee_handle,
@@ -193,6 +203,8 @@ class CabinetDirectEnv(DirectRLEnv):
             "multi_stage_open_drawer": (self.cfg.multi_stage_open_drawer_reward_scale * multi_stage_open_drawer),
             "action_rate_l2": self.cfg.action_rate_reward_scale * action_rate,
             "joint_vel": self.cfg.joint_vel_reward_scale * joint_vel,
+            "joint_pos_limits": self.cfg.joint_pos_limits_reward_scale * joint_pos_limits,
+            "joint_vel_limits": self.cfg.joint_vel_limits_reward_scale * joint_vel_limits,
         }
         reward = torch.zeros_like(drawer_pos)
         for name, value in reward_terms.items():
@@ -211,13 +223,14 @@ class CabinetDirectEnv(DirectRLEnv):
             env_ids = torch.arange(self.num_envs, device=self.device)
 
         log = self.extras.setdefault("log", {})
-        log["Metrics/success_rate"] = self._episode_succeeded[env_ids].float().mean().item()
-        log["Metrics/drawer_pos"] = self._best_drawer_pos[env_ids].mean().item()
+        log["Metrics/success_rate"] = self._episode_succeeded[env_ids].float().mean()
+        log["Metrics/drawer_pos"] = self._best_drawer_pos[env_ids].mean()
         for name, episode_sum in self._episode_reward_sums.items():
             log[f"Episode_Reward/{name}"] = torch.mean(episode_sum[env_ids]) / self.max_episode_length_s
             index_fill_(episode_sum, env_ids, 0.0)
 
         super()._reset_idx(env_ids)
+        self._arm_action.reset(env_ids)
 
         index_fill_(self.actions, env_ids, 0.0)
         index_fill_(self.previous_actions, env_ids, 0.0)

@@ -35,6 +35,11 @@ RUNTIME_COMPATIBILITY: dict[str, Any] = {
     "by_physics_backend": {
         "physx": ("isaacsim",),
         "newton_mjwarp": ("newton", "mujoco", "mjwarp"),
+        "newton_kamino": ("newton",),
+        "newton_featherstone": ("newton",),
+        "newton_xpbd": ("newton",),
+        "newton_vbd": ("newton",),
+        "newton_mpm": ("newton",),
         # Standalone, kit-less solver; isaacsim is null on this path, so it is pinned
         # to its own version instead.
         "ovphysx": ("ovphysx",),
@@ -170,8 +175,21 @@ def build(bundle: dict[str, Any]) -> Contract:
     if not isinstance(cpu_name, str) or not cpu_name.strip():
         raise PerfSmokeError("hardware.cpu_name must be a non-empty string")
 
+    solvers = config.get("physics_solvers", [])
+    if not isinstance(solvers, list) or not all(isinstance(name, str) and name for name in solvers):
+        raise PerfSmokeError("run.config.physics_solvers must be a list of non-empty strings")
+    solvers = sorted(set(solvers)) if solvers else [physics_backend]
+    if physics_backend not in solvers:
+        raise PerfSmokeError("run.config.physics_backend must be included in physics_solvers")
+    coupling = config.get("physics_coupling")
+    if coupling is not None and (not isinstance(coupling, str) or not coupling):
+        raise PerfSmokeError("run.config.physics_coupling must be a non-empty string or null")
+
     pinned: dict[str, str] = {}
-    for name in _required_version_names(physics_backend, render_backend):
+    required_versions = dict.fromkeys(
+        name for solver in solvers for name in _required_version_names(solver, render_backend)
+    )
+    for name in required_versions:
         value = versions.get(name)
         if value is None:
             raise PerfSmokeError(f"versions.{name} is required to compare {physics_backend} runs but is missing")
@@ -179,14 +197,17 @@ def build(bundle: dict[str, Any]) -> Contract:
             raise PerfSmokeError(f"versions.{name} must be a non-empty string")
         pinned[name] = strip_build_metadata(value) if name in _STRIP_BUILD_METADATA else value.strip()
 
+    workload = {
+        "task": task,
+        "physics_backend": physics_backend,
+        "render_backend": render_backend,
+        "presets": sorted(presets),
+        "num_envs": positive_int(run.get("num_envs"), "run.num_envs"),
+    }
+    if len(solvers) > 1 or coupling is not None:
+        workload.update(physics_solvers=solvers, physics_coupling=coupling)
     return Contract(
-        workload={
-            "task": task,
-            "physics_backend": physics_backend,
-            "render_backend": render_backend,
-            "presets": sorted(presets),
-            "num_envs": positive_int(run.get("num_envs"), "run.num_envs"),
-        },
+        workload=workload,
         runtime={
             "versions": pinned,
             "gpu_model": normalize_gpu_model(gpu_name),

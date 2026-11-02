@@ -38,7 +38,7 @@ _SKIP_MISSING_OVRTX = pytest.mark.skipif(
 
 if not _MISSING_MODULES:
     import torch
-    from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
+    from isaaclab_newton.physics.mjwarp_solver_cfg import MJWarpSolverCfg
     from isaaclab_newton.physics.newton_manager_cfg import NewtonCfg
     from isaaclab_ov.renderers import OVRTXRendererCfg
 
@@ -90,7 +90,6 @@ if not _MISSING_MODULES:
                 rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
                 mass_props=sim_utils.MassCfg(mass=0.001),
                 collision_props=sim_utils.UsdPhysicsCollisionCfg(),
-                physics_material=sim_utils.RigidBodyMaterialCfg(),
                 visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0)),
             ),
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, -100.0)),

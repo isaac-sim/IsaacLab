@@ -277,15 +277,14 @@ class DirectRLEnvCfg:
     """
 
     viewer: ViewerCfg = ViewerCfg()
-    """Deprecated viewer configuration. Use :attr:`~isaaclab.sim.SimulationCfg.default_visualizer_cfg`
-    or :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs` instead.
+    """Deprecated viewer configuration. Use :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs` instead.
 
     .. deprecated::
         This field is deprecated and will be removed in a future release. Configure the viewport
         camera via :class:`~isaaclab.visualizers.VisualizerCfg` on the simulation config::
 
             from isaaclab.visualizers import VisualizerCfg
-            env_cfg.sim.default_visualizer_cfg = VisualizerCfg(eye=(4.5, 0.0, 6.0))
+            env_cfg.sim.visualizer_cfgs = VisualizerCfg(eye=(4.5, 0.0, 6.0))
     """
 
     def play_mode(self):

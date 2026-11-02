@@ -1,8 +1,8 @@
 Imitation Learning
 ==================
 
-In this section, we show existing scripts for running imitation learning
-with Isaac Lab.
+Collect demonstrations, generate additional data, and train imitation-learning
+policies with the workflows below.
 
 .. toctree::
   :maxdepth: 1

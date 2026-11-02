@@ -64,14 +64,10 @@ def main():
         args.disassembly_dir,
     )
 
-    if sys.platform.startswith("win"):
-        command = ["isaaclab.bat"]
-    else:
-        command = ["./isaaclab.sh"]
+    command = [sys.executable, "-m", "isaaclab", "-p"]
 
     command.extend(
         [
-            "-p",
             "scripts/reinforcement_learning/train.py",
             "--rl_library",
             "rl_games",

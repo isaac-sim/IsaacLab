@@ -24,7 +24,7 @@ is task-specific.
      - Typical command
    * - Newton Warp
      - You need the lowest VRAM use and high camera throughput for Newton training.
-     - Lightweight rasterization; it has a smaller output set and does not provide motion vectors
+     - Lightweight ray tracing; it has a smaller output set and does not provide motion vectors
        or full RTX material transport.
      - ``physics=newton_mjwarp renderer=newton_renderer presets=rgb``
    * - OVRTX
@@ -34,7 +34,7 @@ is task-specific.
      - ``physics=newton_mjwarp renderer=ovrtx presets=rgb``
    * - Isaac RTX (legacy)
      - A workflow must run through Isaac Sim/Kit or needs its broad RTX and Replicator output set.
-     - Requires Isaac Sim and PhysX; do not use it as the default performance path for new work.
+     - Requires Isaac Sim; do not use it as the default performance path for new work.
      - ``physics=isaacsim_physx renderer=isaacsim_rtx presets=rgb``
 
 For example, start a camera task with the low-VRAM Newton renderer:
@@ -116,7 +116,7 @@ OVRTX outputs always cast shadows, so this option does not affect regular ``rgb`
 Customize Isaac RTX
 -------------------
 
-Isaac RTX remains available for Isaac Sim and PhysX workflows. The settings below are specific to
+Isaac RTX remains available for Isaac Sim workflows. The settings below are specific to
 that legacy renderer; use Newton Warp or OVRTX for new Newton and kit-less workloads.
 
 .. note::
@@ -228,7 +228,7 @@ Current Limitations
 For performance reasons, we default to using DLSS for denoising, which generally provides better performance.
 This may result in renders of lower quality, which may be especially evident at lower resolutions.
 Due to this, we recommend using per-tile or per-camera resolution of at least 100 x 100.
-For renders at lower resolutions, we advice setting the ``antialiasing_mode`` attribute in
+For renders at lower resolutions, we advise setting the ``antialiasing_mode`` attribute in
 :class:`~isaaclab_physx.renderers.IsaacRtxRendererGlobalSettingsCfg` to
 ``DLAA``, and also potentially enabling ``enable_dl_denoiser``. Both of these settings should help improve render
 quality, but also comes at a cost of performance. Additional rendering parameters can also be specified in

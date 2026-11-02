@@ -318,7 +318,13 @@ def test_write_bundle_file_is_atomic(tmp_path, monkeypatch):
 def test_run_config_presets_round_trip(tmp_path):
     """RunConfig.presets is an open-ended token list; defaults to [] and round-trips."""
     assert RunConfig(physics_backend="physx").presets == []
-    cfg = RunConfig(physics_backend="newton_mjwarp", rendering_backend="ovrtx", presets=["rgb", "ovrtx"])
+    cfg = RunConfig(
+        physics_backend="newton_mjwarp",
+        rendering_backend="ovrtx",
+        presets=["rgb", "ovrtx"],
+        physics_solvers=["newton_mjwarp", "newton_vbd"],
+        physics_coupling="proxy",
+    )
     base = _minimal_training_bundle()
     bundle = dataclasses.replace(base, run=dataclasses.replace(base.run, config=cfg))
     path = os.path.join(tmp_path, "training.json")
@@ -326,5 +332,9 @@ def test_run_config_presets_round_trip(tmp_path):
     with open(path) as f:
         data = json.load(f)
     assert data["run"]["config"]["presets"] == ["rgb", "ovrtx"]
+    assert data["run"]["config"]["physics_solvers"] == ["newton_mjwarp", "newton_vbd"]
+    assert data["run"]["config"]["physics_coupling"] == "proxy"
+    assert RunConfig(**data["run"]["config"]) == cfg
+    assert RunConfig(physics_backend="newton_mjwarp").physics_coupling is None
     assert "sensor_dtype" not in data["run"]["config"]
     assert "sensor_resolution" not in data["run"]["config"]

@@ -6,9 +6,9 @@
 Pose Velocity Acceleration (PVA) Sensor
 =======================================
 
-A :class:`~sensors.Pva` reads the ground-truth kinematic state of a frame. Use it for privileged
-observations, state estimation, or control inputs that require more than an inertial sensor measures.
-Use an :doc:`imu` when the observation should follow accelerometer and gyroscope conventions.
+A :class:`~sensors.Pva` reads a frame's ground-truth pose, velocity, and acceleration
+for control, state estimation, or privileged observations. Use an :doc:`imu` for
+accelerometer and gyroscope measurements.
 
 The sensor can attach directly to a rigid body or to a fixed child prim beneath a rigid-body
 ancestor. In the latter case, Isaac Lab composes the child's fixed transform with the configured

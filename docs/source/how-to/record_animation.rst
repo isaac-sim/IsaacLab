@@ -76,14 +76,14 @@ To play back, open Isaac Sim:
 
       .. code-block:: bash
 
-         ./isaaclab.sh -s
+         uv run isaaclab -s
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code-block:: batch
 
-         isaaclab.bat -s
+         uv run isaaclab -s
 
 Inside the Layers panel, insert both ``Stage.usd`` and ``TimeSample_tk001.usd`` as sublayers.
 The animation will now play back when you hit the play button.

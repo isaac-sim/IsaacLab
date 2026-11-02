@@ -7,16 +7,10 @@ Interacting with an articulation
 
 .. currentmodule:: isaaclab
 
-This runtime example complements :ref:`asset-authoring`. It uses an existing robot
-configuration; see :ref:`how-to-write-articulation-config` to create one and
-:ref:`asset-config-backends` to adapt its spawn properties to PhysX or Newton.
-
-
-This tutorial shows how to interact with an articulated robot in the simulation. It is a continuation of the
-:ref:`tutorial-interact-rigid-object` tutorial, where we learned how to interact with a rigid object.
-On top of setting the root state, we will see how to set the joint state and apply commands to the articulated
-robot.
-
+Set a robot's root and joint states, then apply joint commands during simulation.
+This example builds on :ref:`tutorial-interact-rigid-object` and uses an existing
+robot configuration. To create a configuration, see :ref:`how-to-write-articulation-config`;
+to adapt its spawn properties to PhysX or Newton, see :ref:`asset-config-backends`.
 
 The Code
 ~~~~~~~~
@@ -134,13 +128,6 @@ the Isaac Sim viewport shown below:
          uv run isaaclab -p scripts/tutorials/01_assets/run_articulation.py --viz kit
 
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/tutorials/01_assets/run_articulation.py --viz kit
-
-
 This command should open a stage with a ground plane, lights, and two cart-poles that are moving around randomly.
 Press ``Ctrl+C`` in the terminal to stop the simulation.
 
@@ -162,8 +149,3 @@ The packaged Zoo demo also animates several robot families in one scene:
       .. code-block:: bash
 
          uv run --extra isaacsim isaaclab demo zoo --viz kit
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh demo zoo --viz kit

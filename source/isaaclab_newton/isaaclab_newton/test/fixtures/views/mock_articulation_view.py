@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import numpy as np
 import warp as wp
+from newton import JointType
 
 
 class MockNewtonCollectionView:
@@ -349,6 +350,11 @@ class MockNewtonArticulationView:
         return self._is_fixed_base
 
     @property
+    def root_joint_type(self) -> int:
+        """Type of the root joint: fixed for a fixed base, free otherwise."""
+        return int(JointType.FIXED if self._is_fixed_base else JointType.FREE)
+
+    @property
     def joint_dof_names(self) -> list[str]:
         """Names of the DOFs."""
         return self._joint_dof_names
@@ -408,10 +414,8 @@ class MockNewtonArticulationView:
             )
         return self._link_transforms
 
-    def _ensure_link_velocities(self) -> wp.array | None:
-        """Lazily create link velocities (None for fixed base)."""
-        if self._is_fixed_base:
-            return None
+    def _ensure_link_velocities(self) -> wp.array:
+        """Lazily create link velocities for both fixed and floating bases."""
         if self._link_velocities is None:
             self._link_velocities = wp.zeros(
                 (self._count, 1, self._link_count), dtype=wp.spatial_vectorf, device=self._device
@@ -519,15 +523,14 @@ class MockNewtonArticulationView:
         """
         return self._ensure_link_transforms()
 
-    def get_link_velocities(self, state) -> wp.array | None:
+    def get_link_velocities(self, state) -> wp.array:
         """Get velocities of all links.
 
         Args:
             state: Newton state object (unused in mock).
 
         Returns:
-            Warp array of shape ``(N, 1, L)`` with dtype=wp.spatial_vectorf,
-            or None for fixed base.
+            Warp array of shape ``(N, 1, L)`` with dtype=wp.spatial_vectorf.
         """
         return self._ensure_link_velocities()
 
@@ -638,9 +641,7 @@ class MockNewtonArticulationView:
         Args:
             velocities: Warp array of shape ``(N, 1, L)`` with dtype=wp.spatial_vectorf.
         """
-        link_velocities = self._ensure_link_velocities()
-        if link_velocities is not None:
-            link_velocities.assign(velocities)
+        self._ensure_link_velocities().assign(velocities)
 
     def set_mock_dof_positions(self, positions: wp.array) -> None:
         """Set mock DOF position data directly for testing.
@@ -737,10 +738,9 @@ class MockNewtonArticulationView:
         link_tf_np[..., 3:7] /= np.linalg.norm(link_tf_np[..., 3:7], axis=-1, keepdims=True)
         self._link_transforms = wp.array(link_tf_np, dtype=wp.transformf, device=dev)
 
-        # Link velocities (floating base only)
-        if not self._is_fixed_base:
-            link_vel_np = np.random.randn(N, 1, L, 6).astype(np.float32)
-            self._link_velocities = wp.array(link_vel_np, dtype=wp.spatial_vectorf, device=dev)
+        # Link velocities
+        link_vel_np = np.random.randn(N, 1, L, 6).astype(np.float32)
+        self._link_velocities = wp.array(link_vel_np, dtype=wp.spatial_vectorf, device=dev)
 
         # DOF state -- positions are coordinate-space width (see ``_joint_coord_count_total``),
         # velocities are always DOF-space width.

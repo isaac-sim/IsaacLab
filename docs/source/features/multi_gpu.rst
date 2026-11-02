@@ -36,9 +36,8 @@ Then run the same task on every visible GPU:
 
    uv run isaaclab train_multigpu --task Isaac-Cartpole
 
-That is the complete transition from a single-GPU run. ``train_multigpu`` adds
-``--distributed`` and selects the distributed launcher automatically. All other
-arguments are the same arguments accepted by ``train``:
+``train_multigpu`` adds ``--distributed`` and chooses the launcher. Other arguments
+work as they do with ``train``:
 
 .. code-block:: bash
 
@@ -50,6 +49,11 @@ arguments are the same arguments accepted by ``train``:
 ``--num_envs`` is the number of environments **on each GPU**. With four GPUs and
 ``--num_envs 4096``, the job collects experience from 16,384 environments in
 total.
+
+All ranks write into one run folder. Each rank trains with the launch seed plus
+its rank on its own GPU. Rank 0 writes its settings (``params/env.yaml`` and
+``params/agent.yaml``) and videos where a single-GPU run does; every other rank
+writes its own ``params/`` and videos to ``rank_<rank>/``.
 
 .. tip::
 
@@ -102,7 +106,7 @@ for most core tasks.
      - ``uv run --extra skrl isaaclab train_multigpu --rl_library skrl ...``
    * - skrl
      - JAX
-     - ``uv run --extra skrl isaaclab train_multigpu --rl_library skrl --ml_framework jax ...``
+     - ``uv run --extra skrl-jax isaaclab train_multigpu --rl_library skrl --ml_framework jax ...``
 
 skrl with JAX uses skrl's distributed launcher instead of ``torchrun``. Pass an
 integer ``--num_gpus`` and use ``--coordinator_address`` to configure its
@@ -110,7 +114,7 @@ coordinator:
 
 .. code-block:: bash
 
-   uv run --extra skrl isaaclab train_multigpu \
+   uv run --extra skrl-jax isaaclab train_multigpu \
       --rl_library skrl --ml_framework jax --num_gpus 4 \
       --coordinator_address localhost:5000 \
       --task Isaac-Cartpole
@@ -284,6 +288,10 @@ The total world size is ``nnodes * num_gpus``: eight ranks in this example. You
 can also use ``--rdzv_backend``, ``--rdzv_endpoint``, and ``--rdzv_id`` for an
 elastic ``torchrun`` rendezvous. Add ``--dry_run`` first to verify the command on
 each node.
+
+Each node names the run folder from its own launch time. When the nodes share
+storage, pass the same ``--run_timestamp`` value (format ``YYYY-MM-DD_HH-MM-SS``)
+to ``train_multigpu`` on every node so that all ranks write into one run folder.
 
 For skrl with JAX, pass ``--nnodes``, ``--node_rank``, an integer
 ``--num_gpus``, and the same ``--coordinator_address`` on every node. Do not pass

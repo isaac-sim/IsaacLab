@@ -22,8 +22,10 @@ if _USE_RUNTIME:
             allow_module_level=True,
         )
 
+import json
 import math
 import os
+import shutil
 import warnings
 from types import SimpleNamespace
 
@@ -47,8 +49,8 @@ _REPO_FRANKA_URDF = os.path.join(
 # Kept beside the tests so they are hermetic and run on either importer backend.
 _MERGE_JOINTS_URDF = os.path.join(os.path.dirname(os.path.abspath(__file__)), "urdfs", "test_merge_joints.urdf")
 
-# Fixed-joint-only fixture: the importer writes no PhysX data for it, so its "Physics" variant set
-# offers no "physx" variant, so requesting it must fail.
+# Fixed-joint-only fixture used to verify that the importer authors a PhysX variant even when the
+# asset has no movable joints.
 _FIXED_ONLY_URDF = os.path.join(os.path.dirname(os.path.abspath(__file__)), "urdfs", "test_fixed_only.urdf")
 
 
@@ -97,7 +99,7 @@ def test_no_change(sim_config):
 
 @pytest.mark.isaacsim_ci
 def test_config_change(sim_config, tmp_path):
-    """Call conversion twice but change the config in the second call. This should generate a new USD file."""
+    """Reuse the importer's numbered output, and reject old records that cannot identify that output."""
 
     sim, config = sim_config
     output_dir = os.path.join(str(tmp_path), "urdf_config_change")
@@ -105,7 +107,6 @@ def test_config_change(sim_config, tmp_path):
 
     config.usd_dir = output_dir
     urdf_converter = UrdfConverter(config)
-    time_usd_file_created = os.stat(urdf_converter.usd_path).st_mtime_ns
 
     # change the config
     new_config = config
@@ -116,7 +117,19 @@ def test_config_change(sim_config, tmp_path):
     new_urdf_converter = UrdfConverter(new_config)
     new_time_usd_file_created = os.stat(new_urdf_converter.usd_path).st_mtime_ns
 
-    assert time_usd_file_created != new_time_usd_file_created
+    assert new_urdf_converter.usd_path != urdf_converter.usd_path
+    lazy_urdf_converter = UrdfConverter(new_config)
+    assert lazy_urdf_converter.usd_path == new_urdf_converter.usd_path
+    assert os.stat(lazy_urdf_converter.usd_path).st_mtime_ns == new_time_usd_file_created
+
+    # A hash-only record cannot identify B's missing numbered output while A still exists.
+    record_path = os.path.join(output_dir, ".asset_hash")
+    with open(record_path, encoding="utf-8") as f:
+        old_hash = json.load(f)["hash"]
+    shutil.rmtree(os.path.dirname(new_urdf_converter.usd_path))
+    with open(record_path, "w", encoding="utf-8") as f:
+        f.write(old_hash)
+    assert UrdfConverter(new_config).usd_path != urdf_converter.usd_path
 
 
 @pytest.mark.isaacsim_ci
@@ -608,6 +621,25 @@ def test_physics_variant_override(sim_config, tmp_path):
 
 
 @pytest.mark.isaacsim_ci
+def test_fixed_only_urdf_supports_physx_variant(tmp_path):
+    """Verify that a fixed-joint-only URDF exposes and selects the ``"physx"`` variant."""
+    output_dir = os.path.join(str(tmp_path), "urdf_fixed_only_physx_variant")
+    os.makedirs(output_dir, exist_ok=True)
+
+    config = UrdfConverterCfg(
+        asset_path=_FIXED_ONLY_URDF,
+        fix_base=True,
+        usd_dir=output_dir,
+        physics_variant="physx",
+    )
+    urdf_converter = UrdfConverter(config)
+
+    selection, variants = _physics_variant(urdf_converter.usd_path)
+    assert "physx" in variants
+    assert selection == "physx"
+
+
+@pytest.mark.isaacsim_ci
 def test_physics_variant_raises_again_on_retry(tmp_path):
     """Verify that a conversion which failed on the variant does not count as cached.
 
@@ -618,12 +650,13 @@ def test_physics_variant_raises_again_on_retry(tmp_path):
     os.makedirs(output_dir, exist_ok=True)
 
     config = UrdfConverterCfg(
-        asset_path=_FIXED_ONLY_URDF,
+        asset_path=_REPO_FRANKA_URDF,
         fix_base=True,
         usd_dir=output_dir,
-        physics_variant="physx",
+        physics_variant="not_a_variant",
     )
 
     for _ in range(2):
-        with pytest.raises(ValueError, match="no 'physx' physics variant"):
+        with pytest.raises(ValueError, match="no 'not_a_variant' physics variant"):
             UrdfConverter(config)
+        assert not os.path.exists(os.path.join(output_dir, ".asset_hash"))

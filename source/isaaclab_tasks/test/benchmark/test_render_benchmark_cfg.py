@@ -23,7 +23,7 @@ from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
-from isaaclab.app import scan
+from isaaclab.app import validate_launch
 from isaaclab.envs import DirectRLEnv
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sim.schemas import MassCfg, UsdPhysicsCollisionCfg, UsdPhysicsRigidBodyCfg
@@ -73,7 +73,7 @@ def test_benchmark_mode_from_environment(monkeypatch, mode):
     [
         ("render", False, "newton_warp", False, "lazy_sensor_update=True"),
         ("physics_render", False, "newton_warp", False, None),
-        ("render", True, "isaac_rtx", True, "--visualizer none"),
+        ("render", True, "isaac_rtx", True, "requires no visualizer"),
         ("physics_render", True, "isaac_rtx", True, None),
         ("render", True, "ovrtx", True, None),
         ("render", True, "isaac_rtx", False, None),
@@ -102,7 +102,7 @@ def test_render_mode_rejects_rendering_before_direct_pose(
             RenderBenchmarkEnv(cfg)
     else:
         RenderBenchmarkEnv(cfg)
-    if error == "--visualizer none":
+    if error == "requires no visualizer":
         close.assert_called_once()
     else:
         close.assert_not_called()
@@ -155,29 +155,30 @@ def test_benchmark_mode_orders_joint_updates_and_rendering(mode):
 
 
 @pytest.mark.parametrize(
-    ("presets", "expected_type"),
+    ("presets", "expected_type", "expected_asset_physics"),
     [
-        ((), NewtonCfg),
-        (("physx",), PhysxAutoCfg),
-        (("isaacsim_physx",), PhysxCfg),
-        (("ovphysx",), OvPhysxCfg),
+        ((), NewtonCfg, "mujoco"),
+        (("physx",), PhysxAutoCfg, "physx"),
+        (("isaacsim_physx",), PhysxCfg, "physx"),
+        (("ovphysx",), OvPhysxCfg, "physx"),
     ],
 )
-def test_physics_presets_resolve_to_expected_backend(presets, expected_type):
+def test_physics_presets_resolve_to_expected_backend(presets, expected_type, expected_asset_physics):
     cfg = resolve_presets(_load_cfg(), selected=presets)
 
     assert isinstance(cfg.sim.physics, expected_type)
+    assert cfg.scene.robot.spawn.variants["Physics"] == expected_asset_physics
 
 
 @pytest.mark.parametrize("physics_preset", ["ovphysx", "physx"])
 def test_ovphysx_presets_resolve_with_ovrtx(physics_preset):
     """Explicit and automatic PhysX presets support rendering without Kit."""
     cfg = resolve_presets(_load_cfg(), selected=(physics_preset, "ovrtx"))
-    config_scan = scan(cfg)
+    _, kit_sources = validate_launch(cfg)
 
     assert isinstance(cfg.sim.physics, OvPhysxCfg)
     assert isinstance(cfg.scene.tiled_camera.renderer_cfg, OVRTXRendererCfg)
-    assert config_scan.needs_kit is False
+    assert not kit_sources
 
 
 @pytest.fixture(scope="module")

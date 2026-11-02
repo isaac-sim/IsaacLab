@@ -5,26 +5,14 @@ Importing a New Asset
 
 .. currentmodule:: isaaclab
 
-NVIDIA Omniverse relies on the Universal Scene Description (USD) file format to
-import and export assets. USD is an open source file format developed by Pixar
-Animation Studios. It is a scene description format optimized for large-scale,
-complex data sets. While this format is widely used in the film and animation
-industry, it is less common in the robotics community.
+Convert robot descriptions and meshes to USD before using them as Isaac Lab assets.
+The available importers cover:
 
-To this end, NVIDIA has developed various importers that allow you to import
-assets from other file formats into USD. These importers are available through
-Omniverse Kit workflows, and the URDF/MJCF Python importers can also be used
-from a standalone pip wheel:
+* **URDF** and **MJCF** robot descriptions.
+* **Meshes** in formats including OBJ, FBX, STL, and glTF.
 
-* **URDF Importer** - Import assets from URDF files.
-* **MJCF Importer** - Import assets from MJCF files.
-* **Mesh Importer** - Import assets from various file formats, including
-  OBJ, FBX, STL, and glTF.
-
-The recommended workflow from NVIDIA is to use the above importers to convert
-the asset into its USD representation. Once the asset is in USD format, you can
-use the Omniverse Kit to edit the asset and export it to other file formats. Isaac Sim includes
-these importers by default. They can also be enabled manually in Omniverse Kit.
+Isaac Sim includes these importers and provides GUI tools for editing the converted
+assets. URDF and MJCF conversion also works without Isaac Sim.
 
 Isaac Lab's URDF and MJCF converter utilities first use the importer APIs from
 Isaac Sim when the full runtime is installed. In kit-less environments they fall back
@@ -33,12 +21,8 @@ to the standalone importers described in
 The Kit visualizer and GUI import dialogs still require an Omniverse Kit runtime.
 
 
-An important note to use assets for large-scale simulation is to ensure that they
-are in `instanceable`_ format. This allows the asset to be efficiently loaded
-into memory and used multiple times in a scene. Otherwise, the asset will be
-loaded into memory multiple times, which can cause performance issues.
-For more details on instanceable assets, please check the Isaac Sim `documentation`_.
-
+For repeated assets, use `instanceable`_ USD files so instances can share geometry
+in memory. See the Isaac Sim `documentation`_ for how to prepare them.
 
 .. _installation-standalone-importers:
 
@@ -70,7 +54,7 @@ Multi-backend assets
 --------------------
 
 A converted asset can carry shared USD physics and backend-specific attributes. The
-Isaac Sim 6.1 standalone URDF and MJCF importers produce layered output such as:
+Isaac Sim 6.2 standalone URDF and MJCF importers produce layered output such as:
 
 .. code-block:: text
 
@@ -84,7 +68,7 @@ Additional physics layers depend on the source asset and importer version. A lay
 Inspect the interface USD's ``Physics`` variant set before requesting a backend-specific variant.
 
 :attr:`~sim.converters.AssetConverterBaseCfg.physics_variant` defaults to ``physics``.
-The tested Isaac Sim 6.1 output exposes ``physics`` and ``none``; ``none`` omits the physics
+The tested Isaac Sim 6.2 output exposes ``physics`` and ``none``; ``none`` omits the physics
 payload. Isaac Lab selects the requested variant explicitly and raises an error if the
 asset has a ``Physics`` variant set without that variant. Do not assume that ``physx``
 or ``mujoco`` is selectable on every converted asset.
@@ -110,7 +94,7 @@ is then passed to the :class:`~sim.converters.UrdfConverter` class.
    The URDF importer was upgraded to version 3.0 in Isaac Sim 6, replacing the previous C++
    binding-based API with a Python pipeline (``urdf-usd-converter``). Assets are now made
    instanceable by default — ``make_instanceable`` is no longer a configuration option.
-   See the :doc:`/source/migration/migrating_to_isaaclab_3-0` for a full list of breaking changes.
+   See the :doc:`/source/isaaclab/migrating` for a full list of breaking changes.
 
 The URDF importer has various configuration parameters that can be set to control the behavior of the importer.
 The default values for the importer's configuration parameters are specified in the :class:`~sim.converters.UrdfConverterCfg` class, and they are listed below. We made a few commonly modified settings to be available as command-line arguments when calling the ``convert_urdf.py``, and they are marked with ``*`` in the list. For a comprehensive list of the configuration parameters, please check the documentation at `URDF importer`_.
@@ -459,7 +443,7 @@ effort mode because Isaac Lab computes its effort directly.
 
 Joints without an Isaac Lab actuator configuration retain their imported USD settings.
 Consequently, an asset with zero-gain USD drives no longer needs
-:attr:`~isaaclab.sim.schemas.JointDrivePropertiesCfg.ensure_drives_exist` solely
+:attr:`~isaaclab.sim.spawners.from_files.FileCfg.ensure_drives_exist` solely
 to make configured joints actuate in Newton.
 
 The ``ensure_drives_exist`` option remains useful when a workflow needs to

@@ -28,7 +28,7 @@ Port Isaac Gym code directly to the current Isaac Lab APIs; do not introduce an 
 8. Map assets to Isaac Lab asset configs and scene entities.
 9. Move action application, observation assembly, reward computation, termination checks, and reset logic into a `DirectRLEnv` or `DirectMARLEnv` implementation.
 10. Port training configuration to the selected Isaac Lab reinforcement learning workflow.
-11. Run a small smoke test before scaling training. Omit `--viz` for headless execution, or use `--viz none` only when a config or command would otherwise enable a visualizer.
+11. Run a small smoke test before scaling training. Omit `--viz` for headless execution.
 12. For locomotion migrations, run the policy-success validation loop in [Reference](reference.md#policy-success-validation-loop). Validate a flat walking policy before rough-terrain curriculum training; rough terrain can start and still be unhealthy if episodes terminate immediately. If the legacy task's command range is broad, use a staged command curriculum or a simpler flat source config such as IsaacGymEnvs `Anymal.yaml` before claiming policy success.
 13. After the direct migration resets, steps, and trains, recommend a manager-based follow-up when the task has reusable observation, reward, command, curriculum, termination, or event logic.
 14. Use the `isaaclab-converting-direct-to-manager` skill for that follow-up instead of mixing manager conversion into the first parity pass.
@@ -60,7 +60,7 @@ uv run --no-project python tools/skills/cli.py check
 
 ## Maintenance
 
-Keep this skill synchronized with the Isaac Gym section in `docs/source/migration/migrating_to_isaaclab_3-0.rst`, `docs/source/setup/installation/index.rst`, `docs/source/concepts/task_workflows.rst`, `docs/source/concepts/backend_architecture.rst`, `docs/source/concepts/schema_cfgs.rst`, the direct environment tutorial, and direct task examples such as `source/isaaclab_tasks/isaaclab_tasks/core/locomotion/ant/`, `source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/`, and `source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/anymal_d/`. If the migration requires documentation-level details, update `docs/source/` or the maintained examples first and keep this skill as a workflow router.
+Keep this skill synchronized with the Isaac Gym section in `docs/source/isaaclab/migrating.rst`, `docs/source/isaaclab/installation.rst`, `docs/source/concepts/task_workflows.rst`, `docs/source/concepts/backends_and_presets.rst`, `docs/source/concepts/schema_cfgs.rst`, the direct environment tutorial, and direct task examples such as `source/isaaclab_tasks/isaaclab_tasks/core/locomotion/ant/`, `source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/`, and `source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/anymal_d/`. If the migration requires documentation-level details, update `docs/source/` or the maintained examples first and keep this skill as a workflow router.
 
 ## References
 
@@ -70,10 +70,10 @@ Keep this skill synchronized with the Isaac Gym section in `docs/source/migratio
 - [Initial Ant smoke validation](validation-ant-fresh-agent.md)
 - [Evaluations](evaluations.md)
 - [Direct to manager conversion skill](../convert-direct-to-manager/SKILL.md)
-- [Migration guide: Isaac Gym section](../../../docs/source/migration/migrating_to_isaaclab_3-0.rst#migration-from-isaac-gym-and-isaacgymenvs)
+- [Migration guide: Isaac Gym section](../../../docs/source/isaaclab/migrating.rst#migration-from-isaac-gym-and-isaacgymenvs)
 - [Task workflows](../../../docs/source/concepts/task_workflows.rst)
-- [Backend architecture](../../../docs/source/concepts/backend_architecture.rst)
+- [Backends and presets](../../../docs/source/concepts/backends_and_presets.rst)
 - [Schema cfgs](../../../docs/source/concepts/schema_cfgs.rst)
-- [Environment browser](../../../docs/source/setup/environments.rst)
+- [Environment browser](../../../docs/source/isaaclab/environments.rst)
 - [Create direct workflow environment tutorial](../../../docs/source/how-to/create_direct_rl_env.rst)
 - [Create manager-based environment tutorial](../../../docs/source/how-to/create_manager_rl_env.rst)

@@ -26,10 +26,6 @@ is demanded by more than one party. -->
 - Breaking change (existing functionality will not work without user modification)
 - Documentation update
 
-## Release backport
-
-- [ ] <!-- backport-active-release --> Backport this pull request to the active release branch after it merges into `develop`
-
 ## Screenshots
 
 Please attach before and after screenshots of the change if applicable.
@@ -53,7 +49,7 @@ comment `run-ci` on the pull request.
 - [ ] I have run the [`pre-commit` checks](https://pre-commit.com/) with `uv run isaaclab --format`
 - [ ] I have made corresponding changes to the documentation
 - [ ] My changes generate no new warnings
-- [ ] I have validated the changed behavior with focused coverage and applied the [test-audit criteria](https://github.com/isaac-sim/IsaacLab/blob/develop/skills/developer/test-audit/SKILL.md) to any test changes
+- [ ] I have validated the changed behavior with focused coverage and applied the [test-audit criteria](https://github.com/isaac-sim/IsaacLab/blob/HEAD/skills/developer/test-audit/SKILL.md) to any test changes
 - [ ] I have added a changelog fragment under `source/<pkg>/changelog.d/` for every touched package (do **not** edit `CHANGELOG.rst` or bump package versions — CI handles that)
 - [ ] I have added my name to the `CONTRIBUTORS.md` or my name already exists there
 

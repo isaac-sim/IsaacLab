@@ -31,9 +31,11 @@ def test_gaussian_noise(device, noise_device, op):
     # create noise config
     noise_cfg = noise.GaussianNoiseCfg(std=std, mean=mean, operation=op)
 
+    source = data.clone()
     for _ in range(2):
         # apply noise
         noisy_data = noise_cfg.func(data, cfg=noise_cfg)
+        torch.testing.assert_close(data, source)
         # calculate resulting noise compared to original data set
         if op == "add":
             std_result, mean_result = torch.std_mean(noisy_data - data, dim=0)
@@ -61,9 +63,11 @@ def test_uniform_noise(device, noise_device, op):
     # create noise config
     noise_cfg = noise.UniformNoiseCfg(n_max=n_max, n_min=n_min, operation=op)
 
+    source = data.clone()
     for _ in range(2):
         # apply noise
         noisy_data = noise_cfg.func(data, cfg=noise_cfg)
+        torch.testing.assert_close(data, source)
         # calculate resulting noise compared to original data set
         if op == "add":
             min_result, _ = torch.min(noisy_data - data, dim=0)
@@ -93,9 +97,11 @@ def test_constant_noise(device, noise_device, op):
     # create noise config
     noise_cfg = noise.ConstantNoiseCfg(bias=bias, operation=op)
 
+    source = data.clone()
     for _ in range(2):
         # apply noise
         noisy_data = noise_cfg.func(data, cfg=noise_cfg)
+        torch.testing.assert_close(data, source)
         # calculate resulting noise compared to original data set
         if op == "add":
             bias_result = noisy_data - data
@@ -104,3 +110,22 @@ def test_constant_noise(device, noise_device, op):
 
         assert str(noise_cfg.bias.device) == device
         torch.testing.assert_close(noise_cfg.bias.repeat(data.shape[0], 1), bias_result)
+
+
+def test_additive_bias_is_resampled_on_reset():
+    """Each reset replaces the bias with a fresh sample instead of applying the bias noise to the previous bias."""
+    cfg = noise.NoiseModelWithAdditiveBiasCfg(
+        noise_cfg=noise.ConstantNoiseCfg(bias=0.0),
+        bias_noise_cfg=noise.ConstantNoiseCfg(bias=0.5, operation="add"),
+    )
+    noise_model = noise.NoiseModelWithAdditiveBias(cfg, num_envs=3, device="cpu")
+    data = torch.zeros(3, 2)
+    expected = torch.full_like(data, 0.5)
+
+    for _ in range(3):
+        noise_model.reset()
+        torch.testing.assert_close(noise_model(data), expected)
+    # a partial reset resamples only the selected environments
+    cfg.bias_noise_cfg.bias = 0.25
+    noise_model.reset(env_ids=[1])
+    torch.testing.assert_close(noise_model(data), torch.tensor([[0.5, 0.5], [0.25, 0.25], [0.5, 0.5]]))

@@ -17,7 +17,6 @@ from packaging.requirements import Requirement
 
 pytestmark = pytest.mark.unit
 
-
 _CUDA_ENVIRONMENTS = (
     {"sys_platform": "linux", "platform_machine": "x86_64"},
     {"sys_platform": "linux", "platform_machine": "aarch64"},
@@ -34,9 +33,9 @@ def _applies(marker: str | None, environment: dict[str, str]) -> bool:
     return marker is None or Marker(marker).evaluate(environment)
 
 
-@pytest.mark.parametrize("name", ["torch", "torchvision", "torchaudio"])
+@pytest.mark.parametrize("name", ["torch", "torchvision"])
 def test_resolved_torch_stack_supports_blackwell(source_checkout_root: Path, name: str):
-    """CUDA platforms need CUDA 13 wheels; PyTorch 2.12's cu126 excludes Blackwell. macOS uses PyPI's build."""
+    """CUDA platforms use CUDA 13 wheels for Blackwell and DGX Spark. macOS uses PyPI's build."""
     with (source_checkout_root / "uv.lock").open("rb") as f:
         lock = tomllib.load(f)
 

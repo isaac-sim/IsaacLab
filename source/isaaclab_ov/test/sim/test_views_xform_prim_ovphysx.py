@@ -27,8 +27,6 @@ from isaaclab.sim.views import FrameView  # noqa: E402
 
 OVPHYSX_SIM_CFG = SimulationCfg(physics=OvPhysxCfg())
 
-pytestmark = pytest.mark.device_split
-
 
 def test_view_raises_before_physics_ready():
     """A view constructed before PHYSICS_READY raises a clear error on pose-method calls."""
@@ -117,7 +115,8 @@ def test_reinitialization_closes_previous_root_view(monkeypatch):
 
     frame_view._root_view = PreviousRootView()
     frame_view._pose_binding = object()
-    monkeypatch.setattr(OvPhysxManager, "get_physx_instance", lambda: physx)
+    frame_view._backend_manager = OvPhysxManager(OvPhysxCfg())
+    monkeypatch.setattr(frame_view._backend_manager, "get_physx_instance", lambda: physx)
 
     def initialize(value):
         assert frame_view._root_view is None
@@ -173,6 +172,27 @@ class _OvPhysxFrameViewSceneCfg(InteractiveSceneCfg):
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
     )
+
+
+def test_body_frame_reads_native_pose():
+    """Body views follow native writes; only the asset API may move the physics body."""
+    with build_simulation_context(device="cpu", sim_cfg=OVPHYSX_SIM_CFG) as sim:
+        cfg = _OvPhysxFrameViewSceneCfg(num_envs=2, env_spacing=2.0)
+        cfg.clone_cfg.clone_template = "/Lab/Cells/Cell{}"
+        cfg.cube.prim_path = "{ENV_REGEX_NS}"
+        scene = InteractiveScene(cfg)
+        sim.reset()
+        view = FrameView(scene.env_regex_ns, device="cpu")
+        pose = scene["cube"].data.root_link_pose_w.torch.clone()
+        pose[:, 0] += 0.75
+        scene["cube"].write_root_pose_to_sim_index(root_pose=pose)
+        torch.testing.assert_close(view.get_world_poses()[0].torch, pose[:, :3])
+        # Both bodies have the same untransformed parent /Lab/Cells.
+        torch.testing.assert_close(view.get_local_poses()[0].torch, pose[:, :3])
+        for writer in (view.xform_world_space_writer, view.xform_local_space_writer):
+            with pytest.raises(ValueError, match="asset API"):
+                writer()
+        view.close()
 
 
 @pytest.fixture

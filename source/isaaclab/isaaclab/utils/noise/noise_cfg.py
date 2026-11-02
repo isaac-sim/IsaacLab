@@ -19,14 +19,10 @@ if TYPE_CHECKING:
 
 @configclass
 class NoiseCfg:
-    """Base configuration for a noise term."""
+    """Base configuration for noise that does not modify its input."""
 
     func: Callable[[torch.Tensor, NoiseCfg], torch.Tensor] = MISSING
-    """The function to be called for applying the noise.
-
-    Note:
-        The shape of the input and output tensors must be the same.
-    """
+    """Function that applies noise without changing its input or shape."""
     operation: Literal["add", "scale", "abs"] = "add"
     """The operation to apply the noise on the data. Defaults to "add"."""
 
@@ -72,7 +68,7 @@ class GaussianNoiseCfg(NoiseCfg):
 
 @configclass
 class NoiseModelCfg:
-    """Configuration for a noise model."""
+    """Configuration for a noise model that does not modify its input."""
 
     class_type: type[NoiseModel] | str = "{DIR}.noise_model:NoiseModel"
     """The class type of the noise model."""
@@ -103,7 +99,8 @@ class NoiseModelWithAdditiveBiasCfg(NoiseModelCfg):
     bias_noise_cfg: NoiseCfg = MISSING
     """The noise configuration for the bias.
 
-    Based on this configuration, the bias is sampled at every reset of the noise model.
+    Based on this configuration, the bias is sampled at every reset of the noise model. The noise is applied to
+    zeros, so the ``"add"`` and ``"abs"`` operations both draw the bias directly, while ``"scale"`` yields no bias.
     """
 
     sample_bias_per_component: bool = True

@@ -44,7 +44,8 @@ def env_with_sim():
     sim = sim_utils.SimulationContext(sim_cfg)
     camera_buf = torch.randint(0, 255, (NUM_ENVS, HEIGHT, WIDTH, CHANNELS), dtype=torch.uint8, device=DEVICE)
     camera = SimpleNamespace(data=SimpleNamespace(output={"rgb": ProxyArray(wp.from_torch(camera_buf))}))
-    scene = SimpleNamespace(sensors={"tiled_camera": camera})
+    sensors = {"tiled_camera": camera}
+    scene = SimpleNamespace(sensors=sensors, keys=sensors.keys)
     env = namedtuple("Env", ["num_envs", "device", "sim", "scene"])(NUM_ENVS, DEVICE, sim, scene)
     env.sim._app_control_on_stop_handle = None
     env.sim.reset()

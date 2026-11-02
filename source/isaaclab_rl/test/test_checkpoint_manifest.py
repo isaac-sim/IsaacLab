@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -94,27 +95,81 @@ def test_best_prefers_final_checkpoint(tmp_path: Path) -> None:
     assert checkpoint == str(expected.resolve())
 
 
-def test_recursive_selector_resolves_rlinf_checkpoint(tmp_path: Path) -> None:
-    """Nested RLinf checkpoints participate in the shared selector contract."""
+def test_latest_prefers_periodic_checkpoint_over_best_name(tmp_path: Path) -> None:
     run_dir = tmp_path / "run"
-    expected = run_dir / "test_gr00t" / "checkpoints" / "global_step_10" / "full_weights.pt"
-    expected.parent.mkdir(parents=True)
-    (run_dir / "test_gr00t" / "checkpoints" / "global_step_2").mkdir()
-    (run_dir / "test_gr00t" / "checkpoints" / "global_step_2" / "full_weights.pt").touch()
+    (run_dir / "checkpoints").mkdir(parents=True)
+    write_run_manifest(str(run_dir), library="skrl", task="Isaac-Cartpole")
+    # skrl writes the best checkpoint as "best_agent.pt", which sorts after the periodic "agent_<timestep>.pt"
+    best = run_dir / "checkpoints" / "best_agent.pt"
+    best.touch()
+
+    def resolve(selector: str) -> str:
+        return resolve_checkpoint_selector(
+            str(tmp_path),
+            selector,
+            library="skrl",
+            task="Isaac-Cartpole",
+            checkpoint_pattern=r".*",
+            other_dirs=["checkpoints"],
+            latest_checkpoint_pattern=r"agent_.*",
+        )
+
+    assert resolve("latest") == str(best.resolve())
+    (run_dir / "checkpoints" / "agent_1000.pt").touch()
+    newest = run_dir / "checkpoints" / "agent_2000.pt"
+    newest.touch()
+    assert resolve("latest") == str(newest.resolve())
+    assert resolve("best") == str(best.resolve())
+
+
+@pytest.mark.parametrize("config_name", ["openarm_reach", "ant"])
+def test_latest_includes_rl_games_score_to_win_checkpoint(tmp_path: Path, config_name: str) -> None:
+    """rl_games saves the checkpoint that reaches ``score_to_win`` without the ``last_`` prefix of periodic saves.
+
+    ``ant`` sorts before ``last_`` and ``openarm_reach`` after it, so neither name order nor a ``last_`` filter
+    finds the newest epoch for both.
+    """
+    run_dir = tmp_path / "run"
+    (run_dir / "nn").mkdir(parents=True)
+    write_run_manifest(str(run_dir), library="rl_games", task="Isaac-Task")
+    for name in (f"last_{config_name}_ep_200_rew_10.pth", f"{config_name}.pth"):
+        (run_dir / "nn" / name).touch()
+    expected = run_dir / "nn" / f"{config_name}_ep_250_rew_10001.pth"
     expected.touch()
-    write_run_manifest(str(run_dir), library="rlinf", task="Isaac-Cartpole", metadata={"config_name": "ppo"})
 
     checkpoint = resolve_checkpoint_selector(
         str(tmp_path),
         "latest",
-        library="rlinf",
-        task="Isaac-Cartpole",
-        checkpoint_pattern=r"full_weights[.]pt",
-        metadata={"config_name": "ppo"},
-        recursive=True,
+        library="rl_games",
+        task="Isaac-Task",
+        checkpoint_pattern=r".*\.pth",
+        other_dirs=["nn"],
+        preferred_checkpoint_pattern=rf"{re.escape(config_name)}\.pth",
+        latest_checkpoint_pattern=rf"(?:last_)?({re.escape(config_name)}_(?:ep|frame)_.*)\.pth",
     )
 
     assert checkpoint == str(expected.resolve())
+
+
+def test_recursive_selector_resolves_rlinf_checkpoint(tmp_path: Path, monkeypatch) -> None:
+    """RLinf accepts selectors and paths, but never guesses between checkpoint files."""
+    from isaaclab_rl.entrypoints.backends.cli_args_rlinf import resolve_rlinf_checkpoint
+
+    monkeypatch.chdir(tmp_path)
+    run_dir = tmp_path / "run"
+    for step in (2, 10):
+        expected = run_dir / "checkpoints" / f"global_step_{step}" / "actor" / "model_state_dict" / "full_weights.pt"
+        expected.parent.mkdir(parents=True)
+        expected.touch()
+    write_run_manifest(str(run_dir), library="rlinf", task="Isaac-Cartpole", metadata={"config_name": "ppo"})
+    kwargs = dict(log_root_path=str(tmp_path), task="Isaac-Cartpole", config_name="ppo")
+    paths = (expected, expected.parents[2])
+    for checkpoint in ("latest", "best", *(str(path.relative_to(tmp_path)) for path in paths)):
+        assert resolve_rlinf_checkpoint(checkpoint, **kwargs) == str(expected)
+    with pytest.raises(ValueError):
+        resolve_rlinf_checkpoint(str(run_dir), **kwargs)
+    with pytest.raises(FileNotFoundError):
+        resolve_rlinf_checkpoint("missing.pt", **kwargs)
 
 
 def test_latest_rejects_unmanifested_historical_run(tmp_path: Path) -> None:

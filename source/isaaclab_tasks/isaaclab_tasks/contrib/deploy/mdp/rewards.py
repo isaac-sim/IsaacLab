@@ -41,8 +41,8 @@ class keypoint_command_error(ManagerTermBase):
         super().__init__(cfg, env)
 
         # Cache asset configuration
-        self.asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg", SceneEntityCfg("ee_frame"))
-        self.command_name: str = cfg.params.get("command_name", "ee_pose")
+        self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
+        self.command_name: str = cfg.params["command_name"]
 
         # Create keypoint distance computer
         self.keypoint_computer = _compute_keypoint_distance(cfg, env)
@@ -108,8 +108,8 @@ class keypoint_command_error_exp(ManagerTermBase):
         super().__init__(cfg, env)
 
         # Cache asset configuration
-        self.asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg", SceneEntityCfg("ee_frame"))
-        self.command_name: str = cfg.params.get("command_name", "ee_pose")
+        self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
+        self.command_name: str = cfg.params["command_name"]
 
         # Create keypoint distance computer
         self.keypoint_computer = _compute_keypoint_distance(cfg, env)
@@ -193,7 +193,7 @@ class keypoint_entity_error(ManagerTermBase):
         super().__init__(cfg, env)
 
         # Cache asset configuration
-        self.asset_cfg_1: SceneEntityCfg = cfg.params.get("asset_cfg_1", SceneEntityCfg("factory_gear_base"))
+        self.asset_cfg_1: SceneEntityCfg = cfg.params["asset_cfg_1"]
         self.asset_1 = env.scene[self.asset_cfg_1.name]
 
         self._init_gear_selection(env)
@@ -373,7 +373,7 @@ class keypoint_ee_grasp_error(keypoint_entity_error):
         self._init_gear_selection(env)
         self.keypoint_computer = _compute_keypoint_distance(cfg, env)
 
-        self.robot_asset_cfg: SceneEntityCfg = cfg.params.get("robot_asset_cfg", SceneEntityCfg("robot"))
+        self.robot_asset_cfg: SceneEntityCfg = cfg.params["robot_asset_cfg"]
         self.robot_asset: Articulation = env.scene[self.robot_asset_cfg.name]
 
         self.end_effector_body_name: str = cfg.params["end_effector_body_name"]
@@ -392,9 +392,9 @@ class keypoint_ee_grasp_error(keypoint_entity_error):
             dim=0,
         )
 
-        self.weight_ramp_start: float = cfg.params.get("weight_ramp_start", 0.0)
-        self.weight_ramp_steps: int = cfg.params.get("weight_ramp_steps", 1)
-        self.ee_grasp_threshold: float = cfg.params.get("ee_grasp_threshold", 0.0)
+        self.weight_ramp_start: float = cfg.params["weight_ramp_start"]
+        self.weight_ramp_steps: int = cfg.params["weight_ramp_steps"]
+        self.ee_grasp_threshold: float = cfg.params["ee_grasp_threshold"]
 
         eef_indices, _ = self.robot_asset.find_bodies([self.end_effector_body_name])
         self.eef_idx = eef_indices[0] if len(eef_indices) > 0 else None
@@ -608,7 +608,7 @@ class _compute_keypoint_distance:
             env: Environment instance
         """
         # Get keypoint configuration
-        add_cube_center_kp = cfg.params.get("add_cube_center_kp", True)
+        add_cube_center_kp = cfg.params["add_cube_center_kp"]
 
         # Pre-compute base keypoint offsets (unscaled)
         self.keypoint_offsets_base = _get_keypoint_offsets_full_6d(

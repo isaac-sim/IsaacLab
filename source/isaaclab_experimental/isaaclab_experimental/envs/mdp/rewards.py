@@ -18,11 +18,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import warp as wp
-from isaaclab_newton.kernels.state_kernels import (
-    body_ang_vel_from_root,
-    body_lin_vel_from_root,
-    rotate_vec_to_body_frame,
-)
+
+from isaaclab.utils.warp.math import body_ang_vel_from_root, body_lin_vel_from_root, rotate_vec_to_body_frame
 
 from isaaclab_experimental.managers import ManagerTermBase, SceneEntityCfg
 
@@ -102,7 +99,7 @@ class is_terminated_term(ManagerTermBase):
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
         # resolve the selection once, as a per-column mask over the termination manager's terms
-        selected = set(env.termination_manager.find_terms(cfg.params.get("term_keys", ".*")))
+        selected = set(env.termination_manager.find_terms(cfg.params["term_keys"]))
         self._term_mask_wp = wp.array(
             [name in selected for name in env.termination_manager.active_terms],
             dtype=wp.bool,

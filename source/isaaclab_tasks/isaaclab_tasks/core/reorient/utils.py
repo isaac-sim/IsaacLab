@@ -19,9 +19,20 @@ import torch
 import isaaclab.utils.math as math_utils
 from isaaclab.utils import index_fill_
 from isaaclab.utils.math import quat_from_angle_axis, quat_mul
+from isaaclab.visualizers import VisualizerCfg
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
+
+
+GOAL_MARKER_OFFSET = (-0.08, -0.09, 0.06)
+"""Goal-cube display offset from the in-hand position [m], beside the hand in the recording view."""
+
+VISUALIZER_CFG = VisualizerCfg(eye=(0.995, -0.80, 0.85), lookat=(0.375, -0.28, 0.53), focal_length=35.0)
+"""Recording view of an environment in the 50-environment play grid."""
+
+CAMERA_VISUALIZER_CFG = VisualizerCfg(eye=(1.62, -1.80, 0.85), lookat=(1.0, -1.28, 0.53), focal_length=35.0)
+"""Recording view of an environment in the camera tasks' 64-environment play grid."""
 
 
 class EpisodeErrorRecorder:
@@ -41,6 +52,7 @@ class EpisodeErrorRecorder:
         """
         self.minimum_error = torch.full((num_envs,), torch.inf, device=device)
         self._has_sample = torch.zeros(num_envs, dtype=torch.bool, device=device)
+        self._updated = False
 
     def update(self, error: torch.Tensor) -> None:
         """Record one error sample for every environment.
@@ -58,6 +70,7 @@ class EpisodeErrorRecorder:
         # force a host synchronization every step, so substitute-and-minimum instead
         torch.minimum(self.minimum_error, torch.where(finite, error, self.minimum_error), out=self.minimum_error)
         self._has_sample |= finite
+        self._updated = True
 
     def reset(self, env_ids: Sequence[int] | torch.Tensor | slice | None = None) -> dict[str, torch.Tensor]:
         """Summarize and clear completed episodes.
@@ -68,19 +81,20 @@ class EpisodeErrorRecorder:
         Returns:
             Mean, median, and 90th-percentile episode-minimum errors as 0-dim
             device tensors, so logging them does not force a host
-            synchronization in the reset path. The result is empty when none of
-            the selected environments has a sample.
+            synchronization in the reset path. Environments without a sample
+            are excluded. The result is empty before the first :meth:`update`,
+            and its values are NaN when none of the selected environments has
+            a sample.
         """
         if env_ids is None:
             env_ids = slice(None)
-        valid = self._has_sample[env_ids]
-        values = self.minimum_error[env_ids][valid]
         statistics = {}
-        if values.numel() > 0:
+        if self._updated:
+            values = torch.where(self._has_sample[env_ids], self.minimum_error[env_ids], torch.nan)
             statistics = {
-                "mean": values.mean(),
-                "median": values.median(),
-                "p90": torch.quantile(values, 0.9),
+                "mean": values.nanmean(),
+                "median": values.nanmedian(),
+                "p90": torch.nanquantile(values, 0.9),
             }
         index_fill_(self.minimum_error, env_ids, torch.inf)
         index_fill_(self._has_sample, env_ids, False)
@@ -132,13 +146,24 @@ class SuccessTracker:
         self._goals_reached = torch.zeros(num_envs, device=device)
         self._skip_update = torch.zeros(num_envs, dtype=torch.bool, device=device)
 
-    def record_goal_reached(self, env_ids: Sequence[int] | torch.Tensor) -> None:
+    def record_goal_reached(
+        self, env_ids: Sequence[int] | torch.Tensor | None = None, env_mask: torch.Tensor | None = None
+    ) -> None:
         """Count one reached goal for the given environments.
 
         Args:
-            env_ids: Environments whose goal was just resampled.
+            env_ids: Indices of the environments whose goal was just resampled.
+            env_mask: Boolean mask of those environments, counted without a device synchronization.
+
+        Raises:
+            ValueError: If not exactly one of ``env_ids`` and ``env_mask`` is given.
         """
-        self._goals_reached[env_ids] += 1.0
+        if (env_ids is None) == (env_mask is None):
+            raise ValueError("Pass exactly one of env_ids and env_mask.")
+        if env_mask is not None:
+            self._goals_reached += env_mask
+        else:
+            self._goals_reached[env_ids] += 1.0
 
     def earned(self, reached: torch.Tensor) -> torch.Tensor:
         """Drop the goals a reset handed out, and release the guard.
@@ -255,7 +280,7 @@ def resolve_actuated_tendons(
     num_envs: int,
     device: str,
     position_limits: tuple[float, float],
-) -> tuple[list[int], torch.Tensor, torch.Tensor]:
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Resolve a hand's actuated tendons and the limits its command is unscaled against.
 
     A tendon has its own index space, so the indices come from :meth:`find_fixed_tendons` rather
@@ -271,7 +296,8 @@ def resolve_actuated_tendons(
         position_limits: Lower and upper bound of the tendon command [m or rad].
 
     Returns:
-        The tendon indices and the lower / upper limit tensors, shaped ``(num_envs, n_tendons)``.
+        The tendon indices as a device tensor, so per-step commands do not upload them, and the
+        lower / upper limit tensors, shaped ``(num_envs, n_tendons)``.
 
     Raises:
         ValueError: If a requested tendon is not present on the articulation.
@@ -281,4 +307,8 @@ def resolve_actuated_tendons(
         raise ValueError(f"Expected {len(tendon_names)} actuated tendons, found {len(indices)}.")
     shape = (num_envs, len(indices))
     lower, upper = position_limits
-    return indices, torch.full(shape, lower, device=device), torch.full(shape, upper, device=device)
+    return (
+        torch.tensor(indices, dtype=torch.long, device=device),
+        torch.full(shape, lower, device=device),
+        torch.full(shape, upper, device=device),
+    )

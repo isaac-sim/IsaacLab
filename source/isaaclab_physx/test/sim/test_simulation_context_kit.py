@@ -35,12 +35,40 @@ def test_setup_teardown():
 
 
 @pytest.mark.isaacsim_ci
+def test_reset_without_rigid_bodies_skips_rigid_body_view(monkeypatch):
+    """Resetting a static scene must not request an empty native rigid-body view."""
+    create_simulation_view = omni.physics.tensors.create_simulation_view
+    requested_patterns = []
+
+    class _SimulationViewGuard:
+        def __init__(self, *args, **kwargs):
+            self._view = create_simulation_view(*args, **kwargs)
+
+        def __getattr__(self, name):
+            return getattr(self._view, name)
+
+        def create_rigid_body_view(self, pattern):
+            requested_patterns.append(pattern)
+            return self._view.create_rigid_body_view(pattern)
+
+    monkeypatch.setattr(omni.physics.tensors, "create_simulation_view", _SimulationViewGuard)
+    sim = SimulationContext()
+    cube_cfg = sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1), collision_props=sim_utils.UsdPhysicsCollisionCfg())
+    cube_cfg.func("/World/Cube", cube_cfg)
+
+    sim.reset()
+
+    assert requested_patterns == []
+    assert sim.backend_manager.get_scene_data_backend().get_rigid_body_view() is None
+
+
+@pytest.mark.isaacsim_ci
 def test_timeline_play_stop(monkeypatch):
     """Playing shares one native view; stopping releases it before the next play."""
     create_view = Mock(wraps=omni.physics.tensors.create_simulation_view)
     monkeypatch.setattr(omni.physics.tensors, "create_simulation_view", create_view)
     sim = SimulationContext()
-    scene_data = sim.physics_manager.get_scene_data_backend()
+    scene_data = sim.backend_manager.get_scene_data_backend()
     publication = scene_data.transforms
     cube_cfg = AssetBaseCfg(
         prim_path="/World/Cube",
@@ -63,7 +91,7 @@ def test_timeline_play_stop(monkeypatch):
     assert sim.is_playing()
     assert not sim.is_stopped()
     resource = scene_data.backend
-    assert resource is sim.physics_manager.backend
+    assert resource is sim.backend_manager.backend
     view = sim.physics_sim_view
     assert resource.simulation_view is view
     assert scene_data.transforms.transforms is not None

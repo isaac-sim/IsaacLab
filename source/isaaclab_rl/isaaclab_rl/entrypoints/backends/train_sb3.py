@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import gc
+import logging
 import os
 import signal
 import sys
@@ -41,13 +42,15 @@ from ..common import (
     enable_cameras_for_video,
     pre_launch_video_config,
     resolve_checkpoint_selector,
-    resolve_seed,
     set_hydra_args,
     show_run_summary,
     startup_screen,
     wrap_sensor_capture,
     write_run_manifest,
 )
+from . import cli_args_sb3 as cli_args
+
+logger = logging.getLogger(__name__)
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 with contextlib.suppress(ImportError):
@@ -108,21 +111,19 @@ def run(argv: list[str]) -> None:
     with startup_screen(args_cli, num_stages=3) as screen:
         env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
         pre_launch_video_config(env_cfg, args_cli)
-        show_run_summary(screen, args_cli, env_cfg, library="sb3", action="train")
         screen.stage("Launching simulation")
         with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
+            show_run_summary(screen, args_cli, env_cfg, library="sb3", action="train")
             apply_env_overrides(args_cli, env_cfg)
-            args_cli.seed = resolve_seed(args_cli.seed)
-            if args_cli.seed is not None:
-                agent_cfg["seed"] = args_cli.seed
+            agent_cfg = cli_args.update_sb3_cfg(agent_cfg, args_cli)
             if args_cli.max_iterations is not None:
                 agent_cfg["n_timesteps"] = args_cli.max_iterations * agent_cfg["n_steps"] * env_cfg.scene.num_envs
             env_cfg.seed = agent_cfg["seed"]
 
             log_root_path = os.path.abspath(os.path.join("logs", "sb3", args_cli.task))
-            print(f"[INFO] Logging experiment in directory: {log_root_path}")
+            logger.info(f"Logging experiment in directory: {log_root_path}")
             run_name = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            print(f"Exact experiment name requested from command line: {run_name}")
+            logger.info(f"Exact experiment name requested from command line: {run_name}")
             log_dir = os.path.join(log_root_path, run_name)
             write_run_manifest(log_dir, library="sb3", task=args_cli.task, metadata={"agent": args_cli.agent})
             dump_train_configs(log_dir, env_cfg, agent_cfg)

@@ -1,9 +1,8 @@
 Sim2Real Deployment of Policies Trained in Isaac Lab
 ====================================================
 
-Welcome to the Policy Deployment Guide! This section provides examples of training policies in Isaac Lab and deploying them to both simulation and real robots.
-
-Below, you'll find detailed examples of various policies for training and deploying them, along with essential configuration details.
+Train and export policies, check them in simulation, and deploy them on robots.
+The guides below cover task-specific configuration and deployment tools.
 
 .. toctree::
     :maxdepth: 1
@@ -13,3 +12,4 @@ Below, you'll find detailed examples of various policies for training and deploy
     03_compass_with_NuRec/compass_navigation_policy_with_NuRec
     04_reach/reach_policy
     05_leapp/exporting_policies_with_leapp
+    06_so101_typing/so101_typing_policy

@@ -39,9 +39,6 @@ class randomize_gear_type(ManagerTermBase):
         """
         super().__init__(cfg, env)
 
-        # Extract gear types from config (required parameter)
-        if "gear_types" not in cfg.params:
-            raise ValueError("'gear_types' parameter is required in randomize_gear_type configuration")
         self.gear_types: list[str] = cfg.params["gear_types"]
 
         # Create gear type mapping (shared across all terms)
@@ -115,26 +112,26 @@ class set_robot_to_grasp_pose(ManagerTermBase):
         super().__init__(cfg, env)
 
         # Get robot asset configuration
-        self.robot_asset_cfg: SceneEntityCfg = cfg.params.get("robot_asset_cfg", SceneEntityCfg("robot"))
+        self.robot_asset_cfg: SceneEntityCfg = cfg.params["robot_asset_cfg"]
         self.robot_asset: Articulation = env.scene[self.robot_asset_cfg.name]
 
         # Get robot-specific parameters from environment config (all required)
         # Validate required parameters
-        if "end_effector_body_name" not in cfg.params:
+        if cfg.params["end_effector_body_name"] is None:
             raise ValueError(
                 "'end_effector_body_name' parameter is required in set_robot_to_grasp_pose configuration. "
                 "Example: 'wrist_3_link'"
             )
-        if "num_arm_joints" not in cfg.params:
+        if cfg.params["num_arm_joints"] is None:
             raise ValueError(
                 "'num_arm_joints' parameter is required in set_robot_to_grasp_pose configuration. Example: 6 for UR10e"
             )
-        if "grasp_rot_offset" not in cfg.params:
+        if cfg.params["grasp_rot_offset"] is None:
             raise ValueError(
                 "'grasp_rot_offset' parameter is required in set_robot_to_grasp_pose configuration. "
                 "It should be a quaternion [x, y, z, w]. Example: [0.707, 0.707, 0.0, 0.0]"
             )
-        if "gripper_joint_setter_func" not in cfg.params:
+        if cfg.params["gripper_joint_setter_func"] is None:
             raise ValueError(
                 "'gripper_joint_setter_func' parameter is required in set_robot_to_grasp_pose configuration. "
                 "It should be a function to set gripper joint positions."
@@ -145,7 +142,7 @@ class set_robot_to_grasp_pose(ManagerTermBase):
         self.gripper_joint_setter_func = cfg.params["gripper_joint_setter_func"]
 
         # Pre-cache gear grasp offsets as tensors (required parameter)
-        if "gear_offsets_grasp" not in cfg.params:
+        if cfg.params["gear_offsets_grasp"] is None:
             raise ValueError(
                 "'gear_offsets_grasp' parameter is required in set_robot_to_grasp_pose configuration. "
                 "It should be a dict with keys 'gear_small', 'gear_medium', 'gear_large' mapping to [x, y, z] offsets."

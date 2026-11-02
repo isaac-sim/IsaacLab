@@ -13,7 +13,7 @@ import math
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, NoReturn
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import warp as wp
@@ -50,21 +50,6 @@ if TYPE_CHECKING:
     from isaaclab.utils.warp import ProxyArray
 
 from .isaac_rtx_renderer_cfg import SIMPLE_SHADING_MODES, IsaacRtxRendererCfg
-
-_PPISP_IMPORT_ERROR_MESSAGE = (
-    "isaaclab_ppisp is required when CameraCfg.isp_cfg is set. "
-    "It ships with the Isaac Lab wheel (`pip install isaaclab`); otherwise install the "
-    "isaaclab-ppisp extension from the Isaac Lab source checkout."
-)
-
-
-def _raise_missing_ppisp_error(exc: ModuleNotFoundError) -> NoReturn:
-    # Only translate missing isaaclab_ppisp imports into the optional-dependency hint;
-    # unrelated missing modules should surface unchanged for easier debugging.
-    if exc.name != "isaaclab_ppisp" and not (exc.name and exc.name.startswith("isaaclab_ppisp.")):
-        raise exc
-    raise ModuleNotFoundError(_PPISP_IMPORT_ERROR_MESSAGE, name="isaaclab_ppisp") from exc
-
 
 # RTX simple-shading constants.
 #
@@ -186,8 +171,8 @@ class IsaacRtxRenderer(BaseRenderer):
     Requires Isaac Sim.
     """
 
-    def __init__(self, cfg: IsaacRtxRendererCfg):
-        self.cfg = cfg
+    def __init__(self, cfg: IsaacRtxRendererCfg, *, sim: SimulationContext):
+        super().__init__(cfg, sim=sim)
         # Enable Replicator only when the Isaac RTX renderer is selected. Declaring it
         # in a Kit experience would resolve its bundled omni.warp.core dependency at startup.
         enable_extension("omni.replicator.core")
@@ -200,40 +185,13 @@ class IsaacRtxRenderer(BaseRenderer):
 
     def initialize(self) -> None:
         """Bind shared Fabric destinations after scene creation."""
-        sim = SimulationContext.instance()
-        self._fabric = sim.get_or_create_backend(FabricBackendCfg(stage=sim.stage, device=sim.device))
-        self._fabric.bind_transforms(sim.get_scene_data_provider())
+        self._fabric = self._sim.get_or_create_backend(FabricBackendCfg(stage=self._sim.stage, device=self._sim.device))
+        self._fabric.bind_transforms(self._sim.get_scene_data_provider())
 
     @property
     def visual_material_writer(self):
         """Write material channels directly through Fabric."""
         return FabricVisualMaterialWriter
-
-    def prepare_cameras(self, stage: Any, spec: CameraRenderSpec) -> None:
-        """Resolve the camera's PPISP cfg and apply RTX-specific USD overrides.
-
-        When ``spec.cfg.isp_cfg`` is set, resolves it (sentinel discovery +
-        normalization) via :func:`isaaclab_ppisp.resolve_and_normalize` so
-        :mod:`isaaclab` does not need to know about PPISP. Then pins
-        ``exposure:*`` to neutral and applies ``OmniRtxCameraExposureAPI_1`` so
-        RTX's physical-camera exposure model does not compound on top of the
-        ISP. Without an ISP, the camera prim's authored exposure is left alone.
-
-        :attr:`~isaaclab.sensors.camera.CameraCfg.background_color` is applied
-        per-render-product in :meth:`create_render_data` via USD attributes.
-        """
-        if spec.cfg.isp_cfg is None:
-            return
-        try:
-            from isaaclab_ppisp import apply_rtx_exposure_overrides, resolve_and_normalize
-        except ModuleNotFoundError as exc:
-            _raise_missing_ppisp_error(exc)
-
-        camera_prim_path = spec.camera_prim_paths[0] if spec.camera_prim_paths else None
-        spec.cfg.isp_cfg = resolve_and_normalize(spec.cfg.isp_cfg, stage, camera_prim_path)
-        if spec.cfg.isp_cfg is None or not spec.camera_prim_paths:
-            return
-        apply_rtx_exposure_overrides(stage, list(spec.camera_prim_paths))
 
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
         """Publish the per-output Replicator layout this RTX backend writes.
@@ -261,7 +219,7 @@ class IsaacRtxRenderer(BaseRenderer):
         When disabled, this method is a no-op and writes no
         ``primvars:omni:scenePartition`` or ``omni:scenePartition`` attributes.
 
-        When enabled, for each ``/World/envs/env_{i}`` root, writes the inheriting primvar
+        When enabled, for each environment root declared by the clone plan, writes the inheriting primvar
         ``primvars:omni:scenePartition`` (token ``env_{i}``) on the root and the matching
         non-primvar ``omni:scenePartition`` token on every :class:`UsdGeom.Camera` descendant.
         RTX honors primvar inheritance, so the env-root primvar propagates to all descendant
@@ -280,7 +238,7 @@ class IsaacRtxRenderer(BaseRenderer):
         token_type = Sdf.ValueTypeNames.Token
         with Sdf.ChangeBlock():
             for env_idx in range(num_envs):
-                env_prim = stage.GetPrimAtPath(f"/World/envs/env_{env_idx}")
+                env_prim = stage.GetPrimAtPath(self._sim.get_clone_plan().env_template.format(env_idx))
                 if not env_prim.IsValid():
                     continue
                 token = f"env_{env_idx}"
@@ -485,10 +443,7 @@ class IsaacRtxRenderer(BaseRenderer):
 
         ppisp_pipeline = None
         if spec.cfg.isp_cfg is not None:
-            try:
-                from isaaclab_ppisp import PpispPipeline
-            except ModuleNotFoundError as exc:
-                _raise_missing_ppisp_error(exc)
+            from isaaclab_ppisp import PpispPipeline
 
             ppisp_pipeline = PpispPipeline(spec.cfg.isp_cfg)
 
@@ -581,12 +536,11 @@ class IsaacRtxRenderer(BaseRenderer):
 
     def update_transforms(self) -> None:
         """Update shared Fabric transforms and propagate the visual hierarchy."""
-        self._fabric.update_transforms(SimulationContext.instance().get_scene_data_provider())
+        self._fabric.update_transforms(self._sim.get_scene_data_provider())
 
     def update_geometries(self) -> None:
         """Update shared Fabric geometry from SDP's visual point publication."""
-        sim = SimulationContext.instance()
-        self._fabric.update_geometries(sim.get_scene_data_provider(), sim.render_generation)
+        self._fabric.update_geometries(self._sim.get_scene_data_provider(), self._sim.render_generation)
 
     def update_camera(
         self,
@@ -695,19 +649,14 @@ class IsaacRtxRenderer(BaseRenderer):
                     ptr=tiled_data_buffer.ptr, shape=(*tiled_data_buffer.shape, 4), dtype=wp.uint8, device=device
                 )
 
-            # For motion vectors, use specialized kernel that reads 4 channels but only writes 2
-            # Note: Not doing this breaks the alignment of the data (check: https://github.com/isaac-sim/IsaacLab/issues/2003)
-            if data_type == "motion_vectors":
-                tiled_data_buffer = tiled_data_buffer[:, :, :2].contiguous()
-
-            # For normals, we only require the first three channels of the tiled buffer
-            # Note: Not doing this breaks the alignment of the data (check: https://github.com/isaac-sim/IsaacLab/issues/4239)
-            if data_type == "normals":
-                tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
-            if data_type in SIMPLE_SHADING_MODES:
-                tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
-            if data_type == str(RenderBufferKind.RGB_HDR):
-                tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
+            tile_height, tile_width, num_channels = (int(dim) for dim in buf_wp.shape[1:])
+            # Motion vectors, normals, HDR color, and simple shading annotators return 4 channels while the
+            # outputs keep only the leading ones. Index the source with its own channel count so the
+            # kernel, which copies only the destination channels, stays aligned without a compacting copy
+            # (see https://github.com/isaac-sim/IsaacLab/issues/2003 and #4239).
+            source_channels = num_channels
+            if data_type in ("motion_vectors", "normals", str(RenderBufferKind.RGB_HDR), *SIMPLE_SHADING_MODES):
+                source_channels = int(tiled_data_buffer.shape[2])
 
             # ``reshape_tiled_image`` indexes the tiled buffer as
             # (num_tiles_y * height, num_tiles_x * width, channels), but annotators hand this data back
@@ -718,12 +667,11 @@ class IsaacRtxRenderer(BaseRenderer):
             # are ignored exactly as the previous flattened indexing ignored them. Keeping the view 3D
             # instead of 1D also keeps every dimension within Warp's per-dimension array size limit, so
             # large environment counts and camera resolutions no longer overflow a flattened dimension.
-            tile_height, tile_width, num_channels = (int(dim) for dim in buf_wp.shape[1:])
             # ``tiled_source`` must outlive the view below: the view does not own the annotator memory.
             tiled_source = tiled_data_buffer
             tiled_data_buffer = wp.array(
                 ptr=tiled_source.ptr,
-                shape=(num_tiles_y * tile_height, num_tiles_x * tile_width, num_channels),
+                shape=(num_tiles_y * tile_height, num_tiles_x * tile_width, source_channels),
                 dtype=tiled_source.dtype,
                 device=device,
             )

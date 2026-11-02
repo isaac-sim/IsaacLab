@@ -120,7 +120,7 @@ def test_cli_subcommand_dispatches_and_propagates_status(argv, module, runner, r
     run = mock.Mock(return_value=status)
     with (
         mock.patch.dict(sys.modules, {module: mock.Mock(**{runner: run})}),
-        mock.patch.object(cli, "_load_external_tasks"),
+        mock.patch.object(cli, "load_external_tasks"),
         mock.patch.object(sys, "argv", ["isaaclab", *argv]),
     ):
         if status:
@@ -144,6 +144,11 @@ def test_demo_catalog_lists_packaged_demos(capsys):
     assert "bin-packing" not in output
 
 
+def test_program_uvx_command_selects_cuda_torch_backend():
+    """A base-package uvx command must select CUDA PyTorch without wheel URLs."""
+    assert programs.DEMOS[0].uvx_command("demo") == "uvx --torch-backend cu130 isaaclab demo zoo"
+
+
 def test_example_catalog_lists_packaged_examples(capsys):
     """The example command must distinguish focused programs from showcases."""
     cli.example(["list"])
@@ -152,14 +157,15 @@ def test_example_catalog_lists_packaged_examples(capsys):
     assert "bin-packing" in output
     assert "newton-dominoes" in output
     assert "mpm-two-way-coupling" in output
-    assert "uvx --from 'isaaclab[isaacsim]' isaaclab example camera" in output
+    assert "uvx --torch-backend cu130 --from 'isaaclab[isaacsim,rsl-rl]' isaaclab example mpm-g1-coupling" in output
+    assert "uvx --torch-backend cu130 --from 'isaaclab[isaacsim]' isaaclab example camera" in output
     assert "teapot-fill" not in output
 
 
 def _visualizer(visualizer_type: str) -> mock.Mock:
     """Return a visualizer stand-in of the given type."""
     visualizer = mock.Mock()
-    visualizer.cfg.visualizer_type = visualizer_type
+    visualizer.cfg.backend.visualizer_type = visualizer_type
     return visualizer
 
 
@@ -184,6 +190,7 @@ def test_newton_gl_selector_omits_incompatible_programs():
     kit_visualizer.register_ui_callback.assert_not_called()
     assert "Zoo##demo:zoo" in labels
     assert "Cables##example:cables" in labels
+    assert "G1 Terrain##example:g1-terrain" in labels
     assert "Newton Dominoes##example:newton-dominoes" in labels
     assert "Newton Dominoes##demo:newton-dominoes" not in labels
     assert "H1 Locomotion##demo:h1-locomotion" in labels
@@ -295,14 +302,14 @@ def test_program_command_reports_missing_optional_dependencies(capsys):
     with mock.patch.object(programs, "find_spec", return_value=None), pytest.raises(SystemExit, match="2"):
         cli.example(["camera"])
 
-    assert "uvx --from 'isaaclab[isaacsim]' isaaclab example camera" in capsys.readouterr().err
+    assert "uvx --torch-backend cu130 --from 'isaaclab[isaacsim]' isaaclab example camera" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize(("command_name", "args"), [("demo", ["zoo", "--headless"]), ("example", ["cables"])])
 def test_cli_routes_program_without_loading_external_tasks(command_name, args):
     """Packaged programs do not need task plug-in discovery before dispatch."""
     with (
-        mock.patch.object(cli, "_load_external_tasks") as load_external_tasks,
+        mock.patch.object(cli, "load_external_tasks") as load_external_tasks,
         mock.patch.object(cli, command_name) as command,
         mock.patch.object(sys, "argv", ["isaaclab", command_name, *args]),
     ):
@@ -327,10 +334,21 @@ def test_cli_loads_downstream_tasks_before_benchmark():
     benchmark.assert_called_once_with(["runtime", "--task", "Example"])
 
 
+def test_task_discovery_skips_broken_packages(caplog):
+    """A task package that fails to import is reported and does not stop discovery of the others."""
+    broken, working = mock.Mock(), mock.Mock()
+    broken.name, broken.dist.name, broken.load.side_effect = "broken_tasks", "broken-dist", ImportError("no module")
+    with mock.patch.object(cli.importlib.metadata, "entry_points", return_value=[broken, working]):
+        cli.load_external_tasks()
+
+    working.load.assert_called_once_with()
+    assert "broken-dist" in caplog.text and "no module" in caplog.text
+
+
 def test_list_envs_cli_dispatches_without_preloading_tasks():
     """Environment listing owns task discovery so its script wrapper can share the same behavior."""
     with (
-        mock.patch.object(cli, "_load_external_tasks") as load_external_tasks,
+        mock.patch.object(cli, "load_external_tasks") as load_external_tasks,
         mock.patch.object(cli, "list_envs") as list_environments,
         mock.patch.object(sys, "argv", ["isaaclab", "list_envs", "--show_presets"]),
     ):

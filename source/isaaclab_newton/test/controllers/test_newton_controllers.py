@@ -3,9 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for the Newton model-free controller wrappers against independent control-law references."""
+"""Newton model-free controllers and the task-space Jacobian supplied to them."""
 
 from __future__ import annotations
+
+import math
+from types import SimpleNamespace
 
 import pytest
 import torch
@@ -17,6 +20,9 @@ from isaaclab_newton.controllers import (
     NewtonOperationalSpaceController,
     NewtonOperationalSpaceControllerCfg,
 )
+from isaaclab_newton.envs.mdp.actions.newton_task_space_actions import _NewtonTaskSpaceAction
+
+from isaaclab.utils import math as math_utils
 
 _NUM_ENVS = 3
 _NUM_JOINTS = 7
@@ -83,12 +89,38 @@ def test_disabled_input_is_rejected():
 
 
 def test_differential_ik_dls_matches_reference():
-    """Position-only DLS follows ``q + dt * bandwidth * J^T (J J^T + lambda^2 I)^-1 e``."""
+    """An offset-frame Jacobian reaches position-only DLS with the correct frame and control law."""
     torch.manual_seed(0)
     bandwidth, damping, dt = 20.0, 0.1, 0.05
     cfg = NewtonDifferentialIKControllerCfg(bandwidth=bandwidth, damping=damping, axis_weight=(1, 1, 1, 0, 0, 0))
     controller = NewtonDifferentialIKController(cfg, _NUM_ENVS, _NUM_JOINTS, _DEVICE)
-    jacobian, q = _rand(_NUM_ENVS, 6, _NUM_JOINTS), _rand(_NUM_ENVS, _NUM_JOINTS)
+    s = math.sqrt(0.5)
+    root_quat_w = torch.tensor([[s, 0.0, 0.0, s]]).repeat(_NUM_ENVS, 1)
+    body_quat_w = math_utils.quat_mul(root_quat_w, torch.tensor([[0.0, 0.0, s, s]]).repeat(_NUM_ENVS, 1))
+    jacobian_w = _rand(_NUM_ENVS, 1, 6, _NUM_JOINTS)
+    jacobian_w[:, 0, :3, 0] = 0.0
+    jacobian_w[:, 0, 3:, 0] = math_utils.quat_apply(root_quat_w, torch.tensor([[0.0, 0.0, 1.0]]))
+    data = SimpleNamespace(
+        body_link_jacobian_w=SimpleNamespace(torch=jacobian_w),
+        root_quat_w=SimpleNamespace(torch=root_quat_w),
+        body_quat_w=SimpleNamespace(torch=torch.stack([root_quat_w, body_quat_w], dim=1)),
+    )
+    action = SimpleNamespace(
+        _asset=SimpleNamespace(data=data),
+        _body_idx=1,  # fixed-root body 1 uses Jacobian row 0
+        _jacobi_body_idx=0,
+        _jacobi_joint_ids=list(range(_NUM_JOINTS)),
+        _jacobian_b=torch.zeros(_NUM_ENVS, 6, _NUM_JOINTS),
+        _offset_pos=torch.tensor([[1.0, 0.0, 0.0]]).repeat(_NUM_ENVS, 1),
+        _offset_rot=torch.tensor([[s, 0.0, 0.0, s]]).repeat(_NUM_ENVS, 1),
+    )
+    jacobian = _NewtonTaskSpaceAction._compute_ee_jacobian(action)
+    # The body-local x offset is root-local y; a root-z rotation gives linear velocity -x.
+    expected = torch.tensor([[-1.0, 0.0, 0.0, 0.0, 0.0, 1.0]]).repeat(_NUM_ENVS, 1)
+    torch.testing.assert_close(jacobian[:, :, 0], expected, atol=1e-6, rtol=0.0)
+    assert not hasattr(math_utils, "velocity_at_point")
+
+    q = _rand(_NUM_ENVS, _NUM_JOINTS)
     pos, pos_des = _rand(_NUM_ENVS, 3), _rand(_NUM_ENVS, 3)
 
     q_target = controller.compute(_pose(pos), _pose(pos_des), jacobian, q, dt)

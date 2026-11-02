@@ -5,6 +5,8 @@
 
 import warp as wp
 
+from isaaclab_newton.assets.articulation.kernels import incoming_joint_wrench
+
 
 @wp.kernel
 def joint_wrench_to_incoming_joint_frame_kernel(
@@ -14,7 +16,6 @@ def joint_wrench_to_incoming_joint_frame_kernel(
     body_com: wp.array(dtype=wp.vec3f, ndim=2),
     joint_X_c: wp.array(dtype=wp.transformf, ndim=2),
     joint_child: wp.array(dtype=wp.int32),
-    timestamp: wp.array(dtype=wp.float32),
     out_force: wp.array(dtype=wp.vec3f, ndim=2),
     out_torque: wp.array(dtype=wp.vec3f, ndim=2),
 ):
@@ -39,37 +40,13 @@ def joint_wrench_to_incoming_joint_frame_kernel(
     if not env_mask[env]:
         return
 
-    # Skip envs that have not been stepped since their last reset: Newton's body_parent_f
-    # still holds pre-reset values, so reading it now would inject stale data (#4970).
-    if timestamp[env] == 0.0:
-        return
-
     body_idx = joint_child[j]
 
-    # Source wrench in world frame.  Newton's body_parent_f stores (force, torque-about-COM).
-    src = body_parent_f[env, body_idx]
-    f_world = wp.spatial_top(src)
-    tau_world_com = wp.spatial_bottom(src)
-
-    # Child link transform in world and COM offset in link frame.
-    link_xform = body_q[env, body_idx]
-    link_quat = wp.transform_get_rotation(link_xform)
-    link_pos = wp.transform_get_translation(link_xform)
-    com_world = link_pos + wp.quat_rotate(link_quat, body_com[env, body_idx])
-
-    # Child-side joint frame in world = body link pose composed with joint_X_c.
-    joint_xform_world = link_xform * joint_X_c[env, j]
-    anchor_world = wp.transform_get_translation(joint_xform_world)
-    joint_quat_world = wp.transform_get_rotation(joint_xform_world)
-
-    # Shift torque reference from COM to joint anchor:
-    #   tau_anchor = tau_com + (com - anchor) x f = tau_com + r_anchor_to_com x f.
-    r_anchor_to_com = com_world - anchor_world
-    tau_world_anchor = tau_world_com + wp.cross(r_anchor_to_com, f_world)
-
-    # Rotate both components into the child-side joint frame.
-    out_force[env, j] = wp.quat_rotate_inv(joint_quat_world, f_world)
-    out_torque[env, j] = wp.quat_rotate_inv(joint_quat_world, tau_world_anchor)
+    wrench = incoming_joint_wrench(
+        body_parent_f[env, body_idx], body_q[env, body_idx], body_com[env, body_idx], joint_X_c[env, j]
+    )
+    out_force[env, j] = wp.spatial_top(wrench)
+    out_torque[env, j] = wp.spatial_bottom(wrench)
 
 
 @wp.kernel

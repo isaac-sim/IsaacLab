@@ -43,7 +43,7 @@ from ..assets import (
     VisualMaterialCfg,
 )
 from ..markers import VisualizationMarkers, VisualizationMarkersCfg
-from ..sensors import CameraCfg, ContactSensorCfg, FrameTransformerCfg, RayCasterCfg, SensorBase, SensorBaseCfg
+from ..sensors import CameraCfg, ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
 from ..sim import SimulationContext
 from ..sim.utils.stage import get_current_stage, get_current_stage_id
 from ..utils import instantiate, validate
@@ -60,23 +60,10 @@ class InteractiveScene:
 
     The interactive scene parses the :class:`InteractiveSceneCfg` class to create the scene.
     Based on the specified number of environments, it clones the entities and groups them into different
-    categories (e.g., articulations, sensors, etc.).
-
-    Cloning can be performed in two ways:
-
-    * For tasks where all environments contain the same assets, a more performant cloning paradigm
-      can be used to allow for faster environment creation. This is specified by the ``replicate_physics`` flag.
-
-      .. code-block:: python
-
-          scene = InteractiveScene(cfg=InteractiveSceneCfg(replicate_physics=True))
-
-    * For tasks that require having separate assets in the environments, ``replicate_physics`` would have to
-      be set to False, which will add some costs to the overall startup time.
-
-      .. code-block:: python
-
-          scene = InteractiveScene(cfg=InteractiveSceneCfg(replicate_physics=False))
+    categories (e.g., articulations, sensors, etc.). It builds one clone plan for all environments and
+    dispatches each asset to its declared clone contexts. Heterogeneous per-environment assets are
+    declared through :attr:`~isaaclab.scene.InteractiveSceneCfg.clone_cfg` and
+    :attr:`~isaaclab.cloner.CloneCfg.clone_combinations`.
 
     Each entity is registered to scene based on its name in the configuration class. For example, if the user
     specifies a robot in the configuration class as follows:
@@ -138,10 +125,9 @@ class InteractiveScene:
         self.sim = SimulationContext.instance()
         self.stage = get_current_stage()
         self.stage_id = get_current_stage_id()
-        self.physics_backend = self.sim.physics_manager.__name__.lower()
+        self.physics_backend = self.sim.backend_manager.backend_name
         self._physics_scene_path = None
         clone_cfg = self.cloner_cfg = copy.deepcopy(self.cfg.clone_cfg)
-        clone_cfg.replicate_physics = self.cfg.replicate_physics
         # the template is authoritative; the regex form is the same namespace spelled for matching
         self._env_fmt = clone_cfg.clone_template
         self.env_prim_paths = [self._env_fmt.format(i) for i in range(self.cfg.num_envs)]
@@ -153,18 +139,14 @@ class InteractiveScene:
         scene_from_cfg = any(name not in cfg_fields and cfg is not None for name, cfg in vars(self.cfg).items())
         if scene_from_cfg:
             options = dict(env_template=self._env_fmt, world_prototypes=world_prototypes, weights=weights)
-            options.update(clone_strategy=clone_cfg.clone_strategy, replicate_physics=clone_cfg.replicate_physics)
+            options.update(clone_strategy=clone_cfg.clone_strategy)
             with cloner.ReplicateSession(asset_cfgs, self.num_envs, self.cfg.env_spacing, **options) as session:
                 positions = session.plan.positions
-                source, env_ids = self.env_prim_paths[0], np.arange(self.num_envs)
-                self.stage.DefinePrim(source, "Xform")
-                with cloner.disabled_fabric_change_notifies(self.stage, restore=False):
-                    cloner.usd_replicate(self.stage, [source], [self._env_fmt], env_ids, positions=positions)
                 self._add_entities_from_cfg()
         else:
             positions = cloner.grid_transforms(self.num_envs, self.cfg.env_spacing)[0]
-            env_0 = self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
-            sim_utils.standardize_xform_ops(env_0, translation=tuple(map(float, positions[0])))
+            # Direct tasks may use regex spawners before declaring their clone plan.
+            self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
         self._env_origins = positions
         self._env_origins_plan = self.sim.get_clone_plan()
 
@@ -221,7 +203,7 @@ class InteractiveScene:
             cfgs.append(child)
             count = cloner.num_spawn_variants(getattr(child, "spawn", None))
             is_per_env = cloner.path.match(child.prim_path, self._env_fmt) is not None
-            is_spawned = isinstance(child, (AssetBaseCfg, CameraCfg, RayCasterCfg)) and child.spawn is not None
+            is_spawned = isinstance(child, (AssetBaseCfg, CameraCfg)) and child.spawn is not None
             if is_per_env and is_spawned:
                 clone_asset_names.append(asset_name)
                 variant_counts.append(count)
@@ -239,7 +221,7 @@ class InteractiveScene:
     def filter_collisions(self, global_prim_paths: list[str] | None = None):
         """Filter environments collisions.
 
-        Disables collisions between the environments in ``/World/envs/env_.*`` and enables collisions with the prims
+        Disables collisions between the declared environments and enables collisions with the prims
         in global prim paths (e.g. ground plane).
 
         Args:
@@ -276,8 +258,7 @@ class InteractiveScene:
         msg += f"\tNumber of environments: {self.cfg.num_envs}\n"
         msg += f"\tEnvironment spacing   : {self.cfg.env_spacing}\n"
         msg += f"\tSource prim name      : {self.env_prim_paths[0]}\n"
-        msg += f"\tGlobal prim paths     : {self._global_prim_paths}\n"
-        msg += f"\tReplicate physics     : {self.cfg.replicate_physics}"
+        msg += f"\tGlobal prim paths     : {self._global_prim_paths}"
         return msg
 
     """
@@ -319,12 +300,12 @@ class InteractiveScene:
 
     @property
     def env_ns(self) -> str:
-        """The namespace ``/World/envs`` in which all environments are created."""
+        """The parent namespace of the declared environment template."""
         return self._env_fmt.rsplit("/", 1)[0]
 
     @property
     def env_regex_ns(self) -> str:
-        """The namespace ``/World/envs/env_[^/]+`` in which all environments are created."""
+        """The declared environment template with its instance slot expanded to a path expression."""
         return self._env_fmt.format("[^/]+")
 
     @property

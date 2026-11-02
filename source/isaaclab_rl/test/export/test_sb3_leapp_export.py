@@ -40,7 +40,6 @@ def test_sb3_export_args_use_common_defaults(monkeypatch):
     args, _ = export_module.parse_export_args(["--task", "Isaac-Cartpole"])
 
     assert args.agent == "sb3_cfg_entry_point"
-    assert args.headless
     assert not hasattr(args, "seed")
     assert {
         "task",

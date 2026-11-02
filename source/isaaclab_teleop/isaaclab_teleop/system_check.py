@@ -34,7 +34,7 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-DOC_URL = "https://isaac-sim.github.io/IsaacLab/develop/source/how-to/cloudxr_teleoperation.html"
+DOC_URL = "https://isaac-sim.github.io/IsaacLab/main/source/how-to/cloudxr_teleoperation.html"
 """Link included in the client notice so the operator can read the full spec."""
 
 # -- CPU ---------------------------------------------------------------------

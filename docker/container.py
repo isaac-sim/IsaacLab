@@ -36,7 +36,7 @@ def parse_cli_args() -> argparse.Namespace:
         "profile",
         nargs="?",
         default="base",
-        help="Optional container profile specification. Examples: 'base', 'ros2', or 'kitless'.",
+        help="Optional container profile specification. Examples: 'base' or 'kitless'.",
     )
     parent_parser.add_argument(
         "--files",
@@ -75,11 +75,12 @@ def parse_cli_args() -> argparse.Namespace:
 
     # Actual command definition begins here
     subparsers = parser.add_subparsers(dest="command", required=True)
-    subparsers.add_parser(
+    build = subparsers.add_parser(
         "build",
         help="Build the docker image without creating the container.",
         parents=[parent_parser],
     )
+    build.add_argument("--pull", action="store_true", help="Check for updated parent images before building.")
     subparsers.add_parser(
         "start",
         help="Build the docker image and create the container in detached mode.",
@@ -102,7 +103,12 @@ def parse_cli_args() -> argparse.Namespace:
     subparsers.add_parser(
         "copy", help="Copy build and logs artifacts from the container to the host machine.", parents=[parent_parser]
     )
-    subparsers.add_parser("stop", help="Stop the docker container and remove it.", parents=[parent_parser])
+    stop = subparsers.add_parser(
+        "stop", help="Stop and remove the container, preserving caches and artifacts.", parents=[parent_parser]
+    )
+    stop.add_argument(
+        "--remove-volumes", action="store_true", help="Also delete Compose volumes, including caches, logs, and data."
+    )
 
     # parse the arguments to determine the command
     args = parser.parse_args()
@@ -142,7 +148,7 @@ def main(args: argparse.Namespace):
             ci.add_yamls += x11_yaml
             ci.environ.update(x11_envar)
         # build the image
-        ci.build()
+        ci.build(pull=args.pull)
     elif args.command == "start":
         # check if x11 forwarding is enabled
         x11_outputs = x11_utils.x11_check(ci.statefile)
@@ -164,7 +170,7 @@ def main(args: argparse.Namespace):
         ci.copy()
     elif args.command == "stop":
         # stop the container
-        ci.stop()
+        ci.stop(remove_volumes=args.remove_volumes)
         # cleanup the x11 forwarding
         x11_utils.x11_cleanup(ci.statefile)
     else:

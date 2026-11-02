@@ -27,9 +27,6 @@ services:
   isaac-lab-base:
     <<: *x11-forwarding
 
-  isaac-lab-ros2:
-    <<: *x11-forwarding
-
   # Kit-less has no Kit, but it ships Newton's interactive viewer, so `--viz
   # newton` needs a display here too.
   isaac-lab-kitless:

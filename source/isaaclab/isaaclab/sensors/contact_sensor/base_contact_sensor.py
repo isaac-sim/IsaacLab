@@ -149,8 +149,8 @@ class BaseContactSensor(SensorBase):
 
         Valid air and contact timers are integer multiples of the sensor update interval, so half an
         interval is the midpoint between "one update ago" and "two updates ago". Using it as the
-        tolerance keeps the comparison robust to the float32 rounding error of the sensor clock,
-        which grows with simulated time and quickly exceeds any fixed tolerance.
+        tolerance keeps the comparison robust to the float32 rounding of the timers, which exceeds
+        any small fixed tolerance for periods of a few tenths of a second.
 
         Args:
             abs_tol: The caller-provided tolerance [s]. If None, half the sensor update interval

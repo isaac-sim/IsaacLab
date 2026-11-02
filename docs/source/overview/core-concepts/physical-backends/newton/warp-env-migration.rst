@@ -1,10 +1,10 @@
 :orphan:
 
 .. meta::
-   :http-equiv=refresh: 0; url=../../../../concepts/warp_environment_migration.html
+   :http-equiv=refresh: 0; url=../../../../concepts/warp_environments.html#warp-env-migration
    :name=robots: noindex
 
 Page Moved
 ==========
 
-This page moved to :doc:`/source/concepts/warp_environment_migration`.
+This page moved to :ref:`warp-env-migration`.

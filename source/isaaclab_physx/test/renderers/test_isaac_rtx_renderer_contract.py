@@ -366,7 +366,7 @@ def test_init_enables_replicator_before_applying_global_settings(monkeypatch):
         patch.object(rtx_renderer, "apply_isaac_rtx_global_settings", side_effect=_record_global_settings),
         patch.object(rtx_renderer, "ensure_rtx_hydra_engine_attached"),
     ):
-        rtx_renderer.IsaacRtxRenderer(IsaacRtxRendererCfg())
+        rtx_renderer.IsaacRtxRenderer(IsaacRtxRendererCfg(), sim=MagicMock())
 
     assert call_order == ["enable", "global_settings"]
 
@@ -395,7 +395,7 @@ def test_init_applies_only_explicit_global_spectator_view_setting(monkeypatch, c
         patch.object(rtx_renderer, "enable_extension"),
         patch.object(rtx_renderer, "ensure_rtx_hydra_engine_attached"),
     ):
-        rtx_renderer.IsaacRtxRenderer(cfg)
+        rtx_renderer.IsaacRtxRenderer(cfg, sim=MagicMock())
 
     spectator_calls = [
         setting_call
@@ -438,7 +438,7 @@ def test_deterministic_flag_gates_rtx_determinism_settings(monkeypatch, stored, 
         patch.object(rtx_renderer, "apply_isaac_rtx_determinism_settings", determinism_mock),
         patch.object(rtx_renderer, "ensure_rtx_hydra_engine_attached"),
     ):
-        rtx_renderer.IsaacRtxRenderer(IsaacRtxRendererCfg())
+        rtx_renderer.IsaacRtxRenderer(IsaacRtxRendererCfg(), sim=MagicMock())
 
     assert determinism_mock.called is expected_called
     if expected_called:
@@ -484,6 +484,46 @@ def test_render_treats_empty_annotator_frame_as_not_ready(monkeypatch, data_type
     update.assert_called_once_with()
     output_buffer.zero_.assert_called_once_with()
     launch.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("data_type", "num_channels"),
+    [("normals", 3), ("motion_vectors", 2)],
+)
+def test_render_keeps_leading_channels_of_padded_annotator_tiles(monkeypatch, data_type, num_channels):
+    """Four-channel annotator tiles are split per camera, keeping only the output's leading channels."""
+    _install_omni_stubs(monkeypatch)
+    import isaaclab_physx.renderers.isaac_rtx_renderer as rtx_renderer
+    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+    # Four 2x3 cameras tiled on a 2x2 grid; every source value is distinct.
+    view_count, height, width = 4, 2, 3
+    tiled = np.arange(2 * height * 2 * width * 4, dtype=np.float32).reshape(2 * height, 2 * width, 4)
+    annotator = MagicMock()
+    annotator.get_data.return_value = tiled
+    output_buffer = wp.zeros((view_count, height, width, num_channels), dtype=wp.float32, device="cpu")
+    render_data = SimpleNamespace(
+        annotators={data_type: annotator},
+        output_data={data_type: SimpleNamespace(warp=output_buffer)},
+        spec=SimpleNamespace(view_count=view_count, device="cpu", cfg=SimpleNamespace(width=width, height=height)),
+        renderer_info={},
+        ppisp_pipeline=None,
+        _hdr_scratch_wp=None,
+    )
+    renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)
+    renderer.cfg = IsaacRtxRendererCfg()
+
+    with patch.object(rtx_renderer, "ensure_isaac_rtx_render_update"):
+        renderer.render(render_data)
+
+    expected = np.stack(
+        [
+            tiled[row * height : (row + 1) * height, col * width : (col + 1) * width, :num_channels]
+            for row in range(2)
+            for col in range(2)
+        ]
+    )
+    np.testing.assert_array_equal(output_buffer.numpy(), expected)
 
 
 @pytest.mark.parametrize(

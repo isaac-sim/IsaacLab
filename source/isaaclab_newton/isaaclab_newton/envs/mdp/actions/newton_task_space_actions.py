@@ -103,15 +103,13 @@ class _NewtonTaskSpaceAction(ActionTerm):
         """Compute the target-frame Jacobian in the root frame, shape (num_envs, 6, num_joints)."""
         data = self._asset.data
         jacobian_w = data.body_link_jacobian_w.torch[:, self._jacobi_body_idx, :, self._jacobi_joint_ids]
-        root_rot = math_utils.matrix_from_quat(math_utils.quat_inv(data.root_quat_w.torch))
-        self._jacobian_b[:, :3] = torch.bmm(root_rot, jacobian_w[:, :3])
-        self._jacobian_b[:, 3:] = torch.bmm(root_rot, jacobian_w[:, 3:])
+        jac_lin_w, jac_ang_w = jacobian_w[:, :3], jacobian_w[:, 3:]
         if self._offset_pos is not None:
-            # v_ee = v_link + w_link x r_link_ee, then rotate into the target frame
-            self._jacobian_b[:, :3] += torch.bmm(
-                -math_utils.skew_symmetric_matrix(self._offset_pos), self._jacobian_b[:, 3:]
-            )
-            self._jacobian_b[:, 3:] = torch.bmm(math_utils.matrix_from_quat(self._offset_rot), self._jacobian_b[:, 3:])
+            offset_w = math_utils.quat_apply(data.body_quat_w.torch[:, self._body_idx], self._offset_pos)
+            jac_lin_w = jac_lin_w + torch.linalg.cross(jac_ang_w, offset_w[:, :, None], dim=1)
+        world_to_root = math_utils.matrix_from_quat(math_utils.quat_inv(data.root_quat_w.torch))
+        self._jacobian_b[:, :3] = torch.bmm(world_to_root, jac_lin_w)
+        self._jacobian_b[:, 3:] = torch.bmm(world_to_root, jac_ang_w)
         return self._jacobian_b
 
 
