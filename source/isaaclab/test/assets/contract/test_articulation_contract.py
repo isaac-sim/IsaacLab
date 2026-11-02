@@ -586,11 +586,13 @@ def test_tendon_mask_setters_write_only_what_short_masks_cover(
     else:
         data = data[covered]
         expected[covered] = values[covered]
-    masks = {
-        "env_mask": _mask(N, range(N), "cpu")[: N - 1],
-        f"{axis}_mask": _mask(count, range(count), "cpu")[: count - 1],
-    }
-    getattr(art, f"{writer}_mask")(**{kwarg: data}, **masks)
+    setter = getattr(art, f"{writer}_mask")
+    env_mask = _mask(N, range(N), "cpu")[: N - 1]
+    tendon_mask = _mask(count, range(count), "cpu")[: count - 1]
+    if axis == "fixed_tendon":
+        setter(**{kwarg: data}, env_mask=env_mask, fixed_tendon_mask=tendon_mask)
+    else:
+        setter(**{kwarg: data}, env_mask=env_mask, spatial_tendon_mask=tendon_mask)
     push()
     _assert_reads_back(attrgetter(getter)(art), expected, writer)
 
