@@ -5,6 +5,7 @@
 
 import pytest
 import torch
+import warp as wp
 
 from isaaclab.actuators import DelayedPDActuatorCfg
 from isaaclab.test.utils import DeviceScope, test_devices
@@ -26,8 +27,7 @@ def test_masked_reset_matches_index_reset(device):
         for _ in range(2)
     )
     env_ids = torch.tensor([1, 2], device=device)
-    env_mask = torch.zeros(NUM_ENVS, dtype=torch.bool, device=device)
-    env_mask[env_ids] = True
+    env_mask = wp.array([env in (1, 2) for env in range(NUM_ENVS)], dtype=wp.bool, device=device)
     zeros = torch.zeros(NUM_ENVS, NUM_JOINTS, device=device)
 
     def step(actuator, target: float) -> torch.Tensor:

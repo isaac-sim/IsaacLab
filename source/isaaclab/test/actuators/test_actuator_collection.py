@@ -841,7 +841,7 @@ def test_index_and_mask_resets_pass_both_selections_to_models():
 
     collection.reset(env_mask=wp.array([False, True], dtype=wp.bool, device="cpu"))
     env_ids, env_mask = collection["all"].reset_selection
-    assert env_ids is None and env_mask.tolist() == [False, True]
+    assert env_ids is None and env_mask.numpy().tolist() == [False, True]
 
 
 def test_multi_group_explicit_outputs_match_pd_formula():
