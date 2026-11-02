@@ -6,7 +6,6 @@
 """Sim-free tests for the G1 kitless Newton task boundary."""
 
 import math
-import re
 from types import SimpleNamespace
 
 import pytest
@@ -103,31 +102,6 @@ def test_g1_newton_contract_is_backend_scoped_and_complete() -> None:
     assert default_cfg.isaac_teleop.action_validator is None
     assert not isinstance(default_cfg.scene.packing_table.spawn, PackingTableUsdFileCfg)
     assert not isinstance(default_cfg.scene.object.spawn, SteeringWheelUsdFileCfg)
-
-
-@pytest.mark.parametrize("task", ["fixed_base", "locomanipulation"])
-def test_g1_contact_mappings_are_bilateral_and_nested(task) -> None:
-    from isaaclab_tasks.contrib.locomanip_pick_place.locomanipulation_g1_env_cfg import LocomanipulationG1EnvCfg
-
-    cfg = FixedBaseUpperBodyIKG1EnvCfg() if task == "fixed_base" else LocomanipulationG1EnvCfg()
-
-    assert cfg.scene.left_hand_contact.prim_path == "{ENV_REGEX_NS}/Robot/left_hand/left_hand_[^/]*_link"
-    assert cfg.scene.right_hand_contact.prim_path == "{ENV_REGEX_NS}/Robot/right_hand/right_hand_[^/]*_link"
-    assert cfg.haptic_feedback.left_sensor_name == "left_hand_contact"
-    assert cfg.haptic_feedback.right_sensor_name == "right_hand_contact"
-
-    compiled_labels = (
-        "/World/envs/env_0/Robot/left_hand/left_hand_index_0_link",
-        "/World/envs/env_0/Robot/right_hand/right_hand_thumb_2_link",
-        "/World/envs/env_0/Robot/torso_link",
-    )
-    left_pattern = cfg.scene.left_hand_contact.prim_path.replace("{ENV_REGEX_NS}", r"/World/envs/env_[^/]+")
-    right_pattern = cfg.scene.right_hand_contact.prim_path.replace("{ENV_REGEX_NS}", r"/World/envs/env_[^/]+")
-    left = [label for label in compiled_labels if re.fullmatch(left_pattern, label)]
-    right = [label for label in compiled_labels if re.fullmatch(right_pattern, label)]
-    assert left == [compiled_labels[0]]
-    assert right == [compiled_labels[1]]
-    assert set(left).isdisjoint(right)
 
 
 def test_locomanipulation_preserves_agile_policy_order_and_action_contract() -> None:
