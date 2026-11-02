@@ -86,7 +86,7 @@ def test_box_acquisition_lift_release_and_rebind(device):
             assert gripper.engaged.all()
             assert gripper.seal_error.max() < 0.006
             assert np.all(manager.backend.state_0.body_q.numpy()[parcels, 2] > half_sizes[:, 2] + 0.12)
-            assert manager._graph is not None
+            assert manager.backend.graph is not None
 
             gripper.reset(torch.tensor([0], device=device))
             assert gripper.engaged.tolist() == [False, True]
@@ -109,5 +109,5 @@ def test_box_acquisition_lift_release_and_rebind(device):
         finally:
             gripper.close()
             gripper.close()
-        assert not manager._state_force_callbacks
+        assert not manager.backend.state_force_callbacks
         sim.step(render=False)
