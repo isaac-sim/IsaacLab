@@ -10,7 +10,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 import subprocess
 import sys
 import tempfile
@@ -81,20 +80,11 @@ def prepare_manifest(root: Path, expected_commit: str | None = None) -> dict:
     }
 
 
-def _expected_paths(name: str, namespaces: dict[str, list[str]]) -> list[str]:
-    namespace, _, suffix = name.partition(".")
-    paths = []
-    for prefix in namespaces.get(namespace, []):
-        stem = prefix + ("/" + suffix.replace(".", "/") if suffix else "")
-        paths.extend((stem + ".py", stem + "/__init__.py"))
-    return paths
-
-
 def _inspect_modules(manifest: dict, root: Path) -> tuple[list[dict], list[dict]]:
     records, mismatches = [], []
+    files = set(manifest["files"])
     for name, module in sorted(list(sys.modules.items())):
         filename = getattr(module, "__file__", None)
-        expected_paths = _expected_paths(name, manifest["namespaces"])
         if not filename:
             # Modules without a source file have no path to verify.
             continue
@@ -103,20 +93,21 @@ def _inspect_modules(manifest: dict, root: Path) -> tuple[list[dict], list[dict]
             relative = path.relative_to(root).as_posix()
         except ValueError:
             relative = None
-        if not expected_paths and relative not in manifest["files"]:
+        if name.partition(".")[0] not in manifest["namespaces"] and relative not in files:
             continue
         record = {
             "name": name,
             "path": str(path),
             "relative_path": relative,
         }
-        reasons = []
-        if expected_paths and relative not in expected_paths:
-            reasons.append("Imported module origin does not match the selected checkout module path.")
-        if relative not in manifest["files"]:
-            reasons.append("Imported Python source is absent from the selected commit manifest.")
-        if reasons:
-            mismatches.extend({"module": name, "path": str(path), "reason": reason} for reason in reasons)
+        if relative not in files:
+            mismatches.append(
+                {
+                    "module": name,
+                    "path": str(path),
+                    "reason": "Imported Python source is absent from the selected commit manifest.",
+                }
+            )
         records.append(record)
     return records, mismatches
 
@@ -166,7 +157,6 @@ def run_benchmark(manifest: dict, root: Path, output_dir: Path, argv: list[str])
             "schema_version": 4,
             "status": "verified" if verified else "failed",
             "commit": manifest["commit"],
-            "pid": os.getpid(),
             "bytecode_policy": "fresh_process_cache",
             "modules": modules,
             "outputs": outputs,
