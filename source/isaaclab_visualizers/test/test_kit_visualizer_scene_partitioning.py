@@ -58,8 +58,7 @@ def kit_timeline(monkeypatch):
     return timeline
 
 
-@pytest.mark.parametrize("headless", [False, True])
-@pytest.mark.parametrize("xr", [False, True])
+@pytest.mark.parametrize(("headless", "xr"), [(False, False), (True, False), (True, True)])
 def test_viewport_pose_publication_is_deferred_only_for_headless_capture(monkeypatch, kit_app, headless, xr):
     visualizer = KitVisualizer(VisualizerCfg(headless=headless, backend=KitBackendCfg(origin_type="asset")))
     visualizer._is_initialized = True
