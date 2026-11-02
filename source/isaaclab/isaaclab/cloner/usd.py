@@ -12,11 +12,11 @@ import numpy as np
 
 from .clone_plan import path as cloner_path
 from .fabric_notices import disabled_fabric_change_notifies
+from .replicate_context import ReplicateContext
 
 if TYPE_CHECKING:
     from pxr import Usd
 
-    from ..sim import SimulationContext
     from .clone_plan import ClonePlan
 
 
@@ -88,14 +88,11 @@ def usd_replicate(
                 op_order.default = Vt.TokenArray(op_names)
 
 
-class UsdReplicateContext:
+class UsdReplicateContext(ReplicateContext):
     """Apply routed clone-plan sources to one USD stage."""
 
     # USD destinations must exist before native physics contexts consume them.
     replicate_priority = -100
-
-    def __init__(self, sim: SimulationContext):
-        self.stage = sim.stage
 
     def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> None:
         """Replicate this context's declared sources with the same low-level USD operation."""
@@ -122,12 +119,12 @@ class UsdReplicateContext:
                         continue
                 copies.setdefault((source, template), []).append(targets)
         env_ids = range(len(plan.topology.world_prototype_layout))
-        with disabled_fabric_change_notifies(self.stage), Sdf.ChangeBlock():
+        with disabled_fabric_change_notifies(self._sim.stage), Sdf.ChangeBlock():
             for source, template in sorted(copies, key=lambda copy: copy[1].count("/")):
-                usd_replicate(self.stage, (source,), (template,), np.concatenate(copies[source, template]))
+                usd_replicate(self._sim.stage, (source,), (template,), np.concatenate(copies[source, template]))
             if plan.positions is not None:
                 # Environment frames come from the plan, not copies of an undeclared USD subtree.
-                layer = self.stage.GetRootLayer()
+                layer = self._sim.stage.GetRootLayer()
                 for env_id, position in zip(env_ids, plan.positions, strict=True):
                     path = plan.env_template.format(env_id)
                     spec = Sdf.CreatePrimInLayer(layer, path)

@@ -85,7 +85,6 @@ import os
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
-from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.converters import MeshConverterCfg
 from isaaclab.sim.schemas import schemas_cfg
@@ -106,21 +105,20 @@ collision_approximation_map = {
 }
 
 
-def preview(usd_path: str, physics_cfg: PhysicsCfg) -> None:
+def preview(usd_path: str, sim_cfg: sim_utils.SimulationCfg) -> None:
     """Open the converted asset in the visualizer selected on the command line.
 
     Args:
         usd_path: Path of the generated USD file to display.
-        physics_cfg: Physics config resolved by :func:`~isaaclab.app.launch_simulation`.
+        sim_cfg: Simulation config resolved by :func:`~isaaclab.app.launch_simulation`.
     """
-    visualizers = args_cli.visualizer or []
-    if not visualizers:
+    if not sim_cfg.visualizer_cfgs:
         return
 
     # The physics backend ingests the USD stage and every visualizer renders the shared scene data,
     # so no backend-specific code is needed here. Physics is not stepped -- the
     # asset is shown in its imported pose until the visualizer window is closed.
-    sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(device=args_cli.device, physics=physics_cfg))
+    sim = sim_utils.SimulationContext(sim_cfg)
     scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=0.0)
     scene_cfg.light = AssetBaseCfg(
         prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
@@ -195,7 +193,8 @@ def main():
     print("-" * 80)
     print("-" * 80)
 
-    with launch_simulation(PhysicsCfg(), args_cli) as physics_cfg:
+    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device)
+    with launch_simulation(sim_cfg, args_cli):
         # the mesh converter imports Kit modules, so load it after Kit starts
         from isaaclab.sim.converters import MeshConverter
 
@@ -207,7 +206,7 @@ def main():
         print("-" * 80)
         print("-" * 80)
 
-        preview(mesh_converter.usd_path, physics_cfg)
+        preview(mesh_converter.usd_path, sim_cfg)
 
 
 if __name__ == "__main__":

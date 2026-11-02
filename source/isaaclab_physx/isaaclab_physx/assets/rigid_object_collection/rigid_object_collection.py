@@ -21,11 +21,10 @@ import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object_collection.base_rigid_object_collection import BaseRigidObjectCollection
 from isaaclab.utils import clone, validate
-from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp import ProxyArray, memory
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_physx.assets import kernels as shared_kernels
-from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 from .kernels import resolve_view_ids_kernel
 from .rigid_object_collection_data import RigidObjectCollectionData
@@ -476,7 +475,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.reshape_data_to_view_2d(self.data._body_link_pose_w.data, device=self.device).view(wp.float32),
             indices=view_ids,
         )
-        SimulationManager.invalidate_transforms()
+        self._backend_manager.invalidate_transforms()
 
     def write_body_link_pose_to_sim_mask(
         self,
@@ -590,7 +589,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.reshape_data_to_view_2d(self.data._body_link_pose_w.data, device=self.device).view(wp.float32),
             indices=view_ids,
         )
-        SimulationManager.invalidate_transforms()
+        self._backend_manager.invalidate_transforms()
 
     def write_body_com_pose_to_sim_mask(
         self,
@@ -914,8 +913,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             full_data: Whether to expect full data. Defaults to False.
         """
         # resolve all indices
-        env_ids = self._resolve_env_ids(env_ids)
-        body_ids = self._resolve_body_ids(body_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        body_ids = memory.resolve_1d_indices(self._resolve_body_ids(body_ids))
         if full_data:
             self.assert_shape_and_dtype(
                 masses,
@@ -926,21 +925,11 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             )
         else:
             self.assert_shape_and_dtype(masses, (env_ids.shape[0], body_ids.shape[0]), wp.float32, "masses")
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, body_ids),
-            dim=(env_ids.shape[0], body_ids.shape[0]),
-            inputs=[
-                masses,
-                env_ids,
-                body_ids,
-                full_data,
-            ],
-            outputs=[
-                self.data._body_mass,
-            ],
-            device=self.device,
-        )
+        selected = wp.indexedarray(self.data._body_mass, [env_ids, body_ids])
+        values = wp.from_torch(masses, dtype=wp.float32) if isinstance(masses, torch.Tensor) else masses
+        if full_data:
+            values = wp.indexedarray(values, [env_ids, body_ids])
+        wp.copy(selected, values)
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         # Convert from instance order (num_instances, num_bodies) to view order (num_bodies*num_instances, 1) for PhysX.
         mass_view_order = self.reshape_data_to_view_2d(self.data._body_mass, device="cpu")  # -> (B*I, 1)
@@ -1005,8 +994,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             full_data: Whether to expect full data. Defaults to False.
         """
         # resolve all indices
-        env_ids = self._resolve_env_ids(env_ids)
-        body_ids = self._resolve_body_ids(body_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        body_ids = memory.resolve_1d_indices(self._resolve_body_ids(body_ids))
         if full_data:
             self.assert_shape_and_dtype(
                 coms,
@@ -1017,21 +1006,11 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             )
         else:
             self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "coms")
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        wp.launch(
-            shared_kernels.write_body_com_pose_to_buffer_kernel(env_ids, body_ids),
-            dim=(env_ids.shape[0], body_ids.shape[0]),
-            inputs=[
-                coms,
-                env_ids,
-                body_ids,
-                full_data,
-            ],
-            outputs=[
-                self.data._body_com_pose_b.data,
-            ],
-            device=self.device,
-        )
+        selected = wp.indexedarray(self.data._body_com_pose_b.data, [env_ids, body_ids])
+        values = wp.from_torch(coms, dtype=wp.transformf) if isinstance(coms, torch.Tensor) else coms
+        if full_data:
+            values = wp.indexedarray(values, [env_ids, body_ids])
+        wp.copy(selected, values)
         # Invalidate derived caches; preserve the COM timestamp so unread or stale entries refresh from PhysX.
         self.data._reset_body_com_pose_b_dependents()
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
@@ -1099,8 +1078,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             full_data: Whether to expect full data. Defaults to False.
         """
         # resolve all indices
-        env_ids = self._resolve_env_ids(env_ids)
-        body_ids = self._resolve_body_ids(body_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        body_ids = memory.resolve_1d_indices(self._resolve_body_ids(body_ids))
         if full_data:
             self.assert_shape_and_dtype(
                 inertias,
@@ -1111,21 +1090,11 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             )
         else:
             self.assert_shape_and_dtype(inertias, (env_ids.shape[0], body_ids.shape[0], 9), wp.float32, "inertias")
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        wp.launch(
-            shared_kernels.write_body_inertia_to_buffer_kernel(env_ids, body_ids),
-            dim=(env_ids.shape[0], body_ids.shape[0]),
-            inputs=[
-                inertias,
-                env_ids,
-                body_ids,
-                full_data,
-            ],
-            outputs=[
-                self.data._body_inertia,
-            ],
-            device=self.device,
-        )
+        selected = wp.indexedarray(self.data._body_inertia, [env_ids, body_ids])
+        values = wp.from_torch(inertias, dtype=wp.float32) if isinstance(inertias, torch.Tensor) else inertias
+        if full_data:
+            values = wp.indexedarray(values, [env_ids, body_ids])
+        wp.copy(selected, values)
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         # Convert from instance order (num_instances, num_bodies, 9) to view order (num_bodies*num_instances, 9) for
         # PhysX.
@@ -1376,7 +1345,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # clear body names list to prevent double counting on re-initialization
         self._body_names_list.clear()
         # obtain global simulation view
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
+        self._physics_sim_view = self._backend_manager.get_physics_sim_view()
 
         def has_rigid_body_api(prim) -> bool:
             return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
@@ -1401,7 +1370,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         logger.info(f"Body names: {self.body_names}")
 
         # container for data access
-        self._data = RigidObjectCollectionData(self.root_view, self.num_bodies, self.device)
+        self._data = RigidObjectCollectionData(
+            self.root_view, self.num_bodies, self.device, backend_manager=self._backend_manager
+        )
 
         # create buffers
         self._create_buffers()

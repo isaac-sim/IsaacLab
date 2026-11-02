@@ -1,4 +1,4 @@
-Copyright 2020, ANYbotics AG.
+Copyright 2019, ANYbotics AG.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions

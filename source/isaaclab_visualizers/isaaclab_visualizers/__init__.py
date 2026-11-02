@@ -8,10 +8,10 @@
 Concrete visualizer configs carry their implementation in ``class_type``, which is resolved lazily
 when the visualizer is constructed. Import a specific backend only when needed:
 
-  from isaaclab_visualizers.kit import KitVisualizer, KitVisualizerCfg
-  from isaaclab_visualizers.newton import NewtonGLVisualizer, NewtonGLVisualizerCfg
-  from isaaclab_visualizers.rerun import RerunVisualizer, RerunVisualizerCfg
-  from isaaclab_visualizers.viser import ViserVisualizer, ViserVisualizerCfg
+  from isaaclab_visualizers.kit import KitVisualizer, KitBackendCfg
+  from isaaclab_visualizers.newton import NewtonGLVisualizer, NewtonGLBackendCfg
+  from isaaclab_visualizers.rerun import RerunVisualizer, RerunBackendCfg
+  from isaaclab_visualizers.viser import ViserVisualizer, ViserBackendCfg
 """
 
 import importlib.metadata

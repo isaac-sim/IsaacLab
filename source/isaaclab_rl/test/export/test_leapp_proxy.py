@@ -10,10 +10,11 @@ from types import SimpleNamespace
 import pytest
 import torch
 import warp as wp
+import yaml
 
 leapp = pytest.importorskip("leapp")
 
-from isaaclab.assets.articulation import BaseArticulationData
+from isaaclab.assets.articulation import BaseArticulation, BaseArticulationData
 from isaaclab.envs import mdp
 from isaaclab.envs.leapp_deployment_env import LeappDeploymentEnv, StateInputSpec
 from isaaclab.managers import ObservationTermCfg, SceneEntityCfg
@@ -22,8 +23,8 @@ from isaaclab.utils import math as math_utils
 from isaaclab.utils.buffers import CircularBuffer
 from isaaclab.utils.leapp import utils as leapp_utils
 from isaaclab.utils.leapp.export_annotator import ExportPatcher
-from isaaclab.utils.leapp.leapp_semantics import InputKindEnum
-from isaaclab.utils.leapp.proxy import _DataProxy, _EnvProxy
+from isaaclab.utils.leapp.leapp_semantics import InputKindEnum, OutputKindEnum
+from isaaclab.utils.leapp.proxy import _ArticulationWriteProxy, _DataProxy, _EnvProxy
 from isaaclab.utils.warp import ProxyArray
 
 
@@ -173,6 +174,80 @@ def test_camera_output_mapping_round_trips_through_deployment(monkeypatch: pytes
         "camera-task/camera_output_rgb": StateInputSpec(entity_name=entity_name, property_name=property_name)
     }
     assert env._read_inputs() == {"camera-task/camera_output_rgb": camera_data.output["rgb"].torch}
+
+
+def test_camera_pixels_drive_joint_target_through_export_and_deployment(tmp_path: Path):
+    """Random camera pixels drive a joint target through the compiled graph and deployment mapping."""
+    from leapp import InferenceManager, annotate
+
+    writes = []
+
+    class TargetAsset:
+        set_joint_position_target_index = BaseArticulation.set_joint_position_target_index
+        joint_names = ["cart_to_pole", "slider_to_cart"]
+        actuators = SimpleNamespace(
+            target_command=SimpleNamespace(set_position_index=lambda **kwargs: writes.append(kwargs))
+        )
+
+        def find_joints(self, names, preserve_order=False):
+            assert preserve_order
+            return [self.joint_names.index(name) for name in names], names
+
+    asset = TargetAsset()
+    pixels = torch.randint(0, 256, (1, 4, 4, 3), dtype=torch.uint8, generator=torch.Generator().manual_seed(13))
+    camera_data = CameraData()
+    camera_data._output = {"rgb": ProxyArray(wp.from_torch(pixels))}
+    cache = {}
+    camera_proxy = _DataProxy(camera_data, "camera", "camera-action", {}, cache, lambda name: f"camera_{name}")
+    outputs = []
+    action_proxy = _ArticulationWriteProxy(asset, "robot", "position", outputs, {}, set(), None)
+    leapp.start("camera-action", save_path=str(tmp_path))
+    try:
+        for shift in (0, 17):
+            pixels.add_(shift)
+            cache.clear()
+            outputs.clear()
+            rgb = camera_proxy.output["rgb"].torch
+            target = (rgb.float().mean(dim=(1, 2, 3)) / 255.0).unsqueeze(-1)
+            action_proxy.set_joint_position_target_index(target=target, joint_ids=[1])
+            annotate.output_tensors("camera-action", outputs, export_with="onnx-dynamo")
+    finally:
+        leapp.stop()
+    leapp.compile_graph(visualize=False, validate=True)
+
+    assert len(writes) == 2
+    assert writes[-1]["joint_ids"] == [1]
+    output = outputs[0]
+    assert output.kind == OutputKindEnum.JOINT_POSITION
+    assert output.extra == {"isaaclab_connection": "write:robot:set_joint_position_target_index"}
+    assert output.element_names == [["slider_to_cart"]]
+
+    pipeline = tmp_path / "camera-action" / "camera-action.yaml"
+    description = yaml.safe_load(pipeline.read_text())
+    manager = InferenceManager(str(pipeline))
+    input_name = "camera-action/camera_output_rgb"
+    output_name = "camera-action/position"
+    assert manager.inputs == [input_name]
+    manager.reset()
+    dark_action = manager.run_policy({input_name: torch.zeros_like(pixels)})[output_name].clone()
+    manager.reset()
+    bright_action = manager.run_policy({input_name: torch.full_like(pixels, 255)})[output_name].clone()
+    torch.testing.assert_close(dark_action, torch.zeros(1, 1))
+    torch.testing.assert_close(bright_action, torch.ones(1, 1))
+
+    env = object.__new__(LeappDeploymentEnv)
+    env.scene = {"camera": SimpleNamespace(data=camera_data), "robot": asset}
+    env._leapp_desc = description
+    env.inference = manager
+    env._input_mapping = {}
+    env._output_mapping = {}
+    env._resolve_io()
+    pixels.fill_(255)
+    manager.reset()
+    env._write_outputs(manager.run_policy(env._read_inputs()))
+    assert len(writes) == 3
+    assert writes[-1]["joint_ids"] == [1]
+    torch.testing.assert_close(writes[-1]["value"], torch.ones(1, 1))
 
 
 @pytest.mark.parametrize("frame_stack,channel_first", [(1, True), (2, True), (2, False)])

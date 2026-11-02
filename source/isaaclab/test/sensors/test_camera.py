@@ -739,9 +739,6 @@ def test_camera_raises_on_unsupported_data_types(setup_sim_camera):
     class _PartialRenderer(BaseRenderer):
         """Publishes only ``rgba`` in its supported-output contract."""
 
-        def __init__(self, cfg=None):
-            self.cfg = cfg
-
         def supported_output_types(self):
             return {RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8)}
 

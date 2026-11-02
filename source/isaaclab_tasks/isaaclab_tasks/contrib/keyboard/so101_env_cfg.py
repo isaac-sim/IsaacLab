@@ -313,7 +313,7 @@ class PhysicsCfg(PresetCfg):
 
 @configclass
 class SO101KeyboardEnvCfg(ManagerBasedRLEnvCfg):
-    scene: SO101SceneCfg = SO101SceneCfg(num_envs=4096, env_spacing=1.0, replicate_physics=True)
+    scene: SO101SceneCfg = SO101SceneCfg(num_envs=4096, env_spacing=1.0)
     observations: SO101ObservationsCfg = SO101ObservationsCfg()
     actions: SO101RelJointPosActionCfg = SO101RelJointPosActionCfg()
     commands: CommandsCfg = CommandsCfg()
@@ -326,9 +326,7 @@ class SO101KeyboardEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 4  # 100 Hz sim -> 25 Hz control
         self.episode_length_s = 6.0
         self.sim.render_interval = self.decimation
-        self.sim.default_visualizer_cfg = VisualizerCfg(
-            eye=(0.85, -0.75, 1.0), lookat=(0.25, 0.0, 0.1), focal_length=28.0
-        )
+        self.sim.visualizer_cfgs = VisualizerCfg(eye=(0.85, -0.75, 1.0), lookat=(0.25, 0.0, 0.1), focal_length=28.0)
 
     def play_mode(self):
         """Enable typing markers for every playback environment."""

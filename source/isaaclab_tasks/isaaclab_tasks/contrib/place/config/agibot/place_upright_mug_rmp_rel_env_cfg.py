@@ -162,7 +162,7 @@ class RmpFlowAgibotPlaceUprightMugEnvCfg(place_toy2box_rmp_rel_env_cfg.PlaceToy2
         self.events = EventCfgPlaceUprightMug()
 
         # visualizer camera settings
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(1.8, -1.8, 1.8), lookat=(0.3, 0.0, 0.8))
+        self.sim.visualizer_cfgs = VisualizerCfg(eye=(1.8, -1.8, 1.8), lookat=(0.3, 0.0, 0.8))
 
         # Set Agibot as robot
         self.scene.robot = replace(AGIBOT_A2D_CFG, prim_path="{ENV_REGEX_NS}/Robot")

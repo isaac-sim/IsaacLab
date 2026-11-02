@@ -163,17 +163,8 @@ class ShadowHandRobotCfg(PresetCfg):
     needs a per-engine value is a defect to fix in the asset, not a preset to add.
     """
 
-    # ``spawn_path`` authors only the prototype env; the scene clone plan replicates the rest
-    newton_mjwarp = replace(
-        SHADOW_HAND_NEWTON_CFG,
-        prim_path="{ENV_REGEX_NS}/Robot",
-        spawn=replace(SHADOW_HAND_NEWTON_CFG.spawn, spawn_path="/World/envs/env_0/Robot"),
-    )
-    isaacsim_physx = replace(
-        SHADOW_HAND_PHYSX_CFG,
-        prim_path="{ENV_REGEX_NS}/Robot",
-        spawn=replace(SHADOW_HAND_PHYSX_CFG.spawn, spawn_path="/World/envs/env_0/Robot"),
-    )
+    newton_mjwarp = replace(SHADOW_HAND_NEWTON_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+    isaacsim_physx = replace(SHADOW_HAND_PHYSX_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     physx = isaacsim_physx
     ovphysx = isaacsim_physx
     default = newton_mjwarp
@@ -182,7 +173,6 @@ class ShadowHandRobotCfg(PresetCfg):
 CUBE_CFG = RigidObjectCfg(
     prim_path="{ENV_REGEX_NS}/object",
     spawn=sim_utils.UsdFileCfg(
-        spawn_path="/World/envs/env_0/object",
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
         rigid_props=[
             sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=False),

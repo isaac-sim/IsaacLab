@@ -1,10 +1,10 @@
 :orphan:
 
 .. meta::
-   :http-equiv=refresh: 0; url=../../../../setup/installation/index.html
+   :http-equiv=refresh: 0; url=../../../../isaaclab/installation.html
    :name=robots: noindex
 
 Page Moved
 ==========
 
-This page moved to :doc:`/source/setup/installation/index`.
+This page moved to :doc:`/source/isaaclab/installation`.

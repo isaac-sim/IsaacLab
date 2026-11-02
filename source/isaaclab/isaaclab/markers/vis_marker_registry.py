@@ -18,6 +18,7 @@ class VisMarkerRegistry:
     def __init__(self):
         self._callbacks: dict[str, Callable[[Any], None]] = {}
         self._groups: dict[str, Any] = {}
+        self.revision = 0
 
     def add_callback(self, name: str, callback: Callable[[Any], None]) -> str:
         """Register a callback invoked before marker-capable visualizers step each render tick."""
@@ -64,10 +65,12 @@ class VisMarkerRegistry:
     def set_group(self, group_id: str, state: Any) -> None:
         """Set or replace one visualization marker group state."""
         self._groups[group_id] = state
+        self.revision += 1
 
     def remove_group(self, group_id: str) -> None:
         """Remove one visualization marker group state if present."""
         self._groups.pop(group_id, None)
+        self.revision += 1
 
     def get_groups(self) -> dict[str, Any]:
         """Return all active visualization marker groups."""

@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import sys
 import types
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -23,13 +24,6 @@ from isaaclab.physics import PhysicsCfg
 from isaaclab.sim.simulation_cfg import SimulationCfg
 
 _RANK_ENV_VARS = ("LOCAL_RANK", "JAX_LOCAL_RANK", "WORLD_SIZE", "RANK", "JAX_RANK")
-
-
-class _DummyEnvCfg:
-    """Minimal env config stub; ``scan`` needs a real SimulationCfg."""
-
-    def __init__(self, device: str):
-        self.sim = SimulationCfg(device=device)
 
 
 def _set_rank_env(monkeypatch, env: dict[str, str]):
@@ -140,16 +134,9 @@ def test_launch_simulation_device(monkeypatch, kit_device, cfg_device, args, env
             pass
 
     monkeypatch.setitem(sys.modules, "isaaclab_physx.app", types.SimpleNamespace(KitLauncher=_FakeKitLauncher))
+    env_cfg = SimpleNamespace(sim=SimulationCfg(device=cfg_device))
     if kit_device == "kitless":
-        real_scan = sim_launcher.scan
-
-        def kitless_scan(*scan_args, **scan_kwargs):
-            result = real_scan(*scan_args, **scan_kwargs)
-            result.needs_kit = False
-            return result
-
-        monkeypatch.setattr(sim_launcher, "scan", kitless_scan)
-    env_cfg = _DummyEnvCfg(device=cfg_device)
+        env_cfg.sim.physics = PhysicsCfg()
 
     with (
         patch("torch.cuda.device_count", return_value=2),

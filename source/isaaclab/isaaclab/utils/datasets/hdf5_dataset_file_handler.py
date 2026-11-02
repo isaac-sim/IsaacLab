@@ -325,10 +325,10 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
                 raise ValueError(f"Dataset is already in XYZW format (version {src_file.attrs['format_version']})")
 
             with h5py.File(output_path, "w") as dst_file:
-                # Set the new format version
-                dst_file.attrs["format_version"] = DATASET_FORMAT_VERSION
-
                 # Copy and convert all data
                 convert_group_quaternions(src_file, dst_file)
+
+                # Set the new format version after copying the source attributes.
+                dst_file.attrs["format_version"] = DATASET_FORMAT_VERSION
 
         return output_path

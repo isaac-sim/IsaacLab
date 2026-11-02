@@ -431,7 +431,7 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
     """
 
     # Scene settings
-    scene: LocomanipulationG1SceneCfg = LocomanipulationG1SceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=True)
+    scene: LocomanipulationG1SceneCfg = LocomanipulationG1SceneCfg(num_envs=1, env_spacing=2.5)
     # MDP settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -475,7 +475,7 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
                 anchor_pos=(0.0, 0.0, -0.95),
                 anchor_rot=(0.0, 0.0, 0.0, 1.0),
             )
-            self.xr.anchor_prim_path = "/World/envs/env_0/Robot/pelvis"
+            self.xr.anchor_prim_path = "{ENV_REGEX_NS}/Robot/pelvis"
             self.xr.fixed_anchor_height = True
             self.xr.anchor_rotation_mode = XrAnchorRotationMode.FOLLOW_PRIM_SMOOTHED
 

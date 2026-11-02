@@ -11,7 +11,7 @@
 
 The official migration guide is the authoritative source:
 
-- `docs/source/migration/migrating_to_isaaclab_3-0.rst`
+- `docs/source/isaaclab/migrating.rst`
 
 Use this skill to decide where to look and how to validate. Do not treat this file as a replacement for the migration guide.
 
@@ -35,4 +35,4 @@ Avoid carrying forward old project-specific migration notes as general guidance.
 
 ## Maintenance Rule
 
-If a repeated migration fix is not covered by the official guide, update `docs/source/migration/migrating_to_isaaclab_3-0.rst`. Keep this skill small so it does not become a second migration document that drifts from the codebase.
+If a repeated migration fix is not covered by the official guide, update `docs/source/isaaclab/migrating.rst`. Keep this skill small so it does not become a second migration document that drifts from the codebase.

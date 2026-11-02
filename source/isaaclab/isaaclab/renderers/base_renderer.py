@@ -21,7 +21,9 @@ if TYPE_CHECKING:
     import warp as wp
 
     from ..sensors.camera.camera_data import CameraData
+    from ..sim import SimulationContext
     from ..utils.warp import ProxyArray
+    from .renderer_cfg import RendererCfg
 
 
 @dataclass(frozen=True)
@@ -38,6 +40,16 @@ class VisualMaterialBatch:
 class BaseRenderer(ABC):
     """Abstract base class for renderer implementations."""
 
+    def __init__(self, cfg: RendererCfg, *, sim: SimulationContext) -> None:
+        """Bind this renderer to its owning simulation.
+
+        Args:
+            cfg: Renderer configuration.
+            sim: Simulation that creates and owns this renderer through its backend registry.
+        """
+        self.cfg = cfg
+        self._sim = sim
+
     def initialize(self) -> None:
         """Post-physics one-time initialization hook. Called only once."""
         return
@@ -50,21 +62,6 @@ class BaseRenderer(ABC):
         one environment-id device array for partial writes, and provides an idempotent ``close()``.
         """
         return None
-
-    def prepare_cameras(self, stage: Any, spec: CameraRenderSpec) -> None:
-        """Pre-render per-camera setup the backend needs.
-
-        The default implementation is a no-op. Renderer subclasses override
-        to perform whatever per-camera initialization their backend requires
-        — e.g. authoring stage attributes on the resolved camera prims,
-        configuring per-tile GPU buffers, or any other state setup.
-
-        Args:
-            stage: Scene stage the camera prims live on, or ``None``
-                when no stage context applies. Stage-less backends ignore it.
-            spec: Immutable description of the tiled camera bundle.
-        """
-        return
 
     @abstractmethod
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
@@ -102,19 +99,6 @@ class BaseRenderer(ABC):
             Renderer-specific data for subsequent :meth:`render` / :meth:`read_output` calls.
         """
         pass
-
-    def resize_render_product(self, render_data: Any, *, width: int, height: int) -> None:
-        """Resize a viewer-owned product without replacing its camera.
-
-        The caller must replace output buffers through :meth:`set_outputs` after resizing.
-        Scene-camera sensors retain their configured resolution and do not call this method.
-
-        Args:
-            render_data: Renderer-owned resources for one perspective view.
-            width: Output width in pixels.
-            height: Output height in pixels.
-        """
-        raise NotImplementedError(f"{type(self).__name__} does not support resizable render products.")
 
     @abstractmethod
     def set_outputs(self, render_data: Any, output_data: dict[str, ProxyArray]) -> None:

@@ -50,17 +50,14 @@ from fnmatch import fnmatchcase
 from typing import Any, ClassVar, Protocol
 
 import warp as wp
+from ovphysx.types import TensorType
 
 from isaaclab import cloner
 
 from isaaclab_ov._clone import ordered_clone_paths
-from isaaclab_ov._runtime import import_ovphysx
 from isaaclab_ov.tensor_types import _CPU_ONLY_TYPES
 
 logger = logging.getLogger(__name__)
-
-# Pure-Python enum (no native dependency); safe to import regardless of USD state.
-TensorType = import_ovphysx("ovphysx.types").TensorType
 
 
 def _expand_env_pattern(pattern: str, plan: cloner.ClonePlan | None) -> list[str]:

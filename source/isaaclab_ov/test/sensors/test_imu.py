@@ -13,11 +13,6 @@ SimulationContext is instantiated directly (it does not require Kit), and
 UsdFileCfg(usd_path=ISAAC_NUCLEUS_DIR/...) downloads Nucleus assets via
 omni.client (which works standalone in Kit's Python).
 
-Tests that load the PhysX pendulum URDF (``test_single_dof_pendulum`` and
-``test_indirect_attachment``) are skipped pending a USD-converted pendulum
-asset. URDF→USD conversion requires the Kit URDF importer extension, which
-is not loaded under the direct uv run python runner.
-
 Process-global wheel state: like the rigid-object test, this file mixes
 procedural USD assets (``test_constant_velocity``, ``test_constant_acceleration``,
 ``test_attachment_validity``) with a Nucleus asset (``test_offset_calculation``). ``omni.client``
@@ -506,44 +501,3 @@ def test_attachment_validity(sim_ctx, device):
         imu_world = Imu(imu_world_cfg)
         imu_world._initialize_impl()
     assert exc_info.type is RuntimeError and "find a rigid body ancestor prim" in str(exc_info.value)
-
-
-# ===========================================================================
-# URDF-dependent tests — skipped pending USD pendulum asset
-# ===========================================================================
-
-
-@pytest.mark.skip(
-    reason=(
-        "Blocked on a USD-converted pendulum asset (the PhysX test loads"
-        " source/isaaclab_physx/test/sensors/urdfs/simple_2_link.urdf via the Kit URDF importer,"
-        " which is not loaded under the direct uv run python runner). Re-enable"
-        " once a pre-converted USD pendulum is available."
-    )
-)
-def test_single_dof_pendulum():
-    """Test imu against analytical pendulum problem."""
-    # If this test is ever un-skipped without porting the PhysX assertions, fail
-    # explicitly rather than passing vacuously.
-    pytest.fail(
-        "test_single_dof_pendulum was un-skipped without a body — port the assertions from"
-        " source/isaaclab_physx/test/sensors/test_imu.py::test_single_dof_pendulum."
-    )
-
-
-@pytest.mark.skip(
-    reason=(
-        "Blocked on a USD-converted pendulum asset (the PhysX test loads"
-        " source/isaaclab_physx/test/sensors/urdfs/simple_2_link.urdf via the Kit URDF importer,"
-        " which is not loaded under the direct uv run python runner). Re-enable"
-        " once a pre-converted USD pendulum is available."
-    )
-)
-def test_indirect_attachment():
-    """Test attaching the IMU through an Xform primitive offset chain."""
-    # If this test is ever un-skipped without porting the PhysX assertions, fail
-    # explicitly rather than passing vacuously.
-    pytest.fail(
-        "test_indirect_attachment was un-skipped without a body — port the assertions from"
-        " source/isaaclab_physx/test/sensors/test_imu.py::test_indirect_attachment."
-    )

@@ -18,8 +18,6 @@ from pxr import UsdPhysics
 from isaaclab.sensors.joint_wrench import BaseJointWrenchSensor
 from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
 
-from isaaclab_physx.physics import PhysxManager as SimulationManager
-
 from .joint_wrench_sensor_data import JointWrenchSensorData
 from .kernels import joint_wrench_reset_kernel, joint_wrench_split_kernel
 
@@ -125,15 +123,16 @@ class JointWrenchSensor(BaseJointWrenchSensor):
 
         resolve_kwargs = {"predicate": has_articulation_root_api, "expected_num_matches": 1}
         _, root_prim_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
-        self._root_view = SimulationManager.views.get((SimulationManager, root_prim_path_expr))
+        self._root_view = self._backend_manager.views.get(root_prim_path_expr)
         if self._root_view is None:
-            self._root_view = SimulationManager.views[SimulationManager, root_prim_path_expr] = (
-                SimulationManager.get_physics_sim_view().create_articulation_view(
+            self._root_view = self._backend_manager.views[root_prim_path_expr] = (
+                self._backend_manager.get_physics_sim_view().create_articulation_view(
                     path_expr_to_glob(root_prim_path_expr)
                 )
             )
         if self._root_view._backend is None:
             raise RuntimeError(f"Failed to create articulation view at: {root_prim_path_expr}. Check PhysX logs.")
+        self._check_env_count(self._root_view.count, root_prim_path_expr)
 
         self._num_bodies = self._root_view.shared_metatype.link_count
         if self._num_bodies == 0:
@@ -196,7 +195,6 @@ class JointWrenchSensor(BaseJointWrenchSensor):
             inputs=[
                 env_mask,
                 self._raw_incoming_joint_wrench,
-                self._timestamp,
                 self._data._force,
                 self._data._torque,
             ],

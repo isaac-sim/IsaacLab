@@ -8,22 +8,12 @@
 Backends and Presets
 ====================
 
-.. seealso::
 
-   This page is the source of truth for the ``isaaclab-selecting-backends`` and
-   ``isaaclab-using-presets`` agent skills
-   (`skills/user/select-backends/ <../../../skills/user/select-backends/SKILL.md>`__,
-   `skills/user/use-presets/ <../../../skills/user/use-presets/SKILL.md>`__).
-   When you change this page, update those skills so agent guidance stays in sync. See
-   :doc:`/source/developer-tools/agent_skills`.
+An environment defines the robot, scene, sensors, and task. A **backend** runs the
+physics or rendering. A **preset** selects a named configuration, so you can switch
+backends or task modes without editing Python.
 
-An Isaac Lab environment describes the robot, scene, sensors, and task. A
-**backend** supplies the physics or rendering implementation that brings that
-description to life. A **preset** is a named, tested configuration choice that
-lets you switch implementations or task modes without editing Python.
-
-In practice, the same environment can run with a different physics engine,
-renderer, or observation mode by adding a short selector:
+To select a physics preset, add it to your launch command:
 
 .. code-block:: bash
 
@@ -34,11 +24,12 @@ The task stays ``Isaac-Cartpole-Direct``. The preset changes the configuration
 used to launch it.
 
 
-The mental model
-----------------
+.. _the-mental-model:
 
-Think of an environment as the experiment and presets as the knobs that select
-tested versions of its larger building blocks:
+What you can select
+-------------------
+
+Tasks can expose three kinds of choices:
 
 .. code-block:: text
 
@@ -47,229 +38,18 @@ tested versions of its larger building blocks:
    ├── renderer=...   Which renderer produces camera data?
    └── presets=...    Which task-specific mode or config bundle is used?
 
-After configuration is resolved, Isaac Lab's common asset, sensor, and scene
-APIs dispatch to the selected backend implementation. Environment code can use
-the same public API across PhysX, Newton, and OvPhysX instead of branching on
-the active engine throughout the task.
+The asset, sensor, and scene APIs stay the same across supported backends.
+See :ref:`backend-architecture` for how Isaac Lab selects the implementation.
 
 Physics, rendering, and visualization are separate choices. For example, a
 camera environment can use Newton physics with the Newton Warp renderer, while
 the visualizer is selected independently with ``--viz``.
 
 
-.. _backend-architecture:
-
-Backend architecture
---------------------
-
-Factories dispatch an object to the active backend implementation at
-construction time, so code can use the same public API without importing
-backend-specific modules directly.
-
-.. image:: ../_static/concepts/backend-architecture-light.svg
-    :class: only-light
-    :align: center
-    :alt: Isaac Lab backend architecture, from environment code through factories and the physics
-          preset to the PhysX, Newton, and OvPhysX backend packages and their engines
-
-.. image:: ../_static/concepts/backend-architecture-dark.svg
-    :class: only-dark
-    :align: center
-    :alt: Isaac Lab backend architecture, from environment code through factories and the physics
-          preset to the PhysX, Newton, and OvPhysX backend packages and their engines
-
-Factory dispatch
-^^^^^^^^^^^^^^^^
-
-All factories inherit from :class:`~isaaclab.utils.backend_utils.FactoryBase`.
-They locate supported backend implementations through a core backend-key
-selector followed by package and module-path conventions:
-
-1. The name of ``SimulationContext.physics_manager`` is mapped to one of the
-   backend keys recognized by ``FactoryBase._get_backend()``. Adding another
-   physics backend requires extending this core selector.
-2. The factory module path determines the backend module path. For example,
-   ``isaaclab.assets.articulation`` maps to
-   ``isaaclab_physx.assets.articulation``,
-   ``isaaclab_newton.assets.articulation``, or
-   ``isaaclab_ov.assets.articulation``. The OvPhysX backend key uses the shared
-   ``isaaclab_ov`` integration package.
-3. The factory lazily imports the backend module and caches the implementation
-   class in a registry.
-
-.. code-block:: text
-
-    User code: Articulation(cfg)
-        │
-        ▼
-    FactoryBase.__new__()
-        │
-        ├─ _get_backend()       → "physx", "newton", or "ovphysx"
-        │    (reads SimulationContext.physics_manager)
-        │
-        ├─ _get_module_name()   → "isaaclab_physx.assets.articulation"
-        │    (OvPhysX maps to the shared isaaclab_ov package)
-        │
-        ├─ importlib.import_module()
-        │    (lazy load — only on first use)
-        │
-        └─ Return backend-specific instance
-
-Renderers and visualizers instead select their implementations through their
-configuration's ``class_type``. Their selection is independent of physics;
-renderer instances are shared through the simulation registry described below.
-
-Physics manager lifecycle
-^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Each backend implements :class:`~isaaclab.physics.PhysicsManager`, the abstract
-base class that owns its simulation lifecycle. Implementations initialize their
-engine from a :class:`~isaaclab.sim.SimulationContext`, update kinematics with
-``forward()``, advance simulation with ``step()``, reset state with ``reset()``,
-and release resources with ``close()``.
-
-The manager exposes :class:`~isaaclab.physics.PhysicsEvent` callbacks for
-cross-backend lifecycle work. ``MODEL_INIT`` occurs during scene construction,
-``PHYSICS_READY`` after physics initialization, and ``STOP`` before native resources are replaced
-or shut down.
-The concrete ``close()`` implementation dispatches the ``STOP`` event.
-
-``SimulationContext`` owns native resources and renderer instances in one registry.
-``get_or_create_backend(backend_cfg)``
-reuses one resource for equal configurations of the same concrete type; a cache miss
-constructs ``instantiate(backend_cfg)``. Optional keyword arguments pass simulation-owned
-dependencies to that constructor on a cache miss; they do not change the sharing key.
-:class:`~isaaclab.sim.BackendCfg` describes resource settings and identity, and
-:class:`~isaaclab.renderers.RendererCfg` extends it for renderer instances.
-``PhysicsCfg`` selects a physics manager. Finalize configurations before
-registration and treat them, including nested values, as read-only afterward.
-Use a new configuration for different settings. ``close_backend(backend)`` closes
-the exact registered object after all consumers have released their bindings;
-it does not compare or hash configurations. Resources declared through ``BackendCfg`` must
-implement ``close()``. Plain construction cfgs share Python-owned data without a teardown
-operation; removing the registry entry releases its reference. A failed close retains
-the entry for retry. After physics shutdown invalidates camera
-render data, simulation teardown closes material writers, renderer instances, visualizers,
-and remaining native resources, in that order, before closing the stage.
-
-Image views use this same registry. ``ImageViewCfg`` compares by declaration identity so two
-perspective cameras with identical initial settings remain independent; windows and recorders
-explicitly share a declaration to reuse its image.
-
-Managers and native renderers expose their borrowed resource through ``backend``.
-For example, ``NewtonManager.backend.model`` accesses the finalized native model.
-Closing a renderer releases its bindings, not the shared native resource.
-Exposing native handles does not replace SDP transport.
-
-Clone contexts are registered separately as ``sim.clone_contexts[Context] = Context(...)``
-before plan dispatch. They apply the plan but do not own native runtime resources.
-
-Newton has two resources with different lifetimes, not two interchangeable backends:
-
-* ``ModelBuilder`` holds mutable construction data. Cloning populates it and sensors declare
-  requirements before finalization. It remains available for hard reset. ``NewtonBuilderCfg``
-  is a plain construction cfg, not a ``BackendCfg``; the builder needs no native ``close()``.
-* ``NewtonBackend`` owns the finalized model and native buffers. Physics and render consumers
-  borrow those handles. Closing it releases runtime allocations without closing the builder.
-
-Both resources use the same registry:
-
-.. code-block:: python
-
-    builder_cfg = NewtonBuilderCfg(physics_cfg=sim.cfg.physics)
-    builder = sim.get_or_create_backend(builder_cfg)
-    # Clone/import populates this builder before model allocation.
-    model_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
-    backend = sim.get_or_create_backend(model_cfg)
-
-Both configurations use the selected physics cfg; non-Newton physics selects a render-only
-representation. ``SimulationContext`` has no backend-specific cfg fields, and consumers do not
-access clone contexts. Consumers request body transforms and visual points directly through SDP.
-Queries share the native resource's BVHs but keep each consumer's captured work separate.
-
-Portable asset and sensor interfaces
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Assets and sensors use the same layering as the factories:
-
-1. A base class in ``isaaclab`` defines the public contract, such as
-   ``BaseArticulation`` or ``BaseContactSensor``.
-2. A factory class inherits from both :class:`FactoryBase
-   <isaaclab.utils.backend_utils.FactoryBase>` and that base class.
-3. Backend packages provide the supported implementations.
-
-Sensor data classes use the same pattern, for example
-``ContactSensorData(FactoryBase, BaseContactSensorData)``. Implementations expose
-:class:`~isaaclab.utils.warp.ProxyArray` values through public asset and sensor
-data properties. Each proxy wraps the underlying ``wp.array`` and provides
-explicit ``.warp`` access to that array and cached, zero-copy ``.torch`` access
-to a :class:`torch.Tensor` view. Use those accessors when an API specifically
-requires one representation. Passing a ``ProxyArray`` to ``wp.to_torch()`` is
-supported only by a deprecated compatibility shim; new code should use
-``proxy_array.torch``. Backend-native and internal storage may still use raw
-Warp arrays. See :doc:`/source/how-to/proxy_array` for usage and buffer lifetime
-guidance.
-
-Portable renderer and scene-data interfaces
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Rendering is selected independently from physics. Acquire implementations of the
-:class:`~isaaclab.renderers.BaseRenderer` contract through
-``sim.get_or_create_backend(renderer_cfg)``. The
-:class:`~isaaclab.renderers.RenderContext` coordinates their rendering lifecycle
-through a filtered view of that registry, without a separate renderer cache or
-renderer ownership. It validates global settings and registration timing, initializes
-renderers after physics is ready, and coordinates stage preparation, scene updates,
-and material writers. See
-:ref:`overview_renderers` for renderer choices and usage.
-
-Physics managers expose live simulation data through
-:class:`~isaaclab.scene_data.SceneDataBackend`. The
-:class:`~isaaclab.scene_data.SceneDataProvider` owned by the simulation context
-converts and remaps that data for backend-independent consumers:
-
-.. code-block:: text
-
-   physics manager -> SceneDataBackend -> SceneDataProvider -> renderer or visualizer
-
-This boundary lets renderers and visualizers consume a common Warp-native data
-path without knowing which physics engine owns the state. See
-:doc:`/source/concepts/native-physics-api/scene_data_providers` for the complete
-data-flow model.
-
-Native engine access boundary
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-The portable interfaces define the stable API boundary. Advanced code can use
-each engine's native low-level data API, but those APIs intentionally keep their
-own ownership and synchronization semantics. See
-:doc:`/source/concepts/native-physics-api/index`
-for PhysX typed views, Newton live model/state arrays and generic selections,
-and OvPhysX tensor bindings.
-
-Design principles
-^^^^^^^^^^^^^^^^^
-
-- **Lazy loading:** Backend modules are imported only when first instantiated,
-  keeping startup fast and avoiding dependencies on unused backends.
-- **Recognized keys plus convention:** Once the core selector recognizes a
-  backend key, module paths mirror the ``isaaclab.X.Y`` structure. OvPhysX
-  maps to ``isaaclab_ov.X.Y``; other recognized backends use
-  ``isaaclab_<backend>.X.Y`` by default.
-- **Independent selection:** Physics backend, renderer, and visualizer are
-  selected independently.
-- **Explicit data interop:** Public asset and sensor data properties return
-  :class:`~isaaclab.utils.warp.ProxyArray`; its ``.warp`` and ``.torch``
-  accessors expose the required array representation without copying.
-- **Zero runtime overhead:** Selection occurs at instantiation time; it does
-  not add dispatch logic to the simulation hot path.
-
-
 Find what a task supports
 -------------------------
 
-Preset support is task-specific. Before choosing a name, ask the task what it
-offers:
+Check which presets a task supports with ``--help``:
 
 .. code-block:: bash
 
@@ -283,13 +63,11 @@ To list the combinations each registered environment can launch, run:
 
    uv run isaaclab list_envs --show_presets
 
-Each line is one combination that resolves, passes the task's own configuration
-checks, and can launch headless; ``[default]`` marks the one the task uses when
-no names are passed. Not every pairing of declared names can run together:
-OvPhysX and OVRTX cannot share a process with Isaac Sim / Kit, and a task can
-reject a combination in its own configuration checks. Checking every
-combination takes a few seconds per task, so narrow the list with
-``--keyword``.
+Each line lists a combination that passes configuration checks for a headless
+launch; ``[default]`` marks the task default. Some combinations are incompatible:
+OvPhysX and OVRTX cannot share a process with Isaac Sim / Kit, and tasks may impose
+other restrictions. Use ``--keyword`` to narrow the search; checking every
+combination takes a few seconds per task.
 
 A task listed only with ``(defaults)`` uses its registered default
 configuration and does not expose alternatives. Passing a name that a task does
@@ -312,14 +90,18 @@ Choose a selector
    * - ``renderer=NAME``
      - ``renderer=newton_renderer``
      - Selects a renderer configuration for tasks that produce camera data.
+   * - ``visualizer=NAME[,NAME,...]``
+     - ``visualizer=newton_gl``
+     - Selects interactive viewers; ``visualizer=none`` disables them.
    * - ``presets=NAME[,NAME,...]``
      - ``presets=rgb``
      - Applies task-specific choices such as observation modes, camera layouts,
        or compatible configuration bundles.
 
-These are Hydra tokens, so append them without leading dashes. They work with
-training, playback, and environment scripts that use Isaac Lab's task
-configuration launcher.
+Task scripts also accept ``--physics NAME``, ``--renderer NAME``, and ``--visualizer NAME``
+(``--viz NAME``). These aliases select the same task presets and are consumed before runtime
+launch; ``--renderer`` never sets Kit's rendering mode. Explicit Kit settings belong in
+``--kit_args``. Explicit selections override script defaults; conflicting selections are errors.
 
 Selectors can be combined. This command chooses Newton with the MuJoCo-Warp
 solver, the Newton Warp renderer, and RGB observations:
@@ -330,9 +112,8 @@ solver, the Newton Warp renderer, and RGB observations:
       --task Isaac-Cartpole-Camera-Direct \
       physics=newton_mjwarp renderer=newton_renderer presets=rgb
 
-Only combine values listed for the task. Some physics, renderer, sensor, and
-observation configurations are incompatible, and the task may reject an
-invalid combination with a focused error message.
+Use values listed for the task. Incompatible physics, renderer, sensor, or
+observation settings fail configuration validation.
 
 
 Common backend choices
@@ -348,8 +129,7 @@ conventions:
    * - Name
      - Meaning
    * - ``isaacsim_physx``
-     - Concrete Isaac Sim PhysX configuration. This is the default for tasks
-       whose established default is Isaac Sim PhysX.
+     - Isaac Sim PhysX. Some tasks use this as their default.
    * - ``physx``
      - Automatic PhysX-family selection. Isaac Sim PhysX is used when the
        runtime needs Kit; a configured OvPhysX alternative can be used for
@@ -357,10 +137,10 @@ conventions:
    * - ``newton_mjwarp``
      - Newton physics with the MuJoCo-Warp solver.
    * - ``newton_kamino``
-     - Newton physics with the Kamino solver. Support is beta and currently
-       limited to selected tasks and compatible assets.
+     - Newton physics with the Kamino solver. Available for selected tasks
+       and compatible assets.
    * - ``ovphysx``
-     - Concrete OvPhysX configuration for supported kit-less tasks.
+     - OvPhysX for supported tasks running without Kit.
 
 .. list-table:: Renderer presets
    :widths: 30 70
@@ -369,7 +149,7 @@ conventions:
    * - Name
      - Meaning
    * - ``isaacsim_rtx``
-     - Concrete Isaac Sim RTX renderer configuration.
+     - Isaac Sim RTX renderer.
    * - ``rtx``
      - Automatic RTX-family selection. Isaac Sim RTX is used when physics,
        visualization, livestreaming, or another runtime choice requires Kit;
@@ -378,7 +158,7 @@ conventions:
      - Newton Warp renderer. This is the default for tasks that use the
        multi-backend renderer preset.
    * - ``ovrtx``
-     - Concrete OVRTX renderer configuration for supported kit-less workflows.
+     - OVRTX renderer for runs without Kit.
 
 Automatic selectors such as ``physics=physx`` and ``renderer=rtx`` are opt-in.
 Defaults are concrete so that running a task without selectors is predictable.
@@ -399,8 +179,7 @@ this order:
    ``env.sim.physics=newton_mjwarp``.
 4. Apply scalar Hydra overrides, such as ``env.sim.dt=0.002``.
 
-The last step makes it easy to start from a maintained preset and tune one
-value:
+To change one value after selecting a preset:
 
 .. code-block:: bash
 
@@ -408,10 +187,9 @@ value:
       --task Isaac-Cartpole-Direct \
       physics=newton_mjwarp env.sim.dt=0.002
 
-Prefer ``physics=`` and ``renderer=`` for backend choices because they state
-intent clearly. Use ``presets=`` for task-specific modes or when one name must
-update several matching sections together. Use a path selector only when you
-intend to replace one particular section.
+Use ``physics=`` and ``renderer=`` for backend choices. Use ``presets=`` for task
+modes or to update several matching sections together. A path selector replaces
+only the named section.
 
 .. important::
 
@@ -465,14 +243,265 @@ alternatives. The ``physics=`` selector recognizes these bundles from their
 ``physics`` field and applies the complete matching simulation configuration.
 
 
+.. _backend-architecture:
+
+Backend architecture
+--------------------
+
+Factories dispatch an object to the active backend implementation at
+construction time, so code can use the same public API without importing
+backend-specific modules directly.
+
+.. image:: ../_static/concepts/backend-architecture-light.svg
+    :class: only-light
+    :align: center
+    :alt: Isaac Lab backend architecture, from environment code through factories and the physics
+          preset to the PhysX, Newton, and OvPhysX backend packages and their engines
+
+.. image:: ../_static/concepts/backend-architecture-dark.svg
+    :class: only-dark
+    :align: center
+    :alt: Isaac Lab backend architecture, from environment code through factories and the physics
+          preset to the PhysX, Newton, and OvPhysX backend packages and their engines
+
+Factory dispatch
+^^^^^^^^^^^^^^^^
+
+All factories inherit from :class:`~isaaclab.utils.backend_utils.FactoryBase`.
+They select a backend key, then locate its implementation by module path:
+
+1. ``FactoryBase._get_backend()`` returns the ``backend_name`` of the
+   ``SimulationContext.backend_manager`` instance. Adding another physics
+   backend requires setting this class attribute on its manager.
+2. The factory module path determines the backend module path. For example,
+   ``isaaclab.assets.articulation`` maps to
+   ``isaaclab_physx.assets.articulation``,
+   ``isaaclab_newton.assets.articulation``, or
+   ``isaaclab_ov.assets.articulation``. The OvPhysX backend key uses the shared
+   ``isaaclab_ov`` integration package.
+3. The factory lazily imports the backend module and caches the implementation
+   class in a registry.
+
+.. code-block:: text
+
+    User code: Articulation(cfg)
+        │
+        ▼
+    FactoryBase.__new__()
+        │
+        ├─ _get_backend()       → "physx", "newton", or "ovphysx"
+        │    (reads SimulationContext.backend_manager)
+        │
+        ├─ _get_module_name()   → "isaaclab_physx.assets.articulation"
+        │    (OvPhysX maps to the shared isaaclab_ov package)
+        │
+        ├─ importlib.import_module()
+        │    (lazy load — only on first use)
+        │
+        └─ Return backend-specific instance
+
+Renderers and visualizers instead select their implementations through their
+configuration's ``class_type``. Their selection is independent of physics;
+renderer instances are shared through the simulation registry described below.
+
+Construction and updates
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+The task or standalone script composes the simulation. Preset resolution belongs to
+``isaaclab_tasks`` and finishes before calling the core launcher, which accepts concrete
+configurations and applies launch options. Scene construction and updates follow this order:
+
+1. :class:`~isaaclab.sim.SimulationContext` constructs the selected physics manager and owns
+   the resource registry. :class:`~isaaclab.scene.InteractiveScene` owns scene assets and
+   sensors. A :class:`~isaaclab.cloner.ClonePlan` declares their source definitions,
+   environment layout, and replication routes before native cloning.
+2. Clone contexts prepare their requirements before dispatch. Consumers that share a native
+   representation combine their asset routes, so physics and rendering do not populate the
+   same representation independently. Copies come from the plan; authored prototype metadata,
+   such as mesh topology or scale, is read during setup.
+3. Reset initializes physics and binds consumers to its published state. The
+   :class:`~isaaclab.physics.PhysicsEvent` callbacks order model preparation and physics
+   readiness. Declared rendering consumers bind before the first graph capture, and visualizers
+   initialize before the simulation starts playing.
+4. Physics steps and explicit state writes invalidate the appropriate publications. Asset
+   reads and :ref:`scene-data-provider` reads refresh derived state lazily. A read after a
+   state write does not require a new physics step. Matching native formats are borrowed;
+   consumers reuse conversions for an unchanged publication.
+
+Camera-backed views and recordings borrow a camera's output; the camera owns its render product
+and buffers, while the simulation owns the renderer. Closing a window leaves its borrowed camera
+alive. Native GL perspective views instead render published scene state directly. Teleop and XR
+retain bound host Fabric matrices for pose reads; they do not copy poses through GPU buffers.
+
+Shared resource lifetime
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+``SimulationContext`` keeps native resources and renderers in one registry.
+``get_or_create_backend(backend_cfg)`` reuses a resource when the configuration
+and its concrete type match; otherwise it calls ``instantiate(backend_cfg)``.
+Optional keyword arguments supply constructor dependencies on a cache miss; they do
+not change the sharing key.
+:class:`~isaaclab.sim.BackendCfg` defines resource settings and identity.
+:class:`~isaaclab.renderers.RendererCfg` extends it for renderers; ``PhysicsCfg``
+selects the physics manager.
+
+Finalize configurations before registration, then treat them and their nested
+values as read-only. Use a new configuration to request different settings.
+
+``close_backend(backend)`` closes the exact registered object after consumers
+release their bindings. It does not compare configurations. Resources described
+by ``BackendCfg`` must implement ``close()``; plain construction configs hold
+Python-owned data and need no teardown method. A failed close keeps the entry
+for retry. During simulation teardown, physics first invalidates camera data,
+then material writers, renderers, visualizers, and remaining native resources
+close before the stage.
+
+Image views use this same registry. ``ImageViewCfg`` compares by declaration identity so two
+perspective cameras with identical initial settings remain independent; windows and recorders
+explicitly share a declaration to reuse its image.
+
+Managers and native renderers expose their borrowed resource through ``backend``.
+For example, ``sim.backend_manager.backend.model`` accesses the finalized native model of a Newton simulation.
+Closing a renderer releases its bindings, not the shared native resource.
+Exposing native handles does not replace SDP transport.
+
+Clone preparation resolves the contexts requested by consumer configurations before native
+initialization. Contexts derive from :class:`~isaaclab.cloner.ReplicateContext`; its default
+``prepare(sim, routing)`` keeps the declared routes. Overrides can merge routes for a shared
+representation and acquire resources through the simulation registry. For example, the OV package
+can replace native OVPhysX and OVRTX routes with one OVStage route. Renderer constructors declare
+requirements; they must not select another consumer's cloning path. Preparation also runs before
+reset for standalone consumers registered after scene construction.
+Consumers registered after physics is ready use the same preparation before their initialization.
+
+The resulting clone contexts are registered separately as ``sim.clone_contexts[Context] = Context(...)``
+before plan dispatch. They apply the plan but do not own native runtime resources. Stage population,
+clone execution, and physics/render attachment follow the preparation decision.
+
+Newton has two resources with different lifetimes, not two interchangeable backends:
+
+* ``ModelBuilder`` holds mutable construction data. Cloning populates it and sensors declare
+  requirements before finalization. It remains available for hard reset. ``NewtonBuilderCfg``
+  is a plain construction cfg, not a ``BackendCfg``; the builder needs no native ``close()``.
+* ``NewtonBackend`` owns the finalized model and native buffers and, under Newton physics, the
+  solver, contacts, and sensors. Physics and render consumers borrow those handles. Closing it
+  releases runtime allocations without closing the builder.
+
+Under Newton physics the manager acquires both and exposes them; a hard reset replaces the backend:
+
+.. code-block:: python
+
+    builder = sim.backend_manager.builder  # populated by cloning before sim.reset()
+    backend = sim.backend_manager.backend  # set by sim.reset()
+
+Consumers that also run under other physics, such as renderers and visualizers, share them through the registry. Under
+Newton physics this returns the manager's builder and backend; under other physics it finalizes a render-only backend:
+
+.. code-block:: python
+
+    builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+    backend = sim.get_or_create_backend(NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device))
+
+``SimulationContext`` has no backend-specific cfg fields, and consumers do not
+access clone contexts. Consumers request body transforms and visual points directly through SDP.
+Queries share the native resource's BVHs but keep each consumer's captured work separate.
+
+Portable asset and sensor interfaces
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Assets and sensors use the same layering as the factories:
+
+1. A base class in ``isaaclab`` defines the public contract, such as
+   ``BaseArticulation`` or ``BaseContactSensor``.
+2. A factory class inherits from both :class:`FactoryBase
+   <isaaclab.utils.backend_utils.FactoryBase>` and that base class.
+3. Backend packages provide the supported implementations.
+
+Sensor data classes use the same pattern, for example
+``ContactSensorData(FactoryBase, BaseContactSensorData)``. Implementations expose
+:class:`~isaaclab.utils.warp.ProxyArray` values through public asset and sensor
+data properties. Each proxy wraps the underlying ``wp.array`` and provides
+explicit ``.warp`` access to that array and cached, zero-copy ``.torch`` access
+to a :class:`torch.Tensor` view. Use those accessors when an API specifically
+requires one representation. Passing a ``ProxyArray`` to ``wp.to_torch()`` is
+supported only by a deprecated compatibility shim; new code should use
+``proxy_array.torch``. Backend-native and internal storage may still use raw
+Warp arrays. See :doc:`/source/how-to/proxy_array` for usage and buffer lifetime
+guidance.
+
+Portable renderer and scene-data interfaces
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Rendering is selected independently from physics. Acquire implementations of the
+:class:`~isaaclab.renderers.BaseRenderer` contract through
+``sim.get_or_create_backend(renderer_cfg)``. The
+:class:`~isaaclab.renderers.RenderContext` coordinates their rendering lifecycle
+through a filtered view of that registry, without a separate renderer cache or
+renderer ownership. It validates global settings and registration timing, initializes
+renderers after physics is ready, and coordinates stage preparation, scene updates,
+and material writers. See
+:ref:`overview_renderers` for renderer choices and usage.
+
+Physics managers expose live simulation data through
+:class:`~isaaclab.scene_data.SceneDataBackend`. The
+:class:`~isaaclab.scene_data.SceneDataProvider` owned by the simulation context
+converts and remaps that data for backend-independent consumers:
+
+.. code-block:: text
+
+   physics manager -> SceneDataBackend -> SceneDataProvider -> renderer or visualizer
+
+This boundary lets renderers and visualizers consume a common Warp-native data
+path without knowing which physics engine owns the state. See
+:doc:`/source/concepts/scene_data_providers` for the complete
+data-flow model.
+
+Native engine access boundary
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The portable interfaces define the stable API boundary. Advanced code can use
+each engine's native low-level data API, but those APIs intentionally keep their
+own ownership and synchronization semantics. See the backend guides for
+:ref:`PhysX typed views <physx-native-access>`,
+:ref:`Newton model and state arrays <newton-native-access>`, and
+:ref:`OvPhysX tensor bindings <ovphysx-native-access>`.
+
+Design principles
+^^^^^^^^^^^^^^^^^
+
+- **Lazy loading:** Backend modules are imported only when first instantiated,
+  keeping startup fast and avoiding dependencies on unused backends.
+- **Recognized keys plus convention:** Once the core selector recognizes a
+  backend key, module paths mirror the ``isaaclab.X.Y`` structure. OvPhysX
+  maps to ``isaaclab_ov.X.Y``; other recognized backends use
+  ``isaaclab_<backend>.X.Y`` by default.
+- **Independent selection:** Physics backend, renderer, and visualizer are
+  selected independently.
+- **Explicit data interop:** Public asset and sensor data properties return
+  :class:`~isaaclab.utils.warp.ProxyArray`; its ``.warp`` and ``.torch``
+  accessors expose the required array representation without copying.
+- **Zero runtime overhead:** Selection occurs at instantiation time; it does
+  not add dispatch logic to the simulation hot path.
+
+
+.. Maintenance notes
+
+   This page is the source of truth for the ``isaaclab-selecting-backends`` and
+   ``isaaclab-using-presets`` agent skills
+   (`skills/user/select-backends/ <../../../skills/user/select-backends/SKILL.md>`__,
+   `skills/user/use-presets/ <../../../skills/user/use-presets/SKILL.md>`__).
+   When you change this page, update those skills so agent guidance stays in sync. See
+   :doc:`/source/developer-tools/agent_skills`.
+
+
 Where to go next
 ----------------
 
-- :doc:`/source/setup/environments` lists environments and their supported
+- :doc:`/source/isaaclab/environments` lists environments and their supported
   presets.
 - :doc:`/source/features/hydra` covers scalar overrides, preset authoring,
   conflict handling, and advanced configuration behavior.
 - :ref:`physics-backends` compares physics backend runtime requirements,
-  maturity, solver families, and intended uses.
+  solver families, and intended uses.
 - :doc:`/source/concepts/renderers` explains renderer selection and
   implementation details.

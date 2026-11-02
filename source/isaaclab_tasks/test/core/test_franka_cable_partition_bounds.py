@@ -7,7 +7,7 @@
 
 Kit RTX historically measured the bounding box of a ``UsdGeom.BasisCurves`` prim once and never
 refreshed it as the curve deformed, so a per-environment scene partition sized from that box culled
-the cable as soon as it moved outside it. The golden AOV tests in ``test_rendering_franka_cable.py``
+the cable as soon as it moved outside it. The golden AOV tests in the downstream direct rendering suite
 capture a settled cable, so they never leave the spawn bounding box and cannot catch this.
 """
 

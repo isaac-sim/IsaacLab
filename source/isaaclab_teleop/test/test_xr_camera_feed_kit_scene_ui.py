@@ -316,7 +316,7 @@ def create_partition_panel(scene_ui_module, monkeypatch):
             world_orientation_xyzw=(0.0, 0.0, 0.0, 1.0),
             use_scene_partition=use_scene_partition,
         )
-        panel = presenter.create_panel(descriptor, 720, 480)
+        panel = presenter.create_panel(descriptor, 720, 480, env_prim_path="/Lab/Cells/Cell0")
         panels.append(panel)
         return panel
 
@@ -362,7 +362,7 @@ def test_partition_rejects_late_environment_change_without_retaining_overrides(
     stage = Usd.Stage.CreateInMemory()
     monkeypatch.setattr(scene_ui_module, "get_current_stage", lambda: stage)
     stage.DefinePrim(scene_ui_module._XR_CAMERA_PATH, "Camera")
-    env = stage.DefinePrim("/World/envs/env_0", "Xform")
+    env = stage.DefinePrim("/Lab/Cells/Cell0", "Xform")
     env.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set(partition)
     before = stage.GetSessionLayer().ExportToString()
     with pytest.raises(RuntimeError, match="unpartitioned environment before camera creation"):

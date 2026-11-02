@@ -35,7 +35,7 @@ name: Nightly Changelog Compilation
 # remote ``release/*`` branch that carries ``tools/changelog/towncrier.toml``. Every
 # resolved branch must allow the isaaclab-bot App to bypass its ruleset.
 env:
-  CRON_BRANCHES: develop
+  CRON_BRANCHES: ${{ github.event.repository.default_branch }}
 
 on:
   schedule:
@@ -45,11 +45,11 @@ on:
     inputs:
       branch:
         # Manual trigger is always a single branch. Free-text on purpose
-        # — scales to any branch (e.g. a new ``release/*`` cut from
-        # develop) without needing to update the workflow. A branch
+        # — scales to any branch (e.g. a new ``release/*`` cut from the
+        # default branch) without needing to update the workflow. A branch
         # that lacks ``tools/changelog/towncrier.toml`` fails the verify step
         # below with a clear error, which is the desired failure mode.
-        description: 'Branch to compile (e.g. develop, release/3.0.0). Must carry tools/changelog/towncrier.toml.'
+        description: 'Branch to compile (e.g. main, release/3.0.0). Must carry tools/changelog/towncrier.toml.'
         required: true
         type: string
       dry_run:
@@ -133,7 +133,7 @@ jobs:
         branch: ${{ fromJson(needs.resolve-branches.outputs.branches) }}
     concurrency:
       # Per-branch group: two runs against the same ref queue, but
-      # different refs (develop and a release branch) compile in parallel.
+      # different refs (the default branch and a release branch) compile in parallel.
       group: nightly-changelog-${{ matrix.branch }}
       cancel-in-progress: false
 
@@ -185,9 +185,9 @@ jobs:
 
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
         with:
-          # Keep equal to the uv in docker/Dockerfile.*: another uv release can
+          # Keep equal to the uv that generated uv.lock: another uv release can
           # re-serialize the whole lockfile, which ``compile`` then refuses.
-          version: "0.12.9"
+          version: "0.13.1"
 
       - name: Compile fragments
         # Capture the compile exit code so the next step can commit/push

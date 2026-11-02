@@ -7,25 +7,20 @@ Setting up Isaac Capture with CloudXR
 
 .. currentmodule:: isaaclab
 
-`Isaac Capture <https://github.com/NVIDIA/IsaacCapture>`_ (https://github.com/NVIDIA/IsaacCapture) is the unified framework for high-fidelity
-teleoperation in Isaac Lab. It provides standardized device interfaces, a flexible retargeting
-pipeline, and bundled `NVIDIA CloudXR`_ streaming for immersive XR-based teleoperation.
-
-This guide walks you through setting up CloudXR, connecting an XR device, and running your first
-teleoperation session. For additional details see the `Isaac Capture Quick Start
-<https://nvidia.github.io/IsaacCapture/main/getting_started/quick_start.html>`_.
+Use Isaac Capture's `NVIDIA CloudXR`_ integration to connect an XR device and
+teleoperate a robot in Isaac Lab. This guide covers streaming setup and your first
+session. See :ref:`isaac-teleop-feature` for devices and retargeting, or the
+`Isaac Capture Quick Start
+<https://nvidia.github.io/IsaacCapture/main/getting_started/quick_start.html>`_ for
+upstream setup instructions.
 
 .. note::
 
-   Isaac Lab currently pins the 1.4 ``isaacteleop`` distribution and import package. Upstream
-   renamed both to ``isaaccapture`` in 1.6, so the ``isaacteleop`` commands and imports in this
-   guide are intentional. See the `Isaac Capture migration guide
+   Isaac Lab installs ``isaaccapture==1.7.68a1`` through the ``teleop`` extra. This release retains
+   the ``isaacteleop`` compatibility import used in this guide; new integrations should use
+   ``isaaccapture``. See the `Isaac Capture migration guide
    <https://nvidia.github.io/IsaacCapture/main/references/migration.html>`_ for details.
 
-.. tip::
-
-   For architecture details, retargeting pipelines, control scheme recommendations, and how to
-   add new embodiments or devices, see the :ref:`isaac-teleop-feature` page.
 
 
 Prerequisites
@@ -47,7 +42,7 @@ Prerequisites
   * For driver requirements see the `Technical Requirements <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/common/technical-requirements.html>`_ guide.
   * Python 3.12 or newer
   * CUDA 12.8 (recommended)
-  * NVIDIA Driver 580.95.05 (recommended)
+  * NVIDIA Driver 595.58.03 (recommended)
 
 * **Wifi 6 capable router**
 
@@ -140,9 +135,10 @@ imitation learning. It uses the ``teleop`` extra, which carries `Isaac Capture
 itself for the Kit XR runtime that renders the stereo view. One flag covers the whole
 workflow.
 
-XR teleoperation is supported on **Linux x86_64 only**. The ``teleop`` extra gates
-``isaacteleop`` and ``dex-retargeting`` behind platform markers, so on Windows or aarch64 the
-extra resolves but installs nothing usable. It is also not supported on DGX Spark.
+XR teleoperation is supported on **Linux x86_64 only** and is not supported on DGX Spark.
+The ``teleop`` extra installs ``isaaccapture`` on Linux x86_64 and aarch64, while the direct
+``dex-retargeting`` dependency is restricted to x86_64. Installing Isaac Capture on aarch64 does not
+imply support for the CloudXR streaming workflow described here. Windows is not supported.
 
 ``isaaclab teleop`` groups the three workflow scripts: ``run`` for a live session, ``record``
 to capture demonstrations, and ``replay`` to play a dataset back. :ref:`The next section
@@ -387,12 +383,12 @@ choose the tab that matches your hardware.
          start automatically.
 
       #. Open the browser on your headset and navigate to the hosted CloudXR.js client:
-         `<https://nvidia.github.io/IsaacCapture/client/release-1.4.x/>`_.
+         `<https://nvidia.github.io/IsaacCapture/client/release-1.7.x/>`_.
 
          .. note::
 
-            The web client URL is versioned. The ``release-1.4.x`` path corresponds to the
-            ``isaacteleop`` version pinned by Isaac Lab (``isaacteleop~=1.4.145`` in the ``teleop``
+            The web client URL is versioned. The ``release-1.7.x`` path corresponds to the
+            ``isaaccapture`` version pinned by Isaac Lab (``isaaccapture==1.7.68a1`` in the ``teleop``
             extra of the root ``pyproject.toml``). When Isaac Lab updates its teleoperation
             dependency, update this link to the matching client release.
 
@@ -599,16 +595,16 @@ Prerequisites
      ``install/plugins/manus/manus_hand_plugin`` does not exist in your Isaac Capture checkout, this
      step has not been completed.
 
-  Clone the repository and check out the release branch matching the ``isaacteleop`` version Isaac
-  Lab is pinned to (``isaacteleop~=1.4.145`` in the ``teleop`` extra of the root
-  ``pyproject.toml``), so the plugin's wire format matches the ``isaacteleop`` package Isaac Lab
+  Clone the repository and check out the release branch matching the ``isaaccapture`` version Isaac
+  Lab is pinned to (``isaaccapture==1.7.68a1`` in the ``teleop`` extra of the root
+  ``pyproject.toml``), so the plugin's wire format matches the ``isaaccapture`` package Isaac Lab
   installs:
 
   .. code-block:: bash
 
      git clone https://github.com/NVIDIA/IsaacCapture.git
      cd IsaacCapture
-     git checkout release/1.4.x
+     git checkout release/1.7.x
 
   .. note::
 
@@ -770,7 +766,7 @@ time.
 Haptikos Exoskeletons with Quest
 --------------------------------
 
-The `Haptikos plugin <https://github.com/NVIDIA/IsaacCapture/tree/release/1.4.x/src/plugins/haptikos>`_
+The `Haptikos plugin <https://github.com/NVIDIA/IsaacCapture/tree/release/1.7.x/src/plugins/haptikos>`_
 combines controller wrist poses with exoskeleton finger tracking from the Haptikos Core App and
 pushes hand joints into the OpenXR runtime. Isaac Lab receives them through Isaac Capture's
 standard hand-tracking input, so no Haptikos-specific Isaac Lab device is needed. The plugin
@@ -781,18 +777,18 @@ Build the plugin
 ^^^^^^^^^^^^^^^^
 
 The Haptikos plugin is built from Isaac Capture source; it is not included in Isaac Lab's
-``teleop`` extra. Check out the release branch matching Isaac Lab's ``isaacteleop`` pin (currently
-``1.4.x``), obtain the `Haptikos Robotics API <https://github.com/Haptikostech/HaptikosAPI>`_,
+``teleop`` extra. Check out the release branch matching Isaac Lab's ``isaaccapture`` pin (currently
+``1.7.x``), obtain the `Haptikos Robotics API <https://github.com/Haptikostech/HaptikosAPI>`_,
 and copy its ``HaptikosCpp_API_Shared`` directory into ``src/plugins/haptikos``. The C++ API is
 required to build the tracking plugin, even if you do not use haptic feedback. Follow the
-`plugin's setup instructions <https://github.com/NVIDIA/IsaacCapture/tree/release/1.4.x/src/plugins/haptikos>`_
+`plugin's setup instructions <https://github.com/NVIDIA/IsaacCapture/tree/release/1.7.x/src/plugins/haptikos>`_
 for Haptikos account and licensing requirements.
 
 .. code-block:: bash
 
    git clone https://github.com/NVIDIA/IsaacCapture.git
    cd IsaacCapture
-   git checkout release/1.4.x
+   git checkout release/1.7.x
    # Copy HaptikosCpp_API_Shared to src/plugins/haptikos before building.
    cmake -S . -B build -DENABLE_CLANG_FORMAT_CHECK=OFF
    cmake --build build --target haptikos_hands_plugin --parallel 4

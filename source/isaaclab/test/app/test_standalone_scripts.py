@@ -25,8 +25,9 @@ import re
 import runpy
 import subprocess
 import sys
+from contextlib import contextmanager
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
@@ -85,47 +86,128 @@ def _python(source: str) -> list[str]:
 # Script contracts.
 
 
+def test_haply_scene_config_stays_lazy_until_scene_construction():
+    """The Haply module must configure its robot without constructing an articulation."""
+    script = script_cases.ROOT / "examples" / "haply_teleoperation.py"
+    code = """
+import runpy
+import sys
+
+from isaaclab.assets import ArticulationCfg
+
+script = sys.argv[1]
+sys.argv = [script, '--physics', 'newton_mjwarp', '--visualizer', 'none']
+namespace = runpy.run_path(script)
+scene_cfg = namespace['FrankaHaplySceneCfg'](num_envs=1, env_spacing=2.0)
+assert isinstance(scene_cfg.robot, ArticulationCfg)
+assert scene_cfg.robot.init_state.pos == (-0.02, 0.0, 1.05)
+assert scene_cfg.robot.spawn.activate_contact_sensors is True
+assert scene_cfg.robot.spawn.variants['Physics'] == 'mujoco'
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code, str(script)], capture_output=True, text=True, timeout=60, check=False
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 @pytest.mark.parametrize(
     "script_path",
     [
         "scripts/tutorials/08_mpm/material_parameters.py",
         "scripts/tutorials/08_mpm/rigid_body_equivalence.py",
         "scripts/tutorials/08_mpm/surface_reconstruction.py",
-        "examples/demos/teapot_fill.py",
+        "examples/demos/snowball_smash.py",
         "examples/mpm/newton_mpm_granular.py",
         "examples/mpm/newton_mpm_twoway_coupling.py",
         "examples/mpm/g1_coupling.py",
     ],
 )
 def test_mpm_programs_preserve_concurrent_visualizer_selection(script_path):
-    """Selecting both Newton viewers must preserve each requested configuration."""
+    """One shared declaration selects both Newton viewers before launching the runtime."""
     pytest.importorskip("isaaclab_newton")
     pytest.importorskip("isaaclab_visualizers")
+    pytest.importorskip("isaaclab_tasks")
     if script_path.endswith("g1_coupling.py"):
-        pytest.importorskip("isaaclab_tasks")
         pytest.importorskip("isaaclab_contrib")
     script = script_cases.ROOT / script_path
     code = """
 import runpy
 import sys
 
+import isaaclab.app
+from isaaclab.sim import SimulationCfg
+from isaaclab.visualizers import VisualizerCfg
+from isaaclab_tasks.utils.hydra import collect_presets
+
+def check_launch(cfg, args):
+    assert not collect_presets(cfg), "Preset composition must finish before core launch"
+    simulation = cfg if isinstance(cfg, SimulationCfg) else cfg.sim
+    shared = simulation.visualizer_cfgs
+    if isinstance(shared, list):
+        shared, = shared
+    assert isinstance(shared, VisualizerCfg)
+    assert [backend.visualizer_type for backend in shared.backend] == ['newton_gl', 'newton_rtx']
+    configs, _ = isaaclab.app.validate_launch(cfg, args)
+    viewers = [cfg for cfg in configs if isinstance(cfg, VisualizerCfg)]
+    assert [cfg.backend.visualizer_type for cfg in viewers] == ['newton_gl', 'newton_rtx']
+    assert all(viewer.eye == shared.eye and viewer.focal_length == shared.focal_length for viewer in viewers)
+    assert viewers[0].backend.show_particles
+    if script.endswith('surface_reconstruction.py'):
+        assert viewers[1].backend.render_settings['omni:rtx:quality'] == ('Int', 2)
+    raise SystemExit(0)
+
+isaaclab.app.launch_simulation = check_launch
 script = sys.argv[1]
 sys.argv = [script, '--visualizer', 'newton_gl,newton_rtx']
-if not script.endswith('surface_reconstruction.py'):
-    sys.argv.extend(['--voxel_size', '0.1'])
-namespace = runpy.run_path(script)
-if 'create_visualizer_cfgs' in namespace:
-    configs = namespace['create_visualizer_cfgs']()
+if script.endswith('surface_reconstruction.py'):
+    sys.argv.extend(['--fluid_render_mode', 'both', '--rtx_quality', '2'])
 else:
-    import isaaclab_tasks
-    from isaaclab_tasks.utils import resolve_task_config
-    env_cfg, _ = resolve_task_config(
-        namespace['TASK'], 'rsl_rl_cfg_entry_point', play_mode=True,
-        overrides=('physics=newton_mjwarp',),
+    sys.argv.extend(['--voxel_size', '0.1'])
+runpy.run_path(script, run_name='__main__')
+raise AssertionError('The program did not reach launch_simulation')
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code, str(script)], capture_output=True, text=True, timeout=60, check=False
     )
-    namespace['configure_environment'](env_cfg)
-    configs = env_cfg.sim.visualizer_cfgs
-assert [type(cfg).__name__ for cfg in configs] == ['NewtonGLVisualizerCfg', 'NewtonRTXVisualizerCfg']
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_teapot_uses_only_newton_gl():
+    """The GL-only demo rejects other backends before launch and needs no task presets."""
+    script = script_cases.ROOT / "examples/demos/teapot_fill.py"
+    code = """
+import runpy
+import sys
+
+import isaaclab.app
+from isaaclab_visualizers.newton import NewtonGLBackendCfg
+
+def check_launch(cfg, args):
+    assert isinstance(cfg.visualizer_cfgs.backend, NewtonGLBackendCfg)
+    assert cfg.visualizer_cfgs.backend.show_particles
+    assert 'isaaclab_tasks' not in sys.modules
+    isaaclab.app.validate_launch(cfg, args)
+    assert [view.backend.visualizer_type for view in cfg.visualizer_cfgs] == ['newton_gl']
+    raise SystemExit(0)
+
+isaaclab.app.launch_simulation = check_launch
+script = sys.argv[1]
+sys.argv = [script, '--visualizer', 'newton_gl', '--fluid_render_mode', 'both']
+namespace = runpy.run_path(script)
+parser = namespace['parser']
+for option, value in (
+    ('--visualizer', 'newton_rtx'), ('--viz', 'kit'), ('--viz', 'newton_gl,rerun'), ('--viz', 'none')
+):
+    try:
+        parser.parse_args([option, value])
+    except SystemExit as error:
+        assert error.code == 2
+    else:
+        raise AssertionError(f'Teapot accepted unsupported visualizer: {value}')
+assert parser.parse_args([]).visualizer == 'newton_gl'
+assert parser.parse_args(['--viz', 'newton_gl']).visualizer == 'newton_gl'
+namespace['main']()
+raise AssertionError('The demo did not reach launch_simulation')
 """
     result = subprocess.run(
         [sys.executable, "-c", code, str(script)], capture_output=True, text=True, timeout=60, check=False
@@ -208,10 +290,128 @@ def test_every_packaged_script_is_registered_for_cli_launch():
     assert {spec.path for spec in packaged_specs} == set(script_cases.PROGRAMS_BY_PATH)
 
 
+@pytest.mark.parametrize(
+    ("extra_args", "expected_visualizers", "expected_overrides"),
+    [
+        ((), ["newton_gl"], ["presets=platforms"]),
+        (("physics=isaacsim_physx",), ["kit"], ["presets=platforms", "physics=isaacsim_physx"]),
+        (("--viz", "none"), [], ["presets=platforms", "visualizer=none"]),
+    ],
+    ids=("newton-default", "physx-default", "explicit-none"),
+)
+def test_g1_terrain_forwards_visualizer_selection(monkeypatch, extra_args, expected_visualizers, expected_overrides):
+    """The G1 example must choose its backend default without overriding explicit visualizer intent."""
+    script = script_cases.ROOT / "examples" / "g1_terrain.py"
+    namespace = runpy.run_path(str(script))
+    main = namespace["main"]
+    resolve_config = main.__globals__["resolve_task_config"]
+    captured = {}
+
+    def resolve_task_config(_task, _agent, *, overrides):
+        captured["overrides"] = overrides
+        return resolve_config(_task, _agent, overrides=overrides)
+
+    class LaunchReached(Exception):
+        pass
+
+    @contextmanager
+    def launch_simulation(_cfg, launcher_args):
+        captured["visualizers"] = [
+            backend.visualizer_type
+            for viewer in _cfg.sim.visualizer_cfgs
+            for backend in (viewer.backend if isinstance(viewer.backend, list) else [viewer.backend])
+        ]
+        raise LaunchReached
+        yield
+
+    monkeypatch.setitem(main.__globals__, "resolve_task_config", resolve_task_config)
+    monkeypatch.setitem(main.__globals__, "launch_simulation", launch_simulation)
+    monkeypatch.setattr(main.__globals__["torch"], "set_num_threads", lambda _count: None)
+    monkeypatch.setattr(sys, "argv", [str(script), "--task", "platforms", *extra_args])
+
+    with pytest.raises(LaunchReached):
+        main()
+
+    assert captured == {"overrides": expected_overrides, "visualizers": expected_visualizers}
+
+
+@pytest.mark.parametrize(
+    ("extra_args", "expected_visualizers", "expected_overrides", "expected_video_source"),
+    [
+        ((), [], ["presets=granular"], "viz:kit"),
+        (("--viz", "newton_gl"), ["newton_gl"], ["presets=granular", "visualizer=newton_gl"], None),
+        (("--viz", "none"), [], ["presets=granular", "visualizer=none"], None),
+        (("--viz", "rerun", "--video"), ["rerun"], ["presets=granular", "visualizer=rerun"], "viz"),
+        (("physics=isaacsim_physx",), ["kit"], ["presets=granular", "physics=isaacsim_physx"], None),
+        (
+            ("--physics", "isaacsim_physx", "--video"),
+            ["kit"],
+            ["presets=granular", "physics=isaacsim_physx"],
+            "viz:kit",
+        ),
+    ],
+    ids=(
+        "newton-default",
+        "explicit-gl",
+        "explicit-none",
+        "streaming-viz-video",
+        "physx-default",
+        "physx-default-video",
+    ),
+)
+def test_sonic_defaults_to_offscreen_recording_and_preserves_explicit_visualizers(
+    monkeypatch, extra_args, expected_visualizers, expected_overrides, expected_video_source
+):
+    """Newton records with Kit by default; explicit viewers and PhysX keep recording opt-in."""
+    script = script_cases.ROOT / "examples" / "demos" / "sonic.py"
+    namespace = runpy.run_path(str(script))
+    main = namespace["main"]
+    resolve_config = main.__globals__["resolve_task_config"]
+    captured = {}
+
+    def resolve_task_config(_task, _agent, *, overrides):
+        captured["overrides"] = overrides
+        return resolve_config(_task, _agent, overrides=overrides)
+
+    class LaunchReached(Exception):
+        pass
+
+    @contextmanager
+    def launch_simulation(_cfg, launcher_args):
+        captured["visualizers"] = [
+            backend.visualizer_type
+            for viewer in _cfg.sim.visualizer_cfgs
+            for backend in (viewer.backend if isinstance(viewer.backend, list) else [viewer.backend])
+        ]
+        captured["launch_physics"] = getattr(launcher_args, "physics", None)
+        captured["video_sources"] = [recorder.source for recorder in _cfg.video_recorders]
+        raise LaunchReached
+        yield
+
+    huggingface_hub = ModuleType("huggingface_hub")
+    huggingface_hub.snapshot_download = lambda **_kwargs: "models"
+    monkeypatch.setitem(sys.modules, "huggingface_hub", huggingface_hub)
+    monkeypatch.setitem(main.__globals__, "resolve_task_config", resolve_task_config)
+    monkeypatch.setitem(main.__globals__, "launch_simulation", launch_simulation)
+    monkeypatch.setattr(main.__globals__["torch"], "set_num_threads", lambda _count: None)
+    monkeypatch.setattr(sys, "argv", [str(script), *extra_args])
+
+    with pytest.raises(LaunchReached):
+        main()
+
+    expected_video_sources = [] if expected_video_source is None else [expected_video_source]
+    assert captured == {
+        "overrides": expected_overrides,
+        "visualizers": expected_visualizers,
+        "launch_physics": None,
+        "video_sources": expected_video_sources,
+    }
+
+
 def test_demo_browser_documents_options_for_each_demo():
     """Every demo card must match a demo and offer exactly the options the demo accepts."""
     docs_source = script_cases.ROOT / "docs/source"
-    demos_page = (docs_source / "setup/demos.rst").read_text(encoding="utf-8")
+    demos_page = (docs_source / "isaaclab/demos.rst").read_text(encoding="utf-8")
     documented_entries = {}
     for card in re.findall(r'(?s)<button[^>]+data-demo-id="[^"]+"[^>]*>', demos_page):
         attributes = dict(re.findall(r'data-demo-([\w-]+)="([^"]*)"', card))

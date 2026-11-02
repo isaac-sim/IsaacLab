@@ -3,7 +3,7 @@
 Examples: Data Generation and Imitation Learning for Humanoids
 ==============================================================
 
-This page covers data generation and imitation learning workflows for humanoid robots (GR-1, G1) with Isaac Lab Mimic:
+These Isaac Lab Mimic examples cover three humanoid tasks:
 
 * **Demo 1:** Data generation and policy training for a humanoid robot (GR-1 pick and place)
 * **Demo 2:** Visuomotor policy for a humanoid robot (GR-1 nut pouring)
@@ -58,10 +58,10 @@ CPU simulation is used in the following steps for better XR performance when run
 Collect a set of human demonstrations.
 A success demo requires the object to be placed in the bin and for the robot's right arm to be retracted to the starting position.
 
-The Isaac Lab Mimic Env GR-1 humanoid robot is set up such that the left hand has a single subtask, while the right hand has two subtasks.
-The first subtask involves the right hand remaining idle while the left hand picks up and moves the object to the position where the right hand will grasp it.
-This setup allows Isaac Lab Mimic to interpolate the right hand's trajectory accurately by using the object's pose, especially when poses are randomized during data generation.
-Therefore, avoid moving the right hand while the left hand picks up the object and brings it to a stable position.
+The GR-1 example has one left-hand subtask and two right-hand subtasks. Keep the
+right hand still while the left hand picks up the object and holds it in a stable
+position. Mimic uses the object pose to interpolate the right-hand trajectory when
+object positions change during generation.
 
 
 .. |good_demo| image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_steering_wheel_pick_place_good_demo.gif
@@ -91,7 +91,7 @@ Collect five demonstrations by running the following command:
 
 
 .. note::
-   We also provide a GR-1 pick and place task with waist degrees-of-freedom enabled ``IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs`` (see :doc:`/source/setup/environments` for details on the available environments, including the GR1 Waist Enabled variant). The same command above applies but with the task name changed to ``IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs``.
+   We also provide a GR-1 pick and place task with waist degrees-of-freedom enabled ``IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs`` (see :doc:`/source/isaaclab/environments` for details on the available environments, including the GR1 Waist Enabled variant). The same command above applies but with the task name changed to ``IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs``.
 
 .. tip::
    If a demo fails during data collection, the environment can be reset using the teleoperation controls panel in the XR teleop client
@@ -384,11 +384,9 @@ Visualize the results of the trained policy by running the following command, us
 Demo 3: Data Generation and Policy Training for Humanoid Robot Locomanipulation with Unitree G1
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-In this demo, we showcase the integration of locomotion and manipulation capabilities within a single humanoid robot system.
-This locomanipulation environment enables data collection for complex tasks that combine navigation and object manipulation.
-The demonstration follows a multi-step process: first, it generates pick and place tasks similar to Demo 1, then introduces
-a navigation component that uses specialized scripts to generate scenes where the humanoid robot must move from point A to point B.
-The robot picks up an object at the initial location (point A) and places it at the target destination (point B).
+This example combines G1 manipulation and navigation. First generate pick-and-place
+data, then add a route between two locations. The robot picks up the object at
+point A, walks to point B, and places it there.
 
 .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/locomanipulation-g-1_steering_wheel_pick_place.gif
    :width: 100%
@@ -399,12 +397,11 @@ The robot picks up an object at the initial location (point A) and places it at 
 .. note::
    **Locomotion policy training**
 
-   The locomotion policy used in this integration example was trained using the `AGILE <https://github.com/nvidia-isaac/WBC-AGILE>`__ framework.
-   AGILE is an officially supported humanoid control training pipeline that leverages the manager based environment in Isaac Lab. It will also be
-   seamlessly integrated with other evaluation and deployment tools across Isaac products. This allows teams to rely on a single, maintained stack
-   covering all necessary infrastructure and tooling for policy training, with easy export to real-world deployment. The AGILE repository contains
-   updated pre-trained policies with separate upper and lower body policies for flexibility. They have been verified in the real world and can be
-   directly deployed. Users can also train their own locomotion or whole-body control policies using the AGILE framework.
+   This example uses a locomotion policy trained with
+   `AGILE <https://github.com/nvidia-isaac/WBC-AGILE>`__, which builds on Isaac Lab's
+   manager-based environments. The repository provides pretrained upper- and
+   lower-body policies, along with tools to train locomotion and whole-body control
+   policies.
 
 .. _generate-the-manipulation-dataset:
 
@@ -653,7 +650,7 @@ the supplied PyTorch SDPA patch once to this fresh checkout:
    cp "$GR00T_SCRIPTS/data_config.py" "$GR00T_ROOT/gr00t/experiment/data_config.py"
    git -C "$GR00T_ROOT" apply "$GR00T_SCRIPTS/no_flash_attn.patch"
 
-Create the separate Python 3.12 environment. The commands below use the CUDA 12.8 PyTorch
+Create the separate Python 3.12 environment. The commands below use the CUDA 13.0 PyTorch
 wheels on Linux x86_64. Other platforms require matching PyTorch and Torchvision builds
 for their hardware. The SDPA patch avoids a separate flash-attn build.
 
@@ -661,7 +658,7 @@ for their hardware. The SDPA patch avoids a separate flash-attn build.
 
    uv venv --no-config --python 3.12 "$GR00T_ROOT/.venv"
    uv pip install --no-config --python "$GR00T_PYTHON" \
-       --index-url https://download.pytorch.org/whl/cu128 torch==2.7.1 torchvision==0.22.1
+       --index-url https://download.pytorch.org/whl/cu130 torch==2.11.0 torchvision==0.26.0
    uv pip install --no-config --python "$GR00T_PYTHON" \
        -r "$GR00T_SCRIPTS/requirements.txt" -e "$GR00T_ROOT"
    PYTORCH3D_NO_EXTENSION=1 uv pip install --no-config --python "$GR00T_PYTHON" \

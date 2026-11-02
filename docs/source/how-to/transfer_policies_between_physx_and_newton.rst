@@ -3,7 +3,7 @@
 Transfer Policies Between PhysX and Newton
 ===========================================
 
-.. seealso::
+.. Maintenance notes
 
    This guide is the source of truth for the
    ``isaaclab-transferring-policies-sim-to-sim`` agent skill
@@ -11,12 +11,6 @@ Transfer Policies Between PhysX and Newton
    <../../../skills/user/isaaclab-transferring-policies-sim-to-sim/SKILL.md>`__).
    When you change this page, update the skill so agent guidance stays in sync. See
    :doc:`/source/developer-tools/agent_skills`.
-
-   First make every robot and object MJWarp-clean by following
-   :doc:`/source/how-to/prepare_asset_for_newton`
-   and the ``isaaclab-preparing-assets-for-newton``
-   `skill
-   <https://github.com/isaac-sim/IsaacLab/blob/develop/skills/user/prepare-assets-for-newton/SKILL.md>`__.
 
 Sim-to-sim transfer evaluates one policy checkpoint in a physics backend different from the one
 used for training. This guide covers both PhysX-trained policies deployed in Newton and
@@ -37,9 +31,11 @@ through :class:`~isaaclab_tasks.utils.PresetCfg`. Use that mechanism for intenti
 backend-specific physics, asset, and control configuration. A physics preset should not silently
 change policy-facing action, observation, reward, termination, command, or reset terms. If a
 ``PresetCfg`` used by an MDP term does select different behavior, treat the resolved configurations
-as different tasks: restore one checkpoint contract or retrain for the new contract.
+as different tasks: restore the original policy interface or retrain for the new configuration.
 
-Before attempting transfer, ensure that the same task can be trained successfully in both engines.
+Before attempting transfer, prepare the assets using
+:doc:`/source/how-to/prepare_asset_for_newton` and ensure that the same task can be
+trained successfully in both engines.
 Then resolve each backend configuration and audit the policy interface. The following values must
 match exactly:
 
@@ -47,7 +43,7 @@ match exactly:
    :header-rows: 1
    :widths: 24 76
 
-   * - Contract
+   * - Policy interface
      - Required equality
    * - Actions
      - Term order, ordered joint or body names, width, target type, scale, offset, and clipping.

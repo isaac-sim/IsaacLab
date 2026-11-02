@@ -7,17 +7,17 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from isaaclab.utils import configclass
-from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
+from isaaclab.visualizers.visualizer_cfg import VisualizerBackendCfg, VisualizerCfg
 
 if TYPE_CHECKING:
     from .rerun_visualizer import RerunVisualizer
 
 
 @configclass
-class RerunVisualizerCfg(VisualizerCfg):
+class RerunBackendCfg(VisualizerBackendCfg):
     """Configuration for Rerun visualizer (web-based visualization)."""
 
     class_type: type[RerunVisualizer] | str = "{DIR}.rerun_visualizer:RerunVisualizer"
@@ -26,7 +26,7 @@ class RerunVisualizerCfg(VisualizerCfg):
     visualizer_type: str = "rerun"
     """Type identifier for Rerun visualizer."""
 
-    cloning_contexts: tuple[type | str, ...] = ("isaaclab_newton.cloner:NewtonReplicateContext",)
+    cloning_contexts: ClassVar[tuple[type | str, ...]] = ("isaaclab_newton.cloner:NewtonReplicateContext",)
 
     app_id: str = "isaaclab-simulation"
     """Application identifier shown in viewer title."""
@@ -72,3 +72,13 @@ class RerunVisualizerCfg(VisualizerCfg):
 
     record_to_rrd: str | None = None
     """Path to save .rrd recording file. None = no recording."""
+
+
+@configclass
+class RerunVisualizerCfg(RerunBackendCfg, VisualizerCfg):
+    """Deprecated combined configuration; use ``VisualizerCfg(backend=RerunBackendCfg())``.
+
+    Simulation launch translates this declaration before constructing visualizers.
+    """
+
+    backend: RerunBackendCfg = RerunBackendCfg()

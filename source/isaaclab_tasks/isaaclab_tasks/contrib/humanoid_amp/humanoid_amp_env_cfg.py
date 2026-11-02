@@ -85,7 +85,7 @@ class HumanoidAmpEnvCfg(DirectRLEnvCfg):
     )
 
     # scene
-    scene: HumanoidAmpSceneCfg = HumanoidAmpSceneCfg(num_envs=4096, env_spacing=10.0, replicate_physics=True)
+    scene: HumanoidAmpSceneCfg = HumanoidAmpSceneCfg(num_envs=4096, env_spacing=10.0)
 
 
 @configclass

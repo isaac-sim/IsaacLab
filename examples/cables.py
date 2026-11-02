@@ -40,7 +40,6 @@ if args_cli.num_segments < 2:
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, CableObjectCfg
 from isaaclab.cloner import CloneCfg
-from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass, instantiate
 
@@ -135,14 +134,14 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene, max
 
 def main() -> None:
     """Launch and run the cable pile example."""
-    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
+    sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device)
+    scene_cfg = CablesSceneCfg(num_envs=1, env_spacing=0.0)
+    with launch_simulation(sim_cfg, args_cli) as physics_cfg:
         physics_cfg.solver_cfg.iterations = 20
         physics_cfg.num_substeps = 8
-        sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, physics=physics_cfg)
         sim = sim_utils.SimulationContext(sim_cfg)
         sim.set_camera_view(eye=(2.0, 2.0, 1.0), target=(0.0, 0.0, 0.25))
 
-        scene_cfg = CablesSceneCfg(num_envs=1, env_spacing=0.0)
         scene = instantiate(scene_cfg)
         sim.reset()
         print("[INFO]: Setup complete...")

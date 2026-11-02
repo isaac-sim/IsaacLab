@@ -83,13 +83,20 @@ _TELEOP = {"extras": ("teleop",), "required_modules": ("isaaclab_teleop", "webso
 
 DEMOS = (
     ProgramSpec("zoo", "examples/demos/zoo.py", "Explore Isaac Lab robots and simulation features."),
+    ProgramSpec(
+        "microduck-warehouse",
+        "examples/demos/microduck_warehouse.py",
+        "View the static MicroDuck Warehouse with renderer and camera presets.",
+        extras=("ovrtx",),
+        newton_gl_args=None,
+    ),
     ProgramSpec("h1-locomotion", "examples/demos/h1_locomotion.py", "Control a trained H1 locomotion policy."),
     ProgramSpec(
         "sonic",
         "examples/demos/sonic.py",
-        "Record SONIC walking over gravel and sand with Newton MPM or PhysX PBD.",
-        extras=("isaacsim", "video"),
-        required_modules=("isaacsim", "imageio", "imageio_ffmpeg"),
+        "Run SONIC walking over gravel and sand with Newton MPM or PhysX PBD.",
+        extras=("isaacsim",),
+        required_modules=("huggingface_hub", "onnxruntime"),
         newton_gl_args=None,
     ),
     ProgramSpec(
@@ -154,8 +161,7 @@ EXAMPLES = (
         "g1-terrain",
         "examples/g1_terrain.py",
         "Run a pretrained G1 depth policy over platforms or ramps.",
-        **_ISAACSIM,
-        newton_gl_args=None,
+        newton_gl_args=("--task", "platforms"),
     ),
     ProgramSpec("markers", "examples/markers.py", "Render reusable visualization markers.", **_ISAACSIM),
     ProgramSpec("multi-asset", "examples/multi_asset.py", "Spawn different assets across cloned environments."),
@@ -175,7 +181,7 @@ EXAMPLES = (
     ProgramSpec(
         "tablecloth",
         "examples/tablecloth.py",
-        "Compare five contact-driven humanoid tablecloth pulls using GPU Newton IK and VBD.",
+        "Compare contact-driven humanoid tablecloth pulls using GPU Newton IK and VBD.",
     ),
     ProgramSpec(
         "visual-color-randomization",

@@ -14,6 +14,7 @@ from ..utils import configclass
 from .output_contract import RenderBufferKind, RenderBufferSpec
 
 if TYPE_CHECKING:
+    from ..cloner import ReplicateContext
     from .base_renderer import BaseRenderer
 
 
@@ -29,7 +30,7 @@ class RendererCfg(BackendCfg):
     launcher_type: ClassVar[str | None] = None
     """The launcher that starts the runtime this renderer needs, as ``"module:Class"``, or None if none is needed."""
 
-    cloning_contexts: tuple[type | str, ...] = ()
+    cloning_contexts: tuple[type[ReplicateContext] | str, ...] = ()
     """Clone contexts that build this renderer's scene representation from the asset plan."""
 
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec] | None:

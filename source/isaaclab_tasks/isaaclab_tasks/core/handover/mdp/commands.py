@@ -42,7 +42,8 @@ class HandoverCommand(CommandTerm):
                     env.scene[cfg.left_hand_name].data.default_root_pose.torch,
                 )
             ),
-            cfg.position_offset,
+            cfg.hold_position_offset,
+            randomize_start=cfg.randomize_start_hand,
         )
         self.pos_command_e = self._goal.position
         self.quat_command_w = torch.zeros(self.num_envs, 4, device=self.device)
@@ -80,10 +81,20 @@ class HandoverCommand(CommandTerm):
         return extras
 
     def _resample_command(self, env_ids: Sequence[int] | torch.Tensor | slice) -> None:
+        if isinstance(env_ids, slice):
+            env_ids = torch.arange(self.num_envs, device=self.device)[env_ids]
         self._goal.reset(env_ids)
         # sample uniformly over SO(3) rather than composing single-axis rotations, which only reaches a subset
-        num_envs = len(range(self.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
-        self.quat_command_w[env_ids] = math_utils.random_orientation(num_envs, device=self.device)
+        self.quat_command_w[env_ids] = math_utils.random_orientation(len(env_ids), device=self.device)
+        # the object starts at rest in the hand opposite the first goal, so it is placed here, after the goal reset
+        noise = math_utils.sample_uniform(-1.0, 1.0, (len(env_ids), 3), device=self.device)
+        position = self._goal.start_position(env_ids) + self.cfg.reset_position_noise * noise
+        position += self._env.scene.env_origins[env_ids]
+        orientation = math_utils.random_orientation(len(env_ids), device=self.device)
+        self._object.write_root_pose_to_sim_index(root_pose=torch.cat((position, orientation), dim=-1), env_ids=env_ids)
+        self._object.write_root_velocity_to_sim_index(
+            root_velocity=torch.zeros((len(env_ids), 6), device=self.device), env_ids=env_ids
+        )
 
     def _update_command(self) -> None:
         succeeded = self.metrics["goal_distance"] < self.cfg.success_distance_threshold

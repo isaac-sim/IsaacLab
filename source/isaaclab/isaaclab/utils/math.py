@@ -1359,6 +1359,8 @@ def random_yaw_orientation(num: int, device: str) -> torch.Tensor:
 def sample_triangle(lower: float, upper: float, size: int | tuple[int, ...], device: str) -> torch.Tensor:
     """Randomly samples tensor from a triangular distribution.
 
+    The distribution is symmetric, with its mode at the midpoint of :attr:`lower` and :attr:`upper`.
+
     Args:
         lower: The lower range of the sampled tensor.
         upper: The upper range of the sampled tensor.
@@ -1373,8 +1375,8 @@ def sample_triangle(lower: float, upper: float, size: int | tuple[int, ...], dev
         size = (size,)
     # create random tensor in the range [-1, 1]
     r = 2 * torch.rand(*size, device=device) - 1
-    # convert to triangular distribution
-    r = torch.where(r < 0.0, -torch.sqrt(-r), torch.sqrt(r))
+    # convert to a symmetric triangular distribution in [-1, 1] with the inverse CDF
+    r = torch.where(r < 0.0, torch.sqrt(1.0 + r) - 1.0, 1.0 - torch.sqrt(1.0 - r))
     # rescale back to [0, 1]
     r = (r + 1.0) / 2.0
     # rescale to range [lower, upper]

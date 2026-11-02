@@ -43,8 +43,8 @@ class OneRoboticsA1ReachEnvCfg(ReachEnvCfg):
                 rot=_A1_TABLE_MOUNT_ROTATION,
             ),
         )
-        self.sim.default_visualizer_cfg.eye = (1.35, -1.25, 0.85)
-        self.sim.default_visualizer_cfg.lookat = (0.42, 0.0, 0.22)
+        self.sim.visualizer_cfgs.eye = (1.35, -1.25, 0.85)
+        self.sim.visualizer_cfgs.lookat = (0.42, 0.0, 0.22)
 
         # Match the confirmed A1 control stack: 200 Hz implicit servo and 50 Hz actions.
         self.sim.dt = 1.0 / 200.0

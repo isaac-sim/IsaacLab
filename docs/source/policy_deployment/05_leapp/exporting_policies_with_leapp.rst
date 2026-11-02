@@ -3,18 +3,16 @@ Exporting Policies with LEAPP
 
 .. currentmodule:: isaaclab
 
-This guide covers how to export and deploy trained reinforcement learning policies from Isaac Lab using
-`LEAPP <https://nvidia-isaac.github.io/leapp/>`__ (Lightweight Export Annotations for Policy Pipelines).
-The main goal of the LEAPP export path is to package a policy together with the input and output
-semantics needed for deployment, so downstream users do not need to reimplement Isaac Lab
-observation preprocessing, action postprocessing, or recurrent-state handling by hand.
+`LEAPP <https://nvidia-isaac.github.io/leapp/>`__ (Lightweight Export Annotations for
+Policy Pipelines) exports a trained policy together with its observation processing,
+action processing, and recurrent-state handling. This keeps deployment consistent
+with training without reimplementing those operations by hand.
 
-The Isaac Lab LEAPP exporter traces the data flowing between the policy and the simulation,
-capturing the operations applied along the way. It also embeds semantic metadata for the exported
-policy inputs and outputs. Isaac Lab can consume these exports through :class:`~envs.LeappDeploymentEnv`
-for deployment in simulation. You can also deploy LEAPP-exported policies directly on real robots through ROS using
-`Isaac ROS Deploy <https://nvidia-isaac-ros.github.io/repositories_and_packages/isaac_ros_deploy/index.html>`__
-or build your own deployment orchestration by parsing the YAML.
+The exporter traces tensor operations and records input and output metadata.
+Run the exported policy in simulation with :class:`~envs.LeappDeploymentEnv`, on a
+robot with `Isaac ROS Deploy
+<https://nvidia-isaac-ros.github.io/repositories_and_packages/isaac_ros_deploy/index.html>`__,
+or in a custom runtime that reads the exported YAML.
 
 .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/ur10_sim_vs_real.gif
    :width: 100%

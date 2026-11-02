@@ -73,7 +73,7 @@ class VideoRecorderCfg:
     * ``"viz:<type>"``                 – a ``kit``, ``newton_gl`` or ``newton_rtx`` visualizer, interactive
       camera: the one ``--viz`` selected, else a headless one added for the recording.
     * ``"viz:<type>:streaming_view"``  – the streaming camera panel of that visualizer (requires
-      ``streaming_view=True`` on its config, e.g. :class:`~isaaclab_visualizers.kit.KitVisualizerCfg`).
+      ``streaming_view=True`` on its config, e.g. :class:`~isaaclab_visualizers.kit.KitBackendCfg`).
     * ``"sensor:<name>"``              – scene sensor, RGB channel (default); no visualizer is added.
     * ``"sensor:<name>:<channel>"``    – scene sensor channel: ``rgb``, ``depth`` (colorized via the turbo
       colormap), ``segmentation`` or ``normals`` (colorized).
