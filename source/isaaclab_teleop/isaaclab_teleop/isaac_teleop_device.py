@@ -195,6 +195,7 @@ class IsaacTeleopDevice:
             auto_launch_cloudxr=auto_launch_cloudxr,
             use_kit_xr_bridge=use_kit_xr_bridge,
             external_oxr_handles_provider=external_oxr_handles_provider,
+            ovxr_session=self._ovxr_session,
             mcap_record_path=mcap_record_path,
             mcap_replay_path=mcap_replay_path,
             enable_debug_visualization=enable_debug_visualization,
