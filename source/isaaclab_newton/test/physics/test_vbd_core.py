@@ -13,8 +13,15 @@ from types import SimpleNamespace
 
 import pytest
 import warp as wp
-from isaaclab_newton.physics import NewtonBackendCfg, NewtonBuilderCfg, NewtonCfg, NewtonManager, NewtonSoftContactCfg
+from isaaclab_newton.physics import (
+    NewtonBackendCfg,
+    NewtonBuilderCfg,
+    NewtonCfg,
+    NewtonManager,
+    NewtonSoftContactCfg,
+)
 from isaaclab_newton.physics.newton_solver import solver_kwargs
+from isaaclab_newton.test.fixtures.mock_newton import backend_stub
 from newton import ModelBuilder
 from newton.solvers import SolverVBD
 
@@ -155,16 +162,15 @@ def test_vbd_contact_history_initializes_matches_and_resets(device):
     body = builder.add_body(xform=wp.transform(wp.vec3(0.0, 0.0, 0.09)))
     builder.add_shape_sphere(body=body, radius=0.1)
     builder.color()
-    model = builder.finalize(device=device)
-    state_0, state_1 = model.state(), model.state()
-
     solver_cfg = physics.VBDSolverCfg(rigid_compliant_alm=True, rigid_contact_history=True)
     collision_cfg = physics.NewtonCollisionPipelineCfg(broad_phase="nxn")
     manager = NewtonManager(NewtonCfg(solver_cfg=solver_cfg, collision_cfg=collision_cfg))
     manager._device = device
-    manager.backend = SimpleNamespace(
-        model=model, state_0=state_0, state_1=state_1, solver=None, collision_pipeline=None, contacts=None
+    manager.backend = physics.NewtonBackend(
+        NewtonBackendCfg(physics_cfg=manager._cfg, device=device), builder, dt=1.0 / 240.0
     )
+    model = manager.backend.model
+    state_0, state_1 = manager.backend.state_0, manager.backend.state_1
     with pytest.raises(ValueError, match="contact_matching"):
         manager.initialize_solver()
 
@@ -293,9 +299,9 @@ def test_vbd_rebuilds_particle_bvh_before_physics_step():
             events.append(("step", state_in))
 
     state_0, state_1 = State(), State()
-    manager = NewtonManager(NewtonCfg())
-    manager._cfg = NewtonCfg(solver_cfg=physics.VBDSolverCfg())
-    manager.backend = SimpleNamespace(
+    backend = backend_stub(
+        cfg=NewtonCfg(solver_cfg=physics.VBDSolverCfg()),
+        device=wp.get_device("cpu"),
         model=SimpleNamespace(particle_count=1),
         solver=NativeSolver(),
         state_0=state_0,
@@ -303,12 +309,24 @@ def test_vbd_rebuilds_particle_bvh_before_physics_step():
         control=None,
         collision_pipeline=None,
         contacts=None,
+        staged_body_f=None,
         num_substeps=1,
         solver_dt=0.01,
+        model_changes=set(),
+        kinematics_dirty=False,
+        transforms_may_change_on_graph_replay=False,
+        actuators=None,
+        actuators_active=False,
+        pre_actuator_callbacks=[],
+        post_actuator_callbacks=[],
+        state_force_callbacks=[],
+        post_step_callbacks=[],
         contact_sensors={},
         imu_sensors=[],
+        graph=None,
+        capture=None,
     )
 
-    manager._simulate_physics_only()
+    backend.step()
 
     assert events == [("rebuild", state_0), ("step", state_0)]
