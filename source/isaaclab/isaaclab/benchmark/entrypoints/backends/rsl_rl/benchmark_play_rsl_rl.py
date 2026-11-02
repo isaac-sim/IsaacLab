@@ -20,8 +20,6 @@ if TYPE_CHECKING:
 import argparse
 import sys
 
-from isaaclab.utils import to_dict
-
 from isaaclab_rl.entrypoints import common
 
 
@@ -105,12 +103,11 @@ def run(argv: list[str]) -> BenchmarkResult:
     import os
     import time
 
-    from rsl_rl.runners import DistillationRunner, OnPolicyRunner
-
     from isaaclab.app import launch_simulation
     from isaaclab.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, BenchmarkResult, builders, capture, stepping
     from isaaclab.benchmark.schema import StartupTime
 
+    from isaaclab_rl.entrypoints.backends._rsl_rl import _create_rsl_rl_runner
     from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
 
     # Importing the task packages registers their gym environments so the
@@ -189,14 +186,8 @@ def run(argv: list[str]) -> BenchmarkResult:
 
             num_envs = env.unwrapped.num_envs
 
-            # Load the trained policy the same way isaaclab_rl.entrypoints.backends.play_rsl_rl does.
-            if agent_cfg.class_name == "OnPolicyRunner":
-                runner = OnPolicyRunner(env, to_dict(agent_cfg), log_dir=None, device=agent_cfg.device)
-            elif agent_cfg.class_name == "DistillationRunner":
-                runner = DistillationRunner(env, to_dict(agent_cfg), log_dir=None, device=agent_cfg.device)
-            else:
-                raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
-            runner.load(resume_path)
+            runner = _create_rsl_rl_runner(env, agent_cfg, inference=True)
+            runner.load(resume_path, map_location=agent_cfg.device)
             policy = runner.get_inference_policy(device=env.unwrapped.device)
 
             environment_step_timer = stepping.EnvironmentStepTimingRecorder(

@@ -100,7 +100,7 @@ dictionary, so you can manually specify alternate configuration instances.
 The Code Execution
 ------------------
 
-Since for the cartpole balancing task, RSL-RL library offers two configuration instances,
+Since the cartpole balancing task offers several RSL-RL configuration instances,
 we can use the ``--agent`` argument to specify the configuration instance to use.
 
 * Training with the standard PPO configuration:
@@ -142,13 +142,31 @@ When continuing RSL-RL training with a different policy learning rate, use
 iteration count while keeping the newly configured policy optimizer and its learning rate.
 By default, ``--resume_optimizer_state`` restores the checkpoint's optimizer state as usual. RND models and their
 separate optimizer retain their checkpoint state.
-For distillation, this option requires a student checkpoint containing both student and teacher;
-omit it when initializing a new student from a PPO teacher checkpoint.
 
 Installed downstream tasks are discovered through the ``isaaclab.tasks`` entry-point group.
 Custom launchers can call ``isaaclab.cli.load_external_tasks()`` before looking up task IDs,
 as the built-in CLI and direct RL workers do. A package that fails to import is reported with a
 warning instead of stopping discovery.
+
+Training the G1 velocity task with SAC
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The existing ``Isaac-Velocity-Flat-G1`` task provides a SAC agent entry point.
+Its configuration writes out the FlashSAC recipe, including residual BatchNorm
+networks, categorical critics, held exploration and return scaling. The environment's
+rewards, commands and events are shared with its default PPO agent.
+
+.. code-block:: bash
+
+   uv run isaaclab train --rl_library rsl_rl \
+      --task Isaac-Velocity-Flat-G1 --agent rsl_rl_sac_cfg_entry_point \
+      physics=newton_mjwarp visualizer=none
+
+The actor's ``action_range`` specifies bounds in the raw coordinates accepted by the
+environment. ``clip_actions=None`` preserves that range.
+
+Use the same agent entry point with the playback and export commands. Published
+``pretrained`` checkpoints are PPO policies and cannot be loaded by ``OffPolicyRunner`` agents.
 
 .. _Stable-Baselines3: https://stable-baselines3.readthedocs.io/en/master/
 .. _RL-Games: https://github.com/Denys88/rl_games
