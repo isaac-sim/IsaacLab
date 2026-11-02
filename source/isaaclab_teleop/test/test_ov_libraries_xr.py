@@ -909,6 +909,20 @@ def test_start_rejects_anchor_state_without_the_protocol_before_owner_creation(x
     assert isinstance(_FakeAnchorState(), xr_module.OvLibrariesXrSession.ExternalAnchorState)
 
 
+@pytest.mark.parametrize("reference_path", [None, "World/Robot"])
+def test_start_rejects_relative_anchor_reference_before_owner_creation(xr_module, monkeypatch, reference_path):
+    """Publication reads the reference prim on the worker; a missing path must fail before the lease is claimed."""
+    external = importlib.import_module("isaaccapture.ovxr_session_manager.ovxr_session")
+    monkeypatch.setattr(external, "OvxrSession", lambda *_args, **_kwargs: pytest.fail("created an XR owner"))
+    bootstrap = _FakeBootstrap()
+    session = xr_module.OvLibrariesXrSession(bootstrap, xr_module.OvLibrariesXrCfg())
+    anchor = _FakeAnchorState()
+    anchor.external_reference_path = reference_path
+    with pytest.raises(ValueError, match="absolute prim path"):
+        session.start_render_worker(SimpleNamespace(), external_anchor_state=anchor)
+    assert bootstrap.events == []
+
+
 def test_config_imports_without_native_ovxr():
     """Launchers build the configuration in a fresh process where Capture and the native OV packages are absent."""
     script = (
