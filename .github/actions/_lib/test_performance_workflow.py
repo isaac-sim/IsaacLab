@@ -99,22 +99,10 @@ def test_benchmark_cancellation(tmp_path: Path) -> None:
     controller = tmp_path / "controller"
     scripts = controller / "tools/performance_regression"
     scripts.mkdir(parents=True)
-    for name in ("run_benchmarks.sh", "source_revision.py"):
-        (scripts / name).write_bytes((_WORKFLOW.parents[2] / "tools/performance_regression" / name).read_bytes())
-    source = tmp_path / "source/isaaclab/isaaclab/__init__.py"
-    source.parent.mkdir(parents=True)
-    source.write_text("", encoding="utf-8")
-    for arguments in (
-        ["init", "--quiet"],
-        ["add", "source"],
-        ["-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "--quiet", "-m", "Fixture"],
-    ):
-        subprocess.run(["git", "-C", str(tmp_path), *arguments], check=True, capture_output=True)
-    output = tmp_path / "benchmark-output"
-    output.mkdir()
-    (output / "source-manifest.json").write_text(
-        json.dumps(runpy.run_path(str(scripts / "source_revision.py"))["prepare_manifest"](tmp_path)), encoding="utf-8"
+    (scripts / "run_benchmarks.sh").write_bytes(
+        (_WORKFLOW.parents[2] / "tools/performance_regression/run_benchmarks.sh").read_bytes()
     )
+    (scripts / "source_revision.py").write_text("", encoding="utf-8")
     (controller / "benchmark-legs.tsv").write_text("fixture|Fixture-Task|1|600|\n", encoding="utf-8")
     executables = tmp_path / "bin"
     executables.mkdir()
