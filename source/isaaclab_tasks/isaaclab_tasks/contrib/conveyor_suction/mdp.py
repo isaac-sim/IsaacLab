@@ -357,15 +357,15 @@ class SizeSortCommand(CommandTerm):
         )
         self._waiting[ids] = clear | missed
         left = INTAKE_CENTER[0] - INTAKE_HALF_STRAIGHT
-        # Choose an approaching parcel, allowing time to return from the receiving pad.
-        reachable = (
+        # Reserve a parcel entering the turn, allowing time to return from the receiving pad.
+        incoming = (
             (local[:, :, 0] > left - INTAKE_RADIUS - 0.05)
             & (local[:, :, 0] < left)
             & (local[:, :, 1] > INTAKE_CENTER[1] - INTAKE_RADIUS - 0.05)
-            & (local[:, :, 1] < INTAKE_CENTER[1])
+            & (local[:, :, 1] < INTAKE_CENTER[1] - INTAKE_RADIUS / math.sqrt(2.0))
         )
-        eligible = reachable & ~self.delivered[ids] & (self._outfeed_destinations[ids] < 0)
-        anchor = torch.tensor((left - INTAKE_RADIUS, INTAKE_CENTER[1]), device=self.device)
+        eligible = incoming & ~self.delivered[ids] & (self._outfeed_destinations[ids] < 0)
+        anchor = torch.tensor((left, INTAKE_CENTER[1] - INTAKE_RADIUS), device=self.device)
         distances = torch.linalg.vector_norm(local[:, :, :2] - anchor, dim=-1)
         choice = distances.masked_fill(~eligible, torch.inf).argmin(dim=-1)
         available = (clear | missed) & eligible.any(dim=-1)
