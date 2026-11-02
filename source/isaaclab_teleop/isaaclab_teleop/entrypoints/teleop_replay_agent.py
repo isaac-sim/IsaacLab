@@ -458,8 +458,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     # the launcher; this selects a camera-rendering experience that provides RTX/DLSS.
     # Everywhere else we read ``args_cli.disable_external_cameras`` directly.
     args_cli.enable_cameras = not args_cli.disable_external_cameras
-    # Let the resolved task/preset select Kit; only Kit paths use its stage-load APIs.
-    args_cli.require_kit = False
+    # the stage-load wait and the RTX settings use Kit APIs directly; the OVXR viewer replaces Kit
+    args_cli.require_kit = not args_cli.ovxr
 
     # Resolve CLI profile names once; runtime construction receives a path or None.
     if args_cli.ovxr and args_cli.cloudxr_env is None:
@@ -1094,9 +1094,7 @@ def _prepare_env_cfg(
       returned ``terminated``/``truncated`` tensors and ends the run with a
       ``failure`` outcome, since the recorded trajectory did not reproduce.
 
-    It also checks the launch before any runtime starts, with two side
-    effects: it sets ``args_cli.require_kit`` to whether the resolved
-    configuration needs Kit, and it runs the task's
+    It also checks the launch before any runtime starts and runs the task's
     :attr:`~isaaclab_teleop.IsaacTeleopCfg.prepare_environment` hook, which may
     modify the returned configuration. With ``--ovxr`` it also removes camera
     sensors and rejects a launch that needs more than one environment, a stage
@@ -1142,7 +1140,6 @@ def _prepare_env_cfg(
 
         if kit_sources or any(isinstance(cfg, VisualizerBackendCfg) for cfg in configs):
             raise ValueError("--ovxr requires no Kit runtime or local visualizer")
-    args_cli.require_kit = bool(kit_sources)
     if env_cfg.isaac_teleop is not None and env_cfg.isaac_teleop.prepare_environment is not None:
         env_cfg.isaac_teleop.prepare_environment(env_cfg)
     return env_cfg, success_term

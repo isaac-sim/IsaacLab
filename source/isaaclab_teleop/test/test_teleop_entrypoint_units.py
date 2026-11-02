@@ -401,6 +401,13 @@ def test_teleop_replay_agent_resolves_typed_presets_without_reapplying_physics(m
 
     monkeypatch.setattr(replay, "ManagerBasedRLEnvCfg", SimpleNamespace)
     monkeypatch.setattr(parse_cfg, "resolve_task_config", resolve)
+    if not ovxr:
+        # Replay without --ovxr starts Kit, which cannot host standalone OvPhysX.
+        with pytest.raises(ValueError, match="Invalid backend combination"):
+            namespace["_prepare_env_cfg"]("test-task", 1, None, overrides=namespace["hydra_overrides"])
+        assert resolutions == [("test-task", None, ["physics=ovphysx"])]
+        assert not prepared_configs
+        return
     prepared, success = namespace["_prepare_env_cfg"]("test-task", 1, None, overrides=namespace["hydra_overrides"])
     assert resolutions == [("test-task", None, ["physics=ovphysx"])]
     assert prepared is cfg and success is not None
