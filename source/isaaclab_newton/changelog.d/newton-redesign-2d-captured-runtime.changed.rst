@@ -5,3 +5,6 @@
   FK without resetting the global world.
 * Changed derived asset properties to recompute inside a step or capture instead of raising during capture.
 * Changed fixed-root pose writes to queue their model-property edit instead of notifying the solver immediately.
+* Changed :meth:`~isaaclab_newton.physics.NewtonManager.handles_decimation` to fold the decimation loop into one step
+  whenever Newton actuators run in the step. Actuators that cannot be captured, such as Torch networks, ran eagerly
+  between the captured parts of the step instead of disabling the folded loop.

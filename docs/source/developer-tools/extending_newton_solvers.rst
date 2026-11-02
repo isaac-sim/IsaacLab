@@ -127,11 +127,10 @@ The Step
 
 Each :meth:`~isaaclab_newton.physics.NewtonManager.step` covers the whole decimation loop when the manager handles
 decimation (:meth:`~isaaclab_newton.physics.NewtonManager.handles_decimation`: an articulation runs its Newton
-actuators in the step and all of them are CUDA-graph-safe), and one physics step otherwise. In the first case every
-physics step runs ``collide -> pre-actuator callbacks -> Newton actuators -> post-actuator callbacks -> substeps``,
-and post-step callbacks and sensors run once at the end. Otherwise the actuators and their callbacks run eagerly once,
-followed by ``collide -> substeps -> post-step callbacks -> sensors``. Every substep runs ``staged body forces ->
-state-force callbacks -> step``, and ``pre_step`` and ``post_step`` run around each physics step's substeps.
+actuators in the step), and one physics step otherwise. Every physics step runs ``collide -> pre-actuator callbacks ->
+Newton actuators -> post-actuator callbacks -> substeps``, and post-step callbacks and sensors run once at the end.
+Every substep runs ``staged body forces -> state-force callbacks -> step``, and ``pre_step`` and ``post_step`` run
+around each physics step's substeps.
 
 Every physics step ends in ``state_0``, so ``manager.backend.state_0`` is always the same object. The captured step
 records the callbacks, so they must be graph-safe. Consumers register them with
@@ -149,8 +148,12 @@ the selected worlds, while a global articulation requests FK without resetting t
 Captured Work
 -------------
 
-:meth:`~isaaclab_newton.physics.NewtonBackend.step` runs the first step eagerly and captures it with
-``wp.ScopedCapture`` for later replays when the solver supports capture. When a step, BVH refit or sensor query runs
+:meth:`~isaaclab_newton.physics.NewtonBackend.step` unrolls its physics steps into a
+:class:`~isaaclab_newton.physics.newton_backend.StepGraph` of operations with every buffer bound. The first step runs
+eagerly; when the solver supports capture, each run of consecutive graphable operations is then captured with
+``wp.ScopedCapture`` and replayed with ``wp.capture_launch``. Operations that cannot be captured, such as Torch
+actuator networks, run eagerly between those graphs. Registering a step callback or reallocating contacts rebuilds
+the step at the next call. When a step, BVH refit or sensor query runs
 inside an enclosing Warp capture, it records its work into that capture instead of starting its own; recorded BVH
 refits run on every replay.
 

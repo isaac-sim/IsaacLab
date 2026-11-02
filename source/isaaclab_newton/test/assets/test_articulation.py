@@ -810,7 +810,7 @@ def test_newton_ordered_state_publishes_inside_captured_cuda_graph(device: str) 
         sim.backend_manager.register_post_step_callback(lambda: wp.copy(sampled_heading, data.heading_w.warp))
         # The first step captures the graph after the heading cache is already current at this timestamp.
         sim.step()
-        assert sim.backend_manager.backend.graph is not None
+        assert sim.backend_manager.backend.step_graph.captured
         joint_u2b = np.asarray(articulation.joint_ordering.user_to_backend_indices)
         body_u2b = np.asarray(articulation.body_ordering.user_to_backend_indices)
 
@@ -2148,8 +2148,8 @@ def test_body_q_consistent_after_root_write(scene: _Scene) -> None:
     Regression test for a NaN bug where collide() used stale body_q after env
     reset because eval_fk was not called between write_root_pose and collide.
 
-    The scene uses Newton's collision pipeline, and the test patches ``_simulate_physics_only`` to capture
-    body_q at the moment collide() is called and asserts it matches joint_q.
+    The scene uses Newton's collision pipeline, and a pre-actuator callback captures body_q right after collide()
+    and asserts it matches joint_q.
     """
     device = scene.device
     articulation = scene.articulations["floating"]

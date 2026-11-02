@@ -471,6 +471,21 @@ def test_model_changes_notify_the_solver_once_per_step_and_warn_once_when_ignore
     assert [record.message for record in caplog.records].count("Ignored model change") == 1
 
 
+def test_step_graph_replays_graphable_runs_around_eager_operations(monkeypatch):
+    """Consecutive graphable operations replay as one graph each; an eager operation runs between them, in order."""
+    calls = []
+    names = (("collide", True), ("solver", True), ("torch_actuator", False), ("sensors", True))
+    graph = newton_backend.StepGraph([newton_backend.StepOp(P(calls.append, n), g, n) for n, g in names], steps=1)
+    recorded = []
+
+    graph.capture(lambda segment: recorded.append(segment) or segment)
+    monkeypatch.setattr(wp, "capture_launch", lambda segment: segment())
+    graph.launch()
+
+    assert len(recorded) == 2 and graph.captured
+    assert calls == ["collide", "solver", "torch_actuator", "sensors"]
+
+
 @pytest.mark.parametrize("supported", [True, False])
 def test_step_runs_eagerly_once_then_replays_a_graph_only_when_the_solver_supports_capture(monkeypatch, supported):
     events, replays = [], []
@@ -662,7 +677,7 @@ def test_backends_with_different_solvers_step_side_by_side(device, execution):
         alone[1].step()
 
     for backend, reference, initial in zip(pair, alone, start, strict=True):
-        assert (backend.graph is not None) is (execution == "backend_capture")
+        assert backend.step_graph.captured is (execution == "backend_capture")
         assert np.all(np.abs(backend.state_0.joint_q.numpy() - initial) > 1e-3)
         np.testing.assert_allclose(backend.state_0.joint_q.numpy(), reference.state_0.joint_q.numpy(), atol=1e-5)
 
@@ -807,7 +822,7 @@ def test_captured_step_holds_staged_forces_and_recaptures_after_decimation_chang
                 manager.set_decimation(decimation)
             manager.backend.state_0.body_f.assign(wrench)
             sim.step(render=False)
-            assert manager.backend.graph is not None
+            assert manager.backend.step_graph.captured
             np.testing.assert_allclose(manager.backend.state_0.joint_qd.numpy(), 0.0, atol=1e-6)
             assert counter.numpy()[0] == step + 1
 
