@@ -122,9 +122,9 @@ def _make_lifecycle(**kwargs) -> TeleopSessionLifecycle:
     return TeleopSessionLifecycle(cfg, **kwargs)
 
 
-def _make_failing_lifecycle(error: Exception) -> TeleopSessionLifecycle:
+def _make_failing_lifecycle(error: Exception, **kwargs) -> TeleopSessionLifecycle:
     """Lifecycle with a live session mock whose step raises *error*."""
-    lifecycle = _make_lifecycle()
+    lifecycle = _make_lifecycle(**kwargs)
     lifecycle._pipeline = object()
     session = MagicMock()
     session.step.side_effect = error
@@ -133,12 +133,18 @@ def _make_failing_lifecycle(error: Exception) -> TeleopSessionLifecycle:
 
 
 class TestStepFailureDiagnosis:
-    @pytest.mark.parametrize("error_type", [RuntimeError, KeyboardInterrupt])
-    def test_failed_drain_retains_owner_and_original_step_error(self, error_type):
+    @pytest.mark.parametrize(
+        "error_type,replay", [(RuntimeError, False), (KeyboardInterrupt, False), (RuntimeError, True)]
+    )
+    def test_failed_drain_retains_owner_and_original_step_error(self, error_type, replay):
         step_error = ValueError("retarget worker failed")
-        drain_error = error_type("worker did not join")
-        lifecycle = _make_failing_lifecycle(step_error)
-        lifecycle._external_oxr_handles_provider = lambda: object()  # Borrowed OVXR handles.
+        drain_error = error_type("input cleanup failed")
+        lifecycle = _make_failing_lifecycle(
+            step_error,
+            use_kit_xr_bridge=False,
+            external_oxr_handles_provider=None if replay else lambda: object(),
+            mcap_replay_path="recording.mcap" if replay else None,
+        )
         session = lifecycle._session
         session.__exit__.side_effect = drain_error
         with (
@@ -150,7 +156,7 @@ class TestStepFailureDiagnosis:
         assert raised.value is step_error
         assert raised.value.__cause__ is drain_error
         assert lifecycle._session is session
-        assert any("worker did not join" in note for note in step_error.__notes__)
+        assert any("input cleanup failed" in note for note in step_error.__notes__)
         notes = tuple(step_error.__notes__)
         lifecycle.stop(type(step_error), step_error, step_error.__traceback__)
         assert tuple(step_error.__notes__) == notes

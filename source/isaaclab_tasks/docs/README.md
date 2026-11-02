@@ -102,4 +102,7 @@ sampling rates are configuration targets, not measured headset frame rates.
 With `--xr`, the teleoperation launcher's `--disable_external_cameras` option removes
 these cameras and their image observations. The kitless XR launcher accepts up to
 three camera names with `--ovxr_pip_camera`. Camera feeds are opt-in: without
-this option, live OVXR and MCAP replay omit task cameras and PiP layers.
+this option, live OVXR and MCAP replay omit task cameras and PiP layers. Selected
+OVXR cameras feed the panels only: their policy image observations are removed even
+with `presets=rgb`, so the application does not request a second camera render.
+The RGB recording example above uses Kit `--xr`.

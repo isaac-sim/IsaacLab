@@ -165,6 +165,11 @@ GR1T2 and G1 locomanipulation provide `robot_pov_cam`; fixed-base G1 also provid
 `left_wrist_cam` and `right_wrist_cam`. SO101 does not declare a PiP camera in
 its scene. Use the desktop mirror without `--ovxr_pip_camera` for that task.
 
+Selected OVXR cameras feed the panels only. Their policy image observations are
+removed even with `presets=rgb`, so the application does not request a second
+camera render while OVXR owns rendering. The `presets=rgb` policy-image selection
+applies to Kit workflows.
+
 The default desktop mirror shows completed eye or camera images locally.
 `--headless` disables it. `--ovxr_desktop_mirror_fps` limits its update rate. The mirror requires the
 `desktop-mirror` extra, Python 3.12 or newer, and a usable display. On Linux,
