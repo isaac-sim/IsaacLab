@@ -467,8 +467,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         env_mask = self._ALL_ENV_MASK if env_mask is None else env_mask
-        body_mask = self._resolve_body_mask(body_mask, body_ids)
         self.assert_shape_and_dtype(body_poses, (self.num_instances, self.num_bodies), wp.transformf, "body_poses")
+        body_mask = self._resolve_body_mask(body_mask, body_ids)
         wp.launch(
             shared_kernels.set_body_link_pose_to_sim_mask,
             dim=(self.num_instances, self.num_bodies),
@@ -478,9 +478,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         if not skip_forward:
             self.data._reset_pose()
-            self._invalidate_fk_mask(env_mask, body_mask)
-        elif body_mask is self._index_body_mask:
-            body_mask.zero_()
+        self._invalidate_fk_mask(env_mask, body_mask, skip_forward)
 
     def write_body_com_pose_to_sim_index(
         self,
@@ -568,8 +566,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         env_mask = self._ALL_ENV_MASK if env_mask is None else env_mask
-        body_mask = self._resolve_body_mask(body_mask, body_ids)
         self.assert_shape_and_dtype(body_poses, (self.num_instances, self.num_bodies), wp.transformf, "body_poses")
+        body_mask = self._resolve_body_mask(body_mask, body_ids)
         wp.launch(
             shared_kernels.set_body_com_pose_to_sim_mask,
             dim=(self.num_instances, self.num_bodies),
@@ -579,9 +577,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         if not skip_forward:
             self.data._reset_pose()
-            self._invalidate_fk_mask(env_mask, body_mask)
-        elif body_mask is self._index_body_mask:
-            body_mask.zero_()
+        self._invalidate_fk_mask(env_mask, body_mask, skip_forward)
 
     def write_body_com_velocity_to_sim_index(
         self,
@@ -679,10 +675,10 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         env_mask = self._ALL_ENV_MASK if env_mask is None else env_mask
-        body_mask = self._resolve_body_mask(body_mask, body_ids)
         self.assert_shape_and_dtype(
             body_velocities, (self.num_instances, self.num_bodies), wp.spatial_vectorf, "body_velocities"
         )
+        body_mask = self._resolve_body_mask(body_mask, body_ids)
         wp.launch(
             shared_kernels.set_body_com_velocity_to_sim_mask,
             dim=(self.num_instances, self.num_bodies),
@@ -692,9 +688,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         if not skip_forward:
             self.data._reset_velocity()
-            self._invalidate_fk_mask(env_mask, body_mask)
-        elif body_mask is self._index_body_mask:
-            body_mask.zero_()
+        self._invalidate_fk_mask(env_mask, body_mask, skip_forward)
 
     def write_body_link_velocity_to_sim_index(
         self,
@@ -797,10 +791,10 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         env_mask = self._ALL_ENV_MASK if env_mask is None else env_mask
-        body_mask = self._resolve_body_mask(body_mask, body_ids)
         self.assert_shape_and_dtype(
             body_velocities, (self.num_instances, self.num_bodies), wp.spatial_vectorf, "body_velocities"
         )
+        body_mask = self._resolve_body_mask(body_mask, body_ids)
         wp.launch(
             shared_kernels.set_body_link_velocity_to_sim_mask,
             dim=(self.num_instances, self.num_bodies),
@@ -816,9 +810,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         if not skip_forward:
             self.data._reset_velocity()
-            self._invalidate_fk_mask(env_mask, body_mask)
-        elif body_mask is self._index_body_mask:
-            body_mask.zero_()
+        self._invalidate_fk_mask(env_mask, body_mask, skip_forward)
 
     """
     Operations - Setters.
@@ -1237,27 +1229,26 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
     def _invalidate_fk_index(self, env_ids: wp.array | torch.Tensor, body_ids: wp.array | torch.Tensor) -> None:
         """Schedule FK for the indexed objects through scratch masks."""
-        if env_ids is self._ALL_ENV_INDICES:
-            env_mask = self._ALL_ENV_MASK
-        else:
-            env_mask = self._flag_mask_from_ids(env_ids, self._index_env_mask)
-        if body_ids is self._ALL_BODY_INDICES:
-            body_mask = self._ALL_BODY_MASK
-        else:
-            body_mask = self._flag_mask_from_ids(body_ids, self._index_body_mask)
+        env_mask = shared_kernels.mask_from_ids(
+            env_ids, self._ALL_ENV_INDICES, self._ALL_ENV_MASK, self._index_env_mask
+        )
+        body_mask = shared_kernels.mask_from_ids(
+            body_ids, self._ALL_BODY_INDICES, self._ALL_BODY_MASK, self._index_body_mask
+        )
         self._invalidate_fk_mask(env_mask, body_mask)
 
-    def _invalidate_fk_mask(self, env_mask: wp.array, body_mask: wp.array) -> None:
-        """Schedule FK for the masked objects.
+    def _invalidate_fk_mask(self, env_mask: wp.array, body_mask: wp.array, skip_forward: bool = False) -> None:
+        """Schedule FK for the masked objects unless skip_forward, then clear the scratch body mask.
 
-        The invalidation clears the scratch environment mask as it reads it; the scratch body mask is cleared after.
+        The invalidation clears the scratch environment mask as it reads it.
         """
-        self._backend_manager.invalidate_fk(
-            env_mask,
-            self.root_view.articulation_ids,
-            articulation_mask=None if body_mask is self._ALL_BODY_MASK else body_mask,
-            consume_mask=env_mask is self._index_env_mask,
-        )
+        if not skip_forward:
+            self._backend_manager.invalidate_fk(
+                env_mask,
+                self.root_view.articulation_ids,
+                articulation_mask=None if body_mask is self._ALL_BODY_MASK else body_mask,
+                consume_mask=env_mask is self._index_env_mask,
+            )
         if body_mask is self._index_body_mask:
             body_mask.zero_()
 
@@ -1265,21 +1256,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         """Resolve a body mask, flagging body indices into the scratch body mask when no mask is given."""
         if body_mask is not None:
             return body_mask
-        body_ids = self._resolve_body_ids(body_ids)
-        if body_ids is self._ALL_BODY_INDICES:
-            return self._ALL_BODY_MASK
-        return self._flag_mask_from_ids(body_ids, self._index_body_mask)
-
-    def _flag_mask_from_ids(self, ids: wp.array | torch.Tensor, mask: wp.array) -> wp.array:
-        """Set the entries of a cleared scratch mask selected by ids."""
-        wp.launch(
-            shared_kernels.flag_mask_from_ids_kernel(ids),
-            dim=ids.shape[0],
-            inputs=[ids],
-            outputs=[mask],
-            device=self.device,
+        return shared_kernels.mask_from_ids(
+            self._resolve_body_ids(body_ids), self._ALL_BODY_INDICES, self._ALL_BODY_MASK, self._index_body_mask
         )
-        return mask
 
     def _resolve_env_ids(self, env_ids) -> wp.array | torch.Tensor:
         """Resolve environment indices.

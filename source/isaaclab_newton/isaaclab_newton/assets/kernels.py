@@ -540,6 +540,32 @@ def flag_mask_from_ids_kernel(ids: wp.array | torch.Tensor) -> wp.Kernel:
     return _FLAG_MASK_FROM_IDS_DISPATCHER.select(ids)
 
 
+def mask_from_ids(
+    ids: wp.array | torch.Tensor, all_ids: wp.array, all_mask: wp.array, scratch_mask: wp.array
+) -> wp.array:
+    """Return the mask selecting ids.
+
+    Args:
+        ids: Resolved indices to select.
+        all_ids: The asset's array of every index; selecting it returns all_mask without a launch.
+        all_mask: All-true mask returned for all_ids.
+        scratch_mask: Cleared mask that ids are flagged into. Its consumer clears it again.
+
+    Returns:
+        all_mask, or scratch_mask with the ids set.
+    """
+    if ids is all_ids:
+        return all_mask
+    wp.launch(
+        flag_mask_from_ids_kernel(ids),
+        dim=ids.shape[0],
+        inputs=[ids],
+        outputs=[scratch_mask],
+        device=scratch_mask.device,
+    )
+    return scratch_mask
+
+
 """
 Body-level write kernels (2D — used by RigidObjectCollection).
 """
@@ -587,7 +613,7 @@ def set_body_com_pose_to_sim(
 ):
     """Write body COM pose data to simulation buffers.
 
-    Convert selected COM poses to authoritative root link poses. Derived COM
+    Convert selected COM poses to authoritative body link poses. Derived COM
     caches are invalidated by the caller and recomputed on read.
 
     Args:

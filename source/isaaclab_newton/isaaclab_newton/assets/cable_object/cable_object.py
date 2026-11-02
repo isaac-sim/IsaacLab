@@ -19,7 +19,7 @@ from isaaclab.assets.cable_object.base_cable_object import BaseCableObject
 from isaaclab.sim.utils.queries import has_deformable_curve_api, path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.warp import ProxyArray
 
-from isaaclab_newton.assets.kernels import flag_mask_from_ids_kernel
+from isaaclab_newton.assets.kernels import mask_from_ids
 
 from .cable_object_data import CableObjectData
 from .kernels import (
@@ -98,7 +98,11 @@ class CableObject(BaseCableObject):
         env_ids = self._resolve_env_ids(env_ids)
         self.assert_shape_and_dtype(segment_pose, (env_ids.shape[0], self.num_segments), wp.transformf, "segment_pose")
         self._write_segment_state_to_sim(
-            segment_pose, env_ids, set_segment_pose_to_sim_index, "body_q", self._env_mask_from_ids(env_ids)
+            segment_pose,
+            env_ids,
+            set_segment_pose_to_sim_index,
+            "body_q",
+            mask_from_ids(env_ids, self._ALL_INDICES, self._ALL_ENV_MASK, self._index_env_mask),
         )
 
     def write_segment_pose_to_sim_mask(
@@ -146,7 +150,11 @@ class CableObject(BaseCableObject):
             segment_velocity, (env_ids.shape[0], self.num_segments), wp.spatial_vectorf, "segment_velocity"
         )
         self._write_segment_state_to_sim(
-            segment_velocity, env_ids, set_segment_velocity_to_sim_index, "body_qd", self._env_mask_from_ids(env_ids)
+            segment_velocity,
+            env_ids,
+            set_segment_velocity_to_sim_index,
+            "body_qd",
+            mask_from_ids(env_ids, self._ALL_INDICES, self._ALL_ENV_MASK, self._index_env_mask),
         )
 
     def write_segment_velocity_to_sim_mask(
@@ -244,19 +252,6 @@ class CableObject(BaseCableObject):
             )
         self._backend_manager.invalidate_body_state(env_mask, consume_mask=env_mask is self._index_env_mask)
         self.update(0.0)
-
-    def _env_mask_from_ids(self, env_ids: wp.array) -> wp.array:
-        """Return the mask of env_ids; a partial selection uses the scratch mask that the invalidation clears."""
-        if env_ids is self._ALL_INDICES:
-            return self._ALL_ENV_MASK
-        wp.launch(
-            flag_mask_from_ids_kernel(env_ids),
-            dim=env_ids.shape[0],
-            inputs=[env_ids],
-            outputs=[self._index_env_mask],
-            device=self.device,
-        )
-        return self._index_env_mask
 
     def _iter_states(self):
         """Yield active Newton states."""

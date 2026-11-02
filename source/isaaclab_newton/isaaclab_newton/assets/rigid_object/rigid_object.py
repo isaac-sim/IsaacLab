@@ -1039,17 +1039,10 @@ class RigidObject(BaseRigidObject):
 
     def _invalidate_fk_index(self, env_ids: wp.array | torch.Tensor) -> None:
         """Schedule FK for env_ids through a scratch mask that the invalidation clears as it reads it."""
-        if env_ids is self._ALL_INDICES:
-            self._backend_manager.invalidate_fk(self._ALL_ENV_MASK, self.root_view.articulation_ids)
-            return
-        wp.launch(
-            shared_kernels.flag_mask_from_ids_kernel(env_ids),
-            dim=env_ids.shape[0],
-            inputs=[env_ids],
-            outputs=[self._index_env_mask],
-            device=self.device,
+        env_mask = shared_kernels.mask_from_ids(env_ids, self._ALL_INDICES, self._ALL_ENV_MASK, self._index_env_mask)
+        self._backend_manager.invalidate_fk(
+            env_mask, self.root_view.articulation_ids, consume_mask=env_mask is self._index_env_mask
         )
-        self._backend_manager.invalidate_fk(self._index_env_mask, self.root_view.articulation_ids, consume_mask=True)
 
     def _resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
         """Resolve environment indices to a warp array or tensor.

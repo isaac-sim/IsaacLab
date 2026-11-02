@@ -279,14 +279,14 @@ class NewtonBackend:
         """Schedule solver reset and FK for the masked worlds and articulations.
 
         Args:
-            env_mask: Environments to flag, shaped (world_count,). Required with articulation_ids.
+            env_mask: Environments to flag, shaped (world_count,).
             articulation_ids: Global articulation IDs for each (world, view-local articulation).
-                None flags every world and articulation, as for native state writes, and ignores the masks.
+                With env_mask None, every world and articulation is flagged, as for native state writes.
             articulation_mask: View-local articulations to flag. None selects every articulation of the view.
             consume_mask: Clear the flagged env_mask entries after reading them. Caller masks are otherwise unchanged.
         """
         self.kinematics_dirty = True
-        if articulation_ids is None:
+        if env_mask is None or articulation_ids is None:
             self.world_mask[: self.model.world_count].fill_(True)
             self.fk_mask.fill_(True)
             return
