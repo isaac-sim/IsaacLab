@@ -3,6 +3,15 @@ Changelog
 
 .. towncrier release notes start
 
+4.1.3 (2026-10-31)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton viewer object dragging after a hard reset by registering the picking forces with the new backend.
+
+
 4.1.2 (2026-10-28)
 ~~~~~~~~~~~~~~~~~~
 
