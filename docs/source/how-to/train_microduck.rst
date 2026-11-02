@@ -16,12 +16,7 @@ Both tasks use the AGILE-inspired combined recipe by default. It tracks horizont
 velocity in the heading frame with a tolerance of 0.15 m/s and world-frame yaw rate with a tolerance
 of 0.35 rad/s, each with reward weight 4.0. The nominal joint-posture reward applies only to standing
 commands, and the action-rate penalty increases from -0.1 to -1.0 between training iterations 3,000
-and 7,000 on flat ground. On rough terrain, it increases between iterations 750 and 1,750, while
-the standing-fraction, head-pose and center-of-mass curricula start 500 iterations later than their
-flat counterparts. Stage values and final ranges are unchanged. Terrain difficulty still advances
-through successful episodes rather than fixed iteration milestones.
-
-The actor and critic have 61 and 76 inputs, respectively, and use normalized MLPs with
+and 7,000. The actor and critic have 61 and 76 inputs, respectively, and use normalized MLPs with
 hidden layers ``[512, 256, 128]`` and ELU activation.
 
 For example, train on rough terrain with backlash:
@@ -38,6 +33,29 @@ Rough terrain advances after an episode survives and tracks its commands, with a
 commanded and actual walking and 5 s of translation commands. It accumulates path length, so turns
 and changes of direction retain progress. Mostly stationary episodes hold their difficulty;
 failures and poor tracking lower it.
+
+Locomotion-first rough recipe
+-----------------------------
+
+``IsaacContrib-Velocity-Rough-MicroDuck-LocomotionFirst`` is an optional Newton MJWarp recipe
+with 16,384 environments and left/right data augmentation enabled by default. Mirror loss is
+disabled. It introduces the action-rate penalty stages at iterations 750, 1,000, 1,250, 1,500
+and 1,750, and delays the standing-fraction, head-pose and center-of-mass curricula by 500
+iterations. Stage values, final ranges, terrain promotion and PPO settings are unchanged.
+The regular rough and flat tasks retain their original defaults.
+
+For a single-GPU, 3,001-update run with backlash, use:
+
+.. code-block:: bash
+
+    CUDA_VISIBLE_DEVICES=0 WORLD_SIZE=1 uv run isaaclab train \
+        --task IsaacContrib-Velocity-Rough-MicroDuck-LocomotionFirst \
+        --rl_library rsl_rl --num_envs 16384 --seed 142 --max_iterations 3001 presets=backlash
+
+This batch size is part of the intended recipe; smaller batches are not established quality-equivalent
+replacements. The task retains the 0.35 rad/s yaw tolerance, whose combination with this schedule is
+still being evaluated. The example is a bounded training run, not a mastery or training-time guarantee;
+it does not change the runner's default training budget.
 
 Distributed training
 --------------------

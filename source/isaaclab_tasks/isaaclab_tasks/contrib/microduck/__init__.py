@@ -28,3 +28,13 @@ gym.register(
         "rsl_rl_with_symmetry_cfg_entry_point": f"{__name__}.agents.rsl_rl_ppo_cfg:MicroDuckRoughSymmetricPPORunnerCfg",
     },
 )
+
+gym.register(
+    id="IsaacContrib-Velocity-Rough-MicroDuck-LocomotionFirst",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.rough_env_cfg:MicroDuckLocomotionFirstRoughEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{__name__}.agents.rsl_rl_ppo_cfg:MicroDuckLocomotionFirstRoughPPORunnerCfg",
+    },
+)

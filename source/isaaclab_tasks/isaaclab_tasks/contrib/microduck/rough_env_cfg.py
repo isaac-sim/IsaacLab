@@ -50,6 +50,13 @@ class MicroDuckRoughSceneCfg(MicroDuckSceneCfg):
 
 @configclass
 class MicroDuckRoughCurriculumCfg(CurriculumCfg):
+    """Progress through terrain difficulty after successful walking episodes."""
+
+    terrain_levels = CurriculumTermCfg(func=microduck_terrain_levels)
+
+
+@configclass
+class MicroDuckLocomotionFirstCurriculumCfg(MicroDuckRoughCurriculumCfg):
     """Introduce action smoothing before harder standing, head and COM objectives."""
 
     action_rate_weight = _schedule(
@@ -77,8 +84,6 @@ class MicroDuckRoughCurriculumCfg(CurriculumCfg):
         (1000, {axis: (-0.005, 0.005) for axis in "xyz"}),
         (1500, {axis: (-0.01, 0.01) for axis in "xyz"}),
     )
-
-    terrain_levels = CurriculumTermCfg(func=microduck_terrain_levels)
 
 
 @configclass
@@ -134,3 +139,11 @@ class MicroDuckVelocityRoughEnvCfg(MicroDuckVelocityFlatEnvCfg):
         self.scene.terrain.terrain_generator.num_rows = 5
         self.scene.terrain.terrain_generator.num_cols = 5
         self.curriculum.terrain_levels = None
+
+
+@configclass
+class MicroDuckLocomotionFirstRoughEnvCfg(MicroDuckVelocityRoughEnvCfg):
+    """Optional rough walking schedule with a 16,384-environment training batch."""
+
+    scene: MicroDuckRoughSceneCfg = MicroDuckRoughSceneCfg(num_envs=16384, env_spacing=2.0)
+    curriculum: MicroDuckLocomotionFirstCurriculumCfg = MicroDuckLocomotionFirstCurriculumCfg()

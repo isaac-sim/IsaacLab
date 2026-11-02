@@ -78,3 +78,13 @@ class MicroDuckRoughSymmetricPPORunnerCfg(MicroDuckSymmetricPPORunnerCfg):
     experiment_name = preset(
         default="microduck_velocity_rough_symmetry", backlash="microduck_velocity_rough_backlash_symmetry"
     )
+
+
+@configclass
+class MicroDuckLocomotionFirstRoughPPORunnerCfg(MicroDuckRoughSymmetricPPORunnerCfg):
+    """The optional locomotion-first rough recipe with symmetry augmentation."""
+
+    experiment_name = preset(
+        default="microduck_velocity_rough_locomotion_first",
+        backlash="microduck_velocity_rough_backlash_locomotion_first",
+    )

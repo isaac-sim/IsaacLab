@@ -150,6 +150,7 @@
             ["IsaacContrib-Velocity-Rough-AnymalC", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", "tasks/locomotion/anymal_c_rough.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||", "newton_kamino||", "newton_mjwarp||", "ovphysx||"]],
             ["IsaacContrib-Velocity-Rough-Digit", "rsl_rl", "isaacsim_physx,newton_mjwarp", "", "", "tasks/locomotion/agility_digit_rough.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||", "newton_mjwarp||"]],
             ["IsaacContrib-Velocity-Rough-MicroDuck", "rsl_rl", "", "", "backlash", "environment-previews/microduck_flat.jpg", false, {}, {}, "", null, ["||", "||backlash"]],
+            ["IsaacContrib-Velocity-Rough-MicroDuck-LocomotionFirst", "rsl_rl", "", "", "backlash", "environment-previews/microduck_flat.jpg", false, {}, {}, "", null, ["||", "||backlash"]],
             ["IsaacContrib-Velocity-Rough-UnitreeA1", "rsl_rl,skrl,sb3", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", "tasks/locomotion/a1_rough.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||", "newton_kamino||", "newton_mjwarp||", "ovphysx||"]],
             ["IsaacContrib-Velocity-Rough-UnitreeGo1", "rsl_rl,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", "tasks/locomotion/go1_rough.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||", "newton_kamino||", "newton_mjwarp||", "ovphysx||"]],
         ];
