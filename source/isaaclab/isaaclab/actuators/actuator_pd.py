@@ -469,6 +469,8 @@ class DelayedPDActuator(IdealPDActuator):
         if env_mask is not None:
             # a mask samples every environment and the delay buffers keep the masked ones on the device
             num_envs = self._num_envs
+            # one torch view for all delay buffers instead of a conversion in each
+            env_mask = wp.to_torch(env_mask)
         else:
             num_envs = len(range(self._num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
         # set a new random delay for environments in env_ids
