@@ -761,17 +761,17 @@ def test_kitless_hand_guard_requires_each_hand_once_then_allows_held_dropout(
     interface._session_lifecycle = lifecycle
     initialized = set()
 
-    assert agent._required_hand_tracking_issue(interface, initialized) == expected
+    assert agent.initial_hand_tracking_issue(interface, initialized) == expected
     lifecycle.last_step_result = {"hand_left": OptionalHand(True), "hand_right": OptionalHand(True)}
     # Numeric zero is not a sentinel: a present, valid fully-open hand frame is accepted.
-    assert agent._required_hand_tracking_issue(interface, initialized) is None
+    assert agent.initial_hand_tracking_issue(interface, initialized) is None
     assert initialized == {"left", "right"}
 
     lifecycle.last_step_result = {"hand_left": OptionalHand(False), "hand_right": OptionalHand(False)}
-    assert agent._required_hand_tracking_issue(interface, initialized) is None
+    assert agent.initial_hand_tracking_issue(interface, initialized) is None
 
     initialized.clear()
-    assert agent._required_hand_tracking_issue(interface, initialized) == (
+    assert agent.initial_hand_tracking_issue(interface, initialized) == (
         "waiting for initial left/right hand tracking"
     )
 

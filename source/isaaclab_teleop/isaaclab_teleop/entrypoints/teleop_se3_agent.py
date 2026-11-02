@@ -50,10 +50,7 @@ from .. import (
     se3_keyboard_teleop_cfg,
     se3_spacemouse_teleop_cfg,
 )
-from ..action_policy import (
-    initial_hand_tracking_issue as _required_hand_tracking_issue,
-)
-from ..action_policy import prepare_teleop_action
+from ..action_policy import initial_hand_tracking_issue, prepare_teleop_action
 from ..device_selection import create_teleop_device, select_teleop_cfg
 from ._ovxr_launch import prepare_ovxr_launch, reject_ovxr_runtime_conflicts
 from ._ovxr_presentation import OvxrPresentation
@@ -630,10 +627,10 @@ def run_teleoperation(  # noqa: C901
                                 haptic_driver.stop()
                             action_applied = False
                         else:
-                            issue = (
-                                _required_hand_tracking_issue(teleop_interface, initialized_hand_tracking)
-                                if require_initial_bimanual_tracking
-                                else None
+                            issue = initial_hand_tracking_issue(
+                                teleop_interface,
+                                initialized_hand_tracking,
+                                required=require_initial_bimanual_tracking,
                             )
                             if issue is None:
                                 action, issue = prepare_teleop_action(
