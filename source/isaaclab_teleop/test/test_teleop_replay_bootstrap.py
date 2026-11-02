@@ -331,11 +331,20 @@ def test_replay_control_timing_uses_recorded_events_or_explicit_legacy_start(mon
         ),
         raising=False,
     )
-    cfg = IsaacTeleopCfg()
+    conditioning_frames = []
+
+    def condition(_env, action, state):
+        previous = state.get("frames", 0)
+        conditioning_frames.append(previous)
+        state["frames"] = previous + 1
+        return action
+
+    cfg = IsaacTeleopCfg(action_conditioner=condition)
     stats = replay._run_single_replay(env, cfg, None, run_index=1, total_runs=2)
     assert applied == ([2, 3, 4, 5, 6, 9, 10, 11] if start_on_replay else [5, 6, 10, 11])
     assert resets == [-1, 0, 7]
     assert recorder_resets == [0, 7]
     assert frame == 12  # STOP terminates; RESET retains the cursor and permits the later START.
+    assert conditioning_frames == ([0, 1, 2, 3, 4, 0, 1, 2] if start_on_replay else [0, 1, 0, 1])
     assert stats.active_iterations == len(applied)
     assert stats.outcome == "incomplete"

@@ -244,12 +244,10 @@ class TeleopSessionLifecycle:
     Only chained when debug visualization is enabled."""
 
     HAND_LEFT_KEY = "hand_left"
-    """Pipeline output key for the left hand ``TensorGroup`` when the debug
-    outputs are chained (matches ``HandsSource.LEFT``)."""
+    """Pipeline output key for left-hand presence when ``HandsSource`` exists."""
 
     HAND_RIGHT_KEY = "hand_right"
-    """Pipeline output key for the right hand ``TensorGroup`` when the debug
-    outputs are chained (matches ``HandsSource.RIGHT``)."""
+    """Pipeline output key for right-hand presence when ``HandsSource`` exists."""
 
     _STEP_FAILURE_RESTART_COOLDOWN_S = 1.0
     """Minimum delay [s] before recreating the session after a step failure
@@ -500,9 +498,11 @@ class TeleopSessionLifecycle:
     def last_step_result(self) -> dict | None:
         """Full pipeline output from the most recent :meth:`step`, or ``None``.
 
-        Contains at least ``"action"`` and the right-controller entry.  When
-        debug visualization was enabled at session start, :attr:`HAND_LEFT_KEY`
-        and :attr:`HAND_RIGHT_KEY` are included when a ``HandsSource`` exists.
+        Contains at least ``"action"`` and the right-controller entry.
+        :attr:`HAND_LEFT_KEY` and :attr:`HAND_RIGHT_KEY` are included whenever
+        a ``HandsSource`` exists; a user pipeline may explicitly provide those
+        outputs after applying a validity policy. Controller-left and visual
+        updates remain debug-only.
         """
         return self._last_step_result
 
@@ -790,9 +790,9 @@ class TeleopSessionLifecycle:
         # the haptic sink, avoiding a second controller action-set attachment.
         self._button_controllers = ControllersSource("_button_controllers")
         pipeline_outputs[self._CONTROLLER_RIGHT_KEY] = self._button_controllers.output(ControllersSource.RIGHT)
+        self._chain_hand_presence_outputs(user_pipeline, pipeline_outputs)
         if self._enable_debug_visualization:
             pipeline_outputs[self._CONTROLLER_LEFT_KEY] = self._button_controllers.output(ControllersSource.LEFT)
-            self._chain_hand_debug_outputs(user_pipeline, pipeline_outputs)
         return OutputCombiner(pipeline_outputs)
 
     # ------------------------------------------------------------------
@@ -856,15 +856,13 @@ class TeleopSessionLifecycle:
         return pressed
 
     @staticmethod
-    def _chain_hand_debug_outputs(user_pipeline, pipeline_outputs: dict) -> None:
-        """Auto-discover a ``HandsSource`` and chain its raw outputs.
+    def _chain_hand_presence_outputs(user_pipeline, pipeline_outputs: dict) -> None:
+        """Chain explicit filtered hand outputs or auto-discover raw source outputs.
 
-        Walks the leaf nodes of *user_pipeline*; if a ``HandsSource`` is
-        found, its raw (XR-anchor-frame) ``hand_left`` / ``hand_right``
-        outputs are added to *pipeline_outputs* so they appear in the step
-        result.  The anchor-to-world transform is applied on the Isaac Lab
-        side by the visualizer, so the markers stay world-frame correct even
-        when a ``target_T_world`` rebase is active in the pipeline.
+        A user pipeline may expose its own ``hand_left`` / ``hand_right``
+        outputs when validity or another application-neutral policy must be
+        applied before session safety observes presence. Otherwise walk the
+        leaf nodes and retain the legacy raw ``HandsSource`` behavior.
 
         Args:
             user_pipeline: The pipeline returned by ``pipeline_builder()``.
@@ -873,15 +871,24 @@ class TeleopSessionLifecycle:
         """
         from isaacteleop.retargeting_engine.deviceio_source_nodes import HandsSource
 
+        output_types_fn = getattr(user_pipeline, "output_types", None)
+        output_types = output_types_fn() if callable(output_types_fn) else {}
+        hand_keys = (TeleopSessionLifecycle.HAND_LEFT_KEY, TeleopSessionLifecycle.HAND_RIGHT_KEY)
+        if all(key in output_types for key in hand_keys):
+            for key in hand_keys:
+                pipeline_outputs[key] = user_pipeline.output(key)
+            logger.debug("Chained explicit pipeline hand-presence outputs")
+            return
+
         # HandsSource owns its HandTracker; the tracker API has no reverse
         # source-node lookup, so use the graph's public leaf discovery API.
         for leaf in user_pipeline.get_leaf_nodes():
             if isinstance(leaf, HandsSource):
                 pipeline_outputs[TeleopSessionLifecycle.HAND_LEFT_KEY] = leaf.output(HandsSource.LEFT)
                 pipeline_outputs[TeleopSessionLifecycle.HAND_RIGHT_KEY] = leaf.output(HandsSource.RIGHT)
-                logger.debug(f"Auto-discovered HandsSource '{leaf.name}'; chained hand debug outputs")
+                logger.debug(f"Auto-discovered HandsSource '{leaf.name}'; chained raw hand-presence outputs")
                 return
-        logger.info("No HandsSource found in the teleop pipeline; hand joint visualization unavailable")
+        logger.debug("No HandsSource found in the teleop pipeline; raw hand presence unavailable")
 
     # ------------------------------------------------------------------
     # Control pipeline construction
