@@ -143,6 +143,11 @@ def _model_stub(state_attributes=()) -> SimpleNamespace:
     )
 
 
+def test_collision_cfg_leaves_max_triangle_pairs_to_newton() -> None:
+    """The default must not override Newton's estimate, which grows with the world count."""
+    assert NewtonCollisionPipelineCfg().to_pipeline_args()["max_triangle_pairs"] is None
+
+
 @pytest.mark.parametrize(
     "solver_cfg",
     [pytest.param(KaminoPADMMSolverCfg(), id="kamino_padmm"), pytest.param(MPMSolverCfg(), id="implicit_mpm")],
