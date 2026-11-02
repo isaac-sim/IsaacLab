@@ -56,6 +56,7 @@ class IS7Visualizer(BaseVisualizer):
         self._desktop = None
         self._provider = None
         self._paths: list[str] = []
+        self._slot = None
         self._scales = None
         self._pose_output = SceneDataFormat.TransposedMatrix44d()
         self._timestamp = -1
@@ -96,6 +97,9 @@ class IS7Visualizer(BaseVisualizer):
 
         from .is7_world import make_physics_free_world_opener
 
+        self._provider = sim.get_scene_data_provider()
+        self._paths = list(self._provider.backend.transform_paths)
+        self._scales = authored_scales(sim.stage, self._paths)
         scene = self._export_scene(sim.stage)
         metadata = read_scene_metadata(scene)
         specs: list = []
@@ -103,8 +107,28 @@ class IS7Visualizer(BaseVisualizer):
         client_roots = client_roots_for_backend("web")
         if self.backend_cfg.app_client_root is not None:
             client_roots = [("/app/", Path(self.backend_cfg.app_client_root) / "renderer"), *client_roots[1:]]
+
+        def extra_participants(wake):
+            return ()
+
+        if self.backend_cfg.pose_transport == "participant":
+            from sim_viewer.scene import PHYSICS_POSITION
+
+            from isaacsim.application.host import NativeParticipant
+
+            from .is7_poses import PoseEngine, PoseSlot
+
+            self._slot = PoseSlot(self._paths)
+            engine = PoseEngine(self._slot)
+            self._resources.callback(engine.close)
+
+            def extra_participants(wake):
+                return [NativeParticipant("isaaclab-poses", engine.participant(rate), PHYSICS_POSITION)]
+
         self._host = AppHost(
-            open_world=make_physics_free_world_opener(specs, rate, renderer="ovgl"),
+            open_world=make_physics_free_world_opener(
+                specs, rate, renderer="ovgl", extra_participants=extra_participants
+            ),
             scene=str(scene),
             viewports=specs,
             viewport_factory=lambda index: dynamic_viewport_spec(index, tuple(self.cfg.window.size)),
@@ -120,12 +144,12 @@ class IS7Visualizer(BaseVisualizer):
             stage_writes=True,
         )
         self._resources.callback(self._host.stop)
-        self._host.start()
-
-        self._provider = sim.get_scene_data_provider()
-        self._paths = list(self._provider.backend.transform_paths)
-        self._scales = authored_scales(sim.stage, self._paths)
+        if self._slot is not None:
+            # A stopped host renders only on request, so each pose set that Isaac Lab hands over requests a frame.
+            self._slot.wake = self._host.simulation.request_redraw
+        # The participant publishes the first poses when the host opens its world, so hand them over first.
         self._publish_poses()
+        self._host.start()
         if not self.cfg.headless and self.backend_cfg.ui == "browser":
             self._log_viewer_url("IS7Visualizer", self.client_url)
         elif not self.cfg.headless:
@@ -188,12 +212,24 @@ class IS7Visualizer(BaseVisualizer):
     def _publish_poses(self) -> bool:
         """Queue the latest simulation world transforms; return whether new ones were queued.
 
-        The host replaces its world when the user stops or reloads the scene. Poses are skipped while that
-        happens and queued again, with the world-space flag, once the new world is open.
+        With the ``"participant"`` transport, the poses go to the slot that the host's pose engine reads. With
+        ``"commands"``, they go through the host's command queue; the host replaces its world when the user stops or
+        reloads the scene, so poses are skipped while that happens and queued again, with the world-space flag, once
+        the new world is open.
         """
+        backend = self._provider.backend
+        if self._slot is not None:
+            if backend.transforms_timestamp == self._timestamp:
+                return False
+            if not self._provider.get_transforms(self._pose_output, allow_passthrough=True, scales=self._scales):
+                return False
+            # The host reads the slot on its own thread, so hand it a copy that the next step cannot overwrite.
+            self._slot.publish(self._pose_output.matrices.numpy().reshape(-1, 16).copy())
+            self._timestamp = backend.transforms_timestamp
+            return True
+
         from isaacsim.application.host.impl.transport import ReloadingError
 
-        backend = self._provider.backend
         generation = self._host.simulation.progress.generation
         if generation != self._generation:
             self._armed_world = None
@@ -251,5 +287,5 @@ class IS7Visualizer(BaseVisualizer):
             self._resources.close()
         finally:
             self._running = False
-            self._host = self._desktop = self._provider = None
+            self._host = self._desktop = self._provider = self._slot = None
             super().close()

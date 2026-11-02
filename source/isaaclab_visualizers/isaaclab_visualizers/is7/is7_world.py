@@ -41,6 +41,7 @@ def make_physics_free_world_opener(
     *,
     renderer: str = "ovrtx",
     device_frames: bool = False,
+    extra_participants: Callable[[Callable[[], None]], Sequence[NativeParticipant]] = lambda wake: (),
 ) -> Callable[[str, Callable[[], None]], World]:
     """Return the function the host uses to open a world for a scene.
 
@@ -53,6 +54,8 @@ def make_physics_free_world_opener(
         rate: Activation rate of capture and rendering.
         renderer: Backend participant, ovgl or ovrtx.
         device_frames: Retain OVRTX CUDA pixels for GPU-capable presentation providers.
+        extra_participants: Creates further participants for each new world, such as an external pose producer,
+            given the callback that wakes the host when they have new output.
 
     Returns:
         ``open_world(scene, wake) -> World``.
@@ -132,9 +135,7 @@ def make_physics_free_world_opener(
                 config.device = backend.FrameDevice.CUDA
             participant = backend.make_renderer(config)
             attached.append(participant)
-            return [
-                NativeParticipant("viewport", participant, VIEWPORT_POSITION),
-            ]
+            return [*extra_participants(wake), NativeParticipant("viewport", participant, VIEWPORT_POSITION)]
 
         world = World.open(
             text,

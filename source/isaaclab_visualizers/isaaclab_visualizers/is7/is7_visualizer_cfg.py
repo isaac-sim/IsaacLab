@@ -48,6 +48,14 @@ class IS7BackendCfg(VisualizerBackendCfg):
     port: int = 0
     """Port of the host's HTTP service; zero picks a free one."""
 
+    pose_transport: Literal["participant", "commands"] = "participant"
+    """How Isaac Lab's body poses reach the host's stage.
+
+    * ``"participant"``: a pose engine registered with the host writes world matrices and a transform journal at the
+      host's output ordinal, before rendering. The OVGL renderer then refreshes only the journaled bodies.
+    * ``"commands"``: the host's command queue writes local matrices with ``omni:resetXformStack``.
+    """
+
     app_client_root: str | None = None
     """Directory with the built ``sim_viewer`` application client: ``renderer/`` (``index.js``, ``manifest.js``)
     and, for ``ui="desktop"``, ``main.cjs``.
