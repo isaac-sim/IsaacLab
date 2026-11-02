@@ -193,7 +193,8 @@ class CoffeeDemoEnv(ManagerBasedEnv):
         """Reset selected robot and tool state, particle history and appearance."""
         robot = self.scene["robot"]
         q = robot.data.default_joint_pos.torch[env_ids].clone()
-        robot.write_joint_state_to_sim_index(position=q, velocity=torch.zeros_like(q), env_ids=env_ids)
+        robot.write_joint_position_to_sim_index(position=q, env_ids=env_ids)
+        robot.write_joint_velocity_to_sim_index(velocity=torch.zeros_like(q), env_ids=env_ids)
         robot.actuators.target_command.set_position_index(value=q.clone(), env_ids=env_ids)
         self.sync_spoon(env_ids)
         mask = torch.zeros(self.num_envs + 1, dtype=torch.bool, device=self.device)

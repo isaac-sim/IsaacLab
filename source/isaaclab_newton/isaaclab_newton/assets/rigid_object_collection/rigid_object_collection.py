@@ -22,7 +22,7 @@ import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object_collection.base_rigid_object_collection import BaseRigidObjectCollection
 from isaaclab.utils import clone, validate
 from isaaclab.utils.warp import ProxyArray, memory
-from isaaclab.utils.warp.memory import resolve_1d_mask, resolve_ids, write_2d_with_mask
+from isaaclab.utils.warp.memory import resolve_ids
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
@@ -310,7 +310,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         self.write_body_link_pose_to_sim_mask(
-            body_poses=body_poses, body_mask=body_mask, env_mask=env_mask, skip_forward=skip_forward
+            body_poses=body_poses, env_mask=env_mask, body_mask=body_mask, skip_forward=skip_forward
         )
 
     def write_body_velocity_to_sim_index(
@@ -380,7 +380,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         self.write_body_com_velocity_to_sim_mask(
-            body_velocities=body_velocities, body_mask=body_mask, env_mask=env_mask, skip_forward=skip_forward
+            body_velocities=body_velocities, env_mask=env_mask, body_mask=body_mask, skip_forward=skip_forward
         )
 
     def write_body_link_pose_to_sim_index(
@@ -426,20 +426,14 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         wp.launch(
             shared_kernels.set_body_link_pose_to_sim_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
-            inputs=[
-                body_poses,
-                env_ids,
-                body_ids,
-                full_data,
-            ],
-            outputs=[
-                self.data.body_link_pose_w,
-            ],
+            inputs=[body_poses, env_ids, body_ids, full_data],
+            outputs=[self.data._sim_bind_body_link_pose_w],
             device=self.device,
         )
         # Invalidate dependent timestamps
         if not skip_forward:
-            self.data._reset_pose(env_ids=env_ids)
+            self.data._reset_pose()
+            self._invalidate_fk_index(env_ids, body_ids)
 
     def write_body_link_pose_to_sim_mask(
         self,
@@ -473,18 +467,19 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
-        env_mask = resolve_1d_mask(mask=env_mask, all_mask=self._ALL_ENV_MASK)
-        # a body selection given as ids becomes a body mask on the device, so the same mask kernel applies
-        body_mask = resolve_1d_mask(
-            ids=body_ids,
-            mask=body_mask,
-            all_mask=self._ALL_BODY_MASK,
-            scratch_mask=self._scratch_body_mask,
-        )
+        env_mask = self._ALL_ENV_MASK if env_mask is None else env_mask
+        body_mask = self._resolve_body_mask(body_mask, body_ids)
         self.assert_shape_and_dtype_mask(body_poses, (env_mask, body_mask), wp.transformf, "body_poses")
-        write_2d_with_mask(body_poses, env_mask, body_mask, self.data.body_link_pose_w)
+        wp.launch(
+            shared_kernels.set_body_link_pose_to_sim_mask,
+            dim=(env_mask.shape[0], body_mask.shape[0]),
+            inputs=[body_poses, env_mask, body_mask],
+            outputs=[self.data._sim_bind_body_link_pose_w],
+            device=self.device,
+        )
         if not skip_forward:
-            self.data._reset_pose(env_mask=env_mask)
+            self.data._reset_pose()
+        self._invalidate_fk_mask(env_mask, body_mask, skip_forward)
 
     def write_body_com_pose_to_sim_index(
         self,
@@ -526,26 +521,17 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.assert_shape_and_dtype(body_poses, (self.num_instances, self.num_bodies), wp.transformf, "body_poses")
         else:
             self.assert_shape_and_dtype(body_poses, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "body_poses")
-        # Write to consolidated buffers (updates both com_pose_w and link_pose_w)
         wp.launch(
             shared_kernels.set_body_com_pose_to_sim_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
-            inputs=[
-                body_poses,
-                self.data.body_com_pos_b,
-                env_ids,
-                body_ids,
-                full_data,
-            ],
-            outputs=[
-                self.data.body_com_pose_w,
-                self.data.body_link_pose_w,
-            ],
+            inputs=[body_poses, self.data.body_com_pos_b, env_ids, body_ids, full_data],
+            outputs=[self.data._sim_bind_body_link_pose_w],
             device=self.device,
         )
-        # Invalidate dependent timestamps. The com poses were just written, so they must not be invalidated.
+        # Invalidate dependent timestamps.
         if not skip_forward:
-            self.data._reset_pose(env_ids=env_ids, from_link=False)
+            self.data._reset_pose()
+            self._invalidate_fk_index(env_ids, body_ids)
 
     def write_body_com_pose_to_sim_mask(
         self,
@@ -580,24 +566,19 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
-        env_mask = resolve_1d_mask(mask=env_mask, all_mask=self._ALL_ENV_MASK)
-        # a body selection given as ids becomes a body mask on the device, so the same mask kernel applies
-        body_mask = resolve_1d_mask(
-            ids=body_ids,
-            mask=body_mask,
-            all_mask=self._ALL_BODY_MASK,
-            scratch_mask=self._scratch_body_mask,
-        )
+        env_mask = self._ALL_ENV_MASK if env_mask is None else env_mask
+        body_mask = self._resolve_body_mask(body_mask, body_ids)
         self.assert_shape_and_dtype_mask(body_poses, (env_mask, body_mask), wp.transformf, "body_poses")
         wp.launch(
             shared_kernels.set_body_com_pose_to_sim_mask,
             dim=(env_mask.shape[0], body_mask.shape[0]),
             inputs=[body_poses, self.data.body_com_pos_b, env_mask, body_mask],
-            outputs=[self.data.body_com_pose_w, self.data.body_link_pose_w],
+            outputs=[self.data._sim_bind_body_link_pose_w],
             device=self.device,
         )
         if not skip_forward:
-            self.data._reset_pose(env_mask=env_mask, from_link=False)
+            self.data._reset_pose()
+        self._invalidate_fk_mask(env_mask, body_mask, skip_forward)
 
     def write_body_com_velocity_to_sim_index(
         self,
@@ -649,21 +630,14 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         wp.launch(
             shared_kernels.set_body_com_velocity_to_sim_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
-            inputs=[
-                body_velocities,
-                env_ids,
-                body_ids,
-                full_data,
-            ],
-            outputs=[
-                self.data.body_com_vel_w,
-                self.data.body_com_acc_w,
-            ],
+            inputs=[body_velocities, env_ids, body_ids, full_data],
+            outputs=[self.data._sim_bind_body_com_vel_w, self.data.body_com_acc_w],
             device=self.device,
         )
         # Invalidate dependent timestamps
         if not skip_forward:
-            self.data._reset_velocity(env_ids=env_ids)
+            self.data._reset_velocity()
+            self._invalidate_fk_index(env_ids, body_ids)
 
     def write_body_com_velocity_to_sim_mask(
         self,
@@ -701,24 +675,19 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
-        env_mask = resolve_1d_mask(mask=env_mask, all_mask=self._ALL_ENV_MASK)
-        # a body selection given as ids becomes a body mask on the device, so the same mask kernel applies
-        body_mask = resolve_1d_mask(
-            ids=body_ids,
-            mask=body_mask,
-            all_mask=self._ALL_BODY_MASK,
-            scratch_mask=self._scratch_body_mask,
-        )
+        env_mask = self._ALL_ENV_MASK if env_mask is None else env_mask
+        body_mask = self._resolve_body_mask(body_mask, body_ids)
         self.assert_shape_and_dtype_mask(body_velocities, (env_mask, body_mask), wp.spatial_vectorf, "body_velocities")
         wp.launch(
             shared_kernels.set_body_com_velocity_to_sim_mask,
             dim=(env_mask.shape[0], body_mask.shape[0]),
             inputs=[body_velocities, env_mask, body_mask],
-            outputs=[self.data.body_com_vel_w, self.data.body_com_acc_w],
+            outputs=[self.data._sim_bind_body_com_vel_w, self.data.body_com_acc_w],
             device=self.device,
         )
         if not skip_forward:
-            self.data._reset_velocity(env_mask=env_mask)
+            self.data._reset_velocity()
+        self._invalidate_fk_mask(env_mask, body_mask, skip_forward)
 
     def write_body_link_velocity_to_sim_index(
         self,
@@ -766,28 +735,24 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.assert_shape_and_dtype(
                 body_velocities, (env_ids.shape[0], body_ids.shape[0]), wp.spatial_vectorf, "body_velocities"
             )
-        # Access body_com_pos_b and body_link_pose_w to ensure they are current.
         wp.launch(
             shared_kernels.set_body_link_velocity_to_sim_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 body_velocities,
                 self.data.body_com_pos_b,
-                self.data.body_link_pose_w,
+                self.data._sim_bind_body_link_pose_w,
                 env_ids,
                 body_ids,
                 full_data,
             ],
-            outputs=[
-                self.data.body_link_vel_w,
-                self.data.body_com_vel_w,
-                self.data.body_com_acc_w,
-            ],
+            outputs=[self.data._sim_bind_body_com_vel_w, self.data.body_com_acc_w],
             device=self.device,
         )
         # Invalidate dependent timestamps.
         if not skip_forward:
-            self.data._reset_velocity(env_ids=env_ids, from_com=False)
+            self.data._reset_velocity()
+            self._invalidate_fk_index(env_ids, body_ids)
 
     def write_body_link_velocity_to_sim_mask(
         self,
@@ -824,24 +789,25 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
-        env_mask = resolve_1d_mask(mask=env_mask, all_mask=self._ALL_ENV_MASK)
-        # a body selection given as ids becomes a body mask on the device, so the same mask kernel applies
-        body_mask = resolve_1d_mask(
-            ids=body_ids,
-            mask=body_mask,
-            all_mask=self._ALL_BODY_MASK,
-            scratch_mask=self._scratch_body_mask,
-        )
+        env_mask = self._ALL_ENV_MASK if env_mask is None else env_mask
+        body_mask = self._resolve_body_mask(body_mask, body_ids)
         self.assert_shape_and_dtype_mask(body_velocities, (env_mask, body_mask), wp.spatial_vectorf, "body_velocities")
         wp.launch(
             shared_kernels.set_body_link_velocity_to_sim_mask,
             dim=(env_mask.shape[0], body_mask.shape[0]),
-            inputs=[body_velocities, self.data.body_com_pos_b, self.data.body_link_pose_w, env_mask, body_mask],
-            outputs=[self.data.body_link_vel_w, self.data.body_com_vel_w, self.data.body_com_acc_w],
+            inputs=[
+                body_velocities,
+                self.data.body_com_pos_b,
+                self.data._sim_bind_body_link_pose_w,
+                env_mask,
+                body_mask,
+            ],
+            outputs=[self.data._sim_bind_body_com_vel_w, self.data.body_com_acc_w],
             device=self.device,
         )
         if not skip_forward:
-            self.data._reset_velocity(env_mask=env_mask, from_com=False)
+            self.data._reset_velocity()
+        self._invalidate_fk_mask(env_mask, body_mask, skip_forward)
 
     """
     Operations - Setters.
@@ -1224,7 +1190,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         self._ALL_ENV_MASK = wp.ones((self.num_instances,), dtype=wp.bool, device=self.device)
         self._ALL_BODY_MASK = wp.ones((self.num_bodies,), dtype=wp.bool, device=self.device)
-        self._scratch_body_mask = wp.zeros((self.num_bodies,), dtype=wp.bool, device=self.device)
+        self._index_env_mask = wp.zeros((self.num_instances,), dtype=wp.bool, device=self.device)
+        self._index_body_mask = wp.zeros((self.num_bodies,), dtype=wp.bool, device=self.device)
 
         # external wrench composer
         self._instantaneous_wrench_composer = WrenchComposer(self)
@@ -1256,6 +1223,39 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         default_body_vels = np.stack(default_body_vels, axis=1)
         self.data.default_body_pose = wp.array(default_body_poses, dtype=wp.transformf, device=self.device)
         self.data.default_body_vel = wp.array(default_body_vels, dtype=wp.spatial_vectorf, device=self.device)
+
+    def _invalidate_fk_index(self, env_ids: wp.array | torch.Tensor, body_ids: wp.array | torch.Tensor) -> None:
+        """Schedule FK for the indexed objects through scratch masks."""
+        env_mask = shared_kernels.mask_from_ids(
+            env_ids, self._ALL_ENV_INDICES, self._ALL_ENV_MASK, self._index_env_mask
+        )
+        body_mask = shared_kernels.mask_from_ids(
+            body_ids, self._ALL_BODY_INDICES, self._ALL_BODY_MASK, self._index_body_mask
+        )
+        self._invalidate_fk_mask(env_mask, body_mask)
+
+    def _invalidate_fk_mask(self, env_mask: wp.array, body_mask: wp.array, skip_forward: bool = False) -> None:
+        """Schedule FK for the masked objects unless skip_forward, then clear the scratch body mask.
+
+        The invalidation clears the scratch environment mask as it reads it.
+        """
+        if not skip_forward:
+            self._backend_manager.invalidate_fk(
+                env_mask,
+                self.root_view.articulation_ids,
+                articulation_mask=None if body_mask is self._ALL_BODY_MASK else body_mask,
+                consume_mask=env_mask is self._index_env_mask,
+            )
+        if body_mask is self._index_body_mask:
+            body_mask.zero_()
+
+    def _resolve_body_mask(self, body_mask: wp.array | None, body_ids) -> wp.array:
+        """Resolve a body mask, flagging body indices into the scratch body mask when no mask is given."""
+        if body_mask is not None:
+            return body_mask
+        return shared_kernels.mask_from_ids(
+            self._resolve_body_ids(body_ids), self._ALL_BODY_INDICES, self._ALL_BODY_MASK, self._index_body_mask
+        )
 
     def _resolve_env_ids(self, env_ids) -> wp.array | torch.Tensor:
         """Resolve environment indices.
