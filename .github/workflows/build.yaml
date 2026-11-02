@@ -132,7 +132,7 @@ jobs:
         fetch-depth: 1
         sparse-checkout: |
           .github/workflows/config.yaml
-          tools/perf_smoke/
+          tools/performance_regression/
         sparse-checkout-cone-mode: false
     - id: load
       run: |
@@ -181,7 +181,7 @@ jobs:
       id: perf_pair
       if: github.event_name == 'pull_request'
       continue-on-error: true
-      run: python3 -m tools.perf_smoke.paired resolve --checkout-root "$GITHUB_WORKSPACE"
+      run: python3 -m tools.performance_regression.paired resolve --checkout-root "$GITHUB_WORKSPACE"
 
     - name: Check out the PR base image configuration
       id: base_config_checkout
@@ -995,7 +995,7 @@ jobs:
         set -euo pipefail
         controller="${RUNNER_TEMP}/perf-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
         mkdir -p "$controller/tools" "$controller/baseline-output"
-        cp -a tools/perf_smoke "$controller/tools/"
+        cp -a tools/performance_regression "$controller/tools/"
         cp benchmark-legs.tsv "$controller/benchmark-legs.tsv"
         if [ -d jit-cache ]; then
           mv jit-cache "$controller/jit-cache"
@@ -1012,7 +1012,7 @@ jobs:
     - name: Preserve the tested PR measurement implementation
       if: github.event_name == 'pull_request'
       run: |
-        python3 "$PERF_CONTROLLER/tools/perf_smoke/source_revision.py" snapshot \
+        python3 "$PERF_CONTROLLER/tools/performance_regression/source_revision.py" snapshot \
           --checkout-root "$GITHUB_WORKSPACE" --output-dir "$PERF_MEASUREMENT_ROOT"
 
     - name: Check out the PR base revision
@@ -1034,7 +1034,7 @@ jobs:
         GITHUB_TOKEN: ${{ github.token }}
       run: |
         cd "$PERF_CONTROLLER"
-        python3 -m tools.perf_smoke.paired restore \
+        python3 -m tools.performance_regression.paired restore \
           --checkout-root "$GITHUB_WORKSPACE" --output-dir "$PERF_BASELINE_OUTPUT" \
           --selection "$PERF_CONTROLLER/selection.json" --legs "$PERF_CONTROLLER/benchmark-legs.tsv"
 
@@ -1063,14 +1063,14 @@ jobs:
         # Clear failed lookup diagnostics before collecting fresh benchmark results.
         rm -rf -- "$PERF_BASELINE_OUTPUT"
         mkdir -p "$PERF_BASELINE_OUTPUT"
-        python3 -m tools.perf_smoke.paired capture \
+        python3 -m tools.performance_regression.paired capture \
           --checkout-root "$GITHUB_WORKSPACE" --output-dir "$PERF_BASELINE_OUTPUT" \
           --image "$CI_IMAGE_TAG" --role baseline --legs "$PERF_CONTROLLER/benchmark-legs.tsv"
         CHECKOUT_ROOT="$GITHUB_WORKSPACE" BENCHMARK_OUTPUT="$PERF_BASELINE_OUTPUT" \
-        SOURCE_REVISION_LAUNCHER="$PERF_CONTROLLER/tools/perf_smoke/source_revision.py" \
+        SOURCE_REVISION_LAUNCHER="$PERF_CONTROLLER/tools/performance_regression/source_revision.py" \
         SOURCE_MANIFEST="$PERF_BASELINE_OUTPUT/source-manifest.json" \
         BENCHMARK_LEGS="$PERF_CONTROLLER/benchmark-legs.tsv" JIT_CACHE_ROOT="$PERF_CONTROLLER/jit-cache" \
-        BENCHMARK_ROLE=BASELINE exec bash "$PERF_CONTROLLER/tools/perf_smoke/run_benchmarks.sh"
+        BENCHMARK_ROLE=BASELINE exec bash "$PERF_CONTROLLER/tools/performance_regression/run_benchmarks.sh"
 
     - name: Archive the PR base measurement
       id: base_artifact
@@ -1134,7 +1134,7 @@ jobs:
           baseline_issue="The base measurement setup failed; baseline FPS is unavailable."
         fi
         cd "$PERF_CONTROLLER"
-        python3 -m tools.perf_smoke.paired bind \
+        python3 -m tools.performance_regression.paired bind \
           --selection "$PERF_CONTROLLER/selection.json" --output-dir "$GITHUB_WORKSPACE/benchmark-output" \
           --artifact-id "$BASE_ARTIFACT_ID" --baseline-issue "$baseline_issue"
 
@@ -1145,7 +1145,7 @@ jobs:
         CI_IMAGE_TAG: ${{ needs.config.outputs.ci_image_tag }}
       run: |
         cd "$PERF_CONTROLLER"
-        python3 -m tools.perf_smoke.paired capture \
+        python3 -m tools.performance_regression.paired capture \
           --checkout-root "$GITHUB_WORKSPACE" --output-dir "$GITHUB_WORKSPACE/benchmark-output" \
           --image "$CI_IMAGE_TAG" --role current --legs "$PERF_CONTROLLER/benchmark-legs.tsv"
 
@@ -1155,10 +1155,10 @@ jobs:
         CI_IMAGE_TAG: ${{ needs.config.outputs.ci_image_tag }}
       run: |
         CHECKOUT_ROOT="$GITHUB_WORKSPACE" BENCHMARK_OUTPUT="$GITHUB_WORKSPACE/benchmark-output" \
-        SOURCE_REVISION_LAUNCHER="$PERF_CONTROLLER/tools/perf_smoke/source_revision.py" \
+        SOURCE_REVISION_LAUNCHER="$PERF_CONTROLLER/tools/performance_regression/source_revision.py" \
         SOURCE_MANIFEST="$GITHUB_WORKSPACE/benchmark-output/source-manifest.json" \
         BENCHMARK_LEGS="$PERF_CONTROLLER/benchmark-legs.tsv" JIT_CACHE_ROOT="$PERF_CONTROLLER/jit-cache" \
-        BENCHMARK_ROLE=CURRENT exec bash "$PERF_CONTROLLER/tools/perf_smoke/run_benchmarks.sh"
+        BENCHMARK_ROLE=CURRENT exec bash "$PERF_CONTROLLER/tools/performance_regression/run_benchmarks.sh"
 
     - name: Restore the JIT archive path
       if: always() && github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
@@ -1187,7 +1187,7 @@ jobs:
         venv="${RUNNER_TEMP}/perf-smoke-venv"
         uv venv --python 3.12 "$venv"
         uv pip install --python "$venv/bin/python" \
-          -r tools/perf_smoke/requirements.txt
+          -r tools/performance_regression/requirements.txt
         echo "python=$venv/bin/python" >> "$GITHUB_OUTPUT"
 
     # This step runs PR code, so it receives only read access to stored baselines.
@@ -1211,7 +1211,7 @@ jobs:
             echo "::warning::${leg}: expected three runtime benchmark JSONs, found ${#results[@]}"
             results=("benchmark-output/${leg}/benchmark_runtime_MISSING.json")
           fi
-          uv run --no-project --python "${PERF_PYTHON:-python3}" python -m tools.perf_smoke.cli compare \
+          uv run --no-project --python "${PERF_PYTHON:-python3}" python -m tools.performance_regression.cli compare \
             --benchmark_result "${results[@]}" \
             --label "$leg" \
             --output_json "benchmark-output/${leg}/comparison.json" \
@@ -1245,7 +1245,7 @@ jobs:
             continue
           fi
           for index in "${!results[@]}"; do
-            uv run --no-project --python "${PERF_PYTHON:-python3}" python -m tools.perf_smoke.cli write \
+            uv run --no-project --python "${PERF_PYTHON:-python3}" python -m tools.performance_regression.cli write \
               --benchmark_result "${results[$index]}" \
               --commit "$GITHUB_SHA" \
               --timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
@@ -1288,7 +1288,7 @@ jobs:
         if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
           args+=(--gate-only)
         fi
-        uv run --no-project python -m tools.perf_smoke.build_compare \
+        uv run --no-project python -m tools.performance_regression.build_compare \
           --comparison_dir comparisons --output_dir build-comparison "${args[@]}"
 
     - name: Upload the automatic build comparison
@@ -1308,7 +1308,7 @@ jobs:
       run: |
         set -euo pipefail
         gate_exit=0
-        uv run --no-project python -m tools.perf_smoke.cli aggregate \
+        uv run --no-project python -m tools.performance_regression.cli aggregate \
           --comparison_dir comparisons > rolling-history.md || gate_exit=$?
         if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
           cat rolling-history.md >> "$GITHUB_STEP_SUMMARY"

@@ -97,10 +97,10 @@ def test_benchmark_cancellation(tmp_path: Path) -> None:
     step_script = tmp_path / "workflow-step.sh"
     step_script.write_text(command, encoding="utf-8")
     controller = tmp_path / "controller"
-    scripts = controller / "tools/perf_smoke"
+    scripts = controller / "tools/performance_regression"
     scripts.mkdir(parents=True)
     for name in ("run_benchmarks.sh", "source_revision.py"):
-        (scripts / name).write_bytes((_WORKFLOW.parents[2] / "tools/perf_smoke" / name).read_bytes())
+        (scripts / name).write_bytes((_WORKFLOW.parents[2] / "tools/performance_regression" / name).read_bytes())
     source = tmp_path / "source/isaaclab/isaaclab/__init__.py"
     source.parent.mkdir(parents=True)
     source.write_text("", encoding="utf-8")

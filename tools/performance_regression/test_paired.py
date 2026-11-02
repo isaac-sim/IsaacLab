@@ -156,7 +156,7 @@ class PairedFixture:
     def _cli(self, args, **environment):
         with self._workflow(**environment):
             return subprocess.run(
-                [sys.executable, "-m", "tools.perf_smoke.paired", *args],
+                [sys.executable, "-m", "tools.performance_regression.paired", *args],
                 cwd=Path(__file__).resolve().parents[2],
                 text=True,
                 capture_output=True,
