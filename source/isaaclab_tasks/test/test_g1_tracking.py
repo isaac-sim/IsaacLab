@@ -116,7 +116,7 @@ def test_real_capture_observations_context_and_offline_export(task):
     torch.testing.assert_close(
         robot.data.body_com_pos_b.torch[:, command.torso_id], expected_com + command.xi[:, 30:33]
     )
-    mu = wp.to_torch(command.robot_view.get_attribute("shape_material_mu", command.physics.get_model()))
+    mu = wp.to_torch(command.robot_view.get_attribute("shape_material_mu", command.physics.backend.model))
     torch.testing.assert_close(mu, command.xi[:, :1, None].expand_as(mu))
     previous_action = torch.zeros(env.num_envs, 29, device=env.device)
     records = []

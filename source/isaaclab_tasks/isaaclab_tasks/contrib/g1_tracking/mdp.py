@@ -226,7 +226,7 @@ def randomize_context(env, env_ids):
         command.robot.set_coms_index(
             coms=(default_com + command.xi[:, 30:33]).unsqueeze(1), body_ids=[command.torso_id]
         )
-    model = command.physics.get_model()
+    model = command.physics.backend.model
     shape = command.robot_view.get_attribute("shape_material_mu", model).shape
     values = command.xi[:, 0].reshape(env.num_envs, 1, 1).expand(shape).contiguous()
     command.robot_view.set_attribute("shape_material_mu", model, wp.from_torch(values))
@@ -294,8 +294,6 @@ class TransitionRecorder(RecorderTerm):
     An exported episode's end is also a boundary, including explicit resets that happen after a
     transition was retained. Online consumers additionally check adjacent state/step continuity.
     """
-
-    requires_post_step_observations = False
 
     def __init__(self, cfg, env):
         super().__init__(cfg, env)
