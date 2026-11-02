@@ -199,17 +199,17 @@ def test_masked_reset_reaches_every_entity():
     calls = {}
 
     def entity(group):
-        return SimpleNamespace(reset=lambda env_ids=None, **kwargs: calls.update({group: (env_ids, kwargs)}))
+        return SimpleNamespace(reset=lambda env_ids=None, env_mask=None: calls.update({group: (env_ids, env_mask)}))
 
     scene = SimpleNamespace(**{group: {"entity": entity(group)} for group in groups})
     env_mask = wp.array([True, False, True], dtype=wp.bool, device="cpu")
 
     InteractiveScene.reset(scene, env_mask=env_mask)
-    assert calls == dict.fromkeys(groups, (None, {"env_mask": env_mask}))
+    assert calls == dict.fromkeys(groups, (None, env_mask))
 
     calls.clear()
     InteractiveScene.reset(scene, env_ids=[1])
-    assert calls == dict.fromkeys(groups, ([1], {"env_mask": None}))
+    assert calls == dict.fromkeys(groups, ([1], None))
 
 
 def test_scene_publishes_plan_before_replicate(monkeypatch: pytest.MonkeyPatch):

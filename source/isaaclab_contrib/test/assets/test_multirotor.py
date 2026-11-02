@@ -182,19 +182,20 @@ def test_reset_restores_selected_thrust_targets_unit(selection, monkeypatch):
     )
     m = Multirotor.__new__(Multirotor)
     m._device = "cpu"
-    m._ALL_ENV_MASK = wp.ones(4, dtype=wp.bool, device="cpu")
-    m._reset_env_mask = wp.zeros(4, dtype=wp.bool, device="cpu")
     m._data = types.SimpleNamespace(thrust_target=torch.ones(4, 2), default_thruster_rps=torch.zeros(4, 2))
-    kwargs = {
-        "ids": {"env_ids": [0, 2]},
-        "mask": {"env_mask": wp.array([True, False, True, False], dtype=wp.bool, device="cpu")},
-        "all": {},
-    }[selection]
+    env_mask = wp.array([True, False, True, False], dtype=wp.bool, device="cpu")
+    expected = torch.tensor([[0.0, 0.0], [1.0, 1.0], [0.0, 0.0], [1.0, 1.0]])
 
-    m.reset(**kwargs)
-
-    assert parent_resets == [(kwargs.get("env_ids"), kwargs.get("env_mask"))]
-    expected = torch.tensor([[0.0, 0.0], [1.0, 1.0], [0.0, 0.0], [1.0, 1.0]]) if kwargs else torch.zeros(4, 2)
+    if selection == "ids":
+        m.reset(env_ids=[0, 2])
+        assert parent_resets == [([0, 2], None)]
+    elif selection == "mask":
+        m.reset(env_mask=env_mask)
+        assert parent_resets == [(None, env_mask)]
+    else:
+        m.reset()
+        assert parent_resets == [(None, None)]
+        expected = torch.zeros(4, 2)
     torch.testing.assert_close(m._data.thrust_target, expected)
 
 
