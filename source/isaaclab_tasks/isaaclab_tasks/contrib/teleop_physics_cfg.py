@@ -65,7 +65,7 @@ def check_kitless_backend_preparation(env_cfg: ManagerBasedRLEnvCfg, backend: st
     configuration copies.
 
     Args:
-        env_cfg: Task configuration that may carry ``_prepared_kitless_backend``.
+        env_cfg: Task configuration that declares ``_prepared_kitless_backend``.
         backend: Selected backend name (``"ovphysx"``, ``"newton_mjwarp"``) or ``None`` for Kit PhysX.
 
     Returns:
@@ -74,7 +74,7 @@ def check_kitless_backend_preparation(env_cfg: ManagerBasedRLEnvCfg, backend: st
     Raises:
         ValueError: If ``env_cfg`` was prepared for a different backend.
     """
-    prepared = getattr(env_cfg, "_prepared_kitless_backend", None)
+    prepared = env_cfg._prepared_kitless_backend
     if prepared is not None and prepared != backend:
         raise ValueError(
             f"Task configuration was already prepared for {prepared}; resolve a fresh task configuration "
