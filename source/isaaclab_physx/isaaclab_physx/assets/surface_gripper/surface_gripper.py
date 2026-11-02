@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import logging
+import warnings
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -405,21 +406,33 @@ class SurfaceGripper(AssetBase):
         env_ids = self._resolve_env_ids(env_mask=env_mask)
         self.reset_index(env_ids)
 
-    def reset(self, indices: torch.Tensor | None = None, env_mask: wp.array | torch.Tensor | None = None) -> None:
+    def reset(
+        self,
+        env_ids: torch.Tensor | None = None,
+        env_mask: wp.array | torch.Tensor | None = None,
+        indices: torch.Tensor | None = None,
+    ) -> None:
         """Reset the gripper command buffer.
 
         .. deprecated:: v2.0.0
             Use :meth:`reset_index` instead.
 
         .. caution::
-            If both ``indices`` and ``env_mask`` are provided, ``env_mask`` takes precedence.
+            If both ``env_ids`` and ``env_mask`` are provided, ``env_mask`` takes precedence.
 
         Args:
-            indices: A tensor of integers representing the indices of the grippers to reset. Defaults to None.
+            env_ids: Environment indices. Defaults to None (all environments).
             env_mask: Boolean mask of shape (num_envs,). Defaults to None.
+            indices: Deprecated alias of ``env_ids``. Defaults to None.
         """
-        env_ids = self._resolve_env_ids(indices, env_mask)
-        self.reset_index(env_ids)
+        if indices is not None:
+            warnings.warn(
+                "The `indices` argument of `SurfaceGripper.reset` is deprecated. Please use `env_ids` instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            env_ids = indices
+        self.reset_index(self._resolve_env_ids(env_ids, env_mask))
 
     """
     Initialization.
