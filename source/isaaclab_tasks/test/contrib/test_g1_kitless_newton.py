@@ -14,6 +14,7 @@ from isaaclab_newton.physics import NewtonCfg
 
 from isaaclab_tasks.contrib.locomanip_pick_place.fixed_base_upper_body_ik_g1_env_cfg import (
     FixedBaseUpperBodyIKG1EnvCfg,
+    prepare_fixed_base_g1_for_kitless_newton_mjwarp,
 )
 from isaaclab_tasks.contrib.locomanip_pick_place.g1_kitless_newton import (
     ACTUATOR_PROFILE,
@@ -85,7 +86,7 @@ def test_g1_newton_contract_is_backend_scoped_and_complete() -> None:
     default_cfg = FixedBaseUpperBodyIKG1EnvCfg()
     newton_cfg = FixedBaseUpperBodyIKG1EnvCfg()
     newton_cfg.sim.physics = NewtonCfg()
-    newton_cfg.stabilize_for_kitless_newton_mjwarp()
+    prepare_fixed_base_g1_for_kitless_newton_mjwarp(newton_cfg)
 
     assert newton_cfg.sim.physics.solver_cfg.nconmax == 4096
     assert newton_cfg.sim.physics.solver_cfg.njmax == 1536
@@ -105,13 +106,16 @@ def test_g1_newton_contract_is_backend_scoped_and_complete() -> None:
 
 
 def test_locomanipulation_preserves_agile_policy_order_and_action_contract() -> None:
-    from isaaclab_tasks.contrib.locomanip_pick_place.locomanipulation_g1_env_cfg import LocomanipulationG1EnvCfg
+    from isaaclab_tasks.contrib.locomanip_pick_place.locomanipulation_g1_env_cfg import (
+        LocomanipulationG1EnvCfg,
+        prepare_locomanipulation_g1_for_kitless_newton_mjwarp,
+    )
 
     cfg = LocomanipulationG1EnvCfg()
     controller = cfg.actions.lower_body_joint_pos.copy()
     upper_body_class = cfg.actions.upper_body_ik.class_type
     cfg.sim.physics = NewtonCfg()
-    cfg.stabilize_for_kitless_newton_mjwarp()
+    prepare_locomanipulation_g1_for_kitless_newton_mjwarp(cfg)
 
     assert cfg.scene.robot.joint_ordering == "physx"
     assert cfg.actions.lower_body_joint_pos == controller

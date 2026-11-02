@@ -382,6 +382,17 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
 
     class_type: type | str = "isaaclab_tasks.contrib.teleop_env:HumanoidTeleopEnv"
     _prepared_kitless_backend: str | None = None
+    kitless_preparation: dict[str, str] = {
+        "ovphysx": (
+            "isaaclab_tasks.contrib.locomanip_pick_place.fixed_base_upper_body_ik_g1_env_cfg"
+            ":prepare_fixed_base_g1_for_kitless_ovphysx"
+        ),
+        "newton_mjwarp": (
+            "isaaclab_tasks.contrib.locomanip_pick_place.fixed_base_upper_body_ik_g1_env_cfg"
+            ":prepare_fixed_base_g1_for_kitless_newton_mjwarp"
+        ),
+    }
+    """Preparation function, as a ``"module:function"`` reference, for each supported kitless backend."""
     haptic_feedback: object | None = None
     sim: SimulationCfg = SimulationCfg(physics=TeleopPhysicsCfg())
 
@@ -457,20 +468,36 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
                 right_sensor_name="right_hand_contact",
             )
 
-    def stabilize_for_kitless_ovphysx(self) -> None:
-        """Prepare the table collision authoring; let OVPhysX cook the wheel meshes."""
-        if check_kitless_backend_preparation(self, "ovphysx"):
-            return
-        from isaaclab_tasks.contrib.packing_table import configure_packing_table_collisions
 
-        configure_packing_table_collisions(self.scene.packing_table, physx_offsets=True)
-        self._prepared_kitless_backend = "ovphysx"
+def prepare_fixed_base_g1_for_kitless_ovphysx(env_cfg: FixedBaseUpperBodyIKG1EnvCfg) -> None:
+    """Prepare the table collision authoring for kitless OVPhysX; OVPhysX cooks the wheel meshes.
 
-    def stabilize_for_kitless_newton_mjwarp(self) -> None:
-        """Configure G1 actions, assets and contacts for kitless Newton."""
-        if check_kitless_backend_preparation(self, "newton_mjwarp"):
-            return
-        from .g1_kitless_newton import configure_g1_for_kitless_newton
+    Args:
+        env_cfg: Fixed-base G1 task configuration.
 
-        configure_g1_for_kitless_newton(self)
-        self._prepared_kitless_backend = "newton_mjwarp"
+    Raises:
+        ValueError: If ``env_cfg`` was already prepared for a different backend.
+    """
+    if check_kitless_backend_preparation(env_cfg, "ovphysx"):
+        return
+    from isaaclab_tasks.contrib.packing_table import configure_packing_table_collisions
+
+    configure_packing_table_collisions(env_cfg.scene.packing_table, physx_offsets=True)
+    env_cfg._prepared_kitless_backend = "ovphysx"
+
+
+def prepare_fixed_base_g1_for_kitless_newton_mjwarp(env_cfg: FixedBaseUpperBodyIKG1EnvCfg) -> None:
+    """Configure G1 actions, assets and contacts for kitless Newton.
+
+    Args:
+        env_cfg: Fixed-base G1 task configuration.
+
+    Raises:
+        ValueError: If ``env_cfg`` was already prepared for a different backend.
+    """
+    if check_kitless_backend_preparation(env_cfg, "newton_mjwarp"):
+        return
+    from .g1_kitless_newton import configure_g1_for_kitless_newton
+
+    configure_g1_for_kitless_newton(env_cfg)
+    env_cfg._prepared_kitless_backend = "newton_mjwarp"

@@ -14,7 +14,7 @@ from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.physics import PhysxAutoCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, string_to_callable
 
 from isaaclab_tasks.utils import PresetCfg, resolve_presets
 
@@ -25,9 +25,9 @@ if TYPE_CHECKING:
 def prepare_humanoid_teleop_environment(cfg: ManagerBasedRLEnvCfg) -> None:
     """Prepare humanoid task settings before simulation or environment construction.
 
-    Dispatches to the configuration's ``stabilize_for_kitless_ovphysx`` or
-    ``stabilize_for_kitless_newton_mjwarp`` for the selected standalone backend. Kit PhysX
-    needs no preparation. Repeated calls on a prepared configuration are no-ops. A
+    Dispatches to the preparation function that the configuration's ``kitless_preparation``
+    mapping names for the selected standalone backend (``"ovphysx"`` or ``"newton_mjwarp"``).
+    Kit PhysX needs no preparation. Repeated calls on a prepared configuration are no-ops. A
     configuration constructed directly, without task resolution, uses the default of every
     remaining preset.
 
@@ -40,11 +40,13 @@ def prepare_humanoid_teleop_environment(cfg: ManagerBasedRLEnvCfg) -> None:
     resolve_presets(cfg)
     physics = cfg.sim.physics
     if isinstance(physics, OvPhysxCfg):
-        cfg.stabilize_for_kitless_ovphysx()
+        backend = "ovphysx"
     elif isinstance(physics, NewtonCfg) and isinstance(physics.solver_cfg, MJWarpSolverCfg):
-        cfg.stabilize_for_kitless_newton_mjwarp()
+        backend = "newton_mjwarp"
     else:
         check_kitless_backend_preparation(cfg, None)
+        return
+    string_to_callable(cfg.kitless_preparation[backend])(cfg)
 
 
 @configclass

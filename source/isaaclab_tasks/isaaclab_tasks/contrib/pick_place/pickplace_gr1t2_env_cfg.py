@@ -607,6 +607,13 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
 
     class_type: type | str = "isaaclab_tasks.contrib.teleop_env:HumanoidTeleopEnv"
     _prepared_kitless_backend: str | None = None
+    kitless_preparation: dict[str, str] = {
+        "ovphysx": "isaaclab_tasks.contrib.pick_place.pickplace_gr1t2_env_cfg:prepare_gr1t2_for_kitless_ovphysx",
+        "newton_mjwarp": (
+            "isaaclab_tasks.contrib.pick_place.pickplace_gr1t2_env_cfg:prepare_gr1t2_for_kitless_newton_mjwarp"
+        ),
+    }
+    """Preparation function, as a ``"module:function"`` reference, for each supported kitless backend."""
     haptic_feedback: object | None = None
     image_obs_list: list[str] = ["robot_pov_cam"]
     sim: SimulationCfg = SimulationCfg(physics=TeleopPhysicsCfg())
@@ -721,14 +728,6 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
                 left_sensor_name="left_hand_contact",
                 right_sensor_name="right_hand_contact",
             )
-
-    def stabilize_for_kitless_ovphysx(self) -> None:
-        """Configure the GR1T2 asset and action boundaries for kitless OVPhysX."""
-        prepare_gr1t2_for_kitless_ovphysx(self)
-
-    def stabilize_for_kitless_newton_mjwarp(self) -> None:
-        """Configure GR1T2 actuators and contacts for kitless Newton."""
-        prepare_gr1t2_for_kitless_newton_mjwarp(self)
 
 
 def prepare_gr1t2_for_kitless_ovphysx(env_cfg: ManagerBasedRLEnvCfg) -> None:

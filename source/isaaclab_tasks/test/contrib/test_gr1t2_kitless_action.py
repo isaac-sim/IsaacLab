@@ -32,10 +32,17 @@ from isaaclab_tasks.contrib.pick_place.pickplace_gr1t2_env_cfg import (
     PickPlaceGR1T2EnvCfg,
     condition_kitless_gr1t2_stage,
     condition_kitless_ovphysx_robot_spawn_properties,
+    prepare_gr1t2_for_kitless_newton_mjwarp,
+    prepare_gr1t2_for_kitless_ovphysx,
 )
 from isaaclab_tasks.contrib.pick_place.pickplace_gr1t2_waist_enabled_env_cfg import PickPlaceGR1T2WaistEnabledEnvCfg
 from isaaclab_tasks.contrib.steering_wheel import SteeringWheelUsdFileCfg
 from isaaclab_tasks.utils import parse_env_cfg
+
+_PREPARE_GR1T2 = {
+    "ovphysx": prepare_gr1t2_for_kitless_ovphysx,
+    "newton_mjwarp": prepare_gr1t2_for_kitless_newton_mjwarp,
+}
 
 
 @pytest.mark.parametrize("config_type", [PickPlaceGR1T2EnvCfg, PickPlaceGR1T2WaistEnabledEnvCfg])
@@ -47,7 +54,7 @@ def test_newton_contract_is_backend_scoped_and_complete(config_type):
         else "IsaacContrib-PickPlace-GR1T2-Abs"
     )
     newton_cfg = parse_env_cfg(task, device="cpu", num_envs=1, overrides=["physics=newton_mjwarp"])
-    newton_cfg.stabilize_for_kitless_newton_mjwarp()
+    prepare_gr1t2_for_kitless_newton_mjwarp(newton_cfg)
 
     expected = {
         "head": (80.0, 8.0, 0.03, 80.0),
@@ -96,7 +103,7 @@ def test_newton_teleop_self_collision_matches_ovphysx_without_changing_asset_def
     ):
         cfg = PickPlaceGR1T2EnvCfg()
         cfg.sim.physics = OvPhysxCfg() if backend == "ovphysx" else NewtonCfg()
-        getattr(cfg, f"stabilize_for_kitless_{backend}")()
+        _PREPARE_GR1T2[backend](cfg)
         fragment = next(p for p in cfg.scene.robot.spawn.articulation_props if isinstance(p, fragment_type))
         original = next(p for p in default_cfg.scene.robot.spawn.articulation_props if isinstance(p, fragment_type))
         assert getattr(fragment, attribute) is False
@@ -119,15 +126,15 @@ def test_hand_physical_limits_are_widened_only_for_ovphysx(monkeypatch, backend,
     cfg = PickPlaceGR1T2EnvCfg()
     cfg.sim.physics = OvPhysxCfg() if backend == "ovphysx" else NewtonCfg()
     cfg.scene.robot.spawn.func = spawn_robot
-    getattr(cfg, f"stabilize_for_kitless_{backend}")()
+    _PREPARE_GR1T2[backend](cfg)
     if replace_spawn:
         cfg.scene.robot.spawn.func = spawn_robot
-        getattr(cfg, f"stabilize_for_kitless_{backend}")()
+        _PREPARE_GR1T2[backend](cfg)
     original_cfg = cfg
     if copy_prepared:
         cfg = deepcopy(cfg) if copy_prepared == "deepcopy" else cfg.copy()
         assert cfg.actions.upper_body_ik is not original_cfg.actions.upper_body_ik
-        getattr(cfg, f"stabilize_for_kitless_{backend}")()
+        _PREPARE_GR1T2[backend](cfg)
     from isaaclab.assets import Asset, AssetBaseCfg
     from isaaclab.sim import use_stage
 
@@ -190,7 +197,7 @@ def test_newton_wheel_wrapper_hulls_only_non_graspable_details(monkeypatch, conf
     spawn.func = spawn_wheel
     monkeypatch.setattr(gr1t2_env_cfg.sim_utils, "find_matching_prim_paths", lambda _path: ["/World/Wheel"])
 
-    cfg.stabilize_for_kitless_newton_mjwarp()
+    prepare_gr1t2_for_kitless_newton_mjwarp(cfg)
     spawn = cfg.scene.object.spawn
     wrapped_spawn = spawn.func
     wrapped_spawn("/World/Wheel", spawn)
@@ -220,7 +227,7 @@ def test_kitless_kinematics_model_loads_without_the_kit_exporter(config_type, ba
     controlled_joints = list(cfg.actions.upper_body_ik.pink_controlled_joint_names)
     spawn_usd = cfg.scene.robot.spawn.usd_path
     cfg.sim.physics = OvPhysxCfg() if backend == "ovphysx" else NewtonCfg()
-    getattr(cfg, f"stabilize_for_kitless_{backend}")()
+    _PREPARE_GR1T2[backend](cfg)
     action = cfg.actions.upper_body_ik
     assert action.pink_controlled_joint_names == controlled_joints
     assert cfg.scene.robot.spawn.usd_path == spawn_usd
@@ -357,7 +364,7 @@ def test_wheel_mesh_collision_geometry_is_not_replaced():
 
     cfg = PickPlaceGR1T2EnvCfg()
     cfg.scene.object.spawn.func = spawn_wheel
-    cfg.stabilize_for_kitless_ovphysx()
+    prepare_gr1t2_for_kitless_ovphysx(cfg)
     root = cfg.scene.object.spawn.func("/World/Wheel", cfg.scene.object.spawn)
     assert stage.GetRootLayer().ExportToString() == original["layer"]
     colliders = [p for p in Usd.PrimRange(root) if p.HasAPI(UsdPhysics.CollisionAPI)]
