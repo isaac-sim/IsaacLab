@@ -629,7 +629,8 @@ def test_partial_write_preserves_unselected_backend_rows(monkeypatch, backend, s
 
 
 def test_partial_joint_state_write_follows_int64_selectors_and_restarts_acceleration(monkeypatch, backend):
-    """A fused joint-state write honors unsorted int64 selectors and restarts the finite-difference baseline."""
+    """The deprecated fused joint-state write warns, honors unsorted int64 selectors and restarts the
+    finite-difference baseline."""
     art, raw_backend = _articulation(backend, "cpu", monkeypatch, num_joints=3, num_bodies=2)
     art.data.update(dt=0.01)
     expected_joint_pos = art.data.joint_pos.torch.clone()
@@ -646,13 +647,14 @@ def test_partial_joint_state_write_follows_int64_selectors_and_restarts_accelera
     velocity = torch.tensor([[0.2, -0.2]])
 
     # int64 selectors with the joints in reverse order; the payload follows the selector order.
-    art.write_joint_state_to_sim_index(
-        position=position[:, [1, 0]],
-        velocity=velocity[:, [1, 0]],
-        env_ids=torch.tensor([1], dtype=torch.int64),
-        joint_ids=torch.tensor([2, 0], dtype=torch.int64),
-        skip_forward=True,
-    )
+    with pytest.warns(DeprecationWarning, match="write_joint_state_to_sim_index is deprecated"):
+        art.write_joint_state_to_sim_index(
+            position=position[:, [1, 0]],
+            velocity=velocity[:, [1, 0]],
+            env_ids=torch.tensor([1], dtype=torch.int64),
+            joint_ids=torch.tensor([2, 0], dtype=torch.int64),
+            skip_forward=True,
+        )
 
     expected_joint_pos[1, [0, 2]] = position[0]
     expected_joint_vel[1, [0, 2]] = velocity[0]
@@ -676,7 +678,8 @@ def test_partial_joint_state_write_follows_int64_selectors_and_restarts_accelera
     # ``skip_forward`` leaves the body caches to the caller; a regular write invalidates them.
     for name, buffer in caches:
         assert buffer.timestamp == art.data._sim_timestamp, name
-    art.write_joint_state_to_sim_index(position=position, velocity=velocity, env_ids=[1], joint_ids=[0, 2])
+    with pytest.warns(DeprecationWarning, match="write_joint_state_to_sim_index is deprecated"):
+        art.write_joint_state_to_sim_index(position=position, velocity=velocity, env_ids=[1], joint_ids=[0, 2])
     _assert_buffers_stale(art.data, caches)
 
 
