@@ -15,6 +15,7 @@ from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import math as math_utils
 
 import isaaclab_tasks  # noqa: F401
+from isaaclab_tasks.contrib.conveyor_suction.actions import solve_tool_ik
 from isaaclab_tasks.utils import parse_env_cfg
 
 
@@ -26,6 +27,7 @@ def test_receipts_record_success_and_continue_without_reset(device):
     cfg.sim.visualizer_cfgs = []
     cfg.sim.save_logs_to_file = False
     cfg.seed = 41
+    cfg.episode_length_s = 240.0
     cfg.terminations.failure = None
     cfg.terminations.invalid_action = None
     with closing(gym.make(task, cfg=cfg).unwrapped) as env:
@@ -40,6 +42,13 @@ def test_receipts_record_success_and_continue_without_reset(device):
         )
         reset.reset_sampler.sampler.sample = lambda probabilities, count: rows[:count]
         env.reset()
+        assert env.gripper.engaged.all(), "Held resets must restore physical seals before the first policy action."
+        env.gripper.set_command(torch.tensor([True, False], device=device), env.active_ids)
+        positions = env.scene["robot"].data.joint_pos.torch.clone()
+        env.gripper.refresh(torch.tensor([0], device=device))
+        assert env.gripper.engaged.all(), "Refreshing one world must preserve another world's pending attachment."
+        torch.testing.assert_close(env.scene["robot"].data.joint_pos.torch, positions, rtol=0, atol=0)
+        env.gripper.set_command(torch.ones(2, dtype=torch.bool, device=device), env.active_ids)
         command = env.command_manager.get_term("sort")
         monitor = reset.reset_sampler.success_monitor
         assert not command.delivered.any(), "Every reset must start with all parcels unsorted."
@@ -55,14 +64,6 @@ def test_receipts_record_success_and_continue_without_reset(device):
         goal_start = sum(size[0] for size in dimensions[: terms.index("goal")])
         torch.testing.assert_close(observations[:, goal_start : goal_start + 3], command.command)
         assert command.destination_ids[1] != env.parcel_classes[4], "The commanded outlet must be independent of size."
-        actions[:, 3] = -1.0
-        for _ in range(8):
-            env.step(actions)
-            if env.gripper.engaged.all():
-                break
-        for _ in range(2):
-            env.step(actions)
-        assert env.gripper.engaged.all(), "The release fixture must acquire its parcel physically."
         actions[:, 3] = 1.0
         env.step(actions)
         assert command.placed.all() and not command.failed.any()
@@ -96,7 +97,7 @@ def test_receipts_record_success_and_continue_without_reset(device):
                     delivery = dict(env.reward_manager.get_active_iterable_terms(env_id))["delivery"][0]
                     assert delivery == 600.0
                     received[env_id] = True
-            if all(received):
+            if all(received) and env.active_ids[1] != 4:
                 break
         else:
             pytest.fail("The released parcels never reached their physical bins.")
@@ -138,25 +139,16 @@ def test_receipts_record_success_and_continue_without_reset(device):
         def hold_at_goal(env_id):
             ids = torch.tensor([env_id], device=device)
             parcel_id = env.active_ids[env_id].item()
-            candidates = (
-                (
-                    (reset.parcel_ids == parcel_id)
-                    & (reset.phase_ids == 0)
-                    & (reset.destination_ids == command.destination_ids[env_id])
-                )
-                .nonzero()
-                .flatten()
-            )
-            distances = (reset.goal_positions[candidates] - command.goal_positions[env_id]).norm(dim=-1)
-            row = candidates[distances.argmin()]
+            goal = command.goal_positions[ids].clone()
+            goal[:, 2] += env.parcel_sizes[parcel_id, 2] / 2.0 + 0.010
             robot = env.scene["robot"]
             joints = robot.data.default_joint_pos.torch[ids].clone()
-            joints[:, reset._arm_ids] = reset._arm_positions[row]
+            joints[:, reset._arm_ids] = solve_tool_ik(goal)
             robot.write_joint_position_to_sim_index(position=joints, env_ids=ids)
             robot.write_joint_velocity_to_sim_index(velocity=torch.zeros_like(joints), env_ids=ids)
             robot.actuators.target_command.set_position_index(value=joints, env_ids=ids)
             pose = env.parcels[parcel_id].data.default_root_pose.torch[ids].clone()
-            pose[:, :3] = reset._tool_positions[row] + env.scene.env_origins[ids]
+            pose[:, :3] = goal + env.scene.env_origins[ids]
             pose[:, 2] -= env.parcel_sizes[parcel_id, 2] / 2 + 0.002
             env.parcels[parcel_id].write_root_pose_to_sim_index(root_pose=pose, env_ids=ids)
             env.parcels[parcel_id].write_root_velocity_to_sim_index(
@@ -298,3 +290,16 @@ def test_receipts_record_success_and_continue_without_reset(device):
         forces = env.scene["arm_contacts"].data.net_normal_forces_w_history.torch[0]
         assert forces.norm(dim=-1).max() > cfg.commands.sort.arm_contact_force_threshold
         assert not command.delivered[0].any() and not command.new_success[0]
+
+        # A released suffix restores placement history, but earns credit only at its physical bin.
+        rows[0] = ((reset.parcel_ids == 4) & (reset.phase_ids == 4) & (reset.destination_ids == 1)).nonzero()[-1, 0]
+        env.reset(env_ids=impact_ids)
+        assert command.lifted[0] and command.placed[0] and not env.gripper.engaged[0]
+        assert not command.full_start[0] and not env.episode_success[0] and not command.delivered[0].any()
+        assert command.metrics["controlled_placements"][0] == 0 and monitor.success_size[rows[0]] == 0
+        for _ in range(240):
+            env.step(actions)
+            if command.delivered[0, 4]:
+                break
+        assert command.delivered[0, 4] and not command.failed[0]
+        assert monitor.success_size[rows[0]] == monitor.success_rate[rows[0]] == 1

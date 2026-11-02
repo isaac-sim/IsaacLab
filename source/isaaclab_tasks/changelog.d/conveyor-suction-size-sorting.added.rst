@@ -10,10 +10,12 @@
   Each verified delivery earns a reward and success event before the next target is selected
   in the same physical scene. The first receipt from a sampled reset immediately updates
   its success history; subsequent receipts cannot duplicate that outcome or be erased by a
-  later failure. All twelve parcels start unsorted, and complete-batch metrics remain separate
-  from per-delivery success within 240-second episodes.
+  later failure. No parcel starts with delivery credit, and complete-batch metrics remain separate
+  from per-delivery success within continuing episodes.
   Goal-conditioned placement observes independently sampled receiving positions and an overhead
   collision-geometry point cloud. Controlled release, arm-contact rejection, bounded Cartesian
   target lead, and normal arm velocity limits replace receipt-only throwing behavior.
   Earlier suction checkpoints require retraining for the changed observations and objective.
   Local carton and concrete textures, warehouse framing, racks, and a loading bay improve the scene.
+* Connected suction reset states through approach, acquisition, lift, transport, descent and released outfeed motion,
+  with shorter training attempts and reset-family success metrics; delivery rewards remain sparse.

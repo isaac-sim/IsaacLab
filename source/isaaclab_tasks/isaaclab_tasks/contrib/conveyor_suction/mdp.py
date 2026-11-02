@@ -21,12 +21,17 @@ from isaaclab.utils import math as math_utils
 from isaaclab_tasks.utils.reset_states import ResetStateSampler, ResetStateSamplerCfg
 
 from ..conveyor_franka.mdp.kinematics import end_effector_pose, tool_velocity
+from ..conveyor_franka.mdp.reset_events import franka_tool_position
 from ..conveyor_franka.mdp.terminations import invalid_action as invalid_policy_action
+from .actions_cfg import LINK7_TO_TOOL_Z
 from .scene import (
     BELT_TOP_Z,
     BIN_INTERIOR_SIZE,
     GOAL_DIRECTIONS,
     GOAL_POSITIONS,
+    INTAKE_CENTER,
+    INTAKE_HALF_STRAIGHT,
+    INTAKE_RADIUS,
     PARCEL_CLASS_IDS,
     PARCEL_SIZES,
     RECEIVING_PAD_HALF_WIDTH,
@@ -116,6 +121,7 @@ class SizeSortCommand(CommandTerm):
         self.lifted = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         self.placed = torch.zeros_like(self.lifted)
         self.destination_ids = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
+        self._reset_phase_ids = torch.zeros_like(self.destination_ids)
         self.goal_positions = torch.zeros((self.num_envs, 3), device=self.device)
         self._was_engaged = torch.zeros_like(self.lifted)
         self._arm_contacts = SceneEntityCfg("arm_contacts")
@@ -206,7 +212,15 @@ class SizeSortCommand(CommandTerm):
         full_ids = ids[full]
         full_success = self.metrics["success_rate"][full_ids]
         full_batch = self.metrics["full_batch_success_rate"][full_ids]
+        phase = self._reset_phase_ids[ids]
+        phase_outcomes = {
+            f"{name}_success_rate": self.metrics["success_rate"][
+                ids[(phase == index) & (self._env.episode_length_buf[ids] > 0)]
+            ]
+            for index, name in ((0, "place"), (1, "carry"), (2, "approach"), (4, "outfeed"))
+        }
         extras = super().reset(ids)
+        extras.update({name: outcomes for name, outcomes in phase_outcomes.items() if outcomes.numel()})
         extras.pop("full_batch_success_rate")
         if full_ids.numel():
             # RSL concatenates episode values; scalar reset-batch means misweight this conditional rate.
@@ -288,9 +302,11 @@ class SizeSortCommand(CommandTerm):
     def _resample_command(self, env_ids: Sequence[int] | torch.Tensor | slice) -> None:
         ids = self._ids[env_ids]
         phase = self._reset_term.phase_ids[self._reset_term.row_ids[ids]]
+        self._reset_phase_ids[ids] = phase
         self.delivered[ids] = False
-        self.lifted[ids] = phase < 2
-        self.placed[ids] = self._was_engaged[ids] = False
+        self.lifted[ids] = self._reset_term.lifted_rows[self._reset_term.row_ids[ids]]
+        self.placed[ids] = phase == 4
+        self._was_engaged[ids] = False
         self.destination_ids[ids] = self._reset_term.destination_ids[self._reset_term.row_ids[ids]]
         self.goal_positions[ids] = self._reset_term.goal_positions[self._reset_term.row_ids[ids]]
         self.full_start[ids] = phase == 3
@@ -334,19 +350,28 @@ class SizeSortCommand(CommandTerm):
 
 
 class ResetParcels(ManagerTermBase):
-    """Restore a fixed Cartesian reset catalog and sample it with shared outcome history."""
+    """Sample the acquisition-to-receipt chain with shared outcome history."""
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedRLEnv) -> None:
         from .actions import solve_tool_ik
 
         super().__init__(cfg, env)
-        rows = torch.arange(len(PARCEL_SIZES) * 8 * len(GOAL_POSITIONS), device=self.device)
+        # Sixteen neighboring states per path, at each of the two pickup anchors.
+        samples = 16
+        variants_per_phase = 2 * samples
+        phase_count = 5
+        rows = torch.arange(
+            len(PARCEL_SIZES) * phase_count * variants_per_phase * len(GOAL_POSITIONS), device=self.device
+        )
         self.row_count = rows.numel()
         self.destination_ids = rows % len(GOAL_POSITIONS)
         recipes = rows // len(GOAL_POSITIONS)
-        self.parcel_ids = recipes // 8
-        self.phase_ids = (recipes // 2) % 4
-        variants = recipes % 2
+        self.parcel_ids = recipes // (phase_count * variants_per_phase)
+        self.phase_ids = (recipes // variants_per_phase) % phase_count
+        variants = recipes % variants_per_phase
+        anchor = variants % 2
+        fraction = (variants // 2).float() / (samples - 1)
+        progress = (variants // 2).float() / samples
         self.reset_sampler = ResetStateSampler(cfg.params["sampling"], self.num_envs, self.row_count, self.device)
         self.row_ids = self.reset_sampler.row_ids
         self.held_rows = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
@@ -357,13 +382,13 @@ class ResetParcels(ManagerTermBase):
         self._parcel_sizes = torch.tensor(PARCEL_SIZES, device=self.device)
         sizes = self._parcel_sizes[self.parcel_ids]
         pick = torch.zeros((self.row_count, 3), device=self.device)
-        pick[:, 0], pick[:, 1], pick[:, 2] = 0.54 + 0.10 * variants, -0.19, BELT_TOP_Z + sizes[:, 2] + 0.004
+        pick[:, 0], pick[:, 1], pick[:, 2] = 0.54 + 0.10 * anchor, -0.19, BELT_TOP_Z + sizes[:, 2] + 0.004
         self._goal_centers = torch.tensor(GOAL_POSITIONS, device=self.device)
         self._goal_directions = torch.tensor(GOAL_DIRECTIONS, device=self.device)
         cfg = env.cfg.commands.sort
         offsets = torch.stack(
             [
-                bounds[0] + variants * (bounds[1] - bounds[0])
+                bounds[0] + fraction * (bounds[1] - bounds[0])
                 for bounds in (cfg.goal_radial_range, cfg.goal_lateral_range)
             ],
             dim=-1,
@@ -371,22 +396,60 @@ class ResetParcels(ManagerTermBase):
         self.goal_positions = self._placement_goals(self.parcel_ids, self.destination_ids, offsets)
         goal = self.goal_positions.clone()
         goal[:, 2] += sizes[:, 2] / 2.0 + 0.010
-        carry = torch.lerp(pick, goal, (0.35 + 0.35 * variants)[:, None])
-        carry[:, 2] = 0.30 + 0.05 * variants
-        self._tool_positions = torch.where(
-            (self.phase_ids == 0)[:, None], goal, torch.where((self.phase_ids == 1)[:, None], carry, pick)
+        home_arm = torch.tensor((0.0, -0.35, 0.0, -2.35, 0.0, 2.0, 0.0), device=self.device)
+        home = franka_tool_position(home_arm[None], tool_offset_z=LINK7_TO_TOOL_Z)[0]
+        pick_high, goal_high = pick.clone(), goal.clone()
+        pick_high[:, 2] = goal_high[:, 2] = 0.30
+        endpoint = torch.where((self.phase_ids == 1)[:, None], goal_high, home)
+        lift_distance = pick_high[:, 2] - pick[:, 2]
+        travel_distance = torch.linalg.vector_norm(endpoint - pick_high, dim=-1)
+        distance = progress * (lift_distance + travel_distance)
+        # Arc-length spacing joins contact to transport and contact to home without large gaps.
+        path = pick + (pick_high - pick) * (distance / lift_distance).clamp(0.0, 1.0)[:, None]
+        path += (endpoint - pick_high) * ((distance - lift_distance) / travel_distance).clamp(0.0, 1.0)[:, None]
+        # Keep plentiful easy release seeds while filling the entire descent to transport height.
+        descent = torch.lerp(goal, goal_high, fraction.pow(3)[:, None])
+        self._tool_positions = torch.where((self.phase_ids == 0)[:, None], descent, path)
+        self._tool_positions[self.phase_ids == 3] = home
+        self._tool_positions[self.phase_ids == 4] = goal_high[self.phase_ids == 4]
+        # Descent rows have already lifted. A newly sealed low lift must still clear the belt.
+        self.lifted_rows = (
+            (self.phase_ids == 0)
+            | (self.phase_ids == 4)
+            | ((self.phase_ids == 1) & (self._tool_positions[:, 2] - sizes[:, 2] / 2.0 - 0.002 > BELT_TOP_Z + 0.10))
         )
-        pregrasp = (self.phase_ids == 2) & (variants == 1)
-        self._tool_positions[pregrasp, 0] -= 0.02
-        self._tool_positions[pregrasp, 2] += 0.07
-        self._arm_positions = torch.tensor((0.0, -0.35, 0.0, -2.35, 0.0, 2.0, 0.0), device=self.device).repeat(
-            self.row_count, 1
-        )
-        partial = self.phase_ids < 3
+        self._arm_positions = home_arm.repeat(self.row_count, 1)
+        partial = self.phase_ids != 3
         unique, inverse = torch.unique(self._tool_positions[partial], dim=0, return_inverse=True)
         self._arm_positions[partial] = solve_tool_ik(unique)[inverse]
         self._pick_positions = pick.clone()
         self._pick_positions[:, 2] -= 0.5 * sizes[:, 2] + 0.002
+        # Earlier approach states need earlier parcel phases, including the moving left turn.
+        left_x = INTAKE_CENTER[0] - INTAKE_HALF_STRAIGHT
+        approach = torch.where(self.phase_ids == 3, 1.0, progress)
+        distance = (pick[:, 0] - left_x) * (1.0 - approach) - math.pi * INTAKE_RADIUS / 2.0 * approach
+        angle = (-distance / INTAKE_RADIUS).clamp_min(0.0)
+        self._pick_positions[:, 0] = left_x + distance.clamp_min(0.0) - INTAKE_RADIUS * angle.sin()
+        self._pick_positions[:, 1] = INTAKE_CENTER[1] + INTAKE_RADIUS * angle.cos()
+        self._pick_yaw = angle
+        self._parcel_velocities = torch.zeros((self.row_count, 6), device=self.device)
+        speed = env.cfg.conveyor_force.speed
+        unheld = (self.phase_ids == 2) | (self.phase_ids == 3)
+        self._reserve_turn = unheld & (distance < -0.21)
+        self._parcel_velocities[unheld, 0] = speed * angle[unheld].cos()
+        self._parcel_velocities[unheld, 1] = speed * angle[unheld].sin()
+        self._parcel_velocities[unheld & (distance < 0.0), 5] = -speed / INTAKE_RADIUS
+        # Valid released predecessors teach the passive outfeed suffix, without seeding a receipt.
+        outfeed = self.phase_ids == 4
+        directions = self._goal_directions[self.destination_ids]
+        radius = (self.goal_positions[:, :2] * directions[:, :2]).sum(dim=-1)
+        last_supported = 1.95 - torch.linalg.vector_norm(sizes[:, :2], dim=-1) / 2.0 - 0.005
+        travel = (last_supported - radius) * (1.0 - (1.0 - fraction).pow(3))
+        self._pick_positions[outfeed] = self.goal_positions[outfeed]
+        self._pick_positions[outfeed, :2] += directions[outfeed, :2] * travel[outfeed, None]
+        self._pick_positions[outfeed, 2] += 0.002
+        self._parcel_velocities[outfeed, :3] = directions[outfeed] * speed
+        self._pick_yaw[outfeed] = 0.0
 
     def _placement_goals(
         self, parcel_ids: torch.Tensor, destination_ids: torch.Tensor, offsets: torch.Tensor
@@ -440,23 +503,27 @@ class ResetParcels(ManagerTermBase):
         slots[batch, slot_zero] = slots[batch, active]
         slots[batch, active] = 0
         positions = self._initial_poses[slots, :3]
+        # An upstream target frees slot zero; use it to clear the occupied left turn.
+        positions[self._reserve_turn[rows, None] & (slots == len(env.parcels) - 2), :2] = self._initial_poses[0, :2]
         positions[:, :, 2] = BELT_TOP_Z + 0.5 * env.parcel_sizes[:, 2] + 0.002
         positions[:, :, 2] = torch.where(slots == len(env.parcels) - 1, self._initial_poses[-1, 2], positions[:, :, 2])
         active_position = self._pick_positions[rows].clone()
-        active_position[:, 0] += (torch.rand(len(ids), device=self.device) - 0.5) * 0.06 * (phase == 3)
         held_position = self._tool_positions[rows].clone()
         held_position[:, 2] -= 0.5 * env.parcel_sizes[active, 2] + 0.002
         active_position = torch.where(self.held_rows[ids, None], held_position, active_position)
         positions[batch, active] = active_position
         yaw = (torch.rand((len(ids), len(env.parcels)), device=self.device) - 0.5) * 0.2
+        yaw[batch, active] += self._pick_yaw[rows] * ~self.held_rows[ids]
         velocity = torch.zeros((len(ids), 6), device=self.device)
+        parcel_velocities = torch.zeros((len(ids), len(env.parcels), 6), device=self.device)
+        parcel_velocities[batch, active] = self._parcel_velocities[rows]
         for index, parcel in enumerate(env.parcels):
             pose = self._initial_poses[index].expand(len(ids), -1).clone()
             pose[:, :3] = positions[:, index]
             pose[:, 5], pose[:, 6] = torch.sin(0.5 * yaw[:, index]), torch.cos(0.5 * yaw[:, index])
             pose[:, :3] += env.scene.env_origins[ids]
             parcel.write_root_pose_to_sim_index(root_pose=pose, env_ids=ids)
-            parcel.write_root_velocity_to_sim_index(root_velocity=velocity, env_ids=ids)
+            parcel.write_root_velocity_to_sim_index(root_velocity=parcel_velocities[:, index], env_ids=ids)
         robot = env.scene["robot"]
         root = robot.data.default_root_pose.torch[ids].clone()
         root[:, :3] += env.scene.env_origins[ids]

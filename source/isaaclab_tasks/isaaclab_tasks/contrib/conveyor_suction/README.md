@@ -29,7 +29,9 @@ the seal implementation into Isaac Lab. Stock Newton releases do not provide thi
 
 ## Training and playback
 
-The default configuration uses 512 environments, 6,000 PPO updates, and 240-second episodes.
+The default configuration uses 512 environments, 6,000 PPO updates, and 30-second training episodes.
+Playback uses 240-second episodes. Shorter training attempts recycle reset practice sooner;
+both modes continue to another parcel after each delivery.
 Each verified delivery counts as a success, and the robot continues with another parcel in the
 same scene. Reliable learning from scratch has not yet been validated.
 
@@ -67,14 +69,27 @@ arbitrary facilities or obstacles.
 ## Reset distribution and success
 
 The public `isaaclab_tasks.utils.ResetStateSampler` tracks recent outcomes and chooses
-reset rows. Task-local generators produce belt, approach/grasp, carry and near-release states
-for each parcel and destination. Near-release states use the same goal given to the actor;
+reset rows. A task-local catalogue contains 9,600 rows across five equally represented reset
+families, twelve parcels and five destinations. Lift and approach paths use sixteen locations
+at two pickup anchors; other families retain the same sampling weight. Connected paths
+cover home-to-contact approach, newly sealed lift, transport and controlled descent; full
+home starts remain a separate family. Released states along the outfeed cover the passive
+transport to the bin, so sparse credit can propagate through the whole suffix. Placement
+offsets vary within the supported pads. Earlier approach states rewind the parcel around
+the incoming turn with matching belt velocity, allowing time for interception. The parcel
+formerly occupying that turn moves to the incoming target's vacant straight slot.
+Near-release states use the same goal given to the actor;
 ordinary scene/asset writers restore them. Other parcels are shuffled among the remaining
 belt and feeder slots to vary the order of subsequent pickups. The same sampler is used by the original
 conveyor curriculum and can select procedurally generated or cached reset states.
-It does not add another environment manager or a second scene-state serializer.
+It does not add another environment manager or a second scene-state serializer. Held resets
+refresh the native suction seals against the restored geometry before the first policy
+observation, without stepping physics or forcing attachment. Low lift starts still have to
+clear the pickup-height criterion. Outfeed states restore the prior lift and controlled-release
+history of a valid placement; they remain physically released and must still reach their bin.
+No reset seeds a delivery, successful outcome or placement counter.
 
-All twelve parcels begin unsorted in every reset phase. Release is checked before detachment:
+No parcel starts with delivery credit in any reset phase. Release is checked before detachment:
 the parcel must be upright, close to its commanded position, at most 2 cm above the receiving
 surface, and moving slowly relative to either the stationary world or the moving belt.
 Excessive vertical or angular velocity, an uncontrolled release, or nongripper arm contact fails
@@ -87,6 +102,9 @@ reset row. Later receipts still earn rewards and increment delivery counters, bu
 attributed to the earlier reset state. A world reset before that first receipt records a
 failed row outcome; a later failure does not overwrite or duplicate an already recorded success.
 
+The reward remains sparse: a complete qualified receipt earns +10; failures and motion
+regularization retain their existing penalties. There are no reaching, lifting or goal-distance
+rewards. Reset-family success metrics separately expose outfeed transport, descent, carry and acquisition.
 Training starts receive more practice when the policy has intermediate success, while
 every reset row remains eligible. Sampling history is local to each worker and restarts
 when the environment is recreated. Training success from an easier reset is not an

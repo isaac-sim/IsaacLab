@@ -69,6 +69,7 @@ def _reset_pads(
 
 @wp.kernel
 def _update_engagement(
+    world_ids: wp.array[wp.int64],
     enabled: wp.array[wp.bool],
     target_ids: wp.array[wp.int32],
     target_body: wp.array2d[wp.int32],
@@ -89,7 +90,7 @@ def _update_engagement(
     engaged: wp.array[wp.bool],
     seal_error: wp.array[wp.float32],
 ):
-    world = wp.tid()
+    world = int(world_ids[wp.tid()])
     first = world * 4
     body = previous[first][0]
     shape = previous[first][1]
@@ -205,6 +206,18 @@ class SurfaceGripper:
             device=self._model.device,
         )
 
+    def refresh(self, env_ids: torch.Tensor | None = None) -> None:
+        """Rebuild selected seals from restored geometry without stepping physics or applying forces.
+
+        Call after restoring robot and parcel states and setting their vacuum commands. Attachment
+        still requires every pad to fit the actual parcel face; this does not force a grasp.
+        Unselected worlds retain their attachment state.
+        """
+        self._manager.forward()
+        worlds = self._world_ids if env_ids is None else self._world_ids[env_ids]
+        self._update_seals(self._manager.backend.state_0, worlds)
+        wp.copy(self._previous.pad_engaged_bs, self._current.pad_engaged_bs)
+
     def close(self) -> None:
         """Detach callbacks before the model is released; safe to call twice."""
         if self._closed:
@@ -304,12 +317,13 @@ class SurfaceGripper:
         """Largest pad-anchor displacement [m], shape ``(num_envs,)``."""
         self._manager.register_state_force_callback(self._apply)
 
-    def _apply(self, state: State) -> None:
+    def _update_seals(self, state: State, world_ids: torch.Tensor) -> None:
         gripper = self._gripper
         wp.launch(
             _update_engagement,
-            dim=self._num_envs,
+            dim=world_ids.numel(),
             inputs=[
+                wp.from_torch(world_ids),
                 wp.from_torch(self._enabled),
                 wp.from_torch(self._target_ids),
                 self._target_body,
@@ -335,10 +349,13 @@ class SurfaceGripper:
             device=self._model.device,
         )
         attach_seal(self._model, state, gripper, self._previous, self._output, self._current, self._shape_mesh_id)
+
+    def _apply(self, state: State) -> None:
+        self._update_seals(state, self._world_ids)
         evaluate_gripper_force(
             self._model,
             state,
-            gripper,
+            self._gripper,
             self._current,
             self._output,
             self._control,

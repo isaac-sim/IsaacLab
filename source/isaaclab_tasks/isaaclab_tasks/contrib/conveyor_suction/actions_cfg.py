@@ -10,6 +10,8 @@ from isaaclab.managers import ActionTermCfg
 from isaaclab.utils import configclass
 
 TOOL_OFFSET = (0.0, 0.0, 0.105)
+# The analytic Panda FK ends at link7; the fixed hand adds another 107 mm.
+LINK7_TO_TOOL_Z = 0.107 + TOOL_OFFSET[2]
 DOWN_QUATERNION = (0.9238795325, 0.3826834324, 0.0, 0.0)
 
 

@@ -19,7 +19,7 @@ from isaaclab.envs.mdp.actions.task_space_actions import DifferentialInverseKine
 from isaaclab.managers import ActionTerm
 
 from ..conveyor_franka.mdp.reset_events import franka_tool_position
-from .actions_cfg import DOWN_QUATERNION, CartesianSuctionArmCfg, VacuumActionCfg
+from .actions_cfg import DOWN_QUATERNION, LINK7_TO_TOOL_Z, CartesianSuctionArmCfg, VacuumActionCfg
 
 
 class CartesianSuctionArm(DifferentialInverseKinematicsAction):
@@ -115,7 +115,7 @@ def solve_tool_ik(positions: torch.Tensor) -> torch.Tensor:
             return torch.tensor((angle, shoulder, 0.0, elbow, 0.0, shoulder - elbow, angle), dtype=torch.float64)
 
         def error(values: np.ndarray) -> np.ndarray:
-            current = franka_tool_position(joints(values).unsqueeze(0), tool_offset_z=0.212)[0]
+            current = franka_tool_position(joints(values).unsqueeze(0), tool_offset_z=LINK7_TO_TOOL_Z)[0]
             return current.numpy() - target
 
         fit = least_squares(error, (0.35, -2.0), bounds=((-1.7, -3.0), (1.7, -0.15)), max_nfev=80)

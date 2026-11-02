@@ -61,6 +61,7 @@ class SuctionSortingEnv(ConveyorFrankaEnv):
         reset = self.event_manager.get_term_cfg("reset_parcels").func
         ids = self.scene._ALL_INDICES[env_ids] if isinstance(env_ids, slice) else env_ids
         self.gripper.set_command(reset.held_rows[ids], self.active_ids[ids], env_ids=ids)
+        self.gripper.refresh(env_ids=ids)
 
     def _setup_goal_selector(self) -> None:
         """This policy selects a size outlet rather than a user-selected transfer goal."""

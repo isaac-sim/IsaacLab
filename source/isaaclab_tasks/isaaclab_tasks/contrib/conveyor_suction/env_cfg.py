@@ -113,7 +113,7 @@ class SuctionSortingEnvCfg(ConveyorFrankaEnvCfg):
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
     curriculum = None
-    episode_length_s: float = 240.0
+    episode_length_s: float = 30.0
     conveyor_force: ConveyorForceCfg = ConveyorForceCfg(
         speed=0.25,
         friction=0.6,
@@ -153,6 +153,7 @@ class SuctionSortingEnvCfg(ConveyorFrankaEnvCfg):
         )
 
     def play_mode(self) -> None:
+        self.episode_length_s = 240.0
         self.scene.num_envs = min(self.scene.num_envs, 4)
         self.commands.sort.randomize_destination = False
         self.events.reset_parcels.params["full_starts"] = True
