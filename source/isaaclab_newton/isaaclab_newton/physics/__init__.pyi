@@ -23,6 +23,8 @@ __all__ = [
     "MjWarpActuatorBridge",
     "MPMSolver",
     "MPMSolverCfg",
+    "NeRDSolver",
+    "NeRDSolverCfg",
     "NewtonBackend",
     "NewtonBackendCfg",
     "NewtonBuilderCfg",
@@ -61,6 +63,8 @@ from .mjwarp_solver import MJWarpSolver
 from .mjwarp_solver_cfg import MJWarpSolverCfg
 from .mpm_solver import MPMSolver, reset_mpm_solver_state
 from .mpm_solver_cfg import MPMSolverCfg
+from .nerd_solver import NeRDSolver
+from .nerd_solver_cfg import NeRDSolverCfg
 from .newton_backend import NewtonBackend, NewtonCloneRecord
 from .newton_backend_cfg import NewtonBackendCfg
 from .newton_builder import create_builder
