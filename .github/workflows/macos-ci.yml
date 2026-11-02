@@ -43,7 +43,6 @@ jobs:
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
         with:
           version: "0.12.9"
-          enable-cache: true
 
       - name: Install the uv environment
         run: uv sync --frozen
