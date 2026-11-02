@@ -317,8 +317,8 @@ class IsaacTeleopDevice:
         return self._cfg.target_frame_prim_path
 
     @property
-    def xr_anchor_path(self) -> str:
-        """Return the XR anchor prim path."""
+    def xr_render_anchor_path(self) -> str:
+        """Anchor prim that frames the rendered XR view."""
         return self._anchor_manager.anchor_headset_path
 
     @property

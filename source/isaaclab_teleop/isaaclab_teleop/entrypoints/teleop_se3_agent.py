@@ -690,7 +690,7 @@ def run_teleoperation(  # noqa: C901
                 with teleop_interface, camera_feed_session.bind(env):
                     render_worker_started = ov_libraries_xr_session.start_render_worker(
                         env,
-                        tracking_anchor_path=teleop_interface.xr_anchor_path,
+                        tracking_anchor_path=teleop_interface.xr_render_anchor_path,
                         required_openxr_extensions=teleop_interface.required_openxr_extensions,
                         hidden_visual_prims=env_cfg.isaac_teleop.xr_cfg.hidden_visual_prims,
                         external_anchor_state=teleop_interface.external_anchor_state,
