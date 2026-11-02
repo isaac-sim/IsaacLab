@@ -261,6 +261,8 @@ class IsaacTeleopCfg:
     Live and replay launchers call this before creating any simulation resources,
     including the OVXR bootstrap. Preparation must tolerate repeated calls from
     the task constructor. Keep this callable's imports safe before simulator startup.
+    It runs after launcher validation, so it must not change the runtime selections,
+    such as the physics or renderer backend.
     """
 
     action_conditioner: Callable[[Any, Any, dict[str, Any]], Any] | None = None
@@ -268,6 +270,7 @@ class IsaacTeleopCfg:
 
     The callable receives ``(env, action, state)``. The launcher retains the
     state dictionary across active frames and clears it on pause or reset.
+    State updates from a frame that fails validation after conditioning are discarded.
     """
 
     action_validator: Callable[[Any], str | None] | None = None
