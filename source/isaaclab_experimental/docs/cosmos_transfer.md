@@ -108,7 +108,9 @@ uv run isaaclab train \
 ```
 
 The `cosmos` preset sends camera depth to the service and uses the generated RGB
-images for training. This command runs 20 training iterations with one environment.
+images for training. This command runs 20 training iterations with one environment. With more
+environments, `env.cosmos.prompt` takes one prompt per environment; see
+[Several environments](cosmos.md#several-environments).
 
 ## 6. Optional: record a video
 

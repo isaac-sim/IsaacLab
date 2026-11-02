@@ -182,14 +182,19 @@ def microbenchmark(args: list[str] | None = None) -> None:
     _exit_on_error(run_microbenchmark_cli(args))
 
 
+def cosmos(args: list[str] | None = None) -> None:
+    """Inspect a Cosmos camera service.
+
+    Args:
+        args: Command-line arguments. Uses sys.argv when omitted.
+    """
+    from isaaclab_experimental.cosmos.client.cli import main
+
+    _exit_on_error(main(args))
+
+
 def cli() -> None:
     """Parse CLI arguments and run the requested command."""
-    if len(sys.argv) > 1 and sys.argv[1] == "cosmos":
-        from isaaclab_experimental.cosmos.client.cli import main
-
-        _exit_on_error(main(sys.argv[2:]))
-        return
-
     subcommands = {
         "benchmark": benchmark,
         "leapp": leapp,
@@ -224,6 +229,9 @@ def cli() -> None:
         return
     if len(sys.argv) > 1 and sys.argv[1] == "example":
         example(sys.argv[2:])
+        return
+    if len(sys.argv) > 1 and sys.argv[1] == "cosmos":
+        cosmos(sys.argv[2:])
         return
     if len(sys.argv) > 1 and sys.argv[1] in subcommands:
         load_external_tasks()

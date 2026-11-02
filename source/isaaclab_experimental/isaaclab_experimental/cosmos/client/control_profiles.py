@@ -23,8 +23,17 @@ if TYPE_CHECKING:
     from .cosmos_model_cfg import CosmosModelCfg
 
 
+# A tabletop workspace in front of a robot's camera lies within 0.1 m to 2 m. Set the range to match the scene:
+# depth outside it clips to white or black, and a wider range leaves less contrast for the objects.
+DEPTH_NEAR = 0.1
+"""Default depth rendered white [m]."""
+
+DEPTH_FAR = 2.0
+"""Default depth rendered black [m]."""
+
+
 def depth_processor(
-    backend: CosmosModelCfg, *, near: float = 1.2, far: float = 3.5, **cosmos: Any
+    backend: CosmosModelCfg, *, near: float = DEPTH_NEAR, far: float = DEPTH_FAR, **cosmos: Any
 ) -> list[TensorProcessorCfg]:
     """Depth-guided Cosmos processors on the camera's ``distance_to_image_plane`` output.
 
