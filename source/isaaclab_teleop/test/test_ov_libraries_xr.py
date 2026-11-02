@@ -317,6 +317,7 @@ def _make_host(xr_module, monkeypatch):
     monkeypatch.setitem(sys.modules, "ovxr", _fake_ovxr())
     monkeypatch.setattr(xr_module, "_StageOrdinalLedger", _FakeOrdinalLedger)
     monkeypatch.setattr(xr_module, "_declare_ovxr_runtime_prims", lambda _env, _cfg: bootstrap.events.append("declare"))
+    env.unwrapped = env
     host = xr_module._IsaacLabOvxrApplicationInterface(bootstrap, env, xr_module.OvLibrariesXrCfg())
     return host, bootstrap, env
 
@@ -482,7 +483,7 @@ def test_selected_camera_poses_follow_motion_and_reset_before_publication(xr_mod
         cached = -1
         fail = False
 
-        def _update_poses(self):
+        def refresh_world_poses(self):
             if self.fail:
                 raise RuntimeError("pose unavailable")
             self.cached = self.live
@@ -750,6 +751,7 @@ def test_session_delegates_lifecycle_to_isaacteleop_owner(xr_module, monkeypatch
         ),
     )
     env = SimpleNamespace(scene=SimpleNamespace(stage=None, sensors={"robot_pov_cam": object()}))
+    env.unwrapped = env
     bootstrap.lease.auxiliary_render_product_paths = ("/Render/robot_pov_cam",)
     monkeypatch.setattr(xr_module, "_StageOrdinalLedger", _FakeOrdinalLedger)
     monkeypatch.setattr(xr_module, "_declare_ovxr_runtime_prims", lambda *_args: None)

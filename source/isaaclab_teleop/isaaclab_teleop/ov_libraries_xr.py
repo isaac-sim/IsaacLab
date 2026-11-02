@@ -235,7 +235,7 @@ class _IsaacLabOvxrApplicationInterface(OvxrApplicationInterface):
         from isaaccapture.ovxr_session_manager.ovxr_session import OvxrSessionBinding
 
         self._bootstrap.claim_render_owner_transfer(capability)
-        unwrapped = getattr(self._env, "unwrapped", self._env)
+        unwrapped = self._env.unwrapped
         if self._auxiliary_cameras:
             # Fail before native Stage binding and partition export.
             sensors = unwrapped.scene.sensors
@@ -330,11 +330,11 @@ class _IsaacLabOvxrApplicationInterface(OvxrApplicationInterface):
                 raise RuntimeError("OVStage publication deduplicated before a sealed ordinal exists")
             return self._last_published_ordinal
         if self._auxiliary_cameras:
-            unwrapped = getattr(self._env, "unwrapped", self._env)
+            sensors = self._env.unwrapped.scene.sensors
             for camera in self._auxiliary_cameras:
                 # OVXR presentation bypasses Camera's image-update path. Refresh only poses
                 # after simulation/reset kinematics, before publishing the matching scene.
-                unwrapped.scene.sensors[camera.name]._update_poses()
+                sensors[camera.name].refresh_world_poses()
         snapshot = None
         seed = False
         if self._external_anchor is not None:
