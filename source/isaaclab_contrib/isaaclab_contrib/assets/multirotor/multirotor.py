@@ -270,18 +270,23 @@ class Multirotor(Articulation):
         # call parent reset
         super().reset(env_ids=env_ids, env_mask=env_mask)
 
+        # reset multirotor-specific data
+        if env_ids is None:
+            env_ids = self._ALL_INDICES
+        elif not isinstance(env_ids, (torch.Tensor, slice)):
+            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
+
         # reset thruster targets to default values
-        thrust_target, default_rps = self._data.thrust_target, self._data.default_thruster_rps
-        if thrust_target is not None and default_rps is not None:
-            # write in the form given: a mask selects rows in place, ids index them
+        if self._data.thrust_target is not None and self._data.default_thruster_rps is not None:
             if env_mask is not None:
-                torch.where(wp.to_torch(env_mask)[:, None], default_rps, thrust_target, out=thrust_target)
-            elif env_ids is None:
-                thrust_target.copy_(default_rps)
+                torch.where(
+                    wp.to_torch(env_mask)[:, None],
+                    self._data.default_thruster_rps,
+                    self._data.thrust_target,
+                    out=self._data.thrust_target,
+                )
             else:
-                if not isinstance(env_ids, (torch.Tensor, slice)):
-                    env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
-                thrust_target[env_ids] = default_rps[env_ids]
+                self._data.thrust_target[env_ids] = self._data.default_thruster_rps[env_ids]
 
     def write_data_to_sim(self):
         """Write thrust and torque commands to the simulation.
