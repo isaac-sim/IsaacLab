@@ -93,7 +93,8 @@ def test_replay_presentation_preserves_camera_layout(monkeypatch, replay_present
     assert session_config.desktop_mirror_enabled is True
     assert session_config.desktop_mirror_max_fps == 20.0
     assert [camera.max_fps for camera in session_config.auxiliary_cameras] == [15.0, 15.0]
-    assert prepare.call_args.args[2] is config.scene.left.renderer_cfg
+    # Panels copy the sensor configuration; an equal renderer configuration shares one renderer.
+    assert prepare.call_args.args[2] == config.scene.left.renderer_cfg
     expected = (
         [(-0.15, -0.2, -1.2), (0.35, -0.2, -1.2)]
         if layout_mode == "horizontal"
