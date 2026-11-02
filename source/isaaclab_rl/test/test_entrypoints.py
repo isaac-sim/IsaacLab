@@ -30,7 +30,6 @@ from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg
 
 from isaaclab_rl.entrypoints import PlaybackRequest, SimpleAgentRequest, TrainingRequest, api, dispatch, simple_agents
 from isaaclab_rl.entrypoints.backends import play_rlinf, train_rlinf
-from isaaclab_rl.entrypoints.backends.cli_args_rsl_rl import checkpoint_load_cfg
 from isaaclab_rl.entrypoints.simple_agents import create_random_action_policy, create_zero_action_policy
 
 
@@ -889,11 +888,11 @@ def test_rsl_rl_checkpoint_preserves_selected_optimizer_state(
 ) -> None:
     """Runner continuation restores models, iteration, and RND while optionally resetting the policy optimizer."""
     pytest.importorskip("rsl_rl")
-    from rsl_rl.runners import DistillationRunner, OnPolicyRunner
     from tensordict import TensorDict
 
+    from isaaclab_rl.entrypoints.backends._rsl_rl import _create_rsl_rl_runner
+
     distillation = runner_class == "DistillationRunner"
-    runner_type = DistillationRunner if distillation else OnPolicyRunner
     model_names = ("student", "teacher") if distillation else ("actor", "critic")
     obs = TensorDict({"obs": torch.ones(1, 2)}, batch_size=[1])
     env = SimpleNamespace(
@@ -915,7 +914,8 @@ def test_rsl_rl_checkpoint_preserves_selected_optimizer_state(
                 "weight": 1.0,
                 "learning_rate": learning_rate,
             }
-        return runner_type(env, cfg, device="cpu")
+        agent_cfg = SimpleNamespace(class_name=f"rsl_rl.runners:{runner_class}", device="cpu", to_dict=lambda: cfg)
+        return _create_rsl_rl_runner(env, agent_cfg)
 
     source = make_runner(3e-4)
     source.alg.get_policy()(obs).sum().backward()
@@ -927,7 +927,7 @@ def test_rsl_rl_checkpoint_preserves_selected_optimizer_state(
     checkpoint = str(tmp_path / "model.pt")
     source.save(checkpoint)
     destination = make_runner(1e-5)
-    destination.load(checkpoint, load_cfg=checkpoint_load_cfg(resume_optimizer_state, runner_class=runner_class))
+    destination.load(checkpoint, load_optimizer=resume_optimizer_state)
 
     assert destination.current_learning_iteration == source.current_learning_iteration
     if distillation:
@@ -941,3 +941,112 @@ def test_rsl_rl_checkpoint_preserves_selected_optimizer_state(
         assert not destination.alg.optimizer.state
     else:
         torch.testing.assert_close(destination_state["optimizer_state_dict"], source_state["optimizer_state_dict"])
+
+
+@pytest.mark.parametrize(
+    ("entry", "num_actions"),
+    [
+        ("isaaclab_tasks.contrib.keyboard.agents.rsl_rl_ppo_cfg:SO101PPORunnerCfg", 6),
+        ("isaaclab_tasks.contrib.multitask_manipulation.agents.rsl_rl_ppo_cfg:MultitaskManipulationPPORunnerCfg", 22),
+        ("isaaclab_tasks.core.lift.config.kuka_allegro.agents.rsl_rl_ppo_cfg:KukaAllegroSingleCameraPPORunnerCfg", 16),
+    ],
+)
+def test_custom_rsl_models_construct_from_serialized_configs(entry: str, num_actions: int) -> None:
+    """Model-specific options do not leak into existing custom constructor signatures."""
+    from rsl_rl.utils import resolve_callable
+    from tensordict import TensorDict
+
+    cfg = resolve_callable(entry)().to_dict()
+    assert "network_cfg" not in cfg["actor"] and "network_cfg" not in cfg["critic"]
+    obs = TensorDict(
+        {
+            "policy": torch.randn(4, 30),
+            "proprio": torch.randn(4, 12),
+            "perception": torch.randn(4, 5),
+            "base_image": torch.zeros(4, 3, 64, 64, dtype=torch.uint8),
+        },
+        batch_size=[4],
+    )
+    obs["policy"][:, :3] = torch.nn.functional.one_hot(torch.arange(4) % 3, 3).float()
+    cfg["multi_gpu"] = None
+    algorithm = resolve_callable(cfg["algorithm"]["class_name"]).construct_algorithm(
+        obs, SimpleNamespace(num_envs=4, num_actions=num_actions), cfg, "cpu"
+    )
+    assert algorithm.actor(obs).shape == (4, num_actions)
+    assert torch.isfinite(algorithm.critic(obs)).all()
+
+
+def test_sac_configuration_tracks_native_constructor() -> None:
+    """Typed SAC options retain native defaults and reject unknown Hydra fields."""
+    import inspect
+    from dataclasses import MISSING, fields
+
+    from rsl_rl.algorithms import SAC
+
+    from isaaclab_rl.rsl_rl import RslRlSacAlgorithmCfg
+
+    cfg = RslRlSacAlgorithmCfg()
+    parameters = inspect.signature(SAC.__init__).parameters
+    injected = {"self", "actor", "critics", "storage", "device", "multi_gpu_cfg"}
+    construction = {"class_name", "num_critics", "replay_buffer_size", "max_replay_memory_fraction"}
+    assert {field.name for field in fields(cfg)} - construction == set(parameters) - injected
+    for name, parameter in parameters.items():
+        if name not in injected and not isinstance(getattr(cfg, name), type(MISSING)):
+            assert getattr(cfg, name) == parameter.default, name
+    with pytest.raises(KeyError, match="unknown_option"):
+        cfg.from_dict({"unknown_option": True})
+
+
+def test_supermimic_configurations_track_native_constructors() -> None:
+    """Typed model and learning fields match native constructors without exposing injected dimensions."""
+    import inspect
+    from dataclasses import fields
+
+    from rsl_rl.algorithms import SuperMimic
+    from rsl_rl.models import SuperMimicActor
+    from rsl_rl.modules import WorldModel
+
+    from isaaclab_rl.rsl_rl import RslRlSuperMimicActorCfg, RslRlSuperMimicAlgorithmCfg, RslRlWorldModelCfg
+
+    cases = (
+        (
+            RslRlSuperMimicAlgorithmCfg(),
+            SuperMimic,
+            {"self", "actor", "world_model", "critic", "storage", "task", "obs_groups", "device", "multi_gpu_cfg"},
+            {"class_name", "task_cfg", "replay_buffer_size", "max_replay_memory_fraction"},
+        ),
+        (
+            RslRlSuperMimicActorCfg(),
+            SuperMimicActor,
+            {"self", "task", "obs_groups", "obs_dim", "goal_dim", "num_envs", "num_actions"},
+            {"class_name"},
+        ),
+        (
+            RslRlWorldModelCfg(),
+            WorldModel,
+            {"self", "representation", "feature_dim", "num_actions", "context_dim", "num_labels"},
+            {"class_name"},
+        ),
+    )
+    for cfg, native_class, injected, construction in cases:
+        parameters = inspect.signature(native_class.__init__).parameters
+        assert {field.name for field in fields(cfg)} - construction == set(parameters) - injected
+        for name, parameter in parameters.items():
+            if name not in injected:
+                assert getattr(cfg, name) == parameter.default, name
+        with pytest.raises(KeyError, match="unknown_option"):
+            cfg.from_dict({"unknown_option": True})
+
+
+def test_rsl_rl_configures_physical_successors_before_env_creation() -> None:
+    """Runner configs select capture on the env config and preserve the caller's explicit opt-in."""
+    from isaaclab_rl.entrypoints.backends._rsl_rl import _configure_rsl_rl_env_cfg
+    from isaaclab_rl.rsl_rl import RslRlBaseRunnerCfg, RslRlSacRunnerCfg, RslRlSuperMimicRunnerCfg
+
+    env_cfg = DirectRLEnvCfg()
+    _configure_rsl_rl_env_cfg(env_cfg, RslRlSacRunnerCfg())
+    assert env_cfg.compute_final_obs and not env_cfg.final_obs_every_step
+    _configure_rsl_rl_env_cfg(env_cfg, RslRlSuperMimicRunnerCfg())
+    assert env_cfg.final_obs_every_step
+    _configure_rsl_rl_env_cfg(env_cfg, RslRlBaseRunnerCfg())
+    assert env_cfg.final_obs_every_step
