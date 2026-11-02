@@ -446,7 +446,7 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
     # MDP settings
     terminations: TerminationsCfg = TerminationsCfg()
     observations: ObservationsCfg = ObservationsCfg()
-    image_obs_list = ["robot_pov_cam", "left_wrist_cam", "right_wrist_cam"]
+    image_obs_list: list[str] = ["robot_pov_cam", "left_wrist_cam", "right_wrist_cam"]
     actions: ActionsCfg = ActionsCfg()
 
     # Unused managers
