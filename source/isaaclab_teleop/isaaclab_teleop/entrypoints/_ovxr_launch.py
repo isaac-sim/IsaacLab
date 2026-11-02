@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import math
 import os
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 from ..xr_cfg import remove_camera_configs
@@ -171,3 +172,19 @@ def resolve_ovxr_pip_cameras(
     return resolve_ovxr_camera_configs(
         selected, layout, max_fps=args.ovxr_pip_fps, position_override=args.ovxr_pip_view_position
     )
+
+
+def reject_ovxr_runtime_conflicts(configs: Sequence[Any], kit_sources: Sequence[str]) -> None:
+    """Reject validated launch components that conflict with an OVXR-owned frame loop.
+
+    Args:
+        configs: Runtime configurations returned by :func:`~isaaclab.app.validate_launch`.
+        kit_sources: Components that :func:`~isaaclab.app.validate_launch` found to require Kit.
+
+    Raises:
+        ValueError: If a component requires Kit or a local visualizer is configured.
+    """
+    from isaaclab.visualizers import VisualizerBackendCfg
+
+    if kit_sources or any(isinstance(cfg, VisualizerBackendCfg) for cfg in configs):
+        raise ValueError("--ovxr requires no Kit runtime or local visualizer")

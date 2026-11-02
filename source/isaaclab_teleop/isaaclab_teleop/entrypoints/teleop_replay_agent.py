@@ -309,6 +309,7 @@ from ..action_policy import initial_hand_tracking_issue, prepare_teleop_action
 from ._ovxr_launch import (
     add_ovxr_presentation_args,
     prepare_ovxr_launch,
+    reject_ovxr_runtime_conflicts,
     resolve_ovxr_pip_cameras,
     validate_ovxr_presentation_args,
 )
@@ -1161,10 +1162,7 @@ def _prepare_env_cfg(
     # A task without a physics selection keeps None: SimulationContext defaults it to PhysxCfg.
     configs, kit_sources = validate_launch(env_cfg, vars(args_cli).copy())
     if args_cli.ovxr:
-        from isaaclab.visualizers import VisualizerBackendCfg
-
-        if kit_sources or any(isinstance(cfg, VisualizerBackendCfg) for cfg in configs):
-            raise ValueError("--ovxr requires no Kit runtime or local visualizer")
+        reject_ovxr_runtime_conflicts(configs, kit_sources)
     if env_cfg.isaac_teleop is not None and env_cfg.isaac_teleop.prepare_environment is not None:
         env_cfg.isaac_teleop.prepare_environment(env_cfg)
     return env_cfg, success_term, selected_cameras
@@ -1177,7 +1175,7 @@ def _replay_requires_hard_sim_reset(physics_backend: str | None) -> bool:
     return physics_backend is None or not physics_backend.startswith("newton")
 
 
-def _reset_replay_environment(env: object, *, hard_sim_reset: bool, reset_recorder: bool) -> None:
+def _reset_replay_environment(env: gym.Env, *, hard_sim_reset: bool, reset_recorder: bool) -> None:
     """Reset replay-owned environment state in backend-safe order."""
     if hard_sim_reset:
         env.sim.reset()
@@ -1248,7 +1246,7 @@ Used only when Kit is active.
 class _ReplayPresentation:
     """Own a batch's viewer independently of each recorded-input session."""
 
-    def __init__(self, env_cfg, selected_cameras: tuple[OvLibrariesXrCameraCfg, ...]):
+    def __init__(self, env_cfg: ManagerBasedRLEnvCfg, selected_cameras: tuple[OvLibrariesXrCameraCfg, ...]) -> None:
         from isaaclab_ov.renderers import OVRTXRendererCfg
 
         from .. import OvLibrariesXrCfg, OvLibrariesXrSession
@@ -1267,13 +1265,13 @@ class _ReplayPresentation:
             selected_cameras[0].camera_cfg.renderer_cfg if selected_cameras else OVRTXRendererCfg(),
         )
         self.xr_cfg = env_cfg.isaac_teleop.xr_cfg
-        self.device = None
+        self.device: IsaacTeleopDevice | None = None
         self.started = False
         self.reset_generation = 0
-        self.pending = None
+        self.pending: tuple[int, int] | None = None
         self.force = False
 
-    def start(self, env, device):
+    def start(self, env: gym.Env, device: IsaacTeleopDevice) -> None:
         if not self.started:
             if not self.session.start_render_worker(
                 env,
@@ -1288,7 +1286,7 @@ class _ReplayPresentation:
             self.session.set_external_anchor_state(device.external_anchor_state)
         self.publish(env, changed=True, reset=True)
 
-    def publish(self, env, *, changed=False, reset=False):
+    def publish(self, env: gym.Env, *, changed: bool = False, reset: bool = False) -> None:
         if reset:
             self.reset_generation += 1
             self.force = True
@@ -1299,7 +1297,7 @@ class _ReplayPresentation:
             self.force = False
         self.session.report_host_timing(env.sim.get_physics_step_count(), env.sim.get_physics_dt())
 
-    def close(self):
+    def close(self) -> None:
         if self.device is not None and self.device.session_cleanup_failed:
             error = RuntimeError("Replay input did not drain; retaining its borrowed environment")
             try:
@@ -1310,7 +1308,7 @@ class _ReplayPresentation:
         self.session.close()
 
 
-def _warmup_replay(env, run_index: int, presentation) -> None:
+def _warmup_replay(env: gym.Env, run_index: int, presentation: _ReplayPresentation | None) -> None:
     """Wait for Kit assets or pump the independently owned viewer before input."""
     # Deterministic warmup is only required on the first run -- once the
     # stage has been streamed in and the renderer settled, subsequent
@@ -1346,7 +1344,7 @@ def _warmup_replay(env, run_index: int, presentation) -> None:
                     time.sleep(0.01)
 
 
-def _advance_replay_input(device, presentation):
+def _advance_replay_input(device: IsaacTeleopDevice, presentation: _ReplayPresentation | None) -> torch.Tensor | None:
     """Read recorded input using the viewer owner's target transform when needed."""
     target_path = device.target_frame_prim_path if presentation is not None else None
     if target_path is None:
@@ -1354,7 +1352,7 @@ def _advance_replay_input(device, presentation):
     return device.advance(target_T_world=presentation.session.get_target_frame_T_world(target_path))
 
 
-def _render_replay_idle(env, presentation) -> None:
+def _render_replay_idle(env: gym.Env, presentation: _ReplayPresentation | None) -> None:
     """Keep the selected presentation responsive without advancing physics."""
     if presentation is None:
         env.sim.render()

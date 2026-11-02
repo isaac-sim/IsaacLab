@@ -22,11 +22,19 @@ def prepare_teleop_action(
     validator: Callable[[Any], str | None] | None,
     state: dict[str, Any],
 ) -> tuple[Any, str | None]:
-    """Validate and condition one task-owned action without stepping physics."""
+    """Validate and condition one task-owned action without stepping physics.
+
+    The conditioner runs on a copy of ``state``, which is committed only when
+    the conditioned action also passes validation.
+    """
     issue = validator(action) if validator is not None else None
     if issue is None and conditioner is not None:
-        action = conditioner(env, action, state)
+        candidate = dict(state)
+        action = conditioner(env, action, candidate)
         issue = validator(action) if validator is not None else None
+        if issue is None:
+            state.clear()
+            state.update(candidate)
     return action, issue
 
 

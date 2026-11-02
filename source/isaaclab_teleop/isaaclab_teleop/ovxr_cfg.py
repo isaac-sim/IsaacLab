@@ -15,6 +15,8 @@ import math
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
+from isaaclab.utils import configclass
+
 if TYPE_CHECKING:
     from isaaclab.sensors import CameraCfg
 
@@ -62,9 +64,9 @@ class OvLibrariesXrCameraCfg:
             raise ValueError("camera panel space must be 'head_locked'")
 
 
-@dataclass
+@configclass
 class OvLibrariesXrCfg:
-    """Isaac Lab configuration for an IsaacTeleop-owned OVXR session."""
+    """Isaac Lab configuration for an Isaac Capture-owned OVXR session."""
 
     application_name: str = "isaaclab-kitless-teleop"
     """Application identifier passed to the OpenXR runtime."""
