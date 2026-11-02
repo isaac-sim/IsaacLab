@@ -1309,65 +1309,43 @@ def test_state_force_callback_runs_before_every_solver_substep(use_single_state)
         ]
 
 
-@pytest.fixture
-def two_world_builder() -> ModelBuilder:
-    """Build two independent, undamped revolute joints moving at constant velocity."""
-    world = ModelBuilder(gravity=(0.0, 0.0, 0.0))
-    body = world.add_link(mass=1.0, inertia=wp.mat33(np.eye(3)))
-    joint = world.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
-    world.add_articulation([joint])
-    world.joint_qd[0] = 0.125
+@pytest.mark.parametrize("device", test_devices())
+def test_mjwarp_authored_reset_imports_only_selected_worlds(device):
+    """Authored state reaches MuJoCo for selected worlds, including during CUDA graph replay."""
     builder = ModelBuilder(gravity=(0.0, 0.0, 0.0))
-    builder.add_world(world)
-    builder.add_world(world)
-    return builder
-
-
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_mjwarp_authored_reset_survives_sparse_state_import(two_world_builder, device):
-    """Off-cadence graph replay preserves authored resets and the unselected world's motion."""
-    model = two_world_builder.finalize(device=device)
-    solver_cfg = MJWarpSolverCfg(update_data_interval=2, njmax=5, nconmax=5)
-    solver = MJWarpSolver.build(solver_cfg, model, wp.DeterministicMode.NOT_GUARANTEED)
-    state, control = model.state(), model.control()
-    world_mask = wp.array([True, False, False], dtype=wp.bool, device=device)
-    dt = 1.0 / 120.0
-
-    def advance() -> None:
-        MJWarpSolver.reset(solver_cfg, solver, state, world_mask)
-        solver.step(state, state, control, None, dt)
-
-    advance()  # Warm the kernels and put graph capture off the periodic import cadence.
-    with wp.ScopedCapture(device=device) as capture:
-        advance()
-
-    other_position = 0.125 * dt
-    for position, velocity in ((0.25, 0.5), (-0.25, -0.5)):
-        # Only world 0 is committed: an unmasked import would also overwrite world 1.
-        state.joint_q.fill_(position)
-        state.joint_qd.fill_(velocity)
-        wp.capture_launch(capture.graph)
-        other_position += 0.125 * dt
-        np.testing.assert_allclose(state.joint_q.numpy(), [position + velocity * dt, other_position], atol=1e-6)
-        np.testing.assert_allclose(state.joint_qd.numpy(), [velocity, 0.125], atol=1e-6)
-
-
-def test_mujoco_cpu_authored_reset_only_updates_selected_template_world(two_world_builder):
-    """Native MuJoCo's single MjData preserves history unless template world 0 is reset."""
-    model = two_world_builder.finalize(device="cpu")
-    solver_cfg = MJWarpSolverCfg(use_mujoco_cpu=True, update_data_interval=2)
-    solver = SolverMuJoCo(model, use_mujoco_cpu=True, separate_worlds=True, update_data_interval=2)
+    for _ in range(2):
+        builder.begin_world()
+        body = builder.add_link(mass=1.0, inertia=wp.mat33(np.eye(3)))
+        joint = builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
+        builder.add_articulation([joint])
+        builder.end_world()
+    model = builder.finalize(device=device)
+    cfg = MJWarpSolverCfg(use_mujoco_cpu=device == "cpu", update_data_interval=2)
+    solver = SolverMuJoCo(model, use_mujoco_cpu=cfg.use_mujoco_cpu, separate_worlds=True, update_data_interval=2)
     state = model.state()
-    state.joint_q.fill_(0.25)
-    state.joint_qd.fill_(0.5)
-    data = solver.mj_data
-    data.qpos[:] = 1.25
-    data.qvel[:] = -0.75
-    data.qacc_warmstart[:] = 13.0
-    for reset_world, expected in ((1, (1.25, -0.75, 13.0)), (0, (0.25, 0.5, 0.0))):
-        world_mask = wp.array(np.arange(model.world_count + 1) == reset_world, dtype=wp.bool, device="cpu")
-        MJWarpSolver.reset(solver_cfg, solver, state, world_mask)
-        np.testing.assert_allclose([data.qpos.item(), data.qvel.item(), data.qacc_warmstart.item()], expected)
+    world_mask = wp.zeros(3, dtype=wp.bool, device=device)
+    data = solver.mj_data if cfg.use_mujoco_cpu else solver.mjw_data
+    # Zero-copy views give native NumPy and Warp buffers the same fill/read interface.
+    qpos = wp.array(data.qpos, copy=False, device=device)
+    qvel = wp.array(data.qvel, copy=False, device=device)
+    qpos.fill_(1.25)
+    qvel.fill_(-0.75)
+    reset = P(MJWarpSolver.reset, cfg, solver, state, world_mask)
+    reset()  # Warm the reset kernels with an empty mask before capture.
+    if not cfg.use_mujoco_cpu:
+        with wp.ScopedCapture(device=device) as capture:
+            reset()
+        reset = P(wp.capture_launch, capture.graph)
+
+    count = 1 if cfg.use_mujoco_cpu else 2  # Native MuJoCo exposes only template world 0.
+    for world, expected_q, expected_qd in ((1, [1.25, 0.25], [-0.75, 0.5]), (0, [-0.25, 0.25], [-0.5, 0.5])):
+        state.joint_q.fill_(expected_q[world])
+        state.joint_qd.fill_(expected_qd[world])
+        world_mask.zero_()
+        world_mask[world : world + 1].fill_(True)
+        reset()
+        np.testing.assert_allclose(qpos.numpy().ravel(), expected_q[:count])
+        np.testing.assert_allclose(qvel.numpy().ravel(), expected_qd[:count])
 
 
 def test_decimation_loop_orders_callbacks_and_ends_each_physics_step_in_state_0():
