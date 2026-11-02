@@ -7,7 +7,7 @@
 
 """Tests for hand joint debug visualization plumbing.
 
-Covers :meth:`TeleopSessionLifecycle._chain_hand_presence_outputs` (HandsSource
+Covers :meth:`TeleopSessionLifecycle._chain_hand_debug_outputs` (HandsSource
 auto-discovery),
 :func:`~isaaclab_teleop.visualizers.hand_joint_visualizer._extract_world_joint_positions`,
 and :func:`~isaaclab_teleop.visualizers.controller_aim_visualizer._aim_world_pose`
@@ -192,9 +192,8 @@ class _FakeLeaf:
 class _FakePipeline:
     """Stand-in for a user pipeline (leaf nodes + action output)."""
 
-    def __init__(self, leaves: list, outputs: tuple[str, ...] = ()) -> None:
+    def __init__(self, leaves: list) -> None:
         self._leaves = leaves
-        self._outputs = outputs
 
     def get_leaf_nodes(self) -> list:
         return self._leaves
@@ -203,7 +202,7 @@ class _FakePipeline:
         return f"selector:user_pipeline:{key}"
 
     def output_types(self) -> dict:
-        return dict.fromkeys(("action", *self._outputs), object())
+        return {"action": None}
 
 
 class _FakeTensorGroup:
@@ -219,35 +218,16 @@ class _FakeTensorGroup:
 
 
 # ===========================================================================
-# _chain_hand_presence_outputs: HandsSource auto-discovery
+# _chain_hand_debug_outputs: HandsSource auto-discovery
 # ===========================================================================
 
 
 class TestChainHandDebugOutputs:
-    def test_chains_when_hands_source_present(self):
-        pipeline = _FakePipeline([_FakeLeaf("controllers"), _FakeHandsSource("hands")])
-        mapping: dict = {}
-        TeleopSessionLifecycle._chain_hand_presence_outputs(pipeline, mapping)
-        assert mapping[TeleopSessionLifecycle.HAND_LEFT_KEY] == "selector:hands:hand_left"
-        assert mapping[TeleopSessionLifecycle.HAND_RIGHT_KEY] == "selector:hands:hand_right"
-
     def test_mapping_untouched_without_hands_source(self):
         pipeline = _FakePipeline([_FakeLeaf("controllers"), _FakeLeaf("head")])
         mapping: dict = {"action": "selector:user_pipeline:action"}
-        TeleopSessionLifecycle._chain_hand_presence_outputs(pipeline, mapping)
+        TeleopSessionLifecycle._chain_hand_debug_outputs(pipeline, mapping)
         assert mapping == {"action": "selector:user_pipeline:action"}
-
-    def test_explicit_filtered_hand_outputs_take_precedence_over_raw_source(self):
-        pipeline = _FakePipeline(
-            [_FakeHandsSource("hands")],
-            outputs=(TeleopSessionLifecycle.HAND_LEFT_KEY, TeleopSessionLifecycle.HAND_RIGHT_KEY),
-        )
-        mapping: dict = {}
-        TeleopSessionLifecycle._chain_hand_presence_outputs(pipeline, mapping)
-        assert mapping == {
-            TeleopSessionLifecycle.HAND_LEFT_KEY: "selector:user_pipeline:hand_left",
-            TeleopSessionLifecycle.HAND_RIGHT_KEY: "selector:user_pipeline:hand_right",
-        }
 
 
 # ===========================================================================
@@ -271,10 +251,10 @@ class TestStartChaining:
         assert lifecycle.pipeline.output_mapping[TeleopSessionLifecycle.HAND_RIGHT_KEY] == "selector:hands:hand_right"
         assert TeleopSessionLifecycle._CONTROLLER_LEFT_KEY in lifecycle.pipeline.output_mapping
 
-    def test_start_chains_hand_presence_but_not_left_controller_when_disabled(self):
+    def test_start_does_not_chain_when_disabled(self):
         lifecycle = self._start(enable_debug_visualization=False)
-        assert TeleopSessionLifecycle.HAND_LEFT_KEY in lifecycle.pipeline.output_mapping
-        assert TeleopSessionLifecycle.HAND_RIGHT_KEY in lifecycle.pipeline.output_mapping
+        assert TeleopSessionLifecycle.HAND_LEFT_KEY not in lifecycle.pipeline.output_mapping
+        assert TeleopSessionLifecycle.HAND_RIGHT_KEY not in lifecycle.pipeline.output_mapping
         assert TeleopSessionLifecycle._CONTROLLER_LEFT_KEY not in lifecycle.pipeline.output_mapping
         # The right controller is always chained for button polling.
         assert TeleopSessionLifecycle._CONTROLLER_RIGHT_KEY in lifecycle.pipeline.output_mapping

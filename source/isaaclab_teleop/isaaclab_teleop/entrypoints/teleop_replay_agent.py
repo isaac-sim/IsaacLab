@@ -154,8 +154,6 @@ Stats output:
               "run_index": 0,
               "outcome": "success",
               "active_iterations": 322,
-              "rejected_action_frames": 0,
-              "last_action_rejection": null,
               "active_duration_s": 21.503,
               "success_step_count": 1,
               "cpu_frame_time_ms": {  # per-render ms (wall time between sim.render calls)
@@ -299,7 +297,6 @@ from .. import (
     create_isaac_teleop_device,
     poll_control_events,
 )
-from ..action_policy import initial_hand_tracking_issue, prepare_teleop_action
 from ._ovxr_launch import prepare_ovxr_launch
 
 logger = logging.getLogger(__name__)
@@ -513,8 +510,6 @@ class _RunStats:
     outcome: str = "incomplete"  # "success" | "failure" | "incomplete" | "timeout"
     active_frame_times_ms: list[float] = field(default_factory=list)
     active_iterations: int = 0
-    rejected_action_frames: int = 0
-    last_action_rejection: str | None = None
     active_render_calls: int = 0
     active_duration_s: float = 0.0
     success_step_count: int = 0  # final consecutive-success counter at terminator
@@ -528,8 +523,6 @@ class _RunStats:
             "run_index": run_index,
             "outcome": self.outcome,
             "active_iterations": self.active_iterations,
-            "rejected_action_frames": self.rejected_action_frames,
-            "last_action_rejection": self.last_action_rejection,
             "active_duration_s": round(self.active_duration_s, 6),
             "success_step_count": self.success_step_count,
             "cpu_frame_time_ms": _compute_frame_stats(self.active_frame_times_ms),
@@ -1094,11 +1087,9 @@ def _prepare_env_cfg(
       returned ``terminated``/``truncated`` tensors and ends the run with a
       ``failure`` outcome, since the recorded trajectory did not reproduce.
 
-    It also checks the launch before any runtime starts and runs the task's
-    :attr:`~isaaclab_teleop.IsaacTeleopCfg.prepare_environment` hook, which may
-    modify the returned configuration. With ``--ovxr`` it also removes camera
-    sensors and rejects a launch that needs more than one environment, a stage
-    path other than OVStage, Kit or a local visualizer.
+    It also checks the launch before any runtime starts. With ``--ovxr`` it also
+    removes camera sensors and rejects a launch that needs more than one
+    environment, a stage path other than OVStage, Kit or a local visualizer.
 
     Args:
         task: Registered task name to load the env config for.
@@ -1140,8 +1131,6 @@ def _prepare_env_cfg(
 
         if kit_sources or any(isinstance(cfg, VisualizerBackendCfg) for cfg in configs):
             raise ValueError("--ovxr requires no Kit runtime or local visualizer")
-    if env_cfg.isaac_teleop is not None and env_cfg.isaac_teleop.prepare_environment is not None:
-        env_cfg.isaac_teleop.prepare_environment(env_cfg)
     return env_cfg, success_term
 
 
@@ -1456,8 +1445,6 @@ def _run_single_replay(
             f"Replay {run_index + 1}/{total_runs} started; replaying MCAP from {args_cli.replay_file}"
             f" (max_replay_duration_s={args_cli.max_replay_duration_s:.1f})."
         )
-        action_state: dict = {}
-        initialized_hand_tracking: set[str] = set()
         teleop_active = False
         teleop_was_active = False  # only terminate on STOP after a real START
         success_step_count = 0
@@ -1526,8 +1513,6 @@ def _run_single_replay(
                         break
 
                     if ctrl.should_reset:
-                        action_state.clear()
-                        initialized_hand_tracking.clear()
                         _handle_reset(
                             env,
                             teleop_interface,
@@ -1544,28 +1529,7 @@ def _run_single_replay(
                     # teleop_se3_agent.py:309-328). Pre-START operator
                     # setup frames render only; the recorded START flips
                     # us into the stepping branch.
-                    if not teleop_active:
-                        action_state.clear()
                     if action is None or not teleop_active:
-                        _render_replay_idle(env, presentation)
-                        continue
-
-                    issue = initial_hand_tracking_issue(
-                        teleop_interface,
-                        initialized_hand_tracking,
-                        required=isaac_teleop_cfg.require_initial_bimanual_hand_tracking,
-                    )
-                    if issue is None:
-                        action, issue = prepare_teleop_action(
-                            env,
-                            action,
-                            isaac_teleop_cfg.action_conditioner,
-                            isaac_teleop_cfg.action_validator,
-                            action_state,
-                        )
-                    if issue is not None:
-                        stats.rejected_action_frames += 1
-                        stats.last_action_rejection = issue
                         _render_replay_idle(env, presentation)
                         continue
 

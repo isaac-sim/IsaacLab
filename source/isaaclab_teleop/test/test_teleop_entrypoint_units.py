@@ -29,9 +29,8 @@ ROOT = Path(__file__).resolve().parents[3]
         (False, None, None, False),
     ],
 )
-@pytest.mark.parametrize("with_preparation", [False, True])
 def test_teleop_ovxr_validates_external_stage_without_changing_environment(
-    monkeypatch, kitless, selection, expected, reject, with_preparation
+    monkeypatch, kitless, selection, expected, reject
 ):
     """The task resolver preserves the process setting and rejects incompatible explicit modes before launch."""
     from types import SimpleNamespace
@@ -54,16 +53,13 @@ def test_teleop_ovxr_validates_external_stage_without_changing_environment(
         monkeypatch.delenv(name, raising=False)
     else:
         monkeypatch.setenv(name, selection)
-    preparations = []
     from isaaclab_ov.physics import OvPhysxCfg
 
     config = SimpleNamespace(
         sim=SimpleNamespace(device="cpu", physics=OvPhysxCfg()),
         scene=SimpleNamespace(num_envs=1),
         terminations=SimpleNamespace(time_out=1),
-        isaac_teleop=IsaacTeleopCfg(
-            prepare_environment=(lambda selected: preparations.append(selected)) if with_preparation else None,
-        ),
+        isaac_teleop=IsaacTeleopCfg(),
     )
     scans = []
     from isaaclab_teleop.entrypoints import teleop_se3_agent as agent
@@ -104,8 +100,6 @@ def test_teleop_ovxr_validates_external_stage_without_changing_environment(
         assert scans == [expected]
     assert os.environ.get(name) == expected
 
-    assert preparations == ([config] if with_preparation and not reject else [])
-
 
 @pytest.fixture
 def run_live_workflow(monkeypatch):
@@ -118,7 +112,7 @@ def run_live_workflow(monkeypatch):
     import isaaclab_teleop
     from isaaclab_teleop.entrypoints import teleop_se3_agent as agent
 
-    def run(env, interface, session, *, conditioner=None, validator=None, step_hz=0.0, refresh=lambda: None):
+    def run(env, interface, session, *, step_hz=0.0, refresh=lambda: None):
         class Device:
             target_frame_prim_path = None
             xr_anchor_path = None
@@ -153,10 +147,7 @@ def run_live_workflow(monkeypatch):
         env.sim.visualizers = ()
         cfg = SimpleNamespace(
             sim=object(),
-            isaac_teleop=isaaclab_teleop.IsaacTeleopCfg(
-                action_conditioner=conditioner,
-                action_validator=validator,
-            ),
+            isaac_teleop=isaaclab_teleop.IsaacTeleopCfg(),
         )
         monkeypatch.setattr(
             agent,
@@ -215,8 +206,6 @@ def test_kitless_loop_respects_control_rate_and_processes_reset(
     refreshes = []
     publications = []
     applied = []
-    seeded_from = []
-    stepped_values = []
     sequence = active is None
     anchor_ready = False
 
@@ -242,15 +231,8 @@ def test_kitless_loop_respects_control_rate_and_processes_reset(
         clock += 0.003  # Caller work consumes part of the independent 20ms action budget.
         return torch.ones((1, 36)) if active or (sequence and advances != 4) else None
 
-    def step(value):
+    def step(_value):
         applied.append(clock)
-        stepped_values.append(value.clone())
-
-    def condition(_env, value, state):
-        previous = state.get("frames", 0)
-        seeded_from.append(previous)
-        state["frames"] = previous + 1
-        return value + previous + 2
 
     sim = SimpleNamespace(
         is_running=lambda: clock < (0.199 if sequence else 0.119),
@@ -274,8 +256,6 @@ def test_kitless_loop_respects_control_rate_and_processes_reset(
             wait_for_shutdown=sleep,
             request_render=request,
         ),
-        conditioner=condition,
-        validator=lambda value: None,
         step_hz=step_hz,
         refresh=lambda: refreshes.append(clock),
     )
@@ -289,16 +269,6 @@ def test_kitless_loop_respects_control_rate_and_processes_reset(
     assert len(refreshes) == 1
     assert len(publications) == (4 if sequence else advances + 1 if active else 2)
     assert publications[-1][1] == {"force": True}
-
-    if sequence:
-        # Both STOP branches clear an established ramp before the next accepted action.
-        assert seeded_from == [0, 0, 0]
-        for value in stepped_values:
-            torch.testing.assert_close(value, torch.full((1, 36), 3.0))
-    elif active:
-        assert seeded_from == [0, 1, 2]
-        for index, value in enumerate(stepped_values):
-            torch.testing.assert_close(value, torch.full((1, 36), 3.0 + index))
 
 
 def test_paused_loop_retries_the_latest_unaccepted_publication(monkeypatch, run_live_workflow):
@@ -379,14 +349,11 @@ def test_teleop_replay_agent_resolves_typed_presets_without_reapplying_physics(m
     monkeypatch.setattr(replay, "hydra_overrides", None, raising=False)
     namespace = vars(replay)
     replay._parse_args()
-    prepared_configs = []
     physics = OvPhysxCfg()
     cfg = SimpleNamespace(
         sim=SimulationCfg(physics=physics),
         scene=SimpleNamespace(num_envs=1),
-        isaac_teleop=isaaclab_teleop.IsaacTeleopCfg(
-            prepare_environment=lambda selected: prepared_configs.append(selected)
-        ),
+        isaac_teleop=isaaclab_teleop.IsaacTeleopCfg(),
         terminations=SimpleNamespace(
             success=TerminationTermCfg(func=lambda env: False),
             time_out=TerminationTermCfg(func=lambda env: False),
@@ -406,7 +373,6 @@ def test_teleop_replay_agent_resolves_typed_presets_without_reapplying_physics(m
         with pytest.raises(ValueError, match="Invalid backend combination"):
             namespace["_prepare_env_cfg"]("test-task", 1, None, overrides=namespace["hydra_overrides"])
         assert resolutions == [("test-task", None, ["physics=ovphysx"])]
-        assert not prepared_configs
         return
     prepared, success = namespace["_prepare_env_cfg"]("test-task", 1, None, overrides=namespace["hydra_overrides"])
     assert resolutions == [("test-task", None, ["physics=ovphysx"])]
@@ -419,7 +385,6 @@ def test_teleop_replay_agent_resolves_typed_presets_without_reapplying_physics(m
     )
     assert legacy_args.start_on_replay
     assert not hasattr(namespace["args_cli"], "physics")
-    assert prepared_configs == [cfg]
     assert "ISAAC_LAB_OVRTX_USE_OVSTAGE" not in os.environ
 
 
@@ -581,30 +546,6 @@ def test_teleop_launcher_preserves_the_resolved_physics_configuration(monkeypatc
     assert physics_cfg.solver_cfg.njmax == 1536
 
 
-def test_task_action_hook_validates_before_and_after_conditioning(monkeypatch):
-    agent = _load_teleop_agent(monkeypatch)
-    calls = []
-
-    def validate(action):
-        calls.append(("validate", action))
-        return "rejected" if action == 3 else None
-
-    def condition(env, action, state):
-        calls.append(("condition", env, action, state))
-        state["seen"] = True
-        return action + 1
-
-    state = {}
-    action, issue = agent.prepare_teleop_action("env", 1, condition, validate, state)
-    assert (action, issue, state) == (2, None, {"seen": True})
-    assert [call[0] for call in calls] == ["validate", "condition", "validate"]
-
-    calls.clear()
-    action, issue = agent.prepare_teleop_action("env", 3, condition, validate, state)
-    assert (action, issue) == (3, "rejected")
-    assert [call[0] for call in calls] == ["validate"]
-
-
 def test_teleop_agent_installs_late_graceful_shutdown_handlers(monkeypatch):
     agent = _load_teleop_agent(monkeypatch)
     requests = []
@@ -629,180 +570,6 @@ def test_teleop_agent_installs_late_graceful_shutdown_handlers(monkeypatch):
     monkeypatch.setattr(agent.signal, "signal", lambda signum, handler: restored.update({signum: handler}))
     agent._restore_ovxr_shutdown_handlers(previous)
     assert restored == previous
-
-
-@pytest.mark.parametrize(
-    ("left_active", "right_active", "expected"),
-    (
-        (False, True, "waiting for initial left hand tracking"),
-        (True, False, "waiting for initial right hand tracking"),
-    ),
-)
-def test_kitless_hand_guard_requires_each_hand_once_then_allows_held_dropout(
-    monkeypatch, left_active, right_active, expected
-):
-    agent = _load_teleop_agent(monkeypatch)
-
-    class OptionalHand:
-        def __init__(self, active):
-            self.is_none = not active
-
-    lifecycle = SimpleNamespace(
-        HAND_LEFT_KEY="hand_left",
-        HAND_RIGHT_KEY="hand_right",
-        last_step_result={
-            "hand_left": OptionalHand(left_active),
-            "hand_right": OptionalHand(right_active),
-        },
-    )
-    from isaaclab_teleop import IsaacTeleopDevice
-
-    interface = IsaacTeleopDevice.__new__(IsaacTeleopDevice)
-    interface._session_lifecycle = lifecycle
-    initialized = set()
-
-    assert agent._required_hand_tracking_issue(interface, initialized) == expected
-    lifecycle.last_step_result = {"hand_left": OptionalHand(True), "hand_right": OptionalHand(True)}
-    # Numeric zero is not a sentinel: a present, valid fully-open hand frame is accepted.
-    assert agent._required_hand_tracking_issue(interface, initialized) is None
-    assert initialized == {"left", "right"}
-
-    lifecycle.last_step_result = {"hand_left": OptionalHand(False), "hand_right": OptionalHand(False)}
-    assert agent._required_hand_tracking_issue(interface, initialized) is None
-
-    initialized.clear()
-    assert agent._required_hand_tracking_issue(interface, initialized) == (
-        "waiting for initial left/right hand tracking"
-    )
-
-
-def test_kitless_hand_guard_renders_without_step_and_next_valid_frame_resumes(monkeypatch):
-    agent = _load_teleop_agent(monkeypatch)
-
-    class Sim:
-        def __init__(self):
-            self.render_count = 0
-
-        def render(self):
-            self.render_count += 1
-
-    class Env:
-        def __init__(self):
-            self.num_envs = 1
-            self.sim = Sim()
-            self.actions = []
-
-        def step(self, action):
-            self.actions.append(action.clone())
-
-    env = Env()
-    haptics = {"update": 0, "stop": 0}
-
-    class HapticDriver:
-        def update(self):
-            haptics["update"] += 1
-
-        def stop(self):
-            haptics["stop"] += 1
-
-    driver = HapticDriver()
-    valid = torch.arange(36, dtype=torch.float32)
-
-    assert agent._apply_teleop_frame(env, valid, None, driver)
-    assert not agent._apply_teleop_frame(env, torch.zeros_like(valid), "missing left hand tracking", driver)
-    assert agent._apply_teleop_frame(env, valid, None, driver)
-
-    assert env.sim.render_count == 1
-    assert len(env.actions) == 2
-    torch.testing.assert_close(env.actions[0], env.actions[1])
-    assert haptics == {"update": 2, "stop": 1}
-
-
-@pytest.mark.parametrize("entrypoint", ["live", "replay"])
-def test_task_preparation_precedes_ovxr_simulation_context(monkeypatch, entrypoint):
-    """Both actual workflows finalize the selected config before OVXR allocates its context."""
-    pytest.importorskip("ovrtx")
-    pytest.importorskip("isaaccapture.ovxr_session_manager")
-    from contextlib import contextmanager
-
-    import isaaclab_teleop
-    from isaaclab_ov.physics import OvPhysxCfg
-    from isaaclab_teleop import ovxr_session
-    from isaaclab_teleop.entrypoints import teleop_replay_agent, teleop_se3_agent
-
-    from isaaclab.sim import SimulationCfg, SimulationContext
-
-    from isaaclab_tasks.utils import parse_cfg
-
-    calls = []
-
-    def prepare_environment(selected_cfg):
-        assert selected_cfg is config
-        calls.append("prepare")
-        selected_cfg.sim.dt = 0.007
-
-    config = SimpleNamespace(
-        sim=SimulationCfg(physics=OvPhysxCfg()),
-        scene=SimpleNamespace(num_envs=1),
-        terminations=SimpleNamespace(success=None, time_out=None),
-        isaac_teleop=isaaclab_teleop.IsaacTeleopCfg(prepare_environment=prepare_environment),
-    )
-
-    class ContextReached(RuntimeError):
-        pass
-
-    class ContextAllocation:
-        def __init__(self, sim_cfg):
-            assert sim_cfg is config.sim
-            assert sim_cfg.dt == 0.007
-            assert calls == ["prepare", "launch"]
-            calls.append("context")
-            raise ContextReached
-
-        @staticmethod
-        def instance():
-            return None
-
-    @contextmanager
-    def launch(selected_cfg, _args, *, cleanup_context):
-        assert selected_cfg is config
-        assert not cleanup_context
-        calls.append("launch")
-        yield
-
-    def validate_launch(selected_cfg, _args):
-        assert selected_cfg is config
-        return (), ()
-
-    module = teleop_se3_agent if entrypoint == "live" else teleop_replay_agent
-    monkeypatch.setattr(sys, "argv", ["teleop-test"])
-    monkeypatch.setattr(module, "args_cli", None, raising=False)
-    monkeypatch.setattr(module, "ManagerBasedRLEnvCfg", SimpleNamespace)
-    resolver_owner = teleop_se3_agent if entrypoint == "live" else parse_cfg
-    monkeypatch.setattr(resolver_owner, "resolve_task_config", lambda *_args, **_kwargs: (config, None))
-    monkeypatch.setattr(module, "validate_launch", validate_launch)
-    monkeypatch.setattr(module, "launch_simulation", launch)
-    monkeypatch.setattr(SimulationContext, "instance", lambda: None)
-    monkeypatch.setattr(ovxr_session, "SimulationContext", ContextAllocation)
-    monkeypatch.setitem(sys.modules, "ovxr", SimpleNamespace(apply_renderer_settings=lambda _settings: None))
-    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1")
-    monkeypatch.delenv("ISAAC_LAB_SHARE_OVSTAGE", raising=False)
-    arguments = ["--task", "Test", "--ovxr", "--cloudxr_env", "none"]
-    if entrypoint == "live":
-        monkeypatch.setattr(module, "has_kit", lambda: False)
-        monkeypatch.setattr(
-            isaaclab_teleop.XrCameraFeedSession,
-            "prepare",
-            lambda *_args, **_kwargs: SimpleNamespace(close=lambda: None),
-        )
-    else:
-        monkeypatch.setattr(module, "hydra_overrides", None, raising=False)
-        arguments += ["--replay_file", "recording.mcap"]
-    module._parse_args(arguments)
-
-    with pytest.raises(ContextReached):
-        module.main()
-    assert calls == ["prepare", "launch", "context"]
 
 
 _UNSET_PHYSICS_TASK = "IsaacContrib-PickPlace-GR1T2-Abs"
@@ -863,51 +630,3 @@ def test_replay_unset_task_physics_keeps_simulation_default_or_rejects_ovxr(monk
     env_cfg, _success = replay._prepare_env_cfg(_UNSET_PHYSICS_TASK, 1, None, overrides=replay.hydra_overrides)
     assert env_cfg.sim.physics is None
     assert replay.args_cli.require_kit
-
-
-def test_rejected_ovxr_frame_does_not_render_on_the_control_thread(monkeypatch, run_live_workflow):
-    """OVXR owns rendering, so a rejected frame holds the scene without a control-thread render or step."""
-    from isaaclab_teleop.entrypoints import teleop_se3_agent as agent
-
-    advances = 0
-    renders = []
-    steps = []
-    requests = []
-    waits = []
-
-    def advance():
-        nonlocal advances
-        advances += 1
-        return torch.ones((1, 2))
-
-    def request(identity, *, force):
-        requests.append(force)
-        return 1
-
-    monkeypatch.setattr(agent, "time", SimpleNamespace(perf_counter=lambda: 0.0, sleep=waits.append))
-    env = SimpleNamespace(
-        num_envs=1,
-        step_dt=0.02,
-        reset=lambda: None,
-        step=steps.append,
-        sim=SimpleNamespace(
-            is_running=lambda: advances < 1,
-            get_physics_step_count=lambda: len(steps),
-            get_physics_dt=lambda: 0.005,
-            render=lambda: renders.append(True),
-        ),
-    )
-    run_live_workflow(
-        env,
-        SimpleNamespace(
-            advance=advance,
-            reset=lambda: None,
-            control_events=lambda: SimpleNamespace(is_active=True, should_reset=False),
-        ),
-        SimpleNamespace(shutdown_requested=False, request_render=request, wait_for_shutdown=waits.append),
-        validator=lambda _action: "rejected",
-    )
-    assert advances == 1
-    assert renders == [] and steps == []
-    assert requests == [True]  # Only the reset publication; the held scene is not republished.
-    assert waits == [0.02]  # A rejected frame waits one action period, like a paused one.
