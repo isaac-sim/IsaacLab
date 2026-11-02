@@ -91,10 +91,11 @@ installed Isaac Lab package:
 The generator uses the active Isaac Lab environment, including pip-less ``uv``
 environments. It does not install separate template dependencies.
 
-When run from an installed wheel, it pins the generated project to that Isaac Lab
-version. From a source checkout, it records editable paths to the checkout and its
-workspace packages, so unpublished branches work too. These paths are relative;
-regenerate the project or update ``[tool.uv.sources]`` if either directory moves.
+When run from an installed wheel, it requires a compatible release of that Isaac Lab
+version (for example ``isaaclab~=3.0.0``), which accepts its patch releases. From a source
+checkout, it records editable paths to the checkout and its workspace packages, so
+unpublished branches work too. These paths are relative; regenerate the project or update
+``[tool.uv.sources]`` if either directory moves.
 
 The short form is equivalent:
 

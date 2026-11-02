@@ -290,7 +290,7 @@ The viser visualizer serves a web UI instead of opening a window
 
 ``--visualizer viser`` does not open a native window. Check the terminal for the served
 URL; the default port is ``8080``, configurable through
-:attr:`~isaaclab_visualizers.ViserVisualizerCfg.port`. The ``viser`` package ships in the
+:attr:`~isaaclab_visualizers.ViserBackendCfg.port`. The ``viser`` package ships in the
 ``viser`` extra.
 
 

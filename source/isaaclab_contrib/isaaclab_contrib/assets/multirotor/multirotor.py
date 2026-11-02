@@ -15,7 +15,6 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 from isaaclab_physx.assets.articulation import Articulation
-from isaaclab_physx.assets.kernels import split_state_to_root_pose_and_vel
 
 import isaaclab.utils.string as string_utils
 from isaaclab.utils import instantiate
@@ -395,22 +394,10 @@ class Multirotor(Articulation):
         default_root_state = torch.tensor(default_root_state, dtype=torch.float, device=self.device)
         # Repeat for all instances
         default_root_state_repeated = default_root_state.repeat(self.num_instances, 1)
-        # Convert to warp array and split into pose and vel using kernel
+        # View the packed defaults without allocating or launching a split kernel
         default_root_state_wp = wp.from_torch(default_root_state_repeated, dtype=wp.float32)
-        # Create temporary output arrays
-        pose_output = wp.zeros(self.num_instances, dtype=wp.transformf, device=self.device)
-        vel_output = wp.zeros(self.num_instances, dtype=wp.spatial_vectorf, device=self.device)
-        # Split state into pose and vel
-        wp.launch(
-            split_state_to_root_pose_and_vel,
-            dim=self.num_instances,
-            inputs=[default_root_state_wp],
-            outputs=[pose_output, vel_output],
-            device=self.device,
-        )
-        # Set using public setters
-        self._data.default_root_pose = pose_output
-        self._data.default_root_vel = vel_output
+        self._data.default_root_pose = default_root_state_wp[:, :7].view(wp.transformf)
+        self._data.default_root_vel = default_root_state_wp[:, 7:].view(wp.spatial_vectorf)
 
         # Handle thruster-specific initial state
         if hasattr(self._data, "default_thruster_rps") and hasattr(self.cfg.init_state, "rps"):

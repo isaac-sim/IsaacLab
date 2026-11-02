@@ -168,12 +168,12 @@ jobs:
           WHEEL_SHA: ${{ github.sha }}
         run: bash tools/wheel_builder/build.sh
 
+      # The development branch may temporarily use Git-pinned dependencies. Release
+      # branches must remain publishable to PyPI and therefore reject direct URLs.
       - name: Validate PyPI metadata
         if: >-
           steps.changes.outputs.run_build == 'true' &&
-          (github.ref == 'refs/heads/main' ||
-           startsWith(github.ref, 'refs/heads/release/') ||
-           github.base_ref == 'main' ||
+          (startsWith(github.ref, 'refs/heads/release/') ||
            startsWith(github.base_ref, 'release/'))
         run: >-
           uv run --no-project --with packaging python tools/wheel_builder/validate_pypi_metadata.py

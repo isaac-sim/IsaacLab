@@ -13,6 +13,7 @@ from collections.abc import Callable, Iterator
 from typing import TYPE_CHECKING
 
 from ... import cloner
+from ...cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
 from ..simulation_context import SimulationContext
 from .stage import get_current_stage
 
@@ -381,7 +382,7 @@ def resolve_matching_prims_from_source(
     path_expr: str,
     predicate: Callable[[Usd.Prim], bool] | None = None,
     expected_num_matches: int | None = None,
-    env_regex_ns: str = "/World/envs/env_[^/]+",
+    env_regex_ns: str = DEFAULT_ENV_TEMPLATE.format("[^/]+"),
     raise_if_no_matches: bool = True,
     traverse_instance_prims: bool = True,
 ) -> list[tuple[Usd.Prim, str]]:

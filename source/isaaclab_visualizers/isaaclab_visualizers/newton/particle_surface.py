@@ -88,8 +88,8 @@ class ParticleSurfaceRenderer:
 
         if backend_manager is None:
             backend_manager = NewtonManager._deprecated_active("ParticleSurfaceRenderer()")
-        self._model = backend_manager.get_model()
-        self._state = backend_manager.get_state_0()
+        self._model = backend_manager.backend.model
+        self._state = backend_manager.backend.state_0
         self._surface = surface
         self._path = path
         self._color = color

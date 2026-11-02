@@ -227,7 +227,7 @@ def _make_asset_shell(
     num_vertices: int = 4,
 ) -> OvPhysxDeformableObject:
     asset = object.__new__(OvPhysxDeformableObject)
-    asset._backend_manager = OvPhysxManager()
+    asset._backend_manager = OvPhysxManager(OvPhysxCfg())
     asset._backend_manager._scene_data_backend = OvPhysxSceneDataBackend(asset._backend_manager)
     asset._device = "cpu"
     asset._check_shapes = True

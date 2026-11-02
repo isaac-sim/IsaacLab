@@ -61,7 +61,7 @@ class CartpoleCameraEnvCfg(PresetCfg):
         def __post_init__(self):
             super().__post_init__()
             # the base sets the proprioceptive camera view; widen it to see the camera environments
-            self.sim.default_visualizer_cfg = VisualizerCfg(eye=(20.0, 20.0, 20.0))
+            self.sim.visualizer_cfgs = VisualizerCfg(eye=(20.0, 20.0, 20.0))
 
     default = BaseCartpoleCameraEnvCfg()
     depth = BaseCartpoleCameraEnvCfg(observation_space=[1, 96, 96])

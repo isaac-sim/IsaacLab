@@ -92,25 +92,24 @@ and synchronization responsibilities.
 Reuse Isaac Lab-owned access
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Use the accessors of the simulation's manager instance, ``sim.backend_manager``, to obtain the
-current Newton objects:
+Read the current Newton objects from the active :class:`~isaaclab_newton.physics.NewtonBackend` of
+the simulation's physics manager, ``sim.backend_manager.backend``:
 
 .. code-block:: python
 
-   backend_manager = sim.backend_manager
+   backend = sim.backend_manager.backend
 
-   model = backend_manager.get_model()
-   state = backend_manager.get_state_0()
-   control = backend_manager.get_control()
-   contacts = backend_manager.get_contacts()
+   model = backend.model
+   state = backend.state_0
+   control = backend.control
+   contacts = backend.contacts
 
    body_poses = state.body_q
    joint_forces = control.joint_f
 
-:meth:`isaaclab_newton.physics.NewtonManager.get_model` returns the active Newton physics model, or
-``None`` before the Newton backend has built it; render-only models used by visualizers are not
-returned here. The write semantics in this section apply only when Newton is the active,
-authoritative physics backend.
+The backend is ``None`` before the physics manager has built the model. When PhysX is active,
+renderers and visualizers build a render-only Newton model that is not authoritative; the write
+semantics in this section apply only when Newton is the active physics backend.
 
 Isaac Lab's Newton-backed assets expose the same generic
 ``newton.selection.ArticulationView`` selection helper. For example, reuse an articulation's
@@ -174,11 +173,10 @@ coordinates instead require forward-kinematics synchronization through
 Ownership, synchronization, and invalidation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Direct writes bypass Isaac Lab caches and shape/order validation. Some Newton solvers swap current
-and next state buffers, so reacquire
-:meth:`isaaclab_newton.physics.NewtonManager.get_state_0` when code needs the current authoritative
-state on a later step. A selection can survive state-buffer swaps because it describes model
-indices, but it must be recreated after a model rebuild. Solver-specific generalized- and
+Direct writes bypass Isaac Lab caches and shape/order validation. Every physics step ends with the
+current state in ``backend.state_0``; ``backend.state_1`` is solver scratch. A hard reset closes the
+backend and builds a new one, so reacquire ``sim.backend_manager.backend`` and its buffers, and
+recreate selections, after a model rebuild. Solver-specific generalized- and
 maximal-coordinate conventions remain authoritative.
 
 Authoritative references

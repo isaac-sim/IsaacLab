@@ -15,7 +15,7 @@ import isaaclab_physx.app as app_module
 import isaaclab_physx.app.kit_launcher as kit_launcher_module
 import pytest
 from isaaclab_physx.app.kit_launcher import KitLauncher, _sanitize_sys_argv_for_kit
-from isaaclab_visualizers.kit import KitVisualizerCfg
+from isaaclab_visualizers.kit import KitBackendCfg
 
 import isaaclab.app.sim_launcher as sim_launcher
 from isaaclab.app import SimulationLauncher, add_launcher_args
@@ -23,6 +23,7 @@ from isaaclab.physics import PhysicsCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
+from isaaclab.visualizers import VisualizerCfg
 
 
 def _launcher_after_output_resolution(**state) -> KitLauncher:
@@ -226,7 +227,7 @@ def test_visualizer_alias_parsing(monkeypatch):
     cfg = SimulationCfg(device="cpu")
     with pytest.warns(FutureWarning, match="newton_gl"), sim_launcher.launch_simulation(cfg, args):
         pass
-    assert [viewer.visualizer_type for viewer in cfg.visualizer_cfgs] == ["kit", "newton_gl"]
+    assert [viewer.backend.visualizer_type for viewer in cfg.visualizer_cfgs] == ["kit", "newton_gl"]
 
 
 @pytest.mark.parametrize("deprecated_arg", ["--headless", "--enable_cameras", "--cpu"])
@@ -393,7 +394,7 @@ def test_livestream_injects_kit_visualizer_when_missing(monkeypatch):
     cfg = SimulationCfg(device="cpu")
     with sim_launcher.launch_simulation(cfg, args):
         pass
-    assert isinstance(cfg.visualizer_cfgs[0], KitVisualizerCfg)
+    assert isinstance(cfg.visualizer_cfgs[0].backend, KitBackendCfg)
 
 
 def test_livestream_rejects_invalid_environment_value(monkeypatch: pytest.MonkeyPatch):
@@ -427,7 +428,7 @@ def _resolve_headless_for_case(
     # working on these features -- pin them so the parametrization is what decides.
     monkeypatch.delenv("XR", raising=False)
     monkeypatch.delenv("LIVESTREAM", raising=False)
-    viewers = [KitVisualizerCfg()] if cfg_has_kit else []
+    viewers = [VisualizerCfg(backend=KitBackendCfg())] if cfg_has_kit else []
     result = []
 
     class KitRuntime(KitLauncher):

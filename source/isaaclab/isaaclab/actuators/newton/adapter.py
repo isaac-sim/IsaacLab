@@ -620,7 +620,9 @@ def _create_actuators_from_usd(
 
     parsed_per_joint: dict[int, Any] = {}
     for prim in Usd.PrimRange(root_prim):
-        parsed = parse_actuator_prim(prim)
+        # Isaac Lab actuator configs explicitly select this checkpoint. Preserve
+        # their existing execution semantics with Newton's trust-gated parser.
+        parsed = parse_actuator_prim(prim, allow_unsafe_torch_checkpoints=True)
         if parsed is None:
             continue
         target_name = parsed.target_path.rsplit("/", 1)[-1]

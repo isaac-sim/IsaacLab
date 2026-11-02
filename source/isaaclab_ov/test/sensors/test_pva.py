@@ -11,11 +11,6 @@ Mirrors the structure of source/isaaclab_physx/test/sensors/test_pva.py
 but runs kitless under uv run python -m pytest — no Kit launch needed.
 SimulationContext is instantiated directly (it does not require Kit).
 
-Tests that load the PhysX pendulum URDF (``test_single_dof_pendulum`` and
-``test_indirect_attachment``) are skipped pending a USD-converted pendulum
-asset. URDF→USD conversion requires the Kit URDF importer extension, which
-is not loaded under the direct uv run python runner.
-
 All tests use procedural USD assets so the kitless suite does not depend on
 Nucleus or ``omni.client`` loader state.
 """
@@ -544,41 +539,3 @@ def test_no_stale_data_after_scene_reset(sim_ctx, device):
     torch.testing.assert_close(post_reset_ang_acc, torch.zeros_like(post_reset_ang_acc))
     torch.testing.assert_close(post_reset_lin_vel, torch.zeros_like(post_reset_lin_vel))
     torch.testing.assert_close(post_reset_ang_vel, torch.zeros_like(post_reset_ang_vel))
-
-
-# ===========================================================================
-# URDF-dependent tests — skipped pending USD pendulum asset
-# ===========================================================================
-
-
-_PENDULUM_SKIP_REASON = (
-    "Blocked on a USD-converted pendulum asset (the PhysX test loads"
-    " source/isaaclab_physx/test/sensors/urdfs/simple_2_link.urdf via the Kit URDF importer,"
-    " which is not loaded under the direct uv run python runner). Re-enable"
-    " once a pre-converted USD pendulum is available, and port the assertion body from"
-    " source/isaaclab_physx/test/sensors/test_pva.py."
-)
-
-
-@pytest.mark.skip(reason=_PENDULUM_SKIP_REASON)
-def test_single_dof_pendulum():
-    """Test PVA against analytical pendulum problem."""
-    # If this test is ever un-skipped without porting the PhysX assertions, fail
-    # explicitly rather than passing vacuously.
-    pytest.fail(
-        "test_single_dof_pendulum was un-skipped without a body — port the assertions from"
-        " source/isaaclab_physx/test/sensors/test_pva.py::test_single_dof_pendulum and adapt"
-        " them to the kitless RigidObject/Articulation pattern used by the rest of this file."
-    )
-
-
-@pytest.mark.skip(reason=_PENDULUM_SKIP_REASON)
-def test_indirect_attachment():
-    """Test attaching the PVA through an Xform primitive offset chain."""
-    # If this test is ever un-skipped without porting the PhysX assertions, fail
-    # explicitly rather than passing vacuously.
-    pytest.fail(
-        "test_indirect_attachment was un-skipped without a body — port the assertions from"
-        " source/isaaclab_physx/test/sensors/test_pva.py::test_indirect_attachment and adapt"
-        " them to the kitless RigidObject/Articulation pattern used by the rest of this file."
-    )

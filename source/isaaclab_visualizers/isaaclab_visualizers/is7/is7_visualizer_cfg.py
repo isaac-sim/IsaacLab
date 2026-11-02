@@ -7,21 +7,23 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, ClassVar, Literal
 
 from isaaclab.utils import configclass
-from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
+from isaaclab.visualizers.visualizer_cfg import VisualizerBackendCfg
 
 if TYPE_CHECKING:
     from .is7_visualizer import IS7Visualizer
 
 
 @configclass
-class IS7VisualizerCfg(VisualizerCfg):
+class IS7BackendCfg(VisualizerBackendCfg):
     """Configuration for the Isaac Sim 7 viewer attached to an Isaac Lab simulation.
 
-    Isaac Lab keeps its own physics and scene data. Poses are written into an OVStage that the
-    Isaac Sim 7 viewer renders, so no Isaac Sim physics engine is involved.
+    Isaac Lab keeps its own physics and scene data. The Isaac Sim 7 application host renders an export of the
+    authored stage and receives Isaac Lab's body poses every step, so no Isaac Sim physics engine is involved.
+    The shared :class:`~isaaclab.visualizers.visualizer_cfg.VisualizerCfg` supplies the viewport size
+    (``window.size``), the host rate (``window.fps``) and ``headless``, which serves the viewer without a client.
     """
 
     class_type: type[IS7Visualizer] | str = "{DIR}.is7_visualizer:IS7Visualizer"
@@ -30,22 +32,11 @@ class IS7VisualizerCfg(VisualizerCfg):
     visualizer_type: str = "is7"
     """Type identifier for the Isaac Sim 7 viewer."""
 
-    cloning_contexts: tuple[type | str, ...] = ("isaaclab.cloner:UsdReplicateContext",)
+    cloning_contexts: ClassVar[tuple[type | str, ...]] = ("isaaclab.cloner:UsdReplicateContext",)
     """The viewer scene is exported from the authored USD stage, so every environment is authored there."""
 
-    ui: Literal["desktop", "browser", "headless"] = "desktop"
-    """Where the viewer is presented.
-
-    * ``"desktop"``: open the Electron window attached to the host.
-    * ``"browser"``: serve the client and log a URL to open.
-    * ``"headless"``: serve without opening a client, for tests and benchmarks.
-    """
-
-    resolution: tuple[int, int] = (1280, 720)
-    """Initial render size of a viewport pane in pixels."""
-
-    viewport_hz: float = 60.0
-    """Rate of the host's rendering and stepping [Hz]."""
+    ui: Literal["desktop", "browser"] = "desktop"
+    """Where the viewer is presented: the Electron window attached to the host, or a logged browser URL."""
 
     presentation: Literal["auto", "gpu", "http"] = "http"
     """How the desktop client receives frames.

@@ -103,7 +103,7 @@ On each recorded sample, each environment retains its lag with probability 0.8 a
 one. Zero redraws on every sample. Holding the lag keeps the latency constant while frames continue to
 advance; it does not freeze the returned frame. Reset always redraws the selected environments' lags.
 
-The processing order is observation function, modifiers, noise, clipping, scaling, delay, then history.
+The processing order is observation function, tensor processors, noise, clipping, scaling, delay, then history.
 The ``delay_min_lag`` and ``delay_max_lag`` field names and delay placement follow
 `mjlab's observation configuration <https://mujocolab.github.io/mjlab/main/source/observations.html>`_.
 ``delay_hold_prob`` follows mjlab's lag-retention semantics, with a default of 1.0 to preserve Isaac Lab's
@@ -115,7 +115,7 @@ For a delay buffer with no recorded sample after initialization or reset, the cu
 without recording it. Once recording starts, delays exceeding the available history return the oldest
 sample. Partial resets invalidate only the selected environments' histories.
 
-Observation outputs are independent snapshots: later simulation steps, modifier updates, and resets
+Observation outputs are independent snapshots: later simulation steps, processor updates, and resets
 do not overwrite previously returned tensors. The manager automatically copies borrowed storage before
 mutation or retention. Term and custom callback outputs are treated conservatively, without decorators
 or task-level copy settings. Clipping and scaling create independent storage when needed, which later
@@ -131,7 +131,7 @@ The manager checks the signature once during initialization. Only an explicitly 
 ``out=None`` enables destination writes; accepting arbitrary ``**kwargs`` does not. The manager probes
 the ordinary call to infer shape, dtype and device, which must remain constant, then allocates a fresh
 contiguous destination for each computation. ``out`` is reserved and must not appear in term ``params``.
-Custom modifiers, noise and history retain their usual snapshot protections. Built-in
+Custom tensor processors, noise and history retain their usual snapshot protections. Built-in
 :class:`~isaaclab.envs.mdp.observations.image_rgb` terms use this interface automatically to avoid a
 second full-image copy for normalized uint8 images. Existing observation configurations require no changes.
 

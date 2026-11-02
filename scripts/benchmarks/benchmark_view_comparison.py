@@ -65,6 +65,7 @@ import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.views import FrameView
+from isaaclab.utils.warp import ProxyArray
 
 try:
     from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
@@ -138,9 +139,9 @@ def benchmark_newton(num_iterations: int) -> dict[str, float]:
     from pxr import Gf
 
     from isaaclab.assets import RigidObjectCfg
-    from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+    from isaaclab.scene import InteractiveSceneCfg
     from isaaclab.sim import build_simulation_context
-    from isaaclab.utils import configclass
+    from isaaclab.utils import configclass, instantiate
 
     timing_results = {}
 
@@ -162,11 +163,11 @@ def benchmark_newton(num_iterations: int) -> dict[str, float]:
     ctx = build_simulation_context(device=args_cli.device, sim_cfg=sim_cfgs["newton"], add_ground_plane=True)
     sim = ctx.__enter__()
     sim._app_control_on_stop_handle = None
-    InteractiveScene(_SceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0))
+    scene = instantiate(_SceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0))
 
     stage = sim_utils.get_current_stage()
-    for i in range(args_cli.num_envs):
-        prim = stage.DefinePrim(f"/World/envs/env_{i}/Cube/Sensor", "Xform")
+    for env_path in scene.env_prim_paths:
+        prim = stage.DefinePrim(f"{env_path}/Cube/Sensor", "Xform")
         sim_utils.standardize_xform_ops(prim)
         prim.GetAttribute("xformOp:translate").Set(Gf.Vec3d(0.1, 0.0, 0.05))
         prim.GetAttribute("xformOp:orient").Set(Gf.Quatd(1.0, 0.0, 0.0, 0.0))
@@ -175,7 +176,7 @@ def benchmark_newton(num_iterations: int) -> dict[str, float]:
     print(f"  Newton scene setup: {time.perf_counter() - start_time:.4f}s")
 
     start_time = time.perf_counter()
-    view = NewtonSiteFrameView("/World/envs/env_.*/Cube/Sensor", device=args_cli.device)
+    view = NewtonSiteFrameView(f"{scene.env_regex_ns}/Cube/Sensor", device=args_cli.device)
     num_prims = view.count
     timing_results["init"] = time.perf_counter() - start_time
 
@@ -265,8 +266,8 @@ def _run_pose_benchmarks(
     num_prims: int,
     num_iterations: int,
     timing_results: dict,
-    positions: wp.array,
-    orientations: wp.array,
+    positions: ProxyArray,
+    orientations: ProxyArray,
 ):
     """Shared benchmark loop for get/set world poses on any FrameView."""
     start_time = time.perf_counter()
@@ -274,10 +275,9 @@ def _run_pose_benchmarks(
         view.get_world_poses()
     timing_results["get_world_poses"] = (time.perf_counter() - start_time) / num_iterations
 
-    new_positions = wp.clone(positions)
-    new_positions_t = wp.to_torch(new_positions)
-    new_positions_t[:, 2] += 0.5
-    expected_positions = new_positions_t.clone()
+    new_positions = positions.torch.clone()
+    new_positions[:, 2] += 0.5
+    expected_positions = new_positions.clone()
 
     start_time = time.perf_counter()
     for _ in range(num_iterations):
@@ -286,9 +286,9 @@ def _run_pose_benchmarks(
     timing_results["set_world_poses"] = (time.perf_counter() - start_time) / num_iterations
 
     ret_pos, ret_quat = view.get_world_poses()
-    ret_pos_t = wp.to_torch(ret_pos)
-    ret_quat_t = wp.to_torch(ret_quat)
-    ori_t = wp.to_torch(orientations)
+    ret_pos_t = ret_pos.torch
+    ret_quat_t = ret_quat.torch
+    ori_t = orientations.torch
 
     pos_ok = torch.allclose(ret_pos_t, expected_positions, atol=1e-4, rtol=0)
     quat_ok = torch.allclose(ret_quat_t, ori_t, atol=1e-4, rtol=0)

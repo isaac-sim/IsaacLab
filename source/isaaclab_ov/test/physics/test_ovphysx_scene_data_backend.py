@@ -22,7 +22,7 @@ _CURRENT_LIFECYCLE_ENTRY_POINTS = {"warmup": "warmup", "destroy": "destroy"}
 
 @pytest.fixture(autouse=True)
 def manager(monkeypatch):
-    from isaaclab_ov.physics import ovphysx_compat
+    from isaaclab_ov.physics import OvPhysxCfg, ovphysx_compat
     from isaaclab_ov.physics.ovphysx_manager import OvPhysxBackend, OvPhysxManager, OvPhysxSceneDataBackend
 
     # These fixtures model the legacy API, regardless of the locally installed wheel.
@@ -32,7 +32,7 @@ def manager(monkeypatch):
     backend.stage = backend.scene = None
     backend.owns_scene = True
     backend.rigid_body_view = None
-    manager = OvPhysxManager()
+    manager = OvPhysxManager(OvPhysxCfg())
     manager.backend = backend
     manager._scene_data_backend = OvPhysxSceneDataBackend(manager)
     return manager

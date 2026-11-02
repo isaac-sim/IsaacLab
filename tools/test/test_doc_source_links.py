@@ -28,7 +28,7 @@ def test_source_links_resolve_lazy_exports_and_inherited_properties(tmp_path, mo
     module = importlib.util.module_from_spec(spec)
     monkeypatch.setitem(sys.modules, path.stem, module)
     spec.loader.exec_module(module)
-    config = SimpleNamespace(isaaclab_latest_branch="develop", smv_current_version="v3.0.0")
+    config = SimpleNamespace(isaaclab_latest_branch="main", smv_current_version="v3.0.0")
     app = SimpleNamespace(srcdir=tmp_path / "docs")
     info = {"module": path.stem, "fullname": "Derived.value"}
     _configure_source_links(app, config)
@@ -38,7 +38,7 @@ def test_source_links_resolve_lazy_exports_and_inherited_properties(tmp_path, mo
     config.smv_current_version = ""
     _configure_source_links(app, config)
     assert config.linkcode_resolve("py", info) == (
-        "https://github.com/isaac-sim/IsaacLab/blob/develop/source/source_link_example.py#L2-L4"
+        "https://github.com/isaac-sim/IsaacLab/blob/main/source/source_link_example.py#L2-L4"
     )
     assert config.linkcode_resolve("py", {"module": path.stem, "fullname": "missing"}) is None
     assert config.linkcode_resolve("py", {"module": "pathlib", "fullname": "Path"}) is None

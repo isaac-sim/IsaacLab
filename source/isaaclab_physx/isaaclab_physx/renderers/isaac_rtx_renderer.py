@@ -219,7 +219,7 @@ class IsaacRtxRenderer(BaseRenderer):
         When disabled, this method is a no-op and writes no
         ``primvars:omni:scenePartition`` or ``omni:scenePartition`` attributes.
 
-        When enabled, for each ``/World/envs/env_{i}`` root, writes the inheriting primvar
+        When enabled, for each environment root declared by the clone plan, writes the inheriting primvar
         ``primvars:omni:scenePartition`` (token ``env_{i}``) on the root and the matching
         non-primvar ``omni:scenePartition`` token on every :class:`UsdGeom.Camera` descendant.
         RTX honors primvar inheritance, so the env-root primvar propagates to all descendant
@@ -238,7 +238,7 @@ class IsaacRtxRenderer(BaseRenderer):
         token_type = Sdf.ValueTypeNames.Token
         with Sdf.ChangeBlock():
             for env_idx in range(num_envs):
-                env_prim = stage.GetPrimAtPath(f"/World/envs/env_{env_idx}")
+                env_prim = stage.GetPrimAtPath(self._sim.get_clone_plan().env_template.format(env_idx))
                 if not env_prim.IsValid():
                     continue
                 token = f"env_{env_idx}"

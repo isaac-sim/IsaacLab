@@ -30,6 +30,10 @@ import numpy as np
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.app.logging_utils import configure_console_logging
 from isaaclab.utils import instantiate
+from isaaclab.visualizers import VisualizerCfg
+
+from isaaclab_tasks.utils import resolve_presets
+from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
 
 logger = logging.getLogger("isaaclab.tutorials.mpm.rigid_body_equivalence")
 
@@ -68,7 +72,7 @@ RAMP_ANGLE_RAD = math.radians(38.0)
 RAMP_ROTATION = (math.sin(0.5 * RAMP_ANGLE_RAD), 0.0, 0.0, math.cos(0.5 * RAMP_ANGLE_RAD))
 START_Y = 1.70
 INITIAL_CLEARANCE = 0.08
-RIGID_BODY_PATTERN = r"/World/envs/env_.*/Rigid_.*"
+RIGID_BODY_PATTERN = r"{ENV_REGEX_NS}/Rigid_.*"
 CAMERA_EYE = (0.0, -26.0, 6.55)
 CAMERA_TARGET = (0.0, -2.5, 2.15)
 CAMERA_FOCAL_LENGTH = 18.0
@@ -205,35 +209,6 @@ def initial_center_height(shape: ShapeSpec) -> float:
     return ramp_surface_height(START_Y) + shape_half_height(shape) / math.cos(RAMP_ANGLE_RAD) + INITIAL_CLEARANCE
 
 
-def create_visualizer_cfgs():
-    """Create the requested Kit or Newton visualizer configuration."""
-    requested = args_cli.visualizer or []
-    cfgs = []
-    if "kit" in requested:
-        from isaaclab_visualizers.kit import KitVisualizerCfg
-
-        cfgs.append(KitVisualizerCfg(eye=CAMERA_EYE, lookat=CAMERA_TARGET, focal_length=CAMERA_FOCAL_LENGTH))
-    if not {"newton", "newton_gl", "newton_rtx"}.intersection(requested):
-        return cfgs
-
-    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
-
-    for name in requested:
-        if name not in {"newton", "newton_gl", "newton_rtx"}:
-            continue
-        cfg_type = NewtonRTXVisualizerCfg if name == "newton_rtx" else NewtonGLVisualizerCfg
-        visualizer_kwargs = {} if name == "newton_rtx" else {"show_particles": True}
-        cfgs.append(
-            cfg_type(
-                eye=CAMERA_EYE,
-                lookat=CAMERA_TARGET,
-                streaming_view=False,
-                **visualizer_kwargs,
-            )
-        )
-    return cfgs
-
-
 def create_sim_cfg():
     """Create independent MJWarp and implicit-MPM entries in one Newton model."""
     from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonCfg
@@ -289,7 +264,12 @@ def create_sim_cfg():
         dt=1.0 / SIMULATION_HZ,
         device=args_cli.device,
         gravity=(0.0, 0.0, -9.81),
-        visualizer_cfgs=create_visualizer_cfgs(),
+        visualizer_cfgs=VisualizerCfg(
+            eye=CAMERA_EYE,
+            lookat=CAMERA_TARGET,
+            focal_length=CAMERA_FOCAL_LENGTH,
+            backend=MultiBackendVisualizerCfg(),
+        ),
         physics=NewtonCfg(solver_cfg=solver_cfg, use_cuda_graph=not args_cli.disable_cuda_graph),
     )
 
@@ -453,7 +433,7 @@ def run_simulator(sim, scene) -> None:
 def main() -> None:
     """Launch the rigid-body versus nearly rigid MPM comparison."""
     configure_console_logging(vars(args_cli))
-    sim_cfg = create_sim_cfg()
+    sim_cfg = resolve_presets(create_sim_cfg(), overrides={"visualizer_cfgs.backend": args_cli.visualizer})
     scene_cfg = create_scene_cfg()
     with launch_simulation(SimpleNamespace(sim=sim_cfg, scene=scene_cfg), args_cli):
         import isaaclab.sim as sim_utils

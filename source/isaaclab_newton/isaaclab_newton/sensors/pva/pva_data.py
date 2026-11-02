@@ -156,9 +156,9 @@ class PvaData(BasePvaData):
             num_envs: Number of environments.
             device: Device for array storage.
         """
-        self._pose_w = wp.zeros(num_envs, dtype=wp.transformf, device=device)
+        self._pose_w = wp.full(num_envs, wp.transform_identity(), dtype=wp.transformf, device=device)
         self._pos_w = wp.zeros(num_envs, dtype=wp.vec3f, device=device)
-        self._quat_w = wp.zeros(num_envs, dtype=wp.quatf, device=device)
+        self._quat_w = wp.full(num_envs, wp.quat_identity(), dtype=wp.quatf, device=device)
         self._projected_gravity_b = wp.zeros(num_envs, dtype=wp.vec3f, device=device)
         self._lin_vel_b = wp.zeros(num_envs, dtype=wp.vec3f, device=device)
         self._ang_vel_b = wp.zeros(num_envs, dtype=wp.vec3f, device=device)

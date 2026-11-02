@@ -52,6 +52,10 @@ and methods:
   debug visualization is requested.
 * :meth:`~isaaclab.sensors.SensorBase.reset` clears per-environment timestamps and internal state.
 
+Cleared measurement outputs remain available after reset until the next sensor update.
+Sensors that derive poses, ray hits, or images invalidate those cached results for a fresh read.
+Reading sensor data never advances physics.
+
 Set ``scene.cfg.lazy_sensor_update=False`` to refresh data during ``scene.update(dt)``.
 Sensors keep their own sampling periods and reset state. Sensors that support
 batching refresh together; cameras :ref:`batch captures by renderer <renderer-camera-batching>`.

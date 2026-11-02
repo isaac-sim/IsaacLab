@@ -13,12 +13,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .is7_visualizer_cfg import IS7VisualizerCfg
+from .is7_visualizer_cfg import IS7BackendCfg
 
 if TYPE_CHECKING:
     from .is7_visualizer import IS7Visualizer
 
-__all__ = ["IS7Visualizer", "IS7VisualizerCfg"]
+__all__ = ["IS7BackendCfg", "IS7Visualizer"]
 
 
 def __getattr__(name: str):

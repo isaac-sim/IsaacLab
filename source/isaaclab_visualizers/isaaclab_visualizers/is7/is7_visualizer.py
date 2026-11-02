@@ -21,10 +21,10 @@ from pxr import Usd, UsdGeom
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationContext
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
-from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg
+from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, VisualizerCfg
 
 from .is7_stage import authored_scales
-from .is7_visualizer_cfg import IS7VisualizerCfg
+from .is7_visualizer_cfg import IS7BackendCfg
 
 if TYPE_CHECKING:
     from isaaclab.sensors.camera import Camera
@@ -43,14 +43,14 @@ class IS7Visualizer(BaseVisualizer):
     host's command queue, which applies them before the renderer's next frame.
     """
 
-    def __init__(self, cfg: IS7VisualizerCfg):
+    def __init__(self, cfg: VisualizerCfg):
         """Initialize visualizer state.
 
         Args:
-            cfg: Isaac Sim 7 viewer configuration.
+            cfg: Shared visualizer settings whose ``backend`` is an :class:`IS7BackendCfg`.
         """
         super().__init__(cfg)
-        self.cfg: IS7VisualizerCfg = cfg
+        self.backend_cfg: IS7BackendCfg = cfg.backend
         self._resources = contextlib.ExitStack()
         self._host = None
         self._desktop = None
@@ -99,22 +99,22 @@ class IS7Visualizer(BaseVisualizer):
         scene = self._export_scene(sim.stage)
         metadata = read_scene_metadata(scene)
         specs: list = []
-        rate = RationalRate(int(self.cfg.viewport_hz))
+        rate = RationalRate(int(self.cfg.window.fps))
         client_roots = client_roots_for_backend("web")
-        if self.cfg.app_client_root is not None:
-            client_roots = [("/app/", Path(self.cfg.app_client_root) / "renderer"), *client_roots[1:]]
+        if self.backend_cfg.app_client_root is not None:
+            client_roots = [("/app/", Path(self.backend_cfg.app_client_root) / "renderer"), *client_roots[1:]]
         self._host = AppHost(
             open_world=make_physics_free_world_opener(specs, rate, renderer="ovgl"),
             scene=str(scene),
             viewports=specs,
-            viewport_factory=lambda index: dynamic_viewport_spec(index, tuple(self.cfg.resolution)),
+            viewport_factory=lambda index: dynamic_viewport_spec(index, tuple(self.cfg.window.size)),
             encoder=FrameEncoder.create("auto"),
-            presentation=self.cfg.presentation,
+            presentation=self.backend_cfg.presentation,
             renderer_name="ovgl",
             hidden_roots=(CAMERA_SCOPE, RENDER_SCOPE),
             world_up=metadata.up_vector,
             host="127.0.0.1",
-            port=self.cfg.port,
+            port=self.backend_cfg.port,
             client_roots=client_roots,
             content_writes=True,
             stage_writes=True,
@@ -126,14 +126,18 @@ class IS7Visualizer(BaseVisualizer):
         self._paths = list(self._provider.backend.transform_paths)
         self._scales = authored_scales(sim.stage, self._paths)
         self._publish_poses()
-        if self.cfg.ui == "browser":
+        if not self.cfg.headless and self.backend_cfg.ui == "browser":
             self._log_viewer_url("IS7Visualizer", self.client_url)
-        elif self.cfg.ui == "desktop":
+        elif not self.cfg.headless:
             self._open_desktop()
         self._log_initialization_table(
             logger=logger,
             title="IS7Visualizer Configuration",
-            rows=[("ui", self.cfg.ui), ("bodies", len(self._paths)), ("viewport_hz", self.cfg.viewport_hz)],
+            rows=[
+                ("ui", "headless" if self.cfg.headless else self.backend_cfg.ui),
+                ("bodies", len(self._paths)),
+                ("fps", self.cfg.window.fps),
+            ],
         )
         self._running = True
         self._is_initialized = True
@@ -142,10 +146,10 @@ class IS7Visualizer(BaseVisualizer):
         """Open the Electron window attached to the host that this process runs."""
         from isaacsim.application.client import start_desktop
 
-        if self.cfg.app_client_root is None:
-            raise ValueError("IS7VisualizerCfg.app_client_root is required for ui='desktop'.")
+        if self.backend_cfg.app_client_root is None:
+            raise ValueError("IS7BackendCfg.app_client_root is required for ui='desktop'.")
         self._desktop = start_desktop(
-            Path(self.cfg.app_client_root) / "main.cjs",
+            Path(self.backend_cfg.app_client_root) / "main.cjs",
             environment={"SIM_VIEWER_ATTACH_URL": self._host.url, "SIM_VIEWER_ATTACH_TOKEN": self._host.token},
         )
         self._resources.callback(self._desktop.close)
@@ -155,11 +159,11 @@ class IS7Visualizer(BaseVisualizer):
 
         Isaac Lab authors some containers without a type, which the viewer's stage tree omits, so they become
         ``Xform`` prims. Instanceable prims are expanded while the expanded scene stays within
-        :attr:`IS7VisualizerCfg.deinstance_max_points`. The ``Flattened_Prototype_*`` specs stay because the
+        :attr:`IS7BackendCfg.deinstance_max_points`. The ``Flattened_Prototype_*`` specs stay because the
         expanded prims still reference them.
         """
         exported = Usd.Stage.Open(stage.Flatten())
-        deinstance = self._expanded_points(exported) <= self.cfg.deinstance_max_points
+        deinstance = self._expanded_points(exported) <= self.backend_cfg.deinstance_max_points
         for prim in exported.Traverse():
             if not prim.GetTypeName():
                 prim.SetTypeName("Xform")

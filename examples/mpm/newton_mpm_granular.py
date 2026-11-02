@@ -9,9 +9,8 @@ A block of granular material is dropped onto static box colliders. The example
 shows the intended Isaac Lab MPM path: configure
 :class:`~isaaclab_newton.physics.MPMSolverCfg`, add an
 :class:`~isaaclab_newton.assets.MPMObject` to an
-:class:`~isaaclab.scene.InteractiveScene`, and let
-:class:`~isaaclab_newton.physics.NewtonMPMManager` own solver creation and
-stepping.
+:class:`~isaaclab.scene.InteractiveScene`, and let the solver
+configuration own solver creation and stepping.
 
 .. code-block:: bash
 
@@ -23,9 +22,13 @@ from __future__ import annotations
 import argparse
 import math
 
-from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.visualizers import VisualizerCfg
+
+from isaaclab_tasks.utils import resolve_presets
+from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
 
 parser = argparse.ArgumentParser(description="Newton implicit MPM granular example.")
 parser.add_argument(
@@ -87,7 +90,9 @@ def create_sim_cfg():
         dt=1.0 / FPS,
         device=args_cli.device,
         gravity=GRAVITY,
-        visualizer_cfgs=[NewtonGLVisualizerCfg(show_particles=True, particle_color=PARTICLE_COLOR)],
+        visualizer_cfgs=VisualizerCfg(
+            backend=MultiBackendVisualizerCfg(newton_gl=NewtonGLBackendCfg(particle_color=PARTICLE_COLOR)),
+        ),
         physics=NewtonCfg(
             solver_cfg=MPMSolverCfg(
                 voxel_size=VOXEL_SIZE,
@@ -199,7 +204,7 @@ def run_simulator(sim, scene) -> None:
 
 def main() -> None:
     """Launch and run the Isaac Lab MPM granular example."""
-    sim_cfg = create_sim_cfg()
+    sim_cfg = resolve_presets(create_sim_cfg(), overrides={"visualizer_cfgs.backend": args_cli.visualizer})
     with launch_simulation(sim_cfg, args_cli):
         import isaaclab.sim as sim_utils
         from isaaclab.scene import InteractiveScene

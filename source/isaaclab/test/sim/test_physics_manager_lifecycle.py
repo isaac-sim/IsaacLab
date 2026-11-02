@@ -142,8 +142,8 @@ class _TestManager(PhysicsManager):
 def test_physics_manager_close_only_clears_its_own_state():
     """Closing one physics manager does not clear another manager's state."""
 
-    active = _TestManager()
-    inactive = _TestManager()
+    active = _TestManager(None)
+    inactive = _TestManager(None)
 
     active.close()
     assert active._sim is None
@@ -157,16 +157,15 @@ def test_physics_manager_close_only_clears_its_own_state():
     assert (active._sim, active._cfg, active._sim_time) == (active_sim, "active-cfg", 1.25)
 
     active.close()
-    assert (active._sim, active._cfg, active._sim_time) == (None, None, 0.0)
+    assert (active._sim, active._cfg, active._sim_time) == (None, "active-cfg", 0.0)
 
 
 def test_close_runs_all_live_stop_listeners_and_aggregates_failures():
     """STOP fan-out and shared-state cleanup survive an individual listener failure."""
 
-    manager = _TestManager()
+    manager = _TestManager(None)
     events = []
     manager._sim = SimpleNamespace(backend_manager=manager)
-    manager._cfg = object()
     manager._sim_time = 1.0
     manager.views["/World/Robot"] = object()
 
@@ -212,7 +211,6 @@ def test_close_runs_all_live_stop_listeners_and_aggregates_failures():
     assert events == ["first", "failed", "last"]
     assert manager._callbacks == {}
     assert manager._sim is None
-    assert manager._cfg is None
     assert manager._sim_time == 0.0
     assert manager.views == {}
 
@@ -232,7 +230,7 @@ def test_close_surfaces_stop_errors_stored_by_safe_callback_invoke():
                 self._callback_exception = None
                 raise exception
 
-    manager = TestManager()
+    manager = TestManager(None)
     events = []
     manager._sim = SimpleNamespace(backend_manager=manager)
 
@@ -410,7 +408,7 @@ def test_class_level_runtime_access_forwards_to_active_manager(monkeypatch):
     class _OtherManager(_TestManager):
         pass
 
-    manager = _TestManager()
+    manager = _TestManager(None)
     manager._device = "cuda:1"
     manager.views["/World/Robot"] = "view"
     sim = SimpleNamespace(backend_manager=manager)
@@ -421,7 +419,7 @@ def test_class_level_runtime_access_forwards_to_active_manager(monkeypatch):
     with pytest.warns(DeprecationWarning, match="sim.backend_manager.views"):
         assert _TestManager.views == {"/World/Robot": "view"}
     # Explicit unbound calls and classmethods are not forwarded.
-    assert PhysicsManager.get_device(_OtherManager()) == "cuda:0"
+    assert PhysicsManager.get_device(_OtherManager(None)) == "cuda:0"
     assert not hasattr(_TestManager, "missing_attribute")
     # A class that the active manager is not an instance of has nothing to forward to.
     with pytest.raises(TypeError, match="instance method"):
@@ -436,7 +434,7 @@ def test_simulation_context_physics_manager_is_deprecated_alias():
     from isaaclab.sim import SimulationContext
 
     sim = SimulationContext.__new__(SimulationContext)
-    sim.backend_manager = _TestManager()
+    sim.backend_manager = _TestManager(None)
     with pytest.warns(DeprecationWarning, match="backend_manager"):
         assert sim.physics_manager is sim.backend_manager
 
@@ -445,7 +443,7 @@ def test_deprecated_active_resolves_omitted_manager(monkeypatch):
     """Data-class constructors fall back to the active manager with a deprecation warning."""
     from isaaclab.sim import SimulationContext
 
-    manager = _TestManager()
+    manager = _TestManager(None)
     monkeypatch.setattr(SimulationContext, "instance", lambda: SimpleNamespace(backend_manager=manager))
     with pytest.warns(DeprecationWarning, match="Data\\(\\) without backend_manager"):
         assert _TestManager._deprecated_active("Data()") is manager

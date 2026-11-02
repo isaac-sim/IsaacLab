@@ -270,8 +270,8 @@ def test_sensor_reset(create_dummy_sensor, device):
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
-def test_reset_invalidates_cached_sensor_data(create_dummy_sensor, device):
-    """Test that repeated reads refresh once per update and resets each invalidate cached data once."""
+def test_reset_keeps_cleared_cache_and_pending_peer_updates(create_dummy_sensor, device):
+    """Reset values remain valid until an update, without discarding pending work in other rows."""
     sensor_cfg, sim, dt = create_dummy_sensor
     sensor = DummySensor(cfg=sensor_cfg)
     sim.step()
@@ -287,7 +287,12 @@ def test_reset_invalidates_cached_sensor_data(create_dummy_sensor, device):
     backend_update_count = sensor.backend_update_count
     _ = sensor.data
     _ = sensor.data
-    assert sensor.backend_update_count == backend_update_count + 1
+    assert sensor.backend_update_count == backend_update_count
+    torch.testing.assert_close(sensor.data.count, torch.zeros(sensor.num_instances, dtype=torch.int32, device=device))
+
+    sensor.update(dt)
+    _ = sensor.data
+    sensor.update(dt)
 
     reset_ids = [2, 4]
     continued_ids = [0, 1, 3]
@@ -298,10 +303,10 @@ def test_reset_invalidates_cached_sensor_data(create_dummy_sensor, device):
 
     assert sensor.backend_update_count == backend_update_count + 1
     torch.testing.assert_close(
-        sensor.data.count[reset_ids], torch.ones(len(reset_ids), dtype=torch.int32, device=device)
+        sensor.data.count[reset_ids], torch.zeros(len(reset_ids), dtype=torch.int32, device=device)
     )
     torch.testing.assert_close(
-        sensor.data.count[continued_ids], torch.ones(len(continued_ids), dtype=torch.int32, device=device)
+        sensor.data.count[continued_ids], torch.full((len(continued_ids),), 2, dtype=torch.int32, device=device)
     )
 
 

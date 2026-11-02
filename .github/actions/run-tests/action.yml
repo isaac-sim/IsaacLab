@@ -29,9 +29,8 @@ inputs:
     required: false
   filter-pattern:
     description: >-
-      Pattern to filter test files (e.g., isaaclab_tasks); test files whose path
-      contains this pattern are included. Only one pattern can be used at a time,
-      no comma-separated substrings allowed. Also supports the legacy "not <pattern>"
+      Comma-separated substrings (e.g., isaaclab_rl,isaaclab_mimic); test files whose
+      path contains any entry are included. Also supports the legacy "not <pattern>"
       form for exclude-only jobs.
     default: ''
     required: false

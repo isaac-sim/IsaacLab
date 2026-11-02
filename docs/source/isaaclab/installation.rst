@@ -88,7 +88,7 @@ cover the default Newton and PyTorch training environment; Isaac Sim is an optio
      - A CUDA-capable NVIDIA GPU supported by the selected Newton solver and PyTorch.
        The default CUDA 13 stack requires Turing or newer (compute capability 7.5+).
    * - NVIDIA driver
-     - ``580.65.06`` or newer on Linux; ``580.88`` or newer on Windows.
+     - ``595.58.03`` on Linux x86_64; ``580.159`` on Linux aarch64; ``595.97`` on Windows x86_64.
        Use a current production driver for your GPU.
    * - Memory
      - RAM and VRAM needs depend on the task, number of parallel environments, and camera workload.
@@ -331,7 +331,7 @@ updating the lockfile can then select a newer Isaac Lab revision and dependency 
 Installing the published wheel
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Use NVIDIA's package index for the |isaaclab_wheel_version| prerelease. Do not point Isaac Lab at
+Use NVIDIA's package index for the |isaaclab_wheel_version| release. Do not point Isaac Lab at
 the Git source from the previous workflow when installing the published wheel.
 
 Run the published package directly or install it into a persistent environment. All workflows start
@@ -345,7 +345,7 @@ with the base ``isaaclab`` package; add optional capabilities only when your pro
 
          uvx --index https://pypi.nvidia.com \
             --torch-backend cu130 \
-            --from "isaaclab==3.0.0rc1" \
+            --from "isaaclab==3.0.0" \
             isaaclab demo zoo
 
       This resolves the published wheel from the package index into an isolated environment. It does
@@ -364,7 +364,7 @@ with the base ``isaaclab`` package; add optional capabilities only when your pro
          uv add \
             --index-strategy unsafe-best-match \
             --index nvidia=https://pypi.nvidia.com \
-            isaaclab==3.0.0rc1
+            isaaclab==3.0.0
 
    .. tab-item:: Standalone uv environment
 
@@ -378,7 +378,7 @@ with the base ``isaaclab`` package; add optional capabilities only when your pro
 
                uv venv --python 3.12 env_isaaclab
                source env_isaaclab/bin/activate
-               uv pip install isaaclab==3.0.0rc1 \
+               uv pip install isaaclab==3.0.0 \
                   --index https://pypi.nvidia.com \
                   --torch-backend cu130
 
@@ -389,7 +389,7 @@ with the base ``isaaclab`` package; add optional capabilities only when your pro
 
                uv venv --python 3.12 env_isaaclab
                env_isaaclab\Scripts\activate
-               uv pip install isaaclab==3.0.0rc1 ^
+               uv pip install isaaclab==3.0.0 ^
                   --index https://pypi.nvidia.com ^
                   --torch-backend cu130
 
@@ -400,7 +400,7 @@ with the base ``isaaclab`` package; add optional capabilities only when your pro
 
                uv venv --python 3.12 env_isaaclab
                source env_isaaclab/bin/activate
-               uv pip install isaaclab==3.0.0rc1 \
+               uv pip install isaaclab==3.0.0 \
                   --index https://pypi.nvidia.com \
                   --torch-backend cu130
 
@@ -1009,7 +1009,7 @@ registry repository, distinguished by a ``-kitless`` tag suffix:
 
 .. code:: bash
 
-    docker pull nvcr.io/nvidia/isaac-lab:3.0.0-rc1-kitless
+    docker pull nvcr.io/nvidia/isaac-lab:3.0.0-kitless
 
 Running it directly, outside the Compose workflow, is a convenient way to verify the image and your
 NVIDIA Container Toolkit setup. ``--interactive`` and ``--tty`` keep the container's shell alive so
@@ -1021,7 +1021,7 @@ after the container is removed:
     docker run --name isaac-lab-kitless --detach --interactive --tty --gpus all --network host \
         -e NVIDIA_DRIVER_CAPABILITIES=all \
         -v isaac-lab-kitless-logs:/workspace/isaaclab/logs \
-        nvcr.io/nvidia/isaac-lab:3.0.0-rc1-kitless
+        nvcr.io/nvidia/isaac-lab:3.0.0-kitless
 
     docker exec isaac-lab-kitless \
         isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct \
@@ -1055,7 +1055,7 @@ you need, and configure graphics access separately when rendering.
 .. note::
 
   Use an explicit published version tag for reproducible runs. The examples below use
-  ``3.0.0-rc1``; the corresponding kit-less image uses ``3.0.0-rc1-kitless``.
+  ``3.0.0``; the corresponding kit-less image uses ``3.0.0-kitless``.
 
 .. attention::
 
@@ -1085,7 +1085,7 @@ otherwise every start recompiles shaders:
      -v ~/docker/isaac-sim/logs:/root/.nvidia-omniverse/logs:rw \
      -v ~/docker/isaac-sim/data:/root/.local/share/ov/data:rw \
      -v ~/docker/isaac-sim/documents:/root/Documents:rw \
-     nvcr.io/nvidia/isaac-lab:3.0.0-rc1
+     nvcr.io/nvidia/isaac-lab:3.0.0
 
 The command above opens no windows: without a display, ``--viz kit``, ``--viz newton_gl``, and
 ``--viz newton_rtx`` run headless. The ``viser`` and ``rerun`` visualizers serve a web page instead
@@ -1108,7 +1108,7 @@ server and pass the display into the container:
      -v ~/docker/isaac-sim/logs:/root/.nvidia-omniverse/logs:rw \
      -v ~/docker/isaac-sim/data:/root/.local/share/ov/data:rw \
      -v ~/docker/isaac-sim/documents:/root/Documents:rw \
-     nvcr.io/nvidia/isaac-lab:3.0.0-rc1
+     nvcr.io/nvidia/isaac-lab:3.0.0
 
 ``xhost +local:`` lets every local client use your display, not only the container; run
 ``xhost -local:`` on the host to revoke it when you are done.

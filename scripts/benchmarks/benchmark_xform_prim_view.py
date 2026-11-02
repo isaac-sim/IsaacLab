@@ -96,11 +96,11 @@ def benchmark_frame_view(  # noqa: C901
         sim = ctx.__enter__()
         sim._app_control_on_stop_handle = None
         scene_cfg = _NewtonSceneCfg(num_envs=num_envs, env_spacing=2.0)
-        instantiate(scene_cfg)
+        scene = instantiate(scene_cfg)
 
         stage = sim_utils.get_current_stage()
-        for i in range(num_envs):
-            prim = stage.DefinePrim(f"/World/envs/env_{i}/Object/Sensor", "Xform")
+        for env_path in scene.env_prim_paths:
+            prim = stage.DefinePrim(f"{env_path}/Object/Sensor", "Xform")
             sim_utils.standardize_xform_ops(prim)
             prim.GetAttribute("xformOp:translate").Set(Gf.Vec3d(0.1, 0.0, 0.05))
             prim.GetAttribute("xformOp:orient").Set(Gf.Quatd(1.0, 0.0, 0.0, 0.0))
@@ -108,7 +108,7 @@ def benchmark_frame_view(  # noqa: C901
         sim.reset()
 
         start_time = time.perf_counter()
-        xform_view = NewtonSiteFrameView("/World/envs/env_.*/Object/Sensor", device=device)
+        xform_view = NewtonSiteFrameView(f"{scene.env_regex_ns}/Object/Sensor", device=device)
         timing_results["init"] = time.perf_counter() - start_time
         cleanup = lambda: ctx.__exit__(None, None, None)  # noqa: E731
 

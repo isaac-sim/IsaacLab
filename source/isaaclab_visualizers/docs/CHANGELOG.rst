@@ -3,6 +3,80 @@ Changelog
 
 .. towncrier release notes start
 
+4.1.2 (2026-10-28)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the Newton visualizer to ask the solver configuration's ``class_type`` whether the solver accepts applied body forces.
+
+
+4.1.1 (2026-10-27)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the Newton visualizer and the particle surface renderer to read Newton contacts, model and state from the
+  physics manager's :class:`~isaaclab_newton.physics.NewtonBackend`.
+
+
+4.1.0 (2026-10-25)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``key_event_source`` to :class:`~isaaclab_visualizers.kit.KitVisualizer`, which reports
+  physical keys, and to :class:`~isaaclab_visualizers.newton.NewtonGLVisualizer` and
+  :class:`~isaaclab_visualizers.newton.NewtonRTXVisualizer`, which report layout-mapped keys and
+  withhold presses typed into their UI. Headless runs and the Viser and Rerun visualizers return
+  ``None``.
+* Added ``set_camera_keys_enabled`` to the Newton GL and RTX visualizers, which turns their WASD/QE
+  and arrow-key camera movement off and on.
+
+Changed
+^^^^^^^
+
+* Bound Kit and Newton keyboard input once when their windows initialized and disconnected it on
+  close, removing the separate first-listener and last-listener lifecycle.
+* Reused pyglet's native handler registration and required its declared key constants instead of
+  silently omitting missing keys.
+
+Fixed
+^^^^^
+
+* Fixed Kit visualizer initialization failing when the optional window-input module was unavailable.
+* Fixed Kit viewport visibility, camera partition selection, and marker partitioning
+  for custom clone namespaces.
+
+
+4.0.1 (2026-10-24)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Invalidated RTX camera observations explicitly after marker and runtime mesh edits,
+  allowing zero-time visualizer refreshes without advancing sensor sampling clocks.
+
+
+4.0.0 (2026-10-21)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Separated backend options into ``KitBackendCfg``, ``NewtonGLBackendCfg``, ``NewtonRTXBackendCfg``,
+  ``RerunBackendCfg``, and ``ViserBackendCfg``. Constructors received shared ``VisualizerCfg``
+  declarations and read implementation options from ``cfg.backend``. Kept the previous
+  ``*VisualizerCfg`` names as deprecated configuration-only adapters; move shared camera/window
+  settings to ``VisualizerCfg`` and backend-specific options to its ``backend``.
+* Enabled Newton GL particle display by default. Set ``NewtonGLBackendCfg(show_particles=False)``
+  to hide particles; hidden MPM particles no longer updated their display buffers.
+
+
 3.4.0 (2026-10-19)
 ~~~~~~~~~~~~~~~~~~
 
