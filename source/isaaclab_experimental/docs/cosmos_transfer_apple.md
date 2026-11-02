@@ -15,9 +15,9 @@ controller settings follow the calibrated apple demo by Marilyn Reeb. Without `p
 it uses the rendered camera image instead.
 
 This demo runs three processes: the GR00T policy server, the Cosmos service and the Isaac Lab
-run. The setup for Cosmos is the same as for the
-[Shadow Hand demo](cosmos_transfer.md), including its VRAM needs. Give the GR00T server a
-GPU too; the examples put it on GPU 1.
+run. Cosmos needs **48 GB of VRAM for one environment**, with approximately **8 GB more for
+each additional environment**. Give the GR00T server a GPU too; the examples put it on GPU 1.
+Use **uv 0.11.29** for the Cosmos Framework environment.
 
 For service options and camera configuration, see [Serving Cosmos](cosmos_service.md)
 and [Cosmos camera integration](cosmos.md).
@@ -53,8 +53,20 @@ git -C "$GR00T_ROOT" submodule update --init --recursive
 
 ## 3. Install dependencies and download the checkpoints
 
-Install the Cosmos environment and checkpoint as in
-[Cosmos Transfer demo setup, step 3](cosmos_transfer.md#3-install-dependencies-and-download-the-checkpoint).
+From the Cosmos Framework checkout, create its environment, install Isaac Lab's Cosmos worker
+into it and download the Cosmos checkpoint:
+
+```bash
+cd "$COSMOS_FRAMEWORK"
+uv sync --locked --all-extras --group=cu130-train
+uv run --no-sync uv pip install -e \
+  "$ISAAC_LAB/source/isaaclab_experimental/isaaclab_experimental/cosmos"
+uv run --no-sync hf download nvidia/Cosmos3-Nano-Sim-Transfer \
+  --local-dir "$COSMOS_CHECKPOINT"
+```
+
+Keep `--no-sync` on later Framework commands to preserve the separately installed worker. If
+you run `uv sync` again, repeat the worker installation.
 
 Install the GR00T environment, which needs Python 3.10, and download the apple policy:
 
@@ -128,9 +140,17 @@ and its self-collisions push the legs apart at the hips.
 
 ## 6. Run with Cosmos
 
-Start the Cosmos service in a third terminal as in
-[step 4 of the Shadow Hand setup](cosmos_transfer.md#4-start-the-cosmos-service-in-terminal-1),
-wait for `Cosmos ready at ...`, and then add `presets=cosmos`:
+Start the Cosmos service in terminal 3, with the path variables set:
+
+```bash
+cd "$COSMOS_FRAMEWORK"
+export LD_LIBRARY_PATH=
+export PYTHONFAULTHANDLER=1
+uv run --no-sync isaaclab-cosmos-server --checkpoint "$COSMOS_CHECKPOINT" 2>&1 | tee server.log
+```
+
+Wait for `Cosmos ready at ...` and leave this terminal running. Then, in terminal 2, add
+`presets=cosmos`:
 
 ```bash
 cd "$ISAAC_LAB"
