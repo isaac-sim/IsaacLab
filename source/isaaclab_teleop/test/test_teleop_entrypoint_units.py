@@ -722,6 +722,7 @@ def test_kitless_hand_guard_renders_without_step_and_next_valid_frame_resumes(mo
 def test_task_preparation_precedes_ovxr_simulation_context(monkeypatch, entrypoint):
     """Both actual workflows finalize the selected config before OVXR allocates its context."""
     pytest.importorskip("ovrtx")
+    pytest.importorskip("isaaccapture.ovxr_session_manager")
     from contextlib import contextmanager
 
     import isaaclab_teleop
