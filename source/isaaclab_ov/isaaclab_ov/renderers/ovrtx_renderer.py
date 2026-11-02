@@ -443,6 +443,7 @@ class OVRTXRenderer(BaseRenderer):
                 preserve_references=not (
                     self._use_ovstage and self.scene.cfg.population_domains & ovstage.PopulationDomain.PHYSICS
                 ),
+                preserve_partition_visibility=self._render_lease.active is not None,
             )  # fmt: skip
             if not self._use_ovstage and _OVRTX_VERSION is not None and _OVRTX_VERSION.release[:2] == (0, 7):
                 # Author the camera mode before loading the stage: changing it later

@@ -46,7 +46,12 @@ def test_partition_export_preserves_source_visibility_physics_and_camera(setting
         assert stage.GetPrimAtPath("/World/envs/env_0/Robot/Camera").IsA(UsdGeom.Camera)
         layer = Sdf.Layer.CreateAnonymous()
         layer.ImportFromString(
-            export_stage_to_string(stage, ("/World/envs/env_0",), source_paths=("/World/envs/env_0",))
+            export_stage_to_string(
+                stage,
+                ("/World/envs/env_0",),
+                source_paths=("/World/envs/env_0",),
+                preserve_partition_visibility=True,
+            )
         )
         exported = Usd.Stage.Open(layer)
         settings = exported.GetPrimAtPath(exported.GetMetadata("renderSettingsPrimPath"))
