@@ -169,6 +169,25 @@ its pose:
     for _ in range(12):
         sim.render()
 
+.. _known-issues-ovrtx-gaussian-cold-cache:
+
+Gaussian scenes can return near-black images with a cold OVRTX cache
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Affects:** ``renderer=ovrtx``. Reproduced with OVRTX 0.6 / OVStage 0.3 on both scene readers,
+and with an OVRTX 0.7 development build / OVStage 0.4 on the OVStage reader.
+
+The Valiant Gaussian-splat scene can return near-black images when OVRTX's ``DerivedDataCache``
+is empty, even though the render product requests ``AllLoadingFinished`` and ``OnlyOnFirstRequest``.
+Rerunning with the populated cache can produce a valid image. Clearing only the downloaded asset
+or driver shader cache did not reproduce this failure when the derived-data cache remained warm.
+
+On Linux, this cache is under
+``${XDG_CACHE_HOME:-$HOME/.cache}/ovrtx/<ovrtx-version>/DerivedDataCache``; for example, OVRTX 0.6
+uses the ``0.6.0`` directory. The Valiant rendering tests remain marked as expected failures while
+this issue is tracked in `NVBUG 7032910 <https://nvbugspro.nvidia.com/bug/7032910>`_.
+There is currently no supported Isaac Lab configuration workaround for this issue.
+
 .. _known-issues-scene-partition-count-cap:
 
 Scene partitioning is capped at 15625 partitions
