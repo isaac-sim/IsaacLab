@@ -31,7 +31,7 @@ the seal implementation into Isaac Lab. Stock Newton releases do not provide thi
 
 The default configuration uses 512 environments, 6,000 PPO updates, and 30-second training episodes.
 Playback uses 240-second episodes. Shorter training attempts recycle reset practice sooner;
-both modes continue to another parcel after each delivery.
+both modes continue to another parcel after each controlled placement.
 Each verified delivery counts as a success, and the robot continues with another parcel in the
 same scene. Reliable learning from scratch has not yet been validated.
 
@@ -96,10 +96,15 @@ Excessive vertical or angular velocity, an uncontrolled release, or nongripper a
 the attempt. Only a qualified placement followed by a settled receipt in the commanded bin
 earns credit; a thrown parcel cannot qualify merely by landing in that bin.
 A verified physical receipt earns
-a reward of +10 and selects the next reachable unsorted parcel without resetting the world.
-The first receipt after a sampled reset immediately records a successful outcome for that
-reset row. Later receipts still earn rewards and increment delivery counters, but are not
-attributed to the earlier reset state. A world reset before that first receipt records a
+a reward of +10. Once a controlled release has physically detached and cleared the suction pads,
+the dispatcher selects an incoming parcel without waiting for the previous bin arrival.
+Released parcels retain their own destinations and receipt checks while the arm handles the next
+target. Simultaneous receipts each earn credit; a receipt never changes the current grasp.
+A missed, ungrasped parcel keeps circulating while the dispatcher selects another incoming target.
+Each handoff rebases the Cartesian controller at the measured tool pose without moving the scene.
+The original reset parcel's receipt immediately records a successful outcome for its
+reset row. Other receipts still earn rewards and increment delivery counters, but are not
+attributed to the earlier reset state. A world reset before the original parcel's receipt records a
 failed row outcome; a later failure does not overwrite or duplicate an already recorded success.
 
 The reward remains sparse: a complete qualified receipt earns +10; failures and motion

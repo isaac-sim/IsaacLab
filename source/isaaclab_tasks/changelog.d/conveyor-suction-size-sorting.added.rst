@@ -7,9 +7,10 @@
   Invalid policy actions and non-finite physical states cannot earn a receipt.
   Policy observations include pickup qualification so carry/release resets do not hide
   the lift history required for a physical receipt.
-  Each verified delivery earns a reward and success event before the next target is selected
-  in the same physical scene. The first receipt from a sampled reset immediately updates
-  its success history; subsequent receipts cannot duplicate that outcome or be erased by a
+  Controlled release and suction-pad clearance allow selection of the next incoming parcel
+  while earlier parcels travel to their bins. Each verified delivery earns its own reward
+  and success event. The original sampled parcel's receipt immediately updates
+  its success history; other receipts cannot duplicate that outcome or be erased by a
   later failure. No parcel starts with delivery credit, and complete-batch metrics remain separate
   from per-delivery success within continuing episodes.
   Goal-conditioned placement observes independently sampled receiving positions and an overhead

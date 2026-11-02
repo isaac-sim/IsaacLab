@@ -36,6 +36,8 @@ from .scene import (
     PARCEL_SIZES,
     RECEIVING_PAD_HALF_WIDTH,
     RECEIVING_PAD_RADIAL_BOUNDS,
+    SUCTION_PAD_RADIUS,
+    SUCTION_PAD_SPACING,
 )
 
 if TYPE_CHECKING:
@@ -121,16 +123,18 @@ class SizeSortCommand(CommandTerm):
         self.lifted = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         self.placed = torch.zeros_like(self.lifted)
         self.destination_ids = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
-        self._reset_phase_ids = torch.zeros_like(self.destination_ids)
+        self._sampled_rows = torch.zeros_like(self.destination_ids)
         self.goal_positions = torch.zeros((self.num_envs, 3), device=self.device)
         self._was_engaged = torch.zeros_like(self.lifted)
         self._arm_contacts = SceneEntityCfg("arm_contacts")
         self.full_start = torch.zeros_like(self.lifted)
         self.failed = torch.zeros_like(self.lifted)
-        self.new_success = torch.zeros_like(self.lifted)
+        self.new_success = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
         self._waiting = torch.zeros_like(self.lifted)
-        self._stable_steps = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
-        self._last_step = torch.full_like(self._stable_steps, -1)
+        # A saved destination certifies a qualified release, independently of the next pickup.
+        self._outfeed_destinations = torch.full_like(self.delivered, -1, dtype=torch.long)
+        self._stable_steps = torch.zeros_like(self.delivered, dtype=torch.long)
+        self._last_step = torch.full_like(self.new_success, -1)
         self._evaluation_step = -1
         self._bin_frames = torch.zeros((5, 3, 3), device=self.device)
         self._bin_frames[:, 0] = env.bin_directions
@@ -146,6 +150,7 @@ class SizeSortCommand(CommandTerm):
             "controlled_placements",
             "invalid_releases",
             "arm_collisions",
+            "missed_pickups",
         ):
             self.metrics[name] = torch.zeros(self.num_envs, device=self.device)
 
@@ -210,13 +215,12 @@ class SizeSortCommand(CommandTerm):
         ids = self._ids[slice(None) if env_ids is None else env_ids]
         full = self.full_start[ids] & (self._env.episode_length_buf[ids] > 0)
         full_ids = ids[full]
-        full_success = self.metrics["success_rate"][full_ids]
+        row_success = self.delivered[ids, self._reset_term.parcel_ids[self._sampled_rows[ids]]].float()
+        full_success = row_success[full]
         full_batch = self.metrics["full_batch_success_rate"][full_ids]
-        phase = self._reset_phase_ids[ids]
+        phase = self._reset_term.phase_ids[self._sampled_rows[ids]]
         phase_outcomes = {
-            f"{name}_success_rate": self.metrics["success_rate"][
-                ids[(phase == index) & (self._env.episode_length_buf[ids] > 0)]
-            ]
+            f"{name}_success_rate": row_success[(phase == index) & (self._env.episode_length_buf[ids] > 0)]
             for index, name in ((0, "place"), (1, "carry"), (2, "approach"), (4, "outfeed"))
         }
         extras = super().reset(ids)
@@ -234,67 +238,79 @@ class SizeSortCommand(CommandTerm):
         return extras
 
     def evaluate(self) -> None:
-        """Evaluate physical receipts once per environment policy step."""
+        """Verify all released parcels while the policy works on its current pickup."""
         env = self._env
         if self._evaluation_step == env.common_step_counter:
             return
         changed = self._last_step != env.episode_length_buf
         states = _parcel_states(env)
-        state = states[self._ids, env.active_ids]
-        local = state[:, :3] - env.scene.env_origins
+        local = states[:, :, :3] - env.scene.env_origins[:, None]
         self.placed[changed & env.gripper.engaged] = False
-        self.lifted |= changed & ~self._waiting & env.gripper.engaged & (local[:, 2] > BELT_TOP_Z + 0.10)
-        offsets = local[:, None] - env.bin_positions
-        in_bin_frame = torch.einsum("kij,nkj->nki", self._bin_frames, offsets)
-        rotation = math_utils.matrix_from_quat(state[:, 3:7])
+        self._waiting[changed & env.gripper.engaged] = False
+        self._outfeed_destinations[
+            self._ids[changed & env.gripper.engaged], env.active_ids[changed & env.gripper.engaged]
+        ] = -1
+        self.lifted |= (
+            changed & ~self._waiting & env.gripper.engaged & (local[self._ids, env.active_ids, 2] > BELT_TOP_Z + 0.10)
+        )
+        released = changed & self.lifted & self.placed & ~env.gripper.engaged
+        self._outfeed_destinations[self._ids[released], env.active_ids[released]] = self.destination_ids[released]
+        pending = self._outfeed_destinations >= 0
+        destinations = self._outfeed_destinations.clamp_min(0)
+        offsets = local[:, :, None] - env.bin_positions
+        in_bin_frame = torch.einsum("kij,npkj->npki", self._bin_frames, offsets)
+        rotation = math_utils.matrix_from_quat(states[:, :, 3:7])
         half_extents = (
-            torch.einsum("kij,njl->nkil", self._bin_frames, rotation).abs()
-            * (env.parcel_sizes[env.active_ids, None, None] / 2.0)
+            torch.einsum("kij,npjl->npkil", self._bin_frames, rotation).abs()
+            * (env.parcel_sizes[None, :, None, None] / 2.0)
         ).sum(dim=-1)
         inside = (in_bin_frame.abs() + half_extents < self._bin_half_size + 0.005).all(dim=-1)
         over_bin = (in_bin_frame.abs() < self._bin_half_size + 0.03).all(dim=-1)
-        released = ~env.gripper.engaged
-        settled = torch.linalg.vector_norm(state[:, 7:10], dim=-1) < 0.35
-        correct = inside[self._ids, self.destination_ids]
-        eligible = self.lifted & self.placed & released & settled & ~self._waiting
+        settled = torch.linalg.vector_norm(states[:, :, 7:10], dim=-1) < 0.35
+        correct = inside.gather(-1, destinations[..., None]).squeeze(-1)
+        eligible = pending & ~self.delivered & settled
         stable = eligible & correct
-        self._stable_steps = torch.where(changed, torch.where(stable, self._stable_steps + 1, 0), self._stable_steps)
-        completed = (self._stable_steps >= 3) & ~self.delivered[self._ids, env.active_ids]
+        self._stable_steps = torch.where(
+            changed[:, None], torch.where(stable, self._stable_steps + 1, 0), self._stable_steps
+        )
+        completed = (self._stable_steps >= 3) & ~self.delivered
         wrong = eligible & inside.any(dim=-1) & ~correct
-        fallen = (states[:, :, 2] - env.scene.env_origins[:, None, 2] < -0.65) & ~self.delivered
-        correct_bin = over_bin[self._ids, self.destination_ids]
-        fallen[self._ids, env.active_ids] &= ~(self.placed & released & correct_bin)
+        fallen = (local[:, :, 2] < -0.65) & ~self.delivered
+        correct_bin = over_bin.gather(-1, destinations[..., None]).squeeze(-1)
+        fallen &= ~(pending & correct_bin)
         finite = torch.isfinite(states).all(dim=(1, 2)) & torch.isfinite(env.scene["robot"].data.joint_pos.torch).all(
             dim=-1
         )
-        seal_broken = self._was_engaged & released & self.lifted & ~self.placed & ~self._waiting
+        seal_broken = self._was_engaged & ~env.gripper.engaged & self.lifted & ~self.placed & ~self._waiting
         arm_contact = common_mdp.illegal_contact(
             env, threshold=self.cfg.arm_contact_force_threshold, sensor_cfg=self._arm_contacts
         )
         self.failed |= changed & (
-            wrong | fallen.any(dim=-1) | seal_broken | arm_contact | ~finite | invalid_policy_action(env)
+            wrong.any(dim=-1) | fallen.any(dim=-1) | seal_broken | arm_contact | ~finite | invalid_policy_action(env)
         )
         self.metrics["arm_collisions"][changed & arm_contact] = 1.0
-        self.new_success = torch.where(changed, completed & ~self.failed, self.new_success)
-        self.delivered[self._ids, env.active_ids] |= self.new_success
+        completed &= changed[:, None] & ~self.failed[:, None]
+        self.new_success = torch.where(changed, completed.sum(dim=-1), self.new_success)
+        self.delivered |= completed
         # Only the first transfer starts from the sampled reset row. Later targets
         # still earn receipts and rewards, but must not relabel that row's outcome.
-        first = (self.new_success & ~env.episode_success).nonzero(as_tuple=False).flatten()
+        initial = self._reset_term.parcel_ids[self._sampled_rows]
+        first = completed[self._ids, initial].nonzero(as_tuple=False).flatten()
         self._reset_term.reset_sampler.success_monitor.success_update(
-            self._reset_term.row_ids[first], self.new_success[first]
+            self._reset_term.row_ids[first], completed[first, initial[first]]
         )
-        env.episode_success |= self.new_success
+        env.episode_success |= self.new_success > 0
         count = self.delivered.sum(dim=-1)
         self.metrics["success_rate"][:] = env.episode_success.float()
         self.metrics["correct_deliveries"][:] = count.float()
-        self.metrics["wrong_deliveries"][changed & wrong] = 1.0
+        self.metrics["wrong_deliveries"][changed & wrong.any(dim=-1)] = 1.0
         self.metrics["full_batch_success_rate"][:] = (
             self.full_start & self.delivered.all(dim=-1) & ~self.failed
         ).float()
         self._last_step.copy_(env.episode_length_buf)
         self._was_engaged.copy_(env.gripper.engaged)
         self._evaluation_step = env.common_step_counter
-        env.extras["successes"] = self.new_success.clone()
+        env.extras["successes"] = self.new_success > 0
 
     def _update_metrics(self) -> None:
         self.evaluate()
@@ -302,13 +318,16 @@ class SizeSortCommand(CommandTerm):
     def _resample_command(self, env_ids: Sequence[int] | torch.Tensor | slice) -> None:
         ids = self._ids[env_ids]
         phase = self._reset_term.phase_ids[self._reset_term.row_ids[ids]]
-        self._reset_phase_ids[ids] = phase
+        self._sampled_rows[ids] = self._reset_term.row_ids[ids]
         self.delivered[ids] = False
         self.lifted[ids] = self._reset_term.lifted_rows[self._reset_term.row_ids[ids]]
         self.placed[ids] = phase == 4
         self._was_engaged[ids] = False
         self.destination_ids[ids] = self._reset_term.destination_ids[self._reset_term.row_ids[ids]]
         self.goal_positions[ids] = self._reset_term.goal_positions[self._reset_term.row_ids[ids]]
+        self._outfeed_destinations[ids] = -1
+        outfeed_ids = ids[phase == 4]
+        self._outfeed_destinations[outfeed_ids, self._env.active_ids[outfeed_ids]] = self.destination_ids[outfeed_ids]
         self.full_start[ids] = phase == 3
         self.failed[ids] = self.new_success[ids] = self._waiting[ids] = False
         self._stable_steps[ids] = 0
@@ -316,21 +335,42 @@ class SizeSortCommand(CommandTerm):
         self._evaluation_step = -1
 
     def _update_command(self) -> None:
-        self._waiting |= self.new_success
-        ids = self._waiting.nonzero(as_tuple=False).flatten()
+        env = self._env
+        ids = (~env.gripper.engaged & ~self.failed & (env.episode_length_buf > 0)).nonzero(as_tuple=False).flatten()
         if not ids.numel():
             return
-        positions = torch.stack([parcel.data.root_pos_w.torch[ids] for parcel in self._env.parcels], dim=1)
-        local = positions - self._env.scene.env_origins[ids, None]
-        reachable = (
-            (local[:, :, 0] > 0.38) & (local[:, :, 0] < 0.85) & (local[:, :, 1] > -0.31) & (local[:, :, 1] < -0.07)
+        positions = torch.stack([parcel.data.root_pos_w.torch[ids] for parcel in env.parcels], dim=1)
+        local = positions - env.scene.env_origins[ids, None]
+        tool, _ = end_effector_pose(env)
+        active_positions = positions[torch.arange(len(ids), device=self.device), env.active_ids[ids]]
+        clearance = SUCTION_PAD_RADIUS + math.sqrt(2.0) * SUCTION_PAD_SPACING
+        clear = self.placed[ids] & (
+            torch.linalg.vector_norm(tool[ids] - active_positions, dim=-1)
+            > (env.parcel_sizes[env.active_ids[ids]].norm(dim=-1) / 2.0 + clearance)
         )
-        eligible = reachable & ~self.delivered[ids]
-        tool, _ = end_effector_pose(self._env)
-        distances = torch.linalg.vector_norm(positions - tool[ids, None], dim=-1)
+        active_local = active_positions - env.scene.env_origins[ids]
+        missed = (
+            ~self.lifted[ids]
+            & ~self.placed[ids]
+            & (active_local[:, 0] > 0.85)
+            & (active_local[:, 1] > INTAKE_CENTER[1])
+        )
+        self._waiting[ids] = clear | missed
+        left = INTAKE_CENTER[0] - INTAKE_HALF_STRAIGHT
+        # Choose an approaching parcel, allowing time to return from the receiving pad.
+        reachable = (
+            (local[:, :, 0] > left - INTAKE_RADIUS - 0.05)
+            & (local[:, :, 0] < left)
+            & (local[:, :, 1] > INTAKE_CENTER[1] - INTAKE_RADIUS - 0.05)
+            & (local[:, :, 1] < INTAKE_CENTER[1])
+        )
+        eligible = reachable & ~self.delivered[ids] & (self._outfeed_destinations[ids] < 0)
+        anchor = torch.tensor((left - INTAKE_RADIUS, INTAKE_CENTER[1]), device=self.device)
+        distances = torch.linalg.vector_norm(local[:, :, :2] - anchor, dim=-1)
         choice = distances.masked_fill(~eligible, torch.inf).argmin(dim=-1)
-        available = eligible.any(dim=-1)
+        available = (clear | missed) & eligible.any(dim=-1)
         selected = ids[available]
+        self.metrics["missed_pickups"][selected] += missed[available].float()
         self._env.active_ids[selected] = choice[available]
         if self.cfg.randomize_destination:
             self.destination_ids[selected] = torch.randint(len(GOAL_POSITIONS), (len(selected),), device=self.device)
@@ -344,9 +384,8 @@ class SizeSortCommand(CommandTerm):
         )
         self.lifted[selected] = self._waiting[selected] = False
         self.placed[selected] = self._was_engaged[selected] = False
-        self.new_success[selected] = False
-        self._stable_steps[selected] = 0
         self._env.gripper.reset(selected)
+        self._env.action_manager.reset(selected)
 
 
 class ResetParcels(ManagerTermBase):
@@ -485,10 +524,11 @@ class ResetParcels(ManagerTermBase):
         row_mask = self.phase_ids == 3 if full_starts else torch.ones_like(self.phase_ids, dtype=torch.bool)
         if not env.cfg.commands.sort.randomize_destination:
             row_mask &= self.destination_ids == torch.tensor(PARCEL_CLASS_IDS, device=self.device)[self.parcel_ids]
+        sampled_received = env.command_manager.get_term("sort").delivered[ids, self.parcel_ids[self.row_ids[ids]]]
         rows = self.reset_sampler.reset(
             ids,
-            env.episode_success[ids],
-            valid=(env.episode_length_buf[ids] > 0) & ~env.episode_success[ids],
+            sampled_received,
+            valid=(env.episode_length_buf[ids] > 0) & ~sampled_received,
             row_mask=row_mask,
         )
         active = self.parcel_ids[rows]

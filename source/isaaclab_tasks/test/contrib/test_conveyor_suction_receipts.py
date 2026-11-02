@@ -15,6 +15,7 @@ from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import math as math_utils
 
 import isaaclab_tasks  # noqa: F401
+from isaaclab_tasks.contrib.conveyor_franka.mdp.kinematics import end_effector_pose
 from isaaclab_tasks.contrib.conveyor_suction.actions import solve_tool_ik
 from isaaclab_tasks.utils import parse_env_cfg
 
@@ -56,6 +57,53 @@ def test_receipts_record_success_and_continue_without_reset(device):
         assert command.metrics["correct_deliveries"].tolist() == [0, 0]
         assert monitor.success_size[rows].tolist() == [0, 0]
         actions = torch.zeros((2, 4), device=device)
+
+        def place_in_bin(env_id, parcel_id, bin_id, lateral_offset=0.0):
+            ids = torch.tensor([env_id], device=device)
+            parcel = env.parcels[parcel_id]
+            pose = parcel.data.default_root_pose.torch[ids].clone()
+            pose[:, :3] = env.bin_positions[bin_id] + env.scene.env_origins[ids]
+            direction = env.bin_directions[bin_id]
+            pose[:, 0] -= lateral_offset * direction[1]
+            pose[:, 1] += lateral_offset * direction[0]
+            pose[:, 2] -= 0.28 - env.parcel_sizes[parcel_id, 2] / 2 - 0.006
+            parcel.write_root_pose_to_sim_index(root_pose=pose, env_ids=ids)
+            parcel.write_root_velocity_to_sim_index(root_velocity=torch.zeros((1, 6), device=device), env_ids=ids)
+            env.sim.forward()
+            env.scene.update(env.step_dt)
+
+        def hold_at_goal(env_id, release=True):
+            ids = torch.tensor([env_id], device=device)
+            parcel_id = env.active_ids[env_id].item()
+            goal = command.goal_positions[ids].clone()
+            goal[:, 2] += env.parcel_sizes[parcel_id, 2] / 2.0 + 0.010
+            robot = env.scene["robot"]
+            joints = robot.data.default_joint_pos.torch[ids].clone()
+            joints[:, reset._arm_ids] = solve_tool_ik(goal)
+            robot.write_joint_position_to_sim_index(position=joints, env_ids=ids)
+            robot.write_joint_velocity_to_sim_index(velocity=torch.zeros_like(joints), env_ids=ids)
+            robot.actuators.target_command.set_position_index(value=joints, env_ids=ids)
+            pose = env.parcels[parcel_id].data.default_root_pose.torch[ids].clone()
+            pose[:, :3] = goal + env.scene.env_origins[ids]
+            pose[:, 2] -= env.parcel_sizes[parcel_id, 2] / 2 + 0.002
+            env.parcels[parcel_id].write_root_pose_to_sim_index(root_pose=pose, env_ids=ids)
+            env.parcels[parcel_id].write_root_velocity_to_sim_index(
+                root_velocity=torch.zeros((1, 6), device=device), env_ids=ids
+            )
+            env.action_manager.reset(ids)
+            env.gripper.reset(ids)
+            command.lifted[ids] = True
+            env.sim.forward()
+            env.scene.update(env.step_dt)
+            actions[env_id, 3] = -1.0
+            for _ in range(10):
+                env.step(actions)
+            assert env.gripper.engaged[env_id]
+            if release:
+                actions[env_id, 3] = 1.0
+                env.step(actions)
+                assert command.placed[env_id] and not command.failed[env_id]
+
         observations = env.observation_manager.compute()["policy"]
         assert observations.shape[1:] == env.observation_manager.group_obs_dim["policy"]
         assert torch.isfinite(observations).all()
@@ -68,6 +116,20 @@ def test_receipts_record_success_and_continue_without_reset(device):
         env.step(actions)
         assert command.placed.all() and not command.failed.any()
         assert command.metrics["controlled_placements"].tolist() == [1, 1]
+        # The next pick starts after real tool clearance, before the released parcel reaches its bin.
+        actions[:, 2] = 1.0
+        for _ in range(60):
+            env.step(actions)
+        separation = end_effector_pose(env)[0][1] - env.parcels[4].data.root_link_pose_w.torch[1, :3]
+        assert separation.norm() > 0.20, "The tool must physically clear the released parcel."
+        assert env.active_ids[1] != 4, "A clear, released tool must hand off before the physical receipt."
+        actions[:, 2] = 0.0
+        assert not command.delivered.any() and not env.episode_success.any()
+        assert monitor.success_size[rows].tolist() == [0, 0]
+        assert dict(env.reward_manager.get_active_iterable_terms(1))["delivery"][0] == 0.0
+        next_parcel = env.active_ids[1].item()
+        next_goal = command.goal_positions[1].clone()
+        hold_at_goal(1, release=False)
         # An outfeed-speed impact must settle in the bin without crossing its floor.
         impact_ids = torch.tensor([0], device=device)
         pose = torch.tensor(
@@ -96,6 +158,9 @@ def test_receipts_record_success_and_continue_without_reset(device):
                     assert monitor.success_size[rows[env_id]] == monitor.success_rate[rows[env_id]] == 1
                     delivery = dict(env.reward_manager.get_active_iterable_terms(env_id))["delivery"][0]
                     assert delivery == 600.0
+                    if env_id == 1:
+                        assert env.active_ids[1] == next_parcel and env.gripper.engaged[1]
+                        torch.testing.assert_close(command.goal_positions[1], next_goal)
                     received[env_id] = True
             if all(received) and env.active_ids[1] != 4:
                 break
@@ -115,6 +180,7 @@ def test_receipts_record_success_and_continue_without_reset(device):
         command.evaluate()
         torch.testing.assert_close(command.delivered[1], expected)
         assert command.metrics["correct_deliveries"][1] == 1
+        assert env.active_ids[1] == next_parcel and env.gripper.engaged[1]
         assert env.episode_success[1]
         assert monitor.success_size[rows].tolist() == [1, 1]
 
@@ -125,55 +191,12 @@ def test_receipts_record_success_and_continue_without_reset(device):
         assert monitor.success_size[rows].tolist() == [2, 1]
         assert monitor.success_rate[rows].tolist() == [0.5, 1.0]
 
-        def place_in_bin(env_id, parcel_id, bin_id):
-            ids = torch.tensor([env_id], device=device)
-            parcel = env.parcels[parcel_id]
-            pose = parcel.data.default_root_pose.torch[ids].clone()
-            pose[:, :3] = env.bin_positions[bin_id] + env.scene.env_origins[ids]
-            pose[:, 2] -= 0.28 - env.parcel_sizes[parcel_id, 2] / 2 - 0.006
-            parcel.write_root_pose_to_sim_index(root_pose=pose, env_ids=ids)
-            parcel.write_root_velocity_to_sim_index(root_velocity=torch.zeros((1, 6), device=device), env_ids=ids)
-            env.sim.forward()
-            env.scene.update(env.step_dt)
-
-        def hold_at_goal(env_id):
-            ids = torch.tensor([env_id], device=device)
-            parcel_id = env.active_ids[env_id].item()
-            goal = command.goal_positions[ids].clone()
-            goal[:, 2] += env.parcel_sizes[parcel_id, 2] / 2.0 + 0.010
-            robot = env.scene["robot"]
-            joints = robot.data.default_joint_pos.torch[ids].clone()
-            joints[:, reset._arm_ids] = solve_tool_ik(goal)
-            robot.write_joint_position_to_sim_index(position=joints, env_ids=ids)
-            robot.write_joint_velocity_to_sim_index(velocity=torch.zeros_like(joints), env_ids=ids)
-            robot.actuators.target_command.set_position_index(value=joints, env_ids=ids)
-            pose = env.parcels[parcel_id].data.default_root_pose.torch[ids].clone()
-            pose[:, :3] = goal + env.scene.env_origins[ids]
-            pose[:, 2] -= env.parcel_sizes[parcel_id, 2] / 2 + 0.002
-            env.parcels[parcel_id].write_root_pose_to_sim_index(root_pose=pose, env_ids=ids)
-            env.parcels[parcel_id].write_root_velocity_to_sim_index(
-                root_velocity=torch.zeros((1, 6), device=device), env_ids=ids
-            )
-            env.action_manager.reset(ids)
-            env.gripper.reset(ids)
-            command.lifted[ids] = True
-            env.sim.forward()
-            env.scene.update(env.step_dt)
-            actions[env_id, 3] = -1.0
-            for _ in range(8):
-                env.step(actions)
-                if env.gripper.engaged[env_id]:
-                    break
-            for _ in range(2):
-                env.step(actions)
-            assert env.gripper.engaged[env_id]
-            actions[env_id, 3] = 1.0
-            env.step(actions)
-            assert command.placed[env_id] and not command.failed[env_id]
-
         # Identical released poses require observable qualification before they can earn a receipt.
         second = env.active_ids[1].item()
-        place_in_bin(1, second, command.destination_ids[1])
+        second_destination = command.destination_ids[1].item()
+        env.gripper.reset(torch.tensor([1], device=device))
+        actions[1, 3] = 1.0
+        place_in_bin(1, second, second_destination)
         command.lifted[1] = False
         unqualified = env.observation_manager.compute()["policy"][1].clone()
         command.lifted[1] = True
@@ -190,7 +213,7 @@ def test_receipts_record_success_and_continue_without_reset(device):
         assert command.failed[1] and not command.delivered[1, second]
         command.failed[1] = False
         hold_at_goal(1)
-        place_in_bin(1, second, command.destination_ids[1])
+        place_in_bin(1, second, second_destination)
         for _ in range(2):
             env.step(actions)
         assert not command.delivered[1, second]
@@ -207,7 +230,7 @@ def test_receipts_record_success_and_continue_without_reset(device):
 
         actions[1, 0] = 0.0
         command.failed[1] = False
-        place_in_bin(1, second, command.destination_ids[1])
+        place_in_bin(1, second, second_destination)
         pulses = 0
         for _ in range(15):
             _, _, terminated, timed_out, extras = env.step(actions)
@@ -303,3 +326,37 @@ def test_receipts_record_success_and_continue_without_reset(device):
                 break
         assert command.delivered[0, 4] and not command.failed[0]
         assert monitor.success_size[rows[0]] == monitor.success_rate[rows[0]] == 1
+
+        # A later target may arrive first, but only the sampled parcel labels its reset row.
+        rows[0] = ((reset.parcel_ids == 8) & (reset.phase_ids == 0) & (reset.destination_ids == 3)).nonzero()[0, 0]
+        for simultaneous in (False, True):
+            env.reset(env_ids=impact_ids)
+            history_size = monitor.success_size[rows[0]].item()
+            actions[0, 3] = 1.0
+            env.step(actions)
+            actions[0, 2] = 1.0
+            for _ in range(60):
+                env.step(actions)
+            actions[0, 2] = 0.0
+            second = env.active_ids[0].item()
+            assert second != 8 and not command.delivered[0].any()
+            second_destination = command.destination_ids[0].item()
+            hold_at_goal(0)
+            place_in_bin(0, second, second_destination, lateral_offset=0.12)
+            if simultaneous:
+                place_in_bin(0, 8, 3, lateral_offset=-0.12)
+            pulses = []
+            for _ in range(15):
+                _, _, _, _, extras = env.step(actions)
+                count = command.new_success[0].item()
+                pulses.append(count)
+                assert bool(extras["successes"][0]) == (count > 0)
+                assert dict(env.reward_manager.get_active_iterable_terms(0))["delivery"][0] == 600.0 * count
+            assert sum(pulses) == max(pulses) == 1 + int(simultaneous)
+            assert env.episode_success[0]
+            assert command.delivered[0, second] and bool(command.delivered[0, 8]) == simultaneous
+            assert command.delivered[0].sum() == command.metrics["correct_deliveries"][0] == sum(pulses)
+            assert monitor.success_size[rows[0]] == history_size + int(simultaneous)
+            env.reset(env_ids=impact_ids)
+            assert monitor.success_size[rows[0]] == history_size + 1
+            assert monitor.success_rate[rows[0]] == (0.5 if simultaneous else 0.0)
