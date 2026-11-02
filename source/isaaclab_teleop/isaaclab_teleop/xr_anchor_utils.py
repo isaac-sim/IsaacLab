@@ -151,22 +151,10 @@ class _XrAnchorPosePolicy:
         return pxr_mat
 
 
-def _relative_anchor_transform(tracking_path: str, render_path: str) -> np.ndarray:
-    """Return the authored tracking-to-render offset in column-vector convention."""
-    from pxr import UsdGeom
-
-    stage = get_current_stage()
-    tracking = np.asarray(UsdGeom.Xformable(stage.GetPrimAtPath(tracking_path)).GetLocalTransformation()).T
-    rendering = np.asarray(UsdGeom.Xformable(stage.GetPrimAtPath(render_path)).GetLocalTransformation()).T
-    return np.linalg.solve(tracking, rendering)
-
-
 class XrAnchorSynchronizer:
     """Adapt the shared anchor policy to Kit Fabric and XRCore pre-sync events."""
 
-    def __init__(
-        self, xr_core: Any, xr_cfg: Any, xr_anchor_headset_path: str, *, xr_render_anchor_path: str | None = None
-    ):
+    def __init__(self, xr_core: Any, xr_cfg: Any, xr_anchor_headset_path: str):
         self._xr_core = xr_core
         self._xr_cfg = xr_cfg
         self._xr_anchor_headset_path = xr_anchor_headset_path
@@ -174,15 +162,6 @@ class XrAnchorSynchronizer:
         stage = get_current_stage()
         anchor = stage.GetPrimAtPath(xr_anchor_headset_path)
         self.__anchor_headset_layer_identifier = anchor.GetPrimStack()[0].layer.identifier
-        self._render_anchor_path = xr_render_anchor_path
-        self._render_anchor_offset = None
-        if xr_render_anchor_path is not None and xr_render_anchor_path != xr_anchor_headset_path:
-            from pxr import Gf
-
-            offset = _relative_anchor_transform(xr_anchor_headset_path, xr_render_anchor_path)
-            self._render_anchor_offset = Gf.Matrix4d(offset.T.tolist())
-            render_anchor = stage.GetPrimAtPath(xr_render_anchor_path)
-            self._render_layer_identifier = render_anchor.GetPrimStack()[0].layer.identifier
         self._reference_world_matrix = None
         if xr_cfg.anchor_prim_path is not None:
             rt_stage = usdrt.Usd.Stage.Attach(get_current_stage_id())
@@ -242,10 +221,5 @@ class XrAnchorSynchronizer:
             self._xr_core.set_world_transform_matrix(
                 self._xr_anchor_headset_path, matrix, self.__anchor_headset_layer_identifier
             )
-            if self._render_anchor_offset is not None:
-                # Gf uses row vectors: apply the view offset before the filtered world pose.
-                self._xr_core.set_world_transform_matrix(
-                    self._render_anchor_path, self._render_anchor_offset * matrix, self._render_layer_identifier
-                )
         except Exception as e:
             logger.warning(f"XR: Anchor sync failed: {e}")

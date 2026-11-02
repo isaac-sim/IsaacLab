@@ -51,14 +51,12 @@ from .. import (
     se3_keyboard_teleop_cfg,
     se3_spacemouse_teleop_cfg,
 )
-from ..action_policy import (
-    initial_hand_tracking_issue as _required_hand_tracking_issue,
-)
-from ..action_policy import prepare_teleop_action
+from ..action_policy import initial_hand_tracking_issue, prepare_teleop_action
 from ..device_selection import create_teleop_device, select_teleop_cfg
 from ._ovxr_launch import (
     add_ovxr_presentation_args,
     prepare_ovxr_launch,
+    reject_ovxr_runtime_conflicts,
     resolve_ovxr_pip_cameras,
     validate_ovxr_presentation_args,
 )
@@ -300,10 +298,7 @@ def _resolve_env_cfg() -> tuple[
     # A task without a physics selection keeps None: SimulationContext defaults it to PhysxCfg.
     configs, kit_sources = validate_launch(env_cfg, vars(args_cli).copy())
     if args_cli.using_ovxr:
-        from isaaclab.visualizers import VisualizerBackendCfg
-
-        if kit_sources or any(isinstance(cfg, VisualizerBackendCfg) for cfg in configs):
-            raise ValueError("--ovxr requires no Kit runtime or local visualizer")
+        reject_ovxr_runtime_conflicts(configs, kit_sources)
     if use_isaac_teleop and teleop_cfg.prepare_environment is not None:
         teleop_cfg.prepare_environment(env_cfg)
     return env_cfg, teleop_cfg, use_isaac_teleop, selected_cameras
@@ -770,10 +765,10 @@ def run_teleoperation(  # noqa: C901
                                 haptic_driver.stop()
                             action_applied = False
                         else:
-                            issue = (
-                                _required_hand_tracking_issue(teleop_interface, initialized_hand_tracking)
-                                if require_initial_bimanual_tracking
-                                else None
+                            issue = initial_hand_tracking_issue(
+                                teleop_interface,
+                                initialized_hand_tracking,
+                                required=require_initial_bimanual_tracking,
                             )
                             if issue is None:
                                 action, issue = prepare_teleop_action(

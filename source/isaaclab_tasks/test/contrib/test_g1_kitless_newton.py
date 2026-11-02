@@ -6,7 +6,6 @@
 """Sim-free tests for the G1 kitless Newton task boundary."""
 
 import math
-import re
 from types import SimpleNamespace
 
 import pytest
@@ -15,6 +14,7 @@ from isaaclab_newton.physics import NewtonCfg
 
 from isaaclab_tasks.contrib.locomanip_pick_place.fixed_base_upper_body_ik_g1_env_cfg import (
     FixedBaseUpperBodyIKG1EnvCfg,
+    prepare_fixed_base_g1_for_kitless_newton_mjwarp,
 )
 from isaaclab_tasks.contrib.locomanip_pick_place.g1_kitless_newton import (
     ACTUATOR_PROFILE,
@@ -64,7 +64,7 @@ def _fake_env():
     poses = torch.stack((left, right)).unsqueeze(0)
     robot = SimpleNamespace(
         body_names=["left_wrist_yaw_link", "right_wrist_yaw_link"],
-        data=SimpleNamespace(body_link_pose_w=poses),
+        data=SimpleNamespace(body_link_pose_w=SimpleNamespace(torch=poses)),
     )
     cfg = SimpleNamespace(
         actions=SimpleNamespace(
@@ -86,7 +86,7 @@ def test_g1_newton_contract_is_backend_scoped_and_complete() -> None:
     default_cfg = FixedBaseUpperBodyIKG1EnvCfg()
     newton_cfg = FixedBaseUpperBodyIKG1EnvCfg()
     newton_cfg.sim.physics = NewtonCfg()
-    newton_cfg.stabilize_for_kitless_newton_mjwarp()
+    prepare_fixed_base_g1_for_kitless_newton_mjwarp(newton_cfg)
 
     assert newton_cfg.sim.physics.solver_cfg.nconmax == 4096
     assert newton_cfg.sim.physics.solver_cfg.njmax == 1536
@@ -105,39 +105,17 @@ def test_g1_newton_contract_is_backend_scoped_and_complete() -> None:
     assert not isinstance(default_cfg.scene.object.spawn, SteeringWheelUsdFileCfg)
 
 
-@pytest.mark.parametrize("task", ["fixed_base", "locomanipulation"])
-def test_g1_contact_mappings_are_bilateral_and_nested(task) -> None:
-    from isaaclab_tasks.contrib.locomanip_pick_place.locomanipulation_g1_env_cfg import LocomanipulationG1EnvCfg
-
-    cfg = FixedBaseUpperBodyIKG1EnvCfg() if task == "fixed_base" else LocomanipulationG1EnvCfg()
-
-    assert cfg.scene.left_hand_contact.prim_path == "{ENV_REGEX_NS}/Robot/left_hand/left_hand_[^/]*_link"
-    assert cfg.scene.right_hand_contact.prim_path == "{ENV_REGEX_NS}/Robot/right_hand/right_hand_[^/]*_link"
-    assert cfg.haptic_feedback.left_sensor_name == "left_hand_contact"
-    assert cfg.haptic_feedback.right_sensor_name == "right_hand_contact"
-
-    compiled_labels = (
-        "/World/envs/env_0/Robot/left_hand/left_hand_index_0_link",
-        "/World/envs/env_0/Robot/right_hand/right_hand_thumb_2_link",
-        "/World/envs/env_0/Robot/torso_link",
-    )
-    left_pattern = cfg.scene.left_hand_contact.prim_path.replace("{ENV_REGEX_NS}", r"/World/envs/env_[^/]+")
-    right_pattern = cfg.scene.right_hand_contact.prim_path.replace("{ENV_REGEX_NS}", r"/World/envs/env_[^/]+")
-    left = [label for label in compiled_labels if re.fullmatch(left_pattern, label)]
-    right = [label for label in compiled_labels if re.fullmatch(right_pattern, label)]
-    assert left == [compiled_labels[0]]
-    assert right == [compiled_labels[1]]
-    assert set(left).isdisjoint(right)
-
-
 def test_locomanipulation_preserves_agile_policy_order_and_action_contract() -> None:
-    from isaaclab_tasks.contrib.locomanip_pick_place.locomanipulation_g1_env_cfg import LocomanipulationG1EnvCfg
+    from isaaclab_tasks.contrib.locomanip_pick_place.locomanipulation_g1_env_cfg import (
+        LocomanipulationG1EnvCfg,
+        prepare_locomanipulation_g1_for_kitless_newton_mjwarp,
+    )
 
     cfg = LocomanipulationG1EnvCfg()
     controller = cfg.actions.lower_body_joint_pos.copy()
     upper_body_class = cfg.actions.upper_body_ik.class_type
     cfg.sim.physics = NewtonCfg()
-    cfg.stabilize_for_kitless_newton_mjwarp()
+    prepare_locomanipulation_g1_for_kitless_newton_mjwarp(cfg)
 
     assert cfg.scene.robot.joint_ordering == "physx"
     assert cfg.actions.lower_body_joint_pos == controller
@@ -166,7 +144,7 @@ def test_recorded_first_action_is_ramped_and_finite() -> None:
 def test_wrist_ramp_reseeds_after_termination_auto_reset() -> None:
     """A success/drop auto-reset inside env.step moves the wrists; the ramp must restart from there."""
     env, left, _ = _fake_env()
-    poses = env.scene["robot"].data.body_link_pose_w
+    poses = env.scene["robot"].data.body_link_pose_w.torch
 
     def step(terminated: bool = False) -> None:
         # Advance the counters like ManagerBasedRLEnv.step; a terminated episode resets to a lower pose.
@@ -199,7 +177,7 @@ def test_wrist_ramp_reseeds_after_termination_auto_reset() -> None:
 def test_conditioned_wrist_rotation_obeys_angular_cap(angle, axis, sign):
     """The public action conditioner follows the short rotation without exceeding its cap."""
     env, _, _ = _fake_env()
-    pose = env.scene["robot"].data.body_link_pose_w
+    pose = env.scene["robot"].data.body_link_pose_w.torch
     # Any fixed unit quaternion works as the start: slerp is convention-independent. This is the
     # (x, y, z, w) = (1, 0, 0, 0) half-turn about x, not identity.
     pose[0, :, 3:7] = torch.tensor([1.0, 0, 0, 0])

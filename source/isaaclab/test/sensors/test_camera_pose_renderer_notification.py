@@ -3,42 +3,94 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Pin the camera pose-refresh contract that external renderer borrowers rely on."""
+"""Camera pose refresh for renderers presented outside :meth:`Camera.update`."""
 
 from types import SimpleNamespace
-from unittest.mock import MagicMock
 
 import pytest
+import torch
 import warp as wp
 
-from isaaclab.sensors.camera.camera import Camera
+from isaaclab.sensors.camera import Camera
+from isaaclab.sensors.camera.camera_data import CameraData
+from isaaclab.utils.warp import ProxyArray
 
 pytestmark = pytest.mark.unit
 
+_NUM_CAMERAS = 2
 
-def test_camera_pose_refresh_notifies_its_renderer():
-    """``Camera._update_poses`` must forward the refreshed world pose to its renderer.
 
-    The OVXR adapter refreshes selected PiP camera poses through this method before each scene
-    publication; a refactor that stops notifying the renderer would leave those panels stale.
-    """
-    camera = Camera.__new__(Camera)
-    # ``__new__`` skips ``__init__``; set the callback handles that the destructor clears.
-    camera._initialize_handle = camera._invalidate_initialize_handle = camera._prim_deletion_handle = None
-    camera._debug_vis_handle = None
-    pose = SimpleNamespace(warp=wp.zeros(1, dtype=wp.vec3f, device="cpu"))
-    orientation = SimpleNamespace(warp=wp.array([[0.0, 0.0, 0.0, 1.0]], dtype=wp.quatf, device="cpu"))
-    camera._sensor_prims = [object()]
-    camera._view = SimpleNamespace(get_world_poses=lambda _env_ids: (pose, orientation), close=lambda: None)
-    camera._update_camera_state = MagicMock()
-    camera._render_data = object()
-    camera._renderer = MagicMock()
-    camera._data = SimpleNamespace(pos_w="positions", quat_w_world="orientations", intrinsic_matrices="intrinsics")
+class _RecordingRenderer:
+    """Record the camera poses each renderer notification carries."""
 
-    camera._update_poses()
+    def __init__(self):
+        self.poses = []
 
-    camera._update_camera_state.assert_called_once()
-    assert camera._update_camera_state.call_args.kwargs["update_pose"] is True
-    camera._renderer.update_camera.assert_called_once_with(
-        camera._render_data, "positions", "orientations", "intrinsics"
-    )
+    def update_camera(self, render_data, positions, orientations, intrinsics):
+        self.poses.append((render_data, positions.torch.clone(), orientations.torch.clone()))
+
+    def cleanup(self, render_data):
+        pass
+
+
+def _assert_same_rotations(actual: torch.Tensor, expected: torch.Tensor) -> None:
+    """Compare unit quaternions up to sign, since ``q`` and ``-q`` describe one rotation."""
+    torch.testing.assert_close((actual * expected).sum(dim=-1).abs(), torch.ones(actual.shape[0]))
+
+
+class _CpuCamera(Camera):
+    """A CPU camera whose pose source is an in-memory world pose."""
+
+    def __init__(self):
+        self.cfg = SimpleNamespace(update_period=0.0, update_latest_camera_pose=False)
+        self._device = "cpu"
+        # No capture is pending, so reading ``data`` returns the buffers without rendering.
+        self._data_dirty = False
+        self._sensor_prims = [object()] * _NUM_CAMERAS
+        self._renderer = _RecordingRenderer()
+        self._render_data = object()
+        self._data = CameraData()
+        self._data.create_buffers(_NUM_CAMERAS, "cpu")
+        self._frame = ProxyArray(wp.zeros(_NUM_CAMERAS, dtype=wp.int64, device="cpu"))
+        self._ALL_INDICES = wp.array(range(_NUM_CAMERAS), dtype=wp.int32, device="cpu")
+        self._ALL_ENV_MASK = wp.ones(_NUM_CAMERAS, dtype=wp.bool, device="cpu")
+        self.positions = torch.zeros(_NUM_CAMERAS, 3)
+        self.orientations = torch.tensor([[0.0, 0.0, 0.0, 1.0]] * _NUM_CAMERAS)
+        self._view = SimpleNamespace(count=_NUM_CAMERAS, get_world_poses=self._world_poses, close=lambda: None)
+
+    def __del__(self):
+        pass
+
+    def _world_poses(self, env_ids):
+        indices = slice(None) if env_ids is None else env_ids.numpy()
+        positions = wp.from_torch(self.positions[indices].contiguous(), dtype=wp.vec3f)
+        orientations = wp.from_torch(self.orientations[indices].contiguous(), dtype=wp.quatf)
+        return ProxyArray(positions), ProxyArray(orientations)
+
+
+def test_refresh_world_poses_updates_data_and_renderer_without_capturing():
+    """A refresh exposes moved poses to the data and the renderer, but captures no frame."""
+    camera = _CpuCamera()
+    camera.positions = torch.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+    camera.orientations = torch.tensor([[0.0, 0.0, 1.0, 0.0], [0.0, 1.0, 0.0, 0.0]])
+
+    camera.refresh_world_poses()
+
+    # The data and renderer carry the world-convention orientation that a direct pose query reports.
+    _, world_orientations = camera.get_world_poses(convention="world")
+    torch.testing.assert_close(camera.data.pos_w.torch, camera.positions)
+    _assert_same_rotations(camera.data.quat_w_world.torch, world_orientations)
+    [(render_data, positions, orientations)] = camera._renderer.poses
+    assert render_data is camera._render_data
+    torch.testing.assert_close(positions, camera.positions)
+    _assert_same_rotations(orientations, world_orientations)
+    assert camera.frame.torch.tolist() == [0] * _NUM_CAMERAS
+
+    # A partial refresh leaves the other camera's cached pose unchanged.
+    moved = torch.tensor([[7.0, 8.0, 9.0], [10.0, 11.0, 12.0]])
+    camera.positions = moved
+    camera.refresh_world_poses(env_ids=[1])
+
+    torch.testing.assert_close(camera.data.pos_w.torch, torch.tensor([[1.0, 2.0, 3.0], [10.0, 11.0, 12.0]]))
+    assert len(camera._renderer.poses) == 2
+    assert camera.frame.torch.tolist() == [0] * _NUM_CAMERAS

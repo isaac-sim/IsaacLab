@@ -17,6 +17,7 @@ The following classes are part of the public :mod:`isaaclab_ov.renderers` API.
    OVRTXRendererCfg
    OVRTXBackendCfg
    OvLibrariesRenderLease
+   OvLibrariesScenePublisher
 
 .. autoclass:: OVRTXRenderer
    :show-inheritance:
@@ -53,7 +54,7 @@ renderer must be recreated.
 .. autoclass:: OvLibrariesRenderLease
    :members:
 
-.. autoclass:: isaaclab_ov.renderers.render_lease.OvLibrariesScenePublisher
+.. autoclass:: OvLibrariesScenePublisher
    :members:
 
 Simulation-owned stages

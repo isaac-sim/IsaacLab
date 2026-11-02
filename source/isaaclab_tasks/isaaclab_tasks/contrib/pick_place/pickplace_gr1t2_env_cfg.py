@@ -3,10 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import os
 import tempfile
 from collections.abc import Callable
 from dataclasses import MISSING
+from typing import TYPE_CHECKING
 
 from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
@@ -33,6 +36,7 @@ from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.contrib import ISAACLAB_TELEOP_AVAILABLE
 from isaaclab_tasks.contrib.packing_table import configure_packing_table_collisions
+from isaaclab_tasks.contrib.spawn_wrapping import wrap_spawn
 from isaaclab_tasks.contrib.steering_wheel import (
     condition_newton_steering_wheel_detail_collisions,
 )
@@ -47,6 +51,9 @@ from .gr1t2_kitless_action_cfg import GR1T2KitlessPinkInverseKinematicsActionCfg
 
 from isaaclab_assets.robots.fourier import GR1T2_HIGH_PD_CFG  # isort: skip
 from isaaclab_tasks.contrib.robot_pov_camera_cfg import robot_pov_camera_cfg  # isort: skip
+
+if TYPE_CHECKING:
+    from pxr import Usd
 
 
 def build_gr1t2_pickplace_pipeline():
@@ -601,6 +608,13 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
 
     class_type: type | str = "isaaclab_tasks.contrib.teleop_env:HumanoidTeleopEnv"
     _prepared_kitless_backend: str | None = None
+    kitless_preparation: dict[str, str] = {
+        "ovphysx": "isaaclab_tasks.contrib.pick_place.pickplace_gr1t2_env_cfg:prepare_gr1t2_for_kitless_ovphysx",
+        "newton_mjwarp": (
+            "isaaclab_tasks.contrib.pick_place.pickplace_gr1t2_env_cfg:prepare_gr1t2_for_kitless_newton_mjwarp"
+        ),
+    }
+    """Preparation function, as a ``"module:function"`` reference, for each supported kitless backend."""
     haptic_feedback: object | None = None
     image_obs_list: list[str] = ["robot_pov_cam"]
     sim: SimulationCfg = SimulationCfg(physics=TeleopPhysicsCfg())
@@ -718,14 +732,6 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
                 left_sensor_name="left_hand_contact",
                 right_sensor_name="right_hand_contact",
             )
-
-    def stabilize_for_kitless_ovphysx(self) -> None:
-        """Configure the GR1T2 asset and action boundaries for kitless OVPhysX."""
-        prepare_gr1t2_for_kitless_ovphysx(self)
-
-    def stabilize_for_kitless_newton_mjwarp(self) -> None:
-        """Configure GR1T2 actuators and contacts for kitless Newton."""
-        prepare_gr1t2_for_kitless_newton_mjwarp(self)
 
 
 def prepare_gr1t2_for_kitless_ovphysx(env_cfg: ManagerBasedRLEnvCfg) -> None:
@@ -899,7 +905,7 @@ def _author_kitless_contact_offsets(prim) -> bool:
     return True
 
 
-def _spawn_and_condition(prim_path, cfg, *args, **kwargs):
+def _spawn_and_condition(prim_path: str, cfg: GR1T2KitlessUsdFileCfg, *args, **kwargs) -> Usd.Prim:
     import math
 
     from pxr import Gf, Sdf, Usd
@@ -966,10 +972,10 @@ def _spawn_and_condition(prim_path, cfg, *args, **kwargs):
 class GR1T2KitlessUsdFileCfg(UsdFileCfg):
     """Serializable GR1T2 spawn preparation and asset-owned hand metadata."""
 
-    original_spawn: Callable = MISSING
+    original_spawn: Callable | str = MISSING
     action_cfg: GR1T2KitlessPinkInverseKinematicsActionCfg | None = None
     widen_hand_limits: bool = True
-    func: Callable = _spawn_and_condition
+    func: Callable | str = _spawn_and_condition
 
 
 def condition_kitless_gr1t2_stage(
@@ -1001,18 +1007,7 @@ def condition_kitless_gr1t2_stage(
     """
     if robot_cfg.spawn is None:
         return
-    spawn = robot_cfg.spawn
-    if not isinstance(spawn, GR1T2KitlessUsdFileCfg):
-        original_spawn = spawn.func
-        spawn = GR1T2KitlessUsdFileCfg(**vars(spawn))
-        spawn.original_spawn = original_spawn
-        robot_cfg.spawn = spawn
-    elif spawn.func is not _spawn_and_condition and not (
-        isinstance(spawn.func, str) and spawn.func == f"{__name__}:_spawn_and_condition"
-    ):
-        # Preserve a caller replacement made after an earlier preparation.
-        spawn.original_spawn = spawn.func
-    spawn.func = _spawn_and_condition
+    robot_cfg.spawn = wrap_spawn(robot_cfg.spawn, GR1T2KitlessUsdFileCfg, _spawn_and_condition)
     # Seed metadata from this environment; Asset construction owns its independent spawn copy.
-    spawn.action_cfg = action_cfg
-    spawn.widen_hand_limits = widen_hand_limits
+    robot_cfg.spawn.action_cfg = action_cfg
+    robot_cfg.spawn.widen_hand_limits = widen_hand_limits

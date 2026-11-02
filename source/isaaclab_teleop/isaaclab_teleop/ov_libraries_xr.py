@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Isaac Lab host adapter for IsaacTeleop-owned OVXR presentation."""
+"""Isaac Lab host adapter for Isaac Capture-owned OVXR presentation."""
 
 from __future__ import annotations
 
@@ -235,7 +235,7 @@ class _IsaacLabOvxrApplicationInterface(OvxrApplicationInterface):
         from isaaccapture.ovxr_session_manager.ovxr_session import OvxrSessionBinding
 
         self._bootstrap.claim_render_owner_transfer(capability)
-        unwrapped = getattr(self._env, "unwrapped", self._env)
+        unwrapped = self._env.unwrapped
         if self._auxiliary_cameras:
             # Fail before native Stage binding and partition export.
             sensors = unwrapped.scene.sensors
@@ -330,11 +330,11 @@ class _IsaacLabOvxrApplicationInterface(OvxrApplicationInterface):
                 raise RuntimeError("OVStage publication deduplicated before a sealed ordinal exists")
             return self._last_published_ordinal
         if self._auxiliary_cameras:
-            unwrapped = getattr(self._env, "unwrapped", self._env)
+            sensors = self._env.unwrapped.scene.sensors
             for camera in self._auxiliary_cameras:
                 # OVXR presentation bypasses Camera's image-update path. Refresh only poses
                 # after simulation/reset kinematics, before publishing the matching scene.
-                unwrapped.scene.sensors[camera.name]._update_poses()
+                sensors[camera.name].refresh_world_poses()
         snapshot = None
         seed = False
         if self._external_anchor is not None:
@@ -491,7 +491,7 @@ class _IsaacLabOvxrApplicationInterface(OvxrApplicationInterface):
 
 
 class OvLibrariesXrSession:
-    """Thin Isaac Lab adapter around IsaacTeleop's OVXR session."""
+    """Thin Isaac Lab adapter around Isaac Capture's OVXR session."""
 
     @runtime_checkable
     class ExternalAnchorState(Protocol):
@@ -508,8 +508,8 @@ class OvLibrariesXrSession:
             ...
 
         @property
-        def external_reference_path(self) -> str | None:
-            """Physics prim whose world transform drives the anchor."""
+        def external_reference_path(self) -> str:
+            """Absolute path of the physics prim whose world transform drives the anchor."""
             ...
 
         @property
@@ -593,7 +593,7 @@ class OvLibrariesXrSession:
         timeout_s: float = 30.0,
         external_anchor_state: OvLibrariesXrSession.ExternalAnchorState | None = None,
     ) -> bool:
-        """Give IsaacTeleop the application pair and report whether XR started.
+        """Give Isaac Capture the application pair and report whether XR started.
 
         Args:
             env: Constructed environment sharing the prepared simulation context.
@@ -659,12 +659,12 @@ class OvLibrariesXrSession:
             self._desktop_mirror = host.desktop_mirror
 
     def external_oxr_handles(self) -> OpenXRSessionHandles | None:
-        """Return IsaacTeleop's typed external handles once its owner is ready."""
+        """Return Isaac Capture's typed external handles once its owner is ready."""
         self._require_open()
         return None if self._owner is None else self._owner.external_oxr_handles()
 
     def request_render(self, physics_step_id: Hashable, *, force: bool = False) -> int | None:
-        """Offer one complete application generation for IsaacTeleop to render.
+        """Offer one complete application generation for Isaac Capture to render.
 
         Return the admitted ordinal, or ``None`` when render demand is already
         satisfied. Retry the latest dirty generation until admitted, including
@@ -698,7 +698,7 @@ class OvLibrariesXrSession:
         return self._owner.get_target_frame_T_world(prim_path)
 
     def close(self) -> None:
-        """Close IsaacTeleop's owner before releasing the application environment."""
+        """Close Isaac Capture's owner before releasing the application environment."""
         if self._closed:
             return
         if self._owner is None:
@@ -709,7 +709,7 @@ class OvLibrariesXrSession:
 
     @property
     def async_worker_owns_environment(self) -> bool:
-        """Whether IsaacTeleop accepted environment teardown ownership."""
+        """Whether Isaac Capture accepted environment teardown ownership."""
         return self._owner is not None and self._owner.owns_environment
 
     @property
@@ -753,7 +753,12 @@ class OvLibrariesXrSession:
 
 def _require_external_anchor_state(state: object) -> None:
     """Reject anchor policies that lack the external-publication protocol on the caller's thread."""
-    if state is not None and not isinstance(state, OvLibrariesXrSession.ExternalAnchorState):
+    if state is None:
+        return
+    if not isinstance(state, OvLibrariesXrSession.ExternalAnchorState):
         raise TypeError(
             f"external_anchor_state must implement OvLibrariesXrSession.ExternalAnchorState; got {type(state).__name__}"
         )
+    reference_path = state.external_reference_path
+    if not isinstance(reference_path, str) or not reference_path.startswith("/"):
+        raise ValueError(f"external_reference_path must be an absolute prim path; got {reference_path!r}")

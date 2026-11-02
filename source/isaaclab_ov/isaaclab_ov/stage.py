@@ -263,6 +263,7 @@ def export_stage_to_string(
     *,
     env_paths: Sequence[str] = (),
     preserve_references: bool = False,
+    preserve_partition_visibility: bool = False,
 ) -> str:
     """Export routed prototypes without mutating the simulation's authored USD stage.
 
@@ -279,6 +280,9 @@ def export_stage_to_string(
         preserve_references: Retain clean file-backed references and instances instead of baking
             their geometry into text. Anonymous or unsaved referenced layers require full
             composition so that the returned string does not depend on their Python lifetime.
+        preserve_partition_visibility: Keep an authored ``showAllPartitionsByDefault`` value instead
+            of forcing every scene partition visible to perspective cameras. Leased exports set this
+            so that an external presenter's scene partition can hide meshes from its cameras.
 
     Returns:
         USDA text containing the selected prototypes. By default, composition arcs are baked.
@@ -287,15 +291,15 @@ def export_stage_to_string(
     export_session.subLayerPaths = [stage.GetSessionLayer().identifier]
     export_stage = Usd.Stage.Open(stage.GetRootLayer(), export_session)
     export_stage.SetEditTarget(export_session)
-    # Perspective cameras see every partition unless the scene authors otherwise (the XR scene
-    # partition hides excluded meshes this way); sensor cameras retain their explicit partition.
+    # Perspective cameras see every partition, unless a leased export preserves an authored value
+    # (the XR scene partition hides excluded meshes this way); sensor cameras retain their partition.
     settings_path = export_stage.GetMetadata("renderSettingsPrimPath") or "/Render/IsaacLabSettings"
     settings = UsdRender.Settings.Define(export_stage, settings_path)
     settings.GetPrim().AddAppliedSchema("OmniRtxSettingsGlobalCommonAPI_1")
     show_all = settings.GetPrim().CreateAttribute(
         "omni:rtx:scenePartitioning:showAllPartitionsByDefault", Sdf.ValueTypeNames.Bool
     )
-    if not show_all.HasAuthoredValue():
+    if not (preserve_partition_visibility and show_all.HasAuthoredValue()):
         show_all.Set(True)
     export_stage.SetMetadata("renderSettingsPrimPath", settings_path)
     prim_paths = []

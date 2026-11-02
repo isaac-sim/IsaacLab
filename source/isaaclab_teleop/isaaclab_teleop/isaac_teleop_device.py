@@ -26,6 +26,8 @@ from .session_lifecycle import TeleopSessionLifecycle
 from .xr_anchor_manager import XrAnchorManager
 
 if TYPE_CHECKING:
+    from isaacteleop.oxr import OpenXRSessionHandles
+
     from .haptic_feedback import HapticFeedbackCfg
     from .session_lifecycle import SupportsDLPack
     from .visualizers.controller_aim_visualizer import ControllerAimVisualizer
@@ -128,7 +130,7 @@ class IsaacTeleopDevice:
         haptic_cfg: HapticFeedbackCfg | None = None,
         visualizers: Sequence[BaseVisualizer] = (),
         *,
-        external_oxr_handles_provider: Callable[[], object | None] | None = None,
+        external_oxr_handles_provider: Callable[[], OpenXRSessionHandles | None] | None = None,
         ovxr_session: bool = False,
     ):
         """Initialize the Isaac Capture device.
@@ -316,8 +318,8 @@ class IsaacTeleopDevice:
 
     @property
     def xr_render_anchor_path(self) -> str:
-        """Return the anchor prim path used to frame XR cameras."""
-        return self._anchor_manager.render_anchor_path
+        """Anchor prim that frames the rendered XR view."""
+        return self._anchor_manager.anchor_headset_path
 
     @property
     def external_anchor_state(self) -> XrAnchorManager | None:
@@ -650,7 +652,7 @@ def create_isaac_teleop_device(
     *,
     env_prim_path: str | None = None,
     visualizers: Sequence[BaseVisualizer] = (),
-    external_oxr_handles_provider: Callable[[], object | None] | None = None,
+    external_oxr_handles_provider: Callable[[], OpenXRSessionHandles | None] | None = None,
     ovxr_session: bool = False,
 ) -> IsaacTeleopDevice:
     """Create an :class:`IsaacTeleopDevice` with required Omniverse extension setup.
