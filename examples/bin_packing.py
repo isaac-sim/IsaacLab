@@ -348,7 +348,7 @@ class _NewtonGroceryView:
     def __init__(self, manager):
         from newton import ModelFlags
 
-        model = manager.get_model()
+        model = manager.backend.model
         matches = [
             (index, path)
             for index, path in enumerate(model.body_label)
@@ -362,27 +362,27 @@ class _NewtonGroceryView:
         self._mass_change_flag = ModelFlags.BODY_INERTIAL_PROPERTIES
 
     def get_transforms(self) -> torch.Tensor:
-        return wp.to_torch(self._manager.get_state_0().body_q)[wp.to_torch(self._body_ids)]
+        return wp.to_torch(self._manager.backend.state_0.body_q)[wp.to_torch(self._body_ids)]
 
     def set_transforms(self, transforms: wp.array, indices: wp.array) -> None:
         wp.launch(
             _set_grocery_transforms,
             dim=indices.shape[0],
             inputs=[transforms, indices.to(self._model.device), self._body_ids],
-            outputs=[self._manager.get_state_0().body_q],
+            outputs=[self._manager.backend.state_0.body_q],
             device=self._model.device,
         )
         self._manager.invalidate_body_state()
 
     def get_velocities(self) -> torch.Tensor:
-        return wp.to_torch(self._manager.get_state_0().body_qd)[wp.to_torch(self._body_ids)]
+        return wp.to_torch(self._manager.backend.state_0.body_qd)[wp.to_torch(self._body_ids)]
 
     def set_velocities(self, velocities: wp.array, indices: wp.array) -> None:
         wp.launch(
             _set_grocery_velocities,
             dim=indices.shape[0],
             inputs=[velocities, indices.to(self._model.device), self._body_ids],
-            outputs=[self._manager.get_state_0().body_qd],
+            outputs=[self._manager.backend.state_0.body_qd],
             device=self._model.device,
         )
         self._manager.invalidate_body_state()
