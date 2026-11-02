@@ -60,6 +60,11 @@ Physics Manager
 .. autoclass:: NewtonCloneRecord
   :members:
 
+.. automodule:: isaaclab_newton.physics.newton_backend
+  :members: capture_graph
+
+.. currentmodule:: isaaclab_newton.physics
+
 Solvers
 -------
 
