@@ -87,7 +87,12 @@ from isaaclab_ov.renderers.ovrtx_annotator_utils import (
 )
 from isaaclab_ov.renderers.ovrtx_compat import OVRTX_USES_NAMED_SEGMENTATION_MAPS
 from isaaclab_ov.renderers.ovrtx_compat import OVRTX_VERSION as _OVRTX_VERSION
-from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg, OVRTXRendererCfg, parse_active_cuda_gpus
+from isaaclab_ov.renderers.ovrtx_renderer_cfg import (
+    OVRTXBackendCfg,
+    OVRTXRendererCfg,
+    parse_active_cuda_gpus,
+    parse_cuda_device_index,
+)
 from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
     accumulate_mesh_normals,
     create_camera_transforms_kernel,
@@ -444,6 +449,7 @@ class OVRTXRenderer(BaseRenderer):
         if self.cfg.geometry_publication_device is not None and self._geometry_publication is None:
             if not self._use_ovstage:
                 raise ValueError("geometry_publication_device requires OVStage")
+            self._validate_geometry_publication_device()
             self._geometry_publication = _GeometryPublicationBuffers(self.cfg.geometry_publication_device)
         logger.info("Preparing stage (%d envs)...", num_envs)
         env_paths = self.scene.clone_env_paths
@@ -517,6 +523,33 @@ class OVRTXRenderer(BaseRenderer):
         self._initialized_scene = True
         self._needs_transform_initialization = not self._use_ovstage and self.backend.cfg.read_gpu_transforms
         self._render_lease.bind_stage()
+
+    def _validate_geometry_publication_device(self) -> None:
+        """Require the geometry publication device to be one of the GPUs that render.
+
+        The rendering GPUs are the explicit ``active_cuda_gpus`` selection, or the simulation GPU that
+        the renderer follows otherwise. Copies to any other GPU add work and memory without reaching
+        the renderer.
+
+        Raises:
+            ValueError: If the device is not a rendering GPU, or there is neither an explicit
+                selection nor a simulation GPU.
+        """
+        publication = self.cfg.geometry_publication_device
+        if self.cfg.active_cuda_gpus is not None:
+            rendering = parse_active_cuda_gpus(self.cfg.active_cuda_gpus)
+        elif self._warp_device.is_cuda:
+            rendering = (self._warp_device.ordinal,)
+        else:
+            raise ValueError(
+                f"geometry_publication_device {publication!r} requires active_cuda_gpus when the simulation runs"
+                f" on {self._device!r}: there is no simulation GPU for rendering to follow"
+            )
+        if parse_cuda_device_index(publication) not in rendering:
+            raise ValueError(
+                f"geometry_publication_device {publication!r} is not a rendering GPU {list(rendering)}; select one"
+                " of active_cuda_gpus, or the simulation GPU when that is unset"
+            )
 
     def _render_product_device_id(self) -> int | None:
         """CUDA index that render products request, or ``None`` for OVRTX's automatic assignment.

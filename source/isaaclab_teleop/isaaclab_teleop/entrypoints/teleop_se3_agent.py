@@ -357,28 +357,27 @@ def _ovxr_renderer_cfg(sim_device: str):
 
     The geometry publication device must be a rendering GPU: one of ``--ovrtx_active_cuda_gpus``,
     or the simulation GPU when the renderer follows it. Otherwise the copies would land on a GPU
-    that does not render. Without a simulation GPU, the rendering GPUs must be explicit.
+    that does not render. The configuration rejects a publication GPU outside an explicit set;
+    this resolves the simulation GPU so the launch fails before the app starts in the other cases.
+    Without a simulation GPU, the rendering GPUs must be explicit.
     """
-    from isaaclab_ov.renderers import OVRTXRendererCfg, parse_active_cuda_gpus, parse_cuda_device_index
+    from isaaclab_ov.renderers import OVRTXRendererCfg, parse_cuda_device_index
 
     publication = args_cli.geometry_publication_device
-    if publication is not None:
-        if args_cli.ovrtx_active_cuda_gpus is not None:
-            rendering = parse_active_cuda_gpus(args_cli.ovrtx_active_cuda_gpus)
-        elif sim_device.startswith("cuda"):
-            # Only this path needs the session module, which loads the OVRTX renderer before launch.
-            from ..ovxr_session import resolve_cuda_device
-
-            rendering = (parse_cuda_device_index(resolve_cuda_device(sim_device)),)
-        else:
+    if publication is not None and args_cli.ovrtx_active_cuda_gpus is None:
+        if not sim_device.startswith("cuda"):
             raise ValueError(
                 f"--geometry_publication_device {publication} requires --ovrtx_active_cuda_gpus when physics runs"
                 f" on {sim_device!r}: there is no simulation GPU for rendering to follow."
             )
-        if parse_cuda_device_index(publication) not in rendering:
+        # Only this path needs the session module, which loads the OVRTX renderer before launch.
+        from ..ovxr_session import resolve_cuda_device
+
+        rendering = parse_cuda_device_index(resolve_cuda_device(sim_device))
+        if parse_cuda_device_index(publication) != rendering:
             raise ValueError(
-                f"--geometry_publication_device {publication} is not a rendering GPU {list(rendering)}; select one"
-                " of --ovrtx_active_cuda_gpus (or the simulation GPU when that option is unset)."
+                f"--geometry_publication_device {publication} is not a rendering GPU {[rendering]}; select the"
+                " simulation GPU or list the rendering GPUs with --ovrtx_active_cuda_gpus."
             )
     return OVRTXRendererCfg(
         active_cuda_gpus=args_cli.ovrtx_active_cuda_gpus,

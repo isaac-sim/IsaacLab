@@ -2282,6 +2282,60 @@ def test_geometry_publication_cuda_devices_resize_and_failed_consumption(monkeyp
         publisher.close()
 
 
+@pytest.mark.parametrize(
+    ("active_cuda_gpus", "publication", "accepted"),
+    [("0", "cuda:1", False), ("0,1", "cuda:1", True), (None, "cuda:1", True)],
+)
+def test_renderer_cfg_requires_publication_on_an_explicit_rendering_gpu(active_cuda_gpus, publication, accepted):
+    """An explicit rendering set must include the publication GPU; without one, Stage preparation decides."""
+    if not accepted:
+        with pytest.raises(ValueError, match=r"not a rendering GPU \[0\]"):
+            OVRTXRendererCfg(active_cuda_gpus=active_cuda_gpus, geometry_publication_device=publication)
+        return
+    cfg = OVRTXRendererCfg(active_cuda_gpus=active_cuda_gpus, geometry_publication_device=publication)
+    assert cfg.geometry_publication_device == publication
+
+
+@pytest.mark.parametrize(
+    ("cuda_ordinal", "active_cuda_gpus", "message"),
+    [
+        (0, None, r"not a rendering GPU \[0\]"),
+        (None, None, "requires active_cuda_gpus"),
+        (1, None, None),
+        (0, "0,1", None),
+    ],
+)
+def test_prepare_stage_requires_publication_on_a_rendering_gpu(monkeypatch, cuda_ordinal, active_cuda_gpus, message):
+    """Without an explicit set, the renderer follows the simulation GPU, so publication must target it."""
+
+    class Reached(Exception):
+        pass
+
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer.cfg = OVRTXRendererCfg(active_cuda_gpus=active_cuda_gpus, geometry_publication_device="cuda:1")
+    renderer._use_ovstage = True
+
+    class Device:
+        is_cuda = cuda_ordinal is not None
+        ordinal = -1 if cuda_ordinal is None else cuda_ordinal  # Warp reports ordinal -1 for the CPU.
+
+        def __str__(self):
+            return f"cuda:{cuda_ordinal}" if self.is_cuda else "cpu"
+
+    renderer._warp_device = Device()
+    renderer._device = str(renderer._warp_device)
+
+    def reach(device):
+        assert device == "cuda:1"
+        raise Reached
+
+    # Buffer construction is the first step after validation; native allocation is outside this check.
+    monkeypatch.setattr(ovrtx_renderer_module, "_GeometryPublicationBuffers", reach)
+    with pytest.raises(Reached if message is None else ValueError, match=message):
+        renderer.prepare_stage(renderer._sim.stage, 1)
+    assert renderer._geometry_publication is None
+
+
 def test_rigid_publication_uses_target_device_and_retains_failed_producer(monkeypatch):
     """Rigid poses follow the selected GPU; failed drains keep the exact producer and scene alive."""
     devices = test_devices(DeviceScope.CUDA)

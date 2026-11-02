@@ -134,6 +134,8 @@ class OVRTXRendererCfg(RendererCfg):
     and rigid transforms before publication returns; this does not select the rendering GPU or change physics.
     CPU-only and already-local CUDA inputs keep their placement. Mixed CPU/CUDA batches,
     implicit ``"cuda"`` devices and custom CUDA-context aliases are unsupported. Requires OVStage.
+    The device must be a rendering GPU: one of :attr:`active_cuda_gpus`, or the simulation GPU when
+    that is unset. Other devices are rejected, at configuration or Stage preparation.
 
     Producers must serialize updates on their current Warp streams and retain inputs until
     publication returns. Unrelated streams and concurrent mutation are not synchronized.
@@ -221,7 +223,12 @@ class OVRTXRendererCfg(RendererCfg):
 
     def __post_init__(self) -> None:
         # Reject malformed GPU selections before any environment or native resource exists.
-        if self.active_cuda_gpus is not None:
-            parse_active_cuda_gpus(self.active_cuda_gpus)
+        rendering = None if self.active_cuda_gpus is None else parse_active_cuda_gpus(self.active_cuda_gpus)
         if self.geometry_publication_device is not None:
-            parse_cuda_device_index(self.geometry_publication_device)
+            publication = parse_cuda_device_index(self.geometry_publication_device)
+            # Copies to a GPU that does not render add work and memory without reaching the renderer.
+            if rendering is not None and publication not in rendering:
+                raise ValueError(
+                    f"geometry_publication_device {self.geometry_publication_device!r} is not a rendering GPU"
+                    f" {list(rendering)}; select one of active_cuda_gpus"
+                )
