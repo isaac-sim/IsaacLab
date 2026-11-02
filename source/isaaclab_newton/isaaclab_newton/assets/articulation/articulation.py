@@ -3597,7 +3597,7 @@ class Articulation(BaseArticulation):
     def _invalidate_fk_index(self, env_ids: wp.array | torch.Tensor) -> None:
         """Schedule FK for env_ids through a scratch mask that the invalidation clears as it reads it."""
         if env_ids is self._ALL_INDICES:
-            self._backend_manager.invalidate_fk(articulation_ids=self.root_view.articulation_ids)
+            self._backend_manager.invalidate_fk(self._ALL_ENV_MASK, self.root_view.articulation_ids)
             return
         wp.launch(
             shared_kernels.flag_mask_from_ids_kernel(env_ids),

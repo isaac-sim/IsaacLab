@@ -1263,6 +1263,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         consume_mask = env_ids is not None and env_ids is not self._ALL_ENV_INDICES
         if consume_mask:
             env_mask = self._flag_mask_from_ids(env_ids, self._index_env_mask)
+        elif env_mask is None:
+            env_mask = self._ALL_ENV_MASK
         if body_mask is None or body_mask is self._ALL_BODY_MASK:
             if body_ids is None or body_ids is self._ALL_BODY_INDICES:
                 body_mask = None

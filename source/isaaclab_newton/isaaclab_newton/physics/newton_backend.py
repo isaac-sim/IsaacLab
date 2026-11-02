@@ -13,6 +13,7 @@ import logging
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
+from functools import cache
 from typing import TYPE_CHECKING
 
 import torch
@@ -43,25 +44,33 @@ SiteEntry = tuple[int, None] | tuple[None, list[list[int]]]
 """Resolved site: ``(global_shape_index, None)`` for a global site, or ``(None, per_world_indices)``."""
 
 
-@wp.kernel(enable_backward=False)
-def _flag_worlds_and_articulations(
-    env_mask: wp.array(dtype=wp.bool),
-    articulation_ids: wp.array2d(dtype=wp.int32),
-    articulation_mask: wp.array(dtype=wp.bool),
-    consume_mask: bool,
-    world_mask: wp.array(dtype=wp.bool),
-    fk_mask: wp.array(dtype=wp.bool),
-):
-    """Flag reset and FK work for the masked worlds and articulations; optionally consume the env mask."""
-    world = wp.tid()
-    if env_mask and not env_mask[world]:
-        return
-    for articulation in range(articulation_ids.shape[1]):
-        if not articulation_mask or articulation_mask[articulation]:
+@cache
+def _make_flag_worlds_and_articulations(num_articulations: int, masked: bool) -> wp.Kernel:
+    """Specialize the flag kernel for a view's articulation count and whether an articulation mask selects them."""
+
+    @wp.kernel(enable_backward=False, module="unique")
+    def flag_worlds_and_articulations(
+        env_mask: wp.array(dtype=wp.bool),
+        articulation_ids: wp.array2d(dtype=wp.int32),
+        articulation_mask: wp.array(dtype=wp.bool),
+        consume_mask: bool,
+        world_mask: wp.array(dtype=wp.bool),
+        fk_mask: wp.array(dtype=wp.bool),
+    ):
+        """Flag reset and FK work for the masked worlds and articulations; optionally consume the env mask."""
+        world = wp.tid()
+        if not env_mask[world]:
+            return
+        for articulation in range(wp.static(num_articulations)):
+            if wp.static(masked):
+                if not articulation_mask[articulation]:
+                    continue
             world_mask[world] = True
             fk_mask[articulation_ids[world, articulation]] = True
-    if consume_mask and env_mask:
-        env_mask[world] = False
+        if consume_mask:
+            env_mask[world] = False
+
+    return flag_worlds_and_articulations
 
 
 @wp.kernel(enable_backward=False)
@@ -270,7 +279,7 @@ class NewtonBackend:
         """Schedule solver reset and FK for the masked worlds and articulations.
 
         Args:
-            env_mask: Environments to flag, shaped (world_count,). None selects every world.
+            env_mask: Environments to flag, shaped (world_count,). Required with articulation_ids.
             articulation_ids: Global articulation IDs for each (world, view-local articulation).
                 None conservatively flags every world and articulation, as for native state writes.
             articulation_mask: View-local articulations to flag. None selects every articulation of the view.
@@ -284,7 +293,7 @@ class NewtonBackend:
                 env_mask.zero_()
             return
         wp.launch(
-            _flag_worlds_and_articulations,
+            _make_flag_worlds_and_articulations(articulation_ids.shape[1], articulation_mask is not None),
             dim=articulation_ids.shape[0],
             inputs=[env_mask, articulation_ids, articulation_mask, consume_mask],
             outputs=[self.world_mask, self.fk_mask],
