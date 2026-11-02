@@ -68,6 +68,7 @@ class shoelace_bilateral_pull_success(ManagerTermBase):
         cable_cfgs: tuple[SceneEntityCfg, SceneEntityCfg],
         finger_cfgs: tuple[SceneEntityCfg, ...],
         *,
+        robot_cfgs: tuple[SceneEntityCfg, SceneEntityCfg],
         contact_penetration_tolerance: float = 0.0,
         maximum_throat_segments_per_arm: int,
         minimum_tail_outward_distance: float,
@@ -84,13 +85,14 @@ class shoelace_bilateral_pull_success(ManagerTermBase):
             minimum_pull_distance: Required new outward record distance under bilateral grasps per tail [m].
             grasp_threshold: Minimum raw and filtered quality for each grasp, in (0, 1].
             contact_std: Finger-tail surface-distance width [m].
-            relative_speed_std: Worst-finger relative-speed width [m/s].
+            relative_speed_std: Fixed-TCP relative-speed width [m/s].
             grasp_filter_time_constant: Exponential grasp filter time constant [s].
             cable_cfgs: Left and right cable scene entities.
             finger_cfgs: Opposing surface-reference bodies for both hands.
             contact_penetration_tolerance: Allowed contact-solver penetration [m].
             maximum_throat_segments_per_arm: Maximum free capsule centers in the throat for either arm's cable.
             minimum_tail_outward_distance: Minimum signed outward X offset of each tail from the seam midpoint [m].
+            robot_cfgs: Fixed TCP bodies in left/right arm order, using ``env.cfg.tcp_body_offsets``.
             target_diameter: Target cable diameter [m].
             pad_distance_std: Finger reference-point localization width [m].
             aperture_std: Width for excess finger spacing above the target diameter [m].
@@ -127,6 +129,7 @@ class shoelace_bilateral_pull_success(ManagerTermBase):
             cable_cfgs,
             finger_cfgs,
             contact_penetration_tolerance,
+            robot_cfgs=robot_cfgs,
             target_diameter=target_diameter,
             pad_distance_std=pad_distance_std,
             aperture_std=aperture_std,

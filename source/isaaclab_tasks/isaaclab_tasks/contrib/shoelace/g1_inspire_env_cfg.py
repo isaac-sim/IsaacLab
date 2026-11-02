@@ -294,7 +294,6 @@ class G1ShoelaceEnvCfg(ShoelaceEnvCfg):
             "mirror_signs": tuple(ARM_MIRROR_SIGNS.values()),
         }
         policy.tails_to_tcp.params["robot_cfgs"] = tuple(clone(cfg) for cfg in ROBOT_CFGS)
-        self.rewards.dense_task.params["approach_robot_cfgs"] = tuple(clone(cfg) for cfg in ROBOT_CFGS)
         for term in (
             self.rewards.pregrasp,
             self.rewards.dense_task,
@@ -302,6 +301,7 @@ class G1ShoelaceEnvCfg(ShoelaceEnvCfg):
             self.terminations.success,
         ):
             term.params["finger_cfgs"] = tuple(clone(cfg) for cfg in FINGER_CFGS)
+            term.params["robot_cfgs"] = tuple(clone(cfg) for cfg in ROBOT_CFGS)
         self.rewards.pregrasp.params["open_apertures"] = (0.019776298,) * 2
         for term in (self.rewards.dense_task, self.rewards.grasp_hold, self.terminations.success):
             term.params["capture_std"] = 0.004

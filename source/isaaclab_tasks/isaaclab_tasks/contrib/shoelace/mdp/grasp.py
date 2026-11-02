@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 import torch
 
 from ..shoelace_constants import CONTACT_DISTANCE_CAP
-from .observations import finger_point_state_w, finger_tail_signed_distance
+from .observations import finger_point_state_w, finger_tail_signed_distance, tail_tcp_relative_speed
 from .utils import tail_state
 
 if TYPE_CHECKING:
@@ -26,19 +26,21 @@ def grasp_geometry(
     cable_cfgs: tuple[SceneEntityCfg, SceneEntityCfg],
     finger_cfgs: tuple[SceneEntityCfg, ...],
     target_diameter: float,
+    *,
+    robot_cfgs: tuple[SceneEntityCfg, SceneEntityCfg],
 ) -> dict[str, torch.Tensor]:
-    """Measure a two-surface grasp without assuming a gripper joint type or fixed TCP.
+    """Measure finger-surface geometry and tail speed relative to the fixed TCP.
 
     Capture distance measures the tail centre's distance to the segment joining the surface points.
-    Relative speed uses each point separately against the mean free-tail velocity; it is an
-    approximation at reference points, not a contact-resolved slip or force-closure measurement.
+    Relative speed compares the mean free-tail velocity with the wrist-offset TCP velocity,
+    independently of finger opening or closing motion.
     ``target_diameter`` is the cable diameter [m] subtracted from reference-point distances.
     Scalar fields have shape [N, 2]; pad distance has shape [N, 2, 2]. Units are metres and m/s.
     """
     if not math.isfinite(target_diameter) or target_diameter <= 0:
         raise ValueError("Target diameter must be finite and positive")
-    points, velocities = finger_point_state_w(env, finger_cfgs)
-    tails, tail_velocities = tail_state(env, cable_cfgs)
+    points, _ = finger_point_state_w(env, finger_cfgs)
+    tails, _ = tail_state(env, cable_cfgs)
     span = points[:, :, 1] - points[:, :, 0]
     aperture = span.norm(dim=-1)
     axis = span / aperture.unsqueeze(-1).clamp_min(1.0e-6)
@@ -46,10 +48,10 @@ def grasp_geometry(
     axial = (delta * axis).sum(dim=-1, keepdim=True)
     outside = (axial.abs() - 0.5 * aperture.unsqueeze(-1)).clamp_min(0.0)
     distance = torch.cat((delta - axial * axis, outside), dim=-1).norm(dim=-1)
-    slip = (tail_velocities.unsqueeze(2) - velocities).norm(dim=-1).amax(dim=2)
+    slip = tail_tcp_relative_speed(env, cable_cfgs, robot_cfgs)
     pad_distance = ((tails.unsqueeze(2) - points).norm(dim=-1) - target_diameter / 2).clamp_min(0.0)
     finite = (aperture > 1.0e-6).all(dim=1)
-    for value in (points, velocities, tails, tail_velocities):
+    for value in (points, tails, slip):
         finite &= torch.isfinite(value.flatten(1)).all(dim=1)
     return {
         "aperture": aperture,
@@ -84,6 +86,7 @@ def shoelace_grasp_quality(
     finger_cfgs: tuple[SceneEntityCfg, ...],
     contact_penetration_tolerance: float = 0.0,
     *,
+    robot_cfgs: tuple[SceneEntityCfg, SceneEntityCfg],
     target_diameter: float,
     pad_distance_std: float,
     aperture_std: float,
@@ -95,10 +98,11 @@ def shoelace_grasp_quality(
     Args:
         env: Shoelace environment with current finger-tail contact observations.
         contact_std: Finger-tail surface-distance width [m].
-        relative_speed_std: Worst-finger relative-speed width [m/s].
+        relative_speed_std: Fixed-TCP relative-speed width [m/s].
         cable_cfgs: Left and right cable scene entities.
         finger_cfgs: Four surface reference bodies, in left/right hand and opposing-finger order.
         contact_penetration_tolerance: Allowed contact-solver penetration [m].
+        robot_cfgs: Fixed TCP bodies in left/right arm order, using ``env.cfg.tcp_body_offsets``.
         target_diameter: Target cable diameter [m].
         pad_distance_std: Finger reference-point localization width [m].
         aperture_std: Width for excess finger spacing above the target diameter [m].
@@ -107,7 +111,7 @@ def shoelace_grasp_quality(
 
     Returns:
         Raw grasp qualities in robot-arm order, shape [N, 2], and finite-input flags, shape [N].
-        Quality combines two-finger contact, aperture/capture geometry, and worst-finger relative speed.
+        Quality combines two-finger contact, aperture/capture geometry, and fixed-TCP relative speed.
         It does not measure force closure or certify physical retention.
 
     Raises:
@@ -120,7 +124,7 @@ def shoelace_grasp_quality(
         raise ValueError("Grasp widths and target diameter must be finite and positive")
     finger_contact, contact_finite = _finger_contact_quality(env, contact_std, contact_penetration_tolerance)
     if geometry is None:
-        geometry = grasp_geometry(env, cable_cfgs, finger_cfgs, target_diameter)
+        geometry = grasp_geometry(env, cable_cfgs, finger_cfgs, target_diameter, robot_cfgs=robot_cfgs)
     finite = geometry["finite"] & contact_finite
     contact = hamacher_product(finger_contact[:, :, 0], finger_contact[:, :, 1])
     aperture_error = (geometry["aperture"] - target_diameter).clamp_min(0.0)

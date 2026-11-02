@@ -63,6 +63,7 @@ FINGER_CFGS = tuple(
 )
 GRASP_PARAMS = {
     "cable_cfgs": CABLE_CFGS,
+    "robot_cfgs": ROBOT_CFGS,
     "finger_cfgs": FINGER_CFGS,
     "contact_std": 5.0e-4,
     "contact_penetration_tolerance": 1.0e-3,
@@ -309,16 +310,13 @@ class RewardsCfg:
         params={
             "cable_cfgs": CABLE_CFGS,
             "finger_cfgs": FINGER_CFGS,
+            "robot_cfgs": ROBOT_CFGS,
             "open_apertures": (0.01996, 0.01996),  # Franka ready surface spacings [m].
             "target_diameter": GRASP_PARAMS["target_diameter"],
-            "pad_distance_std": GRASP_PARAMS["pad_distance_std"],
             "alignment_std": 0.015,
             "closure_radius": 0.01,
-            "alignment_weight": 0.6,
+            "alignment_weight": 0.75,
             "closure_weight": 0.25,
-            "contact_weight": 0.15,
-            "contact_std": 0.0015,
-            "contact_penetration_tolerance": 0.001,
         },
     )
     # Reward retained contact-based, closed-finger, low-slip grasps even without further task progress.
