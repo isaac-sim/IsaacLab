@@ -148,6 +148,8 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
 
     from isaaclab.cloner import make_clone_plan, replicate
 
+    monkeypatch.setenv("ISAAC_LAB_OVRTX_READ_GPU_TRANSFORMS", "1")
+
     config_kwargs: dict[str, object] = {}
     destroyed, redirected, stage_releases = [], [], []
     dependency = tmp_path / "bin/plugins/libosdCPU.so.3.6.0"
@@ -227,6 +229,9 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
     assert len(redirected) == (1 if shared_physics else 2)
     assert renderer.backend.renderer is not None
     assert config_kwargs.get("active_cuda_gpus") == ("1" if use_ovstage else None)
+    # Camera compatibility must retain the requested GPU scene-transform path,
+    # including when simulation tensors originate on the CPU.
+    assert config_kwargs["read_gpu_transforms"] is True
     assert config_kwargs["suppress_deprecation_warnings"] is True
     assert config_kwargs["texture_streaming_mode"] is ovrtx_renderer_module.TextureStreamingMode.SYNCHRONOUS
     expected_contexts = {OvstageReplicateContext if use_ovstage else OvrtxReplicateContext}
@@ -600,7 +605,7 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
 
 @pytest.mark.parametrize("batch", [False, True], ids=["lazy", "batched"])
 def test_async_cameras_publish_independently_with_capture_metadata_and_reset(monkeypatch, batch):
-    """Completed batches do not update another camera; reset retires only that camera's history."""
+    """Real captures match delayed metadata; generated images and other cameras cannot replace them."""
     renderer = _make_ovrtx_renderer_without_backend()
     renderer.cfg.async_rendering = True
     renderer._initialized_scene = True
@@ -621,14 +626,19 @@ def test_async_cameras_publish_independently_with_capture_metadata_and_reset(mon
 
     def submit(render_products, delta_time):
         operation = MagicMock()
+        frames = [types.SimpleNamespace(end_time=float(ordinal), value=ordinal)]
+        if batch:
+            # SDK capture times identify the real image independently of the returned list order.
+            frames.insert(0, types.SimpleNamespace(end_time=ordinal - 0.5, value=-ordinal))
+            frames.append(types.SimpleNamespace(end_time=ordinal - 0.25, value=-ordinal))
         operation.wait.return_value.fetch.return_value = {
-            path: types.SimpleNamespace(frames=[ordinal]) for path in render_products
+            path: types.SimpleNamespace(frames=frames) for path in render_products
         }
         operations.append(operation)
         return operation
 
-    def consume(camera, value, buffers):
-        buffers["rgba"].fill_(value)
+    def consume(camera, frame, buffers):
+        buffers["rgba"].fill_(frame.value)
 
     renderer.backend.renderer = types.SimpleNamespace(step_async=submit)
     consume = MagicMock(side_effect=consume)
@@ -843,13 +853,23 @@ def test_ovrtx_process_frame_reads_authored_camera_render_vars(monkeypatch, use_
             for prim in stage.Traverse()
             if prim.GetTypeName() == "RenderVar"
         }
-        frame = types.SimpleNamespace(render_vars={})
+        frame = types.SimpleNamespace(end_time=1.0, render_vars={})
         buffers = {}
         for index, (output, (source, channels, dtype)) in enumerate(outputs.items(), start=1):
             value = 10 * camera_id + index
             frame.render_vars[keys[source]] = wp.full((8, 32, channels), value, dtype=dtype, device="cpu")
             buffers[output] = wp.zeros((2, 8, 16, channels), dtype=dtype, device="cpu")
-        renderer._process_render_frame(render_data, frame, buffers)
+        frames = [frame]
+        if camera_id == 1:
+            generated = types.SimpleNamespace(
+                end_time=0.5,
+                render_vars={keys["LdrColor"]: wp.full((8, 32, 4), 99, dtype=wp.uint8, device="cpu")},
+            )
+            frames.insert(0, generated)
+        render_data.warp_buffers = buffers
+        renderer._process_render_products(
+            (render_data,), {render_data.render_product_path: types.SimpleNamespace(frames=frames)}
+        )
         for index, output in enumerate(outputs, start=1):
             np.testing.assert_array_equal(buffers[output].numpy(), 10 * camera_id + index)
         render_data.cleanup()
@@ -867,10 +887,42 @@ def test_launch_extract_all_tiles_rejects_wider_output_channels():
         )
 
 
-@pytest.mark.parametrize("colorized", [False, True])
-def test_segmentation_outputs_share_metadata_and_clear_stale_labels(monkeypatch, colorized):
+@pytest.mark.parametrize("colorized, named_tensors", [(False, False), (True, True)])
+def test_segmentation_outputs_share_metadata_and_clear_stale_labels(monkeypatch, colorized, named_tensors):
     """Pixel types, label keys and missing-map handling follow the requested output contract."""
+    from isaaclab_ov.renderers import ovrtx_annotator_utils as annotator_utils
+
     from isaaclab.renderers.segmentation_colors import random_color_from_id
+
+    # Exercise each wire format with its import-selected implementation, independently
+    # of the native wheel installed in this unit-test process.
+    monkeypatch.setattr(
+        annotator_utils,
+        "_decode_identifier_map",
+        (
+            annotator_utils._decode_identifier_map_named
+            if named_tensors
+            else annotator_utils._decode_identifier_map_packed
+        ),
+    )
+    monkeypatch.setattr(
+        annotator_utils,
+        "_decode_stable_id_semantic_id_map",
+        (
+            annotator_utils._decode_stable_id_semantic_id_map_named
+            if named_tensors
+            else annotator_utils._decode_stable_id_semantic_id_map_packed
+        ),
+    )
+    monkeypatch.setattr(
+        ovrtx_renderer_module,
+        "_decode_segmentation_map",
+        (
+            ovrtx_renderer_module._decode_segmentation_map_named
+            if named_tensors
+            else ovrtx_renderer_module._decode_segmentation_map_packed
+        ),
+    )
 
     from .test_ovrtx_annotator_utils import _encode_identifier_map, _encode_stable_id_semantic_id_map
 
@@ -891,10 +943,27 @@ def test_segmentation_outputs_share_metadata_and_clear_stale_labels(monkeypatch,
     seeded_keys = tuple(camera_data.info)
     stable_id = (42, 0, 0, 0)
     maps = {
-        "SemanticIdMap": _encode_identifier_map([((2, 0, 0, 0), "class: cone;")]),
-        "StableIdMap": _encode_identifier_map([(stable_id, "/World/Cone")]),
-        "StableIdSemanticIdMap": _encode_stable_id_semantic_id_map([(stable_id, 2)]),
+        "SemanticIdMap": _encode_identifier_map([((2, 0, 0, 0), "class: cone;")], named_tensors=False),
+        "StableIdMap": _encode_identifier_map([(stable_id, "/World/Cone")], named_tensors=False),
+        "StableIdSemanticIdMap": _encode_stable_id_semantic_id_map([(stable_id, 2)], named_tensors=False),
     }
+    if named_tensors:
+        maps = {
+            "SemanticIdMap": {
+                "id": np.array([[2, 0, 0, 0]], dtype=np.uint32),
+                "label_offsets": np.array([0, 12], dtype=np.uint64),
+                "label_data": np.frombuffer(b"class: cone;", dtype=np.uint8),
+            },
+            "StableIdMap": {
+                "id": np.array([stable_id], dtype=np.uint32),
+                "label_offsets": np.array([0, 11], dtype=np.uint64),
+                "label_data": np.frombuffer(b"/World/Cone", dtype=np.uint8),
+            },
+            "StableIdSemanticIdMap": {
+                "stable_id": np.array([stable_id], dtype=np.uint32),
+                "semantic_id": np.array([[2, 0, 0, 0]], dtype=np.uint32),
+            },
+        }
     frame = types.SimpleNamespace(render_vars={})
     for key, value in maps.items():
         render_var = MagicMock()
@@ -1262,3 +1331,84 @@ def test_ovrtx_close_releases_bindings_before_registry_resources(use_ovstage):
     events.clear()
     renderer.close()
     assert events == []
+
+
+@pytest.mark.parametrize(
+    "runtime_version, stage_mode",
+    [
+        ("0.6.0", "legacy"),
+        ("0.7.0.dev1", "legacy"),
+        ("0.6.0", "independent"),
+        ("0.7.0", "independent"),
+        ("0.7.0.dev1", "shared"),
+        ("0.8.0", "shared"),
+    ],
+)
+def test_camera_transform_mode_is_set_before_scene_attachment(monkeypatch, runtime_version, stage_mode):
+    """Only 0.7 disables camera GPU reads, before consumption, with one owner per stage path."""
+    from packaging.version import Version
+
+    from pxr import Sdf, Usd, UsdRender
+
+    attribute_name = "omni:rtx:scene:hydra:readGPUCameraTransformsFromFabricInRenderDelegate"
+    settings_path = "/Render/CustomSettings"
+    stage = Usd.Stage.CreateInMemory()
+    settings = UsdRender.Settings.Define(stage, settings_path)
+    settings.GetPrim().CreateAttribute(attribute_name, Sdf.ValueTypeNames.Bool).Set(True)
+    stage.SetMetadata("renderSettingsPrimPath", settings_path)
+    exported = stage.GetRootLayer().ExportToString()
+    needs_fallback = runtime_version in ("0.7.0.dev1", "0.7.0")
+    events = []
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._use_ovstage = stage_mode != "legacy"
+    monkeypatch.setattr(ovrtx_renderer_module, "_OVRTX_VERSION", Version(runtime_version))
+    monkeypatch.setattr(renderer, "_setup_xform_bindings", lambda stage: None)
+    monkeypatch.setattr(renderer, "_setup_geometry_bindings", lambda: None)
+    monkeypatch.setattr(ovrtx_renderer_module, "ovrtx_replicate", lambda *args: None)
+
+    def export(*args, **kwargs):
+        events.append("export")
+        assert stage_mode != "shared"
+        return exported
+
+    monkeypatch.setattr(ovrtx_renderer_module, "export_stage_to_string", export)
+
+    def load(text):
+        layer = Sdf.Layer.CreateAnonymous()
+        layer.ImportFromString(text)
+        value = layer.GetAttributeAtPath(Sdf.Path(settings_path).AppendProperty(attribute_name)).default
+        # OVStage population preserves authored input; only the legacy path rewrites USD.
+        assert value is not (needs_fallback and stage_mode == "legacy")
+        events.append("load")
+
+    def write(query, name, *, ordinal, tensors, is_array):
+        assert query == [settings_path]
+        assert name == attribute_name and not is_array
+        np.testing.assert_array_equal(tensors, np.array([False], dtype=np.bool_))
+        events.append("disable-camera-reads")
+        return types.SimpleNamespace(wait=lambda: None)
+
+    def attach(native_stage):
+        assert ("disable-camera-reads" in events) is needs_fallback
+        events.append("attach")
+
+    renderer.backend.renderer = types.SimpleNamespace(open_usd_from_string=load, attach_ovstage=attach)
+    renderer.scene = types.SimpleNamespace(
+        clone_env_paths=[],
+        clone_copies=[],
+        clone_positions=np.zeros((0, 3)),
+        population_env_paths=[],
+        ordinal=1 if stage_mode == "shared" else 0,
+        cfg=types.SimpleNamespace(population_domains=ovrtx_renderer_module.ovstage.PopulationDomain.RENDERING),
+        populate=load,
+        stage=types.SimpleNamespace(write_attribute=write),
+        query=lambda paths: contextlib.nullcontext(paths),
+        commit=lambda: events.append("commit"),
+        resources=contextlib.ExitStack(),
+    )
+    renderer.prepare_stage(stage, 0)
+    assert renderer.backend.cfg.read_gpu_transforms is True
+    assert events.count("export") == (stage_mode != "shared")
+    assert events.count("disable-camera-reads") == (needs_fallback and stage_mode != "legacy")
+    if stage_mode != "legacy":
+        assert events[-2:] == ["commit", "attach"]
