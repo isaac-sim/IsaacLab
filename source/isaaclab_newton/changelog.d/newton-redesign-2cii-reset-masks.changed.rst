@@ -5,6 +5,6 @@
 * Changed the ``*_index`` state writes of Newton assets to flag the written environments into a scratch mask that
   the backend clears as it reads it, so the backend's reset and FK flagging is mask-only.
 * Changed asset data classes to invalidate only their derived caches.
-* Changed rigid object collection state writes to reuse one kernel for indexed and masked selections, and to limit FK
-  invalidation to the selected objects.
+* Changed rigid object collection ``*_mask`` state writes to use dedicated mask kernels instead of converting masks to
+  indices, and limited FK invalidation to the selected objects.
 * Avoided refreshing derived state while obtaining authoritative write destinations.
