@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import math
+from collections.abc import Sequence
 from typing import Any, ClassVar
 
 import gymnasium as gym
@@ -257,19 +258,14 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         # host synchronization per step decides whether it runs
         if self.reset_buf.any().item():
             reset_mask = self.termination_manager.dones_wp
-            # the stable recorder manager hooks take indices
-            reset_env_ids = (
-                wp.to_torch(reset_mask).nonzero(as_tuple=False).squeeze(-1)
-                if self.recorder_manager.active_terms
-                else None
-            )
+            reset_env_ids = self._reset_env_ids(reset_mask)
             # capture the terminal observation before reset and expose it for Same-Step autoreset.
             # the reset overwrites the persistent observation buffers, so keep a copy
             if self.cfg.compute_final_obs:
                 self.extras["final_obs"] = self.observation_manager.compute()
             # trigger recorder terms for pre-reset calls
             self.recorder_manager.record_pre_reset(reset_env_ids)
-            self._reset_mask(reset_mask)
+            self._reset_mask(reset_mask, reset_env_ids)
 
             # if sensors are added to the scene, make sure we render to reflect changes in reset
             if self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
@@ -278,6 +274,20 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
 
             # trigger recorder terms for post-reset calls
             self.recorder_manager.record_post_reset(reset_env_ids)
+
+        # -- handle episode reset requested from visualizer UI controls
+        if self.sim.consume_reset_request():
+            # only reset envs not already reset this step to avoid redundant resets
+            manual_reset_mask = wp.to_torch(self.reset_mask_wp)
+            torch.logical_not(self.reset_buf, out=manual_reset_mask)
+            if manual_reset_mask.any():
+                # mark as terminated so RL wrappers observe the episode boundary
+                self.reset_terminated |= manual_reset_mask
+                # mirror the recorder lifecycle used for normal resets
+                manual_reset_ids = self._reset_env_ids(self.reset_mask_wp)
+                self.recorder_manager.record_pre_reset(manual_reset_ids)
+                self._reset_mask(self.reset_mask_wp, manual_reset_ids)
+                self.recorder_manager.record_post_reset(manual_reset_ids)
 
         # -- update command
         self.command_manager.compute(dt=self.step_dt)
@@ -381,22 +391,22 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         self.observation_space = gym.vector.utils.batch_space(self.single_observation_space, self.num_envs)
         self.action_space = gym.vector.utils.batch_space(self.single_action_space, self.num_envs)
 
-    def _reset_mask(self, env_mask: wp.array):
+    def _resets_by_index(self) -> bool:
+        # the stable curriculum manager resets by index too
+        return bool(self.curriculum_manager.active_terms) or super()._resets_by_index()
+
+    def _reset_mask(self, env_mask: wp.array, env_ids: Sequence[int] | torch.Tensor | None):
         """Reset the environments selected by a boolean mask.
 
         Args:
             env_mask: Boolean mask of the environments to reset, of shape ``(num_envs,)``.
+            env_ids: Indices of the same environments for the stable managers that reset by index, or None if
+                none of them has active terms (see :meth:`_reset_env_ids`).
         """
         # recorded reset stages read the environment-owned mask
         if env_mask is not self.reset_mask_wp:
             wp.copy(self.reset_mask_wp, env_mask)
         env_mask = self.reset_mask_wp
-        # the stable curriculum and recorder managers reset by index
-        env_ids = (
-            wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
-            if self.curriculum_manager.active_terms or self.recorder_manager.active_terms
-            else None
-        )
 
         # update the curriculum for environments that need a reset
         self.curriculum_manager.compute(env_ids=env_ids)

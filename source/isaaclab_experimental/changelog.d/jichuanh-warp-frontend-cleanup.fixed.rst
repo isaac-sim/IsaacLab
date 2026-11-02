@@ -21,3 +21,6 @@
 * Fixed :meth:`EventManager.set_term_cfg <isaaclab_experimental.managers.EventManager.set_term_cfg>` and
   :meth:`RewardManager.set_term_cfg <isaaclab_experimental.managers.RewardManager.set_term_cfg>` replaying
   recorded stages with the replaced term.
+* Fixed :class:`~isaaclab_experimental.envs.ManagerBasedRLEnvWarp` and
+  :class:`~isaaclab_experimental.envs.DirectRLEnvWarp` ignoring the visualizer reset button. Like the stable
+  environments, a step now resets the environments it did not already reset and marks them terminated.

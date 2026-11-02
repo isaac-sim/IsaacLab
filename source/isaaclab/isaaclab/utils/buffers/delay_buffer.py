@@ -9,6 +9,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import torch
+import warp as wp
 
 from ..array import index_fill_
 
@@ -126,7 +127,7 @@ class DelayBuffer:
         self,
         time_lag: int | torch.Tensor,
         batch_ids: Sequence[int] | None = None,
-        batch_mask: torch.Tensor | None = None,
+        batch_mask: torch.Tensor | wp.array | None = None,
     ):
         """Sets the time lag for the delay buffer across the provided batch indices or mask.
 
@@ -153,6 +154,8 @@ class DelayBuffer:
         # resolve batch indices
         if batch_ids is None:
             batch_ids = slice(None)
+        if isinstance(batch_mask, wp.array):
+            batch_mask = wp.to_torch(batch_mask)
 
         # Validate the requested values before changing the live configuration.
         if isinstance(time_lag, int):
@@ -180,7 +183,7 @@ class DelayBuffer:
         else:
             index_fill_(self._time_lags, batch_ids if batch_mask is None else batch_mask, time_lag)
 
-    def reset(self, batch_ids: Sequence[int] | None = None, batch_mask: torch.Tensor | None = None):
+    def reset(self, batch_ids: Sequence[int] | None = None, batch_mask: torch.Tensor | wp.array | None = None):
         """Reset the data in the delay buffer at the specified batch indices or mask.
 
         Automatically sampled lags are redrawn for those batches regardless of ``hold_prob``.
@@ -195,6 +198,8 @@ class DelayBuffer:
                 without synchronizing the host.
         """
         indices = slice(None) if batch_ids is None else batch_ids
+        if isinstance(batch_mask, wp.array):
+            batch_mask = wp.to_torch(batch_mask)
         index_fill_(self._num_pushes, indices if batch_mask is None else batch_mask, 0)
         if self._hold_prob is None:
             return
