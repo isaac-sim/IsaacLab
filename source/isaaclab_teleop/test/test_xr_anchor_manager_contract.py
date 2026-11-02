@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -116,33 +115,10 @@ def test_public_device_exposes_dynamic_anchor_only_for_ovxr_session(monkeypatch,
     assert lifecycle.call_args.kwargs["ovxr_session"] == (capability != "none")
 
 
-def test_render_anchor_does_not_offset_tracked_device_poses(monkeypatch):
-    created_prims = []
-    monkeypatch.setattr(xr_anchor_manager, "XRCore", None)
-    monkeypatch.setattr(xr_anchor_manager, "_xr_anchor_prim_exists", lambda _path: False)
-    monkeypatch.setattr(
-        xr_anchor_manager,
-        "_create_prim",
-        lambda path, **kwargs: created_prims.append((path, kwargs)),
-    )
-    cfg = XrCfg(
-        anchor_pos=(0.0, 0.0, 0.0),
-        render_anchor_pos=(0.0, -2.5, 0.0),
-    )
-
-    manager = xr_anchor_manager.XrAnchorManager(cfg)
-
-    assert manager.anchor_headset_path == "/World/XRAnchor"
-    assert manager.render_anchor_path == "/World/XRRenderAnchor"
-    np.testing.assert_allclose(manager.get_world_matrix()[:3, 3], cfg.anchor_pos)
-    assert [path for path, _kwargs in created_prims] == ["/World/XRAnchor", "/World/XRRenderAnchor"]
-    np.testing.assert_allclose(created_prims[1][1]["position"], cfg.render_anchor_pos)
-
-
 def test_replay_reuses_real_stage_scoped_anchors_without_kit(monkeypatch, caplog):
-    """A second device must not recreate or overwrite the same USD anchors."""
+    """A second device must not recreate or overwrite the same USD anchor."""
     stage = Usd.Stage.CreateInMemory()
-    cfg = XrCfg(anchor_pos=(1.0, 2.0, 3.0), render_anchor_pos=(0.0, -2.5, 0.0))
+    cfg = XrCfg(anchor_pos=(1.0, 2.0, 3.0))
     monkeypatch.setattr(xr_anchor_manager, "XRCore", None)
     with use_stage(stage):
         first = xr_anchor_manager.XrAnchorManager(cfg)
@@ -150,15 +126,14 @@ def test_replay_reuses_real_stage_scoped_anchors_without_kit(monkeypatch, caplog
         second = xr_anchor_manager.XrAnchorManager(cfg)
         second.cleanup()
     assert "Failed to create XR" not in caplog.text
-    for path, position in (("/World/XRAnchor", cfg.anchor_pos), ("/World/XRRenderAnchor", cfg.render_anchor_pos)):
-        prim = stage.GetPrimAtPath(path)
-        assert prim.IsValid()
-        np.testing.assert_allclose(
-            UsdGeom.Xformable(prim).ComputeLocalToWorldTransform(0).ExtractTranslation(), position
-        )
+    prim = stage.GetPrimAtPath("/World/XRAnchor")
+    assert prim.IsValid()
+    np.testing.assert_allclose(
+        UsdGeom.Xformable(prim).ComputeLocalToWorldTransform(0).ExtractTranslation(), cfg.anchor_pos
+    )
 
 
-def test_replay_refreshes_configured_static_anchors_on_the_same_stage(monkeypatch):
+def test_replay_refreshes_configured_static_anchor_on_the_same_stage(monkeypatch):
     from isaaclab.sim.utils.transforms import resolve_prim_pose
 
     stage = Usd.Stage.CreateInMemory()
@@ -166,44 +141,29 @@ def test_replay_refreshes_configured_static_anchors_on_the_same_stage(monkeypatc
     world.AddTranslateOp().Set((2.0, -1.0, 0.5))
     world.AddRotateZOp().Set(90.0)
     monkeypatch.setattr(xr_anchor_manager, "XRCore", None)
-    first_cfg = XrCfg(anchor_pos=(1.0, 2.0, 3.0), render_anchor_pos=(0.0, -2.5, 0.0))
-    next_cfg = XrCfg(
-        anchor_pos=(-1.0, 0.5, 2.0),
-        anchor_rot=(0.0, 0.0, 1.0, 0.0),
-        render_anchor_pos=(3.0, -4.0, 0.25),
-        render_anchor_rot=(0.0, 0.0, 0.0, 1.0),
-    )
+    first_cfg = XrCfg(anchor_pos=(1.0, 2.0, 3.0))
+    next_cfg = XrCfg(anchor_pos=(-1.0, 0.5, 2.0), anchor_rot=(0.0, 0.0, 1.0, 0.0))
     with use_stage(stage):
         first = xr_anchor_manager.XrAnchorManager(first_cfg, ovxr_session=True)
-        for path, position in (
-            (first.anchor_headset_path, first_cfg.anchor_pos),
-            (first.render_anchor_path, first_cfg.render_anchor_pos),
-        ):
-            observed_pos, observed_rot = resolve_prim_pose(stage.GetPrimAtPath(path))
-            np.testing.assert_allclose(observed_pos, position, atol=1e-7)
-            assert abs(np.dot(observed_rot, first_cfg.anchor_rot)) == pytest.approx(1.0)
+        observed_pos, observed_rot = resolve_prim_pose(stage.GetPrimAtPath(first.anchor_headset_path))
+        np.testing.assert_allclose(observed_pos, first_cfg.anchor_pos, atol=1e-7)
+        assert abs(np.dot(observed_rot, first_cfg.anchor_rot)) == pytest.approx(1.0)
         first.cleanup()
         second = xr_anchor_manager.XrAnchorManager(next_cfg, ovxr_session=True)
-        for path, position, rotation in (
-            (second.anchor_headset_path, next_cfg.anchor_pos, next_cfg.anchor_rot),
-            (second.render_anchor_path, next_cfg.render_anchor_pos, next_cfg.render_anchor_rot),
-        ):
-            observed_pos, observed_rot = resolve_prim_pose(stage.GetPrimAtPath(path))
-            np.testing.assert_allclose(observed_pos, position, atol=1e-7)
-            assert abs(np.dot(observed_rot, rotation)) == pytest.approx(1.0)
+        observed_pos, observed_rot = resolve_prim_pose(stage.GetPrimAtPath(second.anchor_headset_path))
+        np.testing.assert_allclose(observed_pos, next_cfg.anchor_pos, atol=1e-7)
+        assert abs(np.dot(observed_rot, next_cfg.anchor_rot)) == pytest.approx(1.0)
         np.testing.assert_allclose(second.get_world_matrix()[:3, 3], next_cfg.anchor_pos)
         second.cleanup()
 
 
-@pytest.mark.parametrize("anchor_path", ["/World/XRAnchor", "/World/XRRenderAnchor"])
-def test_ovxr_session_rejects_an_unusable_stage_anchor(monkeypatch, anchor_path):
+def test_ovxr_session_rejects_an_unusable_stage_anchor(monkeypatch):
     """An invalid anchor must not silently misalign tracking and rendering."""
     stage = Usd.Stage.CreateInMemory()
-    UsdGeom.Scope.Define(stage, anchor_path)
+    UsdGeom.Scope.Define(stage, "/World/XRAnchor")
     monkeypatch.setattr(xr_anchor_manager, "XRCore", None)
-    cfg = XrCfg(render_anchor_pos=(0.0, -2.5, 0.0))
     with use_stage(stage), pytest.raises(ValueError, match="is not transformable"):
-        xr_anchor_manager.XrAnchorManager(cfg, ovxr_session=True)
+        xr_anchor_manager.XrAnchorManager(XrCfg(), ovxr_session=True)
 
 
 def test_standalone_replay_keeps_warning_for_an_unusable_anchor(monkeypatch, caplog):
@@ -244,83 +204,3 @@ def test_kit_anchor_clock_is_lazy_until_subsequent_smoothed_update(monkeypatch):
     moved[0, 3] = 2.0
     policy.update(moved, dt)
     dt.assert_called_once_with()
-
-
-@pytest.mark.parametrize("kit", [False, True])
-@pytest.mark.parametrize("follow,expected_position", [(False, (9.0, 9.0, 4.05)), (True, (11.0, 11.0, 4.05))])
-def test_render_override_preserves_filtered_tracking_pose(monkeypatch, follow, expected_position, kit):
-    from isaaclab_teleop import xr_anchor_utils
-    from isaaclab_teleop.xr_cfg import XrAnchorRotationMode
-    from scipy.spatial.transform import Rotation
-
-    reference = np.eye(4)
-    reference[:3, 3] = (3.0, 4.0, 5.0)
-    writes, callbacks = {}, []
-    if kit:
-        core = MagicMock()
-        core.set_world_transform_matrix.side_effect = lambda path, matrix, _layer: writes.update(
-            {path: np.asarray(matrix).T.copy()}
-        )
-        core.get_message_bus.return_value.create_subscription_to_pop_by_type.side_effect = (
-            lambda _event, callback, **_kwargs: callbacks.append(callback)
-        )
-        monkeypatch.setattr(xr_anchor_manager, "XRCore", SimpleNamespace(get_singleton=lambda: core))
-        monkeypatch.setattr(xr_anchor_manager, "XRCoreEventType", SimpleNamespace(pre_sync_update=1))
-        monkeypatch.setattr(xr_anchor_manager, "has_kit", lambda: False)
-        fabric_stage = SimpleNamespace(GetPrimAtPath=lambda _path: SimpleNamespace(IsValid=lambda: True))
-        monkeypatch.setattr(
-            xr_anchor_utils,
-            "usdrt",
-            SimpleNamespace(Usd=SimpleNamespace(Stage=SimpleNamespace(Attach=lambda _: fabric_stage))),
-            raising=False,
-        )
-        monkeypatch.setattr(xr_anchor_utils, "get_current_stage_id", lambda: 1)
-        monkeypatch.setattr(
-            xr_anchor_utils,
-            "Rt",
-            SimpleNamespace(
-                Xformable=lambda _: SimpleNamespace(
-                    GetFabricHierarchyWorldMatrixAttr=lambda: SimpleNamespace(Get=lambda: reference.T)
-                )
-            ),
-            raising=False,
-        )
-    else:
-        monkeypatch.setattr(xr_anchor_manager, "XRCore", None)
-    cfg = XrCfg(
-        anchor_prim_path="/World/Robot",
-        anchor_pos=(1.0, 2.0, -0.95),
-        render_anchor_pos=(1.0, 0.0, -0.95),
-        render_anchor_rot=tuple(Rotation.from_euler("z", 45, degrees=True).as_quat()),
-        fixed_anchor_height=True,
-        anchor_rotation_mode=XrAnchorRotationMode.FOLLOW_PRIM if follow else XrAnchorRotationMode.FIXED,
-    )
-    with use_stage(Usd.Stage.CreateInMemory()):
-        UsdGeom.Xform.Define(xr_anchor_manager.get_current_stage(), "/World/Robot")
-        manager = xr_anchor_manager.XrAnchorManager(cfg, ovxr_session=not kit)
-    commits = []
-
-    def update():
-        if kit:
-            assert len(callbacks) == 1
-            callbacks[0](None)
-            return writes[manager.anchor_headset_path], writes[manager.render_anchor_path]
-        manager.commit_external_pose(reference, 0.02, manager.external_epoch[0], lambda m: commits.append(m.copy()))
-        return commits[-1]
-
-    tracking, rendering = update()
-    np.testing.assert_allclose(tracking[:3, 3], (4.0, 6.0, 4.05))
-    np.testing.assert_allclose(rendering[:3, 3], (4.0, 4.0, 4.05))
-    reference[:3, 3] = (8.0, 9.0, 12.0)
-    reference[:3, :3] = Rotation.from_euler("xyz", (30, 20, 90), degrees=True).as_matrix()
-    tracking, rendering = update()
-    np.testing.assert_allclose(tracking[:3, 3], (9.0, 11.0, 4.05))
-    np.testing.assert_allclose(rendering[:3, 3], expected_position)
-    np.testing.assert_allclose(
-        rendering[:3, :3], Rotation.from_euler("z", 135 if follow else 45, degrees=True).as_matrix(), atol=1e-7
-    )
-    np.testing.assert_allclose(manager.get_world_matrix()[:3, 3], tracking[:3, 3])
-    manager.reset()
-    tracking, rendering = update()
-    np.testing.assert_allclose(tracking[:3, 3], (9.0, 11.0, 11.05))
-    np.testing.assert_allclose(rendering[:3, 3], (9.0, 9.0, 11.05))

@@ -154,8 +154,6 @@ Stats output:
               "run_index": 0,
               "outcome": "success",
               "active_iterations": 322,
-              "rejected_action_frames": 0,
-              "last_action_rejection": null,
               "active_duration_s": 21.503,
               "success_step_count": 1,
               "cpu_frame_time_ms": {  # per-render ms (wall time between sim.render calls)
@@ -299,8 +297,7 @@ from .. import (
     create_isaac_teleop_device,
     poll_control_events,
 )
-from ..action_policy import initial_hand_tracking_issue, prepare_teleop_action
-from ._ovxr_launch import prepare_ovxr_launch
+from ._ovxr_launch import prepare_ovxr_launch, reject_ovxr_runtime_conflicts
 
 logger = logging.getLogger(__name__)
 
@@ -514,8 +511,6 @@ class _RunStats:
     outcome: str = "incomplete"  # "success" | "failure" | "incomplete" | "timeout"
     active_frame_times_ms: list[float] = field(default_factory=list)
     active_iterations: int = 0
-    rejected_action_frames: int = 0
-    last_action_rejection: str | None = None
     active_render_calls: int = 0
     active_duration_s: float = 0.0
     success_step_count: int = 0  # final consecutive-success counter at terminator
@@ -529,8 +524,6 @@ class _RunStats:
             "run_index": run_index,
             "outcome": self.outcome,
             "active_iterations": self.active_iterations,
-            "rejected_action_frames": self.rejected_action_frames,
-            "last_action_rejection": self.last_action_rejection,
             "active_duration_s": round(self.active_duration_s, 6),
             "success_step_count": self.success_step_count,
             "cpu_frame_time_ms": _compute_frame_stats(self.active_frame_times_ms),
@@ -1097,11 +1090,9 @@ def _prepare_env_cfg(
       cycle (sim reinit + teleop device reset) so Pink IK starts the next
       attempt with fresh articulation views.
 
-    It also checks the launch before any runtime starts and runs the task's
-    :attr:`~isaaclab_teleop.IsaacTeleopCfg.prepare_environment` hook, which may
-    modify the returned configuration. With ``--ovxr`` it also removes camera
-    sensors and rejects a launch that needs more than one environment, a stage
-    path other than OVStage, Kit or a local visualizer.
+    It also checks the launch before any runtime starts. With ``--ovxr`` it also
+    removes camera sensors and rejects a launch that needs more than one
+    environment, a stage path other than OVStage, Kit or a local visualizer.
 
     Args:
         task: Registered task name to load the env config for.
@@ -1139,12 +1130,7 @@ def _prepare_env_cfg(
     # A task without a physics selection keeps None: SimulationContext defaults it to PhysxCfg.
     configs, kit_sources = validate_launch(env_cfg, vars(args_cli).copy())
     if args_cli.ovxr:
-        from isaaclab.visualizers import VisualizerBackendCfg
-
-        if kit_sources or any(isinstance(cfg, VisualizerBackendCfg) for cfg in configs):
-            raise ValueError("--ovxr requires no Kit runtime or local visualizer")
-    if env_cfg.isaac_teleop is not None and env_cfg.isaac_teleop.prepare_environment is not None:
-        env_cfg.isaac_teleop.prepare_environment(env_cfg)
+        reject_ovxr_runtime_conflicts(configs, kit_sources)
     return env_cfg, success_term
 
 
@@ -1155,7 +1141,7 @@ def _replay_requires_hard_sim_reset(physics_backend: str | None) -> bool:
     return physics_backend is None or not physics_backend.startswith("newton")
 
 
-def _reset_replay_environment(env: object, *, hard_sim_reset: bool, reset_recorder: bool) -> None:
+def _reset_replay_environment(env: gym.Env, *, hard_sim_reset: bool, reset_recorder: bool) -> None:
     """Reset replay-owned environment state in backend-safe order."""
     if hard_sim_reset:
         env.sim.reset()
@@ -1226,7 +1212,7 @@ Used only when Kit is active.
 class _ReplayPresentation:
     """Own a batch's viewer independently of each recorded-input session."""
 
-    def __init__(self, env_cfg):
+    def __init__(self, env_cfg: ManagerBasedRLEnvCfg) -> None:
         from isaaclab_ov.renderers import OVRTXRendererCfg
 
         from .. import OvLibrariesXrCfg, OvLibrariesXrSession
@@ -1241,13 +1227,13 @@ class _ReplayPresentation:
             ),
             OVRTXRendererCfg(),
         )
-        self.device = None
+        self.device: IsaacTeleopDevice | None = None
         self.started = False
         self.reset_generation = 0
-        self.pending = None
+        self.pending: tuple[int, int] | None = None
         self.force = False
 
-    def start(self, env, device):
+    def start(self, env: gym.Env, device: IsaacTeleopDevice) -> None:
         if not self.started:
             if not self.session.start_render_worker(
                 env,
@@ -1261,7 +1247,7 @@ class _ReplayPresentation:
             self.session.set_external_anchor_state(device.external_anchor_state)
         self.publish(env, changed=True, reset=True)
 
-    def publish(self, env, *, changed=False, reset=False):
+    def publish(self, env: gym.Env, *, changed: bool = False, reset: bool = False) -> None:
         if reset:
             self.reset_generation += 1
             self.force = True
@@ -1271,7 +1257,7 @@ class _ReplayPresentation:
             self.pending = None
             self.force = False
 
-    def close(self):
+    def close(self) -> None:
         if self.device is not None and self.device.session_cleanup_failed:
             error = RuntimeError("Replay input did not drain; retaining its borrowed environment")
             try:
@@ -1282,7 +1268,7 @@ class _ReplayPresentation:
         self.session.close()
 
 
-def _warmup_replay(env, run_index: int, presentation) -> None:
+def _warmup_replay(env: gym.Env, run_index: int, presentation: _ReplayPresentation | None) -> None:
     """Wait for Kit assets or pump the independently owned viewer before input."""
     # Deterministic warmup is only required on the first run -- once the
     # stage has been streamed in and the renderer settled, subsequent
@@ -1318,7 +1304,7 @@ def _warmup_replay(env, run_index: int, presentation) -> None:
                     time.sleep(0.01)
 
 
-def _advance_replay_input(device, presentation):
+def _advance_replay_input(device: IsaacTeleopDevice, presentation: _ReplayPresentation | None) -> torch.Tensor | None:
     """Read recorded input using the viewer owner's target transform when needed."""
     target_path = device.target_frame_prim_path if presentation is not None else None
     if target_path is None:
@@ -1326,7 +1312,7 @@ def _advance_replay_input(device, presentation):
     return device.advance(target_T_world=presentation.session.get_target_frame_T_world(target_path))
 
 
-def _render_replay_idle(env, presentation) -> None:
+def _render_replay_idle(env: gym.Env, presentation: _ReplayPresentation | None) -> None:
     """Keep the selected presentation responsive without advancing physics."""
     if presentation is None:
         env.sim.render()
@@ -1458,8 +1444,6 @@ def _run_single_replay(
             f"Replay {run_index + 1}/{total_runs} started; replaying MCAP from {args_cli.replay_file}"
             f" (max_replay_duration_s={args_cli.max_replay_duration_s:.1f})."
         )
-        action_state: dict = {}
-        initialized_hand_tracking: set[str] = set()
         teleop_active = False
         teleop_was_active = False  # only terminate on STOP after a real START
         success_step_count = 0
@@ -1528,8 +1512,6 @@ def _run_single_replay(
                         break
 
                     if ctrl.should_reset:
-                        action_state.clear()
-                        initialized_hand_tracking.clear()
                         _handle_reset(
                             env,
                             teleop_interface,
@@ -1546,28 +1528,7 @@ def _run_single_replay(
                     # teleop_se3_agent.py:309-328). Pre-START operator
                     # setup frames render only; the recorded START flips
                     # us into the stepping branch.
-                    if not teleop_active:
-                        action_state.clear()
                     if action is None or not teleop_active:
-                        _render_replay_idle(env, presentation)
-                        continue
-
-                    issue = initial_hand_tracking_issue(
-                        teleop_interface,
-                        initialized_hand_tracking,
-                        required=isaac_teleop_cfg.require_initial_bimanual_hand_tracking,
-                    )
-                    if issue is None:
-                        action, issue = prepare_teleop_action(
-                            env,
-                            action,
-                            isaac_teleop_cfg.action_conditioner,
-                            isaac_teleop_cfg.action_validator,
-                            action_state,
-                        )
-                    if issue is not None:
-                        stats.rejected_action_frames += 1
-                        stats.last_action_rejection = issue
                         _render_replay_idle(env, presentation)
                         continue
 
