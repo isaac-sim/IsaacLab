@@ -135,6 +135,7 @@ Guidelines for modifications:
 * Juana Du
 * Kai Pei
 * Kaixi Bao
+* Katy Gu
 * Kourosh Darvish
 * Kousheek Chakraborty
 * Kris Wilson
