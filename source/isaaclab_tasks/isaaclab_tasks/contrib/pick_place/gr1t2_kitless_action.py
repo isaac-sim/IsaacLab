@@ -27,7 +27,21 @@ def bound_ik_joint_targets(
     max_delta_rad: float,
     max_magnitude_rad: float,
 ) -> torch.Tensor:
-    """Hold invalid rows and bound finite IK targets relative to measured state."""
+    """Bound finite IK targets and hold rows containing an invalid target.
+
+    Args:
+        targets: Proposed joint positions [rad], shape (num_envs, num_joints), in the
+            controlled-joint order of the Pink action.
+        current: Measured joint positions [rad], with the same shape, joint order, dtype and device.
+        max_delta_rad: Maximum requested change from ``current`` [rad], before the magnitude clamp.
+        max_magnitude_rad: Maximum absolute target position [rad]. This clamp takes precedence
+            over the step bound if ``current`` lies outside the magnitude limit.
+
+    Returns:
+        New targets [rad] with the same shape, joint order, dtype and device. A row containing
+        any non-finite target holds its entire ``current`` row without clamping it. Inputs are
+        not mutated; callers must supply valid measured positions and nonnegative bounds.
+    """
     finite_rows = torch.isfinite(targets).all(dim=1, keepdim=True)
     safe_targets = torch.where(finite_rows, targets, current)
     delta = torch.clamp(safe_targets - current, -max_delta_rad, max_delta_rad)
@@ -41,7 +55,21 @@ def constrain_hand_joint_targets(
     lower: torch.Tensor,
     upper: torch.Tensor,
 ) -> torch.Tensor:
-    """Apply software mimic relations and anatomical bounds to hand targets."""
+    """Apply mimic relations in tuple order, then clamp the hand targets.
+
+    Args:
+        targets: Hand joint positions [rad], shape (num_envs, num_hand_joints), in the action's
+            controlled hand-joint order.
+        mimic_pairs: Tuples of (mimic_index, reference_index, factor, bias). Indices address
+            columns of ``targets``; the factor is dimensionless and the bias is in radians.
+            Each relation reads the targets updated by preceding relations.
+        lower: Lower positions [rad], broadcastable to ``targets`` in the same joint order, dtype and device.
+        upper: Upper positions [rad], broadcastable to ``targets`` in the same joint order, dtype and device.
+
+    Returns:
+        Clamped targets [rad] with the same shape, joint order, dtype and device. The input
+        targets are cloned before applying mimic relations; none of the inputs are mutated.
+    """
     constrained = targets.clone()
     for mimic_index, reference_index, factor, bias in mimic_pairs:
         constrained[:, mimic_index] = factor * constrained[:, reference_index] + bias

@@ -90,8 +90,10 @@ def bound_pink_joint_targets(
 ) -> torch.Tensor:
     """Keep one Pink update finite, inside limits, and close to current state.
 
-    Each target moves at most :data:`JOINT_TARGET_MAX_STEP_RAD` from ``current`` and stays
-    :data:`JOINT_LIMIT_MARGIN_RAD` inside ``[lower, upper]``.
+    Targets are first limited to :data:`JOINT_TARGET_MAX_STEP_RAD` from ``current``, then
+    clamped :data:`JOINT_LIMIT_MARGIN_RAD` inside ``[lower, upper]``. The joint limits take
+    precedence: when ``current`` lies outside those limits, the final change can exceed
+    the step bound.
 
     Args:
         current: Current joint positions [rad]. Shape is (num_envs, num_joints), in the Pink action's
