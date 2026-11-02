@@ -23,7 +23,6 @@ from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.physics import NewtonManager
 
 if TYPE_CHECKING:
-    import torch
     from newton.selection import ArticulationView
 
 
@@ -130,26 +129,11 @@ class RigidObjectData(BaseRigidObjectData):
         # since we do finite differencing.
         self.body_com_acc_w
 
-    def _reset_pose(
-        self,
-        from_link: bool = True,
-        *,
-        env_ids: wp.array | torch.Tensor | None = None,
-        env_mask: wp.array | None = None,
-    ) -> None:
-        """Reset pose-dependent cached rigid object properties.
-
-        Args:
-            env_ids: Environment indices. If None, then all indices are used.
-            env_mask: Environment mask. If None, then all instances are updated. Shape is (num_instances,).
-            from_link: Set ``True`` when the root link pose was written so the derived root
-                center-of-mass pose (:attr:`root_com_pose_w`) is also invalidated; set ``False`` when
-                the center-of-mass pose was written directly so it is not clobbered. Defaults to True.
-        """
-        # Invalidate the derived root com pose only when it was not the quantity just written.
+    def _reset_pose(self) -> None:
+        """Invalidate pose-dependent caches after an authoritative state write."""
         reset_timestamps(
             [
-                self._root_com_pose_w if from_link else None,
+                self._root_com_pose_w,
                 self._root_link_vel_w,
                 self._projected_gravity_b,
                 self._heading_w,
@@ -163,26 +147,12 @@ class RigidObjectData(BaseRigidObjectData):
                 self._root_com_state_w,
             ]
         )
-        self._backend_manager.invalidate_fk(
-            env_mask=env_mask, env_ids=env_ids, articulation_ids=self._root_view.articulation_ids
-        )
 
-    def _reset_velocity(
-        self, from_com: bool = True, *, env_ids: wp.array | torch.Tensor | None = None, env_mask: wp.array | None = None
-    ) -> None:
-        """Reset velocity-dependent cached rigid object properties.
-
-        Args:
-            env_ids: Environment indices. If None, then all indices are used.
-            env_mask: Environment mask. If None, then all instances are updated. Shape is (num_instances,).
-            from_com: Set ``True`` when the root center-of-mass velocity was written so the derived root
-                link velocity (:attr:`root_link_vel_w`) is also invalidated; set ``False`` when the link
-                velocity was written directly so it is not clobbered. Defaults to True.
-        """
-        # Invalidate the derived root link velocity only when it was not the quantity just written.
+    def _reset_velocity(self) -> None:
+        """Invalidate velocity-dependent caches after an authoritative state write."""
         reset_timestamps(
             [
-                self._root_link_vel_w if from_com else None,
+                self._root_link_vel_w,
                 self._root_link_lin_vel_b,
                 self._root_link_ang_vel_b,
                 self._root_com_lin_vel_b,
@@ -192,9 +162,6 @@ class RigidObjectData(BaseRigidObjectData):
                 self._root_link_state_w,
                 self._root_com_state_w,
             ]
-        )
-        self._backend_manager.invalidate_fk(
-            env_mask=env_mask, env_ids=env_ids, articulation_ids=self._root_view.articulation_ids
         )
 
     def _reset_body_com_pose_b_dependents(self) -> None:
