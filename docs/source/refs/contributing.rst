@@ -125,34 +125,25 @@ For documentation media, only small ``.jpg`` files should be committed directly 
 Upload larger images, videos, animations, and other media to an external hosting location, then link to or embed
 the externally hosted file from the documentation.
 
-Browser-demo runtime archives are distributed through the permanent
-`interactive-demos release <https://github.com/isaac-sim/IsaacLab/releases/tag/interactive-demos>`_.
-Upload reviewed, commit-named archives to that same release. Keep earlier release assets,
-then update the reviewed archive URL and SHA-256 together in
-``.github/actions/_lib/stage-browser-demos.sh``. No new release tag or numbered gallery is needed.
-The current archive contains the generated gallery, physics bundles, policy assets, and licenses.
-Exporter sources remain in the private browser-demo project and are not included in this archive.
-The docs workflow downloads the archive, verifies its checksum, and stages only its ``site/`` directory
-under ``docs/_build/demos/`` before publishing Pages. This contains one current gallery under
-``interactive/``; earlier gallery entry points redirect there without retaining older physics builds.
-The documentation source tree contains the staging script, documentation links, and thumbnails used on
-the Demos page. Gallery thumbnails stay in the runtime archive.
-Run the staging step from the repository root:
+The `interactive gallery <https://isaac-sim.github.io/IsaacLab-Web-Demos/>`_ is hosted separately
+from the documentation. Documentation builds include pages, small thumbnails, and redirects for
+earlier demo URLs; WebAssembly, policies, and scene geometry are served by the gallery host.
+
+After building the docs, write the compatibility redirects from the repository root:
 
 .. code-block:: bash
 
-   bash .github/actions/_lib/stage-browser-demos.sh
+   bash .github/actions/_lib/write-browser-demo-redirects.sh
 
-To preview the complete site locally, serve ``docs/_build`` over HTTP:
+To preview the documentation locally, serve ``docs/_build`` over HTTP:
 
 .. code-block:: bash
 
    uv run --no-project python -m http.server 8000 --directory docs/_build
 
-Open ``http://localhost:8000/current/index.html`` for the docs or
-``http://localhost:8000/demos/interactive/`` for the demos. Downloaded ``docs-html`` artifacts include
-``PREVIEW.txt`` with the equivalent command to run from the extracted artifact's root directory.
-The browser must load the demos over HTTP so it can fetch their WebAssembly modules and data.
+Open ``http://localhost:8000/current/index.html``. Embedded demos require internet access to the
+gallery host. Downloaded ``docs-html`` artifacts include ``PREVIEW.txt`` with the equivalent
+command to run from the extracted artifact's root directory.
 
 Use ``isaaclab-demos`` to embed the gallery in a guide without copying its catalog or simulator bundles
 into the documentation sources:
@@ -168,10 +159,10 @@ Use stable gallery IDs, or omit the IDs for the full gallery. The ``title``, ``p
 (``rigid``, ``vbd``, ``mpm``), and ``activity`` (``tuning``, ``policy``, ``scripted``) options are optional.
 The embed loads near the viewport and starts a simulation only when the reader chooses a demo.
 It follows the documentation theme and provides a link to open the same selection in a separate tab.
-By default, embeds use the staged gallery on the documentation's own host, with links relative to
-each documentation page. To use a separate gallery host, set the Sphinx ``isaaclab_demo_base_url``
-configuration value to an absolute HTTP or HTTPS URL. For a local development server, pass
-``-D isaaclab_demo_base_url=http://localhost:8805/lab/`` to Sphinx.
+By default, embeds use ``https://isaac-sim.github.io/IsaacLab-Web-Demos/``. To preview another
+gallery, set the Sphinx ``isaaclab_demo_base_url`` configuration value to an absolute HTTP or
+HTTPS URL. For a local development server, pass
+``-D isaaclab_demo_base_url=http://localhost:8805/`` to Sphinx.
 
 .. caution::
 
