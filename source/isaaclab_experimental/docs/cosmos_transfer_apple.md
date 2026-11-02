@@ -82,10 +82,35 @@ Wait until the server reports that it is ready. Leave this terminal running.
 
 ## 5. Run the task in terminal 2
 
-Run the task with the rendered camera image first. It needs only the GR00T server. The task
-uses the PhysX backend and RTX rendering, so `--extra isaacsim` installs Isaac Sim; the two
-`--with` options add the messaging libraries the client uses. No window opens unless you
-select a visualizer with `--viz`. Isaac Sim requires you to accept its
+Run the task with the rendered camera image first. It needs only the GR00T server.
+`physics=newton_mjwarp` and `renderer=newton_renderer` select Newton physics and the Newton
+Warp renderer, which the default Isaac Lab install includes. The two `--with` options add the
+messaging libraries the client uses. No window opens unless you select a visualizer with `--viz`:
+
+```bash
+cd "$ISAAC_LAB"
+uv run --with msgpack==1.2.3 --with pyzmq==27.2.0 \
+  python scripts/imitation_learning/gr00t/play_apple_pick_place.py \
+  --num_episodes 4 physics=newton_mjwarp renderer=newton_renderer
+```
+
+Each finished episode prints `[INFO] Episodes: N, successes: K`. An episode succeeds when the
+apple rests on the plate and the hands have let go, and ends after 20 seconds otherwise.
+Add `env.scene.num_envs=16` to run the 16 saved starts in parallel.
+
+### Other physics and rendering backends
+
+The Newton renderer draws no shadows and a plain background. For PhysX and RTX rendering
+without Isaac Sim, `--extra ov` installs OvPhysX and the OVRTX renderer:
+
+```bash
+uv run --extra ov --with msgpack==1.2.3 --with pyzmq==27.2.0 \
+  python scripts/imitation_learning/gr00t/play_apple_pick_place.py \
+  --num_episodes 4 physics=ovphysx renderer=ovrtx
+```
+
+Without `physics=...` and `renderer=...` the task uses Isaac Sim PhysX and the Isaac RTX
+renderer, so `--extra isaacsim` installs Isaac Sim. Isaac Sim requires you to accept its
 [license agreement](https://docs.omniverse.nvidia.com/platform/latest/common/NVIDIA_Omniverse_License_Agreement.html)
 before a headless launch; after reviewing it, set `OMNI_KIT_ACCEPT_EULA=YES`. On a host
 without a screen, run `unset DISPLAY` first, or the launch can fail with `GLXBadFBConfig`:
@@ -93,29 +118,13 @@ without a screen, run `unset DISPLAY` first, or the launch can fail with `GLXBad
 ```bash
 unset DISPLAY
 export OMNI_KIT_ACCEPT_EULA=YES
-cd "$ISAAC_LAB"
 uv run --extra isaacsim --with msgpack==1.2.3 --with pyzmq==27.2.0 \
   python scripts/imitation_learning/gr00t/play_apple_pick_place.py --num_episodes 4
 ```
 
-Each finished episode prints `[INFO] Episodes: N, successes: K`. An episode succeeds when the
-apple rests on the plate and the hands have let go, and ends after 20 seconds otherwise.
-
-### Without Isaac Sim
-
-The task also runs PhysX without Isaac Sim, through OvPhysX, with the kit-less OVRTX renderer.
-`--extra ov` installs both runtimes; no license acceptance or display setup is needed:
-
-```bash
-cd "$ISAAC_LAB"
-uv run --extra ov --with msgpack==1.2.3 --with pyzmq==27.2.0 \
-  python scripts/imitation_learning/gr00t/play_apple_pick_place.py \
-  --num_episodes 4 physics=ovphysx renderer=ovrtx
-```
-
-Use `renderer=newton_renderer` for the lighter Warp renderer. Add `presets=cosmos` as below to
-generate the image with Cosmos. Without `physics=ovphysx` and `renderer=...` the task uses Isaac
-Sim PhysX and the Isaac RTX renderer.
+On Newton, the apple and plate collide as convex hulls and the robot's links do not collide
+with each other, because Newton would otherwise decompose the meshes at startup for minutes
+and its self-collisions push the legs apart at the hips.
 
 ## 6. Run with Cosmos
 
@@ -126,9 +135,13 @@ wait for `Cosmos ready at ...`, and then add `presets=cosmos`:
 ```bash
 cd "$ISAAC_LAB"
 uv run isaaclab cosmos status
-uv run --extra isaacsim --with msgpack==1.2.3 --with pyzmq==27.2.0 \
-  python scripts/imitation_learning/gr00t/play_apple_pick_place.py --num_episodes 4 presets=cosmos
+uv run --with msgpack==1.2.3 --with pyzmq==27.2.0 \
+  python scripts/imitation_learning/gr00t/play_apple_pick_place.py \
+  --num_episodes 4 physics=newton_mjwarp renderer=newton_renderer presets=cosmos
 ```
+
+Cosmos generates the image from depth alone, so the renderer's shading does not change it.
+`presets=cosmos` works with the other backends too.
 
 Check for `"ready": true` and `"session_active": false` first. The preset sends the head
 camera's depth to the service with the prompt in
@@ -141,10 +154,10 @@ Add `--save_frames DIR` to save the head camera image the policy sees as PNG fil
 start and then every `--frame_interval` steps (30 by default, one second of simulation):
 
 ```bash
-uv run --extra ov --with msgpack==1.2.3 --with pyzmq==27.2.0 \
+uv run --with msgpack==1.2.3 --with pyzmq==27.2.0 \
   python scripts/imitation_learning/gr00t/play_apple_pick_place.py \
   --num_episodes 1 --save_frames outputs/apple_cosmos \
-  physics=ovphysx renderer=ovrtx presets=cosmos
+  physics=newton_mjwarp renderer=newton_renderer presets=cosmos
 ```
 
 Press Ctrl+C in the Cosmos terminal and the GR00T terminal when finished.

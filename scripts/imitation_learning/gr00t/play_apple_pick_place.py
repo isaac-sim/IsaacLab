@@ -13,13 +13,15 @@ checkout of the GR00T repository (with its submodules) and with the downloaded c
     uv run python gr00t/eval/run_gr00t_server.py --embodiment-tag NEW_EMBODIMENT \\
         --model-path /path/to/GR00T-N1.7-AppleToPlate-cosine40k-checkpoint-15000 --port 5555
 
-Then run the task. No window opens unless a visualizer is selected with ``--viz``. Add
-``presets=cosmos`` to generate the head camera image with Cosmos:
+Then run the task, here on Newton, which the default install includes. No window opens unless
+a visualizer is selected with ``--viz``. Add ``presets=cosmos`` to generate the head camera image
+with Cosmos:
 
 .. code-block:: bash
 
-    uv run --extra isaacsim --with msgpack==1.2.3 --with pyzmq==27.2.0 \\
-        python scripts/imitation_learning/gr00t/play_apple_pick_place.py --num_episodes 4
+    uv run --with msgpack==1.2.3 --with pyzmq==27.2.0 \\
+        python scripts/imitation_learning/gr00t/play_apple_pick_place.py \\
+        --num_episodes 4 physics=newton_mjwarp renderer=newton_renderer
 """
 
 from __future__ import annotations

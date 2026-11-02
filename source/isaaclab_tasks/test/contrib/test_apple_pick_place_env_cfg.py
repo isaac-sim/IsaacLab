@@ -157,6 +157,12 @@ def test_reset_holds_the_start_pose_with_the_joint_targets():
         (("physics=ovphysx", "renderer=ovrtx"), "OvPhysxCfg", "OVRTXRendererCfg"),
         (("physics=ovphysx", "renderer=newton_renderer"), "OvPhysxCfg", "NewtonWarpRendererCfg"),
         (("physics=ovphysx", "renderer=ovrtx", "presets=cosmos"), "OvPhysxCfg", "OVRTXRendererCfg"),
+        (("physics=newton_mjwarp", "renderer=newton_renderer"), "NewtonCfg", "NewtonWarpRendererCfg"),
+        (
+            ("physics=newton_mjwarp", "renderer=newton_renderer", "presets=cosmos"),
+            "NewtonCfg",
+            "NewtonWarpRendererCfg",
+        ),
     ),
 )
 def test_backends_are_selected_with_presets(overrides, physics, renderer):
