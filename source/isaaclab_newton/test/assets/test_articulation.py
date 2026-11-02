@@ -15,15 +15,16 @@ backend state. The islands of one environment share a solver world, so every tes
 rest and restores the properties it changes. Scene gravity is off; a test that needs gravity applies it to every
 world for its own duration.
 
-Configurations that fail initialization, nested-root IK, the rebind scenario, which swaps the live Newton
-state, and the CUDA-graph check build their own small scenes. Only one simulation context can be alive, so
-these tests come first and fail if selected after a composite-scene test.
+Configurations that fail initialization, an articulation rooted at its fixed world joint, nested-root IK, the rebind
+scenario, which swaps the live Newton state, and the CUDA-graph check build their own small scenes. Only one
+simulation context can be alive, so these tests come first and fail if selected after a composite-scene test.
 
 The composite scene runs on the CPU without CUDA-graph capture. On CUDA, one own-scene test covers the
 ordered-state republish recorded into a captured graph.
 """
 
 from isaaclab_newton.physics import NewtonCfg, NewtonManager
+from isaaclab_newton.test.fixtures.mock_newton import backend_stub
 
 from isaaclab.sim import FrameView, SimulationCfg
 from isaaclab.test.utils import DeviceScope, launch_test_simulation, test_devices
@@ -35,9 +36,8 @@ import sys
 from collections.abc import Iterator
 from dataclasses import dataclass
 from types import SimpleNamespace
-from unittest.mock import patch
 
-import isaaclab_newton.physics.newton_manager as newton_manager_module
+import isaaclab_newton.physics.newton_backend as newton_backend_module
 import newton
 import numpy as np
 import pytest
@@ -62,7 +62,7 @@ from newton_test_utils import (
     world_gravity,
 )
 
-from pxr import UsdPhysics
+from pxr import Usd, UsdGeom, UsdPhysics
 
 import isaaclab.assets.articulation.ordering_resolvers as ordering_resolvers
 import isaaclab.sim as sim_utils
@@ -394,7 +394,7 @@ def test_scatter_reset_masks_from_ids_accepts_index_dtype(index_dtype: type) -> 
     fk_mask = wp.zeros(6, dtype=wp.bool, device="cpu")
 
     wp.launch(
-        newton_manager_module._scatter_reset_masks_from_ids,
+        newton_backend_module._flag_worlds_and_articulations_indexed,
         dim=(env_ids.shape[0], articulation_ids.shape[1]),
         inputs=[env_ids, articulation_ids],
         outputs=[world_mask, fk_mask],
@@ -448,8 +448,13 @@ def test_task_space_allocation_and_capture(device, first_property):
     model = builder.finalize(device=device)
     state, control = model.state(), model.control()
     backend_manager = NewtonManager(NewtonCfg())
-    backend_manager.backend = SimpleNamespace(
-        model=model, state_0=state, control=control, solver=None, kinematics_dirty=False
+    backend_manager.backend = backend_stub(
+        model=model,
+        state_0=state,
+        control=control,
+        solver=None,
+        kinematics_dirty=False,
+        transforms_may_change_on_graph_replay=False,
     )
     view = ArticulationView(model, "Robot", exclude_joint_types=[JointType.FIXED])
     eager = ArticulationData(view, device, backend_manager=backend_manager)
@@ -494,8 +499,13 @@ def test_world_hinged_root_has_no_base_dofs(device):
     model = builder.finalize(device=device)
     state, control = model.state(), model.control()
     backend_manager = NewtonManager(NewtonCfg())
-    backend_manager.backend = SimpleNamespace(
-        model=model, state_0=state, control=control, solver=None, kinematics_dirty=False
+    backend_manager.backend = backend_stub(
+        model=model,
+        state_0=state,
+        control=control,
+        solver=None,
+        kinematics_dirty=False,
+        transforms_may_change_on_graph_replay=False,
     )
     root_view = ArticulationView(model, "Robot")
     data = ArticulationData(root_view, device, backend_manager=backend_manager)
@@ -586,6 +596,42 @@ def test_invalid_articulation_cfg_fails_initialization(device: str, invalid_fiel
             sim.reset()
 
 
+def _author_fixed_joint_root_robot(usd_path: str) -> None:
+    """Author a two-link robot rooted at the fixed joint that attaches its base to the asset prim."""
+    stage = Usd.Stage.CreateNew(usd_path)
+    stage.SetDefaultPrim(UsdGeom.Xform.Define(stage, "/Robot").GetPrim())
+    for name in ("base", "link"):
+        body = UsdGeom.Xform.Define(stage, f"/Robot/{name}").GetPrim()
+        UsdPhysics.RigidBodyAPI.Apply(body)
+        UsdPhysics.MassAPI.Apply(body).CreateMassAttr(1.0)
+    # body0 targets the asset prim, neither a rigid body nor a collider, so the joint attaches the base to the world
+    root_joint = UsdPhysics.FixedJoint.Define(stage, "/Robot/root_joint")
+    root_joint.CreateBody0Rel().SetTargets(["/Robot"])
+    root_joint.CreateBody1Rel().SetTargets(["/Robot/base"])
+    UsdPhysics.ArticulationRootAPI.Apply(root_joint.GetPrim())
+    joint = UsdPhysics.RevoluteJoint.Define(stage, "/Robot/joint")
+    joint.CreateBody0Rel().SetTargets(["/Robot/base"])
+    joint.CreateBody1Rel().SetTargets(["/Robot/link"])
+    stage.Save()
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CPU))
+def test_initialization_fixed_joint_root(device, tmp_path) -> None:
+    """``fix_root_link=True`` keeps an articulation rooted at its fixed world joint fixed-base."""
+    usd_path = str(tmp_path / "fixed_joint_root.usda")
+    _author_fixed_joint_root_robot(usd_path)
+    articulation_cfg = ArticulationCfg(
+        prim_path="/World/Env_[^/]*/Robot",
+        spawn=sim_utils.UsdFileCfg(usd_path=usd_path, fix_root_link=True),
+        actuators={},
+    )
+    with build_simulation_context(sim_cfg=newton_sim_cfg(device)) as sim:
+        articulation = spawn_assets({"robot": articulation_cfg}, num_envs=1)["robot"]
+        sim.reset()
+
+        assert articulation.is_fixed_base
+
+
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CPU))
 def test_hard_reset_recreates_ordered_state_and_actuators(device: str) -> None:
     """Hard resets rebuild ordered state and actuators once, preserving configured gains and live writes."""
@@ -619,8 +665,8 @@ def test_hard_reset_recreates_ordered_state_and_actuators(device: str) -> None:
         sim.reset()
         callback_counts = (
             len(sim.backend_manager._callbacks),
-            len(sim.backend_manager._post_step_callbacks),
-            len(sim.backend_manager._post_actuator_callbacks),
+            len(sim.backend_manager.backend.post_step_callbacks),
+            len(sim.backend_manager.backend.post_actuator_callbacks),
         )
         for reset_index in range(3):
             if reset_index:
@@ -629,8 +675,8 @@ def test_hard_reset_recreates_ordered_state_and_actuators(device: str) -> None:
                 assert all(a.data is not previous for a, previous in zip(articulations.values(), old_data, strict=True))
                 assert callback_counts == (
                     len(sim.backend_manager._callbacks),
-                    len(sim.backend_manager._post_step_callbacks),
-                    len(sim.backend_manager._post_actuator_callbacks),
+                    len(sim.backend_manager.backend.post_step_callbacks),
+                    len(sim.backend_manager.backend.post_actuator_callbacks),
                 )
 
             positions = []
@@ -685,7 +731,7 @@ def test_newton_ordered_state_publishes_inside_captured_cuda_graph(device: str) 
         sim.reset()
         # the first step captures the graph that later steps replay
         sim.step()
-        assert sim.backend_manager._graph is not None
+        assert sim.backend_manager.backend.graph is not None
         data = articulation.data
         joint_u2b = np.asarray(articulation.joint_ordering.user_to_backend_indices)
         body_u2b = np.asarray(articulation.body_ordering.user_to_backend_indices)
@@ -2041,12 +2087,11 @@ def test_body_q_consistent_after_root_write(scene: _Scene) -> None:
         env_ids=torch.tensor([0], device=device, dtype=torch.int32),
     )
 
-    # Patch _simulate_physics_only to capture body_q before collide runs
+    # Pre-actuator callbacks run after the reset is resolved and before collision.
     captured = {}
     backend_manager = scene.sim.backend_manager
-    original_simulate = backend_manager._simulate_physics_only
 
-    def _patched_simulate() -> None:
+    def _record_body_state() -> None:
         if backend_manager.backend.collision_pipeline is not None:
             bq = wp.to_torch(backend_manager.backend.state_0.body_q)
             jq = wp.to_torch(backend_manager.backend.state_0.joint_q)
@@ -2054,10 +2099,9 @@ def test_body_q_consistent_after_root_write(scene: _Scene) -> None:
             jc0 = int(jc_starts[0])
             captured["bq_root"] = bq[b0, :3].clone()
             captured["jq_root"] = jq[jc0 : jc0 + 3].clone()
-        original_simulate()
 
-    with patch.object(backend_manager, "_simulate_physics_only", _patched_simulate):
-        scene.sim.step()
+    backend_manager.register_pre_actuator_callback(_record_body_state)
+    scene.sim.step()
     articulation.update(scene.sim.cfg.dt)
 
     assert captured, "collision pipeline did not run in the step"
