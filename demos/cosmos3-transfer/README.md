@@ -46,8 +46,7 @@ uv run isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Direct --rl_libra
 - `env.cosmos` holds the camera's Cosmos settings, set with ordinary Isaac Lab overrides. `env.cosmos.prompt`
   describes the scene of each environment: with `--num_envs 2` the first prompt is environment 0 and the second is
   environment 1. `env.cosmos.endpoint` and `env.cosmos.transport` work the same way; see the
-  [camera integration guide](../../source/isaaclab_experimental/docs/cosmos.md). A misspelled `env.cosmos` field stops
-  the run with an error naming it.
+  [camera integration guide](../../source/isaaclab_experimental/docs/cosmos.md).
 
 ## 3. Record a clip
 
