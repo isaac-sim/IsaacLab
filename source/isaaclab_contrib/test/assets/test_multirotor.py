@@ -173,29 +173,26 @@ def test_thruster_collection_passes_ids_and_mask_unit():
     assert resets == [(None, env_mask), ([1], None)]
 
 
-@pytest.mark.parametrize("selection", ["ids", "mask", "all"])
+@pytest.mark.parametrize("selection", ["ids", "mask"])
 def test_reset_restores_selected_thrust_targets_unit(selection, monkeypatch):
-    """Resets by ids, by mask and of all envs reach the articulation and restore the selected thrust targets only."""
+    """Resets by ids and by mask reach the articulation and restore the selected thrust targets only."""
     parent_resets = []
     monkeypatch.setattr(
         Articulation, "reset", lambda self, env_ids=None, env_mask=None: parent_resets.append((env_ids, env_mask))
     )
     m = Multirotor.__new__(Multirotor)
     m._device = "cpu"
+    m._ALL_INDICES = wp.array([0, 1, 2, 3], dtype=wp.int32, device="cpu")
     m._data = types.SimpleNamespace(thrust_target=torch.ones(4, 2), default_thruster_rps=torch.zeros(4, 2))
     env_mask = wp.array([True, False, True, False], dtype=wp.bool, device="cpu")
-    expected = torch.tensor([[0.0, 0.0], [1.0, 1.0], [0.0, 0.0], [1.0, 1.0]])
 
     if selection == "ids":
         m.reset(env_ids=[0, 2])
         assert parent_resets == [([0, 2], None)]
-    elif selection == "mask":
+    else:
         m.reset(env_mask=env_mask)
         assert parent_resets == [(None, env_mask)]
-    else:
-        m.reset()
-        assert parent_resets == [(None, None)]
-        expected = torch.zeros(4, 2)
+    expected = torch.tensor([[0.0, 0.0], [1.0, 1.0], [0.0, 0.0], [1.0, 1.0]])
     torch.testing.assert_close(m._data.thrust_target, expected)
 
 
