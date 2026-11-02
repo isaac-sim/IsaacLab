@@ -12,6 +12,8 @@ from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
+from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
+
 if TYPE_CHECKING:
     from pxr import Usd
 
@@ -42,8 +44,9 @@ def partition_visual_meshes(stage: Usd.Stage, patterns: Sequence[str]) -> Iterat
 
     from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
-    envs = stage.GetPrimAtPath("/World/envs")
-    if not envs or [str(p.GetPath()) for p in envs.GetChildren()] != ["/World/envs/env_0"]:
+    env_0 = DEFAULT_ENV_TEMPLATE.format(0)
+    envs = stage.GetPrimAtPath(env_0.rsplit("/", 1)[0])
+    if not envs or [str(p.GetPath()) for p in envs.GetChildren()] != [env_0]:
         raise ValueError("XR visual partitions require exactly env_0")
     expressions = [re.compile(pattern) for pattern in patterns]
     matches = [[] for _ in expressions]

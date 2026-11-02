@@ -24,6 +24,7 @@ import torch
 
 from pxr import Gf, Sdf, Usd
 
+from isaaclab.cloner.cloner_cfg import expand_env_regex_ns
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 
 if TYPE_CHECKING:
@@ -610,7 +611,7 @@ class RenderLeaseController:
             expected = camera.cfg
             if spec.num_instances != 1 or spec.view_count != 1 or len(spec.camera_prim_paths) != 1:
                 raise RuntimeError("An external camera requires exactly one camera view")
-            pattern = str(expected.prim_path).replace("{ENV_REGEX_NS}", r"/World/envs/env_[^/]+")
+            pattern = expand_env_regex_ns(str(expected.prim_path))
             if (
                 int(spec.cfg.width) == int(expected.width)
                 and int(spec.cfg.height) == int(expected.height)

@@ -5,6 +5,7 @@
 
 import tempfile
 
+from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
@@ -81,7 +82,7 @@ class PickPlaceGR1T2WaistEnabledEnvCfg(ManagerBasedRLEnvCfg):
                 anchor_pos=(0.0, 0.0, 0.0),
                 anchor_rot=(0.0, 0.0, 0.0, 1.0),
                 # Exclude head visuals from the operator camera, not the source scene.
-                excluded_visual_meshes=["/World/envs/env_0/Robot/head_.*_link/visuals/.*"],
+                excluded_visual_meshes=[f"{DEFAULT_ENV_TEMPLATE.format(0)}/Robot/head_.*_link/visuals/.*"],
             )
             self.isaac_teleop = IsaacTeleopCfg(
                 prepare_environment=prepare_humanoid_teleop_environment,
