@@ -957,8 +957,11 @@ def test_gpu_selection_cli_reaches_the_shared_xr_renderer(monkeypatch, pip_camer
     [(xr_cfg, renderer_cfg)] = prepared
     assert renderer_cfg.active_cuda_gpus == "1"
     assert renderer_cfg.geometry_publication_device == "cuda:1"
-    assert [camera.camera_cfg for camera in xr_cfg.auxiliary_cameras] == ([config.scene.head_cam] if pip_camera else [])
-    assert all(camera.camera_cfg.renderer_cfg is renderer_cfg for camera in xr_cfg.auxiliary_cameras)
+    # Configclasses copy their fields, so each panel holds a copy of the scene sensor configuration.
+    assert [camera.camera_cfg.prim_path for camera in xr_cfg.auxiliary_cameras] == (
+        [config.scene.head_cam.prim_path] if pip_camera else []
+    )
+    assert all(camera.camera_cfg.renderer_cfg == renderer_cfg for camera in xr_cfg.auxiliary_cameras)
 
 
 @pytest.mark.parametrize(
