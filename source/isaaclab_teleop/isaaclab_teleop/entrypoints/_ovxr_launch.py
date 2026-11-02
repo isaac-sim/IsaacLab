@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Sequence
 from typing import Any
 
 from ..xr_cfg import remove_camera_configs
@@ -57,3 +58,19 @@ def require_kitless_physics(env_cfg: Any, task: str) -> None:
             " sim.physics unset, which runs Isaac Sim PhysX through Kit. Run this task with --xr instead, or give"
             " its configuration a kitless physics preset."
         )
+
+
+def reject_ovxr_runtime_conflicts(configs: Sequence[Any], kit_sources: Sequence[str]) -> None:
+    """Reject validated launch components that conflict with an OVXR-owned frame loop.
+
+    Args:
+        configs: Runtime configurations returned by :func:`~isaaclab.app.validate_launch`.
+        kit_sources: Components that :func:`~isaaclab.app.validate_launch` found to require Kit.
+
+    Raises:
+        ValueError: If a component requires Kit or a local visualizer is configured.
+    """
+    from isaaclab.visualizers import VisualizerBackendCfg
+
+    if kit_sources or any(isinstance(cfg, VisualizerBackendCfg) for cfg in configs):
+        raise ValueError("--ovxr requires no Kit runtime or local visualizer")

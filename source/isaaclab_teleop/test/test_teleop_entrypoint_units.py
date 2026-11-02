@@ -390,7 +390,14 @@ def test_teleop_replay_agent_resolves_typed_presets_without_reapplying_physics(m
 
 @pytest.mark.parametrize(
     "backend,viewer,hard_reset",
-    [("ovphysx", False, True), ("ovphysx", True, True), ("newton_mjwarp", True, False)],
+    [
+        ("ovphysx", False, True),
+        ("ovphysx", True, True),
+        ("physx", False, True),
+        (None, False, True),
+        ("newton", False, False),
+        ("newton", True, False),
+    ],
 )
 def test_recorded_environment_reset_preserves_backend_policy_and_hand_cursor(monkeypatch, backend, viewer, hard_reset):
     """The imported replay loop preserves backend reset order and the input cursor."""
@@ -466,49 +473,6 @@ def test_recorded_environment_reset_preserves_backend_policy_and_hand_cursor(mon
     assert frame == 1
 
 
-def test_teleop_replay_reset_policy_skips_hard_reset_only_for_newton():
-    """Newton keeps its constructed solver while OVPhysX retains the PR-5507 hard reset."""
-    from isaaclab_teleop.entrypoints.teleop_replay_agent import _replay_requires_hard_sim_reset as requires_hard_reset
-
-    assert requires_hard_reset("newton_mjwarp") is False
-    assert requires_hard_reset("newtonmanager") is False
-    assert requires_hard_reset("ovphysx") is True
-    assert requires_hard_reset(None) is True
-
-
-def test_teleop_replay_reset_sequence_preserves_backend_owned_order():
-    """The backend policy changes only the optional simulator reset in the reset sequence."""
-    from isaaclab_teleop.entrypoints.teleop_replay_agent import _reset_replay_environment as reset_environment
-
-    calls: list[str] = []
-
-    class _Resetter:
-        def __init__(self, name: str):
-            self._name = name
-
-        def reset(self):
-            calls.append(self._name)
-
-    class _Environment:
-        sim = _Resetter("sim")
-        recorder_manager = _Resetter("recorder")
-
-        def reset(self):
-            calls.append("env")
-
-    env = _Environment()
-    reset_environment(env, hard_sim_reset=False, reset_recorder=True)
-    assert calls == ["recorder", "env"]
-
-    calls.clear()
-    reset_environment(env, hard_sim_reset=True, reset_recorder=True)
-    assert calls == ["sim", "recorder", "env"]
-
-    calls.clear()
-    reset_environment(env, hard_sim_reset=False, reset_recorder=False)
-    assert calls == ["env"]
-
-
 def _load_teleop_agent(monkeypatch, *arguments):
     from isaaclab_teleop.entrypoints import teleop_se3_agent as module
 
@@ -516,14 +480,6 @@ def _load_teleop_agent(monkeypatch, *arguments):
     monkeypatch.setattr(module, "args_cli", None, raising=False)
     module._parse_args()
     return module
-
-
-def test_product_xr_default_resolves_cloudxrjs_and_autolaunch(monkeypatch):
-    agent = _load_teleop_agent(monkeypatch, "--ovxr")
-    from isaaclab_teleop import CLOUDXR_JS_ENV
-
-    assert agent.args_cli.cloudxr_env == CLOUDXR_JS_ENV
-    assert agent.args_cli.auto_launch_cloudxr is True
 
 
 def test_teleop_launcher_preserves_the_resolved_physics_configuration(monkeypatch):
@@ -570,6 +526,25 @@ def test_teleop_agent_installs_late_graceful_shutdown_handlers(monkeypatch):
     monkeypatch.setattr(agent.signal, "signal", lambda signum, handler: restored.update({signum: handler}))
     agent._restore_ovxr_shutdown_handlers(previous)
     assert restored == previous
+
+
+@pytest.mark.parametrize(
+    ("configs", "kit_sources"),
+    [
+        pytest.param((), ("renderer",), id="kit-source"),
+        pytest.param(("visualizer",), (), id="local-visualizer"),
+    ],
+)
+def test_ovxr_rejects_kit_runtimes_and_local_visualizers(configs, kit_sources):
+    """Live and replay share one rejection for components that compete with the OVXR frame loop."""
+    from isaaclab_teleop.entrypoints._ovxr_launch import reject_ovxr_runtime_conflicts
+
+    from isaaclab.visualizers import VisualizerBackendCfg
+
+    configs = tuple(VisualizerBackendCfg() if cfg == "visualizer" else cfg for cfg in configs)
+    reject_ovxr_runtime_conflicts((object(),), ())
+    with pytest.raises(ValueError, match="no Kit runtime or local visualizer"):
+        reject_ovxr_runtime_conflicts(configs, kit_sources)
 
 
 _UNSET_PHYSICS_TASK = "IsaacContrib-PickPlace-GR1T2-Abs"

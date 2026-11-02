@@ -51,7 +51,7 @@ from .. import (
     se3_spacemouse_teleop_cfg,
 )
 from ..device_selection import create_teleop_device, select_teleop_cfg
-from ._ovxr_launch import prepare_ovxr_launch
+from ._ovxr_launch import prepare_ovxr_launch, reject_ovxr_runtime_conflicts
 
 logger = logging.getLogger(__name__)
 
@@ -256,10 +256,7 @@ def _resolve_env_cfg() -> tuple[ManagerBasedRLEnvCfg, IsaacTeleopCfg | DeviceCfg
     # A task without a physics selection keeps None: SimulationContext defaults it to PhysxCfg.
     configs, kit_sources = validate_launch(env_cfg, vars(args_cli).copy())
     if args_cli.using_ovxr:
-        from isaaclab.visualizers import VisualizerBackendCfg
-
-        if kit_sources or any(isinstance(cfg, VisualizerBackendCfg) for cfg in configs):
-            raise ValueError("--ovxr requires no Kit runtime or local visualizer")
+        reject_ovxr_runtime_conflicts(configs, kit_sources)
     return (env_cfg, teleop_cfg, use_isaac_teleop)
 
 

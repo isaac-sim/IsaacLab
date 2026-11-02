@@ -182,11 +182,10 @@ def test_advance_selects_target_frame(configured, explicit, expected):
 
 def test_external_replay_reads_resolved_target_frame(monkeypatch):
     """A cloned target path reaches the scene reader without mutating the task template."""
-    import ast
-    from pathlib import Path
     from types import SimpleNamespace
 
     from isaaclab_teleop import IsaacTeleopCfg
+    from isaaclab_teleop.entrypoints.teleop_replay_agent import _advance_replay_input
     from isaaclab_teleop.isaac_teleop_device import create_isaac_teleop_device
 
     from pxr import Usd, UsdGeom
@@ -208,19 +207,8 @@ def test_external_replay_reads_resolved_target_frame(monkeypatch):
         assert prim.IsValid(), f"Target path did not resolve to the scene: {path}"
         return np.asarray(UsdGeom.XformCache().GetLocalToWorldTransform(prim).GetInverse()).T
 
-    source = (
-        Path(__file__).resolve().parents[3]
-        / "source/isaaclab_teleop/isaaclab_teleop/entrypoints/teleop_replay_agent.py"
-    )
-    node = next(
-        n
-        for n in ast.parse(source.read_text()).body
-        if isinstance(n, ast.FunctionDef) and n.name == "_advance_replay_input"
-    )
-    namespace = {}
-    exec(compile(ast.Module(body=[node], type_ignores=[]), str(source), "exec"), namespace)
     presentation = SimpleNamespace(session=SimpleNamespace(get_target_frame_T_world=read_target))
-    namespace["_advance_replay_input"](device, presentation)
+    _advance_replay_input(device, presentation)
     expected = np.eye(4)
     expected[:3, 3] = [-4, -5, -6]
     np.testing.assert_allclose(lifecycle.step.call_args.kwargs["target_T_world"], expected)
