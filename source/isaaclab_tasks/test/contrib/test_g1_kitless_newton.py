@@ -64,7 +64,7 @@ def _fake_env():
     poses = torch.stack((left, right)).unsqueeze(0)
     robot = SimpleNamespace(
         body_names=["left_wrist_yaw_link", "right_wrist_yaw_link"],
-        data=SimpleNamespace(body_link_pose_w=poses),
+        data=SimpleNamespace(body_link_pose_w=SimpleNamespace(torch=poses)),
     )
     cfg = SimpleNamespace(
         actions=SimpleNamespace(
@@ -166,7 +166,7 @@ def test_recorded_first_action_is_ramped_and_finite() -> None:
 def test_wrist_ramp_reseeds_after_termination_auto_reset() -> None:
     """A success/drop auto-reset inside env.step moves the wrists; the ramp must restart from there."""
     env, left, _ = _fake_env()
-    poses = env.scene["robot"].data.body_link_pose_w
+    poses = env.scene["robot"].data.body_link_pose_w.torch
 
     def step(terminated: bool = False) -> None:
         # Advance the counters like ManagerBasedRLEnv.step; a terminated episode resets to a lower pose.
@@ -199,7 +199,7 @@ def test_wrist_ramp_reseeds_after_termination_auto_reset() -> None:
 def test_conditioned_wrist_rotation_obeys_angular_cap(angle, axis, sign):
     """The public action conditioner follows the short rotation without exceeding its cap."""
     env, _, _ = _fake_env()
-    pose = env.scene["robot"].data.body_link_pose_w
+    pose = env.scene["robot"].data.body_link_pose_w.torch
     # Any fixed unit quaternion works as the start: slerp is convention-independent. This is the
     # (x, y, z, w) = (1, 0, 0, 0) half-turn about x, not identity.
     pose[0, :, 3:7] = torch.tensor([1.0, 0, 0, 0])

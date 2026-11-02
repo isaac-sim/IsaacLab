@@ -173,14 +173,12 @@ def _wrist_poses(env, state: dict[str, Any]):
         if "_wrist_indices" in state:
             left_index, right_index = state["_wrist_indices"]
         else:
-            body_names = list(getattr(robot, "body_names", None) or getattr(robot.data, "body_names", []))
             target_links = env.cfg.actions.upper_body_ik.target_eef_link_names
-            left_index = body_names.index(target_links["left_wrist"])
-            right_index = body_names.index(target_links["right_wrist"])
+            left_index = robot.body_names.index(target_links["left_wrist"])
+            right_index = robot.body_names.index(target_links["right_wrist"])
             state["_wrist_indices"] = (left_index, right_index)
-        pose_w = robot.data.body_link_pose_w
-        pose_w = (pose_w.torch if hasattr(pose_w, "torch") else pose_w)[0]
-    except (AttributeError, KeyError, ValueError):
+        pose_w = robot.data.body_link_pose_w.torch[0]
+    except (KeyError, ValueError):
         return None
     return (
         pose_w[left_index, :3].clone(),
