@@ -968,11 +968,11 @@ class OVRTXRenderer(BaseRenderer):
             if data.render_product_path not in products or not products[data.render_product_path].frames:
                 raise RuntimeError(f"OVRTX returned no frame for render product {data.render_product_path!r}.")
         for data in render_data:
-            self._process_render_frame(
-                data,
-                products[data.render_product_path].frames[0],
-                data.warp_buffers,
-            )
+            frames = products[data.render_product_path].frames
+            # DLSS-generated images have earlier capture times than the real frame. Keep all
+            # camera outputs on the latest capture without assuming the returned list's order.
+            frame = frames[0] if len(frames) == 1 else max(frames, key=lambda frame: frame.end_time)
+            self._process_render_frame(data, frame, data.warp_buffers)
 
             # Post-render PPISP uses each camera's own HDR source and RGBA destination.
             if data.ppisp_pipeline is not None:

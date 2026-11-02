@@ -42,8 +42,10 @@ custom force, impulse, or state transfer.
 Responsibilities and Boundaries
 -------------------------------
 
-:class:`~isaaclab_newton.physics.NewtonBackend` holds everything bound to one finalized model, and the
-:class:`~isaaclab_newton.physics.NewtonManager` drives it. The backend's solver
+:class:`~isaaclab_newton.physics.NewtonBackend` holds everything bound to one finalized model and initializes, steps
+and queries it (``init_solver``, ``step``, ``forward``, ``invalidate_fk``, ...), so backends with different solvers can
+be built and stepped side by side. The :class:`~isaaclab_newton.physics.NewtonManager` runs one backend through the
+Isaac Lab lifecycle. The backend's solver
 (:attr:`NewtonBackend.solver <isaaclab_newton.physics.NewtonBackend>`) is Newton's solver, built with
 ``solver_cfg.class_type.build(solver_cfg, model, mode)``. The Isaac Lab solver is never instantiated and holds no state:
 each method is a class method that takes the configuration and Newton's solver. A coupled solver builds each entry's
@@ -61,11 +63,11 @@ Newton solver through the entry's own Isaac Lab solver.
    * - :class:`~isaaclab_newton.physics.NewtonManager`
      - What must survive a hard reset: site requests, the replication outputs
        (:class:`~isaaclab_newton.physics.NewtonCloneRecord`), and the decimation setting. It finalizes the
-       :attr:`~isaaclab_newton.physics.NewtonManager.backend` through the registry, closes it on a hard reset, and runs
-       the step, holding the step callbacks and the captured step.
+       :attr:`~isaaclab_newton.physics.NewtonManager.backend` through the registry, closes it on a hard reset, and
+       publishes scene-data timestamps.
    * - :class:`~isaaclab_newton.physics.NewtonBackend`
-     - Model, states, control, solver, collision pipeline and contacts, sensors, Newton actuators, and reset masks.
-       A hard reset or close discards it.
+     - Model, states, control, solver, collision pipeline and contacts, sensors, Newton actuators, reset masks, step
+       callbacks, and the captured step. A hard reset or close discards it, together with its callbacks.
    * - Solver configuration
      - Solver parameters, and ``class_type``, which selects the Isaac Lab solver.
    * - Isaac Lab solver
@@ -129,7 +131,7 @@ actuators in the step and all of them are CUDA-graph-safe), and one physics step
 physics step runs ``collide -> pre-actuator callbacks -> Newton actuators -> post-actuator callbacks -> substeps``,
 and post-step callbacks and sensors run once at the end. Otherwise the actuators and their callbacks run eagerly once,
 followed by ``collide -> substeps -> post-step callbacks -> sensors``. Every substep runs ``staged body forces ->
-state-force callbacks -> step``, and ``pre_step`` and ``post_step`` run around each physics step's substeps.
+state-force callbacks -> step -> post-solver-substep callbacks -> force clearing``, and ``pre_step`` and ``post_step`` run around each physics step's substeps.
 
 Every physics step ends in ``state_0``, so ``manager.backend.state_0`` is always the same object. The captured step
 records the callbacks, so they must be graph-safe. Consumers register them with

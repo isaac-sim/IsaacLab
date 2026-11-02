@@ -94,13 +94,13 @@ def test_transport_reset_rebind_and_close(device):
             np.testing.assert_array_equal(forces.numpy(), np.zeros((4, 6)))
             assert driver._conveyor.global_velocity_scale.numpy()[0] == 0
             if device != "cpu":
-                assert manager._graph is not None
+                assert manager.backend.graph is not None
         finally:
             driver.close()
             driver.close()
-        assert not manager._solver_init_callbacks
-        assert not manager._state_force_callbacks
-        assert not manager._post_solver_substep_callbacks
+        assert not manager.backend.solver_init_callbacks
+        assert not manager.backend.state_force_callbacks
+        assert not manager.backend.post_solver_substep_callbacks
         assert set(manager._callbacks) == callbacks_before
         forces.fill_(1.0)
         sim.step(render=False)
