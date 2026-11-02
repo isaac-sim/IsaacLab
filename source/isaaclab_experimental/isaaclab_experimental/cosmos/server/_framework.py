@@ -208,7 +208,9 @@ class CosmosInferenceModel:
         if len(prompts) != num_views or any(text is not None and not isinstance(text, str) for text in prompts):
             raise ValueError("The Cosmos appearance prompt must be text or None, or one per camera view.")
         if (height, width) not in CANVAS_ASPECT_RATIOS:
-            raise ValueError(f"Unsupported Cosmos canvas {(height, width)}; choose one of {list(CANVAS_ASPECT_RATIOS)}.")
+            raise ValueError(
+                f"Unsupported Cosmos canvas {(height, width)}; choose one of {list(CANVAS_ASPECT_RATIOS)}."
+            )
         if type(max_episode_frames) is not int or max_episode_frames < 1 or (max_episode_frames - 1) % 4:
             raise ValueError("Cosmos max_episode_frames must be 1 + 4*k.")
 
@@ -260,9 +262,7 @@ class CosmosInferenceModel:
             self._pipeline = None
             self._metadata_dir.cleanup()
 
-    def _prompt_batch(
-        self, prompt: str | None, height: int, width: int, max_episode_frames: int
-    ) -> dict[str, Any]:
+    def _prompt_batch(self, prompt: str | None, height: int, width: int, max_episode_frames: int) -> dict[str, Any]:
         """Build one episode's text conditioning: appearance prompt and metadata."""
         from cosmos_framework.inference.args import OmniSampleOverrides
         from cosmos_framework.inference.inference import _get_prompt_sample_data
@@ -409,9 +409,7 @@ class _CosmosInferenceStream:
                     self._close_episode()
                     if prompt is not _KEEP_PROMPT:
                         height, width, _ = self._canvas
-                        self._data_batch = self._owner._prompt_batch(
-                            prompt, height, width, self._max_episode_frames
-                        )
+                        self._data_batch = self._owner._prompt_batch(prompt, height, width, self._max_episode_frames)
                     self._seed = seeds[0]
                     self._frame_count = 0
                     self._iterator = self._make_iterator()
