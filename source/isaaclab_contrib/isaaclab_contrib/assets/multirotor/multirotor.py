@@ -18,7 +18,6 @@ from isaaclab_physx.assets.articulation import Articulation
 
 import isaaclab.utils.string as string_utils
 from isaaclab.utils import instantiate
-from isaaclab.utils.warp.memory import resolve_1d_mask
 
 from isaaclab_contrib.actuators import Thruster
 from isaaclab_contrib.utils.types import MultiRotorActions
@@ -53,7 +52,7 @@ class _ThrusterCollection(dict):
             env_mask: Environment mask. Shape is (num_instances,). Defaults to None.
         """
         for actuator in self.values():
-            actuator.reset(env_ids, env_mask=env_mask)
+            actuator.reset(env_ids=env_ids, env_mask=env_mask)
 
 
 class Multirotor(Articulation):
@@ -269,22 +268,20 @@ class Multirotor(Articulation):
             configuration parameter.
         """
         # call parent reset
-        super().reset(env_ids, env_mask=env_mask)
+        super().reset(env_ids=env_ids, env_mask=env_mask)
 
         # reset thruster targets to default values
-        if self._data.thrust_target is not None and self._data.default_thruster_rps is not None:
-            env_mask = resolve_1d_mask(
-                ids=env_ids,
-                mask=env_mask,
-                all_mask=self._ALL_ENV_MASK,
-                scratch_mask=self._reset_env_mask,
-            )
-            torch.where(
-                wp.to_torch(env_mask)[:, None],
-                self._data.default_thruster_rps,
-                self._data.thrust_target,
-                out=self._data.thrust_target,
-            )
+        thrust_target, default_rps = self._data.thrust_target, self._data.default_thruster_rps
+        if thrust_target is not None and default_rps is not None:
+            # write in the form given: a mask selects rows in place, ids index them
+            if env_mask is not None:
+                torch.where(wp.to_torch(env_mask)[:, None], default_rps, thrust_target, out=thrust_target)
+            elif env_ids is None:
+                thrust_target.copy_(default_rps)
+            else:
+                if not isinstance(env_ids, (torch.Tensor, slice)):
+                    env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
+                thrust_target[env_ids] = default_rps[env_ids]
 
     def write_data_to_sim(self):
         """Write thrust and torque commands to the simulation.
@@ -355,9 +352,6 @@ class Multirotor(Articulation):
         # internal force/torque targets per body for combined mode
         self._internal_force_target_sim = torch.zeros(num_instances, self.num_bodies, 3, device=self.device)
         self._internal_torque_target_sim = torch.zeros(num_instances, self.num_bodies, 3, device=self.device)
-        # env masks selecting the thrust targets to reset
-        self._ALL_ENV_MASK = wp.ones(num_instances, dtype=wp.bool, device=self.device)
-        self._reset_env_mask = wp.zeros(num_instances, dtype=wp.bool, device=self.device)
 
         # Placeholder thruster names (will be filled during actuator creation)
         self._data.thruster_names = [f"thruster_{i}" for i in range(num_thrusters)]
