@@ -55,10 +55,7 @@ class RecorderManagerBaseCfg:
     """Whether to export episodes in the close call."""
 
     buffer_initial_capacity: int = 64
-    """Initial samples per environment and field. Must be positive; storage grows as needed.
-
-    Set to the expected episode length, including decimation callbacks, to avoid reallocations.
-    """
+    """Initial sample capacity per environment and field; grows as needed. Must be positive."""
 
     dataset_compression: bool = True
     """Enable dataset compression."""
