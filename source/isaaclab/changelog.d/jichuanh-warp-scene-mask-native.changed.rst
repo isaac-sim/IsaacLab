@@ -5,10 +5,10 @@
 * Changed :meth:`~isaaclab.actuators.newton.NewtonActuatorAdapter.reset` to reuse preallocated per-DOF masks, so
   masked resets of Newton-native actuator state do not allocate and can be captured in a CUDA graph.
 * **Breaking:** Changed :meth:`~isaaclab.actuators.ActuatorBase.reset` to take an ``env_mask`` argument, the
-  boolean mask of the environments to reset that masked resets pass instead of indices.
+  boolean ``wp.array`` of the environments to reset that masked resets pass instead of indices.
   :meth:`~isaaclab.actuators.ActuatorCollection.reset` passes it on every reset, so custom actuator models must accept
   ``env_mask`` and reset from it without synchronizing the host, for example through
-  :func:`~isaaclab.utils.array.index_fill_` or :func:`torch.where`.
+  :func:`~isaaclab.utils.array.index_fill_` or :func:`torch.where` on its :func:`warp.to_torch` view.
 * **Breaking:** Changed :meth:`~isaaclab.scene.InteractiveScene.reset` to pass ``env_mask`` to the ``reset`` of every
   asset and sensor, also when it is None. Custom assets and sensors must accept ``env_mask``, as the base classes do.
 * Changed :class:`~isaaclab.actuators.DelayedPDActuator` to raise :class:`ValueError` at construction unless

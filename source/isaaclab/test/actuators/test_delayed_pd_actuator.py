@@ -5,6 +5,7 @@
 
 import pytest
 import torch
+import warp as wp
 
 from isaaclab.actuators import DelayedPDActuatorCfg
 from isaaclab.test.utils import DeviceScope, test_devices
@@ -51,7 +52,7 @@ def test_masked_reset_matches_index_reset(device):
     previous = torch.cuda.get_sync_debug_mode()
     torch.cuda.set_sync_debug_mode("error")
     try:
-        by_mask.reset(env_mask=env_mask)
+        by_mask.reset(env_mask=wp.from_torch(env_mask))
     finally:
         torch.cuda.set_sync_debug_mode(previous)
 

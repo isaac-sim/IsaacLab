@@ -11,6 +11,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, ClassVar
 
 import torch
+import warp as wp
 
 from ..utils import DelayBuffer, LinearInterpolation
 from ..utils.types import ArticulationActions
@@ -190,7 +191,7 @@ class ImplicitActuator(ActuatorBase):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: torch.Tensor | None = None):
+    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None):
         # This is a no-op. There is no state to reset for implicit actuators.
         pass
 
@@ -313,7 +314,7 @@ class IdealPDActuator(ActuatorBase):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: torch.Tensor | None = None):
+    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None):
         pass
 
     def compute(
@@ -460,7 +461,7 @@ class DelayedPDActuator(IdealPDActuator):
         self.efforts_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
         self._delay_buffers = (self.positions_delay_buffer, self.velocities_delay_buffer, self.efforts_delay_buffer)
 
-    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: torch.Tensor | None = None):
+    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None):
         super().reset(env_ids, env_mask)
         # number of environments (since env_ids can be a slice)
         if env_ids is None:
