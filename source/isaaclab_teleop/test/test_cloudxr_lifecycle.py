@@ -387,11 +387,24 @@ def test_session_cleanup_error_without_borrowed_handles_is_suppressed():
     launcher.stop.assert_called_once()
 
 
-@pytest.mark.parametrize("body_error", [False, True])
-@pytest.mark.parametrize("error_type", [RuntimeError, KeyboardInterrupt])
-def test_borrowed_session_cleanup_failure_is_visible_and_retains_runtime(body_error, error_type):
+@pytest.mark.parametrize(
+    "body_error,error_type,replay",
+    [
+        (False, RuntimeError, False),
+        (True, RuntimeError, False),
+        (False, KeyboardInterrupt, False),
+        (True, KeyboardInterrupt, False),
+        (False, ValueError, True),
+        (True, RuntimeError, True),
+    ],
+)
+def test_session_exit_failure_is_visible_and_retains_resources(body_error, error_type, replay):
+    """Replay exit failures stay visible even though input borrows no OpenXR handles."""
     lifecycle = TeleopSessionLifecycle(
-        _make_cfg(), use_kit_xr_bridge=False, external_oxr_handles_provider=lambda: object()
+        _make_cfg(),
+        use_kit_xr_bridge=False,
+        external_oxr_handles_provider=None if replay else lambda: object(),
+        mcap_replay_path="recording.mcap" if replay else None,
     )
     session, launcher = MagicMock(), MagicMock()
     cleanup_error = error_type("native drain failed")
