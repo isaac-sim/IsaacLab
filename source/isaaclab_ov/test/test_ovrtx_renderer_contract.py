@@ -1136,9 +1136,21 @@ def test_ovrtx_cleanup_releases_only_the_given_render_data(monkeypatch, cleanup_
     assert renderer._initialized_scene is True
 
 
-@pytest.mark.parametrize("use_ovstage", [False, True])
-def test_pose_and_intrinsic_updates_target_the_given_camera(monkeypatch, use_ovstage):
+@pytest.mark.parametrize("stage_mode", ["legacy", "integer_ids", "typed_handles"])
+def test_pose_and_intrinsic_updates_target_the_given_camera(monkeypatch, stage_mode):
     """Distinct cameras, including a prototype-only wrist camera, bind every environment independently."""
+    use_ovstage = stage_mode != "legacy"
+
+    class Handle:
+        def __init__(self, raw_id):
+            self.raw_id = raw_id
+
+        def __int__(self):
+            raise TypeError("use .raw_id for explicit numeric conversion")
+
+    def handle(raw_id):
+        return Handle(raw_id) if stage_mode == "typed_handles" else raw_id
+
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._initialized_scene = True
     renderer._device = "cpu"
@@ -1159,7 +1171,22 @@ def test_pose_and_intrinsic_updates_target_the_given_camera(monkeypatch, use_ovs
     paths[0][0] = "/Lab/Cell1/Robot/CameraA"
     paths.append(["/World/PerspectiveCamera"])
     paths.append(paths[0][:1])
-    renderer.scene.paths.intern_token.side_effect = {"env_0": 10, "env_1": 11}.__getitem__
+    renderer.scene.paths.intern_token.side_effect = {"env_0": handle(10), "env_1": handle(11)}.__getitem__
+    path_ids = {path: 2**63 + i for i, path in enumerate(dict.fromkeys(path for group in paths for path in group))}
+    renderer.scene.paths.intern_path.side_effect = lambda path: handle(path_ids[path])
+    if use_ovstage:
+        monkeypatch.setattr(renderer, "_setup_xform_bindings", lambda stage: None)
+        monkeypatch.setattr(renderer, "_setup_geometry_bindings", lambda: None)
+        renderer.scene.resources = contextlib.ExitStack()
+        renderer.prepare_stage(SimulationContext.instance().stage, 2)
+        partition_write = next(
+            call
+            for call in renderer.scene.stage.write_attribute.call_args_list
+            if call.args[1] == "primvars:omni:scenePartition"
+        )
+        np.testing.assert_array_equal(partition_write.kwargs["tensors"], [10, 11])
+        assert partition_write.kwargs["tensors"].dtype == np.uint64
+        renderer.scene.paths.create_path_list_from_strings.reset_mock()
     cameras = [
         renderer.create_render_data(
             CameraRenderSpec(
@@ -1173,6 +1200,16 @@ def test_pose_and_intrinsic_updates_target_the_given_camera(monkeypatch, use_ovs
         for index, camera_paths in enumerate((paths[0], paths[1][1:], paths[2], paths[3]))
     ]
     if use_ovstage:
+        relationships = [
+            call.kwargs["tensors"]
+            for call in renderer.scene.stage.write_attribute.call_args_list
+            if call.args[1] == "camera"
+        ]
+        for relationship, expected_paths in zip(relationships, paths, strict=True):
+            np.testing.assert_array_equal(
+                relationship, np.array([path_ids[path] for path in expected_paths], np.uint64)
+            )
+            assert relationship.dtype == np.uint64
         partitions = [
             call.kwargs["tensors"].tolist()
             for call in renderer.scene.stage.write_attribute.call_args_list
