@@ -589,22 +589,28 @@ def test_task_action_hook_validates_before_and_after_conditioning(monkeypatch):
 
     def validate(action):
         calls.append(("validate", action))
-        return "rejected" if action == 3 else None
+        return "rejected" if action in (3, 6) else None
 
     def condition(env, action, state):
         calls.append(("condition", env, action, state))
-        state["seen"] = True
+        state["last"] = action
         return action + 1
 
     state = {}
     action, issue = agent.prepare_teleop_action("env", 1, condition, validate, state)
-    assert (action, issue, state) == (2, None, {"seen": True})
+    assert (action, issue, state) == (2, None, {"last": 1})
     assert [call[0] for call in calls] == ["validate", "condition", "validate"]
 
     calls.clear()
     action, issue = agent.prepare_teleop_action("env", 3, condition, validate, state)
     assert (action, issue) == (3, "rejected")
     assert [call[0] for call in calls] == ["validate"]
+
+    # A conditioned action rejected by the second validation leaves the state uncommitted.
+    calls.clear()
+    action, issue = agent.prepare_teleop_action("env", 5, condition, validate, state)
+    assert (action, issue, state) == (6, "rejected", {"last": 1})
+    assert [call[0] for call in calls] == ["validate", "condition", "validate"]
 
 
 def test_teleop_agent_installs_late_graceful_shutdown_handlers(monkeypatch):
