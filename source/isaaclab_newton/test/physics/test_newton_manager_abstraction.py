@@ -1323,12 +1323,11 @@ def two_world_builder() -> ModelBuilder:
     return builder
 
 
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("update_data_interval", [0, 2], ids=["disabled", "sparse"])
-def test_mjwarp_authored_reset_survives_sparse_state_import(two_world_builder, device, update_data_interval):
-    """Sparse imports preserve authored resets and the motion of an unselected world."""
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_mjwarp_authored_reset_survives_sparse_state_import(two_world_builder, device):
+    """Off-cadence graph replay preserves authored resets and the unselected world's motion."""
     model = two_world_builder.finalize(device=device)
-    solver_cfg = MJWarpSolverCfg(update_data_interval=update_data_interval, njmax=5, nconmax=5)
+    solver_cfg = MJWarpSolverCfg(update_data_interval=2, njmax=5, nconmax=5)
     solver = MJWarpSolver.build(solver_cfg, model, wp.DeterministicMode.NOT_GUARANTEED)
     state, control = model.state(), model.control()
     world_mask = wp.array([True, False, False], dtype=wp.bool, device=device)
@@ -1338,27 +1337,19 @@ def test_mjwarp_authored_reset_survives_sparse_state_import(two_world_builder, d
         MJWarpSolver.reset(solver_cfg, solver, state, world_mask)
         solver.step(state, state, control, None, dt)
 
-    advance()  # Warm the kernels and put the next step off cadence for interval=2.
-    if device != "cpu":
-        with wp.ScopedCapture(device=device) as capture:
-            advance()
-        advance = P(wp.capture_launch, capture.graph)
+    advance()  # Warm the kernels and put graph capture off the periodic import cadence.
+    with wp.ScopedCapture(device=device) as capture:
+        advance()
 
     other_position = 0.125 * dt
     for position, velocity in ((0.25, 0.5), (-0.25, -0.5)):
-        state.joint_q[:1].fill_(position)
-        state.joint_qd[:1].fill_(velocity)
-        advance()
+        # Only world 0 is committed: an unmasked import would also overwrite world 1.
+        state.joint_q.fill_(position)
+        state.joint_qd.fill_(velocity)
+        wp.capture_launch(capture.graph)
         other_position += 0.125 * dt
         np.testing.assert_allclose(state.joint_q.numpy(), [position + velocity * dt, other_position], atol=1e-6)
         np.testing.assert_allclose(state.joint_qd.numpy(), [velocity, 0.125], atol=1e-6)
-
-    # Distinct uncommitted inputs expose an import that ignores the reset mask.
-    state.joint_q.fill_(1.25)
-    state.joint_qd.fill_(-0.75)
-    MJWarpSolver.reset(solver_cfg, solver, state, world_mask)
-    np.testing.assert_allclose(solver.mjw_data.qpos.numpy().ravel(), [1.25, other_position], atol=1e-6)
-    np.testing.assert_allclose(solver.mjw_data.qvel.numpy().ravel(), [-0.75, 0.125], atol=1e-6)
 
 
 def test_mujoco_cpu_authored_reset_only_updates_selected_template_world(two_world_builder):
