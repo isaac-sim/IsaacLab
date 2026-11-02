@@ -357,13 +357,14 @@ def test_humanoid_preparation_preserves_caller_changes_and_rejects_backend_switc
     from isaaclab_physx.physics import PhysxCfg
 
     from isaaclab.envs import ManagerBasedRLEnv
+    from isaaclab.utils.string import string_to_callable
 
     import isaaclab_tasks  # noqa: F401
     from isaaclab_tasks.utils import parse_env_cfg
 
     cfg = parse_env_cfg(task_name, device="cpu", num_envs=1, overrides=[f"physics={physics}"])
     controlled_joints = list(cfg.actions.upper_body_ik.pink_controlled_joint_names)
-    getattr(cfg, f"stabilize_for_kitless_{physics}")()
+    string_to_callable(cfg.kitless_preparation[physics])(cfg)
     cfg.isaac_teleop.require_initial_bimanual_hand_tracking = (
         not cfg.isaac_teleop.require_initial_bimanual_hand_tracking
     )
@@ -403,7 +404,7 @@ def test_humanoid_preparation_preserves_caller_changes_and_rejects_backend_switc
 
     monkeypatch.setattr(ManagerBasedRLEnv, "__init__", inspect_before_simulation)
     for prepared in (cfg, cfg.copy()):
-        getattr(prepared, f"stabilize_for_kitless_{physics}")()
+        string_to_callable(prepared.kitless_preparation[physics])(prepared)
         serialized = prepared.to_dict()
         assert serialized["haptic_feedback"] == haptics
         if "GR1T2" in task_name:
@@ -480,7 +481,7 @@ def test_prepared_task_spawn_callbacks_survive_public_config_roundtrip(monkeypat
     cfg = parse_env_cfg(task_name, device="cpu", num_envs=1, overrides=[f"physics={physics}"])
     for asset in (cfg.scene.robot, cfg.scene.packing_table, cfg.scene.object):
         asset.spawn.func = _spawn_task_roundtrip_fixture
-    getattr(cfg, f"stabilize_for_kitless_{physics}")()
+    string_to_callable(cfg.kitless_preparation[physics])(cfg)
     cfg.sim.dt = 0.003
     serialized = to_dict(cfg)
     if "GR1T2" in task_name:
@@ -489,7 +490,7 @@ def test_prepared_task_spawn_callbacks_survive_public_config_roundtrip(monkeypat
         restored = cfg.copy()
     else:
         restored = parse_env_cfg(task_name, device="cpu", num_envs=1, overrides=[f"physics={physics}"])
-        getattr(restored, f"stabilize_for_kitless_{physics}")()
+        string_to_callable(restored.kitless_preparation[physics])(restored)
     update_from_dict(restored, serialized)
     if "GR1T2" in task_name:
         assert cfg.actions.upper_body_ik.hand_target_margin_rad == 0.123

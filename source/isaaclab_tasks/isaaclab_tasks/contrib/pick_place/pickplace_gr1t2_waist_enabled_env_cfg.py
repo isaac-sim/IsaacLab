@@ -22,8 +22,6 @@ from .pickplace_gr1t2_env_cfg import (
     ObservationsCfg,
     TerminationsCfg,
     build_gr1t2_pickplace_pipeline,
-    prepare_gr1t2_for_kitless_newton_mjwarp,
-    prepare_gr1t2_for_kitless_ovphysx,
 )
 
 
@@ -33,6 +31,16 @@ class PickPlaceGR1T2WaistEnabledEnvCfg(ManagerBasedRLEnvCfg):
 
     class_type: type | str = "isaaclab_tasks.contrib.teleop_env:HumanoidTeleopEnv"
     _prepared_kitless_backend: str | None = None
+    kitless_preparation: dict[str, str] = {
+        "ovphysx": "isaaclab_tasks.contrib.pick_place.pickplace_gr1t2_env_cfg:prepare_gr1t2_for_kitless_ovphysx",
+        "newton_mjwarp": (
+            "isaaclab_tasks.contrib.pick_place.pickplace_gr1t2_env_cfg:prepare_gr1t2_for_kitless_newton_mjwarp"
+        ),
+    }
+    """Preparation function, as a ``"module:function"`` reference, for each supported kitless backend.
+
+    The shared GR1T2 preparation keeps the configured controlled joints, including the waist.
+    """
     haptic_feedback: object | None = None
     sim: SimulationCfg = SimulationCfg(physics=TeleopPhysicsCfg())
 
@@ -96,11 +104,3 @@ class PickPlaceGR1T2WaistEnabledEnvCfg(ManagerBasedRLEnvCfg):
                 left_sensor_name="left_hand_contact",
                 right_sensor_name="right_hand_contact",
             )
-
-    def stabilize_for_kitless_ovphysx(self) -> None:
-        """Prepare the existing GR asset while retaining the movable waist."""
-        prepare_gr1t2_for_kitless_ovphysx(self)
-
-    def stabilize_for_kitless_newton_mjwarp(self) -> None:
-        """Configure GR1T2 actuators and contacts for kitless Newton."""
-        prepare_gr1t2_for_kitless_newton_mjwarp(self)

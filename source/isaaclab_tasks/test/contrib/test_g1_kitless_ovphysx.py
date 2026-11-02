@@ -15,8 +15,12 @@ from isaaclab.app import launch_simulation
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.contrib.locomanip_pick_place.fixed_base_upper_body_ik_g1_env_cfg import (
     FixedBaseUpperBodyIKG1EnvCfg,
+    prepare_fixed_base_g1_for_kitless_ovphysx,
 )
-from isaaclab_tasks.contrib.locomanip_pick_place.locomanipulation_g1_env_cfg import LocomanipulationG1EnvCfg
+from isaaclab_tasks.contrib.locomanip_pick_place.locomanipulation_g1_env_cfg import (
+    LocomanipulationG1EnvCfg,
+    prepare_locomanipulation_g1_for_kitless_ovphysx,
+)
 from isaaclab_tasks.contrib.packing_table import PackingTableUsdFileCfg
 
 _TASK = "IsaacContrib-PickPlace-Locomanipulation-G1-Abs"
@@ -28,10 +32,10 @@ def test_fixed_base_g1_ovphysx_conditions_assets_without_mutating_default_config
     action_type = cfg.actions.upper_body_ik.class_type
     drop_term = cfg.terminations.object_dropping.func
 
-    cfg.stabilize_for_kitless_ovphysx()
+    prepare_fixed_base_g1_for_kitless_ovphysx(cfg)
     table_spawn = cfg.scene.packing_table.spawn.func
     wheel_spawn = cfg.scene.object.spawn.func
-    cfg.stabilize_for_kitless_ovphysx()
+    prepare_fixed_base_g1_for_kitless_ovphysx(cfg)
 
     assert isinstance(cfg.scene.packing_table.spawn, PackingTableUsdFileCfg)
     assert cfg.scene.object.spawn.func == default_cfg.scene.object.spawn.func
@@ -45,14 +49,18 @@ def test_fixed_base_g1_ovphysx_conditions_assets_without_mutating_default_config
 
 @pytest.mark.isaacsim_ci
 @pytest.mark.parametrize(
-    ("cfg_type", "task"),
+    ("cfg_type", "task", "prepare"),
     [
-        (LocomanipulationG1EnvCfg, _TASK),
-        (FixedBaseUpperBodyIKG1EnvCfg, "IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs"),
+        (LocomanipulationG1EnvCfg, _TASK, prepare_locomanipulation_g1_for_kitless_ovphysx),
+        (
+            FixedBaseUpperBodyIKG1EnvCfg,
+            "IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs",
+            prepare_fixed_base_g1_for_kitless_ovphysx,
+        ),
     ],
     ids=["locomanipulation", "fixed_base"],
 )
-def test_g1_wheel_remains_supported_on_ovphysx_cpu(cfg_type, task) -> None:
+def test_g1_wheel_remains_supported_on_ovphysx_cpu(cfg_type, task, prepare) -> None:
     pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
     env_cfg = cfg_type()
@@ -63,7 +71,7 @@ def test_g1_wheel_remains_supported_on_ovphysx_cpu(cfg_type, task) -> None:
     if isinstance(env_cfg, LocomanipulationG1EnvCfg):
         env_cfg.observations.policy.robot_pov_cam = None
         env_cfg.image_obs_list = []
-    env_cfg.stabilize_for_kitless_ovphysx()
+    prepare(env_cfg)
 
     env = None
     launcher_args = {

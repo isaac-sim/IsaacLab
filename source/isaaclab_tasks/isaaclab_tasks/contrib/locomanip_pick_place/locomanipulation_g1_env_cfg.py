@@ -439,6 +439,17 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
 
     class_type: type | str = "isaaclab_tasks.contrib.teleop_env:HumanoidTeleopEnv"
     _prepared_kitless_backend: str | None = None
+    kitless_preparation: dict[str, str] = {
+        "ovphysx": (
+            "isaaclab_tasks.contrib.locomanip_pick_place.locomanipulation_g1_env_cfg"
+            ":prepare_locomanipulation_g1_for_kitless_ovphysx"
+        ),
+        "newton_mjwarp": (
+            "isaaclab_tasks.contrib.locomanip_pick_place.locomanipulation_g1_env_cfg"
+            ":prepare_locomanipulation_g1_for_kitless_newton_mjwarp"
+        ),
+    }
+    """Preparation function, as a ``"module:function"`` reference, for each supported kitless backend."""
     haptic_feedback: object | None = None
     image_obs_list: list[str] = ["robot_pov_cam"]
     sim: SimulationCfg = SimulationCfg(physics=TeleopPhysicsCfg())
@@ -517,26 +528,43 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
                 right_sensor_name="right_hand_contact",
             )
 
-    def stabilize_for_kitless_ovphysx(self) -> None:
-        """Provide the packing-table support shape required by standalone OVPhysX."""
-        if check_kitless_backend_preparation(self, "ovphysx"):
-            return
-        configure_packing_table_collisions(self.scene.packing_table, physx_offsets=True)
-        self._prepared_kitless_backend = "ovphysx"
 
-    def stabilize_for_kitless_newton_mjwarp(self) -> None:
-        """Prepare shared task collision geometry without replacing the locomotion policy."""
-        if check_kitless_backend_preparation(self, "newton_mjwarp"):
-            return
-        from isaaclab_tasks.contrib.steering_wheel import condition_newton_steering_wheel_detail_collisions
+def prepare_locomanipulation_g1_for_kitless_ovphysx(env_cfg: LocomanipulationG1EnvCfg) -> None:
+    """Provide the packing-table support shape required by standalone OVPhysX.
 
-        # Match the common locomotion integrator for the floating-base robot.
-        self.sim.physics.solver_cfg.integrator = "implicitfast"
-        self.sim.physics.num_substeps = 2
-        # The upper body, hands, packing table and wheel match fixed-base G1, plus foot-ground
-        # contacts; keep at least its contact/constraint budget (MJWarp defaults: njmax=300).
-        self.sim.physics.solver_cfg.nconmax = max(self.sim.physics.solver_cfg.nconmax or 0, 4096)
-        self.sim.physics.solver_cfg.njmax = max(self.sim.physics.solver_cfg.njmax or 0, 1536)
-        configure_packing_table_collisions(self.scene.packing_table)
-        condition_newton_steering_wheel_detail_collisions(self.scene.object)
-        self._prepared_kitless_backend = "newton_mjwarp"
+    Args:
+        env_cfg: G1 locomanipulation task configuration.
+
+    Raises:
+        ValueError: If ``env_cfg`` was already prepared for a different backend.
+    """
+    if check_kitless_backend_preparation(env_cfg, "ovphysx"):
+        return
+    configure_packing_table_collisions(env_cfg.scene.packing_table, physx_offsets=True)
+    env_cfg._prepared_kitless_backend = "ovphysx"
+
+
+def prepare_locomanipulation_g1_for_kitless_newton_mjwarp(env_cfg: LocomanipulationG1EnvCfg) -> None:
+    """Prepare shared task collision geometry for kitless Newton without replacing the locomotion policy.
+
+    Args:
+        env_cfg: G1 locomanipulation task configuration.
+
+    Raises:
+        ValueError: If ``env_cfg`` was already prepared for a different backend.
+    """
+    if check_kitless_backend_preparation(env_cfg, "newton_mjwarp"):
+        return
+    from isaaclab_tasks.contrib.steering_wheel import condition_newton_steering_wheel_detail_collisions
+
+    solver_cfg = env_cfg.sim.physics.solver_cfg
+    # Match the common locomotion integrator for the floating-base robot.
+    solver_cfg.integrator = "implicitfast"
+    env_cfg.sim.physics.num_substeps = 2
+    # The upper body, hands, packing table and wheel match fixed-base G1, plus foot-ground
+    # contacts; keep at least its contact/constraint budget (MJWarp defaults: njmax=300).
+    solver_cfg.nconmax = max(solver_cfg.nconmax or 0, 4096)
+    solver_cfg.njmax = max(solver_cfg.njmax or 0, 1536)
+    configure_packing_table_collisions(env_cfg.scene.packing_table)
+    condition_newton_steering_wheel_detail_collisions(env_cfg.scene.object)
+    env_cfg._prepared_kitless_backend = "newton_mjwarp"
