@@ -26,7 +26,7 @@ Prepare a Cosmos Framework checkout and a supported CUDA environment using its
 [official setup guide](https://github.com/NVIDIA/cosmos-framework/blob/main/docs/setup.md).
 Keep that model environment separate from the Isaac Lab training environment. The
 CUDA 13.0 group used below requires Python 3.13 and Torch 2.10; the Isaac Lab
-environment on this branch uses Python 3.12 and Torch 2.12. Framework owns its Torch,
+environment uses Python 3.12 and Torch 2.11. Framework owns its Torch,
 CUDA, and compiled model dependencies.
 
 Download the **Cosmos3-Nano-Sim-Transfer checkpoint** from NVIDIA's

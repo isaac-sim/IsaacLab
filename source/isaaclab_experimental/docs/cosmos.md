@@ -505,5 +505,5 @@ Startup logs show the budget and the captures and generated updates per second o
 a sliding history window; longer episodes still need quality and memory validation on the intended workload.
 
 See [Image transfer for camera images](image_transfer.md) for the underlying model
-contract, camera scheduling, and optional PPISP processing. Service shutdown and
+contract and camera scheduling. Service shutdown and
 environment setup are covered in [Cosmos service setup](cosmos_service.md).
