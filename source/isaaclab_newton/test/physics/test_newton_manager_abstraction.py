@@ -207,21 +207,25 @@ def test_collision_pipeline_matches_expanded_contact_capacity() -> None:
     builder.add_shape_sphere(body, radius=0.1)
     model = builder.finalize(device="cpu")
     solver = SimpleNamespace(model=model, get_max_contact_count=lambda: 2)
-    manager = NewtonManager(
-        NewtonCfg(
+    backend = backend_stub(
+        cfg=NewtonCfg(
             solver_cfg=NewtonSolverCfg(),
             collision_cfg=NewtonCollisionPipelineCfg(broad_phase="nxn", rigid_contact_max=1, contact_matching="latest"),
-        )
+        ),
+        model=model,
+        solver=solver,
+        collision_pipeline=None,
+        contacts=None,
+        device="cpu",
+        deterministic_mode=wp.DeterministicMode.NOT_GUARANTEED,
     )
-    manager._device = "cpu"
-    manager.backend = SimpleNamespace(model=model, solver=solver, collision_pipeline=None, contacts=None)
 
-    manager._initialize_contacts()
+    backend._allocate_contacts()
 
-    assert manager.backend.contacts.rigid_contact_max == 2
+    assert backend.contacts.rigid_contact_max == 2
     state = model.state()
-    manager.backend.collision_pipeline.collide(state, manager.backend.contacts)
-    assert int(manager.backend.contacts.rigid_contact_count.numpy()[0]) > 0
+    backend.collision_pipeline.collide(state, backend.contacts)
+    assert int(backend.contacts.rigid_contact_count.numpy()[0]) > 0
 
 
 @pytest.mark.parametrize("cloth", [False, True])
