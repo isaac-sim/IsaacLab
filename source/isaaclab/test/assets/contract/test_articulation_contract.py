@@ -529,7 +529,7 @@ def test_writer(monkeypatch, backend, device, selection, writer, kwarg, axis, tr
         # A short mask writes only the rows it covers, even when the memory past its end selects more rows.
         expected = read().torch.clone()
         values = _payload(shape, trailing, dtype, device, offset=300.0)
-        method(**{kwarg: values[: N - 1], "env_mask": _mask(N, range(N), device)[: N - 1]})
+        method(**{kwarg: values[: N - 1]}, env_mask=_mask(N, range(N), device)[: N - 1])
         expected[: N - 1] = values[: N - 1]
         _assert_reads_back(read(), expected, f"{writer} short mask")
 
