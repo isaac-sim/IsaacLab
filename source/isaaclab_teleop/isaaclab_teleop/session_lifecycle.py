@@ -664,8 +664,8 @@ class TeleopSessionLifecycle:
         down externally (e.g. "Stop AR"), cleanup errors are suppressed.
 
         A retargeting UI failure does not skip session cleanup; it propagates
-        afterwards, or is attached to the caller's original exception. With an
-        external OVXR handle provider, a failed session exit is not suppressed:
+        afterwards, or is attached to the caller's original exception. For replay
+        or an external OVXR handle provider, a failed session exit is not suppressed:
         it is reported the same way and latched, and the lifecycle prohibits
         reuse or restart. The retained session reference does not prove native
         drain; the application must not release borrowed resources or stop the
@@ -709,8 +709,8 @@ class TeleopSessionLifecycle:
             try:
                 self._session.__exit__(exc_type, exc_val, exc_tb)
             except BaseException as e:
-                if self._external_oxr_handles_provider is not None:
-                    # Borrowed OVXR handles must be proven drained before their owner releases them.
+                if self._is_replay or self._external_oxr_handles_provider is not None:
+                    # Replay failures are terminal; borrowed resources also require a proven drain.
                     self._session_cleanup_error = e
                     record_failure(e)
                     if exc_val is None:
@@ -1443,7 +1443,7 @@ class TeleopSessionLifecycle:
             try:
                 self._teardown_dead_session()
             except BaseException as cleanup_error:
-                if self._external_oxr_handles_provider is None:
+                if not self._is_replay and self._external_oxr_handles_provider is None:
                     raise
                 # Failed drain retains the owner; never restart over live resources.
                 self._session_cleanup_error = e
@@ -1501,15 +1501,15 @@ class TeleopSessionLifecycle:
         the deferred-start logic in :meth:`step` can re-acquire handles if
         the user restarts AR.
 
-        With an external OVXR handle provider, a failed exit propagates instead
-        and latches a terminal error, so borrowed handles are never reused or
-        restarted before they are proven drained.
+        For replay or an external OVXR handle provider, a failed exit propagates
+        instead and latches a terminal error. Replay cannot recover by restarting
+        from the beginning, and borrowed resources require a proven drain.
         """
         if self._session is not None:
             try:
                 self._session.__exit__(None, None, None)
             except BaseException as e:
-                if self._external_oxr_handles_provider is not None:
+                if self._is_replay or self._external_oxr_handles_provider is not None:
                     # Exit may already be terminal. Never infer successful drain from
                     # a later no-op __exit__, or resume/restart after this failure.
                     self._session_cleanup_error = e
