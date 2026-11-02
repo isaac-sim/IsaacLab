@@ -115,7 +115,7 @@ def run_live_workflow(monkeypatch):
     def run(env, interface, session, *, step_hz=0.0, refresh=lambda: None):
         class Device:
             target_frame_prim_path = None
-            xr_anchor_path = None
+            xr_render_anchor_path = None
             required_openxr_extensions = ()
             external_anchor_state = None
 
