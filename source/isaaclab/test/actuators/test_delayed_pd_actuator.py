@@ -27,8 +27,7 @@ def test_masked_reset_matches_index_reset(device):
         for _ in range(2)
     )
     env_ids = torch.tensor([1, 2], device=device)
-    env_mask = torch.zeros(NUM_ENVS, dtype=torch.bool, device=device)
-    env_mask[env_ids] = True
+    env_mask = wp.array([env in (1, 2) for env in range(NUM_ENVS)], dtype=wp.bool, device=device)
     zeros = torch.zeros(NUM_ENVS, NUM_JOINTS, device=device)
 
     def step(actuator, target: float) -> torch.Tensor:
@@ -52,7 +51,7 @@ def test_masked_reset_matches_index_reset(device):
     previous = torch.cuda.get_sync_debug_mode()
     torch.cuda.set_sync_debug_mode("error")
     try:
-        by_mask.reset(env_mask=wp.from_torch(env_mask))
+        by_mask.reset(env_mask=env_mask)
     finally:
         torch.cuda.set_sync_debug_mode(previous)
 
