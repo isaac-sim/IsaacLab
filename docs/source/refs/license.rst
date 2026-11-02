@@ -14,6 +14,10 @@ NVIDIA Isaac Sim is also licensed under Apache-2.0. See the bundled
 and the `Isaac Sim dependency and asset licenses <https://docs.isaacsim.omniverse.nvidia.com/latest/common/licenses.html>`_.
 Third-party dependency license texts are collected under ``docs/licenses/dependencies``.
 
+The G1 motion-tracking task includes adapted third-party code and converted reference
+motions. Their sources, modifications and license notices are recorded in
+``docs/licenses/dependencies/motion-tracking-license.txt``.
+
 
 .. code-block:: text
 
