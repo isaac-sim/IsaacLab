@@ -36,23 +36,38 @@ class IS7VisualizerCfg(VisualizerCfg):
     ui: Literal["desktop", "browser", "headless"] = "desktop"
     """Where the viewer is presented.
 
-    * ``"desktop"``: open the Electron window.
+    * ``"desktop"``: open the Electron window attached to the host.
     * ``"browser"``: serve the client and log a URL to open.
-    * ``"headless"``: render without a client, for tests and benchmarks.
+    * ``"headless"``: serve without opening a client, for tests and benchmarks.
     """
 
-    title: str = "Isaac Lab"
-    """Viewer window title."""
-
     resolution: tuple[int, int] = (1280, 720)
-    """Render width and height in pixels."""
+    """Initial render size of a viewport pane in pixels."""
 
-    render_every: int = 1
-    """Render once every ``N`` visualizer steps. Poses are still published every step."""
+    viewport_hz: float = 60.0
+    """Rate of the host's rendering and stepping [Hz]."""
 
-    deinstance: bool = True
-    """Expand USD instanceable prims in the exported scene.
+    presentation: Literal["auto", "gpu", "http"] = "http"
+    """How the desktop client receives frames.
 
-    The viewer's renderer re-resolves instanced geometry whenever poses change, which makes
-    per-frame pose updates about 2.5x slower on instanced assets such as the cartpole.
+    ``"http"`` sends encoded CPU images. The GPU texture path fails with OVGL in the attached setup ("published CPU
+    pixels without a native texture"), so it is not the default.
+    """
+
+    port: int = 0
+    """Port of the host's HTTP service; zero picks a free one."""
+
+    app_client_root: str | None = None
+    """Directory with the built ``sim_viewer`` application client: ``renderer/`` (``index.js``, ``manifest.js``)
+    and, for ``ui="desktop"``, ``main.cjs``.
+
+    The renderer supplies the stage, property and content panes. ``None`` serves only the shared shell.
+    """
+
+    deinstance_max_points: int = 5_000_000
+    """Expand USD instanceable prims in the exported scene while it has at most this many mesh points.
+
+    The viewer's renderer re-resolves instanced geometry whenever poses change, which makes per-frame pose updates
+    about 2.5x slower on instanced assets such as the cartpole. Expanding copies every instance's geometry, so
+    scenes with heavy assets keep their instancing. Use ``0`` to never expand.
     """

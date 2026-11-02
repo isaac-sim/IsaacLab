@@ -3,23 +3,27 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Visualizer that displays an Isaac Lab simulation in the Isaac Sim 7 viewer."""
+"""Visualizer that displays an Isaac Lab simulation in the Isaac Sim 7 viewer application."""
 
 from __future__ import annotations
 
 import contextlib
 import logging
-import math
+import tempfile
 import time
+from pathlib import Path
 from typing import TYPE_CHECKING
 
-from pxr import Usd
+import numpy as np
 
+from pxr import Usd, UsdGeom
+
+from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationContext
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg
 
-from .is7_stage import IS7StageBridge
+from .is7_stage import authored_scales
 from .is7_visualizer_cfg import IS7VisualizerCfg
 
 if TYPE_CHECKING:
@@ -27,29 +31,16 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_CAMERA_PATH = "/IsaacLabViewer/Camera"
-_PRODUCT_PATH = "/IsaacLabViewer/Product"
-_RENDER_VAR_PATH = "/IsaacLabViewer/Color"
-
-
-def _orbit_from_eye_lookat(eye, lookat) -> dict[str, object]:
-    """Convert an eye and look-at point to the viewer's orbit camera (Z-up)."""
-    offset = [e - t for e, t in zip(eye, lookat)]
-    distance = math.sqrt(sum(axis * axis for axis in offset)) or 1.0
-    return {
-        "target": tuple(float(axis) for axis in lookat),
-        "distance": distance,
-        "azimuth_deg": math.degrees(math.atan2(offset[1], offset[0])),
-        "elevation_deg": math.degrees(math.asin(max(-1.0, min(1.0, offset[2] / distance)))),
-    }
+_POSE_ROOT = "/IsaacLabPoses"
+"""Pseudo prim that keys Isaac Lab's queued pose writes, so a newer write replaces an unapplied one."""
 
 
 class IS7Visualizer(BaseVisualizer):
-    """Isaac Sim 7 viewer over an OVStage that mirrors Isaac Lab's simulated poses.
+    """Isaac Sim 7 viewer application driven by Isaac Lab's simulation.
 
-    Lifecycle per step: ``viewer.update()`` applies camera input, the bridge publishes world poses
-    into the stage, and the OVGL renderer draws the frame. Physics and rendering backends stay
-    Isaac Lab's; the viewer only reads the stage.
+    The Isaac Sim 7 host owns the stage, renderer and UI (stage tree, properties, content browser, picking and
+    gizmos). Isaac Lab keeps its own loop and physics. Each step it queues the world poses of its bodies into the
+    host's command queue, which applies them before the renderer's next frame.
     """
 
     def __init__(self, cfg: IS7VisualizerCfg):
@@ -61,18 +52,31 @@ class IS7Visualizer(BaseVisualizer):
         super().__init__(cfg)
         self.cfg: IS7VisualizerCfg = cfg
         self._resources = contextlib.ExitStack()
-        self._context = None
-        self._renderer = None
-        self._viewport = None
-        self._viewer = None
-        self._bridge: IS7StageBridge | None = None
+        self._host = None
+        self._desktop = None
+        self._provider = None
+        self._paths: list[str] = []
+        self._scales = None
+        self._pose_output = SceneDataFormat.TransposedMatrix44d()
+        self._timestamp = -1
+        self._armed_world: int | None = None
+        self._generation = -1
         self._running = False
-        self._step_count = 0
-        self.timings = {"update": 0.0, "publish": 0.0, "render": 0.0, "steps": 0, "renders": 0}
-        """Accumulated wall time [s] per phase, for benchmarking the connection."""
+        self.timings = {"publish": 0.0, "steps": 0}
+        """Accumulated wall time [s] of pose publication, for benchmarking the connection."""
+
+    @property
+    def url(self) -> str:
+        """Address of the host's HTTP service."""
+        return self._host.url
+
+    @property
+    def client_url(self) -> str:
+        """Address that opens the viewer in a browser, including the launch token."""
+        return f"{self._host.url}/index.html?entry=index.js&token={self._host.token}"
 
     def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
-        """Export the scene to Isaac Sim 7, start the viewer, and bind pose publication.
+        """Export the scene, start the Isaac Sim 7 host and bind pose publication.
 
         Args:
             sim: Simulation owner that provides the authored stage and scene data.
@@ -83,69 +87,140 @@ class IS7Visualizer(BaseVisualizer):
             return
         super().initialize(sim, cameras=cameras)
 
-        from isaacsim.application.viewer import Camera as OrbitCamera
-        from isaacsim.application.viewer import Viewer
-        from isaacsim.context.simulation import make_simulation_context
-        from isaacsim.rendering.ovgl import StageRenderer
-        from isaacsim.viewports.adapters import Viewport, define_viewport
+        from sim_viewer.cli import client_roots_for_backend
+        from sim_viewer.scene import CAMERA_SCOPE, RENDER_SCOPE, dynamic_viewport_spec, read_scene_metadata
 
-        layer = sim.stage.Flatten()
-        if self.cfg.deinstance:
-            expanded = Usd.Stage.Open(layer)
-            for prim in expanded.Traverse():
-                if prim.IsInstance():
-                    prim.SetInstanceable(False)
-            layer = expanded.Flatten()
-        usda = layer.ExportToString()
-        context = make_simulation_context()
-        context.create_from_string(usda)
-        self._context = context
-        self._resources.callback(context.close)
-        width, height = self.cfg.resolution
-        define_viewport(
-            context,
-            camera_path=_CAMERA_PATH,
-            render_product_path=_PRODUCT_PATH,
-            render_var_path=_RENDER_VAR_PATH,
-            resolution=(width, height),
-        )
-        context.finalize()
+        from isaacsim.application.host import AppHost
+        from isaacsim.foundation.orchestration import RationalRate
+        from isaacsim.viewports.presentation import FrameEncoder
 
-        self._renderer = self._resources.enter_context(StageRenderer(context, product=_PRODUCT_PATH))
-        self._viewport = self._resources.enter_context(Viewport(context, product=_PRODUCT_PATH, camera=_CAMERA_PATH))
-        self._viewer = self._resources.enter_context(
-            Viewer(
-                self._viewport,
-                title=self.cfg.title,
-                camera=OrbitCamera(**_orbit_from_eye_lookat(self.cfg.eye, self.cfg.lookat)),
-                desktop=self.cfg.ui == "desktop",
-            )
-        )
-        # The bridge borrows the context's stage, so it must be released before the context closes.
-        self._bridge = IS7StageBridge(
-            context.stage_pointer, sim.stage, sim.get_scene_data_provider(), device=sim.device
-        )
-        self._resources.callback(self._bridge.close)
+        from .is7_world import make_physics_free_world_opener
 
-        self._bridge.publish()
-        self._renderer.render()
+        scene = self._export_scene(sim.stage)
+        metadata = read_scene_metadata(scene)
+        specs: list = []
+        rate = RationalRate(int(self.cfg.viewport_hz))
+        client_roots = client_roots_for_backend("web")
+        if self.cfg.app_client_root is not None:
+            client_roots = [("/app/", Path(self.cfg.app_client_root) / "renderer"), *client_roots[1:]]
+        self._host = AppHost(
+            open_world=make_physics_free_world_opener(specs, rate, renderer="ovgl"),
+            scene=str(scene),
+            viewports=specs,
+            viewport_factory=lambda index: dynamic_viewport_spec(index, tuple(self.cfg.resolution)),
+            encoder=FrameEncoder.create("auto"),
+            presentation=self.cfg.presentation,
+            renderer_name="ovgl",
+            hidden_roots=(CAMERA_SCOPE, RENDER_SCOPE),
+            world_up=metadata.up_vector,
+            host="127.0.0.1",
+            port=self.cfg.port,
+            client_roots=client_roots,
+            content_writes=True,
+            stage_writes=True,
+        )
+        self._resources.callback(self._host.stop)
+        self._host.start()
+
+        self._provider = sim.get_scene_data_provider()
+        self._paths = list(self._provider.backend.transform_paths)
+        self._scales = authored_scales(sim.stage, self._paths)
+        self._publish_poses()
         if self.cfg.ui == "browser":
-            self._log_viewer_url("IS7Visualizer", self._viewer.url)
+            self._log_viewer_url("IS7Visualizer", self.client_url)
+        elif self.cfg.ui == "desktop":
+            self._open_desktop()
         self._log_initialization_table(
             logger=logger,
             title="IS7Visualizer Configuration",
-            rows=[
-                ("ui", self.cfg.ui),
-                ("resolution", self.cfg.resolution),
-                ("bodies", len(self._bridge.body_paths)),
-                ("render_every", self.cfg.render_every),
-            ],
+            rows=[("ui", self.cfg.ui), ("bodies", len(self._paths)), ("viewport_hz", self.cfg.viewport_hz)],
         )
         self._running = True
         self._is_initialized = True
 
+    def _open_desktop(self) -> None:
+        """Open the Electron window attached to the host that this process runs."""
+        from isaacsim.application.client import start_desktop
+
+        if self.cfg.app_client_root is None:
+            raise ValueError("IS7VisualizerCfg.app_client_root is required for ui='desktop'.")
+        self._desktop = start_desktop(
+            Path(self.cfg.app_client_root) / "main.cjs",
+            environment={"SIM_VIEWER_ATTACH_URL": self._host.url, "SIM_VIEWER_ATTACH_TOKEN": self._host.token},
+        )
+        self._resources.callback(self._desktop.close)
+
+    def _export_scene(self, stage: Usd.Stage) -> Path:
+        """Write the authored stage to a temporary USD file that the host opens as its scene.
+
+        Isaac Lab authors some containers without a type, which the viewer's stage tree omits, so they become
+        ``Xform`` prims. Instanceable prims are expanded while the expanded scene stays within
+        :attr:`IS7VisualizerCfg.deinstance_max_points`. The ``Flattened_Prototype_*`` specs stay because the
+        expanded prims still reference them.
+        """
+        exported = Usd.Stage.Open(stage.Flatten())
+        deinstance = self._expanded_points(exported) <= self.cfg.deinstance_max_points
+        for prim in exported.Traverse():
+            if not prim.GetTypeName():
+                prim.SetTypeName("Xform")
+            if deinstance and prim.IsInstance():
+                prim.SetInstanceable(False)
+        logger.info("[IS7Visualizer] %s instanced prims in the exported scene.", "Expanded" if deinstance else "Kept")
+        directory = Path(self._resources.enter_context(tempfile.TemporaryDirectory(prefix="isaaclab_is7_")))
+        scene = directory / "scene.usdc"
+        exported.Export(str(scene))
+        return scene
+
+    @staticmethod
+    def _expanded_points(stage: Usd.Stage) -> int:
+        """Count mesh points as if every instance owned a copy of its prototype's geometry."""
+        total = 0
+        for prim in Usd.PrimRange.Stage(stage, Usd.TraverseInstanceProxies()):
+            if prim.IsA(UsdGeom.Mesh):
+                points = UsdGeom.Mesh(prim).GetPointsAttr().Get()
+                total += 0 if points is None else len(points)
+        return total
+
+    def _publish_poses(self) -> bool:
+        """Queue the latest simulation world transforms; return whether new ones were queued.
+
+        The host replaces its world when the user stops or reloads the scene. Poses are skipped while that
+        happens and queued again, with the world-space flag, once the new world is open.
+        """
+        from isaacsim.application.host.impl.transport import ReloadingError
+
+        backend = self._provider.backend
+        generation = self._host.simulation.progress.generation
+        if generation != self._generation:
+            self._armed_world = None
+            self._timestamp = -1
+        if backend.transforms_timestamp == self._timestamp and self._armed_world is not None:
+            return False
+        if not self._provider.get_transforms(self._pose_output, allow_passthrough=True, scales=self._scales):
+            return False
+        # The host reads these on its own thread, so hand it a copy that the next step cannot overwrite.
+        matrices = self._pose_output.matrices.numpy().copy()
+        paths = self._paths
+        try:
+            with self._host.simulation.reading(wait=False) as world:
+                if self._armed_world != id(world):
+                    # Bodies carry world matrices, so the host must not compose them with their parents.
+                    ones = np.ones(len(paths), dtype=np.bool_)
+                    world.commands.submit(
+                        f"{_POSE_ROOT}/reset",
+                        "omni:resetXformStack",
+                        lambda view: view.write(paths, "omni:resetXformStack", ones),
+                    )
+                    self._armed_world = id(world)
+                world.commands.submit(_POSE_ROOT, "omni:xform", lambda view: view.write(paths, "omni:xform", matrices))
+        except ReloadingError:
+            return False
+        self._generation = generation
+        self._timestamp = backend.transforms_timestamp
+        return True
+
     def step(self, dt: float) -> None:
-        """Publish poses and draw one frame.
+        """Queue this step's poses for the host.
 
         Args:
             dt: Simulation time-step in seconds.
@@ -153,40 +228,24 @@ class IS7Visualizer(BaseVisualizer):
         if not self._is_initialized or not self._running:
             return
         self._sim_time += dt
-        t0 = time.perf_counter()
-        if not self._viewer.update():
-            self._running = False
-            return
-        t1 = time.perf_counter()
-        self._bridge.publish()
-        t2 = time.perf_counter()
-        self._step_count += 1
-        rendered = False
-        if self._step_count % self.cfg.render_every == 0 and (self.cfg.ui == "headless" or self._viewport.visible):
-            self._renderer.render()
-            rendered = True
-        t3 = time.perf_counter()
-        self.timings["update"] += t1 - t0
-        self.timings["publish"] += t2 - t1
-        self.timings["render"] += t3 - t2
+        start = time.perf_counter()
+        self._publish_poses()
+        self.timings["publish"] += time.perf_counter() - start
         self.timings["steps"] += 1
-        self.timings["renders"] += rendered
-
-    def capture(self):
-        """Return the viewer's latest rendered frame, for tests and benchmarks."""
-        return self._viewer.capture()
 
     def is_running(self) -> bool:
-        """Return whether the viewer is still open."""
+        """Return whether the viewer is still open; closing the desktop window ends it."""
+        if self._desktop is not None and self._desktop.returncode is not None:
+            self._running = False
         return self._running
 
     def close(self) -> None:
-        """Release the viewer, renderer, stage bridge, and the Isaac Sim 7 context in dependency order."""
+        """Stop the host and remove the exported scene."""
         if self._is_closed:
             return
         try:
             self._resources.close()
         finally:
             self._running = False
-            self._bridge = self._viewer = self._viewport = self._renderer = self._context = None
+            self._host = self._desktop = self._provider = None
             super().close()
