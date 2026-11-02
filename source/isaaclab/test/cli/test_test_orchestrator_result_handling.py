@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import importlib.util
 import json
 import os
@@ -15,6 +16,7 @@ import sys
 from pathlib import Path
 from types import ModuleType
 
+import psutil
 import pytest
 
 TOOLS_DIR = Path(__file__).resolve().parents[4] / "tools"
@@ -608,6 +610,37 @@ def test_hang_dump_plugin_is_inert_without_signal_support(monkeypatch) -> None:
     assert hang_dump.is_supported() is False
     assert hang_dump.register() is False
     hang_dump.pytest_configure(config=None)  # must not raise
+
+
+@pytest.mark.skipif(
+    sys.platform != "win32", reason="covers the pipe polling and taskkill that replace POSIX on Windows"
+)
+def test_windows_timeout_keeps_output_and_kills_the_process_tree(monkeypatch, tmp_path: Path) -> None:
+    """A timeout on Windows must keep what the test printed before it hung and kill what it started.
+
+    Windows has no process groups, so ``taskkill /T`` is the only thing that reaches a process the test
+    launched, such as Kit.
+    """
+    orchestrator = _load_orchestrator_module()
+    monkeypatch.setattr(orchestrator, "_capture_system_diagnostics", lambda: "")
+    script = tmp_path / "hangs_with_a_child.py"
+    script.write_text(
+        "import subprocess, sys, time\n"
+        "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])\n"
+        "print(child.pid, flush=True)\n"
+        "time.sleep(60)\n",
+        encoding="utf-8",
+    )
+
+    _returncode, stdout, _stderr, kill_reason, _wall_time, _diag = orchestrator.capture_test_output_with_timeout(
+        [sys.executable, str(script)], timeout=3, env=os.environ.copy()
+    )
+
+    assert kill_reason == "timeout"
+    assert stdout.strip(), "the output written before the hang must be captured"
+    with contextlib.suppress(psutil.NoSuchProcess):
+        _gone, alive = psutil.wait_procs([psutil.Process(int(stdout))], timeout=5)
+        assert not alive, "the timeout must kill the processes the test started, not only the test"
 
 
 def test_performance_files_reserve_the_runner_without_xdist(monkeypatch, tmp_path):

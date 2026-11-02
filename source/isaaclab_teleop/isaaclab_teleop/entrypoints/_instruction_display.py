@@ -33,10 +33,16 @@ class InstructionDisplay:
                 text, "/_xr/stage/xrCamera", Gf.Vec3f(-1.25, 0.3, -2), target_prim_path="/demo_complete"
             )
         else:
+            # without labels (no Kit window) the messages are not shown
             self.subtask_label = None
             self.demo_label = None
-            self._display_subtask = lambda text: setattr(self.subtask_label, "text", text)
-            self._display_demo = lambda text: setattr(self.demo_label, "text", text)
+            self._display_subtask = lambda text: self._set_text(self.subtask_label, text)
+            self._display_demo = lambda text: self._set_text(self.demo_label, text)
+
+    @staticmethod
+    def _set_text(label, text: str) -> None:
+        if label is not None:
+            label.text = text
 
     def set_labels(self, subtask_label, demo_label):
         """Set the instruction labels for non-handtracking displays."""

@@ -16,7 +16,6 @@ from isaaclab.utils.warp.math import velocity_at_offset
 if TYPE_CHECKING:
     import torch
 
-vec13f = wp.types.vector(length=13, dtype=wp.float32)
 
 """
 Shared @wp.func helpers.
@@ -75,80 +74,6 @@ def get_com_pose_from_link_pose_func(
         COM pose in world frame.
     """
     return link_pose * wp.transformf(body_com_pos_b, wp.quatf(0.0, 0.0, 0.0, 1.0))
-
-
-@wp.func
-def concat_pose_and_vel_to_state_func(
-    pose: wp.transformf,
-    vel: wp.spatial_vectorf,
-) -> vec13f:
-    """Concatenate a pose and velocity into a 13-element state vector.
-
-    The state vector layout is [pos(3), quat(4), ang_vel(3), lin_vel(3)].
-
-    Args:
-        pose: Pose as a transform (position + quaternion).
-        vel: Spatial velocity (angular, linear).
-
-    Returns:
-        13-element state vector.
-    """
-    return vec13f(
-        pose[0], pose[1], pose[2], pose[3], pose[4], pose[5], pose[6], vel[0], vel[1], vel[2], vel[3], vel[4], vel[5]
-    )
-
-
-@wp.func
-def set_state_transforms_func(
-    state: vec13f,
-    transform: wp.transformf,
-) -> vec13f:
-    """Set the pose portion (first 7 elements) of a 13-element state vector.
-
-    Overwrites elements [0..6] (position + quaternion) with the given transform,
-    leaving the velocity portion [7..12] unchanged.
-
-    Args:
-        state: 13-element state vector to modify.
-        transform: New pose (position + quaternion).
-
-    Returns:
-        Updated 13-element state vector.
-    """
-    state[0] = transform[0]
-    state[1] = transform[1]
-    state[2] = transform[2]
-    state[3] = transform[3]
-    state[4] = transform[4]
-    state[5] = transform[5]
-    state[6] = transform[6]
-    return state
-
-
-@wp.func
-def set_state_velocities_func(
-    state: vec13f,
-    velocity: wp.spatial_vectorf,
-) -> vec13f:
-    """Set the velocity portion (last 6 elements) of a 13-element state vector.
-
-    Overwrites elements [7..12] (angular + linear velocity) with the given spatial velocity,
-    leaving the pose portion [0..6] unchanged.
-
-    Args:
-        state: 13-element state vector to modify.
-        velocity: New spatial velocity (angular, linear).
-
-    Returns:
-        Updated 13-element state vector.
-    """
-    state[7] = velocity[0]
-    state[8] = velocity[1]
-    state[9] = velocity[2]
-    state[10] = velocity[3]
-    state[11] = velocity[4]
-    state[12] = velocity[5]
-    return state
 
 
 @wp.func
@@ -245,54 +170,6 @@ def get_root_com_pose_from_root_link_pose(
     com_pose_w[i] = get_com_pose_from_link_pose_func(link_pose[i], body_com_pos_b[i, 0])
 
 
-@wp.kernel
-def concat_root_pose_and_vel_to_state(
-    pose: wp.array(dtype=wp.transformf),
-    vel: wp.array(dtype=wp.spatial_vectorf),
-    state: wp.array(dtype=vec13f),
-):
-    """Concatenate root pose and velocity into a 13-element state vector.
-
-    This kernel combines a 7-element pose (pos + quat) and a 6-element velocity
-    (angular + linear) into a single 13-element state vector.
-
-    Args:
-        pose: Input array of root poses in world frame. Shape is (num_envs,).
-        vel: Input array of root spatial velocities. Shape is (num_envs,).
-        state: Output array where concatenated state vectors are written. Shape is (num_envs,).
-    """
-    i = wp.tid()
-    state[i] = concat_pose_and_vel_to_state_func(pose[i], vel[i])
-
-
-@wp.kernel
-def split_state_to_root_pose_and_vel(
-    state: wp.array2d(dtype=wp.float32),
-    pose: wp.array(dtype=wp.transformf),
-    vel: wp.array(dtype=wp.spatial_vectorf),
-):
-    """Split a 13-element state vector into root pose and velocity.
-
-    This kernel extracts a 7-element pose (pos + quat) and a 6-element velocity
-    (angular + linear) from a 13-element state vector.
-
-    Args:
-        state: Input array of root states. Shape is (num_envs, 13).
-        pose: Output array where root poses are written. Shape is (num_envs,).
-        vel: Output array where root spatial velocities are written. Shape is (num_envs,).
-    """
-    i = wp.tid()
-    # Extract pose: [pos(3), quat(4)] = state[0:7]
-    pose[i] = wp.transform(
-        wp.vec3f(state[i, 0], state[i, 1], state[i, 2]), wp.quatf(state[i, 3], state[i, 4], state[i, 5], state[i, 6])
-    )
-    # Extract velocity: [ang_vel(3), lin_vel(3)] = state[7:13]
-    vel[i] = wp.spatial_vector(
-        wp.vec3f(state[i, 7], state[i, 8], state[i, 9]),  # angular velocity
-        wp.vec3f(state[i, 10], state[i, 11], state[i, 12]),  # linear velocity
-    )
-
-
 """
 Body-level @wp.kernel (2D — used by Articulation + RigidObjectCollection).
 """
@@ -340,27 +217,6 @@ def get_body_com_pose_from_body_link_pose(
     """
     i, j = wp.tid()
     body_com_pose_w[i, j] = get_com_pose_from_link_pose_func(body_link_pose[i, j], body_com_pos_b[i, j])
-
-
-@wp.kernel
-def concat_body_pose_and_vel_to_state(
-    pose: wp.array2d(dtype=wp.transformf),
-    vel: wp.array2d(dtype=wp.spatial_vectorf),
-    state: wp.array2d(dtype=vec13f),
-):
-    """Concatenate body pose and velocity into 13-element state vectors for all bodies.
-
-    This kernel combines a 7-element pose (pos + quat) and a 6-element velocity
-    (angular + linear) into a single 13-element state vector, for each body in each environment.
-
-    Args:
-        pose: Input array of body poses in world frame. Shape is (num_envs, num_bodies).
-        vel: Input array of body spatial velocities. Shape is (num_envs, num_bodies).
-        state: Output array where concatenated state vectors are written.
-            Shape is (num_envs, num_bodies).
-    """
-    i, j = wp.tid()
-    state[i, j] = concat_pose_and_vel_to_state_func(pose[i, j], vel[i, j])
 
 
 """
@@ -887,65 +743,6 @@ Generic buffer-writing kernels (used by Articulation + RigidObject + RigidObject
 """
 
 
-@wp.kernel
-def write_2d_data_to_buffer_with_indices(
-    in_data: wp.array2d(dtype=wp.float32),
-    env_ids: wp.array(dtype=Any),
-    joint_ids: wp.array(dtype=Any),
-    out_data: wp.array2d(dtype=wp.float32),
-):
-    """Write 2D float data to a buffer at specified indices.
-
-    This kernel copies float data from an input array to an output buffer at the specified
-    environment and joint/body indices.
-
-    Args:
-        in_data: Input array containing float data. Shape is (num_selected_envs, num_selected_joints).
-        env_ids: Input array of environment indices to write to. Shape is (num_selected_envs,).
-        joint_ids: Input array of joint/body indices to write to. Shape is (num_selected_joints,).
-        out_data: Output array where data is written. Shape is (num_envs, num_joints).
-    """
-    i, j = wp.tid()
-    env_id = wp.int32(env_ids[i])
-    joint_id = wp.int32(joint_ids[j])
-    out_data[env_id, joint_id] = in_data[i, j]
-
-
-_WRITE_2D_DATA_TO_BUFFER_WITH_INDICES_DISPATCHER = IndexKernelDispatcher(
-    write_2d_data_to_buffer_with_indices, ("env_ids", "joint_ids")
-)
-
-
-def write_2d_data_to_buffer_with_indices_kernel(
-    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
-) -> wp.Kernel:
-    """Select the 2-D buffer writer matching the selector dtypes."""
-    return _WRITE_2D_DATA_TO_BUFFER_WITH_INDICES_DISPATCHER.select(env_ids, joint_ids)
-
-
-@wp.kernel
-def write_2d_data_to_buffer_with_mask(
-    in_data: wp.array2d(dtype=wp.float32),
-    env_mask: wp.array(dtype=wp.bool),
-    joint_mask: wp.array(dtype=wp.bool),
-    out_data: wp.array2d(dtype=wp.float32),
-):
-    """Write 2D float data to a buffer at specified indices.
-
-    This kernel copies float data from an input array to an output buffer at the specified
-    environment and joint/body indices.
-
-    Args:
-        in_data: Input array containing float data. Shape is (num_instances, num_joints).
-        env_mask: Input array of environment mask. Shape is (num_instances,).
-        joint_mask: Input array of joint/body mask. Shape is (num_instances, num_joints).
-        out_data: Output array where data is written. Shape is (num_instances, num_joints).
-    """
-    i, j = wp.tid()
-    if env_mask[i] and joint_mask[j]:
-        out_data[i, j] = in_data[i, j]
-
-
 @wp.func
 def _update_body_inertial_properties_inverse(
     env_id: int,
@@ -1123,68 +920,11 @@ def write_body_inertia_and_inverse_mask(
     )
 
 
-@wp.kernel
-def write_single_body_inertia_to_buffer(
-    in_data: wp.array2d(dtype=wp.float32),
-    env_ids: wp.array(dtype=Any),
-    from_mask: bool,
-    out_data: wp.array2d(dtype=wp.float32),
-):
-    """Write body inertia data to a buffer at specified indices.
-
-    This kernel copies 3x3 inertia tensor data (stored as 9 floats) from an input array
-    to an output buffer at the specified environment and body indices.
-
-    Args:
-        in_data: Input array containing inertia data. Shape is (num_envs, 9) or
-            (num_selected_envs, 9) depending on from_mask.
-        env_ids: Input array of environment indices to write to. Shape is (num_selected_envs,).
-        from_mask: Input flag indicating whether to use masked indexing.
-        out_data: Output array where inertia data is written. Shape is (num_envs, 9).
-    """
-    i = wp.tid()
-    env_id = wp.int32(env_ids[i])
-    if from_mask:
-        for k in range(9):
-            out_data[env_id, k] = in_data[env_id, k]
-    else:
-        for k in range(9):
-            out_data[env_id, k] = in_data[i, k]
-
-
-@wp.kernel
-def write_body_com_position_to_buffer_index(
-    in_data: wp.array2d(dtype=wp.vec3f),
-    env_ids: wp.array(dtype=Any),
-    body_ids: wp.array(dtype=Any),
-    out_data: wp.array2d(dtype=wp.vec3f),
-):
-    """Write body COM position data to a buffer at specified indices.
-
-    This kernel copies body COM position data from an input array to an output buffer at the
-    specified environment and body indices.
-
-    Args:
-        in_data: Input array containing body COM positions. Shape is (num_selected_envs, num_selected_bodies).
-        env_ids: Input array of environment indices to write to. Shape is (num_selected_envs,).
-        body_ids: Input array of body indices to write to. Shape is (num_selected_bodies,).
-        out_data: Output array where body COM positions are written. Shape is (num_envs, num_bodies).
-    """
-    i, j = wp.tid()
-    out_data[wp.int32(env_ids[i]), wp.int32(body_ids[j])] = in_data[i, j]
-
-
 _WRITE_BODY_MASS_AND_INVERSE_INDEX_DISPATCHER = IndexKernelDispatcher(
     write_body_mass_and_inverse_index, ("env_ids", "body_ids")
 )
 _WRITE_BODY_INERTIA_AND_INVERSE_INDEX_DISPATCHER = IndexKernelDispatcher(
     write_body_inertia_and_inverse_index, ("env_ids", "body_ids")
-)
-_WRITE_SINGLE_BODY_INERTIA_TO_BUFFER_DISPATCHER = IndexKernelDispatcher(
-    write_single_body_inertia_to_buffer, ("env_ids",)
-)
-_WRITE_BODY_COM_POSITION_TO_BUFFER_INDEX_DISPATCHER = IndexKernelDispatcher(
-    write_body_com_position_to_buffer_index, ("env_ids", "body_ids")
 )
 
 
@@ -1200,41 +940,6 @@ def write_body_inertia_and_inverse_index_kernel(
 ) -> wp.Kernel:
     """Select the fused body-inertia writer for the selector dtypes."""
     return _WRITE_BODY_INERTIA_AND_INVERSE_INDEX_DISPATCHER.select(env_ids, body_ids)
-
-
-def write_single_body_inertia_to_buffer_kernel(env_ids: wp.array | torch.Tensor) -> wp.Kernel:
-    """Select the single-body inertia writer for the selector dtype."""
-    return _WRITE_SINGLE_BODY_INERTIA_TO_BUFFER_DISPATCHER.select(env_ids)
-
-
-def write_body_com_position_to_buffer_index_kernel(
-    env_ids: wp.array | torch.Tensor, body_ids: wp.array | torch.Tensor
-) -> wp.Kernel:
-    """Select the COM-position writer for the selector dtypes."""
-    return _WRITE_BODY_COM_POSITION_TO_BUFFER_INDEX_DISPATCHER.select(env_ids, body_ids)
-
-
-@wp.kernel
-def write_body_com_position_to_buffer_mask(
-    in_data: wp.array2d(dtype=wp.vec3f),
-    env_mask: wp.array(dtype=wp.bool),
-    body_mask: wp.array(dtype=wp.bool),
-    out_data: wp.array2d(dtype=wp.vec3f),
-):
-    """Write body COM position data to a buffer at specified masks.
-
-    This kernel copies body COM position data from an input array to an output buffer at the
-    specified environment and body masks.
-
-    Args:
-        in_data: Input array containing body COM positions. Shape is (num_instances, num_bodies).
-        env_mask: Input array of environment mask. Shape is (num_instances,).
-        body_mask: Input array of body mask. Shape is (num_bodies).
-        out_data: Output array where body COM positions are written. Shape is (num_instances, num_bodies).
-    """
-    i, j = wp.tid()
-    if env_mask[i] and body_mask[j]:
-        out_data[i, j] = in_data[i, j]
 
 
 @wp.kernel

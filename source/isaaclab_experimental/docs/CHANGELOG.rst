@@ -3,6 +3,27 @@ Changelog
 
 .. towncrier release notes start
 
+1.0.0 (2026-10-29)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Reused core Warp mask resolution and selected memory writes in environment and joint-action paths.
+* **Breaking:** Import ``resolve_1d_mask`` from ``isaaclab.utils.warp.memory``; the experimental re-export has been removed.
+
+
+0.3.1 (2026-10-28)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the Warp observation manager to skip the group-level
+  :attr:`~isaaclab.managers.ObservationGroupCfg.history_newest_first` setting when parsing observation terms,
+  matching the stable observation manager.
+
+
 0.3.0 (2026-10-27)
 ~~~~~~~~~~~~~~~~~~
 
