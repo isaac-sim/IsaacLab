@@ -9,7 +9,7 @@ import math
 
 from isaaclab_newton.envs.mdp.recorders import NeRDRecorderCfg, NeRDRecorderManagerCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-from isaaclab_newton.physics.nerd_manager_cfg import NeRDSolverCfg
+from isaaclab_newton.physics.nerd_solver_cfg import NeRDSolverCfg
 
 from isaaclab.actuators import IdealPDActuatorCfg
 from isaaclab.utils import configclass

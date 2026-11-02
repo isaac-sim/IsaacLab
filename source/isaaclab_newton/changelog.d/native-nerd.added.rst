@@ -7,3 +7,5 @@
   repeats the actuator and learned physics step. Target-conditioned models are rejected.
 * Added shared live Newton contact encoding for rough-terrain recording and learned deployment,
   with synchronized reset histories, explicit capacity checks and fixed contact-material identity.
+* Integrated NeRD through the shared Newton backend and stateless solver hooks; learned history and
+  the private Torch allocation pool remain solver-owned.

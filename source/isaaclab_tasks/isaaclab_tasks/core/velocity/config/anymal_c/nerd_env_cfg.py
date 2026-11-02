@@ -10,7 +10,7 @@ import math
 import torch
 from isaaclab_newton.envs.mdp.recorders import NeRDRecorderCfg, NeRDRecorderManagerCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonShapeCfg
-from isaaclab_newton.physics.nerd_manager_cfg import NeRDSolverCfg
+from isaaclab_newton.physics.nerd_solver_cfg import NeRDSolverCfg
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils

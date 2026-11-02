@@ -399,7 +399,10 @@ def _check_graph_resets(task, device, checkpoint):
                         atol=2e-6,
                     )
             assert manager.backend.graph is not None
-            assert addresses == (manager.backend.solver.history.data_ptr(), manager.backend.solver.pending_reset.data_ptr())
+            assert addresses == (
+                manager.backend.solver.history.data_ptr(),
+                manager.backend.solver.pending_reset.data_ptr(),
+            )
             with pytest.raises(ValueError, match="frame"):
                 reference.step(state, state, manager.backend.control, None, env.step_dt * 2)
             # A checkpoint must reject altered physics even when tensor shapes still agree.

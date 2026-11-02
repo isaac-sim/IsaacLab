@@ -14,8 +14,8 @@ from .newton_manager_cfg import NewtonSolverCfg
 class NeRDSolverCfg(NewtonSolverCfg):
     """Advance one physics step from applied joint efforts with a native NeRD checkpoint.
 
-    Use the checkpoint frame duration for each physics substep. Policy decimation repeats actuator evaluation and learned physics;
-    collection records each physics step separately. The checkpoint declares the frame duration,
+    Use the checkpoint frame duration for each physics substep. Policy decimation repeats actuator evaluation
+    and learned physics; collection records each physics step separately. The checkpoint declares the frame duration,
     modeled joints and contact features. Actuator commands, state and effort limits remain owned
     by the actuator. Solver-side motor drives are unsupported.
     """
