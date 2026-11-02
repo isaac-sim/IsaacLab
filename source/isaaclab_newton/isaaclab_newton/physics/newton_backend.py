@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import contextlib
 import gc
-import itertools
 import logging
 import re
 from collections.abc import Callable
@@ -90,64 +89,6 @@ def _flag_worlds(env_mask: wp.array(dtype=wp.bool), consume_mask: bool, world_ma
     world_mask[world] = True
     if consume_mask:
         env_mask[world] = False
-
-
-@dataclass(frozen=True)
-class StepOp:
-    """One operation of a :class:`StepGraph`, with every buffer bound."""
-
-    fn: Callable[[], None]
-    """Work to run."""
-    graphable: bool
-    """Whether the work can be recorded into a CUDA graph."""
-    name: str
-    """Label used in errors."""
-
-
-class StepGraph:
-    """A step as straight-line operations; each run of consecutive graphable operations replays from one CUDA graph.
-
-    Operations that cannot be captured run eagerly between those graphs, so eager and captured steps run the same
-    operations in the same order.
-    """
-
-    def __init__(self, ops: list[StepOp], steps: int):
-        """Initialize the graph from ``ops`` in execution order; one launch advances ``steps`` physics steps."""
-        self.ops = ops
-        self.steps = steps
-        self.segments = [
-            (graphable, list(group)) for graphable, group in itertools.groupby(ops, lambda op: op.graphable)
-        ]
-        self.graphs: list[wp.Graph | None] | None = None
-
-    @property
-    def captured(self) -> bool:
-        """Whether the graphable segments replay from captured graphs."""
-        return self.graphs is not None
-
-    def capture(self, capture: Callable[[Callable[[], None]], wp.Graph]) -> None:
-        """Record every graphable segment with ``capture``, without running it."""
-        self.graphs = [capture(partial(_run, ops)) if graphable else None for graphable, ops in self.segments]
-
-    def run(self) -> None:
-        """Run every operation eagerly, or record it into an enclosing capture."""
-        _run(self.ops)
-
-    def launch(self) -> None:
-        """Run one step, replaying the captured segments."""
-        if self.graphs is None:
-            self.run()
-            return
-        for (_, ops), graph in zip(self.segments, self.graphs):
-            if graph is None:
-                _run(ops)
-            else:
-                wp.capture_launch(graph)
-
-
-def _run(ops: list[StepOp]) -> None:
-    for op in ops:
-        op.fn()
 
 
 @dataclass
@@ -263,10 +204,10 @@ class NewtonBackend:
         """Newton actuators run inside the step, or ``None``."""
         self.actuators_active = False
         """Whether an articulation runs its Newton actuators in the step (:meth:`activate_actuators`)."""
-        self.pre_actuator_callbacks: list[Callable[[], None]] = []
-        """Run before the actuators of every physics step."""
-        self.post_actuator_callbacks: list[Callable[[], None]] = []
-        """Run after the actuators of every physics step."""
+        self.control_callbacks: list[Callable[[], None]] = []
+        """Run before the Newton actuators of every physics step, like MuJoCo's ``mjcb_control``."""
+        self.post_control_callbacks: list[Callable[[], None]] = []
+        """Run after the Newton actuators of every physics step, before its solver substeps."""
         self.state_force_callbacks: list[Callable[[State], None]] = []
         """Add forces [N, N·m] to the input state of every solver substep."""
         self.post_step_callbacks: list[Callable[[], None]] = []
@@ -277,8 +218,8 @@ class NewtonBackend:
         """Physics steps per environment step."""
         self.capture: Callable[[Callable[[], None]], wp.Graph] | None = None
         """Records the step as a CUDA graph, or ``None`` when the step runs eagerly; set by :meth:`init_solver`."""
-        self.step_graph: StepGraph | None = None
-        """The step's operations, built at the next step and captured after it runs once."""
+        self.graphs: dict[object, wp.Graph] = {}
+        """Captured parts of the step, keyed by part; empty until the first step is captured."""
 
     @property
     def live(self) -> bool:
@@ -296,9 +237,10 @@ class NewtonBackend:
         self.bvh_refit = TimestampedBuffer()
         if self.cfg is not None:
             self.solver = self.collision_pipeline = self.contacts = self.actuators = None
-            self.staged_body_f = self.capture = self.step_graph = None
+            self.staged_body_f = self.capture = None
+            self.graphs = {}
             self.contact_sensors, self.imu_sensors = {}, []
-            self.pre_actuator_callbacks, self.post_actuator_callbacks = [], []
+            self.control_callbacks, self.post_control_callbacks = [], []
             self.state_force_callbacks, self.post_step_callbacks, self.solver_init_callbacks = [], [], []
             self.world_mask = self.fk_mask = None
 
@@ -489,10 +431,7 @@ class NewtonBackend:
         return sensor
 
     def handles_decimation(self) -> bool:
-        """Whether one :meth:`step` runs the whole decimation loop: once an articulation runs Newton actuators in it.
-
-        Actuators that cannot be captured run eagerly between the captured parts of the step.
-        """
+        """Whether one :meth:`step` runs the whole decimation loop: once an articulation runs Newton actuators in it."""
         return self.actuators_active
 
     def set_decimation(self, decimation: int) -> None:
@@ -500,45 +439,59 @@ class NewtonBackend:
         self.decimation = max(1, decimation)
 
     def invalidate_graph(self) -> None:
-        """Rebuild the step's operations at the next step, e.g. after a callback or binding changed."""
-        self.step_graph = None
+        """Drop the captured step; with capture enabled, the next step runs eagerly and is captured again."""
+        self.graphs = {}
 
     def step(self) -> bool:
         """Advance one physics step, or the whole decimation loop when :meth:`handles_decimation`.
 
-        The step runs as a :class:`StepGraph`. Its first launch after :meth:`invalidate_graph` runs eagerly and then
-        captures the graphable segments for later launches. Inside an enclosing capture the operations are recorded
-        into it instead. The solver then checks the step for asynchronous failures (:meth:`NewtonSolver.check_step`).
+        Each physics step runs :meth:`_step1`, the Newton actuators, then :meth:`_step2`, and the step ends with
+        :meth:`_finish_step`. With capture-safe actuators the whole loop replays from one CUDA graph; otherwise the
+        actuators run eagerly between captured :meth:`_step1` and :meth:`_step2` graphs. Each part runs eagerly the
+        first time and is then captured. Inside an enclosing capture the step records into it instead. The solver
+        then checks the step for asynchronous failures (:meth:`NewtonSolver.check_step`).
 
         Returns:
             Whether the step replays captured graphs.
         """
         steps = self.decimation if self.handles_decimation() else 1
+        actuators = self.actuators
         self.is_stepping = True
         try:
             with wp.ScopedDevice(self.device):
                 self.forward()
-                graph = self.step_graph
-                if graph is None or graph.steps != steps:
-                    graph = self.step_graph = self._build_step_graph(steps)
-                if self.device.is_capturing:
-                    eager = sorted({op.name for op in graph.ops if not op.graphable})
-                    if eager:
-                        raise RuntimeError(
-                            f"The Newton step cannot be recorded into a CUDA graph: {eager} run eagerly."
-                        )
-                    graph.run()
+                if actuators is None or actuators.is_all_graphable:
+                    self._launch(("simulate", steps), partial(self._simulate, steps))
                 else:
-                    graph.launch()
-                    if self.capture is not None and not graph.captured:
-                        with Timer(name="newton_cuda_graph", msg="CUDA graph took:"):
-                            graph.capture(self.capture)
+                    if self.device.is_capturing:
+                        raise RuntimeError("Newton actuators that cannot be captured prevent recording the step.")
+                    self._stage_body_forces()
+                    for _ in range(steps):
+                        self._launch("step1", self._step1)
+                        actuators.step(self.state_0, self.control, self.dt)
+                        self._launch("step2", self._step2)
+                    self._launch("finish_step", self._finish_step)
         finally:
             self.is_stepping = False
+        captured = bool(self.graphs)
         if not self.device.is_capturing:
             solver_cfg = self.cfg.solver_cfg
-            solver_cfg.class_type.check_step(solver_cfg, self.solver, graph.captured, self.cfg.debug_mode)
-        return graph.captured
+            solver_cfg.class_type.check_step(solver_cfg, self.solver, captured, self.cfg.debug_mode)
+        return captured
+
+    def _launch(self, key: object, fn: Callable[[], None]) -> None:
+        """Replay ``fn`` from its captured graph, or run it and capture it; inside an enclosing capture, record it."""
+        if self.device.is_capturing:
+            fn()
+            return
+        graph = self.graphs.get(key)
+        if graph is not None:
+            wp.capture_launch(graph)
+            return
+        fn()
+        if self.capture is not None:
+            with Timer(name="newton_cuda_graph", msg="CUDA graph took:"):
+                self.graphs[key] = self.capture(fn)
 
     def state_pointers(self) -> tuple[int, int]:
         """Addresses of :attr:`state_0`'s body and particle arrays, ``0`` for an absent array.
@@ -629,63 +582,74 @@ class NewtonBackend:
             self.solver.notify_model_changed(flags)
         self.model_changes.clear()
 
-    def _build_step_graph(self, steps: int) -> StepGraph:
-        """Unroll ``steps`` physics steps into operations with every buffer bound.
+    def _simulate(self, steps: int) -> None:
+        """Run ``steps`` physics steps with the Newton actuators, then finish the step."""
+        actuators = self.actuators
+        self._stage_body_forces()
+        for i in range(steps):
+            self._step1()
+            if actuators is not None:
+                # An odd step count copies the last actuator output back, keeping buffer addresses stable.
+                swap_state = steps % 2 == 0 or i < steps - 1
+                actuators.step(self.state_0, self.control, self.dt, swap_state=swap_state)
+            self._step2()
+        self._finish_step()
 
-        Each physics step runs ``pre_step -> collide -> pre-actuator callbacks -> actuators -> post-actuator callbacks
-        -> substeps``; post-step callbacks and sensors run once after the last. Each substep re-applies the forces
-        staged before the step and then runs the state-force callbacks. Double-buffered states alternate as the
-        operations are built and every physics step ends in :attr:`state_0`, so replays keep their buffer addresses.
+    def _step1(self) -> None:
+        """Prepare the solver, collide, and run the control callbacks of one physics step."""
+        solver_cfg = self.cfg.solver_cfg
+        solver_cfg.class_type.pre_step(solver_cfg, self.solver, self.state_0)
+        if self.collision_pipeline is not None:
+            self.collision_pipeline.collide(self.state_0, self.contacts)
+        for callback in self.control_callbacks:
+            callback()
+
+    def _step2(self) -> None:
+        """Run the post-control callbacks and the solver substeps of one physics step."""
+        for callback in self.post_control_callbacks:
+            callback()
+        self._run_solver_substeps(self.contacts if self.collision_pipeline is not None else None)
+
+    def _finish_step(self) -> None:
+        """Run the post-step callbacks and update the sensors once after the last physics step."""
+        for callback in self.post_step_callbacks:
+            callback()
+        self._update_sensors(self.contacts if self.collision_pipeline is not None else None)
+
+    def _stage_body_forces(self) -> None:
+        """Copy the body forces written to ``state_0`` before the step, so that every solver substep applies them."""
+        if self.staged_body_f is not None:
+            wp.copy(self.staged_body_f, self.state_0.body_f)
+
+    def _run_solver_substeps(self, contacts: Contacts | None) -> None:
+        """Run the solver substeps of one physics step, ending in :attr:`state_0`.
+
+        Each substep restores the staged body forces, then state-force callbacks add to them.
         """
         solver_cfg, solver = self.cfg.solver_cfg, self.solver
         solver_cls = solver_cfg.class_type
-        state_0, control, staged, actuators = self.state_0, self.control, self.staged_body_f, self.actuators
-        spare = state_0 if solver_cls.single_state else self.state_1
-        pipeline = self.collision_pipeline
-        contacts = self.contacts if pipeline is not None else None
-        collide_every = self.cfg.collision_decimation if pipeline is not None else 0
-        ops: list[StepOp] = []
-
-        def emit(fn: Callable[[], None], name: str, graphable: bool = True) -> None:
-            ops.append(StepOp(fn, graphable, name))
-
-        if staged is not None:
-            emit(partial(wp.copy, staged, state_0.body_f), "stage_forces")
-        for physics_step in range(steps):
-            emit(partial(solver_cls.pre_step, solver_cfg, solver, state_0), "solver.pre_step")
-            if pipeline is not None:
-                emit(partial(pipeline.collide, state_0, contacts), "collide")
-            for callback in self.pre_actuator_callbacks:
-                emit(callback, "pre_actuator")
-            if actuators is not None:
-                # An odd step count copies the last actuator output back, keeping buffer addresses stable.
-                swap_state = steps % 2 == 0 or physics_step < steps - 1
-                step_actuators = partial(actuators.step, state_0, control, self.dt, swap_state=swap_state)
-                emit(step_actuators, "actuators", actuators.is_all_graphable)
-            for callback in self.post_actuator_callbacks:
-                emit(callback, "post_actuator")
-            state_in, state_out = state_0, spare
-            for substep in range(self.num_substeps):
-                if staged is not None:
-                    emit(partial(wp.copy, state_in.body_f, staged), "apply_forces")
-                for callback in self.state_force_callbacks:
-                    emit(partial(callback, state_in), "state_force")
-                step_solver = partial(solver_cls.step, solver_cfg, solver, state_in, state_out, control, contacts)
-                emit(partial(step_solver, self.solver_dt), "solver")
-                if not solver_cls.single_state:
-                    state_in, state_out = state_out, state_in
-                if substep == self.num_substeps - 1 and state_in is not state_0:
-                    emit(partial(state_0.assign, state_in), "state.assign")
-                    state_in, state_out = state_0, spare
-                emit(state_in.clear_forces, "clear_forces")
-                # The last substep is skipped: its contacts would only feed the next physics step's collision.
-                if collide_every and (substep + 1) % collide_every == 0 and substep + 1 < self.num_substeps:
-                    emit(partial(pipeline.collide, state_in, contacts), "collide")
-            emit(partial(solver_cls.post_step, solver_cfg, solver, state_0), "solver.post_step")
-        for callback in self.post_step_callbacks:
-            emit(callback, "post_step")
-        emit(partial(self._update_sensors, contacts), "sensors")
-        return StepGraph(ops, steps)
+        num_substeps, control, dt = self.num_substeps, self.control, self.solver_dt
+        collide_every = self.cfg.collision_decimation
+        # The last substep is skipped: its contacts would only feed the next physics step's collision.
+        collide_mid_loop = collide_every > 0 and self.collision_pipeline is not None and contacts is not None
+        for i in range(num_substeps):
+            state = self.state_0
+            if self.staged_body_f is not None:
+                wp.copy(state.body_f, self.staged_body_f)
+            for callback in self.state_force_callbacks:
+                callback(state)
+            if solver_cls.single_state:
+                solver_cls.step(solver_cfg, solver, state, state, control, contacts, dt)
+            else:
+                solver_cls.step(solver_cfg, solver, state, self.state_1, control, contacts, dt)
+                if num_substeps % 2 == 1 and i == num_substeps - 1:
+                    state.assign(self.state_1)
+                else:
+                    self.state_0, self.state_1 = self.state_1, self.state_0
+            self.state_0.clear_forces()
+            if collide_mid_loop and (i + 1) % collide_every == 0 and i + 1 < num_substeps:
+                self.collision_pipeline.collide(self.state_0, contacts)
+        solver_cls.post_step(solver_cfg, solver, self.state_0)
 
     def _update_sensors(self, contacts: Contacts | None) -> None:
         """Push the current state to IMU and contact sensors."""

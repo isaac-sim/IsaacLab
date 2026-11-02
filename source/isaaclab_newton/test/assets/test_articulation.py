@@ -739,7 +739,7 @@ def test_hard_reset_recreates_ordered_state_and_actuators(device: str) -> None:
         callback_counts = (
             len(sim.backend_manager._callbacks),
             len(sim.backend_manager.backend.post_step_callbacks),
-            len(sim.backend_manager.backend.post_actuator_callbacks),
+            len(sim.backend_manager.backend.post_control_callbacks),
         )
         for reset_index in range(3):
             if reset_index:
@@ -749,7 +749,7 @@ def test_hard_reset_recreates_ordered_state_and_actuators(device: str) -> None:
                 assert callback_counts == (
                     len(sim.backend_manager._callbacks),
                     len(sim.backend_manager.backend.post_step_callbacks),
-                    len(sim.backend_manager.backend.post_actuator_callbacks),
+                    len(sim.backend_manager.backend.post_control_callbacks),
                 )
 
             positions = []
@@ -810,7 +810,7 @@ def test_newton_ordered_state_publishes_inside_captured_cuda_graph(device: str) 
         sim.backend_manager.register_post_step_callback(lambda: wp.copy(sampled_heading, data.heading_w.warp))
         # The first step captures the graph after the heading cache is already current at this timestamp.
         sim.step()
-        assert sim.backend_manager.backend.step_graph.captured
+        assert sim.backend_manager.backend.graphs
         joint_u2b = np.asarray(articulation.joint_ordering.user_to_backend_indices)
         body_u2b = np.asarray(articulation.body_ordering.user_to_backend_indices)
 
@@ -2184,7 +2184,7 @@ def test_body_q_consistent_after_root_write(scene: _Scene) -> None:
             captured["bq_root"] = bq[b0, :3].clone()
             captured["jq_root"] = jq[jc0 : jc0 + 3].clone()
 
-    backend_manager.register_pre_actuator_callback(_record_body_state)
+    backend_manager.register_control_callback(_record_body_state)
     scene.sim.step()
     articulation.update(scene.sim.cfg.dt)
 

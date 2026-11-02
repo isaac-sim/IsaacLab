@@ -145,7 +145,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
                 device=self.device,
             )
 
-        self._articulation._backend_manager.register_post_actuator_callback(_post_actuator)
+        self._articulation._backend_manager.register_post_control_callback(_post_actuator)
         if self._bam_cfgs:
             # Each group's model DOFs within one environment pair the Newton actuators with their groups.
             first_dof = self._joint_dof_offset()
@@ -321,8 +321,8 @@ class NewtonActuatorControl(ArticulationActuatorControl):
     def _bind_bam_actuators(self) -> None:
         """Bind this articulation's BAM actuators to the MJWarp solver, once per Newton actuator.
 
-        Each step, the pre-actuator hook gathers the previous solve's external load and the
-        post-actuator hook publishes the drive's friction budget before the substeps.
+        Each step, the control hook gathers the previous solve's external load and the
+        post-control hook publishes the drive's friction budget before the substeps.
 
         Raises:
             ValueError: If the active solver is not MJWarp or runs CPU MuJoCo (``use_mujoco_cpu=True``).
@@ -345,10 +345,10 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             drive.external_torque = wp.zeros(actuator.num_actuators, dtype=wp.float32, device=self.device)
             if cfg.stiff_frictionloss:
                 bridge.stiffen_friction_constraint()
-            self._articulation._backend_manager.register_pre_actuator_callback(
+            self._articulation._backend_manager.register_control_callback(
                 lambda bridge=bridge, out=drive.external_torque: bridge.gather_external_torque(out)
             )
-            self._articulation._backend_manager.register_post_actuator_callback(
+            self._articulation._backend_manager.register_post_control_callback(
                 lambda bridge=bridge, drive=drive: bridge.publish_dof_friction(drive.friction_budget)
             )
 

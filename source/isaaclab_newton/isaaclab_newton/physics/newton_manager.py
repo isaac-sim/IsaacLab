@@ -534,24 +534,24 @@ class NewtonManager(PhysicsManager):
         """Append a one-shot hook invoked once the solver exists, before the initial FK and any CUDA graph capture."""
         self.backend.solver_init_callbacks.append(callback)
 
-    def register_pre_actuator_callback(self, callback: Callable[[], None]) -> None:
-        """Append a hook invoked before the actuator step.
+    def register_control_callback(self, callback: Callable[[], None]) -> None:
+        """Append a hook invoked before the Newton actuators of every physics step, like MuJoCo's ``mjcb_control``.
 
-        Each callback runs once per physics step and is recorded into the captured step, so it must be graph-safe.
-        Hard resets discard these hooks; register them again when the new model is ready.
+        Each callback is recorded into the captured step, so it must be graph-safe. Hard resets discard these hooks;
+        register them again when the new model is ready.
         """
-        self.backend.pre_actuator_callbacks.append(callback)
+        self.backend.control_callbacks.append(callback)
         self.backend.invalidate_graph()
 
-    def register_post_actuator_callback(self, callback: Callable[[], None]) -> None:
-        """Append a hook invoked after the actuator step on every iteration.
+    def register_post_control_callback(self, callback: Callable[[], None]) -> None:
+        """Append a hook invoked after the Newton actuators of every physics step.
 
         Each callback is recorded into the captured step right after the Newton actuators and before the solver
         substeps, so its writes to ``state``/``control`` are visible to the integrator on the same iteration.
         Callbacks fire in registration order. Hard resets discard these hooks; register them again when the new model
         is ready.
         """
-        self.backend.post_actuator_callbacks.append(callback)
+        self.backend.post_control_callbacks.append(callback)
         self.backend.invalidate_graph()
 
     def register_state_force_callback(self, callback: Callable[[State], None]) -> None:

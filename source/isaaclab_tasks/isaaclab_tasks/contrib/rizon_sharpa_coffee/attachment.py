@@ -78,7 +78,7 @@ class MountedSpoonAttachment:
         self._qd_starts = wp.array(qd_starts[spoon_joints], dtype=int, device=self._model.device)
         self._offset = wp.transform(wp.vec3(offset_pos), wp.quat(offset_rot))
         self._enabled = wp.ones(1, dtype=int, device=self._model.device)
-        self._backend_manager.register_post_actuator_callback(self.sync)
+        self._backend_manager.register_post_control_callback(self.sync)
 
     def sync(self) -> None:
         """Write the mounted pose and COM twist to both native state buffers."""

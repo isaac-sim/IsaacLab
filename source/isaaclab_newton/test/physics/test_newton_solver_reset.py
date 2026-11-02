@@ -17,7 +17,6 @@ import torch
 import warp as wp
 from isaaclab_newton.assets import Articulation
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonBackend, NewtonCfg
-from isaaclab_newton.physics.newton_backend import StepGraph
 from isaaclab_physx.sim.schemas import PhysxJointCfg
 from newton.solvers import SolverMuJoCo
 
@@ -128,7 +127,7 @@ def test_env_reset_clears_selected_mjwarp_solver_internals(device):
 
         backend = sim.backend_manager.backend
         backend.invalidate_graph()
-        with patch.object(NewtonBackend, "_build_step_graph", lambda self, steps: StepGraph([], steps)):
+        with patch.object(NewtonBackend, "_simulate", lambda self, steps: None):
             sim.step(render=False)
         backend.invalidate_graph()
         wp.synchronize_device(device)
