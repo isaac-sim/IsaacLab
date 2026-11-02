@@ -5,15 +5,23 @@
 
 """Shared collision preparation for the packing-table USD asset."""
 
+from __future__ import annotations
+
 from collections.abc import Callable
 from dataclasses import MISSING
+from typing import TYPE_CHECKING
 
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.sim import UsdFileCfg
 from isaaclab.utils import configclass
 
+from .spawn_wrapping import wrap_spawn
 
-def _spawn_with_mesh_collisions(prim_path, cfg, *args, **kwargs):
+if TYPE_CHECKING:
+    from pxr import Usd
+
+
+def _spawn_with_mesh_collisions(prim_path: str, cfg: PackingTableUsdFileCfg, *args, **kwargs) -> Usd.Prim:
     from pxr import Usd, UsdGeom, UsdPhysics
 
     import isaaclab.sim as sim_utils
@@ -56,9 +64,9 @@ def _spawn_with_mesh_collisions(prim_path, cfg, *args, **kwargs):
 class PackingTableUsdFileCfg(UsdFileCfg):
     """Declared spawn-time collision preparation for the packing-table asset."""
 
-    original_spawn: Callable = MISSING
+    original_spawn: Callable | str = MISSING
     physx_offsets: bool = False
-    func: Callable = _spawn_with_mesh_collisions
+    func: Callable | str = _spawn_with_mesh_collisions
 
 
 def configure_packing_table_collisions(table_cfg: AssetBaseCfg, *, physx_offsets: bool = False) -> None:
@@ -72,13 +80,5 @@ def configure_packing_table_collisions(table_cfg: AssetBaseCfg, *, physx_offsets
     """
     if table_cfg.spawn is None:
         return
-    if not isinstance(table_cfg.spawn, PackingTableUsdFileCfg):
-        original_spawn = table_cfg.spawn.func
-        table_cfg.spawn = PackingTableUsdFileCfg(**vars(table_cfg.spawn))
-        table_cfg.spawn.original_spawn = original_spawn
-    elif table_cfg.spawn.func is not _spawn_with_mesh_collisions and not (
-        isinstance(table_cfg.spawn.func, str) and table_cfg.spawn.func == f"{__name__}:_spawn_with_mesh_collisions"
-    ):
-        table_cfg.spawn.original_spawn = table_cfg.spawn.func
-    table_cfg.spawn.func = _spawn_with_mesh_collisions
+    table_cfg.spawn = wrap_spawn(table_cfg.spawn, PackingTableUsdFileCfg, _spawn_with_mesh_collisions)
     table_cfg.spawn.physx_offsets = physx_offsets

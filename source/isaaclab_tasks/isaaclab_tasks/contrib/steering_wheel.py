@@ -5,12 +5,20 @@
 
 """Shared collision preparation for the contributed steering-wheel asset."""
 
+from __future__ import annotations
+
 from collections.abc import Callable
 from dataclasses import MISSING
+from typing import TYPE_CHECKING
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.utils import configclass
+
+from .spawn_wrapping import wrap_spawn
+
+if TYPE_CHECKING:
+    from pxr import Usd
 
 # These are the graspable wheel surfaces. Their decomposition preserves the
 # rim opening and spoke gaps that a single hull would fill.
@@ -22,7 +30,7 @@ _STEERING_WHEEL_DECOMPOSED_MESHES = frozenset(
 )
 
 
-def _spawn_with_selective_collision(prim_path, cfg, *args, **kwargs):
+def _spawn_with_selective_collision(prim_path: str, cfg: SteeringWheelUsdFileCfg, *args, **kwargs) -> Usd.Prim:
     from pxr import Usd, UsdGeom
 
     prim = cfg.original_spawn(prim_path, cfg, *args, **kwargs)
@@ -43,8 +51,8 @@ def _spawn_with_selective_collision(prim_path, cfg, *args, **kwargs):
 class SteeringWheelUsdFileCfg(sim_utils.UsdFileCfg):
     """Declared selective collision preparation for the steering-wheel asset."""
 
-    original_spawn: Callable = MISSING
-    func: Callable = _spawn_with_selective_collision
+    original_spawn: Callable | str = MISSING
+    func: Callable | str = _spawn_with_selective_collision
 
 
 def condition_newton_steering_wheel_detail_collisions(object_cfg: RigidObjectCfg) -> None:
@@ -57,13 +65,4 @@ def condition_newton_steering_wheel_detail_collisions(object_cfg: RigidObjectCfg
     """
     if object_cfg.spawn is None:
         return
-    if not isinstance(object_cfg.spawn, SteeringWheelUsdFileCfg):
-        original_spawn = object_cfg.spawn.func
-        object_cfg.spawn = SteeringWheelUsdFileCfg(**vars(object_cfg.spawn))
-        object_cfg.spawn.original_spawn = original_spawn
-    elif object_cfg.spawn.func is not _spawn_with_selective_collision and not (
-        isinstance(object_cfg.spawn.func, str)
-        and object_cfg.spawn.func == f"{__name__}:_spawn_with_selective_collision"
-    ):
-        object_cfg.spawn.original_spawn = object_cfg.spawn.func
-    object_cfg.spawn.func = _spawn_with_selective_collision
+    object_cfg.spawn = wrap_spawn(object_cfg.spawn, SteeringWheelUsdFileCfg, _spawn_with_selective_collision)
