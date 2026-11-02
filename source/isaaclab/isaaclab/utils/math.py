@@ -495,7 +495,7 @@ def axis_angle_from_quat(quat: torch.Tensor, eps: float = 1.0e-6) -> torch.Tenso
     angle = 2.0 * half_angle
     # check whether to apply Taylor approximation
     sin_half_angles_over_angles = torch.where(
-        angle.abs() > eps, torch.sin(half_angle) / angle, 0.5 - angle * angle / 48
+        angle.abs() > eps, torch.sin(half_angle) / angle.clamp_min(eps), 0.5 - angle * angle / 48
     )
     return quat[..., :3] / sin_half_angles_over_angles.unsqueeze(-1)
 
