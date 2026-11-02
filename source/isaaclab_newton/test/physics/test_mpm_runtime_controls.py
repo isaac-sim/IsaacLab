@@ -5,36 +5,37 @@
 
 """Native CPU coverage for runtime MPM resolution changes."""
 
-from types import SimpleNamespace
-
 import newton
 import numpy as np
 import pytest
-import warp as wp
-from isaaclab_newton.physics import MPMSolver, MPMSolverCfg, NewtonCfg, NewtonManager, XPBDSolverCfg
+from isaaclab_newton.physics import (
+    MPMSolverCfg,
+    NewtonBackend,
+    NewtonBackendCfg,
+    NewtonCfg,
+    NewtonManager,
+    XPBDSolverCfg,
+)
 from newton.solvers import SolverImplicitMPM
 
 from isaaclab_contrib.coupling import (
     CouplerEntryCfg,
     CouplerProxyCfg,
     CouplerProxyMappingCfg,
-    CouplerSolver,
 )
 
 
-def _build_coupled_manager(model, entries, *, proxies=()):
-    """Build the native solver through the coupler's actual ownership resolution."""
-    config = CouplerProxyCfg(entries=entries, proxies=list(proxies))
-    manager = NewtonManager(NewtonCfg(use_cuda_graph=False, solver_cfg=config))
-    manager._sim = SimpleNamespace()
-    solver = CouplerSolver.build(
-        manager._cfg.solver_cfg,
-        model,
-        wp.DeterministicMode.NOT_GUARANTEED,
-        "/World/envs/env_{}",
-    )
-    manager.backend = SimpleNamespace(model=model, state_0=model.state(), solver=solver, contact_sensors={})
+def _build_manager(builder, solver_cfg):
+    """Build the real backend so runtime edits invalidate its captured step."""
+    manager = NewtonManager(NewtonCfg(use_cuda_graph=False, solver_cfg=solver_cfg))
+    manager.backend = NewtonBackend(NewtonBackendCfg(physics_cfg=manager._cfg, device="cpu"), builder, dt=0.001)
+    manager.backend.init_solver("/World/envs/env_{}")
     return manager
+
+
+def _build_coupled_manager(builder, entries, *, proxies=()):
+    """Build the native solver through the coupler's actual ownership resolution."""
+    return _build_manager(builder, CouplerProxyCfg(entries=entries, proxies=list(proxies)))
 
 
 @pytest.mark.parametrize("coupled", (False, True), ids=("direct", "coupled"))
@@ -44,11 +45,10 @@ def test_runtime_resolution_preserves_current_native_state(coupled):
     SolverImplicitMPM.register_custom_attributes(builder)
     builder.add_particle(pos=(0.0, 0.0, 0.0), vel=(0.1, 0.0, 0.0), mass=0.01, radius=0.02)
     builder.add_particle(pos=(0.05, 0.0, 0.0), vel=(0.0, 0.2, 0.0), mass=0.02, radius=0.02)
-    model = builder.finalize(device="cpu")
     config = MPMSolverCfg(grid_type="dense", grid_padding=1, voxel_size=0.1, max_iterations=1)
     if coupled:
         manager = _build_coupled_manager(
-            model,
+            builder,
             [
                 CouplerEntryCfg(
                     name="media",
@@ -69,15 +69,12 @@ def test_runtime_resolution_preserves_current_native_state(coupled):
         selected, state = solver.solver("media"), solver.entry_state("media")
         kwargs = {"entry_name": "media"}
     else:
-        manager = NewtonManager(NewtonCfg(use_cuda_graph=False, solver_cfg=config))
+        manager = _build_manager(builder, config)
         config = manager._cfg.solver_cfg
-        solver = MPMSolver.build(config, model, wp.DeterministicMode.NOT_GUARANTEED)
-        selected, state = solver, model.state()
+        solver = manager.backend.solver
+        selected, state = solver, manager.backend.state_0
         kwargs = {}
-    manager._sim = SimpleNamespace()
-    manager.backend = SimpleNamespace(
-        model=model, state_0=model.state() if coupled else state, solver=solver, contact_sensors={}
-    )
+    model = manager.backend.model
     # Allocate the old grid, then move the live local state far from its initial
     # positions. Coupled parent state deliberately stays at those old positions.
     selected.step(state, state, None, None, 0.001)
@@ -86,23 +83,23 @@ def test_runtime_resolution_preserves_current_native_state(coupled):
     masses = model.particle_mass.numpy().copy()
     state.mpm.particle_Jp.fill_(0.9)
 
-    manager._graph = object()
+    manager.backend.graph = object()
     with pytest.raises(ValueError):
         manager.set_voxel_size(float("nan"), **kwargs)
-    assert manager._graph is not None
+    assert manager.backend.graph is not None
     assert config.voxel_size == 0.1
 
     manager.set_voxel_size(0.05, **kwargs)
-    assert manager._graph is None
+    assert manager.backend.graph is None
     assert selected.voxel_size == config.voxel_size == 0.05
     grid = selected._scratchpad.grid
     assert np.all(np.asarray(grid.origin) <= position.min(axis=0))
     assert np.all(np.asarray(grid.origin) + np.asarray(grid.res) * np.asarray(grid.cell_size) >= position.max(axis=0))
     np.testing.assert_array_equal(state.mpm.particle_Jp.numpy(), np.full(2, 0.9, dtype=np.float32))
 
-    manager._graph = object()
+    manager.backend.graph = object()
     manager.set_particle_radius(0.015, **kwargs)
-    assert manager._graph is None
+    assert manager.backend.graph is None
     particle_models = [model]
     if coupled:
         particle_models.extend(solver.view(name) for name in solver.entry_names())
@@ -127,10 +124,9 @@ def test_runtime_radius_rejects_foreign_particle_proxies_before_mutation():
     SolverImplicitMPM.register_custom_attributes(builder)
     for x in (0.0, 0.1):
         builder.add_particle(pos=(x, 0.0, 0.0), vel=(0.0, 0.0, 0.0), mass=0.01, radius=0.02)
-    model = builder.finalize(device="cpu")
     config = MPMSolverCfg(grid_type="dense", grid_padding=1, voxel_size=0.1, max_iterations=1)
     manager = _build_coupled_manager(
-        model,
+        builder,
         [
             CouplerEntryCfg(name="other", particles=[1], solver_cfg=XPBDSolverCfg(iterations=1)),
             CouplerEntryCfg(
@@ -142,6 +138,7 @@ def test_runtime_radius_rejects_foreign_particle_proxies_before_mutation():
         ],
         proxies=[CouplerProxyMappingCfg(source="other", destination="media", particles=[1], collision_pipeline=None)],
     )
+    model = manager.backend.model
     solver = manager.backend.solver
     selected = solver.solver("media")
     # The second local row is a proxy, so local count alone cannot establish ownership.
@@ -149,7 +146,7 @@ def test_runtime_radius_rejects_foreign_particle_proxies_before_mutation():
     radii = [model.particle_radius, solver.view("media").particle_radius, solver.view("other").particle_radius]
     before = [array.numpy().copy() for array in radii]
     volume = selected._mpm_model.particle_volume.numpy().copy()
-    graph = manager._graph = object()
+    graph = manager.backend.graph = object()
 
     with pytest.raises(ValueError, match="own.*all|all.*particle|subset"):
         manager.set_particle_radius(0.03, entry_name="media")
@@ -157,4 +154,4 @@ def test_runtime_radius_rejects_foreign_particle_proxies_before_mutation():
     for array, expected in zip(radii, before, strict=True):
         np.testing.assert_array_equal(array.numpy(), expected)
     np.testing.assert_array_equal(selected._mpm_model.particle_volume.numpy(), volume)
-    assert manager._graph is graph
+    assert manager.backend.graph is graph
