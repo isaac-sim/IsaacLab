@@ -143,6 +143,7 @@ class TestStepFailureDiagnosis:
             step_error,
             use_kit_xr_bridge=False,
             external_oxr_handles_provider=None if replay else lambda: object(),
+            ovxr_session=replay,
             mcap_replay_path="recording.mcap" if replay else None,
         )
         session = lifecycle._session
@@ -174,6 +175,23 @@ class TestStepFailureDiagnosis:
         assert raised.value is error
         session.__exit__.assert_called_once()
         assert lifecycle._session is None
+
+    def test_kit_replay_exit_error_is_suppressed_without_latching(self):
+        """Kit replay keeps the Kit teardown suppression; only the step failure ends the replay."""
+        error = ValueError("invalid recorded input")
+        lifecycle = _make_failing_lifecycle(error, mcap_replay_path="recording.mcap")
+        session = lifecycle._session
+        session.__exit__.side_effect = RuntimeError("XR_ERROR_HANDLE_INVALID")
+        with (
+            patch.object(lifecycle, "_build_external_inputs", return_value=None),
+            pytest.raises(ValueError, match="invalid recorded input") as raised,
+        ):
+            lifecycle.step()
+        assert raised.value is error
+        assert raised.value.__cause__ is None
+        session.__exit__.assert_called_once()
+        assert lifecycle._session is None
+        assert not lifecycle.session_cleanup_failed
 
     def test_stop_ar_exit_error_without_borrowed_handles_allows_restart(self):
         """Kit "Stop AR" invalidates the handles; a failed exit is suppressed so Start AR can restart."""

@@ -113,6 +113,7 @@ def test_public_device_exposes_dynamic_anchor_only_for_ovxr_session(monkeypatch,
         device = isaac_teleop_device.IsaacTeleopDevice(cfg, **kwargs)
     assert (device.external_anchor_state is not None) == (capability != "none")
     lifecycle.assert_called_once()
+    assert lifecycle.call_args.kwargs["ovxr_session"] == (capability != "none")
 
 
 def test_render_anchor_does_not_offset_tracked_device_poses(monkeypatch):
