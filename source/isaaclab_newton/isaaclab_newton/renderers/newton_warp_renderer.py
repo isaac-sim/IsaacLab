@@ -603,7 +603,7 @@ class NewtonWarpRenderer(BaseRenderer):
                     backend.device, partial(self._launch_render, render_data), relaxed=has_kit()
                 )
                 render_data.graph = pointers, graph
-            render_data.graph[1].launch()
+            wp.capture_launch(render_data.graph[1])
 
         # Post-render PPISP: HDR scene-linear → LDR RGBA. Source/destination
         # tensors were bound once in ``set_outputs``.

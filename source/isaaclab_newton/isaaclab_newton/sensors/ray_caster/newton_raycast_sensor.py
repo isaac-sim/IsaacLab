@@ -354,7 +354,7 @@ class NewtonRaycastSensor(_NewtonRayCasterPoseMixin, BaseRayCaster):
         if self._graph is None or self._graph[0] != pointers:
             graph = newton_backend.capture_graph(backend.device, self._launch_raycast, relaxed=has_kit())
             self._graph = pointers, graph
-        self._graph[1].launch()
+        wp.capture_launch(self._graph[1])
 
     def _invalidate_initialize_callback(self, event) -> None:
         self._graph = None

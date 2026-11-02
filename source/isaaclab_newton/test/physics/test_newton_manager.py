@@ -17,7 +17,6 @@ import isaaclab_newton.physics.newton_manager as newton_manager_module
 import newton
 import numpy as np
 import pytest
-import torch
 import warp as wp
 from isaaclab_newton.physics import (
     FeatherstoneSolverCfg,
@@ -292,7 +291,6 @@ def _recording_backend(
         transforms_may_change_on_graph_replay=False,
         is_stepping=False,
         model_changes=set(),
-        model_dirty=wp.zeros(1, dtype=wp.int32, device=device),
         warned_model_changes=set(),
         pre_actuator_callbacks=[],
         post_actuator_callbacks=[],
@@ -476,11 +474,8 @@ def test_model_changes_notify_the_solver_once_per_step_and_warn_once_when_ignore
 @pytest.mark.parametrize("supported", [True, False])
 def test_step_runs_eagerly_once_then_replays_a_graph_only_when_the_solver_supports_capture(monkeypatch, supported):
     events, replays = [], []
-    monkeypatch.setattr(
-        newton_backend,
-        "capture_graph",
-        lambda device, segment, relaxed=False: SimpleNamespace(launch=lambda: (replays.append(segment), segment())),
-    )
+    monkeypatch.setattr(newton_backend, "capture_graph", lambda device, segment, relaxed=False: segment)
+    monkeypatch.setattr(wp, "capture_launch", lambda segment: (replays.append(segment), segment()))
     backend = _recording_backend(events, device="cuda:0", captures=supported)
 
     captured = [backend.step() for _ in range(2)]
@@ -489,57 +484,6 @@ def test_step_runs_eagerly_once_then_replays_a_graph_only_when_the_solver_suppor
     assert len(replays) == int(supported)
     assert events.count(("step", "state_0", "state_0")) == 2
     assert [event for event in events if event[0] == "check"] == [("check", supported)] * 2
-
-
-@pytest.mark.parametrize("relaxed", [False, True])
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_capture_graph_records_torch_work_and_keeps_its_temporary_tensors(device, relaxed):
-    """Recording does not advance the output; each replay reruns the Torch work with its temporary tensors."""
-    value = torch.zeros(4, device=device)
-
-    def controller():
-        value.copy_((value + 1.0).square())
-
-    controller()
-    torch.cuda.synchronize(device)
-    graph = newton_backend.capture_graph(device, controller, relaxed=relaxed)
-    torch.testing.assert_close(value, torch.ones_like(value))
-    for _ in range(3):
-        graph.launch()
-    torch.cuda.synchronize(device)
-    torch.testing.assert_close(value, torch.full_like(value, 676.0))
-
-
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_captured_model_refresh_runs_only_when_the_edit_mask_selects_a_world(device):
-    """A recorded model-property edit refreshes MuJoCo's constants on replay only when its mask selects a world."""
-    cfg = NewtonCfg(solver_cfg=MJWarpSolverCfg(), use_cuda_graph=False)
-    builder = newton.ModelBuilder()
-    SolverMuJoCo.register_custom_attributes(builder)
-    builder.begin_world()
-    body = builder.add_link(mass=1.0, inertia=wp.mat33(np.eye(3)))
-    builder.add_articulation([builder.add_joint_fixed(-1, body)])
-    builder.end_world()
-    backend = NewtonBackend(NewtonBackendCfg(physics_cfg=cfg, device=device), builder, dt=0.01)
-    backend.init_solver()
-    mask = wp.array([False], dtype=wp.bool, device=device)
-
-    def refresh():
-        backend.add_model_change(ModelFlags.JOINT_PROPERTIES, env_mask=mask)
-        backend.forward()
-
-    graph = newton_backend.capture_graph(device, refresh)
-    for position in (1.0, 2.0):
-        backend.model.joint_X_p.assign(
-            wp.array([wp.transform(wp.vec3(position, 0.0, 0.0), wp.quat_identity())], dtype=wp.transform, device=device)
-        )
-        before = backend.solver.mjw_data.mocap_pos.numpy().copy()
-        mask.fill_(False)
-        graph.launch()
-        np.testing.assert_array_equal(backend.solver.mjw_data.mocap_pos.numpy(), before)
-        mask.fill_(True)
-        graph.launch()
-        np.testing.assert_allclose(backend.solver.mjw_data.mocap_pos.numpy()[0, 0], [position, 0.0, 0.0])
 
 
 # ----- Reset masks -------------------------------------------------------------------------
@@ -705,7 +649,7 @@ def test_backends_with_different_solvers_step_side_by_side(device, execution):
     start = [backend.state_0.joint_q.numpy().copy() for backend in pair]
     steps = [backend.step for backend in pair]
     if execution == "outer_capture":
-        steps = [newton_backend.capture_graph(device, backend.step).launch for backend in pair]
+        steps = [P(wp.capture_launch, newton_backend.capture_graph(device, backend.step)) for backend in pair]
         for backend, initial in zip(pair, start, strict=True):
             np.testing.assert_array_equal(backend.state_0.joint_q.numpy(), initial)
 

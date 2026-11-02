@@ -4,7 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
-    "CapturedGraph",
     "create_newton_builder",
     "FeatherstoneSolver",
     "FeatherstoneSolverCfg",
@@ -62,7 +61,7 @@ from .mjwarp_solver import MJWarpSolver
 from .mjwarp_solver_cfg import MJWarpSolverCfg
 from .mpm_solver import MPMSolver, reset_mpm_solver_state
 from .mpm_solver_cfg import MPMSolverCfg
-from .newton_backend import CapturedGraph, NewtonBackend, NewtonCloneRecord
+from .newton_backend import NewtonBackend, NewtonCloneRecord
 from .newton_backend_cfg import NewtonBackendCfg
 from .newton_builder import create_builder
 from .newton_builder_cfg import NewtonBuilderCfg

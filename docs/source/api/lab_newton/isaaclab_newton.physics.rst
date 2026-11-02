@@ -8,7 +8,6 @@
   .. autosummary::
 
     NewtonManager
-    CapturedGraph
     NewtonBackend
     NewtonCloneRecord
     MjWarpActuatorBridge
@@ -53,9 +52,6 @@ Physics Manager
   :show-inheritance:
 
 .. autofunction:: create_builder
-
-.. autoclass:: CapturedGraph
-  :members:
 
 .. autoclass:: NewtonBackend
   :members:

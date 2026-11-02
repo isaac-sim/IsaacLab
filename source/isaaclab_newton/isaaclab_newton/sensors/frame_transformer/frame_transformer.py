@@ -312,7 +312,7 @@ class FrameTransformer(BaseFrameTransformer):
                     self._device, lambda: self._update_buffers_impl(env_mask), relaxed=has_kit()
                 )
                 self._update_graph = pointers, graph
-            self._update_graph[1].launch()
+            wp.capture_launch(self._update_graph[1])
             return
 
         self._newton_sensor.update(state)

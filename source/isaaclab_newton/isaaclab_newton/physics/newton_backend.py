@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 
 import torch
 import warp as wp
-from newton import CollisionPipeline, Contacts, ModelBuilder, ModelFlags, State
+from newton import CollisionPipeline, Contacts, ModelBuilder, State
 from newton.sensors import SensorContact, SensorIMU
 from newton.solvers import SolverBase
 
@@ -78,13 +78,6 @@ def _make_flag_worlds_and_articulations(num_articulations: int, masked: bool) ->
             env_mask[row] = False
 
     return flag_worlds_and_articulations
-
-
-@wp.kernel(enable_backward=False)
-def _mark_model_changes(mask: wp.array(dtype=wp.bool), dirty: wp.array(dtype=wp.int32)):
-    """Set the model-change flag when any world is masked."""
-    if mask[wp.tid()]:
-        dirty[0] = 1
 
 
 @wp.kernel(enable_backward=False)
@@ -203,10 +196,6 @@ class NewtonBackend:
         """Model-property categories to notify the solver of at the next step."""
         self.warned_model_changes: set[int] = set()
         """Ignored model-property categories already warned about."""
-        self.model_dirty = wp.zeros(1, dtype=wp.int32, device=self.device)
-        """Device flag set when a model-property edit selects at least one world."""
-        self.model_change_graphs: dict[int, CapturedGraph] = {}
-        """Conditional solver-constant refreshes, cached by their combined model-property categories."""
         self.contact_sensors: dict[tuple, SensorContact] = {}
         """Newton contact sensors keyed by their request."""
         self.imu_sensors: list[SensorIMU] = []
@@ -227,9 +216,9 @@ class NewtonBackend:
         """Run once by :meth:`init_solver`, after the solver exists and before the initial FK."""
         self.decimation = 1
         """Physics steps per environment step."""
-        self.capture: Callable[[Callable[[], None]], CapturedGraph] | None = None
+        self.capture: Callable[[Callable[[], None]], wp.Graph] | None = None
         """Records the step as a CUDA graph, or ``None`` when the step runs eagerly; set by :meth:`init_solver`."""
-        self.graph: CapturedGraph | None = None
+        self.graph: wp.Graph | None = None
         """Captured step, or ``None`` until the next step is captured."""
 
     @property
@@ -252,8 +241,6 @@ class NewtonBackend:
             self.contact_sensors, self.imu_sensors = {}, []
             self.pre_actuator_callbacks, self.post_actuator_callbacks = [], []
             self.state_force_callbacks, self.post_step_callbacks, self.solver_init_callbacks = [], [], []
-            self.model_change_graphs.clear()
-            self.model_dirty = None
             self.world_mask = self.fk_mask = None
 
     def init_solver(
@@ -467,7 +454,7 @@ class NewtonBackend:
         """
         self.is_stepping = True
         try:
-            with execution_stream(self.device):
+            with wp.ScopedDevice(self.device):
                 self.forward()
                 if self.handles_decimation():
                     simulate = self._simulate_full
@@ -483,7 +470,7 @@ class NewtonBackend:
                     # An enclosing capture records the step and owns its replay.
                     simulate()
                 elif self.graph is not None:
-                    self.graph.launch()
+                    wp.capture_launch(self.graph)
                 else:
                     simulate()
                     if self.capture is not None:
@@ -527,7 +514,7 @@ class NewtonBackend:
         pointers = self.state_pointers()
         if cache.data is None or cache.data[0] != pointers:
             cache.data = pointers, capture_graph(self.device, self._refit_bvh, relaxed=has_kit())
-        cache.data[1].launch()
+        wp.capture_launch(cache.data[1])
         cache.timestamp = timestamp
 
     def _allocate_contacts(self) -> None:
@@ -567,70 +554,22 @@ class NewtonBackend:
         if self.contacts is not None:
             solver_cls.prepare_contacts(solver_cfg, solver, self.contacts, self.collision_pipeline)
 
-    def add_model_change(self, change: ModelFlags, env_mask: wp.array | None = None) -> None:
-        """Queue a model-property edit, selecting affected worlds entirely on the device.
-
-        Args:
-            change: Property categories the solver must refresh.
-            env_mask: Changed worlds, dtype ``wp.bool``; ``None`` means an unconditional edit.
-        """
-        if self.solver is None:
-            return
-        self.model_changes.add(change)
-        if env_mask is None:
-            self.model_dirty.fill_(1)
-        else:
-            wp.launch(
-                _mark_model_changes, dim=env_mask.shape[0], inputs=[env_mask, self.model_dirty], device=self.device
-            )
-
     def notify_model_changes(self) -> None:
-        """Commit queued property edits once, combining categories and skipping empty masks on capture-capable solvers.
+        """Notify the solver of the queued model-property changes once, combining their categories.
 
-        CUDA uses a conditional graph node to decide whether to rebuild solver constants without reading a mask back
-        to the host. Solvers whose refresh cannot be captured run it eagerly instead.
+        Inside an enclosing CUDA graph capture, the refresh is recorded and runs on every replay.
         """
         if not self.model_changes:
             return
-        solver_cfg = self.cfg.solver_cfg
-        solver_cls = solver_cfg.class_type
-        ignored = solver_cls.ignored_model_changes
+        ignored = self.cfg.solver_cfg.class_type.ignored_model_changes
         flags = 0
         for change in self.model_changes:
             if change in ignored and change not in self.warned_model_changes:
                 logger.warning(ignored[change])
                 self.warned_model_changes.add(change)
             flags |= change
-
-        def refresh():
-            self.solver.notify_model_changed(flags)
-            self.model_dirty.zero_()
-
-        def conditional_refresh():
-            wp.capture_if(self.model_dirty, refresh)
-
-        captures = (
-            self.device.is_cuda
-            and solver_cls.captures_model_changes
-            and solver_cls.supports_capture(solver_cfg, self.solver)
-        )
         with wp.ScopedDevice(self.device):
-            if self.device.is_capturing:
-                if not captures:
-                    raise RuntimeError(f"{type(solver_cfg).__name__} cannot record model changes into a CUDA graph.")
-                if not isinstance(wp.get_device_allocator(self.device), _GraphAllocator):
-                    raise RuntimeError(
-                        "Record model-property edits with capture_graph() so conditional updates own their scratch"
-                        " storage."
-                    )
-                conditional_refresh()
-            elif captures:
-                graph = self.model_change_graphs.get(flags)
-                if graph is None:
-                    graph = self.model_change_graphs[flags] = capture_graph(self.device, conditional_refresh)
-                graph.launch()
-            else:
-                refresh()
+            self.solver.notify_model_changed(flags)
         self.model_changes.clear()
 
     def _simulate_full(self) -> None:
@@ -722,81 +661,8 @@ class NewtonBackend:
             model.bvh_refit_particles(state)
 
 
-class _GraphAllocator:
-    """Keep Warp scratch in Torch's graph pool, including inside CUDA conditional nodes.
-
-    Conditional nodes cannot contain allocation nodes. Torch reserves storage during recording, and this allocator
-    retains it without reuse until the graph and its bound arrays are released.
-    """
-
-    def __init__(self, device: wp.Device):
-        self.device = wp.device_to_torch(device)
-        self.buffers: list[torch.Tensor] = []
-
-    def allocate(self, size_in_bytes: int) -> int:
-        buffer = torch.empty(size_in_bytes, dtype=torch.uint8, device=self.device)
-        self.buffers.append(buffer)
-        return buffer.data_ptr()
-
-    def deallocate(self, ptr: int, size_in_bytes: int) -> None:
-        # Storage belongs to the graph, not the temporary Warp array that requested it.
-        pass
-
-
-class CapturedGraph:
-    """A graph retaining both allocators' capture lifetimes until its last replay."""
-
-    def __init__(
-        self, torch_graph: torch.cuda.CUDAGraph, warp_graph: wp.Graph, device: wp.Device, allocator: _GraphAllocator
-    ):
-        self.allocator = allocator
-        self.torch_graph = torch_graph
-        self.warp_graph = warp_graph
-        warp_stream = wp.get_stream(device)
-        self.stream = wp.stream_to_torch(warp_stream)
-        self.blocking = warp_stream.is_blocking
-
-    def launch(self) -> None:
-        """Replay on the simulation stream, ordered with the caller's Torch work."""
-        caller = torch.cuda.current_stream(self.stream.device)
-        if caller.cuda_stream == self.stream.cuda_stream or (caller.cuda_stream == 0 and self.blocking):
-            # The legacy default stream already synchronizes with a blocking simulation stream.
-            self.torch_graph.replay()
-            return
-        self.stream.wait_stream(caller)
-        with torch.cuda.stream(self.stream):
-            self.torch_graph.replay()
-        caller.wait_stream(self.stream)
-
-
-@contextlib.contextmanager
-def execution_stream(device: wp.DeviceLike):
-    """Order mixed eager Torch/Warp work with the caller, using the simulation's Warp stream."""
-    device = wp.get_device(device)
-    with wp.ScopedDevice(device):
-        if not device.is_cuda:
-            yield
-            return
-        warp_stream = wp.get_stream(device)
-        caller = torch.cuda.current_stream(wp.device_to_torch(device))
-        if caller.cuda_stream == 0 and warp_stream.is_blocking:
-            # The legacy default stream already synchronizes with a blocking simulation stream.
-            yield
-            return
-        stream = wp.stream_to_torch(warp_stream)
-        stream.wait_stream(caller)
-        try:
-            with torch.cuda.stream(stream):
-                yield
-        finally:
-            caller.wait_stream(stream)
-
-
-def capture_graph(device: wp.DeviceLike, fn: Callable[[], None], *, relaxed: bool = False) -> CapturedGraph:
-    """Record Torch and Warp work on one stream without advancing the simulation.
-
-    Torch owns capture so temporary controller tensors use its graph memory pool. Warp joins that capture and retains
-    its own allocation lifetimes. Both owners must live as long as the executable graph.
+def capture_graph(device: wp.DeviceLike, fn: Callable[[], None], *, relaxed: bool = False) -> wp.Graph:
+    """Record ``fn`` into a CUDA graph without running it.
 
     Args:
         device: CUDA device.
@@ -804,29 +670,18 @@ def capture_graph(device: wp.DeviceLike, fn: Callable[[], None], *, relaxed: boo
         relaxed: Allow unrelated work on other threads, as required by Kit rendering.
 
     Returns:
-        The captured graph and its allocation owners, replayed with :meth:`CapturedGraph.launch`.
+        The captured graph, replayed with :func:`warp.capture_launch`.
     """
-    device = wp.get_device(device)
-    warp_stream = wp.get_stream(device)
-    stream = wp.stream_to_torch(warp_stream)
+    stream = wp.get_stream(device)
+    mode = wp.CaptureMode.THREAD_LOCAL
     if relaxed:
-        stream = torch.cuda.Stream(device=wp.device_to_torch(device))
-        warp_stream = wp.stream_from_torch(stream)
-    caller = torch.cuda.current_stream(stream.device)
-    stream.wait_stream(caller)
-    graph = torch.cuda.CUDAGraph()
-    allocator = _GraphAllocator(device)
-    with _paused_gc(), torch.cuda.stream(stream), wp.ScopedStream(warp_stream), wp.ScopedAllocator(device, allocator):
-        graph.capture_begin(capture_error_mode="relaxed" if relaxed else "thread_local")
-        try:
-            wp.capture_begin(stream=warp_stream, external=True)
-            try:
-                fn()
-            finally:
-                warp_graph = wp.capture_end(stream=warp_stream)
-        finally:
-            graph.capture_end()
-    return CapturedGraph(graph, warp_graph, device, allocator)
+        # RTX uses the legacy CUDA stream. A nonblocking stream avoids implicit synchronization.
+        stream = wp.stream_from_torch(torch.cuda.Stream(device=wp.device_to_torch(device)))
+        mode = wp.CaptureMode.RELAXED
+    with _paused_gc(), wp.ScopedStream(stream):
+        with wp.ScopedCapture(stream=stream, capture_mode=mode) as capture:
+            fn()
+    return capture.graph
 
 
 def _resolve_deterministic_mode(cfg: NewtonCfg) -> wp.DeterministicMode:
@@ -860,7 +715,7 @@ def _compile_label_pattern(expr: str | list[str] | None) -> re.Pattern[str] | No
 
 @contextlib.contextmanager
 def _paused_gc():
-    """Keep collection-driven frees out of CUDA graph capture; leave deferred garbage to the next collection."""
+    """Keep collection-driven frees out of CUDA graph capture."""
     was_enabled = gc.isenabled()
     gc.disable()
     try:
@@ -868,3 +723,4 @@ def _paused_gc():
     finally:
         if was_enabled:
             gc.enable()
+            gc.collect()
