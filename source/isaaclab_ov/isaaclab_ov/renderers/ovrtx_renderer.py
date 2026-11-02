@@ -103,6 +103,7 @@ from isaaclab_ov.renderers.ovrtx_usd import (
 )
 from isaaclab_ov.renderers.visual_materials import OVRTXVisualMaterialWriter
 from isaaclab_ov.stage import (
+    _handle_raw_id,
     export_stage_to_string,
     points_tensor_from_warp,
     xform_tensor_from_numpy,
@@ -471,7 +472,9 @@ class OVRTXRenderer(BaseRenderer):
                 with self.scene.query(env_paths) as query:
                     self.scene.stage.write_attribute(
                         query, "primvars:omni:scenePartition", ordinal=self.scene.ordinal,
-                        tensors=np.array([self.scene.paths.intern_token(token) for token in tokens], np.uint64),
+                        tensors=np.array(
+                            [_handle_raw_id(self.scene.paths.intern_token(token)) for token in tokens], dtype=np.uint64
+                        ),
                         is_array=False, semantic=ovstage.AttributeSemantic.TOKEN_ID,
                     ).wait()  # fmt: skip
             else:
@@ -675,7 +678,9 @@ class OVRTXRenderer(BaseRenderer):
                         query,
                         "camera",
                         ordinal=self.scene.ordinal,
-                        tensors=np.array([self.scene.paths.intern_path(p) for p in camera_paths], dtype=np.uint64),
+                        tensors=np.array(
+                            [_handle_raw_id(self.scene.paths.intern_path(p)) for p in camera_paths], dtype=np.uint64
+                        ),
                         is_array=True,
                         semantic=ovstage.AttributeSemantic.RELATIONSHIP_PATH_ID,
                     ).wait()
@@ -693,7 +698,10 @@ class OVRTXRenderer(BaseRenderer):
                         "omni:scenePartition",
                         ordinal=self.scene.ordinal,
                         tensors=np.array(
-                            [self.scene.paths.intern_token(partition) for partition in camera_partitions],
+                            [
+                                _handle_raw_id(self.scene.paths.intern_token(partition))
+                                for partition in camera_partitions
+                            ],
                             dtype=np.uint64,
                         ),
                         is_array=False,
@@ -1542,7 +1550,7 @@ class OVRTXMesh:
                 self.query,
                 "visibility",
                 ordinal=self.renderer.scene.ordinal,
-                tensors=np.array([self.renderer.scene.paths.intern_token(token)], np.uint64),
+                tensors=np.array([_handle_raw_id(self.renderer.scene.paths.intern_token(token))], dtype=np.uint64),
                 is_array=False,
                 semantic=ovstage.AttributeSemantic.TOKEN_ID,
             ).wait()
@@ -1658,7 +1666,7 @@ class OVRTXMarkers:
                     self._root_query,
                     "visibility",
                     ordinal=renderer.scene.ordinal,
-                    tensors=np.array([renderer.scene.paths.intern_token(token)], dtype=np.uint64),
+                    tensors=np.array([_handle_raw_id(renderer.scene.paths.intern_token(token))], dtype=np.uint64),
                     is_array=False,
                     semantic=ovstage.AttributeSemantic.TOKEN_ID,
                 ).wait()
