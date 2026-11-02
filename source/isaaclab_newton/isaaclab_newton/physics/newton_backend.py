@@ -752,12 +752,15 @@ class CapturedGraph:
         self.allocator = allocator
         self.torch_graph = torch_graph
         self.warp_graph = warp_graph
-        self.stream = wp.stream_to_torch(wp.get_stream(device))
+        warp_stream = wp.get_stream(device)
+        self.stream = wp.stream_to_torch(warp_stream)
+        self.blocking = warp_stream.is_blocking
 
     def launch(self) -> None:
         """Replay on the simulation stream, ordered with the caller's Torch work."""
         caller = torch.cuda.current_stream(self.stream.device)
-        if caller.cuda_stream == self.stream.cuda_stream:
+        if caller.cuda_stream == self.stream.cuda_stream or (caller.cuda_stream == 0 and self.blocking):
+            # The legacy default stream already synchronizes with a blocking simulation stream.
             self.torch_graph.replay()
             return
         self.stream.wait_stream(caller)
@@ -774,8 +777,13 @@ def execution_stream(device: wp.DeviceLike):
         if not device.is_cuda:
             yield
             return
-        stream = wp.stream_to_torch(wp.get_stream(device))
-        caller = torch.cuda.current_stream(stream.device)
+        warp_stream = wp.get_stream(device)
+        caller = torch.cuda.current_stream(wp.device_to_torch(device))
+        if caller.cuda_stream == 0 and warp_stream.is_blocking:
+            # The legacy default stream already synchronizes with a blocking simulation stream.
+            yield
+            return
+        stream = wp.stream_to_torch(warp_stream)
         stream.wait_stream(caller)
         try:
             with torch.cuda.stream(stream):
