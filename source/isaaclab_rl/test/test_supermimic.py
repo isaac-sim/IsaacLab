@@ -71,8 +71,15 @@ def test_native_ownership_has_no_external_training_package():
         assert not any(name == "supermimic" or name.startswith("supermimic.") for name in imports), path
         symbols = {node.name for node in ast.walk(tree) if isinstance(node, (ast.ClassDef, ast.FunctionDef))}
         assert symbols.isdisjoint(
-            {"TrackingSim", "TransitionCapture", "RunningNorm", "RunningNormalizer",
-                "VelocityLearner", "VelocityWorldModel", "VelocityPolicy"}
+            {
+                "TrackingSim",
+                "TransitionCapture",
+                "RunningNorm",
+                "RunningNormalizer",
+                "VelocityLearner",
+                "VelocityWorldModel",
+                "VelocityPolicy",
+            }
         ), path
         if path.is_relative_to(task):
             assert not any(name.startswith(("isaaclab_rl", "physicsnemo", "wandb")) for name in imports), path

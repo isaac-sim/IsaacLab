@@ -5,6 +5,8 @@
 
 """Native Newton solver boundary for a temporal NeRD model."""
 
+from weakref import finalize
+
 import newton
 import torch
 import warp as wp
@@ -87,6 +89,8 @@ class SolverNeRD(LearnedDynamicsSolver):
         )
         execution = NewtonExecutionSpec(
             stepper_implementation="isaaclab_newton.physics.nerd_solver.SolverNeRD",
+            collision_pipeline_implementation=None,
+            resolved_collision_configuration={},
             collide_on_reset=False,
             collide_each_substep=False,
             clear_forces=False,
@@ -117,6 +121,8 @@ class SolverNeRD(LearnedDynamicsSolver):
             temporal=temporal,
             compile=compile,
         )
+        # Retire resident arguments when the backend releases this solver.
+        finalize(self, self.session.close)
         self._torch_pool = torch.cuda.MemPool()
         # Compile on disposable state before the backend captures the entire physics frame.
         state, control = model.state(), model.control()
