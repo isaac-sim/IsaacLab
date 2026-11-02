@@ -13,7 +13,7 @@ on:
       - "conftest.py"
       # Tools subpackages run their own checks.
       - "tools/*.py"
-      - "tools/perf_smoke/**"
+      - "tools/performance_regression/**"
       - "tools/perf_smoke_thresholds.json"
       # Shared CI action helpers and their co-located tests.
       - ".github/actions/_lib/**"
@@ -63,4 +63,4 @@ jobs:
           enable-cache: false
 
       - name: Test ASV performance comparisons
-        run: uv run --no-project --with-requirements tools/perf_smoke/requirements.txt python -m unittest tools.perf_smoke.test_compare tools.perf_smoke.test_source_revision
+        run: uv run --no-project --with-requirements tools/performance_regression/requirements.txt python -m unittest tools.performance_regression.test_compare tools.performance_regression.test_source_revision

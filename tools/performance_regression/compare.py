@@ -101,7 +101,7 @@ def resolve_thresholds(config: Any, gpu_model: str, task: str, key: str) -> dict
 
     Args:
         config: Parsed ``perf_smoke_thresholds.json``.
-        gpu_model: Canonical GPU slug (see :func:`~tools.perf_smoke.contract.normalize_gpu_model`).
+        gpu_model: Canonical GPU slug (see :func:`~tools.performance_regression.contract.normalize_gpu_model`).
         task: Gym task id.
         key: ``{physics}`` or ``{physics}_{render}``.
 
@@ -220,7 +220,7 @@ def _evaluate(
         from asv._stats import mann_whitney_u
         from asv_runner.statistics import compute_stats
     except ImportError as exc:
-        raise PerfSmokeError("ASV is unavailable; install tools/perf_smoke/requirements.txt") from exc
+        raise PerfSmokeError("ASV is unavailable; install tools/performance_regression/requirements.txt") from exc
 
     # ASV assumes lower is better. Reversing FPS comparisons preserves the
     # original samples and medians, including zero throughput and even counts.
