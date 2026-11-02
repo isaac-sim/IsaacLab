@@ -9,6 +9,7 @@ import numpy as np
 from isaaclab_ov.physics import OvPhysxCfg
 
 from isaaclab.actuators import ImplicitActuatorCfg
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.utils import configclass, replace
 
 from isaaclab_tasks.contrib import ISAACLAB_TELEOP_AVAILABLE
@@ -192,17 +193,20 @@ class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
         # The clutch resets to a configured full pose, so the arm must return to the same
         # nominal joints on every reset. Keep the reset event active, without joint noise.
         self.events.randomize_joint_state.params["std"] = 0.0
+        isaacsim_physx = self.sim.physics.isaacsim_physx
+        # Match the stack family's Isaac Sim PhysX grasp tuning on the kitless OvPhysX backend.
+        ovphysx = OvPhysxCfg(
+            bounce_threshold_velocity=isaacsim_physx.bounce_threshold_velocity,
+            friction_correlation_distance=isaacsim_physx.friction_correlation_distance,
+            solve_articulation_contact_last=isaacsim_physx.solve_articulation_contact_last,
+        )
         self.sim.physics = preset(
             default=self.sim.physics.default,
-            isaacsim_physx=self.sim.physics.isaacsim_physx,
-            physx=self.sim.physics.physx,
+            isaacsim_physx=isaacsim_physx,
+            # The automatic selector picks the same tuned OvPhysX config when Isaac Sim is absent.
+            physx=PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx),
             newton_mjwarp=self.sim.physics.newton_mjwarp,
-            # Match the stack family's Isaac Sim PhysX grasp tuning on the kitless OvPhysX backend.
-            ovphysx=OvPhysxCfg(
-                bounce_threshold_velocity=self.sim.physics.isaacsim_physx.bounce_threshold_velocity,
-                friction_correlation_distance=self.sim.physics.isaacsim_physx.friction_correlation_distance,
-                solve_articulation_contact_last=self.sim.physics.isaacsim_physx.solve_articulation_contact_last,
-            ),
+            ovphysx=ovphysx,
         )
 
         # Switch to a stiffer PD controller so the arm tracks IK targets well. Replace the robot
