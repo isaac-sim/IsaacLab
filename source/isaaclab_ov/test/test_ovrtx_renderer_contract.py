@@ -38,7 +38,7 @@ pytestmark = [
 ]
 
 if not _MISSING_MODULES:
-    from isaaclab_ov.renderers import OVRTXBackendCfg, OVRTXRendererCfg  # noqa: E402
+    from isaaclab_ov.renderers import OvLibrariesScenePublisher, OVRTXBackendCfg, OVRTXRendererCfg  # noqa: E402
     from isaaclab_ov.renderers import ovrtx_renderer as ovrtx_renderer_module  # noqa: E402
     from isaaclab_ov.renderers.ovrtx_renderer import (  # noqa: E402
         _DISABLE_LINUX_CUDA_CPU_SYNC_ENV,
@@ -1766,6 +1766,7 @@ def test_render_lease_closed_publisher_reports_no_pending_publication(leased_ren
     renderer = leased_renderer
     lease = renderer.acquire_ov_libraries_render_lease()
     publisher = lease.capture_scene_publisher()
+    assert isinstance(publisher, OvLibrariesScenePublisher)
     _prepare_leased_renderer(renderer)
     monkeypatch.setattr(renderer, "_update_transforms", lambda: None)
     monkeypatch.setattr(renderer, "_update_geometries", lambda: None)
