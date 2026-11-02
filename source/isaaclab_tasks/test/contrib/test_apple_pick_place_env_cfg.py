@@ -13,6 +13,7 @@ import pytest
 import torch
 from isaaclab_experimental.cosmos import CosmosTransferProcessorCfg, read_prompt_files
 
+from isaaclab.managers import EventTermCfg
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 
 import isaaclab_tasks  # noqa: F401
@@ -139,7 +140,9 @@ def test_reset_holds_the_start_pose_with_the_joint_targets():
     scene = type("Scene", (), {"env_origins": torch.zeros(2, 3), "__getitem__": lambda _, name: assets[name]})()
     env = SimpleNamespace(device="cpu", num_envs=2, scene=scene)
 
-    mdp.reset_to_start_states(env, torch.tensor([0, 1]), START_STATES_FILE)
+    cfg = EventTermCfg(func=mdp.reset_to_start_states, mode="reset", params={"states_file": START_STATES_FILE})
+    term = mdp.reset_to_start_states(cfg, env)
+    term(env, torch.tensor([0, 1]), **cfg.params)
 
     written = robot.calls["write_joint_position_to_sim_index"]["position"]
     targets = robot.actuators.target_command.calls

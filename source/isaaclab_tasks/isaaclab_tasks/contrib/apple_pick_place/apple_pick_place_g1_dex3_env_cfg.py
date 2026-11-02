@@ -11,6 +11,7 @@ inputs and outputs, so its exported pipeline can read and write them by name. ``
 head camera's rendered image with one Cosmos generates from its depth.
 """
 
+import json
 import os
 
 from isaaclab_experimental.cosmos import CosmosModelCfg, CosmosTransferProcessorCfg, cosmos_camera, episode_frame_budget
@@ -98,52 +99,11 @@ ACTION_JOINTS = LEFT_ARM + RIGHT_ARM + LEFT_HAND_ACTION + RIGHT_HAND_ACTION + WA
 # Saved starts of 16 recorded real demonstrations: robot, apple and plate poses. Environment i takes start i.
 START_STATES_FILE = os.path.join(os.path.dirname(__file__), "start_states.json")
 
-# Default start pose: the robot's first frame in a recorded real demonstration.
-START_JOINT_POS = {
-    "left_hip_pitch_joint": -0.4573,
-    "right_hip_pitch_joint": -0.4683,
-    "waist_yaw_joint": -0.0987,
-    "left_hip_roll_joint": 0.0591,
-    "right_hip_roll_joint": -0.1725,
-    "waist_roll_joint": -0.0153,
-    "left_hip_yaw_joint": -0.0302,
-    "right_hip_yaw_joint": -0.0316,
-    "waist_pitch_joint": 0.0048,
-    "left_knee_joint": 0.9600,
-    "right_knee_joint": 0.7161,
-    "left_shoulder_pitch_joint": -0.2487,
-    "right_shoulder_pitch_joint": -0.5268,
-    "left_ankle_pitch_joint": -0.4761,
-    "right_ankle_pitch_joint": -0.2027,
-    "left_shoulder_roll_joint": 0.6830,
-    "right_shoulder_roll_joint": -0.4402,
-    "left_ankle_roll_joint": -0.0210,
-    "right_ankle_roll_joint": 0.0904,
-    "left_shoulder_yaw_joint": 0.4133,
-    "right_shoulder_yaw_joint": -0.8667,
-    "left_elbow_joint": 1.2576,
-    "right_elbow_joint": 1.1823,
-    "left_wrist_roll_joint": -0.4475,
-    "right_wrist_roll_joint": 0.8583,
-    "left_wrist_pitch_joint": -0.4266,
-    "right_wrist_pitch_joint": 0.2901,
-    "left_wrist_yaw_joint": 0.4694,
-    "right_wrist_yaw_joint": 0.5772,
-    "left_hand_index_0_joint": -0.0588,
-    "left_hand_middle_0_joint": -0.0635,
-    "left_hand_thumb_0_joint": -0.0712,
-    "right_hand_index_0_joint": 0.0218,
-    "right_hand_middle_0_joint": 0.0218,
-    "right_hand_thumb_0_joint": -0.1615,
-    "left_hand_index_1_joint": -0.0608,
-    "left_hand_middle_1_joint": -0.0569,
-    "left_hand_thumb_1_joint": 0.0700,
-    "right_hand_index_1_joint": 0.0334,
-    "right_hand_middle_1_joint": 0.0497,
-    "right_hand_thumb_1_joint": -0.0349,
-    "left_hand_thumb_2_joint": 0.0578,
-    "right_hand_thumb_2_joint": -0.0602,
-}
+# Default start: saved start 0, for anything that resets without the saved starts.
+with open(START_STATES_FILE) as _f:
+    _start_states = json.load(_f)
+_start = _start_states["states"][0]
+START_JOINT_POS = dict(zip(_start_states["joint_names"], _start["joint_positions"]))
 
 # The robot stands on the floor with its root fixed; the legs hold the start pose.
 G1_DEX3_CFG = ArticulationCfg(
@@ -157,7 +117,7 @@ G1_DEX3_CFG = ArticulationCfg(
         ],
         fix_root_link=True,
     ),
-    init_state=ArticulationCfg.InitialStateCfg(pos=(0.0003, -0.0001, 0.7749), joint_pos=START_JOINT_POS),
+    init_state=ArticulationCfg.InitialStateCfg(pos=tuple(_start["robot_root_pose"][:3]), joint_pos=START_JOINT_POS),
     # Gains, armature and friction of the evaluation; the policy's feedforward efforts are added to these PD efforts.
     # Without the armature, explicit PD on the light wrist and finger links is unstable at 240 Hz.
     actuators={
@@ -299,7 +259,9 @@ class ApplePickPlaceSceneCfg(InteractiveSceneCfg):
 
     apple = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Apple",
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.4469, 0.0094, 0.8352), rot=(-0.0026, 0.0012, 1.0, -0.0011)),
+        init_state=RigidObjectCfg.InitialStateCfg(
+            pos=tuple(_start["apple_pose"][:3]), rot=tuple(_start["apple_pose"][3:])
+        ),
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Objects/Apple002/apple.usd",
             rigid_props=[PhysxRigidBodyCfg(solver_position_iteration_count=16, solver_velocity_iteration_count=8)],
@@ -311,7 +273,9 @@ class ApplePickPlaceSceneCfg(InteractiveSceneCfg):
 
     plate = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Plate",
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.3583, -0.1773, 0.7993)),
+        init_state=RigidObjectCfg.InitialStateCfg(
+            pos=tuple(_start["plate_pose"][:3]), rot=tuple(_start["plate_pose"][3:])
+        ),
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Objects/Clay_Plate/clay_plate.usd",
             scale=(0.7, 0.7, 0.7),

@@ -19,7 +19,8 @@ environment**, with approximately **8 GB more for each additional environment**.
 Choose hardware with enough VRAM before increasing `--num_envs`.
 
 For service options and camera configuration, see [Serving Cosmos](cosmos_service.md)
-and [Cosmos camera integration](cosmos.md).
+and [Cosmos camera integration](cosmos.md). To run a GR00T policy on a G1 robot with Cosmos, see
+the [apple pick-and-place demo](cosmos_transfer_apple.md).
 
 ## 1. Set paths
 
