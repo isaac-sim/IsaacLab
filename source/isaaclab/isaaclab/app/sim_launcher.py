@@ -385,6 +385,22 @@ def validate_launch(  # noqa: C901
             node.max_visible_envs = max_visible
 
     configs = _walk_runtime_configs(cfg, replacements)
+    ovrtx_configs = [node for node in configs if isinstance(node, OVRTXRendererCfg)]
+    if ovrtx_configs:
+        from isaaclab_ov.renderers.ovrtx_usd import get_render_mode
+
+        cameras = [
+            node for node in configs if isinstance(node, CameraCfg) and isinstance(node.renderer_cfg, OVRTXRendererCfg)
+        ]
+        # Unbound renderer configurations may serve cameras created later, so keep all modes available.
+        minimal_only = (
+            bool(cameras)
+            and not (scene_cfg is None and any(isinstance(viewer.backend, NewtonRTXBackendCfg) for viewer in viewers))
+            and all(any(camera.renderer_cfg is renderer for camera in cameras) for renderer in ovrtx_configs)
+            and all(get_render_mode(camera) in ("Minimal", "MinimalRendering") for camera in cameras)
+        )
+        for renderer in ovrtx_configs:
+            renderer._minimal_only = minimal_only
     if kit_sources:
         for node in configs:
             if isinstance(node, OvPhysxCfg):

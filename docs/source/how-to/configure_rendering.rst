@@ -103,6 +103,20 @@ training that only needs simplified color, select a ``simple_shading_*`` preset 
       physics=newton_mjwarp renderer=ovrtx \
       presets=simple_shading_diffuse_mdl
 
+When every configured OVRTX camera uses RTX Minimal, ``launch_simulation()`` also disables PT
+and RT2 at native OVRTX startup. This avoids their unused pipelines and texture buffers and
+enables OVRTX's Minimal-only memory optimizations. The selection includes viewer cameras and
+explicit ``omni:rtx:rendermode`` overrides. Mixed Minimal/RT2 workloads keep all modes available.
+
+Declare all cameras and viewers in the configuration passed to ``launch_simulation()``.
+Standalone renderer configurations without known cameras keep all modes available. Adding a
+non-Minimal camera after Minimal-only startup raises an error instead of silently rendering it
+in Minimal. Close the simulation and launch again with the complete configuration to change
+availability. Isaac Lab reuses retained native resources for unchanged availability; when it
+changes, Isaac Lab releases that retention and initializes the graphics resources again, after
+all its native OVRTX renderer instances have closed. Applications that create OVRTX instances
+outside Isaac Lab must also release those instances before changing availability.
+
 In RTX Minimal mode, :class:`~isaaclab_ov.renderers.OVRTXRendererCfg.enable_shadows` controls
 directional-light shadow rays. They improve visual faithfulness but cost render time. Path-traced
 OVRTX outputs always cast shadows, so this option does not affect regular ``rgb`` or other AOVs.

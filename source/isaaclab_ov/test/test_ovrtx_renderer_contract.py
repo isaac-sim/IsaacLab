@@ -10,6 +10,7 @@ import ctypes
 import importlib.util
 import sys
 import types
+import weakref
 from builtins import ExceptionGroup
 from unittest.mock import MagicMock
 
@@ -150,6 +151,8 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
     from isaaclab.cloner import make_clone_plan, replicate
 
     monkeypatch.setenv("ISAAC_LAB_OVRTX_READ_GPU_TRANSFORMS", "1")
+    monkeypatch.setattr(OVRTXBackend, "_retained_config", None)
+    monkeypatch.setattr(OVRTXBackend, "_instances", weakref.WeakSet())
 
     config_kwargs: dict[str, object] = {}
     destroyed, redirected, stage_releases = [], [], []
@@ -163,10 +166,11 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
     monkeypatch.setenv("OVRTX_SHADER_CACHE_PATH", str(tmp_path / "shader-cache"))
     monkeypatch.setattr(ovrtx_renderer_module, "redirect_shader_cache", redirected.append)
 
-    class RecordingRendererConfig:
+    class RecordingRendererConfig(ovrtx_renderer_module.RendererConfig):
         def __init__(self, **kwargs):
             assert loaded, "The renderer must load its native dependencies without viewer setup."
             config_kwargs.update(kwargs)
+            super().__init__(**kwargs)
 
     monkeypatch.setattr(ovrtx_renderer_module, "RendererConfig", RecordingRendererConfig)
     monkeypatch.setattr(
@@ -205,7 +209,7 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
         routes = {OvPhysxReplicateContext: {0}, OvrtxReplicateContext: {1}}
         OvrtxReplicateContext.prepare(sim, routes)
         assert routes == {OvPhysxReplicateContext: {0}, OvrtxReplicateContext: {1}}
-    cfg = OVRTXRendererCfg()
+    cfg = OVRTXRendererCfg(_minimal_only=use_ovstage)
     renderer = sim.get_or_create_backend(cfg)
     shared = sim.get_or_create_backend(replace(cfg))
     assert shared is renderer
@@ -235,6 +239,9 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
     assert config_kwargs["read_gpu_transforms"] is True
     assert config_kwargs["suppress_deprecation_warnings"] is True
     assert config_kwargs["texture_streaming_mode"] is ovrtx_renderer_module.TextureStreamingMode.SYNCHRONOUS
+    assert config_kwargs["enable_minimal"] is True
+    assert config_kwargs["enable_realtimepathtracing"] is (not use_ovstage)
+    assert config_kwargs["enable_pathtracing"] is (not use_ovstage)
     expected_contexts = {OvstageReplicateContext if use_ovstage else OvrtxReplicateContext}
     if with_physics and not shared_physics:
         expected_contexts.add(OvPhysxReplicateContext)
@@ -280,6 +287,53 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
     sim.close_backend(renderer)
     sim.close_backend(other)
     assert not sim._backend_registry
+
+
+def test_ovrtx_mode_changes_release_retention_after_last_backend(monkeypatch):
+    """Mode changes release keep-alive before native creation, without tearing down live users."""
+    monkeypatch.setattr(OVRTXBackend, "_retained_config", None)
+    monkeypatch.setattr(OVRTXBackend, "_instances", weakref.WeakSet())
+    events = []
+
+    def create(config):
+        events.append(("create", config))
+        return types.SimpleNamespace(destroy=lambda: events.append(("destroy", config)), detach_ovstage=lambda: None)
+
+    monkeypatch.setattr(ovrtx_renderer_module, "Renderer", create)
+    monkeypatch.setattr(ovrtx_renderer_module, "redirect_shader_cache", lambda cfg: None)
+    cfg = OVRTXBackendCfg(use_ovstage=False, read_gpu_transforms=True, device="cpu", minimal_only=True)
+    first = OVRTXBackend(cfg)
+    second = OVRTXBackend(cfg)
+    first.close()
+    second.attached = True
+    second.detach()
+    with pytest.raises(ValueError, match="Close all Isaac Lab OVRTX backends"):
+        OVRTXBackend(replace(cfg, minimal_only=False))
+    assert len(events) == 3  # No temporary renderer or teardown while the second backend is alive.
+    second.close()
+    for minimal_only in (False, True):
+        events.clear()
+        backend = OVRTXBackend(replace(cfg, minimal_only=minimal_only))
+        assert [event for event, _ in events] == ["create", "destroy", "create"]
+        release = events[0][1]
+        assert release.keep_system_alive is False
+        assert (release.enable_minimal, release.enable_realtimepathtracing, release.enable_pathtracing) == (
+            None,
+            None,
+            None,
+        )
+        assert events[1][1] is release
+        assert events[2][1].enable_realtimepathtracing is (not minimal_only)
+        backend.close()
+
+
+def test_minimal_only_backend_rejects_late_rt2_camera():
+    """A late RGB camera must fail before OVRTX can silently fall back to Minimal."""
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer.backend.cfg.minimal_only = True
+    spec = CameraRenderSpec(_make_camera_cfg(["rgb"]), "cpu", 1, ("/World/envs/env_0/Camera",), 1)
+    with pytest.raises(ValueError, match="Include every camera and viewer"):
+        renderer.create_render_data(spec)
 
 
 # Each missing output runs with and without batching; ``use_ovstage`` only changes the ordinal bookkeeping.
