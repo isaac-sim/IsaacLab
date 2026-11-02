@@ -14,6 +14,9 @@ __all__ = [
     "NewtonOperationalSpaceControllerAction",
     "NewtonOperationalSpaceControllerActionCfg",
     "randomize_visual_shape",
+    "NeRDRecorder",
+    "NeRDRecorderCfg",
+    "NeRDRecorderManagerCfg",
 ]
 
 from .actions import (
@@ -30,3 +33,4 @@ from .events import (
     randomize_rigid_body_material,
     randomize_visual_shape,
 )
+from .recorders import NeRDRecorder, NeRDRecorderCfg, NeRDRecorderManagerCfg
