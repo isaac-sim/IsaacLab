@@ -12,8 +12,9 @@ configuration without the native OVXR, OVRTX or OVStage packages.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
 from typing import Literal
+
+from isaaclab.utils import configclass
 
 _DEFAULT_OVXR_CAMERA_PATHS = (
     "/OVXRGeneratedCameras/OVXR_LeftEyeCamera",
@@ -21,9 +22,9 @@ _DEFAULT_OVXR_CAMERA_PATHS = (
 )
 
 
-@dataclass
+@configclass
 class OvLibrariesXrCfg:
-    """Isaac Lab configuration for an IsaacTeleop-owned OVXR session."""
+    """Isaac Lab configuration for an Isaac Capture-owned OVXR session."""
 
     application_name: str = "isaaclab-kitless-teleop"
     """Application identifier passed to the OpenXR runtime."""
