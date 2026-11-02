@@ -13,9 +13,11 @@ and the environment whose environments each run one of them, switched on reset b
 
 import os
 
-VLA_BENCHMARKS_ASSETS_DIR = os.environ.get("VLA_BENCHMARKS_ASSETS_DIR", "")
-"""Root of the tasks' asset package exported from the RoboLab scenes and the Omniverse libraries, set by the
-environment variable of the same name. The tasks register only when it names an existing directory.
-
-TODO: Default to the asset package on the Isaac Lab Nucleus once it is uploaded.
+# TODO: Point to the Isaac Lab Nucleus once the assets are uploaded there.
+VLA_BENCHMARKS_ASSETS_DIR = os.environ.get(
+    "VLA_BENCHMARKS_ASSETS_DIR", "https://huggingface.co/datasets/LiFanxing/HeteroTask/resolve/main"
+)
+"""Root of the tasks' assets: the objects from the RoboLab and Omniverse libraries as complete USD files, the robot,
+and the robot table and dome light texture. Defaults to the HeteroTask dataset on Hugging Face; the environment
+variable of the same name overrides it, e.g. with a local copy.
 """

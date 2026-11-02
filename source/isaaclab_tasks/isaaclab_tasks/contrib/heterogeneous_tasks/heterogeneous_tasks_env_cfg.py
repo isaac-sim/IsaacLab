@@ -64,7 +64,7 @@ class VLABenchmarkSceneCfg(InteractiveSceneCfg):
     robot = FRANKA_ROBOTIQ_GRIPPER_CFG
     table_fixture = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/table_fixture",
-        spawn=sim_utils.UsdFileCfg(usd_path=f"{VLA_BENCHMARKS_ASSETS_DIR}/robolab/fixtures/franka_table.usd"),
+        spawn=sim_utils.UsdFileCfg(usd_path=f"{VLA_BENCHMARKS_ASSETS_DIR}/scene/franka_table/franka_table.usd"),
         init_state=AssetBaseCfg.InitialStateCfg(pos=(-0.087, 0.0, 0.0), rot=(0.0, 0.0, 1.0, 0.0)),
     )
     # One ground below the furniture of all tasks; the RoboLab scenes hide theirs.
@@ -77,7 +77,7 @@ class VLABenchmarkSceneCfg(InteractiveSceneCfg):
         prim_path="/World/background",
         spawn=sim_utils.DomeLightCfg(
             intensity=500.0,
-            texture_file=f"{VLA_BENCHMARKS_ASSETS_DIR}/robolab/backgrounds/default/home_office.exr",
+            texture_file=f"{VLA_BENCHMARKS_ASSETS_DIR}/scene/home_office.exr",
             texture_format="latlong",
             visible_in_primary_ray=True,
         ),

@@ -21,7 +21,7 @@ from ... import VLA_BENCHMARKS_ASSETS_DIR
 FRANKA_ROBOTIQ_GRIPPER_CFG = ArticulationCfg(
     prim_path="{ENV_REGEX_NS}/robot",
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{VLA_BENCHMARKS_ASSETS_DIR}/robots/franka_robotiq_2f_85_isaaclab_inertia.usd",
+        usd_path=f"{VLA_BENCHMARKS_ASSETS_DIR}/robots/franka_robotiq_2f_85/franka_robotiq_2f_85_isaaclab_inertia.usd",
         activate_contact_sensors=True,
         # Gravity compensation holds the arm, as the PhysX robot disables gravity on its links.
         rigid_props=MujocoRigidBodyPropertiesCfg(gravcomp=1.0),
