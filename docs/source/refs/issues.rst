@@ -172,7 +172,7 @@ its pose:
 .. _known-issues-ovrtx-gaussian-cold-cache:
 
 Gaussian scenes can return near-black images with a cold OVRTX cache
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **Affects:** ``renderer=ovrtx``. Reproduced with OVRTX 0.6 / OVStage 0.3 on both scene readers,
 and with an OVRTX 0.7 development build / OVStage 0.4 on the OVStage reader.
