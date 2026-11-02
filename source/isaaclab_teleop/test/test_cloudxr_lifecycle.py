@@ -374,9 +374,10 @@ def test_ui_cleanup_failure_still_drains_session_and_runtime(error_type):
     assert lifecycle._cloudxr_launcher is None
 
 
-def test_session_cleanup_error_without_borrowed_handles_is_suppressed():
+@pytest.mark.parametrize("replay", [False, True])
+def test_session_cleanup_error_without_borrowed_handles_is_suppressed(replay):
     """Kit "Stop AR" invalidates the handles, so a failed exit still releases the session and runtime."""
-    lifecycle = _make_lifecycle()
+    lifecycle = TeleopSessionLifecycle(_make_cfg(), mcap_replay_path="recording.mcap" if replay else None)
     session, launcher = MagicMock(), MagicMock()
     session.__exit__.side_effect = RuntimeError("XR_ERROR_HANDLE_INVALID")
     lifecycle._session, lifecycle._cloudxr_launcher = session, launcher
@@ -399,11 +400,12 @@ def test_session_cleanup_error_without_borrowed_handles_is_suppressed():
     ],
 )
 def test_session_exit_failure_is_visible_and_retains_resources(body_error, error_type, replay):
-    """Replay exit failures stay visible even though input borrows no OpenXR handles."""
+    """OVXR replay exit failures stay visible even though input borrows no OpenXR handles."""
     lifecycle = TeleopSessionLifecycle(
         _make_cfg(),
         use_kit_xr_bridge=False,
         external_oxr_handles_provider=None if replay else lambda: object(),
+        ovxr_session=replay,
         mcap_replay_path="recording.mcap" if replay else None,
     )
     session, launcher = MagicMock(), MagicMock()
