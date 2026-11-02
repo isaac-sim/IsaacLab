@@ -124,7 +124,7 @@ the earlier receipt-only policies are not evidence for this stricter objective.
 ## Facility references
 
 The induction-loop/offload layout follows ordinary distribution-center organization,
-including [Vanderlande's robotic induction at DHL](https://www.vanderlande.com/news-insights/vanderlande-delivers-robot-technology-to-dhl/).
+including [Vanderlande's robotic induction at DHL](https://awlautomation.com/customer-experience-dhl-express).
 The scene uses native primitives with physical decks, guards and bins; decorative
 supports remain visual only.
 
