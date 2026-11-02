@@ -27,65 +27,66 @@
       {
         "pr": 8327,
         "name": "Experimental conveyor support in Contrib",
-        "head": "85689d1eeb2b2d05b769a413463c828117213978",
+        "head": "8461dd926f82629fe35c2cd83b8b78e3f1600cf3",
         "merged": false
       },
       {
         "pr": 8331,
         "name": "Racetrack transfer task",
-        "head": "4163e3dba97ee7e4e4f6a77cf0c37bfdba3d92f2",
+        "head": "326201720e8bbcca611e7bf2ac38c505d005fc94",
         "merged": false
       },
       {
         "pr": 8332,
         "name": "Warehouse sorting task",
-        "head": "c78f421e485fb77b20dc92c9643000d03405b879",
+        "head": "69256a2e97d72ccb7d0803871b0fa6c40c28a224",
         "merged": false
       },
       {
         "pr": 8794,
         "name": "Optional native CPU PhysX support",
-        "head": "93f34f43f1568deb9f64b7acf17bd2f4d435b70b",
+        "head": "652ca496c04c693804b941269d0b01de73b14260",
         "merged": false
       }
     ],
     "checks": [
-      "39 targeted CPU tests passed on the combined source tree: conveyor specifications, native Newton transport/reset/close, optional PhysX contracts, geometry, MDP/reset/sorting, asset configuration and backend lifecycle.",
-      "A separate explicit CUDA native conveyor transport/reset/rebind/close test passed.",
-      "The isolated worktree interpreter and imported package roots were verified; its locked environment was unchanged by the component merges.",
-      "The documentation build passed with uv run --no-sync isaaclab --docs.",
-      "All repository formatting/lint/changelog hooks passed before the main and each history-preserving component merge commit."
+      "The retained VBD fixture target failed before the two explicit backend defaults and passed after them; the complete VBD owner file passed 9 CPU cases.",
+      "The fixture change adds no production code and changes no assertions; an independent profile review and repository-rule pass found no actionable issue.",
+      "Each published component fixture follow-up merged to the identical validated combined tree; all repository formatting/lint/changelog hooks passed before each merge commit.",
+      "Prior combined-tree evidence remains applicable to unchanged runtime code, tests, docs, dependency pins and instructions: 39 targeted CPU cases, one explicit CUDA conveyor transport/reset/rebind/close case, and the documentation build."
     ],
     "limitations": [
       "Full racetrack/warehouse trained-policy rollouts and native PhysX task runtime acceptance were not rerun on this snapshot; those results remain historical. Warehouse policy success is not established.",
       "The Kit-dependent native mesh pytest fixture was not rerun on this snapshot.",
-      "A successful push does not establish GitHub CI acceptance; inspect checks on the exact published integration commit."
+      "A successful push does not establish GitHub CI acceptance; inspect checks on the exact published integration commit.",
+      "The new VBD fixture checks use fixed CPU fixtures. Allowing a CUDA device in the test mask does not establish new GPU coverage."
     ],
-    "checked_at": "2026-11-02T18:35:26.390847+00:00",
+    "checked_at": "2026-11-02T19:25:52.826564+00:00",
     "refresh_mode": "normal merges preserving prior integration and component history",
-    "source_tree_before_snapshot": "25275026d0cb55c731c62736dc7dd109ccdbc0d6",
-    "source_composition": "All four recorded component merges produced the identical fully validated source tree. Runtime code, tests, documentation, dependency pins and lock data remain unchanged; this snapshot update changes metadata only.",
+    "source_tree_before_snapshot": "99867058967b9bfc5c540aa16df88121e7bc00ef",
+    "source_composition": "All four new component merges preserve the exact validated combined tree after the same two-line VBD fixture repair; the final snapshot changes metadata only.",
     "validation_reuse": {
-      "validated_tree": "25275026d0cb55c731c62736dc7dd109ccdbc0d6",
+      "validated_fixture_tree": "99867058967b9bfc5c540aa16df88121e7bc00ef",
       "component_merge_trees": [
         {
           "pr": 8327,
-          "tree": "25275026d0cb55c731c62736dc7dd109ccdbc0d6"
+          "tree": "99867058967b9bfc5c540aa16df88121e7bc00ef"
         },
         {
           "pr": 8331,
-          "tree": "25275026d0cb55c731c62736dc7dd109ccdbc0d6"
+          "tree": "99867058967b9bfc5c540aa16df88121e7bc00ef"
         },
         {
           "pr": 8332,
-          "tree": "25275026d0cb55c731c62736dc7dd109ccdbc0d6"
+          "tree": "99867058967b9bfc5c540aa16df88121e7bc00ef"
         },
         {
           "pr": 8794,
-          "tree": "25275026d0cb55c731c62736dc7dd109ccdbc0d6"
+          "tree": "99867058967b9bfc5c540aa16df88121e7bc00ef"
         }
       ],
-      "basis": "Exact full-tree equality preserved the validated effective diff, surrounding code, dependency lock and instruction/profile inputs. Source tests/docs were not repeated for ancestry-only merges."
+      "prior_runtime_tree": "25275026d0cb55c731c62736dc7dd109ccdbc0d6",
+      "basis": "Only two fixture initialization fields changed before the exact-tree component merges. Runtime code, other test owners, docs and dependencies remain byte-identical; targeted red/green VBD evidence covers the changed fixture."
     }
   },
   "snapshot_history": [
@@ -215,6 +216,73 @@
       "refresh_mode": "normal merges preserving prior integration and component history",
       "source_tree_before_snapshot": "8a8520b7c3794180d9764e5a8b927758c64eda58",
       "source_composition": "75 effective files matched reviewed published component blobs. Three unchanged combined documentation/registration files and the warehouse/PhysX package-data dependency union retained the prior integration composition."
+    },
+    {
+      "base": "c498443e0b833515e1976db9eb3edcd8dabb4cb7",
+      "components": [
+        {
+          "pr": 8327,
+          "name": "Experimental conveyor support in Contrib",
+          "head": "85689d1eeb2b2d05b769a413463c828117213978",
+          "merged": false
+        },
+        {
+          "pr": 8331,
+          "name": "Racetrack transfer task",
+          "head": "4163e3dba97ee7e4e4f6a77cf0c37bfdba3d92f2",
+          "merged": false
+        },
+        {
+          "pr": 8332,
+          "name": "Warehouse sorting task",
+          "head": "c78f421e485fb77b20dc92c9643000d03405b879",
+          "merged": false
+        },
+        {
+          "pr": 8794,
+          "name": "Optional native CPU PhysX support",
+          "head": "93f34f43f1568deb9f64b7acf17bd2f4d435b70b",
+          "merged": false
+        }
+      ],
+      "checks": [
+        "39 targeted CPU tests passed on the combined source tree: conveyor specifications, native Newton transport/reset/close, optional PhysX contracts, geometry, MDP/reset/sorting, asset configuration and backend lifecycle.",
+        "A separate explicit CUDA native conveyor transport/reset/rebind/close test passed.",
+        "The isolated worktree interpreter and imported package roots were verified; its locked environment was unchanged by the component merges.",
+        "The documentation build passed with uv run --no-sync isaaclab --docs.",
+        "All repository formatting/lint/changelog hooks passed before the main and each history-preserving component merge commit."
+      ],
+      "limitations": [
+        "Full racetrack/warehouse trained-policy rollouts and native PhysX task runtime acceptance were not rerun on this snapshot; those results remain historical. Warehouse policy success is not established.",
+        "The Kit-dependent native mesh pytest fixture was not rerun on this snapshot.",
+        "A successful push does not establish GitHub CI acceptance; inspect checks on the exact published integration commit."
+      ],
+      "checked_at": "2026-11-02T18:35:26.390847+00:00",
+      "refresh_mode": "normal merges preserving prior integration and component history",
+      "source_tree_before_snapshot": "25275026d0cb55c731c62736dc7dd109ccdbc0d6",
+      "source_composition": "All four recorded component merges produced the identical fully validated source tree. Runtime code, tests, documentation, dependency pins and lock data remain unchanged; this snapshot update changes metadata only.",
+      "validation_reuse": {
+        "validated_tree": "25275026d0cb55c731c62736dc7dd109ccdbc0d6",
+        "component_merge_trees": [
+          {
+            "pr": 8327,
+            "tree": "25275026d0cb55c731c62736dc7dd109ccdbc0d6"
+          },
+          {
+            "pr": 8331,
+            "tree": "25275026d0cb55c731c62736dc7dd109ccdbc0d6"
+          },
+          {
+            "pr": 8332,
+            "tree": "25275026d0cb55c731c62736dc7dd109ccdbc0d6"
+          },
+          {
+            "pr": 8794,
+            "tree": "25275026d0cb55c731c62736dc7dd109ccdbc0d6"
+          }
+        ],
+        "basis": "Exact full-tree equality preserved the validated effective diff, surrounding code, dependency lock and instruction/profile inputs. Source tests/docs were not repeated for ancestry-only merges."
+      }
     }
   ]
 }
