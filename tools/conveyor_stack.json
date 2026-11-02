@@ -22,48 +22,71 @@
     }
   ],
   "snapshot": {
-    "base": "ce2900d9bbb2f0e932f4c0e863cf149f40c8eca2",
+    "base": "c498443e0b833515e1976db9eb3edcd8dabb4cb7",
     "components": [
       {
         "pr": 8327,
         "name": "Experimental conveyor support in Contrib",
-        "head": "295d702e04f7d1a54b4558ed28293fd0e6a69257",
+        "head": "85689d1eeb2b2d05b769a413463c828117213978",
         "merged": false
       },
       {
         "pr": 8331,
         "name": "Racetrack transfer task",
-        "head": "f723371ae8d71c412eb0edf9dfe2608de5d92ca5",
+        "head": "4163e3dba97ee7e4e4f6a77cf0c37bfdba3d92f2",
         "merged": false
       },
       {
         "pr": 8332,
         "name": "Warehouse sorting task",
-        "head": "8d0f6731e4bc55c43e08fb9b83019701e9a98fa3",
+        "head": "c78f421e485fb77b20dc92c9643000d03405b879",
         "merged": false
       },
       {
         "pr": 8794,
         "name": "Optional native CPU PhysX support",
-        "head": "9c3aeb3be6e82364e0ce42d81ed6afde9832bcb6",
+        "head": "93f34f43f1568deb9f64b7acf17bd2f4d435b70b",
         "merged": false
       }
     ],
     "checks": [
-      "37 focused pytest cases passed on the combined tree: native Newton transport/reset/close, conveyor specifications, racetrack/warehouse task contracts and assets, geometry, and optional PhysX contracts.",
-      "A separate real OpenUSD/Newton-stage probe passed the native mesh rigid-body, mass, collision, convex-hull and normalized-color assertions without Kit.",
-      "Combined environment-browser generation check passed for 143 training environments; dependency lock consistency passed.",
-      "All formatting/lint/changelog hooks passed before each history-preserving component merge commit.",
-      "A clean strict Sphinx HTML build passed on the combined public API and task-registration tree."
+      "39 targeted CPU tests passed on the combined source tree: conveyor specifications, native Newton transport/reset/close, optional PhysX contracts, geometry, MDP/reset/sorting, asset configuration and backend lifecycle.",
+      "A separate explicit CUDA native conveyor transport/reset/rebind/close test passed.",
+      "The isolated worktree interpreter and imported package roots were verified; its locked environment was unchanged by the component merges.",
+      "The documentation build passed with uv run --no-sync isaaclab --docs.",
+      "All repository formatting/lint/changelog hooks passed before the main and each history-preserving component merge commit."
     ],
     "limitations": [
-      "The original Kit-dependent native mesh pytest invocation was unavailable in this environment; it was not counted as passed. The separate OpenUSD/Newton authoring probe does not qualify the Kit fixture lifecycle.",
-      "Full racetrack/warehouse policy rollouts and native PhysX task acceptance remain historical; warehouse policy success is not established."
+      "Full racetrack/warehouse trained-policy rollouts and native PhysX task runtime acceptance were not rerun on this snapshot; those results remain historical. Warehouse policy success is not established.",
+      "The Kit-dependent native mesh pytest fixture was not rerun on this snapshot.",
+      "A successful push does not establish GitHub CI acceptance; inspect checks on the exact published integration commit."
     ],
-    "checked_at": "2026-10-28T05:39:26.307612+00:00",
+    "checked_at": "2026-11-02T18:35:26.390847+00:00",
     "refresh_mode": "normal merges preserving prior integration and component history",
-    "source_tree_before_snapshot": "8a8520b7c3794180d9764e5a8b927758c64eda58",
-    "source_composition": "75 effective files matched reviewed published component blobs. Three unchanged combined documentation/registration files and the warehouse/PhysX package-data dependency union retained the prior integration composition."
+    "source_tree_before_snapshot": "25275026d0cb55c731c62736dc7dd109ccdbc0d6",
+    "source_composition": "All four recorded component merges produced the identical fully validated source tree. Runtime code, tests, documentation, dependency pins and lock data remain unchanged; this snapshot update changes metadata only.",
+    "validation_reuse": {
+      "validated_tree": "25275026d0cb55c731c62736dc7dd109ccdbc0d6",
+      "component_merge_trees": [
+        {
+          "pr": 8327,
+          "tree": "25275026d0cb55c731c62736dc7dd109ccdbc0d6"
+        },
+        {
+          "pr": 8331,
+          "tree": "25275026d0cb55c731c62736dc7dd109ccdbc0d6"
+        },
+        {
+          "pr": 8332,
+          "tree": "25275026d0cb55c731c62736dc7dd109ccdbc0d6"
+        },
+        {
+          "pr": 8794,
+          "tree": "25275026d0cb55c731c62736dc7dd109ccdbc0d6"
+        }
+      ],
+      "basis": "Exact full-tree equality preserved the validated effective diff, surrounding code, dependency lock and instruction/profile inputs. Source tests/docs were not repeated for ancestry-only merges."
+    }
   },
   "snapshot_history": [
     {
@@ -148,6 +171,50 @@
       ],
       "checked_at": "2026-10-27T05:33:25.419524+00:00",
       "refresh_mode": "normal merges preserving prior integration and component history"
+    },
+    {
+      "base": "ce2900d9bbb2f0e932f4c0e863cf149f40c8eca2",
+      "components": [
+        {
+          "pr": 8327,
+          "name": "Experimental conveyor support in Contrib",
+          "head": "295d702e04f7d1a54b4558ed28293fd0e6a69257",
+          "merged": false
+        },
+        {
+          "pr": 8331,
+          "name": "Racetrack transfer task",
+          "head": "f723371ae8d71c412eb0edf9dfe2608de5d92ca5",
+          "merged": false
+        },
+        {
+          "pr": 8332,
+          "name": "Warehouse sorting task",
+          "head": "8d0f6731e4bc55c43e08fb9b83019701e9a98fa3",
+          "merged": false
+        },
+        {
+          "pr": 8794,
+          "name": "Optional native CPU PhysX support",
+          "head": "9c3aeb3be6e82364e0ce42d81ed6afde9832bcb6",
+          "merged": false
+        }
+      ],
+      "checks": [
+        "37 focused pytest cases passed on the combined tree: native Newton transport/reset/close, conveyor specifications, racetrack/warehouse task contracts and assets, geometry, and optional PhysX contracts.",
+        "A separate real OpenUSD/Newton-stage probe passed the native mesh rigid-body, mass, collision, convex-hull and normalized-color assertions without Kit.",
+        "Combined environment-browser generation check passed for 143 training environments; dependency lock consistency passed.",
+        "All formatting/lint/changelog hooks passed before each history-preserving component merge commit.",
+        "A clean strict Sphinx HTML build passed on the combined public API and task-registration tree."
+      ],
+      "limitations": [
+        "The original Kit-dependent native mesh pytest invocation was unavailable in this environment; it was not counted as passed. The separate OpenUSD/Newton authoring probe does not qualify the Kit fixture lifecycle.",
+        "Full racetrack/warehouse policy rollouts and native PhysX task acceptance remain historical; warehouse policy success is not established."
+      ],
+      "checked_at": "2026-10-28T05:39:26.307612+00:00",
+      "refresh_mode": "normal merges preserving prior integration and component history",
+      "source_tree_before_snapshot": "8a8520b7c3794180d9764e5a8b927758c64eda58",
+      "source_composition": "75 effective files matched reviewed published component blobs. Three unchanged combined documentation/registration files and the warehouse/PhysX package-data dependency union retained the prior integration composition."
     }
   ]
 }
