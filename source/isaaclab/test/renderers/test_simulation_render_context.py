@@ -239,14 +239,17 @@ def test_render_into_cameras_groups_renderers_and_reads_each_output(sim):
     data = [object() for _ in range(3)]
     cameras = [CameraData() for _ in data]
 
-    sim.render_context.render_into_cameras([], physics_step_count=1)
+    assert sim.render_context.render_into_cameras([], physics_step_count=1) == []
     first.render_batch.assert_not_called()
     second.render_batch.assert_not_called()
-    sim.render_context.render_into_cameras(
+    first.read_output.side_effect = [True, False]
+    second.read_output.return_value = True
+    published = sim.render_context.render_into_cameras(
         [(first, data[0], cameras[0]), (second, data[1], cameras[1]), (first, data[2], cameras[2])],
         physics_step_count=1,
     )
 
+    assert published == [True, True, False]  # request order, not renderer-group order
     first.render_batch.assert_called_once_with([data[0], data[2]])
     second.render_batch.assert_called_once_with([data[1]])
     assert first.read_output.call_args_list == [call(data[0], cameras[0]), call(data[2], cameras[2])]
@@ -301,8 +304,12 @@ def test_context_close_releases_writers_and_preserves_prepared_renderers(sim, fa
 class _CpuCamera(Camera):
     """Exercise capture timing with CPU buffers and an in-memory pose source."""
 
-    def __init__(self, renderer, name, update_period=0.0):
-        self.cfg = SimpleNamespace(update_period=update_period, update_latest_camera_pose=True)
+    def __init__(self, renderer, name, update_period=0.0, processors=()):
+        self.cfg = SimpleNamespace(
+            update_period=update_period,
+            update_latest_camera_pose=True,
+            tensor_processors=[SimpleNamespace(func=Mock(return_value=processor)) for processor in processors],
+        )
         self._sim = renderer._sim
         self._device = "cpu"
         self._num_envs = 2
@@ -310,10 +317,11 @@ class _CpuCamera(Camera):
         self._is_initialized = True
         self._is_visualizing = False
         self._renderer = renderer
-        self._render_data = SimpleNamespace(name=name, pose=None)
-        self._data = CameraData()
+        self._render_data = SimpleNamespace(name=name, pose=None, published=True)
+        self._tensor_processors = []
+        self._data = CameraData.allocate([], 1, 1, 2, "cpu", {})
         self._data.create_buffers(2, "cpu")
-        self._data.info = {}
+        self._render_outputs = {}
         self._frame = ProxyArray(wp.zeros(2, dtype=wp.int64, device="cpu"))
         self._ALL_INDICES = wp.array([0, 1], dtype=wp.int32, device="cpu")
         self._ALL_ENV_MASK = wp.ones(2, dtype=wp.bool, device="cpu")
@@ -393,7 +401,12 @@ def camera_batch_context(sim, monkeypatch):
     batches = []
     renderer.render.side_effect = lambda rd: batches.append([(rd.name, rd.pose)])
     renderer.render_batch = Mock(side_effect=lambda requests: batches.append([(rd.name, rd.pose) for rd in requests]))
-    renderer.read_output.side_effect = lambda rd, data: data.info.update(pose=rd.pose)
+
+    def read_output(rd, data):
+        data.info.update(pose=rd.pose)
+        return rd.published
+
+    renderer.read_output.side_effect = read_output
     return ctx, renderer, batches
 
 
@@ -586,8 +599,9 @@ def test_camera_updates_preserve_custom_buffer_hooks(camera_batch_context, monke
 def test_camera_batch_respects_period_partial_reset_and_updated_pose(camera_batch_context):
     """A fresh peer stays cached while due or reset cameras capture their current poses."""
     _, renderer, batches = camera_batch_context
+    processor = Mock(return_value={})
     fast = _CpuCamera(renderer, "fast")
-    slow = _CpuCamera(renderer, "slow", update_period=1.0)
+    slow = _CpuCamera(renderer, "slow", update_period=1.0, processors=[processor])
     scene = _camera_scene([fast, slow])
 
     InteractiveScene.update(scene, 0.1)
@@ -602,6 +616,7 @@ def test_camera_batch_respects_period_partial_reset_and_updated_pose(camera_batc
     slow.pose = 3.0
     slow.reset(env_mask=wp.array([False, True], dtype=wp.bool, device="cpu"))
     renderer.reset.assert_called_once_with(slow._render_data, None)
+    np.testing.assert_array_equal(processor.reset.call_args.args[0], [1])  # only the masked rows
     InteractiveScene.update(scene, 0.1)
     assert batches[-1] == [("fast", 0.0), ("slow", 3.0)]
     assert slow.data.info["pose"] == 3.0
@@ -613,6 +628,23 @@ def test_camera_batch_respects_period_partial_reset_and_updated_pose(camera_batc
     np.testing.assert_array_equal(slow.frame.warp.numpy(), [2, 1])
     np.testing.assert_allclose(slow._timestamp_last_update.numpy(), [1.3, 0.1])
     renderer.render.assert_not_called()
+
+
+@pytest.mark.parametrize("lazy", [False, True])
+def test_camera_processors_skip_retained_captures(camera_batch_context, lazy):
+    """Processors run once per published capture, not again on a capture the renderer retained."""
+    _, renderer, _ = camera_batch_context
+    processors = [Mock(return_value={}), Mock(return_value={})]
+    cameras = [
+        _CpuCamera(renderer, name, processors=[processor]) for name, processor in zip(("new", "retained"), processors)
+    ]
+    cameras[1]._render_data.published = False
+
+    InteractiveScene.update(_camera_scene(cameras, lazy=lazy), 0.01)
+    for camera in cameras:
+        assert camera.data.info["pose"] == 0.0  # lazy scenes capture on read
+    processors[0].assert_called_once()
+    processors[1].assert_not_called()
 
 
 @pytest.mark.parametrize("failure", ["render_batch", "read_output"])

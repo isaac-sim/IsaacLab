@@ -305,22 +305,6 @@ def test_render_product_pins_device_ids_to_the_requested_cuda_device(camera_spec
     assert list(device_ids.default) == [1]
 
 
-@pytest.mark.parametrize("data_types", [["rgb"], ["rgb", "rgb_hdr"], []])
-def test_render_product_isp_requests_hdr_without_mutating_camera_outputs(camera_spec, render_data, data_types):
-    """ISP receives one HDR source while the camera's requested outputs remain unchanged."""
-    camera_spec.cfg.data_types = data_types.copy()
-    camera_spec.cfg.isp_cfg = object()
-    render_product = build_render_product_as_string(camera_spec, render_data, device_id=0)
-    layer = Sdf.Layer.CreateAnonymous(".usda")
-    assert layer.ImportFromString(render_product)
-    ordered_vars = layer.GetRelationshipAtPath("/RenderCamera_0/RenderProduct.orderedVars")
-    expected_vars = ("LdrColor", "HdrColor") if data_types else ("HdrColor",)
-    assert list(ordered_vars.targetPathList.explicitItems) == [
-        Sdf.Path(f"/RenderCamera_0/Vars/{name}") for name in expected_vars
-    ]
-    assert camera_spec.cfg.data_types == data_types
-
-
 def test_ovrtx_rgb_and_rgb_hdr_author_both_render_vars(camera_spec, render_data):
     """Requesting LDR RGB and RGB_HDR keeps both OVRTX render variables."""
     render_var_configs = get_render_var_configs(["rgb", "rgb_hdr"], render_scope_name="RenderCamera_0")

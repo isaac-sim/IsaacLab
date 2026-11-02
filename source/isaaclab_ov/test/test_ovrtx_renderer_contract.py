@@ -305,13 +305,11 @@ def test_ovrtx_render_submits_every_product_and_routes_requested_outputs(
     cameras = [_make_ovrtx_camera_render_data() for _ in range(2 if batch else 1)]
     products = {}
     processed = []
-    postprocessed = []
     submissions = []
     published_ordinals = []
     for index, camera in enumerate(cameras):
         camera.render_product_path = f"/Render/Camera{index}"
         camera.warp_buffers = {str(RenderBufferKind.RGB_HDR): object(), str(RenderBufferKind.RGBA): object()}
-        camera.ppisp_pipeline = types.SimpleNamespace(apply=lambda *buffers: postprocessed.append(buffers))
         products[camera.render_product_path] = types.SimpleNamespace(frames=[object()])
     renderer._camera_render_data = cameras
     other = OVRTXRenderer(OVRTXRendererCfg(enable_shadows=True), sim=SimulationContext.instance())
@@ -344,15 +342,10 @@ def test_ovrtx_render_submits_every_product_and_routes_requested_outputs(
         assert processed == [
             (camera, products[camera.render_product_path].frames[0], camera.warp_buffers) for camera in cameras
         ]
-        assert postprocessed == [
-            (camera.warp_buffers[str(RenderBufferKind.RGB_HDR)], camera.warp_buffers[str(RenderBufferKind.RGBA)])
-            for camera in cameras
-        ]
     else:
         with pytest.raises(RuntimeError, match=cameras[-1].render_product_path):
             render(request)
         assert not processed
-        assert not postprocessed
 
     assert len(submissions) == 1
     # Unrequested products are submitted too, and only the requested cameras are read back.
@@ -658,12 +651,11 @@ def test_async_cameras_publish_independently_with_capture_metadata_and_reset(mon
         else:
             for index in indices:
                 renderer.render(cameras[index])
-        for index in indices:
-            renderer.read_output(cameras[index], camera_data[index])
+        return [renderer.read_output(cameras[index], camera_data[index]) for index in indices]
 
-    capture(1, (0, 1))
-    capture(2, (0, 1))
-    capture(3, (0,))
+    assert capture(1, (0, 1)) == [True, True]
+    assert capture(2, (0, 1)) == [False, False]
+    assert capture(3, (0,)) == [True]
     assert consume.call_count == 3  # Priming images are not extracted again on the next capture.
     for index, expected in enumerate((2, 1)):
         data = camera_data[index]
@@ -672,16 +664,16 @@ def test_async_cameras_publish_independently_with_capture_metadata_and_reset(mon
             np.testing.assert_array_equal(data.info["rgb"]["capture"][name].warp.numpy(), expected)
     np.testing.assert_array_equal(camera_data[0].pos_w.warp.numpy(), 3)
     saved_capture = camera_data[0].info["rgb"]["capture"]
-    renderer.read_output(cameras[0], camera_data[0])
+    assert not renderer.read_output(cameras[0], camera_data[0])
     assert camera_data[0].info["rgb"]["capture"] is saved_capture
     assert renderer.drain_pending_renders() == []
     np.testing.assert_array_equal(camera_data[1].output["rgb"].warp.numpy(), 1)
 
     renderer.reset(cameras[0])
-    capture(4, (0,))
+    assert capture(4, (0,)) == [True]
     np.testing.assert_array_equal(camera_data[0].output["rgb"].warp.numpy(), 4)
     np.testing.assert_array_equal(saved_capture["pos_w"].warp.numpy(), 2)
-    capture(5, (0, 1))
+    assert capture(5, (0, 1)) == [False, True]
     assert consume.call_count == 5
     np.testing.assert_array_equal(camera_data[0].output["rgb"].warp.numpy(), 4)
     np.testing.assert_array_equal(camera_data[1].output["rgb"].warp.numpy(), 2)
@@ -728,36 +720,12 @@ def test_ovrtx_set_outputs_wraps_caller_torch_zero_copy():
     assert "rgb" not in render_data.warp_buffers
 
 
-def test_ovrtx_set_outputs_routes_ppisp_buffers_through_warp_buffers():
-    """OVRTXRenderer.set_outputs stores PPISP source/destination in warp_buffers."""
-    renderer = _make_ovrtx_renderer_without_backend()
-
-    cfg = _make_camera_cfg(["rgb"])
-    data = CameraData.allocate(
-        data_types=cfg.data_types,
-        height=8,
-        width=16,
-        num_views=2,
-        device="cpu",
-        supported_specs=renderer.supported_output_types(),
-    )
-    render_data = _make_ovrtx_camera_render_data()
-    render_data.ppisp_pipeline = object()
-    renderer.set_outputs(render_data, data.output)
-
-    assert render_data.warp_buffers["rgba"].ptr == data.output["rgba"].warp.ptr
-    assert "rgb_hdr" in render_data.warp_buffers
-    assert render_data.warp_buffers["rgb_hdr"].shape == (2, 8, 16, 3)
-    assert render_data.warp_buffers["rgb_hdr"].dtype is wp.float32
-
-
 @pytest.mark.parametrize("source_device", ["cpu", "cuda:1"])
-def test_ovrtx_process_frame_routes_ppisp_hdr_to_output_device(monkeypatch, source_device):
-    """PPISP reads HDR on the output device and leaves RGBA for its own pipeline."""
+def test_ovrtx_process_frame_routes_hdr_to_output_device(monkeypatch, source_device):
+    """HDR tiles are extracted on the output device, including after an OVRTX device fallback."""
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._device = "cpu"
     render_data = _make_ovrtx_camera_render_data()
-    render_data.ppisp_pipeline = object()
     hdr = wp.full((8, 32, 4), 0.5, dtype=wp.float32, device="cpu")
     source = hdr if source_device == "cpu" else types.SimpleNamespace(device=source_device, dtype=wp.float32)
     clone = MagicMock(return_value=hdr)
@@ -772,7 +740,7 @@ def test_ovrtx_process_frame_routes_ppisp_hdr_to_output_device(monkeypatch, sour
 
     @contextlib.contextmanager
     def map_hdr(render_var):
-        assert render_var is source, "PPISP RGBA output must not read OVRTX LdrColor"
+        assert render_var is source, "An rgb_hdr request must not read OVRTX LdrColor"
         yield source
 
     monkeypatch.setattr(renderer, "_map_render_var_to_dlpack", map_hdr)
@@ -783,7 +751,7 @@ def test_ovrtx_process_frame_routes_ppisp_hdr_to_output_device(monkeypatch, sour
         }
     )
     output = wp.zeros((2, 8, 16, 3), dtype=wp.float32, device="cpu")
-    renderer._process_render_frame(render_data, frame, {"rgba": object(), "rgb_hdr": output})
+    renderer._process_render_frame(render_data, frame, {"rgb_hdr": output})
     np.testing.assert_array_equal(output.numpy(), 0.5)
     if source_device == "cpu":
         clone.assert_not_called()
@@ -1084,7 +1052,6 @@ def test_ovrtx_cleanup_releases_only_the_given_render_data(monkeypatch, cleanup_
     renderer._camera_render_data.append(render_data)
     render_data.warp_buffers = {"rgba": wp.zeros((8, 16, 4), dtype=wp.uint8, device="cpu")}
     render_data.renderer_info = {"semantic_segmentation": {"idToLabels": {}}}
-    render_data.ppisp_pipeline = object()
     if use_ovstage:
         render_data.camera_xform_binding = "to_remove"
         render_data.resources.callback(renderer.scene.paths.destroy_path_list, "to_remove")
@@ -1130,7 +1097,6 @@ def test_ovrtx_cleanup_releases_only_the_given_render_data(monkeypatch, cleanup_
     assert render_data.intrinsic_bindings == []
     assert render_data.warp_buffers == {}
     assert render_data.renderer_info == {}
-    assert render_data.ppisp_pipeline is None
     assert render_data.pending is render_data.ready is None
     assert renderer._initialized_scene is True
 
