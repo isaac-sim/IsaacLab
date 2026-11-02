@@ -118,10 +118,14 @@ def test_reset_by_mask_matches_reset_by_ids():
     thruster_names = [f"t{i}" for i in range(NUM_MOTORS)]
     init_rps = torch.ones(NUM_ENVS, NUM_MOTORS, device=DEVICE)
     states = []
-    for selection in ({"env_ids": [1]}, {"env_mask": wp.array([False, True], dtype=wp.bool, device=DEVICE)}):
+    resets = (
+        lambda thr: thr.reset(env_ids=[1]),
+        lambda thr: thr.reset(env_mask=wp.array([False, True], dtype=wp.bool, device=DEVICE)),
+    )
+    for reset in resets:
         torch.manual_seed(0)
         thr = Thruster(cfg, thruster_names, slice(None), NUM_ENVS, DEVICE, init_rps)  # type: ignore[arg-type]
-        thr.reset(**selection)
+        reset(thr)
         states.append(torch.stack([thr.tau_inc_s, thr.tau_dec_s, thr.thrust_const, thr.curr_thrust]))
 
     torch.testing.assert_close(states[0], states[1])
