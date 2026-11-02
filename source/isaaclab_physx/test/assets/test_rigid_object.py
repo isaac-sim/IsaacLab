@@ -648,14 +648,14 @@ def test_rigid_object_wrench_delivery_and_reset(scene: _Scene) -> None:
     # composers.
     composers = (cube_object.instantaneous_wrench_composer, cube_object.permanent_wrench_composer)
     ones = torch.ones((_NUM_ENVS, 1, 3), device=device)
-    selections = {
-        "env_ids": torch.tensor([0], device=device),
-        "env_mask": wp.from_torch(torch.arange(_NUM_ENVS, device=device) == 0),
+    resets = {
+        "env_ids": lambda: cube_object.reset(env_ids=torch.tensor([0], device=device)),
+        "env_mask": lambda: cube_object.reset(env_mask=wp.from_torch(torch.arange(_NUM_ENVS, device=device) == 0)),
     }
-    for selector, selection in selections.items():
+    for selector, reset in resets.items():
         cube_object.permanent_wrench_composer.set_forces_and_torques_index(forces=ones, torques=ones)
         cube_object.instantaneous_wrench_composer.add_forces_and_torques_index(forces=ones, torques=ones)
-        cube_object.reset(**{selector: selection})
+        reset()
         for composer in composers:
             assert composer.active
             for buffer in (composer.out_force_b.torch, composer.out_torque_b.torch):
@@ -843,14 +843,14 @@ def test_collection_wrench_delivery_and_reset(scene: _Scene) -> None:
     # A partial reset by indices or by mask clears the external wrenches of the selected environments only.
     composers = (collection.instantaneous_wrench_composer, collection.permanent_wrench_composer)
     ones = torch.ones((_NUM_ENVS, _NUM_CUBES, 3), device=device)
-    selections = {
-        "env_ids": torch.tensor([0], device=device),
-        "env_mask": wp.from_torch(torch.arange(_NUM_ENVS, device=device) == 0),
+    resets = {
+        "env_ids": lambda: collection.reset(env_ids=torch.tensor([0], device=device)),
+        "env_mask": lambda: collection.reset(env_mask=wp.from_torch(torch.arange(_NUM_ENVS, device=device) == 0)),
     }
-    for selector, selection in selections.items():
+    for selector, reset in resets.items():
         collection.permanent_wrench_composer.set_forces_and_torques_index(forces=ones, torques=ones)
         collection.instantaneous_wrench_composer.add_forces_and_torques_index(forces=ones, torques=ones)
-        collection.reset(**{selector: selection})
+        reset()
         for composer in composers:
             assert composer.active
             for buffer in (composer.out_force_b.torch, composer.out_torque_b.torch):
