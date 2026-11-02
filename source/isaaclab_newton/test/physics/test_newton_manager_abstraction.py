@@ -136,16 +136,16 @@ def test_solver_kwargs_include_newton_deterministic_mode() -> None:
     assert kwargs["deterministic"] == wp.DeterministicMode.GPU_TO_GPU
 
 
+def test_collision_cfg_leaves_max_triangle_pairs_to_newton() -> None:
+    """The default must not override Newton's estimate, which grows with the world count."""
+    assert NewtonCollisionPipelineCfg().to_pipeline_args()["max_triangle_pairs"] is None
+
+
 def _model_stub(state_attributes=()) -> SimpleNamespace:
     """Model stand-in carrying what solver construction reads before the Newton solver exists."""
     return SimpleNamespace(
         get_requested_state_attributes=lambda: list(state_attributes), articulation_start=None, articulation_end=None
     )
-
-
-def test_collision_cfg_leaves_max_triangle_pairs_to_newton() -> None:
-    """The default must not override Newton's estimate, which grows with the world count."""
-    assert NewtonCollisionPipelineCfg().to_pipeline_args()["max_triangle_pairs"] is None
 
 
 @pytest.mark.parametrize(
