@@ -51,23 +51,6 @@ class XrCfg:
     This rotation also applies when no :attr:`anchor_prim_path` is set.
     """
 
-    render_anchor_pos: tuple[float, float, float] | None = None
-    """Optional position (in m) used only to frame the XR view.
-
-    When ``None``, rendering and tracked-device poses share :attr:`anchor_pos`,
-    which preserves the historical behavior. Set this when the operator view
-    needs a different origin from the world frame used for teleoperation.
-    With dynamic OVXR anchoring, this configured offset follows the filtered
-    tracking anchor, preserving its height and rotation policies.
-    """
-
-    render_anchor_rot: tuple[float, float, float, float] | None = None
-    """Optional render-only rotation as a quaternion in ``xyzw`` order.
-
-    When ``None``, the render anchor uses :attr:`anchor_rot`. This field is
-    effective only when either render-anchor override is configured.
-    """
-
     anchor_prim_path: str | None = None
     """Specifies the prim path to attach the XR anchor to for dynamic positioning.
 

@@ -1249,8 +1249,7 @@ class _ReplayPresentation:
         if not self.started:
             if not self.session.start_render_worker(
                 env,
-                tracking_anchor_path=device.xr_render_anchor_path,
-                hidden_visual_prims=self.xr_cfg.hidden_visual_prims,
+                tracking_anchor_path=device.xr_anchor_path,
                 external_anchor_state=device.external_anchor_state,
                 timeout_s=args_cli.max_stage_load_wait_s,
             ):

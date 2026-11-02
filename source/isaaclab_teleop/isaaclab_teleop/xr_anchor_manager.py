@@ -14,7 +14,7 @@ import threading
 import numpy as np
 from scipy.spatial.transform import Rotation
 
-from .xr_anchor_utils import XrAnchorSynchronizer, _relative_anchor_transform, _XrAnchorPosePolicy
+from .xr_anchor_utils import XrAnchorSynchronizer, _XrAnchorPosePolicy
 from .xr_cfg import XrCfg
 
 # Import Kit components with fallback for sessions without Kit
@@ -125,7 +125,6 @@ class XrAnchorManager:
         self._external_epoch = 0
         self._external_world_matrix = None
         self._external_error = None
-        self._external_render_local = None
 
         # Resolve the headset anchor path
         if self._xr_cfg.anchor_prim_path is not None:
@@ -136,18 +135,6 @@ class XrAnchorManager:
         else:
             self._xr_anchor_headset_path = "/World/XRAnchor"
 
-        render_anchor_overridden = (
-            self._xr_cfg.render_anchor_pos is not None or self._xr_cfg.render_anchor_rot is not None
-        )
-        if render_anchor_overridden:
-            if self._xr_cfg.anchor_prim_path is not None:
-                anchor_path = self._xr_cfg.anchor_prim_path.rstrip("/")
-                self._xr_render_anchor_path = f"{anchor_path}/XRRenderAnchor"
-            else:
-                self._xr_render_anchor_path = "/World/XRRenderAnchor"
-        else:
-            self._xr_render_anchor_path = self._xr_anchor_headset_path
-
         # Anchors survive per-run device teardown. Reuse their paths while
         # applying this run's configuration, rather than retaining a stale pose.
         try:
@@ -157,25 +144,6 @@ class XrAnchorManager:
                 raise
             logger.warning(f"Failed to create or update XR anchor prim: {e}")
 
-        if render_anchor_overridden:
-            render_pos = (
-                self._xr_cfg.anchor_pos if self._xr_cfg.render_anchor_pos is None else self._xr_cfg.render_anchor_pos
-            )
-            render_rot = (
-                self._xr_cfg.anchor_rot if self._xr_cfg.render_anchor_rot is None else self._xr_cfg.render_anchor_rot
-            )
-            try:
-                _create_or_update_xr_anchor(self._xr_render_anchor_path, render_pos, render_rot)
-            except Exception as e:
-                if ovxr_session:
-                    raise
-                logger.warning(f"Failed to create or update XR render anchor prim: {e}")
-
-        if self._external_policy is not None and render_anchor_overridden:
-            self._external_render_local = _relative_anchor_transform(
-                self._xr_anchor_headset_path, self._xr_render_anchor_path
-            )
-
         # Configure carb settings for XR rendering; carb can import while Kit is not running
         if carb is not None and has_kit():
             settings = carb.settings.get_settings()
@@ -183,7 +151,7 @@ class XrAnchorManager:
             settings.set_float("/persistent/xr/profile/ar/render/nearPlane", self._xr_cfg.near_plane)
             settings.set_float("/persistent/xr/profile/vr/render/nearPlane", self._xr_cfg.near_plane)
             settings.set_string("/persistent/xr/anchorMode", "custom anchor")
-            settings.set_string("/xrstage/customAnchor", self._xr_render_anchor_path)
+            settings.set_string("/xrstage/customAnchor", self._xr_anchor_headset_path)
 
         self._anchor_sync: XrAnchorSynchronizer | None = None
         if self._xr_core is not None:
@@ -192,7 +160,6 @@ class XrAnchorManager:
                     xr_core=self._xr_core,
                     xr_cfg=self._xr_cfg,
                     xr_anchor_headset_path=self._xr_anchor_headset_path,
-                    xr_render_anchor_path=self._xr_render_anchor_path,
                 )
                 # Subscribe to pre_sync_update to keep anchor in sync each frame.
                 # Capture the synchronizer in a local to satisfy type narrowing.
@@ -218,11 +185,6 @@ class XrAnchorManager:
     def anchor_headset_path(self) -> str:
         """The USD path of the XR anchor prim."""
         return self._xr_anchor_headset_path
-
-    @property
-    def render_anchor_path(self) -> str:
-        """The USD path consumed by XR rendering."""
-        return self._xr_render_anchor_path
 
     def get_world_matrix(self) -> np.ndarray:
         """Build the combined 4x4 transform from OpenXR local space to Isaac Lab world.
@@ -336,7 +298,7 @@ class XrAnchorManager:
     @property
     def external_anchor_paths(self) -> tuple[str, ...]:
         """Native Xforms written together by the OVXR presentation host."""
-        return tuple(dict.fromkeys((self._xr_anchor_headset_path, self._xr_render_anchor_path)))
+        return (self._xr_anchor_headset_path,)
 
     def commit_external_pose(self, reference, rendering_dt: float, epoch: int, commit) -> bool:
         """Advance the shared policy once and expose its input pose only after native seal.
@@ -354,10 +316,7 @@ class XrAnchorManager:
                 return False
             try:
                 matrix = np.asarray(self._external_policy.update(reference, rendering_dt)).T.copy()
-                matrices = [matrix]
-                if self._external_render_local is not None:
-                    matrices.append(matrix @ self._external_render_local)
-                commit(np.stack(matrices))
+                commit(matrix[np.newaxis])
             except BaseException as exc:
                 self._external_world_matrix = None
                 self._external_error = exc

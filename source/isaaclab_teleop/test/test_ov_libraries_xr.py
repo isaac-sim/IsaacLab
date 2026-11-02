@@ -886,7 +886,7 @@ def test_poisoned_publication_still_retires_in_capture_order(xr_module, monkeypa
 class _FakeAnchorState:
     """Minimal :class:`OvLibrariesXrSession.ExternalAnchorState` with scripted epochs."""
 
-    external_anchor_paths = ("/World/XrAnchor", "/World/XrRenderAnchor")
+    external_anchor_paths = ("/World/XrAnchor",)
     external_reference_path = "/World/Robot"
 
     def __init__(self):
@@ -904,7 +904,7 @@ class _FakeAnchorState:
         import numpy as np
 
         self.commits.append((reference.copy(), rendering_dt, epoch))
-        commit(np.stack([reference, reference]))
+        commit(reference[np.newaxis])
         self.epoch = (self.epoch[0], False)
         return True
 
