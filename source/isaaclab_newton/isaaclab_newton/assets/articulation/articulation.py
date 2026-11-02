@@ -12,7 +12,7 @@ import logging
 import re
 import warnings
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
@@ -2227,12 +2227,6 @@ class Articulation(BaseArticulation):
     Operations - Newton Actuator Parameter Writers.
     """
 
-    @staticmethod
-    @wp.kernel(enable_backward=False)
-    def _build_env_mask_kernel(mask: wp.array(dtype=wp.bool), indices: wp.array(dtype=Any)):
-        i = wp.tid()
-        mask[wp.int32(indices[i])] = True
-
     def _env_ids_to_mask(self, env_ids: wp.array | torch.Tensor) -> wp.array:
         """Convert env_ids to a boolean Warp mask.
 
@@ -2245,10 +2239,14 @@ class Articulation(BaseArticulation):
         """
         if env_ids is self._ALL_INDICES:
             return self._ALL_ENV_MASK
-        if isinstance(env_ids, torch.Tensor):
-            env_ids = wp.from_torch(env_ids)
         mask = wp.zeros(self.num_instances, dtype=wp.bool, device=self.device)
-        wp.launch(self._build_env_mask_kernel, dim=env_ids.shape[0], inputs=[mask, env_ids], device=self.device)
+        wp.launch(
+            shared_kernels.flag_mask_from_ids_kernel(env_ids),
+            dim=env_ids.shape[0],
+            inputs=[env_ids],
+            outputs=[mask],
+            device=self.device,
+        )
         return mask
 
     """

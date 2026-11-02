@@ -281,7 +281,7 @@ class NewtonBackend:
         Args:
             env_mask: Environments to flag, shaped (world_count,). Required with articulation_ids.
             articulation_ids: Global articulation IDs for each (world, view-local articulation).
-                None conservatively flags every world and articulation, as for native state writes.
+                None flags every world and articulation, as for native state writes, and ignores the masks.
             articulation_mask: View-local articulations to flag. None selects every articulation of the view.
             consume_mask: Clear the flagged env_mask entries after reading them. Caller masks are otherwise unchanged.
         """
@@ -289,8 +289,6 @@ class NewtonBackend:
         if articulation_ids is None:
             self.world_mask[: self.model.world_count].fill_(True)
             self.fk_mask.fill_(True)
-            if env_mask is not None and consume_mask:
-                env_mask.zero_()
             return
         wp.launch(
             _make_flag_worlds_and_articulations(articulation_ids.shape[1], articulation_mask is not None),

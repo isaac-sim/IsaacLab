@@ -97,7 +97,9 @@ class CableObject(BaseCableObject):
             segment_pose = segment_pose.warp
         env_ids = self._resolve_env_ids(env_ids)
         self.assert_shape_and_dtype(segment_pose, (env_ids.shape[0], self.num_segments), wp.transformf, "segment_pose")
-        self._write_segment_state_to_sim(segment_pose, env_ids, set_segment_pose_to_sim_index, "body_q")
+        self._write_segment_state_to_sim(
+            segment_pose, env_ids, set_segment_pose_to_sim_index, "body_q", self._env_mask_from_ids(env_ids)
+        )
 
     def write_segment_pose_to_sim_mask(
         self,
@@ -120,7 +122,7 @@ class CableObject(BaseCableObject):
         self.assert_shape_and_dtype_mask(
             segment_pose, (env_mask,), wp.transformf, "segment_pose", trailing_dims=(self.num_segments,)
         )
-        self._write_segment_state_to_sim(segment_pose, env_mask, set_segment_pose_to_sim_mask, "body_q")
+        self._write_segment_state_to_sim(segment_pose, env_mask, set_segment_pose_to_sim_mask, "body_q", env_mask)
 
     def write_segment_velocity_to_sim_index(
         self,
@@ -143,7 +145,9 @@ class CableObject(BaseCableObject):
         self.assert_shape_and_dtype(
             segment_velocity, (env_ids.shape[0], self.num_segments), wp.spatial_vectorf, "segment_velocity"
         )
-        self._write_segment_state_to_sim(segment_velocity, env_ids, set_segment_velocity_to_sim_index, "body_qd")
+        self._write_segment_state_to_sim(
+            segment_velocity, env_ids, set_segment_velocity_to_sim_index, "body_qd", self._env_mask_from_ids(env_ids)
+        )
 
     def write_segment_velocity_to_sim_mask(
         self,
@@ -167,7 +171,9 @@ class CableObject(BaseCableObject):
         self.assert_shape_and_dtype_mask(
             segment_velocity, (env_mask,), wp.spatial_vectorf, "segment_velocity", trailing_dims=(self.num_segments,)
         )
-        self._write_segment_state_to_sim(segment_velocity, env_mask, set_segment_velocity_to_sim_mask, "body_qd")
+        self._write_segment_state_to_sim(
+            segment_velocity, env_mask, set_segment_velocity_to_sim_mask, "body_qd", env_mask
+        )
 
     def _initialize_impl(self) -> None:
         def is_cable_curve(prim) -> bool:
@@ -222,8 +228,9 @@ class CableObject(BaseCableObject):
         selector: wp.array(dtype=wp.int32) | wp.array(dtype=wp.bool),
         kernel: wp.Kernel,
         state_attribute: str,
+        env_mask: wp.array,
     ) -> None:
-        """Write a validated segment state into the active Newton states."""
+        """Write a validated segment state into the active Newton states and flag env_mask for a solver reset."""
         if isinstance(value, torch.Tensor):
             value = value.contiguous()
 
@@ -235,20 +242,21 @@ class CableObject(BaseCableObject):
                 outputs=[getattr(state, state_attribute)],
                 device=self.device,
             )
-        if selector.dtype in (wp.bool, torch.bool):
-            self._backend_manager.invalidate_body_state(selector)
-        elif selector is self._ALL_INDICES:
-            self._backend_manager.invalidate_body_state()
-        else:
-            wp.launch(
-                flag_mask_from_ids_kernel(selector),
-                dim=selector.shape[0],
-                inputs=[selector],
-                outputs=[self._index_env_mask],
-                device=self.device,
-            )
-            self._backend_manager.invalidate_body_state(self._index_env_mask, consume_mask=True)
+        self._backend_manager.invalidate_body_state(env_mask, consume_mask=env_mask is self._index_env_mask)
         self.update(0.0)
+
+    def _env_mask_from_ids(self, env_ids: wp.array) -> wp.array:
+        """Return the mask of env_ids; a partial selection uses the scratch mask that the invalidation clears."""
+        if env_ids is self._ALL_INDICES:
+            return self._ALL_ENV_MASK
+        wp.launch(
+            flag_mask_from_ids_kernel(env_ids),
+            dim=env_ids.shape[0],
+            inputs=[env_ids],
+            outputs=[self._index_env_mask],
+            device=self.device,
+        )
+        return self._index_env_mask
 
     def _iter_states(self):
         """Yield active Newton states."""
