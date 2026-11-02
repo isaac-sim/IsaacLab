@@ -777,9 +777,7 @@ def test_kitless_hand_guard_requires_each_hand_once_then_allows_held_dropout(
     assert agent.initial_hand_tracking_issue(interface, initialized) is None
 
     initialized.clear()
-    assert agent.initial_hand_tracking_issue(interface, initialized) == (
-        "waiting for initial left/right hand tracking"
-    )
+    assert agent.initial_hand_tracking_issue(interface, initialized) == "waiting for initial left/right hand tracking"
 
 
 def test_kitless_hand_guard_renders_without_step_and_next_valid_frame_resumes(monkeypatch):
