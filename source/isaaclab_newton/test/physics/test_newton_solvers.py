@@ -97,15 +97,20 @@ def test_replicated_joint_properties_follow_schema_precedence(monkeypatch, solve
     root = UsdGeom.Cube.Define(stage, root_path).GetPrim()
     UsdPhysics.RigidBodyAPI.Apply(root)
     UsdPhysics.ArticulationRootAPI.Apply(root)
-    UsdPhysics.RigidBodyAPI.Apply(UsdGeom.Cube.Define(stage, f"{root_path}/child").GetPrim())
-    joint = UsdPhysics.RevoluteJoint.Define(stage, f"{root_path}/child/joint")
-    joint.CreateAxisAttr().Set("Z")
-    joint.CreateBody0Rel().SetTargets([root_path])
-    joint.CreateBody1Rel().SetTargets([f"{root_path}/child"])
-    for name, value in (("mjc:frictionloss", 0.11), ("mjc:damping", 0.23), ("mjc:armature", 0.12)):
-        joint.GetPrim().CreateAttribute(name, Sdf.ValueTypeNames.Double, True).Set(value)
-    joint.GetPrim().CreateAttribute("physxJoint:armature", Sdf.ValueTypeNames.Float, True).Set(0.21)
-    joint.GetPrim().CreateAttribute("newton:friction", Sdf.ValueTypeNames.Double, True).Set(0.31)
+    joints = []
+    for child in ("child_a", "child_b"):
+        UsdPhysics.RigidBodyAPI.Apply(UsdGeom.Cube.Define(stage, f"{root_path}/{child}").GetPrim())
+        joint = UsdPhysics.RevoluteJoint.Define(stage, f"{root_path}/{child}/joint")
+        joint.CreateAxisAttr().Set("Z")
+        joint.CreateBody0Rel().SetTargets([root_path])
+        joint.CreateBody1Rel().SetTargets([f"{root_path}/{child}"])
+        for name, value in (("mjc:frictionloss", 0.11), ("mjc:damping", 0.23), ("mjc:armature", 0.12)):
+            joint.GetPrim().CreateAttribute(name, Sdf.ValueTypeNames.Double, True).Set(value)
+        joint.GetPrim().CreateAttribute("physxJoint:armature", Sdf.ValueTypeNames.Float, True).Set(0.21)
+        joints.append(joint.GetPrim())
+    # Joint a sets every schema; joint b leaves Newton unset so PhysX competes with MuJoCo.
+    joints[0].CreateAttribute("newton:friction", Sdf.ValueTypeNames.Double, True).Set(0.31)
+    joints[0].CreateAttribute("newton:armature", Sdf.ValueTypeNames.Double, True).Set(0.41)
 
     physics_cfg = NewtonCfg(solver_cfg=solver_cfg, load_visual_shapes=False)
     sim = object.__new__(SimulationContext)
@@ -123,9 +128,15 @@ def test_replicated_joint_properties_follow_schema_precedence(monkeypatch, solve
     )
     model = builder.finalize(device="cpu")
 
-    assert model.joint_friction.numpy()[-1] == pytest.approx(0.31)
-    assert model.joint_damping.numpy()[-1] == pytest.approx(expected_damping)
-    assert model.joint_armature.numpy()[-1] == pytest.approx(0.21)
+    joint_qd_start = model.joint_qd_start.numpy()
+    joint_a, joint_b = (
+        joint_qd_start[model.joint_label.index(f"/World/envs/env_0/robot/{child}/joint")]
+        for child in ("child_a", "child_b")
+    )
+    assert model.joint_friction.numpy()[joint_a] == pytest.approx(0.31)
+    assert model.joint_damping.numpy()[joint_a] == pytest.approx(expected_damping)
+    assert model.joint_armature.numpy()[joint_a] == pytest.approx(0.41)
+    assert model.joint_armature.numpy()[joint_b] == pytest.approx(0.21)
 
 
 # ----- MuJoCo Warp -------------------------------------------------------------------------
