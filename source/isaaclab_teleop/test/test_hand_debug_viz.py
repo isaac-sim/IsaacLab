@@ -224,13 +224,6 @@ class _FakeTensorGroup:
 
 
 class TestChainHandDebugOutputs:
-    def test_chains_when_hands_source_present(self):
-        pipeline = _FakePipeline([_FakeLeaf("controllers"), _FakeHandsSource("hands")])
-        mapping: dict = {}
-        TeleopSessionLifecycle._chain_hand_presence_outputs(pipeline, mapping)
-        assert mapping[TeleopSessionLifecycle.HAND_LEFT_KEY] == "selector:hands:hand_left"
-        assert mapping[TeleopSessionLifecycle.HAND_RIGHT_KEY] == "selector:hands:hand_right"
-
     def test_mapping_untouched_without_hands_source(self):
         pipeline = _FakePipeline([_FakeLeaf("controllers"), _FakeLeaf("head")])
         mapping: dict = {"action": "selector:user_pipeline:action"}

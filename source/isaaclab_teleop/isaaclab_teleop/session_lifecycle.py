@@ -871,8 +871,7 @@ class TeleopSessionLifecycle:
         """
         from isaacteleop.retargeting_engine.deviceio_source_nodes import HandsSource
 
-        output_types_fn = getattr(user_pipeline, "output_types", None)
-        output_types = output_types_fn() if callable(output_types_fn) else {}
+        output_types = user_pipeline.output_types()
         hand_keys = (TeleopSessionLifecycle.HAND_LEFT_KEY, TeleopSessionLifecycle.HAND_RIGHT_KEY)
         if all(key in output_types for key in hand_keys):
             for key in hand_keys:
