@@ -16,7 +16,12 @@ Both tasks use the AGILE-inspired combined recipe by default. It tracks horizont
 velocity in the heading frame with a tolerance of 0.15 m/s and world-frame yaw rate with a tolerance
 of 0.35 rad/s, each with reward weight 4.0. The nominal joint-posture reward applies only to standing
 commands, and the action-rate penalty increases from -0.1 to -1.0 between training iterations 3,000
-and 7,000. The actor and critic have 61 and 76 inputs, respectively, and use normalized MLPs with
+and 7,000 on flat ground. On rough terrain, it increases between iterations 750 and 1,750, while
+the standing-fraction, head-pose and center-of-mass curricula start 500 iterations later than their
+flat counterparts. Stage values and final ranges are unchanged. Terrain difficulty still advances
+through successful episodes rather than fixed iteration milestones.
+
+The actor and critic have 61 and 76 inputs, respectively, and use normalized MLPs with
 hidden layers ``[512, 256, 128]`` and ELU activation.
 
 For example, train on rough terrain with backlash:
