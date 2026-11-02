@@ -3,6 +3,35 @@ Changelog
 
 .. towncrier release notes start
 
+42.3.2 (2026-11-01)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab.envs.mdp.events.reset_joints_within_limits_range` clamping every joint with the soft
+  limits of the listed joints, which moved unlisted joints off their defaults, failed for joint subsets and applied
+  the wrong limits for out-of-order keys. Empty range dictionaries no longer raise an ``IndexError``.
+
+
+42.3.1 (2026-10-31)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``fix_root_link=True`` raising ``NotImplementedError`` for an articulation rooted at the fixed joint that
+  attaches it to the world when the joint's ``body0`` targets the asset prim, a fixed-base layout that UsdPhysics
+  allows. It now enables that joint instead of raising. A fixed joint between two bodies, between a body and a static
+  collider, or between two prims that are not rigid bodies still raises the error.
+  ``fix_root_link=False`` is not supported for an articulation rooted at its fixed world joint; it now logs a warning
+  and leaves the joint enabled. :func:`~isaaclab.sim.utils.find_global_fixed_joint_prim` returns that joint when
+  called on it.
+* Fixed :class:`~isaaclab.utils.noise.NoiseModelWithAdditiveBias` accumulating the bias across resets when
+  ``bias_noise_cfg.operation`` is ``"add"`` (the default). Each reset now samples a fresh bias as documented, which
+  matches the ``"abs"`` operation; configurations that use ``"abs"`` or ``"scale"`` are unchanged.
+
+
 42.3.0 (2026-10-30)
 ~~~~~~~~~~~~~~~~~~~
 
