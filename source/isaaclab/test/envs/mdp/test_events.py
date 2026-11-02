@@ -42,8 +42,7 @@ def test_reset_joints_within_limits_range_clamps_only_listed_joints(position_ran
         device="cpu",
         data=data,
         find_joints=lambda keys: ([i for i, name in enumerate(JOINT_NAMES) if re.fullmatch(keys, name)], None),
-        write_joint_position_to_sim_index=lambda position, env_ids: written.update(pos=position),
-        write_joint_velocity_to_sim_index=lambda velocity, env_ids: written.update(vel=velocity),
+        write_joint_state_to_sim_index=lambda position, velocity, env_ids: written.update(pos=position, vel=velocity),
     )
     env = SimpleNamespace(num_envs=num_envs, device="cpu", scene={"robot": robot})
     params = {
