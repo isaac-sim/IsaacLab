@@ -30,9 +30,6 @@ class CosmosTransferProcessorCfg(ImageTransferProcessorCfg):
     update_frames: int = 4
     """Captures required for subsequent chunks."""
 
-    seed: int = 42
-    """Initial generation seed; full camera resets advance it deterministically."""
-
     camera: str = ""
     """Scene name of the processor's camera, one of :attr:`CosmosModelCfg.cameras` when cameras share a session.
     Defaults to empty, for a camera with its own session."""

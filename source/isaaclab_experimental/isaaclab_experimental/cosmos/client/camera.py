@@ -22,7 +22,7 @@ from isaaclab.utils import replace
 from isaaclab_experimental.image_transfer import FunctionProcessorCfg
 
 from .._protocol import CANVAS_ASPECT_RATIOS, DEFAULT_ENDPOINT, request
-from .control_profiles import depth_processor
+from .control_profiles import DEPTH_FAR, DEPTH_NEAR, depth_processor
 from .cosmos_model import service_endpoints, split_views
 from .cosmos_model_cfg import CosmosModelCfg, episode_frame_budget
 
@@ -36,8 +36,8 @@ def cosmos_camera(
     camera: CameraCfg,
     model: CosmosModelCfg,
     *,
-    near: float = 0.1,
-    far: float = 2.0,
+    near: float = DEPTH_NEAR,
+    far: float = DEPTH_FAR,
     canvas: tuple[int, int] | None = None,
     name: str = "",
 ) -> CameraCfg:
@@ -127,8 +127,8 @@ def apply_cosmos(
     *,
     prompt: str | list[str] | None = None,
     camera: str | Sequence[str] | None = None,
-    near: float | None = None,
-    far: float | None = None,
+    near: float = DEPTH_NEAR,
+    far: float = DEPTH_FAR,
     endpoint: str | list[str] = DEFAULT_ENDPOINT,
     transport: Literal["auto", "cuda_ipc", "socket"] = "auto",
 ) -> None:
@@ -151,8 +151,8 @@ def apply_cosmos(
             environments or cameras (see :attr:`CosmosModelCfg.prompt`). None runs without a scene description.
         camera: Scene camera name, or a list of names whose cameras share one session. Defaults to None, which
             selects the only rgb camera.
-        near: Depth rendered white [m]. None uses the :func:`cosmos_camera` default.
-        far: Depth rendered black [m]. None uses the :func:`cosmos_camera` default.
+        near: Depth rendered white [m].
+        far: Depth rendered black [m].
         endpoint: Cosmos service endpoint, or a list of services, for example one per GPU, that split the
             environments into contiguous shares.
         transport: How images move to and from the service.
@@ -211,9 +211,8 @@ def apply_cosmos(
     )
     # Cameras sharing a session render at one canvas; each keeps its own output size.
     canvas = _closest_canvas(camera_cfg) if len(names) > 1 else None
-    depth_range = {key: value for key, value in (("near", near), ("far", far)) if value is not None}
     cosmos_cameras = {
-        name: cosmos_camera(cfg, model, canvas=canvas, name=name, **depth_range)
+        name: cosmos_camera(cfg, model, near=near, far=far, canvas=canvas, name=name)
         for name, cfg in zip(names, camera_cfgs)
     }
     for name, cosmos_cfg in cosmos_cameras.items():

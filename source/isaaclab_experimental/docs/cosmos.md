@@ -215,7 +215,6 @@ processors = depth_processor(
     ),
     near=0.2,
     far=12.0,
-    seed=42,
 )
 
 camera_cfg = CameraCfg(
