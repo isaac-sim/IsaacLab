@@ -254,7 +254,7 @@ class RigidObjectData(BaseRigidObjectData):
         """
         if self._root_link_vel_w.data is None:
             self._root_link_vel_w.data = ProxyArray(wp.empty(self._num_instances, wp.spatial_vectorf, self.device))
-        if self._backend_manager.backend.live or self._root_link_vel_w.timestamp < self._sim_timestamp:
+        if self._root_link_vel_w.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
             self._read_launch_cache.launch(
                 "root_link_vel_w",
                 wp.launch,
@@ -277,7 +277,7 @@ class RigidObjectData(BaseRigidObjectData):
         """
         if self._root_com_pose_w.data is None:
             self._root_com_pose_w.data = ProxyArray(wp.empty(self._num_instances, wp.transformf, self.device))
-        if self._backend_manager.backend.live or self._root_com_pose_w.timestamp < self._sim_timestamp:
+        if self._root_com_pose_w.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
             self._read_launch_cache.launch(
                 "root_com_pose_w",
                 wp.launch,
@@ -427,7 +427,7 @@ class RigidObjectData(BaseRigidObjectData):
         )
         if self._body_com_pose_b.data is None:
             self._body_com_pose_b.data = ProxyArray(wp.empty((self._num_instances, 1), wp.transformf, self.device))
-        if self._backend_manager.backend.live or self._body_com_pose_b.timestamp < self._sim_timestamp:
+        if self._body_com_pose_b.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
             self._read_launch_cache.launch(
                 "body_com_pose_b",
                 wp.launch,
@@ -451,7 +451,7 @@ class RigidObjectData(BaseRigidObjectData):
         """
         if self._projected_gravity_b.data is None:
             self._projected_gravity_b.data = ProxyArray(wp.empty(self._num_instances, wp.vec3f, self.device))
-        if self._backend_manager.backend.live or self._projected_gravity_b.timestamp < self._sim_timestamp:
+        if self._projected_gravity_b.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
             self._read_launch_cache.launch(
                 "projected_gravity_b",
                 wp.launch,
@@ -475,7 +475,7 @@ class RigidObjectData(BaseRigidObjectData):
         """
         if self._heading_w.data is None:
             self._heading_w.data = ProxyArray(wp.empty(self._num_instances, wp.float32, self.device))
-        if self._backend_manager.backend.live or self._heading_w.timestamp < self._sim_timestamp:
+        if self._heading_w.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
             self._read_launch_cache.launch(
                 "heading_w",
                 wp.launch,
@@ -498,7 +498,7 @@ class RigidObjectData(BaseRigidObjectData):
         if self._root_link_lin_vel_b is None:
             self._root_link_lin_vel_b = TimestampedBuffer(wp.empty(self._num_instances, wp.vec3f, self.device))
             self._root_link_lin_vel_b_ta = ProxyArray(self._root_link_lin_vel_b.data)
-        if self._backend_manager.backend.live or self._root_link_lin_vel_b.timestamp < self._sim_timestamp:
+        if self._root_link_lin_vel_b.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
             self._read_launch_cache.launch(
                 "root_link_lin_vel_b",
                 wp.launch,
@@ -521,7 +521,7 @@ class RigidObjectData(BaseRigidObjectData):
         if self._root_link_ang_vel_b is None:
             self._root_link_ang_vel_b = TimestampedBuffer(wp.empty(self._num_instances, wp.vec3f, self.device))
             self._root_link_ang_vel_b_ta = ProxyArray(self._root_link_ang_vel_b.data)
-        if self._backend_manager.backend.live or self._root_link_ang_vel_b.timestamp < self._sim_timestamp:
+        if self._root_link_ang_vel_b.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
             self._read_launch_cache.launch(
                 "root_link_ang_vel_b",
                 wp.launch,
@@ -544,7 +544,7 @@ class RigidObjectData(BaseRigidObjectData):
         if self._root_com_lin_vel_b is None:
             self._root_com_lin_vel_b = TimestampedBuffer(wp.empty(self._num_instances, wp.vec3f, self.device))
             self._root_com_lin_vel_b_ta = ProxyArray(self._root_com_lin_vel_b.data)
-        if self._backend_manager.backend.live or self._root_com_lin_vel_b.timestamp < self._sim_timestamp:
+        if self._root_com_lin_vel_b.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
             self._read_launch_cache.launch(
                 "root_com_lin_vel_b",
                 wp.launch,
@@ -567,7 +567,7 @@ class RigidObjectData(BaseRigidObjectData):
         if self._root_com_ang_vel_b is None:
             self._root_com_ang_vel_b = TimestampedBuffer(wp.empty(self._num_instances, wp.vec3f, self.device))
             self._root_com_ang_vel_b_ta = ProxyArray(self._root_com_ang_vel_b.data)
-        if self._backend_manager.backend.live or self._root_com_ang_vel_b.timestamp < self._sim_timestamp:
+        if self._root_com_ang_vel_b.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
             self._read_launch_cache.launch(
                 "root_com_ang_vel_b",
                 wp.launch,
@@ -1005,7 +1005,7 @@ class RigidObjectData(BaseRigidObjectData):
         if self._root_state_w is None:
             self._root_state_w = TimestampedBuffer(wp.empty(self._num_instances, vec13f, self.device))
             self._root_state_w_ta = ProxyArray(self._root_state_w.data)
-        if self._backend_manager.backend.live or self._root_state_w.timestamp < self._sim_timestamp:
+        if self._root_state_w.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
             self._read_launch_cache.launch(
                 "root_state_w",
                 memory_kernels.concat,
@@ -1029,7 +1029,7 @@ class RigidObjectData(BaseRigidObjectData):
         if self._root_link_state_w is None:
             self._root_link_state_w = TimestampedBuffer(wp.empty(self._num_instances, vec13f, self.device))
             self._root_link_state_w_ta = ProxyArray(self._root_link_state_w.data)
-        if self._backend_manager.backend.live or self._root_link_state_w.timestamp < self._sim_timestamp:
+        if self._root_link_state_w.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
             self._read_launch_cache.launch(
                 "root_link_state_w",
                 memory_kernels.concat,
@@ -1053,7 +1053,7 @@ class RigidObjectData(BaseRigidObjectData):
         if self._root_com_state_w is None:
             self._root_com_state_w = TimestampedBuffer(wp.empty(self._num_instances, vec13f, self.device))
             self._root_com_state_w_ta = ProxyArray(self._root_com_state_w.data)
-        if self._backend_manager.backend.live or self._root_com_state_w.timestamp < self._sim_timestamp:
+        if self._root_com_state_w.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
             self._read_launch_cache.launch(
                 "root_com_state_w",
                 memory_kernels.concat,
@@ -1103,7 +1103,7 @@ class RigidObjectData(BaseRigidObjectData):
         if self._root_state_w is None:
             self._root_state_w = TimestampedBuffer(wp.empty(self._num_instances, vec13f, self.device))
             self._root_state_w_ta = ProxyArray(self._root_state_w.data)
-        if self._backend_manager.backend.live or self._root_state_w.timestamp < self._sim_timestamp:
+        if self._root_state_w.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
             self._read_launch_cache.launch(
                 "root_state_w",
                 memory_kernels.concat,
@@ -1129,7 +1129,7 @@ class RigidObjectData(BaseRigidObjectData):
         if self._root_link_state_w is None:
             self._root_link_state_w = TimestampedBuffer(wp.empty(self._num_instances, vec13f, self.device))
             self._root_link_state_w_ta = ProxyArray(self._root_link_state_w.data)
-        if self._backend_manager.backend.live or self._root_link_state_w.timestamp < self._sim_timestamp:
+        if self._root_link_state_w.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
             self._read_launch_cache.launch(
                 "root_link_state_w",
                 memory_kernels.concat,
@@ -1154,7 +1154,7 @@ class RigidObjectData(BaseRigidObjectData):
         if self._root_com_state_w is None:
             self._root_com_state_w = TimestampedBuffer(wp.empty(self._num_instances, vec13f, self.device))
             self._root_com_state_w_ta = ProxyArray(self._root_com_state_w.data)
-        if self._backend_manager.backend.live or self._root_com_state_w.timestamp < self._sim_timestamp:
+        if self._root_com_state_w.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
             self._read_launch_cache.launch(
                 "root_com_state_w",
                 memory_kernels.concat,

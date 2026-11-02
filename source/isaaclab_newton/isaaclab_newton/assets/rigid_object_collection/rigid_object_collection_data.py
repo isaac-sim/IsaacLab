@@ -261,7 +261,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         This quantity contains the linear and angular velocities of the actor frame of the root
         rigid body relative to the world.
         """
-        if self._backend_manager.backend.live or self._body_link_vel_w.timestamp < self._sim_timestamp:
+        if self._body_link_vel_w.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
             self._read_launch_cache.launch(
                 "body_link_vel_w",
                 wp.launch,
@@ -289,7 +289,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         This quantity is the pose of the center of mass frame of the rigid body relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
-        if self._backend_manager.backend.live or self._body_com_pose_w.timestamp < self._sim_timestamp:
+        if self._body_com_pose_w.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
             self._read_launch_cache.launch(
                 "body_com_pose_w",
                 wp.launch,
@@ -361,7 +361,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             category=UserWarning,
             stacklevel=2,
         )
-        if self._backend_manager.backend.live or self._body_com_pose_b.timestamp < self._sim_timestamp:
+        if self._body_com_pose_b.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
             self._read_launch_cache.launch(
                 "body_com_pose_b",
                 wp.launch,
@@ -416,7 +416,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
         (num_instances, num_bodies, 3).
         """
-        if self._backend_manager.backend.live or self._projected_gravity_b.timestamp < self._sim_timestamp:
+        if self._projected_gravity_b.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
             self._read_launch_cache.launch(
                 "projected_gravity_b",
                 wp.launch,
@@ -438,7 +438,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             This quantity is computed by assuming that the forward-direction of the base
             frame is along x-direction, i.e. :math:`(1, 0, 0)`.
         """
-        if self._backend_manager.backend.live or self._heading_w.timestamp < self._sim_timestamp:
+        if self._heading_w.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
             self._read_launch_cache.launch(
                 "heading_w",
                 wp.launch,
@@ -459,7 +459,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         This quantity is the linear velocity of the actor frame of the root rigid body frame with respect to the
         rigid body's actor frame.
         """
-        if self._backend_manager.backend.live or self._body_link_lin_vel_b.timestamp < self._sim_timestamp:
+        if self._body_link_lin_vel_b.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
             self._read_launch_cache.launch(
                 "body_link_lin_vel_b",
                 wp.launch,
@@ -480,7 +480,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         This quantity is the angular velocity of the actor frame of the root rigid body frame with respect to the
         rigid body's actor frame.
         """
-        if self._backend_manager.backend.live or self._body_link_ang_vel_b.timestamp < self._sim_timestamp:
+        if self._body_link_ang_vel_b.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
             self._read_launch_cache.launch(
                 "body_link_ang_vel_b",
                 wp.launch,
@@ -501,7 +501,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         This quantity is the linear velocity of the root rigid body's center of mass frame with respect to the
         rigid body's actor frame.
         """
-        if self._backend_manager.backend.live or self._body_com_lin_vel_b.timestamp < self._sim_timestamp:
+        if self._body_com_lin_vel_b.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
             self._read_launch_cache.launch(
                 "body_com_lin_vel_b",
                 wp.launch,
@@ -522,7 +522,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         This quantity is the angular velocity of the root rigid body's center of mass frame with respect to the
         rigid body's actor frame.
         """
-        if self._backend_manager.backend.live or self._body_com_ang_vel_b.timestamp < self._sim_timestamp:
+        if self._body_com_ang_vel_b.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
             self._read_launch_cache.launch(
                 "body_com_ang_vel_b",
                 wp.launch,
@@ -860,7 +860,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             DeprecationWarning,
             stacklevel=2,
         )
-        if self._backend_manager.backend.live or self._body_state_w.timestamp < self._sim_timestamp:
+        if self._body_state_w.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
             self._read_launch_cache.launch(
                 "body_state_w",
                 memory_kernels.concat,
@@ -881,7 +881,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             DeprecationWarning,
             stacklevel=2,
         )
-        if self._backend_manager.backend.live or self._body_link_state_w.timestamp < self._sim_timestamp:
+        if self._body_link_state_w.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
             self._read_launch_cache.launch(
                 "body_link_state_w",
                 memory_kernels.concat,
@@ -902,7 +902,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             DeprecationWarning,
             stacklevel=2,
         )
-        if self._backend_manager.backend.live or self._body_com_state_w.timestamp < self._sim_timestamp:
+        if self._body_com_state_w.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
             self._read_launch_cache.launch(
                 "body_com_state_w",
                 memory_kernels.concat,

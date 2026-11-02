@@ -82,8 +82,9 @@ def _make_flag_worlds_and_articulations(num_articulations: int, masked: bool) ->
 
 @wp.kernel(enable_backward=False)
 def _mark_model_changes(mask: wp.array(dtype=wp.bool), dirty: wp.array(dtype=wp.int32)):
+    """Set the model-change flag when any world is masked."""
     if mask[wp.tid()]:
-        wp.atomic_max(dirty, 0, 1)
+        dirty[0] = 1
 
 
 @wp.kernel(enable_backward=False)
