@@ -189,8 +189,10 @@ def test_named_cameras_share_one_session_at_one_canvas_and_keep_their_sizes():
         apply_cosmos(_kuka(), camera=["base_camera", "base_camera"])
 
 
-def test_direct_tasks_that_size_observations_from_the_camera_are_warned(caplog):
+def test_direct_tasks_that_size_observations_from_the_camera_are_warned(caplog, monkeypatch):
     """Cartpole camera derives its observation space from the camera size, which Cosmos changes to the canvas."""
+    # A Hydra run earlier in the session with ``hydra/job_logging=disabled`` disables every existing logger.
+    monkeypatch.setattr(cosmos_camera_module.logger, "disabled", False)
     env_cfg = parse_env_cfg("Isaac-Cartpole-Camera-Direct", overrides=("env.scene.num_envs=1",))
     with caplog.at_level(logging.WARNING):
         apply_cosmos(env_cfg, prompt="A cart.")
