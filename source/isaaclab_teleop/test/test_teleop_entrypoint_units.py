@@ -1053,6 +1053,7 @@ def test_geometry_publication_device_follows_the_simulation_gpu(
 def test_task_preparation_precedes_ovxr_simulation_context(monkeypatch, entrypoint):
     """Both actual workflows finalize the selected config before OVXR allocates its context."""
     pytest.importorskip("ovrtx")
+    pytest.importorskip("isaaccapture.ovxr_session_manager")
     from contextlib import contextmanager
 
     import isaaclab_teleop

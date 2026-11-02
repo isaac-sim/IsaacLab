@@ -22,6 +22,8 @@ lazy_export()
 from .proxy_array import ProxyArray  # noqa: E402
 
 _WP_TO_TORCH_ORIGINAL = wp.to_torch
+# Bound at import so a later ``wp.array`` patch cannot break the empty-array check.
+_WP_ARRAY = wp.array
 _WP_TO_TORCH_WARNED = False
 
 
@@ -52,7 +54,7 @@ def _wp_to_torch_with_proxyarray(a, requires_grad=None):
                 stacklevel=2,
             )
         return a.torch
-    if isinstance(a, wp.array) and a.size == 0 and a.device is not None and a.device.is_cpu:
+    if isinstance(a, _WP_ARRAY) and a.size == 0 and a.device is not None and a.device.is_cpu:
         # Preserve Warp's structured-array rejection before the DLPack fallback.
         if isinstance(a.dtype, wp._src.codegen.Struct):  # noqa: SLF001
             return _WP_TO_TORCH_ORIGINAL(a, requires_grad=requires_grad)

@@ -6,6 +6,7 @@
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
+from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -477,7 +478,7 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
             self.xr = XrCfg(
                 anchor_pos=(0.0, 0.0, -0.30),
                 anchor_rot=(0.0, 0.0, 0.0, 1.0),
-                excluded_visual_meshes=["/World/envs/env_0/Robot/torso_link/visuals/head_link/mesh"],
+                excluded_visual_meshes=[f"{DEFAULT_ENV_TEMPLATE.format(0)}/Robot/torso_link/visuals/head_link/mesh"],
             )
 
             self.isaac_teleop = IsaacTeleopCfg(

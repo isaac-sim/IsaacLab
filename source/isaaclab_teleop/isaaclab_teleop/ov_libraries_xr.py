@@ -21,6 +21,8 @@ import numpy as np
 from isaaccapture.ovxr_session_manager import OvxrApplicationInterface, StageOrdinalLedger
 from isaaclab_ov.renderers import OVRTXRendererCfg
 
+from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
+
 from .ovxr_cfg import OvLibrariesXrCameraCfg, OvLibrariesXrCfg
 from .ovxr_session import OvxrSessionBootstrap, validate_ovxr_session_preparation
 
@@ -43,7 +45,7 @@ _DEFAULT_OVXR_RENDER_VAR_PATHS = (
     "/Render/Vars/XRDepth",
 )
 _DEFAULT_OVXR_RENDER_SETTINGS_PATH = "/Render/OmniverseGlobalRenderSettings"
-_ENVIRONMENT_ROOT_PATH = "/World/envs/env_0"
+_ENVIRONMENT_ROOT_PATH = DEFAULT_ENV_TEMPLATE.format(0)
 
 
 class _CounterRate:
