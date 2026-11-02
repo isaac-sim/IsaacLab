@@ -471,6 +471,14 @@ def test_register_task_mixed_overrides():
     assert hydra_args == ["--flag"]
 
 
+def test_register_task_rejects_a_misspelled_field():
+    """A misspelled env override fails instead of adding a field beside the one it was meant to set."""
+    with pytest.raises(AttributeError, match="has no field 'decimaton'"):
+        _register(PresetCfgEnvCfg(), overrides=["env.decimaton=10"])
+    with pytest.raises(AttributeError, match="has no field 'dtt'"):
+        _register(PresetCfgEnvCfg(), overrides=["env.backend.dtt=0.001"])
+
+
 def test_resolve_task_config_replaces_task_without_migration_warnings(monkeypatch, tmp_path):
     """Repeated composition uses the latest task config without Hydra migration warnings."""
     import sys
