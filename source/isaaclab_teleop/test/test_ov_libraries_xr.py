@@ -883,6 +883,10 @@ def test_desktop_mirror_rate_must_be_positive_and_finite(xr_module):
 
 def test_auxiliary_camera_config_is_preconfigured(xr_module, monkeypatch):
     with pytest.raises(ValueError, match="name and configuration"):
+        xr_module.OvLibrariesXrCameraCfg()
+    with pytest.raises(ValueError, match="name and configuration"):
+        xr_module.OvLibrariesXrCameraCfg(name="robot_pov_cam")
+    with pytest.raises(ValueError, match="name and configuration"):
         xr_module.OvLibrariesXrCameraCfg("", object())
     with pytest.raises(ValueError, match="name and configuration"):
         xr_module.OvLibrariesXrCameraCfg("robot_pov_cam", None)

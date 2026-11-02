@@ -904,10 +904,12 @@ def test_ovxr_pip_cli_reaches_session_construction(monkeypatch, entrypoint, plac
     assert xr_cfg.desktop_mirror_enabled is True
     assert xr_cfg.desktop_mirror_max_fps == 20.0
     [camera] = xr_cfg.auxiliary_cameras
-    assert camera.name == "head_cam" and camera.camera_cfg is config.scene.head_cam
+    # Configclasses copy their fields, so the panel holds a copy of the scene sensor configuration.
+    assert camera.name == "head_cam" and camera.camera_cfg.prim_path == config.scene.head_cam.prim_path
+    assert camera.camera_cfg.renderer_cfg == config.scene.head_cam.renderer_cfg
     assert camera.max_fps == 15.0
     assert camera.position == pytest.approx(position)
-    assert isinstance(renderer_cfg, OVRTXRendererCfg) and renderer_cfg is config.scene.head_cam.renderer_cfg
+    assert isinstance(renderer_cfg, OVRTXRendererCfg) and renderer_cfg == config.scene.head_cam.renderer_cfg
     # Forcing head-locked placement leaves the task layout unchanged.
     assert config.isaac_teleop.xr_camera_feed_layout.placement == placement
 

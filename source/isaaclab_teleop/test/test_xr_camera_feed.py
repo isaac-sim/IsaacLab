@@ -54,7 +54,8 @@ def test_ovxr_feed_selection_preserves_order_shared_renderer_and_rate_limits():
     )
     assert [camera.name for camera in cameras] == ["wrist_cam", "robot_pov_cam"]
     assert [camera.max_fps for camera in cameras] == [20.0, 12.0]
-    assert all(camera.camera_cfg.renderer_cfg is renderer for camera in cameras)
+    # Panel configurations copy the sensor configuration; equal renderer configurations share one renderer.
+    assert all(camera.camera_cfg.renderer_cfg == renderer for camera in cameras)
     assert all(camera.space == "head_locked" for camera in cameras)
     assert cameras[0].position == (0.1, -0.2, -0.9)
     with pytest.raises(ValueError, match="position override requires one camera"):

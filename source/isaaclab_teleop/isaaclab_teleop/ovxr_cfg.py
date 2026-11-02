@@ -12,7 +12,7 @@ configuration without the native OVXR, OVRTX or OVStage packages.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import MISSING
 from typing import TYPE_CHECKING, Literal
 
 from isaaclab.utils import configclass
@@ -26,13 +26,13 @@ _DEFAULT_OVXR_CAMERA_PATHS = (
 )
 
 
-@dataclass(frozen=True)
+@configclass
 class OvLibrariesXrCameraCfg:
     """One application-selected sensor and its camera-panel policy."""
 
-    name: str
+    name: str = MISSING
     """Scene sensor name used for camera selection and as the desktop mirror's camera label."""
-    camera_cfg: CameraCfg = field(repr=False)
+    camera_cfg: CameraCfg = MISSING
     """Selected sensor configuration, assigned to the session's shared renderer."""
     max_fps: float = 30.0
     """Finite positive image update cap [Hz]."""
@@ -46,7 +46,9 @@ class OvLibrariesXrCameraCfg:
     """Placement space; only head-locked panels are supported."""
 
     def __post_init__(self) -> None:
-        if not self.name or self.camera_cfg is None:
+        # configclass copies field defaults, so an unset field holds a copy of MISSING.
+        unset = (type(MISSING), type(None))
+        if isinstance(self.name, unset) or not self.name or isinstance(self.camera_cfg, unset):
             raise ValueError("camera name and configuration are required")
         if not math.isfinite(self.max_fps) or self.max_fps <= 0:
             raise ValueError("camera max_fps must be finite and positive")
