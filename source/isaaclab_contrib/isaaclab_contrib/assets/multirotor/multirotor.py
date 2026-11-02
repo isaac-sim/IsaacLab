@@ -53,7 +53,7 @@ class _ThrusterCollection(dict):
             env_mask: Environment mask. Shape is (num_instances,). Defaults to None.
         """
         for actuator in self.values():
-            actuator.reset(env_ids, env_mask=env_mask)
+            actuator.reset(env_ids=env_ids, env_mask=env_mask)
 
 
 class Multirotor(Articulation):
@@ -269,7 +269,7 @@ class Multirotor(Articulation):
             configuration parameter.
         """
         # call parent reset
-        super().reset(env_ids, env_mask=env_mask)
+        super().reset(env_ids=env_ids, env_mask=env_mask)
 
         # reset thruster targets to default values
         if self._data.thrust_target is not None and self._data.default_thruster_rps is not None:

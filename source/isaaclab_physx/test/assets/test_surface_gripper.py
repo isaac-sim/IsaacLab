@@ -197,11 +197,17 @@ def test_command_filter_and_partial_property_update_use_literal_view_payloads() 
 
 
 def test_reset_by_mask_matches_reset_by_ids() -> None:
-    """A masked reset opens the same grippers as the equivalent index reset."""
+    """A masked reset, and the deprecated ``indices`` alias, open the same grippers as the equivalent index reset."""
+
+    def reset_by_deprecated_indices(gripper: SurfaceGripper) -> None:
+        with pytest.deprecated_call():
+            gripper.reset(indices=[1])
+
     results = []
     resets = (
-        lambda gripper: gripper.reset(indices=[1]),
+        lambda gripper: gripper.reset(env_ids=[1]),
         lambda gripper: gripper.reset(env_mask=wp.array([False, True, False], dtype=wp.bool, device="cpu")),
+        reset_by_deprecated_indices,
     )
     for reset in resets:
         # Skip USD initialization: a three-environment CPU gripper, closed everywhere, around a recording view.
@@ -221,5 +227,5 @@ def test_reset_by_mask_matches_reset_by_ids() -> None:
                 gripper._gripper_state.numpy().tolist(),
             )
         )
-    assert results[0] == results[1]
+    assert results[0] == results[1] == results[2]
     assert results[0][1:] == ([1.0, 0.0, 1.0], [1.0, -1.0, 1.0])
