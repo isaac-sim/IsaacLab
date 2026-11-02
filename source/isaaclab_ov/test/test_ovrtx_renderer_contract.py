@@ -87,6 +87,7 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer.scene.commit = OvstageBackend.commit.__get__(renderer.scene)
     renderer.scene.query = OvstageBackend.query.__get__(renderer.scene)
     renderer.scene.next_camera_id = 0
+    renderer.scene.clone_copies = []
     renderer.scene.clone_env_paths = ["/World/envs/env_0", "/World/envs/env_1"]
     renderer.backend.attached = False
     renderer.backend.render_products = set()
