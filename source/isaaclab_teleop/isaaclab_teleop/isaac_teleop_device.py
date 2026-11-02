@@ -385,19 +385,6 @@ class IsaacTeleopDevice:
         """
         return self._session_lifecycle.last_control_events
 
-    @property
-    def hand_tracking_presence(self) -> tuple[bool, bool] | None:
-        """Left/right hand presence in the latest input frame, or None before hand data is available."""
-        lifecycle = self._session_lifecycle
-        result = lifecycle.last_step_result
-        if result is None:
-            return None
-        left = result.get(lifecycle.HAND_LEFT_KEY)
-        right = result.get(lifecycle.HAND_RIGHT_KEY)
-        if left is None or right is None:
-            return None
-        return not left.is_none, not right.is_none
-
     def add_callback(self, key: str, func: Callable) -> None:
         """Add a callback function for teleop commands.
 

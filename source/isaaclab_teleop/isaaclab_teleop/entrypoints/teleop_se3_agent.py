@@ -50,10 +50,6 @@ from .. import (
     se3_keyboard_teleop_cfg,
     se3_spacemouse_teleop_cfg,
 )
-from ..action_policy import (
-    initial_hand_tracking_issue as _required_hand_tracking_issue,
-)
-from ..action_policy import prepare_teleop_action
 from ..device_selection import create_teleop_device, select_teleop_cfg
 from ._ovxr_launch import prepare_ovxr_launch
 
@@ -264,8 +260,6 @@ def _resolve_env_cfg() -> tuple[ManagerBasedRLEnvCfg, IsaacTeleopCfg | DeviceCfg
 
         if kit_sources or any(isinstance(cfg, VisualizerBackendCfg) for cfg in configs):
             raise ValueError("--ovxr requires no Kit runtime or local visualizer")
-    if use_isaac_teleop and teleop_cfg.prepare_environment is not None:
-        teleop_cfg.prepare_environment(env_cfg)
     return (env_cfg, teleop_cfg, use_isaac_teleop)
 
 
@@ -293,27 +287,6 @@ def _pace_ovxr_control_loop(
             time.sleep(remaining_s)
         else:
             wait_for_shutdown(remaining_s)
-
-
-def _apply_teleop_frame(env, action, issue: str | None, haptic_driver, *, render: bool = True) -> bool:
-    """Step one valid action, or hold the scene while an unsafe tracker frame is rejected.
-
-    ``render`` is false under OVXR, which owns rendering and republishes the unchanged scene.
-    """
-    if issue is not None:
-        if render:
-            env.sim.render()
-        if haptic_driver is not None:
-            haptic_driver.stop()
-        return False
-    # process actions
-    actions = action.repeat(env.num_envs, 1)
-    # apply actions
-    env.step(actions)
-    # render controller haptics from post-step contact forces
-    if haptic_driver is not None:
-        haptic_driver.update()
-    return True
 
 
 def _ovxr_publication_identity(
@@ -579,29 +552,18 @@ def run_teleoperation(  # noqa: C901
 
             haptic_driver = create_haptic_feedback_driver(env.unwrapped, teleop_interface, env_cfg)
 
-        require_initial_bimanual_tracking = (
-            env_cfg.isaac_teleop.require_initial_bimanual_hand_tracking if use_isaac_teleop else False
-        )
-        initialized_hand_tracking: set[str] = set()
-        skipped_tracking_frames = 0
-        action_conditioner = env_cfg.isaac_teleop.action_conditioner if use_isaac_teleop else None
-        action_validator = env_cfg.isaac_teleop.action_validator if use_isaac_teleop else None
-        action_state: dict = {}
-
         if use_isaac_teleop:
             # the device reads these from the focused visualizer window
             print("Isaac Capture control keys: [B] start/resume  [P] pause  [R] reset")
 
         def run_loop():
             """Inner function to run the teleop loop with access to nonlocal variables."""
-            nonlocal should_reset_recording_instance, skipped_tracking_frames, teleoperation_active
+            nonlocal should_reset_recording_instance, teleoperation_active
             nonlocal reset_publication_generation
 
             # reset environment
             env.reset()
             teleop_interface.reset()
-            initialized_hand_tracking.clear()
-            action_state.clear()
             pending_publication_identity = (
                 _ovxr_publication_identity(
                     env.sim.get_physics_step_count(), reset_generation=reset_publication_generation
@@ -656,9 +618,6 @@ def run_teleoperation(  # noqa: C901
                             if ctrl.should_reset:
                                 should_reset_recording_instance = True
 
-                        if not teleoperation_active:
-                            action_state.clear()
-
                         # action is None when Isaac Capture session hasn't started yet
                         # (e.g. waiting for user to click "Start AR")
                         if action is None or not teleoperation_active:
@@ -668,26 +627,14 @@ def run_teleoperation(  # noqa: C901
                                 haptic_driver.stop()
                             action_applied = False
                         else:
-                            issue = (
-                                _required_hand_tracking_issue(teleop_interface, initialized_hand_tracking)
-                                if require_initial_bimanual_tracking
-                                else None
-                            )
-                            if issue is None:
-                                action, issue = prepare_teleop_action(
-                                    env, action, action_conditioner, action_validator, action_state
-                                )
-                            action_applied = _apply_teleop_frame(
-                                env, action, issue, haptic_driver, render=ov_libraries_xr_session is None
-                            )
-                            if issue is not None:
-                                skipped_tracking_frames += 1
-                                if skipped_tracking_frames <= 5 or skipped_tracking_frames % 200 == 0:
-                                    logger.warning(
-                                        "Rendering without a physics step for unsafe teleop frame (%s); skipped=%d",
-                                        issue,
-                                        skipped_tracking_frames,
-                                    )
+                            # process actions
+                            actions = action.repeat(env.num_envs, 1)
+                            # apply actions
+                            env.step(actions)
+                            # render controller haptics from post-step contact forces
+                            if haptic_driver is not None:
+                                haptic_driver.update()
+                            action_applied = True
 
                         state_changed = action_applied
                         force_publication = False
@@ -695,8 +642,6 @@ def run_teleoperation(  # noqa: C901
                         if should_reset_recording_instance:
                             env.reset()
                             teleop_interface.reset()
-                            initialized_hand_tracking.clear()
-                            action_state.clear()
                             camera_feed_session.refresh()
                             should_reset_recording_instance = False
                             if ov_libraries_xr_session is not None:

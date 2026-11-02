@@ -146,9 +146,6 @@ rendering without blocking.
 | `sim_device` | `str` | `"cuda:0"` | Torch device for output action tensors |
 | `retargeting_execution` | `RetargetingExecutionConfig \| None` | `None` (resolved at session start to `mode="pipelined", pacing=DeadlinePacingConfig(safety_margin_s=0.025)`) | Isaac Capture retargeting execution settings; deferred so the config imports without `isaacteleop` |
 | `teleoperation_active_default` | `bool` | `False` | Whether teleoperation is active on session start |
-| `require_initial_bimanual_hand_tracking` | `bool` | `False` | Wait for initial hand presence before stepping |
-| `action_conditioner` | `Callable \| None` | `None` | Task-owned stateful pre-step action conditioning |
-| `action_validator` | `Callable \| None` | `None` | Task-owned fail-closed action validation |
 | `app_name` | `str` | `"IsaacLabTeleop"` | Application name for the Isaac Capture session |
 
 The 25 ms `DeadlinePacingConfig` safety margin staggers Isaac Capture's Python work behind Isaac Lab's
