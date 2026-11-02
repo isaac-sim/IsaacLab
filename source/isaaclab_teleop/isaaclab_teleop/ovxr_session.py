@@ -21,7 +21,7 @@ from isaaclab.sim import SimulationContext
 _TERMINAL_MODE_SENTINEL = "ISAAC_LAUNCHED_FROM_TERMINAL"
 
 if TYPE_CHECKING:
-    from isaaclab_ov.renderers.render_lease import OvLibrariesScenePublisher
+    from isaaclab_ov.renderers import OvLibrariesScenePublisher
 
     from isaaclab.sim import SimulationCfg
 

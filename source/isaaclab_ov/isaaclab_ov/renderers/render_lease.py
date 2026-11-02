@@ -41,6 +41,9 @@ class OvLibrariesRenderLease:
     closed; they must never detach or destroy either borrowed object.
     """
 
+    _controller: RenderLeaseController
+    """Renderer-owned controller that created this lease."""
+
     def __init__(self) -> None:
         raise RuntimeError("OvLibrariesRenderLease must be acquired from OVRTXRenderer")
 
@@ -65,7 +68,7 @@ class OvLibrariesRenderLease:
 
     def offer_owner_transfer(self) -> object:
         """Freeze one unbound lease and return its one-shot owner capability."""
-        owner = cast("RenderLeaseController", self._controller)
+        owner = self._controller
         return owner.offer_owner_transfer(self)
 
     def claim_owner_transfer(self, capability: object) -> None:
@@ -77,7 +80,7 @@ class OvLibrariesRenderLease:
         Raises:
             RuntimeError: If the capability is stale, already claimed, or the lease is no longer unbound.
         """
-        cast("RenderLeaseController", self._controller).claim_owner_transfer(self, capability)
+        self._controller.claim_owner_transfer(self, capability)
 
     def cancel_owner_transfer(self, capability: object) -> None:
         """Withdraw an unclaimed offer on the original owner thread.
@@ -88,7 +91,7 @@ class OvLibrariesRenderLease:
         Raises:
             RuntimeError: If called off the original owner thread or with a stale capability.
         """
-        cast("RenderLeaseController", self._controller).cancel_owner_transfer(self, capability)
+        self._controller.cancel_owner_transfer(self, capability)
 
     def defer_stage_until_owner_transfer(self) -> None:
         """Defer Stage materialization requested before the owner transfer is claimed.
@@ -100,7 +103,7 @@ class OvLibrariesRenderLease:
         self._validate_active()
         if self._state is not _OvLibrariesRenderLeaseState.UNBOUND:
             raise RuntimeError("Stage deferral must be selected before Stage materialization")
-        cast("RenderLeaseController", self._controller).defer_until_transfer = True
+        self._controller.defer_until_transfer = True
 
     def materialize_deferred_stage(self, stage: Any, num_envs: int) -> bool:
         """Complete a deferred Stage preparation on the claimed render owner.
@@ -116,14 +119,14 @@ class OvLibrariesRenderLease:
             RuntimeError: If called off the render-owner thread, or deferral is selected and
                 the owner transfer has not been claimed.
         """
-        return cast("RenderLeaseController", self._controller).materialize_deferred_stage(self, stage, num_envs)
+        return self._controller.materialize_deferred_stage(self, stage, num_envs)
 
     def capture_scene_publisher(self) -> OvLibrariesScenePublisher:
         """Capture the application-thread scene publisher before render ownership transfers.
 
         Call this on the owner thread while the lease is unbound and before
         :meth:`offer_owner_transfer`. The publisher stays bound to the calling thread; see
-        :class:`~isaaclab_ov.renderers.render_lease.OvLibrariesScenePublisher` for the publication
+        :class:`~isaaclab_ov.renderers.OvLibrariesScenePublisher` for the publication
         protocol.
 
         Returns:
@@ -133,7 +136,7 @@ class OvLibrariesRenderLease:
             RuntimeError: If called off the owner thread or while a transfer is offered, after the
                 Stage is bound, or when the lease already has a publisher.
         """
-        return cast("RenderLeaseController", self._controller).capture_scene_publisher(self)
+        return self._controller.capture_scene_publisher(self)
 
     @contextlib.contextmanager
     def ovstage_owner_lane(self) -> Iterator[None]:
@@ -145,7 +148,7 @@ class OvLibrariesRenderLease:
         borrower can destroy its consumers and retire the pair.
         """
         self._validate_live(allow_poisoned=True)
-        owner = cast("RenderLeaseController", self._controller)
+        owner = self._controller
         with owner.owner_lane("external renderer operation"):
             yield
 
@@ -153,7 +156,7 @@ class OvLibrariesRenderLease:
         """Release the borrowing intent without destroying either pair member."""
         if self._state is _OvLibrariesRenderLeaseState.RELEASED:
             return
-        owner = cast("RenderLeaseController", self._controller)
+        owner = self._controller
         owner.release(self)
         self._renderer = None
         self._stage = None
@@ -167,7 +170,7 @@ class OvLibrariesRenderLease:
         self._validate_active()
         if self._state is not _OvLibrariesRenderLeaseState.BOUND:
             raise RuntimeError("OvLibrariesRenderLease is not bound to a prepared Stage")
-        owner = cast("RenderLeaseController", self._controller)
+        owner = self._controller
         owner.validate_live(
             self,
             cast("Renderer", self._renderer),
@@ -197,7 +200,7 @@ class OvLibrariesRenderLease:
     def _validate_active(self) -> None:
         if self._state is _OvLibrariesRenderLeaseState.RELEASED:
             raise RuntimeError("OvLibrariesRenderLease is released")
-        owner = cast("RenderLeaseController", self._controller)
+        owner = self._controller
         owner.validate_active(self)
 
 
