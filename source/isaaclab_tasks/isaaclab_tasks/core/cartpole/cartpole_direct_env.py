@@ -133,7 +133,8 @@ class CartpoleEnv(DirectRLEnv):
 
         self.cartpole.write_root_pose_to_sim_index(root_pose=default_root_pose, env_ids=env_ids)
         self.cartpole.write_root_velocity_to_sim_index(root_velocity=default_root_vel, env_ids=env_ids)
-        self.cartpole.write_joint_state_to_sim_index(position=joint_pos, velocity=joint_vel, env_ids=env_ids)
+        self.cartpole.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
+        self.cartpole.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
 
 
 @torch.jit.script

@@ -1446,9 +1446,8 @@ def reset_joints_by_scale(
     joint_vel = joint_vel.clamp_(-joint_vel_limits, joint_vel_limits)
 
     # set into the physics simulation
-    asset.write_joint_state_to_sim_index(
-        position=joint_pos, velocity=joint_vel, joint_ids=asset_cfg.joint_ids, env_ids=env_ids
-    )
+    asset.write_joint_position_to_sim_index(position=joint_pos, joint_ids=asset_cfg.joint_ids, env_ids=env_ids)
+    asset.write_joint_velocity_to_sim_index(velocity=joint_vel, joint_ids=asset_cfg.joint_ids, env_ids=env_ids)
 
 
 def reset_joints_by_offset(
@@ -1487,9 +1486,8 @@ def reset_joints_by_offset(
     joint_vel = joint_vel.clamp_(-joint_vel_limits, joint_vel_limits)
 
     # set into the physics simulation
-    asset.write_joint_state_to_sim_index(
-        position=joint_pos, velocity=joint_vel, joint_ids=asset_cfg.joint_ids, env_ids=env_ids
-    )
+    asset.write_joint_position_to_sim_index(position=joint_pos, joint_ids=asset_cfg.joint_ids, env_ids=env_ids)
+    asset.write_joint_velocity_to_sim_index(velocity=joint_vel, joint_ids=asset_cfg.joint_ids, env_ids=env_ids)
 
 
 class reset_joints_within_limits_range(ManagerTermBase):
@@ -1637,7 +1635,8 @@ class reset_joints_within_limits_range(ManagerTermBase):
                 self._vel_ranges[:, 0], self._vel_ranges[:, 1], joint_vel_shape, device=joint_vel.device
             ).clamp(-joint_vel_limits, joint_vel_limits)
 
-        self._asset.write_joint_state_to_sim_index(position=joint_pos, velocity=joint_vel, env_ids=env_ids)
+        self._asset.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
+        self._asset.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
 
 
 def reset_nodal_state_uniform(
@@ -1711,9 +1710,8 @@ def reset_scene_to_default(env: ManagerBasedEnv, env_ids: torch.Tensor | slice, 
         default_joint_pos = articulation_asset.data.default_joint_pos.torch[env_ids].clone()
         default_joint_vel = articulation_asset.data.default_joint_vel.torch[env_ids].clone()
         # set into the physics simulation
-        articulation_asset.write_joint_state_to_sim_index(
-            position=default_joint_pos, velocity=default_joint_vel, env_ids=env_ids
-        )
+        articulation_asset.write_joint_position_to_sim_index(position=default_joint_pos, env_ids=env_ids)
+        articulation_asset.write_joint_velocity_to_sim_index(velocity=default_joint_vel, env_ids=env_ids)
         # reset joint targets if required
         if reset_joint_targets:
             articulation_asset.set_joint_position_target_index(target=default_joint_pos, env_ids=env_ids)

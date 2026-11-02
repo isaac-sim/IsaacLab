@@ -1119,6 +1119,10 @@ class Articulation(BaseArticulation):
     ):
         """Write joint positions and velocities in a single fused kernel launch.
 
+        .. deprecated::
+            Use :meth:`write_joint_state_to_sim_mask`, or :meth:`write_joint_position_to_sim_index` and
+            :meth:`write_joint_velocity_to_sim_index`.
+
         .. note::
             This method expects partial data.
 
@@ -1137,6 +1141,12 @@ class Articulation(BaseArticulation):
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
+        warnings.warn(
+            "Articulation.write_joint_state_to_sim_index is deprecated. Use write_joint_state_to_sim_mask, or"
+            " write_joint_position_to_sim_index and write_joint_velocity_to_sim_index.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
@@ -2237,17 +2247,8 @@ class Articulation(BaseArticulation):
         Returns:
             A per-environment boolean mask.
         """
-        if env_ids is self._ALL_INDICES:
-            return self._ALL_ENV_MASK
         mask = wp.zeros(self.num_instances, dtype=wp.bool, device=self.device)
-        wp.launch(
-            shared_kernels.flag_mask_from_ids_kernel(env_ids),
-            dim=env_ids.shape[0],
-            inputs=[env_ids],
-            outputs=[mask],
-            device=self.device,
-        )
-        return mask
+        return shared_kernels.mask_from_ids(env_ids, self._ALL_INDICES, self._ALL_ENV_MASK, mask)
 
     """
     Operations - Setters.
@@ -3594,17 +3595,10 @@ class Articulation(BaseArticulation):
 
     def _invalidate_fk_index(self, env_ids: wp.array | torch.Tensor) -> None:
         """Schedule FK for env_ids through a scratch mask that the invalidation clears as it reads it."""
-        if env_ids is self._ALL_INDICES:
-            self._backend_manager.invalidate_fk(self._ALL_ENV_MASK, self.root_view.articulation_ids)
-            return
-        wp.launch(
-            shared_kernels.flag_mask_from_ids_kernel(env_ids),
-            dim=env_ids.shape[0],
-            inputs=[env_ids],
-            outputs=[self._index_env_mask],
-            device=self.device,
+        env_mask = shared_kernels.mask_from_ids(env_ids, self._ALL_INDICES, self._ALL_ENV_MASK, self._index_env_mask)
+        self._backend_manager.invalidate_fk(
+            env_mask, self.root_view.articulation_ids, consume_mask=env_mask is self._index_env_mask
         )
-        self._backend_manager.invalidate_fk(self._index_env_mask, self.root_view.articulation_ids, consume_mask=True)
 
     def _resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
         """Resolve environment indices.
@@ -3806,11 +3800,13 @@ class Articulation(BaseArticulation):
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ):
-        """Deprecated, same as :meth:`write_joint_state_to_sim_index`."""
+        """Deprecated, same as :meth:`write_joint_position_to_sim_index` and
+        :meth:`write_joint_velocity_to_sim_index`."""
         warnings.warn(
             "The function 'write_joint_state_to_sim' will be deprecated in a future release. Please"
-            " use 'write_joint_state_to_sim_index' instead.",
+            " use 'write_joint_position_to_sim_index' and 'write_joint_velocity_to_sim_index' instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_joint_state_to_sim_index(position=position, velocity=velocity, joint_ids=joint_ids, env_ids=env_ids)
+        self.write_joint_position_to_sim_index(position=position, joint_ids=joint_ids, env_ids=env_ids)
+        self.write_joint_velocity_to_sim_index(velocity=velocity, joint_ids=joint_ids, env_ids=env_ids)
