@@ -96,7 +96,7 @@ def test_backends_with_different_solvers_step_side_by_side(device, captured):
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_reset_masks_stay_with_their_backend(device):
-    """Invalidating one world of one backend recomputes only that world's body state."""
+    """Mask selections accumulate in one backend without affecting another."""
     pair = [_pendulums(cfg, steps, device) for cfg, steps in _configs()]
     for backend in pair:
         backend.step()
@@ -108,13 +108,17 @@ def test_reset_masks_stay_with_their_backend(device):
     target.state_0.joint_q.assign(joint_q)
     env_mask = wp.array([True, False, False, False], dtype=wp.bool, device=device)
     articulation_ids = wp.array(np.arange(4, dtype=np.int32).reshape(4, 1), dtype=wp.int32, device=device)
-    target.invalidate_fk(env_mask, articulation_ids=articulation_ids)
+    target.invalidate_fk(env_mask, articulation_ids=articulation_ids, consume_mask=True)
+    assert not env_mask.numpy().any()
+    target.invalidate_fk(
+        wp.array([False, False, True, False], dtype=wp.bool, device=device), articulation_ids=articulation_ids
+    )
 
     assert not other.world_mask.numpy().any() and not other.fk_mask.numpy().any()
     target.forward()
     other.forward()
 
     moved = np.any(target.state_0.body_q.numpy() != body_q[0], axis=1)
-    assert moved.tolist() == [True, False, False, False]
+    assert moved.tolist() == [True, False, True, False]
     np.testing.assert_array_equal(other.state_0.body_q.numpy(), body_q[1])
     assert not target.world_mask.numpy().any() and not target.fk_mask.numpy().any()

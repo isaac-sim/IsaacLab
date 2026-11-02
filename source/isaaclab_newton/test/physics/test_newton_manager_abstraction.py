@@ -796,8 +796,7 @@ def test_fixed_root_pose_write_updates_solver(asset_class, writer, selector):
     view = ArticulationView(model, "robot", verbose=False)
     body_com = view.get_attribute("body_com", model)[:, 0]
     data = SimpleNamespace(
-        root_link_pose_w=view.get_root_transforms(model)[:, 0],
-        root_com_pose_w=wp.empty(1, dtype=wp.transform, device="cpu"),
+        _sim_bind_root_link_pose_w=view.get_root_transforms(model)[:, 0],
         _sim_bind_body_com_pos_b=body_com,
         body_com_pos_b=body_com,
     )
