@@ -10,7 +10,8 @@
   ``env_mask`` and reset from it without synchronizing the host, for example through
   :func:`~isaaclab.utils.array.index_fill_` or :func:`torch.where` on its :func:`warp.to_torch` view.
 * **Breaking:** Changed :meth:`~isaaclab.scene.InteractiveScene.reset` to pass ``env_mask`` to the ``reset`` of every
-  asset and sensor, also when it is None. Custom assets and sensors must accept ``env_mask``, as the base classes do.
+  asset and sensor, also when it is None. Custom assets and sensors must accept ``env_mask``, as
+  :meth:`~isaaclab.assets.AssetBase.reset` and :meth:`~isaaclab.sensors.SensorBase.reset` do.
 * Changed :class:`~isaaclab.actuators.DelayedPDActuator` to raise :class:`ValueError` at construction unless
   ``0 <= min_delay <= max_delay``, instead of at a reset, because masked resets apply the sampled delays without
   checking them on the host.
