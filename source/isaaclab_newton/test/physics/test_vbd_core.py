@@ -258,6 +258,8 @@ def test_vbd_rebuilds_particle_bvh_before_physics_step():
         transforms_may_change_on_graph_replay=False,
         actuators=None,
         actuators_active=False,
+        solver_observables=None,
+        post_solver_substep_callbacks=[],
         pre_actuator_callbacks=[],
         post_actuator_callbacks=[],
         state_force_callbacks=[],
