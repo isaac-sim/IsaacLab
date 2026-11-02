@@ -106,6 +106,7 @@ class PolicyModeCfg(PresetCfg):
 @configclass
 class PresetCfgEnvCfg:
     decimation: int = 4
+    range: tuple[float, float] = (0.6, 1.7)
     backend: SimBackendCfg = SimBackendCfg()
     observations: ObsModeCfg = ObsModeCfg()
 
