@@ -432,9 +432,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # Invalidate dependent timestamps
         if not skip_forward:
             self.data._reset_pose()
-            self._backend_manager.invalidate_fk(
-                articulation_ids=self.root_view.articulation_ids, env_ids=env_ids, articulation_indices=body_ids
-            )
+            self._invalidate_fk_selection(env_ids=env_ids, body_ids=body_ids)
 
     def write_body_link_pose_to_sim_mask(
         self,
@@ -484,12 +482,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         if not skip_forward:
             self.data._reset_pose()
-            self._backend_manager.invalidate_fk(
-                articulation_ids=self.root_view.articulation_ids,
-                env_mask=env_mask,
-                articulation_indices=body_ids,
-                articulation_mask=body_mask,
-            )
+            self._invalidate_fk_selection(env_mask=env_mask, body_mask=body_mask, body_ids=body_ids)
 
     def write_body_com_pose_to_sim_index(
         self,
@@ -541,9 +534,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # Invalidate dependent timestamps.
         if not skip_forward:
             self.data._reset_pose()
-            self._backend_manager.invalidate_fk(
-                articulation_ids=self.root_view.articulation_ids, env_ids=env_ids, articulation_indices=body_ids
-            )
+            self._invalidate_fk_selection(env_ids=env_ids, body_ids=body_ids)
 
     def write_body_com_pose_to_sim_mask(
         self,
@@ -594,12 +585,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         if not skip_forward:
             self.data._reset_pose()
-            self._backend_manager.invalidate_fk(
-                articulation_ids=self.root_view.articulation_ids,
-                env_mask=env_mask,
-                articulation_indices=body_ids,
-                articulation_mask=body_mask,
-            )
+            self._invalidate_fk_selection(env_mask=env_mask, body_mask=body_mask, body_ids=body_ids)
 
     def write_body_com_velocity_to_sim_index(
         self,
@@ -658,9 +644,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # Invalidate dependent timestamps
         if not skip_forward:
             self.data._reset_velocity()
-            self._backend_manager.invalidate_fk(
-                articulation_ids=self.root_view.articulation_ids, env_ids=env_ids, articulation_indices=body_ids
-            )
+            self._invalidate_fk_selection(env_ids=env_ids, body_ids=body_ids)
 
     def write_body_com_velocity_to_sim_mask(
         self,
@@ -716,12 +700,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         if not skip_forward:
             self.data._reset_velocity()
-            self._backend_manager.invalidate_fk(
-                articulation_ids=self.root_view.articulation_ids,
-                env_mask=env_mask,
-                articulation_indices=body_ids,
-                articulation_mask=body_mask,
-            )
+            self._invalidate_fk_selection(env_mask=env_mask, body_mask=body_mask, body_ids=body_ids)
 
     def write_body_link_velocity_to_sim_index(
         self,
@@ -788,9 +767,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # Invalidate dependent timestamps.
         if not skip_forward:
             self.data._reset_velocity()
-            self._backend_manager.invalidate_fk(
-                articulation_ids=self.root_view.articulation_ids, env_ids=env_ids, articulation_indices=body_ids
-            )
+            self._invalidate_fk_selection(env_ids=env_ids, body_ids=body_ids)
 
     def write_body_link_velocity_to_sim_mask(
         self,
@@ -854,12 +831,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         if not skip_forward:
             self.data._reset_velocity()
-            self._backend_manager.invalidate_fk(
-                articulation_ids=self.root_view.articulation_ids,
-                env_mask=env_mask,
-                articulation_indices=body_ids,
-                articulation_mask=body_mask,
-            )
+            self._invalidate_fk_selection(env_mask=env_mask, body_mask=body_mask, body_ids=body_ids)
 
     """
     Operations - Setters.
@@ -1242,6 +1214,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         self._ALL_ENV_MASK = wp.ones((self.num_instances,), dtype=wp.bool, device=self.device)
         self._ALL_BODY_MASK = wp.ones((self.num_bodies,), dtype=wp.bool, device=self.device)
+        self._index_env_mask = wp.zeros((self.num_instances,), dtype=wp.bool, device=self.device)
+        self._index_body_mask = wp.zeros((self.num_bodies,), dtype=wp.bool, device=self.device)
 
         # external wrench composer
         self._instantaneous_wrench_composer = WrenchComposer(self)
@@ -1273,6 +1247,43 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         default_body_vels = np.stack(default_body_vels, axis=1)
         self.data.default_body_pose = wp.array(default_body_poses, dtype=wp.transformf, device=self.device)
         self.data.default_body_vel = wp.array(default_body_vels, dtype=wp.spatial_vectorf, device=self.device)
+
+    def _invalidate_fk_selection(
+        self,
+        *,
+        env_ids: wp.array | torch.Tensor | None = None,
+        env_mask: wp.array | None = None,
+        body_ids: wp.array | torch.Tensor | None = None,
+        body_mask: wp.array | None = None,
+    ) -> None:
+        """Schedule FK for the selected objects, flagging index selections into scratch masks.
+
+        The invalidation clears the scratch environment mask as it reads it; the scratch body mask is cleared after.
+        """
+        consume_mask = env_ids is not None and env_ids is not self._ALL_ENV_INDICES
+        if consume_mask:
+            env_mask = self._flag_mask_from_ids(env_ids, self._index_env_mask)
+        if body_mask is None or body_mask is self._ALL_BODY_MASK:
+            if body_ids is None or body_ids is self._ALL_BODY_INDICES:
+                body_mask = None
+            else:
+                body_mask = self._flag_mask_from_ids(body_ids, self._index_body_mask)
+        self._backend_manager.invalidate_fk(
+            env_mask, self.root_view.articulation_ids, articulation_mask=body_mask, consume_mask=consume_mask
+        )
+        if body_mask is self._index_body_mask:
+            body_mask.zero_()
+
+    def _flag_mask_from_ids(self, ids: wp.array | torch.Tensor, mask: wp.array) -> wp.array:
+        """Set the entries of a cleared scratch mask selected by ids."""
+        wp.launch(
+            shared_kernels.flag_mask_from_ids_kernel(ids),
+            dim=ids.shape[0],
+            inputs=[ids],
+            outputs=[mask],
+            device=self.device,
+        )
+        return mask
 
     def _resolve_env_ids(self, env_ids) -> wp.array | torch.Tensor:
         """Resolve environment indices.

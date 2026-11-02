@@ -42,8 +42,6 @@ from .newton_builder import create_builder
 from .newton_scene_data import NewtonSceneDataBackend
 
 if TYPE_CHECKING:
-    import torch
-
     from isaaclab.assets import BaseArticulation
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
 
@@ -356,8 +354,6 @@ class NewtonManager(PhysicsManager):
         env_mask: wp.array | None = None,
         articulation_ids: wp.array | None = None,
         *,
-        env_ids: wp.array | torch.Tensor | None = None,
-        articulation_indices: wp.array | torch.Tensor | None = None,
         articulation_mask: wp.array | None = None,
         consume_mask: bool = False,
     ) -> None:
@@ -368,24 +364,13 @@ class NewtonManager(PhysicsManager):
         """
         self._mark_transforms_changed()
         self.backend.invalidate_fk(
-            env_mask,
-            articulation_ids,
-            env_ids=env_ids,
-            articulation_indices=articulation_indices,
-            articulation_mask=articulation_mask,
-            consume_mask=consume_mask,
+            env_mask, articulation_ids, articulation_mask=articulation_mask, consume_mask=consume_mask
         )
 
-    def invalidate_body_state(
-        self,
-        env_mask: wp.array | None = None,
-        *,
-        env_ids: wp.array | torch.Tensor | None = None,
-        consume_mask: bool = False,
-    ) -> None:
+    def invalidate_body_state(self, env_mask: wp.array | None = None, *, consume_mask: bool = False) -> None:
         """Publish directly authored body state; see :meth:`NewtonBackend.invalidate_body_state`."""
         self._mark_transforms_changed()
-        self.backend.invalidate_body_state(env_mask, env_ids=env_ids, consume_mask=consume_mask)
+        self.backend.invalidate_body_state(env_mask, consume_mask=consume_mask)
 
     def _drain_stale_cuda_error(self) -> None:
         """Clear a stale CUDA error latched on the device before (re)initialization.

@@ -706,7 +706,7 @@ class Articulation(BaseArticulation):
         # Let the data class handle the invalidation of the pose related properties.
         if not skip_forward:
             self.data._reset_pose()
-            self._backend_manager.invalidate_fk(articulation_ids=self.root_view.articulation_ids, env_ids=env_ids)
+            self._invalidate_fk_index(env_ids)
 
     def write_root_link_pose_to_sim_mask(
         self,
@@ -799,7 +799,7 @@ class Articulation(BaseArticulation):
         # Let the data class handle the invalidation of the pose related properties.
         if not skip_forward:
             self.data._reset_pose()
-            self._backend_manager.invalidate_fk(articulation_ids=self.root_view.articulation_ids, env_ids=env_ids)
+            self._invalidate_fk_index(env_ids)
 
     def write_root_com_pose_to_sim_mask(
         self,
@@ -957,7 +957,7 @@ class Articulation(BaseArticulation):
         # Let the data class handle the invalidation of the velocity related properties.
         if not skip_forward:
             self.data._reset_velocity()
-            self._backend_manager.invalidate_fk(articulation_ids=self.root_view.articulation_ids, env_ids=env_ids)
+            self._invalidate_fk_index(env_ids)
 
     def write_root_com_velocity_to_sim_mask(
         self,
@@ -1055,7 +1055,7 @@ class Articulation(BaseArticulation):
         # Let the data class handle the invalidation of the velocity related properties.
         if not skip_forward:
             self.data._reset_velocity()
-            self._backend_manager.invalidate_fk(articulation_ids=self.root_view.articulation_ids, env_ids=env_ids)
+            self._invalidate_fk_index(env_ids)
 
     def write_root_link_velocity_to_sim_mask(
         self,
@@ -1181,7 +1181,7 @@ class Articulation(BaseArticulation):
         # Let the data class handle the invalidation of the pose and velocity related properties.
         if not skip_forward:
             self.data._reset_pose()
-            self._backend_manager.invalidate_fk(articulation_ids=self.root_view.articulation_ids, env_ids=env_ids)
+            self._invalidate_fk_index(env_ids)
 
     def write_joint_state_to_sim_mask(
         self,
@@ -1308,7 +1308,7 @@ class Articulation(BaseArticulation):
         # Let the data class handle the invalidation of pose- and velocity-dependent properties.
         if not skip_forward:
             self.data._reset_pose()
-            self._backend_manager.invalidate_fk(articulation_ids=self.root_view.articulation_ids, env_ids=env_ids)
+            self._invalidate_fk_index(env_ids)
 
     def write_joint_position_to_sim_mask(
         self,
@@ -1419,7 +1419,7 @@ class Articulation(BaseArticulation):
         # Let the data class handle the invalidation of the velocity related properties.
         if not skip_forward:
             self.data._reset_velocity()
-            self._backend_manager.invalidate_fk(articulation_ids=self.root_view.articulation_ids, env_ids=env_ids)
+            self._invalidate_fk_index(env_ids)
 
     def write_joint_velocity_to_sim_mask(
         self,
@@ -3325,6 +3325,7 @@ class Articulation(BaseArticulation):
     def _create_buffers(self):
         self._ALL_INDICES = wp.array(np.arange(self.num_instances, dtype=np.int32), device=self.device)
         self._ALL_ENV_MASK = wp.ones((self.num_instances,), dtype=wp.bool, device=self.device)
+        self._index_env_mask = wp.zeros((self.num_instances,), dtype=wp.bool, device=self.device)
         self._ALL_JOINT_INDICES = wp.array(np.arange(self.num_joints, dtype=np.int32), device=self.device)
         self._ALL_JOINT_MASK = wp.ones((self.num_joints,), dtype=wp.bool, device=self.device)
         self._ALL_BODY_INDICES = wp.array(np.arange(self.num_bodies, dtype=np.int32), device=self.device)
@@ -3592,6 +3593,20 @@ class Articulation(BaseArticulation):
 
         if self.num_spatial_tendons > 0:
             raise NotImplementedError("Spatial tendons are not supported yet.")
+
+    def _invalidate_fk_index(self, env_ids: wp.array | torch.Tensor) -> None:
+        """Schedule FK for env_ids through a scratch mask that the invalidation clears as it reads it."""
+        if env_ids is self._ALL_INDICES:
+            self._backend_manager.invalidate_fk(articulation_ids=self.root_view.articulation_ids)
+            return
+        wp.launch(
+            shared_kernels.flag_mask_from_ids_kernel(env_ids),
+            dim=env_ids.shape[0],
+            inputs=[env_ids],
+            outputs=[self._index_env_mask],
+            device=self.device,
+        )
+        self._backend_manager.invalidate_fk(self._index_env_mask, self.root_view.articulation_ids, consume_mask=True)
 
     def _resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
         """Resolve environment indices.

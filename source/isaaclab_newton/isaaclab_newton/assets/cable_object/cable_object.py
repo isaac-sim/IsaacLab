@@ -19,6 +19,8 @@ from isaaclab.assets.cable_object.base_cable_object import BaseCableObject
 from isaaclab.sim.utils.queries import has_deformable_curve_api, path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.warp import ProxyArray
 
+from isaaclab_newton.assets.kernels import flag_mask_from_ids_kernel
+
 from .cable_object_data import CableObjectData
 from .kernels import (
     set_segment_pose_to_sim_index,
@@ -196,6 +198,7 @@ class CableObject(BaseCableObject):
 
         self._ALL_INDICES = wp.array(list(range(self.num_instances)), dtype=wp.int32, device=self.device)
         self._ALL_ENV_MASK = wp.ones((self.num_instances,), dtype=wp.bool, device=self.device)
+        self._index_env_mask = wp.zeros((self.num_instances,), dtype=wp.bool, device=self.device)
 
         self._data = CableObjectData(self.root_view, self.device, backend_manager=self._backend_manager)
 
@@ -233,9 +236,18 @@ class CableObject(BaseCableObject):
                 device=self.device,
             )
         if selector.dtype in (wp.bool, torch.bool):
-            self._backend_manager.invalidate_body_state(env_mask=selector)
+            self._backend_manager.invalidate_body_state(selector)
+        elif selector is self._ALL_INDICES:
+            self._backend_manager.invalidate_body_state()
         else:
-            self._backend_manager.invalidate_body_state(env_ids=selector)
+            wp.launch(
+                flag_mask_from_ids_kernel(selector),
+                dim=selector.shape[0],
+                inputs=[selector],
+                outputs=[self._index_env_mask],
+                device=self.device,
+            )
+            self._backend_manager.invalidate_body_state(self._index_env_mask, consume_mask=True)
         self.update(0.0)
 
     def _iter_states(self):

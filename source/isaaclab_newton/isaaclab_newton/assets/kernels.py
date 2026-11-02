@@ -521,6 +521,25 @@ def set_root_link_velocity_to_sim_index_kernel(env_ids: wp.array | torch.Tensor)
     return _SET_ROOT_LINK_VELOCITY_TO_SIM_INDEX_DISPATCHER.select(env_ids)
 
 
+@wp.kernel(enable_backward=False)
+def flag_mask_from_ids(ids: wp.array(dtype=Any), mask: wp.array(dtype=wp.bool)):
+    """Set the mask entries selected by ids. The mask's consumer clears them again.
+
+    Args:
+        ids: Input array of indices to flag. Shape is (num_selected,).
+        mask: Output mask. Shape is (num_total,).
+    """
+    mask[wp.int32(ids[wp.tid()])] = True
+
+
+_FLAG_MASK_FROM_IDS_DISPATCHER = IndexKernelDispatcher(flag_mask_from_ids, ("ids",))
+
+
+def flag_mask_from_ids_kernel(ids: wp.array | torch.Tensor) -> wp.Kernel:
+    """Select the mask flagging kernel matching the index selector dtype."""
+    return _FLAG_MASK_FROM_IDS_DISPATCHER.select(ids)
+
+
 """
 Body-level write kernels (2D — used by RigidObjectCollection).
 """
