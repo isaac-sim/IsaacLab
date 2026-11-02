@@ -74,6 +74,7 @@ _ASSET_REGION_PROFILE_ENV_VAR = "ISAACSIM_ASSET_REGION_PROFILE"
 # Update this value when the China mirror moves to a new Isaac Sim asset release.
 _ISAAC_SIM_ASSET_RELEASE = "6.2"
 _CHINA_ASSET_ENDPOINT = "simready-cn.s3.oss-cn-shanghai.aliyuncs.com"
+_US_ASSET_ENDPOINT = "omniverse-content-production.s3-us-west-2.amazonaws.com"
 _US_ASSET_ROOT = _parse_kit_asset_root()
 
 
@@ -87,6 +88,8 @@ class _StorageProfile(TypedDict):
 
 _STORAGE_PROFILES: dict[str, _StorageProfile] = {
     "us": {
+        "endpoint": _US_ASSET_ENDPOINT,
+        "cdn_url": "https://dcb18d6mfegct.cloudfront.net/",
         "asset_root": _US_ASSET_ROOT,
     },
     "china": {
@@ -130,23 +133,6 @@ def configure_storage_profile() -> None:
     )
 
 
-def _route_to_profile_cdn(url: str) -> str:
-    """Return ``url`` with ``/`` separators, routed through the selected asset region profile's CDN.
-
-    The China profile's asset root names its object-storage endpoint, as Isaac Sim's does, but that endpoint
-    does not serve anonymous reads; its CDN serves the same keys over HTTPS.
-    """
-    url = url.replace(os.sep, "/")
-    selected_profile = _selected_storage_profile()
-    if selected_profile is None:
-        return url
-    endpoint, cdn_url = selected_profile[1].get("endpoint"), selected_profile[1].get("cdn_url")
-    parsed = urlparse(url)
-    if not endpoint or not cdn_url or parsed.netloc != endpoint:
-        return url
-    return cdn_url.rstrip("/") + parsed.path
-
-
 _OVSTORAGE_LOCK = threading.Lock()
 """Guards the lazily built OVStorage stacks."""
 
@@ -174,7 +160,13 @@ def _ovstorage_stack(url: str) -> ovstorage.LayerBase:
             if parsed.scheme == "omniverse":
                 kind, config = "nucleus", {"server": parsed.netloc}
             else:
-                kind, config = "http", {"root_url": f"{origin}/"}
+                # asset region profiles' object-storage endpoints are fetched through their CDNs: they are faster,
+                # and the China endpoint refuses anonymous reads; addresses keep naming the endpoint
+                cdn_url = next(
+                    (p["cdn_url"] for p in _STORAGE_PROFILES.values() if p.get("endpoint") == parsed.netloc),
+                    f"{origin}/",
+                )
+                kind, config = "http", {"prefix": f"{origin}/", "root_url": cdn_url}
             request = ovstorage.ConnectionRequest(kind)
             for key, value in config.items():
                 request.add_config(key, ovstorage.ConfigValue.string(value))
@@ -191,7 +183,7 @@ def _ovstorage_stack(url: str) -> ovstorage.LayerBase:
 
 def _remote_stat(url: str) -> dict | None:
     """Revision metadata of ``url``, or ``None`` when the server does not report the file."""
-    url = _route_to_profile_cdn(url)
+    url = url.replace(os.sep, "/")
     try:
         info = _ovstorage_run(_ovstorage_stack(url).stat(url))
     except ovstorage.Error:
@@ -218,7 +210,7 @@ def _remote_copy(url: str, target: str) -> None:
         FileNotFoundError: When the server does not have the file.
         RuntimeError: When the download fails.
     """
-    url = _route_to_profile_cdn(url)
+    url = url.replace(os.sep, "/")
     try:
         _ovstorage_run(_materialize(_ovstorage_stack(url), url, target))
     except ovstorage.NotFoundError as exc:
@@ -233,7 +225,7 @@ def _remote_read(url: str) -> bytes:
     Raises:
         FileNotFoundError: When the server does not have the file.
     """
-    url = _route_to_profile_cdn(url)
+    url = url.replace(os.sep, "/")
     try:
         data, _ = _ovstorage_run(_ovstorage_stack(url).read_bytes(url))
     except ovstorage.NotFoundError as exc:

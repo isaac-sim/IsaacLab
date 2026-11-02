@@ -419,13 +419,12 @@ def test_http_assets_are_retrieved(asset_cache, http_assets):
 
 
 def test_region_profile_reads_through_its_cdn(asset_cache, http_assets, monkeypatch):
-    """Test a region profile's object-storage endpoint is read through its CDN."""
+    """Test an asset region profile's object-storage endpoint is read through its CDN, selected or not."""
     served, root = http_assets
     (served / "Assets").mkdir()
     (served / "Assets" / "robot.usda").write_text('#usda 1.0\ndef Xform "Robot" {}\n')
     profile = {"asset_root": "https://bucket.invalid/Assets", "endpoint": "bucket.invalid", "cdn_url": f"{root}/"}
     monkeypatch.setitem(assets_utils._STORAGE_PROFILES, "test", profile)
-    monkeypatch.setenv("ISAACSIM_ASSET_REGION_PROFILE", "test")
 
     assert assets_utils.read_file("https://bucket.invalid/Assets/robot.usda").read().startswith(b"#usda 1.0")
 
