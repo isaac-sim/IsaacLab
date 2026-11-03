@@ -1243,6 +1243,13 @@ def _warmup_replay(env: gym.Env, run_index: int, presentation: OvxrPresentation 
                     time.sleep(0.01)
 
 
+def _start_replay_presentation(env: gym.Env, presentation: OvxrPresentation) -> None:
+    """Start the viewer for the first run, or adopt the current device's anchor, then publish the reset."""
+    if not presentation.start(env, timeout_s=args_cli.max_stage_load_wait_s):
+        raise RuntimeError("OVXR viewer shut down before replay startup")
+    presentation.publish(env, reset=True)
+
+
 def _advance_replay_input(device: IsaacTeleopDevice, presentation: OvxrPresentation | None) -> torch.Tensor | None:
     """Read recorded input using the viewer owner's target transform when needed."""
     target_path = device.target_frame_prim_path if presentation is not None else None
@@ -1376,10 +1383,7 @@ def _run_single_replay(
         if args_cli.start_on_replay:
             teleop_interface.request_start()
         if presentation is not None:
-            # A later run adopts the running worker; each run starts from a reset publication.
-            if not presentation.start(env, timeout_s=args_cli.max_stage_load_wait_s):
-                raise RuntimeError("OVXR viewer shut down before replay startup")
-            presentation.publish(env, reset=True)
+            _start_replay_presentation(env, presentation)
         _warmup_replay(env, run_index, presentation)
 
         print(
