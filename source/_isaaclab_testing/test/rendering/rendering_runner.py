@@ -161,13 +161,9 @@ def run_rendering_case(
             if case.renderer == "isaac_rtx":
                 assert tuple(attribute.Get() for attribute in usd_inputs) == authored_colors
         outputs, info = runtime.camera_outputs()
-        # Complete the configured camera warmup before accepting populated non-motion outputs.
-        # Allow up to ten render attempts when fewer warmup frames are requested.
-        for render_it in range(max(10, scene.render_updates_before_capture)):
-            if (
-                all(output.count_nonzero() for name, output in outputs.items() if name != "motion_vectors")
-                and render_it >= scene.render_updates_before_capture
-            ):
+        # Preserve first-frame references; only wait when an RTX output has not been populated yet.
+        for _ in range(10):
+            if all(output.count_nonzero() for name, output in outputs.items() if name != "motion_vectors"):
                 break
             runtime.render_camera()
             outputs, info = runtime.camera_outputs()
