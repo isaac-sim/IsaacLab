@@ -26,7 +26,7 @@ from isaaclab.sensors import CameraCfg, ContactSensorCfg
 from isaaclab.utils import configclass
 
 from . import VLA_BENCHMARKS_ASSETS_DIR
-from .config.franka.robot_cfg import FRANKA_ROBOTIQ_GRIPPER_CFG
+from .config.franka.robot_cfg import FRANKA_ROBOTIQ_CFG
 
 GRIPPER_BODY = "robot/Gripper/Robotiq_2F_85/left_inner_finger"
 """Gripper link, relative to the environment prim, whose contacts decide whether an object is held."""
@@ -61,7 +61,7 @@ class VLABenchmarkSceneCfg(InteractiveSceneCfg):
     senses every rigid object and the gripper link against each other.
     """
 
-    robot = FRANKA_ROBOTIQ_GRIPPER_CFG
+    robot = FRANKA_ROBOTIQ_CFG
     table_fixture = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/table_fixture",
         spawn=sim_utils.UsdFileCfg(usd_path=f"{VLA_BENCHMARKS_ASSETS_DIR}/scene/franka_table/franka_table.usd"),
