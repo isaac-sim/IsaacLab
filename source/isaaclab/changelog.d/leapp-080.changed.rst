@@ -4,3 +4,6 @@
 * Added command reference and expression-frame metadata and session-scoped function patches
   for RGB normalization and broadcast quaternion rotation. Removed the export-only action
   clone now that in-place action writes are traced automatically.
+* Kept OSC task-space gains internal to exported effort computation instead of labeling them
+  as joint gains. Resolved command frames independently of public body ordering and left
+  yaw-only planar references unspecified.

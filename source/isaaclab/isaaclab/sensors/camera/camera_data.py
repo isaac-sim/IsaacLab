@@ -11,7 +11,7 @@ import warp as wp
 
 # Re-exported as part of the public isaaclab.sensors.camera API
 from ...renderers.output_contract import RenderBufferKind, RenderBufferSpec
-from ...utils.leapp import Kind, leapp_tensor_semantics
+from ...utils.leapp import QUAT_XYZW_ELEMENT_NAMES, XYZ_ELEMENT_NAMES, Kind, leapp_tensor_semantics
 from ...utils.warp import ProxyArray
 from ...utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
 
@@ -55,7 +55,7 @@ class CameraData:
     ##
 
     @property
-    @leapp_tensor_semantics(kind="state/body/position")
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSITION, element_names=XYZ_ELEMENT_NAMES)
     def pos_w(self) -> ProxyArray:
         """Position of the sensor origin in world frame [m], following ROS convention.
 
@@ -66,7 +66,7 @@ class CameraData:
         return self._pos_w
 
     @property
-    @leapp_tensor_semantics(kind="state/body/rotation")
+    @leapp_tensor_semantics(kind=Kind.FRAME_ORIENTATION, element_names=QUAT_XYZW_ELEMENT_NAMES)
     def quat_w_world(self) -> ProxyArray:
         """Quaternion orientation ``(x, y, z, w)`` of the sensor origin in world frame,
         following the world coordinate frame convention.
@@ -217,7 +217,7 @@ class CameraData:
     ##
 
     @property
-    @leapp_tensor_semantics(kind="state/body/rotation")
+    @leapp_tensor_semantics(kind=Kind.FRAME_ORIENTATION, element_names=QUAT_XYZW_ELEMENT_NAMES)
     def quat_w_ros(self) -> ProxyArray:
         """Quaternion orientation ``(x, y, z, w)`` of the sensor origin in the world frame, following ROS convention.
 
@@ -232,7 +232,7 @@ class CameraData:
         return self._quat_w_ros
 
     @property
-    @leapp_tensor_semantics(kind="state/body/rotation")
+    @leapp_tensor_semantics(kind=Kind.FRAME_ORIENTATION, element_names=QUAT_XYZW_ELEMENT_NAMES)
     def quat_w_opengl(self) -> ProxyArray:
         """Quaternion orientation ``(x, y, z, w)`` of the sensor origin in the world frame, following
         Opengl / USD Camera convention.
