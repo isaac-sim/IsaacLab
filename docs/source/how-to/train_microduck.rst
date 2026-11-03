@@ -96,3 +96,11 @@ features as well. Mirror loss is disabled. RSL-RL may still log a detached symme
 
     uv run isaaclab train --task IsaacContrib-Velocity-Flat-MicroDuck \
         --rl_library rsl_rl --agent rsl_rl_with_symmetry_cfg_entry_point
+
+Additional contributed skills
+------------------------------
+
+See :ref:`microduck-pollen-tasks` for the imported Pollen skill recipes, including stand-up,
+seated recovery, skating, ball kicking and two-teacher VelStand. The imported flat and rough
+walking IDs carry ``-Pollen``; the walking recipes described above keep their existing IDs and
+settings.

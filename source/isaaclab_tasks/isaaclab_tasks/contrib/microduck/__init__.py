@@ -3,7 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""MicroDuck flat and rough velocity walking. Select the backlash robot with ``presets=backlash``."""
+"""MicroDuck walking and contributed Pollen skill recipes.
+
+The original flat/rough walking registrations retain their behavior. Separate ``-Pollen`` walking
+recipes and the recovery, seated, skating, kicking and distilled VelStand tasks are discovered by
+Isaac Lab's standard task importer. Select supported gearbox-play variants with ``presets=backlash``.
+See ``UPSTREAM.md`` and the MicroDuck training guides for source provenance and validation limits.
+"""
 
 import gymnasium as gym
 

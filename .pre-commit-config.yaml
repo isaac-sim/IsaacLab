@@ -57,7 +57,8 @@ repos:
           - --license-filepath
           - .github/LICENSE_HEADER.txt
           - --use-current-year
-        exclude: "source/isaaclab_mimic/|scripts/imitation_learning/isaaclab_mimic/|source/isaaclab_teleop/isaaclab_teleop/entrypoints/_instruction_display.py"
+        # The two MicroDuck adapters retain their existing BSD-3-Clause AND Apache-2.0 headers.
+        exclude: "source/isaaclab_mimic/|scripts/imitation_learning/isaaclab_mimic/|source/isaaclab_teleop/isaaclab_teleop/entrypoints/_instruction_display.py|source/isaaclab_tasks/isaaclab_tasks/contrib/microduck/velstand/agents/(distill|ppo)\\.py$"
   # Apache 2.0 license for mimic files, and the instruction display moved from isaaclab_mimic with its notices
   - repo: https://github.com/Lucas-C/pre-commit-hooks
     rev: v1.5.5

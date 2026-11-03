@@ -139,3 +139,30 @@ MICRODUCK_ALLCOLLISIONS_BACKLASH_CFG = _with_backlash(
     MICRODUCK_ALLCOLLISIONS_CFG, "microduck_allcollisions_backlash.usd"
 )
 """MicroDuck with additional body collisions and passive gearbox-play hinges."""
+
+
+MICRODUCK_ROLLERS_CFG = clone(MICRODUCK_ALLCOLLISIONS_CFG)
+MICRODUCK_ROLLERS_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/PollenRobotics/MicroDuck/microduck_rollers.usd"
+"""MicroDuck with four passive skate wheels. Tasks must use the taller roller reset height."""
+
+MICRODUCK_ROLLERS_BACKLASH_CFG = _with_backlash(MICRODUCK_ROLLERS_CFG, "microduck_rollers_backlash.usd")
+"""Four freely rotating wheels with fourteen servo/play pairs."""
+
+MICRODUCK_FULLCONTACT_CFG = clone(MICRODUCK_CFG)
+MICRODUCK_FULLCONTACT_CFG.spawn.usd_path = (
+    f"{ISAACLAB_NUCLEUS_DIR}/Robots/PollenRobotics/MicroDuck/microduck_fullcontact.usd"
+)
+MICRODUCK_FULLCONTACT_CFG.actuators["servos"].motor.max_current = 0.0
+MICRODUCK_FULLCONTACT_CFG.actuators["servos"].joint_effort_limit = (
+    8.2 * _XL330_MOTOR_CFG.kt / _XL330_MOTOR_CFG.resistance
+)
+"""Full-body contact geometry pinned at Pollen revision bae39f5.
+
+This variant disables the XL330 firmware current limiter and uses the electrical stall-torque ceiling
+as its joint-actuator bound. This is a local recipe deviation: the pinned Rhoban BAM XL330 constructor
+uses 1.75 A, as do the original walking, curated-contact and roller variants. Loading this geometry
+is not a claim that the current-limiter setting matches Pollen's default.
+"""
+
+MICRODUCK_FULLCONTACT_BACKLASH_CFG = _with_backlash(MICRODUCK_FULLCONTACT_CFG, "microduck_fullcontact_backlash.usd")
+"""Full-body contact geometry and the same unrestricted electrical ceiling with serial gearbox play."""
