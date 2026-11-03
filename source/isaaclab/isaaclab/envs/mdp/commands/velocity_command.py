@@ -95,7 +95,7 @@ class UniformVelocityCommand(CommandTerm):
         # during export, semantic data about this command will be used to annotate the command input
         self.cfg.cmd_kind = self.cfg.cmd_kind or "frame/twist"
         self.cfg.element_names = self.cfg.element_names or ["lin_vel_x", "lin_vel_y", "ang_vel_z"]
-        self.cfg.cmd_expressed_in = self.cfg.cmd_expressed_in or self.robot.body_names[0]
+        self.cfg.cmd_expressed_in = self.cfg.cmd_expressed_in or self.robot.backend_body_names[0]
 
     def __str__(self) -> str:
         """Return a string representation of the command generator."""

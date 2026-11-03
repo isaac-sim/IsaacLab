@@ -239,7 +239,7 @@ def test_leapp_export_flow(backend: str, task: str, checkpoint_task: str, direct
             (item["name"], item["isaaclab_connection"]) for item in model["outputs"] if "isaaclab_connection" in item
         ] == [("actions", "write:robot:set_joint_position_target_index")]
         action_output = next(item for item in model["outputs"] if item["name"] == "actions")
-        assert action_output["element_names"] == [[f"joint_{index}" for index in range(10)]]
+        assert action_output["axes"] == [None, {"kind": "element", "names": [f"joint_{index}" for index in range(10)]}]
         deployment = object.__new__(LeappDeploymentEnv)
         deployment.scene = env.scene
         deployment._leapp_desc = description

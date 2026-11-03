@@ -79,7 +79,7 @@ class UniformPoseCommand(CommandTerm):
         # during export, semantic data about this command will be used to annotate the command input
         self.cfg.cmd_kind = self.cfg.cmd_kind or "frame/pose"
         self.cfg.element_names = self.cfg.element_names or POSE7_ELEMENT_NAMES
-        self.cfg.cmd_reference = self.cfg.cmd_reference or self.robot.body_names[0]
+        self.cfg.cmd_reference = self.cfg.cmd_reference or self.robot.backend_body_names[0]
 
     def __str__(self) -> str:
         msg = "UniformPoseCommand:\n"

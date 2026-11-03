@@ -63,8 +63,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-VARIABLE_IMPEDANCE_MODES = frozenset({"variable", "variable_kp"})
-
 _GAIN_WRITE_METHODS = {"kp": "write_joint_stiffness_to_sim_index", "kd": "write_joint_damping_to_sim_index"}
 
 
@@ -223,6 +221,21 @@ def _quat_apply_inverse_for_export(quat: torch.Tensor, vec: torch.Tensor) -> tor
     return _quat_apply_for_export(torch.cat((-quat[..., :3], quat[..., 3:4]), dim=-1), vec)
 
 
+def _normal_parameters_for_export(loc: torch.Tensor | float, scale: torch.Tensor | float):
+    """Broadcast Normal's numerical parameters without the unsupported ATen rewrite.
+
+    Only Normal's constructor binding is patched. Its parameters are consumed as
+    values during policy export; clone the expanded results to keep the adapter pure.
+    """
+    reference = loc if isinstance(loc, torch.Tensor) else scale
+    if not isinstance(loc, torch.Tensor):
+        loc = torch.tensor(loc, dtype=reference.dtype, device=reference.device)
+    if not isinstance(scale, torch.Tensor):
+        scale = torch.tensor(scale, dtype=reference.dtype, device=reference.device)
+    shape = torch.broadcast_shapes(loc.shape, scale.shape)
+    return loc.expand(shape).clone(), scale.expand(shape).clone()
+
+
 def export_function_patches() -> list[FunctionPatch]:
     """Return session-scoped adapters for unsupported pure functions used by observations."""
     from ...envs.mdp import observations
@@ -235,6 +248,7 @@ def export_function_patches() -> list[FunctionPatch]:
         FunctionPatch(observations, "normalize_rgb", _normalize_rgb_for_export),
         FunctionPatch(math_utils, "quat_apply", _quat_apply_for_export),
         FunctionPatch(math_utils, "quat_apply_inverse", _quat_apply_inverse_for_export),
+        FunctionPatch(torch.distributions.normal, "broadcast_all", _normal_parameters_for_export),
     ]
 
 
@@ -548,7 +562,6 @@ class ExportPatcher:
             self._captured_write_term_names.clear()
             original_apply()
 
-            self._action_output_cache.extend(self._collect_action_outputs(action_manager))
             self._action_output_cache.extend(self._collect_processed_action_fallbacks(action_manager))
             if self._last_action_state_terms:
                 last_action_updates = {}
@@ -720,31 +733,6 @@ class ExportPatcher:
 
     # ── Output collection ─────────────────────────────────────────
 
-    def _collect_action_outputs(self, action_manager) -> list[TensorSemantics]:
-        """Collect non-writer action tensors that should be exported.
-
-        Args:
-            action_manager: Action manager whose terms should be inspected.
-
-        Returns:
-            Exportable tensor semantics for dynamic action outputs such as OSC
-            gains.
-        """
-        tensors: list[TensorSemantics] = []
-        for term_name, term in action_manager._terms.items():
-            osc = getattr(term, "_osc", None)
-            if osc and hasattr(osc, "cfg") and osc.cfg.impedance_mode in VARIABLE_IMPEDANCE_MODES:
-                asset = getattr(term, "_asset", None)
-                real_asset = getattr(asset, "_real_asset", asset)
-                joint_ids = getattr(term, "_joint_ids", None)
-                joint_names = getattr(real_asset, "joint_names", None) if real_asset else None
-                scene_key = self._action_term_scene_keys.get(term_name, "ego")
-                element_names = select_element_names(joint_names, joint_ids)
-                for kind, gains in (("kp", osc._motion_p_gains_task), ("kd", osc._motion_d_gains_task)):
-                    ref = torch.diagonal(gains, dim1=-2, dim2=-1)
-                    tensors.append(_gain_semantics(term_name, scene_key, kind, ref, element_names))
-        return tensors
-
     def _collect_processed_action_fallbacks(self, action_manager) -> list[TensorSemantics]:
         """Fallback: use ``term.processed_actions`` for terms that produced no write outputs.
 
@@ -804,9 +792,6 @@ class ExportPatcher:
         static_values: list[TensorSemantics] = []
         for term_name, term in action_manager._terms.items():
             if skip_terms and term_name in skip_terms:
-                continue
-            osc = getattr(term, "_osc", None)
-            if osc and hasattr(osc, "cfg") and osc.cfg.impedance_mode in VARIABLE_IMPEDANCE_MODES:
                 continue
             asset = getattr(term, "_asset", None)
             real_asset = getattr(asset, "_real_asset", asset)

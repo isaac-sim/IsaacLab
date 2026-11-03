@@ -431,7 +431,6 @@ def test_named_last_action_observations_use_independent_feedback_states(monkeypa
     monkeypatch.setattr(leapp_utils.annotate, "output_tensors", lambda *args, **kwargs: None)
     patcher = ExportPatcher(export_method="onnx-dynamo")
     patcher.task_name = "multi-term-task"
-    monkeypatch.setattr(patcher, "_collect_action_outputs", lambda action_manager: [])
     monkeypatch.setattr(patcher, "_collect_processed_action_fallbacks", lambda action_manager: [])
     monkeypatch.setattr(patcher, "_collect_action_static_outputs", lambda action_manager, fallback_terms: [])
     wrapped = patcher._wrap_last_action(mdp.last_action)
@@ -484,3 +483,61 @@ def test_deformable_nodal_positions_use_inherited_semantics(monkeypatch: pytest.
     assert semantics.kind == Kind.FRAME_POSITION
     assert semantics.axes == [None, None, leapp.Axis(leapp.AxisKind.COMPONENT, names=["x", "y", "z"])]
     assert semantics.extra == {"isaaclab_connection": "state:deformable:nodal_pos_w"}
+
+
+@pytest.mark.parametrize("command_type", ["velocity", "pose", "planar"])
+def test_command_metadata_uses_the_actual_reference_frame(monkeypatch, command_type):
+    """Command annotations use the backend root and leave yaw-only references unspecified."""
+    from isaaclab.envs.mdp.commands import (
+        UniformPose2dCommand,
+        UniformPose2dCommandCfg,
+        UniformPoseCommand,
+        UniformPoseCommandCfg,
+        UniformVelocityCommand,
+        UniformVelocityCommandCfg,
+    )
+
+    robot = SimpleNamespace(
+        body_names=["leg", "base"],
+        backend_body_names=["base", "leg"],
+        find_bodies=lambda name: ([0], [name]),
+    )
+    env = SimpleNamespace(
+        scene={"robot": robot},
+        num_envs=1,
+        device="cpu",
+        sim=SimpleNamespace(vis_marker_registry=SimpleNamespace(clear_debug_vis_callback=lambda term: None)),
+    )
+    common = {"asset_name": "robot", "resampling_time_range": (1.0, 1.0)}
+    if command_type == "velocity":
+        cfg = UniformVelocityCommandCfg(
+            **common,
+            ranges=UniformVelocityCommandCfg.Ranges(lin_vel_x=(0.0, 0.0), lin_vel_y=(0.0, 0.0), ang_vel_z=(0.0, 0.0)),
+        )
+        command = UniformVelocityCommand(cfg, env)
+    elif command_type == "pose":
+        cfg = UniformPoseCommandCfg(
+            **common,
+            body_name="leg",
+            ranges=UniformPoseCommandCfg.Ranges(
+                pos_x=(0.0, 0.0), pos_y=(0.0, 0.0), pos_z=(0.0, 0.0), roll=(0.0, 0.0), pitch=(0.0, 0.0), yaw=(0.0, 0.0)
+            ),
+        )
+        command = UniformPoseCommand(cfg, env)
+    else:
+        cfg = UniformPose2dCommandCfg(
+            **common,
+            simple_heading=False,
+            ranges=UniformPose2dCommandCfg.Ranges(pos_x=(0.0, 0.0), pos_y=(0.0, 0.0), heading=(0.0, 0.0)),
+        )
+        command = UniformPose2dCommand(cfg, env)
+    env.command_manager = SimpleNamespace(get_term=lambda name: command, get_command=lambda name: command.command)
+    term_cfg = SimpleNamespace(params={"command_name": "target"})
+    captured = _capture_leapp_inputs(monkeypatch)
+    patcher = ExportPatcher("onnx")
+    patcher.task_name = "command"
+    patcher._wrap_generated_commands(mdp.generated_commands, term_cfg)(env, "target")
+    semantics = captured[0][1]
+    assert semantics.is_setpoint is True
+    assert semantics.expressed_in == ("base" if command_type == "velocity" else None)
+    assert semantics.reference == ("base" if command_type == "pose" else None)
