@@ -13,7 +13,7 @@ from isaaclab_assets import G1_MINIMAL_CFG
 
 from ... import mdp
 from ...velocity_env_cfg import LocomotionVelocityRoughEnvCfg
-from .rough_env_cfg import G1EventsCfg, G1ObservationsCfg, G1Rewards
+from .rough_env_cfg import G1EventsCfg, G1ObservationsCfg, G129DofRewards
 
 
 @configclass
@@ -22,7 +22,7 @@ class G1FlatEnvCfg(LocomotionVelocityRoughEnvCfg):
 
     events: G1EventsCfg = G1EventsCfg()
     observations: G1ObservationsCfg = G1ObservationsCfg(height_scan=None)
-    rewards: G1Rewards = G1Rewards(
+    rewards: G129DofRewards = G129DofRewards(
         track_lin_vel_xy_exp=RewTerm(
             func=mdp.track_lin_vel_xy_yaw_frame_exp,
             weight=1.0,
