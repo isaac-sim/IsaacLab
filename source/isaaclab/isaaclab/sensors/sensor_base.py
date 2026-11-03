@@ -29,7 +29,7 @@ from ..cloner.cloner_cfg import expand_env_regex_ns
 from ..physics import PhysicsEvent, PhysicsManager
 from ..sim.utils.queries import get_first_matching_ancestor_prim
 from ..sim.utils.transforms import resolve_prim_pose
-from ..utils import index_fill_
+from ..utils.warp.memory import resolve_1d_mask
 from .kernels import invalidate_buffers_kernel, reset_envs_kernel, update_outdated_envs_kernel, update_timestamp_kernel
 
 if TYPE_CHECKING:
@@ -287,10 +287,8 @@ class SensorBase(ABC):
             env_prim_path_expr = "/".join(sim_utils.split_path_expr(self.cfg.prim_path)[:-1])
             self._num_envs = len(sim_utils.find_matching_prims(env_prim_path_expr))
         # Create warp env mask arrays for "all envs" cases and resets.
-        # Torch views share these Warp arrays' storage; scalar indexed writes use index_fill_ to avoid a sync.
         self._ALL_ENV_MASK = wp.ones((self._num_envs), dtype=wp.bool, device=self._device)
         self._reset_mask = wp.zeros((self._num_envs), dtype=wp.bool, device=self._device)
-        self._reset_mask_torch = wp.to_torch(self._reset_mask)
         self._create_timing_buffers()
         self._data_dirty = False
 
@@ -506,14 +504,7 @@ class SensorBase(ABC):
         self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None
     ) -> wp.array:
         """Resolve environment indices to a warp array and mask."""
-        if (env_ids is None or env_ids == slice(None)) and env_mask is None:
-            return self._ALL_ENV_MASK
-        elif env_mask is not None:
-            return env_mask
-        else:
-            self._reset_mask.zero_()
-            index_fill_(self._reset_mask_torch, env_ids, True)
-            return self._reset_mask
+        return resolve_1d_mask(ids=env_ids, mask=env_mask, all_mask=self._ALL_ENV_MASK, scratch_mask=self._reset_mask)
 
     def _resolve_rigid_body_ancestor_expr(
         self,

@@ -39,7 +39,7 @@ from isaaclab.benchmark.measurements import (
 from isaaclab.benchmark.schema import Hardware, Resources, Versions
 
 from isaaclab_contrib.coupling import CouplerAdmmCfg, CouplerEntryCfg, CouplerProxyCfg
-from isaaclab_contrib.custom_coupling.newton_manager_cfg import CoupledMJWarpVBDSolverCfg
+from isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_solver_cfg import CoupledMJWarpVBDSolverCfg
 
 
 class _Rec:
