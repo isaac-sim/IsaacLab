@@ -731,13 +731,11 @@ class AnymalRenderingSceneCfg(RenderingSceneCfg):
 #   comparison uses a loose pixel tolerance and no SSIM.
 # * Newton Warp depth is smooth but inherits the camera FOV mismatch on Valiant.
 
-# Per-pixel L2 limit for the Isaac RTX ``rgb`` comparison, in place of the default (10). Isaac RTX speckles splats
-# with low-amplitude noise from stochastic transparency: its render differs from the golden on 34 % (Valiant) and
-# 41 % (Endeavor) of pixels at the default limit, but on 5.3 % and 9.9 % at 30.
+# Ignore low-amplitude stochastic-transparency noise in Isaac RTX Gaussian-splat RGB comparisons.
 _GAUSSIAN_SPLATS_RGB_PIXEL_L2_THRESHOLD = 30.0
 
 # Frames rendered before the capture so renderer-side splat sorting, stage streaming and exposure settle.
-_GAUSSIAN_SPLATS_WARMUP_STEPS = 200
+_GAUSSIAN_SPLATS_WARMUP_FRAMES = 64
 
 
 def _gaussian_splats_asset(asset: str) -> AssetBaseCfg:
@@ -907,6 +905,8 @@ class RenderingSceneSpec:
     min_ssim: float = 0.985
     dt: float = 1.0 / 60.0
     steps_before_capture: int = 0
+    # Physics settling does not capture lazy cameras; renderer history needs explicit camera updates.
+    render_updates_before_capture: int = 0
     image_tolerance_overrides: dict[tuple[str, RenderBufferKind], tuple[float, float]] = field(default_factory=dict)
     # Per-pixel L2 limits replacing the default of the golden comparison, keyed like ``image_tolerance_overrides``.
     pixel_l2_thresholds: dict[tuple[str, RenderBufferKind], float] = field(default_factory=dict)
@@ -931,10 +931,8 @@ def _make_gaussian_splats_spec(scene: str) -> RenderingSceneSpec:
     """Resolve a Gaussian-splat scene's configuration, hooks and golden-image tolerances."""
     config: dict[str, Any] = _GAUSSIAN_SPLATS_SCENES[scene]
     cfg = config["cfg"](num_envs=config["num_envs"], env_spacing=config["env_spacing"])
-    # Starting allowances for splat renders, not measured needs: soft Gaussian edges and the per-renderer sorting of
-    # overlapping splats differ more across GPUs than mesh silhouettes do. Isaac RTX RGB is compared at
-    # ``_GAUSSIAN_SPLATS_RGB_PIXEL_L2_THRESHOLD``, where it measures 2.6 % (Valiant) and 6.7 % (Endeavor) of pixels
-    # differing, so the pixel gate keeps about 3x headroom and SSIM (0.95 and 0.83 measured) is the structural check.
+    # Soft Gaussian edges and the per-renderer sorting of overlapping splats differ across GPUs. Compare Isaac RTX
+    # RGB at ``_GAUSSIAN_SPLATS_RGB_PIXEL_L2_THRESHOLD`` to ignore low-amplitude noise, with SSIM as a structural check.
     # Isaac RTX depth is stochastic and speckled; SSIM is not enforced on depth.
     tolerances = {
         ("gaussian_splats_valiant_1env", "isaac_rtx"): (12.0, 0.92),
@@ -954,7 +952,7 @@ def _make_gaussian_splats_spec(scene: str) -> RenderingSceneSpec:
         cfg=cfg,
         image_max_diff_pct=8.0,
         min_ssim=0.95,
-        steps_before_capture=_GAUSSIAN_SPLATS_WARMUP_STEPS,
+        render_updates_before_capture=_GAUSSIAN_SPLATS_WARMUP_FRAMES,
         image_tolerance_overrides=overrides,
         pixel_l2_thresholds=pixel_l2_thresholds,
         on_scene_created=(
