@@ -50,14 +50,9 @@ class MicroDuckRoughSceneCfg(MicroDuckSceneCfg):
 
 @configclass
 class MicroDuckRoughCurriculumCfg(CurriculumCfg):
-    """Progress through terrain difficulty after successful walking episodes."""
+    """Introduce action smoothing before harder standing, head and COM objectives."""
 
     terrain_levels = CurriculumTermCfg(func=microduck_terrain_levels)
-
-
-@configclass
-class MicroDuckLocomotionFirstCurriculumCfg(MicroDuckRoughCurriculumCfg):
-    """Introduce action smoothing before harder standing, head and COM objectives."""
 
     action_rate_weight = _schedule(
         "rewards.action_rate_l2.weight", (750, -0.2), (1000, -0.4), (1250, -0.6), (1500, -0.8), (1750, -1.0)
@@ -90,12 +85,13 @@ class MicroDuckLocomotionFirstCurriculumCfg(MicroDuckRoughCurriculumCfg):
 class MicroDuckVelocityRoughEnvCfg(MicroDuckVelocityFlatEnvCfg):
     """MicroDuck rough velocity walking with the flat task's policy interface and BAM servos."""
 
-    scene: MicroDuckRoughSceneCfg = MicroDuckRoughSceneCfg(num_envs=4096, env_spacing=2.0)
+    scene: MicroDuckRoughSceneCfg = MicroDuckRoughSceneCfg(num_envs=16384, env_spacing=2.0)
     curriculum: MicroDuckRoughCurriculumCfg = MicroDuckRoughCurriculumCfg()
 
     def __post_init__(self):
         super().__post_init__()
         self.commands.base_velocity.class_type = MicroDuckRoughVelocityCommand
+        self.rewards.track_ang_vel.params["std"] = 0.5
         self.scene.terrain.terrain_type = "generator"
         self.scene.terrain.class_type = MicroDuckTerrainImporter
         self.scene.terrain.max_init_terrain_level = 5
@@ -139,15 +135,3 @@ class MicroDuckVelocityRoughEnvCfg(MicroDuckVelocityFlatEnvCfg):
         self.scene.terrain.terrain_generator.num_rows = 5
         self.scene.terrain.terrain_generator.num_cols = 5
         self.curriculum.terrain_levels = None
-
-
-@configclass
-class MicroDuckLocomotionFirstRoughEnvCfg(MicroDuckVelocityRoughEnvCfg):
-    """Optional rough walking schedule with a 16,384-environment training batch."""
-
-    scene: MicroDuckRoughSceneCfg = MicroDuckRoughSceneCfg(num_envs=16384, env_spacing=2.0)
-    curriculum: MicroDuckLocomotionFirstCurriculumCfg = MicroDuckLocomotionFirstCurriculumCfg()
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.rewards.track_ang_vel.params["std"] = 0.5
