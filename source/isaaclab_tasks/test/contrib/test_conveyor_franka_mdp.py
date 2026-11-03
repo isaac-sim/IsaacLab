@@ -245,7 +245,7 @@ def test_binary_policy_likelihoods():
     assert torch.isfinite(distribution.log_prob(samples)).all()
     assert torch.isfinite(divergence).all() and (divergence >= 0).all()
 
-    suction = SuctionGaussianBernoulliDistribution(output_dim=4)
+    suction = SuctionGaussianBernoulliDistribution(output_dim=4, tool_probability_floor=0.01)
     head = nn.Sequential(nn.Linear(3, 4))
     suction.init_mlp_weights(head)
     suction.update(head(torch.zeros(1, 3)))
@@ -253,7 +253,7 @@ def test_binary_policy_likelihoods():
     output = torch.tensor([[10.0, -10.0, 0.2, -100.0], [-10.0, 10.0, -0.2, 100.0]])
     suction.update(output)
     assert (suction.mean[:, :3].abs() <= 1.0).all()
-    assert (suction.mean[:, -1].abs() <= 0.9981).all(), "Both binary commands must retain sampling probability."
+    assert (suction.mean[:, -1].abs() <= 0.9801).all(), "The configured floor must retain both binary commands."
     assert torch.isfinite(suction.log_prob(suction.sample())).all()
     deterministic = suction.deterministic_output(output)
     torch.testing.assert_close(deterministic[:, :3], suction.mean[:, :3])

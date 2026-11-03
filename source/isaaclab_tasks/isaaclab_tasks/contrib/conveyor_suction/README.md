@@ -30,6 +30,7 @@ the seal implementation into Isaac Lab. Stock Newton releases do not provide thi
 ## Training and playback
 
 The default configuration uses 512 environments, 6,000 PPO updates, and 30-second training episodes.
+PPO collects 128 steps per environment per update with discount 0.999 and GAE lambda 0.99.
 Training practices one assignment per episode: its first verified receipt ends the episode successfully,
 and missing the assigned pickup fails the attempt. Playback uses the original five-lane fixture and
 240-second episodes, continuing to another parcel after each controlled placement. Each verified
@@ -50,7 +51,10 @@ The policy outputs three Cartesian target increments and one binary vacuum comma
 differential IK maintains a downward tool orientation, with bounded target lead and normal
 Franka joint velocity limits. The policy bounds Cartesian means to the accepted action range and
 starts near rest with a 98% vacuum-hold exploration prior. Either vacuum command retains at least 0.1%
-sampling probability during training. Observations include the selected parcel's pose, velocity and
+sampling probability during training. This floor is configured by
+`agent.actor.distribution_cfg.tool_probability_floor` and saved in `params/agent.yaml`.
+Keep the matching agent configuration with a checkpoint when resuming or replaying it.
+Observations include the selected parcel's pose, velocity and
 dimensions, robot and tool states, pickup and placement qualification, and the commanded
 parcel-center goal in the robot frame. A small overhead ray scan observes collision geometry
 as robot-frame points and hit-validity bits. It uses Newton physics rather than an RTX camera;

@@ -27,7 +27,9 @@
   Shorter training attempts and separate descent, carry and acquisition metrics expose backward curriculum progress;
   delivery rewards remain sparse.
   Cartesian policy means are bounded to the accepted action range, with near-rest initialization
-  and a vacuum-hold exploration prior. Bounded tool confidence retains exploration of both commands.
+  and a vacuum-hold exploration prior. A configurable tool-probability floor retains exploration
+  of both commands and is saved in the agent configuration. The suction runner uses 128-step
+  rollouts and GAE lambda 0.99 for delayed physical-receipt rewards.
 * Varied training across sixteen coherent conveyor fixtures with matching goal, bin, and reset geometry.
   Success-guided sampling tracks 49 shared progress buckets while retaining sparse physical-delivery rewards.
   The wider collision scan retains the 312-observation, four-action interface; playback keeps the original
