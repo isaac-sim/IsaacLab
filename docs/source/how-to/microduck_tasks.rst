@@ -105,8 +105,8 @@ VelStand training and validation
 --------------------------------
 
 :doc:`microduck_velstand` describes the pinned walking warm start, two frozen teachers,
-post-PPO distillation pass, checkpoint lifecycle and export contract. The helper scripts live in
-``scripts/reinforcement_learning/microduck`` and keep teacher weights in a private cache.
+post-PPO distillation pass, checkpoint lifecycle and standard playback/export workflow. The
+VelStand runner resolves teacher weights into a private cache automatically.
 
 Training completion does not establish recovery quality. The imported final StandUp policies
 have a known back-recovery failure under their final reset distribution, with and without backlash.

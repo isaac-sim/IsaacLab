@@ -32,7 +32,7 @@ constructor at `62bd8ce12154340be97e06f7f41a0ca8f116d967` defaults to 1.75 A. Th
 curated-contact and roller variants retain that 1.75 A limiter. Full-contact backlash adds
 fourteen collider-free 1 mg rotor proxies; original physical link inertias remain preserved.
 
-Teacher weights are fetched into a private cache by explicit helper command and verified by
+Teacher weights are fetched into a private cache by the VelStand runner and verified by
 SHA256. Their training repository does not declare a weight license; weights are not bundled
 or redistributed by this port. A completed training job is not evidence of policy quality:
 the imported final StandUp checkpoints have a known back-recovery failure under the final

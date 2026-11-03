@@ -33,11 +33,12 @@ Frozen standing expert: ``microduck_stand/69u48n8l_9750/model_9750.pt``, SHA256 
 
 The training repository does not declare a weight license. Keep checkpoints in a private
 cache; do not package or redistribute them. The upstream Apache notices and hosted-model attribution are retained in the native task package.
+The VelStand runner automatically resolves both pinned teachers into this cache and verifies
+their SHA256 hashes before use.
 
 .. code-block:: bash
 
    export MICRODUCK_VELSTAND_CACHE=/absolute/private/cache/velstand
-   uv run python scripts/reinforcement_learning/microduck/prepare_artifacts.py
    uv run isaaclab train --task IsaacContrib-VelStand-Rough-MicroDuck \
        --num_envs 4096 --max_iterations 6000 --seed 42 --logger tensorboard presets=backlash
 
@@ -98,16 +99,18 @@ walking/yaw/body commands, each spawn family and toppling pushes, reporting cove
 recovery latency/re-falls, contact peaks/impulses, stalls and acceleration spikes. Keep
 body-z tracking separate: it is an upstream limitation, not an acceptance claim.
 
-Export a candidate without constructing the simulator or downloading teachers:
+Load a candidate with the standard playback command, which also exports the policy:
 
 .. code-block:: bash
 
-   uv run python scripts/reinforcement_learning/microduck/export.py /absolute/path/model_5999.pt /absolute/path/policy.onnx
+   uv run isaaclab play --task IsaacContrib-VelStand-Rough-MicroDuck --rl_library rsl_rl \
+       --checkpoint /absolute/path/model_5999.pt presets=backlash
 
 
-This uses the native normalizer-inclusive RSL-RL export wrapper and embeds weights in
-one ONNX file, with float32 input [1, 61] and output [1, 14]. A companion JSON records
-checkpoint/export hashes and the learning/domain contract. Compare outputs against the
-native actor on recorded observations before transfer. The native ``isaaclab play``
-command also exports through the generic runner; retain any external-data sidecar it
-produces. Full-budget success and held-out evaluation remain required before a PR is ready.
+The runner resolves the pinned teachers from the private cache, downloading them if needed,
+and loads the candidate before exporting. It writes ``exported/policy.pt`` and
+``exported/policy.onnx`` beside the checkpoint before playback begins. The exports include
+the actor's observation normalizer, with float32 input [1, 61] and output [1, 14]. Retain any
+external-data sidecar the ONNX export produces. Compare outputs against the native actor on
+recorded observations before transfer. Full-budget success and held-out evaluation remain
+required before a PR is ready.
