@@ -1,6 +1,5 @@
-* Added ``CameraCfg.tensor_processors``, which compute camera outputs from render outputs and earlier
-  processor outputs after each published capture. Processor classes can prepare camera prims before scene
-  export through ``prepare_camera``.
-* Added the reserved ``env_mask`` input for ``CameraCfg.tensor_processors``, a boolean mask of the environments
-  with a new capture, so stateful processors can skip rows that still hold the previous capture when
-  ``update_period`` staggers captures.
+* Added ``CameraCfg.exposure`` and :class:`~isaaclab.sensors.ExposureCfg`. With ``mode="neutral"``, camera
+  construction disables RTX automatic exposure and authors unit exposure on the camera prims before the scene is
+  cloned, so color outputs keep the scene's linear radiance. ``"default"`` keeps the authored exposure.
+* Added an optional ``prepare_camera`` class method to camera tensor processors, which camera construction calls
+  before the scene is cloned or exported to resolve the processor configuration or remove the processor.

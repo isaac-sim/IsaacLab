@@ -7,6 +7,7 @@ __all__ = [
     "Camera",
     "CameraCfg",
     "CameraData",
+    "ExposureCfg",
     "CameraISPMode",
     "RenderBufferKind",
     "RenderBufferSpec",
@@ -21,6 +22,7 @@ __all__ = [
 from .camera import Camera
 from .camera_cfg import CameraCfg
 from .camera_data import CameraData, RenderBufferKind, RenderBufferSpec
+from .camera_exposure import ExposureCfg
 from .camera_isp import CameraISPMode
 from .tiled_camera import TiledCamera
 from .tiled_camera_cfg import TiledCameraCfg

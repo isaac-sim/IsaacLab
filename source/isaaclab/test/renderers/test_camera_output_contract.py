@@ -71,6 +71,8 @@ def test_camera_isp_is_resolved_during_construction():
 
     from pxr import Sdf, UsdGeom
 
+    from isaaclab.sensors.camera.camera_exposure import has_neutral_exposure
+
     sim_cfg = sim_utils.SimulationCfg(device="cpu", physics=NewtonCfg())
     with sim_utils.build_simulation_context(sim_cfg=sim_cfg) as sim:
         prim = UsdGeom.Camera.Define(sim.stage, "/World/AuthoredCamera").GetPrim()
@@ -96,7 +98,10 @@ def test_camera_isp_is_resolved_during_construction():
         assert len(rebuilt.cfg.tensor_processors) == 1  # the deprecated value is forwarded once
         assert without_isp.cfg.tensor_processors == []  # discovery found no PPISP attributes
         assert cfg.tensor_processors[0].isp_cfg is CameraISPMode.AUTO_CAMERA
-        assert prim.GetAttribute("exposure").Get() == 2.0  # Newton does not use RTX exposure.
+        assert prim.GetAttribute("exposure").Get() == 2.0  # The default exposure keeps the authored value.
+        # PPISP applies its own exposure, so the deprecated path keeps neutralizing the camera's exposure.
+        assert spawned.cfg.exposure.mode == "neutral"
+        assert has_neutral_exposure(sim.stage.GetPrimAtPath("/World/SpawnedCamera"))
         assert all(not camera.is_initialized for camera in (authored, spawned, without_isp))
         # Scene authoring belongs to camera construction, without a second renderer lifecycle.
         assert not hasattr(BaseRenderer, "author_camera")

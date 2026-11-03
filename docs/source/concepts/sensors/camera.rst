@@ -356,20 +356,21 @@ discover ``ppisp:*`` attributes on a camera prim.
 
 .. code-block:: python
 
-   from isaaclab.sensors.camera import CameraISPMode
+   from isaaclab.sensors.camera import CameraISPMode, ExposureCfg
    from isaaclab.utils import replace
    from isaaclab_ppisp import PpispCfg, PpispProcessorCfg
 
+   neutral = ExposureCfg(mode="neutral")
    explicit = PpispProcessorCfg(isp_cfg=PpispCfg(inputs={"exposureOffset": 1.5}))
-   explicit_isp = replace(front_camera, data_types=["rgb"], tensor_processors=[explicit])
+   explicit_isp = replace(front_camera, data_types=["rgb"], tensor_processors=[explicit], exposure=neutral)
 
    discovered = PpispProcessorCfg(isp_cfg=CameraISPMode.AUTO_CAMERA)
-   discovered_isp = replace(front_camera, data_types=["rgb"], tensor_processors=[discovered])
+   discovered_isp = replace(front_camera, data_types=["rgb"], tensor_processors=[discovered], exposure=neutral)
 
 ``AUTO_CAMERA`` checks the first matched camera prim. ``AUTO_ANY`` falls back to the first PPISP
 camera anywhere on the stage. Discovery happens once during camera construction; if it finds no
 PPISP attributes, the camera keeps the renderer's color output. ``CameraCfg.isp_cfg`` is deprecated
-and forwards its value to this processor.
+and forwards its value to this processor, with neutral exposure.
 
 A static configuration is shared by all cloned views in one camera batch; controller weights may
 predict per-view exposure and color parameters, while the remaining coefficients stay shared. ISP
@@ -377,12 +378,13 @@ configuration and discovered USD attributes are fixed for the camera lifetime.
 
 .. important::
 
-   With Isaac RTX and OVRTX, PPISP is the ISP authority. During camera construction it disables RTX
-   auto-exposure, authors neutral ``exposure:*`` values, and applies the
-   ``OmniRtxCameraAutoExposureAPI_1`` and ``OmniRtxCameraExposureAPI_1`` schemas on every matched
-   camera prim so RTX does not process the image a second time. Do not combine PPISP with
-   separately authored RTX exposure or tonemapping settings. Cameras without PPISP leave authored
-   camera exposure unchanged.
+   PPISP applies its own exposure, so with Isaac RTX and OVRTX the camera needs
+   ``exposure=ExposureCfg(mode="neutral")``; otherwise camera construction raises an error rather than
+   change the exposure. Neutral exposure disables RTX auto-exposure, authors unit ``exposure:*`` values,
+   and applies the ``OmniRtxCameraAutoExposureAPI_1`` and ``OmniRtxCameraExposureAPI_1`` schemas on every
+   matched camera prim, so RTX does not expose the image a second time. It applies to every color output
+   of the camera. Do not combine PPISP with separately authored RTX tonemapping settings. The Newton Warp
+   renderer applies no exposure, so it does not need the setting.
 
 Run the ``ppisp-camera`` example for a complete PPISP workflow. It supports
 ``--renderer newton_renderer`` (Newton Warp, the default) and ``--renderer isaac_rtx`` (Isaac RTX).

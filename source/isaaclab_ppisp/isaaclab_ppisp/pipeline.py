@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 
+from isaaclab.sensors.camera.camera_exposure import has_neutral_exposure
 from isaaclab.utils import replace
 from isaaclab.utils.tensor_processors import TensorProcessor
 from isaaclab.utils.warp import ProxyArray
@@ -23,7 +24,6 @@ from .kernels import (
     apply_ppisp_to_rgba_with_controller_params,
     compute_ppisp_controller_params,
 )
-from .rtx_camera_overrides import apply_rtx_exposure_overrides
 
 if TYPE_CHECKING:
     from pxr import Usd
@@ -104,15 +104,24 @@ class PpispProcessor(TensorProcessor):
     def prepare_camera(
         cls, cfg: PpispProcessorCfg, stage: Usd.Stage, camera_prim_paths: list[str], renderer_cfg: RendererCfg
     ) -> PpispProcessorCfg | None:
-        """Resolve the camera's PPISP coefficients and neutralize RTX exposure on its prims.
+        """Resolve the camera's PPISP coefficients and check that the camera's exposure is neutral.
 
-        Isaac RTX and OVRTX apply camera exposure to their HDR output, so this disables automatic exposure
-        and authors neutral exposure, which also affects other users of the prims. Returns None when
-        discovery finds no PPISP camera attributes.
+        PPISP applies its own exposure to scene-linear HDR. Isaac RTX and OVRTX apply the camera prim's exposure
+        to their HDR output, so on them the camera needs ``CameraCfg.exposure = ExposureCfg(mode="neutral")``.
+        Returns None when discovery finds no PPISP camera attributes.
+
+        Raises:
+            ValueError: If the renderer is Isaac RTX or OVRTX and a camera prim's exposure is not neutral.
         """
         isp_cfg = resolve_and_normalize(cfg.isp_cfg, stage, camera_prim_paths[0])
         if isp_cfg is None:
             return None
-        if renderer_cfg.renderer_type in ("isaac_rtx", "ovrtx"):
-            apply_rtx_exposure_overrides(stage, camera_prim_paths)
+        if renderer_cfg.renderer_type in ("isaac_rtx", "ovrtx") and not all(
+            has_neutral_exposure(stage.GetPrimAtPath(path)) for path in camera_prim_paths
+        ):
+            # Changing the exposure here would also change every other color output of the camera without notice.
+            raise ValueError(
+                "PPISP applies its own exposure, so on Isaac RTX and OVRTX the camera's exposure must be neutral. "
+                'Set CameraCfg.exposure = ExposureCfg(mode="neutral"); it applies to every color output of the camera.'
+            )
         return replace(cfg, isp_cfg=isp_cfg)

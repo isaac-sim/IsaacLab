@@ -13,6 +13,7 @@ from ...renderers import RendererCfg
 from ...sim import FisheyeCameraCfg, PinholeCameraCfg
 from ...utils import configclass
 from ..sensor_base_cfg import SensorBaseCfg
+from .camera_exposure import ExposureCfg
 from .camera_isp import CameraISPMode
 
 if TYPE_CHECKING:
@@ -209,6 +210,10 @@ class CameraCfg(SensorBaseCfg):
 
     renderer_cfg: RendererCfg = field(default_factory=RendererCfg)
     """Renderer configuration for camera sensor."""
+
+    exposure: ExposureCfg = ExposureCfg()
+    """Camera exposure, authored on the camera prims before the scene is cloned. Defaults to the renderer's
+    exposure."""
 
     tensor_processors: list[TensorProcessorCfg] = []
     """Processors that compute camera outputs from render outputs. Defaults to an empty list.

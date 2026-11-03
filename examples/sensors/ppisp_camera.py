@@ -125,7 +125,7 @@ from isaaclab_ppisp.cfg import PpispCfg, PpispProcessorCfg, ppisp_cfg_from_usd_c
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import CameraCfg
+from isaaclab.sensors import CameraCfg, ExposureCfg
 from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
 from isaaclab.utils import configclass, instantiate
 
@@ -375,6 +375,8 @@ def make_camera(camera_prim_path: str, *, ppisp_cfg: PpispCfg | None, width: int
         data_types=["rgb"],
         spawn=None,
         tensor_processors=[] if ppisp_cfg is None else [PpispProcessorCfg(isp_cfg=ppisp_cfg)],
+        # PPISP applies its own exposure to the scene-linear HDR output.
+        exposure=ExposureCfg(mode="neutral" if ppisp_cfg is not None else "default"),
         renderer_cfg=make_renderer_cfg(),
     )
     return instantiate(camera_cfg)

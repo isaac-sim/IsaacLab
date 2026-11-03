@@ -31,6 +31,7 @@ from ...utils.warp import ProxyArray
 from ..sensor_base import SensorBase
 from .camera_cfg import CAPTURE_MASK_NAME, _render_data_types
 from .camera_data import CameraData, RenderBufferKind
+from .camera_exposure import ExposureCfg, apply_neutral_exposure
 
 if TYPE_CHECKING:
     from ...utils.tensor_processors import TensorProcessor
@@ -266,11 +267,16 @@ class Camera(SensorBase):
             msg = "CameraCfg.isp_cfg is deprecated. Add isaaclab_ppisp.PpispProcessorCfg to tensor_processors."
             warnings.warn(msg, FutureWarning, stacklevel=2)
             self.cfg.tensor_processors = [PpispProcessorCfg(isp_cfg=self.cfg.isp_cfg), *self.cfg.tensor_processors]
+            # PPISP applies its own exposure; isp_cfg neutralized the camera's exposure, so the forwarded cfg does too.
+            self.cfg.exposure = ExposureCfg(mode="neutral")
             # The processor now owns the value, so a camera built from this cfg does not forward it again.
             self.cfg.isp_cfg = None
         # Complete camera authoring before cloning or importing the scene into a native backend.
-        if self.cfg.tensor_processors:
+        if self.cfg.exposure.mode == "neutral" or self.cfg.tensor_processors:
             camera_paths = [str(p.GetPath()) for p in sim_utils.find_matching_prims(self.cfg.prim_path, self.stage)]
+        if self.cfg.exposure.mode == "neutral":
+            apply_neutral_exposure(self.stage, camera_paths)
+        if self.cfg.tensor_processors:
             prepared = [
                 cfg.func.prepare_camera(cfg, self.stage, camera_paths, self.cfg.renderer_cfg)
                 if hasattr(cfg.func, "prepare_camera")
