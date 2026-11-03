@@ -80,7 +80,7 @@ Install the GR00T environment, which needs Python 3.10, and download the apple p
 ```bash
 cd "$GR00T_ROOT"
 uv sync --python 3.10 --frozen
-uv run hf download nvidia/GR00T-N1.7-AppleToPlate-cosine40k-checkpoint-15000 \
+uv run --frozen hf download nvidia/GR00T-N1.7-AppleToPlate-cosine40k-checkpoint-15000 \
   --local-dir "$GR00T_CHECKPOINT"
 ```
 
@@ -90,7 +90,7 @@ Keep the GR00T and Isaac Lab environments separate: the simulator never imports 
 
 ```bash
 cd "$GR00T_ROOT"
-uv run python gr00t/eval/run_gr00t_server.py \
+uv run --frozen python gr00t/eval/run_gr00t_server.py \
   --embodiment-tag NEW_EMBODIMENT \
   --model-path "$GR00T_CHECKPOINT" \
   --device cuda:1 \

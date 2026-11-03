@@ -10,7 +10,7 @@ checkout of the GR00T repository (with its submodules) and with the downloaded c
 
 .. code-block:: bash
 
-    uv run python gr00t/eval/run_gr00t_server.py --embodiment-tag NEW_EMBODIMENT \\
+    uv run --frozen python gr00t/eval/run_gr00t_server.py --embodiment-tag NEW_EMBODIMENT \\
         --model-path /path/to/GR00T-N1.7-AppleToPlate-cosine40k-checkpoint-15000 --port 5555
 
 Then run the task, here on Newton, which the default install includes. No window opens unless
