@@ -3,6 +3,69 @@ Changelog
 
 .. towncrier release notes start
 
+14.0.0 (2026-11-03)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed :meth:`~isaaclab_newton.physics.NewtonManager.invalidate_fk` and
+  :meth:`~isaaclab_newton.physics.NewtonManager.invalidate_body_state` (and their backend counterparts) to select
+  environments by mask only. Removed their ``env_ids`` argument; pass a boolean ``env_mask`` instead, and
+  ``articulation_mask`` to select view-local articulations.
+* Changed the ``*_index`` state writes of Newton assets to flag the written environments into a scratch mask that
+  the backend clears as it reads it, so the backend's reset and FK flagging is mask-only.
+* Changed asset data classes to invalidate only their derived caches.
+* Changed rigid object collection ``*_mask`` state writes to use dedicated mask kernels instead of converting masks to
+  indices, and limited FK invalidation to the selected objects.
+* Avoided refreshing derived state while obtaining authoritative write destinations.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated ``Articulation.write_joint_state_to_sim_index``. Use ``write_joint_state_to_sim_mask``, or
+  ``write_joint_position_to_sim_index`` and ``write_joint_velocity_to_sim_index``.
+
+
+13.0.0 (2026-10-31)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.physics.NewtonBackend` methods that initialize, step and query one model
+  (:meth:`~isaaclab_newton.physics.NewtonBackend.init_solver`, :meth:`~isaaclab_newton.physics.NewtonBackend.step`,
+  :meth:`~isaaclab_newton.physics.NewtonBackend.forward`, :meth:`~isaaclab_newton.physics.NewtonBackend.invalidate_fk`,
+  :meth:`~isaaclab_newton.physics.NewtonBackend.refit_bvh`,
+  :meth:`~isaaclab_newton.physics.NewtonBackend.state_pointers`, ...), so backends with different solvers can be built and
+  stepped side by side.
+* Added an optional ``builder`` argument to :class:`~isaaclab_newton.physics.NewtonBackend` to finalize a builder
+  other than the simulation's shared one.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Removed ``NewtonQueries``. Refit shared BVHs once per state with
+  :meth:`NewtonBackend.refit_bvh <isaaclab_newton.physics.NewtonBackend.refit_bvh>` and capture queries with
+  :func:`newton_backend.capture_graph <isaaclab_newton.physics.newton_backend.capture_graph>`.
+* **Breaking:** Moved ``NewtonManager.transforms_may_change_on_graph_replay`` to
+  :attr:`NewtonBackend.transforms_may_change_on_graph_replay
+  <isaaclab_newton.physics.NewtonBackend.transforms_may_change_on_graph_replay>`.
+* Changed :class:`~isaaclab_newton.physics.NewtonManager` to delegate stepping, resets and contacts to its
+  :class:`~isaaclab_newton.physics.NewtonBackend`. The backend holds the step callbacks, solver-init callbacks, pending
+  model changes and the captured step, so a hard reset discards them with the model.
+
+
+12.0.2 (2026-10-30)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed graph-replay invalidation from before a hard ``sim.reset()`` carrying over to the rebuilt model, which
+  could make asset pose reads in ``PHYSICS_READY`` callbacks raise a ``RuntimeError`` before the solver is rebuilt.
+
+
 12.0.1 (2026-10-29)
 ~~~~~~~~~~~~~~~~~~~
 

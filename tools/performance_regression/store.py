@@ -77,7 +77,7 @@ class BaselineRow:
     """One recorded default-branch measurement for a single contract.
 
     Attributes:
-        contract: Serialised :class:`~tools.perf_smoke.contract.Contract`.
+        contract: Serialised :class:`~tools.performance_regression.contract.Contract`.
         contract_hash: Digest of ``contract``, used as the storage key.
         metrics: Measured value per metric name.
         commit: Default-branch commit the measurement was taken on.
@@ -237,7 +237,7 @@ def make_container_client(sas_url: str) -> Any:
         from azure.storage.blob import ContainerClient
     except ImportError as exc:  # pragma: no cover - depends on runner image
         raise PerfSmokeError(
-            "the baseline store requires azure-storage-blob (see tools/perf_smoke/requirements.txt)"
+            "the baseline store requires azure-storage-blob (see tools/performance_regression/requirements.txt)"
         ) from exc
     try:
         return ContainerClient.from_container_url(

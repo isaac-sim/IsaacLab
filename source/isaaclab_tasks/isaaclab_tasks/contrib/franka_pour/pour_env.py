@@ -606,22 +606,18 @@ class FrankaPourEnv(ManagerBasedRLEnv):
         finger_qd = states["finger_joint_velocity"][rows]
         finger_target = states["finger_joint_target"][rows]
 
-        self._robot.write_joint_state_to_sim_index(
-            position=arm_q,
-            velocity=arm_qd,
-            joint_ids=self._arm_joint_ids,
-            env_ids=env_ids,
-        )
+        self._robot.write_joint_position_to_sim_index(position=arm_q, joint_ids=self._arm_joint_ids, env_ids=env_ids)
+        self._robot.write_joint_velocity_to_sim_index(velocity=arm_qd, joint_ids=self._arm_joint_ids, env_ids=env_ids)
         self._robot.set_joint_position_target_index(
             target=arm_q,
             joint_ids=self._arm_joint_ids,
             env_ids=env_ids,
         )
-        self._robot.write_joint_state_to_sim_index(
-            position=finger_q,
-            velocity=finger_qd,
-            joint_ids=self._finger_joint_ids,
-            env_ids=env_ids,
+        self._robot.write_joint_position_to_sim_index(
+            position=finger_q, joint_ids=self._finger_joint_ids, env_ids=env_ids
+        )
+        self._robot.write_joint_velocity_to_sim_index(
+            velocity=finger_qd, joint_ids=self._finger_joint_ids, env_ids=env_ids
         )
         self._robot.set_joint_position_target_index(
             target=finger_target,

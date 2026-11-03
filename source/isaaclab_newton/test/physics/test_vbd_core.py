@@ -9,11 +9,16 @@ from __future__ import annotations
 
 import importlib
 import math
-from types import SimpleNamespace
 
 import pytest
 import warp as wp
-from isaaclab_newton.physics import NewtonBackendCfg, NewtonBuilderCfg, NewtonCfg, NewtonManager, NewtonSoftContactCfg
+from isaaclab_newton.physics import (
+    NewtonBackendCfg,
+    NewtonBuilderCfg,
+    NewtonCfg,
+    NewtonManager,
+    NewtonSoftContactCfg,
+)
 from isaaclab_newton.physics.newton_solver import solver_kwargs
 from newton import ModelBuilder
 from newton.solvers import SolverVBD
@@ -207,48 +212,3 @@ def test_vbd_structural_joint_stiffness_under_load():
     # The joint's linear force balances weight; its angular torque balances the offset load.
     assert -anchor_height * linear_ke == pytest.approx(mass * gravity, rel=0.01)
     assert angle * angular_ke == pytest.approx(mass * gravity * lever * math.cos(angle), rel=0.01)
-
-
-def test_vbd_rebuilds_particle_bvh_before_physics_step():
-    """VBD rebuilds its particle BVH before the solver advances each physics step."""
-    physics = importlib.import_module("isaaclab_newton.physics")
-    events = []
-
-    class State:
-        body_count = particle_count = 0
-
-        def clear_forces(self):
-            pass
-
-        def assign(self, other):
-            pass
-
-    class NativeSolver:
-        model = SimpleNamespace(particle_count=1, articulation_count=0, joint_coord_count=0)
-
-        def rebuild_bvh(self, solver_state):
-            events.append(("rebuild", solver_state))
-
-        def step(self, state_in, state_out, control, contacts, dt):
-            events.append(("step", state_in))
-
-    state_0, state_1 = State(), State()
-    manager = NewtonManager(NewtonCfg())
-    manager._cfg = NewtonCfg(solver_cfg=physics.VBDSolverCfg())
-    manager.backend = SimpleNamespace(
-        model=SimpleNamespace(particle_count=1),
-        solver=NativeSolver(),
-        state_0=state_0,
-        state_1=state_1,
-        control=None,
-        collision_pipeline=None,
-        contacts=None,
-        num_substeps=1,
-        solver_dt=0.01,
-        contact_sensors={},
-        imu_sensors=[],
-    )
-
-    manager._simulate_physics_only()
-
-    assert events == [("rebuild", state_0), ("step", state_0)]

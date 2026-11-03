@@ -3,6 +3,27 @@ Changelog
 
 .. towncrier release notes start
 
+10.0.4 (2026-11-03)
+~~~~~~~~~~~~~~~~~~~
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated ``Articulation.write_joint_state_to_sim_index``. Use ``write_joint_state_to_sim_mask``, or
+  ``write_joint_position_to_sim_index`` and ``write_joint_velocity_to_sim_index``.
+
+
+10.0.3 (2026-10-30)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :meth:`~isaaclab_physx.assets.Articulation.write_joint_friction_coefficient_to_sim_index`
+  and its mask variant to broadcast scalar coefficients directly in the fused Warp kernel, including integer zero,
+  without allocating expanded input arrays.
+
+
 10.0.2 (2026-10-29)
 ~~~~~~~~~~~~~~~~~~~
 
