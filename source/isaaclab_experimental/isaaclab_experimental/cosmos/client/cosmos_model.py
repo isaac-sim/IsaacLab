@@ -106,7 +106,8 @@ class CosmosModel:
             with self._lock:
                 if self._closed:
                     raise RuntimeError("Cosmos client model is closed.")
-                if self._group is None:
+                # A closed group keeps its cameras' old streams; rebuilt cameras start a new session.
+                if self._group is None or self._group._closed:
                     self._group = _CameraGroup(self, tuple(self._cfg.cameras))
                 group = self._group
             return group.join(num_views, seeds)
