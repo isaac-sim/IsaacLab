@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 import warp as wp
-from newton import ModelFlags
+from newton import Model, ModelFlags
 from newton.selection import ArticulationView
 
 from pxr import UsdPhysics
@@ -1049,7 +1049,22 @@ class RigidObject(BaseRigidObject):
             self._backend_manager.backend.model,
             path_expr_to_glob(root_prim_path_expr),
             verbose=False,
+            homogeneous=False,
         )
+        # Unrelated scene shapes may change the offsets between otherwise identical instances.
+        required = ("JOINT", "JOINT_DOF", "JOINT_COORD", "BODY", "SHAPE")
+        unavailable = [
+            name
+            for name in required
+            if getattr(Model.AttributeFrequency, name) not in self._root_view.frequency_layouts
+        ]
+        root_metadata = (
+            self._root_view.root_joint_type,
+            self._root_view.is_fixed_base,
+            self._root_view.is_floating_base,
+        )
+        if self._root_view.is_sparse or unavailable or any(value is None for value in root_metadata):
+            raise ValueError(f"Rigid-object instances require matching layouts in every world: {unavailable}.")
 
         # container for data access
         self._data = RigidObjectData(self.root_view, self.device, backend_manager=self._backend_manager)

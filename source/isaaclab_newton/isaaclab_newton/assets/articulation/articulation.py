@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import torch
 import warp as wp
-from newton import JointTargetMode, JointType, ModelFlags
+from newton import JointTargetMode, JointType, Model, ModelFlags
 from newton.selection import ArticulationView
 from prettytable import PrettyTable
 
@@ -3352,7 +3352,22 @@ class Articulation(BaseArticulation):
             re.compile(root_prim_path_expr),
             verbose=False,
             exclude_joint_types=[JointType.FREE, JointType.FIXED],
+            homogeneous=False,
         )
+        # Unrelated scene shapes may change the offsets between otherwise identical instances.
+        required = ("JOINT", "JOINT_DOF", "JOINT_COORD", "BODY", "SHAPE")
+        unavailable = [
+            name
+            for name in required
+            if getattr(Model.AttributeFrequency, name) not in self._root_view.frequency_layouts
+        ]
+        root_metadata = (
+            self._root_view.root_joint_type,
+            self._root_view.is_fixed_base,
+            self._root_view.is_floating_base,
+        )
+        if self._root_view.is_sparse or unavailable or any(value is None for value in root_metadata):
+            raise ValueError(f"Articulation instances require matching layouts in every world: {unavailable}.")
 
         # container for data access
         self._data = ArticulationData(self.root_view, self.device, backend_manager=self._backend_manager)
