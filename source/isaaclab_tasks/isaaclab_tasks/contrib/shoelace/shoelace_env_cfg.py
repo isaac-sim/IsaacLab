@@ -64,15 +64,10 @@ FINGER_CFGS = tuple(
 GRASP_PARAMS = {
     "cable_cfgs": CABLE_CFGS,
     "robot_cfgs": ROBOT_CFGS,
-    "finger_cfgs": FINGER_CFGS,
     "contact_std": 5.0e-4,
     "contact_penetration_tolerance": 1.0e-3,
     "relative_speed_std": 0.08,
     "grasp_filter_time_constant": 0.10,
-    "target_diameter": 0.003,  # Match the active USD cable widths [m].
-    "pad_distance_std": 0.006,
-    "aperture_std": 0.002,
-    "capture_std": 0.002,
 }
 
 
@@ -312,14 +307,14 @@ class RewardsCfg:
             "finger_cfgs": FINGER_CFGS,
             "robot_cfgs": ROBOT_CFGS,
             "open_apertures": (0.01996, 0.01996),  # Franka ready surface spacings [m].
-            "target_diameter": GRASP_PARAMS["target_diameter"],
+            "target_diameter": 0.003,  # Match the active USD cable widths [m].
             "alignment_std": 0.015,
             "closure_radius": 0.01,
             "alignment_weight": 0.75,
             "closure_weight": 0.25,
         },
     )
-    # Reward retained contact-based, closed-finger, low-slip grasps even without further task progress.
+    # Reward retained dual-finger surface contacts with low TCP-relative slip even without further task progress.
     grasp_hold = RewTerm(
         func=mdp.grasp_hold_reward,
         weight=1.0,

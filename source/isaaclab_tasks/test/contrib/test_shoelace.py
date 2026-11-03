@@ -38,8 +38,8 @@ def grasp_env() -> SimpleNamespace:
     for term in (cfg.rewards.dense_task, cfg.rewards.pregrasp, cfg.rewards.grasp_hold):
         for robot_cfg in term.params["robot_cfgs"]:
             robot_cfg.body_ids = [0]
-        for i, finger_cfg in enumerate(term.params["finger_cfgs"]):
-            finger_cfg.body_ids = [1 + i % 2]
+    for i, finger_cfg in enumerate(cfg.rewards.pregrasp.params["finger_cfgs"]):
+        finger_cfg.body_ids = [1 + i % 2]
     for robot in (scene["robot_left"], scene["robot_right"]):
         tcp = torch.tensor(cfg.tcp_body_offsets[0][0])
         fingers = tcp + torch.tensor([[-0.01, 0.0, 0.0], [0.01, 0.0, 0.0]])
@@ -86,16 +86,18 @@ def test_approach_penalizes_tail_offset_inside_open_fingers(grasp_env: SimpleNam
     assert reward(env, **term_cfg.params).item() > 0.0
 
 
-def test_grasp_hold_uses_tcp_speed_instead_of_finger_closure_speed(grasp_env: SimpleNamespace) -> None:
-    """Closing fingers alone does not penalize retention; tail motion relative to the TCP does."""
+def test_grasp_hold_uses_surface_contacts_and_tcp_speed(grasp_env: SimpleNamespace) -> None:
+    """Surface contacts can retain a tail away from pad landmarks, but missing contact and slip cannot."""
     env = grasp_env
     cfg = env.cfg.rewards.grasp_hold
-    env.scene["finger_tail_contacts"].data.zero_()
-    for name in ("robot_left", "robot_right"):
-        robot = env.scene[name].data
-        robot.body_pos_w.torch[:, 1, 0] += 0.0085
-        robot.body_pos_w.torch[:, 2, 0] -= 0.0085
+    contacts = env.scene["finger_tail_contacts"].data
     reward = grasp_hold_reward(cfg, env)
+    assert reward(env, **cfg.params).item() == 0.0
+    contacts.zero_()
+    for name in ("robot_left", "robot_right"):
+        # The sensor measures the collision surface, not these arbitrary reference points.
+        env.scene[name].data.body_pos_w.torch[:, 1:, 1] += 0.03
+    reward.reset()
     held = reward(env, **cfg.params)
     assert held.item() > 0.9
     for name in ("robot_left", "robot_right"):
@@ -103,6 +105,16 @@ def test_grasp_hold_uses_tcp_speed_instead_of_finger_closure_speed(grasp_env: Si
         velocity[:, 1, 0], velocity[:, 2, 0] = 0.1, -0.1
     reward.reset()
     torch.testing.assert_close(reward(env, **cfg.params), held)
+    contacts[:, [1, 3]] = 0.002
+    reward.reset()
+    assert reward(env, **cfg.params).item() == 0.0
+    contacts.fill_(-0.0005)
+    reward.reset()
+    torch.testing.assert_close(reward(env, **cfg.params), held)
+    contacts.fill_(-0.004)
+    reward.reset()
+    assert reward(env, **cfg.params).item() < 0.01
+    contacts.zero_()
     for cable_cfg in cfg.params["cable_cfgs"]:
         env.scene[cable_cfg.name].data.segment_velocity_w.torch[..., 0] = 0.1
     reward.reset()

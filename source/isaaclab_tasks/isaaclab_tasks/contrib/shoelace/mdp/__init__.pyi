@@ -10,7 +10,6 @@ __all__ = [
     "finger_tail_signed_distance",
     "finger_tail_relative_velocity",
     "pad_to_tail",
-    "grasp_geometry",
     "grasp_hold_reward",
     "gripper_close_error",
     "gripper_closing_tracking_error",
@@ -37,7 +36,7 @@ from .events import (
     reset_arm_joints,
     reset_shoe_position,
 )
-from .grasp import grasp_geometry, shoelace_grasp_quality
+from .grasp import shoelace_grasp_quality
 from .inspire_hand import (
     InspireFingerAction,
     inspire_finger_tracking_error,

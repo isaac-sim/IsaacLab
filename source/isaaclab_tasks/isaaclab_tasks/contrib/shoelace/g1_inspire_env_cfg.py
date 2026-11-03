@@ -271,7 +271,7 @@ class G1ShoelaceEnvCfg(ShoelaceEnvCfg):
     tcp_body_offsets = TCP_BODY_OFFSETS
     """Nominal closed pinch centres in the left/right wrist frames, independent of finger state [m]."""
     finger_body_offsets = PAD_OFFSETS
-    """The same surface landmarks used by the shared grasp rewards [m]."""
+    """Surface landmarks for finger observations and pregrasp closure progress [m]."""
 
     def __post_init__(self) -> None:
         """Bind the shared managers to one articulation with increasing finger closure angles."""
@@ -300,11 +300,9 @@ class G1ShoelaceEnvCfg(ShoelaceEnvCfg):
             self.rewards.grasp_hold,
             self.terminations.success,
         ):
-            term.params["finger_cfgs"] = tuple(clone(cfg) for cfg in FINGER_CFGS)
             term.params["robot_cfgs"] = tuple(clone(cfg) for cfg in ROBOT_CFGS)
+        self.rewards.pregrasp.params["finger_cfgs"] = tuple(clone(cfg) for cfg in FINGER_CFGS)
         self.rewards.pregrasp.params["open_apertures"] = (0.019776298,) * 2
-        for term in (self.rewards.dense_task, self.rewards.grasp_hold, self.terminations.success):
-            term.params["capture_std"] = 0.004
         self.events.reset_shoe.params["position_range"] = {"x": (-0.01, 0.01), "y": (-0.01, 0.01)}
         self.sim.physics.solver_cfg.iterations = 8
         self.sim.physics.solver_cfg.entries[0].bodies = [r"{ENV_REGEX_NS}/(Robot|ShoelaceScene/Shoe)"]

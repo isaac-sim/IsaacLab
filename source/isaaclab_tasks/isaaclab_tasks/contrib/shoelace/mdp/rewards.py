@@ -18,7 +18,6 @@ from isaaclab.managers import ManagerTermBase
 from .grasp import (
     bilateral_score,
     filter_grasps,
-    grasp_geometry,
     hamacher_product,
     shoelace_grasp_quality,
 )
@@ -144,7 +143,6 @@ class dense_task_reward(ManagerTermBase):
         grasp_filter_time_constant: float,
         success_x_separation: float,
         cable_cfgs: tuple[SceneEntityCfg, SceneEntityCfg] | None = None,
-        finger_cfgs: tuple[SceneEntityCfg, ...] | None = None,
         *,
         robot_cfgs: tuple[SceneEntityCfg, SceneEntityCfg],
         acquisition_weight: float = 0.6,
@@ -154,10 +152,6 @@ class dense_task_reward(ManagerTermBase):
         bilateral_grasp_fraction: float = 0.7,
         contact_penetration_tolerance: float = 0.0,
         pull_grasp_threshold: float = 0.2,
-        target_diameter: float,
-        pad_distance_std: float,
-        aperture_std: float,
-        capture_std: float,
     ) -> torch.Tensor:
         """Return the signed rate of acquisition-and-pull progress [1/s].
 
@@ -181,7 +175,6 @@ class dense_task_reward(ManagerTermBase):
             grasp_filter_time_constant: Grasp-quality low-pass time constant [s].
             success_x_separation: X-separation target for the pull scale [m]; success is checked separately.
             cable_cfgs: Required left and right cable scene entities.
-            finger_cfgs: Required opposing surface-reference bodies for each hand.
             acquisition_weight: Acquisition fraction in [0, 1]; pulling receives the remainder.
             approach_fraction: Approach share of acquisition in [0, 1]; grasps receive the remainder.
             bilateral_pull_fraction: Bilateral share of pulling in [0, 1]; zero disables the bonus.
@@ -192,10 +185,6 @@ class dense_task_reward(ManagerTermBase):
             pull_grasp_threshold: Minimum current and filtered grasp quality for each arm's record credit;
                 both arms must qualify for new bilateral records.
             robot_cfgs: Fixed TCP bodies in left/right arm order, using ``env.cfg.tcp_body_offsets``.
-            target_diameter: Target cable diameter [m].
-            pad_distance_std: Finger reference-point localization width [m].
-            aperture_std: Width for excess finger spacing above the target diameter [m].
-            capture_std: Width for the tail leaving the opposing-finger segment [m].
 
         Returns:
             Signed reward rates [1/s], shape [N]. RewardManager cancels the timestep division
@@ -204,8 +193,8 @@ class dense_task_reward(ManagerTermBase):
         Raises:
             ValueError: If scene entities, reward budgets, or the separation target are invalid.
         """
-        if cable_cfgs is None or finger_cfgs is None:
-            raise ValueError("dense_task_reward requires cable_cfgs and finger_cfgs")
+        if cable_cfgs is None:
+            raise ValueError("dense_task_reward requires cable_cfgs")
         if not 0.0 <= acquisition_weight <= 1.0 or not 0.0 <= approach_fraction <= 1.0:
             raise ValueError("acquisition_weight and approach_fraction must be in [0, 1]")
         if not all(
@@ -219,29 +208,20 @@ class dense_task_reward(ManagerTermBase):
             raise ValueError("pull_grasp_threshold must be in (0, 1]")
 
         # Per-arm tensors follow robot order (left, right), which is opposite to the cable naming.
-        geometry = grasp_geometry(env, cable_cfgs, finger_cfgs, target_diameter, robot_cfgs=robot_cfgs)
-        tail_distances = geometry["capture_distance"]
         approach_distance = tails_to_tcp(env, cable_cfgs, robot_cfgs).reshape(env.num_envs, 2, 3).norm(dim=-1)
         per_gripper_grasp, grasp_finite = shoelace_grasp_quality(
             env,
             contact_std,
             relative_speed_std,
             cable_cfgs,
-            finger_cfgs,
             contact_penetration_tolerance,
             robot_cfgs=robot_cfgs,
-            target_diameter=target_diameter,
-            pad_distance_std=pad_distance_std,
-            aperture_std=aperture_std,
-            capture_std=capture_std,
-            geometry=geometry,
         )
         outward_x = tail_outward_x(env, cable_cfgs)
         x_separation = outward_x.sum(dim=1).abs()
         # Per-environment numerical mask for reward inputs; this does not assess grasp or task success.
         finite = (
-            torch.isfinite(tail_distances).all(dim=1)
-            & torch.isfinite(approach_distance).all(dim=1)
+            torch.isfinite(approach_distance).all(dim=1)
             & grasp_finite
             & torch.isfinite(x_separation)
             & torch.isfinite(outward_x).all(dim=1)
@@ -292,8 +272,6 @@ class dense_task_reward(ManagerTermBase):
 
         metric_values = {
             "approach_distance_m": approach_distance.mean(dim=1),
-            "capture_distance_m": tail_distances.mean(dim=1),
-            "surface_midpoint_distance_m": geometry["surface_midpoint_distance"].mean(dim=1),
             "grasp_left": filtered_per_gripper_grasp[:, 0],
             "grasp_right": filtered_per_gripper_grasp[:, 1],
             "grasp_both": bilateral_grasp,
@@ -367,17 +345,12 @@ class grasp_hold_reward(ManagerTermBase):
         relative_speed_std: float,
         grasp_filter_time_constant: float,
         cable_cfgs: tuple[SceneEntityCfg, SceneEntityCfg],
-        finger_cfgs: tuple[SceneEntityCfg, ...],
         bilateral_grasp_fraction: float = 0.8,
         *,
         robot_cfgs: tuple[SceneEntityCfg, SceneEntityCfg],
         contact_penetration_tolerance: float = 0.0,
         full_reward_duration: float | None = None,
         sustained_reward_fraction: float = 0.2,
-        target_diameter: float,
-        pad_distance_std: float,
-        aperture_std: float,
-        capture_std: float,
     ) -> torch.Tensor:
         """Return sustained grasp quality with a bilateral bonus.
 
@@ -387,7 +360,6 @@ class grasp_hold_reward(ManagerTermBase):
             relative_speed_std: Fixed-TCP relative-speed width [m/s].
             grasp_filter_time_constant: Grasp-quality low-pass time constant [s].
             cable_cfgs: Left and right cable scene entities.
-            finger_cfgs: Opposing surface-reference bodies for each hand.
             bilateral_grasp_fraction: Bilateral share in [0, 1]; the remainder rewards each arm independently.
             contact_penetration_tolerance: Accepted contact-solver penetration [m]. Positive gaps and
                 penetration beyond this tolerance still reduce grasp quality.
@@ -395,10 +367,6 @@ class grasp_hold_reward(ManagerTermBase):
                 episode. ``None`` disables the budget. Release or regrasp does not renew it.
             sustained_reward_fraction: Remaining reward fraction in [0, 1] after the full-rate budget.
             robot_cfgs: Fixed TCP bodies in left/right arm order, using ``env.cfg.tcp_body_offsets``.
-            target_diameter: Target cable diameter [m].
-            pad_distance_std: Finger reference-point localization width [m].
-            aperture_std: Width for excess finger spacing above the target diameter [m].
-            capture_std: Width for the tail leaving the opposing-finger segment [m].
 
         Returns:
             Hold scores in [0, 1], shape [N]. The first finite sample seeds the filter without a ramp.
@@ -417,13 +385,8 @@ class grasp_hold_reward(ManagerTermBase):
             contact_std,
             relative_speed_std,
             cable_cfgs,
-            finger_cfgs,
             contact_penetration_tolerance,
             robot_cfgs=robot_cfgs,
-            target_diameter=target_diameter,
-            pad_distance_std=pad_distance_std,
-            aperture_std=aperture_std,
-            capture_std=capture_std,
         )
         filtered = filter_grasps(
             self._filtered_per_gripper_grasp, grasp, finite, env.step_dt, max(grasp_filter_time_constant, 1.0e-6)
@@ -439,7 +402,7 @@ class grasp_hold_reward(ManagerTermBase):
 
 
 class pregrasp_progress_reward(ManagerTermBase):
-    """Bridge approach and physical grasping with capture geometry, aperture progress and soft contact.
+    """Bridge approach and physical grasping with fixed-TCP alignment and closure progress.
 
     This is an acquisition heuristic, not evidence of physical retention or force closure.
     Each arm earns progress independently; stationary states pay zero and releases remove closure
