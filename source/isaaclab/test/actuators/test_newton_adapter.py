@@ -435,8 +435,8 @@ def test_compute_runs_eagerly_after_graph_capture_failure(monkeypatch: pytest.Mo
     eager_compute.assert_called_with(collection, 0.01)
 
 
-def test_graph_capture_loads_only_the_kernels_it_runs(monkeypatch: pytest.MonkeyPatch) -> None:
-    """An eager warm-up step loads the kernels' modules, so the capture does not force-load every Warp module."""
+def test_graph_capture_warms_up_eagerly_then_captures_without_force_loading(monkeypatch: pytest.MonkeyPatch) -> None:
+    """One eager step runs before the captures, its state swap is undone, and the captures do not force-load modules."""
     state_a, state_b = object(), object()
     runtime = _runtime()
     runtime.adapter = SimpleNamespace(_states_a=state_a, _states_b=state_b)
