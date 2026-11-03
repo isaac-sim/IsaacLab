@@ -3,6 +3,21 @@ Changelog
 
 .. towncrier release notes start
 
+29.1.1 (2026-10-31)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the GB300 insertion IK capture to :func:`newton_backend.capture_graph
+  <isaaclab_newton.physics.newton_backend.capture_graph>`.
+
+Fixed
+^^^^^
+
+* Fixed FORGE orientation clipping to use consistent Euler angle ranges, correcting roll motion near 180 degrees and preserving the yaw joint-limit convention.
+
+
 29.1.0 (2026-10-28)
 ~~~~~~~~~~~~~~~~~~~
 

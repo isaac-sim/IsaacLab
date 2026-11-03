@@ -286,7 +286,7 @@ def _run(
     handles_dec = (
         use_newton_actuators
         and decimation > 1
-        and sim.backend_manager._is_all_graphable()
+        and sim.backend_manager.handles_decimation()
         and sim.backend_manager._decimation > 1
     )
 
