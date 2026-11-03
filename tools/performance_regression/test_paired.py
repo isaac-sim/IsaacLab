@@ -11,7 +11,6 @@ import hashlib
 import io
 import json
 import os
-import runpy
 import subprocess
 import sys
 from pathlib import Path
@@ -58,7 +57,6 @@ class PairedFixtureClient(FixtureClient):
 
 
 from .test_build_compare import assert_fields, check_comparisons, check_reports, run_report
-from .test_compare import check_rolling_history
 
 
 class PairedFixture:
@@ -938,9 +936,6 @@ def check_binding(tmp_path, subtests):
 def test_pr_comparison(tmp_path, subtests):
     from .test_baseline import check_evidence, check_transport
 
-    check_rolling_history(tmp_path, subtests)
-    registry = Path(__file__).resolve().parents[2] / ".github/actions/_lib/test_registry_credential_fallback.py"
-    runpy.run_path(str(registry))["check_dependency_cache"](tmp_path / "cache", subtests)
     check_evidence(subtests)
     check_transport(subtests)
     check_comparisons(subtests)

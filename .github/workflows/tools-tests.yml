@@ -56,6 +56,7 @@ jobs:
           PYTHONPATH: tools
         # Explicit files avoid tests that need Isaac Sim; --noconftest prevents the full-suite orchestrator from running.
         run: python3 -m pytest tools/test_crash_journal.py tools/test_file_scheduler.py
+          .github/actions/_lib/test_registry_credential_fallback.py
           .github/actions/_lib/test_performance_workflow.py -v --noconftest
 
       - uses: astral-sh/setup-uv@v6
@@ -63,5 +64,5 @@ jobs:
           enable-cache: false
 
       - name: Test performance comparisons
-        run: uv run --no-project --with-requirements tools/performance_regression/requirements.txt --with pytest --with pyyaml
-          python -m pytest tools/performance_regression/test_source_revision.py tools/performance_regression/test_paired.py -v --noconftest
+        run: uv run --no-project --with-requirements tools/performance_regression/requirements.txt --with pytest
+          python -m pytest tools/performance_regression/test_compare.py tools/performance_regression/test_source_revision.py tools/performance_regression/test_paired.py -v --noconftest

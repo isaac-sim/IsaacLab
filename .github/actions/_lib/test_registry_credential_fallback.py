@@ -106,31 +106,31 @@ exit 1
 """
 
 
-def check_public_nvcr_drops_only_that_registry(tmp_path: Path) -> None:
+def test_public_nvcr_drops_only_that_registry(tmp_path: Path) -> None:
     result = _run_setup(tmp_path, "nvcr.io/nvidia/isaac-sim:6.2.0", _DENY_UNLESS_ANONYMOUS)
     assert _auths(tmp_path / "cfg" / "config.json") == {_ECR, _HUB}
     assert not json.loads((tmp_path / "cfg" / "config.json").read_text()).get("credHelpers")
     assert "::warning::" not in result.stdout
 
 
-def check_non_nvcr_reference_is_left_alone(tmp_path: Path) -> None:
+def test_non_nvcr_reference_is_left_alone(tmp_path: Path) -> None:
     _run_setup(tmp_path, "ubuntu:24.04", _DENY_UNLESS_ANONYMOUS)
     assert _auths(tmp_path / "cfg" / "config.json") == {"nvcr.io", _ECR, _HUB}
 
 
-def check_readable_image_keeps_credentials(tmp_path: Path) -> None:
+def test_readable_image_keeps_credentials(tmp_path: Path) -> None:
     _run_setup(tmp_path, "nvcr.io/example/isaac-sim:latest", "exit 0")
     assert _auths(tmp_path / "cfg" / "config.json") == {"nvcr.io", _ECR, _HUB}
 
 
-def check_transient_failure_keeps_credentials(tmp_path: Path) -> None:
+def test_transient_failure_keeps_credentials(tmp_path: Path) -> None:
     stub = 'echo "error: received unexpected HTTP status: 503" >&2\nexit 1'
     result = _run_setup(tmp_path, "nvcr.io/nvidia/isaac-sim:6.2.0", stub)
     assert _auths(tmp_path / "cfg" / "config.json") == {"nvcr.io", _ECR, _HUB}
     assert "::warning::" in result.stdout
 
 
-def check_transient_anonymous_failure_is_retried(tmp_path: Path) -> None:
+def test_transient_anonymous_failure_is_retried(tmp_path: Path) -> None:
     stub = """
 config="${DOCKER_CONFIG:-}/config.json"
 if [ -f "$config" ] && grep -q '"auths":{}' "$config"; then
@@ -156,12 +156,12 @@ exit 1
     assert _auths(tmp_path / "cfg" / "config.json") == {_ECR, _HUB}
 
 
-def check_unowned_config_is_never_modified(tmp_path: Path) -> None:
+def test_unowned_config_is_never_modified(tmp_path: Path) -> None:
     _run_setup(tmp_path, "nvcr.io/nvidia/isaac-sim:6.2.0", _DENY_UNLESS_ANONYMOUS, owned=False)
     assert _auths(tmp_path / "cfg" / "config.json") == {"nvcr.io", _ECR, _HUB}
 
 
-def check_already_checked_reference_is_not_probed_again(tmp_path: Path) -> None:
+def test_already_checked_reference_is_not_probed_again(tmp_path: Path) -> None:
     ref = "nvcr.io/nvidia/isaac-sim:6.2.0"
     stub = 'echo "the probe must not run again" >&2\nexit 1'
     _run_setup(
@@ -174,7 +174,7 @@ def check_already_checked_reference_is_not_probed_again(tmp_path: Path) -> None:
     assert _auths(tmp_path / "cfg" / "config.json") == {"nvcr.io", _ECR, _HUB}
 
 
-def check_recreated_config_rechecks_previously_checked_image(tmp_path: Path) -> None:
+def test_recreated_config_rechecks_previously_checked_image(tmp_path: Path) -> None:
     runner_config = tmp_path / "home" / ".docker" / "config.json"
     runner_config.parent.mkdir(parents=True)
     _write_config(runner_config, ["nvcr.io", _ECR, _HUB])
@@ -197,7 +197,7 @@ def check_recreated_config_rechecks_previously_checked_image(tmp_path: Path) -> 
     assert _auths(runner_config) == {"nvcr.io", _ECR, _HUB}
 
 
-def check_registry_host_canonicalization(_tmp_path: Path) -> None:
+def test_registry_host_canonicalization() -> None:
     helper = _load_helper()
     assert helper.registry_host("NVCR.IO/nvidia/isaac-sim:6.2.0") == "nvcr.io"
     assert helper.registry_host("nvcr.io:443/nvidia/isaac-sim:6.2.0") == "nvcr.io"
@@ -206,7 +206,7 @@ def check_registry_host_canonicalization(_tmp_path: Path) -> None:
     assert helper.registry_host("nvcr.io.example.com/team/image:1") == "nvcr.io.example.com"
 
 
-def check_helper_reports_when_nothing_matched(tmp_path: Path) -> None:
+def test_helper_reports_when_nothing_matched(tmp_path: Path) -> None:
     config = _write_config(tmp_path / "config.json", [_ECR])
     result = subprocess.run(
         ["python3", str(_STRIP_HELPER), str(config), "nvcr.io/nvidia/isaac-sim:6.2.0"],
@@ -245,7 +245,7 @@ def _run_hash(
     return result, dict(line.split("=", 1) for line in output.read_text().splitlines())
 
 
-def check_digest_pinned_tag_skips_the_network(tmp_path: Path) -> None:
+def test_digest_pinned_tag_skips_the_network(tmp_path: Path) -> None:
     hashes = []
     for digest in (_DIGEST, "sha256:" + "b" * 64):
         result, output = _run_hash(tmp_path, "nvcr.io/example/isaac-sim", f"latest-develop@{digest}", "exit 1")
@@ -255,14 +255,14 @@ def check_digest_pinned_tag_skips_the_network(tmp_path: Path) -> None:
     assert hashes[0] != hashes[1]
 
 
-def check_malformed_digest_pin_fails(tmp_path: Path) -> None:
+def test_malformed_digest_pin_fails(tmp_path: Path) -> None:
     result, output = _run_hash(tmp_path, "nvcr.io/example/isaac-sim", "latest@sha256:short", "exit 0")
     assert result.returncode == 1
     assert "malformed digest pin" in result.stdout
     assert output == {}
 
 
-def check_authorization_refusal_fails_without_retrying(tmp_path: Path) -> None:
+def test_authorization_refusal_fails_without_retrying(tmp_path: Path) -> None:
     stub = 'echo "denied: Access Denied" >&2\nexit 1'
     result, output = _run_hash(tmp_path, "nvcr.io/example/isaac-sim", "latest-release-6-2", stub)
     assert result.returncode == 1
@@ -273,14 +273,14 @@ def check_authorization_refusal_fails_without_retrying(tmp_path: Path) -> None:
     assert output == {}
 
 
-def check_invalid_resolved_digests_are_rejected(tmp_path: Path) -> None:
+def test_invalid_resolved_digests_are_rejected(tmp_path: Path) -> None:
     for digest in ("sha256:abc123", f"{_DIGEST} unexpected"):
         result, output = _run_hash(tmp_path, "nvcr.io/example/isaac-sim", "latest-release-6-2", f"echo '\"{digest}\"'")
         assert result.returncode == 1, digest
         assert output == {}, digest
 
 
-def check_successful_read_ignores_stderr_noise(tmp_path: Path) -> None:
+def test_successful_read_ignores_stderr_noise(tmp_path: Path) -> None:
     hashes = []
     for digest, warning in (
         (_DIGEST, ""),
@@ -295,32 +295,7 @@ def check_successful_read_ignores_stderr_noise(tmp_path: Path) -> None:
     assert hashes[1] != hashes[2]
 
 
-def check_registry(tmp_path: Path, subtests) -> None:
-    for check in (
-        check_public_nvcr_drops_only_that_registry,
-        check_non_nvcr_reference_is_left_alone,
-        check_readable_image_keeps_credentials,
-        check_transient_failure_keeps_credentials,
-        check_transient_anonymous_failure_is_retried,
-        check_unowned_config_is_never_modified,
-        check_already_checked_reference_is_not_probed_again,
-        check_recreated_config_rechecks_previously_checked_image,
-        check_registry_host_canonicalization,
-        check_helper_reports_when_nothing_matched,
-        check_digest_pinned_tag_skips_the_network,
-        check_malformed_digest_pin_fails,
-        check_authorization_refusal_fails_without_retrying,
-        check_invalid_resolved_digests_are_rejected,
-        check_successful_read_ignores_stderr_noise,
-        check_deps_hash_ignores_first_party_version_bumps,
-    ):
-        with subtests.test(registry=check.__name__.removeprefix("check_")):
-            workspace = tmp_path / check.__name__
-            workspace.mkdir(parents=True)
-            check(workspace)
-
-
-def check_dependency_cache(tmp_path: Path, subtests) -> None:
+def test_dependency_cache(tmp_path: Path, subtests) -> None:
     """Exercise the real cache/push shells with state left by an older base-side action."""
     action = yaml.safe_load((_LIB_DIR.parent / "ecr-build-push-pull/action.yml").read_text())
     steps = {step["name"]: step for step in action["runs"]["steps"]}
@@ -405,7 +380,7 @@ def _manifest_hash(tmp_path: Path, pyproject: str, lock: str) -> str:
     return result.stdout.strip()
 
 
-def check_deps_hash_ignores_first_party_version_bumps(tmp_path: Path) -> None:
+def test_deps_hash_ignores_first_party_version_bumps(tmp_path: Path) -> None:
     """The nightly version bump must not rebuild the images; a dependency change must."""
     base = _manifest_hash(tmp_path / "base", _PYPROJECT, _LOCK)
     bumped = _manifest_hash(tmp_path / "bumped", _PYPROJECT.replace("1.0.0", "1.1.0"), _LOCK.replace("1.0.0", "1.1.0"))

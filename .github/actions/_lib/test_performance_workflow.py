@@ -7,7 +7,6 @@
 
 import json
 import os
-import runpy
 import signal
 import subprocess
 import sys
@@ -15,7 +14,6 @@ import textwrap
 from contextlib import suppress
 from pathlib import Path
 
-import pytest
 import yaml
 
 _WORKFLOW = Path(__file__).resolve().parents[2] / "workflows/build.yaml"
@@ -137,6 +135,9 @@ def test_benchmark_cancellation(tmp_path: Path) -> None:
     timeout = executables / "timeout"
     timeout.write_text('#!/bin/bash\nshift\nexec "$@"\n', encoding="utf-8")
     timeout.chmod(0o755)
+    df = executables / "df"
+    df.write_text('#!/bin/bash\nprintf "Filesystem 1B-blocks\\nshm 1073741824\\n"\n', encoding="utf-8")
+    df.chmod(0o755)
     environment = {
         **os.environ,
         "PATH": f"{executables}{os.pathsep}{os.environ['PATH']}",
@@ -167,6 +168,8 @@ def test_benchmark_cancellation(tmp_path: Path) -> None:
             started = next((json.loads(line) for line in process.stdout if line.startswith("{")), None)
             assert started is not None, (stop_signal.name, process.stderr.read())
             docker_args = started["argv"][: started["argv"].index(environment["CI_IMAGE_TAG"])]
+            assert "--ipc=private" in docker_args and "--ipc=host" not in docker_args
+            assert docker_args[docker_args.index("--shm-size") + 1] == "1073741824"
             mounts = {docker_args[index + 1] for index, arg in enumerate(docker_args) if arg == "-v"}
             assert expected_mounts <= mounts, (
                 f"Missing or incorrect Docker source mounts: {sorted(expected_mounts - mounts)};"
@@ -187,8 +190,3 @@ def test_benchmark_cancellation(tmp_path: Path) -> None:
             with suppress(ProcessLookupError):
                 os.killpg(process.pid, signal.SIGKILL)
             process.communicate()
-
-
-def test_registry_credentials(tmp_path: Path, subtests: pytest.Subtests) -> None:
-    registry = runpy.run_path(str(Path(__file__).with_name("test_registry_credential_fallback.py")))
-    registry["check_registry"](tmp_path / "registry", subtests)

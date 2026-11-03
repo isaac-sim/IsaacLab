@@ -45,7 +45,8 @@ run_attempt() {
   python3 "$SOURCE_REVISION_LAUNCHER" check --checkout-root "$CHECKOUT_ROOT" \
     --manifest "$SOURCE_MANIFEST" --output-dir "${BENCHMARK_OUTPUT}/${leg}/sample-${sample}" || return 1
   # Mount the selected checkout over the image's cached code.
-  timeout "${bench_timeout_s}" docker run --name "$container" --gpus all --network=host --ipc=host \
+  timeout "${bench_timeout_s}" docker run --name "$container" --gpus all --network=host \
+    --ipc=private --shm-size "$(df -B1 /dev/shm | awk 'NR==2 {print $2}')" \
     --user "$(id -u):$(id -g)" \
     -e HOME=/tmp/isaaclab-ci-home \
     -e XDG_CACHE_HOME=/tmp/isaaclab-ci-home/.cache \
