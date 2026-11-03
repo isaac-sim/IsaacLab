@@ -428,11 +428,50 @@ def test_compute_runs_eagerly_after_graph_capture_failure(monkeypatch: pytest.Mo
     runtime.compute(collection, 0.01)
     runtime.compute(collection, 0.01)
 
-    # The failed capture is not retried, and every step falls back to the eager kernels.
+    # The failed capture is not retried, and every step falls back to the eager kernels after the capture's warm-up.
     assert capture.count == 1
     assert runtime.native_actuator_graphs == ()
-    assert eager_compute.call_count == 2
+    assert eager_compute.call_count == 3
     eager_compute.assert_called_with(collection, 0.01)
+
+
+def test_graph_capture_loads_only_the_kernels_it_runs(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An eager warm-up step loads the kernels' modules, so the capture does not force-load every Warp module."""
+    state_a, state_b = object(), object()
+    runtime = _runtime()
+    runtime.adapter = SimpleNamespace(_states_a=state_a, _states_b=state_b)
+    calls = []
+
+    class _Capture:
+        def __init__(self, device, force_module_load):
+            calls.append(("capture", force_module_load, runtime.adapter._states_a))
+            self.graph = object()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc_info) -> bool:
+            return False
+
+    def _step(*args, **kwargs) -> None:
+        calls.append(("step", None, runtime.adapter._states_a))
+        runtime.adapter._states_a, runtime.adapter._states_b = runtime.adapter._states_b, runtime.adapter._states_a
+
+    monkeypatch.setattr(wp, "ScopedCapture", _Capture)
+    monkeypatch.setattr(runtime, "_run_native_actuator_kernels", _step)
+
+    runtime._capture_native_actuator_graphs(SimpleNamespace(), 0.01)
+
+    # The warm-up step's state swap is undone: the first graph starts from state A, the second from state B.
+    assert calls == [
+        ("step", None, state_a),
+        ("capture", False, state_a),
+        ("step", None, state_a),
+        ("capture", False, state_b),
+        ("step", None, state_b),
+    ]
+    assert len(runtime.native_actuator_graphs) == 2
+    assert runtime.adapter._states_a is state_a and runtime.adapter._states_b is state_b
 
 
 def test_stateful_actuator_rejects_outer_cuda_capture(monkeypatch: pytest.MonkeyPatch) -> None:
