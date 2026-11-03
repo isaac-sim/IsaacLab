@@ -163,33 +163,12 @@ def test_camera_tensor_processors_chain_and_replace_render_outputs(device):
         # Later captures read the new render rather than the published replacement.
         for _ in range(2):
             np.testing.assert_allclose(capture()[:, 0, 0], [2 * background] * 2, atol=1e-6)
+        # env_mask reaches each processor once per capture with one flag per environment, and is not published.
         assert set(camera.data.output) == set(camera.data.info) == {"rgb_hdr", "half"}
-        assert "env_mask" not in camera.data.output and "env_mask" not in camera.data.info
-        # Processors listing env_mask receive one flag per environment, and it is not published as an output.
-        assert _ScaleProcessor.masks and all(len(mask) == 2 for mask in _ScaleProcessor.masks)
+        assert _ScaleProcessor.masks == [[True, True]] * 4
         camera.reset(env_ids=[1])
         assert _ScaleProcessor.events == [("reset", "half", [1]), ("reset", "rgb_hdr", [1])]
     assert _ScaleProcessor.events[2:] == [("close", "half"), ("close", "rgb_hdr")]
-
-
-def test_capture_mask_is_not_requested_from_the_renderer():
-    """The camera supplies env_mask to processors, so it never becomes a renderer data type or a processor output."""
-    from isaaclab.sensors.camera.camera_cfg import _render_data_types
-
-    def cfg(processors, async_rendering=False):
-        renderer_cfg = SimpleNamespace(async_rendering=async_rendering)
-        return SimpleNamespace(data_types=["rgb_hdr"], tensor_processors=processors, renderer_cfg=renderer_cfg)
-
-    stateful = TensorProcessorCfg(func=_ScaleProcessor, inputs=["rgb_hdr", "env_mask"], outputs=["half"])
-    assert _render_data_types(cfg([stateful])) == ["rgb_hdr"]
-    reserved = TensorProcessorCfg(func=_ScaleProcessor, inputs=["rgb_hdr"], outputs=["env_mask"])
-    with pytest.raises(ValueError, match="reserved"):
-        _render_data_types(cfg([reserved]))
-    # Asynchronous rendering publishes the previous request's image, which the current mask does not describe.
-    with pytest.raises(ValueError, match="synchronous rendering"):
-        _render_data_types(cfg([stateful], async_rendering=True))
-    plain = TensorProcessorCfg(func=_ScaleProcessor, inputs=["rgb_hdr"], outputs=["half"])
-    assert _render_data_types(cfg([plain], async_rendering=True)) == ["rgb_hdr"]
 
 
 @pytest.mark.parametrize("background", [None, (0.25, 0.5, 0.75)])
@@ -328,7 +307,7 @@ def test_camera_cfg_rejects_outputs_unsupported_by_renderer():
     pytest.importorskip("isaaclab_newton")
     from isaaclab_newton.renderers import NewtonWarpRendererCfg
 
-    def make_cfg(data_type: str) -> CameraCfg:
+    def make_cfg(data_type: str, *processors: TensorProcessorCfg) -> CameraCfg:
         return CameraCfg(
             height=64,
             width=64,
@@ -336,11 +315,26 @@ def test_camera_cfg_rejects_outputs_unsupported_by_renderer():
             spawn=_SPAWN,
             data_types=[data_type],
             renderer_cfg=NewtonWarpRendererCfg(),
+            tensor_processors=list(processors),
         )
+
+    def processor(source: str, output: str) -> TensorProcessorCfg:
+        return TensorProcessorCfg(func=_ScaleProcessor, inputs=[source, "env_mask"], outputs=[output])
 
     validate(make_cfg("rgb_hdr"))
     with pytest.raises(ValueError, match="simple_shading_full_mdl"):
         validate(make_cfg("simple_shading_full_mdl"))
+    # Processor outputs and env_mask are not requested from the renderer, but processor inputs are.
+    validate(make_cfg("half", processor("rgb_hdr", "half")))
+    with pytest.raises(ValueError, match="simple_shading_full_mdl"):
+        validate(make_cfg("half", processor("simple_shading_full_mdl", "half")))
+    with pytest.raises(ValueError, match="reserved"):
+        validate(make_cfg("rgb_hdr", processor("rgb_hdr", "env_mask")))
+    # Asynchronous rendering publishes the previous request's image, which the current mask does not describe.
+    async_cfg = make_cfg("half", processor("rgb_hdr", "half"))
+    async_cfg.renderer_cfg.async_rendering = True
+    with pytest.raises(ValueError, match="synchronous rendering"):
+        validate(async_cfg)
 
 
 @pytest.mark.parametrize("colorize", [True, False])
