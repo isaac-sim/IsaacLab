@@ -311,11 +311,12 @@ Camera tensor processors
 renderer for the inputs no earlier processor produces, constructs each processor at the first published capture
 with its configuration and the named camera buffers, and runs the processors in list order on every new capture.
 Their outputs are added to :attr:`~sensors.CameraData.output`; a processor can also replace a render output it
-reads. Camera resets reach the processors' ``reset`` with the reset environments, and camera teardown their
+reads. Camera resets call each processor's ``reset`` with the reset environments, and camera teardown calls its
 ``close``.
 
 .. code-block:: python
 
+   from isaaclab.utils import replace
    from isaaclab.utils.tensor_processors import TensorProcessorCfg
 
    depth_camera = replace(
@@ -330,12 +331,12 @@ Here the renderer produces only ``distance_to_image_plane``, and ``camera.data.o
 processor's result. Processor outputs appear in :attr:`~sensors.CameraData.output` and
 :attr:`~sensors.CameraData.info` from the first published capture on.
 
-With ``update_period > 0``, environments reset at different times and capture on different steps, so a call
-can mix new rows with rows that still hold the previous capture. Stateful processors (frame stacking,
-temporal filters, video generation) can list ``"env_mask"`` in their ``inputs`` to receive a boolean mask of
-the environments with a new capture. The name is reserved, and the mask is not published as an output.
-The mask describes the current capture request, so processors that read it need synchronous rendering; with
-``async_rendering=True`` the camera raises an error.
+With ``update_period > 0``, environments that reset at different times become due on different steps, but each
+capture renders every environment. Stateful processors (frame stacking, temporal filters, video generation) can
+list ``"env_mask"`` in their ``inputs`` to receive a boolean mask of the environments due for the capture, whose
+frame and timestamp advance. The name is reserved, and the mask is not published as an output. The mask describes
+the current capture request, so processors that read it need synchronous rendering; with ``async_rendering=True``
+the camera raises an error.
 
 Post-render image signal processing
 -----------------------------------

@@ -33,7 +33,7 @@ _DEPRECATED_RENDERER_FIELD_DEFAULTS: dict = {
 }
 
 CAPTURE_MASK_NAME = "env_mask"
-"""Processor input holding the boolean mask of environments with a new capture."""
+"""Processor input holding the boolean mask of environments due for the capture."""
 
 
 @configclass
@@ -246,13 +246,13 @@ class CameraCfg(SensorBaseCfg):
     published capture with the configuration and the named camera buffers. After each published capture, processors
     run in order on the render outputs and earlier processors' outputs, and their outputs are added to
     :attr:`CameraData.output`. The renderer produces every input that no earlier processor produces, so a processor
-    can filter an output in place. Camera resets and teardown reach the processors' ``reset`` and ``close``.
+    can replace an output it reads. Camera resets and teardown call the processors' ``reset`` and ``close``.
 
-    With ``update_period > 0``, environments capture on different steps, so a call can mix new rows with rows that
-    still hold the previous capture. A stateful processor can list ``"env_mask"`` in its ``inputs`` to receive a
-    boolean mask of shape ``(N,)`` marking the environments with a new capture. The name is reserved and the mask
-    is not published as a camera output. It describes the current capture request, so these processors need
-    synchronous rendering.
+    With ``update_period > 0``, environments become due on different steps, but each capture renders every
+    environment. A stateful processor can list ``"env_mask"`` in its ``inputs`` to receive a boolean mask of shape
+    ``(N,)`` marking the environments due for the capture, whose frame and timestamp advance. The name is reserved
+    and the mask is not published as a camera output. It describes the current capture request, so these processors
+    need synchronous rendering.
     """
 
     def __post_init__(self):
@@ -285,7 +285,19 @@ class CameraCfg(SensorBaseCfg):
             setattr(self, field_name, default)
 
     def validate_config(self) -> None:
-        """Validate the requested data types against the selected renderer contract."""
+        """Validate processor names, the capture mask's rendering mode, and the requested data types against the
+        selected renderer contract."""
+        if any(CAPTURE_MASK_NAME in processor_cfg.outputs for processor_cfg in self.tensor_processors):
+            raise ValueError(f"Processor output name {CAPTURE_MASK_NAME!r} is reserved for the capture mask.")
+        if getattr(self.renderer_cfg, "async_rendering", False) and any(
+            CAPTURE_MASK_NAME in processor_cfg.inputs for processor_cfg in self.tensor_processors
+        ):
+            # The mask marks the environments of the current request, while asynchronous rendering publishes the
+            # previous request's image, so the mask would select the wrong rows.
+            raise ValueError(
+                f"Processors reading {CAPTURE_MASK_NAME!r} need synchronous rendering; set "
+                "renderer_cfg.async_rendering=False."
+            )
         if self.renderer_cfg is None:
             return
         supported_specs = self.renderer_cfg.supported_output_types()
@@ -305,15 +317,6 @@ def _render_data_types(cfg: CameraCfg) -> list[str]:
     """Return the data types that no processor produces and the inputs that no earlier processor produces."""
     produced, inputs = set(), []
     for processor_cfg in cfg.tensor_processors:
-        if CAPTURE_MASK_NAME in processor_cfg.outputs:
-            raise ValueError(f"Processor output name {CAPTURE_MASK_NAME!r} is reserved for the capture mask.")
-        if CAPTURE_MASK_NAME in processor_cfg.inputs and getattr(cfg.renderer_cfg, "async_rendering", False):
-            # The mask marks the environments of the current request, while asynchronous rendering publishes the
-            # previous request's image, so the mask would select the wrong rows.
-            raise ValueError(
-                f"Processors reading {CAPTURE_MASK_NAME!r} need synchronous rendering; set "
-                "renderer_cfg.async_rendering=False."
-            )
         inputs += [name for name in processor_cfg.inputs if name not in produced and name != CAPTURE_MASK_NAME]
         produced.update(processor_cfg.outputs)
     return list(dict.fromkeys([name for name in cfg.data_types if name not in produced] + inputs))
