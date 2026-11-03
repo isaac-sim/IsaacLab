@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Sagittal reflection for MicroDuck's fixed servo and deployed observation order."""
+"""Sagittal reflection for MicroDuck's observation terms and fixed servo order."""
 
 from __future__ import annotations
 
@@ -21,63 +21,72 @@ if TYPE_CHECKING:
 _JOINT_PERMUTATION = (9, 10, 11, 12, 13, 5, 6, 7, 8, 0, 1, 2, 3, 4)
 _JOINT_SIGNS = (-1, -1, -1, -1, -1, 1, 1, -1, -1, -1, -1, -1, -1, -1)
 
+# Signs within named terms: angular vectors are axial; gravity, translation and forces are polar.
+_TERM_SIGNS = {
+    "imu": (-1, 1, -1, 1, -1, 1),
+    "base_lin_vel": (1, -1, 1),
+    "base_ang_vel": (-1, 1, -1),
+    "projected_gravity": (1, -1, 1),
+    "velocity_commands": (1, -1, -1),
+    "head_pose_commands": (1, 1, -1, -1),
+    "body_pose_commands": (1, -1, 1, -1, 1, -1),
+}
+
 
 @functools.cache
-def _reflection(group: str, device: str) -> tuple[torch.Tensor, torch.Tensor]:
-    """Cache feature permutations and polar/axial vector signs on the input device."""
-    size = {"policy": 61, "critic": 76, "actions": 14}[group]
-    permutation = list(range(size))
-    signs = [1] * size
-
-    def joints(start):
-        permutation[start : start + 14] = [start + index for index in _JOINT_PERMUTATION]
-        signs[start : start + 14] = _JOINT_SIGNS
-
-    if group == "actions":
-        joints(0)
-    else:
-        if group == "policy":
-            signs[:6] = [-1, 1, -1, 1, -1, 1]  # angular velocity (axial), gravity (polar)
-            joint_start, command_start, head_start, body_start = 6, 48, 51, 55
+def _reflection(layout: tuple[tuple[str, tuple[int, ...]], ...], device: str) -> tuple[torch.Tensor, torch.Tensor]:
+    """Cache permutations by manager term layout and device, including same-width reorderings."""
+    permutation, signs = [], []
+    for name, shape in layout:
+        if name in ("joint_pos", "joint_vel", "actions"):
+            term_permutation, term_signs = _JOINT_PERMUTATION, _JOINT_SIGNS
+        elif name in ("foot_height", "foot_air_time", "foot_contact"):
+            term_permutation, term_signs = (1, 0), (1, 1)
+        elif name == "foot_contact_forces":
+            term_permutation, term_signs = (3, 4, 5, 0, 1, 2), (1, -1, 1, 1, -1, 1)
+        elif name in _TERM_SIGNS:
+            term_signs = _TERM_SIGNS[name]
+            term_permutation = range(len(term_signs))
         else:
-            signs[:9] = [1, -1, 1, -1, 1, -1, 1, -1, 1]  # linear, angular, gravity
-            joint_start, command_start, head_start, body_start = 9, 51, 66, 70
-            for start in (54, 56, 58):  # left/right height, air time, contact
-                permutation[start : start + 2] = [start + 1, start]
-            permutation[60:66] = [63, 64, 65, 60, 61, 62]
-            signs[60:66] = [1, -1, 1, 1, -1, 1]  # world contact forces are polar vectors
-        for start in (joint_start, joint_start + 14, joint_start + 28):
-            joints(start)
-        signs[command_start : command_start + 3] = [1, -1, -1]
-        signs[head_start : head_start + 4] = [1, 1, -1, -1]
-        signs[body_start : body_start + 6] = [1, -1, 1, -1, 1, -1]  # translation, rotation
-    return torch.tensor(permutation, device=device), torch.tensor(signs, device=device)
+            raise ValueError(f"Unsupported MicroDuck observation term {name!r}.")
+        if shape != (len(term_signs),):
+            raise ValueError(f"Unsupported MicroDuck observation shape for {name!r}: {shape}.")
+        start = len(permutation)
+        permutation.extend(start + index for index in term_permutation)
+        signs.extend(term_signs)
+    return torch.tensor(permutation, device=device, dtype=torch.long), torch.tensor(signs, device=device)
 
 
 @torch.no_grad()
 def compute_symmetric_states(
-    env: ManagerBasedRLEnv,
+    env: ManagerBasedRLEnv | None,
     obs: TensorDict | None = None,
     actions: torch.Tensor | None = None,
 ) -> tuple[TensorDict | None, torch.Tensor | None]:
     """Append left/right mirrored samples for RSL-RL augmentation and mirror-loss evaluation.
 
-    Inputs remain unchanged. Observations must follow the policy's 61-value or critic's 76-value
-    deploy contract. Actions contain 14 servo offsets [rad], in ``MICRODUCK_JOINT_NAMES`` order.
-    The environment argument is accepted for the RSL-RL symmetry callback interface.
+    Inputs remain unchanged. Observation columns are resolved from the environment's observation
+    manager; unknown terms or unsupported term shapes are rejected. Actions contain 14 servo offsets
+    [rad], in ``MICRODUCK_JOINT_NAMES`` order. The environment may be ``None`` for actions-only calls.
     """
     obs_aug = None
     if obs is not None:
+        if env is None:
+            raise ValueError("MicroDuck observation reflection requires an environment observation manager.")
+        manager = env.unwrapped.observation_manager
         obs_aug = obs.repeat(2)
         for group, values in obs.items():
-            if group not in ("policy", "critic") or values.shape[-1] != {"policy": 61, "critic": 76}[group]:
+            if group not in ("policy", "critic"):
+                raise ValueError(f"Unsupported MicroDuck observation group {group!r}.")
+            layout = tuple(zip(manager.active_terms[group], manager.group_obs_term_dim[group], strict=True))
+            permutation, signs = _reflection(layout, str(values.device))
+            if values.shape[-1] != len(permutation):
                 raise ValueError(f"Unsupported MicroDuck observation layout for {group!r}: {values.shape}.")
-            permutation, signs = _reflection(group, str(values.device))
             obs_aug[group][obs.batch_size[0] :] = values[..., permutation] * signs
     actions_aug = None
     if actions is not None:
         if actions.shape[-1] != 14:
             raise ValueError(f"Expected 14 MicroDuck servo actions, got {actions.shape}.")
-        permutation, signs = _reflection("actions", str(actions.device))
+        permutation, signs = _reflection((("actions", (14,)),), str(actions.device))
         actions_aug = torch.cat((actions, actions[..., permutation] * signs), dim=0)
     return obs_aug, actions_aug
