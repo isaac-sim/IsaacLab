@@ -322,7 +322,7 @@ class IsaacRtxRenderer(BaseRenderer):
         needs_hdr_color = str(RenderBufferKind.RGB_HDR) in spec.cfg.data_types or (
             spec.cfg.isp_cfg is not None and any(data_type in ("rgb", "rgba") for data_type in spec.cfg.data_types)
         )
-        if needs_hdr_color:
+        if spec.cfg.isp_cfg is not None:
             # Isaac Sim 6.2 reads this legacy setting instead of the render-product attribute authored below.
             settings.set("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
 
@@ -439,7 +439,7 @@ class IsaacRtxRenderer(BaseRenderer):
             annotator.attach([rp.path])
 
         # Newer Kit reads Gaussian tonemapping policy from the render product, as standalone OVRTX does.
-        if needs_hdr_color:
+        if spec.cfg.isp_cfg is not None:
             stage.GetPrimAtPath(rp.path).CreateAttribute(
                 "omni:rtx:gaussian:skipTonemapping:enabled", Sdf.ValueTypeNames.Bool
             ).Set(False)
