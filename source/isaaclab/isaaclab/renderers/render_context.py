@@ -365,15 +365,15 @@ class RenderContext:
 
         self.update_scene_state(physics_step_count)
 
-        groups: dict[int, tuple[BaseRenderer, list[int]]] = {}
-        for index, (renderer, _, _) in enumerate(requests):
-            groups.setdefault(id(renderer), (renderer, []))[1].append(index)
+        groups: dict[int, tuple[BaseRenderer, list[tuple[int, Any, CameraData]]]] = {}
+        for index, (renderer, render_data, camera_data) in enumerate(requests):
+            groups.setdefault(id(renderer), (renderer, []))[1].append((index, render_data, camera_data))
 
         published = [False] * len(requests)
-        for renderer, indices in groups.values():
-            renderer.render_batch([requests[index][1] for index in indices])
-            for index in indices:
-                published[index] = bool(renderer.read_output(*requests[index][1:]))
+        for renderer, cameras in groups.values():
+            renderer.render_batch([render_data for _, render_data, _ in cameras])
+            for index, render_data, camera_data in cameras:
+                published[index] = renderer.read_output(render_data, camera_data) is not False
         return published
 
     def reset_stage_prepare_flag(self) -> None:

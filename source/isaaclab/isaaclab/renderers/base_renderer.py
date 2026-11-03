@@ -221,6 +221,7 @@ class BaseRenderer(ABC):
 
         Returns:
             Whether a new capture was published; False when the outputs hold an already-published one.
+            A None return counts as published.
         """
         pass
 
