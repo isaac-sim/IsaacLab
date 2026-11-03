@@ -825,8 +825,15 @@ class Camera(SensorBase):
         # The capture mask is an input for processors, not a camera output.
         del buffers[CAPTURE_MASK_NAME]
         self._data.output.update(buffers)
-        # Processor outputs enter info with output, at their first publication.
-        self._data.info.update(dict.fromkeys(buffers.keys() - self._data.info.keys()))
+        # Processor outputs enter info at their first publication. Renderers fill only existing info keys, so a new
+        # output takes the capture metadata of the render outputs it was computed from; later captures fill it.
+        new_names = buffers.keys() - self._data.info.keys()
+        if new_names:
+            capture = next(
+                (info["capture"] for info in self._data.info.values() if isinstance(info, dict) and "capture" in info),
+                None,
+            )
+            self._data.info.update({name: None if capture is None else {"capture": capture} for name in new_names})
 
     """
     Private Helpers

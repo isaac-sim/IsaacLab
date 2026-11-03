@@ -647,6 +647,25 @@ def test_camera_processors_skip_retained_captures(camera_batch_context, lazy):
     processors[1].assert_not_called()
 
 
+def test_first_processor_output_carries_the_capture_metadata(camera_batch_context):
+    """A processor output published for the first time has the capture metadata of the render outputs it used."""
+    _, renderer, _ = camera_batch_context
+
+    def read_output(rd, data):
+        # Like OVRTX with delayed captures: fill the metadata of every existing info key.
+        for name in data.info:
+            data.info[name] = {"capture": {"frame": rd.pose}}
+        return True
+
+    renderer.read_output.side_effect = read_output
+    camera = _CpuCamera(renderer, "camera", processors=[Mock(return_value={"rgb": object()})])
+    camera._data.info["depth"] = None
+
+    InteractiveScene.update(_camera_scene([camera]), 0.01)
+
+    assert camera.data.info["rgb"] == camera.data.info["depth"] == {"capture": {"frame": 0.0}}
+
+
 def test_failed_processor_close_still_releases_the_camera(camera_batch_context):
     """A processor that fails to close leaves neither the other processors nor the render data open."""
     _, renderer, _ = camera_batch_context
