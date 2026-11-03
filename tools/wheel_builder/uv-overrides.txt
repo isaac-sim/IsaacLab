@@ -1,6 +1,6 @@
 numpy>=2
-mujoco~=3.15.0
-mujoco-warp~=3.15.0
+mujoco~=3.16.0
+mujoco-warp~=3.16.0
 newton[sim] @ git+https://github.com/eric-heiden/newton.git@1f6f01da3497ace9e23502990f4a423c030cadf5
 newton-usd-schemas>=0.5.0
 usd-exchange==3.0.1
