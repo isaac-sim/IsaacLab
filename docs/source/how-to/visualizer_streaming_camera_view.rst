@@ -238,7 +238,8 @@ displayed image and sensor navigation; pausing training alone does not.
 
 With ``InteractiveSceneCfg.lazy_sensor_update=True``, the viewer reads only the selected camera.
 Unselected cameras are still allocated and may render if another consumer reads them or the
-scene uses eager sensor updates. ``streaming_envs`` selects displayed tiles, not capture work.
+scene uses eager sensor updates. On OVRTX, reading the selected camera also captures the other due
+cameras of its renderer. ``streaming_envs`` selects displayed tiles, not capture work.
 
 
 Examples

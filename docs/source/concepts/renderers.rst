@@ -492,7 +492,10 @@ instance, renders each group, and reads its outputs. The context does not retain
 queue. Each camera retains its own update period and reset state.
 
 With lazy sensor updates, reading a camera's ``data`` refreshes only that camera's sensor buffers
-and capture timestamps. It does not refresh peer camera sensors sharing the renderer.
+and capture timestamps. It does not refresh peer camera sensors sharing the renderer, except on
+OVRTX. Every OVRTX submission renders all cameras of the renderer, so a read there also captures
+the renderer's other due cameras that use the same batch implementation in that submission and
+publishes their outputs, even for cameras that are never read.
 
 Core concepts
 -------------

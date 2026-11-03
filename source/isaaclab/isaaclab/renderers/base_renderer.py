@@ -40,13 +40,6 @@ class VisualMaterialBatch:
 class BaseRenderer(ABC):
     """Abstract base class for renderer implementations."""
 
-    renders_all_cameras: bool = False
-    """Whether every submission renders all cameras of the renderer, requested or not.
-
-    A camera of such a renderer that is read lazily captures the other due cameras of the renderer with it, instead
-    of each read submitting all cameras again.
-    """
-
     def __init__(self, cfg: RendererCfg, *, sim: SimulationContext) -> None:
         """Bind this renderer to its owning simulation.
 
