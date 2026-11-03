@@ -109,7 +109,7 @@ class RewardsCfg:
 @configclass
 class TerminationsCfg:
     time_out = TerminationTermCfg(func=common_mdp.time_out, time_out=True)
-    batch_complete = TerminationTermCfg(func=mdp.batch_complete)
+    delivery_complete = TerminationTermCfg(func=mdp.delivery_complete)
     failure = TerminationTermCfg(func=mdp.failed_delivery)
     invalid_action = TerminationTermCfg(
         func=invalid_policy_action, params={"action_names": ("arm_action", "gripper_action")}
@@ -171,6 +171,7 @@ class SuctionSortingEnvCfg(ConveyorFrankaEnvCfg):
         self.scene.num_envs = min(self.scene.num_envs, 4)
         self.scene.outfeeds.spawn.assets_cfg = self.scene.outfeeds.spawn.assets_cfg[:1]
         self.commands.sort.randomize_destination = False
+        self.commands.sort.continue_after_delivery = True
         self.events.reset_parcels.params["full_starts"] = True
         self.events.reset_parcels.params["sampling"].sampling = SamplerCfg(strategies=[UniformSamplingStrategyCfg()])
 

@@ -10,6 +10,7 @@ from contextlib import closing
 import gymnasium as gym
 import pytest
 import torch
+import torch.nn as nn
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.contrib.conveyor_franka import mdp
@@ -28,6 +29,7 @@ from isaaclab_tasks.contrib.conveyor_franka.mdp.reset_events import (
     build_reset_rows,
     franka_tool_position,
 )
+from isaaclab_tasks.contrib.conveyor_suction.agent_cfg import SuctionGaussianBernoulliDistribution
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 _BASE = "IsaacContrib-Conveyor-Racetrack-Transfer-v0"
@@ -242,6 +244,19 @@ def test_binary_policy_likelihoods():
     assert set(samples[:, -1].unique().tolist()) == {-1, 1}
     assert torch.isfinite(distribution.log_prob(samples)).all()
     assert torch.isfinite(divergence).all() and (divergence >= 0).all()
+
+    suction = SuctionGaussianBernoulliDistribution(output_dim=4)
+    head = nn.Sequential(nn.Linear(3, 4))
+    suction.init_mlp_weights(head)
+    suction.update(head(torch.zeros(1, 3)))
+    assert -1.0 < suction.mean[0, -1] < -0.9, "Initial exploration should usually preserve a suction seal."
+    output = torch.tensor([[10.0, -10.0, 0.2, -3.0], [-10.0, 10.0, -0.2, 3.0]])
+    suction.update(output)
+    assert (suction.mean[:, :3].abs() <= 1.0).all()
+    assert torch.isfinite(suction.log_prob(suction.sample())).all()
+    deterministic = suction.deterministic_output(output)
+    torch.testing.assert_close(deterministic[:, :3], suction.mean[:, :3])
+    torch.testing.assert_close(suction.as_deterministic_output_module()(output), deterministic)
 
 
 def test_next_transfer_cube_is_random_among_eligible_alternatives():

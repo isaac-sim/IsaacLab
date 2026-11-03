@@ -7,7 +7,9 @@
   Invalid policy actions and non-finite physical states cannot earn a receipt.
   Policy observations include pickup qualification so carry/release resets do not hide
   the lift history required for a physical receipt.
-  Controlled release and suction-pad clearance allow selection of the next incoming parcel
+  Training retains one assigned parcel and ends successfully at its verified bin receipt;
+  missing that pickup fails the attempt instead of selecting another target.
+  During continuing playback, controlled release and suction-pad clearance allow selection of the next incoming parcel
   while earlier parcels travel to their bins. Each verified delivery earns its own reward
   and success event. The original sampled parcel's receipt immediately updates
   its success history; other receipts cannot duplicate that outcome or be erased by a
@@ -20,8 +22,11 @@
   Local carton and concrete textures, warehouse framing, racks, and a loading bay improve the scene.
 * Connected suction reset states through approach, acquisition, lift, transport and controlled descent.
   Progress outcomes are shared across randomized physical states; passive outfeed starts are excluded from training.
+  Descent starts require movement from at least 6 cm of geometric clearance above their receiving surfaces.
   Shorter training attempts and separate descent, carry and acquisition metrics expose backward curriculum progress;
   delivery rewards remain sparse.
+  Cartesian policy means are bounded to the accepted action range, with near-rest initialization
+  and a vacuum-hold exploration prior.
 * Varied training across sixteen coherent conveyor fixtures with matching goal, bin, and reset geometry.
   Success-guided sampling tracks 49 shared progress buckets while retaining sparse physical-delivery rewards.
   The wider collision scan retains the 312-observation, four-action interface; playback keeps the original

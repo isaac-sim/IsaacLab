@@ -32,6 +32,7 @@ def test_receipts_record_success_and_continue_without_reset(device):
     cfg.scene.outfeeds.spawn.assets_cfg[1].layout.radial_offsets = (0.035,) * 6
     cfg.scene.outfeeds.spawn.assets_cfg[1].layout.height_offsets = (0.015,) * 6
     cfg.commands.sort.goal_radial_range = (0.02, 0.02)
+    cfg.commands.sort.continue_after_delivery = True
     cfg.episode_length_s = 240.0
     cfg.terminations.failure = None
     cfg.terminations.invalid_action = None
@@ -51,6 +52,16 @@ def test_receipts_record_success_and_continue_without_reset(device):
         env.gripper.set_command(torch.ones(2, dtype=torch.bool, device=device), env.active_ids)
         command = env.command_manager.get_term("sort")
         monitor = reset.reset_sampler.success_monitor
+        parcel_heights = torch.stack(
+            [
+                env.parcels[parcel].data.root_link_pose_w.torch[env_id, 2]
+                for env_id, parcel in enumerate(initial_parcels)
+            ]
+        )
+        assert (
+            parcel_heights - env.scene.env_origins[:, 2] - command.goal_positions[:, 2]
+            > cfg.commands.sort.placement_max_height
+        ).all(), "Descent resets must require movement before a release can qualify."
         assert not command.delivered.any(), "Every reset must start with all parcels unsorted."
         assert not command.new_success.any() and not env.episode_success.any()
         assert command.metrics["correct_deliveries"].tolist() == [0, 0]
@@ -210,6 +221,7 @@ def test_receipts_record_success_and_continue_without_reset(device):
         env.reset(env_ids=impact_ids)
         assert monitor.success_size[rows].tolist() == [2, 1]
         assert monitor.success_rate[rows].tolist() == [0.5, 1.0]
+        actions[0, 3] = -1.0
 
         # Identical released poses require observable qualification before they can earn a receipt.
         second = env.active_ids[1].item()
@@ -267,6 +279,7 @@ def test_receipts_record_success_and_continue_without_reset(device):
         inactive = next(
             i for i in range(len(env.parcels)) if i != env.active_ids[0].item() and not command.delivered[0, i]
         )
+        assert not command.failed[0]
         place_in_bin(0, inactive, (env.parcel_classes[inactive].item() + 1) % 5)
         for _ in range(15):
             env.step(actions)
@@ -279,14 +292,7 @@ def test_receipts_record_success_and_continue_without_reset(device):
         # A fast or elevated release is rejected before a parcel can coast into a valid bin.
         for elevated in (False, True):
             env.reset(env_ids=impact_ids)
-            actions[0, 3] = -1.0
-            for _ in range(8):
-                env.step(actions)
-                if env.gripper.engaged[0]:
-                    break
-            for _ in range(2):
-                env.step(actions)
-            assert env.gripper.engaged[0]
+            hold_at_goal(0, release=False)
             parcel = env.parcels[env.active_ids[0].item()]
             if elevated:
                 pose = parcel.data.root_link_pose_w.torch[impact_ids].clone()
@@ -341,8 +347,7 @@ def test_receipts_record_success_and_continue_without_reset(device):
             history_success = monitor.success_buf[rows[0]].sum().item()
             first = env.active_ids[0].item()
             first_destination = command.destination_ids[0].item()
-            actions[0, 3] = 1.0
-            env.step(actions)
+            hold_at_goal(0)
             actions[0, 2] = 1.0
             for _ in range(60):
                 env.step(actions)
@@ -384,3 +389,44 @@ def test_receipts_record_success_and_continue_without_reset(device):
         assert command.metrics["correct_deliveries"][1] == 1
         assert monitor.success_size[rows[0]] == history_size + 1
         assert monitor.success_buf[rows[0]].sum() == history_success + 1
+
+        # Training finishes the original assignment at its first qualified receipt.
+        command.cfg.continue_after_delivery = False
+        training_ids = torch.tensor([1], device=device)
+        env.reset(env_ids=training_ids)
+        history_size = monitor.success_size[rows[0]].item()
+        history_success = monitor.success_buf[rows[0]].sum().item()
+        hold_at_goal(1)
+        place_in_bin(1, env.active_ids[1].item(), command.destination_ids[1])
+        for _ in range(15):
+            _, rewards, terminated, timed_out, extras = env.step(actions)
+            if terminated[1]:
+                assert not timed_out[1] and rewards[1] > 9.0
+                assert extras["log"]["Metrics/sort/correct_deliveries"] == 1
+                assert extras["log"]["Metrics/sort/success_rate"] == 1
+                assert env.episode_length_buf[1] == 0 and not command.delivered[1].any()
+                break
+        else:
+            pytest.fail("A training receipt did not finish its single assignment.")
+        env.reset(env_ids=training_ids)
+        assert monitor.success_size[rows[0]] == history_size + 1
+        assert monitor.success_buf[rows[0]].sum() == history_success + 1
+
+        # Missing the original pickup fails training without selecting an easier replacement.
+        original = env.active_ids[1].item()
+        original_goal = command.goal_positions[1].clone()
+        env.gripper.reset(training_ids)
+        command.lifted[1] = False
+        pose = env.parcels[original].data.root_link_pose_w.torch[training_ids].clone()
+        pose[:, :2] = pose.new_tensor((0.90, -0.19)) + env.scene.env_origins[training_ids, :2]
+        pose[:, 2] = 0.04 + env.parcel_sizes[original, 2] / 2.0 + 0.002
+        env.parcels[original].write_root_pose_to_sim_index(root_pose=pose, env_ids=training_ids)
+        env.parcels[original].write_root_velocity_to_sim_index(
+            root_velocity=torch.zeros((1, 6), device=device), env_ids=training_ids
+        )
+        env.sim.forward()
+        env.scene.update(env.step_dt)
+        actions[1, 3] = 1.0
+        env.step(actions)
+        assert command.failed[1] and env.active_ids[1] == original
+        torch.testing.assert_close(command.goal_positions[1], original_goal)

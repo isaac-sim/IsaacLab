@@ -112,11 +112,13 @@ def suction_observation(env: ManagerBasedRLEnv) -> torch.Tensor:
     return torch.stack((env.gripper.engaged, command.lifted, command.placed), dim=-1).float()
 
 
-def batch_complete(env: ManagerBasedRLEnv) -> torch.Tensor:
-    """Replenish the scene after every parcel has reached its bin."""
+def delivery_complete(env: ManagerBasedRLEnv) -> torch.Tensor:
+    """Finish one training assignment or the entire continuing-play batch."""
     command = env.command_manager.get_term("sort")
     command.evaluate()
-    return command.delivered.all(dim=-1) & ~command.failed
+    if command.cfg.continue_after_delivery:
+        return command.delivered.all(dim=-1) & ~command.failed
+    return command.delivered.any(dim=-1) & ~command.failed
 
 
 def failed_delivery(env: ManagerBasedRLEnv) -> torch.Tensor:
@@ -134,6 +136,7 @@ class SizeSortCommandCfg(CommandTermCfg):
     resampling_time_range: tuple[float, float] = (1.0e6, 1.0e6)
     reset_event_name: str = "reset_parcels"
     randomize_destination: bool = True
+    continue_after_delivery: bool = False
     goal_radial_range: tuple[float, float] = (-0.02, 0.02)
     goal_lateral_range: tuple[float, float] = (-0.015, 0.015)
     placement_xy_tolerance: float = 0.035
@@ -397,6 +400,10 @@ class SizeSortCommand(CommandTerm):
             & (active_local[:, 0] > 0.85)
             & (active_local[:, 1] > INTAKE_CENTER[1])
         )
+        if not self.cfg.continue_after_delivery:
+            self.metrics["missed_pickups"][ids] += missed.float()
+            self.failed[ids] |= missed
+            return
         self._waiting[ids] = clear | missed
         left = INTAKE_CENTER[0] - INTAKE_HALF_STRAIGHT
         # Reserve a parcel entering the turn, allowing time to return from the receiving pad.
@@ -504,7 +511,8 @@ class ResetParcels(ManagerTermBase):
         path[:, 0], path[:, 1] = radius * angle.cos(), radius * angle.sin()
         path[:, 2] += lift_distance * (distance / lift_distance).clamp(0.0, 1.0)
         path[:, 2] += (endpoint[:, 2] - pick_high[:, 2]) * travel
-        # Keep plentiful easy release seeds while filling the entire descent to transport height.
+        # Leave enough clearance that passive tool/seal settling cannot qualify a release.
+        goal[:, 2] += 0.052
         descent = torch.lerp(goal, goal_high, fraction.pow(3)[:, None])
         self._tool_positions = torch.where((self.phase_ids == 0)[:, None], descent, path)
         self._tool_positions[self.phase_ids == 3] = home

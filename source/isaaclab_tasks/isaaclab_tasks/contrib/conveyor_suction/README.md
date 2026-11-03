@@ -30,10 +30,10 @@ the seal implementation into Isaac Lab. Stock Newton releases do not provide thi
 ## Training and playback
 
 The default configuration uses 512 environments, 6,000 PPO updates, and 30-second training episodes.
-Playback uses the original five-lane fixture and 240-second episodes. Shorter training attempts recycle reset practice sooner;
-both modes continue to another parcel after each controlled placement.
-Each verified delivery counts as a success, and the robot continues with another parcel in the
-same scene. Reliable learning from scratch has not yet been validated.
+Training practices one assignment per episode: its first verified receipt ends the episode successfully,
+and missing the assigned pickup fails the attempt. Playback uses the original five-lane fixture and
+240-second episodes, continuing to another parcel after each controlled placement. Each verified
+delivery counts as a success. Reliable learning from scratch has not yet been validated.
 
 ```bash
 uv run isaaclab train --task IsaacContrib-Conveyor-Suction-Sorting \
@@ -48,7 +48,8 @@ With Isaac Sim installed, use `--viz kit` for RTX visualization.
 
 The policy outputs three Cartesian target increments and one binary vacuum command. Standard
 differential IK maintains a downward tool orientation, with bounded target lead and normal
-Franka joint velocity limits. Observations include the selected parcel's pose, velocity and
+Franka joint velocity limits. The policy bounds Cartesian means to the accepted action range and
+starts near rest with a 99% vacuum-hold exploration prior. Observations include the selected parcel's pose, velocity and
 dimensions, robot and tool states, pickup and placement qualification, and the commanded
 parcel-center goal in the robot frame. A small overhead ray scan observes collision geometry
 as robot-frame points and hit-validity bits. It uses Newton physics rather than an RTX camera;
@@ -84,8 +85,10 @@ The Beta sampler favors intermediate success and retains a uniform strategy with
 Connected paths cover contact, lift, transport around the pedestal, and controlled descent.
 Earlier approach states rewind the moving parcel around the incoming turn. Held starts restore native
 suction seals against the reset geometry before the first observation. Other parcels are shuffled among
-the remaining belt and feeder slots. Released outfeed starts are excluded: the conveyor can complete
-those deliveries without a policy action. No reset seeds a receipt or successful outcome.
+the remaining belt and feeder slots. Descent starts retain at least 6 cm of geometric clearance above
+the receiving surface, requiring motion before a controlled release can qualify. Released outfeed starts
+are excluded: the conveyor can complete those deliveries without a policy action. No reset seeds a receipt
+or successful outcome.
 
 No parcel starts with delivery credit in any reset phase. Release is checked before detachment:
 the parcel must be upright, close to its commanded position, at most 2 cm above the receiving
@@ -93,13 +96,13 @@ surface, and moving slowly relative to either the stationary world or the moving
 Excessive vertical or angular velocity, an uncontrolled release, or nongripper arm contact fails
 the attempt. Only a qualified placement followed by a settled receipt in the commanded bin
 earns credit; a thrown parcel cannot qualify merely by landing in that bin.
-A verified physical receipt earns
-a reward of +10. Once a controlled release has physically detached and cleared the suction pads,
-the dispatcher selects an incoming parcel without waiting for the previous bin arrival.
-Released parcels retain their own destinations and receipt checks while the arm handles the next
-target. Simultaneous receipts each earn credit; a receipt never changes the current grasp.
-A missed, ungrasped parcel keeps circulating while the dispatcher selects another incoming target.
-Each handoff rebases the Cartesian controller at the measured tool pose without moving the scene.
+A verified physical receipt earns a reward of +10. Training retains its original target until that
+receipt or a failure; it cannot replace a missed parcel with an easier incoming one.
+During continuing playback, a controlled release that has detached and cleared the suction pads
+allows the dispatcher to select another parcel before the previous bin arrival. Released parcels retain
+their own destinations and receipt checks while the arm handles the next target. Simultaneous receipts
+each earn credit; a receipt never changes the current grasp. Playback also replaces missed pickups
+with incoming targets. Each handoff rebases the Cartesian controller at the measured tool pose without moving the scene.
 The original reset parcel's receipt immediately records a successful outcome for its
 shared progress bucket. Other receipts still earn rewards and increment delivery counters, but are not
 attributed to the earlier reset state. A world reset before the original parcel's receipt records a
@@ -108,18 +111,18 @@ failed row outcome; a later failure does not overwrite or duplicate an already r
 The reward remains sparse: a complete qualified receipt earns +10; failures and motion
 regularization retain their existing penalties. There are no reaching, lifting or goal-distance
 rewards. Reset-family metrics separately expose placement, carry and acquisition; `descent_success_rate`
-tracks the harder half of the descent path, beyond the already release-ready starts.
+tracks the farther half of the descent path.
 Training starts receive more practice when the policy has intermediate success, while
 every progress bucket remains eligible. Sampling history is local to each worker and restarts
 when the environment is recreated. Training success from an easier reset is not an
 end-to-end pickup result. Evaluate separately from full belt starts and report correct-bin
 deliveries by size class, wrong-bin deliveries, drops, and complete twelve-parcel batches.
 
-Playback samples full belt starts uniformly. `full_start_success_rate` measures whether a
-full home start produces a first receipt; `full_batch_success_rate` separately measures all
-twelve physical receipts from that start. A single delivery is a success without requiring
-a complete batch. Receiving all twelve parcels ends the episode to replenish the scene;
-timeout or losing an unsorted parcel also ends it.
+Playback samples full belt starts uniformly. `full_start_success_rate` measures receipt of the
+original assigned parcel from a full home start; `full_batch_success_rate` separately measures all
+twelve physical receipts from that start. A single training delivery ends its episode successfully.
+Playback replenishes the scene after all twelve parcels arrive; timeout or losing an unsorted parcel
+also ends the episode.
 
 Evaluate the retrained policy from full starts, with held-out reset seeds and destination
 commands. Report controlled-placement success and arm contacts alongside physical receipts;
