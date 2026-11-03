@@ -167,13 +167,8 @@ class PhysxActuatorRuntime:
         states_b = self.adapter._states_b
         graphs = []
         try:
-            # One eager step loads the Warp modules these kernels use. Capturing with force_module_load=True instead
-            # loads every imported Warp module, which on a new machine compiles them all and takes many minutes.
-            # The step reads state A and writes state B, so restoring the buffers leaves the captured graphs unchanged.
-            self._run_native_actuator_kernels(collection, dt)
-            self.adapter._states_a, self.adapter._states_b = states_a, states_b
             for _ in range(2):
-                with wp.ScopedCapture(device=self._articulation.device, force_module_load=False) as capture:
+                with wp.ScopedCapture(device=self._articulation.device) as capture:
                     self._run_native_actuator_kernels(collection, dt)
                 graphs.append(capture.graph)
         except Exception as exc:
