@@ -29,6 +29,9 @@ def test_receipts_record_success_and_continue_without_reset(device):
     cfg.sim.save_logs_to_file = False
     cfg.seed = 41
     cfg.scene.outfeeds.spawn.assets_cfg = cfg.scene.outfeeds.spawn.assets_cfg[:2]
+    cfg.scene.outfeeds.spawn.assets_cfg[1].layout.radial_offsets = (0.035,) * 6
+    cfg.scene.outfeeds.spawn.assets_cfg[1].layout.height_offsets = (0.015,) * 6
+    cfg.commands.sort.goal_radial_range = (0.02, 0.02)
     cfg.episode_length_s = 240.0
     cfg.terminations.failure = None
     cfg.terminations.invalid_action = None
@@ -118,6 +121,7 @@ def test_receipts_record_success_and_continue_without_reset(device):
         torch.testing.assert_close(observations[:, goal_start : goal_start + 3], command.command)
         assert command.destination_ids[1] != env.parcel_classes[4], "The commanded outlet must be independent of size."
         assert command.destination_ids[1] == 5, "The sixth physical lane must accept a controlled release and receipt."
+        assert command.goal_positions[1, :2].norm() > 0.73, "The release must account for its translated receiving pad."
         actions[:, 3] = 1.0
         env.step(actions)
         assert command.placed.all() and not command.failed.any()
