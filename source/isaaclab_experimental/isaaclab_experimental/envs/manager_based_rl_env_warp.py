@@ -320,14 +320,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
             timer=DEBUG_TIMER_STEP,
         )
 
-        if len(self.recorder_manager.active_terms) > 0:
-            # update observations for recording if needed
-            self._manager_call_switch.call_stage(
-                stage="ObservationManager_compute_no_history",
-                warp_call={"fn": self.observation_manager.compute, "kwargs": {"return_cloned_output": False}},
-                timer=DEBUG_TIMER_STEP,
-            )
-            self.recorder_manager.record_post_step()
+        self.recorder_manager.record_post_step()
 
         # -- reset envs that terminated/timed-out and log the episode information
         # NOTE: Interim path (intentional).
