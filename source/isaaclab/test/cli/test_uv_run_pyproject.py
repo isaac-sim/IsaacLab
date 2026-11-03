@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import pytest
 import tomllib
@@ -189,8 +190,9 @@ def test_version_single_source_matches_literal_pins(source_checkout_root: Path):
     lock = tomllib.loads((source_checkout_root / "uv.lock").read_text(encoding="utf-8"))
     newton = next(package for package in lock["package"] if package["name"] == "newton")
     assert newton["version"] == versions["newton"]
-    commit = newton["source"]["git"].rsplit("#", 1)[1]
-    newton_spec = f"newton[sim] @ git+https://github.com/newton-physics/newton.git@{commit}"
+    source = urlsplit(newton["source"]["git"])
+    repository = source._replace(query="", fragment="").geturl()
+    newton_spec = f"newton[sim] @ git+{repository}@{source.fragment}"
     assert newton_spec in dependencies
     assert newton_spec in overrides
 
