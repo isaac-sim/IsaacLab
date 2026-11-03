@@ -67,7 +67,7 @@ from PIL import Image
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdShade
 
 from isaaclab.markers.visualization_markers_cfg import VisualizationMarkersCfg
-from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
+from isaaclab.renderers import BaseRenderer, CaptureInfo, RenderBufferKind, RenderBufferSpec
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sensors.camera.camera_data import CameraData
 from isaaclab.sim import PreviewSurfaceCfg, SimulationContext, use_stage
@@ -284,9 +284,13 @@ class OVRTXCameraRenderData:
         self.warp_buffers: dict[str, wp.array] = {}
         self.intrinsic_bindings: list[AttributeBinding] = []
         self.camera_writes = _AsyncWriteBuffers[wp.array]()
-        self.pending: tuple[Operation[PendingFetch[RenderProductSetOutputs]], dict | None] | None = None
-        self.ready: tuple[Operation[PendingFetch[RenderProductSetOutputs]], dict | None] | None = None
+        # A submitted frame: its operation, its capture metadata (None once published), and its environment mask.
+        self.pending: tuple[Operation[PendingFetch[RenderProductSetOutputs]], dict | None, wp.array | None] | None = (
+            None
+        )
+        self.ready: tuple[Operation[PendingFetch[RenderProductSetOutputs]], dict | None, wp.array | None] | None = None
         self.capture: dict[str, ProxyArray] = {}
+        self.capture_env_mask: wp.array | None = None
         # Per-output metadata collected during render() and copied into CameraData.info by read_output().
         # Populated for "semantic_segmentation" (with an "idToLabels" mapping) and
         # "instance_segmentation" (with "idToLabels" and "idToSemantics" mappings).
@@ -304,6 +308,7 @@ class OVRTXCameraRenderData:
         finally:
             self.pending = self.ready = None
             self.capture = {}
+            self.capture_env_mask = None
             self.camera_xform_binding = None
             self.intrinsic_bindings.clear()
             self.warp_buffers.clear()
@@ -678,47 +683,55 @@ class OVRTXRenderer(BaseRenderer):
             name: proxy.warp for name, proxy in output_data.items() if name != str(RenderBufferKind.RGB)
         }
 
-    def prepare_capture(self, render_data: OVRTXCameraRenderData, camera_data: CameraData, frame: ProxyArray) -> None:
-        """Snapshot delayed-image metadata without changing live camera state."""
-        if self.cfg.async_rendering and not self._use_ovstage:
-            render_data.capture = {
-                name: ProxyArray(wp.clone(value.warp))
-                for name, value in (
-                    ("pos_w", camera_data.pos_w),
-                    ("quat_w_world", camera_data.quat_w_world),
-                    ("intrinsic_matrices", camera_data.intrinsic_matrices),
-                    ("frame", frame),
-                )
-            }
+    def prepare_capture(
+        self, render_data: OVRTXCameraRenderData, camera_data: CameraData, frame: ProxyArray, env_mask: wp.array
+    ) -> None:
+        """Snapshot delayed-image metadata without changing live camera state.
+        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.prepare_capture`."""
+        if not self.cfg.async_rendering or self._use_ovstage:
+            # The capture is published in the same step, before the camera changes its mask.
+            render_data.capture_env_mask = env_mask
+            return
+        render_data.capture_env_mask = wp.clone(env_mask)
+        render_data.capture = {
+            name: ProxyArray(wp.clone(value.warp))
+            for name, value in (
+                ("pos_w", camera_data.pos_w),
+                ("quat_w_world", camera_data.quat_w_world),
+                ("intrinsic_matrices", camera_data.intrinsic_matrices),
+                ("frame", frame),
+            )
+        }
 
     def read_output(
         self,
         render_data: OVRTXCameraRenderData,
         camera_data: CameraData | None = None,
-    ) -> bool:
+    ) -> CaptureInfo | None:
         """Publish this product's pixels, and copy matching metadata when a sensor requests it.
 
-        Returns False when asynchronous rendering has no new capture, such as an already-published priming image.
+        Returns the published capture with the environment mask of its request, or None when asynchronous rendering
+        has no new capture, such as an already-published priming image.
         """
         if self.cfg.async_rendering and not self._use_ovstage and render_data.ready is None:
-            return False
-        capture = {}
+            return None
+        capture, env_mask = {}, render_data.capture_env_mask
         if render_data.ready is not None:
-            operation, capture = render_data.ready
+            operation, capture, env_mask = render_data.ready
             if capture is None:
                 render_data.ready = None
-                return False
+                return None
             self._process_render_products((render_data,), operation.wait().fetch())
             if render_data.ready is render_data.pending:
                 # Retain the native operation, but do not publish this priming image twice.
-                render_data.pending = (operation, None)
+                render_data.pending = (operation, None, None)
             render_data.ready = None
         if camera_data is not None:
             assert camera_data.info is not None, "CameraData.info should be created in CameraData.allocate"
             for output_name in camera_data.info:
                 info = render_data.renderer_info.get(output_name)
                 camera_data.info[output_name] = {**(info or {}), "capture": capture} if capture else info
-        return True
+        return CaptureInfo(env_mask=env_mask)
 
     @contextlib.contextmanager
     def _map_render_var_to_dlpack(self, render_var: RenderVarOutput) -> Iterator[wp.array]:
@@ -943,6 +956,7 @@ class OVRTXRenderer(BaseRenderer):
         errors = self.drain_pending_renders((render_data,))
         render_data.pending = render_data.ready = None
         render_data.capture = {}
+        render_data.capture_env_mask = None
         if errors:
             raise ExceptionGroup("OVRTX renders failed during camera reset", errors)
 
@@ -1148,7 +1162,7 @@ class OVRTXRenderer(BaseRenderer):
                 operation = self.backend.renderer.step_async(render_products=products, delta_time=_RENDER_DELTA_TIME)
                 for data in render_data:
                     previous = data.pending
-                    data.pending = (operation, data.capture)
+                    data.pending = (operation, data.capture, data.capture_env_mask)
                     data.ready = previous if previous is not None else data.pending
                 # Repeated submissions may replace unread results, but must still complete them.
                 for previous in unread:

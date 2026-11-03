@@ -411,7 +411,9 @@ when deprojecting depth:
 
 Capture metadata remains unchanged on later captures. Direct renderer callers use
 :meth:`~isaaclab.renderers.BaseRenderer.prepare_capture` before submitting a capture and
-:meth:`~isaaclab.renderers.BaseRenderer.read_output` to publish it.
+:meth:`~isaaclab.renderers.BaseRenderer.read_output` to publish it. ``read_output`` returns the published
+capture as a :class:`~isaaclab.renderers.CaptureInfo`, whose ``env_mask`` is the one given to ``prepare_capture``
+for that capture, or ``None`` when there is no new image. Camera tensor processors receive that mask.
 
 SDP fills renderer-owned transform and geometry buffers, including deformable meshes, particles,
 and cables. Two buffers alternate per write and are reused only after OVRTX consumes them.
