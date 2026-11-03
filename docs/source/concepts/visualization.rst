@@ -583,11 +583,11 @@ Visualization markers draw debug geometry over the scene via
 
    <div class="viz-grid viz-grid-stretch">
      <div>
-       <img src="../../_static/visualizers/markers_anymal_d.jpg" alt="Velocity arrow marker on an AnymalD robot">
+       <img src="../_static/visualizers/markers_anymal_d.jpg" alt="Velocity arrow marker on an AnymalD robot">
        <p class="viz-cap">Large green/blue arrow markers showing target and base velocity for an AnymalD robot</p>
      </div>
      <div>
-       <img src="../../_static/visualizers/markers_franka.jpg" alt="Joint arrow markers on a Franka arm and contact sensor markers on a cube" class="viz-crop-top">
+       <img src="../_static/visualizers/markers_franka.jpg" alt="Joint arrow markers on a Franka arm and contact sensor markers on a cube" class="viz-crop-top">
        <p class="viz-cap">Arrow markers on the Franka arm's joints, with contact sensor markers on the cube</p>
      </div>
    </div>
