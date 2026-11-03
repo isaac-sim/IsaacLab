@@ -12,26 +12,8 @@ and Kit detection are production code. These tests do not qualify MCAP motion.
 import builtins
 import sys
 from types import ModuleType, SimpleNamespace
-from unittest.mock import Mock
 
 import pytest
-
-
-@pytest.fixture
-def replay_presentation_type():
-    from isaaclab_teleop.entrypoints.teleop_replay_agent import _ReplayPresentation
-
-    return _ReplayPresentation
-
-
-def test_replay_failed_input_drain_requests_stop_without_releasing_borrowers(replay_presentation_type):
-    presentation = replay_presentation_type.__new__(replay_presentation_type)
-    presentation.device = SimpleNamespace(session_cleanup_failed=True)
-    presentation.session = Mock()
-    with pytest.raises(RuntimeError, match="Replay input did not drain"):
-        presentation.close()
-    presentation.session.request_shutdown.assert_called_once_with()
-    presentation.session.close.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -51,6 +33,9 @@ def test_replay_bootstrap_waits_only_for_an_active_kit_application(
     calls = []
 
     class Device:
+        xr_render_anchor_path = None
+        external_anchor_state = None
+
         def __enter__(self):
             calls.append("device-enter")
             return self
@@ -88,7 +73,11 @@ def test_replay_bootstrap_waits_only_for_an_active_kit_application(
     env = SimpleNamespace(
         scene=SimpleNamespace(physics_backend=backend, env_prim_paths=["/Lab/Cells/Cell0"]),
         sim=SimpleNamespace(
-            device="cpu", render=render, reset=lambda: calls.append("sim-reset"), is_running=lambda: False
+            device="cpu",
+            render=render,
+            reset=lambda: calls.append("sim-reset"),
+            is_running=lambda: False,
+            get_physics_step_count=lambda: 0,
         ),
         reset=lambda: calls.append("env-reset"),
     )
@@ -120,14 +109,22 @@ def test_replay_bootstrap_waits_only_for_an_active_kit_application(
     }
     for name, value in namespace.items():
         monkeypatch.setattr(replay, name, value, raising=False)
-    presentation = SimpleNamespace(start=lambda *_args: calls.append("viewer-start")) if viewer else None
+    presentation = None
+    if viewer:
+        from isaaclab_teleop.entrypoints._ovxr_presentation import OvxrPresentation
+
+        session = SimpleNamespace(
+            start_render_worker=lambda *_args, **_kwargs: calls.append("viewer-start") or True,
+            request_render=lambda identity, *, force: calls.append(("publish", identity, force)) or 1,
+        )
+        presentation = OvxrPresentation(session)
     replay._run_single_replay(env, cfg, None, run_index, 2, presentation)
     expected = ["device-enter"]
     if hard_reset:
         expected.append("sim-reset")
     expected.extend(["env-reset", "device-reset"])
     if viewer:
-        expected.append("viewer-start")
+        expected.extend(["viewer-start", ("publish", (1, 0), True)])
     if kit_active and run_index == 0:
         expected.append("kit-wait")
     assert calls == [*expected, "device-exit"]
@@ -169,7 +166,12 @@ def test_presented_replay_preserves_startup_ownership_and_batch_completion(monke
     )
 
     class Presentation:
-        def __init__(self, cfg):
+        @classmethod
+        def prepare(cls, cfg, args, *, application_name):
+            assert application_name == "isaaclab-ovxr-replay-task"
+            return cls()
+
+        def __init__(self):
             self.session = session
             self.started = False
 
@@ -208,7 +210,7 @@ def test_presented_replay_preserves_startup_ownership_and_batch_completion(monke
             num_replays=requested,
             stats_output_file=None,
         ),
-        "_ReplayPresentation": Presentation,
+        "OvxrPresentation": Presentation,
         "signal": SimpleNamespace(SIGINT=1, SIGTERM=2, signal=install_signal),
         "gym": SimpleNamespace(make=make_env),
         "_run_single_replay": replay,

@@ -52,6 +52,7 @@ from .. import (
 )
 from ..device_selection import create_teleop_device, select_teleop_cfg
 from ._ovxr_launch import prepare_ovxr_launch, reject_ovxr_runtime_conflicts
+from ._ovxr_presentation import OvxrPresentation
 
 logger = logging.getLogger(__name__)
 
@@ -286,22 +287,13 @@ def _pace_ovxr_control_loop(
             wait_for_shutdown(remaining_s)
 
 
-def _ovxr_publication_identity(
-    physics_step_id: int, *, reset_generation: int | None = None
-) -> int | tuple[str, int, int]:
-    """Return a dedup identity that also represents a reset at an unchanged physics step."""
-    if reset_generation is None:
-        return physics_step_id
-    return ("reset", reset_generation, physics_step_id)
-
-
-def _install_ovxr_shutdown_handlers(ov_libraries_xr_session) -> dict:
+def _install_ovxr_shutdown_handlers(presentation: OvxrPresentation | None) -> dict:
     """Make owner-script signals request the same orderly shutdown as OVUI."""
-    if ov_libraries_xr_session is None:
+    if presentation is None:
         return {}
 
     def request_shutdown(_signum, _frame) -> None:
-        ov_libraries_xr_session.request_shutdown()
+        presentation.session.request_shutdown()
 
     return {signum: signal.signal(signum, request_shutdown) for signum in (signal.SIGINT, signal.SIGTERM)}
 
@@ -314,7 +306,7 @@ def _restore_ovxr_shutdown_handlers(previous_handlers: dict) -> None:
 def _close_teleop_resources(
     env,
     camera_feed_session,
-    ov_libraries_xr_session,
+    presentation: OvxrPresentation | None,
     previous_shutdown_handlers,
     teleop_interface=None,
     *,
@@ -338,22 +330,18 @@ def _close_teleop_resources(
 
     try:
         input_drain_failed = getattr(teleop_interface, "session_cleanup_failed", False) is True
-        if input_drain_failed:
-            xr_drained = False
-            report_cleanup_error(
-                RuntimeError("Isaac Capture cleanup failed; borrowed XR/environment drain is unproved")
-            )
-            if ov_libraries_xr_session is not None:
-                try:
-                    ov_libraries_xr_session.request_shutdown()
-                except Exception as error:
-                    report_cleanup_error(error)
-        elif ov_libraries_xr_session is not None:
+        xr_drained = not input_drain_failed
+        if presentation is not None:
+            # Releases the session only after its input device drained.
             try:
-                ov_libraries_xr_session.close()
+                presentation.close()
             except Exception as error:
                 xr_drained = False
                 report_cleanup_error(error)
+        elif input_drain_failed:
+            report_cleanup_error(
+                RuntimeError("Isaac Capture cleanup failed; borrowed XR/environment drain is unproved")
+            )
         if not input_drain_failed:
             # A successfully bound feed exits before Capture. This is also the
             # cleanup path for preparation that never reached bind().
@@ -363,7 +351,7 @@ def _close_teleop_resources(
                 camera_drained = False
                 report_cleanup_error(error)
         if env is not None and xr_drained and camera_drained:
-            if ov_libraries_xr_session is None or not ov_libraries_xr_session.async_worker_owns_environment:
+            if presentation is None or not presentation.session.async_worker_owns_environment:
                 try:
                     env.close()
                 except Exception as error:
@@ -371,7 +359,7 @@ def _close_teleop_resources(
         elif env is None and xr_drained and camera_drained:
             from isaaclab.sim import SimulationContext
 
-            if ov_libraries_xr_session is None or not ov_libraries_xr_session.async_worker_owns_environment:
+            if presentation is None or not presentation.session.async_worker_owns_environment:
                 context = SimulationContext.instance()
                 if context is not None and context is not previous_context:
                     try:
@@ -410,7 +398,7 @@ def run_teleoperation(  # noqa: C901
 
     env = None
     teleop_interface = None
-    ov_libraries_xr_session = None
+    presentation = None
     previous_shutdown_handlers = {}
     try:
         # Apply the RTX/DLSS global settings when Kit runs an RTX render pipeline (Kit visualizer,
@@ -430,19 +418,8 @@ def run_teleoperation(  # noqa: C901
             )
 
         if args_cli.using_ovxr:
-            from isaaclab_ov.renderers import OVRTXRendererCfg
-
-            from .. import OvLibrariesXrConfig, OvLibrariesXrSession
-
-            ov_libraries_xr_session = OvLibrariesXrSession.prepare(
-                env_cfg.sim,
-                OvLibrariesXrConfig(
-                    application_name=f"isaaclab-ovxr-teleop-{args_cli.task}",
-                    session_mode=args_cli.ovxr_session_mode,
-                    cloudxr_env_file=args_cli.cloudxr_env,
-                    auto_launch_cloudxr=args_cli.auto_launch_cloudxr,
-                ),
-                renderer_cfg=OVRTXRendererCfg(),
+            presentation = OvxrPresentation.prepare(
+                env_cfg, args_cli, application_name=f"isaaclab-ovxr-teleop-{args_cli.task}"
             )
 
         try:
@@ -461,7 +438,6 @@ def run_teleoperation(  # noqa: C901
         # Flags for controlling teleoperation flow
         should_reset_recording_instance = False
         teleoperation_active = True
-        reset_publication_generation = 0
 
         # Callback handlers
         def reset_recording_instance() -> None:
@@ -533,7 +509,7 @@ def run_teleoperation(  # noqa: C901
                 enable_debug_visualization=args_cli.enable_debug_visualization,
                 use_kit_xr_bridge=args_cli.xr,
                 external_oxr_handles_provider=(
-                    ov_libraries_xr_session.external_oxr_handles if ov_libraries_xr_session is not None else None
+                    presentation.session.external_oxr_handles if presentation is not None else None
                 ),
                 haptic_cfg=getattr(env_cfg, "haptic_feedback", None),
             )
@@ -541,6 +517,8 @@ def run_teleoperation(  # noqa: C901
             logger.error(f"Failed to create teleop device: {e}")
             return
 
+        if presentation is not None:
+            presentation.input_device = teleop_interface
         print(f"Using teleop device: {teleop_interface}")
 
         haptic_driver = None
@@ -556,19 +534,12 @@ def run_teleoperation(  # noqa: C901
         def run_loop():
             """Inner function to run the teleop loop with access to nonlocal variables."""
             nonlocal should_reset_recording_instance, teleoperation_active
-            nonlocal reset_publication_generation
 
             # reset environment
             env.reset()
             teleop_interface.reset()
-            pending_publication_identity = (
-                _ovxr_publication_identity(
-                    env.sim.get_physics_step_count(), reset_generation=reset_publication_generation
-                )
-                if ov_libraries_xr_session is not None
-                else None
-            )
-            pending_publication_force = ov_libraries_xr_session is not None
+            if presentation is not None:
+                presentation.mark_changed(env, reset=True)
 
             # Without --xr there is no headset to send START, so start locally ([B]/[P] can
             # still pause/resume). The reset() above is a host reset (a pure pulse), so it does
@@ -580,32 +551,26 @@ def run_teleoperation(  # noqa: C901
             print(f"{stack_name} teleoperation started. Press 'R' to reset the environment.")
 
             # simulate environment
-            while env.sim.is_running() and not (
-                ov_libraries_xr_session is not None and ov_libraries_xr_session.shutdown_requested
-            ):
-                iteration_started_s = time.perf_counter() if ov_libraries_xr_session is not None else 0.0
+            while env.sim.is_running() and not (presentation is not None and presentation.session.shutdown_requested):
+                iteration_started_s = time.perf_counter() if presentation is not None else 0.0
                 try:
                     # run everything in inference mode
                     with torch.inference_mode():
                         # Reset invalidates the tracking anchor. Publish the new epoch
                         # before reading input, retaining force across deferred admissions.
-                        if pending_publication_force:
-                            admitted = ov_libraries_xr_session.request_render(pending_publication_identity, force=True)
-                            if admitted is None:
-                                ov_libraries_xr_session.wait_for_shutdown(env.step_dt)
-                                continue
-                            pending_publication_identity = None
-                            pending_publication_force = False
+                        if presentation is not None and presentation.reset_pending and not presentation.publish(env):
+                            presentation.session.wait_for_shutdown(env.step_dt)
+                            continue
                         # get device command
                         target_frame_prim_path = (
                             teleop_interface.target_frame_prim_path
-                            if ov_libraries_xr_session is not None and use_isaac_teleop
+                            if presentation is not None and use_isaac_teleop
                             else None
                         )
                         if target_frame_prim_path is None:
                             action = teleop_interface.advance()
                         else:
-                            target_T_world = ov_libraries_xr_session.get_target_frame_T_world(target_frame_prim_path)
+                            target_T_world = presentation.session.get_target_frame_T_world(target_frame_prim_path)
                             action = teleop_interface.advance(target_T_world=target_T_world)
 
                         if use_isaac_teleop:
@@ -618,7 +583,7 @@ def run_teleoperation(  # noqa: C901
                         # action is None when Isaac Capture session hasn't started yet
                         # (e.g. waiting for user to click "Start AR")
                         if action is None or not teleoperation_active:
-                            if ov_libraries_xr_session is None:
+                            if presentation is None:
                                 env.sim.render()
                             if haptic_driver is not None:
                                 haptic_driver.stop()
@@ -633,45 +598,25 @@ def run_teleoperation(  # noqa: C901
                                 haptic_driver.update()
                             action_applied = True
 
-                        state_changed = action_applied
-                        force_publication = False
-                        publication_identity = env.sim.get_physics_step_count()
+                        reset_applied = should_reset_recording_instance
                         if should_reset_recording_instance:
                             env.reset()
                             teleop_interface.reset()
                             camera_feed_session.refresh()
                             should_reset_recording_instance = False
-                            if ov_libraries_xr_session is not None:
-                                state_changed = True
-                                reset_publication_generation += 1
-                                force_publication = True
-                                publication_identity = _ovxr_publication_identity(
-                                    env.sim.get_physics_step_count(), reset_generation=reset_publication_generation
-                                )
                             print("Environment reset complete")
 
-                        if ov_libraries_xr_session is not None:
-                            if state_changed:
-                                pending_publication_identity = publication_identity
-                                pending_publication_force = force_publication
-                            if pending_publication_identity is not None:
-                                admitted = ov_libraries_xr_session.request_render(
-                                    pending_publication_identity, force=pending_publication_force
-                                )
-                                if admitted is not None:
-                                    pending_publication_identity = None
-                                    pending_publication_force = False
+                        if presentation is not None:
+                            presentation.publish(env, changed=action_applied, reset=reset_applied)
 
                         _pace_ovxr_control_loop(
-                            ov_libraries_xr_session is not None,
+                            presentation is not None,
                             action_applied,
                             iteration_started_s=iteration_started_s,
                             action_period_s=env.step_dt,
                             step_hz=args_cli.step_hz,
                             wait_for_shutdown=(
-                                ov_libraries_xr_session.wait_for_shutdown
-                                if ov_libraries_xr_session is not None
-                                else None
+                                presentation.session.wait_for_shutdown if presentation is not None else None
                             ),
                         )
                 except Exception as e:
@@ -680,23 +625,19 @@ def run_teleoperation(  # noqa: C901
 
         # Install after environment/device initialization because embedded native
         # libraries may replace inherited signal dispositions during startup.
-        previous_shutdown_handlers = _install_ovxr_shutdown_handlers(ov_libraries_xr_session)
+        previous_shutdown_handlers = _install_ovxr_shutdown_handlers(presentation)
         # Run the teleoperation loop
         # Isaac Capture requires a context manager, native devices don't
         if use_isaac_teleop:
-            if ov_libraries_xr_session is not None:
+            if presentation is not None:
                 # Capture releases borrowed handles before the outer cleanup
                 # closes OVXR and then the environment.
                 with teleop_interface, camera_feed_session.bind(env):
-                    render_worker_started = ov_libraries_xr_session.start_render_worker(
+                    if presentation.start(
                         env,
-                        tracking_anchor_path=teleop_interface.xr_render_anchor_path,
-                        required_openxr_extensions=teleop_interface.required_openxr_extensions,
-                        hidden_visual_prims=env_cfg.isaac_teleop.xr_cfg.hidden_visual_prims,
-                        external_anchor_state=teleop_interface.external_anchor_state,
                         timeout_s=_RENDERER_ATTACH_TIMEOUT_S,
-                    )
-                    if render_worker_started is not False:
+                        required_openxr_extensions=teleop_interface.required_openxr_extensions,
+                    ):
                         run_loop()
             else:
                 with teleop_interface, camera_feed_session.bind(env):
@@ -708,7 +649,7 @@ def run_teleoperation(  # noqa: C901
         _close_teleop_resources(
             env,
             camera_feed_session,
-            ov_libraries_xr_session,
+            presentation,
             previous_shutdown_handlers,
             teleop_interface,
             previous_context=previous_context,

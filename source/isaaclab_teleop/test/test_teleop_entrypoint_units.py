@@ -112,7 +112,7 @@ def run_live_workflow(monkeypatch):
     import isaaclab_teleop
     from isaaclab_teleop.entrypoints import teleop_se3_agent as agent
 
-    def run(env, interface, session, *, step_hz=0.0, refresh=lambda: None):
+    def run(env, interface, session, *, step_hz=0.0, refresh=lambda: None, started=True):
         class Device:
             target_frame_prim_path = None
             xr_render_anchor_path = None
@@ -137,10 +137,10 @@ def run_live_workflow(monkeypatch):
 
         camera = SimpleNamespace(bind=lambda _env: contextlib.nullcontext(), refresh=refresh, close=lambda: None)
         session.external_oxr_handles = None
-        session.start_render_worker = lambda *_args, **_kwargs: True
-        session.close = lambda: None
+        session.start_render_worker = lambda *_args, **_kwargs: started
+        vars(session).setdefault("close", lambda: None)
         session.async_worker_owns_environment = False
-        env.close = lambda: None
+        vars(env).setdefault("close", lambda: None)
         env.unwrapped = env
         env.scene = SimpleNamespace(env_prim_paths=["/World/envs/env_0"])
         env.sim.device = "cpu"
@@ -321,8 +321,22 @@ def test_paused_loop_retries_the_latest_unaccepted_publication(monkeypatch, run_
     )
     assert advances == 2 and len(steps) == 1
     assert len(requests) == 3 and requests[0][1] is True
-    assert requests[1:] == [(1, False), (1, False)]
+    assert requests[1:] == [((1, 1), False), ((1, 1), False)]
     assert sleeps == [(0.02, 3)]  # Pacing follows the retried publication.
+
+
+def test_live_render_worker_startup_failure_skips_input_and_drains(run_live_workflow):
+    """A session that shuts down during worker startup runs no input and still closes before the environment."""
+    events = []
+    env = SimpleNamespace(
+        sim=SimpleNamespace(is_running=lambda: True),
+        reset=lambda: events.append("env-reset"),
+        close=lambda: events.append("env-close"),
+    )
+    interface = SimpleNamespace(advance=lambda: events.append("advance"), reset=lambda: None)
+    session = SimpleNamespace(shutdown_requested=False, close=lambda: events.append("xr-close"))
+    run_live_workflow(env, interface, session, started=False)
+    assert events == ["xr-close", "env-close"]
 
 
 @pytest.mark.parametrize("selector", [["--physics", "ovphysx"], ["physics=ovphysx"]])
@@ -442,7 +456,7 @@ def test_recorded_environment_reset_preserves_backend_policy_and_hand_cursor(mon
     presentation = (
         SimpleNamespace(
             session=SimpleNamespace(shutdown_requested=False),
-            start=lambda *_args: None,
+            start=lambda *_args, **_kwargs: True,
             publish=lambda *_args, **kwargs: calls.append("publish-reset") if kwargs.get("reset") else None,
         )
         if viewer
@@ -457,6 +471,7 @@ def test_recorded_environment_reset_preserves_backend_policy_and_hand_cursor(mon
             start_on_replay=True,
             enable_debug_visualization=False,
             max_replay_duration_s=1,
+            max_stage_load_wait_s=1,
         ),
         raising=False,
     )
@@ -465,6 +480,8 @@ def test_recorded_environment_reset_preserves_backend_policy_and_hand_cursor(mon
     replay._run_single_replay(env, SimpleNamespace(), None, 1, 2, presentation)
     initial = ["sim-reset"] if hard_reset else []
     initial += ["env-reset", "device-reset", "start"]
+    if viewer:
+        initial.append("publish-reset")
     recorded = ["sim-reset"] if hard_reset else []
     recorded += ["recorder-reset", "env-reset", "device-reset", "start"]
     if viewer:
@@ -516,7 +533,7 @@ def test_teleop_agent_installs_late_graceful_shutdown_handlers(monkeypatch):
         return f"previous-{signum}"
 
     monkeypatch.setattr(agent.signal, "signal", install)
-    previous = agent._install_ovxr_shutdown_handlers(Session())
+    previous = agent._install_ovxr_shutdown_handlers(agent.OvxrPresentation(Session()))
 
     assert set(installed) == {signal.SIGINT, signal.SIGTERM}
     installed[signal.SIGINT](signal.SIGINT, None)
@@ -526,6 +543,85 @@ def test_teleop_agent_installs_late_graceful_shutdown_handlers(monkeypatch):
     monkeypatch.setattr(agent.signal, "signal", lambda signum, handler: restored.update({signum: handler}))
     agent._restore_ovxr_shutdown_handlers(previous)
     assert restored == previous
+
+
+def test_ovxr_presentation_starts_once_and_adopts_later_input_anchors():
+    """A failed start leaves the worker unstarted; a started worker adopts each later device's anchor."""
+    from unittest.mock import Mock
+
+    from isaaclab_teleop.entrypoints._ovxr_presentation import OvxrPresentation
+
+    session = Mock()
+    session.start_render_worker.return_value = False
+    presentation = OvxrPresentation(session)
+    presentation.input_device = SimpleNamespace(xr_render_anchor_path="/Anchor", external_anchor_state="first")
+    assert presentation.start("env", timeout_s=5.0, required_openxr_extensions=("XR_ext",)) is False
+    assert presentation.started is False
+    session.start_render_worker.assert_called_once_with(
+        "env",
+        tracking_anchor_path="/Anchor",
+        required_openxr_extensions=("XR_ext",),
+        external_anchor_state="first",
+        timeout_s=5.0,
+    )
+
+    session.start_render_worker.return_value = True
+    assert presentation.start("env", timeout_s=5.0)
+    presentation.input_device = SimpleNamespace(external_anchor_state="second")
+    assert presentation.start("env", timeout_s=5.0)
+    assert session.start_render_worker.call_count == 2
+    session.set_external_anchor_state.assert_called_once_with("second")
+
+
+def test_ovxr_presentation_retains_a_forced_reset_until_admitted():
+    """A reset publication stays forced across declined requests; later changes publish unforced."""
+    from isaaclab_teleop.entrypoints._ovxr_presentation import OvxrPresentation
+
+    requests = []
+    admissions = iter([None, 1, None, 2])
+    step = 0
+
+    def request(identity, *, force):
+        requests.append((identity, force))
+        return next(admissions)
+
+    presentation = OvxrPresentation(SimpleNamespace(request_render=request))
+    env = SimpleNamespace(sim=SimpleNamespace(get_physics_step_count=lambda: step))
+    presentation.mark_changed(env, reset=True)
+    assert requests == [] and presentation.reset_pending
+    assert not presentation.publish(env)
+    assert presentation.publish(env)
+    assert not presentation.reset_pending
+    step = 1
+    assert not presentation.publish(env, changed=True)
+    assert presentation.publish(env)
+    assert presentation.publish(env)  # Nothing pending, so nothing is requested.
+    assert requests == [((1, 0), True), ((1, 0), True), ((1, 1), False), ((1, 1), False)]
+
+
+@pytest.mark.parametrize("shutdown_fails", [False, True])
+@pytest.mark.parametrize("drained", [True, False])
+def test_ovxr_presentation_closes_only_after_input_drain(drained, shutdown_fails):
+    """An undrained input device keeps the session and environment borrowed and only requests shutdown."""
+    from unittest.mock import Mock
+
+    from isaaclab_teleop.entrypoints._ovxr_presentation import OvxrPresentation
+
+    session = Mock()
+    if shutdown_fails:
+        session.request_shutdown.side_effect = RuntimeError("shutdown failed")
+    presentation = OvxrPresentation(session)
+    presentation.input_device = SimpleNamespace(session_cleanup_failed=not drained)
+    if drained:
+        presentation.close()
+        session.close.assert_called_once_with()
+        session.request_shutdown.assert_not_called()
+        return
+    with pytest.raises(RuntimeError, match="input did not drain") as caught:
+        presentation.close()
+    session.request_shutdown.assert_called_once_with()
+    session.close.assert_not_called()
+    assert any("shutdown failed" in note for note in getattr(caught.value, "__notes__", ())) is shutdown_fails
 
 
 @pytest.mark.parametrize(
