@@ -243,7 +243,7 @@ def _configure_common_environment(env_cfg: Any) -> None:
     env_cfg.scene.terrain = None
     env_cfg.scene.height_scanner = None
     env_cfg.scene.contact_forces = None
-    env_cfg.observations.policy.height_scan = None
+    env_cfg.observations.height_scan = None
     env_cfg.scene.robot.init_state.pos = (ROBOT_START_X, 0.0, 0.74)
     if args_cli.proxy_bodies == "robot":
         # The velocity task normally uses g1_minimal.usd, whose only collision
