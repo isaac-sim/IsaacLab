@@ -539,5 +539,13 @@ def test_command_metadata_uses_the_actual_reference_frame(monkeypatch, command_t
     patcher._wrap_generated_commands(mdp.generated_commands, term_cfg)(env, "target")
     semantics = captured[0][1]
     assert semantics.is_setpoint is True
+    assert (
+        semantics.kind
+        == {
+            "velocity": "command/body/velocity",
+            "pose": leapp.Kind.FRAME_POSE,
+            "planar": "command/body/pose",
+        }[command_type]
+    )
     assert semantics.expressed_in == ("base" if command_type == "velocity" else None)
     assert semantics.reference == ("base" if command_type == "pose" else None)

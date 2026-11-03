@@ -103,7 +103,9 @@ remain unspecified. Desired command inputs use ``is_setpoint: true``. Body-frame
 velocities and accelerations record their expression frame under ``spatial``.
 Per-body COM offsets and source-relative frame-transformer tensors retain custom
 kinds because their reference varies by element or depends on the sensor source.
-Yaw-only planar commands leave their reference unspecified. OSC task-space gains stay
+Compact velocity commands retain their custom kind for the three values ``vx``,
+``vy``, and ``wz``. Yaw-only planar pose commands leave their reference unspecified.
+OSC task-space gains stay
 inside the exported effort computation; only actuator joint gains are published.
 The deployment command reads these axes and also accepts existing bundles with
 legacy ``element_names`` metadata. External consumers must read ``axes`` when
