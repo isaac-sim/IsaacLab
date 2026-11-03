@@ -17,14 +17,18 @@ from ..conveyor_franka.agents.rsl_rl_ppo_cfg import (
     ConveyorGaussianBernoulliDistribution,
 )
 
-_GRIPPER_LOGIT_BOUND = math.log(99.0)
+_GRIPPER_LOGIT_BOUND = math.log(999.0)
 
 
 class _SuctionOutput(nn.Module):
-    """Bound Cartesian means and retain at least 1% exploration for either tool command."""
+    """Bound Cartesian means and retain 0.1% exploration for either tool command."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.logit_bound = _GRIPPER_LOGIT_BOUND
 
     def forward(self, output: torch.Tensor) -> torch.Tensor:
-        logit = _GRIPPER_LOGIT_BOUND * (output[..., -1:] / _GRIPPER_LOGIT_BOUND).tanh()
+        logit = self.logit_bound * (output[..., -1:] / self.logit_bound).tanh()
         return torch.cat((output[..., :-1].tanh(), logit), dim=-1)
 
 
