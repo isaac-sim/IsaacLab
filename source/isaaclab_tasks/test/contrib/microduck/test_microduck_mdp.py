@@ -56,10 +56,10 @@ BODY_NAMES = ["trunk", "ankle_left", "ankle_right"]
 """Body names of the articulation double, in the resolved order the real scene reports."""
 
 ENCODER_BIAS_RANGE = (-0.015, 0.015)
-"""Per-joint encoder-bias range [rad] MicroDuck randomizes over (reference section 2.6)."""
+"""Per-joint encoder-bias randomization range [rad]."""
 
 IMU_MISALIGNMENT_ANGLE_DEG = 6.0
-"""Upper bound [deg] on the IMU mounting misalignment (reference section 6)."""
+"""Maximum IMU mounting-misalignment angle [deg]."""
 
 
 class _DummyTensorView:
@@ -311,7 +311,7 @@ def test_forward_envs_walk_forward_at_a_minimum_speed():
 
 
 def test_standing_takes_precedence_over_forward_only():
-    """Upstream zeroes standing environments every step, after the forward bucket is applied."""
+    """Standing environments remain zero-command after forward-only resampling."""
     torch.manual_seed(0)
     term = _make_velocity_command(num_envs=512, rel_standing_envs=1.0, rel_forward_envs=1.0)
 
@@ -500,7 +500,7 @@ def test_imu_misalignment_is_zero_centred_rather_than_a_fixed_tilt():
     gravity = mdp.projected_gravity_imu_misaligned(cast("ManagerBasedEnv", env), IMU_MISALIGNMENT_ANGLE_DEG)
 
     truth = env.scene["robot"].data.projected_gravity_b.torch
-    # every environment is tilted ...
+    # every environment is tilted...
     assert torch.all((gravity - truth).norm(dim=-1) > 0.0)
     # ... but the fleet is not, to well inside the per-environment tilt
     assert torch.all((gravity.mean(dim=0) - truth[0]).abs() < 0.01)
@@ -572,7 +572,7 @@ def test_a_fixed_one_step_lag_returns_the_previous_control_step_value():
     env = _make_obs_env(num_envs=8)
     term, params = _make_delayed_term(env, min_lag=1, max_lag=1, update_period=0)
 
-    # the first step has nothing older to return, so it returns itself (reference section 8, rule 6)
+    # the first step has nothing older to return, so it returns itself
     torch.testing.assert_close(_advance(env, term, params), torch.ones(env.num_envs, 1))
     for step in range(2, 8):
         torch.testing.assert_close(_advance(env, term, params), torch.full((env.num_envs, 1), float(step - 1)))
@@ -627,7 +627,7 @@ def test_the_lag_is_redrawn_only_on_the_update_period_boundary():
 
 
 def test_a_reset_environment_gets_the_freshest_frame():
-    """A reset clears only the reset environments' history and lag (reference section 8)."""
+    """Reset only the selected environments' history and lag, returning their freshest observation frame."""
     torch.manual_seed(0)
     env = _make_obs_env(num_envs=4)
     term, params = _make_delayed_term(env, min_lag=1, max_lag=1, update_period=0)
@@ -737,7 +737,7 @@ def test_the_safe_foot_terms_report_zero_where_the_sensor_reports_a_non_finite_v
     assert torch.all(torch.isfinite(air))
     assert contact_forces[0, 0] == 0.0 and contact_forces[1, 4] == 0.0
     assert air[2, 0] == 0.0
-    # the finite entries keep upstream's signed log compression
+    # the finite entries keep the configured signed log compression
     torch.testing.assert_close(contact_forces[2, 2], torch.tensor(math.log1p(2.0)))
     torch.testing.assert_close(air[0], torch.full((2,), 0.25))
 
@@ -781,7 +781,7 @@ ACTION_RATE_WEIGHT_STAGES = [
     {"step": 1250 * 24, "weight": -0.8},
     {"step": 1500 * 24, "weight": -1.0},
 ]
-"""Upstream's ``action_rate_weight`` ramp (reference section 6, curriculum stage tables)."""
+"""Action-rate penalty weight at each curriculum boundary."""
 
 STANDING_ENVS_STAGES = [
     {"step": 0 * 24, "rel_standing_envs": 0.02},
@@ -791,7 +791,7 @@ STANDING_ENVS_STAGES = [
     {"step": 1500 * 24, "rel_standing_envs": 0.2},
     {"step": 2000 * 24, "rel_standing_envs": 0.25},
 ]
-"""Upstream's ``standing_envs`` ramp (reference section 6, curriculum stage tables)."""
+"""Standing-command fraction at each curriculum boundary."""
 
 
 class _DummyRewardManager:
@@ -923,7 +923,7 @@ def test_the_standing_fraction_ramp_mutates_the_live_command_configuration(step,
 
 
 def test_the_command_range_ramp_steps_on_an_inclusive_step_boundary():
-    """Upstream's pose-range curriculum triggers at the stage step, unlike the weight ramps."""
+    """Pose-command ranges advance on inclusive stage boundaries."""
     stages = [
         {"step": 0, "ranges": HEAD_POSE_RANGES},
         {"step": 500 * 24, "ranges": ((-1.10, 1.10), (-1.10, 1.10), (-1.40, 1.40), (-0.31, 0.31))},
@@ -993,7 +993,7 @@ def test_a_malformed_stage_table_is_rejected_rather_than_silently_misapplied(sta
 
 
 ##
-# Ball state, for the ball-kick critic (addendum section 6.4)
+# Ball state, for the ball-kick critic
 ##
 
 
@@ -1044,11 +1044,7 @@ def test_ball_pos_in_base_is_the_relative_position_rotated_into_the_base_frame()
 
 
 def test_ball_vel_in_base_rotates_the_world_velocity_without_subtracting_the_robots_own():
-    """Upstream reads the ball's *world* velocity, so a robot walking at a still ball reads zero.
-
-    That is reproduced rather than corrected: the critic is trained against upstream's signal, and a
-    closing velocity would be a different observation with the same name.
-    """
+    """Rotate absolute ball velocity into the base frame without subtracting robot velocity."""
     env = _ball_obs_env(ball_pos=[[1.0, 0.0, 0.035]], ball_vel=[[0.6, 0.0, 0.0]], yaw=math.pi / 2.0)
 
     velocity = mdp.ball_vel_in_base(cast("ManagerBasedEnv", env), asset_cfg=SceneEntityCfg("ball"))
@@ -1105,9 +1101,7 @@ FELL_OVER_STAGES = [
     {"step": 0, "params": {"limit_angle": math.radians(70.0)}},
     {"step": 500 * 24, "params": {"limit_angle": math.pi}},
 ]
-"""Upstream's ``fell_over_disable`` schedule (addendum section 3.6): the tilt termination is widened
-to half a turn once the walk is established, so a fall becomes recovery training instead of an
-episode end."""
+"""Tilt-termination limits [rad] at each recovery curriculum stage."""
 
 
 @pytest.mark.parametrize(
@@ -1120,7 +1114,7 @@ episode end."""
     ],
 )
 def test_the_termination_parameter_ramp_steps_on_an_inclusive_step_boundary(step, expected):
-    """Upstream compares the step counter inclusively here, unlike its reward-weight ramps."""
+    """Termination parameters advance on inclusive stage boundaries."""
     env = _make_curriculum_env()
     env.common_step_counter = step
 
@@ -1155,7 +1149,7 @@ CROUCH_ANCHOR = {
     "right_knee": -1.25,
     "right_ankle": -1.05,
 }
-"""Upstream's deep-crouch anchor (addendum section 3.4, ``_CROUCH_ANCHOR_BY_NAME``)."""
+"""Deep-crouch joint targets [rad], keyed by joint name."""
 
 
 def test_the_ground_state_reset_refuses_a_live_crouch_bucket_it_cannot_spawn():
@@ -1174,13 +1168,14 @@ def test_the_ground_state_reset_refuses_a_live_crouch_bucket_it_cannot_spawn():
 
 
 ##
-# Rolling entry, for the roller-slope task (addendum section 4.3)
+# Rolling entry, for the roller-slope task
 ##
 
 
 WHEEL_RADIUS = 0.0175
-"""Rolling radius [m] upstream's roller terms default to (addendum section 9.3: the model measures
-0.0150, and the stale value is ported verbatim for parity)."""
+"""Configured rolling radius [m] used by reward and reset terms. The configured 0.0175 m
+radius differs from the 0.0150 m geometric wheel radius.
+"""
 
 
 class _RollingEntryRobot:
@@ -1232,11 +1227,7 @@ def test_the_rolling_entry_pushes_the_base_forward_only():
 
 
 def test_the_rolling_entry_spins_every_wheel_to_match_its_own_environments_base_speed():
-    """``omega * r == v`` per environment: the entry rolls rather than skids.
-
-    Upstream added this after a base-only shove -- moving base, motionless wheels -- produced a
-    contact spike on the first step that diverged into NaN.
-    """
+    """Each environment must satisfy omega * radius == base speed at rolling entry."""
     env = _rolling_entry_env()
     robot = env.scene["robot"]
 
@@ -1283,7 +1274,7 @@ def test_the_rolling_entry_touches_only_the_environments_it_was_given():
 
 
 def test_pinning_the_entry_speed_range_makes_the_entry_deterministic():
-    """What the accuracy-gate harness relies on to compare a rollout against upstream's."""
+    """A zero-width entry-speed range must produce deterministic wheel and base velocities."""
     env = _rolling_entry_env()
 
     mdp.reset_rolling_entry(
@@ -1301,7 +1292,7 @@ def test_pinning_the_entry_speed_range_makes_the_entry_deterministic():
 
 
 ##
-# Slope curriculum (addendum section 4.4)
+# Slope curriculum
 ##
 
 
@@ -1320,7 +1311,8 @@ SLOPE_MOVE_CASES = [
     (12.0, True, False),
 ]
 """The promotion and demotion bands, evaluated by hand from ``d > 0.4 * size_x`` and
-``d < 0.2 * size_x``. Both comparisons are strict, so the two boundary values themselves hold."""
+``d < 0.2 * size_x``. Both comparisons are strict, so the two boundary values themselves hold.
+"""
 
 
 @pytest.mark.parametrize("distance, promoted, demoted", SLOPE_MOVE_CASES)

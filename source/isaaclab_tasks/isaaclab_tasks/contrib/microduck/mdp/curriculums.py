@@ -3,11 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Shared MicroDuck curriculums for walking, recovery and skating recipes.
-
-Existing walking APIs retain their behavior. Descriptive task-specific variants preserve distinct
-encoder storage, command sampling, contact grouping, recovery gates and non-finite handling.
-"""
+"""Curricula for command ranges, disturbances, rewards and terrain difficulty."""
 
 from __future__ import annotations
 
@@ -22,7 +18,6 @@ from .commands import MicroDuckRoughVelocityCommand
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
-
 
 from isaaclab.managers import SceneEntityCfg
 
@@ -180,10 +175,6 @@ def reward_weight_stages(
 ) -> float:
     """Ramp a reward weight through a staged schedule.
 
-    Ported from reference section 6 (``reward_weight``). MicroDuck drives two weights with it: the
-    ``action_rate_l2`` penalty from -0.1 to -1.0 over six stages, and the ``head_pose_bias``
-    penalty from 0.0 to +3.0 over four.
-
     Args:
         env: The environment instance.
         env_ids: The environments being updated. Unused: the weight is global.
@@ -211,9 +202,6 @@ def standing_envs_stages(
     standing_stages: Sequence[dict[str, Any]],
 ) -> float:
     """Ramp the fraction of environments commanded to stand still.
-
-    Ported from reference section 6 (``standing_envs_curriculum``). MicroDuck grows it from 2 % to
-    25 % over six stages, so standing is only asked for once walking is established.
 
     The **live command term's** configuration is rewritten, not ``env.cfg``: the term samples its
     standing bucket from ``self.cfg`` on every resample, and the two objects are distinct.
@@ -245,14 +233,6 @@ def command_range_stages(
 ) -> float:
     """Widen the per-dimension ranges of a pose-delta command through a staged schedule.
 
-    Ported from reference section 6 (``pose_command_range_curriculum``). MicroDuck opens the
-    head-pose command from a few centiradians to nearly its full joint range over five stages, and
-    holds the body-pose command at a single stage.
-
-    Unlike the other terms here this one triggers **inclusively**, and it falls back to the first
-    stage before any boundary is reached, so the configured ranges are always replaced by the
-    schedule's own first entry. Both behaviours are upstream's; see the module note.
-
     Args:
         env: The environment instance.
         env_ids: The environments being updated. Unused: the ranges are global.
@@ -260,7 +240,7 @@ def command_range_stages(
             :class:`~isaaclab_tasks.contrib.microduck.mdp.commands.ZeroablePoseDeltaCommand` term to
             rewrite.
         range_stages: Stages of the schedule, each a
-            ``{"step": int, "ranges": tuple[tuple[float, float], ...]}`` mapping ordered by strictly
+            ``{"step": int, "ranges": tuple[tuple[float, float],...]}`` mapping ordered by strictly
             increasing ``"step"``. The range tuple must stay as wide as the command, which the
             command term asserts.
 
@@ -285,11 +265,6 @@ def event_range_stages(
     range_keys: Sequence[str] = ("x", "y", "z"),
 ) -> float:
     """Widen a symmetric per-axis range of an event term through a staged schedule.
-
-    Ported from reference section 6 (``com_range_curriculum``). MicroDuck drives its two
-    centre-of-mass randomizations with it: the trunk from +/-3 mm to +/-15 mm and the head bodies
-    from +/-3 mm to +/-10 mm, so the policy meets the hardware's mass distribution only once it can
-    already walk with the nominal one.
 
     Args:
         env: The environment instance.
@@ -324,12 +299,6 @@ def event_param_stages(
 ) -> float:
     """Rewrite named parameters of an event term through a staged schedule.
 
-    Ported from addendum section 3.8 (``event_param_curriculum`` and ``push_curriculum``, which are
-    the same shallow merge under two names and two comparison operators). The stand-up task drives
-    two schedules with it: the four probabilities of its ground-state reset, which ramp from a mix
-    dominated by standing and sitting to one dominated by the prone poses, and the magnitude of its
-    push disturbance.
-
     The merge is shallow, so a stage lists only the parameters it changes and the rest of the event
     term's configuration -- height bands, joint poses -- is left alone.
 
@@ -344,7 +313,7 @@ def event_param_stages(
             ordered by strictly increasing ``"step"``. Before the first boundary the first stage's
             parameters apply.
         inclusive: Whether a stage triggers on the step that equals its boundary. Defaults to True,
-            which is what upstream's ``event_param_curriculum`` does; its ``push_curriculum`` uses
+            which is what ``event_param_curriculum`` does; its ``push_curriculum`` uses
             the exclusive comparison instead, and that inconsistency is reproduced rather than
             smoothed over (see the module note).
 
@@ -369,13 +338,6 @@ def termination_param_stages(
 ) -> float:
     """Rewrite named parameters of a termination term through a staged schedule.
 
-    Ported from addendum section 3.6 (``termination_param_curriculum``). The hybrid
-    walking-and-recovery task drives one schedule with it, and that schedule is the task's central
-    design: the tilt termination that ends a fall is active while the walk is learned and is then
-    *widened to half a turn*, so a fall stops ending the episode and starts being a recovery to
-    train on. Deleting the term instead would change the episode's termination set mid-run;
-    widening its bound leaves the manager's shape alone.
-
     :func:`event_param_stages` is the same shallow merge over an event term. The two are kept apart
     rather than generalized over a manager name, so that a schedule cannot silently address the
     wrong manager's term of the same name.
@@ -388,7 +350,7 @@ def termination_param_stages(
             ordered by strictly increasing ``"step"``. Before the first boundary the first stage's
             parameters apply.
         inclusive: Whether a stage triggers on the step that equals its boundary. Defaults to True,
-            which is what upstream compares with here (see the module note).
+            which is what compares with here (see the module note).
 
     Returns:
         The index of the stage now in force.
@@ -404,16 +366,6 @@ def termination_param_stages(
 
 def slope_move_masks(distance: torch.Tensor, size_x: float) -> tuple[torch.Tensor, torch.Tensor]:
     """Split a per-environment descent distance into promotions and demotions.
-
-    Ported from addendum section 4.4 (``slope_move_masks``). An environment that travelled more than
-    40 percent of the tile has ridden the ramp out and earns a steeper one; one that travelled less
-    than 20 percent fell or stalled near the top and gets a gentler one; the band between them holds.
-
-    Note:
-        Upstream's docstring calibrates the two fractions against an 8 m tile, and the task it serves
-        runs a 15 m one -- so the live thresholds are 6.0 m and 3.0 m, not 3.2 m and 1.6 m (addendum
-        section 9.4). The fractions are reproduced because they are what the reference policy trained
-        against.
 
     Args:
         distance: **Signed** distance [m] travelled down the slope since the reset. Shape is (N,).
@@ -433,12 +385,6 @@ def terrain_levels_slope(
     env: ManagerBasedRLEnv, env_ids: Sequence[int], asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
     """Promote an environment to a steeper ramp once it has ridden its current one out.
-
-    Ported from addendum section 4.4 (``terrain_levels_slope``). The stock
-    :func:`~isaaclab_tasks.core.velocity.mdp.terrain_levels_vel` cannot be reused: it demotes against
-    the distance a *commanded* velocity should have covered, and this task's twist command is
-    neutralized to zero, so every environment would be demoted on every reset. Progress is measured
-    instead as the raw distance down the slope.
 
     That distance is the **signed** x displacement, not a planar norm, which is what makes a robot
     that slid backwards up the ramp get an easier slope rather than a harder one.

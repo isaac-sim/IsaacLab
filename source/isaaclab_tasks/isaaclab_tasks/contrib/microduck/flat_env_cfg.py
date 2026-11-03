@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Flat walking recipe ported from pollen-robotics/microduck_rl and the original Lab task."""
+"""Flat-ground velocity tracking for MicroDuck."""
 
 import math
 import os
@@ -403,7 +403,7 @@ class TerminationsCfg:
 
 
 def _schedule(address: str, *stages: tuple[int, object]) -> CurrTerm:
-    """Step ``address`` through ``(upstream_iteration, value)`` stages after its configured value."""
+    """Step ``address`` through ``(iteration, value)`` stages after its configured value."""
     steps = [(iteration * MICRODUCK_STEPS_PER_ITERATION, value) for iteration, value in stages]
     return CurrTerm(
         func=mdp.modify_term_cfg,
@@ -467,7 +467,6 @@ class MicroDuckVelocityFlatEnvCfg(ManagerBasedRLEnvCfg):
                 nconmax=16,
                 # microduck_rl's 10 iterations stop some contact solves short; MJWarp exits once every world converges.
                 iterations=100,
-                # The original 20-step budget exhausts line search with the current MJWarp solver.
                 ls_iterations=50,
                 cone="pyramidal",
                 impratio=1.0,

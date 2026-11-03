@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Anonymous, immutable teacher downloads; checkpoint weights are never packaged or redistributed."""
+"""Resolve immutable teacher checkpoints and verify their hashes before use."""
 
 from __future__ import annotations
 

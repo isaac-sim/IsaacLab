@@ -3,10 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause AND Apache-2.0
 
-"""Native PPO with the merged source post-PPO two-teacher BC pass.
+"""PPO with a post-update two-teacher imitation pass.
 
-The BC pass is adapted from Pollen Robotics microduck_rl at bae39f5900b318f7e87fc485c30a31213cfa14eb,
-Apache-2.0 (LICENSE-microduck_rl.md). The runner, PPO update and checkpoint schemas are native RSL-RL.
+Behavior-cloning code is adapted from Pollen Robotics ``microduck_rl`` under Apache-2.0;
+see ``LICENSE-microduck_rl.md``.
 """
 
 from __future__ import annotations
@@ -66,8 +66,7 @@ class MicroDuckVelStandPPO(PPO):
         algorithm = PPO.construct_algorithm(obs, env, cfg, device)
         algorithm.env = env.unwrapped
         if algorithm.bc_cfg:
-            # WARM_START=True in the source factory. Plain training must not silently start
-            # from random weights; a subsequent native runner.load still supports resume.
+            # Initialize from the walking teacher; a later checkpoint load can replace this state.
             path = resolve_artifact(
                 "walk", algorithm.artifact_cache_dir, algorithm.bc_cfg.get("anchor_checkpoint_path")
             )
@@ -97,7 +96,7 @@ class MicroDuckVelStandPPO(PPO):
             "teachers": self.artifact_provenance,
             "environment": self._environment_contract(),
         }
-        # Source BC Adam is intentionally fresh on resume; upstream never checkpoints it.
+
         return saved
 
     def load(self, loaded_dict, load_cfg, strict):
@@ -131,7 +130,7 @@ class MicroDuckVelStandPPO(PPO):
 
     def _bc_update(self) -> dict[str, float]:
         cfg = self.bc_cfg
-        obs_td: TensorDict = self.storage.observations.flatten(0, 1)  # (T*N, ...)
+        obs_td: TensorDict = self.storage.observations.flatten(0, 1)  # (T*N,...)
         groups = list(self.actor.obs_groups)
         flat = torch.cat([obs_td[g] for g in groups], dim=-1)
         gsl = tuple(cfg["gravity_slice"])

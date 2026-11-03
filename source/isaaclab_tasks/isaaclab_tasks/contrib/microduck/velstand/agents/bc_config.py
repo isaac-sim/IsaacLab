@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Exact merged VelStand BC settings, separate from native PPO's optimizer."""
+"""Two-teacher imitation settings for VelStand."""
 
 ANCHOR_YAW_REMAP = {
     "lin": (0.0, 0.1, 0.2, 0.3, 0.4),

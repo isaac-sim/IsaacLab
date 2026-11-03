@@ -3,12 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Current merged upstream walking-plus-recovery recipe, flat and production rough terrain.
+"""Velocity tracking with whole-body fall recovery on flat or rough terrain.
 
-Pinned formulation: pollen-robotics/microduck_rl@bae39f5900b318f7e87fc485c30a31213cfa14eb.
-Select ``presets=backlash`` for the production output-encoder/serial-play robot. The selected
-training lineage is 6000 added iterations from the pinned walking checkpoint with two teachers;
-the historical published v8 policy additionally had a multi-stage training lineage.
+A walking warm start, frozen walking/standing teachers and post-PPO imitation train the
+shared 61-input, 14-action policy. Rough terrain uses sole-site sensing and terrain-relative resets.
 """
 
 import math
@@ -276,7 +274,7 @@ def _configure(cfg):
             ],
         },
     )
-    # Deliberately retain upstream's historical bearing_roll right-leg selection in this task only.
+
     cfg.events.randomize_head_com.params["asset_cfg"] = SceneEntityCfg(
         "robot",
         body_names=["neck", "neck_pitch(_[0-9]+)?", "yaw_roll_motion", "(bottom_head_shell|jaw_soft)", "bearing_roll"],
@@ -294,7 +292,7 @@ def _configure(cfg):
             ],
         },
     )
-    # Full-contact budgets are conservative until the controlled-fall profile is measured.
+
     cfg.sim.physics.newton_mjwarp.solver_cfg.nconmax = 200
     cfg.sim.physics.newton_mjwarp.solver_cfg.njmax = 1024
     cfg.sim.physics.default = cfg.sim.physics.newton_mjwarp

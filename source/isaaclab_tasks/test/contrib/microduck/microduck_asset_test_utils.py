@@ -16,7 +16,7 @@ from isaaclab.utils.assets import retrieve_file_path
 
 _SOURCE_REVISION = "d424a0c899f6b33cbd3daeb279913134349c0b63"
 # Reference XML identities bind optional external fixtures to the original asset pin.
-# They never select a runtime USD, fetch upstream files or invoke an importer.
+# These optional fixtures do not select runtime USDs, download source files or invoke importers.
 _SOURCE_SHA256 = {
     "robot_walk.xml": "07af5e482200dfd2a7bf80ddde371153c88768a3a5aebc2f58ea42136fc7dadb",
     "robot_allcollisions.xml": "7a6fdf437f5a80c7348ad801f43f906b997a834389cb70cca5e1e8517ba38044",

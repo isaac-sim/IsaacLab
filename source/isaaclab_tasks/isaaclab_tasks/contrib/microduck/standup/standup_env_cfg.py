@@ -3,32 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Stand-up environment for the Pollen Robotics MicroDuck biped.
+"""Whole-body recovery on flat ground using the curated-contact robot.
 
-Ported from `pollen-robotics/microduck_rl <https://github.com/pollen-robotics/microduck_rl>`_,
-which trains MicroDuck on mjlab. Every value taken from upstream cites a section of
-``historical tasks2 source extraction``, the extraction of the pinned upstream
-checkouts; the sections that describe the shared mjlab base template live in the companion
-``historical original source extraction`` and are cited as "reference section N".
-
-The task is the other half of a sit/stand pair. An episode starts the robot on the ground -- face
-down, face up, folded into the sitting keyframe a sit policy hands off, or already standing -- and
-asks it to reach and hold the standing keyframe. There is no trajectory and no waypoint gating: one
-fixed target is rewarded from the first step, and the policy discovers its own rise path.
-
-Two structural differences from :mod:`..velocity` are worth stating up front, because everything
-else follows from them:
-
-* The robot is :data:`~isaaclab_tasks.contrib.microduck.assets.MICRODUCK_ALLCOLLISIONS_CFG`, not the walking model. A
-robot
-  that lies on its back and pushes itself up needs a trunk, hips, shins and head that touch the
-  floor, and the walking model only has soles.
-* The reward set is a **rise** recipe, not a locomotion one: every walking term is gone and the
-  weights are upstream's after its 2026-07 division by four, which brought the task mass to about
-  12 so the shared sim-to-real regularizers act at the same relative strength as in the
-  well-transferring velocity recipe.
-
-Source pins and historical extraction labels are indexed in this task family's ``UPSTREAM.md``.
+Fallen, crouched, seated and standing resets train recovery while preserving the shared
+61-dimensional actor interface and 14 joint-position actions.
 """
 
 import math
@@ -68,24 +46,19 @@ from isaaclab_tasks.contrib.microduck.velocity.velocity_env_cfg import (
 from isaaclab_tasks.utils import PresetCfg
 
 ##
-# Keyframe heights and poses (addendum section 3.1)
+# Keyframe heights and poses
 ##
 
 MICRODUCK_STAND_HEIGHT = 0.115
-"""Trunk height [m] of the standing keyframe, the single target this task rewards.
+"""Standing trunk-height target [m], accounting for servo sag under load.
 
-Upstream measured it off a velocity policy holding the robot still at zero command. It is 2 mm
-below the 0.11718 m the model reaches geometrically at the stand pose with the soles on the ground
-(addendum section 2.2), which is the servos sagging under load.
+The geometric sole-grounded stand height is 0.11718 m.
 """
 
 MICRODUCK_SIT_HEIGHT = 0.060
-"""Trunk height [m] of the seated equilibrium, where the ``upright_sharp`` height gate opens.
+"""Settled seated trunk-height target under load [m].
 
-This is upstream's *measured* rest height for :data:`MICRODUCK_SITTING_JOINT_POS`, the sitting
-keyframe defined below -- the height the trunk settles at once the robot's weight is on its folded
-legs. Resting that keyframe on the floor geometrically, with no dynamics, puts the trunk 2 cm higher
-at 0.0813 m; upstream's gate was tuned against the settled value, so that is the one used here.
+The geometric static seated pose has a trunk height of 0.0813 m.
 """
 
 MICRODUCK_SITTING_JOINT_POS = {
@@ -100,19 +73,12 @@ MICRODUCK_SITTING_JOINT_POS = {
 }
 """The sitting keyframe [rad], as joint deltas from nothing -- these are absolute joint positions.
 
-Knees folded to about 77 degrees, hips leaning 0.05 rad forward of the stand pose, ankles flat. It
-is the *end state of the sit policy*, not a pose designed here, so it is the hand-off this task must
-start from; upstream keeps the two in sync by hand.
-
 The neck and head are deliberately absent and therefore stay at the stand pose: the sit policy
 leaves the head where it is, and the head-pose command steers it from there.
-
-Upstream keys this by servo index (addendum section 3.4); the port keys it by name, because the
-converted asset resolves joints in Newton's order rather than the MJCF's.
 """
 
 ##
-# Body-pose command envelope (addendum section 3.1)
+# Body-pose command envelope
 ##
 
 _BODY_CMD_MAX_Z_DOWN = 0.04
@@ -124,8 +90,7 @@ room to crouch below it and only about a centimetre of leg extension above it.
 """
 
 _BODY_CMD_MAX_ANGLE = math.radians(15.0)
-"""Final trunk roll and pitch command range [rad]. Upstream capped it at 15 degrees after a
-velocity body-control run at 20 degrees trained twitchy, overdriven tilting."""
+"""Final trunk roll and pitch command range [rad]."""
 
 _BODY_CMD_ALIVE_XY = 0.005
 _BODY_CMD_ALIVE_ANGLE = 0.05
@@ -160,14 +125,14 @@ _FOOT_MATERIAL_CFG = SceneEntityCfg("robot", body_names=MICRODUCK_FOOT_BODY_NAME
 _SELF_COLLISION_SENSOR_CFG = SceneEntityCfg("self_collision")
 
 _IMU_MISALIGNMENT_DEG = 6.0
-"""Upper bound [deg] on the IMU mounting-misalignment angle, upstream's velocity-matched value."""
+"""Upper bound [deg] on the IMU mounting-misalignment angle, velocity-matched value."""
 
 _IMU_DELAY_UPDATE_PERIOD = 64
-"""Control steps between two draws of the IMU latency (reference section 8)."""
+"""Control steps between two draws of the IMU latency."""
 
 
 def _iterations(count: int) -> int:
-    """Convert an upstream PPO iteration count into the global environment-step count."""
+    """Convert a PPO iteration count into the global environment-step count."""
     return count * MICRODUCK_STEPS_PER_ITERATION
 
 
@@ -180,12 +145,6 @@ def _iterations(count: int) -> int:
 class MicroDuckStandUpPhysicsCfg(PresetCfg):
     """Backend preset for the MicroDuck stand-up environment.
 
-    MicroDuck is trained on MuJoCo upstream, so MJWarp is the reference backend and the only one
-    offered. Upstream inherits the mjlab base template's solver limits unchanged and never revisits
-    them for this task (addendum section 7.4); this port measures them instead, because the
-    all-collisions robot spends most of every episode lying on the floor and upstream's inherited
-    ``nconmax`` of 35 was sized for a walking robot on two soles.
-
     MJWarp is also the only backend that can run this task as configured: the environment sets
     ``sim.use_newton_actuators = True`` and the solver-hosted BAM model is rejected on the PhysX
     family's host adapter. See
@@ -194,23 +153,10 @@ class MicroDuckStandUpPhysicsCfg(PresetCfg):
 
     newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
-            # Measured, not inherited. Profiling under random actions -- the regime where the
-            # robots flail on the floor and grind every collider into it, with the pushes forced to
-            # full magnitude -- peaks at **27 contacts and 82 constraints** per environment. The
-            # peak is not structural the way the walking task's is (there the same three geometries
-            # touch every step); it moves with the pose, so the profile was run at both 256 and 2048
-            # environments and the two agree to one contact, which is what says the tail has been
-            # sampled. Logs:
-            # ``artifacts/microduck/profile_microduck_contacts_standup_{256,2048}envs.log``, from
-            # ``artifacts/microduck/profile_microduck_contacts.py``.
-            #
-            # That is 2.7x the walking task's contact peak, which is what ten world colliders on the
-            # floor instead of two buys. ``njmax`` is a hard per-environment cap and carries the
-            # margin; ``nconmax`` is a per-environment share of one shared buffer and cannot
-            # overflow at the measured peak, so it sits just above it.
+            # Reserve contact and constraint headroom for simultaneous body-ground contact.
+            # Constraint limits are per environment; contact storage is shared across environments.
             njmax=128,
             nconmax=32,
-            # upstream's flat solver profile, which this task inherits unchanged
             iterations=10,
             ls_iterations=20,
             cone="pyramidal",
@@ -219,7 +165,6 @@ class MicroDuckStandUpPhysicsCfg(PresetCfg):
             use_mujoco_contacts=False,
         ),
         collision_cfg=NewtonCollisionPipelineCfg(max_triangle_pairs=2_500_000),
-        # upstream steps MuJoCo once per 0.005 s physics tick (reference section 1)
         num_substeps=1,
         default_shape_cfg=NewtonShapeCfg(margin=0.0),
     )
@@ -249,38 +194,23 @@ class MicroDuckStandUpSceneCfg(InteractiveSceneCfg):
         debug_vis=False,
     )
 
-    # The all-collisions model. It is the walking robot with six more colliders -- a second trunk
-    # shell, the two hip cheeks and the three head shells -- and with both shins promoted from
-    # self-collision-only to world contact, so ten of its eleven colliders reach the ground
-    # (``source/isaaclab_tasks/test/contrib/microduck/test_microduck_variant_assets.py``). A robot that starts every
-    # episode lying down needs all of them.
     robot = MICRODUCK_ALLCOLLISIONS_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
-    # Feet and trunk, as the velocity task does: upstream tracks ground contact on the two soles
-    # (addendum section 3.2) and drops the base template's terrain and foot-height scanners
-    # wholesale. The ankle bodies carry exactly one collider each -- the sole -- on this model too.
+    # The ankle bodies carry exactly one collider each -- the sole -- on this model too.
     contact_forces = ContactSensorCfg(
         prim_path="{ENV_REGEX_NS}/Robot/Geometry/trunk_base(/.*/(ankle_left|ankle_right))?",
         history_length=3,
         track_air_time=True,
     )
 
-    # Self-collision sensor. Upstream filters the trunk subtree against itself and reports whether
-    # its single contact slot found anything, i.e. a 0/1 "is the robot touching itself" signal.
-    #
-    # This is that sensor: the model's ten enabled colliders against each other, many-to-many, on
-    # the Newton backend's shape-level expressions. It sees every self-contact the robot can make,
-    # including the ones between two limbs, where neither end is the trunk. Both families are
-    # reachable inside the joint limits: a deep knee fold drives each shin into the hip shell on its
-    # own side, and the sagittal chain -- hip pitch, knee and ankle all +/-1.571 rad -- swings the
-    # feet across the midline, where the narrower hip yaw and roll travel is enough to overlap them
-    # sole against sole.
-    #
-    # ``prim_path`` is ignored for the sensing objects once ``sensor_shape_prim_expr`` is set, but
-    # the base sensor still requires one; the trunk is the cheapest expression that resolves.
-    #
-    # The reward saturates (``saturate=True`` below). Sensing both sides of a pair reports one
-    # contact twice, so counting would put a leg fold at 2 where upstream's contact slot reports 1.
+    # Self-collision sensor. This is that sensor: the model's ten enabled colliders against each other,
+    # many-to-many, on the Newton backend's shape-level expressions. It sees every self-contact the robot can
+    # make, including the ones between two limbs, where neither end is the trunk. Both families are reachable
+    # inside the joint limits: a deep knee fold drives each shin into the hip shell on its own side, and the
+    # sagittal chain -- hip pitch, knee and ankle all +/-1.571 rad -- swings the feet across the midline, where
+    # the narrower hip yaw and roll travel is enough to overlap them sole against sole. ``prim_path`` is ignored
+    # for the sensing objects once ``sensor_shape_prim_expr`` is set, but the base sensor still requires one;
+    # the trunk is the cheapest expression that resolves. The reward saturates (``saturate=True`` below).
     self_collision = ContactSensorCfg(
         prim_path="{ENV_REGEX_NS}/Robot/Geometry/trunk_base",
         sensor_shape_prim_expr=[MICRODUCK_ALLCOLLISIONS_COLLIDER_SHAPE_EXPR],
@@ -300,14 +230,10 @@ class MicroDuckStandUpSceneCfg(InteractiveSceneCfg):
 
 @configclass
 class CommandsCfg:
-    """Command specifications for the MDP (addendum section 3.5)."""
+    """Command specifications for the MDP."""
 
-    # Kept only so the deployed 61-wide observation keeps its three-wide twist slot. No reward reads
-    # it, the ranges are a hundredth of the velocity task's, and it resamples at most once per
-    # episode. ``rel_forward_envs = 0.2`` is inherited from upstream's base template and never
-    # overridden there (addendum section 7.22): a fifth of the resamples get a commanded surge of
-    # 0.3 m/s that nothing acts on, which is a quirk of the observation distribution rather than of
-    # the behaviour, and is reproduced rather than quietly cleaned up.
+    # Kept only so the deployed 61-wide observation keeps its three-wide twist slot. No reward reads it, the ranges
+    # are a hundredth of the velocity task's, and it resamples at most once per episode.
     base_velocity = mdp.ForwardMaskVelocityCommandCfg(
         asset_name="robot",
         resampling_time_range=(6.0, 12.0),
@@ -370,7 +296,7 @@ class ActionsCfg:
 
 @configclass
 class ObservationsCfg:
-    """Observation specifications for the MDP (addendum section 6).
+    """Observation specifications for the MDP.
 
     The actor group is byte-for-byte the velocity task's 61-wide deploy contract, which is the whole
     point: one runtime on the robot feeds every MicroDuck policy from the same buffer, so a stand-up
@@ -379,13 +305,7 @@ class ObservationsCfg:
 
     @configclass
     class PolicyCfg(ObsGroup):
-        """Observations for the policy group: the 61-wide deploy contract.
-
-        See :class:`~isaaclab_tasks.contrib.microduck.velocity.velocity_env_cfg.ObservationsCfg` for
-        what each corruption models; the terms, their order, their noise and their delays are
-        upstream's velocity values, which the stand-up task copies deliberately for sim-to-real
-        parity.
-        """
+        """Observations for the policy group: the 61-wide deploy contract."""
 
         base_ang_vel = ObsTerm(
             func=mdp.delayed_observation,
@@ -436,19 +356,7 @@ class ObservationsCfg:
 
     @configclass
     class CriticCfg(ObsGroup):
-        """Privileged observations for the value function (addendum section 6.2).
-
-        The actor's terms with every corruption removed, plus the base linear velocity and the three
-        foot terms the robot has no sensor for. It is narrower than the velocity task's critic by
-        the two ``foot_height`` columns, which upstream deletes here because the stand-up scene
-        carries no height sensor and no foot-height reward to justify one.
-
-        The two sensor-derived terms are the NaN-guarded variants. Upstream applies them on this
-        task and not on its siblings, and says why in its own configuration: a robot that lands and
-        flips constantly produces degenerate contacts far more often than a walking one, and a
-        single non-finite value here reaches the learner without passing the state-based NaN
-        termination.
-        """
+        """Privileged observations for the value function."""
 
         base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel)
@@ -475,7 +383,7 @@ class ObservationsCfg:
 
 @configclass
 class EventsCfg:
-    """Configuration for events (addendum section 3.7).
+    """Configuration for events.
 
     The domain-randomization suite is deliberately the velocity task's, term for term and range for
     range, so a policy trained here meets the same hardware spread as one trained to walk. What this
@@ -484,8 +392,8 @@ class EventsCfg:
 
     **Declaration order is behaviour.** Isaac Lab fires reset events in the order they are declared,
     and :attr:`set_ground_state` overwrites what :attr:`reset_base` and :attr:`reset_robot_joints`
-    wrote. Only the root reset's horizontal spread survives, so a port that reorders these three
-    changes the spawn distribution outright (addendum section 7.11).
+    wrote. Only the root reset's horizontal spread survives. Reordering these reset events changes
+    the spawn distribution.
     """
 
     ##
@@ -525,17 +433,13 @@ class EventsCfg:
     # Reset: redrawn every episode, in this order.
     ##
 
-    # Upstream also randomizes the base height and yaw here, and ``set_ground_state`` then
-    # overwrites both (addendum section 7.11). Only the horizontal spread is live, so only the
-    # horizontal spread is configured.
+    # Only the horizontal spread is live, so only the horizontal spread is configured.
     reset_base = EventTerm(
         func=mdp.reset_root_state_uniform,
         mode="reset",
         params={"pose_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5)}, "velocity_range": {}},
     )
 
-    # Zero-width on purpose: upstream resets every joint exactly to the stand pose, and the sitting
-    # bucket of ``set_ground_state`` is what folds the legs afterwards.
     reset_robot_joints = EventTerm(
         func=mdp.reset_joints_by_offset,
         mode="reset",
@@ -553,8 +457,6 @@ class EventsCfg:
             "face_up_prob": 0.00,
             "sitting_prob": 0.40,
             "standing_prob": 0.40,
-            # the trunk rests at about 0.044 m face down, so spawning it in this band drops it a
-            # centimetre rather than the 15 cm the base template's prone default would
             "prone_z_range": (0.05, 0.09),
             "sitting_z_range": (0.05, 0.09),
             "standing_z_range": (0.11, 0.12),
@@ -621,32 +523,14 @@ class EventsCfg:
 
 @configclass
 class RewardsCfg:
-    """Reward terms for the MDP (addendum section 3.3).
+    """Reward terms for the MDP.
 
     One fixed goal -- the stand pose at :data:`MICRODUCK_STAND_HEIGHT` -- rewarded from the first
     step of every episode, plus the shared sim-to-real regularizers. Three shapes recur and explain
     the apparent duplication:
 
-    * **Two-layer attractors.** ``height_stand`` / ``height_stand_sharp`` and ``upright_linear`` /
-      ``upright_sharp`` are the same quantity at a wide and a narrow width. The wide layer is
-      already saturated by the time the robot is close, so on its own it leaves no gradient for the
-      last centimetre or the last few degrees; the narrow layer supplies exactly that and nothing
-      else.
-    * **L1 bootstraps.** ``pose_stand_l1`` and ``height_stand_l1`` carry a constant gradient where
-      the Gaussians are flat, which is what makes sitting still a net cost rather than a comfortable
-      local optimum.
-    * **Late-phase penalties.** ``arrival_damping``, ``joint_torque_rate_l2``, ``head_pose_bias``
-      and ``body_pose_tracking`` all start at weight zero and are introduced at iteration 2500-3000
-      by curricula. Upstream established across two failed runs that any motion tax active during
-      the recovery-discovery phase stops the flips being discovered at all -- the fix is timing, not
-      magnitude, so the weights below are the *initial* ones and the schedules are load-bearing.
-
     Sign convention: ``pose_stand_l1``, ``height_stand_l1``, ``gentle_rise`` and ``head_pose_bias``
     negate themselves and therefore take **positive** weights.
-
-    Every weight is upstream's after its 2026-07 division of the whole task stack by four, which
-    brought the task mass to about 12 to match the velocity recipe's; upstream's own per-term
-    comments quote the pre-division numbers.
     """
 
     ##
@@ -755,14 +639,11 @@ class RewardsCfg:
     # Commanded trunk pose. Weight 0.0, ramped to 4.0 from iteration 2500.
     ##
 
-    # Only z, roll and pitch are weighted -- the three axes the deployed runtime exposes. The other
-    # three ride along at weight zero so the command keeps its six-wide observation slot. Upstream
-    # selects its feet-relative kernel here; with x, y and yaw at zero weight the two kernels are
-    # identical, and the shared one is used. See
-    # :func:`~isaaclab_tasks.contrib.microduck.mdp.rewards.body_pose_tracking_6d`.
-    #
-    # The widths are tight on purpose: at 1 cm of height error a ``z_std`` of 0.01 drops the axis
-    # reward to 0.37, which is a real gradient, where 0.02 would leave it at 0.78.
+    # Only z, roll and pitch are weighted -- the three axes the deployed runtime exposes. The other three ride along
+    # at weight zero so the command keeps its six-wide observation slot. See
+    # :func:`~isaaclab_tasks.contrib.microduck.mdp.rewards.body_pose_tracking_6d`. The widths are tight on
+    # purpose: at 1 cm of height error a ``z_std`` of 0.01 drops the axis reward to 0.37, which is a real
+    # gradient, where 0.02 would leave it at 0.78.
     body_pose_tracking = RewTerm(
         func=mdp.body_pose_tracking_6d,
         weight=0.0,
@@ -782,15 +663,13 @@ class RewardsCfg:
 
     body_ang_vel = RewTerm(func=mdp.body_ang_vel_xy_l2_raw, weight=-0.05, params={"asset_cfg": _TRUNK_BODY_CFG})
     angular_momentum = RewTerm(func=mdp.angular_momentum_l2_raw, weight=-0.02)
-    # Inherited silently by upstream: it is simply not in the stand-up task's deletion list
-    # (addendum section 7.13), so it is stated here rather than left to be discovered.
+
     dof_pos_limits = RewTerm(func=mdp.joint_pos_limits, weight=-1.0)
     # Ramped to -1.0 by iteration 1500.
     action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.1)
     # Weight 0.0, ramped to -1e-3 from iteration 3000. Penalizes torque *change*, not magnitude.
     joint_torque_rate_l2 = RewTerm(func=mdp.joint_torque_rate_l2, weight=0.0, params={"asset_cfg": _SERVO_JOINT_CFG})
-    # ``saturate`` keeps the many-to-many sensor on upstream's 0/1 scale, so the weight is the
-    # penalty for touching yourself at all rather than a per-collider tariff.
+
     self_collisions = RewTerm(
         func=mdp.self_collision_cost_saturable,
         weight=-1.0,
@@ -800,21 +679,15 @@ class RewardsCfg:
 
 @configclass
 class TerminationsCfg:
-    """Termination terms for the MDP (addendum section 3.6).
+    """Termination terms for the MDP.
 
     The tilt termination the velocity task ends a fall with is **absent**: the robot starts on the
     ground here, so terminating on tilt would end most episodes on their first step.
-
-    Upstream also inherits a terrain-bounds termination, which returns all-false on a ground plane
-    and is therefore dead on this flat-only task (addendum section 7.24); it is not carried over.
     """
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
 
-    # Catches a *broken* robot rather than a fallen one. Upstream additionally names its foot
-    # contact sensor here -- it is the one task in its family that does, and it says why: a robot
-    # that lands and flips constantly produces degenerate contacts, and a non-finite contact force
-    # would otherwise reach the learner unchecked.
+    # Catches a *broken* robot rather than a fallen one.
     nan_state = DoneTerm(
         func=mdp.robot_state_is_nan_optional_sensors,
         time_out=False,
@@ -824,7 +697,7 @@ class TerminationsCfg:
 
 @configclass
 class CurriculumCfg:
-    """Curriculum terms for the MDP (addendum section 3.8).
+    """Curriculum terms for the MDP.
 
     Three groups, and the boundaries between them are the design:
 
@@ -836,9 +709,6 @@ class CurriculumCfg:
       otherwise they out-bid every commanded deviation.
     * **Smoothness polish**, from iteration 3000. The motion penalties are introduced only once the
       flips already exist and are being exercised by the prone resets.
-
-    Upstream's schedules are written in PPO iterations; :func:`_iterations` converts them to the
-    global environment-step count these terms compare against.
     """
 
     ##
@@ -919,9 +789,6 @@ class CurriculumCfg:
         },
     )
 
-    # Upstream drives this one with an exclusive step comparison where ``ground_state_mix`` uses an
-    # inclusive one (addendum section 7.6). The inconsistency is reproduced rather than smoothed
-    # over, so a stage table transcribed from upstream schedules identically here.
     push_magnitude = CurrTerm(
         func=mdp.event_param_stages,
         params={
@@ -1125,7 +992,7 @@ class MicroDuckStandUpFlatEnvCfg(ManagerBasedRLEnvCfg):
     """MicroDuck stand-up environment on flat ground."""
 
     sim: SimulationCfg = SimulationCfg(physics=MicroDuckStandUpPhysicsCfg())
-    # ``env_spacing`` is upstream's scene extent (reference section 1).
+
     scene: MicroDuckStandUpSceneCfg = MicroDuckStandUpSceneCfg(num_envs=4096, env_spacing=2.0)
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -1143,10 +1010,8 @@ class MicroDuckStandUpFlatEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 4
         self.episode_length_s = 6.0
         self.sim.dt = 0.005
-        # Run the BAM servos through the backend-native path, as the velocity task does and as
-        # upstream does -- see :class:`~isaaclab_tasks.contrib.microduck.velocity.velocity_env_cfg.
-        # MicroDuckVelocityRoughEnvCfg`. The decimation above is even, which is what lets the
-        # stateful servo delay line be CUDA-graph-captured.
+        # MicroDuckVelocityRoughEnvCfg`. The decimation above is even, which is what lets the stateful servo delay
+        # line be CUDA-graph-captured.
         self.sim.use_newton_actuators = True
         self.sim.render_interval = self.decimation
         self.sim.physics_material = self.scene.terrain.physics_material

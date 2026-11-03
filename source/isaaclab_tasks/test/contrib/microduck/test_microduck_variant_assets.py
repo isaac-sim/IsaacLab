@@ -52,23 +52,13 @@ does not grow with them.
 """
 
 NUM_JOINTS = {"allcollisions": 14, "rollers": 18}
-"""Hinge count per variant.
-
-Transcribed rather than derived so a conversion that silently drops joints cannot match the MJCF by
-truncating both sides of the comparison -- which is exactly how the importer loses a joint when two
-of them share a body.
-"""
+"""Independent hinge counts detect missing joints in prebuilt assets, including co-located hinges."""
 
 PASSIVE_WHEEL_JOINTS = {"passive_LF_wheel", "passive_LR_wheel", "passive_RF_wheel", "passive_RR_wheel"}
 """The roller model's undriven hinges, named so the servo expression can exclude them."""
 
 HEAD_SHELL_MESHES = frozenset({"top_head_shell", "jaw", "bottom_head_shell"})
-"""Meshes of the three colliders ``jaw_soft`` carries on both variants.
-
-They are what lets the head reach the ground. Upstream's ``FULL_COLLISION`` config reads like it
-disables them and measurably does not, so a port that "corrects" it would leave a head-rolling task
-with a head that never touches anything.
-"""
+"""The three jaw_soft collision meshes required for physical head-ground contact."""
 
 HOME_POSE = {
     "left_hip_yaw": 0.0,
@@ -86,7 +76,7 @@ HOME_POSE = {
     "head_yaw": 0.0,
     "head_roll": 0.0,
 }
-"""Upstream ``HOME_FRAME`` (STAND2), which both variants share with the walking model."""
+"""Expected STAND2 home joint angles [rad], keyed by joint name."""
 
 UNLIMITED_JOINT_RANGE = 2.0 * np.pi
 """Range [rad] beyond which a joint limit cannot bind on a joint the MJCF leaves unlimited.
@@ -262,11 +252,7 @@ def test_joint_names_match_mjcf(usd_articulations, mj_joints, variant):
 
 @pytest.mark.parametrize("variant", VARIANTS)
 def test_servo_joints_stay_fourteen(usd_articulations, variant):
-    """The action space does not grow with the passive hinges the roller model adds.
-
-    The servo group selects joints with upstream's ``^(?!passive_).*``, so this is the property that
-    expression exists for: 18 hinges on the roller model, 14 of them the policy's.
-    """
+    """The action space does not grow with the passive hinges the roller model adds."""
     robot, _ = usd_articulations[variant]
     servo_joints = [name for name in robot.joint_names if not name.startswith("passive_")]
     passive_joints = set(robot.joint_names) - set(servo_joints)
@@ -354,12 +340,7 @@ def test_world_colliders_match_mjcf(usd_articulations, mj_world_colliders, varia
 
 @pytest.mark.parametrize("variant", VARIANTS)
 def test_head_shells_stay_collidable(usd_articulations, variant):
-    """The three ``jaw_soft`` shells reach world contact, so the head can be landed on.
-
-    Called out separately from the collider-set comparison because it is the one collider group a
-    port is tempted to remove: upstream's ``FULL_COLLISION`` reads like an allowlist that disables
-    everything unnamed, and unnamed is what these three are.
-    """
+    """The three jaw_soft collision shells must support physical head-ground contact."""
     robot, stage = usd_articulations[variant]
     head_shells = [
         prim
@@ -435,7 +416,7 @@ def test_cfg_drives_the_servos_and_leaves_the_wheels_free(configured_articulatio
 
 @pytest.mark.parametrize("variant", VARIANTS)
 def test_cfg_default_joint_pos_is_the_home_pose(configured_articulations, variant):
-    """Every servo resets to its upstream ``HOME_FRAME`` value and every wheel to zero."""
+    """Each servo resets to STAND2 while passive wheels reset to zero."""
     robot = configured_articulations[variant]
     default_joint_pos = robot.data.default_joint_pos.torch[0].cpu().numpy()
     assert len(HOME_POSE) == NUM_SERVO_JOINTS

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Blind rough walking using microduck_rl's gentle terrain recipe."""
+"""Blind velocity tracking on gentle rough terrain."""
 
 import trimesh
 from isaaclab_newton.sim.schemas import MujocoCollisionCfg
@@ -20,7 +20,7 @@ from .mdp.curriculums import microduck_terrain_levels
 
 
 class MicroDuckTerrainImporter(terrain_gen.TerrainImporter):
-    """Author upstream's terrain contact response before Newton parses the scene."""
+    """Author terrain contact response before Newton parses the scene."""
 
     def import_mesh(self, name: str, mesh: trimesh.Trimesh) -> None:
         """Import a terrain mesh and apply the softer MuJoCo contact response."""

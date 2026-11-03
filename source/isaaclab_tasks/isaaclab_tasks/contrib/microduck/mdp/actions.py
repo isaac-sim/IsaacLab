@@ -3,11 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Shared MicroDuck actions for walking, recovery and skating recipes.
-
-Existing walking APIs retain their behavior. Descriptive task-specific variants preserve distinct
-encoder storage, command sampling, contact grouping, recovery gates and non-finite handling.
-"""
+"""Joint-position actions with action-owned or articulation-owned encoder calibration."""
 
 from __future__ import annotations
 
@@ -21,7 +17,6 @@ from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
-
 
 from isaaclab.managers import SceneEntityCfg
 
@@ -56,11 +51,6 @@ class BiasedJointPositionActionCfg(JointPositionActionCfg):
 class ArticulationEncoderBiasAction(JointPositionAction):
     r"""Joint position action that compensates the joint-encoder calibration error.
 
-    The servo closes its position loop on the encoder reading, so a command of :math:`q^*` parks
-    the joint at :math:`q^* - b`, where :math:`b` is the encoder bias
-    (:func:`~isaaclab_tasks.contrib.microduck.mdp.events.encoder_bias`). Upstream reproduces this by
-    subtracting the bias from the target (reference section 3):
-
     .. math::
 
         \text{target} = \text{default} + \text{scale} \times \text{action} - \text{bias}
@@ -76,13 +66,6 @@ class ArticulationEncoderBiasAction(JointPositionAction):
 
     Both halves read the same tensor, so a task must give this term and the biased observation the
     same asset.
-
-    .. note::
-        Reference section 3 states that outcome the other way round -- true joint at ``HOME + a``,
-        reading ``HOME + a + bias``. The simulator carries no bias of its own, so it tracks the
-        target it is handed: the joint settles on ``default + a - bias`` and the biased observation
-        reports ``q + bias = default + a``. The formulas quoted in that section are right; the one
-        sentence of prose after them is not.
     """
 
     cfg: ArticulationEncoderBiasActionCfg

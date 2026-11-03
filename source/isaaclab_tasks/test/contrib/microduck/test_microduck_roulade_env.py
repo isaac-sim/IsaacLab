@@ -3,25 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Smoke, recipe-parity and acceptance tests for the contributed MicroDuck forward-roll environment.
+"""Test forward-roll configuration, head-ground contact and completion gating.
 
-Simulator-backed checks retrieve the prebuilt USD through Isaac Lab's native asset cache.
-Recipe checks do not need an asset; source fidelity comparisons use optional read-only fixtures.
-
-The parity tests need neither the asset nor the simulator: they read the assembled configuration and
-compare it against the upstream recipe, transcribed here from
-``artifacts/microduck/upstream_reference_tasks2.md`` section 4. The expected values are spelled out
-rather than imported from the configuration under test, so that a drifting value fails rather than
-agrees with itself.
-
-The two integration tests at the end are the **acceptance tests** the extraction asks for
-(``upstream_reference_tasks2.md`` section 7.2). Upstream's ``FULL_COLLISION`` configuration reads as
-if it disabled every unnamed collider and in fact disables none, so a port that implemented it
-faithfully would silently delete the three head shells -- and the failure would be almost invisible,
-because the mid-roll spawn bucket is *granted* the head latch and would keep collecting the
-completion-gated rewards while the standing bucket could never earn one. The tests therefore assert
-the two links of that chain directly: that a head plant produces head-ground contact, and that a
-standing spawn can earn the latch and open the completion gate.
+Head collision shells must make the latch reachable from a standing reset, and the latch must
+open rotation-gated rewards. These checks establish reachability rather than a completed policy roll.
 """
 
 import math
@@ -74,13 +59,7 @@ ACTOR_OBSERVATION_TERMS = [
     ("head_pose_commands", 4),
     ("body_pose_commands", 6),
 ]
-"""The deployed MicroDuck observation layout, which is shared across the whole policy family.
-
-Addendum section 6.1: all of upstream's MicroDuck tasks present the same 61-wide vector, because one
-runtime on the robot feeds every policy from the same buffer. This task has neither a head-pose nor
-a body-pose command, so the last two blocks are zero padding rather than commands -- but they are
-still there, and still that wide.
-"""
+"""The shared 61-component deployed actor observation layout, in concatenation order."""
 
 ACTOR_OBSERVATION_DIM = 61
 """Actor observation width the deployed MicroDuck policy expects."""
@@ -99,21 +78,18 @@ CRITIC_OBSERVATION_TERMS = [
     ("head_pose_commands", 4),
     ("body_pose_commands", 6),
 ]
-"""The privileged critic layout (addendum section 6.2), which is not a deploy contract."""
+"""Privileged critic observation layout, including task-only state outside the deployment interface."""
 
 CRITIC_OBSERVATION_DIM = 74
-"""Critic observation width, measured from the assembled group.
-
-The extraction derives 74 by hand from upstream's term list (addendum section 6.2); this pins the
-number the port actually produces against it.
-"""
+"""Expected width of the assembled critic observation group."""
 
 STEPS_PER_ITERATION = 24
-"""Environment steps per PPO iteration, upstream's ``num_steps_per_env``."""
+"""Environment control steps per PPO iteration."""
 
 EPISODE_CONTROL_STEPS = 250
 """Control steps in an episode: 5 s at 50 Hz. Every one of them is run -- there is no failure
-termination on this task, because falling over is the task."""
+termination on this task, because falling over is the task.
+"""
 
 EXPECTED_SERVO_JOINT_NAMES = [
     "left_hip_yaw",
@@ -131,7 +107,7 @@ EXPECTED_SERVO_JOINT_NAMES = [
     "right_knee",
     "right_ankle",
 ]
-"""The 14 servos in upstream's MJCF actuator order: 0-4 left leg, 5-8 neck/head, 9-13 right leg."""
+"""Fourteen controlled servos in action order: left leg 0-4, neck/head 5-8 and right leg 9-13."""
 
 EXPECTED_LEG_JOINT_NAMES = [
     "left_hip_yaw",
@@ -145,21 +121,19 @@ EXPECTED_LEG_JOINT_NAMES = [
     "right_knee",
     "right_ankle",
 ]
-"""The 10 leg joints -- upstream's ``_LEG_JOINTS = [0, 1, 2, 3, 4, 9, 10, 11, 12, 13]``, which is
-what the landing composite scores against the stand pose."""
+"""The ten physical leg joints, excluding the four command-driven neck/head joints."""
 
 EXPECTED_FOOT_BODY_NAMES = ["ankle_left", "ankle_right"]
-"""Foot bodies in upstream's ``[left, right]`` site order."""
+"""Foot body names in left/right order."""
 
 EXPECTED_TRUNK_BODY_NAMES = ["trunk_base"]
-"""The body upstream measures the trunk height, tilt and angular velocity on, and randomizes."""
+"""Trunk body used for height, tilt, angular velocity and mass-property randomization."""
 
 EXPECTED_HEAD_SHELL_BODY_NAMES = ["jaw_soft"]
 """The body carrying the three head collision shells, which the roll pivots on."""
 
 EXPECTED_HEAD_BODY_COUNT = 4
-"""Bodies the head centre-of-mass randomization perturbs. Upstream lists five, the fifth being
-``bearing_roll`` -- the right hip-yaw link, which its own comment admits is listed here in error."""
+"""Expected body count for head center-of-mass randomization."""
 
 EXPECTED_ENTITY_SELECTIONS = {
     # "<manager>.<term>.<param>": (kind, expected names, preserve_order)
@@ -179,18 +153,7 @@ EXPECTED_ENTITY_SELECTIONS = {
     "events.randomize_armature.asset_cfg": ("joint", [".*"], False),
     "events.set_roulade_state.asset_cfg": ("joint", EXPECTED_SERVO_JOINT_NAMES, True),
 }
-"""Every entity selection the roll recipe makes, outside the observation groups.
-
-These are as load-bearing as the scalar parameters ``_scalar_params`` compares, and two of them are
-the task itself: the head terms measure the tuck on ``jaw_soft``, and the two contact sensors are
-what the rotation accumulator gates on. Upstream hard-codes both sensor names in its ``mdp.py``;
-naming them here is the port's equivalent, so a renamed sensor fails loudly rather than silently
-switching a gate off.
-
-``events.randomize_head_com`` is absent because its selection is four *patterns* rather than four
-names; ``test_the_head_centre_of_mass_randomization_drops_the_upstream_hip_link`` pins it instead.
-``events.randomize_joint_friction`` is absent because the term reads only the articulation name.
-"""
+"""Entity selections used by rewards, events and terminations outside the observation groups."""
 
 EXPECTED_OBSERVATION_SELECTIONS = {
     # "<group>.<term>": (kind, expected names)
@@ -213,11 +176,7 @@ def _entity_cfg_of(term_cfg, key: str) -> SceneEntityCfg:
 
 
 def _scalar_params(term_cfg) -> dict:
-    """Drop the entity selections, which carry no upstream scalar to compare against.
-
-    They are not left unchecked: :data:`EXPECTED_ENTITY_SELECTIONS` and
-    :data:`EXPECTED_OBSERVATION_SELECTIONS` pin every one of them by name.
-    """
+    """Return scalar parameters; entity selections are checked separately by name and order."""
     return {key: value for key, value in term_cfg.params.items() if not isinstance(value, SceneEntityCfg)}
 
 
@@ -227,7 +186,7 @@ def _observation_terms(group) -> dict[str, ObservationTermCfg]:
 
 
 ##
-# Recipe parity against upstream (addendum section 4)
+# Configuration expectations
 ##
 
 _LANDING_GATE_PARAMS = {"gate_lo": math.radians(260.0), "gate_hi": math.radians(330.0)}
@@ -274,15 +233,7 @@ EXPECTED_REWARDS = {
     "gentle_landing": (0.002, {}),
     "self_collisions": (-0.1, {"saturate": True}),
 }
-"""Upstream's reward recipe (addendum section 4.4), keyed by term name, at its initial weights.
-
-Four of these are ramped by curricula and are listed at the weight the configuration ships, not at
-the one they reach: ``action_rate_l2``, ``arrival_damping``, ``joint_torque_rate_l2`` and
-``gentle_landing``.
-
-``dof_pos_limits`` is upstream's silently inherited regularizer -- never mentioned in the roll
-configuration, surviving only because it is not in the deletion list (addendum section 7.13).
-"""
+"""Initial reward terms, weights and scalar parameters, including inherited terms."""
 
 EXPECTED_EVENTS = {
     # name: (mode, scalar params)
@@ -290,8 +241,7 @@ EXPECTED_EVENTS = {
         "startup",
         {
             "static_friction_range": (0.7, 1.3),
-            # Newton samples one coefficient per shape, so the dynamic range is supplied only
-            # because the signature requires it; upstream sets the friction outright
+            # The event overwrites friction; its required scalar parameters remain explicit.
             "dynamic_friction_range": (0.7, 1.3),
             "restitution_range": (0.0, 0.0),
             "num_buckets": 64,
@@ -325,14 +275,7 @@ EXPECTED_EVENTS = {
     "randomize_armature": ("reset", {"armature_distribution_params": (0.9, 1.1), "operation": "scale"}),
     "randomize_joint_friction": ("reset", {"scale_range": (0.9, 1.1)}),
 }
-"""Upstream's event suite (addendum section 4.7), keyed by term name.
-
-It is the stand-up task's minus ``push_robot``, which upstream deletes here because *a push mid-roll
-is incoherent*. Upstream's ``base_com`` is absent because it selects zero bodies there; its
-``expand_bam_friction_fields`` and ``reset_action_history`` are absent because Isaac Lab's actuator
-storage and action manager already do their jobs; ``randomize_motor_gains`` is absent because
-upstream ships it disabled.
-"""
+"""Configured event modes and scalar parameters."""
 
 EXPECTED_RESET_EVENT_ORDER = [
     "reset_base",
@@ -343,27 +286,14 @@ EXPECTED_RESET_EVENT_ORDER = [
     "randomize_armature",
     "randomize_joint_friction",
 ]
-"""Upstream's reset chain, in the order it fires (addendum section 4.5).
-
-This is behaviour, not housekeeping: ``set_roulade_state`` overwrites the root pose and velocity
-``reset_base`` wrote, and its mid-roll tuck lerps *from* the pose the joint reset wrote. Upstream's
-own configuration comment states the second dependency explicitly.
-"""
+"""Reset events in their required execution order."""
 
 EXPECTED_TERMINATIONS = {
     # name: (time_out flag, scalar params)
     "time_out": (True, {}),
     "nan_state": (False, {"sensor_names": ("contact_forces",)}),
 }
-"""Upstream's terminations (addendum section 4.6), keyed by term name.
-
-There is no failure termination: the velocity task's tilt check is deleted because falling over is
-the task, and the inherited terrain-bounds check is all-false on a ground plane (section 7.24).
-
-The sensor list is a **deliberate deviation**: upstream leaves it empty here and names its foot
-sensor only on the stand-up task, which the extraction reads as drift rather than design and
-recommends closing everywhere in the port (section 7.9).
-"""
+"""Configured termination names, timeout flags and thresholds."""
 
 EXPECTED_CURRICULUM_TERMS = {
     "roulade_spawn_mix",
@@ -374,11 +304,7 @@ EXPECTED_CURRICULUM_TERMS = {
     "torque_rate_weight",
     "gentle_landing_weight",
 }
-"""Upstream's curriculum term names (addendum section 4.8).
-
-``terrain_levels`` and ``command_vel`` are absent because upstream deletes both, and there is no
-head- or body-pose range schedule because there are no such commands.
-"""
+"""Configured curriculum term names."""
 
 EXPECTED_WEIGHT_STAGES = {
     "action_rate_weight": ([-0.1, -0.2, -0.4], [0, 1500, 3000]),
@@ -386,20 +312,20 @@ EXPECTED_WEIGHT_STAGES = {
     "torque_rate_weight": ([0.0, -5e-4, -1e-3], [0, 2500, 3500]),
     "gentle_landing_weight": ([0.002, 0.005], [0, 2500]),
 }
-"""Upstream's reward-weight ramps: payloads and PPO-iteration boundaries."""
+"""Reward weights at each curriculum boundary."""
 
 EXPECTED_RANGE_STAGES = {
     "com_range": ([0.003, 0.005, 0.01, 0.015], [0, 500, 1000, 1500]),
     "head_com_range": ([0.003, 0.005, 0.01], [0, 500, 1000]),
 }
-"""Upstream's centre-of-mass range ramps, matched to the stand-up and velocity tasks'."""
+"""Center-of-mass randomization ranges at each curriculum boundary."""
 
 EXPECTED_SPAWN_MIX_STAGES = [
     (0, {"standing_prob": 0.50, "midroll_prob": 0.50}),
     (3000, {"standing_prob": 0.65, "midroll_prob": 0.35}),
     (6000, {"standing_prob": 0.80, "midroll_prob": 0.20}),
 ]
-"""Upstream's reverse curriculum: half the episodes start mid-roll, falling to a fifth."""
+"""Scheduled mid-roll reset fraction, decreasing from one half to one fifth."""
 
 EXPECTED_ACTOR_NOISE = {
     "base_ang_vel": 0.03,
@@ -412,10 +338,10 @@ EXPECTED_ACTOR_NOISE = {
 
 @pytest.mark.unit
 def test_the_reward_recipe_matches_upstream_term_for_term():
-    """Every reward slot upstream trains with is present, with its weight and its parameters."""
+    """Reward terms must match the expected set, weights and scalar parameters."""
     rewards = MicroDuckRouladeFlatEnvCfg().rewards
 
-    # two-sided, so a stand-up or walking term left behind by the port also fails
+    # Check for missing and extra reward terms.
     assert set(vars(rewards)) == set(EXPECTED_REWARDS)
     for name, (weight, params) in EXPECTED_REWARDS.items():
         term = getattr(rewards, name)
@@ -461,14 +387,13 @@ def test_the_self_negating_reward_terms_carry_positive_weights():
 
 @pytest.mark.unit
 def test_nothing_in_the_recipe_opposes_the_flip():
-    """Upstream's core lesson on this task: an always-on upright or motion tax prevents discovery."""
+    """Always-on upright and motion penalties must remain absent so the policy can perform a forward roll."""
     cfg = MicroDuckRouladeFlatEnvCfg()
 
     # the walking and stand-up attractors that would fight a deliberate fall
     for name in ("upright", "upright_linear", "upright_sharp", "height_stand", "height_stand_l1", "pose_stand_legs"):
         assert not hasattr(cfg.rewards, name), name
-    # the trunk rotation regularizer survives, but 25 times lighter than the stand-up task's -0.05,
-    # because on this task the trunk rotation *is* the manoeuvre (addendum section 7.23)
+    # Trunk angular-momentum cost is reduced to allow the intended forward-roll maneuver.
     assert cfg.rewards.body_ang_vel.weight == pytest.approx(-0.002)
     # every landing reward is gated, and the gate cannot open before 260 degrees of rotation
     for name in (
@@ -488,7 +413,7 @@ def test_nothing_in_the_recipe_opposes_the_flip():
 
 @pytest.mark.unit
 def test_the_event_suite_matches_upstream_term_for_term():
-    """Every event upstream fires is present, in its mode, with its ranges -- and the push is gone."""
+    """Event modes and parameter ranges must match the expected configuration."""
     events = MicroDuckRouladeFlatEnvCfg().events
 
     assert set(vars(events)) == set(EXPECTED_EVENTS)
@@ -543,7 +468,7 @@ def test_the_tuck_anchor_folds_the_legs_and_tucks_the_chin():
 
 @pytest.mark.unit
 def test_the_mid_roll_spawn_covers_the_whole_second_half_of_the_roll():
-    """Upstream widened the band to 340 degrees so the crouch-to-stand last mile is spawned into."""
+    """Mid-roll reset angles must cover the return-to-standing portion of the maneuver."""
     params = MicroDuckRouladeFlatEnvCfg().events.set_roulade_state.params
 
     pitch_lo, pitch_hi = params["midroll_pitch_range"]
@@ -557,7 +482,7 @@ def test_the_mid_roll_spawn_covers_the_whole_second_half_of_the_roll():
     # the standing band brackets the height the landing rewards target
     low, high = params["standing_z_range"]
     assert low <= MICRODUCK_STAND_HEIGHT <= high
-    # upstream's élan hook, shipped disabled
+    # the configured élan hook, shipped disabled
     assert params["forward_vel_range"] == (0.0, 0.0)
 
 
@@ -620,7 +545,7 @@ def test_both_observation_groups_read_the_servos_and_the_feet_in_the_deploy_orde
 
 @pytest.mark.unit
 def test_the_head_centre_of_mass_randomization_drops_the_upstream_hip_link():
-    """``bearing_roll`` is the right hip-yaw link; upstream lists it among the head bodies in error."""
+    """Head center-of-mass randomization must select the intended head bodies without a hip link."""
     body_names = MicroDuckRouladeFlatEnvCfg().events.randomize_head_com.params["asset_cfg"].body_names
 
     assert "bearing_roll" not in body_names
@@ -642,7 +567,7 @@ def test_the_terminations_leave_the_robot_free_to_fall_over():
 
 @pytest.mark.unit
 def test_the_curricula_reproduce_upstream_stage_tables():
-    """The staged schedules carry upstream's payloads at upstream's iteration boundaries."""
+    """Scheduled values must change at the expected control-step boundaries."""
     curriculum = MicroDuckRouladeFlatEnvCfg().curriculum
 
     # two-sided, so an unexpected extra schedule quietly rewriting a weight or a range also fails
@@ -671,8 +596,7 @@ def test_the_spawn_curriculum_walks_the_reverse_curriculum_back_toward_a_standin
         assert stage["params"] == params
     # it never reaches zero: the landing stays practised and it is realistic randomization anyway
     assert stages[-1]["params"]["midroll_prob"] > 0.0
-    # upstream's event-parameter helper compares inclusively, unlike its reward-weight one
-    # (addendum section 7.6); the inconsistency is reproduced rather than smoothed over
+    # Event-parameter stages use inclusive boundaries; reward-weight stages use strict boundaries.
     assert "inclusive" not in curriculum.roulade_spawn_mix.params
 
 
@@ -686,12 +610,12 @@ def test_the_task_takes_no_command_and_pads_the_two_it_does_not_have():
     assert twist.ranges.lin_vel_x == (-0.01, 0.01)
     assert twist.ranges.lin_vel_y == (-0.01, 0.01)
     assert twist.ranges.ang_vel_z == (-0.05, 0.05)
-    # upstream derives the resampling window from the episode length, so it resamples at most once
+    # the task derives the resampling window from the episode length, so it resamples at most once
     assert twist.resampling_time_range == (cfg.episode_length_s, 2.0 * cfg.episode_length_s)
     assert twist.heading_command is False
     assert twist.rel_standing_envs == 0.0
     assert twist.rel_turn_in_place_envs == 0.0
-    # inherited from upstream's base template and never overridden there (addendum section 7.22)
+    # Forward-only resampling retains the configured 0.3 m/s lower bound.
     assert twist.rel_forward_envs == pytest.approx(0.2)
 
     for group in (cfg.observations.policy, cfg.observations.critic):
@@ -723,7 +647,7 @@ def test_the_actor_observation_layout_is_the_shared_deploy_contract():
 
 @pytest.mark.unit
 def test_the_critic_group_guards_its_sensor_reads():
-    """A deliberate deviation: upstream guards them on the stand-up task only (section 7.9)."""
+    """Critic contact observations must reject nonfinite sensor values."""
     observations = MicroDuckRouladeFlatEnvCfg().observations
     terms = _observation_terms(observations.critic)
 
@@ -746,7 +670,7 @@ def test_the_scene_carries_the_two_sensors_the_accumulator_gates_on():
     assert scene.terrain.terrain_generator is None
     # the head shells live on ``jaw_soft``, and this sensor is what reports them touching the ground
     assert scene.head_ground_contact.prim_path.endswith("jaw_soft")
-    # the head sensor is unfiltered: it asks "is this body loaded", which is upstream's ``found``
+    # the head sensor is unfiltered: it asks "is this body loaded", which is the configured ``found``
     assert not scene.head_ground_contact.filter_prim_paths_expr
     assert not scene.head_ground_contact.filter_shape_prim_expr
     # the support sensor is not, because the anti-breakdance gate has to tell the floor from the
@@ -910,8 +834,7 @@ def test_the_mid_roll_spawn_seeds_the_rotation_bookkeeping_it_is_born_with():
         torch.testing.assert_close(state.frontier, spawn_angle)
         torch.testing.assert_close(state.paid, spawn_angle)
         assert bool(state.head_latch.all())
-        # upstream writes the free joint's body-frame angular velocity, so a yawed spawn still rolls
-        # straight ahead in its own frame; this port rotates it into the world frame to match
+        # Rotate the body-frame roll angular velocity into world coordinates for yawed resets.
         forward_rate = robot.data.root_link_ang_vel_b.torch[:, 1]
         torch.testing.assert_close(forward_rate, torch.full_like(forward_rate, 3.0), atol=1e-3, rtol=0.0)
         height = robot.data.root_link_pos_w.torch[:, 2] - env.unwrapped.scene.env_origins[:, 2]
@@ -930,22 +853,8 @@ def test_the_mid_roll_spawn_seeds_the_rotation_bookkeeping_it_is_born_with():
 @pytest.mark.integration
 @requires_microduck_allcollisions_usd
 def test_a_standing_spawn_plants_its_head_and_can_reach_the_landing_gate():
-    """The acceptance test for the head shells, run end to end from a standing start.
-
-    Two links are checked, because breaking either one silently kills the standing bucket while the
-    mid-roll bucket keeps every training curve looking healthy (addendum section 7.2):
-
-    1. **The head shells are collidable and the latch is earnable.** A standing spawn is tipped
-       forward tucked, which is the manoeuvre the task is about; the head-ground sensor has to report
-       a real force, and the latch -- head contact, head top pointing at the floor, rotation inside
-       the first-quadrant window -- has to be earned by an episode that was *not* granted one.
-    2. **The completion gate then opens on rotation.** Driving the rotation frontier to the gate is
-       the same write ``reset_roulade_state`` performs for every mid-roll spawn, so it is the task's
-       own mechanism rather than a stand-in for one; with the earned latch it opens the gate fully
-       and the gated rewards start paying.
-
-    A passive rollout cannot *complete* a roll -- coming back up off the head needs a policy, which
-    is what the task trains -- so what is asserted is reachability, not completion.
+    """A standing reset must earn a head-contact latch that opens rotation-gated rewards.
+    This verifies physical latch reachability rather than completion of a full policy-driven roll.
     """
     sim_utils.create_new_stage()
     env = None
@@ -1013,16 +922,7 @@ def test_a_standing_spawn_plants_its_head_and_can_reach_the_landing_gate():
 @pytest.mark.integration
 @requires_microduck_allcollisions_usd
 def test_the_support_gate_stays_shut_for_a_robot_touching_only_itself():
-    """The anti-breakdance gate must read the floor, not any contact at all.
-
-    Upstream's first run found that without a support gate the optimal policy is a ballistic whip
-    that earns the rotation without ever rolling. An unfiltered net contact force reopens exactly
-    that hole from the other side: it cannot tell the floor from the robot's own shin, so a tucked
-    robot in mid-air reads as supported and collects the rotation the gate exists to deny.
-
-    Two environments are spun at the same rate about the same axis and differ only in what they are
-    touching, so the rotation frontier is a direct measurement of the gate rather than of the pose.
-    """
+    """The anti-breakdance gate must read the floor, not any contact at all."""
     sim_utils.create_new_stage()
     env = None
     try:

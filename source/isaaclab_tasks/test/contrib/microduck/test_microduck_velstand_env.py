@@ -3,10 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Assembled current-source contracts and one native production-preset environment check.
+"""Test assembled VelStand configuration and the native production-preset environment.
 
-Numeric expectations come from upstream bae39f5900b318f7e87fc485c30a31213cfa14eb, independently
-of the configuration's constants. Reset/teacher behavior is owned by the focused MDP/learning tests.
+Numeric expectations are independent constants; focused tests cover reset and teacher behavior.
 """
 
 import math

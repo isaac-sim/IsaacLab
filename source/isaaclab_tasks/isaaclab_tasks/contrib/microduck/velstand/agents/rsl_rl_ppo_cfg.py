@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""The current merged upstream VelStand learning recipe on native RSL-RL 5.5."""
+"""VelStand PPO and two-teacher imitation configuration."""
 
 from isaaclab.utils.configclass import configclass
 
@@ -27,7 +27,7 @@ class MicroDuckVelStandAlgorithmCfg(RslRlPpoAlgorithmCfg):
 
 @configclass
 class MicroDuckVelStandPPORunnerCfg(MicroDuckPPORunnerCfg):
-    """6000 added iterations from the pinned walk, with both original frozen teachers."""
+    """6000 PPO updates with a walking warm start and two frozen teachers."""
 
     experiment_name = "microduck_velstand_flat"
     max_iterations = 6000

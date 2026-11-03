@@ -3,22 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Recipe-parity and smoke tests for the contributed MicroDuck spin trick environment.
+"""Test spin configuration, command envelopes and scheduled penalties.
 
-The parity tests need neither the asset nor the simulator: they read the assembled configuration and
-compare it against the upstream recipe, transcribed here from
-``artifacts/microduck/upstream_reference_tasks3.md`` section 10. The expected values are spelled out
-rather than imported from the configuration under test, so that a drifting value fails rather than
-agrees with itself.
-
-The task is structurally the crouch-glide trick with a rate objective in place of a pose one, so the
-tests that matter here are the ones that pin the *differences*: the dropped angular-momentum term,
-the envelope arithmetic, the scoped neck penalty that leaves the head yaw free, and the decaying
-scissor curriculum. The wheel-friction interlock the two tricks share is tested once, on the
-crouch-glide task; this file asserts only that this environment carries the same degenerate event.
-
-Simulator-backed checks retrieve the prebuilt USD through Isaac Lab's native asset cache.
-Recipe checks do not need an asset; source fidelity comparisons use optional read-only fixtures."""
+Spin shares the crouch-glide setup and uses a rate objective, free head yaw and a decaying scissor curriculum.
+"""
 
 import math
 import os
@@ -91,7 +79,7 @@ EXPECTED_REWARDS = {
     # name: (weight, scalar params)
     "upright": (2.0, {"std": math.sqrt(0.2)}),
     "body_ang_vel": (-0.05, {}),
-    # upstream declares -1.0 and its curriculum's stage 0 is -0.5, which is what is ever live
+    # Stage zero sets the effective penalty weight to -0.5.
     "action_rate_l2": (-0.5, {}),
     "spin_rate_track": (6.0, {"command_name": "base_velocity", "std": 1.5, **_ENVELOPE}),
     "spin_rate_l1": (0.5, {"command_name": "base_velocity", **_ENVELOPE}),
@@ -105,7 +93,7 @@ EXPECTED_REWARDS = {
     "neck_joint_pos_l2": (-0.2, {}),
     "joint_torques_l2": (-1e-3, {}),
 }
-"""Upstream's fourteen-term reward recipe (section 10.2), keyed by term name, at its live weights."""
+"""Initial reward terms, weights and scalar parameters, including inherited terms."""
 
 EXPECTED_CURRICULUM_TERMS = {"action_rate_weight", "leg_antisym_weight", "com_range", "head_com_range"}
 
@@ -126,13 +114,13 @@ def _scalar_params(term_cfg) -> dict:
 
 
 ##
-# Recipe parity against upstream (section 10)
+# Configuration expectations
 ##
 
 
 @pytest.mark.unit
 def test_the_reward_recipe_matches_upstream_term_for_term():
-    """Every reward slot upstream trains with is present, with its weight and its parameters."""
+    """Reward terms must match the expected set, weights and scalar parameters."""
     rewards = MicroDuckSpinFlatEnvCfg().rewards
 
     assert set(vars(rewards)) == set(EXPECTED_REWARDS)
@@ -147,12 +135,7 @@ def test_the_reward_recipe_matches_upstream_term_for_term():
 
 @pytest.mark.unit
 def test_the_angular_momentum_penalty_is_the_one_term_this_task_drops():
-    """It charges the norm of the whole angular-momentum vector, so it would fight the spin head-on.
-
-    ``body_ang_vel`` survives in its place because it charges roll and pitch only, which damps the
-    wobble without touching the rotation. This is the sharpest reward-design delta against the
-    crouch-glide task, which keeps both (section 10.2).
-    """
+    """The spin task omits the whole-vector angular-momentum penalty so it can rotate."""
     spin = MicroDuckSpinFlatEnvCfg().rewards
     crouch = MicroDuckRollerCrouchFlatEnvCfg().rewards
 
@@ -164,7 +147,7 @@ def test_the_angular_momentum_penalty_is_the_one_term_this_task_drops():
 
 @pytest.mark.unit
 def test_the_envelope_is_one_counter_clockwise_turn_per_cycle():
-    """The trapezoid's area is 6.30 rad, which is 1.0027 turns -- upstream's own arithmetic."""
+    """The command envelope integrates to 6.30 rad, approximately one counter-clockwise turn per cycle."""
     cfg = MicroDuckSpinFlatEnvCfg()
 
     assert pytest.approx(4.0) == MICRODUCK_SPIN_PERIOD
@@ -178,7 +161,7 @@ def test_the_envelope_is_one_counter_clockwise_turn_per_cycle():
     ]
     assert [d * MICRODUCK_SPIN_PERIOD for d in durations] == pytest.approx([0.5, 1.6, 0.5, 1.4])
 
-    # the area, derived here rather than transcribed: two half-triangles plus the hold
+    # The envelope area is the sum of two half-triangles and the hold segment.
     area_fraction = 0.5 * durations[0] + durations[1] + 0.5 * durations[2]
     turns = area_fraction * MICRODUCK_SPIN_PERIOD * MICRODUCK_SPIN_RATE_MAX / (2.0 * math.pi)
     assert turns == pytest.approx(1.0, abs=0.005)
@@ -188,12 +171,7 @@ def test_the_envelope_is_one_counter_clockwise_turn_per_cycle():
 
 @pytest.mark.unit
 def test_the_neck_position_penalty_leaves_the_head_yaw_free_as_a_flywheel():
-    """The only place in the family where this penalty is scoped, and the reason is task-level.
-
-    Upstream frees ``head_yaw`` so it can serve as an inertia flywheel for launching the rotation
-    (section 10.2). The *rate* penalty is deliberately left over all four head joints, which is the
-    asymmetry upstream ships.
-    """
+    """Leave head yaw free for angular momentum while retaining rate costs on all four head joints."""
     rewards = MicroDuckSpinFlatEnvCfg().rewards
 
     scoped = rewards.neck_joint_pos_l2.params["asset_cfg"].joint_names
@@ -215,14 +193,7 @@ def test_the_neck_position_penalty_leaves_the_head_yaw_free_as_a_flywheel():
 
 @pytest.mark.unit
 def test_the_wheel_and_leg_selections_are_named_rather_than_pattern_matched():
-    """Upstream's looser ``^passive_.*`` pattern here is unexpressible when the hinges are named.
-
-    Upstream selects the wheels with ``^passive_.*`` on this task where every sibling uses
-    ``^passive_.*wheel``, which its own conventions forbid: on a model carrying backlash hinges the
-    looser pattern would pick those up too and widen the critic (section 13.4). On the plain roller
-    model the two are equivalent, so there is no live defect to reproduce -- and naming the four
-    hinges, as the rest of this port does, removes the latent one rather than carrying it.
-    """
+    """Select wheel and leg joints by name so both sets remain explicit and disjoint."""
     rewards = MicroDuckSpinFlatEnvCfg().rewards
     differential = rewards.spin_wheel_differential
 
@@ -244,25 +215,21 @@ def test_the_wheel_and_leg_selections_are_named_rather_than_pattern_matched():
 
 @pytest.mark.unit
 def test_the_known_unreproducible_wheel_scale_is_kept_verbatim():
-    """Parity over correctness: upstream's derivation does not reproduce, but its policy trained on it.
-
-    Upstream derives 17.0 rad/s from a half-track it states as 0.0499 m and a 0.0175 m tire radius.
-    Measured on the pinned model the half-track is 0.03925 m at the foot sites and the tire radius is
-    0.0150 m, so neither input reproduces (section 13.9). The constant is kept and only the
-    arithmetic is dropped.
+    """The configured wheel scale remains 17.0 rad/s; it is independent of the measured track and tire
+    radius.
     """
     rewards = MicroDuckSpinFlatEnvCfg().rewards
 
     assert rewards.spin_wheel_differential.params["omega_scale"] == pytest.approx(MICRODUCK_SPIN_WHEEL_OMEGA_SCALE)
     assert pytest.approx(17.0) == MICRODUCK_SPIN_WHEEL_OMEGA_SCALE
-    # upstream's own arithmetic, reproduced here to show it does not land on 17.0 with measured inputs
+    # Compare the configured scale with the value computed from measured geometry.
     measured_half_track, measured_radius = 0.03925, 0.0150
     assert 2.0 * MICRODUCK_SPIN_RATE_MAX * measured_half_track / measured_radius != pytest.approx(17.0, rel=0.05)
 
 
 @pytest.mark.unit
 def test_the_drift_cost_is_discounted_at_the_launch_and_full_during_the_rest():
-    """It is what makes the trick a spin rather than a pivot around one skate (section 10.3)."""
+    """Discount drift during launch and restore the full cost during the rest of the spin cycle."""
     rewards = MicroDuckSpinFlatEnvCfg().rewards
     term = rewards.spin_stay_in_place
 
@@ -293,12 +260,7 @@ def test_the_phase_command_and_the_entry_momentum_match_upstream():
 
 @pytest.mark.unit
 def test_the_degenerate_wheel_event_is_carried_here_too():
-    """The section 13.1 / 13.3 interlock is tested once, on the crouch task; this is its other half.
-
-    Upstream ships the same frictionless-bearing event on both tricks and a ramping curriculum on
-    neither, so both train on free bearings forever (issue draft 017). The event is kept for the same
-    reason it is kept there.
-    """
+    """Spin retains zero wheel-bearing friction without a friction curriculum ramp."""
     cfg = MicroDuckSpinFlatEnvCfg()
 
     assert cfg.events.randomize_wheel_friction is not None
@@ -335,7 +297,7 @@ def test_the_curricula_reproduce_upstream_stage_tables():
 
 @pytest.mark.unit
 def test_the_scene_actions_observations_and_terminations_are_the_roller_task_untouched():
-    """Upstream rebuilds these from the mjlab template and arrives at the roller recipe (section 10.5)."""
+    """The scene, actions, observations and terminations remain shared with the roller task."""
     spin = MicroDuckSpinFlatEnvCfg()
     rollers = MicroDuckVelocityRollersFlatEnvCfg()
 
@@ -350,20 +312,20 @@ def test_the_scene_actions_observations_and_terminations_are_the_roller_task_unt
 
 @pytest.mark.unit
 def test_the_contact_budget_is_measured_rather_than_inherited():
-    """A spin drags four small tire patches with rotating normals, which upstream never profiled."""
+    """Contact and constraint capacities must cover the task's measured contact load."""
     solver = MicroDuckSpinFlatEnvCfg().sim.physics.default.solver_cfg
 
     # measured peaks: 90 constraints and 30 contacts per environment
     assert solver.njmax >= 90
     assert solver.nconmax >= 30
-    # and above the mjlab template's inherited 35, which upstream leaves untouched here
+    # The contact budget exceeds the base template's 35 contacts.
     assert solver.nconmax >= 35
     assert (solver.iterations, solver.ls_iterations) == (10, 20)
 
 
 @pytest.mark.unit
 def test_the_runner_keeps_the_family_hyper_parameters_under_its_own_log_tree():
-    """Upstream's runner differs from the velocity one in two fields (section 10.8)."""
+    """The slope runner shares PPO hyperparameters and uses its own experiment name and iteration budget."""
     runner = MicroDuckSpinPPORunnerCfg()
 
     assert runner.experiment_name == "microduck_spin"

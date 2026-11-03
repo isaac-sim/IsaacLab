@@ -3,16 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Smoke and recipe-parity tests for the contributed MicroDuck ball-kick environment.
+"""Test ball-kick configuration, observation ordering and ball-contact behavior.
 
-Simulator-backed checks retrieve the prebuilt USD through Isaac Lab's native asset cache.
-Recipe checks do not need an asset; source fidelity comparisons use optional read-only fixtures.
-
-The parity tests need neither the asset nor the simulator: they read the assembled configuration and
-compare it against the upstream recipe, transcribed here from
-``artifacts/microduck/upstream_reference_tasks3.md`` section 6. The expected values are spelled out
-rather than imported from the configuration under test, so that a drifting value fails rather than
-agrees with itself.
+Configuration checks use independent expectations; scene checks load cached prebuilt USDs.
 """
 
 import math
@@ -66,13 +59,7 @@ ACTOR_OBSERVATION_TERMS = [
     ("head_pose_commands", 4),
     ("body_pose_commands", 6),
 ]
-"""The deployed MicroDuck observation layout, which is shared across the whole policy family.
-
-Addendum section 11.1: all eight of upstream's MicroDuck tasks present the same 61-wide vector,
-because one runtime on the robot feeds every policy from the same buffer. The head and body slots
-are zero padding on this task, and the table is deliberately a copy of the velocity task's rather
-than a reference to it -- if the two drift apart, both suites fail.
-"""
+"""The shared 61-component deployed actor observation layout, in concatenation order."""
 
 ACTOR_OBSERVATION_DIM = 61
 """Actor observation width the deployed MicroDuck policy expects."""
@@ -93,29 +80,16 @@ CRITIC_OBSERVATION_TERMS = [
     ("ball_position", 3),
     ("ball_velocity", 3),
 ]
-"""The privileged critic layout (addendum section 11.2), which is not a deploy contract.
-
-It is the stand-up task's critic plus the two ball terms, appended after the command block -- the
-widest critic in the family, and the only one that sees a second entity.
-"""
+"""Privileged critic observation layout, including task-only state outside the deployment interface."""
 
 CRITIC_OBSERVATION_DIM = 80
-"""Critic observation width, measured from the assembled group.
-
-The extraction derives 80 by hand from upstream's term list (addendum section 11.2); this pins the
-number the port actually produces against it.
-"""
+"""Expected width of the assembled critic observation group."""
 
 STEPS_PER_ITERATION = 24
-"""Environment steps per PPO iteration, upstream's ``num_steps_per_env``."""
+"""Environment control steps per PPO iteration."""
 
 MEASURED_TOE_TIP_X = 0.0340
-"""Forward reach [m] of a foot collision mesh at the stand pose, measured on the MJCF.
-
-Upstream sizes the ball offset against it and claims a worst-case clearance of 6 mm; the extraction
-reproduced both numbers (addendum section 2.3). It is the quantity a re-tune has to preserve, so it
-is pinned here rather than left implicit in the 0.09.
-"""
+"""Independent forward reach [m] of the foot collision mesh at the stand pose, constraining ball clearance."""
 
 MEASURED_FOOT_SITE_ABS_Y = 0.0418
 """Half-spacing [m] of the two foot sites at the stand pose, measured on the MJCF."""
@@ -136,7 +110,7 @@ EXPECTED_SERVO_JOINT_NAMES = [
     "right_knee",
     "right_ankle",
 ]
-"""The 14 servos in upstream's MJCF actuator order: 0-4 left leg, 5-8 neck/head, 9-13 right leg."""
+"""Fourteen controlled servos in action order: left leg 0-4, neck/head 5-8 and right leg 9-13."""
 
 EXPECTED_LEG_JOINT_NAMES = [
     "left_hip_yaw",
@@ -150,20 +124,19 @@ EXPECTED_LEG_JOINT_NAMES = [
     "right_knee",
     "right_ankle",
 ]
-"""The 10 leg joints -- upstream's ``_LEG_JOINTS = [0, 1, 2, 3, 4, 9, 10, 11, 12, 13]``."""
+"""The ten physical leg joints, excluding the four command-driven neck/head joints."""
 
 EXPECTED_HEAD_JOINT_NAMES = ["neck_pitch", "head_pitch", "head_yaw", "head_roll"]
-"""The 4 neck and head servos -- upstream's ``_NECK_JOINTS = [5, 6, 7, 8]``."""
+"""The four neck/head servos in command order."""
 
 EXPECTED_FOOT_BODY_NAMES = ["ankle_left", "ankle_right"]
-"""Foot bodies in upstream's ``[left, right]`` site order."""
+"""Foot body names in left/right order."""
 
 EXPECTED_TRUNK_BODY_NAMES = ["trunk_base"]
-"""The body upstream measures the trunk height, tilt and angular velocity on, and randomizes."""
+"""Trunk body used for height, tilt, angular velocity and mass-property randomization."""
 
 EXPECTED_HEAD_BODY_COUNT = 4
-"""Bodies the head centre-of-mass randomization perturbs; upstream's fifth is a hip link it lists in
-error, and the velocity port drops it."""
+"""Expected body count for head center-of-mass randomization."""
 
 EXPECTED_ENTITY_SELECTIONS = {
     # "<manager>.<term>.<param>": (kind, expected names, preserve_order)
@@ -182,18 +155,7 @@ EXPECTED_ENTITY_SELECTIONS = {
     "events.set_ground_state.asset_cfg": ("joint", EXPECTED_SERVO_JOINT_NAMES, True),
     "events.reset_ball.asset_cfg": ("asset", "ball", False),
 }
-"""Every entity selection the ball-kick recipe makes, outside the observation groups.
-
-These are as load-bearing as the scalar parameters ``_scalar_params`` compares: a posture term that
-silently selected all 14 joints instead of the 10 legs would fight the neck term, and a kick reward
-that read the *robot's* velocity instead of the ball's would pay for walking. Isaac Lab resolves
-joints and bodies in USD order, which is neither upstream's nor this table's, so ``preserve_order``
-is part of the contract wherever a term indexes a block positionally.
-
-``events.randomize_head_com`` is absent because its selection is four *patterns* rather than four
-names; ``test_the_head_centre_of_mass_randomization_drops_the_upstream_hip_link`` pins it instead.
-``events.randomize_joint_friction`` is absent because the term reads only the articulation name.
-"""
+"""Entity selections used by rewards, events and terminations outside the observation groups."""
 
 EXPECTED_OBSERVATION_SELECTIONS = {
     # "<group>.<term>.<param>": (kind, expected names, preserve_order)
@@ -238,7 +200,7 @@ def _observation_entity_cfgs(term_cfg) -> dict[str, SceneEntityCfg]:
 
 
 def _scalar_params(term_cfg) -> dict:
-    """Drop the entity selections, which carry no upstream scalar to compare against."""
+    """Return scalar parameters; entity selections are checked separately by name and order."""
     return {key: value for key, value in term_cfg.params.items() if not isinstance(value, SceneEntityCfg)}
 
 
@@ -248,7 +210,7 @@ def _observation_terms(group) -> dict[str, ObservationTermCfg]:
 
 
 ##
-# Recipe parity against upstream (addendum section 6)
+# Configuration expectations
 ##
 
 EXPECTED_REWARDS = {
@@ -266,16 +228,7 @@ EXPECTED_REWARDS = {
     "action_rate_l2": (-0.1, {}),
     "self_collisions": (-1.0, {"saturate": True}),
 }
-"""Upstream's reward recipe (addendum section 6.3), keyed by term name, at its initial weights.
-
-``action_rate_l2`` is ramped by a curriculum and is listed at the weight the configuration ships,
-not the -1.0 it reaches. ``dof_pos_limits`` is upstream's silently inherited regularizer -- it is
-never mentioned in the ball-kick configuration and survives only because it is not in the deletion
-list (addendum section 13.18), so a port that enumerated the terms upstream *writes* would miss it.
-
-The two kick weights are transcribed from upstream's code, **not** from upstream's comments, which
-describe a landscape calibrated for a target speed the file no longer uses (addendum section 13.5).
-"""
+"""Initial reward terms, weights and scalar parameters, including inherited terms."""
 
 EXPECTED_EVENTS = {
     # name: (mode, scalar params)
@@ -283,8 +236,7 @@ EXPECTED_EVENTS = {
         "startup",
         {
             "static_friction_range": (0.7, 1.3),
-            # Newton samples one coefficient per shape, so the dynamic range is supplied only
-            # because the signature requires it; upstream sets the friction outright
+            # The event overwrites friction; its required scalar parameters remain explicit.
             "dynamic_friction_range": (0.7, 1.3),
             "restitution_range": (0.0, 0.0),
             "num_buckets": 64,
@@ -319,13 +271,7 @@ EXPECTED_EVENTS = {
     "randomize_joint_friction": ("reset", {"scale_range": (0.9, 1.1)}),
     "push_robot": ("interval", {"velocity_range": {"x": (-0.3, 0.3), "y": (-0.3, 0.3)}}),
 }
-"""Upstream's event suite (addendum section 6.6), keyed by term name.
-
-Upstream's ``base_com`` is absent because it selects zero bodies there; its
-``expand_bam_friction_fields`` and ``reset_action_history`` are absent because Isaac Lab's actuator
-storage and action manager already do their jobs; and ``randomize_motor_gains`` is absent because
-upstream ships it disabled.
-"""
+"""Configured event modes and scalar parameters."""
 
 EXPECTED_RESET_EVENT_ORDER = [
     "reset_base",
@@ -337,13 +283,7 @@ EXPECTED_RESET_EVENT_ORDER = [
     "randomize_armature",
     "randomize_joint_friction",
 ]
-"""Upstream's reset chain, in the order it fires (addendum sections 2.3 and 6.6).
-
-This is behaviour, not housekeeping. ``set_ground_state`` overwrites the root height and orientation
-that ``reset_base`` wrote -- including a uniformly random yaw -- and ``reset_ball`` then places the
-ball in *that* yaw's frame. Running the ball placement earlier aims it at a heading the robot no
-longer has, which upstream's own comment calls out as a silent failure.
-"""
+"""Reset events in their required execution order."""
 
 EXPECTED_TERMINATIONS = {
     # name: (time_out flag, scalar params)
@@ -351,12 +291,7 @@ EXPECTED_TERMINATIONS = {
     "fell_over": (False, {"limit_angle": math.radians(70.0)}),
     "nan_state": (False, {"sensor_names": ("contact_forces",)}),
 }
-"""Upstream's terminations (addendum section 6.7), keyed by term name.
-
-The tilt termination is **kept** here where the stand-up and forward-roll tasks delete it: this robot
-starts standing and is supposed to finish that way. Upstream's inherited terrain-bounds termination
-is not carried over: it returns all-false on a ground plane and this task has no rough variant.
-"""
+"""Configured termination names, timeout flags and thresholds."""
 
 EXPECTED_CURRICULUM_TERMS = {
     "action_rate_weight",
@@ -364,29 +299,25 @@ EXPECTED_CURRICULUM_TERMS = {
     "head_com_range",
     "push_magnitude",
 }
-"""Upstream's curriculum term names (addendum section 6.8).
-
-``terrain_levels`` and ``command_vel`` are absent because upstream deletes both. **Nothing schedules
-the kick**, which is upstream's documented intent rather than an omission.
-"""
+"""Configured curriculum term names."""
 
 EXPECTED_WEIGHT_STAGES = {
     "action_rate_weight": ([-0.1, -0.2, -0.4, -0.6, -0.8, -1.0], [0, 500, 750, 1000, 1250, 1500]),
 }
-"""Upstream's only reward-weight ramp: payload and PPO-iteration boundaries."""
+"""Reward weights at each curriculum boundary."""
 
 EXPECTED_RANGE_STAGES = {
     "com_range": ([0.003, 0.005, 0.01, 0.015], [0, 500, 1000, 1500]),
     "head_com_range": ([0.003, 0.005, 0.01], [0, 500, 1000]),
 }
-"""Upstream's centre-of-mass range ramps, matched to the velocity task's."""
+"""Center-of-mass randomization ranges at each curriculum boundary."""
 
 EXPECTED_PUSH_STAGES = [
     (0, {"x": (0.0, 0.0), "y": (0.0, 0.0)}),
     (500, {"x": (-0.08, 0.08), "y": (-0.08, 0.08)}),
     (1000, {"x": (-0.3, 0.3), "y": (-0.3, 0.3)}),
 ]
-"""Upstream's push ramp, matched to the stand-up task's."""
+"""Push velocity ranges [m/s] at each curriculum boundary."""
 
 EXPECTED_ACTOR_NOISE = {
     "base_ang_vel": 0.03,
@@ -399,10 +330,10 @@ EXPECTED_ACTOR_NOISE = {
 
 @pytest.mark.unit
 def test_the_reward_recipe_matches_upstream_term_for_term():
-    """Every reward slot upstream trains with is present, with its weight and its parameters."""
+    """Reward terms must match the expected set, weights and scalar parameters."""
     rewards = MicroDuckBallKickFlatEnvCfg().rewards
 
-    # two-sided, so a term left behind by the port also fails
+    # Check for missing and extra reward terms.
     assert set(vars(rewards)) == set(EXPECTED_REWARDS)
     for name, (weight, params) in EXPECTED_REWARDS.items():
         term = getattr(rewards, name)
@@ -415,7 +346,7 @@ def test_the_reward_recipe_matches_upstream_term_for_term():
 
 @pytest.mark.unit
 def test_the_walking_and_gait_reward_terms_are_gone():
-    """Upstream deletes every locomotion term: a one-shot kick has no gait to shape."""
+    """A one-shot kick must not retain locomotion or gait reward terms."""
     rewards = MicroDuckBallKickFlatEnvCfg().rewards
 
     for name in (
@@ -433,14 +364,7 @@ def test_the_walking_and_gait_reward_terms_are_gone():
 
 @pytest.mark.unit
 def test_the_kick_landscape_is_the_shipped_constants_not_the_upstream_prose():
-    """The kick pays ``12*min(v,1) - 4*max(v-1,0)``: +12 at target, zero at 4 m/s, floored at -8.
-
-    Upstream's comment block describes a peak of about +3/step and a zero crossing at 1.0 m/s, which
-    are the numbers for a target speed of 0.25 that the file no longer sets (addendum section 13.5).
-    The adjudication for this port is to reproduce the code, so this test pins the *arithmetic the
-    shipped constants produce* -- deliberately spelled out, so that "fixing" the weights to match
-    upstream's prose fails here rather than passing quietly.
-    """
+    """The kick pays 12*min(v,1) - 4*max(v-1,0): +12 at target, zero at 4 m/s and a floor of -8."""
     rewards = MicroDuckBallKickFlatEnvCfg().rewards
     gain = rewards.ball_forward_velocity.weight
     tax = -rewards.ball_speed_overshoot.weight
@@ -465,7 +389,7 @@ def test_the_kick_landscape_is_the_shipped_constants_not_the_upstream_prose():
 
 @pytest.mark.unit
 def test_the_kick_and_stand_halves_are_weighted_as_upstream_leaves_them():
-    """The standing stack is 8 against a kick worth up to 12, which is what section 13.5 measures."""
+    """The standing reward stack totals 8 while the kick reward reaches 12."""
     rewards = MicroDuckBallKickFlatEnvCfg().rewards
 
     standing_mass = sum(
@@ -478,7 +402,7 @@ def test_the_kick_and_stand_halves_are_weighted_as_upstream_leaves_them():
 
 @pytest.mark.unit
 def test_the_event_suite_matches_upstream_term_for_term():
-    """Every event upstream fires is present, in its mode, with its ranges."""
+    """Event modes and parameter ranges must match the expected configuration."""
     events = MicroDuckBallKickFlatEnvCfg().events
 
     assert set(vars(events)) == set(EXPECTED_EVENTS)
@@ -504,12 +428,7 @@ def test_the_ball_placement_runs_after_the_pose_it_is_measured_from():
 
 @pytest.mark.unit
 def test_the_ball_spawns_clear_of_the_toe_at_the_kicking_foot():
-    """The offset is sized against the model, and 6 mm of worst-case clearance is what it buys.
-
-    Upstream records that an offset of ``0.08 +/- 0.02`` penetrated the toe at reset and the solver
-    ejected the ball, paying a kick reward for no kick. The margin, not the literal 0.09, is what a
-    re-tune has to preserve, so it is what this test measures.
-    """
+    """Ball placement must retain at least 6 mm of worst-case toe clearance and avoid reset impulses."""
     params = MicroDuckBallKickFlatEnvCfg().events.reset_ball.params
     forward, lateral = params["offset"]
     noise = params["noise_xy"]
@@ -541,7 +460,7 @@ def test_the_ground_state_reset_is_standing_only():
     # the standing band brackets the height the whole standing stack is built around
     low, high = params["standing_z_range"]
     assert low <= MICRODUCK_STAND_HEIGHT <= high
-    # upstream spells the stand's tilt bound ``sitting_tilt_max``; the two buckets share one sampler
+    # the task spells the stand's tilt bound ``sitting_tilt_max``; the two buckets share one sampler
     assert params["sitting_tilt_max"] == pytest.approx(math.radians(5.0))
 
 
@@ -627,7 +546,7 @@ def test_both_observation_groups_read_the_servos_the_feet_and_the_ball_in_the_de
 
 @pytest.mark.unit
 def test_the_head_centre_of_mass_randomization_drops_the_upstream_hip_link():
-    """``bearing_roll`` is the right hip-yaw link; upstream lists it among the head bodies in error."""
+    """Head center-of-mass randomization must select the intended head bodies without a hip link."""
     body_names = MicroDuckBallKickFlatEnvCfg().events.randomize_head_com.params["asset_cfg"].body_names
 
     assert "bearing_roll" not in body_names
@@ -648,7 +567,7 @@ def test_the_terminations_keep_the_tilt_check_this_task_needs():
 
 @pytest.mark.unit
 def test_the_curricula_reproduce_upstream_stage_tables():
-    """The staged schedules carry upstream's payloads at upstream's iteration boundaries."""
+    """Scheduled values must change at the expected control-step boundaries."""
     curriculum = MicroDuckBallKickFlatEnvCfg().curriculum
 
     # two-sided, so an unexpected extra schedule quietly rewriting a weight or a range also fails
@@ -667,7 +586,7 @@ def test_the_curricula_reproduce_upstream_stage_tables():
 
 @pytest.mark.unit
 def test_nothing_schedules_the_kick_reward():
-    """The kick is live from step 0, which is upstream's stated design and not an oversight."""
+    """The kick reward remains active from control step zero."""
     curriculum = MicroDuckBallKickFlatEnvCfg().curriculum
 
     scheduled = {
@@ -678,7 +597,7 @@ def test_nothing_schedules_the_kick_reward():
 
 @pytest.mark.unit
 def test_the_push_curriculum_ramps_from_nothing_on_upstreams_exclusive_comparison():
-    """A robot still learning to swing one leg cannot be shoved; upstream also switches operator."""
+    """Pushes start at zero and advance only after each strict curriculum boundary."""
     push = MicroDuckBallKickFlatEnvCfg().curriculum.push_magnitude
 
     stages = push.params["param_stages"]
@@ -686,7 +605,7 @@ def test_the_push_curriculum_ramps_from_nothing_on_upstreams_exclusive_compariso
     for stage, (iteration, velocity_range) in zip(stages, EXPECTED_PUSH_STAGES):
         assert stage["step"] == iteration * STEPS_PER_ITERATION
         assert stage["params"] == {"velocity_range": velocity_range}
-    # upstream's push helper compares with ``>`` where its event-parameter helper uses ``>=``
+    # Push stages use strict boundaries; event-parameter stages use inclusive boundaries.
     assert push.params["inclusive"] is False
 
 
@@ -696,7 +615,7 @@ def test_the_command_survives_only_to_keep_the_observation_slot_alive():
     cfg = MicroDuckBallKickFlatEnvCfg()
     twist = cfg.commands.base_velocity
 
-    # the twist is the only command: upstream declares no head or body pose command here
+    # Only the twist command remains active in this task.
     assert set(vars(cfg.commands)) == {"base_velocity"}
     assert twist.ranges.lin_vel_x == (-0.01, 0.01)
     assert twist.ranges.lin_vel_y == (-0.01, 0.01)
@@ -705,7 +624,7 @@ def test_the_command_survives_only_to_keep_the_observation_slot_alive():
     assert twist.heading_command is False
     assert twist.rel_standing_envs == 0.0
     assert twist.rel_turn_in_place_envs == 0.0
-    # inherited from upstream's base template and never overridden there (addendum section 7.22)
+    # Forward-only resampling retains the configured 0.3 m/s lower bound.
     assert twist.rel_forward_envs == pytest.approx(0.2)
 
 
@@ -752,9 +671,9 @@ def test_the_critic_sees_the_ball_and_guards_its_sensor_reads():
     assert not observations.critic.enable_corruption
     assert terms["ball_position"].func is mdp.ball_pos_in_base
     assert terms["ball_velocity"].func is mdp.ball_vel_in_base
-    # upstream deletes foot_height here: no height sensor, and no foot-height reward to need one
+    # No height sensor or foot-height reward is configured.
     assert "foot_height" not in terms
-    # the NaN guarding this port applies where upstream leaves it off (addendum section 14.4)
+    # Finite-state termination guards cover the selected sensors.
     assert terms["foot_air_time"].func is mdp.foot_group_air_time_safe
     assert terms["foot_contact_forces"].func is mdp.foot_group_contact_forces_safe
     # a privileged group the runner never reads is dead weight
@@ -802,7 +721,7 @@ def test_the_support_foot_sensor_watches_the_foot_that_does_not_kick():
 
 @pytest.mark.unit
 def test_the_self_collision_sensor_is_the_familys_many_to_many_one():
-    """Upstream's sensor is the trunk subtree against itself, which is many-to-many."""
+    """Self-collision sensing must cover all selected trunk-subtree collider pairs."""
     cfg = MicroDuckBallKickFlatEnvCfg()
 
     assert cfg.scene.self_collision.sensor_shape_prim_expr == [MICRODUCK_ALLCOLLISIONS_COLLIDER_SHAPE_EXPR]

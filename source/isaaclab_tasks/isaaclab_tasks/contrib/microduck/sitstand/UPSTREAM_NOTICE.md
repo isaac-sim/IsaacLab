@@ -8,8 +8,7 @@ The seated recovery events and neck strain reward were adapted from Pollen Robot
 `src/mjlab_microduck/tasks/mdp.py`. Their upstream code is licensed under Apache License 2.0,
 reproduced below. The adapters preserve the Isaac Lab joint-name and quaternion conventions.
 
-This notice covers the adapted code. The robot assets retain their separately recorded source
-revision and model license; this update does not import or relicense model files.
+This notice covers the adapted code. Robot geometry has a separate model license.
 
                                  Apache License
                            Version 2.0, January 2004

@@ -3,14 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unit tests for the MicroDuck reward and termination terms.
-
-Every term reads a handful of articulation, sensor and command tensors and returns a number per
-environment, so the whole suite runs against doubles rather than a simulated scene: the states are
-crafted, and each expected value is worked out by hand from the upstream formula it is ported from
-(``artifacts/microduck/upstream_reference.md`` sections 5 and 6). A live scene would only make the
-same arithmetic harder to read and impossible to pin exactly.
-"""
+"""Test MicroDuck rewards and terminations with independently calculated states and expected values."""
 
 from __future__ import annotations
 
@@ -158,7 +151,7 @@ def _entity(name: str, joint_ids=None, body_ids=None, joint_names=None, body_nam
 
 
 ##
-# Velocity tracking (reference section 5)
+# Velocity tracking
 ##
 
 
@@ -180,7 +173,7 @@ def test_track_linear_velocity_is_one_when_the_command_is_met_exactly():
 
 
 def test_track_linear_velocity_charges_vertical_drift_inside_the_exponent():
-    """Upstream folds ``v_z^2`` into the tracking exponent, so a bounce costs tracking reward."""
+    """Vertical velocity enters the tracking exponent, so bouncing lowers velocity-tracking reward."""
     std = 0.5
     env = _velocity_env([0.3, -0.2, std], [0.0, 0.0, 0.0], [0.3, -0.2, 0.0])
 
@@ -191,7 +184,7 @@ def test_track_linear_velocity_charges_vertical_drift_inside_the_exponent():
 
 
 def test_track_angular_velocity_charges_roll_and_pitch_rate_inside_the_exponent():
-    """Upstream folds ``|w_xy|^2`` into the yaw-tracking exponent."""
+    """Roll and pitch angular rates enter the yaw-tracking exponent."""
     std = 0.5
     env = _velocity_env([0.0, 0.0, 0.0], [std, 0.0, 0.7], [0.0, 0.0, 0.7])
 
@@ -210,7 +203,7 @@ def test_track_angular_velocity_is_one_when_the_yaw_rate_is_met_and_the_base_is_
 
 
 ##
-# Upright (reference section 5)
+# Upright
 ##
 
 
@@ -263,7 +256,7 @@ def test_upright_rejects_a_configuration_with_more_than_one_body():
 
 
 ##
-# Posture (reference section 5, ``variable_posture``)
+# Posture
 ##
 
 
@@ -313,7 +306,7 @@ def test_pose_mode_switch_tightens_the_standard_deviation_below_the_walking_thre
 
 
 def test_pose_mode_switch_counts_yaw_rate_towards_the_speed():
-    """Upstream's speed is ``|v_xy| + |w_z|``, so turning on the spot is not standing."""
+    """Pose-mode speed is |v_xy| + |w_z|, so in-place turning is not a standing state."""
     joint_pos = torch.full((2, 2), 0.15)
     # the second environment has no linear command at all, only a yaw rate
     command = torch.tensor([[0.0, 0.0, 0.0], [0.0, 0.0, 0.5]])
@@ -326,7 +319,7 @@ def test_pose_mode_switch_counts_yaw_rate_towards_the_speed():
 
 
 ##
-# Head pose (reference section 6)
+# Head pose
 ##
 
 
@@ -443,7 +436,7 @@ def test_head_pose_bias_penalty_forgets_the_average_on_reset():
 
 
 ##
-# Body pose (reference section 6)
+# Body pose
 ##
 
 
@@ -543,7 +536,7 @@ def test_body_pose_tracking_6d_wraps_the_yaw_error():
 
 
 ##
-# Feet (reference section 5)
+# Feet
 ##
 
 
@@ -813,12 +806,12 @@ def test_foot_swing_height_rejects_a_configuration_without_a_sensor():
 
 
 ##
-# Trunk penalties (reference section 5)
+# Trunk penalties
 ##
 
 
 def test_body_ang_vel_xy_l2_ignores_the_yaw_rate():
-    """Upstream deliberately leaves the commanded yaw rate out of this penalty."""
+    """Penalize roll and pitch rates without penalizing commanded yaw rate."""
     ang_vel = torch.tensor([[[0.3, 0.4, 10.0]]])
     robot = _DummyAsset(body_link_ang_vel_w=ang_vel)
     env = _DummyEnv(num_envs=1, assets={"robot": robot})
@@ -914,12 +907,7 @@ def test_self_collision_cost_ignores_forces_below_the_threshold():
 
 
 def test_self_collision_cost_saturates_to_upstreams_zero_or_one():
-    """Shape-level sensing sees one contact from both sides, so the ported cost must saturate.
-
-    Upstream reads a single contact slot and reports 0 or 1. A many-to-many sensor reports the same
-    contact once per shape that carries it, so counting would scale the penalty with how finely the
-    model happens to be split into colliders. ``saturate`` restores upstream's scale.
-    """
+    """Count a self-contact pair once even when both selected shapes report it; the cost saturates at one."""
     # env 0 touches nothing, env 1 carries the same contact on both of its two sensing shapes
     forces = torch.tensor(
         [
@@ -940,7 +928,7 @@ def test_self_collision_cost_saturates_to_upstreams_zero_or_one():
 
 
 ##
-# Termination (reference section 6)
+# Termination
 ##
 
 
@@ -971,7 +959,7 @@ def test_robot_state_is_nan_flags_only_the_broken_environments():
 
 
 def test_robot_state_is_nan_checks_the_named_contact_sensors():
-    """Upstream also guards the contact forces of the sensors it is handed."""
+    """Finite-state checks must include the explicitly selected contact sensors."""
     forces = torch.zeros(4, 2, 3)
     forces[3, 1, 2] = float("nan")
     env = _nan_env(sensor_forces=forces)
@@ -991,14 +979,14 @@ def test_robot_state_is_nan_ignores_sensors_that_are_not_in_the_scene():
 
 
 ##
-# Rolling forward (addendum sections 4.3 and 4.4)
+# Rolling forward
 ##
 
 ROULADE_TARGET_ANGLE = 2.0 * math.pi
 """One full roll [rad], which is what ``roulade_progress`` normalizes its payout against."""
 
 ROULADE_MAX_PAID_RATE = 5.0
-"""Largest rotation rate [rad/s] upstream pays for; faster rotation forfeits the excess."""
+"""Maximum paid roll angular speed [rad/s]; excess rotation is forfeited."""
 
 # xyzw quaternions with the properties the roll's gates key on
 _LEVEL_QUAT = [0.0, 0.0, 0.0, 1.0]
@@ -1111,7 +1099,7 @@ def test_roulade_progress_integrates_once_per_control_step():
 
 
 def test_roulade_progress_forfeits_rotation_faster_than_the_cap():
-    """Upstream's paid pointer jumps to the frontier, so the excess is lost rather than deferred."""
+    """Advance the paid rotation pointer to the frontier so excess speed is forfeited rather than deferred."""
     env = _roulade_env(forward_rate=10.0)
 
     fast = _advance(env)
@@ -1325,7 +1313,7 @@ def test_the_roll_terms_reject_an_asset_configuration_without_a_single_head_body
 
 
 ##
-# Roller skating (addendum section 5.3)
+# Roller skating
 ##
 
 WHEEL_JOINT_IDS = [0, 1, 2, 3]
@@ -1472,7 +1460,7 @@ def test_feet_flat_penalty_charges_only_the_loaded_blade():
 
 
 def test_joint_pose_l2_sums_the_squared_deviation_from_the_stand_pose():
-    """Upstream sums rather than averages, unlike this package's L1 sibling."""
+    """L2 pose error sums squared joint deviations rather than averaging them."""
     robot = _DummyAsset(
         joint_pos=torch.tensor([[0.3, -0.4]]),
         default_joint_pos=torch.tensor([[0.1, -0.1]]),
@@ -1485,18 +1473,8 @@ def test_joint_pose_l2_sums_the_squared_deviation_from_the_stand_pose():
 
 
 def test_the_state_reading_reward_kernels_survive_a_diverged_solver():
-    """A NaN state must not reach the reward buffer, because RSL-RL aborts training on it.
-
-    The state below is the one captured from a live 4096-environment rollout on the roller-slope
-    task (``artifacts/microduck/reward_nan/``): a rare MuJoCo Warp divergence left *every* joint
-    position and velocity and *every* body orientation non-finite for a single step, five steps into
-    an episode, while the root quaternion stayed normalized and the applied torques stayed clamped at
-    the effort limit. The ``nan_state`` termination caught it and recycled the environment -- but the
-    recycle happens in ``_reset_idx``, which runs *after* the reward is computed, so the poisoned
-    value was already in the buffer, and two OSMO runs died on it at iterations 19 and 45.
-
-    Both kernels charge **zero** rather than a finite guess: a joint with no position is not away
-    from its pose, and a blade with no orientation is not tilted.
+    """Nonfinite joint states or body orientations must produce zero reward contributions.
+    Termination detection does not prevent reward evaluation on the same post-physics state before reset.
     """
     nan = float("nan")
     tire_contact = [1.0, 1.0, 1.0, 1.0]
@@ -1595,7 +1573,7 @@ def _action_rate_term(joint_ids, action, prev_action, selected, selected_names):
 
 
 def test_joint_action_rate_l2_charges_only_the_columns_of_the_selected_joints():
-    """Upstream hard-codes action columns 5..8; the port resolves them from the action term's joints."""
+    """Resolve selected physical joints to action columns before computing the joint action-rate cost."""
     # the action term drives joints 4, 2, 0 in that order, so joint 2 is column 1
     term, env, cfg = _action_rate_term(
         joint_ids=[4, 2, 0],
@@ -1670,8 +1648,7 @@ WHEEL_GLIDE_CASES = [
     # a free-spinning joint the solver has lost must not poison the reward
     ([float("nan")] * 4, 0.0),
 ]
-"""Wheel rates and the rolling speed :func:`wheel_glide_reward` pays for each, worked out by hand
-from ``clamp(mean(omega) * wheel_radius, 0, cap_speed)`` (addendum section 4.1)."""
+"""Independent wheel rates and expected rolling speed from clamp(mean(omega) * wheel_radius, 0, cap_speed)."""
 
 
 @pytest.mark.parametrize("wheel_vel, expected", WHEEL_GLIDE_CASES)
@@ -1691,11 +1668,7 @@ def test_wheel_glide_reward_pays_the_capped_forward_rolling_speed(wheel_vel, exp
 
 
 def test_wheel_glide_reward_reads_only_the_selected_joints():
-    """The wheels are selected by name upstream; here the resolved selection has to be honoured.
-
-    On the roller model the passive wheels interleave with the servos, so a term that averaged the
-    whole joint-velocity tensor would silently mix leg rates into the glide.
-    """
+    """Wheel-glide reward must honor the resolved joint selection."""
     wheel_cfg = _entity("robot", joint_ids=WHEEL_JOINT_IDS, joint_names=["a", "b", "c", "d"])
     # the two trailing slots of the roller double are leg joints, thrashing at a high rate
     env = _roller_env(wheel_vel=[0.2 / 0.0175] * 4, leg_vel=[50.0, -50.0])
@@ -1833,7 +1806,7 @@ def test_gait_symmetry_penalty_rejects_a_sensor_that_is_not_a_pair_of_feet():
 
 
 def test_forward_lean_reward_peaks_at_a_nose_down_trunk_and_only_while_pushing():
-    """Upstream's docstring negates the quantity and its code does not; the code is what is ported."""
+    """Forward lean uses the positive forward component of projected gravity and requires a forward command."""
     params = {"command_name": "twist", "target_pitch": 0.262, "std": 0.1}
     # a forward pitch of theta puts sin(theta) on the forward component of projected gravity
     leaning = _roller_env(command=[0.5, 0.0, 0.0], projected_gravity_b=[0.262, 0.0, -0.965])
@@ -1902,7 +1875,7 @@ def test_heading_hold_reward_survives_a_diverged_solver():
 
 
 ##
-# Ball kick (addendum section 6.3)
+# Ball kick
 ##
 
 
@@ -1916,7 +1889,7 @@ def _ball_kick_env(velocity_xy: list[list[float]], kick_direction: list[list[flo
 
 
 def test_ball_kick_direction_points_forward_before_the_first_reset():
-    """Upstream allocates the direction lazily at ``+x``; nothing else writes it until a reset."""
+    """The task allocates the direction lazily at ``+x``; nothing else writes it until a reset."""
     env = _DummyEnv(num_envs=3)
 
     direction = mdp.ball_kick_direction(env.as_env())
@@ -1955,16 +1928,7 @@ def test_ball_speed_overshoot_penalty_opens_only_past_the_target_and_stops_at_th
 
 
 def test_the_kick_terms_survive_a_ball_the_solver_has_lost():
-    """Nothing in this task NaN-checks the ball, so both terms guard themselves.
-
-    Upstream's termination reads the robot only, so a diverged free body would otherwise poison the
-    whole reward sum for the rest of the episode rather than resetting the environment.
-
-    The third case is what decides where the guard has to sit: the velocity component *along* the
-    kick direction is perfectly finite, and the projection still comes out non-finite, because the
-    infinite lateral component meets a zero direction component. Guarding the along-direction input
-    rather than the projection would have missed it.
-    """
+    """Nothing in this task NaN-checks the ball, so both terms guard themselves."""
     env = _ball_kick_env([[float("nan"), 0.0], [float("inf"), 0.0], [0.5, float("-inf")]])
 
     reward = mdp.ball_forward_velocity(env.as_env(), max_speed=1.0, asset_cfg=_entity("ball"))
@@ -1979,11 +1943,7 @@ def test_the_kick_terms_survive_a_ball_the_solver_has_lost():
 
 
 def test_single_foot_grounded_reward_reads_the_filtered_contact_rather_than_the_net_force():
-    """It answers "is this foot on the *floor*", which a net contact force cannot.
-
-    The double gives the support foot a partner force in one environment and none in the other,
-    which is the 0-or-1 flag upstream's ``found`` field reports.
-    """
+    """It answers "is this foot on the *floor*", which a net contact force cannot."""
     force_matrix = torch.zeros(2, 1, 1, 3)
     force_matrix[0, 0, 0, 2] = 12.0
     sensor = _DummySensor(force_matrix_w=force_matrix)
@@ -2006,7 +1966,7 @@ def test_single_foot_grounded_reward_refuses_a_sensor_with_no_contact_partners()
 
 
 ##
-# VelStand: the fall-recovery layer (addendum section 3.2)
+# VelStand: the fall-recovery layer
 ##
 
 
@@ -2104,11 +2064,8 @@ def test_height_progress_pays_the_rise_and_stops_paying_above_the_ceiling():
 
 
 def test_com_upward_velocity_is_gated_on_being_toppled_rather_than_on_being_low():
-    """VelStand pays for rising only while genuinely fallen, and "fallen" is tilt alone.
-
-    Upstream reaches that by passing a height gate of 0.0 m, which never fires; the port takes the
-    tilt bound on its own. Gating on height too would pay a robot for bobbing while seated upright,
-    which is the exact farm upstream's own lesson records.
+    """Upward center-of-mass velocity is rewarded only when trunk tilt exceeds the fallen threshold;
+    a low but upright crouch must not activate recovery progress.
     """
     env = _fall_env([10.0, 50.0], [0.07, 0.07], [0.3, 0.3])
 
@@ -2226,7 +2183,7 @@ def test_recovery_success_ignores_a_stumble_shorter_than_the_minimum():
 
 
 def test_recovery_success_demands_a_height_the_policy_can_actually_reach():
-    """Upstream's function default of 0.105 m is the bug its own configuration overrides."""
+    """The configured function default of 0.105 m is the bug its own configuration overrides."""
     step_dt = 0.02
     env = _fall_env([70.0], [0.05])
     env.step_dt = step_dt
@@ -2299,7 +2256,7 @@ def test_fallen_too_long_clears_its_timer_for_the_environments_that_restarted():
 
 
 ##
-# SitStand: the commanded-posture stack (addendum sections 4.4 and 4.5)
+# SitStand: the commanded-posture stack
 ##
 
 POSTURE_JOINT_NAMES = ["hip", "knee", "ankle"]
@@ -2309,11 +2266,12 @@ POSTURE_JOINT_IDS = [0, 1, 2]
 
 POSTURE_SIT_POSE = {"knee": 1.0}
 """A one-joint sitting keyframe. The stand pose is all zeros below, so the keyframe *is* the offset,
-which is what makes every interpolated target below readable by inspection."""
+which is what makes every interpolated target below readable by inspection.
+"""
 
 SIT_HEIGHT = 0.060
 STAND_HEIGHT = 0.115
-"""The two rest heights, upstream's measured values, so the interpolated targets are the real ones."""
+"""The two rest heights, the configured measured values, so the interpolated targets are the real ones."""
 
 
 def _posture_env(
@@ -2398,7 +2356,7 @@ def test_posture_pose_l1_charges_the_mean_absolute_distance_to_the_moving_target
 
 
 def test_the_posture_terms_leave_joints_outside_the_keyframe_at_the_stand_pose():
-    """Upstream omits the neck from its keyframe on purpose: the head is command-steered in both."""
+    """The task omits the neck from its keyframe on purpose: the head is command-steered in both."""
     # the hip and the ankle are not in the keyframe, so a full sit still rewards them at zero
     env = _posture_env(blend=[1.0], joint_pos=[[0.0, 1.0, 0.0]])
 
@@ -2483,11 +2441,7 @@ def test_posture_height_measures_the_trunk_above_the_environment_origin():
 
 
 def test_posture_rise_bootstrap_reads_the_raw_flag_rather_than_the_slewed_blend():
-    """Upstream's one deliberate exception: the bootstrap switches with the button, not the ramp.
-
-    Reading the blend would leave it paying for upward motion through the first seconds of a
-    commanded descent, where it would bid directly against the sit.
-    """
+    """The configured one deliberate exception: the bootstrap switches with the button, not the ramp."""
     # a sit has just been requested, so the flag is 1 while the blend has barely moved
     env = _posture_env(blend=[0.01], flag=[1.0], heights=[STAND_HEIGHT], speeds=[[0.0, 0.0, 0.05]])
 
@@ -2566,8 +2520,9 @@ def test_posture_stillness_pays_only_once_the_ramp_has_finished():
 
 
 def test_posture_stillness_pays_nothing_for_a_motionless_flop():
-    """A robot lying still is inside the seated height band and perfectly quiet; the tilt gate is
-    what denies it, and it is upstream's own run-2 exploit."""
+    """A robot lying still is inside the seated height band and perfectly quiet; the tilt gate is what denies
+    it, and it is the configured own run-2 exploit.
+    """
     env = _posture_env(
         blend=[1.0, 1.0],
         flag=[1.0, 1.0],
@@ -2591,12 +2546,7 @@ def test_posture_stillness_pays_nothing_for_a_motionless_flop():
 
 
 def test_posture_stillness_gates_on_the_tilt_cosine_rather_than_on_the_angle():
-    """Upstream carries two tilt-gate conventions and uses the cosine one for its stillness terms.
-
-    Worked out from the formula rather than from the implementation: at the angular midpoint of the
-    25-to-60-degree window the cosine has covered 0.584 of its span, and the smoothstep of that is
-    0.625 -- where the angle-space gate the late-phase penalties use would return exactly 0.5.
-    """
+    """The task carries two tilt-gate conventions and uses the cosine one for its stillness terms."""
     env = _posture_env(blend=[1.0], flag=[1.0], heights=[SIT_HEIGHT], tilts_deg=[42.5])
 
     reward = mdp.posture_stillness(
@@ -2659,7 +2609,7 @@ def test_posture_composite_collapses_when_any_one_factor_is_missed():
     )
     # a plank at 70 degrees; height, pose and head are all perfect
     plank = mdp.posture_composite(_posture_env(blend=[0.0], tilts_deg=[70.0]).as_env(), **common)
-    # the head dangling 1.2 rad below its command, everything else perfect -- upstream's own
+    # the head dangling 1.2 rad below its command, everything else perfect -- the configured own
     # observed exploit, which is why the head factor exists at all
     dangling = mdp.posture_composite(_posture_env(blend=[0.0], head_pos=[[1.2, 1.2, 1.2, 1.2]]).as_env(), **common)
 

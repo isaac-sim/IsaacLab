@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Opt-in upstream normalization cadence for Swizzle recovery on native RSL-RL."""
+"""Optional rollout-driven observation normalization for Swizzle."""
 
 from rsl_rl.algorithms import PPO
 
@@ -11,13 +11,7 @@ from isaaclab_tasks.contrib.microduck.velstand.agents.model import MicroDuckVelS
 
 
 class MicroDuckRolloutNormalizationPPO(PPO):
-    """Update next observations once per rollout step, as locked upstream RSL-RL 5.0 did.
-
-    Native RSL-RL 5.5 updates normalization after the whole rollout's PPO update. Swizzle's
-    unbounded previous-action observations can escape before that update and overflow the squared
-    action-rate reward. This adapter restores upstream's per-step timing without clipping inputs,
-    actions, rewards, or changing the optimizer. It is selected explicitly for recovery; registered
-    task defaults are unchanged.
+    """Update next observations once per rollout step, as locked RSL-RL 5.0 did.
 
     Both models must use :class:`MicroDuckVelStandMLPModel`, the existing training-only timing
     adapter, so native PPO's later batch update is suppressed. Its inference and exported normalizer

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Rough-terrain counterparts of the existing body-contact tasks."""
+"""Rough-terrain walking and whole-body recovery configurations."""
 
 from isaaclab.utils import clone, configclass
 
@@ -89,7 +89,7 @@ class _RoughTerrainMixin:
 
 @configclass
 class MicroDuckStandUpRoughEnvCfg(_RoughTerrainMixin, MicroDuckStandUpFlatEnvCfg):
-    """Stand-up on the upstream rough terrain distribution."""
+    """Stand-up on the rough terrain distribution."""
 
     curriculum: StandUpRoughCurriculumCfg = StandUpRoughCurriculumCfg()
     terminations: StandUpRoughTerminationsCfg = StandUpRoughTerminationsCfg()

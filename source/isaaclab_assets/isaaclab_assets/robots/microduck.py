@@ -3,16 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configuration for Pollen Robotics' MicroDuck with Dynamixel XL330 BAM servos.
+"""MicroDuck robot configurations with native XL330 BAM servos.
 
-The following configurations are available:
-
-* :data:`MICRODUCK_CFG`: the 14-joint walking robot with its standing pose.
-* :data:`MICRODUCK_ALLCOLLISIONS_CFG`: the robot with additional body and head collisions.
-* :data:`MICRODUCK_BACKLASH_CFG` and :data:`MICRODUCK_ALLCOLLISIONS_BACKLASH_CFG`: the corresponding variants
-  with gearbox play.
-
-Reference: https://github.com/pollen-robotics/microduck_rl
+Walking, curated-contact, roller and full-contact models are available with and without gearbox play.
+The roller variants include four passive wheel hinges.
 """
 
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg
@@ -42,7 +36,7 @@ _XL330_MOTOR_CFG = BamMotorCfg(
     load_friction_motor_quad=0.009972471242139415,
     load_friction_external_quad=0.004902565732332559,
 )
-"""XL330 m6 fit from Rhoban BAM revision ``62bd8ce12154340be97e06f7f41a0ca8f116d967``."""
+"""Rhoban BAM XL330 m6 motor model."""
 
 MICRODUCK_JOINT_NAMES: list[str] = [
     "left_hip_yaw",
@@ -140,7 +134,6 @@ MICRODUCK_ALLCOLLISIONS_BACKLASH_CFG = _with_backlash(
 )
 """MicroDuck with additional body collisions and passive gearbox-play hinges."""
 
-
 MICRODUCK_ROLLERS_CFG = clone(MICRODUCK_ALLCOLLISIONS_CFG)
 MICRODUCK_ROLLERS_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/PollenRobotics/MicroDuck/microduck_rollers.usd"
 """MicroDuck with four passive skate wheels. Tasks must use the taller roller reset height."""
@@ -156,12 +149,9 @@ MICRODUCK_FULLCONTACT_CFG.actuators["servos"].motor.max_current = 0.0
 MICRODUCK_FULLCONTACT_CFG.actuators["servos"].joint_effort_limit = (
     8.2 * _XL330_MOTOR_CFG.kt / _XL330_MOTOR_CFG.resistance
 )
-"""Full-body contact geometry pinned at Pollen revision bae39f5.
+"""Full-contact robot with disabled firmware current limiting and an electrical joint effort ceiling.
 
-This variant disables the XL330 firmware current limiter and uses the electrical stall-torque ceiling
-as its joint-actuator bound. This is a local recipe deviation: the pinned Rhoban BAM XL330 constructor
-uses 1.75 A, as do the original walking, curated-contact and roller variants. Loading this geometry
-is not a claim that the current-limiter setting matches Pollen's default.
+The walking, curated-contact and roller variants retain a 1.75 A firmware current limit.
 """
 
 MICRODUCK_FULLCONTACT_BACKLASH_CFG = _with_backlash(MICRODUCK_FULLCONTACT_CFG, "microduck_fullcontact_backlash.usd")

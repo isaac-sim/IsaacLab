@@ -3,18 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Smoke and recipe-parity tests for the contributed MicroDuck velocity-tracking environments.
+"""Test MicroDuck velocity configuration, deployment interfaces and simulation behavior.
 
-The smoke tests spawn :data:`~isaaclab_tasks.contrib.microduck.assets.MICRODUCK_CFG`, whose
-prebuilt USD is hosted on Nucleus.
-The simulator fixtures resolve it through the native asset cache; source-only comparisons
-remain optional read-only checks. Asset setup uses the prebuilt assets through Isaac Lab's native asset cache.
-
-The parity test needs neither the asset nor the simulator: it reads the assembled configuration and
-compares it against the upstream recipe, transcribed here from
-``artifacts/microduck/upstream_reference.md``. The expected values are spelled out rather than
-imported from the configuration under test, so that a drifting value fails rather than agrees with
-itself.
+Configuration checks use independent expectations; scene checks load cached prebuilt USDs.
 """
 
 import math
@@ -59,13 +50,7 @@ ACTOR_OBSERVATION_TERMS = [
     ("head_pose_commands", 4),
     ("body_pose_commands", 6),
 ]
-"""The deployed MicroDuck observation layout: each block of the flat actor vector, in order.
-
-Reference section 7. This is a **deploy contract**: the runtime on the robot rebuilds this vector
-by hand from its own sensor reads, so a term that moves or changes width silently invalidates every
-trained checkpoint. The two IMU blocks come first -- the design doc's ordering, which puts the
-joint blocks first, is wrong and section 7 corrects it.
-"""
+"""The shared 61-component deployed actor observation layout, in concatenation order."""
 
 ACTOR_OBSERVATION_DIM = 61
 """Actor observation width the deployed MicroDuck policy expects.
@@ -88,12 +73,7 @@ CRITIC_OBSERVATION_TERMS = [
     ("head_pose_commands", 4),
     ("body_pose_commands", 6),
 ]
-"""The privileged critic layout (reference section 7), which is not a deploy contract.
-
-Upstream's critic is the actor's terms with the corruption removed, plus the base linear velocity
-it deletes from the actor and four sensor-derived foot terms. The sensor widths follow from two
-feet, so the total is measured here rather than taken from upstream's own count.
-"""
+"""Privileged critic observation layout, including task-only state outside the deployment interface."""
 
 CRITIC_OBSERVATION_DIM = 76
 """Critic observation width, measured from the assembled group."""
@@ -119,13 +99,7 @@ The head block is pinned to exactly zero, which is the third distinct value.
 """
 
 _DISPLACED_JOINTS = [(7, "head_yaw", 0.5), (9, "right_hip_yaw", -0.3)]
-"""``(column, joint, displacement [rad])`` the joint-block order is probed with.
-
-Upstream's servo layout (reference section 7) is indices 0-4 left leg, 5-8 neck/head, 9-13 right
-leg. ``head_yaw`` at 7 and ``right_hip_yaw`` at 9 straddle the neck/right-leg boundary, so any
-regrouping of the blocks -- Isaac Lab resolves joints in USD order, which is not this one -- moves
-at least one of them.
-"""
+"""Action column, joint name and displacement [rad] used to probe the head/right-leg block boundary."""
 
 
 @pytest.mark.integration
@@ -225,7 +199,7 @@ def test_environment_steps_with_random_actions(task_name):
 
 
 ##
-# Recipe parity against upstream
+# Configuration expectations
 ##
 
 _SQRT_0_1 = math.sqrt(0.1)
@@ -233,14 +207,10 @@ _SQRT_0_5 = math.sqrt(0.5)
 _SQRT_0_05 = math.sqrt(0.05)
 
 _SOLE_TARGET_HEIGHT = 0.02
-"""Upstream's foot-height target [m], measured at the sole site."""
+"""Target foot-sole height [m]."""
 
 _MEASURED_SOLE_TO_ANKLE_OFFSET = 0.022496
-"""Height [m] of the ankle body frame above the foot site at the STAND2 home pose.
-
-Measured independently of the port, with MuJoCo forward kinematics on the pinned
-``robot_walk.xml``: ``data.xpos[ankle_left][2] - data.site_xpos[left_foot][2]``.
-"""
+"""Ankle-frame height above the foot sole at STAND2 [m], used to rebase sole-height targets."""
 
 _SOLE_TO_ANKLE_OFFSET = 0.0225
 """The same offset [m], rounded to a tenth of a millimetre, which is the form the recipe carries."""
@@ -297,11 +267,7 @@ EXPECTED_REWARDS = {
         },
     ),
 }
-"""Upstream's reward recipe (reference sections 2.4 and 6), keyed by term name.
-
-``soft_landing`` is absent because upstream removes it from its own recipe, and there is no energy
-or torque penalty because the mjlab base template has none.
-"""
+"""Initial reward terms, weights and scalar parameters, including inherited terms."""
 
 EXPECTED_EVENTS = {
     # name: (mode, scalar params)
@@ -322,14 +288,7 @@ EXPECTED_EVENTS = {
     "randomize_armature": ("reset", {"armature_distribution_params": (0.9, 1.1), "operation": "scale"}),
     "push_robot": ("interval", {"velocity_range": {"x": (-0.3, 0.3), "y": (-0.3, 0.3)}}),
 }
-"""Upstream's domain-randomization suite (reference section 2.6), keyed by term name.
-
-Upstream's ``base_com`` is absent because it selects zero bodies upstream; its
-``expand_bam_friction_fields`` is absent because it only registers MuJoCo's
-``dof_frictionloss``/``dof_damping`` for per-world expansion, which the BAM actuator's
-per-environment storage already is; and the three terms it ships disabled are absent because a term
-that is never enabled is not part of the recipe.
-"""
+"""Configured event modes and scalar parameters."""
 
 EXPECTED_TERMINATIONS = {
     # name: (time_out flag, scalar params)
@@ -338,13 +297,7 @@ EXPECTED_TERMINATIONS = {
     "out_of_terrain_bounds": (True, {"distance_buffer": 20.3}),
     "nan_state": (False, {"sensor_names": ("contact_forces",)}),
 }
-"""Upstream's terminations (reference sections 2.5 and 6), keyed by term name.
-
-``distance_buffer`` is the one value that is not upstream's literal. Upstream trips at
-``|x| > num_rows * size_x / 2 - 0.3``; this term trips at ``|x| > map_width / 2 - buffer`` with
-``map_width = num_rows * size_x + 2 * border_width``, so reproducing upstream's bound needs
-``buffer = border_width + 0.3``.
-"""
+"""Configured termination names, timeout flags and thresholds."""
 
 EXPECTED_CURRICULUM_TERMS = {
     "terrain_levels",
@@ -356,10 +309,7 @@ EXPECTED_CURRICULUM_TERMS = {
     "com_range",
     "head_com_range",
 }
-"""Upstream's curriculum term names (reference sections 2.8 and 6).
-
-``command_vel`` is absent because upstream deletes it: MicroDuck's velocity ranges never widen.
-"""
+"""Configured curriculum term names."""
 
 EXPECTED_STAGE_TABLES = {
     "action_rate_weight": (
@@ -378,7 +328,7 @@ EXPECTED_STAGE_TABLES = {
     "com_range": ("range_stages", "range", [0.003, 0.005, 0.01, 0.015], [0, 500, 1000, 1500]),
     "head_com_range": ("range_stages", "range", [0.003, 0.005, 0.01], [0, 500, 1000]),
 }
-"""Upstream's scalar curriculum tables (reference section 6): payloads and iteration boundaries."""
+"""Scalar curriculum payloads at each control-step boundary."""
 
 EXPECTED_HEAD_POSE_STAGES = [
     (0, ((-0.05, 0.05), (-0.05, 0.05), (-0.07, 0.07), (-0.015, 0.015))),
@@ -387,10 +337,10 @@ EXPECTED_HEAD_POSE_STAGES = [
     (1500, ((-0.72, 0.72), (-0.72, 0.72), (-0.91, 0.91), (-0.20, 0.20))),
     (2000, ((-1.10, 1.10), (-1.10, 1.10), (-1.40, 1.40), (-0.31, 0.31))),
 ]
-"""Upstream's head-pose range ramp, per ``(neck_pitch, head_pitch, head_yaw, head_roll)``."""
+"""Head command ranges [rad], ordered as neck pitch, head pitch, yaw and roll."""
 
 STEPS_PER_ITERATION = 24
-"""Environment steps per PPO iteration, upstream's ``num_steps_per_env``."""
+"""Environment control steps per PPO iteration."""
 
 
 EXPECTED_ACTOR_NOISE = {
@@ -399,14 +349,10 @@ EXPECTED_ACTOR_NOISE = {
     "joint_pos": 0.001,
     "joint_vel": 0.25,
 }
-"""Half-width of the uniform noise on each corrupted actor term (reference section 2.3).
-
-These are MicroDuck's own overrides of the mjlab base template, which is an order of magnitude
-noisier throughout.
-"""
+"""Uniform observation-noise half-width for each corrupted actor term."""
 
 EXPECTED_IMU_MISALIGNMENT_DEG = 6.0
-"""Upper bound on the IMU mounting-misalignment angle (reference section 6)."""
+"""Maximum IMU mounting-misalignment angle [deg]."""
 
 EXPECTED_SERVO_JOINT_NAMES = [
     "left_hip_yaw",
@@ -424,11 +370,11 @@ EXPECTED_SERVO_JOINT_NAMES = [
     "right_knee",
     "right_ankle",
 ]
-"""The 14 servos in upstream's MJCF actuator order: 0-4 left leg, 5-8 neck/head, 9-13 right leg."""
+"""Fourteen controlled servos in action order: left leg 0-4, neck/head 5-8 and right leg 9-13."""
 
 
 def _scalar_params(term_cfg) -> dict:
-    """Drop the entity selections, which are compared separately and are not upstream's values."""
+    """Return scalar parameters; entity selections are checked separately by name and order."""
     return {key: value for key, value in term_cfg.params.items() if not isinstance(value, SceneEntityCfg)}
 
 
@@ -439,7 +385,7 @@ def _observation_terms(group) -> dict[str, ObservationTermCfg]:
 
 @pytest.mark.unit
 def test_the_actor_observation_layout_is_the_deploy_contract():
-    """The actor group is upstream's term order at upstream's noise levels, with corruption on."""
+    """Actor observation ordering, corruption flags and noise levels must match the deployment interface."""
     observations = MicroDuckVelocityRoughEnvCfg().observations
     terms = _observation_terms(observations.policy)
 
@@ -510,7 +456,7 @@ def test_the_critic_group_is_privileged_and_reads_the_true_state():
     assert terms["projected_gravity"].func is mdp.projected_gravity
     assert terms["joint_vel"].func is mdp.joint_vel_rel
     assert terms["joint_pos"].params["biased"] is False
-    # the privileged half: the base velocity upstream deletes from the actor, and the foot terms
+    # the privileged half: the base velocity the task deletes from the actor, and the foot terms
     assert terms["base_lin_vel"].func is mdp.base_lin_vel
     assert terms["foot_height"].func is mdp.foot_origin_height_safe
     assert terms["foot_air_time"].func is mdp.foot_group_air_time_safe
@@ -534,7 +480,7 @@ def test_both_observation_groups_read_the_servos_in_the_deploy_order():
         "critic.joint_vel": critic["joint_vel"].params["asset_cfg"],
     }
     for name, asset_cfg in selections.items():
-        # spelling the servos out also reproduces upstream's ``^(?!passive_).*`` exclusion
+        # spelling the servos out also reproduces the configured ``^(?!passive_).*`` exclusion
         assert asset_cfg.joint_names == EXPECTED_SERVO_JOINT_NAMES, name
         assert asset_cfg.preserve_order, name
     # the columns the integration test probes are the ones the layout names
@@ -544,7 +490,7 @@ def test_both_observation_groups_read_the_servos_in_the_deploy_order():
 
 @pytest.mark.unit
 def test_the_reward_recipe_matches_upstream_term_for_term():
-    """Every reward slot upstream trains with is present, with its weight and its parameters."""
+    """Reward terms must match the expected set, weights and scalar parameters."""
     rewards = MicroDuckVelocityRoughEnvCfg().rewards
 
     assert set(vars(rewards)) == set(EXPECTED_REWARDS)
@@ -566,7 +512,7 @@ def test_the_foot_height_targets_are_offset_to_the_ankle_frame_they_are_measured
     # a target copied verbatim would ask for a foot 2 cm below the ground it stands on
     assert rewards.foot_clearance.params["target_height"] > _MEASURED_SOLE_TO_ANKLE_OFFSET
     # the swing-height term charges a relative error, so re-basing it also rescales its gradient;
-    # weight * (peak / target - 1)^2 must equal upstream's -0.25 * (peak_sole / 0.02 - 1)^2
+    # weight * (peak / target - 1)^2 must equal the configured -0.25 * (peak_sole / 0.02 - 1)^2
     target = rewards.foot_swing_height.params["target_height"]
     peak_sole = 0.031
     ported = rewards.foot_swing_height.weight * ((peak_sole + _SOLE_TO_ANKLE_OFFSET) / target - 1.0) ** 2
@@ -587,7 +533,7 @@ def test_the_head_pose_terms_pin_the_joint_order_the_command_columns_assume():
 
 @pytest.mark.unit
 def test_the_randomization_suite_matches_upstream_term_for_term():
-    """Every domain randomization upstream enables is present, in its mode, with its ranges."""
+    """Enabled randomization modes and ranges must match the expected configuration."""
     events = MicroDuckVelocityRoughEnvCfg().events
 
     assert set(vars(events)) == set(EXPECTED_EVENTS)
@@ -602,7 +548,7 @@ def test_the_randomization_suite_matches_upstream_term_for_term():
 
 @pytest.mark.unit
 def test_the_terminations_match_upstream_including_the_rebased_terrain_bound():
-    """Every termination upstream ends an episode on is present, with its time-out classification."""
+    """Termination names and timeout flags must match, with terrain bounds rebased for the border width."""
     terminations = MicroDuckVelocityRoughEnvCfg().terminations
 
     assert set(vars(terminations)) == set(EXPECTED_TERMINATIONS)
@@ -614,7 +560,7 @@ def test_the_terminations_match_upstream_including_the_rebased_terrain_bound():
 
 @pytest.mark.unit
 def test_the_head_centre_of_mass_randomization_drops_the_upstream_hip_link():
-    """``bearing_roll`` is the right hip-yaw link; upstream lists it among the head bodies in error."""
+    """Head center-of-mass randomization must select the intended head bodies without a hip link."""
     body_names = MicroDuckVelocityRoughEnvCfg().events.randomize_head_com.params["asset_cfg"].body_names
 
     assert "bearing_roll" not in body_names
@@ -623,7 +569,7 @@ def test_the_head_centre_of_mass_randomization_drops_the_upstream_hip_link():
 
 @pytest.mark.unit
 def test_the_scalar_curricula_reproduce_upstream_stage_tables():
-    """The staged schedules carry upstream's payloads at upstream's iteration boundaries."""
+    """Scalar scheduled values must change at the expected control-step boundaries."""
     curriculum = MicroDuckVelocityRoughEnvCfg().curriculum
 
     # two-sided, so an unexpected extra schedule quietly rewriting a weight or a range also fails
@@ -637,7 +583,7 @@ def test_the_scalar_curricula_reproduce_upstream_stage_tables():
 
 @pytest.mark.unit
 def test_the_head_pose_range_curriculum_reproduces_upstream_stage_table():
-    """The head command opens through upstream's five stages, keeping its final caps verbatim."""
+    """Head command ranges must follow the five configured stages and retain their final caps."""
     stages = MicroDuckVelocityRoughEnvCfg().curriculum.head_pose_range.params["range_stages"]
 
     assert len(stages) == len(EXPECTED_HEAD_POSE_STAGES)
@@ -680,19 +626,7 @@ def test_the_velocity_command_buckets_and_sim_rates_match_upstream():
 
 @pytest.mark.unit
 def test_the_servos_run_on_the_backend_native_path():
-    """MicroDuck trains on the Newton-native BAM path, which needs an even decimation to capture.
-
-    Upstream executes its servo model inside the MuJoCo step, republishing the live friction budget
-    and viscous coefficient into ``dof_frictionloss``/``dof_damping`` every physics tick; the
-    Isaac Lab-executed path instead clips the torque once per control step and never writes to the
-    solver. The two are different plants, so which one the task selects is part of the recipe.
-
-    The decimation is asserted here as well as with the rates it belongs to, because it is a
-    *precondition* of this choice and not just a control rate: the BAM delay line is actuator state,
-    and :class:`~isaaclab_newton.physics.NewtonManager` refuses to CUDA-graph-capture stateful
-    Newton actuators at a decimation of one and warns that an odd decimation drops the last state
-    update of every replay. Four is even, so the capture is balanced.
-    """
+    """Native BAM actuation requires an even physics decimation for graph capture."""
     for cfg in (MicroDuckVelocityRoughEnvCfg(), MicroDuckVelocityFlatEnvCfg()):
         assert cfg.sim.use_newton_actuators is True
         assert cfg.decimation % 2 == 0
@@ -700,20 +634,13 @@ def test_the_servos_run_on_the_backend_native_path():
 
 @pytest.mark.unit
 def test_the_runner_iteration_size_is_tied_to_the_curriculum_step_constant():
-    """A runner change would otherwise silently desync every curriculum boundary from 'iteration N'.
-
-    ``num_steps_per_env`` exists in two places that must agree: the runner's own field and the
-    constant ``velocity_env_cfg.MICRODUCK_STEPS_PER_ITERATION`` the curriculum stage tables convert
-    upstream's iteration counts with. The runner imports that constant rather than restating it, so
-    this assertion is really pinning that the import stayed wired -- see
-    :data:`STEPS_PER_ITERATION` above for the independent, upstream-derived value both must equal.
-    """
+    """The rollout length must match the control-step conversion used by curriculum boundaries."""
     assert MicroDuckPPORunnerCfg().num_steps_per_env == STEPS_PER_ITERATION
 
 
 @pytest.mark.unit
 def test_the_terrain_generator_carries_upstream_sub_terrain_mix():
-    """The rough terrain is upstream's gentle mix, and the flat task keeps a plain plane."""
+    """The rough task uses the configured gentle terrain mixture; the flat task uses a plane."""
     rough = MicroDuckVelocityRoughEnvCfg()
     generator = rough.scene.terrain.terrain_generator
 
@@ -728,7 +655,7 @@ def test_the_terrain_generator_carries_upstream_sub_terrain_mix():
     assert generator.sub_terrains["pyramid_stairs"].step_height_range == (0.0, 0.015)
     assert generator.sub_terrains["random_grid"].grid_height_range == (0.0, 0.010)
     assert generator.sub_terrains["pyramid_slope"].slope_range == (0.03, 0.10)
-    # upstream rings none of its sub-terrains with a flat border
+    # the task rings none of its sub-terrains with a flat border
     assert generator.sub_terrains["pyramid_slope"].border_width == 0.0
 
     flat = MicroDuckVelocityFlatEnvCfg()

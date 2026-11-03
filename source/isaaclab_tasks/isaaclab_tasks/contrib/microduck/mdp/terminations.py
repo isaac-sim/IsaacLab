@@ -3,11 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Shared MicroDuck terminations for walking, recovery and skating recipes.
-
-Existing walking APIs retain their behavior. Descriptive task-specific variants preserve distinct
-encoder storage, command sampling, contact grouping, recovery gates and non-finite handling.
-"""
+"""Numerical-state and recovery-timeout termination terms."""
 
 from __future__ import annotations
 
@@ -21,7 +17,6 @@ from isaaclab.managers import SceneEntityCfg
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedRLEnv
-
 
 from isaaclab.managers import ManagerTermBase, TerminationTermCfg
 
@@ -53,11 +48,6 @@ def robot_state_is_nan_optional_sensors(
 ) -> torch.Tensor:
     """Terminate environments whose robot state has stopped being finite.
 
-    Ported from reference section 6 (``robot_state_is_nan``). A solver that diverges leaves NaN or
-    infinite values in the state, which then propagate into the observations and poison the policy
-    gradient for the whole batch; terminating resets the environment instead. Despite its name the
-    check is for non-finiteness, so infinities are caught as well.
-
     This is not a time-out: configure it with ``time_out=False`` so the value bootstraps as a real
     failure.
 
@@ -68,7 +58,7 @@ def robot_state_is_nan_optional_sensors(
     Args:
         env: The environment instance.
         sensor_names: Names of contact sensors whose forces are checked as well. Names the scene
-            does not carry are ignored, as upstream does. Defaults to an empty tuple.
+            does not carry are ignored, as does. Defaults to an empty tuple.
         asset_cfg: The articulation to check. Defaults to the entity named ``"robot"``.
 
     Returns:
@@ -96,18 +86,7 @@ def robot_state_is_nan_optional_sensors(
 class fallen_too_long(ManagerTermBase):
     """Terminate an environment whose robot has been continuously down for too long.
 
-    Ported from addendum section 3.5 (``fallen_too_long``). It is the backstop of the hybrid
-    walking-and-recovery task: once the tilt termination is disabled by curriculum a fall no longer
-    ends the episode, and without this term a robot that never gets up would spend the remaining
-    eighteen seconds of its episode on the floor, filling the rollout with data about lying down.
-
     Two properties are deliberate and both differ from the recovery *rewards*:
-
-    * The gate is **height or tilt**, where the rewards gate on tilt alone. That asymmetry is
-      upstream's: a robot sitting low but upright is not paid as fallen, but it is recycled as
-      stuck, so sitting is neither rewarded nor a comfortable place to wait.
-    * The clock measures a **continuous** fall. Getting up at any point clears it, so a robot that
-      falls repeatedly is not accumulating a budget across recoveries.
 
     This is not a time-out: configure it with ``time_out=False`` so the value bootstraps as a real
     failure, which is what makes lying down expensive to the critic.

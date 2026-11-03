@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Keep the upstream per-rollout-step normalizer timing on RSL-RL 5.5."""
+"""MLP models with rollout-driven observation normalization."""
 
 from rsl_rl.models import MLPModel
 from tensordict import TensorDict
@@ -14,7 +14,7 @@ class MicroDuckVelStandMLPModel(MLPModel):
 
     RSL-RL 5.0 updates next observations in ``process_env_step``. Version 5.5 instead
     updates a complete batch after PPO; the latter must be suppressed for both student models.
-    The native exporter still includes the unmodified empirical normalizer (epsilon .01).
+    The native exporter still includes the unmodified empirical normalizer (epsilon.01).
     """
 
     def update_rollout_normalization(self, obs: TensorDict) -> None:

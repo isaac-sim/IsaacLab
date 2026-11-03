@@ -3,11 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause AND Apache-2.0
 
-"""Merged upstream teacher-input routing and yaw interpolation.
+"""Teacher-input routing and yaw interpolation for VelStand.
 
-Adapted from Pollen Robotics ``microduck_rl`` distill.py at bae39f5900b318f7e87fc485c30a31213cfa14eb,
-licensed Apache-2.0 (see LICENSE-microduck_rl.md). Changes: Isaac Lab group names and formatting.
-The proposed angular-velocity gate in upstream PR54 is deliberately absent.
+Adapted from Pollen Robotics ``microduck_rl`` under Apache-2.0; see ``LICENSE-microduck_rl.md``.
 """
 
 from __future__ import annotations
@@ -39,7 +37,8 @@ def body_frame_masks(
     eps: float = 1e-6,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """(body frames → off the walk anchor, teach frames → stand expert). Command obs carry
-    no noise, so "twist == 0" and "axis == 0" are exact tests."""
+    no noise, so "twist == 0" and "axis == 0" are exact tests.
+    """
     standing = obs[:, twist_slice[0] : twist_slice[1]].abs().amax(dim=1) <= eps
     body = obs[:, body_slice[0] : body_slice[1]]
     active = body[:, list(active_axes)].abs().amax(dim=1) > eps
@@ -77,7 +76,8 @@ def _interp_rows(x: torch.Tensor, xp: torch.Tensor, fp: torch.Tensor) -> torch.T
 
 def remap_anchor_yaw(obs: torch.Tensor, twist_slice: tuple[int, int], table: dict) -> torch.Tensor:
     """Copy of the flat obs with the yaw command replaced by the one the walk anchor needs to
-    actually turn at that rate (bilinear in |v_xy| and |wz|, sign kept, 0 → 0)."""
+    actually turn at that rate (bilinear in |v_xy| and |wz|, sign kept, 0 → 0).
+    """
     out = obs.clone()
     tw = obs[:, twist_slice[0] : twist_slice[1]]
     wz = tw[:, 2]

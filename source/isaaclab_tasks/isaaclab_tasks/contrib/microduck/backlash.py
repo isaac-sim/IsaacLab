@@ -71,13 +71,7 @@ def _encoder_preset(term: ObservationTermCfg, func: Callable[..., torch.Tensor],
 
 
 def apply_backlash_preset(env_cfg: ManagerBasedRLEnvCfg, backlash_robot_cfg: ArticulationCfg) -> ManagerBasedRLEnvCfg:
-    """Add the upstream gearbox-play alternative after constructing the task config.
-
-    The supplied robot variant owns the converted asset and native BAM feedback.
-    The task's initial pose and prim path are retained. Paired encoder observations
-    keep their noise and latency. Head rewards measure servo plus paired play,
-    matching upstream's shared helpers. Pose and limit joint selections exclude
-    the additional passive play joints.
+    """Add the gearbox-play alternative after constructing the task config.
 
     Existing robot and observation preset wrappers are accepted through their
     standard alternatives, allowing callers to compose this helper once at the

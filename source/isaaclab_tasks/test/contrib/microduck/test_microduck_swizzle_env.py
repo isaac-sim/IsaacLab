@@ -3,22 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Recipe-parity and smoke tests for the contributed MicroDuck swizzle environment.
+"""Test swizzle configuration and its differences from the roller task.
 
-The parity tests need neither the asset nor the simulator: they read the assembled configuration and
-compare it against the upstream recipe, transcribed here from
-``artifacts/microduck/upstream_reference_tasks3.md`` section 7. The expected values are spelled out
-rather than imported from the configuration under test, so that a drifting value fails rather than
-agrees with itself.
-
-The task is a *delta* on the roller-skating recipe, so this file tests the delta and asserts that
-everything else is untouched -- the scene, the sensors, the events, the terminations and the physics
-preset are compared object-for-object against
-``test_microduck_rollers_env.py``'s subject rather than re-transcribed. What is transcribed here is
-the reward swap, the two re-opened command clamps and the four new curricula.
-
-Simulator-backed checks retrieve the prebuilt USD through Isaac Lab's native asset cache.
-Recipe checks do not need an asset; source fidelity comparisons use optional read-only fixtures."""
+Scene, sensing, events and terminations remain shared; rewards, command limits and curricula differ.
+"""
 
 import os
 
@@ -51,7 +39,7 @@ requires_microduck_rollers_usd = pytest.mark.usefixtures("microduck_rollers_usd"
 TASK_NAME = "IsaacContrib-Velocity-Swizzle-MicroDuck"
 
 STEPS_PER_ITERATION = 24
-"""Environment steps per PPO iteration, upstream's ``num_steps_per_env``."""
+"""Environment control steps per PPO iteration."""
 
 ACTOR_OBSERVATION_TERMS = [
     ("base_ang_vel", 3),
@@ -64,12 +52,7 @@ ACTOR_OBSERVATION_TERMS = [
     ("body_pose_commands", 6),
 ]
 ACTOR_OBSERVATION_DIM = 61
-"""The deployed MicroDuck observation layout (section 11.1).
-
-Identical to the stride task's, which is the point of swapping the head slot's *content* rather than
-inserting a term: the head command replaces a zero pad in place, so the width and the order both
-survive.
-"""
+"""Expected width of the deployed actor observation vector."""
 
 CRITIC_OBSERVATION_TERMS = [
     ("base_lin_vel", 3),
@@ -87,7 +70,7 @@ CRITIC_OBSERVATION_TERMS = [
     ("body_pose_commands", 6),
 ]
 CRITIC_OBSERVATION_DIM = 78
-"""The privileged critic layout (section 11.2), which is not a deploy contract."""
+"""Expected width of the assembled critic observation group."""
 
 EXPECTED_LEG_JOINT_NAMES = [
     "left_hip_yaw",
@@ -127,11 +110,7 @@ _STD_RUNNING = {
     ".*knee.*": 0.8,
     ".*ankle.*": 0.5,
 }
-"""The stride task's tolerance dictionaries with the neck, head and wheel entries filtered out.
-
-Upstream filters the dictionaries and narrows the selector together (section 7.4), which is what
-makes the filtered entries dead rather than merely unused.
-"""
+"""Leg-only running posture tolerances; head and wheel entries are excluded from the selection."""
 
 EXPECTED_ADDED_REWARDS = {
     # name: (weight, scalar params)
@@ -140,11 +119,7 @@ EXPECTED_ADDED_REWARDS = {
     "heading_tracking": (0.0, {"command_name": "base_velocity", "std": 0.5}),
     "head_pose_tracking": (0.0, {"command_name": "head_pose", "std": 0.5}),
 }
-"""The four terms the swizzle recipe adds to the stride one (section 7.5).
-
-The last two are declared at weight zero and reach 3.0 and 4.0 through the curricula below, which is
-where the tension between the two heading terms is managed.
-"""
+"""Reward terms added to the roller recipe for swizzle."""
 
 EXPECTED_REMOVED_REWARDS = [
     # the five anti-swizzle terms: this gait is what they exist to suppress
@@ -158,10 +133,10 @@ EXPECTED_REMOVED_REWARDS = [
     # it would fight the head command
     "neck_joint_pos_l2",
 ]
-"""The seven stride terms upstream deletes (section 7.1, 7.2 and 7.4)."""
+"""Roller reward terms absent from the swizzle task."""
 
 EXPECTED_REWARD_COUNT = 18
-"""Upstream's swizzle reward dict has eighteen terms (section 7.5): 21 - 7 + 4."""
+"""Expected total number of swizzle reward terms."""
 
 EXPECTED_CURRICULUM_TERMS = {
     # inherited from the stride recipe
@@ -181,7 +156,7 @@ EXPECTED_WEIGHT_STAGES = {
     "heading_tracking_weight": ([0.0, 0.0, 1.5, 3.0], [0, 1000, 1750, 2500]),
     "head_pose_tracking_weight": ([0.0, 0.0, 2.0, 4.0], [0, 1500, 2250, 3000]),
 }
-"""The three schedules that introduce the task's re-enabled capabilities (sections 7.3 and 7.4)."""
+"""Reward weights at each curriculum boundary."""
 
 EXPECTED_HEAD_POSE_RANGE_STAGES = [
     (0, ((-0.05, 0.05), (-0.05, 0.05), (-0.07, 0.07), (-0.015, 0.015))),
@@ -189,7 +164,7 @@ EXPECTED_HEAD_POSE_RANGE_STAGES = [
     (2250, ((-0.55, 0.55), (-0.55, 0.55), (-0.70, 0.70), (-0.15, 0.15))),
     (3000, ((-1.10, 1.10), (-1.10, 1.10), (-1.40, 1.40), (-0.31, 0.31))),
 ]
-"""The head command envelope, held tiny until the swizzle is solid (section 7.4)."""
+"""Head command range stages [rad], including the initial restricted envelope."""
 
 
 def _scalar_params(term_cfg) -> dict:
@@ -208,7 +183,7 @@ def _live_terms(manager_cfg) -> dict:
 
 
 ##
-# Recipe parity against upstream (section 7)
+# Configuration expectations
 ##
 
 
@@ -252,13 +227,7 @@ def test_the_surviving_stride_terms_keep_their_weights_and_parameters():
 
 @pytest.mark.unit
 def test_the_posture_reward_is_narrowed_to_the_legs_which_changes_the_value_of_the_mean():
-    """The kernel is a mean over the selection, so a ten-joint selection is a different reward.
-
-    Upstream narrows it deliberately (section 7.4): the neck and head are command-driven here, and
-    holding them at the stand pose is exactly what the head command asks them not to do. The wheels'
-    999.0 tolerance entries -- the stride task's way of neutralizing them inside an eighteen-joint
-    mean -- go with the wheels, and this test pins that they are gone rather than left dead.
-    """
+    """Posture reward averages over the ten legs; neck, head and wheel joints must not dilute that mean."""
     swizzle = MicroDuckVelocitySwizzleEnvCfg().rewards.pose
     stride = MicroDuckVelocityRollersFlatEnvCfg().rewards.pose
 
@@ -289,8 +258,7 @@ def test_the_wheel_reward_becomes_bidirectional_and_keeps_its_known_stale_radius
     assert swizzle.wheel_speed.params["bidirectional"] is True
     assert stride.wheel_speed.params.get("bidirectional", False) is False
     assert swizzle.braking is None
-    # parity over correctness, as on the stride task: the measured tire radius is 0.0150 m and the
-    # deployed policies were trained against the reward's 0.0175 m default (section 7.6)
+    # The configured reward radius is 0.0175 m, distinct from the 0.0150 m geometric tire radius.
     assert swizzle.wheel_speed.params["wheel_radius"] == pytest.approx(0.0175)
     assert swizzle.wheel_speed.params["vel_scale"] == pytest.approx(0.3)
     assert swizzle.wheel_speed.weight == pytest.approx(10.0)
@@ -361,7 +329,7 @@ def test_the_head_command_replaces_a_zero_pad_in_place_on_both_groups():
 
 @pytest.mark.unit
 def test_the_curricula_hand_the_heading_over_and_open_the_head_late():
-    """Upstream's stage tables, and the crossover the two heading terms fight across."""
+    """Heading terms cross over on schedule before the head command envelope widens."""
     curriculum = MicroDuckVelocitySwizzleEnvCfg().curriculum
 
     # two-sided, so a schedule quietly appearing or disappearing also fails
@@ -391,13 +359,7 @@ def test_the_curricula_hand_the_heading_over_and_open_the_head_late():
 
 @pytest.mark.unit
 def test_the_two_heading_terms_are_both_live_across_the_hand_over():
-    """Reproduced deliberately: upstream trains the crossover, and nothing in its cfg says so.
-
-    ``heading_hold`` pays for staying at the spawn heading and ``heading_tracking`` for reaching a
-    resampled one, so between iterations 1750 and 2500 the policy is paid for both at once
-    (section 13.14). The port keeps the overlap rather than squaring the schedules off, because the
-    deployed policy was trained through it -- this test is the record that it is a choice.
-    """
+    """Both heading reward terms remain active through the scheduled crossover."""
     curriculum = MicroDuckVelocitySwizzleEnvCfg().curriculum
 
     hold = {stage["step"]: stage["weight"] for stage in curriculum.heading_hold_weight.params["weight_stages"]}
@@ -429,13 +391,13 @@ def test_the_scene_events_terminations_and_physics_are_the_stride_task_untouched
 
 @pytest.mark.unit
 def test_the_runner_inherits_the_roller_hyper_parameters_under_a_new_log_tree():
-    """Upstream replaces two string fields on the roller runner and changes nothing else."""
+    """The runner shares roller learner settings and uses its own experiment and run names."""
     runner = MicroDuckSwizzlePPORunnerCfg()
 
     assert runner.experiment_name == "microduck_velocity_swizzle"
     assert runner.num_steps_per_env == STEPS_PER_ITERATION
     assert runner.save_interval == 250
-    # inherited from the roller runner, including its 50 000-iteration ceiling (section 12.4)
+    # inherited from the roller runner, including its 50 000-iteration ceiling
     assert runner.max_iterations == 50000
     assert runner.algorithm.entropy_coef == pytest.approx(0.03)
     # off, although this is the one task in the family whose premise is left-right symmetry

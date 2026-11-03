@@ -3,11 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Shared MicroDuck commands for walking, recovery and skating recipes.
-
-Existing walking APIs retain their behavior. Descriptive task-specific variants preserve distinct
-encoder storage, command sampling, contact grouping, recovery gates and non-finite handling.
-"""
+"""Velocity, pose, posture and phase commands for MicroDuck."""
 
 from __future__ import annotations
 
@@ -24,7 +20,6 @@ from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
-
 
 import math
 
@@ -185,15 +180,6 @@ class ZeroablePoseDeltaCommand(CommandTerm):
     next resample. The width of the command is the length of :attr:`ZeroablePoseDeltaCommandCfg.ranges`,
     so one term serves both MicroDuck pose commands:
 
-    * ``head_pose`` -- 4 joint-position deltas [rad] from the stand pose, in the upstream servo
-      order ``(neck_pitch, head_pitch, head_yaw, head_roll)``.
-    * ``body_pose`` -- a 6-dimensional trunk-pose delta from the nominal stand, ordered
-      ``(x, y, z)`` [m] then ``(roll, pitch, yaw)`` [rad].
-
-    Upstream calls this ``UniformPoseCommand`` (reference section 6). It carries no metrics and no
-    debug visualization on purpose: an environment holds several of these and none of them tracks
-    an error the command term itself could measure -- the reward terms do that.
-
     The ranges are read on every resample rather than cached, so a curriculum can widen them by
     reassigning :attr:`ZeroablePoseDeltaCommandCfg.ranges` on the live term configuration. Widening
     only: the command width is fixed at construction, and a resample asserts that the replacement
@@ -293,23 +279,7 @@ class ForwardMaskVelocityCommand(UniformVelocityCommand):
     """Velocity command with MicroDuck's forward-only and turn-in-place buckets.
 
     On top of the stock uniform sampling and the standing bucket, a resample assigns two further
-    buckets (reference sections 2.7 and 6):
-
-    * **forward-only** (:attr:`ForwardMaskVelocityCommandCfg.rel_forward_envs`) -- the surge command
-      is rectified and floored, ``vx = |vx|.clamp(min=0.3)`` [m/s], with sway and yaw rate zeroed.
-      This is upstream's base-template behaviour, which MicroDuck inherits.
-    * **turn-in-place** (:attr:`ForwardMaskVelocityCommandCfg.rel_turn_in_place_envs`) -- the linear
-      command is zeroed and the yaw rate is forced to ``±U(0.4 * max, max)`` [rad/s], where ``max``
-      is the larger magnitude of :attr:`~UniformVelocityCommandCfg.Ranges.ang_vel_z`. Independent
-      uniform sampling almost never produces "no translation, large rotation", so spinning on the
-      spot would otherwise go untrained.
-
-    The buckets are independent draws, not a partition, so an environment can fall in several of
-    them. Upstream resolves the overlap by ordering, and this term reproduces it exactly:
-    turn-in-place beats standing beats forward-only. Forward-only rewrites the command in place;
-    standing is a flag the base class re-zeroes the command from on every step, which overrides a
-    forward-only value; and turn-in-place is applied last and clears the standing flag for its
-    environments, so it survives both.
+    buckets:
 
     Both fractions and :attr:`~UniformVelocityCommandCfg.rel_standing_envs` are read on every
     resample, so a curriculum can ramp them on the live term configuration.
@@ -399,9 +369,6 @@ class ForwardMaskVelocityCommandCfg(UniformVelocityCommandCfg):
 class RelativeHeadingVelocityCommand(ForwardMaskVelocityCommand):
     """Velocity command whose yaw slot carries a *heading error* rather than a yaw rate.
 
-    Ported from addendum section 5.4 (``RelativeHeadingVelocityCommand``), the roller task's command.
-    Two things change relative to :class:`ForwardMaskVelocityCommand`:
-
     * a **target heading** in the world frame is drawn uniformly on every resample, and the yaw slot
       of the command is filled every step with the wrapped error between it and the robot's current
       heading, clamped to the configured yaw range. The stock heading controller cannot express this:
@@ -409,19 +376,6 @@ class RelativeHeadingVelocityCommand(ForwardMaskVelocityCommand):
       of environments in its heading bucket;
     * the surge slot is a **throttle**, not a velocity target -- ``0`` coasts, positive pushes,
       negative brakes -- which is what the roller reward set reads it as.
-
-    On the shipped configuration the yaw range is ``(0.0, 0.0)``, so the heading error is computed
-    and then clamped away and the yaw slot is identically zero (addendum section 7.21): heading is
-    disabled while upstream focuses on straight-line skating, and
-    :class:`~isaaclab_tasks.contrib.microduck.mdp.rewards.heading_hold_reward` is what keeps the
-    robot straight instead. The machinery is carried across anyway, because it is what re-enabling
-    turning consists of.
-
-    Note:
-        Upstream's override *replaces* the base ``_update_command`` and therefore drops its
-        standing-environment zeroing. That is inert at ``rel_standing_envs = 0.0``, which is what the
-        roller task ships, so this port keeps the zeroing and stays correct if the fraction is ever
-        raised.
     """
 
     cfg: RelativeHeadingVelocityCommandCfg
@@ -440,10 +394,7 @@ class RelativeHeadingVelocityCommand(ForwardMaskVelocityCommand):
         """Heading [rad] each environment is steered toward, in the world frame."""
 
         self._heading_max = float(cfg.ranges.ang_vel_z[1]) if cfg.ranges.ang_vel_z else 1.0
-        # Upstream reports no velocity-tracking metrics here, because the surge slot is a throttle
-        # and the yaw slot is an angle: the inherited error metrics would compare a command against a
-        # quantity it does not name. Clearing them drops the metrics rather than logging a perfect
-        # score for a comparison that was never made.
+        # Clearing them drops the metrics rather than logging a perfect score for a comparison that was never made.
         self.metrics.clear()
 
     def __str__(self) -> str:
@@ -492,38 +443,12 @@ class RelativeHeadingVelocityCommandCfg(ForwardMaskVelocityCommandCfg):
 class SitStandCommand(UniformVelocityCommand):
     """Posture flag riding in the twist slot: ``[sit_flag, 0, 0]``, ``sit_flag`` in ``{0, 1}``.
 
-    Ported from addendum section 4.3 (``SitStandCommand``). The sit-stand task has no velocity to
-    track, so its three-wide command slot carries a binary posture request instead -- 0 asks for the
-    stand keyframe, 1 for the sitting one -- and the slot keeps its width because the deployed
-    61-wide observation is shared across the whole MicroDuck policy family. On the robot a button
-    press writes 0 or 1 into that column.
-
     Two quantities and the distinction between them is the whole design:
-
-    * :attr:`command` is the **raw flag**, and it is what the policy observes. A deployed runtime
-      flips it instantly, so that is what the policy has to be trained on.
-    * :attr:`alpha` is a **slewed blend** of the same request, moving toward the flag at a constant
-      ``1 / ramp_s`` per second, and it is what the posture rewards track. This is the task's
-      anti-crash mechanism. Against the raw flag, arriving early collects the full goal-state
-      payout for every step saved while the speed caps only integrate to a bounded excess-distance
-      cost -- upstream measured an instant drop beating a one-second descent by about sevenfold.
-      Against the moving blend, being *ahead* of the ramp scores about zero on the height and
-      composite stack, so tracking the slow setpoint is the argmax and the caps are left as
-      backstops for overshoot.
 
     The resample draws a fresh flag with probability :attr:`SitStandCommandCfg.sit_prob`, on the
     configured dwell time. Combined with a reset that spawns seated or standing with equal
     probability, the four (start state x request) combinations get equal coverage, which is what
     trains "hold what you are already doing" alongside the two transitions.
-
-    Note:
-        Upstream re-initializes the blend from the robot's actual trunk height inside ``compute``,
-        guarded on ``episode_length_buf <= 1``, and its own comment explains that this is a
-        workaround: its command manager resets *before* the event that teleports the robot into its
-        spawn pose, so a reset hook would read the pre-teleport height and drag a seated spawn
-        upward. Isaac Lab fires reset-mode events before it resets the command manager, so this port
-        does the same re-initialization from :meth:`reset` -- the hook the manager calls with exactly
-        the environments that restarted, and by then the spawn pose is already written.
     """
 
     cfg: SitStandCommandCfg
@@ -539,10 +464,7 @@ class SitStandCommand(UniformVelocityCommand):
         super().__init__(cfg, env)
 
         self._alpha = torch.zeros(self.num_envs, device=self.device)
-        # Upstream reports no velocity-tracking metrics here, because the surge slot is a posture
-        # flag: the inherited error metrics would compare a command against a quantity it does not
-        # name, and their success rate would score a comparison that was never made. Clearing them
-        # drops the metrics rather than logging a perfect score, as
+        # Clearing them drops the metrics rather than logging a perfect score, as
         # :class:`RelativeHeadingVelocityCommand` does for the same reason.
         self.metrics.clear()
 
@@ -658,13 +580,6 @@ class SitStandCommandCfg(UniformVelocityCommandCfg):
 class GroundPickPhaseCommand(UniformVelocityCommand):
     """Open-loop cycle clock riding in the twist slot: ``[cos(2*pi*phi), sin(2*pi*phi), 0]``.
 
-    Ported from addendum section 5.3 (``GroundPickPhaseCommand``). The ground-pick task has no
-    velocity to track: what the policy is told is *where in a fixed 4 s bend-and-return cycle it
-    currently is*, and the three-wide twist slot carries that phase as a unit vector on the circle so
-    the deployed 61-wide observation keeps its shape. The encoding is deliberate -- a raw ``phi`` in
-    ``[0, 1)`` would present the wrap from 0.999 to 0.0 as the largest jump in the input, where
-    ``(cos, sin)`` is continuous across it.
-
     The clock is **open loop**. It advances by ``dt / period`` every control step and neither the
     robot's state nor the resampling timer can move it, so a policy trained here follows a schedule
     rather than a goal; on the robot the runtime plays the same clock from a button press.
@@ -673,14 +588,6 @@ class GroundPickPhaseCommand(UniformVelocityCommand):
     (:attr:`GroundPickPhaseCommandCfg.randomize_phase`), which decorrelates the environments. With it
     off, every episode starts standing at phase 0, which is what a task whose deployed cycle begins
     on a button press wants instead.
-
-    Note:
-        Upstream's ``compute`` does not call its parent's, so the inherited resample timer, the
-        standing-environment zeroing and the heading controller never run; this port reproduces that
-        rather than leaving inert machinery live. It also writes the command from :meth:`reset` where
-        upstream leaves the previous episode's value in the buffer until the next ``compute``. That
-        is unobservable in a rollout -- both stacks compute observations after the command manager --
-        but it means the buffer and :attr:`phase` never disagree.
     """
 
     cfg: GroundPickPhaseCommandCfg
@@ -696,9 +603,7 @@ class GroundPickPhaseCommand(UniformVelocityCommand):
         super().__init__(cfg, env)
 
         self._phase = torch.zeros(self.num_envs, device=self.device)
-        # Upstream reports no velocity-tracking metrics here, for the reason
-        # :class:`SitStandCommand` gives: the slot carries a phase, so the inherited error metrics
-        # would score a comparison that was never made.
+
         self.metrics.clear()
         self._write_command()
 
@@ -714,12 +619,7 @@ class GroundPickPhaseCommand(UniformVelocityCommand):
 
     @property
     def phase(self) -> torch.Tensor:
-        """Position in the cycle, in ``[0, 1)``. Shape is (num_envs,).
-
-        The reward terms recover this from the command with ``atan2`` rather than reading it here,
-        which is what upstream does and what keeps them readable by a deployed runtime that only has
-        the command vector. This property is the same quantity without the round trip.
-        """
+        """Position in the cycle, in ``[0, 1)``. Shape is (num_envs,)."""
         return self._phase
 
     """
@@ -786,12 +686,7 @@ class GroundPickPhaseCommandCfg(UniformVelocityCommandCfg):
     class_type: type[GroundPickPhaseCommand] = GroundPickPhaseCommand
 
     period: float = 4.0
-    """Length [s] of one bend-and-return cycle. Defaults to 4.0, upstream's ``GP_PERIOD``."""
+    """Length [s] of one bend-and-return cycle. Defaults to 4.0, ``GP_PERIOD``."""
 
     randomize_phase: bool = True
-    """Whether each episode starts at a uniformly drawn phase. Defaults to True.
-
-    Upstream's default and the ground-pick task's value, so that environments do not oscillate in
-    lockstep. Its two roller trick tasks pass False instead, because their deployed cycle starts from
-    a standing button press.
-    """
+    """Whether each episode starts at a uniformly drawn phase. Defaults to True."""

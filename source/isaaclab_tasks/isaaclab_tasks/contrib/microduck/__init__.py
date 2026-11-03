@@ -3,12 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""MicroDuck walking and contributed Pollen skill recipes.
+"""MicroDuck walking, recovery, skating and manipulation tasks.
 
-The original flat/rough walking registrations retain their behavior. Separate ``-Pollen`` walking
-recipes and the recovery, seated, skating, kicking and distilled VelStand tasks are discovered by
-Isaac Lab's standard task importer. Select supported gearbox-play variants with ``presets=backlash``.
-See ``UPSTREAM.md`` and the MicroDuck training guides for source provenance and validation limits.
+Select gearbox play with ``presets=backlash`` on tasks that support it.
 """
 
 import gymnasium as gym

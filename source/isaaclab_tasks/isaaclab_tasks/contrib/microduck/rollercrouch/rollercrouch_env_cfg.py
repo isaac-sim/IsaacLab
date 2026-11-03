@@ -3,44 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Crouch-glide trick environment for the roller-skating Pollen Robotics MicroDuck biped.
-
-Ported from `pollen-robotics/microduck_rl <https://github.com/pollen-robotics/microduck_rl>`_,
-which trains MicroDuck on mjlab. Every value taken from upstream cites a section of
-``historical tasks3 source extraction``, the extraction of the pinned upstream
-checkouts; the sections that describe the roller recipe live in the companion
-``historical tasks2 source extraction`` and are cited as "addendum section N".
-
-The trick is a *shoot-the-duck*: the robot arrives rolling, folds into a deep crouch, holds it for
-two seconds while it glides on the momentum it brought, and stands back up -- four segments on a
-five-second clock, run four times per twenty-second episode. The phase of that clock rides in the
-three-wide twist slot of the shared 61-wide observation, exactly as the ground-pick gesture's does,
-so the policy is told where in the trick it is and nothing it does can move the clock.
-
-Two structural properties follow and shape the whole recipe:
-
-* **The pose is the objective.** There is no height trapezoid and no velocity target: two terms score
-  the fourteen servos against a phase-blended interpolation between a standing keyframe and a
-  crouched one, and everything else shapes how the robot gets there. Both keyframes were read off the
-  physical robot rather than designed in simulation, which is where this task's two known defects
-  come from -- see :data:`MICRODUCK_CROUCH_POSE` and :data:`MICRODUCK_STAND_POSE`.
-* **The momentum is an input, not an output.** :attr:`EventsCfg.reset_base` spawns the robot already
-  rolling at 0.2-0.5 m/s and :attr:`RewardsCfg.forward_speed` pays for keeping it. The entry velocity
-  is injected through the root reset rather than through a reset-mode push, and that is a fixed
-  regression rather than a preference: a push adds to the *current* root velocity, which on a
-  diverged environment sends the free joint to NaN. Upstream locks the same distinction with its own
-  regression test, and its spin task restates the warning verbatim (section 8.7).
-
-This environment is built as a delta on
-:class:`~isaaclab_tasks.contrib.microduck.velocity.rollers_env_cfg.MicroDuckVelocityRollersFlatEnvCfg`,
-where upstream rebuilds it from the raw mjlab template and states the randomization suite, the
-sensors and both observation groups again by hand. The extraction verified that what upstream states
-again *is* the roller recipe term for term (section 8.7), so the two constructions agree in value and
-differ only in how much is restated; the parity tests transcribe upstream's tables independently, so
-an inherited value that drifted from upstream's would fail rather than agree with itself.
-
-Source pins and historical extraction labels are indexed in this task family's ``UPSTREAM.md``.
-"""
+"""Phase-commanded crouch-and-glide behavior on passive roller skates."""
 
 import math
 
@@ -67,21 +30,16 @@ from isaaclab_tasks.contrib.microduck.velocity.velocity_env_cfg import (
 )
 
 ##
-# The cycle (section 8.1)
+# The cycle
 ##
 
 MICRODUCK_CROUCH_PERIOD = 5.0
-"""Length [s] of one crouch-glide cycle.
-
-At the inherited twenty-second episode this is four complete cycles. It is also a **deployment
-contract**: upstream's runtime is launched with a matching ``--ground-pick-period``, and a policy
-trained on a different clock reads a phase that does not mean what it meant in training.
-"""
+"""Length [s] of one crouch-glide cycle."""
 
 MICRODUCK_CROUCH_DESCENT_END = 0.10
 MICRODUCK_CROUCH_HOLD_END = 0.50
 MICRODUCK_CROUCH_RISE_END = 0.60
-"""Segment boundaries of the cycle, as fractions of the period (section 8.1).
+"""Segment boundaries of the cycle, as fractions of the period.
 
 At a five-second period they are a 0.5 s descent, a 2.0 s crouched glide, a 0.5 s rise and a 2.0 s
 standing rest. The two long segments are the ones the trick is judged on; the two short ones are the
@@ -99,14 +57,14 @@ MICRODUCK_CROUCH_LEAN_PITCH = 0.08
 """Sine of the forward trunk lean asked for during the crouch, about 4.6 degrees."""
 
 MICRODUCK_ENTRY_VELOCITY_X = (0.2, 0.5)
-"""Forward speed [m/s] the robot is spawned rolling at (section 8.7).
+"""Forward speed [m/s] the robot is spawned rolling at.
 
 The trick is a glide, so the momentum has to be there before the fold starts. See
 :attr:`EventsCfg.reset_base` for why it is injected through the root reset and not through a push.
 """
 
 ##
-# The two keyframes (section 8.2)
+# The two keyframes
 ##
 
 MICRODUCK_STAND_POSE = {
@@ -126,14 +84,6 @@ MICRODUCK_STAND_POSE = {
     "right_ankle": -1.0646,
 }
 """The standing keyframe [rad] the cycle departs from and returns to, read off the physical robot.
-
-**KNOWN-STALE COMMENTS, POSE REPRODUCED VERBATIM.** Upstream's two comments on this dictionary claim
-it is the simulator's HOME pose and ask that it be kept close to HOME, so that the deployed runtime
-can hand back cleanly to the roller policy, which restarts from HOME. Measured on the pinned roller
-MJCF, neither is true (section 13.7): the knees are 55 and 56 degrees off HOME, the ankles 41 and 35
-degrees, and the pose stands the trunk at 0.1133 m against HOME's 0.1407 m -- a 27 mm crouch. The
-values are what the deployed policy was trained against and are reproduced unchanged; only the
-claims about them are not carried over.
 
 The consequence is visible at phase 0: :attr:`EventsCfg.reset_base` spawns the trunk in the roller
 task's HOME-height band, about 25 mm above the pose the reward immediately asks for, so every episode
@@ -156,28 +106,11 @@ MICRODUCK_CROUCH_POSE = {
     "right_knee": -1.5907,
     "right_ankle": 0.0568,
 }
-"""The crouched keyframe [rad] the cycle folds into, read off the physical robot.
+"""Crouch keyframe [rad].
 
-**KNOWN-DEFECT POSE, REPRODUCED VERBATIM (upstream issue draft 018).** Two of these targets lie
-outside the compiled model's hard joint limits, measured on the pinned roller MJCF (section 13.6):
-
-* ``neck_pitch`` at 1.0937 rad against an upper stop of 1.0472 rad -- 2.7 degrees past it, and
-  0.18 rad past the *soft* bound the 0.9 limit factor imposes;
-* ``right_knee`` at -1.5907 rad against a lower stop of -1.5708 rad -- 1.1 degrees past it.
-
-Both pose rewards therefore charge a residual on those two joints that no policy can zero, so the
-"hold the crouch" reward can never saturate and the policy is asked to drive two joints into their
-stops with a low-stiffness servo. The magnitudes are small -- the Gaussian loses about 1.4 % and the
-L1 charges a constant ``0.047/14`` per step -- so this is a transfer hazard rather than a training
-blocker, which is why it is reproduced rather than clamped: the deployed policy was trained against
-these targets, and re-deriving the pose in simulation is a retune with its own training run.
-
-The pose is also **not left-right mirrored** (``|left_knee|`` 1.5248 against ``|right_knee|`` 1.5907,
-``left_hip_pitch`` 1.4082 against ``|right_hip_pitch|`` 1.4757), which is what a raw capture from a
-physical robot looks like.
-
-``test_microduck_rollercrouch_env.py`` reads the *compiled model's* joint limits and records the
-violation, so the defect is pinned by measurement rather than by a transcribed constant.
+The neck-pitch target 1.0937 rad exceeds its 1.0472 rad upper stop, and the right-knee target
+-1.5907 rad exceeds the -1.5708 rad lower stop. Pose rewards retain residual error at those
+limits and may command the joints against their stops. The leg targets are asymmetric.
 """
 
 ##
@@ -200,7 +133,7 @@ _POSE_SEGMENTS = {
 
 
 def _iterations(count: int) -> int:
-    """Convert an upstream PPO iteration count into the global environment-step count."""
+    """Convert a PPO iteration count into the global environment-step count."""
     return count * MICRODUCK_STEPS_PER_ITERATION
 
 
@@ -211,7 +144,7 @@ def _iterations(count: int) -> int:
 
 @configclass
 class CommandsCfg:
-    """Command specifications for the MDP (section 8.6).
+    """Command specifications for the MDP.
 
     One command, and it is a clock rather than a velocity: the twist slot carries the cycle phase as
     ``(cos, sin, 0)``, so the wrap from the end of a cycle to its start is continuous rather than the
@@ -241,13 +174,7 @@ class CommandsCfg:
 
 @configclass
 class RewardsCfg:
-    """Reward terms for the MDP (section 8.4).
-
-    Twelve terms, the leanest recipe in the MicroDuck family. Upstream keeps four of the mjlab base
-    template's -- :attr:`upright`, :attr:`body_ang_vel`, :attr:`angular_momentum` and
-    :attr:`action_rate_l2` -- through a ``keep`` set, which is what also removes the
-    ``dof_pos_limits`` penalty every ``del``-list task silently inherits. The other eight are the
-    trick.
+    """Reward terms for the MDP.
 
     Read them in three groups:
 
@@ -265,20 +192,12 @@ class RewardsCfg:
     weight.
     """
 
-    ##
-    # Base-template terms upstream keeps (section 8.4).
-    ##
-
-    # ``std`` is the base template's ``sqrt(0.2)``: upstream narrows it for MicroDuck in the walking
-    # recipe only, and this task re-derives from the template and never revisits it.
     upright = RewTerm(
         func=mdp.upright_selected_body, weight=2.0, params={"std": math.sqrt(0.2), "asset_cfg": _TRUNK_BODY_CFG}
     )
     body_ang_vel = RewTerm(func=mdp.body_ang_vel_xy_l2_raw, weight=-0.05, params={"asset_cfg": _TRUNK_BODY_CFG})
     angular_momentum = RewTerm(func=mdp.angular_momentum_l2_raw, weight=-0.02)
-    # Upstream declares -1.0 here and -0.5 at stage 0 of the curriculum that owns this weight, and
-    # the curriculum manager runs before the first reward evaluation, so the declared literal is dead
-    # (section 13.12). The live value is the one stated.
+    # The live value is the one stated.
     action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.5)
 
     ##
@@ -357,49 +276,22 @@ class RewardsCfg:
 
 @configclass
 class EventsCfg(RollersEventsCfg):
-    """Configuration for events (section 8.7).
-
-    The roller task's randomization suite, which is what upstream states again here term for term, with
-    one change: the robot is spawned already rolling forwards.
-
-    :attr:`randomize_wheel_friction` is inherited **degenerate** -- its range is ``(0.0, 0.0)`` and,
-    unlike on the skating task, no curriculum ramps it. Upstream copied the event and not the
-    schedule, so this environment trains on perfectly frictionless bearings for its whole run
-    (section 13.3, upstream issue draft 017). That is reproduced verbatim rather than fixed: the
-    deployed policy was trained on free bearings, and a glide is exactly the behaviour a bearing-drag
-    change would alter. It is a sim-to-real optimism in the degree of freedom the trick depends on,
-    not a training defect, and correcting it is a retune with its own run.
-
-    Note:
-        Upstream's own ``expand_bam_friction_fields`` startup event is missing from this environment
-        and from the spin one, and the invariant it protects is met only by accident: the degenerate
-        wheel event above is upstream's *sole* declarer of ``dof_frictionloss``, so deleting it as
-        dead code would make upstream's BAM actuator raise at the first multi-environment step
-        (section 13.1). That interlock does not exist in this port, because Isaac Lab's BAM actuator
-        owns per-environment friction storage unconditionally rather than expanding a shared model
-        field -- which is why the event has no counterpart in any MicroDuck task here. The wheel event
-        is kept for its own sake, and ``test_microduck_rollercrouch_env.py`` pins both halves: that
-        the per-environment storage exists without it, and that it is nonetheless still registered.
-    """
+    """Configuration for events."""
 
     def __post_init__(self):
-        # Entry momentum, injected through the root reset. **Not** through a reset-mode push: a push
-        # *adds* to the current root velocity, which on an environment that has already diverged
-        # sends the free joint to NaN. Upstream fixed exactly this and locks it with a regression
-        # test, and its spin task restates the warning verbatim (section 8.7).
+        # Entry momentum, injected through the root reset. **Not** through a reset-mode push: a push *adds* to the
+        # current root velocity, which on an environment that has already diverged sends the free joint to
+        # NaN.
         self.reset_base.params["velocity_range"] = {"x": MICRODUCK_ENTRY_VELOCITY_X}
 
 
 @configclass
 class CurriculumCfg:
-    """Curriculum terms for the MDP (section 8.9).
+    """Curriculum terms for the MDP.
 
     Three schedules, the leanest in the family: one reward ramp and the two centre-of-mass ramps the
     whole family shares. There is deliberately no wheel-friction schedule -- see :class:`EventsCfg`
     for what that costs and why it is reproduced.
-
-    Upstream's schedules are written in PPO iterations; :func:`_iterations` converts them to the
-    global environment-step count these terms compare against.
     """
 
     action_rate_weight = CurrTerm(
@@ -446,13 +338,7 @@ class CurriculumCfg:
 
 @configclass
 class MicroDuckRollerCrouchFlatEnvCfg(MicroDuckVelocityRollersFlatEnvCfg):
-    """MicroDuck crouch-glide trick environment on flat ground.
-
-    The scene, the sensors, the action space, both observation groups and the terminations are the
-    roller task's, which is what upstream's standalone rebuild arrives at term for term (section 8.7,
-    8.8 and 11). What this class carries is the trick: a phase clock instead of a throttle, a pose
-    objective instead of a stride, entry momentum at the reset, and three curricula instead of four.
-    """
+    """MicroDuck crouch-glide trick environment on flat ground."""
 
     commands: CommandsCfg = CommandsCfg()
     rewards: RewardsCfg = RewardsCfg()
@@ -462,19 +348,9 @@ class MicroDuckRollerCrouchFlatEnvCfg(MicroDuckVelocityRollersFlatEnvCfg):
     def __post_init__(self):
         super().__post_init__()
 
-        # Measured, not inherited: the crouch folds the knees to about 1.5 rad and drops the trunk to
-        # a measured 0.078 m, which is a contact set the skating profile does not cover. Profiled
-        # under random actions with the tilt termination removed and the pushes forced to full
-        # magnitude, so the robots sprawl and every collider reaches the floor, at 256, 2048 and 4096
-        # environments: **90 constraints and 29 contacts** per environment at the peak, against the
-        # skating task's 83 and 26 on the same model. The three scales agree to one contact, which is
-        # what says the tail has been sampled. Logs:
-        # ``artifacts/microduck/profile_microduck_contacts_rollercrouch_{256,2048,4096}envs.log``,
-        # from ``artifacts/microduck/profile_microduck_contacts.py``.
-        #
-        # ``njmax`` is a hard per-environment cap and carries the wider margin; ``nconmax`` is a
-        # per-environment share of one shared buffer and cannot overflow at the measured peak, so it
-        # sits just above it, at the same 1.2x the rest of the family uses.
+        # Reserve contact and constraint headroom for simultaneous body-ground contact.
+
+        # Constraint limits are per environment; contact storage is shared across environments.
         newton_mjwarp = self.sim.physics.newton_mjwarp
         newton_mjwarp.solver_cfg.njmax = 176
         newton_mjwarp.solver_cfg.nconmax = 36

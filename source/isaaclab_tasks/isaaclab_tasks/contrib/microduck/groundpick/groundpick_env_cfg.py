@@ -3,48 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Ground-pick environment for the Pollen Robotics MicroDuck biped.
+"""Phase-commanded ground picking with a mouth payload.
 
-Ported from `pollen-robotics/microduck_rl <https://github.com/pollen-robotics/microduck_rl>`_,
-which trains MicroDuck on mjlab. Every value taken from upstream cites a section of
-``historical tasks3 source extraction``, the extraction of the pinned upstream
-checkouts; the sections that describe the shared mjlab base template live in the companion
-``historical original source extraction`` and are cited as "reference section N".
-
-Bring the mouth to the floor, as close as possible **without touching**, correctly oriented; hold it
-there; stand back up cleanly; rest. Then do it again. The cycle is a 4 s clock the policy is told the
-phase of, so this is a scheduled gesture rather than a goal-seeking one -- there is no target to
-reach and no success flag, only a segmented profile the reward stack pays for following:
-
-===========  =====================  ==========  ===================================================
-segment      phase                  duration    what the stack pays for
-===========  =====================  ==========  ===================================================
-descent      ``[0, 0.375)``         1.5 s       mouth low and pointing down, neck moving slowly
-low dwell    ``[0.375, 0.425)``     0.2 s       the same, held
-rise         ``[0.425, 0.80)``      1.5 s       legs and neck back to the stand pose, trunk vertical
-standing     ``[0.80, 1.0)``        0.8 s       the same, held
-===========  =====================  ==========  ===================================================
-
-Three things follow from the task rather than from the recipe:
-
-* The robot is :data:`~isaaclab_tasks.contrib.microduck.assets.MICRODUCK_ALLCOLLISIONS_CFG`. The whole task is
-bringing the
-  head assembly to within millimetres of the floor, and on the walking model the head carries no
-  collider at all -- the "close but not touching" equilibrium would have nothing to push back with
-  and the mouth would sink through the plane (addendum section 12.3).
-* **The "without touching" is an equilibrium, not a constraint.** ``mouth_ground_proximity`` pulls
-  the mouth down and ``head_impact_penalty`` charges the contact force it would arrive with; the
-  hover is where the two balance. Delete either one and the task becomes a different task.
-* The **payload** is physics, not reward. A 10-40 g point mass is drawn per episode and hung off the
-  mouth tip from the moment the mouth closes, so the return is a lift rather than an unweighted
-  extension. Upstream smuggles it in as a weight-zero reward term; see :class:`EventsCfg`.
-
-Isaac Lab has no MJCF **site** concept, and this task is the family's most site-dependent: upstream
-measures both mouth terms on the ``mouth_tip`` site. The port carries the site as a fixed offset in
-its parent body's frame -- see :data:`MICRODUCK_MOUTH_TIP_OFFSET` -- which is the same adaptation the
-foot terms make, with the numbers measured off the pinned MJCF rather than assumed.
-
-Source pins and historical extraction labels are indexed in this task family's ``UPSTREAM.md``.
+A four-second cycle lowers the mouth, holds near the floor, rises and rests. Whole-body
+contact and the payload force model support the bending and return phases.
 """
 
 import math
@@ -72,9 +34,7 @@ from isaaclab.visualizers import VisualizerCfg
 import isaaclab_tasks.contrib.microduck.mdp as mdp
 from isaaclab_tasks.contrib.microduck.assets import MICRODUCK_ALLCOLLISIONS_CFG
 
-# The body carrying the three head collision shells and the mouth. Imported from the forward-roll
-# task, which named it first for the same reason -- it is the surface that task pivots on and the one
-# this task hovers over -- rather than restated here.
+# Head body carrying the collision shells and mouth frame.
 from isaaclab_tasks.contrib.microduck.roulade.roulade_env_cfg import MICRODUCK_HEAD_BODY_NAME
 from isaaclab_tasks.contrib.microduck.velocity.velocity_env_cfg import (
     MICRODUCK_ALLCOLLISIONS_COLLIDER_SHAPE_EXPR,
@@ -89,11 +49,11 @@ from isaaclab_tasks.contrib.microduck.velocity.velocity_env_cfg import (
 from isaaclab_tasks.utils import PresetCfg
 
 ##
-# The cycle (addendum section 5.1)
+# The cycle
 ##
 
 MICRODUCK_GROUND_PICK_PERIOD = 4.0
-"""Length [s] of one bend-and-return cycle, upstream's ``GP_PERIOD``.
+"""Length [s] of one bend-and-return cycle, ``GP_PERIOD``.
 
 At the 50 Hz control rate this is 200 steps per cycle, and at the inherited 20 s episode it is five
 complete cycles per episode.
@@ -102,30 +62,13 @@ complete cycles per episode.
 MICRODUCK_DESCENT_END = 0.375
 MICRODUCK_HOLD_END = 0.425
 MICRODUCK_RISE_END = 0.80
-"""Phase boundaries of the four cycle segments; see the module docstring for their durations.
-
-Upstream's file carries a second, contradictory description of the same profile inline -- a 6 s
-period with a 0.6 s dwell and a 2.4 s rest -- which is the text of an earlier era and is not what the
-constants say (addendum section 13.17 c). These are the constants.
-"""
+"""Phase boundaries of the four cycle segments; see the module docstring for their durations."""
 
 MICRODUCK_MOUTH_TIP_OFFSET = (-0.00809334, 0.0, -0.0777383)
-"""Position [m] of the mouth tip in the frame of the body that carries it.
-
-Upstream measures both mouth rewards on the MJCF ``mouth_tip`` **site**, which Isaac Lab has no
-equivalent of. The site is rigidly attached to :data:`MICRODUCK_HEAD_BODY_NAME` (``jaw_soft``), so
-this is that attachment, read straight off the pinned ``robot_allcollisions.xml``. At the model's
-home pose it puts the mouth tip 0.1075 m above the trunk frame and 0.0776 m ahead of it, which is
-what makes the descent a genuine forward fold rather than a squat.
-"""
+"""Position [m] of the mouth tip in the frame of the body that carries it."""
 
 MICRODUCK_MOUTH_TIP_AXIS = (-0.00872562, 0.0, -0.99996193)
-"""The mouth's pointing direction [-] in the same body frame.
-
-The ``mouth_tip`` site's own ``x`` axis, which is what upstream's perpendicularity reward projects
-onto world down. Reading it off the site's fixed quaternion rather than assuming a body axis matters:
-it is half a degree off ``-z`` of ``jaw_soft``, and the term it feeds is a signed cosine.
-"""
+"""The mouth's pointing direction [-] in the same body frame."""
 
 MICRODUCK_MOUTH_PAYLOAD_RANGE = (0.01, 0.04)
 """Mass range [kg] of the object the robot is asked to lift, drawn once per episode."""
@@ -134,8 +77,7 @@ MICRODUCK_MOUTH_PAYLOAD_RAMP = 0.05
 """Fraction of a cycle the payload fades in over, starting at :data:`MICRODUCK_HOLD_END`.
 
 0.05 of a 4 s cycle is 0.2 s. The gate never falls back to zero before the cycle wraps, so the
-payload hangs from phase 0.475 to the wrap -- about 52 % of every cycle -- and drops abruptly there
-(addendum section 13.20).
+payload hangs from phase 0.475 to the wrap -- about 52 % of every cycle -- and drops abruptly there.
 """
 
 ##
@@ -162,44 +104,25 @@ _TERRAIN_PRIM_PATH = "/World/ground"
 _FOOT_COLLIDER_SHAPE_EXPR = (
     "{ENV_REGEX_NS}/Robot/Geometry/trunk_base/(.*/)?(left_foot_collision|right_foot_collision)/[^/]*"
 )
-"""Shape-level expression selecting the two sole colliders.
-
-Upstream's ``feet_ground_contact`` sensor matches the same two geoms by name against the terrain
-body. The reward that reads it counts contacts rather than indexing them, so the order the two
-resolve in is not a contract here.
-"""
+"""Shape-level expression selecting the two sole colliders."""
 
 _HEAD_COLLIDER_SHAPE_EXPR = (
     "{ENV_REGEX_NS}/Robot/Geometry/trunk_base/(.*/)?(top_head_shell_1|jaw_1|bottom_head_shell_1)/[^/]*"
 )
-"""Shape-level expression selecting the three head shells, which is upstream's ``neck`` subtree.
-
-Upstream senses the whole subtree rooted at the ``neck`` body against the terrain. Measured on the
-pinned ``robot_allcollisions.xml``, that subtree is ``neck``, ``neck_pitch``, ``yaw_roll_motion`` and
-``jaw_soft`` -- and only ``jaw_soft`` carries colliders, the three head shells named here. The
-subtree and the three shells are therefore the same sensor, not an approximation of it.
-"""
+"""Shape-level expression selecting the three head shells, which is ``neck`` subtree."""
 
 _IMU_MISALIGNMENT_DEG = 6.0
-"""Upper bound [deg] on the IMU mounting-misalignment angle, upstream's velocity-matched value."""
+"""Upper bound [deg] on the IMU mounting-misalignment angle, velocity-matched value."""
 
 _IMU_DELAY_UPDATE_PERIOD = 64
-"""Control steps between two draws of the IMU latency (reference section 8)."""
+"""Control steps between two draws of the IMU latency."""
 
 _IMU_MAX_LAG = 3
-"""Worst-case IMU latency [control steps] the actor is trained against.
-
-Upstream's value **for this task alone**. Every other MicroDuck task uses 1, the value the velocity
-recipe's 2026-07 audit settled on after measuring the real Dynamixel IMU path at a +/-20 ms envelope,
-and this task's inline comment claims it matches velocity -- which it stopped doing when that audit
-landed (addendum section 13.16). It is transcribed rather than corrected, because it is a training
-decision and not a port bug: 3 steps is 60 ms, so a policy trained here tolerates a *wider* latency
-envelope than the hardware has.
-"""
+"""Worst-case IMU latency [control steps] the actor is trained against."""
 
 
 def _iterations(count: int) -> int:
-    """Convert an upstream PPO iteration count into the global environment-step count."""
+    """Convert a PPO iteration count into the global environment-step count."""
     return count * MICRODUCK_STEPS_PER_ITERATION
 
 
@@ -210,54 +133,14 @@ def _iterations(count: int) -> int:
 
 @configclass
 class MicroDuckGroundPickPhysicsCfg(PresetCfg):
-    """Backend preset for the MicroDuck ground-pick environment.
-
-    MicroDuck is trained on MuJoCo upstream, so MJWarp is the reference backend and the only one
-    offered; it is also the only backend that can run this task as configured, because the
-    environment sets ``sim.use_newton_actuators = True`` and the solver-hosted BAM model is rejected
-    on the PhysX family's host adapter. See
-    :class:`~isaaclab_tasks.contrib.microduck.velocity.velocity_env_cfg.MicroDuckPhysicsCfg`.
-
-    Upstream leaves ``cfg.sim`` untouched here and inherits the mjlab template's ``nconmax = 35``
-    with 10 solver and 20 line-search iterations (addendum section 12.2). The iteration counts are
-    transcribed; the buffers are measured, as on every sibling.
-    """
+    """Backend preset for the MicroDuck ground-pick environment."""
 
     newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
-            # Measured, not inherited. Profiling under random actions -- the regime where the robots
-            # collapse onto the floor and grind every collider into it, with the tilt termination
-            # dropped and the pushes forced to full magnitude -- peaks at **27 contacts and 86
-            # constraints** per environment. Logs:
-            # ``artifacts/microduck/profile_microduck_contacts_groundpick_{256,2048,4096}envs.log``,
-            # from ``artifacts/microduck/profile_microduck_contacts.py``.
-            #
-            # Profiled at three sizes, because the smallest one undercuts the constraint tail:
-            #
-            # ============  =========  =========  ===========  ========
-            # environments  peak ncon  peak nefc  median ncon  overflow
-            # ============  =========  =========  ===========  ========
-            # 256                  26         74           21         0
-            # 2048                 26         86           23         0
-            # 4096                 27         86           24         0
-            # ============  =========  =========  ===========  ========
-            #
-            # 4096 is this task's own training default and therefore the size that matters. The
-            # constraint peak **saturates** from 2048 upward and the contact peak moves by one, which
-            # is what says the tail has been sampled rather than that it keeps growing; the medians
-            # agree across all three sizes. The figures are the sit-stand task's to within a contact,
-            # which is the expected answer -- the same robot sprawled on the same floor -- and this
-            # task never visits the deliberate seated multi-contact state that made sit-stand's
-            # solver diverge, so it keeps the template's iteration counts rather than its buffers.
-            #
-            # ``njmax`` is a hard per-environment cap and carries the margin: 128 against 86 is 42
-            # constraints, about ten further contacts' worth. ``nconmax`` is a per-environment
-            # *share* of one shared pool rather than a cap, so an environment spiking past 32 borrows
-            # from the pool; at 4096 environments the shipped share provides 131 072 contacts against
-            # a measured worst-case total of 47 121, and the measured mean is 11.5 per environment.
+            # Reserve contact and constraint headroom for simultaneous body-ground contact.
+            # Reserve contact and constraint headroom for simultaneous body-ground contact.
             njmax=128,
             nconmax=32,
-            # the mjlab template's, which upstream inherits unchanged on this task
             iterations=10,
             ls_iterations=20,
             cone="pyramidal",
@@ -266,7 +149,6 @@ class MicroDuckGroundPickPhysicsCfg(PresetCfg):
             use_mujoco_contacts=False,
         ),
         collision_cfg=NewtonCollisionPipelineCfg(max_triangle_pairs=2_500_000),
-        # upstream steps MuJoCo once per 0.005 s physics tick (reference section 1)
         num_substeps=1,
         default_shape_cfg=NewtonShapeCfg(margin=0.0),
     )
@@ -303,47 +185,34 @@ class MicroDuckGroundPickSceneCfg(InteractiveSceneCfg):
     # would not exist.
     robot = MICRODUCK_ALLCOLLISIONS_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
-    # Feet and trunk, as every task in the family does: upstream tracks ground contact on the two
-    # soles and drops the base template's terrain and foot-height scanners wholesale. This one feeds
-    # the three critic foot observations.
+    # This one feeds the three critic foot observations.
     contact_forces = ContactSensorCfg(
         prim_path="{ENV_REGEX_NS}/Robot/Geometry/trunk_base(/.*/(ankle_left|ankle_right))?",
         history_length=3,
         track_air_time=True,
     )
 
-    # The "keep both feet planted" signal. Upstream matches the two sole *geoms* against the terrain
-    # *body*; this is that sensor on the Newton backend's shape-level expressions.
-    #
-    # Filtering against the terrain rather than reading a net force is load-bearing on this task in a
-    # way it is not on the walking ones: a robot folded far enough to put its mouth on the floor has
-    # its own shins and head shells within reach of its soles, and an unfiltered sole would report
-    # "grounded" for touching them.
-    #
-    # The terrain expression is absolute rather than ``{ENV_REGEX_NS}``-relative because the ground
-    # plane is a single shape shared by every environment.
+    # The "keep both feet planted" signal. Filtering against the terrain rather than reading a net force is
+    # load-bearing on this task in a way it is not on the walking ones: a robot folded far enough to put its
+    # mouth on the floor has its own shins and head shells within reach of its soles, and an unfiltered sole
+    # would report "grounded" for touching them. The terrain expression is absolute rather than
+    # ``{ENV_REGEX_NS}``-relative because the ground plane is a single shape shared by every environment.
     feet_ground_contact = ContactSensorCfg(
         prim_path="{ENV_REGEX_NS}/Robot/Geometry/trunk_base",
         sensor_shape_prim_expr=[_FOOT_COLLIDER_SHAPE_EXPR],
         filter_shape_prim_expr=[f"{_TERRAIN_PRIM_PATH}/.*"],
     )
 
-    # The other half of the task's central equilibrium: what the mouth is about to hit. Upstream
-    # senses the ``neck`` subtree against the terrain and reduces to a net force; this is the same
-    # set of colliders (see :data:`_HEAD_COLLIDER_SHAPE_EXPR`) filtered against the ground plane.
-    #
-    # Terrain-filtered rather than unfiltered, unlike the forward-roll task's head sensor: there the
-    # question is "is the head touching anything", here it is "how hard is the head hitting the
-    # *floor*", and a knee brushing a head shell must not be charged as a face-plant.
+    # The other half of the task's central equilibrium: what the mouth is about to hit. Terrain-filtered rather than
+    # unfiltered, unlike the forward-roll task's head sensor: there the question is "is the head touching
+    # anything", here it is "how hard is the head hitting the *floor*", and a knee brushing a head shell must
+    # not be charged as a face-plant.
     head_impact_contact = ContactSensorCfg(
         prim_path="{ENV_REGEX_NS}/Robot/Geometry/trunk_base",
         sensor_shape_prim_expr=[_HEAD_COLLIDER_SHAPE_EXPR],
         filter_shape_prim_expr=[f"{_TERRAIN_PRIM_PATH}/.*"],
     )
 
-    # Self-collision sensor, identical to the rest of the family's: the model's ten enabled colliders
-    # against each other, many-to-many, which is upstream's trunk-subtree-against-itself sensor. The
-    # reward saturates it back to upstream's 0-or-1 scale.
     self_collision = ContactSensorCfg(
         prim_path="{ENV_REGEX_NS}/Robot/Geometry/trunk_base",
         sensor_shape_prim_expr=[MICRODUCK_ALLCOLLISIONS_COLLIDER_SHAPE_EXPR],
@@ -363,7 +232,7 @@ class MicroDuckGroundPickSceneCfg(InteractiveSceneCfg):
 
 @configclass
 class CommandsCfg:
-    """Command specifications for the MDP (addendum section 5.3).
+    """Command specifications for the MDP.
 
     One live command and two shape placeholders. The twist slot carries the cycle phase instead of a
     velocity, which is the task; the head and body slots are zero padding, filled in
@@ -380,9 +249,7 @@ class CommandsCfg:
         heading_command=False,
         debug_vis=False,
         period=MICRODUCK_GROUND_PICK_PERIOD,
-        # decorrelates the environments, so they do not all bend at once. Upstream's roller trick
-        # tasks pass False instead, to match a runtime whose cycle starts from a standing button
-        # press; this one wants the spread.
+        # decorrelates the environments, so they do not all bend at once.
         randomize_phase=True,
         ranges=mdp.GroundPickPhaseCommandCfg.Ranges(
             lin_vel_x=(0.0, 0.0),
@@ -395,13 +262,7 @@ class CommandsCfg:
 
 @configclass
 class ActionsCfg:
-    """Action specifications for the MDP.
-
-    Identical to the velocity task's: the same 14 servos in the same deploy order, at the same unit
-    scale, closing the same encoder-bias loop. Upstream notes that the head servos are deliberately
-    **not** wrapped in its neck-offset action term here, because the head is part of the motion the
-    task is asking for rather than a separately steerable payload.
-    """
+    """Action specifications for the MDP."""
 
     joint_pos = mdp.ArticulationEncoderBiasActionCfg(
         asset_name="robot",
@@ -414,7 +275,7 @@ class ActionsCfg:
 
 @configclass
 class ObservationsCfg:
-    """Observation specifications for the MDP (addendum section 11).
+    """Observation specifications for the MDP.
 
     The actor group is byte-for-byte the velocity task's 61-wide deploy contract, which is the whole
     point of the family: one runtime on the robot feeds every MicroDuck policy from the same buffer.
@@ -480,16 +341,7 @@ class ObservationsCfg:
 
     @configclass
     class CriticCfg(ObsGroup):
-        """Privileged observations for the value function (addendum section 11.2).
-
-        The actor's terms with every corruption removed, plus the base linear velocity and the three
-        foot terms the robot has no sensor for. It is narrower than the velocity task's critic by the
-        two ``foot_height`` columns, which upstream deletes here because this scene carries no height
-        sensor and no foot-height reward to justify one.
-
-        The two sensor-derived foot terms are the NaN-guarded variants, as on every sibling port and
-        unlike upstream here; see :class:`TerminationsCfg` for why.
-        """
+        """Privileged observations for the value function."""
 
         base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel)
@@ -516,25 +368,10 @@ class ObservationsCfg:
 
 @configclass
 class EventsCfg:
-    """Configuration for events (addendum section 5.7).
-
-    The domain-randomization suite is the velocity task's, term for term, with **two deliberate
-    narrowings** upstream makes here and says why:
-
-    * The pushes are **half** the family's magnitude, +/-0.15 m/s. Upstream's note is measured: the
-      gesture is quasi-static, and at +/-0.3 the robot fell over even standing straight.
-    * The neck-offset randomization is **off**, because the head is the task's working end rather
-      than a payload to be jittered.
+    """Configuration for events.
 
     There is no ground-state reset: every episode spawns upright from :attr:`reset_base`, so the
     declaration-order coupling that governs the sit-stand and ball-kick resets does not arise here.
-
-    :attr:`mouth_payload_force` is this task's one structural deviation from upstream, and it is
-    physics rather than a reward. Upstream registers the same function as a **weight-zero reward
-    term**, so that the reward manager calls it every step and it can write an external wrench
-    (addendum section 13.20). This port registers it where Isaac Lab writes state, as an interval
-    event on a zero-width interval -- which fires every control step, for every environment -- so
-    that a later pass that prunes zero-weight rewards cannot silently delete the payload.
     """
 
     ##
@@ -574,8 +411,6 @@ class EventsCfg:
     # Reset: redrawn every episode, in this order.
     ##
 
-    # Upstream samples the absolute base height in (0.12, 0.13) m; Isaac Lab samples an offset from
-    # the configured default, which is the 0.125 m midpoint of that band.
     reset_base = EventTerm(
         func=mdp.reset_root_state_uniform,
         mode="reset",
@@ -585,8 +420,6 @@ class EventsCfg:
         },
     )
 
-    # Zero-width on purpose: upstream resets every joint exactly to the stand pose, which is also the
-    # pose the return terms score against.
     reset_robot_joints = EventTerm(
         func=mdp.reset_joints_by_offset,
         mode="reset",
@@ -653,9 +486,8 @@ class EventsCfg:
         },
     )
 
-    # Half the family's magnitude, and live at full strength from step 0 -- there is no push
-    # curriculum on this task. Upstream measured +/-0.3 m/s toppling the robot even standing
-    # straight, which a quasi-static reaching gesture cannot absorb.
+    # Half the family's magnitude, and live at full strength from step 0 -- there is no push curriculum on this
+    # task.
     push_robot = EventTerm(
         func=mdp.push_by_setting_velocity,
         mode="interval",
@@ -666,20 +498,9 @@ class EventsCfg:
 
 @configclass
 class RewardsCfg:
-    """Reward terms for the MDP (addendum sections 5.4 and 5.5).
+    """Reward terms for the MDP.
 
     Four groups, and the phase gate is what keeps them from fighting:
-
-    * **The bend** -- ``mouth_ground_proximity`` and ``mouth_perpendicular_to_ground``, both gated on
-      the descent and the low dwell.
-    * **The return** -- the two ``ground_pick_return_pose`` terms and ``return_upright``, gated on
-      the rise and the standing rest. Their combined weight, 16.0, is the largest block in the stack:
-      upstream's experience is that the bend is easy and the clean return is not.
-    * **The posture floor** -- ``feet_grounded``, ``feet_flat``, ``upright``, ``self_collisions``.
-      Ungated, because a foot must not leave the ground at any phase.
-    * **Regularization**, deliberately heavier than the walking task's. Upstream's note: the gesture
-      is slow and precise, so strong smoothness helps transfer, unlike the dynamic stand-up recovery
-      where heavy regularization blocked the motion outright.
 
     Two of the shapes deserve stating because they are easy to "fix" into something else:
 
@@ -688,18 +509,6 @@ class RewardsCfg:
       out; ``return_upright`` supplies the verticality where it is actually wanted.
     * ``mouth_perpendicular_to_ground`` can go **negative**: its kernel is a signed cosine, so a
       mouth pointing up during the descent gate is charged rather than merely unpaid.
-
-    Two upstream slots are not carried over:
-
-    * ``soft_landing``. The term is **live upstream** at ``-1e-5``; what is a no-op is the
-      *assignment*, because the mjlab base template already ships that weight. This port's shared
-      base carries no such term, so there is nothing to restate, and dropping it is a real deviation
-      of order ``1e-5`` against a stack summing to order 10. It is worth naming for what it
-      demonstrates rather than what it weighs: it is gated on the *magnitude* of the twist command,
-      and this task's twist is a unit vector on the circle, so an inherited "only while moving" gate
-      is permanently open on any phase-command environment (addendum section 13.10).
-    * ``mouth_payload_force``, a weight-zero reward that is really a physics hook; see
-      :class:`EventsCfg`.
     """
 
     ##
@@ -749,9 +558,7 @@ class RewardsCfg:
             "rise_end": MICRODUCK_RISE_END,
         },
     )
-    # Half the width on the neck, and upstream says why: the head shells sit close to the trunk at
-    # the stand pose, so a neck that overshoots on the way back drives them into it -- and the
-    # self-collision sensor cannot see that on the model upstream measured it on.
+
     ground_pick_return_pose_neck = RewTerm(
         func=mdp.ground_pick_return_pose_phased,
         weight=6.0,
@@ -803,8 +610,7 @@ class RewardsCfg:
         weight=-2.0,
         params={"sensor_cfg": _HEAD_IMPACT_SENSOR_CFG, "threshold": 1.0},
     )
-    # ``saturate`` keeps the many-to-many sensor on upstream's 0-or-1 scale, so the weight is the
-    # penalty for touching yourself at all rather than a per-collider tariff.
+
     self_collisions = RewTerm(
         func=mdp.self_collision_cost_saturable,
         weight=-1.0,
@@ -817,13 +623,10 @@ class RewardsCfg:
 
     body_ang_vel = RewTerm(func=mdp.body_ang_vel_xy_l2_raw, weight=-0.05, params={"asset_cfg": _TRUNK_BODY_CFG})
     angular_momentum = RewTerm(func=mdp.angular_momentum_l2_raw, weight=-0.02)
-    # Inherited silently by upstream -- it is simply not in this task's deletion list (addendum
-    # section 13.18) -- so it is stated here rather than left to be discovered.
+
     dof_pos_limits = RewTerm(func=mdp.joint_pos_limits, weight=-1.0)
-    # The stage-0 weight of the ``action_rate_weight`` curriculum, which ramps it to -2.0 by
-    # iteration 500. Upstream declares -2.0 here *and* -0.8 at stage 0; the curriculum manager runs
-    # before the first reward evaluation, so only -0.8 was ever live and the declared literal was
-    # dead (addendum section 13.12). The pair is collapsed to the number that applies.
+    # The stage-0 weight of the ``action_rate_weight`` curriculum, which ramps it to -2.0 by iteration 500. The pair
+    # is collapsed to the number that applies.
     action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.8)
     # On top of the whole-body action rate, not instead of it: the head is the working end here and
     # its jitter is what a real servo pays for.
@@ -848,27 +651,20 @@ class RewardsCfg:
 
 @configclass
 class TerminationsCfg:
-    """Termination terms for the MDP (addendum section 5.7).
+    """Termination terms for the MDP.
 
     The tilt termination is **kept** here, unlike on the sit-stand and stand-up tasks: this robot is
     supposed to stay on its feet at every phase, so a fall is a failed episode rather than something
     to be paid for and recovered from.
-
-    Upstream also inherits a terrain-bounds termination, which returns all-false on a ground plane
-    and is therefore dead on this flat-only task (addendum section 7.24); it is not carried over.
     """
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
     fell_over = DoneTerm(func=mdp.bad_orientation, params={"limit_angle": math.radians(70.0)})
 
-    # Catches a *broken* robot rather than a fallen one.
-    #
-    # Deviation from upstream, deliberately and in line with every sibling port: upstream leaves this
-    # term's sensor list empty here, which the extraction reads as drift rather than design and
-    # recommends closing everywhere in the port (addendum section 14). This task carries the longest
-    # list in the family, because it has the most force paths that feed something: the critic's three
-    # foot observations, the grounded reward and -- uniquely -- a *reward* read straight off a
-    # contact force, where a single non-finite value poisons the episode sum.
+    # Catches a *broken* robot rather than a fallen one. This task carries the longest list in the family, because
+    # it has the most force paths that feed something: the critic's three foot observations, the grounded reward
+    # and -- uniquely -- a *reward* read straight off a contact force, where a single non-finite value poisons
+    # the episode sum.
     nan_state = DoneTerm(
         func=mdp.robot_state_is_nan_optional_sensors,
         time_out=False,
@@ -878,7 +674,7 @@ class TerminationsCfg:
 
 @configclass
 class CurriculumCfg:
-    """Curriculum terms for the MDP (addendum section 5.8).
+    """Curriculum terms for the MDP.
 
     Nothing schedules the task: the whole cycle is rewarded from step 0, and the pushes are live at
     full strength from step 0 too, because they are already half magnitude. What is scheduled is the
@@ -889,9 +685,6 @@ class CurriculumCfg:
     gesture is a slow quasi-static fold, so the robot has time to compensate for a badly placed
     centre of mass, and being able to is exactly what makes the trained gesture survive a real
     battery pack sitting a centimetre off where the model puts it.
-
-    Upstream's schedules are written in PPO iterations; :func:`_iterations` converts them to the
-    global environment-step count these terms compare against.
     """
 
     action_rate_weight = CurrTerm(
@@ -943,7 +736,7 @@ class MicroDuckGroundPickFlatEnvCfg(ManagerBasedRLEnvCfg):
     """MicroDuck ground-pick environment on flat ground."""
 
     sim: SimulationCfg = SimulationCfg(physics=MicroDuckGroundPickPhysicsCfg())
-    # ``env_spacing`` is upstream's scene extent (reference section 1).
+
     scene: MicroDuckGroundPickSceneCfg = MicroDuckGroundPickSceneCfg(num_envs=4096, env_spacing=2.0)
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -961,9 +754,7 @@ class MicroDuckGroundPickFlatEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 4
         self.episode_length_s = 20.0
         self.sim.dt = 0.005
-        # Run the BAM servos through the backend-native path, as the rest of the family does and as
-        # upstream does. The decimation above is even, which is what lets the stateful servo delay
-        # line be CUDA-graph-captured.
+        # The decimation above is even, which is what lets the stateful servo delay line be CUDA-graph-captured.
         self.sim.use_newton_actuators = True
         self.sim.render_interval = self.decimation
         self.sim.physics_material = self.scene.terrain.physics_material

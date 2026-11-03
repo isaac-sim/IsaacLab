@@ -3,44 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Swizzle variant of the MicroDuck roller-skating environment.
-
-Ported from `pollen-robotics/microduck_rl <https://github.com/pollen-robotics/microduck_rl>`_,
-which trains MicroDuck on mjlab. Every value taken from upstream cites a section of
-``historical tasks3 source extraction``, the extraction of the pinned upstream
-checkouts; the sections describing the roller recipe this task starts from live in the companion
-``historical tasks2 source extraction`` and are cited as "addendum section N".
-
-The *swizzle* is the beginner's skating gait: both blades stay on the ground and the legs open and
-close in mirror, tracing an hourglass, so the robot goes forward without ever lifting a foot. It is
-also precisely the degenerate waddle :mod:`.rollers_env_cfg` spends six reward terms suppressing --
-upstream's comments there record it being rediscovered again and again. This task is that recipe
-with the anti-swizzle half deleted and the symmetry paid for instead, which is why it lives next to
-it rather than in a package of its own; upstream registers it in the same velocity family, as
-``Mjlab-Velocity-Swizzle-MicroDuck``.
-
-Three things change beyond the reward swap, and each re-enables a capability the stride task turned
-off (section 7):
-
-* **Locomotion becomes bidirectional.** The throttle range is symmetrized to ``+/-0.6`` and
-  :attr:`RewardsCfg.wheel_speed` is told to pay for wheel spin *in the commanded direction*, so a
-  negative throttle means "skate backwards" rather than "brake". The stride task's ``braking`` term
-  goes with it -- to stop, the runtime commands zero and the robot coasts.
-* **Turning is switched back on.** The roller command already computes a live heading error and then
-  clamps it to zero; opening that clamp to ``+/-0.5`` rad is the entire mechanism (section 7.3). A
-  pair of crossing curricula then hands the yaw objective over from
-  :attr:`RewardsCfg.heading_hold` to :attr:`RewardsCfg.heading_tracking`.
-* **The head comes under command.** The zero-padded head slot of the shared 61-wide observation is
-  replaced by a real four-wide pose command, and the two terms that pull the neck back to the stand
-  pose are removed or narrowed to make room (section 7.4).
-
-The last of those has a consequence worth stating up front: narrowing :attr:`RewardsCfg.pose` to the
-ten leg joints changes what that reward *is*, not only what it covers, because the kernel is a mean
-over the selection. Upstream does it deliberately and this port reproduces the narrowed form
-(section 13.22).
-
-Source pins and historical extraction labels are indexed in this task family's ``UPSTREAM.md``.
-"""
+"""Swizzle skating with lateral leg motion, forward-speed and balance rewards."""
 
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -83,16 +46,11 @@ _RIGHT_LEG_JOINT_CFG = SceneEntityCfg(
     joint_names=["right_hip_yaw", "right_hip_roll", "right_hip_pitch", "right_knee", "right_ankle"],
     preserve_order=True,
 )
-"""The two legs' joints, paired position by position.
-
-:func:`~isaaclab_tasks.contrib.microduck.mdp.rewards.leg_symmetry_reward` adds the two selections
-element-wise, so the pairing is a contract rather than a convenience: ``preserve_order`` is what
-keeps a knee opposite a knee instead of opposite whichever joint the converted asset resolves first.
-"""
+"""The two legs' joints, paired position by position."""
 
 
 def _iterations(count: int) -> int:
-    """Convert an upstream PPO iteration count into the global environment-step count."""
+    """Convert a PPO iteration count into the global environment-step count."""
     return count * MICRODUCK_STEPS_PER_ITERATION
 
 
@@ -103,16 +61,9 @@ def _iterations(count: int) -> int:
 
 @configclass
 class CommandsCfg(RollersCommandsCfg):
-    """Command specifications for the MDP (sections 7.2, 7.3 and 7.4).
+    """Command specifications for the MDP.
 
     The stride task's command with both clamps opened, plus a head-pose command:
-
-    * ``cmd[0]``, the throttle, is symmetrized from ``(-0.5, 0.6)`` to ``(-0.6, 0.6)``. It is still a
-      throttle rather than a speed target, but a negative value now means *skate backwards* rather
-      than *brake*, which is how :attr:`RewardsCfg.wheel_speed`'s bidirectional form reads it.
-    * ``cmd[2]``, the live heading error, is clamped to ``+/-0.5`` rad instead of to zero. Upstream
-      reduced this from ``+/-1.0`` after a policy trained at the wider clamp turned too violently to
-      deploy; the robot can still reach any heading, the error just saturates sooner.
 
     The yaw clamp is read once, when the command term is constructed, so it has to be a
     configuration value -- which is why the heading *weights* ramp by curriculum and the range does
@@ -134,7 +85,7 @@ class CommandsCfg(RollersCommandsCfg):
 
 @configclass
 class ObservationsCfg(RollersObservationsCfg):
-    """Observation specifications for the MDP (section 11.1).
+    """Observation specifications for the MDP.
 
     The stride task's groups with one term replaced on each: the four zero-padded head-command
     columns now carry the real command. Re-assigning an existing field keeps its declared position,
@@ -161,7 +112,7 @@ class ObservationsCfg(RollersObservationsCfg):
 
 @configclass
 class RewardsCfg(RollersRewardsCfg):
-    """Reward terms for the MDP (section 7.5).
+    """Reward terms for the MDP.
 
     Eighteen terms: the stride recipe's twenty-one, minus seven, plus four.
 
@@ -193,17 +144,14 @@ class RewardsCfg(RollersRewardsCfg):
     braking = None
 
     ##
-    # The two head-to-stand-pose pullers: one removed, one narrowed (section 7.4).
+    # The two head-to-stand-pose pullers: one removed, one narrowed.
     ##
 
     neck_joint_pos_l2 = None
 
-    # Narrowed from all eighteen joints to the ten leg joints, which changes the value of the reward
-    # and not only its scope: the kernel is a *mean* over the selection, so the same joint errors now
-    # divide by ten instead of by eighteen. Upstream narrows it deliberately -- the neck and head are
-    # command-driven here, and holding them at the stand pose is exactly what the command asks them
-    # not to do -- and the port reproduces the narrowed form rather than the stride task's
-    # (section 13.22). The wheels' 999.0 tolerance entries go with the wheels.
+    # Narrowed from all eighteen joints to the ten leg joints, which changes the value of the reward and not only
+    # its scope: the kernel is a *mean* over the selection, so the same joint errors now divide by ten instead
+    # of by eighteen. The wheels' 999.0 tolerance entries go with the wheels.
     pose = RewTerm(
         func=mdp.pose_mode_switch,
         weight=2.0,
@@ -259,10 +207,7 @@ class RewardsCfg(RollersRewardsCfg):
     # The two capabilities, both introduced by curriculum.
     ##
 
-    # Weight 0.0, ramped to 3.0 by iteration 2500 as :attr:`heading_hold` is ramped out. The two are
-    # in genuine tension across that hand-over -- one pays for holding the spawn heading, the other
-    # for leaving it -- and the crossing schedules are how upstream manages the overlap rather than
-    # an oversight (section 13.14).
+    # Weight 0.0, ramped to 3.0 by iteration 2500 as :attr:`heading_hold` is ramped out.
     heading_tracking = RewTerm(
         func=mdp.heading_tracking_reward,
         weight=0.0,
@@ -284,15 +229,12 @@ class RewardsCfg(RollersRewardsCfg):
 
 @configclass
 class CurriculumCfg(RollersCurriculumCfg):
-    """Curriculum terms for the MDP (sections 7.3 and 7.4).
+    """Curriculum terms for the MDP.
 
     The stride task's four schedules plus four more, which is where this task's two re-enabled
     capabilities actually arrive. They are deliberately late: both the heading hand-over and the head
     command are held out until the swizzle itself is solid, because a policy that has not yet found
     the stroke will take a cheap yaw or head reward over a hard locomotion one.
-
-    Upstream's schedules are written in PPO iterations; :func:`_iterations` converts them to the
-    global environment-step count these terms compare against.
     """
 
     ##
@@ -364,19 +306,7 @@ class CurriculumCfg(RollersCurriculumCfg):
 
 @configclass
 class MicroDuckVelocitySwizzleEnvCfg(MicroDuckVelocityRollersFlatEnvCfg):
-    """MicroDuck swizzle-skating environment on flat ground.
-
-    The scene, the sensors, the physics preset, the action space, the whole randomization suite, the
-    episode length and both termination terms are
-    :class:`~isaaclab_tasks.contrib.microduck.velocity.rollers_env_cfg.MicroDuckVelocityRollersFlatEnvCfg`'s:
-    this is the same robot on the same floor under the same disturbances, doing a different gait.
-    Upstream inherits them the same way, through a factory call, and edits none of them (section 7).
-
-    The measured contact profile is inherited rather than re-measured, and that is a bound rather
-    than an assumption: it was profiled under random actions with the tilt termination removed, so
-    the robots sprawl and every collider reaches the floor, and a swizzle keeps four tires down and
-    nothing else -- strictly inside that set.
-    """
+    """MicroDuck swizzle-skating environment on flat ground."""
 
     observations: ObservationsCfg = ObservationsCfg()
     commands: CommandsCfg = CommandsCfg()

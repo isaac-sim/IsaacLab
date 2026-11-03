@@ -3,7 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Sagittal reflection for walking augmentation and Roulade actor mirror loss."""
+"""Sagittal reflection for MicroDuck walking and Roulade.
+
+Walking augmentation reflects named actor and critic terms. Roulade mirror loss reflects
+its fixed 61-wide actor layout and repeats critic observations unchanged.
+"""
 
 from __future__ import annotations
 
@@ -155,6 +159,8 @@ def compute_roulade_symmetric_states(
 ) -> tuple[TensorDict | None, torch.Tensor | None]:
     """Append the left-right mirror of a batch of observations and actions to itself.
 
+    Use with actor mirror loss: the critic observations repeat unchanged.
+
     Args:
         env: The environment instance. Unused: the layout is a fixed deploy contract rather than
             something read off the scene, and pinning it here is what makes a drifted observation
@@ -181,8 +187,7 @@ def compute_roulade_symmetric_states(
             )
         obs_permutation, obs_sign, _, _ = _roulade_tables(policy.device)
         batch_size = policy.shape[0]
-        # ``repeat`` copies every group, so the critic is carried through unmirrored, as upstream
-        # does: the mirror loss reads the actor's action means only.
+
         augmented_obs = obs.repeat(2)
         augmented_obs["policy"][batch_size:] = policy[:, obs_permutation] * obs_sign
 

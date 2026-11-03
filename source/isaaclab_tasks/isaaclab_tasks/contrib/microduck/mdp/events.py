@@ -3,11 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Shared MicroDuck events for walking, recovery and skating recipes.
-
-Existing walking APIs retain their behavior. Descriptive task-specific variants preserve distinct
-encoder storage, command sampling, contact grouping, recovery gates and non-finite handling.
-"""
+"""Robot reset, calibration, payload and perturbation events."""
 
 from __future__ import annotations
 
@@ -22,7 +18,6 @@ from isaaclab.managers import SceneEntityCfg
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedEnv
-
 
 import math
 from collections.abc import Sequence
@@ -74,52 +69,33 @@ def randomize_bam_friction(
 
 _ENCODER_BIAS_ATTR = "_microduck_encoder_bias"
 
-
 """Attribute the per-environment encoder bias is cached under on the environment."""
-
 
 _GROUND_STATE_JOINT_IDS_ATTR = "_microduck_ground_state_joint_ids"
 
-
 """Attribute the resolved sitting-pose joint indices are cached under on the environment."""
-
 
 _ROULADE_STATE_ATTR = "_microduck_roulade_state"
 
-
 """Attribute the forward-roll bookkeeping is cached under on the environment."""
-
 
 _MOUTH_PAYLOAD_ATTR = "_microduck_mouth_payload"
 
-
 """Attribute the per-environment ground-pick payload mass is cached under on the environment."""
-
 
 _CROUCH_PITCH_JITTER = math.radians(10.0)
 
-
-"""Half-width [rad] of the pitch noise added to a crouch spawn's depth-scaled forward lean.
-
-Upstream hardcodes it (addendum section 3.4, ``set_random_crouch_state``); it is named here rather
-than left as a literal, but it is not a parameter, because it is not a knob upstream exposes.
-"""
-
+"""Half-width [rad] of the pitch noise added to a crouch spawn's depth-scaled forward lean."""
 
 _CROUCH_PITCH_MIN = math.radians(5.0)
 
-
 """Floor [rad] on a crouch spawn's forward lean, so the shallowest draw is still leaning."""
-
 
 _CROUCH_ROLL_MAX = math.radians(8.0)
 
-
 """Half-width [rad] of the roll noise on a crouch spawn, so no episode starts perfectly sagittal."""
 
-
 _CROUCH_Z_MARGIN = 0.01
-
 
 """Upward margin [m] added to a crouch spawn's height so it settles onto the floor rather than through it."""
 
@@ -136,12 +112,6 @@ def encoder_bias(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCf
     * :class:`~isaaclab_tasks.contrib.microduck.mdp.actions.ArticulationEncoderBiasAction`
       **subtracts** it, because the servo closes its position loop on the same biased reading;
     * :func:`randomize_articulation_encoder_bias` samples it.
-
-    Upstream stores the tensor on the articulation itself (``asset.data.encoder_bias``, reference
-    section 5); Isaac Lab's articulation data has no such field, so it is cached on the environment
-    instead, keyed by asset name. The tensor is allocated on first use and only ever written
-    in place, so a reader may resolve it at any time -- including before the startup randomization
-    runs, which is when the observation manager first probes the observation dimensions.
 
     A task that never wires :func:`randomize_articulation_encoder_bias` therefore reads an all-zero bias, and
     the biased terms degenerate to their unbiased counterparts.
@@ -174,11 +144,6 @@ def randomize_articulation_encoder_bias(
 ) -> None:
     """Randomize the joint-encoder calibration error of an articulation.
 
-    Draws an independent ``U(bias_range)`` offset per environment and per selected joint. Upstream
-    runs this on **startup** (reference section 2.6), which makes the bias a fixed property of each
-    simulated robot rather than a per-episode disturbance; running it on reset would let the policy
-    average the bias out over an episode instead of learning to tolerate it.
-
     Args:
         env: The environment holding the articulation.
         env_ids: The environments to resample. Defaults to None, which resamples all of them.
@@ -200,11 +165,7 @@ def randomize_articulation_encoder_bias(
 
 
 def _keyframe_joint_ids(env: ManagerBasedEnv, asset: Articulation, joint_names: tuple[str, ...]) -> list[int]:
-    """Resolve, and cache on the environment, the indices of the joints a keyframe overrides.
-
-    A reset event runs every episode, so the name resolution is done once per articulation and
-    selection rather than per reset. The cache mirrors upstream's own memoized servo-index lookup.
-    """
+    """Resolve, and cache on the environment, the indices of the joints a keyframe overrides."""
     cache: dict[tuple[int, tuple[str, ...]], list[int]] = env.__dict__.setdefault(_GROUND_STATE_JOINT_IDS_ATTR, {})
     key = (id(asset), joint_names)
     joint_ids = cache.get(key)
@@ -238,33 +199,7 @@ def reset_ground_state(
 ) -> None:
     """Reset an articulation into a named ground pose: face-down, face-up, sitting, standing or crouching.
 
-    Ported from addendum section 3.4 (``set_random_ground_state``). This single event *is* the
-    stand-up task's episode distribution: which pose an episode starts from decides which skill it
-    exercises, and a curriculum ramps the four probabilities from the easy mix (mostly standing and
-    sitting) to the hard one (mostly prone) as the run progresses. There is no stock counterpart --
-    :func:`isaaclab.envs.mdp.reset_root_state_uniform` samples one continuous band, not a mixture of
-    named keyframes with a matching joint pose.
-
     The five buckets:
-
-    * **face-down** -- the trunk pitched +90 degrees, belly to the floor, at a random yaw.
-    * **face-up** -- pitched -90 degrees, back to the floor, then rolled by up to
-      :attr:`face_up_roll_max` about the body's long axis. That partial roll is a reverse
-      curriculum: recovering from flat on the back has no reward gradient until the roll completes,
-      so some episodes start part-way along it.
-    * **sitting** -- upright within :attr:`sitting_tilt_max`, low, with the legs folded into
-      :attr:`sitting_joint_pos`. This is the hand-off pose a sit policy leaves the robot in, so it
-      is sampled with joint noise rather than exactly: a policy trained on the exact keyframe does
-      not survive the real hand-off.
-    * **standing** -- the same orientation sampler as sitting but at standing height and with the
-      joints left at the stand pose, so the policy also learns to *hold* a stand.
-    * **crouching** -- a *continuum* rather than a keyframe (addendum section 3.4,
-      ``set_random_crouch_state``). One depth draw per environment leans the trunk forward, lowers
-      it and folds the legs toward :attr:`crouch_joint_pos` together, so the bucket seeds resets
-      **across** the crouch-to-stand stretch rather than at one point on it. That stretch is the
-      last mile of a recovery, and a task that only reaches it at the tail of a rare good rollout
-      collects almost no data there -- upstream added the bucket after measuring policies that
-      recovered as far as the crouch and parked.
 
     The probabilities are normalized and need not sum to one. Only the sitting and crouching buckets
     touch the joints; the other three keep whatever the joint reset wrote.
@@ -311,11 +246,11 @@ def reset_ground_state(
         crouch_pitch_max: Forward trunk lean [rad] at full depth, before the fixed jitter and floor.
             Defaults to 0.0, which leaves only the jitter.
         crouch_joint_noise: Half-width [rad] of the zero-mean **uniform** noise added to every joint
-            selected by :attr:`asset_cfg` in the crouching bucket, on top of the lerp. Upstream uses
+            selected by :attr:`asset_cfg` in the crouching bucket, on top of the lerp. uses
             a uniform draw here and a Gaussian one for the sitting bucket; both are reproduced.
             Defaults to 0.0.
         asset_cfg: The articulation to reset, and the joints the sitting and crouching noise reach.
-            Selecting them by name reproduces upstream's exclusion of passive joints, which are not
+            Selecting them by name reproduces exclusion of passive joints, which are not
             part of any keyframe.
 
     Raises:
@@ -463,13 +398,6 @@ def reset_ground_state(
 class RouladeRollState:
     """Per-environment bookkeeping of the forward roll, shared by the roll's rewards and its reset.
 
-    Ported from addendum section 4.3, where it lives as five loose attributes on the environment
-    (``_roulade_accum``, ``_roulade_max``, ``_roulade_paid``, ``_roulade_head_latch`` and
-    ``_roulade_last_update_step``). The roll is a *stateful* task: nothing in the instantaneous
-    physics says how far around the robot has come, so the rotation is integrated by hand and the
-    completion gates read the integral rather than a clock. Every consumer therefore has to agree on
-    one object, which is why it is stored on the environment rather than inside a term.
-
     The four buffers mean different things and all four are load-bearing:
 
     * :attr:`accumulated_angle` is the running integral. It can go **down**, because rocking
@@ -539,23 +467,8 @@ def reset_roulade_state(
 ) -> None:
     """Reset an articulation into a standing start or part-way through a forward roll.
 
-    Ported from addendum section 4.5 (``reset_roulade_state``). The two buckets are the roll task's
-    whole episode distribution, and the mid-roll one is a **reverse curriculum**: the second half of
-    a forward roll -- supine, then sitting up, then standing -- is the face-up recovery problem the
-    stand-up task already proves is learnable, so spawning into it gives the policy dense data on
-    the part of the trick a standing start only reaches after it has already solved the flip.
-
-    * **standing** -- upright within :attr:`standing_tilt_max`, at a random yaw, at standing height,
-      with the joints left wherever the joint reset put them. :attr:`forward_vel_range` is
-      upstream's "élan" hook: a forward base velocity that would let the roll be entered out of a
-      walk. The roll task ships it at ``(0.0, 0.0)``, so the branch never runs.
-    * **mid-roll** -- pitched :attr:`midroll_pitch_range` into the roll (90 degrees is balanced on
-      the head, 180 on the back, 340 seated and leaning back), low, with the legs and the neck
-      lerped toward :attr:`tuck_joint_pos` by a per-environment factor, and with optional forward
-      angular momentum.
-
     This term also **writes the roll bookkeeping** :func:`roulade_roll_state`, and the two halves of
-    that are as load-bearing as the pose (addendum section 4.5):
+    that are as load-bearing as the pose:
 
     * A mid-roll spawn has its rotation accumulator, frontier and paid pointer all pre-set to the
       **spawn pitch**, so a 170-degree spawn is only paid for the remaining 190 degrees and the
@@ -582,7 +495,7 @@ def reset_roulade_state(
         midroll_pitch_range: Bounds [rad] on how far into the roll the mid-roll bucket spawns.
         standing_tilt_max: Bound [rad] on the uniform pitch the standing bucket is tilted by.
             Defaults to 0.0, which spawns it exactly upright. The roll is sampled independently and
-            is at least 5 degrees wide, as upstream's is.
+            is at least 5 degrees wide, as is.
         forward_vel_range: Bounds [m/s] on the forward base velocity given to standing spawns.
             Defaults to ``(0.0, 0.0)``, which is a standstill start and skips the branch.
         midroll_omega_range: Bounds [rad/s] on the forward roll rate given to mid-roll spawns.
@@ -595,7 +508,7 @@ def reset_roulade_state(
             selected by :attr:`asset_cfg` in the mid-roll bucket, on top of the tuck. Defaults to
             0.0.
         asset_cfg: The articulation to reset, and the joints the tuck noise reaches. Selecting them
-            by name reproduces upstream's exclusion of passive joints, which are not part of any
+            by name reproduces exclusion of passive joints, which are not part of any
             keyframe.
 
     Raises:
@@ -628,8 +541,7 @@ def reset_roulade_state(
     midroll_pitch = _uniform(midroll_pitch_range)
     pitch = (torch.rand(num_resets, device=env.device) * 2.0 - 1.0) * standing_tilt_max
     pitch = torch.where(is_midroll, midroll_pitch, pitch)
-    # upstream floors the roll spread at 5 degrees for both buckets, so a mid-roll spawn is never
-    # perfectly sagittal either -- the flatness penalty has something to correct from step one
+
     roll = (torch.rand(num_resets, device=env.device) * 2.0 - 1.0) * max(standing_tilt_max, math.radians(5.0))
     quat = quat_from_euler_xyz(roll, pitch, yaw)
 
@@ -644,10 +556,8 @@ def reset_roulade_state(
 
     velocity = torch.zeros(num_resets, 6, device=env.device)
     if midroll_omega_range[1] > 0.0:
-        # Upstream writes the free joint's ``qvel[4]``, which MuJoCo expresses in the **body**
-        # frame, so the spin is about the robot's own pitch axis whatever its spawn yaw. Isaac Lab
-        # writes world-frame velocities, so the same body-frame vector is rotated by the spawn
-        # orientation here rather than being handed over as-is.
+        # Isaac Lab writes world-frame velocities, so the same body-frame vector is rotated by the spawn orientation
+        # here rather than being handed over as-is.
         omega_b = torch.zeros(num_resets, 3, device=env.device)
         omega_b[:, 1] = torch.where(
             is_midroll, _uniform(midroll_omega_range), torch.zeros(num_resets, device=env.device)
@@ -661,8 +571,7 @@ def reset_roulade_state(
         )
         velocity[:, 0] = forward_speed * torch.cos(yaw)
         velocity[:, 1] = forward_speed * torch.sin(yaw)
-    # the link frame rather than the centre of mass, because upstream's ``qvel`` is the free joint's
-    # own frame: at 3 rad/s the two differ by several centimetres per second across the head offset
+
     asset.write_root_link_velocity_to_sim_index(root_velocity=velocity, env_ids=env_ids)
 
     midroll_env_ids = env_ids[is_midroll]
@@ -695,18 +604,6 @@ def randomize_joint_dry_friction(
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> None:
     """Set the dry (Coulomb) friction of selected joints to a value drawn per environment and joint.
-
-    Ported from addendum section 5.6 (``randomize_wheel_friction``, upstream's stock
-    ``dr.dof_frictionloss`` at ``operation="abs"``). The roller task drives it on the four passive
-    wheel hinges, whose MJCF friction is zero for trainability, and ramps it in by curriculum: a real
-    bearing has drag, and a policy that has only ever skated on frictionless wheels overestimates how
-    far it coasts.
-
-    The stock :func:`isaaclab.envs.mdp.randomize_joint_parameters` is **not** reusable here. Its
-    ``friction_distribution_params`` writes the sampled value into the joint's dry friction *and*
-    into its viscous friction, and the wheel bearings have no authored viscous term: at the top of
-    upstream's ramp the extra viscous coefficient would brake a wheel spinning at skating speed an
-    order of magnitude harder than the dry friction it is meant to model.
 
     The passive wheels are outside the BAM servo group's ``^(?!passive_).*`` selection, so nothing
     republishes over this write -- unlike the driven joints, whose solver friction the actuator owns
@@ -742,23 +639,9 @@ def reset_rolling_entry(
 ) -> None:
     """Start an episode already rolling: the base and its wheels leave the reset at the same speed.
 
-    Ported from addendum section 4.3 (``reset_rolling_entry``). One forward speed ``v`` is drawn per
-    environment; the root gets a world-frame linear velocity of ``(v, 0, 0)`` and every selected
-    wheel gets ``v / wheel_radius``, so the contact starts rolling rather than skidding. Upstream
-    reached for this after a base-only shove -- a moving base on motionless wheels -- produced a
-    contact spike on the first step that diverged into a NaN, and taught the policy to walk itself to
-    a stop instead of rolling. There is no stock counterpart:
-    :func:`isaaclab.envs.mdp.reset_root_state_uniform`'s ``velocity_range`` moves the base alone,
-    which is exactly the failure this replaces.
-
     The whole six-vector is written, so any base velocity an earlier reset left behind is overwritten
     rather than added to. It must therefore run **after** the root reset that places the base, and
     Isaac Lab fires reset events in configuration declaration order.
-
-    Note:
-        ``wheel_radius`` defaults to upstream's 0.0175 where the model measures 0.0150 (addendum
-        section 9.3), so the wheels actually start about 14 percent slower than rolling without
-        slipping would need. The stale value is reproduced for parity with the trained policy.
 
     Args:
         env: The environment holding the articulation.
@@ -766,9 +649,9 @@ def reset_rolling_entry(
         asset_cfg: The articulation and the passive wheel joints to spin up. Selecting them by name
             is what keeps this correct on a model whose wheels interleave with the servos.
         speed_range: The ``(low, high)`` bounds [m/s] of the entry speed. Defaults to (0.25, 0.45),
-            which is upstream's. Pin both ends to the same value to make an entry deterministic.
+             Pin both ends to the same value to make an entry deterministic.
         wheel_radius: Rolling radius [m] the entry speed is converted to a wheel rate with. Defaults
-            to 0.0175, which is upstream's.
+            to 0.0175.
     """
     asset: Articulation = env.scene[asset_cfg.name]
     if env_ids is None:
@@ -792,20 +675,11 @@ def reset_rolling_entry(
 
 _BALL_KICK_DIRECTION_ATTR = "_microduck_ball_kick_direction"
 
-
 """Attribute the per-environment ball-kick direction is cached under on the environment."""
 
 
 def ball_kick_direction(env: ManagerBasedEnv) -> torch.Tensor:
     """The world-frame direction "forward" means to the ball-kick rewards, allocated on first use.
-
-    Ported from addendum section 2.3 (``_ball_kick_dir``). It is the robot's heading at the episode
-    reset, frozen for the whole episode by :func:`reset_ball_in_front_of_foot`, and both kick rewards
-    project the ball's velocity onto it. Freezing it is the point: a live heading would let the
-    policy redefine "forward" by turning after the kick and collect the reward for a ball it pushed
-    sideways.
-
-    Before the first reset it is ``+x``, which is what upstream's lazy allocation gives too.
 
     Args:
         env: The environment the direction is bookkept for.
@@ -833,11 +707,6 @@ def reset_ball_in_front_of_foot(
 ) -> None:
     """Place the ball just in front of one foot, in the robot's own yaw frame, and freeze the kick
     direction for the episode.
-
-    Ported from addendum section 2.3 (``reset_ball_in_front_of_foot``). The offset is applied in the
-    frame of the robot's *reset* yaw rather than along the world axes, because the ground-state reset
-    spawns the robot at a uniformly random heading; placing the ball at a world-frame offset would
-    put it behind the robot on half the episodes.
 
     The ball is set down at rest, exactly touching the ground, with an identity orientation -- a
     sphere has no meaningful one, and the initial spin is what the kick has to create.
@@ -868,13 +737,11 @@ def reset_ball_in_front_of_foot(
     robot: Articulation = env.scene[robot_cfg.name]
     ball: RigidObject = env.scene[asset_cfg.name]
 
-    # Upstream reads the robot root straight out of ``qpos`` because its own derived buffers lag
-    # until the next ``forward()``. Isaac Lab's root writes update the articulation's buffers as they
-    # go, so the pose read here is the one the preceding reset events wrote.
+    # Isaac Lab's root writes update the articulation's buffers as they go, so the pose read here is the one the
+    # preceding reset events wrote.
     root_pos = robot.data.root_link_pos_w.torch[env_ids]
     quat = robot.data.root_link_quat_w.torch[env_ids]
-    # Isaac Lab quaternions are (x, y, z, w) where upstream's are (w, x, y, z), so the four
-    # components below are read at shifted indices; the yaw formula itself is upstream's.
+
     qx, qy, qz, qw = quat[:, 0], quat[:, 1], quat[:, 2], quat[:, 3]
     yaw = torch.atan2(2.0 * (qw * qz + qx * qy), 1.0 - 2.0 * (qy * qy + qz * qz))
     cos_yaw, sin_yaw = torch.cos(yaw), torch.sin(yaw)
@@ -926,10 +793,6 @@ def sample_mouth_payload(
 ) -> None:
     """Draw the mass [kg] the robot is asked to lift in its mouth this episode.
 
-    Ported from addendum section 5.6 (``sample_mouth_payload``). It is domain randomization over the
-    *task*, not over the plant: the robot never knows what it picked up, so a policy trained across
-    the range has to lift whatever it is handed rather than one calibrated weight.
-
     Args:
         env: The environment instance.
         env_ids: Environments to redraw. None redraws every environment.
@@ -955,21 +818,6 @@ def apply_mouth_payload_force(
 ) -> None:
     """Hang the drawn payload off the mouth tip, from the moment the robot starts standing back up.
 
-    Ported from addendum section 5.6 (``apply_mouth_payload_force``). The payload is not an asset:
-    it is an equivalent wrench, a 10-40 g point mass at the mouth tip, and at the end of a head on
-    the end of a neck it is a real moment about the ankles during the return. Its gate ramps in over
-    ``ramp`` of a cycle from ``hold_end`` -- the moment the mouth closes on the object -- and stays
-    on for the rest of the cycle, dropping abruptly at the wrap.
-
-    Note:
-        Upstream implements this as a **weight-zero reward term** whose function writes an external
-        wrench every step (addendum section 13.20). This port registers it where Isaac Lab writes
-        state -- as an interval event on a zero-width interval, so it fires every control step for
-        every environment -- because a zero-weight reward that is load-bearing physics is exactly the
-        thing a later cleanup deletes. The consequence is that the wrench is written after the
-        command manager advances the clock rather than before, so it lags upstream by one control
-        step out of the 200 in a cycle.
-
     Args:
         env: The environment instance.
         env_ids: Environments to write. None writes every environment.
@@ -977,9 +825,9 @@ def apply_mouth_payload_force(
         mouth_offset_b: Mouth-tip position [m] in that body's frame.
         command_name: Name of the phase command term.
         hold_end: Phase at which the low dwell finishes, the mouth closes and the payload appears.
-        ramp: Fraction of a cycle the payload fades in over. Defaults to 0.05, upstream's value.
+        ramp: Fraction of a cycle the payload fades in over. Defaults to 0.05, value.
         gravity: Gravitational acceleration [m/s^2] the payload weighs under. Defaults to 9.81,
-            upstream's value.
+            value.
     """
     asset: Articulation = env.scene[asset_cfg.name]
     if asset_cfg.body_names is None or len(asset_cfg.body_ids) != 1:
@@ -1003,8 +851,7 @@ def apply_mouth_payload_force(
 
     forces = torch.zeros_like(body_pos_w)
     forces[:, 2] = -gate * mouth_payload(env) * gravity
-    # The composer resolves the moment about the body's centre of mass itself, which is upstream's
-    # explicit ``cross(p_mouth - p_com, F)`` without the chance of reading the wrong frame.
+
     asset.permanent_wrench_composer.set_forces_and_torques_index(
         forces=forces[env_ids].unsqueeze(1),
         positions=mouth_pos_w[env_ids].unsqueeze(1),
@@ -1030,11 +877,6 @@ def seated_head_command_jerk(
     min_alpha: float = 0.98,
 ) -> None:
     """Abruptly change the head request during a commanded seated dwell.
-
-    Ported from Pollen Robotics' ``microduck_rl`` at ``bae39f5900b318f7e87fc485c30a31213cfa14eb``,
-    ``tasks/mdp.py::seated_head_command_jerk`` (Apache-2.0). Fast gamepad-like head changes expose
-    the backward-tip states the multi-second command dwell rarely visits. The head command's
-    resampling timer is preserved; only its held value changes.
 
     Args:
         env: The environment instance.
@@ -1072,11 +914,6 @@ def seated_backward_tip(
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> None:
     """Add a backward pitch kick, with optional lateral spread, during a seated dwell.
-
-    Ported from Pollen Robotics' ``microduck_rl`` at ``bae39f5900b318f7e87fc485c30a31213cfa14eb``,
-    ``tasks/mdp.py::seated_backward_tip`` (Apache-2.0). Body ``-y`` pitches the nose upward. The
-    increment is rotated into the world frame before adding it to the existing root-link velocity,
-    preserving linear motion and training physically reached recovery states.
 
     Args:
         env: The environment instance.

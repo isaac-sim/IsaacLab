@@ -3,26 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Fidelity tests for the MicroDuck ball prop, the one non-robot asset of the MicroDuck family.
+"""Test the authored MicroDuck ball against an independent MuJoCo model.
 
-Unlike the robot models, :data:`~isaaclab_tasks.contrib.microduck.assets.MICRODUCK_BALL_CFG`
-is **authored** rather
-than converted: its upstream source is a 15-line MJCF holding a single analytic sphere, so there is
-nothing for the mesh importer to carry. That makes the fidelity question a different one -- not "did
-the conversion survive" but "does the configuration reproduce the MJCF" -- and the reference is the
-MJCF itself, compiled by MuJoCo, exactly as it is for the robots.
-
-Two properties carry the physics and neither follows from the geometry:
-
-* the **hollow-shell** inertia ``(2/3) m r^2``, which is 40 % larger than the solid-sphere tensor a
-  sphere prim with only a mass resolves to, and which decides how a kicked ball trades rolling for
-  sliding;
-* the **friction actually bound to the collider**, which the MicroDuck conversion had to repair by
-  hand on the robots and which a prop authored through a spawner gets from a different path.
-
-The MJCF is an optional read-only fixture at the original pinned upstream commit. Point
-``MICRODUCK_MJCF_DIR`` at a directory holding the upstream MJCFs. No source is fetched or converted
-during setup.
+Check the hollow-shell inertia (2/3) m r^2 and compliant ground contact, which geometry alone does not
+define.
 """
 
 import copy
@@ -46,7 +30,7 @@ from isaaclab_tasks.contrib.microduck.assets import (
 pytestmark = [pytest.mark.integration, pytest.mark.kitless]
 
 BALL_MJCF_FILENAME = "ball.xml"
-"""Upstream's ball model, next to the three robot MJCFs."""
+"""Optional ball MJCF fixture filename."""
 
 SOLID_SPHERE_INERTIA = 2.0 / 5.0 * MICRODUCK_BALL_MASS * MICRODUCK_BALL_RADIUS**2
 """Inertia [kg m^2] a uniform-density sphere of this mass and radius would have, 7.35e-6.
@@ -74,7 +58,7 @@ def ball_mjcf_path() -> str:
 
 @pytest.fixture(scope="module")
 def mj_ball(ball_mjcf_path):
-    """The upstream ball MJCF compiled by MuJoCo, which is the fidelity reference."""
+    """Compile the optional ball MJCF as an independent physics reference."""
     mujoco = pytest.importorskip("mujoco")
     return mujoco.MjModel.from_xml_path(ball_mjcf_path)
 
@@ -125,12 +109,7 @@ def test_the_configuration_constants_are_the_mjcfs(mj_ball):
 
 
 def test_the_mjcf_inertia_is_a_hollow_shell(mj_ball):
-    """Upstream's stated inertia is ``(2/3) m r^2`` exactly, not the solid-sphere ``(2/5) m r^2``.
-
-    The MJCF states the tensor as a literal, so this is the assertion that establishes *which*
-    tensor the port has to reproduce -- and it is the reason the port cannot simply hand a mass to a
-    sphere prim and let the backend compute one.
-    """
+    """The authored ball inertia is (2/3) m r^2, so a solid-sphere (2/5) m r^2 tensor is incorrect."""
     shell = 2.0 / 3.0 * MICRODUCK_BALL_MASS * MICRODUCK_BALL_RADIUS**2
 
     for axis in range(3):
@@ -158,13 +137,7 @@ def test_the_spawned_ball_carries_the_mjcf_mass_and_hollow_shell_inertia(newton_
 
 
 def test_the_spawned_ball_is_one_free_sphere_of_the_mjcfs_radius(newton_ball, mj_ball):
-    """One rigid body, one enabled collider, one radius, and no joints to drive.
-
-    Upstream's ball is a free body carrying a ``freejoint``; Isaac Lab expresses the same thing as a
-    :class:`~isaaclab.assets.RigidObject`, whose root is free by construction. There is therefore no
-    degree of freedom to count -- and, unlike the robot models, no articulation for a task to
-    actuate by mistake.
-    """
+    """The ball is one free rigid body with one spherical collider and no actuated joints."""
     ball, stage, _ = newton_ball
 
     assert ball.num_bodies == 1

@@ -3,26 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Recipe-parity and acceptance tests for the contributed MicroDuck stand-up-on-skates environment.
+"""Test recovery on rollers and valid leg reward selections.
 
-The parity tests need neither the asset nor the simulator: they read the assembled configuration and
-compare it against the upstream recipe, transcribed here from
-``artifacts/microduck/upstream_reference_tasks3.md`` section 9. The expected values are spelled out
-rather than imported from the configuration under test, so that a drifting value fails rather than
-agrees with itself.
-
-This task is the one in the batch with **no accuracy gate against upstream**, and the reason is not a
-scheduling one: upstream's environment cannot run at the pinned commit. Three of its reward terms
-index a fourteen-wide servo view with indices drawn from the eighteen-joint model layout and raise
-``IndexError`` on the first reward evaluation (section 13.2, upstream issue draft 016), so there is
-no upstream trajectory to compare against. What stands in its place is
-:func:`test_the_rise_stack_scores_a_stand_far_above_a_fallen_start` -- an **internal acceptance**
-test that spawns the robot fallen on its skates, evaluates the task's own reward stack end to end
-under physics, and asserts the ordering the task exists to teach. An acceptance test that never
-scores a reward would not be one.
-
-Simulator-backed checks retrieve the prebuilt USD through Isaac Lab's native asset cache.
-Recipe checks do not need an asset; source fidelity comparisons use optional read-only fixtures."""
+Leg rewards must resolve ten named physical joints within the fourteen-servo view.
+Scene checks compare the rise reward stack for standing and fallen configurations.
+"""
 
 import math
 import os
@@ -68,7 +53,7 @@ ACTOR_OBSERVATION_DIM = 61
 CRITIC_OBSERVATION_DIM = 78
 
 EPISODE_CONTROL_STEPS = 300
-"""Control steps in an episode: 6 s at 50 Hz, a third of the skating task's window (section 9.1)."""
+"""Control steps in an episode: 6 s at 50 Hz, a third of the skating task's window."""
 
 EXPECTED_SERVO_JOINT_NAMES = [
     "left_hip_yaw",
@@ -102,28 +87,22 @@ EXPECTED_HEAD_JOINT_NAMES = ["neck_pitch", "head_pitch", "head_yaw", "head_roll"
 EXPECTED_WHEEL_JOINT_NAMES = ["passive_LF_wheel", "passive_LR_wheel", "passive_RF_wheel", "passive_RR_wheel"]
 
 UPSTREAM_LEG_JOINT_INDICES = [0, 1, 2, 3, 4, 11, 12, 13, 14, 15]
-"""Upstream's hard-coded leg indices (section 13.2, upstream issue draft 016).
-
-They are the legs' positions in the roller model's **eighteen-joint** layout, and upstream feeds them
-to helpers that have already collapsed to the fourteen-wide servo view, so the last two are out of
-bounds. The port resolves the same joints by name instead; this constant exists so
-:func:`test_the_upstream_leg_indices_would_have_indexed_past_the_servo_view` can record why.
+"""Indices from the eighteen-joint layout used to check bounds against a fourteen-servo view.
+The valid reward selection resolves the ten physical leg joints by name.
 """
 
 EXPECTED_REWARDS = {
     # name: (weight, scalar params)
-    #
-    # the eight regularizers carried over from the skating recipe (section 9.2)
     "body_ang_vel": (-0.05, {}),
     "angular_momentum": (-0.02, {}),
-    # upstream declares -0.6 and its curriculum's stage 0 is -0.4, which is what is ever live
+    # the task declares -0.6 and its curriculum's stage 0 is -0.4, which is what is ever live
     "action_rate_l2": (-0.4, {}),
     "self_collisions": (-1.0, {}),
     "neck_action_rate_l2": (-0.5, {"action_name": "joint_pos"}),
     "neck_joint_pos_l2": (-0.5, {}),
     "joint_torques_l2": (-1e-3, {}),
     "action_over_limit": (-0.5, {"action_name": "joint_pos", "overshoot": 0.3}),
-    # the eleven-term rise stack (section 9.5)
+    # the eleven-term rise stack
     "pose_stand_legs": (8.0, {"std": 0.5}),
     "pose_stand_l1": (5.0, {}),
     "height_stand": (4.0, {"std": 0.04, "target_height": 0.138}),
@@ -139,7 +118,7 @@ EXPECTED_REWARDS = {
     ),
     "joint_torque_rate_l2": (-0.2, {}),
 }
-"""Upstream's nineteen-term reward recipe (sections 9.2 and 9.5), at its live weights."""
+"""Initial reward terms, weights and scalar parameters, including inherited terms."""
 
 EXPECTED_REMOVED_SKATING_REWARDS = [
     "wheel_speed",
@@ -156,15 +135,10 @@ EXPECTED_REMOVED_SKATING_REWARDS = [
     "com_height_target",
     "upright",
 ]
-"""The thirteen skating terms upstream pops (section 9.2). All thirteen exist in the roller dict."""
+"""The thirteen skating terms the task pops. All thirteen exist in the roller dict."""
 
 EXPECTED_POSITIVE_WEIGHT_SELF_NEGATING = ["pose_stand_l1", "height_stand_l1", "gentle_rise"]
-"""Terms whose kernels return a non-positive value and which therefore take positive weights.
-
-``gentle_rise`` is the one that matters: upstream inherited it at -0.02 from the wheel-less stand-up
-task, which made it a double negative that *rewarded* vertical acceleration, measured it logging as
-the only penalty term with a positive episode return, and flipped the sign here (section 9.6).
-"""
+"""Terms whose kernels return a non-positive value and which therefore take positive weights."""
 
 EXPECTED_CURRICULUM_TERMS = {
     "ground_state_mix",
@@ -190,7 +164,7 @@ EXPECTED_WHEEL_FRICTION_STAGES = [
     (3000, {"friction_range": (0.003, 0.003)}),
     (4000, {"friction_range": (0.0015, 0.0015)}),
 ]
-"""Upstream's **inverted** bearing-drag ramp (section 9.8): almost locked, relaxed toward free."""
+"""The configured **inverted** bearing-drag ramp: almost locked, relaxed toward free."""
 
 EXPECTED_RESET_EVENT_ORDER = [
     "reset_base",
@@ -211,13 +185,13 @@ def _scalar_params(term_cfg) -> dict:
 
 
 ##
-# Recipe parity against upstream (section 9)
+# Configuration expectations
 ##
 
 
 @pytest.mark.unit
 def test_the_reward_recipe_matches_upstream_term_for_term():
-    """Every reward slot upstream trains with is present, with its weight and its parameters."""
+    """Reward terms must match the expected set, weights and scalar parameters."""
     rewards = MicroDuckRollerStandUpFlatEnvCfg().rewards
     skating = MicroDuckVelocityRollersFlatEnvCfg().rewards
 
@@ -244,19 +218,14 @@ def test_the_three_self_negating_terms_take_positive_weights():
     for name in EXPECTED_POSITIVE_WEIGHT_SELF_NEGATING:
         assert getattr(rewards, name).weight > 0.0, name
     # the wheel-less stand-up task uses the same kernel and the same sign, which is what makes
-    # upstream's -0.02 on this task a copy that was never re-derived (section 9.6)
+    # the configured -0.02 on this task a copy that was never re-derived
     assert rewards.gentle_rise.func is mdp.trunk_vertical_accel_penalty
     assert rewards.gentle_rise.weight == pytest.approx(0.02)
 
 
 @pytest.mark.unit
 def test_the_pose_terms_resolve_the_legs_by_name_rather_than_by_index():
-    """The port's divergence from upstream, and the reason upstream's environment cannot run.
-
-    Upstream hard-codes the legs' positions in the eighteen-joint model layout and feeds them to
-    helpers that have already collapsed to the fourteen-wide servo view (section 13.2). Naming the
-    joints removes the class of bug rather than the instance.
-    """
+    """Resolve ten physical leg joints by name within the fourteen-servo reward view."""
     rewards = MicroDuckRollerStandUpFlatEnvCfg().rewards
 
     for name in ("pose_stand_legs", "pose_stand_l1", "standing_composite"):
@@ -271,7 +240,7 @@ def test_the_pose_terms_resolve_the_legs_by_name_rather_than_by_index():
 
 @pytest.mark.unit
 def test_the_keyframe_heights_are_the_roller_models_measured_ones():
-    """0.138 m is the geometric standing height less about 2.7 mm of servo sag (section 9.1)."""
+    """0.138 m is the geometric standing height less about 2.7 mm of servo sag."""
     assert pytest.approx(0.138) == MICRODUCK_ROLLER_STAND_HEIGHT
     assert pytest.approx(0.14070) == MICRODUCK_ROLLERS_STANDING_HEIGHT
     assert pytest.approx(0.0027, abs=1e-4) == MICRODUCK_ROLLERS_STANDING_HEIGHT - MICRODUCK_ROLLER_STAND_HEIGHT
@@ -290,7 +259,7 @@ def test_the_keyframe_heights_are_the_roller_models_measured_ones():
 
 @pytest.mark.unit
 def test_the_ground_state_spawn_reproduces_upstream_bands_and_probabilities():
-    """One height band for two prone poses whose contacts have nothing in common (section 9.7)."""
+    """One height band for two prone poses whose contacts have nothing in common."""
     events = MicroDuckRollerStandUpFlatEnvCfg().events
 
     params = events.set_ground_state.params
@@ -319,14 +288,7 @@ def test_the_reset_events_fire_in_an_order_that_lets_the_ground_state_win():
 
 @pytest.mark.unit
 def test_the_wheel_friction_curriculum_runs_backwards():
-    """The task's one genuinely new piece of machinery: locked bearings, relaxed toward free.
-
-    The skating task ramps the same quantity *up* from zero. Here it starts almost locked -- which
-    makes the wheels behave like feet, and is the only way to bootstrap a push on a rolling contact
-    -- and is relaxed over four thousand iterations toward the same 0.0015 the skating task converges
-    on. The deployment consequence is that only checkpoints from after the last stage are candidates
-    for the robot (section 9.8).
-    """
+    """The task's one genuinely new piece of machinery: locked bearings, relaxed toward free."""
     curriculum = MicroDuckRollerStandUpFlatEnvCfg().curriculum
     events = MicroDuckRollerStandUpFlatEnvCfg().events
     stages = curriculum.wheel_friction.params["param_stages"]
@@ -345,7 +307,7 @@ def test_the_wheel_friction_curriculum_runs_backwards():
     # and the event ships stage 0's value, so nothing is silently dead
     assert events.randomize_wheel_friction.params["friction_range"] == stages[0]["params"]["friction_range"]
     assert events.randomize_wheel_friction.params["asset_cfg"].joint_names == EXPECTED_WHEEL_JOINT_NAMES
-    # upstream's dedicated wheel-friction curriculum compares exclusively
+    # Wheel-friction stages use strict boundaries; event-parameter stages use inclusive boundaries.
     assert curriculum.wheel_friction.params["inclusive"] is False
 
 
@@ -365,7 +327,7 @@ def test_the_curricula_reproduce_upstream_stage_tables():
         assert params["standing_prob"] > 0.0
 
     # the action-rate ramp is the wheel-less stand-up task's, not the skating task's: the skating
-    # ramp reaches -2.0 for a calm gait, which blocks the fast rise this task needs (section 9.9)
+    # ramp reaches -2.0 for a calm gait, which blocks the fast rise this task needs
     action_rate = [stage["weight"] for stage in curriculum.action_rate_weight.params["weight_stages"]]
     assert action_rate == pytest.approx([-0.4, -0.8, -1.0])
     assert min(action_rate) > -2.0
@@ -389,7 +351,7 @@ def test_the_tilt_termination_is_dropped_and_the_nan_guard_is_kept():
 
     assert set(vars(terminations)) == {"time_out", "nan_state"}
     assert not hasattr(terminations, "fell_over")
-    # the family's NaN-guard norm, where upstream reaches for an observation-level sanitizer instead
+    # the family's NaN-guard norm, where the task reaches for an observation-level sanitizer instead
     assert terminations.nan_state.params["sensor_names"] == ("contact_forces",)
     assert terminations.nan_state.time_out is False
 
@@ -415,7 +377,7 @@ def test_the_command_is_a_neutralized_shape_placeholder():
 
 @pytest.mark.unit
 def test_the_scene_actions_and_observations_are_the_skating_task_untouched():
-    """Upstream derives this task from the roller factory, so it inherits the whole plant."""
+    """The slope task changes terrain while preserving the roller scene, actions and observations."""
     standup = MicroDuckRollerStandUpFlatEnvCfg()
     skating = MicroDuckVelocityRollersFlatEnvCfg()
 
@@ -428,14 +390,7 @@ def test_the_scene_actions_and_observations_are_the_skating_task_untouched():
 
 @pytest.mark.unit
 def test_the_contact_budget_is_measured_rather_than_inherited():
-    """This robot spends most of every episode on the floor, which the skating profile does not cover.
-
-    The budget sits one slot below the mjlab template's inherited ``nconmax = 35``, which is the
-    number upstream leaves unexamined here. That is a *tightening*, and it is justified by
-    measurement rather than by taste: the peak was profiled at 256, 2048 and 4096 environments and
-    the value carries the family's 1.2x margin above it. ``nconmax`` is a per-environment share of
-    one shared buffer, so it cannot overflow at the measured peak in any case.
-    """
+    """Contact and constraint capacities must cover the task's measured contact load."""
     solver = MicroDuckRollerStandUpFlatEnvCfg().sim.physics.default.solver_cfg
     skating = MicroDuckVelocityRollersFlatEnvCfg().sim.physics.default.solver_cfg
 
@@ -446,13 +401,13 @@ def test_the_contact_budget_is_measured_rather_than_inherited():
     # heavier than the skating profile on the same model, which is why it was re-measured
     assert solver.njmax > skating.njmax
     assert solver.nconmax > skating.nconmax
-    # the solver iteration counts are upstream's template values, untouched
+    # the solver iteration counts are the configured template values, untouched
     assert (solver.iterations, solver.ls_iterations) == (10, 20)
 
 
 @pytest.mark.unit
 def test_the_runner_carries_the_deployment_gate_in_its_iteration_budget():
-    """The wheel-friction ramp finishes at iteration 4000, well inside upstream's 15 000 budget."""
+    """The wheel-friction ramp finishes at iteration 4000, well inside the configured 15 000 budget."""
     runner = MicroDuckRollerStandUpPPORunnerCfg()
     curriculum = MicroDuckRollerStandUpFlatEnvCfg().curriculum
 
@@ -500,14 +455,7 @@ def test_the_observation_and_action_widths_are_the_ones_their_contracts_name():
 @pytest.mark.integration
 @requires_microduck_rollers_usd
 def test_the_upstream_leg_indices_would_have_indexed_past_the_servo_view():
-    """Records upstream issue draft 016 against the model, so the divergence is justified by measurement.
-
-    Upstream's ``_LEG_JOINTS`` are the legs' positions in the eighteen-joint layout and are fed to
-    helpers that have already collapsed to the fourteen-wide servo view, so the last two are out of
-    bounds and its environment raises on the first reward evaluation (section 13.2). This test does
-    the same indexing against the same servo view and asserts it fails, then shows the port's
-    name-resolved selection lands on the ten joints upstream meant.
-    """
+    """Eighteen-joint indices can exceed the fourteen-servo view; named selection must resolve valid leg columns."""
     sim_utils.create_new_stage()
     env = None
     try:
@@ -518,7 +466,7 @@ def test_the_upstream_leg_indices_would_have_indexed_past_the_servo_view():
         env.reset()
         robot = unwrapped.scene["robot"]
 
-        # the model layout upstream's comment describes, re-measured here
+        # the model layout the configured comment describes, re-measured here
         assert list(robot.joint_names)[:1] != []
         wheel_positions = [list(robot.joint_names).index(name) for name in EXPECTED_WHEEL_JOINT_NAMES]
         assert robot.num_joints == 18
@@ -529,7 +477,7 @@ def test_the_upstream_leg_indices_would_have_indexed_past_the_servo_view():
         servo_view = robot.data.joint_pos.torch[:, servo_ids]
         assert servo_view.shape[1] == 14
 
-        # upstream's indices against that view: out of bounds by two. The indexing is done on a host
+        # the configured indices against that view: out of bounds by two. The indexing is done on a host
         # copy on purpose -- an out-of-range gather on the device raises a device-side assert that
         # poisons the CUDA context for every test after it, where the host copy raises cleanly.
         assert max(UPSTREAM_LEG_JOINT_INDICES) >= servo_view.shape[1]
@@ -537,7 +485,7 @@ def test_the_upstream_leg_indices_would_have_indexed_past_the_servo_view():
         with pytest.raises(IndexError):
             host_view[:, torch.tensor(UPSTREAM_LEG_JOINT_INDICES)]
 
-        # the port's selection lands on the ten joints upstream meant, and evaluates
+        # The named selection resolves the ten physical leg joints to valid servo columns.
         term_cfg = unwrapped.reward_manager.get_term_cfg("pose_stand_legs")
         resolved = [robot.joint_names[int(i)] for i in term_cfg.params["asset_cfg"].joint_ids]
         assert resolved == EXPECTED_LEG_JOINT_NAMES
@@ -551,24 +499,7 @@ def test_the_upstream_leg_indices_would_have_indexed_past_the_servo_view():
 @pytest.mark.integration
 @requires_microduck_rollers_usd
 def test_the_rise_stack_scores_a_stand_far_above_a_fallen_start():
-    """The internal acceptance test that stands in for an accuracy gate against upstream.
-
-    Upstream's environment cannot run at the pinned commit (section 13.2), so there is no upstream
-    trajectory to compare against. What this asserts instead is the ordering the task exists to
-    teach, measured on the task's **own reward stack**, end to end, under physics, from the spawns
-    the task actually uses:
-
-    * a robot lying face down on its skates scores far below one standing at the station;
-    * a robot lying face up scores below the face-down one, which is why the curriculum introduces it
-      last;
-    * ``standing_composite`` -- the product of the height, upright and pose scores, and the largest
-      single weight in the task -- is what separates them, and it is near zero from either fallen
-      start and near its maximum at the station.
-
-    The scores are the *weighted* reward sum over the whole nineteen-term stack, taken through the
-    reward manager, so a term with the wrong sign or the wrong scope shows up here rather than only
-    in the parity tables.
-    """
+    """The internal acceptance test that stands in for an accuracy gate against the task."""
     sim_utils.create_new_stage()
     env = None
     try:
@@ -586,15 +517,8 @@ def test_the_rise_stack_scores_a_stand_far_above_a_fallen_start():
         robot = unwrapped.scene["robot"]
 
         def place(height: float, pitch: float) -> None:
-            """Put the robot at a trunk height with a pitch about the body ``y`` axis, and refresh
-            the buffers.
-
-            Nothing steps: the placements are read at their measured rest heights, so letting them
-            settle would let the face-down and face-up poses drift before the reward is scored --
-            which is the thing the placement is controlling for.
-
-            Isaac Lab's root pose is ``(x, y, z, qx, qy, qz, qw)``, so a rotation about ``y`` fills
-            columns 4 and 6 -- not the columns upstream's ``(w, x, y, z)`` convention would suggest.
+            """Put the robot at a trunk height with a pitch about the body ``y`` axis, and refresh the
+            buffers.
             """
             pose = torch.zeros((unwrapped.num_envs, 7), device=unwrapped.device)
             pose[:, 0:3] = unwrapped.scene.env_origins

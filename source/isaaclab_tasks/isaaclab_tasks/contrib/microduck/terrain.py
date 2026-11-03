@@ -3,11 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Opt-in source terrain sensing at the retained MicroDuck sole-site frames.
+"""Terrain sensing in the MicroDuck sole-site frames.
 
-The legacy flat tasks keep their existing body-height terms. Rough variants can use
-``configure_foot_terrain_sensing`` to measure the source site clearance and site velocity.
-The source ring with two samples includes its center, hence three rays per foot.
+Foot clearance uses three rays per sole and the retained site transforms. Terrain-relative
+resets place each robot above its local surface.
 """
 
 from __future__ import annotations
@@ -39,7 +38,6 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv, ManagerBasedRLEnvCfg
     from isaaclab.managers import RewardTermCfg, SceneEntityCfg
 
-
 HEIGHT_SENSOR_NAMES = ("left_foot_height", "right_foot_height")
 FOOT_SITE_PATHS = (
     "{ENV_REGEX_NS}/Robot/Geometry/trunk_base/yaw2roll/hip_l/upper_leg_left/leg/ankle_left/left_foot",
@@ -48,7 +46,7 @@ FOOT_SITE_PATHS = (
 
 
 def foot_height_safe(env: ManagerBasedEnv, height_sensor_names: tuple[str, ...]) -> torch.Tensor:
-    """Return minimum vertical site clearance, with upstream miss/backface handling."""
+    """Return minimum vertical site clearance, with miss/backface handling."""
     heights = []
     for name in height_sensor_names:
         sensor = env.scene[name]

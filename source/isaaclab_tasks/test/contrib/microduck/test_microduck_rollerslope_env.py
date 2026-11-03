@@ -3,29 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Recipe-parity and smoke tests for the contributed MicroDuck roller-slope environment.
+"""Test roller-slope configuration, resets and terrain contact behavior.
 
-The parity tests need neither the asset nor the simulator: they read the assembled configuration and
-compare it against the upstream recipe, transcribed here from
-``artifacts/microduck/upstream_reference_tasks4.md``. The expected values are spelled out rather
-than imported from the configuration under test, so that a drifting value fails rather than agrees
-with itself.
-
-This task is built as a **delta on the skating recipe**, which is what upstream does too: its
-factory calls the roller factory and then edits. So the tests come in two halves. The first pins
-what is inherited -- the scene robot, the sensors, the action space and both observation groups --
-and the *deletion list*, because upstream keeps exactly one inherited reward and a port that
-silently kept a second one would still pass a term-by-term check of the nine it declares. The second
-pins the slope layer: the terrain, the neutralized command, the rolling entry, the void floor and
-the terrain-level ladder.
-
-Two of the simulator-backed tests are the ones the kernel unit tests cannot cover. The rolling entry
-is checked by **reading the wheel velocities back off the articulation** after a reset rather than by
-asserting the write happened, and the environment origins are checked against the surface of the
-terrain that was actually built.
-
-Simulator-backed checks retrieve the prebuilt USD through Isaac Lab's native asset cache.
-Recipe checks do not need an asset; source fidelity comparisons use optional read-only fixtures."""
+The task shares roller sensing and actions and supplies slope-specific rewards, commands and terrain.
+Scene checks verify wheel velocities and terrain origins.
+"""
 
 import copy
 import dataclasses
@@ -104,7 +86,7 @@ EXPECTED_TIRE_BODY_NAMES = ["tire", "tire_2", "tire_3", "tire_4"]
 EXPECTED_TRUNK_BODY_NAMES = ["trunk_base"]
 
 EXPECTED_REWARDS = {
-    # name: (weight, scalar params) -- addendum section 5.3, the nine terms upstream trains with
+    # name: (weight, scalar params)
     "action_rate_l2": (-1.0, {}),
     "upright": (3.0, {"std": math.sqrt(0.08)}),
     "alive": (1.0, {}),
@@ -115,15 +97,10 @@ EXPECTED_REWARDS = {
     "neck_joint_pos_l2": (-0.75, {}),
     "joint_torques_l2": (-1e-3, {}),
 }
-"""Upstream's nine-term reward recipe (addendum section 5.3), keyed by term name.
-
-No curriculum touches any of these weights, so unlike four of the tasks in the previous batch the
-declared literals **are** the live values -- ``action_rate_l2`` really is -1.0 from step 0, where the
-skating recipe ramps it to -2.0.
-"""
+"""Initial reward terms, weights and scalar parameters, including inherited terms."""
 
 EXPECTED_ABSENT_REWARDS = {
-    # the skating recipe's terms that upstream's ``keep`` set deletes and never declares again
+    # the skating recipe's terms that the configured ``keep`` set deletes and never declares again
     "pose",
     "body_ang_vel",
     "angular_momentum",
@@ -139,23 +116,13 @@ EXPECTED_ABSENT_REWARDS = {
     "gait_symmetry",
     "forward_lean",
 }
-"""The fourteen skating terms that do not survive into this task (addendum section 5.3).
-
-Upstream's ``keep = {"action_rate_l2"}`` deletes **twenty** inherited terms and then declares six of
-them again with fresh parameters, so "deleted" is not the same as "absent" and only these fourteen
-are gone. The deletion is the design: no fixed-pose reward, so the robot is free to fold and lean into
-the slope instead of being told to hold the flat-ground stand.
-"""
+"""Roller reward terms absent from the slope task."""
 
 EXPECTED_ROLLER_VERBATIM_REWARDS = ("feet_flat", "neck_action_rate_l2", "joint_torques_l2")
-"""The three redeclared terms that restate the skating recipe character for character.
-
-They are compared against the skating task rather than against a transcribed literal, so that a
-change to the proven roller recipe reaches this task's test instead of the two drifting apart.
-"""
+"""Reward terms whose functions and parameters remain shared with the roller task."""
 
 EXPECTED_TERMINATIONS = {
-    # name: (time_out flag, scalar params) -- addendum section 5.4
+    # name: (time_out flag, scalar params)
     "time_out": (True, {}),
     "fell_over": (False, {"limit_angle": 1.0}),
     "nan_state": (False, {"sensor_names": ("contact_forces",)}),
@@ -172,15 +139,10 @@ EXPECTED_RESET_EVENT_ORDER = [
     "randomize_armature",
     "reset_rolling_entry",
 ]
-"""The reset chain, in the order it fires.
-
-This is behaviour, not housekeeping: :func:`~isaaclab_tasks.contrib.microduck.mdp.events.reset_rolling_entry`
-writes the whole root velocity six-vector, so it has to run after ``reset_base`` places the base.
-Upstream appends it last too, and guarantees the order the same way -- by declaration order.
-"""
+"""Reset events in their required execution order."""
 
 EXPECTED_CURRICULUM_TERMS = {"terrain_levels"}
-"""One term, with no parameters (addendum section 5.6). Every skating schedule is deleted."""
+"""Only the terrain-level curriculum remains; roller command and reward schedules are absent."""
 
 EXPECTED_ENTITY_SELECTIONS = {
     # "<manager>.<term>.<param>": (kind, expected names, preserve_order)
@@ -274,14 +236,7 @@ def _surface_height_under(mesh: trimesh.Trimesh, x: float, y: float) -> float:
 
 @pytest.mark.unit
 def test_the_scene_actions_and_observations_are_the_skating_task_untouched():
-    """Everything but the terrain is inherited, and the actor never learns it is on a slope.
-
-    Upstream edits the terrain, the commands, two events, the whole reward dict, the terminations,
-    the observation NaN policy and the curriculum -- and **no** observation term, sensor,
-    randomization term, actuator or asset (addendum sections 1 and 5.5). The 61-wide actor therefore
-    sees the incline only through ``projected_gravity`` and proprioception, which is half of what
-    made this task portable without a terrain-height sensor.
-    """
+    """The slope task changes terrain while preserving the roller scene, actions and observations."""
     slope = MicroDuckRollerSlopeFlatEnvCfg()
     rollers = MicroDuckVelocityRollersFlatEnvCfg()
 
@@ -299,7 +254,7 @@ def test_the_scene_actions_and_observations_are_the_skating_task_untouched():
 
 @pytest.mark.unit
 def test_the_randomization_suite_is_the_skating_one_with_a_rolling_entry_appended():
-    """Upstream edits two reset events and adds one; every other randomization is inherited."""
+    """The task edits two reset events and adds one; every other randomization is inherited."""
     slope = MicroDuckRollerSlopeFlatEnvCfg()
     rollers = MicroDuckVelocityRollersFlatEnvCfg()
 
@@ -320,7 +275,7 @@ def test_the_randomization_suite_is_the_skating_one_with_a_rolling_entry_appende
 
 @pytest.mark.unit
 def test_the_reward_recipe_matches_upstream_term_for_term():
-    """Every reward slot upstream trains with is present, with its weight and its parameters."""
+    """Reward terms must match the expected set, weights and scalar parameters."""
     rewards = MicroDuckRollerSlopeFlatEnvCfg().rewards
 
     assert set(vars(rewards)) == set(EXPECTED_REWARDS)
@@ -335,12 +290,7 @@ def test_the_reward_recipe_matches_upstream_term_for_term():
 
 @pytest.mark.unit
 def test_the_skating_reward_recipe_is_deleted_rather_than_inherited():
-    """The deletion list is the design, and a derived configuration is where it can silently rot.
-
-    Upstream keeps exactly one inherited term and rebuilds the rest, so a port that quietly left a
-    second skating term in place would still pass a term-by-term check of the nine it declares. This
-    is the test that catches it.
-    """
+    """Only the intended slope rewards remain; reject extra inherited roller reward terms."""
     slope = MicroDuckRollerSlopeFlatEnvCfg().rewards
     rollers = MicroDuckVelocityRollersFlatEnvCfg().rewards
 
@@ -352,19 +302,14 @@ def test_the_skating_reward_recipe_is_deleted_rather_than_inherited():
     # nothing measuring a fixed pose or a commanded speed survives
     assert not {"pose", "com_height_target", "wheel_speed", "braking"} & set(vars(slope))
 
-    # the self-collision *sensor* is still in the scene, unread: upstream keeps it too, because the
+    # the self-collision *sensor* is still in the scene, unread: the task keeps it too, because the
     # deletion is of the reward rather than of the sensor
     assert MicroDuckRollerSlopeFlatEnvCfg().scene.self_collision is not None
 
 
 @pytest.mark.unit
 def test_the_three_restated_skating_terms_are_that_task_verbatim_and_the_neck_one_is_not():
-    """One weight breaks a copy-the-block port, and it is the easiest thing in this task to miss.
-
-    ``feet_flat``, ``neck_action_rate_l2`` and ``joint_torques_l2`` restate the skating declarations
-    character for character; ``neck_joint_pos_l2`` goes from -0.5 to **-0.75**, a fifty percent
-    increase (addendum section 5.3).
-    """
+    """Shared roller reward terms retain their parameters while the neck penalty uses its slope-specific weight."""
     slope = MicroDuckRollerSlopeFlatEnvCfg().rewards
     rollers = MicroDuckVelocityRollersFlatEnvCfg().rewards
 
@@ -382,16 +327,7 @@ def test_the_three_restated_skating_terms_are_that_task_verbatim_and_the_neck_on
 
 @pytest.mark.unit
 def test_the_upright_standard_deviation_matches_upstreams_kernel_at_vertical():
-    """The two kernels measure different tilts, so the width is converted rather than copied.
-
-    Upstream's ``body_upright_gaussian`` scores ``exp(-(1 - cos t) / std^2)`` at ``std = 0.2`` where
-    ``mdp.upright`` scores ``exp(-sin^2(t) / std^2)`` (addendum section 4.6). Matching the exponents
-    needs ``std_ours^2 = std_up^2 * (1 + cos t)``, which is exact only at one tilt; normalizing at
-    vertical -- where the reward and its gradient matter most -- gives ``sqrt(2) * 0.2``.
-
-    The derivation is redone here rather than transcribed, and the residual is measured, so the
-    "slightly sharper off vertical" claim in the configuration is checked rather than asserted.
-    """
+    """Convert the upright width between tilt-angle and projected-gravity kernels at vertical."""
     upstream_std = 0.2
     assert pytest.approx(math.sqrt(2.0) * upstream_std) == MICRODUCK_SLOPE_UPRIGHT_STD
     assert pytest.approx(math.sqrt(0.08)) == MICRODUCK_SLOPE_UPRIGHT_STD
@@ -417,15 +353,7 @@ def test_the_upright_standard_deviation_matches_upstreams_kernel_at_vertical():
 
 @pytest.mark.unit
 def test_the_twist_command_is_kept_alive_and_neutralized():
-    """The term stays so the 61-wide observation keeps its three twist slots, and reads zero.
-
-    Four of the five edits are upstream's (addendum section 5.1). The fifth --
-    ``rel_forward_envs = 0.0`` -- is this port's, and it is the one worth pinning: upstream's forced
-    forward bucket clamps the surge slot to at least 0.3 at resample time, and upstream's own command
-    override drops the standing-environment zeroing that ``rel_standing_envs = 1.0`` was set to
-    trigger, so on upstream's stack a fifth of the environments carry a 0.3 throttle for a whole
-    resampling interval -- in an observation slot that no reward on this task reads.
-    """
+    """Keep three twist observation slots and resampling while commanding zero velocity."""
     slope = MicroDuckRollerSlopeFlatEnvCfg()
     rollers = MicroDuckVelocityRollersFlatEnvCfg()
     command = slope.commands.base_velocity
@@ -468,7 +396,7 @@ def test_the_rolling_entry_is_wired_after_the_base_reset_and_names_the_four_whee
     assert entry.params["speed_range"] == MICRODUCK_SLOPE_ENTRY_SPEED_X == (0.25, 0.45)
     assert entry.params["asset_cfg"].joint_names == EXPECTED_WHEEL_JOINT_NAMES
     assert entry.params["asset_cfg"].preserve_order is True
-    # upstream takes the wheel radius default, which is the known-stale 0.0175 m (addendum 9.3)
+    # The configured rolling radius is 0.0175 m.
     assert "wheel_radius" not in entry.params
 
     # the base reset faces down the slope and injects no velocity of its own, so the entry owns the
@@ -476,7 +404,7 @@ def test_the_rolling_entry_is_wired_after_the_base_reset_and_names_the_four_whee
     reset_base = events.reset_base
     assert reset_base.params["pose_range"]["yaw"] == (0.0, 0.0)
     assert reset_base.params["velocity_range"] == {}
-    # the inherited horizontal jitter is upstream's and is deliberately *not* narrowed
+    # the inherited horizontal jitter is the configured and is deliberately *not* narrowed
     assert reset_base.params["pose_range"]["x"] == (-0.5, 0.5)
     assert reset_base.params["pose_range"]["y"] == (-0.5, 0.5)
 
@@ -503,7 +431,7 @@ def test_the_terminations_tighten_the_tilt_limit_and_add_an_absolute_void_floor(
         math.radians(70.0)
     )
 
-    # the constant is derived, not transcribed: half a metre below the deepest reachable runout
+    # The void floor is 0.5 m below the deepest reachable runout.
     longest_ramp = MICRODUCK_SLOPE_TERRAIN_CFG.sub_terrains["flat_ramp"].ramp_length_range[1]
     deepest = -longest_ramp * math.tan(math.radians(MICRODUCK_RAMP_DEG_MAX))
     assert pytest.approx(deepest - 0.5) == MICRODUCK_SLOPE_VOID_FLOOR
@@ -554,21 +482,14 @@ def test_the_terrain_generator_reproduces_upstreams_tile_and_ladder():
     assert sub_terrain.flat_length + sub_terrain.ramp_length_range[1] + sub_terrain.runout_length == 14.0
     assert MICRODUCK_SLOPE_TILE_SIZE[0] >= 14.0
 
-    # the live promotion gates, which upstream's own docstring miscalibrates against an 8 m tile
+    # the live promotion gates, which the configured own docstring miscalibrates against an 8 m tile
     assert MICRODUCK_SLOPE_TILE_SIZE[0] * 0.4 == pytest.approx(6.0)
     assert MICRODUCK_SLOPE_TILE_SIZE[0] * 0.2 == pytest.approx(3.0)
 
 
 @pytest.mark.unit
 def test_the_terrain_is_collided_against_as_a_heightfield():
-    """Load-bearing, not a detail: against the raw mesh this robot's tires do not carry it.
-
-    On the triangle mesh the generator emits, the roller model rides for about 0.1 s, sinks 45 mm
-    and stops; on the heightfield it rides like it does on an analytic ground plane. The conversion
-    is lossless here because the tile is piecewise planar with no overhangs, and it is what every
-    stock Newton-validated terrain configuration does. Traces:
-    ``artifacts/microduck/golden_trajectories/rollerslope/controls/``.
-    """
+    """Tires must contact the heightfield surface rather than penetrate a triangle-mesh terrain."""
     generator = MicroDuckRollerSlopeFlatEnvCfg().scene.terrain.terrain_generator
 
     assert generator.sub_terrains["flat_ramp"].convert_to_heightfield is True
@@ -680,17 +601,13 @@ def test_the_contact_budget_is_measured_rather_than_inherited():
     assert solver.nconmax >= 92
     assert inherited.njmax < 295
     assert inherited.nconmax < 92
-    # upstream's flat solver profile is inherited unchanged; only the buffers are resized
+    # the configured flat solver profile is inherited unchanged; only the buffers are resized
     assert (solver.iterations, solver.ls_iterations) == (inherited.iterations, inherited.ls_iterations) == (10, 20)
 
 
 @pytest.mark.unit
 def test_the_runner_keeps_the_family_hyper_parameters_under_its_own_log_tree():
-    """Upstream's runner differs from the *velocity* one in two fields (addendum section 7).
-
-    Deriving from the skating runner instead would silently triple the exploration noise: that class
-    raises ``entropy_coef`` to 0.03 for the stroke, and this task declares the family's 0.01.
-    """
+    """The slope runner shares PPO hyperparameters and uses its own experiment name and iteration budget."""
     runner = MicroDuckRollerSlopePPORunnerCfg()
 
     assert runner.experiment_name == "microduck_rollerslope"
@@ -781,7 +698,7 @@ def test_the_rolling_entry_leaves_the_wheels_turning_after_a_reset():
         root_vel_x = robot.data.root_link_lin_vel_w.torch[:, 0]
 
         speed_min, speed_max = MICRODUCK_SLOPE_ENTRY_SPEED_X
-        wheel_radius = 0.0175  # upstream's default, which the configuration deliberately takes
+        wheel_radius = 0.0175  # the configured default, which the configuration deliberately takes
         assert torch.isfinite(wheel_vel).all()
         # every wheel of an environment turns at the same rate, and that rate is v / r
         assert torch.allclose(wheel_vel, wheel_vel[:, :1].expand_as(wheel_vel), atol=1e-4)
@@ -845,7 +762,7 @@ def test_the_environments_start_on_the_ramp_and_the_void_guard_stays_quiet_throu
         # The first reset scores the curriculum against a root pose the reset events have not written
         # yet -- the robot is still on the cloner's spacing grid, tens of metres from its terrain
         # origin -- so every environment is promoted once and demoted back on the next reset. That is
-        # upstream's behaviour too: the same curriculum function against the same centred grid.
+        # the configured behaviour too: the same curriculum function against the same centred grid.
         unwrapped.reset()
 
         terrain = unwrapped.scene.terrain
@@ -894,21 +811,8 @@ def test_the_environments_start_on_the_ramp_and_the_void_guard_stays_quiet_throu
 @pytest.mark.integration
 @requires_microduck_rollers_usd
 def test_a_diverged_environment_does_not_poison_the_reward_buffer():
-    """The failure that killed two 4096-environment training runs, reproduced deterministically.
-
-    A rare MuJoCo Warp divergence leaves one environment's whole joint state and every body
-    orientation non-finite for a single step while the root quaternion stays normalized. The
-    ``nan_state`` termination exists to catch exactly that, and it does -- but detection is not what
-    is missing. ``ManagerBasedRLEnv.step`` computes the terminations and then the rewards from the
-    same post-physics buffers, and only *repairs* the flagged environments afterwards, in
-    ``_reset_idx``; so the reward for the step the divergence happened on is computed on the poisoned
-    state whichever manager runs first, and RSL-RL aborts the run on it. Measured rate on this task:
-    about one step-environment in sixteen million, which is the order upstream reports for the same
-    divergence.
-
-    The state written below is the shape captured from a live rollout, not a guess:
-    ``artifacts/microduck/reward_nan/``. Two things are asserted, and the second is the one that
-    keeps the guard honest -- the divergence must still be *detected*, only kept out of the reward.
+    """Nonfinite joint and body states must trigger termination while reward outputs remain finite.
+    A finite root quaternion alone cannot establish that the rest of the articulation state is valid.
     """
     sim_utils.create_new_stage()
     env = None

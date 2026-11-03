@@ -3,11 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Current merged upstream VelStand terms, isolated from every legacy task.
-
-Source: pollen-robotics/microduck_rl@bae39f5900b318f7e87fc485c30a31213cfa14eb.
-Quaternions use native Isaac Lab xyzw; reset heights are relative to each terrain origin.
-"""
+"""Walking and recovery terms with standing-gated body-pose commands."""
 
 from __future__ import annotations
 
@@ -30,10 +26,9 @@ def _finite_reward(value):
 
 
 def _finite_reward_compute(manager, dt):
-    """Native aggregation with the source MJLab per-term finite guard before accumulation.
+    """Guard each reward term before accumulating step buffers and dt-scaled totals.
 
-    Keep native per-second step buffers and dt-scaled totals/history. Guarding only
-    the total would erase other terms and previous episode sums on a bad sample.
+    Invalid samples contribute zero for that term, preserving other terms and episode history.
     """
     for index, cfg in enumerate(manager._term_cfgs):
         step_reward = manager._step_reward[:, index]
@@ -106,10 +101,10 @@ def action_rate_l2_fallen_scaled(env, fallen_scale=0.1, gate_tilt_above_deg=40.0
 
 
 class joint_torque_rate_l2_fallen_scaled(ManagerTermBase):
-    """Source torque difference, using public native actuator effort.
+    """Torque-difference cost with tilt-dependent recovery scaling.
 
-    Source intentionally retains its previous torque across episode resets. The first ever
-    call returns zero; unlike the old port this adapter does not clear it on every reset.
+    Uses public actuator effort and retains the previous torque across episode resets.
+    Only the first call returns zero.
     """
 
     def __init__(self, cfg, env):
@@ -121,8 +116,7 @@ class joint_torque_rate_l2_fallen_scaled(ManagerTermBase):
         valid = torch.isfinite(torque)
         previous = torch.where(valid, torque, 0.0) if self._previous is None else self._previous
         cost = (torque - previous).square().sum(1)
-        # A diverged step is scored zero, and cannot contaminate the next episode's
-        # retained torque history. Valid torque retains the source reset semantics.
+        # Retain valid torque history across episode resets.
         self._previous = torch.where(valid, torque, previous).detach().clone()
         return _finite_reward(cost * _fallen_scale(env, asset_cfg, fallen_scale, gate_tilt_above_deg))
 

@@ -3,12 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Task deployment clones, contact-site metadata and the MicroDuck floorball.
+"""MicroDuck deployment limits, contact-site metadata and the floorball prop.
 
-Robot geometry comes exclusively from the eight prebuilt assets in ``isaaclab_assets``. The audited
-Pollen recipes retain their explicit electrical effort ceiling and identified viscous damping in
-private clones; the original contributed walking configurations keep their established defaults.
-All robot variants use the Isaac Lab asset server, including both full-contact variants.
+Task-local robot clones apply an electrical effort ceiling and identified viscous damping.
+Robot geometry loads from the shared hosted asset configurations.
 """
 
 from pxr import Gf, Usd, UsdPhysics
@@ -27,14 +25,16 @@ MICRODUCK_JOINT_DAMPING = robots.MICRODUCK_CFG.actuators["servos"].motor.frictio
 """Identified XL330 viscous joint damping [N m s/rad]."""
 _motor = robots.MICRODUCK_CFG.actuators["servos"].motor
 MICRODUCK_SERVO_EFFORT_LIMIT = max(MICRODUCK_SERVO_VIN_RANGE) * _motor.kt / _motor.resistance
-"""Electrical ceiling [N m]; the separate 1.75 A firmware limiter remains active on legacy variants.
+"""Electrical motor-force ceiling [N m] at the maximum battery voltage.
 
-The two full-contact variants disable that limiter, a local deviation from Pollen's XL330 default.
+Native BAM forces enter ``qfrc_applied`` independently of the authored joint-actuator range.
+The separate 1.75 A firmware limiter reduces zero-speed stall torque to about 0.6405 N m.
+Full-contact variants disable that limiter and use this electrical ceiling as their joint limit.
 """
 
 
 def _deployment_cfg(cfg: ArticulationCfg) -> ArticulationCfg:
-    """Clone a shared geometry configuration with the audited recipe's explicit native BAM limits."""
+    """Clone shared geometry with explicit electrical effort and damping limits."""
     cfg = clone_cfg(cfg)
     servo = cfg.actuators["servos"]
     servo.actuator_effort_limit = MICRODUCK_SERVO_EFFORT_LIMIT
@@ -64,7 +64,6 @@ MICRODUCK_WALK_BACKLASH_USD_PATH = MICRODUCK_WALK_BACKLASH_CFG.spawn.usd_path
 MICRODUCK_GROUNDCONTACT_BACKLASH_USD_PATH = MICRODUCK_GROUNDCONTACT_BACKLASH_CFG.spawn.usd_path
 MICRODUCK_ROLLERS_BACKLASH_USD_PATH = MICRODUCK_ROLLERS_BACKLASH_CFG.spawn.usd_path
 
-
 MICRODUCK_FULLCONTACT_COLLIDER_SHAPE_EXPR = (
     "{ENV_REGEX_NS}/Robot/Geometry/trunk_base/(.*/)?"
     "(fullcontact_[^/]+|[^/]+_servo_collision|(left|right)_foot_collision)/[^/]+"
@@ -72,14 +71,14 @@ MICRODUCK_FULLCONTACT_COLLIDER_SHAPE_EXPR = (
 """The 69 active full-contact collider meshes, excluding visuals, sites, and the disabled power-support shell."""
 
 MICRODUCK_FULLCONTACT_SERVO_SHAPE_EXPR = "{ENV_REGEX_NS}/Robot/Geometry/trunk_base/(.*/)?[^/]+_servo_collision/xl330"
-"""Fifteen XL330 housing collision meshes (including the unactuated mouth housing), with upstream's geom names."""
+"""Fifteen XL330 housing collision meshes (including the unactuated mouth housing), with geom names."""
 
 MICRODUCK_FULLCONTACT_HEAD_SHAPE_EXPR = (
     "{ENV_REGEX_NS}/Robot/Geometry/trunk_base/"
     "(neck(/neck_pitch_1(/yaw_roll_motion(/jaw_soft)?)?)?|bearing_roll)/"
     "(fullcontact_[^/]+|[^/]+_servo_collision)/[^/]+"
 )
-"""Upstream head-sensor body set, including its historical right-hip bearing_roll entry."""
+"""Head-sensor body selection includes the right-hip ``bearing_roll``."""
 
 MICRODUCK_FULLCONTACT_TRUNK_SHAPE_EXPR = (
     "{ENV_REGEX_NS}/Robot/Geometry/trunk_base/(fullcontact_[^/]+|[^/]+_servo_collision)/[^/]+"
@@ -105,42 +104,25 @@ MICRODUCK_FULLCONTACT_BODY_NAMES = {
 }
 """Semantic names of physical links in both full-contact variants; rotor proxies have no colliders."""
 
-
 MICRODUCK_FULLCONTACT_FOOT_SITE_OFFSETS = {
     "left": {"body": "ankle_left", "pos": (0.0, -0.0238146, -0.0140852), "rot": (0.0, -0.707107, -0.707107, 0.0)},
     "right": {"body": "ankle_right", "pos": (0.0, -0.0238146, -0.0140852), "rot": (-0.707107, 0.0, 0.0, 0.707107)},
 }
 """Pinned full-contact foot sites in ankle-body frames, using Isaac Lab's xyzw quaternion convention."""
 
-
-##
-# Ball prop.
-#
-# Upstream's ball-kick task adds one free body to the scene, described by a 15-line MJCF
-# (``robot/microduck/ball.xml``) holding a single analytic sphere. There is nothing for the mesh
-# importer to carry, so it is authored here rather than converted -- which also means it needs no
-# robot USD and is available before any robot asset has been downloaded or copied.
-##
+# # Ball prop.
 
 MICRODUCK_BALL_RADIUS = 0.035
-"""Radius [m] of the ball prop: a 70 mm-diameter floorball, as upstream's MJCF comment describes."""
+"""Radius [m] of the ball prop: a 70 mm-diameter floorball, as MJCF comment describes."""
 
 MICRODUCK_BALL_MASS = 0.015
 """Mass [kg] of the ball prop, 2.0 % of the 0.737 kg robot."""
 
 MICRODUCK_BALL_SLIDING_FRICTION = 0.5
-"""Sliding friction coefficient the ball's MJCF geom authors.
+"""Ball sliding friction coefficient.
 
-It is the one contact coefficient upstream customizes; the torsional and rolling ones are left at
-MuJoCo's defaults of 0.005 and 1e-4, which are also Newton's shape defaults, so they are not
-restated here.
-
-**This coefficient is masked in every contact the ball actually makes**, on both stacks, and that is
-upstream's behaviour rather than a port artefact. MuJoCo -- and Newton's MuJoCo Warp solver, which
-reproduces the rule -- mixes contact friction as the element-wise *maximum* of the two shapes unless
-one carries a higher ``priority``. The ground plane, the robot's shells and the two soles all sit at
-1.0, so every ball contact resolves to 1.0 and this 0.5 never binds. It is carried anyway: it is
-what the MJCF authors, and a surface slipperier than the ball would use it.
+With equal material priority, contact friction uses the maximum of the two coefficients.
+The robot and ground coefficients are 1.0, so they mask the ball's 0.5 coefficient in those contacts.
 """
 
 
@@ -153,12 +135,6 @@ def _spawn_microduck_ball(
     **kwargs,
 ) -> Usd.Prim:
     """Spawn the ball prop and give it the inertia of a hollow shell rather than of a solid sphere.
-
-    Upstream's MJCF states the ball's inertia outright -- ``diaginertia="1.225e-5 ..."``, which is
-    exactly ``(2/3) m r^2``, a thin spherical shell. Nothing derives that from the geometry: a
-    uniform-density sphere of the same mass and radius has ``(2/5) m r^2 = 7.35e-6``, 40 % less, and
-    that is what a sphere prim carrying only a mass resolves to. A ball 40 % easier to spin up rolls
-    and slides differently off the same kick, so the shell tensor is authored here.
 
     The tensor is derived from the configuration's own mass and radius rather than restated as a
     constant, so the three numbers cannot drift apart.
@@ -211,15 +187,10 @@ MICRODUCK_BALL_CFG = RigidObjectCfg(
     ),
     init_state=RigidObjectCfg.InitialStateCfg(pos=(0.3, 0.0, MICRODUCK_BALL_RADIUS)),
 )
-"""Configuration for the ball prop of upstream's MicroDuck ball-kick task.
+"""Configuration for the ball prop of MicroDuck ball-kick task.
 
 A free-floating, non-articulated 70 mm / 15 g hollow plastic sphere -- a floorball -- resting on the
 ground 0.3 m in front of the robot. That initial position only decides where it sits before the
 first reset: the ball-kick task places it in front of the kicking foot every episode, in the robot's
 own yaw frame.
-
-The MJCF gives the geom no collision masks, so it collides with everything, and upstream applies
-none of the robot's collision editing to it. The mass, the radius and the sliding friction are the
-MJCF's; the inertia is a hollow shell rather than the solid sphere the geometry would imply, and is
-authored by :func:`_spawn_microduck_ball`.
 """

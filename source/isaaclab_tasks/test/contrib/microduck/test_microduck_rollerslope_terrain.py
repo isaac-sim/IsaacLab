@@ -3,16 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unit tests for the MicroDuck roller-slope sub-terrain.
-
-The sub-terrain is pure geometry -- it takes a difficulty and returns meshes plus a spawn origin --
-so the tests build it directly and then *measure the built mesh* rather than re-checking the
-formulas that built it. Surface heights are read by casting a ray straight down onto the assembled
-tile, which is the only way to catch a gap or a step at the two joins; the expected profile is the
-independent piecewise-linear reference
-``0 -> -(x - flat_length) * tan(angle) -> -drop`` worked out from
-``artifacts/microduck/upstream_reference_tasks4.md`` section 2.2.
-"""
+"""Test roller-slope geometry, runout boundaries and terrain placement."""
 
 from __future__ import annotations
 
@@ -44,11 +35,7 @@ DIFFICULTY_TO_DEGREES = [
     (1.0, MICRODUCK_RAMP_DEG_MAX),
     (2.0, MICRODUCK_RAMP_DEG_MAX),
 ]
-"""The difficulty-to-ramp-angle map, including the two clamped ends.
-
-Every interior entry is ``2 + 18 * difficulty`` evaluated by hand, which is upstream's
-``deg_min + d * (deg_max - deg_min)`` (``slope_terrain.py:26-31``).
-"""
+"""The difficulty-to-ramp-angle map, including the two clamped ends."""
 
 
 def _make_cfg(**kwargs) -> FlatRampTerrainCfg:
@@ -149,9 +136,8 @@ def test_the_built_surface_follows_the_flat_ramp_runout_profile_without_a_gap_or
 
 
 def test_dropping_the_shim_would_have_opened_a_gap_the_test_above_can_see():
-    # Guards the guard: the join test is only meaningful if the tolerance is far below the error a
-    # naive implementation makes. Upstream's shim is -(thickness / 2) * sin(angle) in x
-    # (``slope_terrain.py:78-84``), so that is exactly the gap it closes.
+    # The x shim is -(thickness / 2) * sin(angle). The join tolerance must detect the gap
+    # when that correction is omitted.
     cfg = _make_cfg()
     naive_gap = (cfg.thickness / 2.0) * math.sin(math.radians(MICRODUCK_RAMP_DEG_MAX))
 
@@ -171,9 +157,7 @@ def test_the_spawn_origin_sits_on_the_incline_surface(difficulty):
 
 
 def test_the_sub_terrain_is_centred_on_the_tile_rather_than_on_its_edge():
-    # Deliberate deviation from upstream, which places the boxes and the origin at local y = 0 and so
-    # straddles the tile boundary (addendum section 2.3 / 9.1). Isaac Lab sub-terrains span
-    # (0, 0) to size, so the ramp is centred and the origin is on the centreline.
+    # Sub-terrains span (0, 0) to size; center the ramp and place its origin on the centerline.
     cfg = _make_cfg()
     meshes, origin = flat_ramp_terrain(0.5, cfg)
     bounds = trimesh.util.concatenate(meshes).bounds

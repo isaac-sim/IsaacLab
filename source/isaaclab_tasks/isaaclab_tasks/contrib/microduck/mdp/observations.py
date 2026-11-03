@@ -3,11 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Shared MicroDuck observations for walking, recovery and skating recipes.
-
-Existing walking APIs retain their behavior. Descriptive task-specific variants preserve distinct
-encoder storage, command sampling, contact grouping, recovery gates and non-finite handling.
-"""
+"""MicroDuck encoder, IMU, foot-contact and task-state observations."""
 
 from __future__ import annotations
 
@@ -31,7 +27,6 @@ if TYPE_CHECKING:
     from isaaclab.managers import ObservationTermCfg
     from isaaclab.sensors import ContactSensor
 
-
 from isaaclab.utils.math import quat_apply_inverse
 
 from .events import encoder_bias
@@ -43,7 +38,6 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
     from isaaclab.managers import ObservationTermCfg
     from isaaclab.sensors import ContactSensor
-
 
 """
 Sensor-model observations.
@@ -85,14 +79,7 @@ def joint_vel_rel_backlash(
 
 
 class misaligned_imu(ManagerTermBase):
-    """Root angular velocity [rad/s] then projected gravity, read by a misaligned IMU with bus latency.
-
-    Each environment draws a fixed mounting rotation at construction, about a uniform random axis by an angle in
-    ``[0, max_angle_deg]`` [deg], and applies it to both readings. Each reading lags by its own draw in
-    ``[min_lag, max_lag]`` samples, redrawn every ``update_period`` samples with its own per-environment phase to
-    match upstream's separate IMU delay buffers. All parameters are fixed at construction; ``max_lag`` sizes the
-    history buffer.
-    """
+    """Root angular velocity [rad/s] then projected gravity, read by a misaligned IMU with bus latency."""
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
@@ -241,9 +228,7 @@ def foot_height_safe(
 
 _IMU_MISALIGNMENT_ATTR = "_microduck_imu_misalignment"
 
-
 """Attribute the per-environment IMU misalignment rotation is cached under on the environment."""
-
 
 """
 Encoder bias.
@@ -256,12 +241,6 @@ def joint_pos_rel_articulation_biased(
     biased: bool = True,
 ) -> torch.Tensor:
     """Joint positions w.r.t. the default joint positions, as the encoders report them.
-
-    With ``biased=True`` this is the stock :func:`~isaaclab.envs.mdp.observations.joint_pos_rel`
-    plus the per-environment encoder bias (see
-    :func:`~isaaclab_tasks.contrib.microduck.mdp.events.encoder_bias`), which is what the servos on
-    the real robot report. With ``biased=False`` it is the stock term exactly. Upstream feeds the
-    biased value to the actor and the true one to the critic (reference sections 2.3 and 5).
 
     The bias is a *closed loop* with
     :class:`~isaaclab_tasks.contrib.microduck.mdp.actions.ArticulationEncoderBiasAction`, which
@@ -326,16 +305,7 @@ def projected_gravity_imu_misaligned(
 
     The IMU on the real robot is bolted on with a small, unknown, and *fixed* orientation error, so
     the misalignment is drawn once per environment and never resampled -- it is a property of the
-    robot, like a mass offset, not a per-step disturbance (reference section 6).
-
-    The rotation is ``U(0, max_angle_deg)`` about a uniformly random axis. It is deliberately
-    zero-centred: it trains tolerance to the *magnitude* of a mounting error, not to a particular
-    tilt. Upstream corrects the systematic pitch offset of its own board in the runtime instead of
-    baking it into the policy.
-
-    Upstream applies this to the actor only; the critic keeps the stock
-    :func:`~isaaclab.envs.mdp.observations.projected_gravity`. Both misaligned terms share one
-    rotation per environment, so they must be configured with the same ``max_angle_deg``.
+    robot, like a mass offset, not a per-step disturbance.
 
     Args:
         env: The environment.
@@ -379,33 +349,12 @@ Observation delay.
 
 
 class delayed_observation(ManagerTermBase):
-    """Wraps another observation term in the stochastic bus latency upstream models.
-
-    The value the policy reads on the robot is between zero and a few control periods old,
-    depending on when the sample landed relative to the control tick. Upstream expresses this as a
-    per-environment integer lag re-drawn on a slow cadence, so that a lag persists over many steps
-    instead of flickering every step -- a policy can filter out flicker, but not a latency regime
-    (reference section 8). MicroDuck uses two settings:
+    """Wraps another observation term in the stochastic bus latency models.
 
     * ``base_ang_vel`` and ``projected_gravity``: ``min_lag=0``, ``max_lag=1``,
       ``update_period=64`` -- a 0 or 20 ms latency that switches at most every 64 control steps;
     * ``joint_vel``: ``min_lag=1``, ``max_lag=1``, ``update_period=0`` -- a constant 20 ms lag,
       because the servo firmware derives velocity from the previous position-sample window.
-
-    The lag update follows upstream exactly (reference section 8):
-
-    #. the newest sample is pushed first, so lag 0 is the current value;
-    #. with ``update_period = N > 0`` a lag is re-drawn only when ``(step + phase) % N == 0``,
-       where ``phase`` is a per-environment offset drawn at construction and again on reset, which
-       staggers the environments instead of switching them all on the same step;
-    #. ``hold_prob`` further suppresses a re-draw, giving temporally correlated latency; upstream
-       leaves it at 0.0;
-    #. a lag is clamped to the frames actually buffered, so a freshly reset environment gets the
-       newest frame rather than a stale one from before the reset;
-    #. the buffer advances exactly once per control step, however often the observation manager
-       recomputes the group within that step -- the term memoizes its output against the
-       environment's ``common_step_counter``, and advances on every call for an environment that
-       has none.
 
     Rule 5 is why a reset does not clear the history immediately. An environment that computes a
     final observation before resetting part of the batch calls the term twice within one control
@@ -415,20 +364,11 @@ class delayed_observation(ManagerTermBase):
     reset environments the fresh value -- which is what they would read anyway, having no history
     left to be delayed by -- while the rest keep the frame they were already served.
 
-    One deviation from upstream's pipeline: mjlab orders it compute, noise, then delay, so the
-    stale frame carries the noise sample it was drawn with; here the term wraps the *compute*
-    stage, so Isaac Lab's noise is applied fresh to the stale frame. Both give a stale signal plus
-    an independent uniform draw, so the observation distribution is the same; only the particular
-    noise sample attached to a repeated frame differs.
-
     Isaac Lab's :class:`~isaaclab.utils.buffers.DelayBuffer` resamples its lag only on reset and
     has no ``update_period``, phase or hold concept, so this term keeps its own lag state over the
     same :class:`~isaaclab.utils.buffers.CircularBuffer` that ``DelayBuffer`` wraps. Doing the lag
     bookkeeping here also keeps it free of the host-device synchronization
     :meth:`~isaaclab.utils.buffers.DelayBuffer.set_time_lag` performs on every call.
-
-    ``per_env`` and ``per_env_phase`` are not exposed: upstream leaves both at their per-environment
-    defaults, and a shared lag would defeat the point of the term.
 
     Never hoist an :class:`~isaaclab.managers.ObservationTermCfg` wrapping this term to module
     level and reuse the same instance across two observation slots (for example the actor's
@@ -545,12 +485,6 @@ class delayed_observation(ManagerTermBase):
 def zero_command_padding(env: ManagerBasedEnv, dim: int) -> torch.Tensor:
     """A block of zeros, standing in for a command the task does not have.
 
-    Ported from addendum section 4.10 (``zero_command_padding``). The deployed MicroDuck observation
-    is a single 61-wide vector shared by every policy in the family, so a task that drops one of the
-    two pose commands cannot simply shorten it: the runtime on the robot would then feed a walking
-    policy and a trick policy different layouts. Upstream keeps the slot and sends zeros, which is
-    also what the deployed runtime does for that task.
-
     Args:
         env: The environment instance.
         dim: Width of the slot to pad.
@@ -569,23 +503,14 @@ NaN-safe critic terms.
 def fold_bodies_into_feet(values: torch.Tensor, bodies_per_foot: int) -> torch.Tensor:
     """Group a per-contact-body quantity into consecutive runs of bodies, one run per foot.
 
-    Every foot term in this package is written against upstream's *two-slot, left-first* foot sensor.
-    That holds directly on the walking and all-collisions models, whose foot is one collider, and it
-    does not hold on the roller model, whose foot is a two-wheel bogie: the ankle body carries no
-    collider at all and the two tires hanging off it do (addendum section 2.3). Upstream solves this
-    with a ``mode="subtree"`` sensor that reduces each ankle's subtree to one slot; Isaac Lab's
-    contact sensor reports one slot per body, so the reduction is done here instead and the caller
-    picks the reduction its quantity needs -- ``amin`` for air time, ``amax`` for contact time,
-    ``sum`` for force.
-
     Args:
-        values: A per-body quantity in sensor-slot order. Shape is (num_envs, num_bodies, ...).
+        values: A per-body quantity in sensor-slot order. Shape is (num_envs, num_bodies,...).
         bodies_per_foot: Contact bodies making up one foot. ``1`` leaves the tensor untouched apart
             from the inserted axis.
 
     Returns:
         The same values grouped per foot. Shape is
-        (num_envs, num_bodies // bodies_per_foot, bodies_per_foot, ...).
+        (num_envs, num_bodies // bodies_per_foot, bodies_per_foot,...).
 
     Raises:
         ValueError: If the body count is not a multiple of ``bodies_per_foot``.
@@ -621,15 +546,6 @@ def foot_group_contact_forces_safe(
     env: ManagerBasedEnv, sensor_cfg: SceneEntityCfg, bodies_per_foot: int = 1
 ) -> torch.Tensor:
     """Net contact force on each selected body, log-compressed and guarded against NaNs.
-
-    The compression is upstream's ``sign(F) * log1p(|F|)`` (reference section 5), which keeps the
-    impulsive forces of a footstep in the same range as the quasi-static ones of standing.
-
-    The critic's sensor-derived terms are the one observation path the NaN termination cannot
-    protect: it checks joint and root state, while these read contact data, which the solver can
-    return non-finite for while the state itself is still clean. A single NaN reaching the learner
-    kills the whole run, so upstream zeroes them here and lets the termination catch the underlying
-    state corruption.
 
     Args:
         env: The environment.
@@ -678,11 +594,6 @@ def foot_origin_height_safe(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg) -> 
 
     See :func:`foot_group_contact_forces_safe` for why the critic's sensor reads are guarded.
 
-    Upstream raycasts below each foot site to get a clearance that follows the terrain
-    (reference section 2.2). MicroDuck trains on flat ground, where that clearance is the body
-    height above the environment origin, which is what this term measures. A terrain-generator task
-    needs the raycast instead.
-
     Args:
         env: The environment.
         asset_cfg: The articulation and the bodies to report, in the requested order.
@@ -707,19 +618,6 @@ def ball_pos_in_base(
 ) -> torch.Tensor:
     """Position of the ball relative to the robot base, in the base frame.
 
-    Ported from addendum section 6.4 (``ball_pos_in_base``). This is a **privileged** observation:
-    the deployed robot has no ball sensing at all, so it is written to the critic group only and the
-    actor stays blind to the ball. There is no stock counterpart -- the closest,
-    :func:`isaaclab.envs.mdp.object_pos_in_robot_root_frame`, resolves the robot through a different
-    entity convention and is written for the manipulation tasks.
-
-    The rotation is the full base orientation rather than a yaw-only one, as upstream's is, so a
-    tilted robot's reading tilts with it.
-
-    Both ball terms are guarded against non-finite reads where upstream's are not. Nothing in the
-    ball-kick task NaN-checks the ball -- its termination reads the robot only -- so a free body the
-    solver had ejected would otherwise reach the learner through these two terms and nothing else.
-
     Args:
         env: The environment instance.
         asset_cfg: The rigid object to locate.
@@ -740,11 +638,6 @@ def ball_vel_in_base(
     robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
     """Linear velocity of the ball, in the robot base frame.
-
-    Ported from addendum section 6.4 (``ball_vel_in_base``). Privileged, for the same reason as
-    :func:`ball_pos_in_base`. Upstream rotates the ball's *world* velocity into the base frame
-    without subtracting the base's own velocity, so a robot walking toward a stationary ball reads a
-    zero ball velocity rather than a closing one; that is reproduced.
 
     Args:
         env: The environment instance.

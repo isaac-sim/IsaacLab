@@ -3,13 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""RSL-RL agent configuration for the MicroDuck sit-stand task.
-
-Every hyper-parameter is upstream's; see ``historical tasks3 source extraction``
-section 4.10.
-
-Source pins and historical extraction labels are indexed in this task family's ``UPSTREAM.md``.
-"""
+"""PPO configuration for the MicroDuck sit-stand task."""
 
 from isaaclab.utils.configclass import configclass
 
@@ -18,12 +12,7 @@ from isaaclab_tasks.contrib.microduck.velocity.agents.rsl_rl_ppo_cfg import Micr
 
 @configclass
 class MicroDuckSitStandPPORunnerCfg(MicroDuckPPORunnerCfg):
-    """PPO runner for the MicroDuck sit-stand task.
-
-    Upstream's runner differs from its velocity one in exactly two fields, so the rest is inherited
-    rather than restated: the network shapes, the optimizer, the asymmetric actor-critic wiring and
-    the 24-step rollout are shared across the whole family.
-    """
+    """PPO runner for the MicroDuck sit-stand task."""
 
     # a separate log tree: the MicroDuck policies are trained and deployed independently
     experiment_name = "microduck_sitstand"

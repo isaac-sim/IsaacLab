@@ -3,23 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""The flat-plus-ramp sub-terrain the MicroDuck roller-slope task descends.
+"""Three-box terrain with a flat start, inclined ramp and runout.
 
-Ported from ``historical tasks4 source extraction`` section 2 (upstream's
-``slope_terrain.py``). The tile is three boxes laid along ``+x``: a starting platform whose surface
-is at ``z = 0``, a ramp whose angle the curriculum difficulty interpolates over 2 to 20 degrees, and
-a run-out platform at the ramp's foot so a robot that reaches the bottom lands on something solid.
-
-The spawn origin is returned **on the incline**, a short way past the top of the ramp, so the
-inherited origin-relative reset events place the robot on the slope and gravity starts it rolling.
-That, rather than any terrain-relative height sensing, is what this task needs from its terrain: no
-observation, reward or termination in the task measures height against the environment origin
-(addendum section 1).
-
-This is a task-local sub-terrain plugged into the stock generator through
-:class:`~isaaclab.terrains.SubTerrainBaseCfg`; nothing in ``isaaclab.terrains`` changes.
-
-Source pins and historical extraction labels are indexed in this task family's ``UPSTREAM.md``.
+Difficulty interpolates the ramp angle from 2 to 20 degrees. The origin lies on the incline
+so origin-relative robot resets place the robot on the ramp.
 """
 
 from __future__ import annotations
@@ -41,13 +28,6 @@ MICRODUCK_RAMP_DEG_MAX = 20.0
 
 def flat_ramp_terrain(difficulty: float, cfg: FlatRampTerrainCfg) -> tuple[list[trimesh.Trimesh], np.ndarray]:
     """Generate a starting platform, a descending ramp and a run-out platform.
-
-    The ramp angle is ``deg_min + difficulty * (deg_max - deg_min)``, clamped to the difficulty
-    range; its **horizontal** length is drawn once per tile from :attr:`FlatRampTerrainCfg.ramp_length_range`.
-    The ramp box is rotated about ``+y`` and shifted back along ``x`` by ``(thickness / 2) * sin(angle)``,
-    which places the top edge of its inclined face exactly at the end of the starting platform and its
-    bottom edge exactly at the run-out -- upstream's shim, and without it the tile opens a step of up
-    to 85.5 mm at the steepest angle (addendum section 2.2).
 
     Note:
         The draw comes from the global :mod:`numpy` random state, because Isaac Lab sub-terrain
@@ -122,12 +102,7 @@ def flat_ramp_terrain(difficulty: float, cfg: FlatRampTerrainCfg) -> tuple[list[
 
 @configclass
 class FlatRampTerrainCfg(SubTerrainBaseCfg):
-    """Configuration for a starting platform, a descending ramp and a run-out platform.
-
-    The defaults are upstream's (addendum section 2.2). They are sized together: a tile has to be at
-    least ``flat_length + max(ramp_length_range) + runout_length`` long, which is 14 m for these
-    values, and the task configures a 15 m tile.
-    """
+    """Configuration for a starting platform, a descending ramp and a run-out platform."""
 
     function = flat_ramp_terrain
 
@@ -136,22 +111,6 @@ class FlatRampTerrainCfg(SubTerrainBaseCfg):
 
     The stock default is ``False``, and this is the one field that departs from it. Two reasons, and
     the second is measured rather than stylistic:
-
-    * The tile is **exactly** heightfield-representable. It is three boxes laid along ``+x`` whose
-      top faces form a single-valued, piecewise-planar profile with no overhangs and no vertical
-      risers, so the conversion the field's own docstring warns is lossy for mesh sub-terrains loses
-      nothing here.
-    * Raw-mesh collision does not carry this robot. On the triangle mesh the roller model's tires
-      stop supporting it as soon as the wheels turn -- it rides for about 0.1 s, sinks 45 mm and
-      stops -- where on the heightfield it rides like it does on an analytic ground plane. That is a
-      Newton contact gap rather than a geometry error, and it is reproducible at a **zero-degree**
-      ramp angle with nothing task-specific involved; see
-      ``artifacts/microduck/golden_trajectories/rollerslope/controls/``. The heightfield is also the
-      representation every stock Newton-validated terrain configuration uses
-      (:mod:`isaaclab.terrains.config.rough`, and every ``Hf*`` sub-terrain by default).
-
-    Conversion is all-or-nothing across a generator's sub-terrains, so a configuration that mixes
-    this sub-terrain with one that leaves the flag unset silently falls back to the mesh.
     """
 
     flat_length: float = 2.0

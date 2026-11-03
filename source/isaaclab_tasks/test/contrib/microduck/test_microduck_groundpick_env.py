@@ -3,24 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Smoke and recipe-parity tests for the contributed MicroDuck ground-pick environment.
+"""Test ground-pick configuration, mouth-site kinematics and contact sensing.
 
-Simulator-backed checks retrieve the prebuilt USD through Isaac Lab's native asset cache.
-Recipe checks do not need an asset; source fidelity comparisons use optional read-only fixtures.
-
-The parity tests need neither the asset nor the simulator: they read the assembled configuration and
-compare it against the upstream recipe, transcribed here from
-``artifacts/microduck/upstream_reference_tasks3.md`` section 5. Transcribed rather than imported --
-a table that read the configuration it checks would agree with itself.
-
-Two of the integration tests are here for a reason that does not apply to any sibling. This task is
-the family's most **site**-dependent, and Isaac Lab has no site concept: both mouth rewards are
-measured through a fixed offset in the ``jaw_soft`` body frame rather than on upstream's
-``mouth_tip`` site. That mapping is asserted twice and from two directions --
-:func:`test_the_mouth_tip_pose_reproduces_the_upstream_site_kinematics` against MuJoCo's own site
-kinematics on the pinned MJCF, and
-:func:`test_the_head_impact_sensor_fires_when_the_mouth_reaches_the_ground` against the physical
-event the channel exists to describe.
+Mouth rewards use a jaw_soft-frame offset checked against independent MuJoCo site poses and
+physical mouth-ground impact. Configuration checks use independent expected values.
 """
 
 import math
@@ -65,27 +51,20 @@ requires_microduck_allcollisions_usd = pytest.mark.usefixtures("microduck_allcol
 TASK_NAME = "IsaacContrib-GroundPick-Flat-MicroDuck"
 
 STEPS_PER_ITERATION = 24
-"""Environment steps per PPO iteration, upstream's ``num_steps_per_env``."""
+"""Environment control steps per PPO iteration."""
 
 GP_PERIOD = 4.0
 DESCENT_END = 0.375
 HOLD_END = 0.425
 RISE_END = 0.80
-"""Upstream's cycle constants (addendum section 5.1), transcribed rather than imported."""
+"""Expected normalized boundaries of the ground-pick cycle."""
 
 SEGMENT_DURATIONS_S = {"descent": 1.5, "low_dwell": 0.2, "rise": 1.5, "standing": 0.8}
-"""The four segment durations [s] upstream tabulates in its own file header, and which its inline
-prose contradicts (addendum section 13.17 c). These are what the constants above have to produce."""
+"""Expected durations [s] of the four ground-pick cycle segments."""
 
 MOUTH_TIP_OFFSET = (-0.00809334, 0.0, -0.0777383)
 MOUTH_TIP_AXIS = (-0.00872562, 0.0, -0.99996193)
-"""The ``mouth_tip`` site's position [m] and its own ``x`` axis [-] in the ``jaw_soft`` body frame.
-
-Read off ``robot_allcollisions.xml`` at the pinned upstream checkout, where the site is declared as
-``pos="-0.00809334 -0 -0.0777383" quat="0.704015 0 0.710185 -0"``; the axis is the first column of
-that quaternion's rotation matrix. This is the whole of the port's site adaptation, so it is pinned
-by value here and cross-checked against MuJoCo's forward kinematics in the integration test below.
-"""
+"""Mouth-tip site position [m] and unit forward axis expressed in the jaw_soft body frame."""
 
 ACTOR_OBSERVATION_TERMS = [
     ("base_ang_vel", 3),
@@ -97,13 +76,7 @@ ACTOR_OBSERVATION_TERMS = [
     ("head_pose_commands", 4),
     ("body_pose_commands", 6),
 ]
-"""The deployed MicroDuck observation layout, shared across the whole policy family.
-
-Addendum section 11.1: every upstream MicroDuck task presents the same 61-wide vector, because one
-runtime on the robot feeds every policy from the same buffer. Here the three-wide
-``velocity_commands`` slot carries the cycle phase as ``(cos, sin, 0)``, and **both** the head and the
-body slots are zero padding -- this task steers neither.
-"""
+"""The shared 61-component deployed actor observation layout, in concatenation order."""
 
 ACTOR_OBSERVATION_DIM = 61
 """Actor observation width the deployed MicroDuck policy expects."""
@@ -122,10 +95,10 @@ CRITIC_OBSERVATION_TERMS = [
     ("head_pose_commands", 4),
     ("body_pose_commands", 6),
 ]
-"""The privileged critic layout (addendum section 11.2), which is not a deploy contract."""
+"""Privileged critic observation layout, including task-only state outside the deployment interface."""
 
 CRITIC_OBSERVATION_DIM = 74
-"""Critic observation width, upstream's own figure for this task."""
+"""Expected width of the assembled critic observation group."""
 
 EXPECTED_SERVO_JOINT_NAMES = [
     "left_hip_yaw",
@@ -143,7 +116,7 @@ EXPECTED_SERVO_JOINT_NAMES = [
     "right_knee",
     "right_ankle",
 ]
-"""The 14 servos in upstream's MJCF actuator order: 0-4 left leg, 5-8 neck/head, 9-13 right leg."""
+"""Fourteen controlled servos in action order: left leg 0-4, neck/head 5-8 and right leg 9-13."""
 
 EXPECTED_LEG_JOINT_NAMES = [
     "left_hip_yaw",
@@ -157,20 +130,19 @@ EXPECTED_LEG_JOINT_NAMES = [
     "right_knee",
     "right_ankle",
 ]
-"""The 10 leg joints the leg return term scores, upstream's ``_LEG_JOINTS = [0..4, 9..13]``."""
+"""The ten physical leg joints, excluding the four command-driven neck/head joints."""
 
 EXPECTED_HEAD_JOINT_NAMES = ["neck_pitch", "head_pitch", "head_yaw", "head_roll"]
-"""The 4 neck and head servos, upstream's ``_NECK_JOINTS = [5, 6, 7, 8]``."""
+"""The four neck/head servos in command order."""
 
 EXPECTED_FOOT_BODY_NAMES = ["ankle_left", "ankle_right"]
-"""Foot bodies in upstream's ``[left, right]`` site order."""
+"""Foot body names in left/right order."""
 
 EXPECTED_TRUNK_BODY_NAMES = ["trunk_base"]
 """The body the uprightness and angular-velocity terms measure."""
 
 EXPECTED_MOUTH_BODY_NAMES = ["jaw_soft"]
-"""The body the ``mouth_tip`` site is rigidly attached to, and the only one in upstream's ``neck``
-subtree that carries a collider."""
+"""Jaw body rigidly carrying the mouth-tip site and selected impact colliders."""
 
 EXPECTED_REWARDS = {
     # name: (stage-0 weight, scalar params)
@@ -221,18 +193,7 @@ EXPECTED_REWARDS = {
     "joint_torques_l2": (-5e-3, {}),
     "neck_vel_descent": (-0.1, {"command_name": "base_velocity", "hold_end": HOLD_END}),
 }
-"""Upstream's reward slots with their stage-0 weights (addendum section 5.4).
-
-Two of upstream's nineteen slots are deliberately absent and both are documented in
-:class:`~isaaclab_tasks.contrib.microduck.groundpick.groundpick_env_cfg.RewardsCfg`:
-``mouth_payload_force``, a weight-zero reward that is really a per-step physics hook and is an event
-here; and ``soft_landing``, whose ``-1e-5`` restates a template default this port's shared base never
-carried.
-
-``action_rate_l2`` is the *live* weight rather than the declared one: upstream writes -2.0 on the
-term and -0.8 at stage 0 of the curriculum that owns it, and only the latter was ever in effect
-(addendum section 13.12).
-"""
+"""Initial reward terms, weights and scalar parameters, including inherited terms."""
 
 PHASE_GATED_REWARDS = {
     "mouth_ground_proximity": "bend",
@@ -254,25 +215,20 @@ EXPECTED_TERMINATIONS = {
     "fell_over": (False, {"limit_angle": math.radians(70.0)}),
     "nan_state": (False, {"sensor_names": ("contact_forces", "feet_ground_contact", "head_impact_contact")}),
 }
-"""Upstream's terminations (addendum section 5.7).
-
-The tilt termination is kept here, unlike on the sit-stand task: this robot is meant to stay on its
-feet at every phase. ``nan_state``'s sensor list is the port's Ruling-2 deviation, and it is the
-longest in the family because this is the one task that reads a contact force into a *reward*.
-"""
+"""Configured termination names, timeout flags and thresholds."""
 
 EXPECTED_PHASE_COMMAND = {
     "period": GP_PERIOD,
     "randomize_phase": True,
     "heading_command": False,
 }
-"""The phase command's configuration (addendum section 5.3)."""
+"""Configured phase command parameters."""
 
 EXPECTED_PAYLOAD_EVENT = {
     "min_kg": 0.01,
     "max_kg": 0.04,
 }
-"""The per-episode mouth payload (addendum section 5.6)."""
+"""Configured per-episode mouth payload parameters."""
 
 EXPECTED_RESET_EVENT_ORDER = [
     "reset_base",
@@ -290,13 +246,13 @@ what another wrote: every episode spawns upright from ``reset_base``.
 """
 
 EXPECTED_CURRICULUM_TERMS = {"action_rate_weight", "com_range", "head_com_range"}
-"""Every curriculum term (addendum section 5.8). Nothing schedules the task or the pushes."""
+"""Configured curriculum term names."""
 
 EXPECTED_WEIGHT_STAGES = {
     # name: (weights, PPO iteration boundaries)
     "action_rate_weight": ([-0.8, -1.5, -2.0], [0, 250, 500]),
 }
-"""The one reward-weight ramp (addendum section 5.8)."""
+"""Reward weights at each curriculum boundary."""
 
 EXPECTED_RANGE_STAGES = {
     # name: (ranges [m], PPO iteration boundaries)
@@ -306,11 +262,7 @@ EXPECTED_RANGE_STAGES = {
 """The two centre-of-mass ramps. ``com_range`` reaches the widest value in the family."""
 
 EXPECTED_PUSH_RANGE = (-0.15, 0.15)
-"""Push magnitude [m/s], half the family's and live from step 0.
-
-Upstream's note is measured: the gesture is quasi-static and +/-0.3 m/s toppled the robot even
-standing straight.
-"""
+"""Configured push velocity bounds [m/s], active from the first control step."""
 
 EXPECTED_ENTITY_SELECTIONS = {
     # "<manager>.<term>.<param>": (kind, expected names, preserve_order)
@@ -333,19 +285,7 @@ EXPECTED_ENTITY_SELECTIONS = {
     "events.randomize_armature.asset_cfg": ("joint", [".*"], False),
     "events.mouth_payload_force.asset_cfg": ("body", EXPECTED_MOUTH_BODY_NAMES, False),
 }
-"""Every entity selection the recipe makes, outside the observation groups.
-
-These are as load-bearing as the scalar parameters. The two return terms have to stay apart -- one
-scores ten leg joints at a loose width and the other four neck joints at a tight one -- and the three
-sensor selections name three *different* sensors, two of which are terrain-filtered and one of which
-is the many-to-many self-collision one. Isaac Lab resolves joints and bodies in USD order, which is
-neither upstream's nor this table's, so ``preserve_order`` is part of the contract wherever a term
-indexes a block positionally.
-
-``events.randomize_head_com`` is absent because its selection is four *patterns* rather than four
-names; ``events.randomize_joint_friction`` is absent because the term reads only the articulation
-name.
-"""
+"""Entity selections used by rewards, events and terminations outside the observation groups."""
 
 EXPECTED_OBSERVATION_SELECTIONS = {
     # "<group>.<term>.<param>": (kind, expected names, preserve_order)
@@ -364,12 +304,7 @@ fails rather than going unchecked.
 """
 
 EXPECTED_HEAD_COLLIDER_XFORMS = ["top_head_shell_1", "jaw_1", "bottom_head_shell_1"]
-"""The three colliders upstream's ``neck``-subtree impact sensor actually covers.
-
-Measured on the pinned ``robot_allcollisions.xml``: the subtree is ``neck``, ``neck_pitch``,
-``yaw_roll_motion`` and ``jaw_soft``, and only ``jaw_soft`` carries geometry -- these three shells.
-The port's shape expression is therefore the same sensor rather than an approximation of it.
-"""
+"""The three physical head collision meshes selected by the neck-impact sensor."""
 
 EXPECTED_NJMAX = 128
 EXPECTED_NCONMAX = 32
@@ -377,20 +312,12 @@ EXPECTED_NCONMAX = 32
 
 MEASURED_PEAK_CONSTRAINTS = 86
 MEASURED_PEAK_CONTACTS = 27
-"""The worst profiled peaks under random actions with the tilt termination dropped and the pushes
-forced to full magnitude.
-
-Profiled at 256, 2048 and 4096 environments -- the last is this task's own training default. Logs:
-``artifacts/microduck/profile_microduck_contacts_groundpick_{256,2048,4096}envs.log``.
+"""Peak contacts and constraints measured with random actions, full pushes and tilt termination
+disabled across 256, 2048 and 4096 environments.
 """
 
 EXPECTED_IMU_MAX_LAG = 3
-"""Upstream's IMU latency bound [control steps] for this task, and only this task.
-
-Every sibling uses 1, the value the velocity recipe's 2026-07 audit settled on; this task's inline
-comment still claims it matches velocity (addendum section 13.16). Transcribed rather than corrected,
-and pinned here so the divergence is deliberate rather than a copy error.
-"""
+"""Configured maximum IMU lag [control steps] for the ground-pick task."""
 
 MUJOCO_MOUTH_TIP_REFERENCE = {
     # servo overrides {name: angle [rad]}: (mouth position [m], mouth axis [-]), in the world frame
@@ -405,13 +332,8 @@ MUJOCO_MOUTH_TIP_REFERENCE = {
         (0.226564, -0.482389, -0.846150),
     ),
 }
-"""MuJoCo's own ``mouth_tip`` site pose, for three joint configurations.
-
-Computed with ``mujoco.mj_forward`` on the pinned ``robot_allcollisions.xml`` -- the model the port's
-USD is converted from -- with every unnamed servo at zero, the free joint at ``(0, 0, 0.30)`` and
-identity orientation. This is the independent reference the port's body-frame offset is checked
-against: it is not derived from the port, and a wrong offset, a wrong parent body or a converted
-frame that does not match the MJCF all fail it.
+"""Independent MuJoCo mouth_tip site poses with root position (0, 0, 0.30) m, identity root
+orientation and zero unspecified joints. Positions [m] and unit axes are expressed in the world frame.
 """
 
 
@@ -437,12 +359,7 @@ def _observation_entity_cfgs(term_cfg) -> dict[str, SceneEntityCfg]:
 
 
 def _scalar_params(term_cfg) -> dict:
-    """Drop the entity selections, which carry no upstream scalar to compare against.
-
-    They are not left unchecked: :data:`EXPECTED_ENTITY_SELECTIONS` and
-    :data:`EXPECTED_OBSERVATION_SELECTIONS` pin them by name, and the two selection tests below are
-    what consume those tables.
-    """
+    """Return scalar parameters; entity selections are checked separately by name and order."""
     return {key: value for key, value in term_cfg.params.items() if not isinstance(value, SceneEntityCfg)}
 
 
@@ -452,7 +369,7 @@ def _observation_terms(group) -> dict[str, ObservationTermCfg]:
 
 
 def _phase_command(phase: torch.Tensor) -> torch.Tensor:
-    """Upstream's ``(cos, sin, 0)`` encoding of a phase, as the reward terms receive it."""
+    """Encode phase as (cos, sin, 0), matching the vector consumed by the reward terms."""
     command = torch.zeros(phase.shape[0], 3)
     command[:, 0] = torch.cos(2.0 * math.pi * phase)
     command[:, 1] = torch.sin(2.0 * math.pi * phase)
@@ -466,7 +383,7 @@ def _phase_command(phase: torch.Tensor) -> torch.Tensor:
 
 @pytest.mark.unit
 def test_the_rewards_match_upstream_term_for_term():
-    """Every slot upstream trains with is present, with its stage-0 weight and its parameters."""
+    """Reward terms must match the expected set, stage-0 weights and scalar parameters."""
     rewards = MicroDuckGroundPickFlatEnvCfg().rewards
 
     assert set(vars(rewards)) == set(EXPECTED_REWARDS)
@@ -481,12 +398,8 @@ def test_the_rewards_match_upstream_term_for_term():
 
 @pytest.mark.unit
 def test_the_payload_is_registered_as_physics_rather_than_as_a_zero_weight_reward():
-    """Upstream's own hazard, named in the extraction: a weight-zero reward that is really a hook.
-
-    Its function writes an external wrench every step and returns zeros, so a port that pruned
-    zero-weight rewards -- or that only carried the terms with a weight -- would delete the payload
-    physics and never notice. Here it is an interval event on a zero-width interval, which is how
-    Isaac Lab spells "every control step".
+    """The mouth payload applies an external wrench every control step through an interval event.
+    It must remain active independently of reward weights.
     """
     cfg = MicroDuckGroundPickFlatEnvCfg()
 
@@ -506,11 +419,7 @@ def test_the_payload_is_registered_as_physics_rather_than_as_a_zero_weight_rewar
 
 @pytest.mark.unit
 def test_the_segments_last_the_durations_upstream_tabulates():
-    """The cycle constants are a profile, and the profile is what the file header states.
-
-    Upstream's own inline prose describes a different one -- a 6 s period with a 0.6 s dwell -- which
-    is the text of an earlier era; the port takes the constants.
-    """
+    """Cycle boundaries must produce the expected segment durations [s]."""
     cfg = MicroDuckGroundPickFlatEnvCfg()
 
     assert pytest.approx(GP_PERIOD) == MICRODUCK_GROUND_PICK_PERIOD
@@ -565,11 +474,7 @@ def test_the_two_phase_gates_overlap_only_across_the_rise():
 
 @pytest.mark.unit
 def test_the_phase_is_recovered_from_the_command_the_policy_sees():
-    """Every gate reads the deployed command vector rather than the command term's own state.
-
-    That is upstream's choice and it is a contract: a runtime that replays the same ``(cos, sin, 0)``
-    buffer reproduces the same gates without carrying the clock.
-    """
+    """Phase gates must read the deployed command vector rather than hidden command state."""
     phase = torch.linspace(0.0, 1.0, 257)[:-1]
 
     class _Stub:
@@ -604,7 +509,8 @@ def test_the_perpendicularity_reward_charges_a_mouth_pointing_the_wrong_way():
 @pytest.mark.unit
 def test_the_upright_reward_is_weak_and_the_return_one_is_not():
     """The approach *requires* a deep forward lean, so a strong always-on uprightness reward would
-    price the task out. Verticality is paid for where it is wanted instead: on the way back up."""
+    price the task out. Verticality is paid for where it is wanted instead: on the way back up.
+    """
     cfg = MicroDuckGroundPickFlatEnvCfg()
     velocity = MicroDuckVelocityFlatEnvCfg()
 
@@ -617,7 +523,7 @@ def test_the_upright_reward_is_weak_and_the_return_one_is_not():
 
 @pytest.mark.unit
 def test_the_return_block_outweighs_the_bend_block():
-    """Upstream's tuning history in one assertion: the fold is easy and the clean return is not."""
+    """The clean-return reward block must outweigh the bend reward block."""
     rewards = MicroDuckGroundPickFlatEnvCfg().rewards
 
     bend = sum(getattr(rewards, name).weight for name, segment in PHASE_GATED_REWARDS.items() if segment == "bend")
@@ -654,14 +560,14 @@ def test_the_flat_foot_penalty_is_ungated_here_unlike_on_the_roller_tasks():
 
 @pytest.mark.unit
 def test_the_reset_spawns_upright_with_no_ground_state_bucket():
-    """Upstream has no ``set_ground_state`` here: every episode starts standing."""
+    """Every ground-pick reset starts standing, without a ground-state mixture."""
     events = MicroDuckGroundPickFlatEnvCfg().events
 
     assert "set_ground_state" not in vars(events)
     reset_terms = [name for name, term in vars(events).items() if term.mode == "reset"]
     assert reset_terms == EXPECTED_RESET_EVENT_ORDER
     pose_range = events.reset_base.params["pose_range"]
-    # upstream samples the absolute height in (0.12, 0.13) m; Isaac Lab samples an offset from the
+    # the task samples the absolute height in (0.12, 0.13) m; Isaac Lab samples an offset from the
     # 0.125 m default, so the band has to be the same 10 mm wide and centred
     assert pose_range["z"] == pytest.approx((-0.005, 0.005))
     assert pose_range["yaw"] == pytest.approx((-3.14, 3.14))
@@ -671,8 +577,7 @@ def test_the_reset_spawns_upright_with_no_ground_state_bucket():
 
 @pytest.mark.unit
 def test_the_pushes_are_half_the_family_magnitude_and_never_ramped():
-    """Upstream measured +/-0.3 m/s toppling this robot even standing straight, so they are halved
-    rather than scheduled -- there is no push curriculum on this task."""
+    """Ground-pick pushes use fixed +/-0.15 m/s bounds without a ramp."""
     cfg = MicroDuckGroundPickFlatEnvCfg()
 
     velocity_range = cfg.events.push_robot.params["velocity_range"]
@@ -704,12 +609,7 @@ def test_the_curricula_reproduce_upstream_stage_tables():
 
 @pytest.mark.unit
 def test_the_declared_action_rate_weight_is_the_live_one():
-    """Upstream declares -2.0 and schedules -0.8 at stage 0, and only the schedule was ever in effect.
-
-    The curriculum manager runs before the first reward evaluation, so the declared literal was dead.
-    A port that copied both would ship a number nothing reads and a reader who trusted it would
-    mis-predict every early episode.
-    """
+    """The action-rate weight must equal the effective stage-0 scheduled value."""
     cfg = MicroDuckGroundPickFlatEnvCfg()
 
     assert cfg.rewards.action_rate_l2.weight == pytest.approx(-0.8)
@@ -729,17 +629,7 @@ def test_the_centre_of_mass_ramp_is_the_widest_in_the_family():
 
 @pytest.mark.unit
 def test_the_head_centre_of_mass_randomization_drops_the_upstream_hip_link():
-    """The one entity selection the table above exempts, pinned here instead.
-
-    ``bearing_roll`` is the right hip-yaw link, not a head body; upstream lists it among the head
-    bodies and its own comment says the listing has always been a mistake. It is the same body whose
-    *subtree* the extraction wrongly attributes to the head-impact sensor, so getting it out of both
-    places is one correction made twice.
-
-    The patterns are patterns because the conversion disambiguates the MJCF's ``neck_pitch`` body
-    against the joint of the same name; a pattern that matched nothing would raise at resolve time,
-    so regenerating the asset cannot silently drop a body from the selection.
-    """
+    """Head center-of-mass randomization must select the intended head bodies without a hip link."""
     body_names = MicroDuckGroundPickFlatEnvCfg().events.randomize_head_com.params["asset_cfg"].body_names
 
     assert body_names == ["neck", "neck_pitch(_[0-9]+)?", "yaw_roll_motion", "jaw_soft"]
@@ -818,8 +708,7 @@ def test_both_observation_groups_read_the_servos_and_the_feet_in_the_deploy_orde
             assert entity_cfg.body_names == expected, path
         assert entity_cfg.preserve_order is preserve_order, path
 
-    # upstream's ``_NECK_JOINTS = [5, 6, 7, 8]`` is a slice of the deployed joint block, and the port
-    # resolves it by name instead -- these are the same four servos
+    # Resolve the four neck/head servos by their names in the action joint order.
     assert EXPECTED_SERVO_JOINT_NAMES[5:9] == EXPECTED_HEAD_JOINT_NAMES
     # and ``_LEG_JOINTS = [0..4, 9..13]`` is its complement
     assert EXPECTED_SERVO_JOINT_NAMES[0:5] + EXPECTED_SERVO_JOINT_NAMES[9:14] == EXPECTED_LEG_JOINT_NAMES
@@ -874,26 +763,20 @@ def test_the_phase_command_is_the_open_loop_cycle_clock():
 
 @pytest.mark.unit
 def test_the_critic_group_drops_the_foot_height_columns():
-    """Upstream deletes them here: no height sensor in this scene and no foot-height reward."""
+    """The critic omits foot-height terms when no height sensor or height reward is configured."""
     terms = _observation_terms(MicroDuckGroundPickFlatEnvCfg().observations.critic)
 
     assert list(terms) == [name for name, _ in CRITIC_OBSERVATION_TERMS]
     assert sum(width for _, width in CRITIC_OBSERVATION_TERMS) == CRITIC_OBSERVATION_DIM
     assert "foot_height" not in terms
-    # the NaN-guarded variants, which is the port's family norm rather than upstream's choice here
+    # Finite-state termination guards cover the selected sensors.
     assert terms["foot_air_time"].func is mdp.foot_group_air_time_safe
     assert terms["foot_contact_forces"].func is mdp.foot_group_contact_forces_safe
 
 
 @pytest.mark.unit
 def test_the_imu_latency_bound_is_upstreams_pre_audit_value():
-    """This task is the only one in the family still at 3 control steps, and the port keeps it.
-
-    Its inline comment claims parity with the velocity recipe, which stopped being true when that
-    recipe's 2026-07 audit lowered the bound to 1 against a measured +/-20 ms hardware envelope.
-    Transcribing it trains a policy that tolerates a *wider* latency than the hardware has, which is
-    the safe direction; the assertion is here so the divergence from every sibling is visible.
-    """
+    """Ground-pick retains a maximum IMU lag of three control steps."""
     terms = _observation_terms(MicroDuckGroundPickFlatEnvCfg().observations.policy)
     velocity_terms = _observation_terms(MicroDuckVelocityFlatEnvCfg().observations.policy)
 
@@ -909,7 +792,8 @@ def test_the_imu_latency_bound_is_upstreams_pre_audit_value():
 @pytest.mark.unit
 def test_the_task_runs_the_all_collisions_robot_on_a_plane():
     """On the walking model the head carries no collider, so "close but not touching" has nothing to
-    push back with and the mouth would sink through the plane."""
+    push back with and the mouth would sink through the plane.
+    """
     scene = MicroDuckGroundPickFlatEnvCfg().scene
 
     assert scene.robot.spawn.usd_path.endswith("microduck_allcollisions.usd")
@@ -919,11 +803,7 @@ def test_the_task_runs_the_all_collisions_robot_on_a_plane():
 
 @pytest.mark.unit
 def test_the_head_impact_sensor_covers_upstreams_neck_subtree_against_the_terrain():
-    """Upstream senses a whole subtree; the port senses the only three colliders in it.
-
-    Both halves matter. Selecting fewer shells would under-report a face-plant, and reading a net
-    force instead of the terrain-filtered matrix would charge a knee brushing the head shell as one.
-    """
+    """The neck-impact sensor must cover all three selected head collision meshes against the terrain."""
     scene = MicroDuckGroundPickFlatEnvCfg().scene
 
     (sensing,) = scene.head_impact_contact.sensor_shape_prim_expr
@@ -938,7 +818,7 @@ def test_the_head_impact_sensor_covers_upstreams_neck_subtree_against_the_terrai
 
 @pytest.mark.unit
 def test_the_self_collision_sensor_senses_every_collider_against_every_other():
-    """Upstream's trunk-subtree-against-itself sensor, saturated back to its 0-or-1 scale."""
+    """Self-collision sensing must cover all selected collider pairs and saturate the pair cost at one."""
     cfg = MicroDuckGroundPickFlatEnvCfg()
 
     sensor = cfg.scene.self_collision
@@ -971,7 +851,7 @@ def test_the_terminations_keep_the_fall_and_guard_every_force_path():
 
 @pytest.mark.unit
 def test_the_solver_profile_is_the_templates_and_the_budget_is_measured():
-    """Upstream leaves ``cfg.sim`` untouched here, so only the buffers are the port's own numbers."""
+    """Solver iterations retain the shared profile, with contact and constraint capacities set to measured bounds."""
     solver = MicroDuckGroundPickFlatEnvCfg().sim.physics.newton_mjwarp.solver_cfg
     velocity_solver = MicroDuckVelocityFlatEnvCfg().sim.physics.newton_mjwarp.solver_cfg
 
@@ -988,7 +868,7 @@ def test_the_solver_profile_is_the_templates_and_the_budget_is_measured():
 
 @pytest.mark.unit
 def test_the_episode_is_five_complete_cycles():
-    """Upstream never overrides the family's 20 s episode, which the 4 s period divides exactly."""
+    """A 20 s episode must contain exactly five 4 s command cycles."""
     cfg = MicroDuckGroundPickFlatEnvCfg()
 
     assert cfg.decimation == 4
@@ -1003,7 +883,7 @@ def test_the_episode_is_five_complete_cycles():
 
 @pytest.mark.unit
 def test_the_runner_differs_from_the_velocity_one_in_two_fields():
-    """Upstream shares the network, the optimizer and the rollout across the whole family."""
+    """The runner shares the velocity learner settings and changes only its experiment name and budget."""
     from isaaclab_tasks.contrib.microduck.velocity.agents.rsl_rl_ppo_cfg import MicroDuckPPORunnerCfg
 
     runner, velocity = MicroDuckGroundPickPPORunnerCfg(), MicroDuckPPORunnerCfg()
@@ -1032,7 +912,7 @@ def test_the_runner_differs_from_the_velocity_one_in_two_fields():
 
 @pytest.mark.unit
 def test_the_mouth_tip_offset_is_the_measured_site_attachment():
-    """The port's whole site adaptation, pinned by value against the MJCF it was read from."""
+    """The mouth-tip offset and axis must match the independent site attachment in the jaw_soft frame."""
     assert pytest.approx(MOUTH_TIP_OFFSET) == MICRODUCK_MOUTH_TIP_OFFSET
     assert pytest.approx(MOUTH_TIP_AXIS) == MICRODUCK_MOUTH_TIP_AXIS
     # the axis is a direction, so it has to be a unit vector
@@ -1070,14 +950,7 @@ def test_the_observation_groups_are_the_widths_their_contracts_name():
 @pytest.mark.integration
 @requires_microduck_allcollisions_usd
 def test_the_mouth_tip_pose_reproduces_the_upstream_site_kinematics():
-    """The port's site adaptation, checked against the kinematics it is standing in for.
-
-    Isaac Lab has no site concept, so both mouth rewards read the ``jaw_soft`` body frame and apply a
-    fixed offset. Three things could break that and none of them are visible in a rollout: a wrong
-    offset, the wrong parent body, or a converted USD whose body frame is not the MJCF's. The
-    reference values come from ``mujoco.mj_forward`` on the pinned MJCF and are independent of every
-    one of them.
-    """
+    """Body-frame mouth offsets must reproduce the independent MuJoCo world-frame site poses."""
     sim_utils.create_new_stage()
     env = None
     try:
@@ -1282,13 +1155,7 @@ def test_the_phase_clock_advances_one_cycle_per_period_and_starts_spread_out():
 @pytest.mark.integration
 @requires_microduck_allcollisions_usd
 def test_the_mouth_payload_hangs_only_after_the_mouth_has_closed():
-    """The payload is a wrench on the head, gated on the cycle, and it is easy to lose silently.
-
-    Upstream carries it as a weight-zero reward; this port carries it as an interval event. Either
-    way the observable contract is the same: nothing during the approach, a full 10-40 g weight at the
-    mouth tip through the return, and the moment it implies about the trunk rather than a bare force
-    at the body's centre of mass.
-    """
+    """A world-frame payload wrench acts on the head only after mouth closure and before release."""
     sim_utils.create_new_stage()
     env = None
     try:

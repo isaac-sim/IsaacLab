@@ -3,11 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Physical fidelity of the prebuilt walking USD and its native BAM configuration.
+"""Test the prebuilt walking USD and native BAM configuration.
 
-The runtime asset is resolved through Isaac Lab's native asset cache. Source comparisons
-read an optional explicit ``MICRODUCK_MJCF_PATH`` or ``MICRODUCK_MJCF_DIR`` fixture from
-the immutable original upstream pin; they never fetch source or convert an MJCF.
+Runtime assets use the native cache; independent MJCF comparisons use explicit optional fixtures.
 """
 
 import copy
@@ -30,7 +28,8 @@ pytestmark = [pytest.mark.integration, pytest.mark.kitless]
 
 NUM_ACTUATED_JOINTS = 14
 """Joint count ``robot_walk.xml`` is known to have, guarding against a partial import that still
-matches the MJCF because both sides were read from the same truncated model."""
+matches the MJCF because both sides were read from the same truncated model.
+"""
 
 HOME_POSE = {
     "left_hip_yaw": 0.0,
@@ -48,14 +47,10 @@ HOME_POSE = {
     "head_yaw": 0.0,
     "head_roll": 0.0,
 }
-"""Upstream ``HOME_FRAME`` (STAND2), transcribed per joint name from ``microduck_constants.py``.
-
-The configuration expresses it with regular expressions, so spelling it out one joint at a time is
-what makes the check meaningful: a pattern that matches nothing leaves the joint at zero.
-"""
+"""Expected STAND2 home joint angles [rad], keyed by joint name."""
 
 UPSTREAM_RESET_HEIGHT_RANGE = (0.12, 0.13)
-"""Base height [m] upstream's ``reset_base`` event samples, from ``microduck_rl``."""
+"""Expected base reset-height range [m]."""
 
 
 @pytest.fixture(scope="module")
@@ -107,7 +102,7 @@ def mj_actuators(mj_model):
     for index in range(mj_model.nu):
         joint_id = mj_model.actuator_trnid[index, 0]
         name = mujoco.mj_id2name(mj_model, mujoco.mjtObj.mjOBJ_JOINT, joint_id)
-        # MuJoCo's "position" actuator encodes gainprm=[kp, 0, ...], biasprm=[0, -kp, -kv, ...].
+        # MuJoCo's "position" actuator encodes gainprm=[kp, 0,...], biasprm=[0, -kp, -kv,...].
         actuators[name] = {
             "stiffness": float(mj_model.actuator_gainprm[index, 0]),
             "damping": float(-mj_model.actuator_biasprm[index, 2]),
@@ -325,7 +320,7 @@ def test_microduck_cfg_actuates_every_joint(microduck_articulation):
 
 
 def test_microduck_cfg_default_joint_pos_is_the_home_pose(microduck_articulation):
-    """Every joint resets to its upstream ``HOME_FRAME`` value."""
+    """Each controlled joint resets to its STAND2 home angle."""
     robot = microduck_articulation
     default_joint_pos = robot.data.default_joint_pos.torch[0].cpu().numpy()
     assert len(HOME_POSE) == NUM_ACTUATED_JOINTS
@@ -359,15 +354,9 @@ def test_microduck_cfg_restores_the_joint_dynamics_the_asset_drops(microduck_art
 
 
 def test_microduck_cfg_servo_model_is_upstreams_bam_deployment(microduck_articulation, mj_actuators):
-    """The servo group is the BAM model at upstream's deployment settings, cross-checked on the MJCF.
-
-    Upstream's ``_BAM_ACTUATOR_KWARGS`` (reference section 6) are pinned field by field, because a
-    silent change to any of them retrains a different robot. The gains are then cross-checked
-    against the MJCF: the small-signal stiffness of the firmware loop at the middle of the battery
-    range, ``kp_fw * error_gain * vin * kt / R``, is an independent re-derivation of the ``kp``
-    the MJCF's fallback ``position`` actuator declares. The model's own effort limit is upstream's
-    electrical stall torque at the top of the battery range, which sits *above* the MJCF's
-    ``forcerange`` -- so the solver clamp, which conversion carries unchanged, binds first.
+    """Check native BAM electrical, firmware and friction parameters against independent constants. Small-
+    signal stiffness is kp_fw * error_gain * vin * kt / resistance. The native electrical effort ceiling
+    is distinct from the authored joint-actuator range.
     """
     robot = microduck_articulation
     servos = robot.cfg.actuators["servos"]

@@ -3,15 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Smoke and recipe-parity tests for the contributed MicroDuck sit-stand environment.
+"""Test sit/stand commands, reset postures and scheduled rewards.
 
-Simulator-backed checks retrieve the prebuilt USD through Isaac Lab's native asset cache.
-Recipe checks do not need an asset; source fidelity comparisons use optional read-only fixtures.
-
-The parity tests need neither the asset nor the simulator: they read the assembled configuration and
-compare it against the upstream recipe, transcribed here from
-``artifacts/microduck/upstream_reference_tasks3.md`` section 4. Transcribed rather than imported --
-a table that read the configuration it checks would agree with itself.
+Configuration checks use independent expectations; scene checks cover resets and physical contact.
 """
 
 import math
@@ -56,12 +50,11 @@ requires_microduck_allcollisions_usd = pytest.mark.usefixtures("microduck_allcol
 TASK_NAME = "IsaacContrib-SitStand-Flat-MicroDuck"
 
 STEPS_PER_ITERATION = 24
-"""Environment steps per PPO iteration, upstream's ``num_steps_per_env``."""
+"""Environment control steps per PPO iteration."""
 
 STAND_HEIGHT = 0.115
 SIT_HEIGHT = 0.060
-"""The two measured rest heights (addendum section 4.1), transcribed from upstream rather than
-imported from the stand-up task the configuration shares them with."""
+"""Expected standing and sitting root-origin heights [m]."""
 
 SIT_JOINT_POS = {
     "left_hip_roll": 0.0,
@@ -73,9 +66,7 @@ SIT_JOINT_POS = {
     "right_knee": -1.35,
     "right_ankle": 0.0,
 }
-"""Upstream's ``SITTING_TARGET_OVERRIDES`` (addendum section 4.1), keyed by name where upstream keys
-by servo index. Stability-verified upstream on 2026-07-27; the neck and head are absent on purpose,
-because the head is command-steered in both postures."""
+"""Expected seated joint targets [rad], keyed by joint name."""
 
 ACTOR_OBSERVATION_TERMS = [
     ("base_ang_vel", 3),
@@ -87,12 +78,7 @@ ACTOR_OBSERVATION_TERMS = [
     ("head_pose_commands", 4),
     ("body_pose_commands", 6),
 ]
-"""The deployed MicroDuck observation layout, shared across the whole policy family.
-
-Addendum section 11.1: every upstream MicroDuck task presents the same 61-wide vector, because one
-runtime on the robot feeds every policy from the same buffer. Here the three-wide ``velocity_commands``
-slot carries the posture flag rather than a twist, and the six-wide body slot is zero padding.
-"""
+"""The shared 61-component deployed actor observation layout, in concatenation order."""
 
 ACTOR_OBSERVATION_DIM = 61
 """Actor observation width the deployed MicroDuck policy expects."""
@@ -111,14 +97,10 @@ CRITIC_OBSERVATION_TERMS = [
     ("head_pose_commands", 4),
     ("body_pose_commands", 6),
 ]
-"""The privileged critic layout (addendum section 11.2), which is not a deploy contract.
-
-Narrower than the velocity task's by the two ``foot_height`` columns, which upstream deletes here
-because this scene carries no height sensor.
-"""
+"""Privileged critic observation layout, including task-only state outside the deployment interface."""
 
 CRITIC_OBSERVATION_DIM = 74
-"""Critic observation width, upstream's own figure for this task."""
+"""Expected width of the assembled critic observation group."""
 
 EXPECTED_SERVO_JOINT_NAMES = [
     "left_hip_yaw",
@@ -136,7 +118,7 @@ EXPECTED_SERVO_JOINT_NAMES = [
     "right_knee",
     "right_ankle",
 ]
-"""The 14 servos in upstream's MJCF actuator order: 0-4 left leg, 5-8 neck/head, 9-13 right leg."""
+"""Fourteen controlled servos in action order: left leg 0-4, neck/head 5-8 and right leg 9-13."""
 
 EXPECTED_LEG_JOINT_NAMES = [
     "left_hip_yaw",
@@ -150,13 +132,13 @@ EXPECTED_LEG_JOINT_NAMES = [
     "right_knee",
     "right_ankle",
 ]
-"""The 10 leg joints the posture terms score, upstream's ``_LEG_JOINTS``."""
+"""The ten physical leg joints, excluding the four command-driven neck/head joints."""
 
 EXPECTED_HEAD_JOINT_NAMES = ["neck_pitch", "head_pitch", "head_yaw", "head_roll"]
 """The 4 head servos, in the order the head-pose command indexes its columns."""
 
 EXPECTED_FOOT_BODY_NAMES = ["ankle_left", "ankle_right"]
-"""Foot bodies in upstream's ``[left, right]`` site order."""
+"""Foot body names in left/right order."""
 
 EXPECTED_TRUNK_BODY_NAMES = ["trunk_base"]
 """The body every posture term measures the height, tilt and vertical speed on."""
@@ -222,33 +204,17 @@ EXPECTED_REWARDS = {
     "joint_torque_rate_l2": (0.0, {}),
     "self_collisions": (-1.0, {"saturate": True}),
 }
-"""Upstream's twenty reward terms with their stage-0 weights (addendum section 4.4).
-
-Four of them ship at a weight a curriculum then moves, so these are the *initial* values and the
-stage tables below are as load-bearing as they are. ``dof_pos_limits`` is upstream's silently
-inherited regularizer -- it survives only because it is not in the deletion list -- and
-``self_collisions`` carries the port's own ``saturate``, which keeps the wide sensor on upstream's
-0-or-1 scale.
-"""
+"""Initial reward terms, weights and scalar parameters, including inherited terms."""
 
 SELF_NEGATING_REWARDS = ["posture_pose_l1", "posture_height_l1", "descent_speed", "rise_speed", "gentle_motion"]
-"""The five terms whose kernels already return a value at or below zero (addendum section 4.4).
-
-They therefore carry **positive** weights, and upstream lost a full run to getting that backwards:
-at negative weights the double negative made the three speed and shock penalties the largest
-positive terms in the stack and trained a butt-hopping, crash-sitting policy.
-"""
+"""Reward kernels returning nonpositive values, whose configured weights preserve the intended sign."""
 
 EXPECTED_TERMINATIONS = {
     # name: (time_out flag, scalar params)
     "time_out": (True, {}),
     "nan_state": (False, {"sensor_names": ("contact_forces",)}),
 }
-"""Upstream's terminations (addendum section 4.7).
-
-There is no fall termination at all: a wobble during a transition has to play out so the policy pays
-the impact and uprightness costs. ``nan_state``'s sensor list is the port's Ruling-2 deviation.
-"""
+"""Configured termination names, timeout flags and thresholds."""
 
 EXPECTED_POSTURE_COMMAND = {
     "sit_prob": 0.5,
@@ -258,7 +224,7 @@ EXPECTED_POSTURE_COMMAND = {
     "resampling_time_range": (3.5, 6.5),
     "heading_command": False,
 }
-"""The posture command's configuration (addendum section 4.3)."""
+"""Configured posture-command parameters."""
 
 EXPECTED_GROUND_STATE_PARAMS = {
     "face_down_prob": 0.0,
@@ -271,9 +237,7 @@ EXPECTED_GROUND_STATE_PARAMS = {
     "sitting_joint_noise_std": 0.10,
     "sitting_tilt_max": math.radians(8.0),
 }
-"""The reset mixture (addendum section 4.6): half standing, half already seated, and no curriculum
-touches it. Drawn independently of the posture request, which is what gives all four
-(start state x request) combinations equal coverage."""
+"""Reset mixture: half standing and half seated, without a reset-distribution curriculum."""
 
 EXPECTED_RESET_EVENT_ORDER = [
     "reset_base",
@@ -302,8 +266,7 @@ EXPECTED_CURRICULUM_TERMS = {
     "head_pose_range",
     "push_magnitude",
 }
-"""Every curriculum term (addendum section 4.9). Nothing schedules the task itself -- both
-transitions are rewarded from step 0 and the reset mixture never moves."""
+"""Configured curriculum term names."""
 
 EXPECTED_WEIGHT_STAGES = {
     # name: (weights, PPO iteration boundaries)
@@ -312,7 +275,7 @@ EXPECTED_WEIGHT_STAGES = {
     "action_rate_weight": ([-0.1, -0.2, -0.4, -0.6, -0.8, -1.0], [0, 500, 750, 1000, 1250, 1500]),
     "torque_rate_weight": ([0.0, -5e-4, -1e-3], [0, 750, 1250]),
 }
-"""The four reward-weight ramps (addendum section 4.9)."""
+"""Reward weights at each curriculum boundary."""
 
 EXPECTED_PUSH_STAGES = [
     (0, 0.0),
@@ -321,11 +284,7 @@ EXPECTED_PUSH_STAGES = [
     (2000, 0.20),
     (2500, 0.30),
 ]
-"""The push ramp: PPO iteration and the symmetric magnitude [m/s] it reaches there.
-
-The latest in the family by a wide margin. Upstream's reason is measured: a push mid-descent before
-the transition motions have consolidated made the policy unlearn sitting entirely.
-"""
+"""Push velocity ranges [m/s] at each curriculum boundary."""
 
 EXPECTED_ENTITY_SELECTIONS = {
     "rewards.neck_strain_leaned.asset_cfg": ("joint", EXPECTED_HEAD_JOINT_NAMES, True),
@@ -349,18 +308,7 @@ EXPECTED_ENTITY_SELECTIONS = {
     "events.randomize_armature.asset_cfg": ("joint", [".*"], False),
     "events.set_ground_state.asset_cfg": ("joint", EXPECTED_SERVO_JOINT_NAMES, True),
 }
-"""Every entity selection the recipe makes, outside the observation groups.
-
-These are as load-bearing as the scalar parameters: the composite's two selections have to stay apart
--- one scores ten leg joints against the posture keyframe and the other four head joints against a
-four-wide command -- and the torque-rate penalty sizes its state from the selection it is handed.
-Isaac Lab resolves joints and bodies in USD order, which is neither upstream's nor this table's, so
-``preserve_order`` is part of the contract wherever a term indexes a block positionally.
-
-``events.randomize_head_com`` is absent because its selection is four *patterns* rather than four
-names; ``events.randomize_joint_friction`` is absent because the term reads only the articulation
-name.
-"""
+"""Entity selections used by rewards, events and terminations outside the observation groups."""
 
 EXPECTED_OBSERVATION_SELECTIONS = {
     # "<group>.<term>.<param>": (kind, expected names, preserve_order)
@@ -386,18 +334,13 @@ EXPECTED_NCONMAX = 32
 
 MEASURED_PEAK_CONSTRAINTS = 82
 MEASURED_PEAK_CONTACTS = 28
-"""The worst profiled peaks under random actions with the pushes forced to full magnitude.
-
-Profiled at 256, 2048 and 4096 environments -- the last is this task's own training default. The
-peak saturates from 2048 upward (28 then 27 contacts, 82 constraints at both), so these are the
-maxima across all three sizes rather than any single run's. Logs:
-``artifacts/microduck/profile_microduck_contacts_sitstand_{256,2048,4096}envs.log``.
+"""Peak contact and constraint counts measured with random actions and full pushes across
+256, 2048 and 4096 environments.
 """
 
 EXPECTED_SOLVER_ITERATIONS = 30
 EXPECTED_SOLVER_LS_ITERATIONS = 50
-"""Upstream's raised solver profile (addendum section 4.8), the one place in the family where the
-iteration counts are not the template's 10 and 20."""
+"""Configured solver iteration and line-search budgets for seated contact."""
 
 
 def _entity_cfg_of(term_cfg, key: str) -> SceneEntityCfg:
@@ -422,12 +365,7 @@ def _observation_entity_cfgs(term_cfg) -> dict[str, SceneEntityCfg]:
 
 
 def _scalar_params(term_cfg) -> dict:
-    """Drop the entity selections, which carry no upstream scalar to compare against.
-
-    They are not left unchecked: :data:`EXPECTED_ENTITY_SELECTIONS` and
-    :data:`EXPECTED_OBSERVATION_SELECTIONS` pin them by name, and the two selection tests below are
-    what consume those tables.
-    """
+    """Return scalar parameters; entity selections are checked separately by name and order."""
     return {key: value for key, value in term_cfg.params.items() if not isinstance(value, SceneEntityCfg)}
 
 
@@ -443,7 +381,7 @@ def _observation_terms(group) -> dict[str, ObservationTermCfg]:
 
 @pytest.mark.unit
 def test_the_rewards_match_upstream_term_for_term():
-    """Every slot upstream trains with is present, with its stage-0 weight and its parameters."""
+    """Reward terms must match the expected set, stage-0 weights and scalar parameters."""
     rewards = MicroDuckSitStandFlatEnvCfg().rewards
 
     assert set(vars(rewards)) == set(EXPECTED_REWARDS)
@@ -458,8 +396,7 @@ def test_the_rewards_match_upstream_term_for_term():
 
 @pytest.mark.unit
 def test_the_five_self_negating_kernels_carry_positive_weights():
-    """Upstream's most transferable lesson, and a full lost run: a double negative here pays for
-    violence. The kernels return values at or below zero, so the weights have to be positive."""
+    """Nonpositive penalty kernels require positive weights so their costs cannot become rewards."""
     cfg = MicroDuckSitStandFlatEnvCfg()
 
     for name in SELF_NEGATING_REWARDS:
@@ -476,12 +413,7 @@ def test_the_five_self_negating_kernels_carry_positive_weights():
 
 @pytest.mark.unit
 def test_the_posture_stack_tracks_the_slewed_blend_except_for_the_rise_bootstrap():
-    """The slew is the anti-crash mechanism; the bootstrap is upstream's one deliberate exception.
-
-    Every posture kernel reads the command term's ``alpha``, which moves at a fixed rate, so being
-    ahead of the ramp scores nothing. ``posture_rise_bootstrap`` reads the raw flag instead, so it
-    switches off the instant a sit is requested and can never bid against the descent.
-    """
+    """Posture rewards track the slewed target, while the rise bootstrap retains its direct target."""
     rewards = MicroDuckSitStandFlatEnvCfg().rewards
     posture_terms = [
         "posture_pose_legs",
@@ -506,11 +438,7 @@ def test_the_posture_stack_tracks_the_slewed_blend_except_for_the_rise_bootstrap
 
 @pytest.mark.unit
 def test_the_ramp_is_slow_enough_to_stay_under_both_speed_caps():
-    """Upstream's own sanity check on the ramp duration, and the reason the caps are backstops.
-
-    A blend that traversed the two rest heights faster than the caps allow would make the tracked
-    setpoint itself punishable, which would put the two halves of the recipe in opposition.
-    """
+    """The posture blend ramp must keep ascent and descent speeds within their configured caps."""
     ramp_speed = (STAND_HEIGHT - SIT_HEIGHT) / MICRODUCK_POSTURE_RAMP_S
 
     assert ramp_speed < MICRODUCK_MAX_DESCENT_SPEED
@@ -544,22 +472,13 @@ def test_the_posture_command_is_the_sit_stand_flag():
 
 @pytest.mark.unit
 def test_the_sitting_keyframe_is_the_stand_up_tasks_own():
-    """Upstream keeps its three sit/stand environments' keyframes in sync by hand and says so in each
-    of them, so the port imports one rather than carrying a second copy to drift."""
+    """Sit/stand tasks must share seated joint targets and keep sagittal angles within their configured bounds."""
     assert pytest.approx(SIT_JOINT_POS) == MICRODUCK_SITTING_JOINT_POS
     # the keyframe folds the legs only: the neck and head stay at the stand pose, where the head-pose
     # command steers them
     assert set(SIT_JOINT_POS) < set(EXPECTED_LEG_JOINT_NAMES)
-    # and every angle is inside the +/-1.5708 rad sagittal limits the MJCF authors on these joints,
-    # so the target is reachable. Upstream's RollerCrouch keyframe is *not* -- it overshoots the
-    # roller model's neck-pitch and knee ranges, which upstream-issue draft 018 records -- so this is
-    # a bound worth asserting rather than assuming on any keyframe in this family.
-    #
-    # The limit is transcribed from the model rather than read out of it: this is a sim-free parity
-    # test and the articulation is not loaded here. It therefore catches an out-of-range *sagittal*
-    # angle but would not catch a joint whose own compiled range is narrower than the sagittal one --
-    # which is the exact shape of the 018 defect. A model-backed check belongs in the integration
-    # tier and is owed by whichever task actually reproduces that defect, not by this one.
+    # These sagittal targets stay within +/-1.5708 rad. This sim-free check uses a fixed bound;
+    # compiled model checks cover joint-specific limits that may be narrower.
     assert all(abs(angle) < 1.5708 for angle in SIT_JOINT_POS.values())
 
 
@@ -591,7 +510,8 @@ def test_the_ground_state_reset_runs_after_the_resets_it_overwrites():
 @pytest.mark.unit
 def test_there_is_no_fall_termination():
     """A wobble during a transition has to play out, so the policy pays the impact and uprightness
-    costs instead of having the episode truncated under it."""
+    costs instead of having the episode truncated under it.
+    """
     terminations = MicroDuckSitStandFlatEnvCfg().terminations
 
     assert set(vars(terminations)) == set(EXPECTED_TERMINATIONS)
@@ -615,13 +535,7 @@ def test_the_curricula_reproduce_upstream_stage_tables():
 
 @pytest.mark.unit
 def test_the_descent_cap_is_live_from_the_start_and_the_rise_cap_is_not():
-    """Upstream's attempt-tax lesson, and the ordering *is* the design.
-
-    The sit is the easy direction and a crash-sit has to be net-negative before it can be discovered,
-    so its cap is at full strength from step 0. The rise cap waits: a motion tax live while the rise
-    is still being explored makes every attempt net-negative and the skill is never found. Upstream
-    moved it from 750/1250 to 1500/2500 after a run stalled in a half-finished head-down fold.
-    """
+    """The descent speed cap is active initially; the rise cap is introduced after recovery practice."""
     curriculum = MicroDuckSitStandFlatEnvCfg().curriculum
 
     descent = curriculum.descent_speed_weight.params["weight_stages"]
@@ -636,13 +550,12 @@ def test_the_descent_cap_is_live_from_the_start_and_the_rise_cap_is_not():
 
 @pytest.mark.unit
 def test_the_push_ramp_is_the_latest_in_the_family():
-    """A push mid-descent before the transitions have consolidated made upstream's policy unlearn
-    sitting entirely, so nothing is pushed at all until iteration 1000."""
+    """Delay pushes until the configured posture-transition training stages."""
     curriculum = MicroDuckSitStandFlatEnvCfg().curriculum
 
     stages = curriculum.push_magnitude.params["param_stages"]
     assert curriculum.push_magnitude.params["event_name"] == "push_robot"
-    # upstream drives this one with an exclusive step comparison where the event-parameter helper
+    # the task drives this one with an exclusive step comparison where the event-parameter helper
     # uses an inclusive one, and the inconsistency is reproduced rather than smoothed over
     assert curriculum.push_magnitude.params["inclusive"] is False
     assert len(stages) == len(EXPECTED_PUSH_STAGES)
@@ -754,20 +667,20 @@ def test_the_actor_observation_layout_is_the_shared_deploy_contract():
 
 @pytest.mark.unit
 def test_the_critic_group_drops_the_foot_height_columns():
-    """Upstream deletes them here: no height sensor in this scene and no foot-height reward."""
+    """The critic omits foot-height terms when no height sensor or height reward is configured."""
     terms = _observation_terms(MicroDuckSitStandFlatEnvCfg().observations.critic)
 
     assert list(terms) == [name for name, _ in CRITIC_OBSERVATION_TERMS]
     assert sum(width for _, width in CRITIC_OBSERVATION_TERMS) == CRITIC_OBSERVATION_DIM
     assert "foot_height" not in terms
-    # the NaN-guarded variants, which is the port's family norm rather than upstream's choice here
+    # Finite-state termination guards cover the selected sensors.
     assert terms["foot_air_time"].func is mdp.foot_group_air_time_safe
     assert terms["foot_contact_forces"].func is mdp.foot_group_contact_forces_safe
 
 
 @pytest.mark.unit
 def test_the_head_centre_of_mass_randomization_drops_the_upstream_hip_link():
-    """``bearing_roll`` is the right hip-yaw link; upstream lists it among the head bodies in error."""
+    """Head center-of-mass randomization must select the intended head bodies without a hip link."""
     body_names = MicroDuckSitStandFlatEnvCfg().events.randomize_head_com.params["asset_cfg"].body_names
 
     assert "bearing_roll" not in body_names
@@ -785,13 +698,13 @@ def test_the_task_runs_the_all_collisions_robot_on_a_plane():
 
 @pytest.mark.unit
 def test_the_self_collision_sensor_senses_every_collider_against_every_other():
-    """Upstream's trunk-subtree-against-itself sensor, and there is deliberately no head-impact one."""
+    """Self-collision sensing must cover all selected collider pairs and saturate the pair cost at one."""
     cfg = MicroDuckSitStandFlatEnvCfg()
 
     sensor = cfg.scene.self_collision
     assert sensor.sensor_shape_prim_expr == [MICRODUCK_ALLCOLLISIONS_COLLIDER_SHAPE_EXPR]
     assert sensor.filter_shape_prim_expr == [MICRODUCK_ALLCOLLISIONS_COLLIDER_SHAPE_EXPR]
-    # sensing both sides of a pair reports one contact twice, so the cost saturates to upstream's
+    # sensing both sides of a pair reports one contact twice, so the cost saturates to the configured
     # single-slot 0-or-1 signal rather than becoming a per-collider tariff
     assert cfg.rewards.self_collisions.params["saturate"] is True
     # using the head as a third support point is allowed here, so there is no head sensor to add one
@@ -800,8 +713,7 @@ def test_the_self_collision_sensor_senses_every_collider_against_every_other():
 
 @pytest.mark.unit
 def test_the_solver_profile_is_upstreams_and_the_budget_is_measured():
-    """Upstream raises the iteration counts here and nowhere else, and it says why: the seated pose
-    put trunk, legs and head in close contact at once and the contact solve diverged into NaN."""
+    """Solver iteration and contact capacities must support simultaneous trunk, leg and head contacts."""
     solver = MicroDuckSitStandFlatEnvCfg().sim.physics.newton_mjwarp.solver_cfg
     velocity_solver = MicroDuckVelocityFlatEnvCfg().sim.physics.newton_mjwarp.solver_cfg
 
@@ -819,8 +731,7 @@ def test_the_solver_profile_is_upstreams_and_the_budget_is_measured():
 
 @pytest.mark.unit
 def test_the_episode_is_sized_for_two_or_three_posture_segments():
-    """Upstream sizes the episode from the dwell time, so an episode carries a transition rather
-    than being one long hold."""
+    """The episode length must contain two or three posture segments across the dwell-time range."""
     cfg = MicroDuckSitStandFlatEnvCfg()
 
     assert cfg.decimation == 4
@@ -830,7 +741,7 @@ def test_the_episode_is_sized_for_two_or_three_posture_segments():
     # every dwell clears a gentle transition plus a stretch of rest, so "arrive, then hold still" is
     # trained on every segment rather than only on the lucky long ones
     assert shortest_dwell > MICRODUCK_POSTURE_RAMP_S
-    # two segments fit even at the longest dwell, and three at the shortest -- upstream's "2-3"
+    # Two segments fit at the longest dwell and three at the shortest dwell.
     assert 2.0 * longest_dwell >= cfg.episode_length_s >= 3.0 * shortest_dwell
     # 600 control steps at the 50 Hz the deployed policy runs at
     assert round(cfg.episode_length_s / (cfg.decimation * cfg.sim.dt)) == 600
@@ -838,7 +749,7 @@ def test_the_episode_is_sized_for_two_or_three_posture_segments():
 
 @pytest.mark.unit
 def test_the_runner_differs_from_the_velocity_one_in_two_fields():
-    """Upstream shares the network, the optimizer and the rollout across the whole family."""
+    """The runner shares the velocity learner settings and changes only its experiment name and budget."""
     from isaaclab_tasks.contrib.microduck.velocity.agents.rsl_rl_ppo_cfg import MicroDuckPPORunnerCfg
 
     runner, velocity = MicroDuckSitStandPPORunnerCfg(), MicroDuckPPORunnerCfg()
@@ -884,13 +795,8 @@ def test_the_observation_groups_are_the_widths_their_contracts_name():
 @pytest.mark.integration
 @requires_microduck_allcollisions_usd
 def test_the_reset_seeds_the_posture_blend_from_the_pose_the_robot_actually_spawned_in():
-    """The one behaviour upstream could not get and had to work around.
-
-    Its command manager resets *before* the event that teleports the robot, so it re-initializes the
-    blend from inside ``compute`` guarded on the episode counter, and its own comment says a port
-    that moved this into a reset hook would drag seated spawns upward. Isaac Lab fires reset events
-    first, so the hook is correct here -- and this is the test that says so, because getting it wrong
-    is silent: the episode still runs, the seated half is just rewarded toward standing.
+    """Initialize the posture blend after reset events, using the actual standing or seated spawn.
+    A seated reset must not begin with a standing target.
     """
     sim_utils.create_new_stage()
     env = None

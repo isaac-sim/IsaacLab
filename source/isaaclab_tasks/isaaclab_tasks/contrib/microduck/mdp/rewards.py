@@ -3,11 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Shared MicroDuck rewards for walking, recovery and skating recipes.
-
-Existing walking APIs retain their behavior. Descriptive task-specific variants preserve distinct
-encoder storage, command sampling, contact grouping, recovery gates and non-finite handling.
-"""
+"""Tracking, posture, recovery, skating and manipulation reward terms."""
 
 from __future__ import annotations
 
@@ -29,7 +25,6 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.sensors import ContactSensor
 
-
 import math
 from collections.abc import Mapping
 
@@ -43,7 +38,7 @@ if TYPE_CHECKING:
 
 
 def _command_magnitude(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
-    """Upstream's scalar command magnitude ``|v_xy| + |w_z|``."""
+    """scalar command magnitude ``|v_xy| + |w_z|``."""
     command = env.command_manager.get_command(command_name)
     return torch.norm(command[:, :2], dim=1) + torch.abs(command[:, 2])
 
@@ -407,29 +402,14 @@ def _required_joint_ids(entity_cfg: SceneEntityCfg, key: str, term_name: str) ->
 
 
 def _root_height_above_ground(env: ManagerBasedRLEnv, asset: Articulation) -> torch.Tensor:
-    """Height of the articulation's root link above the ground its environment sits on [m].
-
-    Upstream measures this as ``root_link_pos_w[:, 2] - terrain.env_origins[:, 2]`` and guards it
-    against non-finite values, because a diverged solver would otherwise poison every term that
-    reads it before the NaN termination gets to fire.
-
-    The stand-up terms that use this are configured upstream with ``body_names=("trunk_base",)``,
-    but their kernels read the *root link* and ignore that selection. On MicroDuck the trunk is the
-    root, so the two are the same body and the selection is inert; this port drops it rather than
-    carry a parameter nothing reads.
-    """
+    """Height of the articulation's root link above the ground its environment sits on [m]."""
     return torch.nan_to_num(asset.data.root_link_pos_w.torch[:, 2] - env.scene.env_origins[:, 2], nan=0.0)
 
 
 def _trunk_tilt_squared(quat: torch.Tensor) -> torch.Tensor:
-    """Upstream's ``2 * (q_x^2 + q_y^2)`` tilt measure, which is ``1 - cos(tilt)``.
+    """``2 * (q_x^2 + q_y^2)`` tilt measure, which is ``1 - cos(tilt)``.
 
     Zero when the body frame is upright, 1 when it is horizontal and 2 when it is inverted.
-
-    Note:
-        Upstream's quaternions are ``(w, x, y, z)`` and Isaac Lab's are ``(x, y, z, w)``, so the two
-        components read here are columns 0 and 1 rather than upstream's 1 and 2. Every stand-up term
-        that reads an orientation goes through this helper for that reason.
 
     Args:
         quat: Root link orientation in (x, y, z, w). Shape is (num_envs, 4).
@@ -441,7 +421,7 @@ def _trunk_tilt_squared(quat: torch.Tensor) -> torch.Tensor:
 
 
 def _smoothstep(t: torch.Tensor) -> torch.Tensor:
-    """Upstream's ``t^2 (3 - 2t)`` smoothstep on an already-normalized, unclamped ratio."""
+    """``t^2 (3 - 2t)`` smoothstep on an already-normalized, unclamped ratio."""
     t = torch.clamp(t, 0.0, 1.0)
     return t * t * (3.0 - 2.0 * t)
 
@@ -452,25 +432,14 @@ def _height_gate(z: torch.Tensor, height_low: float, height_high: float) -> torc
 
 
 def _tilt_gate(quat: torch.Tensor, tilt_full_deg: float, tilt_zero_deg: float) -> torch.Tensor:
-    """Smoothstep gate that closes as the trunk tilts from ``tilt_full_deg`` to ``tilt_zero_deg``.
-
-    Interpolated in the **angle**, which is upstream's convention for the late-phase penalty gates.
-    Its stillness terms interpolate the same two bounds in the cosine instead; see
-    :func:`_cos_tilt_gate`.
-    """
+    """Smoothstep gate that closes as the trunk tilts from ``tilt_full_deg`` to ``tilt_zero_deg``."""
     cos_tilt = 1.0 - _trunk_tilt_squared(quat)
     tilt_deg = torch.rad2deg(torch.acos(cos_tilt.clamp(-1.0, 1.0)))
     return _smoothstep((tilt_zero_deg - tilt_deg) / max(tilt_zero_deg - tilt_full_deg, 1e-6))
 
 
 def _cos_tilt_gate(quat: torch.Tensor, tilt_full_deg: float, tilt_zero_deg: float) -> torch.Tensor:
-    """The same gate interpolated in ``cos(tilt)`` rather than in the angle.
-
-    Upstream carries both conventions and uses this one for its stillness rewards, so the two are
-    kept apart rather than unified. They agree at the two bounds and nowhere in between: at 25 and 60
-    degrees, a trunk at the angular midpoint scores 0.5 through :func:`_tilt_gate` and 0.625 here,
-    because the cosine is not linear in the angle.
-    """
+    """The same gate interpolated in ``cos(tilt)`` rather than in the angle."""
     cos_tilt = 1.0 - _trunk_tilt_squared(quat)
     cos_full = math.cos(math.radians(tilt_full_deg))
     cos_zero = math.cos(math.radians(tilt_zero_deg))
@@ -484,18 +453,6 @@ def _is_fallen(
     z_below: float | None = None,
 ) -> torch.Tensor:
     """Whether the trunk counts as fallen: tilted past ``tilt_above_deg``, or below ``z_below`` [m].
-
-    Ported from addendum section 3.2 (``_fallen_mask``). This is the hard, unsmoothed gate the
-    recovery layer is built on, unlike the smoothstep :func:`_tilt_gate` the stand-up task's
-    late-phase penalties use.
-
-    Upstream always passes both bounds and reaches the tilt-only form by passing a height of 0.0 m,
-    which the trunk never goes below -- its own comment calls that gate "z=0.0 never triggers". The
-    port takes the height bound as optional instead, so the two regimes are told apart by the
-    signature rather than by a magic value. The distinction is load-bearing: the recovery *rewards*
-    gate on tilt alone, because paying a robot for being low rewards sitting down, while the
-    *termination* keeps the height condition so that sitters and stuck-low environments are
-    recycled rather than paid.
 
     Args:
         env: The environment instance.
@@ -515,13 +472,7 @@ def _is_fallen(
 
 
 def _feet_height_above_ground(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Height of the selected foot bodies above the ground [m], shape (num_envs, num_feet).
-
-    Upstream reads a terrain height sensor that ray-casts a small ring under each foot site.
-    Isaac Lab has no equivalent sensor on this environment, so the ground is taken to be the plane
-    through the environment origin. That is exact on flat terrain and approximate on generated
-    terrain, where it holds only as long as the sub-terrain under an environment is level.
-    """
+    """Height of the selected foot bodies above the ground [m], shape (num_envs, num_feet)."""
     asset: Articulation = env.scene[asset_cfg.name]
     foot_pos_z = asset.data.body_link_pos_w.torch[:, asset_cfg.body_ids, 2]
     return foot_pos_z - env.scene.env_origins[:, 2].unsqueeze(1)
@@ -536,10 +487,6 @@ def track_linear_velocity_raw(
     env: ManagerBasedRLEnv, std: float, command_name: str, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
     """Reward tracking of the linear velocity command, penalizing vertical drift in the same kernel.
-
-    Ported from reference section 5 (``track_linear_velocity``). The stock
-    :func:`isaaclab.envs.mdp.track_lin_vel_xy_exp` is **not** reusable: it omits the ``v_z^2`` term
-    and reads the centre-of-mass frame instead of the root link frame.
 
     Args:
         env: The environment instance.
@@ -563,10 +510,6 @@ def track_angular_velocity_raw(
     env: ManagerBasedRLEnv, std: float, command_name: str, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
     """Reward tracking of the yaw-rate command, penalizing roll and pitch rate in the same kernel.
-
-    Ported from reference section 5 (``track_angular_velocity``). The stock
-    :func:`isaaclab.envs.mdp.track_ang_vel_z_exp` is **not** reusable: it omits the ``|w_xy|^2``
-    term and reads the centre-of-mass frame instead of the root link frame.
 
     Args:
         env: The environment instance.
@@ -596,16 +539,11 @@ def upright_selected_body(
 ) -> torch.Tensor:
     """Reward keeping a body's frame aligned with gravity, using a Gaussian kernel.
 
-    Ported from reference section 5 (``upright``). The stock
-    :func:`isaaclab.envs.mdp.flat_orientation_l2` measures the same tilt but as an unbounded L2
-    *penalty*; upstream uses a bounded Gaussian *reward* with a positive weight, so the two differ
-    in shape and in sign and cannot be substituted for one another.
-
     Args:
         env: The environment instance.
         std: Width of the Gaussian kernel, in units of the projected gravity direction.
         asset_cfg: The articulation and the single body to measure. With no body selected the
-            articulation root is used, as upstream does.
+            articulation root is used, as does.
 
     Returns:
         The reward in ``(0, 1]``. Shape is (num_envs,).
@@ -642,19 +580,7 @@ def upright_selected_body(
 
 
 class pose_mode_switch(ManagerTermBase):
-    """Reward holding the stand pose, with a per-joint tolerance that widens once the robot moves.
-
-    Ported from reference section 5 (``variable_posture``, upstream term name ``pose``). There is
-    no stock counterpart: :func:`isaaclab.envs.mdp.joint_deviation_l1` measures the same deviation
-    but as an L1 penalty with a single global scale, whereas this term is a Gaussian reward whose
-    width is a per-joint vector selected by the commanded speed.
-
-    The commanded speed ``|v_xy| + |w_z|`` selects one of three per-joint standard-deviation
-    vectors -- standing, walking or running -- and the reward is
-    ``exp(-mean((q - q_home)^2 / std^2))`` over the selected joints. MicroDuck configures the
-    running vector equal to the walking one, so the running regime is inactive in practice; the
-    third vector is kept because upstream's curriculum can separate them.
-    """
+    """Reward holding the stand pose, with a per-joint tolerance that widens once the robot moves."""
 
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
         """Resolve the three per-joint standard-deviation vectors.
@@ -744,18 +670,10 @@ def head_pose_tracking_raw(
 ) -> torch.Tensor:
     """Reward tracking of the commanded head-pose delta, averaged over the neck and head joints.
 
-    Ported from reference section 6 (``head_pose_tracking``). The command is a joint-position delta
-    from the stand pose, so the tracked error is ``(q - q_home) - cmd``, and the reward is the mean
-    of the per-joint Gaussians. There is no stock counterpart: the closest stock term,
-    :func:`isaaclab.envs.mdp.joint_deviation_l1`, tracks the stand pose rather than a command.
-
-    Upstream also carries an optional narrow-Gaussian blend (``fine_std`` / ``fine_weight``) that
-    the velocity environment never configures, so it is deliberately not ported.
-
     Args:
         env: The environment instance.
         command_name: Name of the head-pose command term. Its columns must line up with the joints
-            selected by :attr:`asset_cfg`, which upstream orders
+            selected by :attr:`asset_cfg`, which orders
             ``(neck_pitch, head_pitch, head_yaw, head_roll)``.
         std: Width of the per-joint Gaussian kernel [rad].
         asset_cfg: The articulation and the head joints to track. Select them by name with
@@ -776,18 +694,6 @@ def head_pose_tracking_raw(
 
 class head_pose_bias_penalty_gated(ManagerTermBase):
     """Penalize a head-pose error that persists, as opposed to one that averages out.
-
-    Ported from reference section 6 (``head_pose_bias_penalty``). The term holds a per-environment,
-    per-joint exponential moving average of the head-pose error with time constant ``tau_s`` and
-    returns ``-mean(|ema|)``. It is stateful, so it is a class rather than a function; the state is
-    cleared for the environments the reward manager resets.
-
-    The term **negates itself** and is therefore configured with a *positive* weight, matching
-    upstream's ``0.0 -> 3.0`` ramp.
-
-    Where upstream clears the average whenever ``episode_length_buf <= 1``, this port clears it from
-    :meth:`reset`, which the manager calls with exactly the environments that restarted. The two
-    are equivalent and the hook is the Isaac Lab convention.
 
     An optional **upright gate** suppresses the term while the robot is low or tilted, for the
     recovery tasks whose episodes start on the ground. It multiplies both the error entering the
@@ -889,24 +795,9 @@ def body_pose_tracking_6d(
 ) -> torch.Tensor:
     """Reward tracking of a six-dimensional trunk-pose command, averaged over the six axes.
 
-    Ported from reference section 6 (``body_pose_tracking_6d``). The command is a delta from the
-    nominal stand: ``(dx, dy, dz)`` [m] measured from the environment origin, with the vertical
-    target at ``nominal_height + dz``, and ``(droll, dpitch, dyaw)`` [rad]. Each axis contributes
-    its own Gaussian and the six are averaged, so no single axis can dominate.
-
     There is no stock counterpart. :func:`isaaclab.envs.mdp.position_command_error` and
     :func:`~isaaclab.envs.mdp.orientation_command_error` measure a pose command as an unbounded
     error norm against a pose command term, not as a per-axis Gaussian around a nominal stand.
-
-    Note:
-        Upstream ships a second kernel, ``body_pose_tracking_locomotion``, which differs only in
-        measuring ``x``/``y`` against the feet-site centroid and ``yaw`` against the mean foot-site
-        yaw, so that those axes stay meaningful while the robot walks away from its spawn. The
-        stand-up task selects it but weights those three axes **zero**, so the two kernels agree
-        exactly there and this one is used with :attr:`axis_weights` instead. Reviving the
-        horizontal axes for a task that does weight them needs the foot *sites*, which Isaac Lab
-        has no equivalent of: the ankle bodies this port measures feet with sit 16 mm outboard of
-        the sites and, on the left side, with a 180-degree yaw flip.
 
     Args:
         env: The environment instance.
@@ -925,8 +816,6 @@ def body_pose_tracking_6d(
     asset: Articulation = env.scene[asset_cfg.name]
     command = env.command_manager.get_command(command_name)
 
-    # a non-finite root position would otherwise poison every axis; upstream guards it here and
-    # terminates on it separately
     relative_pos = torch.nan_to_num(asset.data.root_link_pos_w.torch - env.scene.env_origins, nan=0.0)
     x_error = relative_pos[:, 0] - command[:, 0]
     y_error = relative_pos[:, 1] - command[:, 1]
@@ -964,26 +853,6 @@ def feet_air_time_windowed_gated(
 ) -> torch.Tensor:
     """Reward feet whose current air time lies strictly inside a window, gated on the command.
 
-    Ported from reference section 5 (``feet_air_time``, upstream term name ``air_time``). The
-    reward is the *count* of feet in the window, so it is bounded by the number of feet -- it is
-    not an integral over the swing. Neither stock counterpart reproduces that:
-    :func:`isaaclab_tasks.core.velocity.mdp.feet_air_time` pays out the completed air time minus a
-    threshold on the landing step, and
-    :func:`~isaaclab_tasks.core.velocity.mdp.feet_air_time_positive_biped` pays out the clamped
-    single-stance mode time; both reward *longer* steps without an upper bound on the swing.
-
-    Air-time semantics carry over directly: Isaac Lab's ``current_air_time`` is reset to zero while
-    a body registers a contact force above :attr:`~isaaclab.sensors.ContactSensorCfg.force_threshold`
-    and accumulates the elapsed time otherwise, which is what upstream's sensor reports.
-
-    An optional **upright gate** zeroes the reward while the trunk is toppled, for the recovery tasks
-    whose episodes survive a fall. Upstream wraps this kernel in a separate ``feet_air_time_upright``
-    function that forwards the rest of its parameters as keyword arguments -- and its own extraction
-    warns that adding an ``asset_cfg`` to the wrapped term's parameters would then silently redirect
-    the gate. The gate is a parameter here instead, which cannot collide. Without it a robot lying on
-    its trunk can rhythmically tap its feet through the swing window, which is a farm upstream
-    observed rather than predicted.
-
     Args:
         env: The environment instance.
         sensor_cfg: The contact sensor and the foot bodies to read. Select them by name with
@@ -1019,15 +888,10 @@ def foot_origin_clearance(
 ) -> torch.Tensor:
     """Penalize feet that deviate from a target height while moving horizontally.
 
-    Ported from reference section 5 (``feet_clearance``, upstream term name ``foot_clearance``).
-    The cost is ``sum(|h - target| * |v_xy|)`` over the feet, gated on the command magnitude:
-    weighting by planar speed charges a swinging foot at the wrong height and leaves a planted one
-    alone. There is no stock counterpart.
-
     Args:
         env: The environment instance.
-        target_height: Height above the ground the swinging foot should hold [m]. Upstream measures
-            it at the sole site; this port measures the ankle body frame, so the value needs
+        target_height: Height above the ground the swinging foot should hold [m]. measures
+            it at the sole site; this configuration measures the ankle body frame, so the value needs
             re-tuning by the sole-to-ankle offset rather than copying.
         command_name: Name of the velocity command term.
         asset_cfg: The articulation and the foot bodies to measure. Select them by name with
@@ -1046,16 +910,6 @@ def foot_origin_clearance(
 
 class foot_origin_swing_height(ManagerTermBase):
     """Penalize, on touchdown, how far the peak of the swing was from a target height.
-
-    Ported from reference section 5 (``feet_swing_height``, upstream term name
-    ``foot_swing_height``). The term tracks the peak height each foot reaches while airborne,
-    charges the *relative* squared error ``(peak / target - 1)^2`` on the step the foot lands, and
-    clears that foot's peak. Being stateful, it is a class; the peaks are cleared for the
-    environments the reward manager resets. There is no stock counterpart.
-
-    Upstream detects "airborne" through its sensor's ``found`` field. Isaac Lab's equivalent is
-    ``current_contact_time``, which is zero exactly while no contact force above the sensor's
-    threshold is registered.
 
     Note:
         :meth:`~isaaclab.sensors.ContactSensor.compute_first_contact` returns a **float** mask of
@@ -1108,7 +962,7 @@ class foot_origin_swing_height(ManagerTermBase):
             asset_cfg: The articulation and the foot bodies to measure. Its body order must match
                 :attr:`sensor_cfg`.
             target_height: Peak swing height the foot should reach [m]. Measured at the ankle body
-                frame rather than at upstream's sole site.
+                frame rather than at sole site.
             command_name: Name of the velocity command term.
             command_threshold: Command magnitude below which the penalty is suppressed.
 
@@ -1141,10 +995,6 @@ def foot_slip_raw(
 ) -> torch.Tensor:
     """Penalize the squared planar speed of feet that are on the ground.
 
-    Ported from reference section 5 (``feet_slip``, upstream term name ``foot_slip``). The stock
-    :func:`isaaclab_tasks.core.velocity.mdp.feet_slide` measures the same quantity but charges the
-    speed *linearly* and applies no command gate, so the two differ in both shape and coverage.
-
     Args:
         env: The environment instance.
         sensor_cfg: The contact sensor and the foot bodies to read.
@@ -1172,11 +1022,6 @@ Trunk regularizers.
 def body_ang_vel_xy_l2_raw(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
     """Penalize the roll and pitch rate of selected bodies, in the world frame.
 
-    Ported from reference section 5 (``body_angular_velocity_penalty``, upstream term name
-    ``body_ang_vel``). The stock :func:`isaaclab.envs.mdp.ang_vel_xy_l2` measures the articulation
-    root in its own *body* frame; upstream measures a named body in the *world* frame, so the two
-    disagree as soon as the trunk is not level.
-
     The yaw rate is deliberately excluded: it is what the velocity command asks for.
 
     Args:
@@ -1196,10 +1041,6 @@ def angular_momentum_l2_raw(
 ) -> torch.Tensor:
     """Penalize the squared magnitude of the articulation's angular momentum about its own centre of mass.
 
-    Ported from reference section 5 (``angular_momentum_penalty``, upstream term name
-    ``angular_momentum``). Upstream reads a MuJoCo ``subtreeangmom`` sensor, which Isaac Lab has no
-    equivalent of, so the quantity is assembled from the body states instead:
-
     .. math::
 
         L = \\sum_i \\left[ R_i I_i R_i^T \\omega_i + m_i (r_i - r_c) \\times (v_i - v_c) \\right]
@@ -1211,7 +1052,7 @@ def angular_momentum_l2_raw(
     Args:
         env: The environment instance.
         asset_cfg: The articulation and the bodies to sum over. Defaults to every body of the
-            entity named ``"robot"``, matching upstream's whole-robot subtree.
+            entity named ``"robot"``, matching whole-robot subtree.
 
     Returns:
         The squared angular momentum [kg^2 m^4 / s^2]. Shape is (num_envs,).
@@ -1244,15 +1085,6 @@ def self_collision_cost_saturable(
 ) -> torch.Tensor:
     """Penalize parts of the robot that are touching the robot itself.
 
-    Ported from reference section 5 (``self_collision_cost``, upstream term name
-    ``self_collisions``). Upstream counts the self-contact slots its sensor reports as found. Isaac
-    Lab reports filtered contacts as a force matrix, so this port counts the *sensing objects*
-    carrying a self-contact force above :attr:`force_threshold` -- the same "how much of the robot is
-    touching itself" signal, quantized per sensing object rather than per contact slot. The stock
-    :func:`isaaclab.envs.mdp.undesired_contacts` counts bodies the same way but reads
-    ``net_forces_w``, the total contact force including the ground, which for a walking robot is
-    never zero.
-
     The sensor must be configured with
     :attr:`~isaaclab.sensors.ContactSensorCfg.filter_prim_paths_expr` or its shape-level counterpart
     :attr:`~isaaclab.sensors.ContactSensorCfg.filter_shape_prim_expr` pointing back at the robot,
@@ -1263,7 +1095,7 @@ def self_collision_cost_saturable(
         sensor_cfg: The contact sensor and the sensing objects to read.
         force_threshold: Contact-force magnitude above which a sensing object counts as touching [N].
             Defaults to 1.0, the same "a real contact" threshold the stock contact terms use.
-        saturate: Whether to report upstream's 0-or-1 "is the robot touching itself" flag instead of
+        saturate: Whether to report 0-or-1 "is the robot touching itself" flag instead of
             a count. Defaults to False, which counts. Set it whenever the sensor senses *both* sides
             of a contact -- a many-to-many sensor reports one contact once per shape that carries
             it, so counting would scale the penalty with how finely the model is split into
@@ -1295,14 +1127,6 @@ Standing up: posture, height and orientation terms.
 def joint_pose_gaussian(env: ManagerBasedRLEnv, std: float, asset_cfg: SceneEntityCfg) -> torch.Tensor:
     """Reward holding selected joints at the stand pose, with a single Gaussian tolerance.
 
-    Ported from addendum section 3.3 (``pose_target_match``). Unlike
-    :class:`pose_mode_switch`, which selects a per-joint tolerance vector from the commanded speed,
-    this is one scalar width applied to every selected joint -- the stand-up task has no walking
-    regime to switch into.
-
-    Upstream additionally accepts a ``target_overrides`` mapping that shifts individual targets off
-    the stand pose. Every stand-up slot passes ``None``, so it is not ported.
-
     Args:
         env: The environment instance.
         std: Width of the per-joint Gaussian kernel [m or rad, depending on joint type].
@@ -1320,11 +1144,6 @@ def joint_pose_gaussian(env: ManagerBasedRLEnv, std: float, asset_cfg: SceneEnti
 
 def joint_pose_l1(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
     """Penalize the mean absolute deviation of selected joints from the stand pose.
-
-    Ported from addendum section 3.3 (``pose_l1_penalty``). It is the constant-gradient companion
-    to :func:`joint_pose_gaussian`, which saturates once the pose error grows past its width and
-    then stops pulling. The stock :func:`isaaclab.envs.mdp.joint_deviation_l1` sums rather than
-    averages, so its scale follows the number of selected joints.
 
     The term **negates itself** and is therefore configured with a *positive* weight.
 
@@ -1350,12 +1169,6 @@ def root_height_gaussian(
 ) -> torch.Tensor:
     """Reward holding the trunk at a target height above the ground, using a Gaussian kernel.
 
-    Ported from addendum section 3.3 (``height_target_gaussian``). The stand-up task instantiates it
-    twice, at a wide width that pulls all the way up from the sitting keyframe and at a narrow one
-    that only has gradient in the last centimetre; the wide layer alone saturates before the robot
-    is standing. The stock :func:`isaaclab.envs.mdp.base_height_l2` is an unbounded penalty around
-    the same target, so it neither saturates nor stacks.
-
     Args:
         env: The environment instance.
         target_height: Trunk height to hold [m], measured above the environment origin.
@@ -1375,10 +1188,6 @@ def root_height_l1(
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
     """Penalize the absolute distance of the trunk from a target height above the ground.
-
-    Ported from addendum section 3.3 (``height_l1_penalty``). It is what makes staying seated cost
-    something: the Gaussian layers are near zero down there and give the policy nothing to descend,
-    whereas this one charges a constant gradient all the way from the sitting height.
 
     The term **negates itself** and is therefore configured with a *positive* weight.
 
@@ -1401,21 +1210,6 @@ def com_upward_velocity(
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
     """Reward rising: the trunk's upward speed, paid only while it is below a ceiling.
-
-    Ported from addendum section 3.3 (``com_upward_velocity``). This is the term that pays for the
-    *motion* of standing up rather than for arriving: with destination rewards alone, sitting still
-    and collecting most of the posture and upright terms is the dominant local optimum. The ceiling
-    stops the policy farming the reward by bobbing once it is up. Downward motion is free, not
-    penalized -- :func:`trunk_vertical_accel_penalty` is what keeps the rise smooth.
-
-    Upstream also accepts a ``max_vz`` cap on the rewarded speed, which the stand-up task
-    deliberately leaves unset after two runs in which capping it suppressed the noisy recovery
-    attempts the policy has to make before it can flip; it is not ported.
-
-    An optional **fallen gate** restricts the payout to a toppled robot, which is what the hybrid
-    walking-and-recovery task needs: there the same reward on an upright robot is a bounce incentive
-    that fights the gait. The gate is on tilt alone -- see :func:`_is_fallen` for why the height half
-    of upstream's gate is a documented no-op here.
 
     Args:
         env: The environment instance.
@@ -1440,20 +1234,9 @@ def com_upward_velocity(
 class trunk_vertical_accel_penalty(ManagerTermBase):
     """Penalize the magnitude of the trunk's vertical acceleration.
 
-    Ported from addendum section 3.3 (``trunk_vertical_accel_penalty``). Paired with
-    :func:`com_upward_velocity` it selects a smooth, constant-speed rise: a constant upward velocity
-    collects the speed reward *and* has zero acceleration, so the two pressures agree only on that
-    trajectory. There is no stock counterpart; the closest term,
-    :func:`isaaclab.envs.mdp.lin_vel_z_l2`, penalizes the speed itself, which would fight the rise
-    rather than smooth it.
-
     Being a finite difference the term is stateful, so it is a class. The step after a reset is
     charged nothing: the previous velocity then belongs to the previous episode, and differencing
     across the discontinuity would charge every environment a spurious impulse on its first step.
-
-    The term **negates itself** and is therefore configured with a *positive* weight. Upstream
-    documents a historical sign bug here, where the doubly negated form paid a *reward* for vertical
-    shocks.
     """
 
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
@@ -1508,12 +1291,6 @@ def body_ang_vel_at_height(
 ) -> torch.Tensor:
     """Penalize the roll and pitch rate of a body, but only once the robot is up and near vertical.
 
-    Ported from addendum section 3.3 (``body_ang_vel_at_height``). It is
-    :func:`body_ang_vel_xy_l2_raw` behind a height-times-tilt smoothstep gate, and the gate is the whole
-    point: an ungated rotation penalty is an attempt tax on exactly the thrashing a robot has to do
-    to flip itself off its back, and upstream measured that taxing it makes "do nothing" win. Above
-    the gate it damps the overshoot-and-tip loop at the top of the rise instead.
-
     Args:
         env: The environment instance.
         height_low: Trunk height [m] below which the gate is fully closed.
@@ -1537,11 +1314,6 @@ def body_ang_vel_at_height(
 def body_upright_linear(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Reward the cosine of the trunk's tilt from vertical.
 
-    Ported from addendum section 3.3 (``body_upright_linear``). Returns +1 upright, 0 horizontal and
-    -1 inverted, so unlike the Gaussian :func:`upright_selected_body` it keeps a strong gradient at large tilt --
-    which is where a robot on its back starts. :func:`upright_gaussian_at_height` is its
-    near-vertical counterpart, and the stand-up task carries both layers.
-
     Args:
         env: The environment instance.
         asset_cfg: The articulation whose root link carries the trunk.
@@ -1561,10 +1333,6 @@ def upright_gaussian_at_height(
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
     """Reward a near-vertical trunk, paid in proportion to how far the robot has risen.
-
-    Ported from addendum section 3.3 (``upright_gaussian_at_height``). The height gate is what
-    closes the "crouch low and vertical" exploit that an ungated upright reward opens, and the
-    Gaussian has its gradient exactly where :func:`body_upright_linear` runs out of steam.
 
     Args:
         env: The environment instance.
@@ -1591,13 +1359,6 @@ def standing_composite_score(
 ) -> torch.Tensor:
     """Reward the goal state as one multiplicative score over height, uprightness and pose.
 
-    Ported from addendum section 3.3 (``standing_composite_score``). The product of the three
-    Gaussians -- rather than their sum, which the separate height, upright and posture terms already
-    provide -- is what makes "standing" a single attractor: two out of three earns almost nothing,
-    so the policy cannot settle on a tall crouch or an upright sit. The widths are deliberately
-    broad, because a tight product scores numerically zero everywhere except at the goal and has no
-    gradient to follow there.
-
     Args:
         env: The environment instance.
         target_height: Trunk height of the goal state [m].
@@ -1623,19 +1384,7 @@ def standing_composite_score(
 class joint_torque_rate_l2(ManagerTermBase):
     """Penalize the squared change in applied joint torque between two control steps.
 
-    Ported from addendum section 3.3 (``joint_torque_rate_l2``). It prices jitter rather than
-    effort: the stock :func:`isaaclab.envs.mdp.joint_torques_l2` charges the torque itself, which a
-    0.74 kg robot pushing itself off the floor cannot avoid, whereas the *rate* is what a chattering
-    policy spends and a smooth one does not.
-
     Being a finite difference the term is stateful, so it is a class.
-
-    Note:
-        Upstream caches its previous torques on the environment with no reset hook, so the first
-        step of every episode is charged against the last step of the previous one (addendum section
-        7.18). This port clears the state on reset, as its sibling
-        :class:`trunk_vertical_accel_penalty` does upstream. The weight is zero until late in the
-        schedule, so the two behaviours are indistinguishable in practice.
     """
 
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
@@ -1688,21 +1437,14 @@ class joint_torque_rate_l2(ManagerTermBase):
 
 """
 Potential-based progress. Both terms pay the *change* in a scalar potential and nothing for holding
-any pose, which is what makes them unfarmable on a task whose episodes survive a fall (addendum
-section 3.2). Potential-based shaping is also policy-invariant, so they cannot change which policy
-is optimal -- only how quickly it is found.
+any pose, which prevents stationary reward farming on a task whose episodes survive a fall.
+Potential-based shaping is policy-invariant: it changes the learning signal while preserving the
+optimal policy.
 """
 
 
 class _PotentialProgress(ManagerTermBase):
-    """Shared machinery of the two potential-based recovery terms.
-
-    Both are a one-step difference of a scalar potential, so both are stateful and both have to
-    re-baseline on reset: without that, an episode that respawns prone right after the previous one
-    finished standing would be charged the whole phantom fall on its first step. Upstream reaches
-    the same effect by re-seeding whenever ``episode_length_buf <= 1``; the hook is the Isaac Lab
-    convention and the manager calls it with exactly the environments that restarted.
-    """
+    """Shared machinery of the two potential-based recovery terms."""
 
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
         """Allocate the previous-potential buffer.
@@ -1746,12 +1488,6 @@ class _PotentialProgress(ManagerTermBase):
 class upright_progress(_PotentialProgress):
     """Reward the increase in ``cos(tilt)`` of the trunk, and charge the decrease symmetrically.
 
-    Ported from addendum section 3.2 (``upright_progress``). It is the orientation half of the
-    recovery layer and it is deliberately **ungated**: unlike every gated recovery reward upstream
-    tried before it, there is no pose it pays for holding, so it cannot be farmed by sitting, lying
-    or balancing on the head -- the three farms upstream's own run notes record. It also pays for
-    catching a stumble mid-gait, which a fallen-gated term would miss.
-
     A full prone-to-standing recovery collects a total of about +1 before weighting, because
     ``cos(tilt)`` runs from 0 lying down to 1 upright.
 
@@ -1776,18 +1512,7 @@ class upright_progress(_PotentialProgress):
 
 
 class height_progress(_PotentialProgress):
-    """Reward the increase in trunk height below a ceiling, and charge the decrease symmetrically.
-
-    Ported from addendum section 3.2 (``height_progress``). It is the z-axis companion to
-    :class:`upright_progress` and it exists for one specific stretch: the last mile from a deep
-    crouch to a stand is almost pure height change at modest tilt, where ``cos(tilt)`` barely moves
-    and the Gaussian posture rewards are flat. Upstream added it after measuring policies that
-    recovered as far as that crouch and parked there.
-
-    The ceiling is what stops a standing robot farming the term by bobbing: above it the potential
-    is constant, so a bounce pays exactly what it charges. Upstream's accounting is that a full
-    prone-to-stand rise (0.05 to 0.115 m) collects about +0.065 before weighting.
-    """
+    """Reward the increase in trunk height below a ceiling, and charge the decrease symmetrically."""
 
     def __call__(
         self,
@@ -1816,16 +1541,6 @@ Recovery economics: the flat tax on staying down and the one-shot bounty for get
 
 class fallen_state_penalty(ManagerTermBase):
     """Charge a flat cost for every step spent fallen, until the stand is actually finished.
-
-    Ported from addendum section 3.2 (``fallen_state_penalty``). The term exists because waiting is
-    otherwise rational: a recovery attempt costs action-rate and torque-rate penalties where lying
-    still costs nothing, so without a tax the dominant strategy is to lie there until the
-    failed-recovery termination recycles the episode.
-
-    The **hysteresis** is the part that has to be reproduced exactly. Arming is on tilt, so ordinary
-    gait is never taxed; releasing needs a genuinely completed stand -- upright *and* tall -- so the
-    deep crouch just inside the arming gate is no longer a zero-cost rest state. Upstream added it
-    after a run whose recoveries all converged on that crouch.
 
     The term returns a **positive** magnitude, so it is configured with a negative weight.
     """
@@ -1891,19 +1606,9 @@ class fallen_state_penalty(ManagerTermBase):
 class recovery_success(ManagerTermBase):
     """Pay a one-shot bounty the step a robot finishes standing up after a genuine fall.
 
-    Ported from addendum section 3.2 (``recovery_success``). The dense recovery terms all fade out
-    near the goal, so upstream adds a sharp endpoint signal -- and makes it one-shot, so oscillating
-    across the gate pays once rather than once per crossing.
-
     Two guards make it a *recovery* bounty rather than a standing subsidy: the robot must have been
     fallen continuously for :attr:`min_fallen_s` before the bounty arms, so a gait wobble past the
     tilt bound cannot claim it, and the latch clears when it fires.
-
-    Note:
-        Upstream's function default for ``up_z`` is 0.105 m, which its own configuration overrides
-        as unreachable: a normally wobbling upright MicroDuck measures 0.084 to 0.096 m, so the
-        bounty never fired and recoveries converged on a deep crouch. The parameter is mandatory
-        here rather than defaulted, so the value has to be chosen rather than inherited.
     """
 
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
@@ -1969,71 +1674,40 @@ class recovery_success(ManagerTermBase):
 Rolling forward (roulade): the rotation accumulator and the terms that read it.
 """
 
-
 _ROULADE_FORWARD_SIGN = 1.0
-
 
 """Sign of the body-frame pitch rate that counts as *forward* rotation.
 
 Face down is a +90 degree pitch in this family's reset convention, so a forward roll is a positive
-body-frame ``omega_y`` (addendum section 4.3).
+body-frame ``omega_y``.
 """
 
-
 _ROULADE_HEAD_LATCH_WINDOW = (math.radians(20.0), math.radians(170.0))
-
 
 """Rotation window [rad] inside which head-ground contact latches the roll as over-the-head.
 
 In a real roulade the head plants at 60 to 120 degrees of body rotation; the window is generous
 around that, so contact before the robot has committed and contact once it is already on its back
-do not count (addendum section 4.3).
+do not count.
 """
-
 
 _ROULADE_HEAD_TOP_AXIS = (0.882, 0.0, 0.471)
 
-
-"""The flat top of the head shell, as a unit vector in the head body's own frame.
-
-Upstream measured it as world-up expressed in ``jaw_soft``'s frame with the robot settled at the
-stand pose (addendum section 4.3).
-"""
-
+"""The flat top of the head shell, as a unit vector in the head body's own frame."""
 
 _ROULADE_HEAD_TOP_DOWN_MIN = 0.3
 
-
-"""How far the head top must point at the floor before a head contact counts, as ``dot(axis, -z)``.
-
-Upstream's measured landmarks at a 110 degree trunk pitch: a passive face-plant with the neck at the
-stand pose reads +0.6, a full chin tuck reads -0.99. The threshold accepts partial tucks while
-staying far away from a face or side-shell contact, which is what stops the policy rolling over its
-shoulder instead of over its head.
-"""
-
+"""How far the head top must point at the floor before a head contact counts, as ``dot(axis, -z)``."""
 
 _ROULADE_SAGITTAL_FULL = 0.5
 
-
 _ROULADE_SAGITTAL_ZERO = 0.866
 
-
-"""Bounds on ``|lateral axis z|`` between which rotation credit fades from full to none.
-
-``sin(30 deg)`` and ``sin(60 deg)``. In a clean forward roll the body's lateral axis stays
-horizontal for *any* amount of pure pitch and its world-z component stays near zero; it grows toward
-one as the roll goes over a shoulder, which upstream's run-5 policy discovered as a lower-energy
-cheat. Above the upper bound a side roll does not count as rotation at all.
-"""
+"""Bounds on ``|lateral axis z|`` between which rotation credit fades from full to none."""
 
 
 def _lateral_axis_z(quat: torch.Tensor) -> torch.Tensor:
     """World-z component of a body's lateral (y) axis. Zero when the body is sagittally flat.
-
-    Note:
-        Upstream's quaternions are ``(w, x, y, z)`` and Isaac Lab's are ``(x, y, z, w)``, so its
-        ``2 (q_y q_z + q_w q_x)`` reads columns 1, 2, 3 and 0 rather than 2, 3, 0 and 1.
 
     Args:
         quat: Body orientation in (x, y, z, w). Shape is (num_envs, 4).
@@ -2072,10 +1746,6 @@ def _head_top_is_down(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torc
 def _any_contact(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, filtered: bool = False) -> torch.Tensor:
     """Whether any object a contact sensor senses is touching something.
 
-    Upstream reads its sensors' boolean ``found`` field, which is set for every contact the solver
-    keeps. Isaac Lab reports the net contact force per sensing object instead, so "found" is a
-    non-zero force -- the same signal, since the shapes carry no collision margin.
-
     Args:
         env: The environment instance.
         sensor_cfg: The contact sensor and the sensing objects to read.
@@ -2109,16 +1779,6 @@ def _update_roulade_state(
     head_sensor_cfg: SceneEntityCfg,
 ) -> None:
     """Advance the rotation accumulator and the head latch by one control step.
-
-    Ported verbatim from addendum section 4.3 (``_update_roulade_accum``). Two gates make the
-    integral mean "rotation of a *roulade*" rather than "rotation":
-
-    * **Support gate.** Rotation is integrated only while some part of the robot touches the ground.
-      A roulade is a supported motion, and upstream's first run discovered that without this gate
-      the optimal policy is a ballistic whip that earns the same rotation sooner. The support sensor
-      is read *filtered*, so a tucked robot in mid-air cannot open the gate on its own knee.
-    * **Sagittal gate.** Rotation is scaled by a smoothstep on how flat the roll is, so going over a
-      shoulder earns little and going over the side earns nothing.
 
     The frontier only moves forward, so rocking backwards neither pays nor un-pays, and the head
     latch is set once head-ground contact happens with the flat top of the head pointing down while
@@ -2164,11 +1824,6 @@ def roulade_completion_gate(
 ) -> torch.Tensor:
     """Smoothstep on the rotation frontier: zero below ``gate_lo``, one above ``gate_hi``.
 
-    Ported from addendum section 4.3 (``_roulade_completion_gate``). This is what replaces a phase
-    clock: the landing rewards can only be opened by *having rotated* -- while supported, and in the
-    sagittal plane -- so a standing spawn cannot farm them by doing nothing and a ballistic flip
-    cannot open them at all.
-
     It is public because it is the whole landing annuity in one function: a new gated roll reward
     multiplies by this and nothing else, and a test that wants to know whether completion is
     *reachable* reads it directly.
@@ -2200,11 +1855,6 @@ def roulade_progress(
     asset_cfg: SceneEntityCfg,
 ) -> torch.Tensor:
     """Pay increments of the rotation frontier, up to one full roll, at a capped rate.
-
-    Ported from addendum section 4.4 (``roulade_progress``). It is the one dense task signal during
-    the roll, and it is potential-based: a full roll pays ``target_angle`` worth of reward in total
-    however it is spread out, camping anywhere pays zero per step, rocking back below the frontier
-    pays zero, and spinning past the target is clamped.
 
     The rate cap **forfeits** rather than defers: the paid pointer still jumps to the frontier, so a
     violent whip collects strictly *less* total progress reward than a controlled roll rather than
@@ -2250,12 +1900,6 @@ def roulade_head_pivot(
 ) -> torch.Tensor:
     """Reward pivoting over the head: head-ground contact while rotating forward, mid-roll.
 
-    Ported from addendum section 4.4 (``roulade_head_pivot``). The rate factor is the anti-camping
-    guard -- a robot resting face down with its head on the floor is not rotating and earns nothing,
-    so the term pays for pivoting *over* the head rather than for touching it. The head-top factor
-    is the gradient that teaches the chin tuck: any head contact mid-roll pays 30 %, contact on the
-    flat top pays full, which is the same distinction the latch makes but continuous.
-
     Args:
         env: The environment instance.
         sensor_cfg: The contact sensor reporting whether the head touches the ground.
@@ -2290,11 +1934,6 @@ def roulade_landing_composite(
 ) -> torch.Tensor:
     """Reward standing at the stand pose, but only once the roll has been completed over the head.
 
-    Ported from addendum section 4.4 (``roulade_landing_composite``). It is
-    :func:`standing_composite_score` behind the completion gate, and it is the dominant attractor of
-    the whole recipe: finishing on the feet and staying there pays every step, while a standing
-    spawn that never rolls collects nothing.
-
     Args:
         env: The environment instance.
         target_height: Trunk height of the goal state [m].
@@ -2328,12 +1967,6 @@ def roulade_upright_after_roll(
 ) -> torch.Tensor:
     """Reward a vertical trunk once the roll is complete, linearly in ``cos(tilt)``.
 
-    Ported from addendum section 4.4 (``roulade_upright_after_roll``). It is the bootstrap layer for
-    :func:`roulade_landing_composite`, whose product of Gaussians is numerically zero far from the
-    goal: this one has gradient from any orientation. The gate is what makes it safe -- an
-    always-on upright reward opposes the flip, which is the failure that killed upstream's earlier
-    attempt at this task.
-
     Args:
         env: The environment instance.
         gate_lo: Rotation [rad] below which the gate is shut.
@@ -2357,9 +1990,6 @@ def roulade_height_after_roll(
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
     """Reward standing height once the roll is complete, with a broad Gaussian.
-
-    Ported from addendum section 4.4 (``roulade_height_after_roll``). The second bootstrap layer
-    under the landing composite; see :func:`roulade_upright_after_roll` for why they are gated.
 
     Args:
         env: The environment instance.
@@ -2388,12 +2018,6 @@ def roulade_landing_sharp(
 ) -> torch.Tensor:
     """Reward the last mile of the landing: tight Gaussians on height and tilt, behind the gate.
 
-    Ported from addendum section 4.4 (``roulade_landing_sharp``). This is the stand-up task's
-    two-layer lesson applied to the landing: upstream's run-3 policies all parked in the same basin
-    a centimetre low and 27 degrees off vertical, where the broad composite already scores about
-    0.5 and has nothing left to pull with. At that pose this layer scores about 0.1 and at vertical
-    it pays about 1, which is the differential that finishes the rise.
-
     Args:
         env: The environment instance.
         target_height: Trunk height of the goal state [m].
@@ -2421,12 +2045,6 @@ def roulade_stand_tax(
 ) -> torch.Tensor:
     """Charge every step spent below standing height once the roll is complete.
 
-    Ported from addendum section 4.4 (``roulade_stand_tax``). The gated landing rewards make
-    standing better than lying in a heap, but they leave the heap itself *free*, which is a
-    comfortable basin -- the same static-sit trap the stand-up task had to break. Taxing it makes
-    the basin net negative. The gate keeps the roll itself untaxed and requires the head latch, so
-    an episode that never rolled is never punished into avoidance behaviour.
-
     The term **negates itself** and is therefore configured with a *positive* weight.
 
     Args:
@@ -2453,12 +2071,6 @@ def roulade_rise_velocity(
 ) -> torch.Tensor:
     """Reward rising out of the roll, gated to its late phase.
 
-    Ported from addendum section 4.4 (``roulade_rise_velocity``). It is :func:`com_upward_velocity`
-    behind a gate that opens around 180 degrees -- on the back -- because from there the rest of a
-    roulade *is* the face-up recovery problem, and the stand-up task proved end-state rewards have
-    no gradient at all at zero motion there. The gate keeps pre-roll bobbing from earning anything
-    and the ceiling keeps hopping from farming it.
-
     Args:
         env: The environment instance.
         max_height: Trunk height [m] above which the reward is switched off.
@@ -2481,12 +2093,6 @@ def roulade_overspeed_penalty(
 ) -> torch.Tensor:
     """Penalize rotating faster than a threshold, quadratically in the excess.
 
-    Ported from addendum section 4.4 (``roulade_overspeed_penalty``). It complements the paid-rate
-    cap in :func:`roulade_progress`: the cap removes the *incentive* to whip, this adds a *cost*, so
-    violent is strictly worse than controlled rather than merely not better. Upstream measured the
-    natural over-the-top transit of this 10 cm robot at 3.5 to 5.5 rad/s and set the threshold above
-    it, so a controlled roll never touches this term.
-
     Args:
         env: The environment instance.
         omega_max: Forward rotation rate [rad/s] above which the excess is charged.
@@ -2505,12 +2111,6 @@ def roulade_flatness_penalty(
 ) -> torch.Tensor:
     """Penalize tipping out of the sagittal plane, quadratically in the lateral axis' world-z.
 
-    Ported from addendum section 4.4 (``roulade_flatness_penalty``). Zero when standing and zero
-    through an arbitrarily deep *clean* forward roll, because pure pitch keeps the lateral axis
-    horizontal; up to one when tipped fully onto a shoulder. The accumulator's own sagittal gate
-    already makes a side roll unprofitable, and this term is the per-step gradient that steers back
-    toward the plane.
-
     Args:
         env: The environment instance.
         asset_cfg: The articulation whose root link carries the trunk.
@@ -2526,10 +2126,6 @@ def roulade_sagittal_penalty(
     env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
     """Penalize body-frame roll and yaw rate, leaving the roll axis free.
-
-    Ported from addendum section 4.4 (``roulade_sagittal_penalty``). The pitch rate is the trick, so
-    unlike :func:`body_ang_vel_xy_l2_raw` -- which the roll task keeps at a 25 times lighter weight for
-    exactly this reason -- this term charges the *other* two axes.
 
     Args:
         env: The environment instance.
@@ -2547,9 +2143,6 @@ def roulade_lateral_velocity_penalty(
     env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
     """Penalize sideways travel, quadratically in the body-frame lateral velocity.
-
-    Ported from addendum section 4.4 (``roulade_lateral_velocity_penalty``). Keeps the roll straight
-    where :func:`roulade_flatness_penalty` keeps it upright.
 
     Args:
         env: The environment instance.
@@ -2574,12 +2167,6 @@ def com_height_target(
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
     """Reward holding the trunk inside a height band, and charge the squared miss outside it.
-
-    Ported from addendum section 5.3 (``com_height_target``). Unlike the stand-up task's
-    :func:`root_height_gaussian`, which peaks at a single height, this pays a flat ``1`` anywhere
-    inside the band and falls away quadratically outside it, so the band is a *tolerance* rather than
-    a target. There is no stock counterpart: :func:`isaaclab.envs.mdp.base_height_l2` charges the
-    squared distance from one height everywhere.
 
     Args:
         env: The environment instance.
@@ -2607,24 +2194,6 @@ def feet_flat_penalty(
     bodies_per_foot: int = 1,
 ) -> torch.Tensor:
     """Penalize a foot whose sole is not parallel to the ground.
-
-    Ported from addendum section 5.3 (``feet_flat_penalty``). Upstream projects the gravity direction
-    into each foot **site**'s frame and charges the squared components orthogonal to the site's
-    ``z`` axis, optionally gated by that foot's own contact time -- so the stance blade is asked to
-    lie flat and the swing blade is free to tilt. The stock
-    :func:`isaaclab.envs.mdp.flat_orientation_l2` measures the same quantity on the articulation root
-    and has no per-body or per-contact gating.
-
-    Leaving the contact gate off asks **both** feet to lie flat at all times, which is what a task
-    with no swing phase wants; upstream's roller recipes pass a sensor and its ground-pick recipe
-    does not, and that argument is the only difference between the two uses.
-
-    Isaac Lab has no site concept, so this port measures the foot **body** frame and takes the sole
-    normal as a parameter. On the converted roller model the ``left_foot`` and ``right_foot`` sites
-    are rotated relative to their ankle bodies -- by 180 degrees about ``(0, 1, 1)/sqrt(2)`` on the
-    left and by -90 degrees about ``x`` on the right -- and both rotations carry the site ``z`` axis
-    onto the ankle body's ``+y`` axis, so ``normal_axis=(0.0, 1.0, 0.0)`` reproduces upstream's
-    measurement on both feet. The axis is squared, so its sign is immaterial.
 
     Note:
         The tilt is NaN-guarded, so a broken environment is charged nothing rather than poisoning the
@@ -2655,8 +2224,7 @@ def feet_flat_penalty(
     gravity_dir_b = math_utils.quat_apply_inverse(foot_quat_w, gravity_dir_w)
     normal = torch.tensor(normal_axis, dtype=gravity_dir_b.dtype, device=gravity_dir_b.device)
     normal = torch.nn.functional.normalize(normal, dim=-1)
-    # 1 - cos^2 between the sole normal and gravity, which is upstream's sum of the two components
-    # of gravity orthogonal to the site's z axis
+
     tilt = 1.0 - torch.square(torch.sum(gravity_dir_b * normal, dim=-1))
     # A diverged solver leaves the body orientations non-finite for exactly one step, and the reset
     # that repairs it runs after the reward is computed, so no termination can keep the NaN out of
@@ -2675,25 +2243,7 @@ def feet_flat_penalty(
 
 
 class joint_action_rate_l2(ManagerTermBase):
-    """Penalize the squared change of the raw actions driving a subset of the joints.
-
-    Ported from addendum section 5.3 (``neck_action_rate_l2``). It is the stock
-    :func:`isaaclab.envs.mdp.action_rate_l2` restricted to part of the action vector, which upstream
-    uses to price head jitter separately from -- and on top of -- the whole-body action rate. The
-    stock term takes no selection, so it cannot express that.
-
-    Upstream hard-codes the action columns ``5..8``, which are the four head servos in its
-    actuator-ordered action vector. That arithmetic does not survive the port: the converted asset
-    resolves joints in Newton's order, so the columns are resolved from the action term's own joint
-    names instead.
-
-    Note:
-        Upstream caches the previous head actions on the environment with no reset hook, so the first
-        step of every episode is charged against the last step of the previous one (addendum section
-        7.18). This term reads the action manager's own ``prev_action`` buffer, which the manager
-        clears on reset -- the same buffer, and the same episode-boundary behaviour, as the
-        whole-body ``action_rate_l2`` this task also carries.
-    """
+    """Penalize the squared change of the raw actions driving a subset of the joints."""
 
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
         """Resolve the action columns the selected joints are driven through.
@@ -2747,14 +2297,6 @@ class joint_action_rate_l2(ManagerTermBase):
 def joint_pose_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
     """Penalize the squared deviation of selected joints from the stand pose.
 
-    Ported from addendum section 5.3 (``neck_joint_pos_l2``). It is the squared sibling of
-    :func:`joint_pose_l1`, and it *sums* rather than averages, as upstream does. There is no stock
-    counterpart: :func:`isaaclab.envs.mdp.joint_deviation_l1` is the absolute-value form.
-
-    Upstream re-resolves the joint names on every call and force-anchors a ``^(?!passive_)`` prefix
-    onto the pattern so that a passive hinge can never enter the sum. This port selects the joints
-    by name once, in the configuration, which cannot pick one up in the first place.
-
     Note:
         The deviation is NaN-guarded, so a broken environment scores zero rather than poisoning the
         batch. A rare solver divergence leaves the joint state non-finite for a single step, and no
@@ -2793,17 +2335,6 @@ def action_over_limit_penalty(
 ) -> torch.Tensor:
     """Penalize a joint *command* driven past its hard stop by more than a tolerance.
 
-    Ported from addendum section 5.3 (``action_over_limit_penalty``). It reads the commanded target
-    rather than the achieved position, which is the whole point: MicroDuck's servos are soft enough
-    that a policy can park a command far beyond a joint stop and lean on the limit at full torque, a
-    trick that does not survive contact with the hardware. Charging the command teaches the policy
-    not to issue it, and that lesson exports with the network -- upstream rejected an environment-side
-    action clip precisely because the deployed runtime does not clip.
-
-    The **hard** joint limits are used, not the soft ones the articulation derives from
-    ``soft_joint_pos_limit_factor``, as upstream does. There is no stock counterpart:
-    :func:`isaaclab.envs.mdp.joint_pos_limits` charges the achieved position against the soft limits.
-
     Args:
         env: The environment instance.
         action_name: Name of the joint-position action term whose target is charged.
@@ -2815,9 +2346,7 @@ def action_over_limit_penalty(
     """
     asset: Articulation = env.scene[asset_cfg.name]
     term = env.action_manager.get_term(action_name)
-    # ``processed_actions`` is upstream's ``raw_action * scale + offset``; the encoder-bias
-    # compensation that follows it is applied when the target is written, not here, so this is the
-    # command the policy issued rather than the one a miscalibrated servo receives
+
     target = term.processed_actions
     limits = asset.data.joint_pos_limits.torch[:, term.joint_ids]
     over = (target - (limits[..., 1] + overshoot)).clamp(min=0.0)
@@ -2835,13 +2364,6 @@ def wheel_speed_reward(
 ) -> torch.Tensor:
     """Reward spinning the passive wheels forward, in proportion to the commanded throttle.
 
-    Ported from addendum section 5.3 (``wheel_speed_reward``). This is the roller task's **only**
-    positive task reward: nothing else pays for going anywhere, so a policy that does not turn its
-    wheels earns nothing. The reward is ``clamp(cmd_x, min=0) * tanh(clamp(w_mean, min=0) / w_scale)``
-    with ``w_scale = vel_scale / wheel_radius``, i.e. a saturating function of the mean wheel rate
-    scaled by the throttle. There is no stock counterpart -- the stock velocity terms track a base
-    velocity, and on this task ``cmd_x`` is a throttle rather than a velocity target.
-
     Args:
         env: The environment instance.
         command_name: Name of the velocity command term whose first column is the throttle.
@@ -2849,7 +2371,7 @@ def wheel_speed_reward(
         vel_scale: Ground speed [m/s] the ``tanh`` is scaled to saturate near.
         wheel_radius: Rolling radius [m] the ground speed is converted to a wheel rate with.
         bidirectional: Whether a negative throttle pays for spinning backwards. Defaults to False,
-            which is what upstream ships.
+            which is what ships.
 
     Returns:
         The reward in ``[0, |cmd_x|]``. Shape is (num_envs,).
@@ -2872,29 +2394,13 @@ def wheel_glide_reward(
 ) -> torch.Tensor:
     """Reward letting the passive wheels roll forward, up to a cap.
 
-    Ported from addendum section 4.1 (``wheel_glide_reward``). This is the slope task's only positive
-    task reward, and where :func:`wheel_speed_reward` scales the wheel rate by a commanded throttle,
-    this one is command-free: that task's twist command is neutralized and the descent comes from
-    gravity. The reward is ``clamp(mean(omega) * wheel_radius, 0, cap_speed)`` -- the mean wheel rate
-    read as a ground speed -- so three properties hold by construction. It is **capped**, so nothing
-    pays for dropping down the ramp faster; it is **one-sided**, so rolling back up is free rather
-    than charged; and it is measured on the **wheels**, so running on the blades without rolling
-    earns nothing. Without it the argmax of the remaining stack is to stand still on the incline.
-    There is no stock counterpart.
-
-    Note:
-        ``wheel_radius`` defaults to upstream's 0.0175, which addendum section 9.3 measures against
-        the model as 0.0150. The stale value is reproduced for parity with the trained policy; its
-        only effect here is on the label of the cap, which is reached at a true ground speed of
-        0.300 m/s rather than 0.350.
-
     Args:
         env: The environment instance.
         asset_cfg: The articulation and the passive wheel joints to average. On the roller model the
             wheels interleave with the servos, so they are selected by name rather than by index.
-        cap_speed: Rolling speed [m/s] the reward saturates at. Defaults to 0.35, which is upstream's.
+        cap_speed: Rolling speed [m/s] the reward saturates at. Defaults to 0.35,
         wheel_radius: Rolling radius [m] the wheel rate is converted to a ground speed with. Defaults
-            to 0.0175, which is upstream's.
+            to 0.0175,
 
     Returns:
         The reward in ``[0, cap_speed]``. Shape is (num_envs,).
@@ -2915,10 +2421,6 @@ def braking_reward(
 ) -> torch.Tensor:
     """Reward coming to a stop, in proportion to a negative throttle.
 
-    Ported from addendum section 5.3 (``braking_reward``). Silent whenever the throttle is
-    non-negative, so it never competes with :func:`wheel_speed_reward`; below zero it pays a Gaussian
-    in the *forward* speed only, so rolling backwards is neither rewarded nor charged.
-
     Args:
         env: The environment instance.
         command_name: Name of the velocity command term whose first column is the throttle.
@@ -2938,11 +2440,7 @@ def braking_reward(
 def _forward_progress_gate(
     env: ManagerBasedRLEnv, vel_ref: float, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor | None:
-    """Upstream's ``clamp(v_fwd, min=0) / v_ref`` gate, clipped to 1 and None when disabled.
-
-    Ported from addendum section 5.3 (``_forward_progress_gate``). Three of the gait rewards multiply
-    themselves by it, which is what stops a policy farming them by fluttering its feet on the spot.
-    """
+    """``clamp(v_fwd, min=0) / v_ref`` gate, clipped to 1 and None when disabled."""
     if vel_ref <= 0.0:
         return None
     asset: Articulation = env.scene[asset_cfg.name]
@@ -2960,11 +2458,6 @@ def skating_air_time_reward(
     bodies_per_foot: int = 1,
 ) -> torch.Tensor:
     """Reward feet whose air time lies inside a window, scaled by throttle and by forward progress.
-
-    Ported from addendum section 5.3 (``skating_air_time_reward``). It is
-    :func:`feet_air_time_windowed_gated` with two changes upstream makes for skating: the count is
-    *scaled* by the throttle rather than gated by a command threshold, and it is additionally
-    multiplied by the forward-progress gate, so a fast in-place flutter earns nothing.
 
     Args:
         env: The environment instance.
@@ -3009,10 +2502,6 @@ def single_support_reward(
 ) -> torch.Tensor:
     """Reward standing on exactly one foot while pushing, and charge standing on both.
 
-    Ported from addendum section 5.3 (``single_support_reward``). This is the core anti-swizzle
-    signal: the degenerate skating gait keeps both blades down and waddles, which this term prices
-    directly. There is no stock counterpart.
-
     The double-support charge is **not** speed-gated, deliberately, so it also applies to a robot
     that is commanded forward and standing still on both feet.
 
@@ -3022,7 +2511,7 @@ def single_support_reward(
         command_name: Name of the velocity command term whose first column is the throttle.
         vel_gate_ref: Forward speed [m/s] at which the progress gate is fully open.
         double_penalty: Fraction of the throttle charged for standing on both feet. Defaults to 0.25,
-            which is upstream's default.
+            which is default.
         bodies_per_foot: Contact bodies making up one foot. Defaults to 1.
 
     Returns:
@@ -3051,12 +2540,6 @@ def glide_reward(
 ) -> torch.Tensor:
     """Reward coasting on one foot with quiet legs, in proportion to the forward progress.
 
-    Ported from addendum section 5.3 (``glide_reward``). Where
-    :func:`skating_air_time_reward` pays for each swing and therefore drives swing *frequency*, this
-    pays for holding a single-support glide with still legs and therefore drives *commitment* to each
-    stroke. Upstream weights it above the air-time term for exactly that reason. There is no stock
-    counterpart.
-
     Args:
         env: The environment instance.
         sensor_cfg: The contact sensor and the bodies to read, in per-foot order.
@@ -3064,7 +2547,7 @@ def glide_reward(
         asset_cfg: The articulation and the leg joints whose stillness is measured.
         vel_ref: Forward speed [m/s] at which the progress gate is fully open.
         stillness_std: Width [rad/s] of the Gaussian on the summed squared leg joint velocity.
-            Defaults to 5.0, which is upstream's default.
+            Defaults to 5.0, which is default.
         bodies_per_foot: Contact bodies making up one foot. Defaults to 1.
 
     Returns:
@@ -3084,17 +2567,7 @@ def glide_reward(
 
 
 class gait_symmetry_penalty(ManagerTermBase):
-    """Penalize an episode that has spent much more swing time on one foot than on the other.
-
-    Ported from addendum section 5.3 (``gait_symmetry_penalty``). With the family's symmetry
-    machinery off on this task, nothing else stops a lopsided stride that pushes with one leg and
-    veers; the cost is the cumulative imbalance ``|L - R| / (L + R + 1e-3)``, so the instantaneous
-    asymmetry of a real stride -- one foot swinging at a time -- is free. Being an accumulator it is
-    stateful, so it is a class. There is no stock counterpart.
-
-    Upstream clears its accumulator when ``episode_length_buf <= 1``; this term clears it from the
-    reward manager's reset hook, which is the same episode boundary.
-    """
+    """Penalize an episode that has spent much more swing time on one foot than on the other."""
 
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
         """Allocate the per-foot swing-time accumulator.
@@ -3161,20 +2634,6 @@ def forward_lean_reward(
 ) -> torch.Tensor:
     """Reward leaning into the push, in proportion to the commanded throttle.
 
-    Ported from addendum section 5.3 (``forward_lean_reward``). A skating stroke pushes the trunk
-    backwards, and the lean is what upstream found the policy needed to be told to hold against it.
-
-    The lean is measured as the **forward** component of the projected gravity direction,
-    ``projected_gravity_b[:, 0]``, which is positive when the trunk pitches nose-down: a pitch of
-    ``theta`` about the body ``y`` axis puts ``sin(theta)`` on that component, so upstream's
-    ``target_pitch = 0.262`` asks for a 15.2 degree forward lean.
-
-    Note:
-        Upstream's docstring says the quantity is ``-gravity_b[:, 0]`` and its code computes
-        ``+gravity_b[:, 0]`` (addendum section 7.17). The **code** is ported, because it is the sign
-        that makes ``target_pitch = +0.262`` a forward lean rather than a 15 degree backward one, and
-        because it is what the deployed policies trained against.
-
     Args:
         env: The environment instance.
         command_name: Name of the velocity command term whose first column is the throttle.
@@ -3194,24 +2653,9 @@ def forward_lean_reward(
 class heading_hold_reward(ManagerTermBase):
     """Reward holding the heading the episode started with.
 
-    Ported from addendum section 5.3 (``heading_hold_reward``). The roller task disables turning
-    entirely -- its heading command is computed and then clamped to zero (addendum section 7.21) --
-    so this is the only thing keeping a straight-line skater from veering. It is *corrective* rather
-    than a yaw-rate penalty, which upstream tried and reverted: freezing the yaw rate made the drift
-    worse, because the policy could then not steer back.
-
     Being anchored to a per-episode reference heading it is stateful, so it is a class. There is no
     stock counterpart: :func:`isaaclab.envs.mdp.heading_command_error_abs` tracks a *commanded*
     heading, which this task has none of.
-
-    Note:
-        Upstream re-anchors the reference heading while ``episode_length_buf <= 1``, which reads
-        like two captures but is one: both stacks increment the episode counter *before* computing
-        rewards, so the condition holds on exactly the first post-reset reward evaluation. The
-        "first call after reset" mask here fires on that same evaluation, so the two anchor at the
-        same instant from the same post-physics quaternion -- there is no episode-boundary deviation
-        (addendum section 9.7 of ``upstream_reference_tasks4.md``, which corrects an earlier reading
-        of this note).
     """
 
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
@@ -3271,12 +2715,6 @@ def leg_symmetry_reward(
 ) -> torch.Tensor:
     """Reward the two legs mirroring each other, which is the swizzle's defining symmetry.
 
-    Ported from addendum section 7.1 (``leg_symmetry_reward``). The classic swizzle is a two-footed
-    hourglass stroke in which both blades stay down and the legs open and close together, so the
-    gait is *defined* by left and right doing the same thing at the same time -- the exact behaviour
-    the stride recipe's ``single_support`` and ``gait_symmetry`` terms exist to suppress. There is no
-    stock counterpart.
-
     The condition is ``q_left + q_right ~= 0``, not ``q_left ~= q_right``, because the model uses
     mirrored left/right sign conventions: a symmetric pose reads as equal and opposite joint angles.
     Compare :func:`leg_antisymmetry`, the spin task's term, which asks for the other one.
@@ -3300,10 +2738,6 @@ def grounded_reward(
 ) -> torch.Tensor:
     """Reward keeping both blades on the ground, in proportion to the commanded throttle magnitude.
 
-    Ported from addendum section 7.1 (``grounded_reward``). It is the sign-flipped counterpart of
-    :func:`single_support_reward`: the stride recipe charges double support as the degenerate
-    swizzle, and this task pays for it, because the swizzle *is* the gait being trained.
-
     The scale is ``|cmd_x|`` rather than ``clamp(cmd_x, min=0)``, so it shapes the push in either
     direction -- this task's throttle range is symmetric.
 
@@ -3323,18 +2757,11 @@ def grounded_reward(
 def heading_tracking_reward(env: ManagerBasedRLEnv, command_name: str, std: float) -> torch.Tensor:
     """Reward driving the commanded heading error to zero.
 
-    Ported from addendum section 7.3 (``heading_tracking_reward``). The yaw slot of
-    :class:`~isaaclab_tasks.contrib.microduck.mdp.commands.RelativeHeadingVelocityCommand` already
-    *is* the wrapped error between the robot's heading and a per-resample target, clamped to the
-    configured yaw range, so this term is a plain Gaussian on that slot and needs no state of its
-    own. The stock :func:`isaaclab.envs.mdp.heading_command_error_abs` reads a heading *target*
-    column, which this command does not have.
-
     Note:
         This term and :func:`heading_hold_reward` are in genuine tension while both weights are
         non-zero -- one pays for holding the spawn heading and the other for leaving it -- which is
         why the task hands over between them with a pair of crossing curricula rather than enabling
-        both outright (addendum section 13.14).
+        both outright.
 
     Args:
         env: The environment instance.
@@ -3349,12 +2776,7 @@ def heading_tracking_reward(env: ManagerBasedRLEnv, command_name: str, std: floa
 
 
 def _ball_forward_speed(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Signed ball speed [m/s] along the episode's frozen kick direction.
-
-    Both kick terms read this one projection, so they cannot disagree about which way "forward" is.
-    Non-finite values are zeroed, as upstream does in both terms: a diverged free body is not
-    NaN-checked anywhere in this task, and an unguarded NaN here would poison the whole reward sum.
-    """
+    """Signed ball speed [m/s] along the episode's frozen kick direction."""
     ball: RigidObject = env.scene[asset_cfg.name]
     velocity_xy = ball.data.root_link_lin_vel_w.torch[:, :2]
     forward = (velocity_xy * ball_kick_direction(env)).sum(dim=1)
@@ -3365,15 +2787,6 @@ def ball_forward_velocity(
     env: ManagerBasedRLEnv, max_speed: float, asset_cfg: SceneEntityCfg = SceneEntityCfg("ball")
 ) -> torch.Tensor:
     """Reward the ball rolling away along the direction the robot was facing at reset.
-
-    Ported from addendum section 6.3 (``ball_forward_velocity``). There is no stock counterpart:
-    every Isaac Lab velocity term tracks a *commanded* velocity of the robot itself, where this pays
-    a second body's speed along a frozen world direction and pays nothing for backwards motion.
-
-    The cap is what makes this a target rather than a race. Paired with
-    :func:`ball_speed_overshoot_penalty` at the same speed it forms a one-sided plateau: the reward
-    grows linearly up to :attr:`max_speed` and the penalty erodes it beyond, which is upstream's
-    "kick it *this* hard" landscape.
 
     Args:
         env: The environment instance.
@@ -3394,17 +2807,13 @@ def ball_speed_overshoot_penalty(
 ) -> torch.Tensor:
     """Charge the ball's forward speed above a target, up to a cap.
 
-    Ported from addendum section 6.3 (``ball_speed_overshoot_penalty``). The term returns a
-    **non-negative** overshoot and is therefore configured with a *negative* weight, unlike the
-    self-negating stand-up penalties.
-
     The cap bounds the worst single step a wild kick can cost, which is what keeps one lucky
     smash from dominating a whole episode's return.
 
     Args:
         env: The environment instance.
         target_speed: Ball speed [m/s] above which the overshoot is charged.
-        max_penalty: Largest overshoot [m/s] charged in one step. Defaults to 5.0, upstream's value.
+        max_penalty: Largest overshoot [m/s] charged in one step. Defaults to 5.0, value.
         asset_cfg: The rigid object whose linear velocity is read.
 
     Returns:
@@ -3416,15 +2825,6 @@ def ball_speed_overshoot_penalty(
 def single_foot_grounded_reward(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
     """Reward one named foot being on the ground, as a 0-or-1 flag.
 
-    Ported from addendum section 6.3 (``single_foot_grounded_reward``). It is the ball-kick task's
-    balance signal: the support foot has to stay planted through a fast one-legged swing. The stock
-    :func:`isaaclab.envs.mdp.undesired_contacts` reads the *net* contact force, which cannot tell the
-    floor from the ball rolling against the sole, so this reads the sensor's per-partner force matrix
-    instead -- the sensor is filtered against the terrain, exactly as upstream's is.
-
-    Upstream reads its sensor's boolean ``found`` field and clamps the slot count to one; the flag
-    here is the same signal, since the shapes carry no collision margin.
-
     Args:
         env: The environment instance.
         sensor_cfg: The terrain-filtered contact sensor and the sensing objects to read.
@@ -3435,35 +2835,15 @@ def single_foot_grounded_reward(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityC
     return _any_contact(env, sensor_cfg, filtered=True).float()
 
 
-"""
-Every term below reads the *commanded posture* and selects its target from it -- the sitting keyframe
-at the seated height, or the stand pose at the standing one, or any blend between the two -- where
-the stand-up task's equivalents track one fixed goal (addendum section 4.5). The blend is the command
-term's slewed ``alpha`` rather than the raw flag, which is what makes the reward landscape follow the
-transition instead of jumping to its endpoint; see
-:class:`~isaaclab_tasks.contrib.microduck.mdp.commands.SitStandCommand`.
-"""
-
-
 _POSTURE_KEYFRAME_ATTR = "_microduck_posture_keyframe_cache"
-
 
 _POSTURE_RAMP_DONE_TOLERANCE = 0.02
 
-
-"""Blend error below which :func:`posture_stillness` treats the posture ramp as finished.
-
-Upstream's constant, and it is a tolerance rather than a threshold: the blend only reaches the flag
-exactly on the last step of the ramp, so a strict comparison would open the gate a step late.
-"""
+"""Blend error below which :func:`posture_stillness` treats the posture ramp as finished."""
 
 
 def _posture_blend(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
     """The commanded posture blend: 0 at the stand target, 1 at the sit target.
-
-    Upstream falls back to the raw command flag when the term does not expose a blend. The port
-    raises instead: the fallback is unreachable on every shipped configuration, and a posture reward
-    silently reading an un-slewed flag is the exact failure the slew exists to prevent.
 
     Args:
         env: The environment instance.
@@ -3490,13 +2870,6 @@ def _keyframe_in_selection(
     env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, keyframe: Mapping[str, float]
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Resolve, and cache on the environment, a named joint keyframe inside a joint selection.
-
-    Returns the *positions within the selection* of the joints the keyframe overrides, and the angles
-    it sets them to. Resolving against :attr:`SceneEntityCfg.joint_names` rather than against the
-    articulation is what pins the pairing: the names are ordered by ``preserve_order`` and are the
-    same list the selection's indices came from, so a keyframe joint that is not scored is a
-    configuration error rather than a silently ignored entry. Upstream keys its keyframes by servo
-    index, which the converted asset does not preserve, and resolves the names again on every step.
 
     Shared by the sit/stand posture rewards and the roller-crouch pose rewards, which differ in where
     the blend comes from -- a slewed command flag in one case, the cycle phase in the other -- and not
@@ -3564,13 +2937,7 @@ def _posture_height(
     sit_height: float,
     stand_height: float,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """The commanded target trunk height and the measured one [m], both above the environment origin.
-
-    Note:
-        Upstream's equivalent hard-codes ``env.scene["robot"]`` and discards the ``asset_cfg`` it is
-        handed, so its whole posture-height family is silently un-configurable. This port reads the
-        selected articulation, which is the same body on every shipped configuration.
-    """
+    """The commanded target trunk height and the measured one [m], both above the environment origin."""
     blend = _posture_blend(env, command_name)
     target_height = stand_height + blend * (sit_height - stand_height)
     return target_height, _root_height_above_ground(env, asset)
@@ -3584,12 +2951,6 @@ def posture_pose_gaussian(
     asset_cfg: SceneEntityCfg,
 ) -> torch.Tensor:
     """Reward holding selected joints at the *commanded* posture's pose, with a Gaussian tolerance.
-
-    Ported from addendum section 4.5 (``posture_pose_match``). It is
-    :func:`joint_pose_gaussian` with a moving target: the stand pose when a stand is commanded, the
-    sitting keyframe when a sit is, and the interpolation between them while the ramp runs. The width
-    is deliberately generous -- the knee travels about 1.35 rad between the two poses, so a tight
-    kernel would be flat over most of the transition.
 
     Args:
         env: The environment instance.
@@ -3615,10 +2976,6 @@ def posture_pose_l1(
     asset_cfg: SceneEntityCfg,
 ) -> torch.Tensor:
     """Penalize the mean absolute deviation of selected joints from the commanded posture's pose.
-
-    Ported from addendum section 4.5 (``posture_pose_l1``). The constant-gradient companion to
-    :func:`posture_pose_gaussian`, which saturates once the pose error grows past its width and then
-    stops pulling -- which is most of a sit-to-stand transition.
 
     The term **negates itself** and is therefore configured with a *positive* weight.
 
@@ -3646,11 +3003,6 @@ def posture_height_gaussian(
 ) -> torch.Tensor:
     """Reward holding the trunk at the commanded posture's height, using a Gaussian kernel.
 
-    Ported from addendum section 4.5 (``posture_height_gaussian``). It is
-    :func:`root_height_gaussian` with the target selected from the command, and the sit-stand task
-    instantiates it twice for the same reason the stand-up task does: a wide layer that pulls across
-    the whole 55 mm of travel and a narrow one that only has gradient in the last few millimetres.
-
     Args:
         env: The environment instance.
         command_name: Name of the posture command term.
@@ -3675,10 +3027,6 @@ def posture_height_l1(
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
     """Penalize the absolute distance of the trunk from the commanded posture's height.
-
-    Ported from addendum section 4.5 (``posture_height_l1``). This is the transition driver: while
-    the robot rests in the *wrong* posture the Gaussian layers are near zero and offer nothing to
-    move toward, whereas this charges a constant gradient across the whole 55 mm, in both directions.
 
     The term **negates itself** and is therefore configured with a *positive* weight.
 
@@ -3706,17 +3054,6 @@ def posture_rise_bootstrap(
 ) -> torch.Tensor:
     """Reward rising while a *stand* is commanded, below a ceiling and up to a speed cap.
 
-    Ported from addendum section 4.5 (``posture_rise_bootstrap``). It is
-    :func:`com_upward_velocity` with two changes that matter: the payout is capped at ``max_vz``, so
-    an explosive launch earns no more than a gentle rise, and it is switched off entirely whenever a
-    sit is commanded, so it can never bid against the descent.
-
-    Note:
-        This is the one posture term that reads the **raw command flag** rather than the slewed
-        blend, and upstream does it deliberately: the bootstrap switches on and off with the button
-        while everything else follows the ramp. Reading the blend instead would leave it paying for
-        upward motion for the first seconds of a commanded descent.
-
     Args:
         env: The environment instance.
         command_name: Name of the posture command term.
@@ -3742,16 +3079,6 @@ def trunk_downward_velocity_penalty(
 ) -> torch.Tensor:
     """Penalize downward trunk speed beyond a cap.
 
-    Ported from addendum section 4.4 (``trunk_downward_velocity_penalty``). It caps descent *speed*,
-    which :class:`trunk_vertical_accel_penalty` alone cannot: a fast constant-velocity drop has zero
-    vertical acceleration all the way down and pays a single impact spike at the bottom, which is
-    cheap against arriving at the goal pose sooner. Charging every step of a too-fast descent is what
-    makes the gentlest descent under the cap optimal.
-
-    The term **negates itself** and is therefore configured with a *positive* weight. Upstream
-    records a run where this family carried negative weights: the double negative turned all three
-    into rewards for violence and trained a butt-hopping, crash-sitting policy.
-
     Args:
         env: The environment instance.
         max_down_vel: Downward speed [m/s] below which nothing is charged.
@@ -3771,11 +3098,6 @@ def trunk_upward_velocity_penalty(
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
     """Penalize upward trunk speed beyond a cap.
-
-    Ported from addendum section 4.4 (``trunk_upward_velocity_penalty``), the mirror of
-    :func:`trunk_downward_velocity_penalty` for the rise. Upstream introduces it by curriculum only
-    *after* the rise has been discovered: a motion tax that is live while a skill is being explored
-    makes every attempt net-negative and the skill is never found.
 
     The term **negates itself** and is therefore configured with a *positive* weight.
 
@@ -3799,13 +3121,6 @@ def upright_linear_at_height(
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
     """Reward the cosine of the trunk's tilt, in proportion to how tall the robot is standing.
-
-    Ported from addendum section 4.5 (``upright_while_tall``). It is :func:`body_upright_linear`
-    behind the same smoothstep height gate :func:`upright_gaussian_at_height` uses, and the gate is
-    what closes the "tip backward while still high" exploit: without it a controlled fall collects
-    the descent rewards, and with it the upright incentive is at full strength exactly while the
-    robot is tall enough for tipping to be a choice. It fades out over the seated range, where a
-    trunk resting on its base is fine.
 
     Args:
         env: The environment instance.
@@ -3834,9 +3149,6 @@ def posture_stillness(
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
     """Reward resting still, upright and at the commanded height, once the transition has finished.
-
-    Ported from addendum section 4.5 (``posture_stillness``). A Gaussian on the trunk's speed behind
-    three gates, and each gate closes one exploit:
 
     * a **height band** around the commanded target, so the term is inactive mid-transition and
       cannot pay for stopping half-way;
@@ -3869,7 +3181,7 @@ def posture_stillness(
     ramp_done = ((flag - _posture_blend(env, command_name)).abs() < _POSTURE_RAMP_DONE_TOLERANCE).float()
 
     height_gate = _smoothstep((band_zero - torch.abs(height - target_height)) / max(band_zero - band_full, 1e-6))
-    # the cosine-space gate, which is the convention upstream's stillness terms use
+
     tilt_gate = _cos_tilt_gate(asset.data.root_link_quat_w.torch, tilt_full_deg, tilt_zero_deg)
     return torch.exp(-((speed / vel_std) ** 2)) * height_gate * tilt_gate * ramp_done
 
@@ -3890,20 +3202,7 @@ def posture_composite(
 ) -> torch.Tensor:
     """Reward the commanded posture as one multiplicative score over height, tilt, pose and head.
 
-    Ported from addendum section 4.5 (``posture_composite``), the posture-conditioned counterpart of
-    :func:`standing_composite_score`. The product rather than the sum is the whole point: a
-    deficiency in any one factor collapses the term, so the partial-sum compromises a summed stack
-    invites -- plank, flop, lean, park a centimetre short -- never pay. The widths are broad on
-    purpose, because a tight product is numerically zero everywhere except at the goal and has no
-    gradient to follow there.
-
     The upright factor is posture-independent: both rest states demand a vertical trunk.
-
-    The **head factor** is upstream's fix for a trained run that rested with the head dangling to the
-    floor -- trunk, legs and height all on target, so the composite paid in full and only the light
-    head-tracking term was lost, while the hanging head added passive stability. With it, "arrived"
-    requires the head at its commanded pose; a head-assist mid-transition stays free, because the
-    composite is near zero there anyway.
 
     Args:
         env: The environment instance.
@@ -3951,12 +3250,6 @@ def neck_torque_when_tilted(
 ) -> torch.Tensor:
     """Charge head-joint strain during backward lean in the slewed seated target.
 
-    Ported from Pollen Robotics' ``microduck_rl`` at ``bae39f5900b318f7e87fc485c30a31213cfa14eb``,
-    ``tasks/mdp.py::neck_torque_when_tilted`` (Apache-2.0). The nonnegative cost needs a negative
-    weight. Forward lean is free so head-assisted descents remain available; the continuous posture
-    blend fades the cost during a rise. Joint names are resolved by the reward manager rather than
-    assuming actuator indices, and the collection's applied effort is the native BAM telemetry.
-
     Args:
         env: The environment instance.
         asset_cfg: Articulation and selected neck/head joints.
@@ -3977,15 +3270,7 @@ def neck_torque_when_tilted(
     return cost * gate * (gravity[:, 0] < 0.0).float() * _posture_blend(env, command_name)
 
 
-"""
-Every term below reads the *phase* of the task's open-loop cycle out of the command slot and gates
-itself on it, so one stack pays for four different things at four points of the same 4 s cycle: bend
-the mouth to the floor, hold it there, return to a clean stand, and rest (addendum section 5.5). The
-gate is recovered from the command with ``atan2`` rather than read off the command term, which is
-upstream's choice and keeps every kernel readable from the deployed observation alone; see
-:class:`~isaaclab_tasks.contrib.microduck.mdp.commands.GroundPickPhaseCommand`.
-
-The two gates are **not** complements. ``_phase_pose_blend`` ramps 0 to 1 across the descent, holds
+"""The two gates are **not** complements. ``_phase_pose_blend`` ramps 0 to 1 across the descent, holds
 at 1 through the low dwell and falls back to 0 across the rise; ``_phase_rise_gate`` is 0 until the
 low dwell ends, ramps to 1 across the rise and stays there through the standing rest. They sum to 1
 across the rise and nowhere else -- during the descent the down-gate is opening while the up-gate is
@@ -4049,12 +3334,6 @@ def _mouth_tip_pose_w(
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """World position [m] of the mouth tip and the orientation of the body carrying it.
 
-    Upstream measures the mouth on the MJCF ``mouth_tip`` **site**, which Isaac Lab has no concept
-    of. The site is rigidly attached to the ``jaw_soft`` body, so this port measures that body's link
-    frame and carries the site's fixed offset as a parameter -- the same structural adaptation the
-    foot terms make (see :func:`feet_flat_penalty`), and one whose numbers come off the pinned MJCF
-    rather than out of a guess.
-
     Args:
         env: The environment instance.
         asset_cfg: The articulation and the single body the mouth tip is rigidly attached to.
@@ -4092,16 +3371,6 @@ def mouth_ground_proximity_phased(
 ) -> torch.Tensor:
     """Reward the mouth tip being close to the ground, while the cycle is asking for the bend.
 
-    Ported from addendum section 5.5 (``mouth_ground_proximity_phased``). This is the task's
-    objective; what keeps it from becoming "plant the head" is :func:`body_impact_cost` on the other
-    side of the balance, so the equilibrium is the mouth hovering just above the floor rather than
-    resting on it.
-
-    Note:
-        Upstream measures a **raw world z** here, alone among its height terms, which is equivalent
-        on a ground plane and silently wrong on its rough variant. This port subtracts the
-        environment origin as every other height term in the family does.
-
     Args:
         env: The environment instance.
         asset_cfg: The articulation and the single body the mouth tip is attached to.
@@ -4134,14 +3403,6 @@ def mouth_perpendicular_phased(
 ) -> torch.Tensor:
     """Reward the mouth axis pointing at the floor, while the cycle is asking for the bend.
 
-    Ported from addendum section 5.5 (``mouth_perpendicular_phased``). Reaching the floor with the
-    mouth *sideways* is a different, useless posture from reaching it mouth-down, and the proximity
-    term alone cannot tell them apart.
-
-    The alignment is signed: a mouth pointing straight up during the descent gate scores ``-1``, so
-    at a positive weight this term charges the wrong orientation rather than merely not paying for
-    it. That is upstream's shape and it is kept.
-
     Args:
         env: The environment instance.
         asset_cfg: The articulation and the single body the mouth tip is attached to.
@@ -4172,11 +3433,6 @@ def ground_pick_return_pose_phased(
 ) -> torch.Tensor:
     """Reward selected joints returning to the stand pose, while the cycle is asking for the return.
 
-    Ported from addendum section 5.5 (``ground_pick_return_pose_phased``). It is
-    :func:`joint_pose_gaussian` under the rise gate, and the task configures it twice at two widths:
-    a loose one on the legs, whose extension is the return, and a tight one on the neck, where
-    overshooting past the stand pose folds the head back into the trunk.
-
     Args:
         env: The environment instance.
         asset_cfg: The articulation and the joints to return to the stand pose.
@@ -4201,11 +3457,6 @@ def ground_pick_return_upright_phased(
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
     """Reward an upright trunk, while the cycle is asking for the return.
-
-    Ported from addendum section 5.5 (``ground_pick_return_upright_phased``). The task's always-on
-    :func:`upright_selected_body` is deliberately weak, because the approach *requires* a deep forward lean; this
-    is the other half of that split, paying for verticality only once the robot is supposed to be
-    standing back up. Returning the pose alone does not make the return balanced.
 
     Its kernel is ``1 - cos(tilt)`` where :func:`upright_selected_body` uses the projected gravity direction, so
     the two are not the same width at the same ``std`` and cannot be merged.
@@ -4235,15 +3486,6 @@ def neck_vel_descent_penalty(
 ) -> torch.Tensor:
     """Penalize neck joint speed while the cycle is asking for the bend and the low dwell.
 
-    Ported from addendum section 5.5 (``neck_vel_descent_penalty``). It is the anti-dive term: the
-    head is the heaviest thing on the end of the longest lever, and throwing it at the floor reaches
-    the proximity reward faster than lowering it. The stock
-    :func:`isaaclab.envs.mdp.joint_vel_l2` charges the same quantity ungated and unaveraged, so it
-    would tax the return just as hard.
-
-    Its gate is a **hard step** at ``hold_end`` rather than a ramp, which is deliberate upstream: the
-    neck is free from the instant the rise begins, so the term never bids against the return.
-
     Args:
         env: The environment instance.
         asset_cfg: The articulation and the neck joints to charge.
@@ -4261,15 +3503,6 @@ def neck_vel_descent_penalty(
 
 def feet_grounded_reward(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
     """Reward the fraction of the selected feet that are touching the ground.
-
-    Ported from addendum section 5.5 (``feet_grounded_reward``). The ground-pick motion has no swing
-    phase at all -- both soles stay planted through the whole cycle -- so this is a plain "keep your
-    feet down" signal rather than the gait terms' contact bookkeeping. Upstream sums its per-foot
-    ``found`` flags and divides by two; with two feet selected this is the same number, and with any
-    other selection it stays on the same ``[0, 1]`` scale.
-
-    The sensor is filtered against the terrain, as upstream's is: an unfiltered net force cannot tell
-    the floor from the robot's own folded knee, which a deeply bent robot puts against its soles.
 
     Args:
         env: The environment instance.
@@ -4294,19 +3527,8 @@ def feet_grounded_reward(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg) -> 
 def body_impact_cost(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, threshold: float) -> torch.Tensor:
     """Charge the ground-contact force on selected colliders, above a threshold.
 
-    Ported from addendum section 5.5 (``body_impact_cost``). On the ground-pick task this is what
-    turns "get the mouth to the floor" into "get the mouth *close* to the floor": it is the only term
-    opposing the proximity reward, and the equilibrium between the two is the hover the task is
-    named for. The threshold is a dead band, not a scale -- below it a brush costs nothing, above it
-    the cost is linear in the excess force.
-
     The stock :func:`isaaclab.envs.mdp.undesired_contacts` counts contacts over a force threshold
     instead of charging the excess, so it has no gradient to descend once a contact exists.
-
-    Note:
-        Upstream sums the net force over the whole ``neck`` subtree, which on this model is
-        ``neck``, ``neck_pitch``, ``yaw_roll_motion`` and ``jaw_soft`` -- and only ``jaw_soft``
-        carries colliders, so the sum is the three head shells' and nothing else.
 
     Args:
         env: The environment instance.
@@ -4327,15 +3549,6 @@ def body_impact_cost(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, thresho
     forces = force_matrix_w.torch[:, sensor_cfg.body_ids]
     total_force = forces.flatten(start_dim=1, end_dim=-2).sum(dim=1)
     return torch.clamp(total_force.norm(dim=-1) - threshold, min=0.0)
-
-
-"""
-The crouch-glide trick is a *pose trajectory* driven by the same cycle phase the ground-pick gesture
-uses, and upstream's blend function for it is byte-identical to the ground-pick one under a second
-name (addendum section 13.8). The two are merged here, so :func:`_phase_pose_blend` above is what
-both families read; what differs is the pose the blend interpolates toward and the fact that the
-crouch family interpolates from an explicit *standing* keyframe rather than from the stand pose.
-"""
 
 
 def _crouch_pose_target(
@@ -4381,12 +3594,6 @@ def crouch_glide_pose_gaussian(
 ) -> torch.Tensor:
     """Reward holding the selected joints at the phase's blended crouch pose, with a Gaussian tolerance.
 
-    Ported from addendum section 8.5 (``crouch_glide_pose_by_phase``). It is
-    :func:`joint_pose_gaussian` with a target that walks from the standing keyframe down to the
-    crouch keyframe and back over the cycle, so the reward landscape follows the trick rather than
-    jumping to its endpoints. The mean is over *every* joint the crouch pose names, head included:
-    unlike the sit/stand task, this one directs the head as part of the pose rather than by command.
-
     Args:
         env: The environment instance.
         command_name: Name of the phase command term.
@@ -4422,10 +3629,6 @@ def crouch_glide_pose_l1(
 ) -> torch.Tensor:
     """Penalize the mean absolute deviation of the selected joints from the phase's blended crouch pose.
 
-    Ported from addendum section 8.5 (``crouch_glide_pose_l1``). The constant-gradient companion to
-    :func:`crouch_glide_pose_gaussian`, which saturates once the pose error grows past its width --
-    and a 1.5 rad knee fold is several widths.
-
     The term **negates itself** and is therefore configured with a *positive* weight.
 
     Args:
@@ -4452,11 +3655,6 @@ def forward_speed_reward(
     env: ManagerBasedRLEnv, vel_ref: float, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
     """Reward rolling forward, saturating at a reference speed.
-
-    Ported from addendum section 8.5 (``forward_speed_reward``). It is deliberately **independent of
-    the command**: on a phase-commanded task the command carries the clock, not a speed, so there is
-    nothing to gate on. It pays at every phase, including the crouch -- which is the point, since the
-    trick is a glide and the momentum has to survive the fold.
 
     The stock :func:`isaaclab.envs.mdp.track_lin_vel_xy_exp` tracks a *commanded* velocity and would
     charge going faster than asked; this one only ever pays, and only forwards.
@@ -4485,17 +3683,6 @@ def crouch_forward_lean(
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
     """Reward a slight forward trunk lean, only while the cycle is asking for the crouch.
-
-    Ported from addendum section 8.5 (``crouch_forward_lean``). It reads the same projected-gravity
-    component as :func:`forward_lean_reward` and with the same sign, so a positive
-    :attr:`target_pitch` asks for a nose-down lean on both. The gate is
-    :func:`_phase_pose_blend`, i.e. the crouch envelope itself, so the lean is asked for exactly
-    where the fold is and is unpriced during the standing rest.
-
-    Note:
-        Upstream's two lean kernels agree in code and disagree in their docstrings about which sign
-        means forward (addendum sections 8.5 and 13.22). The code is what is ported, and it is the
-        sign that makes a positive target a forward lean.
 
     Args:
         env: The environment instance.
@@ -4581,10 +3768,6 @@ def spin_rate_track(
 ) -> torch.Tensor:
     """Reward tracking the cycle's commanded yaw rate, with a Gaussian tolerance.
 
-    Ported from addendum section 10.3 (``spin_rate_track``). It is the spin task's objective. The
-    stock :func:`isaaclab.envs.mdp.track_ang_vel_z_exp` tracks the *commanded* yaw slot, which on a
-    phase command carries the clock rather than a rate, so the target is derived from the phase here.
-
     The measured rate is taken in the **body** frame, deliberately: that is what the robot's own gyro
     reports and therefore what the policy observes.
 
@@ -4618,10 +3801,6 @@ def spin_rate_l1(
 ) -> torch.Tensor:
     """Penalize the absolute yaw-rate error against the cycle's commanded rate.
 
-    Ported from addendum section 10.3 (``spin_rate_l1``). The constant-gradient companion to
-    :func:`spin_rate_track`, which saturates once the error grows past its width -- and a launch
-    starts three widths away from the hold target.
-
     The term **negates itself** and is therefore configured with a *positive* weight.
 
     Args:
@@ -4650,11 +3829,6 @@ def spin_stay_in_place(
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
     """Charge the trunk's horizontal speed, discounted while the rotation is being launched.
-
-    Ported from addendum section 10.3 (``spin_stay_in_place``). It is what makes the trick a *spin*
-    rather than a pivot around one skate: a robot rotating about a single blade translates its trunk
-    at roughly the yaw rate times the half-track, which is the signature upstream measured on a
-    calibration run and then tripled this weight to suppress.
 
     Two details are deliberate. The launch discount lets the policy shuffle its feet to get the
     rotation started, and the term is **not** gated by the envelope: during the standing rest the
@@ -4692,19 +3866,6 @@ def spin_wheel_differential(
 ) -> torch.Tensor:
     """Reward the wheels turning in opposite directions, in the sense that spins counter-clockwise.
 
-    Ported from addendum section 10.3 (``spin_wheel_differential``). This is the mechanism hint: on
-    skates a yaw rotation is produced by driving the two bogies at different rates, and a policy with
-    no differential is pivoting on one blade instead. It is clamped at zero, so a differential in the
-    wrong sense earns nothing rather than being charged, and it is gated by the envelope, so it fades
-    out before the standing rest.
-
-    Note:
-        Upstream derives :attr:`omega_scale` from a half-track it states as 0.0499 m; measured on the
-        pinned roller model the half-track is 0.0393 m at the foot sites and 0.0406 m at the tire
-        centres, so the derivation does not reproduce (addendum section 13.9). The **constant** is
-        reproduced, because it is what the deployed policy trained against; only the arithmetic
-        behind it is not carried over.
-
     Args:
         env: The environment instance.
         command_name: Name of the phase command term.
@@ -4739,11 +3900,6 @@ def spin_grounded(
 ) -> torch.Tensor:
     """Reward keeping both blades on the ground, while the cycle is asking for rotation.
 
-    Ported from addendum section 10.3 (``spin_grounded``). It is :func:`grounded_reward` with the
-    envelope in place of the throttle scale, and upstream states the reason in the same file: the
-    swizzle version weights by ``cmd_x``, which on a phase command is ``cos(2*pi*phase)`` and
-    therefore means nothing.
-
     Args:
         env: The environment instance.
         sensor_cfg: The contact sensor and the bodies to read, in per-foot order.
@@ -4772,11 +3928,6 @@ def leg_antisymmetry(
     brake_end: float,
 ) -> torch.Tensor:
     """Reward a scissored leg pose while the cycle is asking for rotation.
-
-    Ported from addendum section 10.3 (``leg_antisymmetry``). The mirror image of
-    :func:`leg_symmetry_reward`: because the model uses mirrored left/right sign conventions, a
-    *symmetric* pose reads as ``q_left + q_right ~= 0`` and a *scissor* -- one leg forward, one back,
-    which is what drives a rotation -- reads as ``q_left ~= q_right``.
 
     It is a training wheel rather than an objective, and the task decays its weight by curriculum so
     the policy is left to refine its own pumping frequency once the mechanism has been found. The

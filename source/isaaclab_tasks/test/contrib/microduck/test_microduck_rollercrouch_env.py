@@ -3,29 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Recipe-parity, defect-recording and smoke tests for the contributed MicroDuck crouch-glide task.
+"""Test crouch-glide configuration and simulation behavior.
 
-The parity tests need neither the asset nor the simulator: they read the assembled configuration and
-compare it against the upstream recipe, transcribed here from
-``artifacts/microduck/upstream_reference_tasks3.md`` section 8. The expected values are spelled out
-rather than imported from the configuration under test, so that a drifting value fails rather than
-agrees with itself.
-
-Two of the tests here are unusual and deliberate:
-
-* :func:`test_the_crouch_keyframe_is_recorded_as_violating_the_compiled_joint_limits` **records a
-  known upstream defect** against the *compiled model* rather than against a transcribed constant.
-  The crouch keyframe asks two joints for angles their stops do not allow (upstream issue draft 018),
-  the port reproduces it verbatim for parity, and this test is what stops that being invisible: it
-  asserts the violation is exactly the two joints and exactly the magnitude measured, so a future
-  asset or pose change that removes it fails loudly and can be adopted deliberately.
-* :func:`test_the_degenerate_wheel_event_survives_and_nothing_depends_on_it` is the **interlock**
-  between upstream's two coupled defects (sections 13.1 and 13.3). Both halves are asserted: that
-  the degenerate event is still registered, and that the per-environment friction storage it
-  accidentally props up upstream exists here without it.
-
-Simulator-backed checks retrieve the prebuilt USD through Isaac Lab's native asset cache.
-Recipe checks do not need an asset; source fidelity comparisons use optional read-only fixtures."""
+Check keyframe-limit violations against the compiled model and per-environment BAM friction
+storage with the wheel-friction event removed.
+"""
 
 import math
 import os
@@ -72,11 +54,11 @@ requires_microduck_rollers_usd = pytest.mark.usefixtures("microduck_rollers_usd"
 TASK_NAME = "IsaacContrib-RollerCrouch-Flat-MicroDuck"
 
 STEPS_PER_ITERATION = 24
-"""Environment steps per PPO iteration, upstream's ``num_steps_per_env``."""
+"""Environment control steps per PPO iteration."""
 
 ACTOR_OBSERVATION_DIM = 61
 CRITIC_OBSERVATION_DIM = 78
-"""The shared deploy contract and the roller family's privileged group (sections 11.1 and 11.2)."""
+"""Expected width of the assembled critic observation group."""
 
 EXPECTED_SERVO_JOINT_NAMES = [
     "left_hip_yaw",
@@ -105,7 +87,7 @@ EXPECTED_REWARDS = {
     "upright": (2.0, {"std": math.sqrt(0.2)}),
     "body_ang_vel": (-0.05, {}),
     "angular_momentum": (-0.02, {}),
-    # upstream declares -1.0 and its curriculum's stage 0 is -0.5, which is what is ever live
+    # Stage zero sets the effective penalty weight to -0.5.
     "action_rate_l2": (-0.5, {}),
     "crouch_glide_pose": (
         6.0,
@@ -136,7 +118,7 @@ EXPECTED_REWARDS = {
     "neck_action_rate_l2": (-0.5, {"action_name": "joint_pos"}),
     "joint_torques_l2": (-1e-3, {}),
 }
-"""Upstream's twelve-term reward recipe (section 8.4), keyed by term name, at its live weights."""
+"""Initial reward terms, weights and scalar parameters, including inherited terms."""
 
 EXPECTED_DELETED_REWARDS = [
     # the whole skating stroke, which a crouch-glide is not
@@ -156,10 +138,10 @@ EXPECTED_DELETED_REWARDS = [
     "neck_joint_pos_l2",
     "action_over_limit",
 ]
-"""Terms of the skating recipe upstream's ``keep`` set removes (section 8.4)."""
+"""Velocity reward terms absent from the roller task."""
 
 EXPECTED_CURRICULUM_TERMS = {"action_rate_weight", "com_range", "head_com_range"}
-"""Three schedules, the leanest in the family (section 8.9). No wheel-friction ramp -- see below."""
+"""Configured curriculum term names."""
 
 EXPECTED_WEIGHT_STAGES = {"action_rate_weight": ([-0.5, -0.8, -1.0], [0, 250, 500])}
 EXPECTED_RANGE_STAGES = {
@@ -172,11 +154,7 @@ EXPECTED_CROUCH_LIMIT_VIOLATIONS = {
     "neck_pitch": (1.0937, 1.0472, 0.0465),
     "right_knee": (-1.5907, -1.5708, 0.0199),
 }
-"""The two crouch targets that lie outside the model's hard joint limits (section 13.6, draft 018).
-
-The stops are quoted here only so the *reason* is legible; the test resolves them from the compiled
-model and compares against the model, not against these numbers.
-"""
+"""The two crouch targets that lie outside the model's hard joint limits."""
 
 
 def _scalar_params(term_cfg) -> dict:
@@ -190,13 +168,13 @@ def _observation_terms(group) -> dict[str, ObservationTermCfg]:
 
 
 ##
-# Recipe parity against upstream (section 8)
+# Configuration expectations
 ##
 
 
 @pytest.mark.unit
 def test_the_reward_recipe_matches_upstream_term_for_term():
-    """Every reward slot upstream trains with is present, with its weight and its parameters."""
+    """Reward terms must match the expected set, weights and scalar parameters."""
     rewards = MicroDuckRollerCrouchFlatEnvCfg().rewards
 
     # two-sided, so a skating term the ``keep`` set should have removed also fails
@@ -232,12 +210,7 @@ def test_the_cycle_segments_are_upstream_durations_on_a_five_second_clock():
 
 @pytest.mark.unit
 def test_the_phase_command_starts_every_episode_standing():
-    """``randomize_phase`` is False here and True on the ground-pick task, and the difference matters.
-
-    The deployed runtime launches the cycle from a standing button press, so a randomized start would
-    train "stay low" from spawns that are already low -- the exact failure upstream's comment warns
-    about (section 8.6).
-    """
+    """``randomize_phase`` is False here and True on the ground-pick task, and the difference matters."""
     cfg = MicroDuckRollerCrouchFlatEnvCfg()
 
     assert set(vars(cfg.commands)) == {"base_velocity"}
@@ -252,13 +225,7 @@ def test_the_phase_command_starts_every_episode_standing():
 
 @pytest.mark.unit
 def test_the_entry_momentum_is_injected_through_the_root_reset_and_not_through_a_push():
-    """A reset-mode push adds to the *current* root velocity, which on a diverged env means NaN.
-
-    Upstream fixed exactly this and locks the distinction with its own regression test; its spin task
-    restates the warning verbatim (section 8.7). Reintroducing the push would reintroduce a NaN
-    generator, so the check is that the entry speed is in the root reset and that no reset-mode push
-    exists to carry it.
-    """
+    """A reset-mode push adds to the *current* root velocity, which on a diverged env means NaN."""
     events = MicroDuckRollerCrouchFlatEnvCfg().events
 
     assert events.reset_base.params["velocity_range"] == {"x": MICRODUCK_ENTRY_VELOCITY_X}
@@ -276,24 +243,8 @@ def test_the_entry_momentum_is_injected_through_the_root_reset_and_not_through_a
 
 @pytest.mark.unit
 def test_the_degenerate_wheel_event_survives_and_nothing_depends_on_it():
-    """The interlock between upstream's two coupled defects (sections 13.1 and 13.3).
-
-    Upstream ships a wheel-friction randomization whose range is ``(0.0, 0.0)`` and, unlike the
-    skating task's, no curriculum that ramps it -- so it writes zero forever and the environment
-    trains on frictionless bearings (issue draft 017). It is nonetheless **load-bearing upstream**:
-    it is the sole declarer of ``dof_frictionloss``, which is what puts that model field into
-    MuJoCo's per-world expansion set, and upstream omits the dedicated ``expand_bam_friction_fields``
-    event that should have done that job. Deleting the "useless" event there breaks the BAM actuator
-    at the first multi-environment step.
-
-    Both halves are checked here:
-
-    * the degenerate event is still registered, verbatim, so a cleanup pass that removed it would
-      fail rather than silently change what the policy trained against;
-    * nothing in this port depends on it, which is the other half of the same ruling. The
-      per-environment friction storage is asserted in
-      :func:`test_the_bam_friction_storage_is_per_environment_without_the_wheel_event`, under
-      physics and with the event removed.
+    """The zero-width wheel-friction event keeps bearings frictionless without a curriculum ramp.
+    Per-environment BAM friction storage must remain valid when this event is removed.
     """
     events = MicroDuckRollerCrouchFlatEnvCfg().events
     curriculum = MicroDuckRollerCrouchFlatEnvCfg().curriculum
@@ -307,7 +258,7 @@ def test_the_degenerate_wheel_event_survives_and_nothing_depends_on_it():
     # range permanent rather than a starting point
     assert "wheel_friction" not in vars(curriculum)
     assert set(vars(curriculum)) == EXPECTED_CURRICULUM_TERMS
-    # and there is no expansion event to add: it has no counterpart in this port on any task
+    # BAM friction storage is allocated independently of randomization events.
     assert not hasattr(events, "expand_bam_friction_fields")
 
 
@@ -334,7 +285,7 @@ def test_the_two_keyframes_are_upstream_captures_reproduced_verbatim():
 
 @pytest.mark.unit
 def test_the_curricula_reproduce_upstream_stage_tables():
-    """The staged schedules carry upstream's payloads at upstream's iteration boundaries."""
+    """Scheduled values must change at the expected control-step boundaries."""
     curriculum = MicroDuckRollerCrouchFlatEnvCfg().curriculum
 
     assert set(vars(curriculum)) == EXPECTED_CURRICULUM_TERMS
@@ -354,7 +305,7 @@ def test_the_curricula_reproduce_upstream_stage_tables():
 
 @pytest.mark.unit
 def test_the_scene_actions_observations_and_terminations_are_the_roller_task_untouched():
-    """Upstream rebuilds these from the mjlab template and arrives at the roller recipe (section 8.7)."""
+    """The scene, actions, observations and terminations remain shared with the roller task."""
     crouch = MicroDuckRollerCrouchFlatEnvCfg()
     rollers = MicroDuckVelocityRollersFlatEnvCfg()
 
@@ -382,15 +333,15 @@ def test_the_contact_budget_is_measured_rather_than_inherited():
     assert solver.nconmax >= 29
     assert solver.njmax > roller_solver.njmax
     assert solver.nconmax > roller_solver.nconmax
-    # and above the mjlab template's inherited 35, which upstream never revisits here
+    # The contact budget exceeds the base template's 35 contacts.
     assert solver.nconmax >= 35
-    # the solver iteration counts are upstream's template values, untouched
+    # the solver iteration counts are the configured template values, untouched
     assert (solver.iterations, solver.ls_iterations) == (10, 20)
 
 
 @pytest.mark.unit
 def test_the_runner_keeps_the_family_hyper_parameters_under_its_own_log_tree():
-    """Upstream's runner differs from the velocity one in two fields (section 8.10)."""
+    """The slope runner shares PPO hyperparameters and uses its own experiment name and iteration budget."""
     runner = MicroDuckRollerCrouchPPORunnerCfg()
 
     assert runner.experiment_name == "microduck_rollercrouch"
@@ -437,17 +388,8 @@ def test_the_observation_and_action_widths_are_the_ones_their_contracts_name():
 @pytest.mark.integration
 @requires_microduck_rollers_usd
 def test_the_crouch_keyframe_is_recorded_as_violating_the_compiled_joint_limits():
-    """Records upstream issue draft 018 against the model, so the defect is pinned rather than hidden.
-
-    The crouch keyframe was read off the physical robot and never checked against the simulation
-    model's stops. Two of its fourteen targets lie outside them (section 13.6), so both pose rewards
-    charge a residual on those joints that no policy can zero and the "hold the crouch" reward can
-    never saturate. The port reproduces the pose verbatim on parity grounds -- the deployed policy
-    was trained against these targets -- and this test is the record.
-
-    The limits are read from the **compiled model**, not transcribed, so the expectation tracks the
-    asset. If a future asset or pose change removes the violation this test fails, which is the
-    intent: the defect stops being true and that should be adopted deliberately rather than silently.
+    """Check the two configured crouch targets outside the compiled joint limits and their exact excess.
+    Those targets imply residual pose error that no feasible joint configuration can remove.
     """
     sim_utils.create_new_stage()
     env = None
@@ -490,18 +432,7 @@ def test_the_crouch_keyframe_is_recorded_as_violating_the_compiled_joint_limits(
 @pytest.mark.integration
 @requires_microduck_rollers_usd
 def test_the_bam_friction_storage_is_per_environment_without_the_wheel_event():
-    """The other half of the section 13.1 / 13.3 interlock: nothing here props up the expansion.
-
-    Upstream's BAM actuator writes per-environment friction into a *shared* MuJoCo model field that
-    has to be expanded per world first, and in this environment the only thing that expands it is the
-    degenerate wheel event of section 13.3 -- so removing that event breaks the actuator there. Isaac
-    Lab's actuator owns per-environment storage unconditionally, which is why upstream's
-    ``expand_bam_friction_fields`` has no counterpart in this port.
-
-    This test builds the environment with the wheel event **removed** and asserts the storage is
-    still per-environment and still writable, i.e. the interlock does not exist here. The companion
-    unit test asserts the event is nonetheless kept.
-    """
+    """BAM friction fields must retain per-environment storage without the wheel-friction event."""
     sim_utils.create_new_stage()
     env = None
     try:
@@ -533,7 +464,7 @@ def test_the_bam_friction_storage_is_per_environment_without_the_wheel_event():
         read_back = robot.data.joint_friction_coeff.torch[:, wheel_ids]
         assert torch.allclose(read_back, written.expand(-1, len(wheel_ids)), atol=1e-9)
 
-        # and it steps, which is the failure upstream sees at the first multi-environment step
+        # and it steps, which is the failure the task sees at the first multi-environment step
         action = torch.zeros((unwrapped.num_envs, unwrapped.action_manager.total_action_dim), device=unwrapped.device)
         with torch.inference_mode():
             for _ in range(4):
@@ -547,17 +478,7 @@ def test_the_bam_friction_storage_is_per_environment_without_the_wheel_event():
 @pytest.mark.integration
 @requires_microduck_rollers_usd
 def test_the_pose_reward_follows_the_phase_from_the_stand_keyframe_to_the_crouch_one():
-    """The task's objective, evaluated under physics across the cycle it is defined on.
-
-    The robot is held at each keyframe in turn and the reward is read at the two phases the cycle
-    dwells on. The contract is a *crossing*: at phase 0 the standing keyframe scores highest, at the
-    middle of the crouch dwell the crouched one does, and the same term produces both.
-
-    It also records upstream issue draft 018 as a *reward* rather than as a joint angle: the crouch
-    target is scored twice at the crouch phase, once at the exact keyframe and once at the keyframe
-    clamped into the compiled model's joint stops. The second is the best a policy can physically
-    reach, and it is strictly below the first -- so the "hold the crouch" reward can never saturate.
-    """
+    """The task's objective, evaluated under physics across the cycle it is defined on."""
     sim_utils.create_new_stage()
     env = None
     try:

@@ -24,7 +24,6 @@ gym.register(
     },
 )
 
-
 gym.register(
     id="IsaacContrib-SitStand-Rough-MicroDuck",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
