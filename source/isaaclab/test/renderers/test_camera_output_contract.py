@@ -62,12 +62,12 @@ class _ScaleProcessor(TensorProcessor):
 
 
 def test_camera_isp_is_resolved_during_construction():
-    """Authored and explicit ISP configurations are ready before physics or renderer initialization."""
+    """Authored, explicit, and deprecated ISP configurations are ready before physics or renderer initialization."""
     pytest.importorskip("isaaclab_newton")
     pytest.importorskip("newton")
     from isaaclab_newton.physics import NewtonCfg
     from isaaclab_newton.renderers import NewtonWarpRendererCfg
-    from isaaclab_ppisp import PpispCfg
+    from isaaclab_ppisp import PpispCfg, PpispProcessorCfg
 
     from pxr import Sdf, UsdGeom
 
@@ -77,21 +77,25 @@ def test_camera_isp_is_resolved_during_construction():
         prim.CreateAttribute("ppisp:responsivity", Sdf.ValueTypeNames.Float).Set(3.0)
         prim.CreateAttribute("exposure", Sdf.ValueTypeNames.Float).Set(2.0)
         cfg = CameraCfg(
-            prim_path="/World/AuthoredCamera", width=16, height=16, data_types=["rgb"],
-            spawn=None, isp_cfg=CameraISPMode.AUTO_CAMERA, renderer_cfg=NewtonWarpRendererCfg(),
+            prim_path="/World/AuthoredCamera", width=16, height=16, data_types=["rgb"], spawn=None,
+            renderer_cfg=NewtonWarpRendererCfg(),
+            tensor_processors=[PpispProcessorCfg(isp_cfg=CameraISPMode.AUTO_CAMERA)],
         )  # fmt: skip
         authored = instantiate(cfg)
-        spawned = instantiate(replace(
-            cfg, prim_path="/World/SpawnedCamera", spawn=_SPAWN, isp_cfg=PpispCfg(inputs={"exposureOffset": 2.0}),
-        ))  # fmt: skip
+        with pytest.warns(FutureWarning, match="isp_cfg is deprecated"):
+            spawned = instantiate(replace(
+                cfg, prim_path="/World/SpawnedCamera", spawn=_SPAWN, tensor_processors=[],
+                isp_cfg=PpispCfg(inputs={"exposureOffset": 2.0}),
+            ))  # fmt: skip
         without_isp = instantiate(replace(cfg, prim_path="/World/PlainCamera", spawn=_SPAWN))
+        rebuilt = instantiate(spawned.cfg)
 
-        assert isinstance(authored.cfg.isp_cfg, PpispCfg)
-        assert authored.cfg.isp_cfg.inputs["responsivity"] == 3.0
-        assert spawned.cfg.isp_cfg.inputs["exposureOffset"] == 2.0
-        assert spawned.cfg.isp_cfg.inputs["responsivity"] == 1.0
-        assert without_isp.cfg.isp_cfg is None
-        assert cfg.isp_cfg is CameraISPMode.AUTO_CAMERA
+        assert authored.cfg.tensor_processors[0].isp_cfg.inputs["responsivity"] == 3.0
+        assert spawned.cfg.tensor_processors[0].isp_cfg.inputs["exposureOffset"] == 2.0
+        assert spawned.cfg.tensor_processors[0].isp_cfg.inputs["responsivity"] == 1.0
+        assert len(rebuilt.cfg.tensor_processors) == 1  # the deprecated value is forwarded once
+        assert without_isp.cfg.tensor_processors == []  # discovery found no PPISP attributes
+        assert cfg.tensor_processors[0].isp_cfg is CameraISPMode.AUTO_CAMERA
         assert prim.GetAttribute("exposure").Get() == 2.0  # Newton does not use RTX exposure.
         assert all(not camera.is_initialized for camera in (authored, spawned, without_isp))
         # Scene authoring belongs to camera construction, without a second renderer lifecycle.

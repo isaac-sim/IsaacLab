@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import sys
+import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Literal, cast
 
@@ -259,14 +260,24 @@ class Camera(SensorBase):
             if not sim_utils.find_matching_prims(spawn_target):
                 raise RuntimeError(f"Could not find prim with path {spawn_target!r}.")
 
-        # Complete camera authoring before cloning or importing the scene into a native backend.
         if self.cfg.isp_cfg is not None:
-            from isaaclab_ppisp import apply_rtx_exposure_overrides, resolve_and_normalize
+            from isaaclab_ppisp import PpispProcessorCfg
 
+            msg = "CameraCfg.isp_cfg is deprecated. Add isaaclab_ppisp.PpispProcessorCfg to tensor_processors."
+            warnings.warn(msg, FutureWarning, stacklevel=2)
+            self.cfg.tensor_processors = [PpispProcessorCfg(isp_cfg=self.cfg.isp_cfg), *self.cfg.tensor_processors]
+            # The processor now owns the value, so a camera built from this cfg does not forward it again.
+            self.cfg.isp_cfg = None
+        # Complete camera authoring before cloning or importing the scene into a native backend.
+        if self.cfg.tensor_processors:
             camera_paths = [str(p.GetPath()) for p in sim_utils.find_matching_prims(self.cfg.prim_path, self.stage)]
-            self.cfg.isp_cfg = resolve_and_normalize(self.cfg.isp_cfg, self.stage, camera_paths[0])
-            if self.cfg.isp_cfg is not None and self.cfg.renderer_cfg.renderer_type in ("isaac_rtx", "ovrtx"):
-                apply_rtx_exposure_overrides(self.stage, camera_paths)
+            prepared = [
+                cfg.func.prepare_camera(cfg, self.stage, camera_paths, self.cfg.renderer_cfg)
+                if hasattr(cfg.func, "prepare_camera")
+                else cfg
+                for cfg in self.cfg.tensor_processors
+            ]
+            self.cfg.tensor_processors = [cfg for cfg in prepared if cfg is not None]
         self._render_data_types = _render_data_types(self.cfg)
 
         # Every renderer backend draws the visual-only geometry, so it must survive cloning even
@@ -275,8 +286,8 @@ class Camera(SensorBase):
         sim_ctx = sim_utils.SimulationContext.instance()
         sim_ctx.require_visual_shapes()
 
-        # HDR output, requested directly, by a processor, or by an ISP, requires the HDR-routing flag on RTX backends.
-        require_hdr_output = "rgb_hdr" in self._render_data_types or self.cfg.isp_cfg is not None
+        # HDR output, requested directly or by a processor, requires the HDR-routing flag on RTX backends.
+        require_hdr_output = "rgb_hdr" in self._render_data_types
 
         # Rendering policy is read before the first reset, so configure it during camera construction.
         if self.cfg.renderer_cfg.renderer_type == "isaac_rtx":

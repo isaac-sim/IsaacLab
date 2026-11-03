@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 import torch
-from isaaclab_ppisp import PpispCfg, normalize_ppisp_cfg
+from isaaclab_ppisp import PpispCfg, PpispProcessorCfg, normalize_ppisp_cfg
 
 from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
@@ -719,26 +719,17 @@ def render_synthetic_gaussian_scene(
         ``[num_envs, height, width, channels]`` float32 CPU tensor (uint8 LDR
         buffers are cast to float for downstream arithmetic).
     """
-    isp_cfg = make_aggressive_ppisp_cfg(responsivity=responsivity)
     with fresh_synthetic_gaussian_interactive_scene(usd_path, sim_cfg, num_envs=num_envs) as sim:
-        cfg = CameraCfg(
-            prim_path=SYNTHETIC_GAUSSIAN_CAMERA_REGEX,
-            update_period=0.0,
+        return _render_synthetic_gaussian_camera(
+            renderer_cfg=renderer_cfg,
+            data_types=data_types,
             height=height,
             width=width,
-            data_types=data_types,
-            spawn=None,
-            isp_cfg=isp_cfg,
-            renderer_cfg=renderer_cfg,
+            sim_dt=sim_dt,
+            stabilisation_steps=stabilisation_steps,
+            isp_cfg=make_aggressive_ppisp_cfg(responsivity=responsivity),
+            sim=sim,
         )
-        camera = Camera(cfg)
-        sim.reset()
-        for _ in range(stabilisation_steps):
-            sim.step()
-        camera.update(sim_dt)
-        outputs = {name: tensor.clone().detach().cpu().to(torch.float32) for name, tensor in camera.data.output.items()}
-        del camera
-        return outputs
 
 
 def render_synthetic_gaussian_scene_with_static_ppisp_attrs(
@@ -757,7 +748,7 @@ def render_synthetic_gaussian_scene_with_static_ppisp_attrs(
     """Render the synthesised gaussian asset through authored static PPISP camera attributes.
 
     Camera construction uses :class:`CameraISPMode.AUTO_CAMERA` to discover the authored PPISP
-    attributes before the renderer creates its image-processing pipeline.
+    attributes before the camera constructs its PPISP processor.
     """
     with fresh_synthetic_gaussian_interactive_scene(usd_path, sim_cfg, num_envs=num_envs) as sim:
         author_static_ppisp_camera_attrs(sim.stage, ppisp_cfg=ppisp_cfg)
@@ -819,7 +810,7 @@ def _render_synthetic_gaussian_camera(
         width=width,
         data_types=data_types,
         spawn=None,
-        isp_cfg=isp_cfg,
+        tensor_processors=[PpispProcessorCfg(isp_cfg=isp_cfg)],
         renderer_cfg=renderer_cfg,
     )
     camera = Camera(cfg)

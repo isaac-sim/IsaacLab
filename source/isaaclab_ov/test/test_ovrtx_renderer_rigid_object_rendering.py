@@ -103,7 +103,7 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
     """Overlapping worlds retain distinct contacts and images across shared-stage control writes."""
     import ovrtx
     import torch
-    from isaaclab_ppisp import PpispCfg
+    from isaaclab_ppisp import PpispProcessorCfg
 
     from pxr import UsdPhysics
 
@@ -147,7 +147,7 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
             camera,
             prim_path="{ENV_REGEX_NS}/OtherCamera",
             data_types=["depth", "rgb", "rgb_hdr"],
-            isp_cfg=PpispCfg(),
+            tensor_processors=[PpispProcessorCfg()],
             renderer_cfg=OVRTXRendererCfg(enable_shadows=True),
         )
 
