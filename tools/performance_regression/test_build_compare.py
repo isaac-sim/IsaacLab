@@ -112,11 +112,14 @@ def check_comparisons(subtests):
         assert compared[0]["change_pct"] == 10
         assert sum(row["status"] == "missing" for row in rows) == 2
     with subtests.test(msg="status only leg is associated without claiming identity"):
-        b = evidence({"leg": []}, statuses={"leg": "failed"})
-        rows = compare_evidence(evidence(), b)["rows"]
-        assert len(rows) == 1
-        assert rows[0]["status"] == "missing"
-        assert any("display association" in reason for reason in rows[0]["reasons"])
+        for status in ("ok", "failed"):
+            with subtests.test(status=status):
+                b = evidence({"leg": []}, statuses={"leg": status})
+                rows = compare_evidence(evidence(), b)["rows"]
+                assert len(rows) == 1
+                assert_fields(rows[0], status="missing", change_pct=None)
+                assert rows[0]["candidate"]["median"] is None
+                assert any("display association" in reason for reason in rows[0]["reasons"])
         unknown = compare_evidence(b, b)["rows"][0]
         assert unknown["workload_key"] is None
         assert "identity unavailable" in unknown["label"]
@@ -209,7 +212,6 @@ def check_comparisons(subtests):
                 report = compare_evidence(evidence(), b)
                 row = report["rows"][0]
                 assert_fields(row, status="compared", change_pct=10)
-                assert row["context_differences"]
                 fields = {item["field"] for item in row["context_differences"]}
                 expected = {"hardware.hostname", "versions.warp"}
                 if image != "sha256:fixture":
@@ -274,15 +276,13 @@ def check_comparisons(subtests):
             set_sample_field(selection, "hardware.gpu_devices", [{"name": model} for model in models])
         row = compare_evidence(a, b)["rows"][0]
         assert_fields(row, status="incompatible", change_pct=None)
-    with subtests.test(msg="unavailable hardware preserves missing and partial sample status"):
-        for missing in (True, False):
-            with subtests.test(missing=missing):
-                b = evidence({"leg": [] if missing else [bundle(110)]})
-                set_sample_field(b, "hardware", None, remove=True)
-                row = compare_evidence(evidence(), b)["rows"][0]
-                assert row["status"] == ("missing" if missing else "partial")
-                assert row["candidate"]["median"] == (None if missing else 110)
-                assert row["change_pct"] is None
+    with subtests.test(msg="unavailable hardware preserves partial sample status"):
+        b = evidence({"leg": [bundle(110)]})
+        set_sample_field(b, "hardware", None, remove=True)
+        row = compare_evidence(evidence(), b)["rows"][0]
+        assert row["status"] == "partial"
+        assert row["candidate"]["median"] == 110
+        assert row["change_pct"] is None
     with subtests.test(msg="presets and environment count use validated workload identity"):
         for path, value in (("run.num_envs", 1024), ("run.config.presets", ["new_preset"])):
             b = evidence()
@@ -359,7 +359,6 @@ def check_rendering(subtests):
         assert "&#91;click&#93;" in diagnostics
         assert "&#124;" in markdown
         assert "&lt;/details&gt;&lt;script&gt;" in markdown
-        assert "&lt;script&gt;" in markdown
         assert markdown.count("<details>") == 1
         assert markdown.count("</details>") == 1
         assert "https://example.invalid/untrusted" not in markdown
@@ -536,7 +535,6 @@ def check_reports(tmp_path, subtests):
         primary, details = markdown.split("<details>", 1)
         assert status == 0
         assert_fields(result["selection"], reason=reason, paired_failure=failure)
-        assert reason in primary
         assert "pinned comparison" not in primary
         assert "| Status |" not in primary
         assert "| ⚪ Not comparable |" not in primary

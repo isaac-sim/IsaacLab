@@ -176,7 +176,9 @@ def check_evidence(subtests):
         assert evidence.samples["missing-leg"] == []
         assert evidence.statuses["missing-leg"] == "failed"
 
-    with subtests.test(evidence="corrupt workload beside a valid sample"):
+    with subtests.test(evidence="valid, corrupt, unusable and failed samples"):
+        malformed = bundle()
+        malformed["runtime"]["total_fps"] = []
         client = FixtureClient()
         client.add(10, PARENT, artifact=False)
         client.add_artifact(
@@ -187,6 +189,11 @@ def check_evidence(subtests):
                 "leg/status": "ok",
                 "broken/sample-1/benchmark_runtime_broken.json": "{not json",
                 "broken/status": "failed",
+                "unusable/sample-1/benchmark_runtime_malformed.json": malformed,
+                "unusable/sample-2/benchmark_runtime_overflow.json": bundle(fps=10**1000),
+                "unusable/status": "ok",
+                "failed/sample-1/benchmark_runtime_failed.json": bundle(status="failed"),
+                "failed/status": "failed",
             },
         )
         evidence = baseline.resolve_candidate(client, 10, 1)
@@ -197,22 +204,7 @@ def check_evidence(subtests):
         assert len(evidence.samples["leg"]) == 1
         assert evidence.samples["broken"] == []
         assert "broken/sample-1/benchmark_runtime_broken.json" in str(evidence.issues)
-
-    with subtests.test(evidence="unusable samples and failed runs"):
-        malformed = bundle()
-        malformed["runtime"]["total_fps"] = []
-        client = FixtureClient()
-        client.add(
-            10,
-            PARENT,
-            samples={
-                "leg": [malformed, bundle(fps=10**1000)],
-                "failed": [bundle(status="failed")],
-            },
-            statuses={"leg": "ok", "failed": "failed"},
-        )
-        evidence = baseline.resolve_candidate(client, 10, 1)
-        assert len(evidence.samples["leg"]) == 2
+        assert len(evidence.samples["unusable"]) == 2
         assert sum("FPS value" in issue for issue in evidence.issues) == 2
         assert evidence.statuses["failed"] == "failed"
         assert evidence.samples["failed"][0]["bundle"]["run"]["status"] == "failed"

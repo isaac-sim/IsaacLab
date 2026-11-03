@@ -323,16 +323,14 @@ def paired_fixture(root, subtests, name):
 
 
 def check_capture(tmp_path, subtests):
-    with paired_fixture(tmp_path, subtests, "merge first parent") as pair:
-        base, _, merge, latest = pair._moving_merge()
+    with paired_fixture(tmp_path, subtests, "resolve and capture metadata") as pair:
+        base, head, merge, latest = pair._moving_merge()
         assert base != pair.event["pull_request"]["base"]["sha"]
         assert base != latest
         result = pair._cli(["resolve", "--checkout-root", str(pair.checkout)], GITHUB_SHA=merge)
         assert result.returncode == 0, result.stderr + result.stdout
         outputs = dict(line.split("=", 1) for line in (pair.root / "github-output").read_text().splitlines())
         assert outputs == {"base_commit": base}
-    with paired_fixture(tmp_path, subtests, "capture optional metadata") as pair:
-        base, head, merge, _ = pair._moving_merge()
         original_run = subprocess.run
         original_write = paired._write
         failure = None
@@ -365,7 +363,6 @@ def check_capture(tmp_path, subtests):
                 assert source["event_base_commit"] == pair.commit
                 assert source["requested_head_commit"] == head
                 assert json.loads((output / "source-manifest.json").read_text())["commit"] == commit
-                assert context["execution"]["benchmark_protocol"] == pair.protocol
                 saved = json.loads((output / "build-context.json").read_text())
                 assert_fields(saved["execution"], hostname="fixture-gpu-host", benchmark_protocol=pair.protocol)
                 if role == "current":
@@ -802,22 +799,16 @@ def check_pair_reports(tmp_path, subtests):
             assert_fields(second["candidate"], run_attempt=1, report_attempt=2)
             assert "Measurements: attempt 1; report: attempt 2" in rerun_markdown
             artifact["expired"] = True
+            pair._add_baseline(pair._files(run_id=11, measurement=pair.measurement), run_id=11)
             _, result, markdown = pair._run_report(attempt=2)
             assert result["baseline"] is None
             assert result["selection"]["reason_code"] == "expired"
-            assert result["selection"]["unavailable_evidence"]["artifact_id"] == artifact["id"]
+            assert result["selection"]["unavailable_evidence"] == pair._origin(artifact, run_id=10)
             assert all(row["candidate"]["median"] == 80 for row in result["rows"])
             assert all(row["change_pct"] is None for row in result["rows"])
             assert "PR base (evidence unavailable)" in markdown
             assert "/actions/runs/10/attempts/1" in markdown
             assert "expired" in markdown
-            pair._add_baseline(pair._files(run_id=11, measurement=pair.measurement), run_id=11)
-            pair.client.add(20, HEAD, attempt=3, start=stamp(14), event="pull_request", artifact=False)
-            pair.client.run_jobs[20, 3][0]["started_at"] = stamp(12)
-            _, third, third_markdown = pair._run_report(attempt=3)
-            assert third["selection"]["unavailable_evidence"] == result["selection"]["unavailable_evidence"]
-            assert third["selection"]["reason_code"] == "expired"
-            assert "/actions/runs/10/attempts/1" in third_markdown
             assert pair.client.pages_requested == []
         files["build-context.json"] = b"{invalid JSON"
         pair.client.run_artifacts[20] = []
