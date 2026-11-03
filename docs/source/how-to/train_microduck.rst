@@ -41,7 +41,8 @@ Locomotion-first rough recipe
 with 16,384 environments and left/right data augmentation enabled by default. Mirror loss is
 disabled. It introduces the action-rate penalty stages at iterations 750, 1,000, 1,250, 1,500
 and 1,750, and delays the standing-fraction, head-pose and center-of-mass curricula by 500
-iterations. Stage values, final ranges, terrain promotion and PPO settings are unchanged.
+iterations. It uses a 0.5 rad/s yaw-tracking reward width. Stage values, final command ranges,
+terrain promotion and PPO settings are unchanged.
 The regular rough and flat tasks retain their original defaults.
 
 For a single-GPU, 3,001-update run with backlash, use:
@@ -53,8 +54,7 @@ For a single-GPU, 3,001-update run with backlash, use:
         --rl_library rsl_rl --num_envs 16384 --seed 142 --max_iterations 3001 presets=backlash
 
 This batch size is part of the intended recipe; smaller batches are not established quality-equivalent
-replacements. The task retains the 0.35 rad/s yaw tolerance, whose combination with this schedule is
-still being evaluated. The example is a bounded training run, not a mastery or training-time guarantee;
+replacements. The example is a bounded training run, not a mastery or training-time guarantee;
 it does not change the runner's default training budget.
 
 Distributed training

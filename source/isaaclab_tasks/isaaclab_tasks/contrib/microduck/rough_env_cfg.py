@@ -147,3 +147,7 @@ class MicroDuckLocomotionFirstRoughEnvCfg(MicroDuckVelocityRoughEnvCfg):
 
     scene: MicroDuckRoughSceneCfg = MicroDuckRoughSceneCfg(num_envs=16384, env_spacing=2.0)
     curriculum: MicroDuckLocomotionFirstCurriculumCfg = MicroDuckLocomotionFirstCurriculumCfg()
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.rewards.track_ang_vel.params["std"] = 0.5
