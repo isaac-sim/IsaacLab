@@ -31,7 +31,6 @@ from .scene import (
     INTAKE_CENTER,
     INTAKE_HALF_STRAIGHT,
     INTAKE_RADIUS,
-    PARCEL_CLASS_IDS,
     PARCEL_SIZES,
     RECEIVING_PAD_HALF_WIDTH,
     RECEIVING_PAD_RADIAL_BOUNDS,
@@ -258,7 +257,7 @@ class SizeSortCommand(CommandTerm):
         phase = self._reset_term.phase_ids[self._sampled_rows[ids]]
         phase_outcomes = {
             f"{name}_success_rate": row_success[(phase == index) & (self._env.episode_length_buf[ids] > 0)]
-            for index, name in ((0, "place"), (1, "carry"), (2, "approach"), (4, "outfeed"))
+            for index, name in ((0, "place"), (1, "carry"), (2, "approach"))
         }
         extras = super().reset(ids)
         extras.update({name: outcomes for name, outcomes in phase_outcomes.items() if outcomes.numel()})
@@ -269,9 +268,15 @@ class SizeSortCommand(CommandTerm):
             extras["full_batch_success_rate"] = full_batch
         extras["full_start_episodes"] = full.sum()
         extras["reset_row_coverage"] = (self._reset_term.reset_sampler.success_monitor.success_size > 0).float().mean()
-        extras["full_start_sampling_probability"] = self._reset_term.reset_sampler.probabilities[
-            self._reset_term.phase_ids == 3
-        ].sum()
+        extras["full_start_sampling_probability"] = self._reset_term.reset_sampler.probabilities[-1]
+        samples = self._reset_term._samples
+        extras["descent_success_rate"] = self._reset_term.reset_sampler.success_monitor.success_rate[
+            samples // 2 : samples
+        ].mean()
+        for phase, name in enumerate(("place", "carry", "approach")):
+            extras[f"{name}_sampling_probability"] = self._reset_term.reset_sampler.probabilities[
+                phase * samples : (phase + 1) * samples
+            ].sum()
         return extras
 
     def evaluate(self) -> None:
@@ -336,7 +341,7 @@ class SizeSortCommand(CommandTerm):
         initial = self._reset_term.parcel_ids[self._sampled_rows]
         first = completed[self._ids, initial].nonzero(as_tuple=False).flatten()
         self._reset_term.reset_sampler.success_monitor.success_update(
-            self._reset_term.row_ids[first], completed[first, initial[first]]
+            self._reset_term.reset_sampler.row_ids[first], completed[first, initial[first]]
         )
         env.episode_success |= self.new_success > 0
         count = self.delivered.sum(dim=-1)
@@ -360,13 +365,11 @@ class SizeSortCommand(CommandTerm):
         self._sampled_rows[ids] = self._reset_term.row_ids[ids]
         self.delivered[ids] = False
         self.lifted[ids] = self._reset_term.lifted_rows[self._reset_term.row_ids[ids]]
-        self.placed[ids] = phase == 4
+        self.placed[ids] = False
         self._was_engaged[ids] = False
         self.destination_ids[ids] = self._reset_term.destination_ids[self._reset_term.row_ids[ids]]
         self.goal_positions[ids] = self._reset_term.goal_positions[self._reset_term.row_ids[ids]]
         self._outfeed_destinations[ids] = -1
-        outfeed_ids = ids[phase == 4]
-        self._outfeed_destinations[outfeed_ids, self._env.active_ids[outfeed_ids]] = self.destination_ids[outfeed_ids]
         self.full_start[ids] = phase == 3
         self.failed[ids] = self.new_success[ids] = self._waiting[ids] = False
         self._stable_steps[ids] = 0
@@ -437,10 +440,13 @@ class ResetParcels(ManagerTermBase):
 
         super().__init__(cfg, env)
         # Sixteen neighboring states per path, at each of the two pickup anchors.
-        samples = 16
+        self._samples = samples = 16
         variants_per_phase = 2 * samples
-        phase_count = 5
+        phase_count = 4
         lanes = env.layout_mask.nonzero(as_tuple=False)
+        self._lane_count = len(lanes)
+        counts = env.layout_mask.sum(dim=-1)
+        self._lane_offsets = counts.cumsum(dim=0) - counts
         rows = torch.arange(len(PARCEL_SIZES) * phase_count * variants_per_phase * len(lanes), device=self.device)
         self.row_count = rows.numel()
         self.layout_ids, self.destination_ids = lanes[rows % len(lanes)].unbind(dim=-1)
@@ -451,8 +457,9 @@ class ResetParcels(ManagerTermBase):
         anchor = variants % 2
         fraction = (variants // 2).float() / (samples - 1)
         progress = (variants // 2).float() / samples
-        self.reset_sampler = ResetStateSampler(cfg.params["sampling"], self.num_envs, self.row_count, self.device)
-        self.row_ids = self.reset_sampler.row_ids
+        # Outcomes share path progress, independently of fixture, parcel, and destination.
+        self.reset_sampler = ResetStateSampler(cfg.params["sampling"], self.num_envs, 3 * samples + 1, self.device)
+        self.row_ids = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
         self.held_rows = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         self._initial_poses = torch.stack(
             [env.scene[f"parcel_{index}"].data.default_root_pose.torch[0] for index in range(len(PARCEL_SIZES))]
@@ -501,12 +508,9 @@ class ResetParcels(ManagerTermBase):
         descent = torch.lerp(goal, goal_high, fraction.pow(3)[:, None])
         self._tool_positions = torch.where((self.phase_ids == 0)[:, None], descent, path)
         self._tool_positions[self.phase_ids == 3] = home
-        self._tool_positions[self.phase_ids == 4] = goal_high[self.phase_ids == 4]
         # Descent rows have already lifted. A newly sealed low lift must still clear the belt.
-        self.lifted_rows = (
-            (self.phase_ids == 0)
-            | (self.phase_ids == 4)
-            | ((self.phase_ids == 1) & (self._tool_positions[:, 2] - sizes[:, 2] / 2.0 - 0.002 > BELT_TOP_Z + 0.10))
+        self.lifted_rows = (self.phase_ids == 0) | (
+            (self.phase_ids == 1) & (self._tool_positions[:, 2] - sizes[:, 2] / 2.0 - 0.002 > BELT_TOP_Z + 0.10)
         )
         self._arm_positions = home_arm.repeat(self.row_count, 1)
         partial = self.phase_ids != 3
@@ -528,23 +532,6 @@ class ResetParcels(ManagerTermBase):
         self._parcel_velocities[unheld, 0] = speed * angle[unheld].cos()
         self._parcel_velocities[unheld, 1] = speed * angle[unheld].sin()
         self._parcel_velocities[unheld & (distance < 0.0), 5] = -speed / INTAKE_RADIUS
-        # Valid released predecessors teach the passive outfeed suffix, without seeding a receipt.
-        outfeed = self.phase_ids == 4
-        directions = self._goal_directions[self.layout_ids, self.destination_ids]
-        radius = (self.goal_positions[:, :2] * directions[:, :2]).sum(dim=-1)
-        origins = self._goal_origins[self.layout_ids, self.destination_ids]
-        last_supported = (
-            1.95
-            + (origins[:, :2] * directions[:, :2]).sum(dim=-1)
-            - torch.linalg.vector_norm(sizes[:, :2], dim=-1) / 2.0
-            - 0.005
-        )
-        travel = (last_supported - radius) * (1.0 - (1.0 - fraction).pow(3))
-        self._pick_positions[outfeed] = self.goal_positions[outfeed]
-        self._pick_positions[outfeed, :2] += directions[outfeed, :2] * travel[outfeed, None]
-        self._pick_positions[outfeed, 2] += 0.002
-        self._parcel_velocities[outfeed, :3] = directions[outfeed] * speed
-        self._pick_yaw[outfeed] = 0.0
 
     def _placement_goals(
         self,
@@ -591,23 +578,29 @@ class ResetParcels(ManagerTermBase):
         ids = env.scene._ALL_INDICES[env_ids] if isinstance(env_ids, slice) else env_ids
         if not ids.numel():
             return
-        row_mask = self.phase_ids == 3 if full_starts else torch.ones_like(self.phase_ids, dtype=torch.bool)
-        if not env.cfg.commands.sort.randomize_destination:
-            row_mask &= self.destination_ids == torch.tensor(PARCEL_CLASS_IDS, device=self.device)[self.parcel_ids]
         sampled_received = env.command_manager.get_term("sort").delivered[ids, self.parcel_ids[self.row_ids[ids]]]
-        probabilities = torch.zeros_like(self.reset_sampler.probabilities)
-        # A reset state must belong to the immutable fixture actually cloned into that world.
-        for layout_id in range(len(env.outfeed_layouts)):
-            selected = env.layout_ids[ids] == layout_id
-            if selected.any():
-                self.reset_sampler.reset(
-                    ids[selected],
-                    sampled_received[selected],
-                    valid=(env.episode_length_buf[ids[selected]] > 0) & ~sampled_received[selected],
-                    row_mask=row_mask & (self.layout_ids == layout_id),
-                )
-                probabilities += self.reset_sampler.probabilities * selected.float().mean()
-        self.reset_sampler.probabilities = probabilities
+        row_mask = None
+        if full_starts:
+            row_mask = torch.zeros(3 * self._samples + 1, dtype=torch.bool, device=self.device)
+            row_mask[-1] = True
+        buckets = self.reset_sampler.reset(
+            ids,
+            sampled_received,
+            valid=(env.episode_length_buf[ids] > 0) & ~sampled_received,
+            row_mask=row_mask,
+        )
+        phase = (buckets // self._samples).clamp_max(3)
+        progress = torch.where(
+            phase == 3, torch.randint(self._samples, (len(ids),), device=self.device), buckets % self._samples
+        )
+        variant = 2 * progress + torch.randint(2, (len(ids),), device=self.device)
+        parcel = torch.randint(len(env.parcels), (len(ids),), device=self.device)
+        if env.cfg.commands.sort.randomize_destination:
+            destination = torch.multinomial(env.outfeed_mask[ids].float(), 1).squeeze(-1)
+        else:
+            destination = env.parcel_classes[parcel]
+        lane = self._lane_offsets[env.layout_ids[ids]] + destination
+        self.row_ids[ids] = ((parcel * 4 + phase) * (2 * self._samples) + variant) * self._lane_count + lane
         rows = self.row_ids[ids]
         active = self.parcel_ids[rows]
         env.active_ids[ids] = active

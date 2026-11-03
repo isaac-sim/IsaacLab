@@ -68,34 +68,24 @@ of package dimensions, with placement offsets inside its supported receiving are
 outlet. Both modes supply the goal explicitly, so dimensions cannot replace following the
 command. Colors make the scene readable without becoming policy inputs. Goals are restricted
 to these reachable, supported receiving areas; this example does not establish transfer to
-arbitrary facilities or obstacles. The 312-observation, four-action interface is unchanged, so current
-goal-conditioned suction policies can be fine-tuned, but the wider collision scan changes their input
-distribution. Evaluate separately on held-out fixture layouts before claiming generalization.
+arbitrary facilities or obstacles. The interface has 312 observations and four actions. The wider collision scan
+changes the spatial meaning of its samples, so earlier checkpoints require their original observation configuration.
+New training uses fresh weights. Evaluate separately on held-out fixture layouts before claiming generalization.
 
 ## Reset distribution and success
 
-The public `isaaclab_tasks.utils.ResetStateSampler` tracks recent outcomes and chooses
-reset rows. The default task-local catalogue contains 168,960 rows across sixteen fixtures,
-five equally represented reset families, twelve parcels and each fixture's active destinations.
-Only rows matching an environment's physical fixture are eligible. The five-lane playback fixture
-uses 9,600 rows. Lift and approach paths use sixteen locations
-at two pickup anchors; other families retain the same sampling weight. Connected paths
-cover home-to-contact approach, newly sealed lift, transport and controlled descent; full
-home starts remain a separate family. Released states along the outfeed cover the passive
-transport to the bin, so sparse credit can propagate through the whole suffix. Placement
-offsets vary within the supported pads. Earlier approach states rewind the parcel around
-the incoming turn with matching belt velocity, allowing time for interception. The parcel
-formerly occupying that turn moves to the incoming target's vacant straight slot.
-Near-release states use the same goal given to the actor;
-ordinary scene/asset writers restore them. Other parcels are shuffled among the remaining
-belt and feeder slots to vary the order of subsequent pickups. The same sampler is used by the original
-conveyor curriculum and can select procedurally generated or cached reset states.
-It does not add another environment manager or a second scene-state serializer. Held resets
-refresh the native suction seals against the restored geometry before the first policy
-observation, without stepping physics or forcing attachment. Low lift starts still have to
-clear the pickup-height criterion. Outfeed states restore the prior lift and controlled-release
-history of a valid placement; they remain physically released and must still reach their bin.
-No reset seeds a delivery, successful outcome or placement counter.
+The public `isaaclab_tasks.utils.ResetStateSampler` tracks 49 shared progress buckets:
+sixteen points each for controlled descent, held lift/transport, and unheld approach, plus a full-home start.
+Each draw independently chooses a parcel, destination, and pickup anchor on the world's physical fixture.
+The cached geometry contains 135,168 physical states, while the outcome history stays small enough to
+receive repeated attempts. Layout and package variations share progress history instead of fragmenting it.
+The Beta sampler favors intermediate success and retains a uniform strategy with weight 0.005.
+
+Connected paths cover contact, lift, transport around the pedestal, and controlled descent.
+Earlier approach states rewind the moving parcel around the incoming turn. Held starts restore native
+suction seals against the reset geometry before the first observation. Other parcels are shuffled among
+the remaining belt and feeder slots. Released outfeed starts are excluded: the conveyor can complete
+those deliveries without a policy action. No reset seeds a receipt or successful outcome.
 
 No parcel starts with delivery credit in any reset phase. Release is checked before detachment:
 the parcel must be upright, close to its commanded position, at most 2 cm above the receiving
@@ -111,15 +101,16 @@ target. Simultaneous receipts each earn credit; a receipt never changes the curr
 A missed, ungrasped parcel keeps circulating while the dispatcher selects another incoming target.
 Each handoff rebases the Cartesian controller at the measured tool pose without moving the scene.
 The original reset parcel's receipt immediately records a successful outcome for its
-reset row. Other receipts still earn rewards and increment delivery counters, but are not
+shared progress bucket. Other receipts still earn rewards and increment delivery counters, but are not
 attributed to the earlier reset state. A world reset before the original parcel's receipt records a
 failed row outcome; a later failure does not overwrite or duplicate an already recorded success.
 
 The reward remains sparse: a complete qualified receipt earns +10; failures and motion
 regularization retain their existing penalties. There are no reaching, lifting or goal-distance
-rewards. Reset-family success metrics separately expose outfeed transport, descent, carry and acquisition.
+rewards. Reset-family metrics separately expose placement, carry and acquisition; `descent_success_rate`
+tracks the harder half of the descent path, beyond the already release-ready starts.
 Training starts receive more practice when the policy has intermediate success, while
-every reset row remains eligible. Sampling history is local to each worker and restarts
+every progress bucket remains eligible. Sampling history is local to each worker and restarts
 when the environment is recreated. Training success from an easier reset is not an
 end-to-end pickup result. Evaluate separately from full belt starts and report correct-bin
 deliveries by size class, wrong-bin deliveries, drops, and complete twelve-parcel batches.

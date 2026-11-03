@@ -17,7 +17,7 @@ from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.utils import ResetStateSamplerCfg
-from isaaclab_tasks.utils.sampling import SamplerCfg, UniformSamplingStrategyCfg
+from isaaclab_tasks.utils.sampling import BetaSamplingStrategyCfg, SamplerCfg, UniformSamplingStrategyCfg
 
 from ..conveyor_franka.conveyor_franka_env_cfg import ConveyorForceCfg, ConveyorFrankaEnvCfg
 from ..conveyor_franka.mdp import action_term_l2, finite_action_rate_l2, finite_joint_velocity_l2
@@ -76,7 +76,20 @@ class ObservationsCfg:
 class EventsCfg:
     outfeed_layouts = EventTerm(func=mdp.initialize_outfeed_layouts, mode="prestartup")
     reset_parcels = EventTerm(
-        func=mdp.ResetParcels, mode="reset", params={"sampling": ResetStateSamplerCfg(), "full_starts": False}
+        func=mdp.ResetParcels,
+        mode="reset",
+        params={
+            "sampling": ResetStateSamplerCfg(
+                sampling=SamplerCfg(
+                    strategies=[
+                        BetaSamplingStrategyCfg(target=0.5, kappa=2.0),
+                        UniformSamplingStrategyCfg(weight=0.005),
+                    ],
+                    eps=1.0e-4,
+                )
+            ),
+            "full_starts": False,
+        },
     )
 
 

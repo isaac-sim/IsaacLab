@@ -18,9 +18,11 @@
   target lead, and normal arm velocity limits replace receipt-only throwing behavior.
   Earlier suction checkpoints require retraining for the changed observations and objective.
   Local carton and concrete textures, warehouse framing, racks, and a loading bay improve the scene.
-* Connected suction reset states through approach, acquisition, lift, transport, descent and released outfeed motion,
-  with shorter training attempts and reset-family success metrics; delivery rewards remain sparse.
+* Connected suction reset states through approach, acquisition, lift, transport and controlled descent.
+  Progress outcomes are shared across randomized physical states; passive outfeed starts are excluded from training.
+  Shorter training attempts and separate descent, carry and acquisition metrics expose backward curriculum progress;
+  delivery rewards remain sparse.
 * Varied training across sixteen coherent conveyor fixtures with matching goal, bin, and reset geometry.
-  Success-guided sampling tracks layout-specific reset rows while retaining sparse physical-delivery rewards.
+  Success-guided sampling tracks 49 shared progress buckets while retaining sparse physical-delivery rewards.
   The wider collision scan retains the 312-observation, four-action interface; playback keeps the original
-  five-lane fixture. Existing goal-conditioned suction policies can be fine-tuned for the changed input distribution.
+  five-lane fixture. The changed ray-grid semantics require matching observations when loading an earlier suction checkpoint.
