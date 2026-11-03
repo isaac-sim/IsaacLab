@@ -362,6 +362,8 @@ def test_cosmos_presets_accept_several_environments(task):
         (("env.scene.lazy_sensor_update=False",), "lazy_sensor_update"),
         (("renderer=ovrtx", "env.scene.tiled_camera.renderer_cfg.async_rendering=True"), "synchronous"),
         (("env.feature_extractor.image_update_frames=1",), "image_update_frames"),
+        # Staggered captures would pair a generated image with a later step's pose.
+        (("env.scene.num_envs=2", "env.scene.tiled_camera.update_period=0.1"), "capture every step"),
     ],
 )
 def test_cosmos_task_rejects_overrides_exceeding_service_limits_before_simulation(overrides, error):

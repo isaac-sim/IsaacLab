@@ -123,10 +123,18 @@ def test_several_services_split_the_environments_and_each_is_checked(monkeypatch
 
 
 def test_the_shadow_hand_preset_batches_several_environments_at_its_camera_rate():
-    """Several environments on the preset keep its camera rate; each environment's budget counts its own captures."""
+    """Several environments on the preset keep its camera rate; each environment's budget counts its own captures.
+
+    Without training, as in playback: training with several environments needs a capture every step.
+    """
     env_cfg = parse_env_cfg(
         SHADOW_HAND_TASK,
-        overrides=("presets=cosmos", "env.scene.num_envs=2", "env.scene.tiled_camera.update_period=0.1"),
+        overrides=(
+            "presets=cosmos",
+            "env.scene.num_envs=2",
+            "env.scene.tiled_camera.update_period=0.1",
+            "env.feature_extractor.train=False",
+        ),
     )
     env_cfg.validate()
 
