@@ -352,26 +352,25 @@ class NewtonManager(PhysicsManager):
     def invalidate_fk(
         self,
         env_mask: wp.array | None = None,
-        env_ids: wp.array | None = None,
         articulation_ids: wp.array | None = None,
+        *,
+        articulation_mask: wp.array | None = None,
+        consume_mask: bool = False,
     ) -> None:
-        """Mark environments as needing FK recomputation and solver reset; see :meth:`NewtonBackend.invalidate_fk`.
+        """Publish an authored-state change and schedule FK; see :meth:`NewtonBackend.invalidate_fk`.
 
-        Called by asset write methods that modify joint coordinates or root transforms. The masks are consumed by the
-        next forward, raw-state, rendering, or physics-step boundary.
+        Asset writers invalidate their own caches separately. Pending work is consumed at the next
+        forward, raw-state, rendering, or physics-step boundary.
         """
         self._mark_transforms_changed()
-        self.backend.invalidate_fk(env_mask, env_ids, articulation_ids)
+        self.backend.invalidate_fk(
+            env_mask, articulation_ids, articulation_mask=articulation_mask, consume_mask=consume_mask
+        )
 
-    def invalidate_body_state(
-        self, env_ids: wp.array(dtype=wp.int32) | None = None, env_mask: wp.array(dtype=wp.bool) | None = None
-    ) -> None:
-        """Mark selected maximal-coordinate body state as changed without requesting FK.
-
-        See :meth:`NewtonBackend.invalidate_body_state`.
-        """
+    def invalidate_body_state(self, env_mask: wp.array | None = None, *, consume_mask: bool = False) -> None:
+        """Publish directly authored body state; see :meth:`NewtonBackend.invalidate_body_state`."""
         self._mark_transforms_changed()
-        self.backend.invalidate_body_state(env_ids, env_mask)
+        self.backend.invalidate_body_state(env_mask, consume_mask=consume_mask)
 
     def _drain_stale_cuda_error(self) -> None:
         """Clear a stale CUDA error latched on the device before (re)initialization.
