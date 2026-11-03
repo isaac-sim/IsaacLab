@@ -249,7 +249,11 @@ class OVRTXBackend:
             self.population_env_paths: list[str] = []
             self.clone_positions: np.ndarray | None = None
         retained = OVRTXBackend._retained_config
-        if retained is not None and retained.enable_realtimepathtracing != native_cfg.enable_realtimepathtracing:
+        if retained is not None and (
+            retained.enable_minimal != native_cfg.enable_minimal
+            or retained.enable_realtimepathtracing != native_cfg.enable_realtimepathtracing
+            or retained.enable_pathtracing != native_cfg.enable_pathtracing
+        ):
             if OVRTXBackend._instances:
                 raise ValueError("Close all Isaac Lab OVRTX backends before changing startup render-mode availability.")
             # OVRTX retains shared graphics resources after the last renderer is destroyed.

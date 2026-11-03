@@ -142,7 +142,11 @@ def render_var_prim_paths_by_source(render_scope_name: str) -> Mapping[str, str]
 
 
 def get_render_mode(cfg: CameraCfg) -> str:
-    """Return the camera's RTX mode, including an explicit render-product override."""
+    """Return the camera's requested RTX render mode.
+
+    Simple-shading outputs default to Minimal; other outputs default to RT2. An explicit
+    ``omni:rtx:rendermode`` override takes precedence, including ``PathTracing`` for PT.
+    """
     default = (
         "Minimal" if any(data_type in _RTX_MINIMAL_MODES for data_type in cfg.data_types) else "RealTimePathTracing"
     )

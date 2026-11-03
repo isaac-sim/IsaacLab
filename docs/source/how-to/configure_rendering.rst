@@ -109,14 +109,15 @@ enables OVRTX's Minimal-only memory optimizations. To decide whether to disable 
 ``launch_simulation()`` checks all OVRTX sensor and viewer cameras, including any explicit
 ``omni:rtx:rendermode`` overrides. Mixed Minimal/RT2 workloads keep all modes available.
 
-Declare all cameras and viewers in the configuration passed to ``launch_simulation()``.
-Standalone renderer configurations without known cameras keep all modes available. Adding a
-non-Minimal camera after Minimal-only startup raises an error instead of silently rendering it
-in Minimal. Close the simulation and launch again with the complete configuration to change
-availability. Isaac Lab reuses retained native resources for unchanged availability; when it
-changes, Isaac Lab releases that retention and initializes the graphics resources again, after
-all its native OVRTX renderer instances have closed. Applications that create OVRTX instances
-outside Isaac Lab must also release those instances before changing availability.
+To enable this automatic memory optimization, include all cameras and viewers in the configuration
+passed to ``launch_simulation()``, with every OVRTX camera set to Minimal. Standalone OVRTX renderer
+configurations without known cameras keep all rendering modes enabled. Adding a non-Minimal camera
+after Minimal-only startup raises an error.
+
+To change the enabled rendering modes, close all simulations using OVRTX and any OVRTX renderer
+instances created outside Isaac Lab, then relaunch with the updated camera configuration.
+Isaac Lab automatically releases and recreates shared graphics resources when the rendering modes
+change; otherwise it reuses them.
 
 In RTX Minimal mode, :class:`~isaaclab_ov.renderers.OVRTXRendererCfg.enable_shadows` controls
 directional-light shadow rays. They improve visual faithfulness but cost render time. Path-traced

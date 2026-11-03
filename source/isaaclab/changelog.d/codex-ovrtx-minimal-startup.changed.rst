@@ -1,3 +1,3 @@
-* Selected Minimal-only OVRTX startup automatically when every configured OVRTX camera,
-  including viewer cameras and render-mode overrides, used Minimal rendering. Mixed workloads
-  retained all rendering modes.
+* Automatically disabled PT and RT2 at OVRTX startup when all configured OVRTX sensor and
+  viewer cameras requested Minimal rendering. Honored explicit render-mode overrides and kept
+  all rendering modes enabled for mixed workloads.

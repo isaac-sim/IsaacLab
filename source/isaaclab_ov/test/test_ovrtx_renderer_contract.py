@@ -323,7 +323,12 @@ def test_ovrtx_mode_changes_release_retention_after_last_backend(monkeypatch):
             None,
         )
         assert events[1][1] is release
-        assert events[2][1].enable_realtimepathtracing is (not minimal_only)
+        created = events[2][1]
+        assert (created.enable_minimal, created.enable_realtimepathtracing, created.enable_pathtracing) == (
+            True,
+            not minimal_only,
+            not minimal_only,
+        )
         backend.close()
 
 

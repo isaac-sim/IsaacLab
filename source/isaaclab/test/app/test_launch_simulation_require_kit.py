@@ -138,8 +138,12 @@ def test_kitless_ovrtx_registers_before_user_code(monkeypatch: pytest.MonkeyPatc
         ([], None, False, False),
     ],
 )
-def test_ovrtx_startup_availability_covers_every_camera(outputs, override, viewer, minimal_only):
-    """Startup restrictions account for separate renderers, viewer cameras, and authored overrides."""
+def test_ovrtx_disables_pt_and_rt2_only_for_all_minimal_cameras(outputs, override, viewer, minimal_only):
+    """Disable PT and RT2 at startup only when every configured OVRTX camera requests Minimal.
+
+    Check cameras across separate OVRTX renderer configurations, viewer cameras, and explicit
+    render-mode overrides. Keep all modes enabled when any camera needs PT/RT2 or no camera is known.
+    """
     from isaaclab.scene import InteractiveSceneCfg
 
     cfg = types.SimpleNamespace(
