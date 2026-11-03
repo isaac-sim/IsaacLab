@@ -56,7 +56,7 @@ def set_isaac_rtx_global_settings(renderer_cfg: Any, **settings: Any) -> None:
 class MultiBackendVisualizerCfg(PresetCfg):
     """Built-in visualizers selected with ``visualizer=NAME``; no viewer opens by default."""
 
-    is7: IS7BackendCfg = IS7BackendCfg()
+    isaac_sim: IS7BackendCfg = IS7BackendCfg()
     kit: KitBackendCfg = KitBackendCfg()
     newton_gl: NewtonGLBackendCfg = NewtonGLBackendCfg()
     newton_rtx: NewtonRTXBackendCfg = NewtonRTXBackendCfg()

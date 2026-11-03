@@ -3,7 +3,20 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Isaac Sim 7 viewer visualizer backend.
+"""Isaac Sim 7 viewer visualizer backend (prototype), selected with ``--viz isaac-sim``.
+
+In the default ``stage_mode="shared"``, one OVStage is the data layer for Isaac Lab and the Isaac Sim 7 viewer
+application. Isaac Lab owns its ordinals: it writes body poses and visualization markers, runs the host's
+participants, seals, and renders the viewer's render products with OVRTX. The host shows the frames with its stage
+tree, property and content panes.
+
+Prototype requirements, not yet captured by the package dependencies:
+
+* Isaac Sim 7 ``7.0.0a2.dev55385`` wheels (including ``isaacsim-rendering-ovgl`` and ``isaacsim-rendering-ovrtx``),
+  with ``ovstage==0.4.0.1793102128``, ``ovphysx==0.8.0.41080602166`` and ``ovrtx==0.7.0.dev1793102128`` from the
+  ``ct-omniverse-pypi-local`` index.
+* The ``sim_viewer`` application package from the Isaac Sim source tree on ``PYTHONPATH``.
+* A built ``sim_viewer`` client, given by :attr:`IS7BackendCfg.app_client_root` or ``ISAACLAB_IS7_APP_CLIENT_ROOT``.
 
 This package keeps imports lazy so configuration-only imports avoid pulling the
 Isaac Sim 7 libraries before they are needed.

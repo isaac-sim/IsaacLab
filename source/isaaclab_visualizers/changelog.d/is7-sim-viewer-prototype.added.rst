@@ -1,6 +1,6 @@
-* Added a prototype ``is7`` visualizer backend (:class:`~isaaclab_visualizers.is7.IS7BackendCfg`) that shows an
-  Isaac Lab simulation in the Isaac Sim 7 viewer application, with its stage tree, property and content panes.
-  Isaac Lab keeps its own physics; the viewer host renders an export of the authored stage. A pose engine registered
-  with the host writes Isaac Lab's body world matrices and a transform journal into the host's stage before each
-  rendered frame (``IS7BackendCfg.pose_transport``). Instanceable prims are expanded within
-  ``IS7BackendCfg.deinstance_max_points``, which makes per-frame pose updates about 2.6x faster on instanced assets.
+* Added a prototype ``isaac_sim`` visualizer backend (``--viz isaac-sim``, :class:`~isaaclab_visualizers.is7.IS7BackendCfg`)
+  that shows an Isaac Lab simulation in the Isaac Sim 7 viewer application, with its stage tree, property and content
+  panes. In the default ``stage_mode="shared"``, one OVStage is the data layer for Isaac Lab and the viewer: Isaac Lab
+  populates it through its clone plan, writes body poses and visualization markers at ordinals it owns, and renders the
+  viewer with OVRTX; the host reads the stage. ``stage_mode="export"`` instead renders an export of the authored stage
+  with OVGL and receives poses through ``IS7BackendCfg.pose_transport``.

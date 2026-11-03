@@ -9,20 +9,24 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import os
 import tempfile
 import time
 from pathlib import Path
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 import numpy as np
+import warp as wp
 
-from pxr import Usd, UsdGeom
+from pxr import Sdf, Usd, UsdGeom
 
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationContext
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, VisualizerCfg
 
+from .is7_shared_stage import Replication
 from .is7_stage import authored_scales
 from .is7_visualizer_cfg import IS7BackendCfg
 
@@ -30,6 +34,9 @@ if TYPE_CHECKING:
     from isaaclab.sensors.camera import Camera
 
 logger = logging.getLogger(__name__)
+
+_ENVS_ROOT = "/World/envs"
+"""Parent of Isaac Lab's cloned environments."""
 
 _POSE_ROOT = "/IsaacLabPoses"
 """Pseudo prim that keys Isaac Lab's queued pose writes, so a newer write replaces an unapplied one."""
@@ -51,12 +58,18 @@ class IS7Visualizer(BaseVisualizer):
         """
         super().__init__(cfg)
         self.backend_cfg: IS7BackendCfg = cfg.backend
+        if self.backend_cfg.app_client_root is None:
+            self.backend_cfg.app_client_root = os.environ.get("ISAACLAB_IS7_APP_CLIENT_ROOT")
         self._resources = contextlib.ExitStack()
         self._host = None
         self._desktop = None
         self._provider = None
         self._paths: list[str] = []
         self._slot = None
+        self._shared = None
+        self._shared_armed = False
+        self._markers = None
+        self._next_render = 0.0
         self._scales = None
         self._pose_output = SceneDataFormat.TransposedMatrix44d()
         self._timestamp = -1
@@ -100,7 +113,13 @@ class IS7Visualizer(BaseVisualizer):
         self._provider = sim.get_scene_data_provider()
         self._paths = list(self._provider.backend.transform_paths)
         self._scales = authored_scales(sim.stage, self._paths)
-        scene = self._export_scene(sim.stage)
+        started = time.perf_counter()
+        replication = None
+        if self.backend_cfg.stage_mode == "shared":
+            scene, replication = self._export_prototypes(sim)
+        else:
+            scene = self._export_scene(sim.stage)
+        self.timings["export"] = time.perf_counter() - started
         metadata = read_scene_metadata(scene)
         specs: list = []
         rate = RationalRate(int(self.cfg.window.fps))
@@ -111,7 +130,7 @@ class IS7Visualizer(BaseVisualizer):
         def extra_participants(wake):
             return ()
 
-        if self.backend_cfg.pose_transport == "participant":
+        if self.backend_cfg.stage_mode == "export" and self.backend_cfg.pose_transport == "participant":
             from sim_viewer.scene import PHYSICS_POSITION
 
             from isaacsim.application.host import NativeParticipant
@@ -125,16 +144,33 @@ class IS7Visualizer(BaseVisualizer):
             def extra_participants(wake):
                 return [NativeParticipant("isaaclab-poses", engine.participant(rate), PHYSICS_POSITION)]
 
+        open_world = make_physics_free_world_opener(specs, rate, renderer="ovgl", extra_participants=extra_participants)
+        renderer_name = "ovgl"
+        if self.backend_cfg.stage_mode == "shared":
+            from .is7_shared_world import SharedWorldOpener
+
+            device = sim.device
+            from .is7_shared_markers import SharedMarkers
+
+            self._markers = SharedMarkers()
+            self._shared = open_world = SharedWorldOpener(
+                scene,
+                specs,
+                rate,
+                device=int(device.split(":")[1]) if ":" in str(device) else 0,
+                replication=replication,
+            )
+            self._resources.callback(self._shared.close)
+            self.timings["shared_stage"] = time.perf_counter() - started - self.timings["export"]
+            renderer_name = "ovrtx"
         self._host = AppHost(
-            open_world=make_physics_free_world_opener(
-                specs, rate, renderer="ovgl", extra_participants=extra_participants
-            ),
+            open_world=open_world,
             scene=str(scene),
             viewports=specs,
             viewport_factory=lambda index: dynamic_viewport_spec(index, tuple(self.cfg.window.size)),
             encoder=FrameEncoder.create("auto"),
             presentation=self.backend_cfg.presentation,
-            renderer_name="ovgl",
+            renderer_name=renderer_name,
             hidden_roots=(CAMERA_SCOPE, RENDER_SCOPE),
             world_up=metadata.up_vector,
             host="127.0.0.1",
@@ -144,11 +180,14 @@ class IS7Visualizer(BaseVisualizer):
             stage_writes=True,
         )
         self._resources.callback(self._host.stop)
+        if self._shared is not None:
+            self._shared.on_frame = self._host.simulation.request_redraw
         if self._slot is not None:
             # A stopped host renders only on request, so each pose set that Isaac Lab hands over requests a frame.
             self._slot.wake = self._host.simulation.request_redraw
-        # The participant publishes the first poses when the host opens its world, so hand them over first.
-        self._publish_poses()
+        if self._shared is None:
+            # The participant publishes the first poses when the host opens its world, so hand them over first.
+            self._publish_poses()
         self._host.start()
         if not self.cfg.headless and self.backend_cfg.ui == "browser":
             self._log_viewer_url("IS7Visualizer", self.client_url)
@@ -177,6 +216,57 @@ class IS7Visualizer(BaseVisualizer):
             environment={"SIM_VIEWER_ATTACH_URL": self._host.url, "SIM_VIEWER_ATTACH_TOKEN": self._host.token},
         )
         self._resources.callback(self._desktop.close)
+
+    def _export_prototypes(self, sim: SimulationContext) -> tuple[Path, Replication | None]:
+        """Export each asset once; the environments are cloned and placed in the stage.
+
+        This is Isaac Lab's OVStage population path. With a clone plan, the copies follow it, so environments may hold
+        different assets. Without one, every environment receives a copy of the first environment's children.
+
+        Returns:
+            The exported scene and the replication that completes it, or ``None`` when the scene is exported whole.
+        """
+        from isaaclab_ov.stage import export_stage_to_string
+
+        stage = sim.stage
+        plan = sim.get_clone_plan()
+        if plan is not None and len(plan.topology.world_prototype_layout) > 1:
+            from isaaclab_ov.cloner.replicate import _prepare_scene_copies
+
+            prepared = SimpleNamespace()
+            _prepare_scene_copies(plan, tuple(range(plan.topology.num_asset_prototypes)), [prepared])
+            replication = Replication(prepared.clone_copies, prepared.clone_env_paths, prepared.clone_positions)
+            usd = export_stage_to_string(
+                stage,
+                prepared.clone_env_paths,
+                source_paths=tuple(source for source, _ in prepared.clone_copies),
+                keep_env_roots=False,
+                env_paths=prepared.population_env_paths,
+                preserve_references=True,
+            )
+        else:
+            envs = stage.GetPrimAtPath(_ENVS_ROOT)
+            env_paths = [child.GetPath().pathString for child in envs.GetChildren()] if envs else []
+            if len(env_paths) < 2:
+                return self._export_scene(stage), None
+            source = env_paths[0]
+            children = [child.GetName() for child in stage.GetPrimAtPath(source).GetChildren()]
+            copies = [(f"{source}/{name}", [f"{env}/{name}" for env in env_paths[1:]]) for name in children]
+            # Environment roots keep their authored transforms, so the copies land in place.
+            replication = Replication(copies, env_paths, None)
+            usd = export_stage_to_string(
+                stage, env_paths, tuple(source for source, _ in copies), keep_env_roots=True, preserve_references=True
+            )
+        layer = Sdf.Layer.CreateAnonymous(".usda")
+        layer.ImportFromString(usd)
+        exported = Usd.Stage.Open(layer)
+        for prim in exported.Traverse():
+            if not prim.GetTypeName():
+                prim.SetTypeName("Xform")
+        directory = Path(self._resources.enter_context(tempfile.TemporaryDirectory(prefix="isaaclab_is7_")))
+        scene = directory / "scene.usdc"
+        exported.Export(str(scene))
+        return scene, replication
 
     def _export_scene(self, stage: Usd.Stage) -> Path:
         """Write the authored stage to a temporary USD file that the host opens as its scene.
@@ -259,6 +349,47 @@ class IS7Visualizer(BaseVisualizer):
         self._timestamp = backend.transforms_timestamp
         return True
 
+    def _step_shared(self, dt: float) -> None:
+        """Write the latest poses into the shared stage, seal it and render, at most ``window.fps`` times a second.
+
+        Poses only matter when a frame renders, so steps between frames write nothing.
+        """
+        now = time.monotonic()
+        if now < self._next_render:
+            return
+        self._next_render = now + 1.0 / self.cfg.window.fps
+        if not self._provider.get_transforms(self._pose_output, allow_passthrough=True, scales=self._scales):
+            return
+        from isaaclab_ov.stage import xform_tensor_from_warp
+
+        matrices = self._pose_output.matrices
+        stream = wp.get_device(matrices.device).stream.cuda_stream or 1
+        paths = self._paths
+        time_ns = int(self._sim_time * 1e9)
+
+        first = not self._shared_armed
+        self._shared_armed = True
+
+        markers = self._markers if self.supports_markers() else None
+        registry = self._sim.vis_marker_registry if markers is not None else None
+
+        def write_state(stage):
+            if markers is not None:
+                markers.sync(stage, registry)
+            if first:
+                # Bodies carry world matrices: their local transform is their world transform.
+                stage.write(paths, "omni:resetXformStack", np.ones(len(paths), dtype=np.bool_))
+            # The stage's hierarchy derives world matrices from ``omni:xform`` when it seals, so poses go there. The
+            # matrices stay on the device; ovstage copies them in on the producing stream.
+            stage.write_device(paths, "omni:xform", xform_tensor_from_warp(matrices), stream)
+
+        self._shared.step(time_ns, int(dt * 1e9), write_state)
+        self.timings["renders"] = self._shared.renders
+
+    def supports_markers(self) -> bool:
+        """Return whether visualization markers are drawn: in the shared stage, when markers are enabled."""
+        return self.cfg.enable_markers and self.backend_cfg.stage_mode == "shared"
+
     def step(self, dt: float) -> None:
         """Queue this step's poses for the host.
 
@@ -269,7 +400,10 @@ class IS7Visualizer(BaseVisualizer):
             return
         self._sim_time += dt
         start = time.perf_counter()
-        self._publish_poses()
+        if self._shared is not None:
+            self._step_shared(dt)
+        else:
+            self._publish_poses()
         self.timings["publish"] += time.perf_counter() - start
         self.timings["steps"] += 1
 

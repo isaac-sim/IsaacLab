@@ -43,9 +43,9 @@ def "World"
 
 
 def test_is7_is_registered():
-    assert "is7" in VISUALIZER_TYPES
-    assert REQUIRES_STAGE_AND_MODEL["is7"] == (True, False)
-    assert IS7BackendCfg().visualizer_type == "is7"
+    assert "isaac_sim" in VISUALIZER_TYPES
+    assert REQUIRES_STAGE_AND_MODEL["isaac_sim"] == (True, False)
+    assert IS7BackendCfg().visualizer_type == "isaac_sim"
 
 
 @pytest.mark.parametrize(("max_points", "expanded"), [(9, True), (8, False)])

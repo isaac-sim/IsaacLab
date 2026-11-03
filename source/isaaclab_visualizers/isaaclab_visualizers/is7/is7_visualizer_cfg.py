@@ -29,7 +29,7 @@ class IS7BackendCfg(VisualizerBackendCfg):
     class_type: type[IS7Visualizer] | str = "{DIR}.is7_visualizer:IS7Visualizer"
     """Visualizer implementation class."""
 
-    visualizer_type: str = "is7"
+    visualizer_type: str = "isaac_sim"
     """Type identifier for the Isaac Sim 7 viewer."""
 
     cloning_contexts: ClassVar[tuple[type | str, ...]] = ("isaaclab.cloner:UsdReplicateContext",)
@@ -48,6 +48,16 @@ class IS7BackendCfg(VisualizerBackendCfg):
     port: int = 0
     """Port of the host's HTTP service; zero picks a free one."""
 
+    stage_mode: Literal["export", "shared"] = "shared"
+    """Which stage the viewer shows.
+
+    * ``"export"``: the host builds its own stage from an export of Isaac Lab's stage and renders it with OVGL; poses
+      reach it through :attr:`pose_transport`.
+    * ``"shared"``: one OVStage, created by the host's stage context and borrowed by Isaac Lab, is the data layer for
+      both. Isaac Lab owns its ordinals: it writes poses and the host's edits, seals, and renders the viewer's
+      render products with OVRTX at most ``window.fps`` times a second. The host runs without its orchestration.
+    """
+
     pose_transport: Literal["participant", "commands"] = "participant"
     """How Isaac Lab's body poses reach the host's stage.
 
@@ -60,7 +70,8 @@ class IS7BackendCfg(VisualizerBackendCfg):
     """Directory with the built ``sim_viewer`` application client: ``renderer/`` (``index.js``, ``manifest.js``)
     and, for ``ui="desktop"``, ``main.cjs``.
 
-    The renderer supplies the stage, property and content panes. ``None`` serves only the shared shell.
+    The renderer supplies the stage, property and content panes. ``None`` uses the ``ISAACLAB_IS7_APP_CLIENT_ROOT``
+    environment variable, or serves only the shared shell when it is unset.
     """
 
     deinstance_max_points: int = 5_000_000

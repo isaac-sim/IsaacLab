@@ -1,1 +1,1 @@
-* Added the ``is7`` option to the built-in ``visualizer`` preset.
+* Added the ``isaac_sim`` (``--viz isaac-sim``) option to the built-in ``visualizer`` preset.

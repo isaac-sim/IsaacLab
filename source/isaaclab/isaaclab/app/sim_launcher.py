@@ -198,7 +198,7 @@ def validate_launch(  # noqa: C901
         }
         physics = physics_options[launcher_args["physics"]]()
     visualizer_types = {
-        "is7": IS7BackendCfg,
+        "isaac_sim": IS7BackendCfg,
         "kit": KitBackendCfg,
         "newton_gl": NewtonGLBackendCfg,
         "newton_rtx": NewtonRTXBackendCfg,
@@ -216,6 +216,8 @@ def validate_launch(  # noqa: C901
                     FutureWarning,
                     stacklevel=3,
                 )
+        # Hyphens and underscores are interchangeable in names, e.g. ``--viz isaac-sim``.
+        selection = [name.replace("-", "_") for name in selection]
         selection = list(dict.fromkeys(VISUALIZER_ALIASES.get(name, name) for name in selection))
         if selection == ["none"]:
             selection = []
