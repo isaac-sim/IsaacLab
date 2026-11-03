@@ -736,9 +736,6 @@ class AnymalRenderingSceneCfg(RenderingSceneCfg):
 # 41 % (Endeavor) of pixels at the default limit, but on 5.3 % and 9.9 % at 30.
 _GAUSSIAN_SPLATS_RGB_PIXEL_L2_THRESHOLD = 30.0
 
-# Frames rendered before the capture so renderer-side splat sorting, stage streaming and exposure settle.
-_GAUSSIAN_SPLATS_WARMUP_STEPS = 200
-
 
 def _gaussian_splats_asset(asset: str) -> AssetBaseCfg:
     """Reference a Gaussian-splat asset (a path under ``ISAAC_NUCLEUS_DIR``) under each environment."""
@@ -893,6 +890,8 @@ def _turn_gaussian_splats_cameras(
     camera.set_world_poses(
         pivots + quat_apply(turns, positions - pivots), quat_mul(turns, orientations), convention="opengl"
     )
+    # Refresh the capture after changing poses at the same physics step.
+    runtime.render_camera()
 
 
 @dataclass(frozen=True)
@@ -954,7 +953,6 @@ def _make_gaussian_splats_spec(scene: str) -> RenderingSceneSpec:
         cfg=cfg,
         image_max_diff_pct=8.0,
         min_ssim=0.95,
-        steps_before_capture=_GAUSSIAN_SPLATS_WARMUP_STEPS,
         image_tolerance_overrides=overrides,
         pixel_l2_thresholds=pixel_l2_thresholds,
         on_scene_created=(
