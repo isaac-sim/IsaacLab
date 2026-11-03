@@ -43,8 +43,7 @@ class TestAsvComparison(unittest.TestCase):
         )
 
     def test_relative_regressions_and_improvement(self):
-        # Three baseline samples exercise the CI fallback; twenty permit ASV's
-        # Mann–Whitney test. FPS equality also checks the threshold factor.
+        # Three baseline samples exercise the CI fallback; twenty permit Mann–Whitney testing.
         for count in (3, 20):
             for fps, expected in (
                 (100, compare.PASS),
@@ -192,11 +191,13 @@ class TestContracts(unittest.TestCase):
         }
         config = bundle["run"]["config"]
         legacy = build(bundle)
+        self.assertEqual(legacy.hash, "9138656bb16b2861")
         config["physics_solvers"] = ["newton_mjwarp"]
         config["physics_coupling"] = None
         self.assertEqual(build(bundle), legacy)
         config.update(physics_solvers=["newton_vbd", "newton_mjwarp", "newton_vbd"], physics_coupling="proxy")
         proxy = build(bundle)
+        self.assertEqual(proxy.hash, "74606f4967b8b0ba")
         self.assertNotEqual(proxy, legacy)
         config["physics_solvers"] = ["newton_mjwarp", "newton_vbd"]
         self.assertEqual(build(bundle), proxy)
