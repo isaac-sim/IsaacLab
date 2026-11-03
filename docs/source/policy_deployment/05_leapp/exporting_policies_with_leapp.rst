@@ -47,7 +47,7 @@ Supported Workflows
 Prerequisites
 -------------
 
-This export flow requires ``leapp``, Python >= 3.10, and PyTorch >= 2.6.
+This export flow requires ``leapp==0.8.0``, Python >= 3.10, and PyTorch >= 2.7.
 ``leapp`` is a specialized optional extra (it is not part of ``--extra all``).
 
 Select extras the same way as ``isaaclab train``: add ``--extra leapp`` on every
@@ -96,6 +96,27 @@ checkpoint (or at a custom path). The directory contains:
 
 The exported artifact encapsulates the policy and all observation preprocessing and action
 postprocessing performed in Isaac Lab, so deployment frameworks do not need to replicate that logic.
+
+Tensor metadata uses LEAPP's ``Kind`` and ``Axis`` API. Joint names label an
+``element`` axis; spatial coordinates label a ``component`` axis. Batch dimensions
+remain unspecified. Desired command inputs use ``is_setpoint: true``. Body-frame
+velocities and accelerations record their expression frame under ``spatial``.
+Per-body COM offsets and source-relative frame-transformer tensors retain custom
+kinds because their reference varies by element or depends on the sensor source.
+The deployment command reads these axes and also accepts existing bundles with
+legacy ``element_names`` metadata. External consumers must read ``axes`` when
+loading a newly exported bundle.
+
+Export sessions install ``FunctionPatch`` adapters for RGB normalization and
+quaternion rotation. RGB normalization uses Torch operations while the original
+camera observation handles layout, stacking, and destination writes. Quaternion
+adapters preserve broadcasting without LEAPP 0.8.0's ``broadcast_tensors`` lowering
+failure. LEAPP restores the original functions when capture ends.
+
+History buffers, last actions, EMA targets, and recurrent policies still require
+explicit feedback state. The history adapter also preserves reset backfill:
+LEAPP 0.8.0 does not capture the buffer's ``torch.where(..., out=buffer)`` update
+correctly. Ordinary action-buffer writes are traced directly.
 
 For a detailed description of LEAPP's generated artifacts and APIs, refer to the
 `LEAPP documentation <https://nvidia-isaac.github.io/leapp/>`_.

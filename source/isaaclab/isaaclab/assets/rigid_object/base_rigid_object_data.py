@@ -13,7 +13,8 @@ from ...utils.leapp import (
     POSE7_ELEMENT_NAMES,
     QUAT_XYZW_ELEMENT_NAMES,
     XYZ_ELEMENT_NAMES,
-    InputKindEnum,
+    ExpressionFrame,
+    Kind,
     body_pose6_resolver,
     body_pose_resolver,
     body_quat_resolver,
@@ -141,7 +142,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names=POSE7_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSE, element_names=POSE7_ELEMENT_NAMES)
     def root_link_pose_w(self) -> ProxyArray:
         """Root link pose ``[pos, quat]`` in simulation world frame.
 
@@ -154,7 +155,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names=POSE6_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.FRAME_TWIST, element_names=POSE6_ELEMENT_NAMES)
     def root_link_vel_w(self) -> ProxyArray:
         """Root link velocity ``[lin_vel, ang_vel]`` in simulation world frame.
 
@@ -167,7 +168,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names=POSE7_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSE, element_names=POSE7_ELEMENT_NAMES)
     def root_com_pose_w(self) -> ProxyArray:
         """Root center of mass pose ``[pos, quat]`` in simulation world frame.
 
@@ -180,7 +181,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names=POSE6_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.FRAME_TWIST, element_names=POSE6_ELEMENT_NAMES)
     def root_com_vel_w(self) -> ProxyArray:
         """Root center of mass velocity ``[lin_vel, ang_vel]`` in simulation world frame.
 
@@ -218,7 +219,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names_resolver=body_pose_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSE, element_names_resolver=body_pose_resolver)
     def body_link_pose_w(self) -> ProxyArray:
         """Body link pose ``[pos, quat]`` in simulation world frame.
 
@@ -232,7 +233,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names_resolver=body_pose6_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_TWIST, element_names_resolver=body_pose6_resolver)
     def body_link_vel_w(self) -> ProxyArray:
         """Body link velocity ``[lin_vel, ang_vel]`` in simulation world frame.
 
@@ -246,7 +247,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names_resolver=body_pose_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSE, element_names_resolver=body_pose_resolver)
     def body_com_pose_w(self) -> ProxyArray:
         """Body center of mass pose ``[pos, quat]`` in simulation world frame.
 
@@ -260,7 +261,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names_resolver=body_pose6_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_TWIST, element_names_resolver=body_pose6_resolver)
     def body_com_vel_w(self) -> ProxyArray:
         """Body center of mass velocity ``[lin_vel, ang_vel]`` in simulation world frame.
 
@@ -295,7 +296,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ACC, element_names_resolver=body_pose6_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_ACCELERATION, element_names_resolver=body_pose6_resolver)
     def body_com_acc_w(self) -> ProxyArray:
         """Acceleration of all bodies ``[lin_acc, ang_acc]`` in the simulation world frame.
 
@@ -308,7 +309,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names_resolver=body_pose_resolver)
+    @leapp_tensor_semantics(kind="state/body/com_pose_b", element_names_resolver=body_pose_resolver)
     def body_com_pose_b(self) -> ProxyArray:
         """Center of mass pose ``[pos, quat]`` of all bodies in their respective body's link frames.
 
@@ -352,7 +353,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
     def projected_gravity_b(self) -> ProxyArray:
         """Projection of the gravity direction on base frame.
 
@@ -376,7 +377,9 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(
+        kind=Kind.FRAME_LINEAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES, expressed_in=ExpressionFrame.SELF
+    )
     def root_link_lin_vel_b(self) -> ProxyArray:
         """Root link linear velocity in base frame.
 
@@ -389,7 +392,9 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(
+        kind=Kind.FRAME_ANGULAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES, expressed_in=ExpressionFrame.SELF
+    )
     def root_link_ang_vel_b(self) -> ProxyArray:
         """Root link angular velocity in base frame.
 
@@ -402,7 +407,9 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(
+        kind=Kind.FRAME_LINEAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES, expressed_in=ExpressionFrame.SELF
+    )
     def root_com_lin_vel_b(self) -> ProxyArray:
         """Root center of mass linear velocity in base frame.
 
@@ -415,7 +422,9 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(
+        kind=Kind.FRAME_ANGULAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES, expressed_in=ExpressionFrame.SELF
+    )
     def root_com_ang_vel_b(self) -> ProxyArray:
         """Root center of mass angular velocity in base frame.
 
@@ -432,7 +441,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSITION, element_names=XYZ_ELEMENT_NAMES)
     def root_link_pos_w(self) -> ProxyArray:
         """Root link position in simulation world frame.
 
@@ -444,7 +453,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names=QUAT_XYZW_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.FRAME_ORIENTATION, element_names=QUAT_XYZW_ELEMENT_NAMES)
     def root_link_quat_w(self) -> ProxyArray:
         """Root link orientation (x, y, z, w) in simulation world frame.
 
@@ -456,7 +465,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.FRAME_LINEAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
     def root_link_lin_vel_w(self) -> ProxyArray:
         """Root linear velocity in simulation world frame.
 
@@ -468,7 +477,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.FRAME_ANGULAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
     def root_link_ang_vel_w(self) -> ProxyArray:
         """Root link angular velocity in simulation world frame.
 
@@ -480,7 +489,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSITION, element_names=XYZ_ELEMENT_NAMES)
     def root_com_pos_w(self) -> ProxyArray:
         """Root center of mass position in simulation world frame.
 
@@ -492,7 +501,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names=QUAT_XYZW_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.FRAME_ORIENTATION, element_names=QUAT_XYZW_ELEMENT_NAMES)
     def root_com_quat_w(self) -> ProxyArray:
         """Root center of mass orientation (x, y, z, w) in simulation world frame.
 
@@ -504,7 +513,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.FRAME_LINEAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
     def root_com_lin_vel_w(self) -> ProxyArray:
         """Root center of mass linear velocity in simulation world frame.
 
@@ -516,7 +525,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.FRAME_ANGULAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
     def root_com_ang_vel_w(self) -> ProxyArray:
         """Root center of mass angular velocity in simulation world frame.
 
@@ -528,7 +537,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_resolver=body_xyz_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSITION, element_names_resolver=body_xyz_resolver)
     def body_link_pos_w(self) -> ProxyArray:
         """Positions of all bodies in simulation world frame.
 
@@ -540,7 +549,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_resolver=body_quat_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_ORIENTATION, element_names_resolver=body_quat_resolver)
     def body_link_quat_w(self) -> ProxyArray:
         """Orientation (x, y, z, w) of all bodies in simulation world frame.
 
@@ -552,7 +561,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names_resolver=body_xyz_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_LINEAR_VELOCITY, element_names_resolver=body_xyz_resolver)
     def body_link_lin_vel_w(self) -> ProxyArray:
         """Linear velocity of all bodies in simulation world frame.
 
@@ -564,7 +573,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names_resolver=body_xyz_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_ANGULAR_VELOCITY, element_names_resolver=body_xyz_resolver)
     def body_link_ang_vel_w(self) -> ProxyArray:
         """Angular velocity of all bodies in simulation world frame.
 
@@ -576,7 +585,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_resolver=body_xyz_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSITION, element_names_resolver=body_xyz_resolver)
     def body_com_pos_w(self) -> ProxyArray:
         """Positions of all bodies' center of mass in simulation world frame.
 
@@ -588,7 +597,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_resolver=body_quat_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_ORIENTATION, element_names_resolver=body_quat_resolver)
     def body_com_quat_w(self) -> ProxyArray:
         """Orientation (x, y, z, w) of the principal axes of inertia of all bodies in simulation world frame.
 
@@ -600,7 +609,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names_resolver=body_xyz_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_LINEAR_VELOCITY, element_names_resolver=body_xyz_resolver)
     def body_com_lin_vel_w(self) -> ProxyArray:
         """Linear velocity of all bodies in simulation world frame.
 
@@ -612,7 +621,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names_resolver=body_xyz_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_ANGULAR_VELOCITY, element_names_resolver=body_xyz_resolver)
     def body_com_ang_vel_w(self) -> ProxyArray:
         """Angular velocity of all bodies in simulation world frame.
 
@@ -624,7 +633,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_ACCELERATION, element_names_resolver=body_xyz_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_LINEAR_ACCELERATION, element_names_resolver=body_xyz_resolver)
     def body_com_lin_acc_w(self) -> ProxyArray:
         """Linear acceleration of all bodies in simulation world frame.
 
@@ -636,7 +645,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_ACCELERATION, element_names_resolver=body_xyz_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_ANGULAR_ACCELERATION, element_names_resolver=body_xyz_resolver)
     def body_com_ang_acc_w(self) -> ProxyArray:
         """Angular acceleration of all bodies in simulation world frame.
 
@@ -648,7 +657,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_resolver=body_xyz_resolver)
+    @leapp_tensor_semantics(kind="state/body/com_position_b", element_names_resolver=body_xyz_resolver)
     def body_com_pos_b(self) -> ProxyArray:
         """Center of mass position of all of the bodies in their respective link frames.
 
@@ -660,7 +669,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_resolver=body_quat_resolver)
+    @leapp_tensor_semantics(kind="state/body/com_orientation_b", element_names_resolver=body_quat_resolver)
     def body_com_quat_b(self) -> ProxyArray:
         """Orientation (x, y, z, w) of the principal axes of inertia of all of the bodies in their
         respective link frames.
@@ -682,115 +691,119 @@ class BaseRigidObjectData(ABC):
     """
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names=POSE7_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSE, element_names=POSE7_ELEMENT_NAMES)
     def root_pose_w(self) -> ProxyArray:
         """Shorthand for :attr:`root_link_pose_w`."""
         return self.root_link_pose_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSITION, element_names=XYZ_ELEMENT_NAMES)
     def root_pos_w(self) -> ProxyArray:
         """Shorthand for :attr:`root_link_pos_w`."""
         return self.root_link_pos_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names=QUAT_XYZW_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.FRAME_ORIENTATION, element_names=QUAT_XYZW_ELEMENT_NAMES)
     def root_quat_w(self) -> ProxyArray:
         """Shorthand for :attr:`root_link_quat_w`."""
         return self.root_link_quat_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names=POSE6_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.FRAME_TWIST, element_names=POSE6_ELEMENT_NAMES)
     def root_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`root_com_vel_w`."""
         return self.root_com_vel_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.FRAME_LINEAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
     def root_lin_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`root_com_lin_vel_w`."""
         return self.root_com_lin_vel_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.FRAME_ANGULAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
     def root_ang_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`root_com_ang_vel_w`."""
         return self.root_com_ang_vel_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(
+        kind=Kind.FRAME_LINEAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES, expressed_in=ExpressionFrame.SELF
+    )
     def root_lin_vel_b(self) -> ProxyArray:
         """Shorthand for :attr:`root_com_lin_vel_b`."""
         return self.root_com_lin_vel_b
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(
+        kind=Kind.FRAME_ANGULAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES, expressed_in=ExpressionFrame.SELF
+    )
     def root_ang_vel_b(self) -> ProxyArray:
         """Shorthand for :attr:`root_com_ang_vel_b`."""
         return self.root_com_ang_vel_b
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names_resolver=body_pose_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSE, element_names_resolver=body_pose_resolver)
     def body_pose_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_link_pose_w`."""
         return self.body_link_pose_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_resolver=body_xyz_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSITION, element_names_resolver=body_xyz_resolver)
     def body_pos_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_link_pos_w`."""
         return self.body_link_pos_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_resolver=body_quat_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_ORIENTATION, element_names_resolver=body_quat_resolver)
     def body_quat_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_link_quat_w`."""
         return self.body_link_quat_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names_resolver=body_pose6_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_TWIST, element_names_resolver=body_pose6_resolver)
     def body_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_vel_w`."""
         return self.body_com_vel_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names_resolver=body_xyz_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_LINEAR_VELOCITY, element_names_resolver=body_xyz_resolver)
     def body_lin_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_lin_vel_w`."""
         return self.body_com_lin_vel_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names_resolver=body_xyz_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_ANGULAR_VELOCITY, element_names_resolver=body_xyz_resolver)
     def body_ang_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_ang_vel_w`."""
         return self.body_com_ang_vel_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ACC, element_names_resolver=body_pose6_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_ACCELERATION, element_names_resolver=body_pose6_resolver)
     def body_acc_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_acc_w`."""
         return self.body_com_acc_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_ACCELERATION, element_names_resolver=body_xyz_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_LINEAR_ACCELERATION, element_names_resolver=body_xyz_resolver)
     def body_lin_acc_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_lin_acc_w`."""
         return self.body_com_lin_acc_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_ACCELERATION, element_names_resolver=body_xyz_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_ANGULAR_ACCELERATION, element_names_resolver=body_xyz_resolver)
     def body_ang_acc_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_ang_acc_w`."""
         return self.body_com_ang_acc_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_resolver=body_xyz_resolver)
+    @leapp_tensor_semantics(kind="state/body/com_position_b", element_names_resolver=body_xyz_resolver)
     def com_pos_b(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_pos_b`."""
         return self.body_com_pos_b
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_resolver=body_quat_resolver)
+    @leapp_tensor_semantics(kind="state/body/com_orientation_b", element_names_resolver=body_quat_resolver)
     def com_quat_b(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_quat_b`."""
         return self.body_com_quat_b

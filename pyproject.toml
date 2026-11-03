@@ -217,7 +217,7 @@ rlinf = [
     "pandas",
 ]
 leapp = [
-    "leapp==0.7.2",
+    "leapp==0.8.0",
 ]
 all = [
     "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,viser,rerun,ov]",
