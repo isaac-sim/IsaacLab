@@ -137,6 +137,8 @@ class SuctionSortingEnvCfg(ConveyorFrankaEnvCfg):
 
     def __post_init__(self) -> None:
         super().__post_init__()
+        # Match moving-parcel resets at operating speed after full and partial resets.
+        self.conveyor_force.startup_duration_s = self.sim.dt
         self.scene.robot.spawn.func = spawn_suction_franka
         self.scene.robot.spawn.variants = {"Physics": "mujoco", "Colliders": "primitives"}
         self.scene.robot.spawn.articulation_props = NewtonArticulationCfg(self_collision_enabled=False)

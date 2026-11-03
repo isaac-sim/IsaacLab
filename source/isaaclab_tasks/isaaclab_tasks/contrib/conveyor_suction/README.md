@@ -34,7 +34,9 @@ PPO collects 128 steps per environment per update with discount 0.999 and GAE la
 Training practices one assignment per episode: its first verified receipt ends the episode successfully,
 and missing the assigned pickup fails the attempt. Playback uses the original five-lane fixture and
 240-second episodes, continuing to another parcel after each controlled placement. Each verified
-delivery counts as a success. Reliable learning from scratch has not yet been validated.
+delivery counts as a success. Evaluate checkpoints from full starts; curriculum success rates alone
+do not establish end-to-end performance. Conveyors reach operating speed within one physics step
+to match ongoing training resets.
 
 ```bash
 uv run isaaclab train --task IsaacContrib-Conveyor-Suction-Sorting \
