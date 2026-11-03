@@ -12,6 +12,7 @@ The following configurations are available:
 * :obj:`UNITREE_GO2_CFG`: Unitree Go2 robot with DC motor model for the legs
 * :obj:`H1_CFG`: H1 humanoid robot
 * :obj:`H1_MINIMAL_CFG`: H1 humanoid robot with minimal collision bodies
+* :obj:`H2_CFG`: H2 humanoid robot with 31 actuated joints
 * :obj:`G1_CFG`: G1 humanoid robot
 * :obj:`G1_MINIMAL_CFG`: G1 humanoid robot with minimal collision bodies
 * :obj:`G1_29DOF_CFG`: G1 humanoid robot configured for locomanipulation tasks
@@ -289,6 +290,87 @@ H1_MINIMAL_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/H1/h1_mi
 
 This configuration removes most collision meshes to speed up simulation.
 """
+
+
+H2_CFG = ArticulationCfg(
+    spawn=sim_utils.UsdFileCfg(
+        usd_path=(
+            "https://media.githubusercontent.com/media/unitreerobotics/unitree_model/"
+            "b6a8942b0803b6c137e58cef12beb4b03e4a2fa7/H2/H2_dae.usd"
+        ),
+        activate_contact_sensors=True,
+        variants={"Sensor": "None"},
+        rigid_props=PhysxRigidBodyCfg(
+            disable_gravity=False,
+            retain_accelerations=False,
+            linear_damping=0.0,
+            angular_damping=0.0,
+            max_linear_velocity=1000.0,
+            max_angular_velocity=1000.0,
+            max_depenetration_velocity=1.0,
+        ),
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=False, solver_position_iteration_count=8, solver_velocity_iteration_count=4
+            ),
+            NewtonArticulationCfg(self_collision_enabled=False),
+        ],
+    ),
+    init_state=ArticulationCfg.InitialStateCfg(
+        pos=(0.0, 0.0, 1.0),
+        joint_pos={
+            ".*_hip_pitch_joint": -0.312,
+            ".*_knee_joint": 0.669,
+            ".*_ankle_pitch_joint": -0.363,
+            ".*_elbow_joint": 0.6,
+            ".*_shoulder_pitch_joint": 0.2,
+            "left_shoulder_roll_joint": 0.2,
+            "right_shoulder_roll_joint": -0.2,
+        },
+        joint_vel={".*": 0.0},
+    ),
+    soft_joint_pos_limit_factor=0.9,
+    # Keep the effort and velocity limits authored in the official asset.
+    actuators={
+        "legs": ImplicitActuatorCfg(
+            joint_names_expr=[".*_hip_.*", ".*_knee_joint"],
+            stiffness=200.0,
+            damping=5.0,
+            armature=0.05,
+        ),
+        "feet": ImplicitActuatorCfg(
+            joint_names_expr=[".*_ankle_.*"],
+            stiffness=50.0,
+            damping=2.0,
+            armature=0.02,
+        ),
+        "waist": ImplicitActuatorCfg(
+            joint_names_expr=["waist_.*"],
+            stiffness=200.0,
+            damping=5.0,
+            armature=0.05,
+        ),
+        "arms": ImplicitActuatorCfg(
+            joint_names_expr=[".*_shoulder_.*", ".*_elbow_joint"],
+            stiffness=40.0,
+            damping=2.0,
+            armature=0.01,
+        ),
+        "wrists": ImplicitActuatorCfg(
+            joint_names_expr=[".*_wrist_.*"],
+            stiffness=10.0,
+            damping=0.5,
+            armature=0.005,
+        ),
+        "head": ImplicitActuatorCfg(
+            joint_names_expr=["head_.*"],
+            stiffness=20.0,
+            damping=1.0,
+            armature=0.01,
+        ),
+    },
+)
+"""Configuration for the Unitree H2 humanoid using the official 31-DOF USD asset."""
 
 
 G1_CFG = ArticulationCfg(
