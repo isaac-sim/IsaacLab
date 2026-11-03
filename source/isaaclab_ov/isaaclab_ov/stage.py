@@ -34,6 +34,15 @@ OVSTAGE_XFORM_DTYPE = ovstage.DLDataType(code=ovstage.DLDataTypeCode.kDLFloat, b
 OVSTAGE_POINT_DTYPE = ovstage.DLDataType(code=ovstage.DLDataTypeCode.kDLFloat, bits=32, lanes=3)
 
 
+def _handle_raw_id(handle: object) -> int:
+    """Return a numeric ID from an OVStage integer or typed token/path handle.
+
+    OVStage 0.4 handles reject implicit integer conversion. Extract the ID only at
+    numeric buffer boundaries; native OVStage calls should retain typed handles.
+    """
+    return getattr(handle, "raw_id", handle)
+
+
 def create_ovstage(name: str) -> ovstage.Stage:
     """Create an ovstage stage using Isaac Lab's process-wide stage configuration.
 

@@ -94,6 +94,12 @@ def test_benchmark_cancellation(tmp_path: Path) -> None:
     )
     step_script = tmp_path / "workflow-step.sh"
     step_script.write_text(command, encoding="utf-8")
+    scripts = tmp_path / "tools/performance_regression"
+    scripts.mkdir(parents=True)
+    (scripts / "run_benchmarks.sh").write_bytes(
+        (_WORKFLOW.parents[2] / "tools/performance_regression/run_benchmarks.sh").read_bytes()
+    )
+    (scripts / "source_revision.py").write_text("", encoding="utf-8")
     (tmp_path / "benchmark-legs.tsv").write_text("fixture|Fixture-Task|1|600|\n", encoding="utf-8")
     executables = tmp_path / "bin"
     executables.mkdir()
@@ -111,6 +117,11 @@ def test_benchmark_cancellation(tmp_path: Path) -> None:
             workspace = Path(os.environ["GITHUB_WORKSPACE"])
             marker = workspace / "running-container"
             if sys.argv[1] == "run" and "--name" in sys.argv:
+                required_mount = f"{workspace}/source:/workspace/isaaclab/source:rw"
+                assert any(
+                    option == "-v" and value == required_mount
+                    for option, value in zip(sys.argv[1:], sys.argv[2:])
+                ), f"Benchmark must mount the selected checkout source: {required_mount}"
                 name = sys.argv[sys.argv.index("--name") + 1]
                 marker.write_text(name, encoding="utf-8")
                 print(json.dumps({"pid": os.getpid()}), flush=True)

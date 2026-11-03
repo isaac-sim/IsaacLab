@@ -156,7 +156,7 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     """Build the argument parser for every subcommand."""
-    parser = argparse.ArgumentParser(prog="perf_smoke", description=__doc__)
+    parser = argparse.ArgumentParser(prog="performance_regression", description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     compare_parser = subparsers.add_parser("compare", help="compare a benchmark against the baseline store")
