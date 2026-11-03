@@ -23,6 +23,21 @@ if TYPE_CHECKING:
     from isaaclab.sensors import ContactSensor
 
 
+def feet_lateral_distance_l2(env: ManagerBasedRLEnv, target_distance: float, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Penalize squared error from the desired signed lateral foot separation [m^2].
+
+    ``asset_cfg`` must select exactly two feet in left-to-right order. Separation is measured
+    in the root's yaw frame against ``target_distance`` [m], leaving forward stride and
+    terrain-dependent foot heights unconstrained. Crossed feet have negative separation.
+    """
+    asset: Articulation = env.scene[asset_cfg.name]
+    foot_pos = asset.data.body_link_pos_w.torch[:, asset_cfg.body_ids, :]
+    if foot_pos.shape[1] != 2:
+        raise RuntimeError("'feet_lateral_distance_l2' requires exactly two feet in left-to-right order.")
+    separation = quat_apply_inverse(yaw_quat(asset.data.root_quat_w.torch), foot_pos[:, 0] - foot_pos[:, 1])
+    return torch.square(separation[:, 1] - target_distance)
+
+
 def feet_air_time(
     env: ManagerBasedRLEnv, command_name: str, sensor_cfg: SceneEntityCfg, threshold: float
 ) -> torch.Tensor:
@@ -46,12 +61,20 @@ def feet_air_time(
 
 
 def feet_air_time_positive_biped(
-    env: ManagerBasedRLEnv, command_name: str, threshold: float, sensor_cfg: SceneEntityCfg
+    env: ManagerBasedRLEnv,
+    command_name: str,
+    threshold: float,
+    sensor_cfg: SceneEntityCfg,
+    overstay_scale: float = 0.0,
 ) -> torch.Tensor:
     """Reward long steps taken by the feet for bipeds.
 
     This function rewards the agent for taking steps up to a specified threshold and also keep one foot at
     a time in the air.
+
+    A positive ``overstay_scale`` subtracts the total ongoing air time beyond ``threshold``.
+    This cost also applies during double flight and can make the reward negative. Its default
+    of zero preserves the positive-only reward.
 
     If the commands are small (i.e. the agent is not supposed to take a step), then the reward is zero.
     """
@@ -64,9 +87,22 @@ def feet_air_time_positive_biped(
     single_stance = torch.sum(in_contact.int(), dim=1) == 1
     reward = torch.min(torch.where(single_stance.unsqueeze(-1), in_mode_time, 0.0), dim=1)[0]
     reward = torch.clamp(reward, max=threshold)
+    if overstay_scale > 0.0:
+        reward -= overstay_scale * (air_time - threshold).clamp(min=0.0).sum(dim=1)
     # no reward for zero command
     reward *= torch.linalg.norm(env.command_manager.get_command(command_name)[:, :2], dim=1) > 0.1
     return reward
+
+
+def feet_flight(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Penalize simultaneous flight of all selected feet.
+
+    Unlike swing-duration rewards, this term also penalizes hopping in place. The contact
+    sensor must track air time, and ``sensor_cfg`` must select the robot's feet.
+    """
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    air_time = contact_sensor.data.current_air_time.torch[:, sensor_cfg.body_ids]
+    return torch.all(air_time > 0.0, dim=1).float()
 
 
 def feet_air_time_variance(
@@ -216,3 +252,86 @@ def feet_support_edge_distance(env, sensor_cfg, asset_cfg, sole_size, sole_offse
     distance = sole_edge_distances(points, mesh).mean(-1)
     contact = sensor.data.net_forces_w.torch[:, sensor_cfg.body_ids].norm(dim=-1) > 20.0
     return (distance * contact).sum(-1)
+
+
+def stance_knee_flexion_l2(
+    env: ManagerBasedRLEnv,
+    command_name: str,
+    asset_cfg: SceneEntityCfg,
+    sensor_cfg: SceneEntityCfg,
+    terrain_cfg: SceneEntityCfg | None,
+    max_flexion: float = 0.35,
+    contact_delay: float = 0.08,
+    terrain_radius: float = 0.35,
+    relief_range: tuple[float, float] = (0.02, 0.12),
+    standing_scale: float = 0.0,
+    standing_max_flexion: float | None = None,
+) -> torch.Tensor:
+    """Penalize excessive knee flexion during established stance on locally level ground.
+
+    Knee joints and contact bodies must be ordered identically. ``max_flexion`` [rad]
+    leaves a soft knee; ``contact_delay`` [s] allows landing absorption. Terrain relief
+    within ``terrain_radius`` [m] fades the penalty between ``relief_range`` [m].
+    Fewer than three valid local hits disables it. Swing knees remain unconstrained.
+    ``standing_scale`` applies a fraction of this cost when translation and yaw commands are small.
+    ``standing_max_flexion`` optionally sets a separate threshold [rad] for these commands.
+    """
+    asset = env.scene[asset_cfg.name]
+    contact_time = env.scene[sensor_cfg.name].data.current_contact_time.torch[:, sensor_cfg.body_ids]
+    stance = contact_time > contact_delay
+    flexion = asset.data.joint_pos.torch[:, asset_cfg.joint_ids]
+    command = env.command_manager.get_command(command_name)
+    walking = command[:, :2].norm(dim=1) > 0.1
+    stationary = (command[:, :2].norm(dim=1) < 0.1) & (command[:, 2].abs() < 0.15)
+    threshold = max_flexion
+    if standing_max_flexion is not None:
+        threshold = torch.where(stationary, standing_max_flexion, max_flexion).unsqueeze(1)
+    cost = (torch.clamp(flexion - threshold, min=0.0).square() * stance).sum(dim=1)
+    cost = cost / stance.sum(dim=1).clamp(min=1)
+
+    terrain_weight = 1.0
+    if terrain_cfg is not None:
+        hits = env.scene[terrain_cfg.name].data.ray_hits_w.torch
+        distance = (hits[..., :2] - asset.data.root_pos_w.torch[:, None, :2]).square().sum(dim=-1)
+        valid = torch.isfinite(hits).all(dim=-1) & (distance <= terrain_radius**2)
+        highest = torch.where(valid, hits[..., 2], -torch.inf).amax(dim=1)
+        lowest = torch.where(valid, hits[..., 2], torch.inf).amin(dim=1)
+        relief = highest - lowest
+        terrain_weight = ((relief_range[1] - relief) / (relief_range[1] - relief_range[0])).clamp(0.0, 1.0)
+        terrain_weight = torch.where(valid.sum(dim=1) >= 3, terrain_weight, 0.0)
+    return cost * terrain_weight * torch.where(stationary, standing_scale, walking.float())
+
+
+def walking_yaw_momentum_l2(
+    env: ManagerBasedRLEnv,
+    command_name: str,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    turn_std: float = 0.3,
+) -> torch.Tensor:
+    """Penalize whole-body centroidal yaw momentum during walking.
+
+    Returns squared momentum [kg^2 m^4/s^2], including orbital and spin components.
+    Body inertias are expressed about each COM in the body link frame.
+    Current masses and inertias include dynamics randomization.
+    ``turn_std`` [rad/s] attenuates the penalty during commanded turns, allowing
+    heading control to generate angular momentum. All bodies contribute.
+    """
+    data = env.scene[asset_cfg.name].data
+    mass = data.body_mass.torch.unsqueeze(-1)
+    pos = data.body_com_pos_w.torch
+    vel = data.body_com_lin_vel_w.torch
+    total_mass = mass.sum(dim=1, keepdim=True)
+    com = (mass * pos).sum(dim=1, keepdim=True) / total_mass
+    com_vel = (mass * vel).sum(dim=1, keepdim=True) / total_mass
+    orbital = torch.cross(pos - com, mass * (vel - com_vel), dim=-1)
+
+    quat = data.body_link_quat_w.torch
+    omega_local = quat_apply_inverse(quat, data.body_com_ang_vel_w.torch)
+    inertia = data.body_inertia.torch.reshape(*pos.shape[:2], 3, 3)
+    spin_local = (inertia @ omega_local.unsqueeze(-1)).squeeze(-1)
+    spin = quat_apply(quat, spin_local)
+    momentum_z = (orbital + spin).sum(dim=1)[:, 2]
+    command = env.command_manager.get_command(command_name)
+    walking = command[:, :2].norm(dim=1) > 0.1
+    turn_weight = torch.exp(-(command[:, 2] / turn_std).square())
+    return momentum_z.square() * walking * turn_weight

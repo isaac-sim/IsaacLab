@@ -18,7 +18,7 @@ import torch
 from ...managers import SceneEntityCfg
 from ...managers.manager_base import ManagerTermBase
 from ...managers.manager_term_cfg import RewardTermCfg
-from ...utils.math import combine_frame_transforms, quat_error_magnitude, quat_mul, wrap_to_pi
+from ...utils.math import combine_frame_transforms, quat_apply_inverse, quat_error_magnitude, quat_mul, wrap_to_pi
 
 if TYPE_CHECKING:
     from ...assets import Articulation, RigidObject
@@ -126,6 +126,20 @@ def flat_orientation_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = Scen
     """
     asset: RigidObject = env.scene[asset_cfg.name]
     return torch.sum(torch.square(asset.data.projected_gravity_b.torch[:, :2]), dim=1)
+
+
+def body_orientation_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Penalize selected links' tilt from world vertical, independently of yaw.
+
+    Sum the squared horizontal components of unit gravity expressed in each link frame.
+    Unlike :func:`flat_orientation_l2`, this also measures bending at articulated joints.
+    """
+    asset: Articulation = env.scene[asset_cfg.name]
+    quat = asset.data.body_link_quat_w.torch[:, asset_cfg.body_ids]
+    down = torch.zeros_like(quat[..., :3])
+    down[..., 2] = -1.0
+    gravity = quat_apply_inverse(quat, down)
+    return gravity[..., :2].square().sum(dim=(1, 2))
 
 
 def base_height_l2(
@@ -251,6 +265,15 @@ def joint_deviation_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> tor
         asset.data.joint_pos.torch[:, asset_cfg.joint_ids] - asset.data.default_joint_pos.torch[:, asset_cfg.joint_ids]
     )
     return torch.sum(torch.square(angle), dim=1)
+
+
+def joint_pos_target_l1(env: ManagerBasedRLEnv, target: float, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Sum absolute deviations of selected joint positions from ``target`` [rad].
+
+    Positions are not wrapped, so this term also penalizes excursions outside one revolution.
+    """
+    asset: Articulation = env.scene[asset_cfg.name]
+    return torch.abs(asset.data.joint_pos.torch[:, asset_cfg.joint_ids] - target).sum(dim=1)
 
 
 def joint_pos_target_l2(env: ManagerBasedRLEnv, target: float, asset_cfg: SceneEntityCfg) -> torch.Tensor:
