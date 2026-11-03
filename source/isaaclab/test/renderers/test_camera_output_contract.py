@@ -90,6 +90,13 @@ def test_camera_isp_is_resolved_during_construction():
                 isp_cfg=PpispCfg(inputs={"exposureOffset": 2.0}),
             ))  # fmt: skip
         without_isp = instantiate(replace(cfg, prim_path="/World/PlainCamera", spawn=_SPAWN))
+        # Deprecated discovery that finds no PPISP attributes leaves the camera's exposure unchanged.
+        plain = UsdGeom.Camera.Define(sim.stage, "/World/DiscoveredPlainCamera").GetPrim()
+        plain.CreateAttribute("exposure", Sdf.ValueTypeNames.Float).Set(2.0)
+        with pytest.warns(FutureWarning, match="isp_cfg is deprecated"):
+            discovered_plain = instantiate(replace(
+                cfg, prim_path="/World/DiscoveredPlainCamera", tensor_processors=[], isp_cfg=CameraISPMode.AUTO_CAMERA,
+            ))  # fmt: skip
         rebuilt = instantiate(spawned.cfg)
 
         assert authored.cfg.tensor_processors[0].isp_cfg.inputs["responsivity"] == 3.0
@@ -102,6 +109,8 @@ def test_camera_isp_is_resolved_during_construction():
         # PPISP applies its own exposure, so the deprecated path keeps neutralizing the camera's exposure.
         assert spawned.cfg.exposure.mode == "neutral"
         assert has_neutral_exposure(sim.stage.GetPrimAtPath("/World/SpawnedCamera"))
+        assert discovered_plain.cfg.exposure.mode == "default" and discovered_plain.cfg.tensor_processors == []
+        assert plain.GetAttribute("exposure").Get() == 2.0
         assert all(not camera.is_initialized for camera in (authored, spawned, without_isp))
         # Scene authoring belongs to camera construction, without a second renderer lifecycle.
         assert not hasattr(BaseRenderer, "author_camera")

@@ -32,6 +32,7 @@ from ..sensor_base import SensorBase
 from .camera_cfg import CAPTURE_MASK_NAME, _render_data_types
 from .camera_data import CameraData, RenderBufferKind
 from .camera_exposure import ExposureCfg, apply_neutral_exposure
+from .camera_isp import CameraISPMode
 
 if TYPE_CHECKING:
     from ...utils.tensor_processors import TensorProcessor
@@ -262,13 +263,20 @@ class Camera(SensorBase):
                 raise RuntimeError(f"Could not find prim with path {spawn_target!r}.")
 
         if self.cfg.isp_cfg is not None:
-            from isaaclab_ppisp import PpispProcessorCfg
+            from isaaclab_ppisp import PpispProcessorCfg, resolve_and_normalize
 
             msg = "CameraCfg.isp_cfg is deprecated. Add isaaclab_ppisp.PpispProcessorCfg to tensor_processors."
             warnings.warn(msg, FutureWarning, stacklevel=2)
             self.cfg.tensor_processors = [PpispProcessorCfg(isp_cfg=self.cfg.isp_cfg), *self.cfg.tensor_processors]
-            # PPISP applies its own exposure; isp_cfg neutralized the camera's exposure, so the forwarded cfg does too.
-            self.cfg.exposure = ExposureCfg(mode="neutral")
+            # PPISP applies its own exposure, so isp_cfg neutralized the exposure of cameras PPISP applied to; a
+            # discovery mode that finds no PPISP attributes left the exposure unchanged.
+            first_prim = sim_utils.find_first_matching_prim(self.cfg.prim_path, self.stage)
+            first_path = str(first_prim.GetPath()) if first_prim else None
+            if (
+                not isinstance(self.cfg.isp_cfg, CameraISPMode)
+                or resolve_and_normalize(self.cfg.isp_cfg, self.stage, first_path) is not None
+            ):
+                self.cfg.exposure = ExposureCfg(mode="neutral")
             # The processor now owns the value, so a camera built from this cfg does not forward it again.
             self.cfg.isp_cfg = None
         # Complete camera authoring before cloning or importing the scene into a native backend.
