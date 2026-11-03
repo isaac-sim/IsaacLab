@@ -84,6 +84,17 @@ uv run --frozen hf download nvidia/GR00T-N1.7-AppleToPlate-cosine40k-checkpoint-
   --local-dir "$GR00T_CHECKPOINT"
 ```
 
+The policy is built on [nvidia/Cosmos-Reason2-2B](https://huggingface.co/nvidia/Cosmos-Reason2-2B), which the
+GR00T server downloads when it starts. That model is gated: accept its license on its Hugging Face page, then log
+in once with the same account, using a read token:
+
+```bash
+cd "$GR00T_ROOT"
+uv run --frozen hf auth login
+```
+
+Without access, the server stops at startup with a 401 error from Hugging Face.
+
 Keep the GR00T and Isaac Lab environments separate: the simulator never imports GR00T.
 
 ## 4. Start the GR00T policy server in terminal 1
