@@ -283,6 +283,12 @@ def _canvas_spawn(camera: CameraCfg, canvas_height: int, canvas_width: int) -> A
     spawn = camera.spawn
     if isinstance(spawn, FisheyeCameraCfg):
         raise ValueError("Cosmos cameras need a pinhole lens; a fisheye view is not a center crop of a wider view.")
+    if getattr(spawn, "distortion", None) is not None:
+        # Calibrated intrinsics take precedence over the aperture, so a wider aperture would not widen the view.
+        raise ValueError(
+            "Cosmos cameras need an uncalibrated pinhole lens; the canvas widens the aperture, which a camera with "
+            "OpenCV calibration (spawn.distortion) does not follow."
+        )
     if spawn is None:
         if canvas_width * camera.height != canvas_height * camera.width:
             logger.warning("The Cosmos canvas changes this camera's aspect ratio; its view is cropped.")

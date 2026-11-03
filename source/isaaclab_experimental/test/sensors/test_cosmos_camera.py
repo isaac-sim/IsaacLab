@@ -83,3 +83,7 @@ def test_cosmos_camera_rejects_cameras_it_cannot_reproduce():
         cosmos_camera(_camera(64, 64, tensor_processors=[existing]), CosmosModelCfg())
     with pytest.raises(ValueError, match="fisheye"):
         cosmos_camera(_camera(64, 64, spawn=sim_utils.FisheyeCameraCfg()), CosmosModelCfg())
+    # Calibrated intrinsics take precedence over the aperture the canvas widens.
+    calibrated = sim_utils.PinholeCameraCfg(distortion=sim_utils.OpenCvPinholeDistortionCfg())
+    with pytest.raises(ValueError, match="uncalibrated pinhole"):
+        cosmos_camera(_camera(64, 64, spawn=calibrated), CosmosModelCfg())
