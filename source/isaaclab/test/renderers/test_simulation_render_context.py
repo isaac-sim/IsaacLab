@@ -459,7 +459,7 @@ def test_camera_eager_updates_render_shared_batch_with_current_poses(camera_batc
 
 
 def test_camera_lazy_reads_leave_peer_cameras_outdated(camera_batch_context, monkeypatch):
-    """Reading a lazy camera captures only that camera, even when a peer shares its renderer."""
+    """Outside OVRTX, reading a lazy camera captures only that camera, even when a peer shares its renderer."""
     _, renderer, batches = camera_batch_context
     cameras = [_CpuCamera(renderer, "wide"), _CpuCamera(renderer, "tele")]
     cameras[0].pose, cameras[1].pose = 1.0, 2.0

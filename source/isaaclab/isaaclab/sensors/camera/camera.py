@@ -734,7 +734,9 @@ class Camera(SensorBase):
         """
         if not self._data_dirty:
             return
-        # FIXME: Drop this OVRTX check once OVRTX renders each step only once, as Isaac RTX does.
+        # FIXME: Drop this OVRTX check once an OVRTX submission renders only the requested products, or once
+        # OVRTX takes camera poses from the scene like Isaac RTX does through Fabric, so peers need no
+        # preparation here. See OVRTXRenderer.render_batch.
         if (
             # An invalidated camera fails in the scalar path instead of silently returning stale buffers.
             self.is_initialized

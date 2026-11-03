@@ -51,7 +51,8 @@ Sensor Base
 Sensors opt into eager batch updates by overriding
 :attr:`SensorBase.supports_batch_update`, which defaults to ``False``.
 Eager scene updates advance sensors in order, then batch the remaining buffer refreshes for
-sensors that opted in. Lazy data access remains per sensor.
+sensors that opted in. Lazy data access remains per sensor, except that reading a camera on OVRTX also
+captures the renderer's other due cameras that share its batch implementation.
 
 For standalone use, :meth:`SensorBase.update_batch` performs the complete eager update for a
 sequence of batch-capable sensors. It calls each sensor's ``update()`` once in the supplied order,
