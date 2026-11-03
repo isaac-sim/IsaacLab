@@ -8,8 +8,8 @@
 from __future__ import annotations
 
 import pytest
-from isaaclab_visualizers.is7 import IS7BackendCfg
-from isaaclab_visualizers.is7.is7_visualizer import IS7Visualizer
+from isaaclab_visualizers.isaac_sim import IsaacSimBackendCfg
+from isaaclab_visualizers.isaac_sim.isaac_sim_visualizer import IsaacSimVisualizer
 
 from pxr import Usd
 
@@ -42,16 +42,16 @@ def "World"
 """
 
 
-def test_is7_is_registered():
+def test_isaac_sim_is_registered():
     assert "isaac_sim" in VISUALIZER_TYPES
     assert REQUIRES_STAGE_AND_MODEL["isaac_sim"] == (True, False)
-    assert IS7BackendCfg().visualizer_type == "isaac_sim"
+    assert IsaacSimBackendCfg().visualizer_type == "isaac_sim"
 
 
 @pytest.mark.parametrize(("max_points", "expanded"), [(9, True), (8, False)])
 def test_export_types_containers_and_expands_instances_within_budget(max_points, expanded):
     """The three instanced meshes count 9 points when expanded, so a budget of 8 keeps the instancing."""
-    visualizer = IS7Visualizer(VisualizerCfg(backend=IS7BackendCfg(deinstance_max_points=max_points)))
+    visualizer = IsaacSimVisualizer(VisualizerCfg(backend=IsaacSimBackendCfg(deinstance_max_points=max_points)))
     stage = Usd.Stage.CreateInMemory()
     stage.GetRootLayer().ImportFromString(_SCENE)
     try:

@@ -13,11 +13,11 @@ from isaaclab.utils import configclass
 from isaaclab.visualizers.visualizer_cfg import VisualizerBackendCfg
 
 if TYPE_CHECKING:
-    from .is7_visualizer import IS7Visualizer
+    from .isaac_sim_visualizer import IsaacSimVisualizer
 
 
 @configclass
-class IS7BackendCfg(VisualizerBackendCfg):
+class IsaacSimBackendCfg(VisualizerBackendCfg):
     """Configuration for the Isaac Sim 7 viewer attached to an Isaac Lab simulation.
 
     Isaac Lab keeps its own physics and scene data. The Isaac Sim 7 application host renders an export of the
@@ -26,7 +26,7 @@ class IS7BackendCfg(VisualizerBackendCfg):
     (``window.size``), the host rate (``window.fps``) and ``headless``, which serves the viewer without a client.
     """
 
-    class_type: type[IS7Visualizer] | str = "{DIR}.is7_visualizer:IS7Visualizer"
+    class_type: type[IsaacSimVisualizer] | str = "{DIR}.isaac_sim_visualizer:IsaacSimVisualizer"
     """Visualizer implementation class."""
 
     visualizer_type: str = "isaac_sim"
@@ -70,8 +70,8 @@ class IS7BackendCfg(VisualizerBackendCfg):
     """Directory with the built ``sim_viewer`` application client: ``renderer/`` (``index.js``, ``manifest.js``)
     and, for ``ui="desktop"``, ``main.cjs``.
 
-    The renderer supplies the stage, property and content panes. ``None`` uses the ``ISAACLAB_IS7_APP_CLIENT_ROOT``
-    environment variable, or serves only the shared shell when it is unset.
+    The renderer supplies the stage, property and content panes. ``None`` uses the
+    ``ISAACLAB_ISAAC_SIM_APP_CLIENT_ROOT`` environment variable, or serves only the shared shell when it is unset.
     """
 
     deinstance_max_points: int = 5_000_000

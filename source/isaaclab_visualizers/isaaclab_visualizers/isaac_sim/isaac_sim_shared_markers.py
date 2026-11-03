@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 if TYPE_CHECKING:
-    from .is7_shared_stage import SharedStage
+    from .isaac_sim_shared_stage import SharedStage
 
 
 def _instancer_usd(markers_cfg: dict[str, Any], root: str) -> str:

@@ -58,7 +58,7 @@ class SharedStage:
 
         # ovstage fixes its hierarchy model per process at the first stage; claim Isaac Lab's GPU-incremental model
         # before the host creates the shared stage, so OVRTX can read world transforms on the device.
-        self._anchor = create_ovstage("isaaclab.is7.anchor")
+        self._anchor = create_ovstage("isaaclab.isaac_sim.anchor")
         self.context = make_usd_context(Backend.OVSTAGE)
         started = time.perf_counter()
         self.context.create_from_string(usd)

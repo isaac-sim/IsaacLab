@@ -23,8 +23,8 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from .is7_external_simulation import BorrowedContext, ExternalSimulation
-from .is7_shared_stage import FrameStore, Replication, SharedStage, ViewerRenderer
+from .isaac_sim_external_simulation import BorrowedContext, ExternalSimulation
+from .isaac_sim_shared_stage import FrameStore, Replication, SharedStage, ViewerRenderer
 
 if TYPE_CHECKING:
     from isaacsim.application.host import ViewportSpec, World

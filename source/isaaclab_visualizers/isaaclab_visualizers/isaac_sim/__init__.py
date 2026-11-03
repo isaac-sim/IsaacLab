@@ -16,7 +16,7 @@ Prototype requirements, not yet captured by the package dependencies:
   with ``ovstage==0.4.0.1793102128``, ``ovphysx==0.8.0.41080602166`` and ``ovrtx==0.7.0.dev1793102128`` from the
   ``ct-omniverse-pypi-local`` index.
 * The ``sim_viewer`` application package from the Isaac Sim source tree on ``PYTHONPATH``.
-* A built ``sim_viewer`` client, given by :attr:`IS7BackendCfg.app_client_root` or ``ISAACLAB_IS7_APP_CLIENT_ROOT``.
+* A built ``sim_viewer`` client, given by :attr:`IsaacSimBackendCfg.app_client_root` or ``ISAACLAB_ISAAC_SIM_APP_CLIENT_ROOT``.
 
 This package keeps imports lazy so configuration-only imports avoid pulling the
 Isaac Sim 7 libraries before they are needed.
@@ -26,17 +26,17 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .is7_visualizer_cfg import IS7BackendCfg
+from .isaac_sim_visualizer_cfg import IsaacSimBackendCfg
 
 if TYPE_CHECKING:
-    from .is7_visualizer import IS7Visualizer
+    from .isaac_sim_visualizer import IsaacSimVisualizer
 
-__all__ = ["IS7BackendCfg", "IS7Visualizer"]
+__all__ = ["IsaacSimBackendCfg", "IsaacSimVisualizer"]
 
 
 def __getattr__(name: str):
-    if name == "IS7Visualizer":
-        from .is7_visualizer import IS7Visualizer
+    if name == "IsaacSimVisualizer":
+        from .isaac_sim_visualizer import IsaacSimVisualizer
 
-        return IS7Visualizer
+        return IsaacSimVisualizer
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

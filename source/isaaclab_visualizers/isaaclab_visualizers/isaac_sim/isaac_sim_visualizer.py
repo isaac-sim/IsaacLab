@@ -26,9 +26,9 @@ from isaaclab.sim import SimulationContext
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, VisualizerCfg
 
-from .is7_shared_stage import Replication
-from .is7_stage import authored_scales
-from .is7_visualizer_cfg import IS7BackendCfg
+from .isaac_sim_shared_stage import Replication
+from .isaac_sim_stage import authored_scales
+from .isaac_sim_visualizer_cfg import IsaacSimBackendCfg
 
 if TYPE_CHECKING:
     from isaaclab.sensors.camera import Camera
@@ -42,7 +42,7 @@ _POSE_ROOT = "/IsaacLabPoses"
 """Pseudo prim that keys Isaac Lab's queued pose writes, so a newer write replaces an unapplied one."""
 
 
-class IS7Visualizer(BaseVisualizer):
+class IsaacSimVisualizer(BaseVisualizer):
     """Isaac Sim 7 viewer application driven by Isaac Lab's simulation.
 
     The Isaac Sim 7 host owns the stage, renderer and UI (stage tree, properties, content browser, picking and
@@ -54,12 +54,12 @@ class IS7Visualizer(BaseVisualizer):
         """Initialize visualizer state.
 
         Args:
-            cfg: Shared visualizer settings whose ``backend`` is an :class:`IS7BackendCfg`.
+            cfg: Shared visualizer settings whose ``backend`` is an :class:`IsaacSimBackendCfg`.
         """
         super().__init__(cfg)
-        self.backend_cfg: IS7BackendCfg = cfg.backend
+        self.backend_cfg: IsaacSimBackendCfg = cfg.backend
         if self.backend_cfg.app_client_root is None:
-            self.backend_cfg.app_client_root = os.environ.get("ISAACLAB_IS7_APP_CLIENT_ROOT")
+            self.backend_cfg.app_client_root = os.environ.get("ISAACLAB_ISAAC_SIM_APP_CLIENT_ROOT")
         self._resources = contextlib.ExitStack()
         self._host = None
         self._desktop = None
@@ -97,7 +97,7 @@ class IS7Visualizer(BaseVisualizer):
             cameras: Resolved perspective settings and borrowed scene sensors, in display order.
         """
         if self._is_initialized:
-            logger.debug("[IS7Visualizer] initialize() called while already initialized.")
+            logger.debug("[IsaacSimVisualizer] initialize() called while already initialized.")
             return
         super().initialize(sim, cameras=cameras)
 
@@ -108,7 +108,7 @@ class IS7Visualizer(BaseVisualizer):
         from isaacsim.foundation.orchestration import RationalRate
         from isaacsim.viewports.presentation import FrameEncoder
 
-        from .is7_world import make_physics_free_world_opener
+        from .isaac_sim_world import make_physics_free_world_opener
 
         self._provider = sim.get_scene_data_provider()
         self._paths = list(self._provider.backend.transform_paths)
@@ -135,7 +135,7 @@ class IS7Visualizer(BaseVisualizer):
 
             from isaacsim.application.host import NativeParticipant
 
-            from .is7_poses import PoseEngine, PoseSlot
+            from .isaac_sim_poses import PoseEngine, PoseSlot
 
             self._slot = PoseSlot(self._paths)
             engine = PoseEngine(self._slot)
@@ -147,10 +147,10 @@ class IS7Visualizer(BaseVisualizer):
         open_world = make_physics_free_world_opener(specs, rate, renderer="ovgl", extra_participants=extra_participants)
         renderer_name = "ovgl"
         if self.backend_cfg.stage_mode == "shared":
-            from .is7_shared_world import SharedWorldOpener
+            from .isaac_sim_shared_world import SharedWorldOpener
 
             device = sim.device
-            from .is7_shared_markers import SharedMarkers
+            from .isaac_sim_shared_markers import SharedMarkers
 
             self._markers = SharedMarkers()
             self._shared = open_world = SharedWorldOpener(
@@ -190,12 +190,12 @@ class IS7Visualizer(BaseVisualizer):
             self._publish_poses()
         self._host.start()
         if not self.cfg.headless and self.backend_cfg.ui == "browser":
-            self._log_viewer_url("IS7Visualizer", self.client_url)
+            self._log_viewer_url("IsaacSimVisualizer", self.client_url)
         elif not self.cfg.headless:
             self._open_desktop()
         self._log_initialization_table(
             logger=logger,
-            title="IS7Visualizer Configuration",
+            title="IsaacSimVisualizer Configuration",
             rows=[
                 ("ui", "headless" if self.cfg.headless else self.backend_cfg.ui),
                 ("bodies", len(self._paths)),
@@ -210,7 +210,7 @@ class IS7Visualizer(BaseVisualizer):
         from isaacsim.application.client import start_desktop
 
         if self.backend_cfg.app_client_root is None:
-            raise ValueError("IS7BackendCfg.app_client_root is required for ui='desktop'.")
+            raise ValueError("IsaacSimBackendCfg.app_client_root is required for ui='desktop'.")
         self._desktop = start_desktop(
             Path(self.backend_cfg.app_client_root) / "main.cjs",
             environment={"SIM_VIEWER_ATTACH_URL": self._host.url, "SIM_VIEWER_ATTACH_TOKEN": self._host.token},
@@ -263,7 +263,7 @@ class IS7Visualizer(BaseVisualizer):
         for prim in exported.Traverse():
             if not prim.GetTypeName():
                 prim.SetTypeName("Xform")
-        directory = Path(self._resources.enter_context(tempfile.TemporaryDirectory(prefix="isaaclab_is7_")))
+        directory = Path(self._resources.enter_context(tempfile.TemporaryDirectory(prefix="isaaclab_isaac_sim_")))
         scene = directory / "scene.usdc"
         exported.Export(str(scene))
         return scene, replication
@@ -273,7 +273,7 @@ class IS7Visualizer(BaseVisualizer):
 
         Isaac Lab authors some containers without a type, which the viewer's stage tree omits, so they become
         ``Xform`` prims. Instanceable prims are expanded while the expanded scene stays within
-        :attr:`IS7BackendCfg.deinstance_max_points`. The ``Flattened_Prototype_*`` specs stay because the
+        :attr:`IsaacSimBackendCfg.deinstance_max_points`. The ``Flattened_Prototype_*`` specs stay because the
         expanded prims still reference them.
         """
         exported = Usd.Stage.Open(stage.Flatten())
@@ -283,8 +283,10 @@ class IS7Visualizer(BaseVisualizer):
                 prim.SetTypeName("Xform")
             if deinstance and prim.IsInstance():
                 prim.SetInstanceable(False)
-        logger.info("[IS7Visualizer] %s instanced prims in the exported scene.", "Expanded" if deinstance else "Kept")
-        directory = Path(self._resources.enter_context(tempfile.TemporaryDirectory(prefix="isaaclab_is7_")))
+        logger.info(
+            "[IsaacSimVisualizer] %s instanced prims in the exported scene.", "Expanded" if deinstance else "Kept"
+        )
+        directory = Path(self._resources.enter_context(tempfile.TemporaryDirectory(prefix="isaaclab_isaac_sim_")))
         scene = directory / "scene.usdc"
         exported.Export(str(scene))
         return scene

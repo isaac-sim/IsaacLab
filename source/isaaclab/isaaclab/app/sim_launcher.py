@@ -25,7 +25,7 @@ from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
-from isaaclab_visualizers.is7 import IS7BackendCfg
+from isaaclab_visualizers.isaac_sim import IsaacSimBackendCfg
 from isaaclab_visualizers.kit import KitBackendCfg
 from isaaclab_visualizers.newton import NewtonGLBackendCfg, NewtonRTXBackendCfg
 from isaaclab_visualizers.rerun import RerunBackendCfg
@@ -198,7 +198,7 @@ def validate_launch(  # noqa: C901
         }
         physics = physics_options[launcher_args["physics"]]()
     visualizer_types = {
-        "isaac_sim": IS7BackendCfg,
+        "isaac_sim": IsaacSimBackendCfg,
         "kit": KitBackendCfg,
         "newton_gl": NewtonGLBackendCfg,
         "newton_rtx": NewtonRTXBackendCfg,
