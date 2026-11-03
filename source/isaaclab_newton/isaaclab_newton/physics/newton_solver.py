@@ -196,7 +196,7 @@ class NewtonSolver:
 
     @classmethod
     def flag_faulted_worlds(cls, cfg: NewtonSolverCfg, solver: SolverBase, faulted: wp.array) -> None:
-        """Set ``faulted`` for the worlds whose solve failed since their last reset; shape is (world_count,)."""
+        """Set ``faulted`` for the worlds whose last solve failed; shape is (world_count,)."""
 
     # ----- Consumers -----
 

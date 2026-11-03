@@ -139,11 +139,7 @@ def test_solver_kwargs_include_newton_deterministic_mode() -> None:
 def _model_stub(state_attributes=()) -> SimpleNamespace:
     """Model stand-in carrying what solver construction reads before the Newton solver exists."""
     return SimpleNamespace(
-        get_requested_state_attributes=lambda: list(state_attributes),
-        articulation_start=None,
-        articulation_end=None,
-        world_count=1,
-        device="cpu",
+        get_requested_state_attributes=lambda: list(state_attributes), articulation_start=None, articulation_end=None
     )
 
 

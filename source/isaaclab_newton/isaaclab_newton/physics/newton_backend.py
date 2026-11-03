@@ -93,6 +93,9 @@ _FLAG_WORLDS_AND_ARTICULATIONS_INDEXED = IndexKernelDispatcher(_flag_worlds_and_
 _FLAG_WORLDS_INDEXED = IndexKernelDispatcher(_flag_worlds_indexed, ("env_ids",))
 
 
+# ----- Fault kernels ---------------------------------------------------------------------
+
+
 @wp.kernel(enable_backward=False)
 def _flag_nonfinite_worlds(
     body_q: wp.array(dtype=wp.transformf),
@@ -512,8 +515,13 @@ class NewtonBackend:
         """
         model, state, solver_cfg = self.model, self.state_0, self.cfg.solver_cfg
         faulted = wp.zeros(model.world_count, dtype=wp.bool, device=self.device)
-        inputs = [state.body_q, state.body_qd, model.body_world]
-        wp.launch(_flag_nonfinite_worlds, dim=model.body_count, inputs=inputs, outputs=[faulted], device=self.device)
+        wp.launch(
+            _flag_nonfinite_worlds,
+            dim=model.body_count,
+            inputs=[state.body_q, state.body_qd, model.body_world],
+            outputs=[faulted],
+            device=self.device,
+        )
         solver_cfg.class_type.flag_faulted_worlds(solver_cfg, self.solver, faulted)
         return faulted
 

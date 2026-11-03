@@ -14,7 +14,7 @@ from collections.abc import Iterator
 import pytest
 import torch
 from isaaclab_newton.envs.mdp import physics_fault
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
@@ -73,14 +73,9 @@ class _TerminationsCfg:
 @configclass
 class _EnvCfg(ManagerBasedRLEnvCfg):
     scene = _SceneCfg(num_envs=2, env_spacing=3.0)
-    sim = SimulationCfg(
-        dt=0.01,
-        physics=NewtonCfg(
-            solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False, njmax=8),
-            collision_cfg=NewtonCollisionPipelineCfg(broad_phase="sap"),
-            use_cuda_graph=False,
-        ),
-    )
+    sim = SimulationCfg(dt=0.01, physics=NewtonCfg(solver_cfg=MJWarpSolverCfg(njmax=8)))
+    # Two physics steps per environment step: a cube written exactly onto the ground has no active contact until it
+    # has sunk in for one step.
     decimation = 2
     episode_length_s = 10.0
     observations = _ObservationsCfg()

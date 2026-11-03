@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import warp as wp
 from mujoco_warp import OverflowType
-from newton import Contacts, Control, Model, State
+from newton import Contacts, Model, State
 from newton.solvers import SolverMuJoCo
 
 from .newton_solver import NewtonSolver, solver_kwargs
@@ -27,26 +27,18 @@ logger = logging.getLogger(__name__)
 _SENSORS_BY_STATE_ATTRIBUTE = {"body_qdd": "the IMU or PVA sensor", "body_parent_f": "the joint-wrench sensor"}
 
 _WORLD_OVERFLOWS = int(OverflowType.NEFC | OverflowType.NJMAX_NNZ)
-"""MuJoCo Warp overflows of a single world; the others concern buffers shared by all worlds."""
+"""The ``njmax`` capacity overflows, whose excess constraints MuJoCo Warp drops from that world's solve.
+
+The other bits are not faults here: BROADPHASE and NARROWPHASE flag every world when the shared contact buffer
+overflows, and the rest are per-world collision, sensor and solver-iteration diagnostics.
+"""
 
 
 @wp.kernel(enable_backward=False)
-def _accumulate_overflow(overflow: wp.array(dtype=wp.int32), world_overflow: wp.array(dtype=wp.int32)):
+def _flag_overflowed_worlds(overflow: wp.array(dtype=wp.int32), flags: int, faulted: wp.array(dtype=wp.bool)):
+    """Flag the worlds whose MuJoCo Warp overflow bitmask has any of ``flags`` set."""
     world = wp.tid()
-    world_overflow[world] = world_overflow[world] | overflow[world]
-
-
-@wp.kernel(enable_backward=False)
-def _clear_overflow(world_mask: wp.array(dtype=wp.bool), world_overflow: wp.array(dtype=wp.int32)):
-    world = wp.tid()
-    if world_mask[world]:
-        world_overflow[world] = 0
-
-
-@wp.kernel(enable_backward=False)
-def _flag_overflowed_worlds(world_overflow: wp.array(dtype=wp.int32), flags: int, faulted: wp.array(dtype=wp.bool)):
-    world = wp.tid()
-    if world_overflow[world] & flags:
+    if overflow[world] & flags:
         faulted[world] = True
 
 
@@ -97,10 +89,7 @@ class MJWarpSolver(NewtonSolver):
         kwargs.pop("ls_parallel", None)
         if deterministic:
             kwargs["disable_sensors"] = True
-        solver = cls.solver_class(model, **kwargs)
-        # MuJoCo Warp overflow flags of each world since its last reset
-        solver.isaaclab_world_overflow = wp.zeros(model.world_count, dtype=wp.int32, device=model.device)
-        return solver
+        return cls.solver_class(model, **kwargs)
 
     @classmethod
     def supports_capture(cls, cfg: MJWarpSolverCfg, solver: SolverMuJoCo) -> bool:
@@ -133,26 +122,6 @@ class MJWarpSolver(NewtonSolver):
         if solver.use_mujoco_cpu and not world_mask.numpy().any():
             return
         solver.reset(state, world_mask=world_mask, flags=0)
-        overflow = solver.isaaclab_world_overflow
-        wp.launch(_clear_overflow, dim=len(overflow), inputs=[world_mask], outputs=[overflow], device=overflow.device)
-
-    @classmethod
-    def step(
-        cls,
-        cfg: MJWarpSolverCfg,
-        solver: SolverMuJoCo,
-        state_in: State,
-        state_out: State,
-        control: Control,
-        contacts: Contacts | None,
-        dt: float,
-    ) -> None:
-        super().step(cfg, solver, state_in, state_out, control, contacts, dt)
-        if not cfg.use_mujoco_cpu:
-            # MuJoCo Warp clears its overflow flags every substep; keep them until the world is reset.
-            overflow = solver.isaaclab_world_overflow
-            inputs, device = [solver.mjw_data.overflow], overflow.device
-            wp.launch(_accumulate_overflow, dim=len(overflow), inputs=inputs, outputs=[overflow], device=device)
 
     @classmethod
     def check_step(cls, cfg: MJWarpSolverCfg, solver: SolverMuJoCo, captured: bool, debug: bool) -> None:
@@ -167,11 +136,22 @@ class MJWarpSolver(NewtonSolver):
 
     @classmethod
     def flag_faulted_worlds(cls, cfg: MJWarpSolverCfg, solver: SolverMuJoCo, faulted: wp.array) -> None:
-        """Flag the worlds whose constraints overflowed their ``njmax`` capacity since their last reset, which MuJoCo
-        Warp drops from the solve of their world."""
-        overflow = solver.isaaclab_world_overflow
-        inputs = [overflow, _WORLD_OVERFLOWS]
-        wp.launch(_flag_overflowed_worlds, dim=len(overflow), inputs=inputs, outputs=[faulted], device=overflow.device)
+        """Flag the worlds whose constraints overflowed their ``njmax`` capacity in the last substep, which MuJoCo Warp
+        drops from the solve of their world.
+
+        Newton zeroes the per-world overflow bitmask before every MuJoCo Warp step, so it describes the last substep
+        only. MuJoCo on the CPU does not report overflows.
+        """
+        if cfg.use_mujoco_cpu:
+            return
+        overflow = solver.mjw_data.overflow
+        wp.launch(
+            _flag_overflowed_worlds,
+            dim=len(overflow),
+            inputs=[overflow, _WORLD_OVERFLOWS],
+            outputs=[faulted],
+            device=overflow.device,
+        )
 
     @classmethod
     def fixed_tendon_control(cls, cfg: MJWarpSolverCfg, articulation, model: Model) -> MjWarpTendonControl | None:
