@@ -992,6 +992,10 @@ class Articulation(BaseArticulation):
     ):
         """Write joint positions and velocities in a single fused kernel launch.
 
+        .. deprecated::
+            Use :meth:`write_joint_state_to_sim_mask`, or :meth:`write_joint_position_to_sim_index` and
+            :meth:`write_joint_velocity_to_sim_index`.
+
         .. note::
             This method expects partial data or full data.
 
@@ -1011,6 +1015,32 @@ class Articulation(BaseArticulation):
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
+        warnings.warn(
+            "Articulation.write_joint_state_to_sim_index is deprecated. Use write_joint_state_to_sim_mask, or"
+            " write_joint_position_to_sim_index and write_joint_velocity_to_sim_index.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self._write_joint_state_to_sim_index(
+            position=position,
+            velocity=velocity,
+            joint_ids=joint_ids,
+            env_ids=env_ids,
+            full_data=full_data,
+            skip_forward=skip_forward,
+        )
+
+    def _write_joint_state_to_sim_index(
+        self,
+        *,
+        position: torch.Tensor | wp.array,
+        velocity: torch.Tensor | wp.array,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+        skip_forward: bool = False,
+    ):
+        """Write selected joint positions and velocities; see :meth:`write_joint_state_to_sim_index`."""
         # resolve all indices
         joint_selection_is_partial = joint_ids is not None
         env_ids = self._resolve_env_ids(env_ids)
@@ -1090,7 +1120,7 @@ class Articulation(BaseArticulation):
         # set into simulation
         env_ids = self._resolve_env_mask(env_mask)
         joint_ids = None if joint_mask is None else self._resolve_joint_mask(joint_mask)
-        self.write_joint_state_to_sim_index(
+        self._write_joint_state_to_sim_index(
             position=position,
             velocity=velocity,
             env_ids=env_ids,
