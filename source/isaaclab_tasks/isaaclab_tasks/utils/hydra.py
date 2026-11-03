@@ -708,13 +708,17 @@ def _setattr(obj, path: str, val):
     *parts, leaf = path.split(".")
     for p in parts:
         obj = obj[p] if isinstance(obj, Mapping) else getattr(obj, p)
+    if not isinstance(obj, dict) and not hasattr(obj, leaf):
+        # A misspelled field is added beside the intended one, which keeps its value.
+        warnings.warn(
+            f"Override {path!r}: {type(obj).__name__} has no field {leaf!r}; it is added as a new attribute.",
+            UserWarning,
+            stacklevel=user_stacklevel(),
+        )
     if isinstance(obj, dict):
         obj[leaf] = val
-    elif hasattr(obj, leaf):
-        setattr(obj, leaf, val)
     else:
-        # A misspelled field would otherwise be added silently and leave the intended value unchanged.
-        raise AttributeError(f"Override {path!r}: {type(obj).__name__} has no field {leaf!r}.")
+        setattr(obj, leaf, val)
 
 
 def _parse_val(s: str):

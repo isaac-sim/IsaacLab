@@ -471,11 +471,12 @@ def test_register_task_mixed_overrides():
     assert hydra_args == ["--flag"]
 
 
-def test_register_task_rejects_a_misspelled_field():
-    """A misspelled env override fails instead of adding a field beside the one it was meant to set."""
-    with pytest.raises(AttributeError, match="has no field 'decimaton'"):
-        _register(PresetCfgEnvCfg(), overrides=["env.decimaton=10"])
-    with pytest.raises(AttributeError, match="has no field 'dtt'"):
+def test_register_task_warns_about_a_misspelled_field():
+    """A misspelled env override warns that it adds a field beside the one it was meant to set."""
+    with pytest.warns(UserWarning, match="has no field 'decimaton'"):
+        env_cfg, _, _ = _register(PresetCfgEnvCfg(), overrides=["env.decimaton=10"])
+    assert env_cfg.decimation == 4
+    with pytest.warns(UserWarning, match="has no field 'dtt'"):
         _register(PresetCfgEnvCfg(), overrides=["env.backend.dtt=0.001"])
 
 
