@@ -72,7 +72,7 @@ class H2FlatRewards(H2Rewards):
         params={"asset_cfg": SceneEntityCfg("robot", body_names="torso_link")},
     )
     stance_knee_flexion = RewTerm(
-        func=mdp.stance_knee_extension_l2,
+        func=mdp.stance_knee_flexion_l2,
         weight=0.0,
         params={
             "command_name": "base_velocity",

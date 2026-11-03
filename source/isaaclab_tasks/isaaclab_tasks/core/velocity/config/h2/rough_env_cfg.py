@@ -93,7 +93,7 @@ class H2Rewards(RewardsCfg):
         },
     )
     stance_knee_flexion = RewTerm(
-        func=mdp.stance_knee_extension_l2,
+        func=mdp.stance_knee_flexion_l2,
         weight=0.0,
         params={
             "command_name": "base_velocity",

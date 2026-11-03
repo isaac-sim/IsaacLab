@@ -254,7 +254,7 @@ def feet_support_edge_distance(env, sensor_cfg, asset_cfg, sole_size, sole_offse
     return (distance * contact).sum(-1)
 
 
-def stance_knee_extension_l2(
+def stance_knee_flexion_l2(
     env: ManagerBasedRLEnv,
     command_name: str,
     asset_cfg: SceneEntityCfg,
