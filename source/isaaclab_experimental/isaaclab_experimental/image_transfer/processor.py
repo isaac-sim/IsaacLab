@@ -102,10 +102,11 @@ class ImageTransferProcessor(TensorProcessor):
         frames = data[cfg.inputs[0]].torch
         if tuple(frames.shape) != self._data_dim or frames.dtype != torch.uint8:
             raise ValueError(f"Image transfer controls must be uint8 with shape {self._data_dim}.")
-        if any(len(queue) >= cfg.max_pending_frames for queue in self._pending):
-            raise RuntimeError("Image transfer control queue is full; views must reset and advance compatibly.")
         mask = data.get(ENV_MASK)
         captured = mask.torch.tolist() if mask is not None else [True] * len(self._pending)
+        # Only views that capture now add a control; a full view that skips this capture does not block the others.
+        if any(captured[row] and len(queue) >= cfg.max_pending_frames for row, queue in enumerate(self._pending)):
+            raise RuntimeError("Image transfer control queue is full; views must reset and advance compatibly.")
         with torch.no_grad():
             for row, queue in enumerate(self._pending):
                 if captured[row]:

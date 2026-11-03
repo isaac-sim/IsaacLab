@@ -124,8 +124,11 @@ def test_reset_restarts_only_the_selected_view_with_a_new_seed(no_sim):
 
 
 def test_a_capture_queues_controls_only_for_the_views_in_env_mask(no_sim):
-    """After independent resets, environments capture at different steps; a view a capture skipped queues nothing."""
-    processor, model = _processor(initial_frames=1, update_frames=2)
+    """After independent resets, environments capture at different steps; a view a capture skipped queues nothing.
+
+    Queues hold at most one chunk, so a full view that a capture skips must not block the view that completes it.
+    """
+    processor, model = _processor(initial_frames=1, update_frames=2, max_pending_frames=2)
     _rgb(processor, 1, [True, True])
 
     # The two views now capture on alternate calls; each call's data holds a stale render for the other view.
