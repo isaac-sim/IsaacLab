@@ -591,12 +591,15 @@ def test_isaac_rtx_read_output_clears_stale_metadata_and_keeps_seeded_keys(monke
 
     # Frame 1: the segmentation annotator emits metadata, so its info lands in camera_data.info.
     id_to_labels = {"2": {"class": "cartpole"}}
+    mask = object()
     render_data = SimpleNamespace(renderer_info={"semantic_segmentation": {"idToLabels": id_to_labels}})
-    renderer.read_output(render_data, camera_data)
+    renderer.prepare_capture(render_data, camera_data, None, mask)
+    # The capture is returned with the mask it was prepared with.
+    assert renderer.read_output(render_data, camera_data).env_mask is mask
     assert camera_data.info["semantic_segmentation"] == {"idToLabels": id_to_labels}
 
     # Frame 2: the annotator emits no info (``renderer_info`` value is None or the key is gone).
-    render_data = SimpleNamespace(renderer_info={"semantic_segmentation": None})
+    render_data = SimpleNamespace(renderer_info={"semantic_segmentation": None}, capture_env_mask=mask)
     renderer.read_output(render_data, camera_data)
 
     # The stale idToLabels must be cleared, and the seeded keys (rgb, semantic_segmentation) must remain.
