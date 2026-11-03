@@ -105,8 +105,9 @@ training that only needs simplified color, select a ``simple_shading_*`` preset 
 
 When every configured OVRTX camera uses RTX Minimal, ``launch_simulation()`` also disables PT
 and RT2 at native OVRTX startup. This avoids their unused pipelines and texture buffers and
-enables OVRTX's Minimal-only memory optimizations. The selection includes viewer cameras and
-explicit ``omni:rtx:rendermode`` overrides. Mixed Minimal/RT2 workloads keep all modes available.
+enables OVRTX's Minimal-only memory optimizations. To decide whether to disable PT and RT2,
+``launch_simulation()`` checks all OVRTX sensor and viewer cameras, including any explicit
+``omni:rtx:rendermode`` overrides. Mixed Minimal/RT2 workloads keep all modes available.
 
 Declare all cameras and viewers in the configuration passed to ``launch_simulation()``.
 Standalone renderer configurations without known cameras keep all modes available. Adding a
