@@ -47,7 +47,8 @@ def cosmos_camera(
     widening the lens aperture so the camera's original view is the canvas's center crop. Its tensor processors
     prepare the depth control with :func:`depth_processor`, generate with Cosmos, and scale the result back to the
     camera's width and height. Observation terms that read ``rgb`` keep their image shape; the camera's
-    ``image_shape`` and intrinsics describe the canvas.
+    ``image_shape`` and intrinsics describe the canvas. The copy drops the camera's ``isp_cfg``, which processes the
+    rendered image that Cosmos replaces.
 
     Args:
         camera: Pinhole camera publishing only ``rgb``, for example a task's policy camera.
@@ -91,6 +92,8 @@ def cosmos_camera(
         height=canvas_height,
         spawn=_canvas_spawn(camera, canvas_height, canvas_width),
         tensor_processors=processors,
+        # An ISP processes the rendered image, which Cosmos replaces; the camera no longer renders it.
+        isp_cfg=None,
     )
 
 
