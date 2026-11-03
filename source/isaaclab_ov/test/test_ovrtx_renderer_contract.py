@@ -618,7 +618,14 @@ def test_async_cameras_publish_independently_with_capture_metadata_and_reset(mon
     frame = ProxyArray(wp.zeros(2, dtype=wp.int64, device="cpu"))
     # One mask array reused for every capture, as the camera does; each request marks different environments.
     env_mask = wp.zeros(2, dtype=wp.bool, device="cpu")
-    request_masks = {1: [True, True], 2: [True, False], 3: [False, True]}
+    request_masks = {
+        1: [True, True],
+        2: [True, False],
+        3: [False, True],
+        4: [True, False],
+        5: [True, True],
+        6: [False, True],
+    }
     published = {0: [], 1: []}
     operations = []
     ordinal = 0
