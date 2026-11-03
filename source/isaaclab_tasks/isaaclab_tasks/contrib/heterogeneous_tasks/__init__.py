@@ -17,7 +17,8 @@ import os
 VLA_BENCHMARKS_ASSETS_DIR = os.environ.get(
     "VLA_BENCHMARKS_ASSETS_DIR", "https://huggingface.co/datasets/LiFanxing/HeteroTask/resolve/main"
 )
-"""Root of the tasks' assets: the objects from the RoboLab and Omniverse libraries as complete USD files, the robot,
-and the robot table and dome light texture. Defaults to the HeteroTask dataset on Hugging Face; the environment
-variable of the same name overrides it, e.g. with a local copy.
+"""Root of the tasks' assets: the objects from the RoboLab and Omniverse libraries as complete USD files, and the
+robot table and dome light texture. Defaults to the HeteroTask dataset on Hugging Face; the environment variable of the
+same name overrides it, e.g. with a local copy. The robot is located by
+:data:`~isaaclab_tasks.contrib.heterogeneous_tasks.config.franka.robot_cfg.FRANKA_ROBOTIQ_ASSETS_DIR`.
 """

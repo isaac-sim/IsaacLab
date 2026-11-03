@@ -6,6 +6,7 @@
 """Robot of the VLA benchmark tasks: a Franka arm with a Robotiq 2F-85 gripper."""
 
 import math
+import os
 
 from isaaclab_newton.sim.schemas import MujocoJointCfg, MujocoRigidBodyPropertiesCfg
 
@@ -15,13 +16,19 @@ from isaaclab.assets import ArticulationCfg
 
 from isaaclab_assets.robots import franka
 
-from ... import VLA_BENCHMARKS_ASSETS_DIR
+# TODO: Point to the Isaac Lab Nucleus once the robot is uploaded there.
+FRANKA_ROBOTIQ_ASSETS_DIR = os.environ.get(
+    "FRANKA_ROBOTIQ_ASSETS_DIR", "https://huggingface.co/datasets/LiFanxing/franka_robotiq/resolve/main"
+)
+"""Root of the robot's complete USD file. Defaults to the franka_robotiq dataset on Hugging Face; the environment
+variable of the same name overrides it, e.g. with a local copy.
+"""
 
 # TODO: Confirm whether to use the default Franka robot.
 FRANKA_ROBOTIQ_GRIPPER_CFG = ArticulationCfg(
     prim_path="{ENV_REGEX_NS}/robot",
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{VLA_BENCHMARKS_ASSETS_DIR}/robots/franka_robotiq_2f_85/franka_robotiq_2f_85_isaaclab_inertia.usd",
+        usd_path=f"{FRANKA_ROBOTIQ_ASSETS_DIR}/franka_robotiq_2f_85_isaaclab_inertia.usd",
         activate_contact_sensors=True,
         # Gravity compensation holds the arm, as the PhysX robot disables gravity on its links.
         rigid_props=MujocoRigidBodyPropertiesCfg(gravcomp=1.0),
