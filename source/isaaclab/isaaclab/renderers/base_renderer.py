@@ -27,6 +27,17 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True)
+class CaptureInfo:
+    """A capture that :meth:`BaseRenderer.read_output` published."""
+
+    env_mask: wp.array
+    """Environments that were due when the capture was requested, shape ``(N,)``, dtype ``wp.bool``.
+
+    With asynchronous rendering, this is the mask of the earlier request whose image was published.
+    """
+
+
+@dataclass(frozen=True)
 class VisualMaterialBatch:
     """One flat material-channel buffer and its aligned backend addresses."""
 
@@ -113,17 +124,19 @@ class BaseRenderer(ABC):
         """
         pass
 
-    def prepare_capture(self, render_data: Any, camera_data: CameraData, frame: ProxyArray) -> None:
-        """Snapshot metadata for the next capture when its image will be delivered asynchronously.
+    def prepare_capture(self, render_data: Any, camera_data: CameraData, frame: ProxyArray, env_mask: wp.array) -> None:
+        """Record the metadata of the next capture before it is submitted.
 
-        Synchronous renderers need no snapshot. Delayed captures publish their pose, calibration,
-        and frame indices through ``camera_data.info[output_name]["capture"]`` without changing
-        the live camera fields.
+        :meth:`read_output` returns ``env_mask`` with the capture it publishes. Delayed captures also publish their
+        pose, calibration, and frame indices through ``camera_data.info[output_name]["capture"]`` without changing
+        the live camera fields. The camera reuses its arrays, so a renderer that publishes a capture after later
+        captures are prepared copies them.
 
         Args:
             render_data: Renderer-owned camera resources.
             camera_data: Current camera pose and calibration.
             frame: Current per-environment capture indices, shape (N,), dtype ``wp.int64``.
+            env_mask: Environments due for this capture, shape (N,), dtype ``wp.bool``.
         """
 
     @abstractmethod
@@ -208,7 +221,7 @@ class BaseRenderer(ABC):
             self.render(data)
 
     @abstractmethod
-    def read_output(self, render_data: Any, camera_data: CameraData) -> bool:
+    def read_output(self, render_data: Any, camera_data: CameraData) -> CaptureInfo | None:
         """Read rendered outputs from the renderer into the camera data container.
 
         Asynchronous renderers may return the previous capture with its matching metadata in
@@ -220,8 +233,8 @@ class BaseRenderer(ABC):
                 instance to populate.
 
         Returns:
-            Whether a new capture was published; False when the outputs hold an already-published one.
-            A None return counts as published.
+            The published capture, with the ``env_mask`` given to :meth:`prepare_capture` for it, or None when the
+            outputs hold an already-published capture.
         """
         pass
 

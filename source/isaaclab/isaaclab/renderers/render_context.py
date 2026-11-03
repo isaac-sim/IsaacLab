@@ -18,7 +18,7 @@ import warp as wp
 from .. import cloner
 from ..sensors.camera.camera_data import CameraData
 from ..utils.string import string_to_callable
-from .base_renderer import BaseRenderer, VisualMaterialBatch
+from .base_renderer import BaseRenderer, CaptureInfo, VisualMaterialBatch
 from .renderer_cfg import RendererCfg
 
 logger = logging.getLogger(__name__)
@@ -338,15 +338,15 @@ class RenderContext:
         render_data: Any,
         camera_data: CameraData,
         physics_step_count: int,
-    ) -> bool:
-        """Capture one camera through :meth:`render_into_cameras` and return whether it published a capture."""
+    ) -> CaptureInfo | None:
+        """Capture one camera through :meth:`render_into_cameras` and return its published capture, if any."""
         return self.render_into_cameras([(renderer, render_data, camera_data)], physics_step_count)[0]
 
     def render_into_cameras(
         self,
         requests: Sequence[tuple[BaseRenderer, Any, CameraData]],
         physics_step_count: int,
-    ) -> list[bool]:
+    ) -> list[CaptureInfo | None]:
         """Render prepared cameras in batches grouped by renderer instance.
 
         Camera poses must be updated before this call. Requests are used only for this
@@ -358,7 +358,7 @@ class RenderContext:
             physics_step_count: Current physics step for shared scene synchronization.
 
         Returns:
-            Whether each request published a capture, in request order.
+            Each request's published capture, or None when it published none, in request order.
         """
         if not requests:
             return []
@@ -369,12 +369,12 @@ class RenderContext:
         for index, (renderer, render_data, camera_data) in enumerate(requests):
             groups.setdefault(id(renderer), (renderer, []))[1].append((index, render_data, camera_data))
 
-        published = [False] * len(requests)
+        captures: list[CaptureInfo | None] = [None] * len(requests)
         for renderer, cameras in groups.values():
             renderer.render_batch([render_data for _, render_data, _ in cameras])
             for index, render_data, camera_data in cameras:
-                published[index] = renderer.read_output(render_data, camera_data) is not False
-        return published
+                captures[index] = renderer.read_output(render_data, camera_data)
+        return captures
 
     def reset_stage_prepare_flag(self) -> None:
         """Allow :meth:`ensure_prepare_stage` to run ``prepare_stage`` again (e.g. a new USD stage)."""
