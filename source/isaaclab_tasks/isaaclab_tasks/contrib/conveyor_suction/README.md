@@ -85,10 +85,11 @@ The Beta sampler favors intermediate success and retains a uniform strategy with
 Connected paths cover contact, lift, transport around the pedestal, and controlled descent.
 Earlier approach states rewind the moving parcel around the incoming turn. Held starts restore native
 suction seals against the reset geometry before the first observation. Other parcels are shuffled among
-the remaining belt and feeder slots. Descent starts retain at least 6 cm of geometric clearance above
-the receiving surface, requiring motion before a controlled release can qualify. Released outfeed starts
-are excluded: the conveyor can complete those deliveries without a policy action. No reset seeds a receipt
-or successful outcome.
+the remaining belt and feeder slots. Initially, about 6% of sampled starts are already near enough to
+practice a controlled release. These bootstrap states connect continuously to larger descents;
+progress levels 9–15 retain at least 6 cm of geometric clearance above the receiving surface.
+Released outfeed starts are excluded: the conveyor can complete those deliveries without a policy
+action. No reset seeds a receipt or successful outcome.
 
 No parcel starts with delivery credit in any reset phase. Release is checked before detachment:
 the parcel must be upright, close to its commanded position, at most 2 cm above the receiving
@@ -110,8 +111,10 @@ failed row outcome; a later failure does not overwrite or duplicate an already r
 
 The reward remains sparse: a complete qualified receipt earns +10; failures and motion
 regularization retain their existing penalties. There are no reaching, lifting or goal-distance
-rewards. Reset-family metrics separately expose placement, carry and acquisition; `descent_success_rate`
-tracks the farther half of the descent path.
+rewards. Reset-family metrics separately expose placement, carry and acquisition.
+`release_reset_success_rate` tracks the three easiest descent levels; `descent_success_rate`
+tracks levels 9–15, which start at least 6 cm above the receiving surface. Release-ready bootstrap
+success is separate from learning a substantial descent or a full pickup.
 Training starts receive more practice when the policy has intermediate success, while
 every progress bucket remains eligible. Sampling history is local to each worker and restarts
 when the environment is recreated. Training success from an easier reset is not an

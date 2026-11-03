@@ -39,7 +39,7 @@ def test_receipts_record_success_and_continue_without_reset(device):
     with closing(gym.make(task, cfg=cfg).unwrapped) as env:
         assert env.layout_ids.tolist() == [0, 1], "The impact fixture uses the original five-lane world."
         reset = env.event_manager.get_term_cfg("reset_parcels").func
-        rows = torch.tensor([0, 1], device=device)
+        rows = torch.tensor([9, 10], device=device)
         reset.reset_sampler.sampler.sample = lambda probabilities, count: rows[:count]
         env.reset()
         initial_parcels = env.active_ids.tolist()

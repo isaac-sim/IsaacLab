@@ -273,9 +273,9 @@ class SizeSortCommand(CommandTerm):
         extras["reset_row_coverage"] = (self._reset_term.reset_sampler.success_monitor.success_size > 0).float().mean()
         extras["full_start_sampling_probability"] = self._reset_term.reset_sampler.probabilities[-1]
         samples = self._reset_term._samples
-        extras["descent_success_rate"] = self._reset_term.reset_sampler.success_monitor.success_rate[
-            samples // 2 : samples
-        ].mean()
+        rates = self._reset_term.reset_sampler.success_monitor.success_rate
+        extras["release_reset_success_rate"] = rates[:3].mean()
+        extras["descent_success_rate"] = rates[9:samples].mean()
         for phase, name in enumerate(("place", "carry", "approach")):
             extras[f"{name}_sampling_probability"] = self._reset_term.reset_sampler.probabilities[
                 phase * samples : (phase + 1) * samples
@@ -511,9 +511,8 @@ class ResetParcels(ManagerTermBase):
         path[:, 0], path[:, 1] = radius * angle.cos(), radius * angle.sin()
         path[:, 2] += lift_distance * (distance / lift_distance).clamp(0.0, 1.0)
         path[:, 2] += (endpoint[:, 2] - pick_high[:, 2]) * travel
-        # Leave enough clearance that passive tool/seal settling cannot qualify a release.
-        goal[:, 2] += 0.052
-        descent = torch.lerp(goal, goal_high, fraction.pow(3)[:, None])
+        # A few low starts teach release; progress 9 onward retains at least 6 cm of clearance.
+        descent = torch.lerp(goal, goal_high, fraction.pow(1.5)[:, None])
         self._tool_positions = torch.where((self.phase_ids == 0)[:, None], descent, path)
         self._tool_positions[self.phase_ids == 3] = home
         # Descent rows have already lifted. A newly sealed low lift must still clear the belt.

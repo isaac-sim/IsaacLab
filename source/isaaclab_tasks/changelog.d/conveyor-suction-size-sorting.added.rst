@@ -22,7 +22,8 @@
   Local carton and concrete textures, warehouse framing, racks, and a loading bay improve the scene.
 * Connected suction reset states through approach, acquisition, lift, transport and controlled descent.
   Progress outcomes are shared across randomized physical states; passive outfeed starts are excluded from training.
-  Descent starts require movement from at least 6 cm of geometric clearance above their receiving surfaces.
+  A small release-ready bootstrap cohort connects continuously to larger descents, with separate
+  metrics for near-release starts and descent levels at least 6 cm above their receiving surfaces.
   Shorter training attempts and separate descent, carry and acquisition metrics expose backward curriculum progress;
   delivery rewards remain sparse.
   Cartesian policy means are bounded to the accepted action range, with near-rest initialization
