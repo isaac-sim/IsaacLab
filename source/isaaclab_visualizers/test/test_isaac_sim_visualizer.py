@@ -7,7 +7,8 @@
 
 from __future__ import annotations
 
-import pytest
+from types import SimpleNamespace
+
 from isaaclab_visualizers.isaac_sim import IsaacSimBackendCfg
 from isaaclab_visualizers.isaac_sim.isaac_sim_visualizer import IsaacSimVisualizer
 
@@ -19,27 +20,45 @@ from isaaclab.visualizers.visualizer_cfg import VISUALIZER_TYPES, VisualizerCfg
 _SCENE = """#usda 1.0
 def "World"
 {
-    def Xform "Proto" (instanceable = true)
+    def "envs"
     {
-        def Mesh "mesh"
+        def Xform "env_0"
         {
-            point3f[] points = [(0, 0, 0), (1, 0, 0), (0, 1, 0)]
+            def Xform "Robot"
+            {
+                def Mesh "mesh"
+                {
+                    point3f[] points = [(0, 0, 0), (1, 0, 0), (0, 1, 0)]
+                }
+            }
         }
-    }
-    def "env_0" (
-        instanceable = true
-        prepend references = </World/Proto>
-    )
-    {
-    }
-    def "env_1" (
-        instanceable = true
-        prepend references = </World/Proto>
-    )
-    {
+        def Xform "env_1"
+        {
+            double3 xformOp:translate = (2, 0, 0)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+            def Xform "Robot"
+            {
+                def Mesh "mesh"
+                {
+                    point3f[] points = [(0, 0, 0), (1, 0, 0), (0, 1, 0)]
+                }
+            }
+        }
     }
 }
 """
+
+
+def _export(scene: str):
+    """Export a scene the way the visualizer populates the shared stage, without a clone plan."""
+    stage = Usd.Stage.CreateInMemory()
+    stage.GetRootLayer().ImportFromString(scene)
+    visualizer = IsaacSimVisualizer(VisualizerCfg(backend=IsaacSimBackendCfg()))
+    try:
+        path, replication = visualizer._export_prototypes(SimpleNamespace(stage=stage, get_clone_plan=lambda: None))
+        return Usd.Stage.Open(str(path)), replication
+    finally:
+        visualizer._resources.close()
 
 
 def test_isaac_sim_is_registered():
@@ -48,16 +67,19 @@ def test_isaac_sim_is_registered():
     assert IsaacSimBackendCfg().visualizer_type == "isaac_sim"
 
 
-@pytest.mark.parametrize(("max_points", "expanded"), [(9, True), (8, False)])
-def test_export_types_containers_and_expands_instances_within_budget(max_points, expanded):
-    """The three instanced meshes count 9 points when expanded, so a budget of 8 keeps the instancing."""
-    visualizer = IsaacSimVisualizer(VisualizerCfg(backend=IsaacSimBackendCfg(deinstance_max_points=max_points)))
-    stage = Usd.Stage.CreateInMemory()
-    stage.GetRootLayer().ImportFromString(_SCENE)
-    try:
-        exported = Usd.Stage.Open(str(visualizer._export_scene(stage)))
-        assert exported.GetPrimAtPath("/World").GetTypeName() == "Xform"
-        assert exported.GetPrimAtPath("/World/env_0").GetTypeName() == "Xform"
-        assert exported.GetPrimAtPath("/World/env_1").IsInstance() is not expanded
-    finally:
-        visualizer._resources.close()
+def test_export_keeps_one_copy_and_clones_the_other_environments():
+    exported, replication = _export(_SCENE)
+    assert replication.copies == [("/World/envs/env_0/Robot", ["/World/envs/env_1/Robot"])]
+    assert exported.GetPrimAtPath("/World/envs/env_0/Robot/mesh")
+    # The other environment keeps its root and placement; its contents come from the clone.
+    assert exported.GetPrimAtPath("/World/envs/env_1")
+    copy = exported.GetPrimAtPath("/World/envs/env_1/Robot")
+    assert not copy or not copy.IsActive()
+    # The viewer's stage tree omits typeless containers, so they are exported as transforms.
+    assert exported.GetPrimAtPath("/World").GetTypeName() == "Xform"
+
+
+def test_export_without_environments_is_whole():
+    exported, replication = _export('#usda 1.0\ndef "World"\n{\n    def Cube "box"\n    {\n    }\n}\n')
+    assert replication is None
+    assert exported.GetPrimAtPath("/World/box")

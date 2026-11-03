@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import warp as wp
 
-from pxr import Sdf, Usd, UsdGeom
+from pxr import Sdf, Usd
 
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationContext
@@ -38,16 +38,14 @@ logger = logging.getLogger(__name__)
 _ENVS_ROOT = "/World/envs"
 """Parent of Isaac Lab's cloned environments."""
 
-_POSE_ROOT = "/IsaacLabPoses"
-"""Pseudo prim that keys Isaac Lab's queued pose writes, so a newer write replaces an unapplied one."""
-
 
 class IsaacSimVisualizer(BaseVisualizer):
-    """Isaac Sim 7 viewer application driven by Isaac Lab's simulation.
+    """Isaac Sim 7 viewer application on an OVStage shared with Isaac Lab.
 
-    The Isaac Sim 7 host owns the stage, renderer and UI (stage tree, properties, content browser, picking and
-    gizmos). Isaac Lab keeps its own loop and physics. Each step it queues the world poses of its bodies into the
-    host's command queue, which applies them before the renderer's next frame.
+    The host's stage context creates and registers one OVStage; Isaac Lab borrows it and owns its ordinals. Each
+    rendered frame, Isaac Lab writes body poses and visualization markers, runs the host's participants, seals the
+    ordinal and renders the viewer's products with OVRTX. The host reads the same stage for its stage tree and property
+    panes and streams the frames to its client. Isaac Lab keeps its own loop and physics.
     """
 
     def __init__(self, cfg: VisualizerCfg):
@@ -64,20 +62,16 @@ class IsaacSimVisualizer(BaseVisualizer):
         self._host = None
         self._desktop = None
         self._provider = None
-        self._paths: list[str] = []
-        self._slot = None
         self._shared = None
-        self._shared_armed = False
         self._markers = None
-        self._next_render = 0.0
+        self._paths: list[str] = []
         self._scales = None
         self._pose_output = SceneDataFormat.TransposedMatrix44d()
-        self._timestamp = -1
-        self._armed_world: int | None = None
-        self._generation = -1
+        self._armed = False
+        self._next_render = 0.0
         self._running = False
         self.timings = {"publish": 0.0, "steps": 0}
-        """Accumulated wall time [s] of pose publication, for benchmarking the connection."""
+        """Accumulated wall time [s] of the viewer's work in :meth:`step`, for benchmarking."""
 
     @property
     def url(self) -> str:
@@ -90,7 +84,7 @@ class IsaacSimVisualizer(BaseVisualizer):
         return f"{self._host.url}/index.html?entry=index.js&token={self._host.token}"
 
     def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
-        """Export the scene, start the Isaac Sim 7 host and bind pose publication.
+        """Populate the shared stage, start the Isaac Sim 7 host and open its client.
 
         Args:
             sim: Simulation owner that provides the authored stage and scene data.
@@ -108,69 +102,36 @@ class IsaacSimVisualizer(BaseVisualizer):
         from isaacsim.foundation.orchestration import RationalRate
         from isaacsim.viewports.presentation import FrameEncoder
 
-        from .isaac_sim_world import make_physics_free_world_opener
+        from .isaac_sim_shared_markers import SharedMarkers
+        from .isaac_sim_shared_world import SharedWorldOpener
 
         self._provider = sim.get_scene_data_provider()
         self._paths = list(self._provider.backend.transform_paths)
         self._scales = authored_scales(sim.stage, self._paths)
         started = time.perf_counter()
-        replication = None
-        if self.backend_cfg.stage_mode == "shared":
-            scene, replication = self._export_prototypes(sim)
-        else:
-            scene = self._export_scene(sim.stage)
+        scene, replication = self._export_prototypes(sim)
         self.timings["export"] = time.perf_counter() - started
         metadata = read_scene_metadata(scene)
         specs: list = []
         rate = RationalRate(int(self.cfg.window.fps))
+        device = str(sim.device)
+        self._markers = SharedMarkers()
+        self._shared = SharedWorldOpener(
+            scene, specs, rate, device=int(device.split(":")[1]) if ":" in device else 0, replication=replication
+        )
+        self._resources.callback(self._shared.close)
+        self.timings["shared_stage"] = time.perf_counter() - started - self.timings["export"]
         client_roots = client_roots_for_backend("web")
         if self.backend_cfg.app_client_root is not None:
             client_roots = [("/app/", Path(self.backend_cfg.app_client_root) / "renderer"), *client_roots[1:]]
-
-        def extra_participants(wake):
-            return ()
-
-        if self.backend_cfg.stage_mode == "export" and self.backend_cfg.pose_transport == "participant":
-            from sim_viewer.scene import PHYSICS_POSITION
-
-            from isaacsim.application.host import NativeParticipant
-
-            from .isaac_sim_poses import PoseEngine, PoseSlot
-
-            self._slot = PoseSlot(self._paths)
-            engine = PoseEngine(self._slot)
-            self._resources.callback(engine.close)
-
-            def extra_participants(wake):
-                return [NativeParticipant("isaaclab-poses", engine.participant(rate), PHYSICS_POSITION)]
-
-        open_world = make_physics_free_world_opener(specs, rate, renderer="ovgl", extra_participants=extra_participants)
-        renderer_name = "ovgl"
-        if self.backend_cfg.stage_mode == "shared":
-            from .isaac_sim_shared_world import SharedWorldOpener
-
-            device = sim.device
-            from .isaac_sim_shared_markers import SharedMarkers
-
-            self._markers = SharedMarkers()
-            self._shared = open_world = SharedWorldOpener(
-                scene,
-                specs,
-                rate,
-                device=int(device.split(":")[1]) if ":" in str(device) else 0,
-                replication=replication,
-            )
-            self._resources.callback(self._shared.close)
-            self.timings["shared_stage"] = time.perf_counter() - started - self.timings["export"]
-            renderer_name = "ovrtx"
         self._host = AppHost(
-            open_world=open_world,
+            open_world=self._shared,
             scene=str(scene),
             viewports=specs,
             viewport_factory=lambda index: dynamic_viewport_spec(index, tuple(self.cfg.window.size)),
             encoder=FrameEncoder.create("auto"),
             presentation=self.backend_cfg.presentation,
-            renderer_name=renderer_name,
+            renderer_name="ovrtx",
             hidden_roots=(CAMERA_SCOPE, RENDER_SCOPE),
             world_up=metadata.up_vector,
             host="127.0.0.1",
@@ -180,14 +141,8 @@ class IsaacSimVisualizer(BaseVisualizer):
             stage_writes=True,
         )
         self._resources.callback(self._host.stop)
-        if self._shared is not None:
-            self._shared.on_frame = self._host.simulation.request_redraw
-        if self._slot is not None:
-            # A stopped host renders only on request, so each pose set that Isaac Lab hands over requests a frame.
-            self._slot.wake = self._host.simulation.request_redraw
-        if self._shared is None:
-            # The participant publishes the first poses when the host opens its world, so hand them over first.
-            self._publish_poses()
+        # The host steps, and so publishes frames, only on request; each rendered frame requests one.
+        self._shared.on_frame = self._host.simulation.request_redraw
         self._host.start()
         if not self.cfg.headless and self.backend_cfg.ui == "browser":
             self._log_viewer_url("IsaacSimVisualizer", self.client_url)
@@ -221,7 +176,8 @@ class IsaacSimVisualizer(BaseVisualizer):
         """Export each asset once; the environments are cloned and placed in the stage.
 
         This is Isaac Lab's OVStage population path. With a clone plan, the copies follow it, so environments may hold
-        different assets. Without one, every environment receives a copy of the first environment's children.
+        different assets. Without one, every environment receives a copy of the first environment's children, and a
+        scene without cloned environments is exported whole.
 
         Returns:
             The exported scene and the replication that completes it, or ``None`` when the scene is exported whole.
@@ -247,20 +203,21 @@ class IsaacSimVisualizer(BaseVisualizer):
         else:
             envs = stage.GetPrimAtPath(_ENVS_ROOT)
             env_paths = [child.GetPath().pathString for child in envs.GetChildren()] if envs else []
-            if len(env_paths) < 2:
-                return self._export_scene(stage), None
-            source = env_paths[0]
-            children = [child.GetName() for child in stage.GetPrimAtPath(source).GetChildren()]
-            copies = [(f"{source}/{name}", [f"{env}/{name}" for env in env_paths[1:]]) for name in children]
-            # Environment roots keep their authored transforms, so the copies land in place.
-            replication = Replication(copies, env_paths, None)
-            usd = export_stage_to_string(
-                stage, env_paths, tuple(source for source, _ in copies), keep_env_roots=True, preserve_references=True
-            )
+            if len(env_paths) > 1:
+                source = env_paths[0]
+                children = [child.GetName() for child in stage.GetPrimAtPath(source).GetChildren()]
+                copies = [(f"{source}/{name}", [f"{env}/{name}" for env in env_paths[1:]]) for name in children]
+                # Environment roots keep their authored transforms, so the copies land in place.
+                replication = Replication(copies, env_paths, None)
+                sources = tuple(source for source, _ in copies)
+            else:
+                replication, sources = None, ()
+            usd = export_stage_to_string(stage, env_paths, sources, keep_env_roots=True, preserve_references=True)
         layer = Sdf.Layer.CreateAnonymous(".usda")
         layer.ImportFromString(usd)
         exported = Usd.Stage.Open(layer)
         for prim in exported.Traverse():
+            # The viewer's stage tree omits typeless containers, which Isaac Lab authors.
             if not prim.GetTypeName():
                 prim.SetTypeName("Xform")
         directory = Path(self._resources.enter_context(tempfile.TemporaryDirectory(prefix="isaaclab_isaac_sim_")))
@@ -268,90 +225,7 @@ class IsaacSimVisualizer(BaseVisualizer):
         exported.Export(str(scene))
         return scene, replication
 
-    def _export_scene(self, stage: Usd.Stage) -> Path:
-        """Write the authored stage to a temporary USD file that the host opens as its scene.
-
-        Isaac Lab authors some containers without a type, which the viewer's stage tree omits, so they become
-        ``Xform`` prims. Instanceable prims are expanded while the expanded scene stays within
-        :attr:`IsaacSimBackendCfg.deinstance_max_points`. The ``Flattened_Prototype_*`` specs stay because the
-        expanded prims still reference them.
-        """
-        exported = Usd.Stage.Open(stage.Flatten())
-        deinstance = self._expanded_points(exported) <= self.backend_cfg.deinstance_max_points
-        for prim in exported.Traverse():
-            if not prim.GetTypeName():
-                prim.SetTypeName("Xform")
-            if deinstance and prim.IsInstance():
-                prim.SetInstanceable(False)
-        logger.info(
-            "[IsaacSimVisualizer] %s instanced prims in the exported scene.", "Expanded" if deinstance else "Kept"
-        )
-        directory = Path(self._resources.enter_context(tempfile.TemporaryDirectory(prefix="isaaclab_isaac_sim_")))
-        scene = directory / "scene.usdc"
-        exported.Export(str(scene))
-        return scene
-
-    @staticmethod
-    def _expanded_points(stage: Usd.Stage) -> int:
-        """Count mesh points as if every instance owned a copy of its prototype's geometry."""
-        total = 0
-        for prim in Usd.PrimRange.Stage(stage, Usd.TraverseInstanceProxies()):
-            if prim.IsA(UsdGeom.Mesh):
-                points = UsdGeom.Mesh(prim).GetPointsAttr().Get()
-                total += 0 if points is None else len(points)
-        return total
-
-    def _publish_poses(self) -> bool:
-        """Queue the latest simulation world transforms; return whether new ones were queued.
-
-        With the ``"participant"`` transport, the poses go to the slot that the host's pose engine reads. With
-        ``"commands"``, they go through the host's command queue; the host replaces its world when the user stops or
-        reloads the scene, so poses are skipped while that happens and queued again, with the world-space flag, once
-        the new world is open.
-        """
-        backend = self._provider.backend
-        if self._slot is not None:
-            if backend.transforms_timestamp == self._timestamp:
-                return False
-            if not self._provider.get_transforms(self._pose_output, allow_passthrough=True, scales=self._scales):
-                return False
-            # The host reads the slot on its own thread, so hand it a copy that the next step cannot overwrite.
-            self._slot.publish(self._pose_output.matrices.numpy().reshape(-1, 16).copy())
-            self._timestamp = backend.transforms_timestamp
-            return True
-
-        from isaacsim.application.host.impl.transport import ReloadingError
-
-        generation = self._host.simulation.progress.generation
-        if generation != self._generation:
-            self._armed_world = None
-            self._timestamp = -1
-        if backend.transforms_timestamp == self._timestamp and self._armed_world is not None:
-            return False
-        if not self._provider.get_transforms(self._pose_output, allow_passthrough=True, scales=self._scales):
-            return False
-        # The host reads these on its own thread, so hand it a copy that the next step cannot overwrite.
-        matrices = self._pose_output.matrices.numpy().copy()
-        paths = self._paths
-        try:
-            with self._host.simulation.reading(wait=False) as world:
-                if self._armed_world != id(world):
-                    # Bodies carry world matrices, so the host must not compose them with their parents.
-                    ones = np.ones(len(paths), dtype=np.bool_)
-                    world.commands.submit(
-                        f"{_POSE_ROOT}/reset",
-                        "omni:resetXformStack",
-                        lambda view: view.write(paths, "omni:resetXformStack", ones),
-                    )
-                    self._armed_world = id(world)
-                world.commands.submit(_POSE_ROOT, "omni:xform", lambda view: view.write(paths, "omni:xform", matrices))
-        except ReloadingError:
-            return False
-        self._generation = generation
-        self._timestamp = backend.transforms_timestamp
-        return True
-
-    def _step_shared(self, dt: float) -> None:
+    def _render_frame(self, dt: float) -> None:
         """Write the latest poses into the shared stage, seal it and render, at most ``window.fps`` times a second.
 
         Poses only matter when a frame renders, so steps between frames write nothing.
@@ -367,11 +241,8 @@ class IsaacSimVisualizer(BaseVisualizer):
         matrices = self._pose_output.matrices
         stream = wp.get_device(matrices.device).stream.cuda_stream or 1
         paths = self._paths
-        time_ns = int(self._sim_time * 1e9)
-
-        first = not self._shared_armed
-        self._shared_armed = True
-
+        first = not self._armed
+        self._armed = True
         markers = self._markers if self.supports_markers() else None
         registry = self._sim.vis_marker_registry if markers is not None else None
 
@@ -385,15 +256,15 @@ class IsaacSimVisualizer(BaseVisualizer):
             # matrices stay on the device; ovstage copies them in on the producing stream.
             stage.write_device(paths, "omni:xform", xform_tensor_from_warp(matrices), stream)
 
-        self._shared.step(time_ns, int(dt * 1e9), write_state)
+        self._shared.step(int(self._sim_time * 1e9), int(dt * 1e9), write_state)
         self.timings["renders"] = self._shared.renders
 
     def supports_markers(self) -> bool:
-        """Return whether visualization markers are drawn: in the shared stage, when markers are enabled."""
-        return self.cfg.enable_markers and self.backend_cfg.stage_mode == "shared"
+        """Return whether visualization markers are drawn."""
+        return self.cfg.enable_markers
 
     def step(self, dt: float) -> None:
-        """Queue this step's poses for the host.
+        """Update the shared stage and the viewer's frame.
 
         Args:
             dt: Simulation time-step in seconds.
@@ -402,10 +273,7 @@ class IsaacSimVisualizer(BaseVisualizer):
             return
         self._sim_time += dt
         start = time.perf_counter()
-        if self._shared is not None:
-            self._step_shared(dt)
-        else:
-            self._publish_poses()
+        self._render_frame(dt)
         self.timings["publish"] += time.perf_counter() - start
         self.timings["steps"] += 1
 
@@ -416,12 +284,12 @@ class IsaacSimVisualizer(BaseVisualizer):
         return self._running
 
     def close(self) -> None:
-        """Stop the host and remove the exported scene."""
+        """Stop the host, release the shared stage and remove the exported scene."""
         if self._is_closed:
             return
         try:
             self._resources.close()
         finally:
             self._running = False
-            self._host = self._desktop = self._provider = self._slot = None
+            self._host = self._desktop = self._provider = self._shared = None
             super().close()

@@ -5,7 +5,7 @@
 
 """Isaac Sim 7 viewer visualizer backend (prototype), selected with ``--viz isaac-sim``.
 
-In the default ``stage_mode="shared"``, one OVStage is the data layer for Isaac Lab and the Isaac Sim 7 viewer
+One OVStage is the data layer for Isaac Lab and the Isaac Sim 7 viewer
 application. Isaac Lab owns its ordinals: it writes body poses and visualization markers, runs the host's
 participants, seals, and renders the viewer's render products with OVRTX. The host shows the frames with its stage
 tree, property and content panes.
