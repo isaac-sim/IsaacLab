@@ -10,7 +10,7 @@ SPDX-License-Identifier: BSD-3-Clause
 `IsaacContrib-Conveyor-Suction-Sorting` demonstrates replicated force-based Newton suction
 and shared success-guided reset sampling. Twelve differently sized parcels circulate through
 a compact workcell with a gravity-drop feeder. A Franka places parcels at commanded positions
-on five receiving belts, which deliver them into physical bins. The policy controls the arm
+on five or six receiving belts, which deliver them into physical bins. The policy controls the arm
 and vacuum; belts run continuously.
 
 ![Franka suction parcel sorting](../../../../../docs/source/_static/environment-previews/conveyor_suction_sorting.jpg)
@@ -30,7 +30,7 @@ the seal implementation into Isaac Lab. Stock Newton releases do not provide thi
 ## Training and playback
 
 The default configuration uses 512 environments, 6,000 PPO updates, and 30-second training episodes.
-Playback uses 240-second episodes. Shorter training attempts recycle reset practice sooner;
+Playback uses the original five-lane fixture and 240-second episodes. Shorter training attempts recycle reset practice sooner;
 both modes continue to another parcel after each controlled placement.
 Each verified delivery counts as a success, and the robot continues with another parcel in the
 same scene. Reliable learning from scratch has not yet been validated.
@@ -52,25 +52,33 @@ Franka joint velocity limits. Observations include the selected parcel's pose, v
 dimensions, robot and tool states, pickup and placement qualification, and the commanded
 parcel-center goal in the robot frame. A small overhead ray scan observes collision geometry
 as robot-frame points and hit-validity bits. It uses Newton physics rather than an RTX camera;
-the 20 cm ray spacing can miss thin obstacles, and occluded surfaces are not observed.
+the 24 cm ray spacing can miss thin obstacles, and occluded surfaces are not observed.
 Earlier checkpoints require retraining with
 the new observations and controlled-placement objective.
 Parcel dimensions vary across twelve fixed cuboid assets spanning five size classes.
 Parcels are 8.5–19 cm long and weigh approximately 64–431 g. The receiving lanes have
 24 cm openings to accommodate the largest packages. Earlier suction checkpoints require
 their matching parcel catalogue and tool configuration; the observation shape alone does not imply compatibility.
-Training samples the destination independently of package dimensions, with small placement
-offsets within each supported receiving area. Playback routes each size class to its original
+Training distributes parallel environments across sixteen coherent physical fixtures: eight have
+five receiving lanes and eight have six. Lane angles, radial positions, and heights vary together
+with the corresponding goal, bin, and reset geometry. Each environment keeps its fixture for its
+lifetime; placement offsets and starting states vary at reset. The original five-lane fixture and
+its six-lane extension remain in the catalog. Training samples every active destination independently
+of package dimensions, with placement offsets inside its supported receiving area. Playback routes each size class to its original
 outlet. Both modes supply the goal explicitly, so dimensions cannot replace following the
 command. Colors make the scene readable without becoming policy inputs. Goals are restricted
 to these reachable, supported receiving areas; this example does not establish transfer to
-arbitrary facilities or obstacles.
+arbitrary facilities or obstacles. The 312-observation, four-action interface is unchanged, so current
+goal-conditioned suction policies can be fine-tuned, but the wider collision scan changes their input
+distribution. Evaluate separately on held-out fixture layouts before claiming generalization.
 
 ## Reset distribution and success
 
 The public `isaaclab_tasks.utils.ResetStateSampler` tracks recent outcomes and chooses
-reset rows. A task-local catalogue contains 9,600 rows across five equally represented reset
-families, twelve parcels and five destinations. Lift and approach paths use sixteen locations
+reset rows. The default task-local catalogue contains 168,960 rows across sixteen fixtures,
+five equally represented reset families, twelve parcels and each fixture's active destinations.
+Only rows matching an environment's physical fixture are eligible. The five-lane playback fixture
+uses 9,600 rows. Lift and approach paths use sixteen locations
 at two pickup anchors; other families retain the same sampling weight. Connected paths
 cover home-to-contact approach, newly sealed lift, transport and controlled descent; full
 home starts remain a separate family. Released states along the outfeed cover the passive

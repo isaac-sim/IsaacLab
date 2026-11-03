@@ -1,4 +1,4 @@
-* Added a Franka suction parcel-sorting task with twelve cuboid shapes, five physical
+* Added a Franka suction parcel-sorting task with twelve cuboid shapes, five or six physical
   collection lanes, and success-guided sampling through the shared reset-state API.
   Parcels span 8.5–19 cm, with wider receiving lanes and a visible four-cup suction tool
   whose authored contact surfaces match the Newton seal geometry.
@@ -20,3 +20,7 @@
   Local carton and concrete textures, warehouse framing, racks, and a loading bay improve the scene.
 * Connected suction reset states through approach, acquisition, lift, transport, descent and released outfeed motion,
   with shorter training attempts and reset-family success metrics; delivery rewards remain sparse.
+* Varied training across sixteen coherent conveyor fixtures with matching goal, bin, and reset geometry.
+  Success-guided sampling tracks layout-specific reset rows while retaining sparse physical-delivery rewards.
+  The wider collision scan retains the 312-observation, four-action interface; playback keeps the original
+  five-lane fixture. Existing goal-conditioned suction policies can be fine-tuned for the changed input distribution.

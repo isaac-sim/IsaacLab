@@ -16,8 +16,6 @@ from isaaclab_contrib.surface_gripper.newton import SurfaceGripper
 from ..conveyor_franka.conveyor_franka_env import ConveyorFrankaEnv
 from .actions_cfg import TOOL_OFFSET
 from .scene import (
-    BIN_POSITIONS,
-    GOAL_DIRECTIONS,
     PARCEL_CLASS_IDS,
     PARCEL_SIZES,
     SUCTION_PAD_RADIUS,
@@ -49,8 +47,6 @@ class SuctionSortingEnv(ConveyorFrankaEnv):
         self.parcels = tuple(self.scene[f"parcel_{index}"] for index in range(len(PARCEL_SIZES)))
         self.parcel_sizes = torch.tensor(PARCEL_SIZES, device=self.device)
         self.parcel_classes = torch.tensor(PARCEL_CLASS_IDS, dtype=torch.long, device=self.device)
-        self.bin_positions = torch.tensor(BIN_POSITIONS, device=self.device)
-        self.bin_directions = torch.tensor(GOAL_DIRECTIONS, device=self.device)
         self.active_ids = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
         self.episode_success = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         super().load_managers()

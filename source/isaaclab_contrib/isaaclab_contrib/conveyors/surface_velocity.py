@@ -36,6 +36,7 @@ class SurfaceVelocitySpec:
         surface_normal: Local outward normal of the carrying surface.
         contact_threshold: Minimum contact-normal alignment accepted for traction.
         friction_coefficient: Coulomb limit for synthetic surface traction.
+        optional: Permit this surface to be absent from some scene variants.
     """
 
     prim_path: str
@@ -47,6 +48,7 @@ class SurfaceVelocitySpec:
     surface_normal: tuple[float, float, float] = (0.0, 0.0, 1.0)
     contact_threshold: float = 0.997
     friction_coefficient: float = 0.7
+    optional: bool = False
 
     def __post_init__(self) -> None:
         """Reject invalid authored geometry and contact parameters."""

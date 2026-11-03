@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""One shared Franka policy sorts variable cuboids into five physical size bins."""
+"""One goal-conditioned Franka policy sorts parcels across varied conveyor layouts."""
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg
@@ -74,6 +74,7 @@ class ObservationsCfg:
 
 @configclass
 class EventsCfg:
+    outfeed_layouts = EventTerm(func=mdp.initialize_outfeed_layouts, mode="prestartup")
     reset_parcels = EventTerm(
         func=mdp.ResetParcels, mode="reset", params={"sampling": ResetStateSamplerCfg(), "full_starts": False}
     )
@@ -135,9 +136,9 @@ class SuctionSortingEnvCfg(ConveyorFrankaEnvCfg):
         )
         self.scene.collision_scan = RayCasterCfg(
             prim_path="{ENV_REGEX_NS}",
-            offset=RayCasterCfg.OffsetCfg(pos=(0.25, 0.0, 1.1)),
+            offset=RayCasterCfg.OffsetCfg(pos=(0.05, 0.0, 1.1)),
             mesh_prim_paths=[],
-            pattern_cfg=patterns.GridPatternCfg(resolution=0.2, size=(1.4, 1.4)),
+            pattern_cfg=patterns.GridPatternCfg(resolution=0.24, size=(1.68, 1.68)),
             max_distance=2.0,
             update_period=self.sim.dt * self.decimation,
         )
@@ -155,6 +156,7 @@ class SuctionSortingEnvCfg(ConveyorFrankaEnvCfg):
     def play_mode(self) -> None:
         self.episode_length_s = 240.0
         self.scene.num_envs = min(self.scene.num_envs, 4)
+        self.scene.outfeeds.spawn.assets_cfg = self.scene.outfeeds.spawn.assets_cfg[:1]
         self.commands.sort.randomize_destination = False
         self.events.reset_parcels.params["full_starts"] = True
         self.events.reset_parcels.params["sampling"].sampling = SamplerCfg(strategies=[UniformSamplingStrategyCfg()])

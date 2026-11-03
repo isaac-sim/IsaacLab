@@ -138,7 +138,11 @@ class SurfaceVelocity:
                 if surface_shapes[surface_id] >= 0:
                     raise RuntimeError(f"Multiple collision shapes match conveyor surface {path!r}.")
                 surface_shapes[surface_id] = shape_id
-        missing = [path for path, shape_id in zip(self._prim_paths, surface_shapes, strict=True) if shape_id < 0]
+        missing = [
+            path
+            for index, (path, shape_id) in enumerate(zip(self._prim_paths, surface_shapes, strict=True))
+            if shape_id < 0 and not self._surface_specs[index % surfaces_per_env].optional
+        ]
         if missing:
             raise RuntimeError(f"Missing {len(missing)} conveyor collision sections: {missing[:8]}.")
 
@@ -164,6 +168,8 @@ class SurfaceVelocity:
         conveyor = ConveyorForceModel(model, solver_type="mujoco")
         transforms = model.shape_transform.numpy()
         for surface_id, shape_id in enumerate(surface_shapes):
+            if shape_id < 0:
+                continue
             spec = self._surface_specs[surface_id % surfaces_per_env]
             values = transforms[shape_id]
             transform = wp.transform(wp.vec3(*values[:3]), wp.quat(*values[3:]))

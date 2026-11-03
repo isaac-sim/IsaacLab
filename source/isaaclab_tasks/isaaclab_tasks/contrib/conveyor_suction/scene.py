@@ -3,12 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Compact parcel induction, suction sorting, and five physical collection lanes."""
+"""Compact parcel induction and coherent five- or six-lane sorting fixtures."""
 
 from __future__ import annotations
 
 import math
+import random
+from dataclasses import MISSING
 from pathlib import Path
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 from isaaclab_newton.sim.schemas import NewtonMaterialPropertiesCfg
@@ -16,6 +19,7 @@ from isaaclab_newton.sim.schemas import NewtonMaterialPropertiesCfg
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sim.schemas import UsdPhysicsMeshCollisionCfg
 from isaaclab.utils import configclass
 
 from isaaclab_contrib.conveyors.surface_velocity import SurfaceVelocitySpec
@@ -60,12 +64,42 @@ PARCEL_SIZES = (
 """Per-asset cuboid dimensions [m]; shapes vary within a size class."""
 CLASS_COLORS = ((0.20, 0.53, 0.79), (0.88, 0.48, 0.19), (0.26, 0.66, 0.46), (0.68, 0.39, 0.66), (0.74, 0.60, 0.35))
 GOAL_ANGLES = tuple(math.radians(value) for value in (10, 35, 60, 85, 110))
-GOAL_DIRECTIONS = tuple((math.cos(angle), math.sin(angle), 0.0) for angle in GOAL_ANGLES)
-GOAL_POSITIONS = tuple((0.70 * x, 0.70 * y, BELT_TOP_Z) for x, y, _ in GOAL_DIRECTIONS)
-"""Flat receiving-pad positions in the robot's environment frame [m]."""
-BIN_POSITIONS = tuple((2.17 * x, 2.17 * y, -0.48) for x, y, _ in GOAL_DIRECTIONS)
 BIN_INTERIOR_SIZE = (0.60, 0.56, 0.56)
 """Bin interior dimensions [m], with local X pointing along its outfeed."""
+
+
+@configclass
+class OutfeedLayout:
+    """Lane angles [rad], radial translations [m], and height translations [m]."""
+
+    angles: tuple[float, ...] = MISSING
+    radial_offsets: tuple[float, ...] = MISSING
+    height_offsets: tuple[float, ...] = MISSING
+
+
+def make_outfeed_layouts(seed: int = 73) -> tuple[OutfeedLayout, ...]:
+    """Retain both reference fixtures and fill a deterministic, separated layout catalog."""
+    six_angles = (*GOAL_ANGLES, math.radians(135.0))
+    layouts = [
+        OutfeedLayout(angles, (0.0,) * len(angles), (0.0,) * len(angles)) for angles in (GOAL_ANGLES, six_angles)
+    ]
+    generator = random.Random(seed)
+    for _ in range(7):
+        for count in (5, 6):
+            slack = 145.0 - 8.0 - 27.0 * (count - 1)
+            offsets = sorted(generator.uniform(0.0, slack) for _ in range(count))
+            layouts.append(
+                OutfeedLayout(
+                    tuple(math.radians(8.0 + 27.0 * index + offset) for index, offset in enumerate(offsets)),
+                    tuple(generator.uniform(-0.005, 0.035) for _ in range(count)),
+                    tuple(generator.uniform(-0.015, 0.015) for _ in range(count)),
+                )
+            )
+    return tuple(layouts)
+
+
+OUTFEED_LAYOUTS = make_outfeed_layouts()
+"""Static fixture variants shared by physics, observations, commands, and reset recipes."""
 _PARCEL_XY = (
     (0.60, -0.19),
     (0.90, -0.19),
@@ -100,9 +134,58 @@ def _spawn_floor(
     return _spawn_textured_surface(prim_path, "concrete.png", (100.0, 100.0), translation, orientation, tiles=32.0)
 
 
+def _spawn_outfeeds(
+    prim_path: str,
+    cfg: OutfeedsCfg,
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+) -> Usd.Prim:
+    """Author one complete fixture before clone planning imports its collision geometry."""
+    prim = sim_utils.create_prim(prim_path, translation=translation, orientation=orientation)
+    layout = cfg.layout
+    for index, (angle, radial, height) in enumerate(
+        zip(layout.angles, layout.radial_offsets, layout.height_offsets, strict=True)
+    ):
+        parts = SimpleNamespace()
+        _add_destination(parts, index, angle)
+        for section in _outfeed_sections(index):
+            asset = _conveyor_asset(
+                f"{{ENV_REGEX_NS}}/{section.geometry.name}",
+                section.geometry,
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=_BELT_COLOR, roughness=0.85),
+            )
+            asset.init_state.rot = (0.0, 0.0, math.sin(angle / 2.0), math.cos(angle / 2.0))
+            setattr(parts, section.geometry.name, asset)
+        offset = (radial * math.cos(angle), radial * math.sin(angle), height)
+        for name, asset in vars(parts).items():
+            # MJWarp permits absent mesh slots, while primitive counts must match across worlds.
+            if isinstance(asset.spawn, sim_utils.CuboidCfg):
+                original = asset.spawn
+                asset.spawn = sim_utils.MeshCuboidCfg(
+                    size=original.size,
+                    collision_props=original.collision_props,
+                    mesh_collision_props=UsdPhysicsMeshCollisionCfg(mesh_approximation_name="convexHull")
+                    if original.collision_props is not None
+                    else None,
+                    physics_material=original.physics_material,
+                    visual_material=original.visual_material,
+                )
+            position = tuple(value + shift for value, shift in zip(asset.init_state.pos, offset, strict=True))
+            asset.spawn.func(f"{prim_path}/{name}", asset.spawn, translation=position, orientation=asset.init_state.rot)
+    return prim
+
+
+@configclass
+class OutfeedsCfg(sim_utils.SpawnerCfg):
+    """Select one coherent static sorting fixture from the task's layout catalog."""
+
+    func = _spawn_outfeeds
+    layout: OutfeedLayout = OUTFEED_LAYOUTS[0]
+
+
 @configclass
 class SuctionSortingSceneCfg(InteractiveSceneCfg):
-    """Table-mounted Franka between a parcel loop and five compact sorting lanes."""
+    """Table-mounted Franka between a parcel loop and a catalog of sorting fixtures."""
 
     robot = FRANKA_PANDA_CONVEYOR_CFG.replace(
         prim_path="{ENV_REGEX_NS}/Robot",
@@ -126,6 +209,13 @@ class SuctionSortingSceneCfg(InteractiveSceneCfg):
         prim_path="/World/KeyLight",
         init_state=AssetBaseCfg.InitialStateCfg(rot=(0.2798, -0.3647, -0.1159, 0.8805)),
         spawn=sim_utils.DistantLightCfg(color=(1.0, 0.95, 0.89), intensity=1400.0, angle=8.0),
+    )
+    outfeeds = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Outfeeds",
+        spawn=sim_utils.MultiAssetSpawnerCfg(
+            assets_cfg=[OutfeedsCfg(layout=layout) for layout in OUTFEED_LAYOUTS],
+            random_choice=False,
+        ),
     )
 
     def __post_init__(self) -> None:
@@ -161,8 +251,6 @@ class SuctionSortingSceneCfg(InteractiveSceneCfg):
                 ),
             )
         _add_intake_frame(self)
-        for index, angle in enumerate(GOAL_ANGLES):
-            _add_destination(self, index, angle)
         _add_box(self, "RobotMount", (0.36, 0.36, 0.05), (0.0, 0.0, -0.025), _METAL_COLOR)
         _add_box(self, "RobotPedestal", (0.24, 0.24, 0.73), (0.0, 0.0, -0.415), _FRAME_COLOR)
         _add_box(self, "RobotFoot", (0.36, 0.36, 0.025), (0.0, 0.0, -0.7875), _METAL_COLOR, colliding=False)
@@ -203,7 +291,11 @@ class SuctionSortingSceneCfg(InteractiveSceneCfg):
 
     def build_conveyor_belt_specs(self, **kwargs: float) -> tuple[SurfaceVelocitySpec, ...]:
         """Return prescribed surface velocities in the authored collision frames."""
-        return tuple(section.belt for section in _conveyor_sections(**kwargs))
+        sections = (
+            *_conveyor_sections(**kwargs),
+            *(section for index in range(6) for section in _outfeed_sections(index, **kwargs)),
+        )
+        return tuple(section.belt for section in sections)
 
 
 def _conveyor_sections(
@@ -253,20 +345,31 @@ def _conveyor_sections(
         )
     # A short drop onto the return leg avoids two opposing contact fields at the merge.
     add(CuboidSpec("InductionBelt", (1.20, 0.24, 0.04), (2.0, -0.75, 0.24)), (-1.0, 0.0, 0.0))
-    for index, (angle, direction) in enumerate(zip(GOAL_ANGLES, GOAL_DIRECTIONS, strict=True)):
-        add(
-            _deck(
-                f"ReceivingDeck{index}",
-                angle,
-                *RECEIVING_PAD_RADIAL_BOUNDS,
-                2.0 * RECEIVING_PAD_HALF_WIDTH,
-                2.0 * RECEIVING_PAD_HALF_WIDTH,
-                BELT_TOP_Z,
-                BELT_TOP_Z,
-            ),
-            direction,
+    return tuple(sections)
+
+
+def _outfeed_sections(
+    index: int,
+    velocity: float = 0.25,
+    friction_coefficient: float = 0.6,
+    contact_threshold: float = 0.995,
+) -> tuple[ConveyorSectionSpec, ...]:
+    """Keep carrying surfaces and their velocities in the same lane-local frame."""
+    sections = []
+    for name, bounds in ((f"ReceivingDeck{index}", RECEIVING_PAD_RADIAL_BOUNDS), (f"Outfeed{index}", (0.815, 1.95))):
+        sections.append(
+            ConveyorSectionSpec(
+                _deck(name, 0.0, *bounds, 0.24, 0.24, BELT_TOP_Z, BELT_TOP_Z),
+                SurfaceVelocitySpec(
+                    prim_path=f"{{ENV_REGEX_NS}}/Outfeeds/{name}",
+                    velocity=velocity,
+                    direction=(1.0, 0.0, 0.0),
+                    friction_coefficient=friction_coefficient,
+                    contact_threshold=contact_threshold,
+                    optional=index == 5,
+                ),
+            )
         )
-        add(_deck(f"Outfeed{index}", angle, 0.815, 1.95, 0.24, 0.24, BELT_TOP_Z, BELT_TOP_Z), direction)
     return tuple(sections)
 
 
@@ -323,7 +426,7 @@ def _deck(
 
 
 def _add_box(
-    scene: SuctionSortingSceneCfg,
+    scene: SuctionSortingSceneCfg | SimpleNamespace,
     name: str,
     size: tuple[float, float, float],
     position: tuple[float, float, float],
@@ -394,7 +497,7 @@ def _add_intake_frame(scene: SuctionSortingSceneCfg) -> None:
     _add_box(scene, "ScannerLight", (0.008, 0.24, 0.008), (2.36, -0.75, 0.545), (0.30, 0.85, 0.75), colliding=False)
 
 
-def _add_destination(scene: SuctionSortingSceneCfg, index: int, angle: float) -> None:
+def _add_destination(scene: SuctionSortingSceneCfg | SimpleNamespace, index: int, angle: float) -> None:
     """Build an open receiving mouth, guarded outfeed, and open collection bin."""
     cosine, sine = math.cos(angle), math.sin(angle)
 
@@ -419,7 +522,7 @@ def _add_destination(scene: SuctionSortingSceneCfg, index: int, angle: float) ->
         )
 
     for side, offset in (("Left", -0.129), ("Right", 0.129)):
-        box(f"Mouth{side}", (0.25, 0.018, 0.13), 0.705, offset, 0.125, CLASS_COLORS[index])
+        box(f"Mouth{side}", (0.25, 0.018, 0.13), 0.705, offset, 0.125, CLASS_COLORS[index % len(CLASS_COLORS)])
         box(f"Outfeed{side}", (1.20, 0.020, 0.045), 1.35, math.copysign(0.13, offset), 0.05, _METAL_COLOR)
     box("Frame", (1.20, 0.28, 0.08), 1.35, 0.0, -0.045, _FRAME_COLOR, colliding=False)
     for leg, radius in enumerate((0.92, 1.78)):

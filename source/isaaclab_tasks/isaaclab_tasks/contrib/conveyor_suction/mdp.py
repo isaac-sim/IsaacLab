@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 import torch
 
+from isaaclab import cloner
 from isaaclab.envs import mdp as common_mdp
 from isaaclab.managers import CommandTerm, CommandTermCfg, EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.utils import configclass
@@ -23,12 +24,10 @@ from isaaclab_tasks.utils.reset_states import ResetStateSampler, ResetStateSampl
 from ..conveyor_franka.mdp.kinematics import end_effector_pose, tool_velocity
 from ..conveyor_franka.mdp.reset_events import franka_tool_position
 from ..conveyor_franka.mdp.terminations import invalid_action as invalid_policy_action
-from .actions_cfg import LINK7_TO_TOOL_Z
+from .actions_cfg import LINK7_TO_TOOL_Z, ROBOT_SHOULDER_Z, TOOL_REACH_RADIUS
 from .scene import (
     BELT_TOP_Z,
     BIN_INTERIOR_SIZE,
-    GOAL_DIRECTIONS,
-    GOAL_POSITIONS,
     INTAKE_CENTER,
     INTAKE_HALF_STRAIGHT,
     INTAKE_RADIUS,
@@ -42,6 +41,43 @@ from .scene import (
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
+
+
+def initialize_outfeed_layouts(env: ManagerBasedRLEnv, env_ids: torch.Tensor | None) -> None:
+    """Resolve immutable fixture geometry before reset terms bind at physics startup."""
+    del env_ids
+    plan = env.scene.clone_plan
+    prototypes = cloner.path.get_asset_prototypes(plan, env.scene.cfg.outfeeds.prim_path)
+    env.outfeed_layouts = tuple(plan.asset_cfgs[int(prototype)].spawn.assets_cfg[0].layout for prototype in prototypes)
+    worlds, starts = cloner.query.get_asset_prototype_unique_world_index(plan.topology, prototypes)
+    env.layout_ids = torch.empty(env.num_envs, dtype=torch.long, device=env.device)
+    for index in range(len(prototypes)):
+        env.layout_ids[torch.as_tensor(worlds[starts[index, 1] : starts[index, -1]], device=env.device)] = index
+    shape = (len(env.outfeed_layouts), max(len(layout.angles) for layout in env.outfeed_layouts), 3)
+    env.layout_directions = torch.zeros(shape, device=env.device)
+    env.layout_origins = torch.zeros_like(env.layout_directions)
+    env.layout_goal_positions = torch.zeros_like(env.layout_directions)
+    env.layout_bin_positions = torch.zeros_like(env.layout_directions)
+    env.layout_mask = torch.zeros(shape[:2], dtype=torch.bool, device=env.device)
+    for index, layout in enumerate(env.outfeed_layouts):
+        count = len(layout.angles)
+        angles = torch.tensor(layout.angles, device=env.device)
+        radial = torch.tensor(layout.radial_offsets, device=env.device)
+        height = torch.tensor(layout.height_offsets, device=env.device)
+        directions = env.layout_directions[index, :count]
+        directions[:, 0], directions[:, 1] = angles.cos(), angles.sin()
+        origins = env.layout_origins[index, :count]
+        origins[:, :2] = radial[:, None] * directions[:, :2]
+        origins[:, 2] = height
+        env.layout_goal_positions[index, :count] = origins + 0.70 * directions
+        env.layout_goal_positions[index, :count, 2] += BELT_TOP_Z
+        env.layout_bin_positions[index, :count] = origins + 2.17 * directions
+        env.layout_bin_positions[index, :count, 2] -= 0.48
+        env.layout_mask[index, :count] = True
+    env.bin_directions = env.layout_directions[env.layout_ids]
+    env.bin_positions = env.layout_bin_positions[env.layout_ids]
+    env.outfeed_origins = env.layout_origins[env.layout_ids]
+    env.outfeed_mask = env.layout_mask[env.layout_ids]
 
 
 def parcel_observation(env: ManagerBasedRLEnv) -> torch.Tensor:
@@ -136,11 +172,11 @@ class SizeSortCommand(CommandTerm):
         self._stable_steps = torch.zeros_like(self.delivered, dtype=torch.long)
         self._last_step = torch.full_like(self.new_success, -1)
         self._evaluation_step = -1
-        self._bin_frames = torch.zeros((5, 3, 3), device=self.device)
-        self._bin_frames[:, 0] = env.bin_directions
-        self._bin_frames[:, 1, 0] = -env.bin_directions[:, 1]
-        self._bin_frames[:, 1, 1] = env.bin_directions[:, 0]
-        self._bin_frames[:, 2, 2] = 1.0
+        self._bin_frames = torch.zeros((*env.bin_positions.shape[:2], 3, 3), device=self.device)
+        self._bin_frames[:, :, 0] = env.bin_directions
+        self._bin_frames[:, :, 1, 0] = -env.bin_directions[:, :, 1]
+        self._bin_frames[:, :, 1, 1] = env.bin_directions[:, :, 0]
+        self._bin_frames[:, :, 2, 2] = 1.0
         self._bin_half_size = torch.tensor(BIN_INTERIOR_SIZE, device=self.device) / 2.0
         for name in (
             "success_rate",
@@ -175,9 +211,10 @@ class SizeSortCommand(CommandTerm):
         local = state[:, :3] - env.scene.env_origins[ids]
         rotation = math_utils.matrix_from_quat(state[:, 3:7])
         half_size = env.parcel_sizes[env.active_ids[ids]] / 2.0
-        frames = self._bin_frames[self.destination_ids[ids]]
+        frames = self._bin_frames[ids, self.destination_ids[ids]]
         half_extents = (torch.bmm(frames, rotation).abs() * half_size[:, None]).sum(dim=-1)
-        center = torch.bmm(frames, local[:, :, None]).squeeze(-1)
+        offset = local - env.outfeed_origins[ids, self.destination_ids[ids]]
+        center = torch.bmm(frames, offset[:, :, None]).squeeze(-1)
         bottom = local[:, 2] - (rotation[:, 2].abs() * half_size).sum(dim=-1)
         support_height = self.goal_positions[ids, 2] - half_size[:, 2]
         clearance = bottom - support_height
@@ -186,7 +223,7 @@ class SizeSortCommand(CommandTerm):
             & (center[:, 0] + half_extents[:, 0] <= RECEIVING_PAD_RADIAL_BOUNDS[1])
             & (center[:, 1].abs() + half_extents[:, 1] <= RECEIVING_PAD_HALF_WIDTH)
         )
-        belt_velocity = env.bin_directions[self.destination_ids[ids], :2] * env.cfg.conveyor_force.speed
+        belt_velocity = env.bin_directions[ids, self.destination_ids[ids], :2] * env.cfg.conveyor_force.speed
         horizontal_speed = torch.minimum(
             torch.linalg.vector_norm(state[:, 7:9], dim=-1),
             torch.linalg.vector_norm(state[:, 7:9] - belt_velocity, dim=-1),
@@ -257,15 +294,17 @@ class SizeSortCommand(CommandTerm):
         self._outfeed_destinations[self._ids[released], env.active_ids[released]] = self.destination_ids[released]
         pending = self._outfeed_destinations >= 0
         destinations = self._outfeed_destinations.clamp_min(0)
-        offsets = local[:, :, None] - env.bin_positions
-        in_bin_frame = torch.einsum("kij,npkj->npki", self._bin_frames, offsets)
+        offsets = local[:, :, None] - env.bin_positions[:, None]
+        in_bin_frame = torch.einsum("nkij,npkj->npki", self._bin_frames, offsets)
         rotation = math_utils.matrix_from_quat(states[:, :, 3:7])
         half_extents = (
-            torch.einsum("kij,npjl->npkil", self._bin_frames, rotation).abs()
+            torch.einsum("nkij,npjl->npkil", self._bin_frames, rotation).abs()
             * (env.parcel_sizes[None, :, None, None] / 2.0)
         ).sum(dim=-1)
         inside = (in_bin_frame.abs() + half_extents < self._bin_half_size + 0.005).all(dim=-1)
+        inside &= env.outfeed_mask[:, None]
         over_bin = (in_bin_frame.abs() < self._bin_half_size + 0.03).all(dim=-1)
+        over_bin &= env.outfeed_mask[:, None]
         settled = torch.linalg.vector_norm(states[:, :, 7:10], dim=-1) < 0.35
         correct = inside.gather(-1, destinations[..., None]).squeeze(-1)
         eligible = pending & ~self.delivered & settled
@@ -370,17 +409,19 @@ class SizeSortCommand(CommandTerm):
         choice = distances.masked_fill(~eligible, torch.inf).argmin(dim=-1)
         available = (clear | missed) & eligible.any(dim=-1)
         selected = ids[available]
+        if not selected.numel():
+            return
         self.metrics["missed_pickups"][selected] += missed[available].float()
         self._env.active_ids[selected] = choice[available]
         if self.cfg.randomize_destination:
-            self.destination_ids[selected] = torch.randint(len(GOAL_POSITIONS), (len(selected),), device=self.device)
+            self.destination_ids[selected] = torch.multinomial(env.outfeed_mask[selected].float(), 1).squeeze(-1)
         else:
             self.destination_ids[selected] = self._env.parcel_classes[self._env.active_ids[selected]]
         offsets = torch.rand((len(selected), 2), device=self.device)
         for axis, bounds in enumerate((self.cfg.goal_radial_range, self.cfg.goal_lateral_range)):
             offsets[:, axis] = bounds[0] + offsets[:, axis] * (bounds[1] - bounds[0])
         self.goal_positions[selected] = self._reset_term._placement_goals(
-            self._env.active_ids[selected], self.destination_ids[selected], offsets
+            self._env.active_ids[selected], self.destination_ids[selected], offsets, env.layout_ids[selected]
         )
         self.lifted[selected] = self._waiting[selected] = False
         self.placed[selected] = self._was_engaged[selected] = False
@@ -399,12 +440,11 @@ class ResetParcels(ManagerTermBase):
         samples = 16
         variants_per_phase = 2 * samples
         phase_count = 5
-        rows = torch.arange(
-            len(PARCEL_SIZES) * phase_count * variants_per_phase * len(GOAL_POSITIONS), device=self.device
-        )
+        lanes = env.layout_mask.nonzero(as_tuple=False)
+        rows = torch.arange(len(PARCEL_SIZES) * phase_count * variants_per_phase * len(lanes), device=self.device)
         self.row_count = rows.numel()
-        self.destination_ids = rows % len(GOAL_POSITIONS)
-        recipes = rows // len(GOAL_POSITIONS)
+        self.layout_ids, self.destination_ids = lanes[rows % len(lanes)].unbind(dim=-1)
+        recipes = rows // len(lanes)
         self.parcel_ids = recipes // (phase_count * variants_per_phase)
         self.phase_ids = (recipes // variants_per_phase) % phase_count
         variants = recipes % variants_per_phase
@@ -422,17 +462,15 @@ class ResetParcels(ManagerTermBase):
         sizes = self._parcel_sizes[self.parcel_ids]
         pick = torch.zeros((self.row_count, 3), device=self.device)
         pick[:, 0], pick[:, 1], pick[:, 2] = 0.54 + 0.10 * anchor, -0.19, BELT_TOP_Z + sizes[:, 2] + 0.004
-        self._goal_centers = torch.tensor(GOAL_POSITIONS, device=self.device)
-        self._goal_directions = torch.tensor(GOAL_DIRECTIONS, device=self.device)
+        self._goal_centers = env.layout_goal_positions
+        self._goal_directions = env.layout_directions
+        self._goal_origins = env.layout_origins
         cfg = env.cfg.commands.sort
-        offsets = torch.stack(
-            [
-                bounds[0] + fraction * (bounds[1] - bounds[0])
-                for bounds in (cfg.goal_radial_range, cfg.goal_lateral_range)
-            ],
-            dim=-1,
-        )
-        self.goal_positions = self._placement_goals(self.parcel_ids, self.destination_ids, offsets)
+        # Sample both pad axes independently of path progress, without multiplying catalog dimensions.
+        offsets = torch.quasirandom.SobolEngine(2, scramble=True, seed=0).draw(self.row_count).to(self.device)
+        for axis, bounds in enumerate((cfg.goal_radial_range, cfg.goal_lateral_range)):
+            offsets[:, axis] = bounds[0] + offsets[:, axis] * (bounds[1] - bounds[0])
+        self.goal_positions = self._placement_goals(self.parcel_ids, self.destination_ids, offsets, self.layout_ids)
         goal = self.goal_positions.clone()
         goal[:, 2] += sizes[:, 2] / 2.0 + 0.010
         home_arm = torch.tensor((0.0, -0.35, 0.0, -2.35, 0.0, 2.0, 0.0), device=self.device)
@@ -441,11 +479,24 @@ class ResetParcels(ManagerTermBase):
         pick_high[:, 2] = goal_high[:, 2] = 0.30
         endpoint = torch.where((self.phase_ids == 1)[:, None], goal_high, home)
         lift_distance = pick_high[:, 2] - pick[:, 2]
-        travel_distance = torch.linalg.vector_norm(endpoint - pick_high, dim=-1)
+        start_radius = torch.linalg.vector_norm(pick[:, :2], dim=-1)
+        end_radius = torch.linalg.vector_norm(endpoint[:, :2], dim=-1)
+        start_angle = torch.atan2(pick[:, 1], pick[:, 0])
+        end_angle = torch.atan2(endpoint[:, 1], endpoint[:, 0])
+        travel_distance = torch.sqrt(
+            (end_radius - start_radius).square()
+            + ((end_angle - start_angle) * (start_radius + end_radius) / 2.0).square()
+            + (endpoint[:, 2] - pick_high[:, 2]).square()
+        )
         distance = progress * (lift_distance + travel_distance)
-        # Arc-length spacing joins contact to transport and contact to home without large gaps.
-        path = pick + (pick_high - pick) * (distance / lift_distance).clamp(0.0, 1.0)[:, None]
-        path += (endpoint - pick_high) * ((distance - lift_distance) / travel_distance).clamp(0.0, 1.0)[:, None]
+        # Transport around the pedestal rather than cutting through it on wide-angle transfers.
+        travel = ((distance - lift_distance) / travel_distance).clamp(0.0, 1.0)
+        radius = torch.lerp(start_radius, end_radius, travel)
+        angle = torch.lerp(start_angle, end_angle, travel)
+        path = pick.clone()
+        path[:, 0], path[:, 1] = radius * angle.cos(), radius * angle.sin()
+        path[:, 2] += lift_distance * (distance / lift_distance).clamp(0.0, 1.0)
+        path[:, 2] += (endpoint[:, 2] - pick_high[:, 2]) * travel
         # Keep plentiful easy release seeds while filling the entire descent to transport height.
         descent = torch.lerp(goal, goal_high, fraction.pow(3)[:, None])
         self._tool_positions = torch.where((self.phase_ids == 0)[:, None], descent, path)
@@ -459,8 +510,7 @@ class ResetParcels(ManagerTermBase):
         )
         self._arm_positions = home_arm.repeat(self.row_count, 1)
         partial = self.phase_ids != 3
-        unique, inverse = torch.unique(self._tool_positions[partial], dim=0, return_inverse=True)
-        self._arm_positions[partial] = solve_tool_ik(unique)[inverse]
+        self._arm_positions[partial] = solve_tool_ik(self._tool_positions[partial])
         self._pick_positions = pick.clone()
         self._pick_positions[:, 2] -= 0.5 * sizes[:, 2] + 0.002
         # Earlier approach states need earlier parcel phases, including the moving left turn.
@@ -480,9 +530,15 @@ class ResetParcels(ManagerTermBase):
         self._parcel_velocities[unheld & (distance < 0.0), 5] = -speed / INTAKE_RADIUS
         # Valid released predecessors teach the passive outfeed suffix, without seeding a receipt.
         outfeed = self.phase_ids == 4
-        directions = self._goal_directions[self.destination_ids]
+        directions = self._goal_directions[self.layout_ids, self.destination_ids]
         radius = (self.goal_positions[:, :2] * directions[:, :2]).sum(dim=-1)
-        last_supported = 1.95 - torch.linalg.vector_norm(sizes[:, :2], dim=-1) / 2.0 - 0.005
+        origins = self._goal_origins[self.layout_ids, self.destination_ids]
+        last_supported = (
+            1.95
+            + (origins[:, :2] * directions[:, :2]).sum(dim=-1)
+            - torch.linalg.vector_norm(sizes[:, :2], dim=-1) / 2.0
+            - 0.005
+        )
         travel = (last_supported - radius) * (1.0 - (1.0 - fraction).pow(3))
         self._pick_positions[outfeed] = self.goal_positions[outfeed]
         self._pick_positions[outfeed, :2] += directions[outfeed, :2] * travel[outfeed, None]
@@ -491,20 +547,32 @@ class ResetParcels(ManagerTermBase):
         self._pick_yaw[outfeed] = 0.0
 
     def _placement_goals(
-        self, parcel_ids: torch.Tensor, destination_ids: torch.Tensor, offsets: torch.Tensor
+        self,
+        parcel_ids: torch.Tensor,
+        destination_ids: torch.Tensor,
+        offsets: torch.Tensor,
+        layout_ids: torch.Tensor,
     ) -> torch.Tensor:
-        """Keep commanded parcel centers and their yaw-independent footprints on the pads."""
+        """Keep goals reachable and yaw-independent parcel footprints on their physical pads."""
         sizes = self._parcel_sizes[parcel_ids]
-        positions = self._goal_centers[destination_ids].clone()
-        directions = self._goal_directions[destination_ids]
+        positions = self._goal_centers[layout_ids, destination_ids].clone()
+        directions = self._goal_directions[layout_ids, destination_ids]
+        origins = self._goal_origins[layout_ids, destination_ids]
         half_diagonal = torch.linalg.vector_norm(sizes[:, :2], dim=-1) / 2.0
         radius = (positions[:, :2] * directions[:, :2]).sum(dim=-1)
-        radial = offsets[:, 0].clamp(
-            min=RECEIVING_PAD_RADIAL_BOUNDS[0] + half_diagonal + 0.005 - radius,
-            max=RECEIVING_PAD_RADIAL_BOUNDS[1] - half_diagonal - 0.005 - radius,
-        )
         lateral_limit = (RECEIVING_PAD_HALF_WIDTH - half_diagonal - 0.005).clamp_min(0.0)
         lateral = offsets[:, 1].clamp(min=-lateral_limit, max=lateral_limit)
+        radial_origin = (origins[:, :2] * directions[:, :2]).sum(dim=-1)
+        lower = RECEIVING_PAD_RADIAL_BOUNDS[0] + radial_origin + half_diagonal + 0.005
+        upper = RECEIVING_PAD_RADIAL_BOUNDS[1] + radial_origin - half_diagonal - 0.005
+        tool_height = positions[:, 2] + sizes[:, 2] + 0.010
+        reachable = (TOOL_REACH_RADIUS**2 - (tool_height - ROBOT_SHOULDER_Z).square() - lateral.square()).clamp_min(
+            0.0
+        ).sqrt() - 0.005
+        upper = torch.minimum(upper, reachable)
+        if (lower > upper).any():
+            raise ValueError("The receiving pad has no supported goal within the downward tool workspace.")
+        radial = (radius + offsets[:, 0]).clamp(min=lower, max=upper) - radius
         positions[:, :2] += directions[:, :2] * radial[:, None]
         positions[:, 0] -= directions[:, 1] * lateral
         positions[:, 1] += directions[:, 0] * lateral
@@ -521,16 +589,26 @@ class ResetParcels(ManagerTermBase):
         """Record pending failures before sampling and restoring selected environments."""
         del sampling
         ids = env.scene._ALL_INDICES[env_ids] if isinstance(env_ids, slice) else env_ids
+        if not ids.numel():
+            return
         row_mask = self.phase_ids == 3 if full_starts else torch.ones_like(self.phase_ids, dtype=torch.bool)
         if not env.cfg.commands.sort.randomize_destination:
             row_mask &= self.destination_ids == torch.tensor(PARCEL_CLASS_IDS, device=self.device)[self.parcel_ids]
         sampled_received = env.command_manager.get_term("sort").delivered[ids, self.parcel_ids[self.row_ids[ids]]]
-        rows = self.reset_sampler.reset(
-            ids,
-            sampled_received,
-            valid=(env.episode_length_buf[ids] > 0) & ~sampled_received,
-            row_mask=row_mask,
-        )
+        probabilities = torch.zeros_like(self.reset_sampler.probabilities)
+        # A reset state must belong to the immutable fixture actually cloned into that world.
+        for layout_id in range(len(env.outfeed_layouts)):
+            selected = env.layout_ids[ids] == layout_id
+            if selected.any():
+                self.reset_sampler.reset(
+                    ids[selected],
+                    sampled_received[selected],
+                    valid=(env.episode_length_buf[ids[selected]] > 0) & ~sampled_received[selected],
+                    row_mask=row_mask & (self.layout_ids == layout_id),
+                )
+                probabilities += self.reset_sampler.probabilities * selected.float().mean()
+        self.reset_sampler.probabilities = probabilities
+        rows = self.row_ids[ids]
         active = self.parcel_ids[rows]
         env.active_ids[ids] = active
         env.episode_success[ids] = False
