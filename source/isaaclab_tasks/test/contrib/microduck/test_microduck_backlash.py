@@ -111,7 +111,7 @@ def test_backlash_initialization_does_not_duplicate_existing_passive_joint_patte
 
 @pytest.mark.parametrize("kind", ["tracking", "bias"])
 def test_head_rewards_measure_output_compensation_without_observation_bias(kind):
-    from isaaclab_tasks.contrib.microduck.pollen_mdp import rewards
+    from isaaclab_tasks.contrib.microduck.mdp import rewards
 
     positions = torch.tensor([[-0.2, 0.01, 0.4, -0.01], [-0.2, 0.01, 0.4, -0.01]])
     commands = torch.tensor([[0.41, -0.21], [0.4, -0.2]])
@@ -136,12 +136,12 @@ def test_head_rewards_measure_output_compensation_without_observation_bias(kind)
         "backlash_cfg": SceneEntityCfg("robot", joint_ids=[1, 3]),
     }
     if kind == "tracking":
-        result = rewards.head_pose_tracking(env, std=0.5, **params)
+        result = rewards.head_pose_tracking_raw(env, std=0.5, **params)
         expected = torch.tensor([1.0, torch.exp(torch.tensor(-((0.01 / 0.5) ** 2)))])
     else:
         params["tau_s"] = 1.0
-        cfg = RewardTermCfg(func=rewards.head_pose_bias_penalty, weight=1.0, params=params)
-        term = rewards.head_pose_bias_penalty(cfg, env)
+        cfg = RewardTermCfg(func=rewards.head_pose_bias_penalty_gated, weight=1.0, params=params)
+        term = rewards.head_pose_bias_penalty_gated(cfg, env)
         result = term(env, **params)
         expected = torch.tensor([0.0, -0.0002])
     torch.testing.assert_close(result, expected, atol=1e-7, rtol=1e-5)

@@ -13,7 +13,7 @@ import torch
 
 from isaaclab.managers import SceneEntityCfg
 
-import isaaclab_tasks.contrib.microduck.pollen_mdp as mdp
+import isaaclab_tasks.contrib.microduck.mdp as mdp
 from isaaclab_tasks.contrib.microduck.sitstand.sitstand_env_cfg import MicroDuckSitStandFlatEnvCfg
 
 pytestmark = pytest.mark.unit

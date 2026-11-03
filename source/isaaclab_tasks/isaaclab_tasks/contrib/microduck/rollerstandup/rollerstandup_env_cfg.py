@@ -47,7 +47,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.utils.configclass import configclass
 
-import isaaclab_tasks.contrib.microduck.pollen_mdp as mdp
+import isaaclab_tasks.contrib.microduck.mdp as mdp
 from isaaclab_tasks.contrib.microduck.velocity.rollers_env_cfg import (
     MICRODUCK_WHEEL_JOINT_NAMES,
     MicroDuckVelocityRollersFlatEnvCfg,
@@ -136,7 +136,7 @@ class CommandsCfg:
     observation slot nothing tracks would be a distractor rather than a shape placeholder.
     """
 
-    base_velocity = mdp.MicroDuckVelocityCommandCfg(
+    base_velocity = mdp.ForwardMaskVelocityCommandCfg(
         asset_name="robot",
         resampling_time_range=(6.0, 12.0),
         rel_standing_envs=0.0,
@@ -147,7 +147,7 @@ class CommandsCfg:
         rel_turn_in_place_envs=0.0,
         heading_command=False,
         debug_vis=False,
-        ranges=mdp.MicroDuckVelocityCommandCfg.Ranges(
+        ranges=mdp.ForwardMaskVelocityCommandCfg.Ranges(
             lin_vel_x=(-0.01, 0.01),
             lin_vel_y=(-0.01, 0.01),
             ang_vel_z=(-0.05, 0.05),
@@ -194,8 +194,8 @@ class RewardsCfg:
     # Regularizers carried over from the skating recipe (section 9.2).
     ##
 
-    body_ang_vel = RewTerm(func=mdp.body_ang_vel_xy_l2, weight=-0.05, params={"asset_cfg": _TRUNK_BODY_CFG})
-    angular_momentum = RewTerm(func=mdp.angular_momentum_l2, weight=-0.02)
+    body_ang_vel = RewTerm(func=mdp.body_ang_vel_xy_l2_raw, weight=-0.05, params={"asset_cfg": _TRUNK_BODY_CFG})
+    angular_momentum = RewTerm(func=mdp.angular_momentum_l2_raw, weight=-0.02)
     # Upstream declares -0.6 here and -0.4 at stage 0 of the curriculum that owns this weight, and the
     # curriculum manager runs before the first reward evaluation, so the declared literal is dead
     # (section 13.12). The live value is the one stated. The ramp itself is the wheel-less stand-up
@@ -203,7 +203,7 @@ class RewardsCfg:
     # gait, which is a movement blocker on a task whose whole point is a fast rise from the back.
     action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.4)
     self_collisions = RewTerm(
-        func=mdp.self_collision_cost, weight=-1.0, params={"sensor_cfg": _SELF_COLLISION_SENSOR_CFG}
+        func=mdp.self_collision_cost_saturable, weight=-1.0, params={"sensor_cfg": _SELF_COLLISION_SENSOR_CFG}
     )
     neck_action_rate_l2 = RewTerm(
         func=mdp.joint_action_rate_l2,
@@ -311,7 +311,7 @@ class TerminationsCfg:
     # keeps running (section 9.4); this port keeps the termination, because an environment quietly
     # training on zeroed observations is harder to notice than a spike in resets.
     nan_state = DoneTerm(
-        func=mdp.robot_state_is_nan,
+        func=mdp.robot_state_is_nan_optional_sensors,
         time_out=False,
         params={"sensor_names": ("contact_forces",)},
     )
@@ -337,7 +337,7 @@ class EventsCfg:
     ##
 
     encoder_bias = EventTerm(
-        func=mdp.randomize_encoder_bias,
+        func=mdp.randomize_articulation_encoder_bias,
         mode="startup",
         params={"bias_range": (-0.015, 0.015)},
     )

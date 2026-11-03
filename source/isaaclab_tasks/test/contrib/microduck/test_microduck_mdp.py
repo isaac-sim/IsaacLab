@@ -24,7 +24,7 @@ import torch
 
 from isaaclab.managers import ObservationTermCfg, SceneEntityCfg
 
-import isaaclab_tasks.contrib.microduck.pollen_mdp as mdp
+import isaaclab_tasks.contrib.microduck.mdp as mdp
 
 pytestmark = pytest.mark.unit
 
@@ -152,10 +152,10 @@ class _DummyEnv:
         self.scene = _DummyScene({"robot": _DummyRobot(num_envs, device)}, num_envs, device)
 
 
-def _make_pose_command(ranges, resampling_time_range=(2.0, 5.0), num_envs=8) -> mdp.UniformPoseDeltaCommand:
+def _make_pose_command(ranges, resampling_time_range=(2.0, 5.0), num_envs=8) -> mdp.ZeroablePoseDeltaCommand:
     env = _DummyEnv(num_envs=num_envs)
-    cfg = mdp.UniformPoseDeltaCommandCfg(resampling_time_range=resampling_time_range, ranges=ranges)
-    return mdp.UniformPoseDeltaCommand(cfg, cast("ManagerBasedRLEnv", env))
+    cfg = mdp.ZeroablePoseDeltaCommandCfg(resampling_time_range=resampling_time_range, ranges=ranges)
+    return mdp.ZeroablePoseDeltaCommand(cfg, cast("ManagerBasedRLEnv", env))
 
 
 def _make_velocity_command(
@@ -163,9 +163,9 @@ def _make_velocity_command(
     rel_standing_envs: float = 0.0,
     rel_forward_envs: float = 0.0,
     rel_turn_in_place_envs: float = 0.0,
-) -> mdp.MicroDuckVelocityCommand:
+) -> mdp.ForwardMaskVelocityCommand:
     env = _DummyEnv(num_envs=num_envs)
-    cfg = mdp.MicroDuckVelocityCommandCfg(
+    cfg = mdp.ForwardMaskVelocityCommandCfg(
         asset_name="robot",
         resampling_time_range=(3.0, 8.0),
         rel_standing_envs=rel_standing_envs,
@@ -174,14 +174,14 @@ def _make_velocity_command(
         rel_turn_in_place_envs=rel_turn_in_place_envs,
         heading_command=True,
         heading_control_stiffness=0.5,
-        ranges=mdp.MicroDuckVelocityCommandCfg.Ranges(
+        ranges=mdp.ForwardMaskVelocityCommandCfg.Ranges(
             lin_vel_x=(-0.4, 0.4),
             lin_vel_y=(-0.3, 0.3),
             ang_vel_z=ANG_VEL_Z_RANGE,
             heading=(-math.pi, math.pi),
         ),
     )
-    return mdp.MicroDuckVelocityCommand(cfg, cast("ManagerBasedRLEnv", env))
+    return mdp.ForwardMaskVelocityCommand(cfg, cast("ManagerBasedRLEnv", env))
 
 
 def _all_env_ids(term) -> torch.Tensor:
@@ -383,7 +383,7 @@ def test_encoder_bias_defaults_to_zero_until_the_randomization_runs():
     asset_cfg = _joint_cfg([0, 1, 2, 3])
     env.scene["robot"].data.joint_pos.torch[:] = 0.3
 
-    biased = mdp.joint_pos_rel_biased(cast("ManagerBasedEnv", env), asset_cfg, biased=True)
+    biased = mdp.joint_pos_rel_articulation_biased(cast("ManagerBasedEnv", env), asset_cfg, biased=True)
 
     torch.testing.assert_close(biased, torch.full_like(biased, 0.3))
 
@@ -393,10 +393,10 @@ def test_encoder_bias_is_a_constant_per_environment_offset_inside_its_range():
     torch.manual_seed(0)
     env = _make_obs_env(num_envs=512)
     asset_cfg = _joint_cfg([0, 1, 2, 3])
-    mdp.randomize_encoder_bias(cast("ManagerBasedEnv", env), None, bias_range=ENCODER_BIAS_RANGE)
+    mdp.randomize_articulation_encoder_bias(cast("ManagerBasedEnv", env), None, bias_range=ENCODER_BIAS_RANGE)
 
-    first = mdp.joint_pos_rel_biased(cast("ManagerBasedEnv", env), asset_cfg, biased=True)
-    second = mdp.joint_pos_rel_biased(cast("ManagerBasedEnv", env), asset_cfg, biased=True)
+    first = mdp.joint_pos_rel_articulation_biased(cast("ManagerBasedEnv", env), asset_cfg, biased=True)
+    second = mdp.joint_pos_rel_articulation_biased(cast("ManagerBasedEnv", env), asset_cfg, biased=True)
 
     torch.testing.assert_close(first, second)
     assert torch.all(first >= ENCODER_BIAS_RANGE[0])
@@ -415,10 +415,10 @@ def test_the_critic_reads_the_true_joint_positions():
     data = env.scene["robot"].data
     data.joint_pos.torch[:] = torch.rand_like(data.joint_pos.torch)
     data.default_joint_pos.torch[:] = 0.1
-    mdp.randomize_encoder_bias(cast("ManagerBasedEnv", env), None, bias_range=ENCODER_BIAS_RANGE)
+    mdp.randomize_articulation_encoder_bias(cast("ManagerBasedEnv", env), None, bias_range=ENCODER_BIAS_RANGE)
 
-    truth = mdp.joint_pos_rel_biased(cast("ManagerBasedEnv", env), asset_cfg, biased=False)
-    biased = mdp.joint_pos_rel_biased(cast("ManagerBasedEnv", env), asset_cfg, biased=True)
+    truth = mdp.joint_pos_rel_articulation_biased(cast("ManagerBasedEnv", env), asset_cfg, biased=False)
+    biased = mdp.joint_pos_rel_articulation_biased(cast("ManagerBasedEnv", env), asset_cfg, biased=True)
 
     expected = data.joint_pos.torch - data.default_joint_pos.torch
     torch.testing.assert_close(truth, expected)
@@ -429,10 +429,10 @@ def test_the_bias_follows_the_requested_joint_order():
     """A reordered joint selection reorders the bias with it, so the blocks stay aligned."""
     torch.manual_seed(0)
     env = _make_obs_env(num_envs=16)
-    mdp.randomize_encoder_bias(cast("ManagerBasedEnv", env), None, bias_range=ENCODER_BIAS_RANGE)
+    mdp.randomize_articulation_encoder_bias(cast("ManagerBasedEnv", env), None, bias_range=ENCODER_BIAS_RANGE)
     bias = mdp.encoder_bias(cast("ManagerBasedEnv", env))
 
-    reordered = mdp.joint_pos_rel_biased(cast("ManagerBasedEnv", env), _joint_cfg([3, 0]), biased=True)
+    reordered = mdp.joint_pos_rel_articulation_biased(cast("ManagerBasedEnv", env), _joint_cfg([3, 0]), biased=True)
 
     torch.testing.assert_close(reordered, bias[:, [3, 0]])
 
@@ -443,9 +443,9 @@ def test_the_biased_action_subtracts_the_bias_the_observation_adds():
     env = _make_obs_env(num_envs=16)
     robot = env.scene["robot"]
     robot.data.default_joint_pos.torch[:] = 0.2
-    mdp.randomize_encoder_bias(cast("ManagerBasedEnv", env), None, bias_range=ENCODER_BIAS_RANGE)
-    cfg = mdp.BiasedJointPositionActionCfg(asset_name="robot", joint_names=JOINT_NAMES, scale=1.0)
-    term = mdp.BiasedJointPositionAction(cfg, cast("ManagerBasedEnv", env))
+    mdp.randomize_articulation_encoder_bias(cast("ManagerBasedEnv", env), None, bias_range=ENCODER_BIAS_RANGE)
+    cfg = mdp.ArticulationEncoderBiasActionCfg(asset_name="robot", joint_names=JOINT_NAMES, scale=1.0)
+    term = mdp.ArticulationEncoderBiasAction(cfg, cast("ManagerBasedEnv", env))
 
     actions = torch.rand(env.num_envs, len(JOINT_NAMES), device=env.device)
     term.process_actions(actions)
@@ -455,7 +455,9 @@ def test_the_biased_action_subtracts_the_bias_the_observation_adds():
     torch.testing.assert_close(robot.joint_position_target, 0.2 + actions - bias)
     # the policy commanding ``a`` reads back ``a`` once the joint reaches its target
     robot.data.joint_pos.torch[:] = robot.joint_position_target
-    read_back = mdp.joint_pos_rel_biased(cast("ManagerBasedEnv", env), _joint_cfg([0, 1, 2, 3]), biased=True)
+    read_back = mdp.joint_pos_rel_articulation_biased(
+        cast("ManagerBasedEnv", env), _joint_cfg([0, 1, 2, 3]), biased=True
+    )
     torch.testing.assert_close(read_back, actions)
 
 
@@ -728,8 +730,8 @@ def test_the_safe_foot_terms_report_zero_where_the_sensor_reports_a_non_finite_v
     air_time[:] = 0.25
     air_time[2, 1] = float("nan")
 
-    contact_forces = mdp.foot_contact_forces_safe(cast("ManagerBasedEnv", env), sensor_cfg)
-    air = mdp.foot_air_time_safe(cast("ManagerBasedEnv", env), sensor_cfg)
+    contact_forces = mdp.foot_group_contact_forces_safe(cast("ManagerBasedEnv", env), sensor_cfg)
+    air = mdp.foot_group_air_time_safe(cast("ManagerBasedEnv", env), sensor_cfg)
 
     assert torch.all(torch.isfinite(contact_forces))
     assert torch.all(torch.isfinite(air))
@@ -747,7 +749,7 @@ def test_foot_contact_flags_only_the_loaded_feet():
     forces[0, 1] = torch.tensor([0.0, 0.0, 3.0])
     forces[1, 2] = torch.tensor([0.0, 0.0, -3.0])
 
-    contact = mdp.foot_contact(cast("ManagerBasedEnv", env), _sensor_cfg())
+    contact = mdp.foot_group_contact(cast("ManagerBasedEnv", env), _sensor_cfg())
 
     torch.testing.assert_close(contact, torch.tensor([[1.0, 0.0], [0.0, 1.0]]))
 
@@ -761,7 +763,7 @@ def test_the_safe_foot_height_is_the_sole_clearance_above_the_environment_origin
     env.scene.env_origins[:, 2] = 0.1
     body_pos[1, 2, 2] = float("nan")
 
-    height = mdp.foot_height_safe(cast("ManagerBasedEnv", env), asset_cfg)
+    height = mdp.foot_origin_height_safe(cast("ManagerBasedEnv", env), asset_cfg)
 
     torch.testing.assert_close(height, torch.tensor([[0.3, 0.3], [0.3, 0.0]]))
 

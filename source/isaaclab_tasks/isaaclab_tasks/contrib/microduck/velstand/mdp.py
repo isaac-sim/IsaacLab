@@ -21,7 +21,7 @@ from isaaclab.utils import math as math_utils
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.string import resolve_matching_names_values
 
-import isaaclab_tasks.contrib.microduck.pollen_mdp as shared
+import isaaclab_tasks.contrib.microduck.mdp as shared
 
 
 def _finite_reward(value):
@@ -56,7 +56,7 @@ def install_finite_reward_guard(env, env_ids):
     env.reward_manager.compute = MethodType(_finite_reward_compute, env.reward_manager)
 
 
-class StandingGatedPoseCommand(shared.UniformPoseDeltaCommand):
+class StandingGatedPoseCommand(shared.ZeroablePoseDeltaCommand):
     """Hold sampled commands privately and expose exact zero outside the standing bucket."""
 
     def __init__(self, cfg, env):
@@ -85,7 +85,7 @@ class StandingGatedPoseCommand(shared.UniformPoseDeltaCommand):
 
 
 @configclass
-class StandingGatedPoseCommandCfg(shared.UniformPoseDeltaCommandCfg):
+class StandingGatedPoseCommandCfg(shared.ZeroablePoseDeltaCommandCfg):
     """Standing-only pose command, with a tilt-only sub-bucket for the stand teacher."""
 
     class_type = StandingGatedPoseCommand

@@ -36,7 +36,7 @@ from isaaclab.managers import ObservationTermCfg, SceneEntityCfg
 from isaaclab.sim import SimulationContext
 
 import isaaclab_tasks  # noqa: F401
-import isaaclab_tasks.contrib.microduck.pollen_mdp as mdp
+import isaaclab_tasks.contrib.microduck.mdp as mdp
 from isaaclab_tasks.contrib.microduck.velocity.agents.rsl_rl_ppo_cfg import MicroDuckSwizzlePPORunnerCfg
 from isaaclab_tasks.contrib.microduck.velocity.rollers_env_cfg import MicroDuckVelocityRollersFlatEnvCfg
 from isaaclab_tasks.contrib.microduck.velocity.swizzle_env_cfg import MicroDuckVelocitySwizzleEnvCfg
@@ -340,7 +340,7 @@ def test_the_head_command_replaces_a_zero_pad_in_place_on_both_groups():
 
     assert set(vars(cfg.commands)) == {"base_velocity", "head_pose"}
     head_pose = cfg.commands.head_pose
-    assert isinstance(head_pose, mdp.UniformPoseDeltaCommandCfg)
+    assert isinstance(head_pose, mdp.ZeroablePoseDeltaCommandCfg)
     assert head_pose.resampling_time_range == (2.0, 5.0)
     assert head_pose.ranges == EXPECTED_HEAD_POSE_RANGE_STAGES[0][1]
 

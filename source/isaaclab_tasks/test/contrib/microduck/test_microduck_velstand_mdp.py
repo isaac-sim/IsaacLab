@@ -198,7 +198,7 @@ def test_reward_guard_keeps_good_terms_and_history_and_preserves_backlash_ema_re
     from isaaclab.envs import mdp as native_mdp
     from isaaclab.managers import RewardManager
 
-    import isaaclab_tasks.contrib.microduck.pollen_mdp as shared
+    import isaaclab_tasks.contrib.microduck.mdp as shared
 
     env = environment(2)
     env.sim = SimpleNamespace(is_playing=lambda: True)
@@ -219,7 +219,7 @@ def test_reward_guard_keeps_good_terms_and_history_and_preserves_backlash_ema_re
             "constant": RewardTermCfg(func=lambda env: torch.full((env.num_envs,), 2.0), weight=1.0),
             "stock": RewardTermCfg(func=native_mdp.action_rate_l2, weight=1.0),
             "head": RewardTermCfg(
-                func=shared.head_pose_bias_penalty,
+                func=shared.head_pose_bias_penalty_gated,
                 weight=1.0,
                 params={"command_name": "head_pose", "tau_s": 1.0, "asset_cfg": head, "backlash_cfg": play},
             ),

@@ -55,7 +55,7 @@ from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 from isaaclab.visualizers import VisualizerCfg
 
-import isaaclab_tasks.contrib.microduck.pollen_mdp as mdp
+import isaaclab_tasks.contrib.microduck.mdp as mdp
 from isaaclab_tasks.contrib.microduck.assets import (
     MICRODUCK_ALLCOLLISIONS_CFG,
     MICRODUCK_BALL_CFG,
@@ -341,7 +341,7 @@ class CommandsCfg:
     # there (addendum section 7.22): a fifth of the resamples get a commanded surge of 0.3 m/s that
     # no reward acts on, which is a quirk of the observation distribution rather than of the
     # behaviour, and is reproduced rather than quietly cleaned up.
-    base_velocity = mdp.MicroDuckVelocityCommandCfg(
+    base_velocity = mdp.ForwardMaskVelocityCommandCfg(
         asset_name="robot",
         resampling_time_range=(5.0, 10.0),
         rel_standing_envs=0.0,
@@ -350,7 +350,7 @@ class CommandsCfg:
         rel_turn_in_place_envs=0.0,
         heading_command=False,
         debug_vis=False,
-        ranges=mdp.MicroDuckVelocityCommandCfg.Ranges(
+        ranges=mdp.ForwardMaskVelocityCommandCfg.Ranges(
             lin_vel_x=(-0.01, 0.01),
             lin_vel_y=(-0.01, 0.01),
             ang_vel_z=(-0.05, 0.05),
@@ -367,7 +367,7 @@ class ActionsCfg:
     scale, closing the same encoder-bias loop.
     """
 
-    joint_pos = mdp.BiasedJointPositionActionCfg(
+    joint_pos = mdp.ArticulationEncoderBiasActionCfg(
         asset_name="robot",
         joint_names=MICRODUCK_JOINT_NAMES,
         preserve_order=True,
@@ -421,7 +421,7 @@ class ObservationsCfg:
             noise=Unoise(n_min=-0.01, n_max=0.01),
         )
         joint_pos = ObsTerm(
-            func=mdp.joint_pos_rel_biased,
+            func=mdp.joint_pos_rel_articulation_biased,
             params={"asset_cfg": _SERVO_JOINT_CFG, "biased": True},
             noise=Unoise(n_min=-0.001, n_max=0.001),
         )
@@ -463,13 +463,15 @@ class ObservationsCfg:
         base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel)
         projected_gravity = ObsTerm(func=mdp.projected_gravity)
-        joint_pos = ObsTerm(func=mdp.joint_pos_rel_biased, params={"asset_cfg": _SERVO_JOINT_CFG, "biased": False})
+        joint_pos = ObsTerm(
+            func=mdp.joint_pos_rel_articulation_biased, params={"asset_cfg": _SERVO_JOINT_CFG, "biased": False}
+        )
         joint_vel = ObsTerm(func=mdp.joint_vel_rel, params={"asset_cfg": _SERVO_JOINT_CFG})
         actions = ObsTerm(func=mdp.last_action)
         velocity_commands = ObsTerm(func=mdp.generated_commands, params={"command_name": "base_velocity"})
-        foot_air_time = ObsTerm(func=mdp.foot_air_time_safe, params={"sensor_cfg": _FOOT_SENSOR_CFG})
-        foot_contact = ObsTerm(func=mdp.foot_contact, params={"sensor_cfg": _FOOT_SENSOR_CFG})
-        foot_contact_forces = ObsTerm(func=mdp.foot_contact_forces_safe, params={"sensor_cfg": _FOOT_SENSOR_CFG})
+        foot_air_time = ObsTerm(func=mdp.foot_group_air_time_safe, params={"sensor_cfg": _FOOT_SENSOR_CFG})
+        foot_contact = ObsTerm(func=mdp.foot_group_contact, params={"sensor_cfg": _FOOT_SENSOR_CFG})
+        foot_contact_forces = ObsTerm(func=mdp.foot_group_contact_forces_safe, params={"sensor_cfg": _FOOT_SENSOR_CFG})
         head_pose_commands = ObsTerm(func=mdp.zero_command_padding, params={"dim": 4})
         body_pose_commands = ObsTerm(func=mdp.zero_command_padding, params={"dim": 6})
         ball_position = ObsTerm(func=mdp.ball_pos_in_base, params={"asset_cfg": _BALL_CFG})
@@ -516,7 +518,7 @@ class EventsCfg:
     )
 
     encoder_bias = EventTerm(
-        func=mdp.randomize_encoder_bias,
+        func=mdp.randomize_articulation_encoder_bias,
         mode="startup",
         params={"bias_range": (-0.015, 0.015)},
     )
@@ -704,7 +706,7 @@ class RewardsCfg:
     # The velocity task's exact recipe: a bounded Gaussian *reward* on the trunk's gravity tilt,
     # not the stock unbounded L2 penalty.
     upright = RewTerm(
-        func=mdp.upright,
+        func=mdp.upright_selected_body,
         weight=2.0,
         params={"std": math.sqrt(0.05), "asset_cfg": _TRUNK_BODY_CFG},
     )
@@ -713,8 +715,8 @@ class RewardsCfg:
     # Sim-to-real regularizers, matched to the velocity task.
     ##
 
-    body_ang_vel = RewTerm(func=mdp.body_ang_vel_xy_l2, weight=-0.05, params={"asset_cfg": _TRUNK_BODY_CFG})
-    angular_momentum = RewTerm(func=mdp.angular_momentum_l2, weight=-0.02)
+    body_ang_vel = RewTerm(func=mdp.body_ang_vel_xy_l2_raw, weight=-0.05, params={"asset_cfg": _TRUNK_BODY_CFG})
+    angular_momentum = RewTerm(func=mdp.angular_momentum_l2_raw, weight=-0.02)
     dof_pos_limits = RewTerm(func=mdp.joint_pos_limits, weight=-1.0)
     # Ramped to -1.0 by iteration 1500. Upstream's own note is a useful tuning hint: the kick is a
     # fast one-shot swing, so if the converged kick is too weak, softening the ramp end from -1.0 to
@@ -723,7 +725,7 @@ class RewardsCfg:
     # ``saturate`` keeps the many-to-many sensor on upstream's 0/1 scale, so the weight is the
     # penalty for touching yourself at all rather than a per-collider tariff.
     self_collisions = RewTerm(
-        func=mdp.self_collision_cost,
+        func=mdp.self_collision_cost_saturable,
         weight=-1.0,
         params={"sensor_cfg": _SELF_COLLISION_SENSOR_CFG, "saturate": True},
     )
@@ -755,7 +757,7 @@ class TerminationsCfg:
     # It reads the *robot*, as upstream's does. The ball is not covered by any state check on either
     # stack, which is why the two ball observations guard themselves.
     nan_state = DoneTerm(
-        func=mdp.robot_state_is_nan,
+        func=mdp.robot_state_is_nan_optional_sensors,
         time_out=False,
         params={"sensor_names": ("contact_forces",)},
     )

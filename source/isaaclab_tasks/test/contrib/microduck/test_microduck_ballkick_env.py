@@ -32,7 +32,7 @@ from isaaclab.managers import ObservationTermCfg, SceneEntityCfg
 from isaaclab.sim import SimulationContext
 
 import isaaclab_tasks  # noqa: F401
-import isaaclab_tasks.contrib.microduck.pollen_mdp as mdp
+import isaaclab_tasks.contrib.microduck.mdp as mdp
 from isaaclab_tasks.contrib.microduck.assets import MICRODUCK_ALLCOLLISIONS_USD_PATH, MICRODUCK_BALL_RADIUS
 from isaaclab_tasks.contrib.microduck.ballkick.agents.rsl_rl_ppo_cfg import MicroDuckBallKickPPORunnerCfg
 from isaaclab_tasks.contrib.microduck.ballkick.ballkick_env_cfg import (
@@ -755,8 +755,8 @@ def test_the_critic_sees_the_ball_and_guards_its_sensor_reads():
     # upstream deletes foot_height here: no height sensor, and no foot-height reward to need one
     assert "foot_height" not in terms
     # the NaN guarding this port applies where upstream leaves it off (addendum section 14.4)
-    assert terms["foot_air_time"].func is mdp.foot_air_time_safe
-    assert terms["foot_contact_forces"].func is mdp.foot_contact_forces_safe
+    assert terms["foot_air_time"].func is mdp.foot_group_air_time_safe
+    assert terms["foot_contact_forces"].func is mdp.foot_group_contact_forces_safe
     # a privileged group the runner never reads is dead weight
     assert MicroDuckBallKickPPORunnerCfg().obs_groups == {"actor": ["policy"], "critic": ["critic"]}
 

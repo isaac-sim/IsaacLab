@@ -39,7 +39,7 @@ from isaaclab.sim import SimulationContext
 from isaaclab.utils import math as math_utils
 
 import isaaclab_tasks  # noqa: F401
-import isaaclab_tasks.contrib.microduck.pollen_mdp as mdp
+import isaaclab_tasks.contrib.microduck.mdp as mdp
 from isaaclab_tasks.contrib.microduck.assets import MICRODUCK_CFG, MICRODUCK_ROLLERS_USD_PATH
 from isaaclab_tasks.contrib.microduck.velocity.agents.rsl_rl_ppo_cfg import MicroDuckRollersPPORunnerCfg
 from isaaclab_tasks.contrib.microduck.velocity.rollers_env_cfg import (
@@ -725,8 +725,8 @@ def test_the_critic_group_adds_the_wheel_speeds_and_guards_its_sensor_reads():
     assert "foot_height" not in terms
     assert terms["wheel_vel"].func is mdp.joint_vel_rel
     # a deliberate deviation: upstream guards these on the stand-up task only (section 7.9)
-    assert terms["foot_air_time"].func is mdp.foot_air_time_safe
-    assert terms["foot_contact_forces"].func is mdp.foot_contact_forces_safe
+    assert terms["foot_air_time"].func is mdp.foot_group_air_time_safe
+    assert terms["foot_contact_forces"].func is mdp.foot_group_contact_forces_safe
     # a privileged group the runner never reads is dead weight
     assert MicroDuckRollersPPORunnerCfg().obs_groups == {"actor": ["policy"], "critic": ["critic"]}
 

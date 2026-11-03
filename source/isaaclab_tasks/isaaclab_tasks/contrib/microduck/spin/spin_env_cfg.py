@@ -51,7 +51,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.configclass import configclass
 
-import isaaclab_tasks.contrib.microduck.pollen_mdp as mdp
+import isaaclab_tasks.contrib.microduck.mdp as mdp
 from isaaclab_tasks.contrib.microduck.velocity.rollers_env_cfg import (
     MICRODUCK_FOOT_BODY_NAMES,
     MICRODUCK_FOOT_NORMAL_AXIS,
@@ -221,9 +221,11 @@ class RewardsCfg:
     # Base-template terms upstream keeps (section 10.2).
     ##
 
-    upright = RewTerm(func=mdp.upright, weight=2.0, params={"std": math.sqrt(0.2), "asset_cfg": _TRUNK_BODY_CFG})
+    upright = RewTerm(
+        func=mdp.upright_selected_body, weight=2.0, params={"std": math.sqrt(0.2), "asset_cfg": _TRUNK_BODY_CFG}
+    )
     # Roll and pitch only, which is why this one survives where ``angular_momentum`` does not.
-    body_ang_vel = RewTerm(func=mdp.body_ang_vel_xy_l2, weight=-0.05, params={"asset_cfg": _TRUNK_BODY_CFG})
+    body_ang_vel = RewTerm(func=mdp.body_ang_vel_xy_l2_raw, weight=-0.05, params={"asset_cfg": _TRUNK_BODY_CFG})
     # Upstream declares -1.0 here and -0.5 at stage 0 of the curriculum that owns this weight, and the
     # curriculum manager runs before the first reward evaluation, so the declared literal is dead
     # (section 13.12). The live value is the one stated.
@@ -312,7 +314,7 @@ class RewardsCfg:
         },
     )
     self_collisions = RewTerm(
-        func=mdp.self_collision_cost, weight=-1.0, params={"sensor_cfg": _SELF_COLLISION_SENSOR_CFG}
+        func=mdp.self_collision_cost_saturable, weight=-1.0, params={"sensor_cfg": _SELF_COLLISION_SENSOR_CFG}
     )
     neck_action_rate_l2 = RewTerm(
         func=mdp.joint_action_rate_l2,

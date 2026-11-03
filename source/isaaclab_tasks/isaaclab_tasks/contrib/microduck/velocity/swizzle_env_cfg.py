@@ -48,7 +48,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.configclass import configclass
 
-import isaaclab_tasks.contrib.microduck.pollen_mdp as mdp
+import isaaclab_tasks.contrib.microduck.mdp as mdp
 from isaaclab_tasks.contrib.microduck.velocity.rollers_env_cfg import (
     MICRODUCK_TIRES_PER_FOOT,
     MicroDuckVelocityRollersFlatEnvCfg,
@@ -85,7 +85,7 @@ _RIGHT_LEG_JOINT_CFG = SceneEntityCfg(
 )
 """The two legs' joints, paired position by position.
 
-:func:`~isaaclab_tasks.contrib.microduck.pollen_mdp.rewards.leg_symmetry_reward` adds the two selections
+:func:`~isaaclab_tasks.contrib.microduck.mdp.rewards.leg_symmetry_reward` adds the two selections
 element-wise, so the pairing is a contract rather than a convenience: ``preserve_order`` is what
 keeps a knee opposite a knee instead of opposite whichever joint the converted asset resolves first.
 """
@@ -122,7 +122,7 @@ class CommandsCfg(RollersCommandsCfg):
     # Joint-position deltas from the stand pose for (neck_pitch, head_pitch, head_yaw, head_roll).
     # These ranges are the ``head_pose_range`` curriculum's first stage, which holds them tiny until
     # the swizzle is solid and then opens them to the family's full envelope.
-    head_pose = mdp.UniformPoseDeltaCommandCfg(
+    head_pose = mdp.ZeroablePoseDeltaCommandCfg(
         resampling_time_range=(2.0, 5.0),
         ranges=((-0.05, 0.05), (-0.05, 0.05), (-0.07, 0.07), (-0.015, 0.015)),
     )
@@ -270,7 +270,7 @@ class RewardsCfg(RollersRewardsCfg):
     )
     # Weight 0.0, ramped to 4.0 by iteration 3000, alongside the command range that feeds it.
     head_pose_tracking = RewTerm(
-        func=mdp.head_pose_tracking,
+        func=mdp.head_pose_tracking_raw,
         weight=0.0,
         params={"command_name": "head_pose", "std": 0.5, "asset_cfg": _HEAD_JOINT_CFG},
     )

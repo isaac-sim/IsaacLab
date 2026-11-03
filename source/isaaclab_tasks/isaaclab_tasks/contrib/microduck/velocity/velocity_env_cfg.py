@@ -40,7 +40,7 @@ from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 from isaaclab.visualizers import VisualizerCfg
 
-import isaaclab_tasks.contrib.microduck.pollen_mdp as mdp
+import isaaclab_tasks.contrib.microduck.mdp as mdp
 import isaaclab_tasks.core.velocity.mdp as velocity_mdp
 from isaaclab_tasks.contrib.microduck.assets import MICRODUCK_CFG
 from isaaclab_tasks.utils import PresetCfg
@@ -460,7 +460,7 @@ class CommandsCfg:
     # The two bucket fractions are what ``MicroDuckVelocityCommand`` adds over the stock term: a
     # fifth of the environments walk straight forward and 15% turn on the spot. The buckets
     # overlap, and the term reproduces upstream's precedence.
-    base_velocity = mdp.MicroDuckVelocityCommandCfg(
+    base_velocity = mdp.ForwardMaskVelocityCommandCfg(
         asset_name="robot",
         resampling_time_range=(3.0, 8.0),
         rel_standing_envs=0.02,
@@ -470,7 +470,7 @@ class CommandsCfg:
         heading_command=True,
         heading_control_stiffness=0.5,
         debug_vis=True,
-        ranges=mdp.MicroDuckVelocityCommandCfg.Ranges(
+        ranges=mdp.ForwardMaskVelocityCommandCfg.Ranges(
             lin_vel_x=(-0.4, 0.4),
             lin_vel_y=(-0.3, 0.3),
             ang_vel_z=(-1.0, 1.0),
@@ -483,7 +483,7 @@ class CommandsCfg:
     # ``head_pose_range`` curriculum opens them. Looking around on command is a primary MicroDuck
     # objective, not a disturbance: ``head_pose_tracking`` carries weight 2.0, the same as velocity
     # tracking.
-    head_pose = mdp.UniformPoseDeltaCommandCfg(
+    head_pose = mdp.ZeroablePoseDeltaCommandCfg(
         resampling_time_range=(2.0, 5.0),
         ranges=((-0.05, 0.05), (-0.05, 0.05), (-0.07, 0.07), (-0.015, 0.015)),
     )
@@ -492,7 +492,7 @@ class CommandsCfg:
     # Upstream keeps this command alive at tiny ranges with its reward weight at 0.0, so that the
     # observation block the deployed policy expects stays populated and the term can be switched on
     # without changing the network shape.
-    body_pose = mdp.UniformPoseDeltaCommandCfg(
+    body_pose = mdp.ZeroablePoseDeltaCommandCfg(
         resampling_time_range=(2.0, 5.0),
         ranges=(
             (-0.005, 0.005),
@@ -518,7 +518,7 @@ class ActionsCfg:
     # policy commands ``a``, reads ``a`` back, and the joint actually settles at
     # ``default + a - bias``. Wiring only one half of that loop would train a permanent joint-space
     # offset into the policy instead of a calibration error it has to tolerate.
-    joint_pos = mdp.BiasedJointPositionActionCfg(
+    joint_pos = mdp.ArticulationEncoderBiasActionCfg(
         asset_name="robot",
         joint_names=MICRODUCK_JOINT_NAMES,
         preserve_order=True,
@@ -552,7 +552,7 @@ class ObservationsCfg:
         systematic corruptions per-step noise cannot express (reference sections 2.3, 6 and 8):
 
         * a constant per-robot **encoder bias** on ``joint_pos``, closed against
-          :class:`~isaaclab_tasks.contrib.microduck.pollen_mdp.actions.BiasedJointPositionAction`;
+          :class:`~isaaclab_tasks.contrib.microduck.mdp.actions.ArticulationEncoderBiasAction`;
         * a constant per-robot **IMU mounting misalignment** on the two IMU terms, which share one
           rotation and therefore must agree on ``max_angle_deg``;
         * a stochastic **bus latency**: 0 or 1 control step on the IMU, re-drawn at most every 64
@@ -562,7 +562,7 @@ class ObservationsCfg:
         Isaac Lab applies the noise to the delayed value, where mjlab delays the already-noised one.
         Both give a stale signal plus an independent uniform draw, so the observation distribution
         is the same; see
-        :class:`~isaaclab_tasks.contrib.microduck.pollen_mdp.observations.delayed_observation`.
+        :class:`~isaaclab_tasks.contrib.microduck.mdp.observations.delayed_observation`.
         """
 
         base_ang_vel = ObsTerm(
@@ -588,7 +588,7 @@ class ObservationsCfg:
             noise=Unoise(n_min=-0.01, n_max=0.01),
         )
         joint_pos = ObsTerm(
-            func=mdp.joint_pos_rel_biased,
+            func=mdp.joint_pos_rel_articulation_biased,
             params={"asset_cfg": _SERVO_JOINT_CFG, "biased": True},
             noise=Unoise(n_min=-0.001, n_max=0.001),
         )
@@ -634,14 +634,16 @@ class ObservationsCfg:
         base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel)
         projected_gravity = ObsTerm(func=mdp.projected_gravity)
-        joint_pos = ObsTerm(func=mdp.joint_pos_rel_biased, params={"asset_cfg": _SERVO_JOINT_CFG, "biased": False})
+        joint_pos = ObsTerm(
+            func=mdp.joint_pos_rel_articulation_biased, params={"asset_cfg": _SERVO_JOINT_CFG, "biased": False}
+        )
         joint_vel = ObsTerm(func=mdp.joint_vel_rel, params={"asset_cfg": _SERVO_JOINT_CFG})
         actions = ObsTerm(func=mdp.last_action)
         velocity_commands = ObsTerm(func=mdp.generated_commands, params={"command_name": "base_velocity"})
-        foot_height = ObsTerm(func=mdp.foot_height_safe, params={"asset_cfg": _FOOT_BODY_CFG})
-        foot_air_time = ObsTerm(func=mdp.foot_air_time_safe, params={"sensor_cfg": _FOOT_SENSOR_CFG})
-        foot_contact = ObsTerm(func=mdp.foot_contact, params={"sensor_cfg": _FOOT_SENSOR_CFG})
-        foot_contact_forces = ObsTerm(func=mdp.foot_contact_forces_safe, params={"sensor_cfg": _FOOT_SENSOR_CFG})
+        foot_height = ObsTerm(func=mdp.foot_origin_height_safe, params={"asset_cfg": _FOOT_BODY_CFG})
+        foot_air_time = ObsTerm(func=mdp.foot_group_air_time_safe, params={"sensor_cfg": _FOOT_SENSOR_CFG})
+        foot_contact = ObsTerm(func=mdp.foot_group_contact, params={"sensor_cfg": _FOOT_SENSOR_CFG})
+        foot_contact_forces = ObsTerm(func=mdp.foot_group_contact_forces_safe, params={"sensor_cfg": _FOOT_SENSOR_CFG})
         head_pose_commands = ObsTerm(func=mdp.generated_commands, params={"command_name": "head_pose"})
         body_pose_commands = ObsTerm(func=mdp.generated_commands, params={"command_name": "body_pose"})
 
@@ -697,7 +699,7 @@ class EventsCfg:
     # Startup, not reset: a calibration error is a property of the robot, and resampling it every
     # episode would let the policy average it out instead of learning to tolerate it.
     encoder_bias = EventTerm(
-        func=mdp.randomize_encoder_bias,
+        func=mdp.randomize_articulation_encoder_bias,
         mode="startup",
         params={"bias_range": (-0.015, 0.015)},
     )
@@ -822,12 +824,12 @@ class RewardsCfg:
     ##
 
     track_lin_vel = RewTerm(
-        func=mdp.track_linear_velocity,
+        func=mdp.track_linear_velocity_raw,
         weight=2.0,
         params={"command_name": "base_velocity", "std": math.sqrt(0.1)},
     )
     track_ang_vel = RewTerm(
-        func=mdp.track_angular_velocity,
+        func=mdp.track_angular_velocity_raw,
         weight=2.0,
         params={"command_name": "base_velocity", "std": math.sqrt(0.5)},
     )
@@ -838,7 +840,7 @@ class RewardsCfg:
 
     # A bounded Gaussian *reward* on the trunk's gravity tilt, not the stock unbounded L2 penalty.
     upright = RewTerm(
-        func=mdp.upright,
+        func=mdp.upright_selected_body,
         weight=2.0,
         params={"std": math.sqrt(0.05), "asset_cfg": _TRUNK_BODY_CFG},
     )
@@ -883,8 +885,8 @@ class RewardsCfg:
     # Trunk regularizers (reference section 5).
     ##
 
-    body_ang_vel = RewTerm(func=mdp.body_ang_vel_xy_l2, weight=-0.05, params={"asset_cfg": _TRUNK_BODY_CFG})
-    angular_momentum = RewTerm(func=mdp.angular_momentum_l2, weight=-0.02)
+    body_ang_vel = RewTerm(func=mdp.body_ang_vel_xy_l2_raw, weight=-0.05, params={"asset_cfg": _TRUNK_BODY_CFG})
+    angular_momentum = RewTerm(func=mdp.angular_momentum_l2_raw, weight=-0.02)
     dof_pos_limits = RewTerm(func=mdp.joint_pos_limits, weight=-1.0)
     # The ``action_rate_weight`` curriculum ramps this to -1.0 by iteration 1500.
     action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.1)
@@ -894,7 +896,7 @@ class RewardsCfg:
     ##
 
     air_time = RewTerm(
-        func=mdp.feet_air_time_windowed,
+        func=mdp.feet_air_time_windowed_gated,
         weight=3.0,
         params={
             "sensor_cfg": _FOOT_SENSOR_CFG,
@@ -905,7 +907,7 @@ class RewardsCfg:
         },
     )
     foot_clearance = RewTerm(
-        func=mdp.foot_clearance,
+        func=mdp.foot_origin_clearance,
         weight=-2.0,
         params={
             "target_height": MICRODUCK_FOOT_TARGET_HEIGHT,
@@ -915,7 +917,7 @@ class RewardsCfg:
         },
     )
     foot_swing_height = RewTerm(
-        func=mdp.foot_swing_height,
+        func=mdp.foot_origin_swing_height,
         weight=_FOOT_SWING_HEIGHT_WEIGHT,
         params={
             "sensor_cfg": _FOOT_SENSOR_CFG,
@@ -926,7 +928,7 @@ class RewardsCfg:
         },
     )
     foot_slip = RewTerm(
-        func=mdp.foot_slip,
+        func=mdp.foot_slip_raw,
         weight=-0.1,
         params={
             "sensor_cfg": _FOOT_SENSOR_CFG,
@@ -936,7 +938,7 @@ class RewardsCfg:
         },
     )
     self_collisions = RewTerm(
-        func=mdp.self_collision_cost,
+        func=mdp.self_collision_cost_saturable,
         weight=-1.0,
         params={"sensor_cfg": _SELF_COLLISION_SENSOR_CFG},
     )
@@ -946,14 +948,14 @@ class RewardsCfg:
     ##
 
     head_pose_tracking = RewTerm(
-        func=mdp.head_pose_tracking,
+        func=mdp.head_pose_tracking_raw,
         weight=2.0,
         params={"command_name": "head_pose", "std": 0.5, "asset_cfg": _HEAD_JOINT_CFG},
     )
     # Weight 0.0, ramped to +3.0 from iteration 600 by the ``head_pose_bias_weight`` curriculum.
     # The weight is **positive** because the term already returns a non-positive value.
     head_pose_bias = RewTerm(
-        func=mdp.head_pose_bias_penalty,
+        func=mdp.head_pose_bias_penalty_gated,
         weight=0.0,
         params={"command_name": "head_pose", "tau_s": 1.0, "asset_cfg": _HEAD_JOINT_CFG},
     )
@@ -1000,7 +1002,7 @@ class TerminationsCfg:
     # false against every bound, so no other termination would fire on it and the environment would
     # train on garbage forever.
     nan_state = DoneTerm(
-        func=mdp.robot_state_is_nan,
+        func=mdp.robot_state_is_nan_optional_sensors,
         time_out=False,
         params={"sensor_names": ("contact_forces",)},
     )

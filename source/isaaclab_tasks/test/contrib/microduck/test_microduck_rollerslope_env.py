@@ -49,7 +49,7 @@ from isaaclab.sim import SimulationContext
 from isaaclab.terrains import SubTerrainBaseCfg, TerrainGenerator
 
 import isaaclab_tasks  # noqa: F401
-import isaaclab_tasks.contrib.microduck.pollen_mdp as mdp
+import isaaclab_tasks.contrib.microduck.mdp as mdp
 from isaaclab_tasks.contrib.microduck.rollerslope.agents.rsl_rl_ppo_cfg import MicroDuckRollerSlopePPORunnerCfg
 from isaaclab_tasks.contrib.microduck.rollerslope.rollerslope_env_cfg import (
     MICRODUCK_SLOPE_ENTRY_SPEED_X,
@@ -174,7 +174,7 @@ EXPECTED_RESET_EVENT_ORDER = [
 ]
 """The reset chain, in the order it fires.
 
-This is behaviour, not housekeeping: :func:`~isaaclab_tasks.contrib.microduck.pollen_mdp.events.reset_rolling_entry`
+This is behaviour, not housekeeping: :func:`~isaaclab_tasks.contrib.microduck.mdp.events.reset_rolling_entry`
 writes the whole root velocity six-vector, so it has to run after ``reset_base`` places the base.
 Upstream appends it last too, and guarantees the order the same way -- by declaration order.
 """
@@ -949,7 +949,7 @@ def test_a_diverged_environment_does_not_poison_the_reward_buffer():
 
         # the guard keeps the divergence out of the reward; it does not hide it. The environment is
         # still recycled by the termination that owns this failure.
-        broken = mdp.robot_state_is_nan(unwrapped, sensor_names=("contact_forces",))
+        broken = mdp.robot_state_is_nan_optional_sensors(unwrapped, sensor_names=("contact_forces",))
         assert bool(broken[0])
         assert not bool(broken[1:].any())
 
@@ -970,7 +970,7 @@ def test_a_diverged_environment_does_not_poison_the_reward_buffer():
         for name in ("upright", "heading_hold"):
             assert float(per_term[0, terms.index(name)]) == pytest.approx(0.0, abs=1e-4), name
         assert torch.isfinite(per_term[1:]).all()
-        assert bool(mdp.robot_state_is_nan(unwrapped, sensor_names=("contact_forces",))[0])
+        assert bool(mdp.robot_state_is_nan_optional_sensors(unwrapped, sensor_names=("contact_forces",))[0])
     finally:
         if env is not None:
             env.close()

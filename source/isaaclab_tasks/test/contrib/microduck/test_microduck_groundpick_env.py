@@ -41,7 +41,7 @@ from isaaclab.sim import SimulationContext
 from isaaclab.utils import math as math_utils
 
 import isaaclab_tasks  # noqa: F401
-import isaaclab_tasks.contrib.microduck.pollen_mdp as mdp
+import isaaclab_tasks.contrib.microduck.mdp as mdp
 from isaaclab_tasks.contrib.microduck.groundpick.agents.rsl_rl_ppo_cfg import MicroDuckGroundPickPPORunnerCfg
 from isaaclab_tasks.contrib.microduck.groundpick.groundpick_env_cfg import (
     MICRODUCK_DESCENT_END,
@@ -881,8 +881,8 @@ def test_the_critic_group_drops_the_foot_height_columns():
     assert sum(width for _, width in CRITIC_OBSERVATION_TERMS) == CRITIC_OBSERVATION_DIM
     assert "foot_height" not in terms
     # the NaN-guarded variants, which is the port's family norm rather than upstream's choice here
-    assert terms["foot_air_time"].func is mdp.foot_air_time_safe
-    assert terms["foot_contact_forces"].func is mdp.foot_contact_forces_safe
+    assert terms["foot_air_time"].func is mdp.foot_group_air_time_safe
+    assert terms["foot_contact_forces"].func is mdp.foot_group_contact_forces_safe
 
 
 @pytest.mark.unit

@@ -33,7 +33,7 @@ from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim import SimulationContext
 
 import isaaclab_tasks  # noqa: F401
-import isaaclab_tasks.contrib.microduck.pollen_mdp as mdp
+import isaaclab_tasks.contrib.microduck.mdp as mdp
 from isaaclab_tasks.contrib.microduck.assets import MICRODUCK_ALLCOLLISIONS_USD_PATH
 from isaaclab_tasks.contrib.microduck.standup.agents.rsl_rl_ppo_cfg import MicroDuckStandUpPPORunnerCfg
 from isaaclab_tasks.contrib.microduck.standup.standup_env_cfg import (
@@ -841,8 +841,8 @@ def test_the_critic_group_drops_foot_height_and_guards_its_sensor_reads():
     assert not observations.critic.enable_corruption
     # upstream deletes foot_height here: no height sensor, and no foot-height reward to need one
     assert "foot_height" not in terms
-    assert terms["foot_air_time"].func is mdp.foot_air_time_safe
-    assert terms["foot_contact_forces"].func is mdp.foot_contact_forces_safe
+    assert terms["foot_air_time"].func is mdp.foot_group_air_time_safe
+    assert terms["foot_contact_forces"].func is mdp.foot_group_contact_forces_safe
     # a privileged group the runner never reads is dead weight
     assert MicroDuckStandUpPPORunnerCfg().obs_groups == {"actor": ["policy"], "critic": ["critic"]}
 
@@ -1134,8 +1134,8 @@ def test_the_self_collision_sensor_fires_on_a_fold_and_stays_quiet_on_a_stand():
                 env.step(action)
 
             sensor_cfg = SceneEntityCfg("self_collision")
-            cost = mdp.self_collision_cost(unwrapped, sensor_cfg=sensor_cfg, saturate=True)
-            narrow_cost = mdp.self_collision_cost(
+            cost = mdp.self_collision_cost_saturable(unwrapped, sensor_cfg=sensor_cfg, saturate=True)
+            narrow_cost = mdp.self_collision_cost_saturable(
                 unwrapped, sensor_cfg=SceneEntityCfg("narrow_self_collision"), saturate=True
             )
             net_force = wide.data.net_forces_w.torch.norm(dim=-1).max(dim=-1).values

@@ -69,7 +69,7 @@ from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 from isaaclab.visualizers import VisualizerCfg
 
-import isaaclab_tasks.contrib.microduck.pollen_mdp as mdp
+import isaaclab_tasks.contrib.microduck.mdp as mdp
 from isaaclab_tasks.contrib.microduck.assets import MICRODUCK_ALLCOLLISIONS_CFG
 
 # The body carrying the three head collision shells and the mouth. Imported from the forward-roll
@@ -403,7 +403,7 @@ class ActionsCfg:
     task is asking for rather than a separately steerable payload.
     """
 
-    joint_pos = mdp.BiasedJointPositionActionCfg(
+    joint_pos = mdp.ArticulationEncoderBiasActionCfg(
         asset_name="robot",
         joint_names=MICRODUCK_JOINT_NAMES,
         preserve_order=True,
@@ -454,7 +454,7 @@ class ObservationsCfg:
             noise=Unoise(n_min=-0.01, n_max=0.01),
         )
         joint_pos = ObsTerm(
-            func=mdp.joint_pos_rel_biased,
+            func=mdp.joint_pos_rel_articulation_biased,
             params={"asset_cfg": _SERVO_JOINT_CFG, "biased": True},
             noise=Unoise(n_min=-0.001, n_max=0.001),
         )
@@ -494,13 +494,15 @@ class ObservationsCfg:
         base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel)
         projected_gravity = ObsTerm(func=mdp.projected_gravity)
-        joint_pos = ObsTerm(func=mdp.joint_pos_rel_biased, params={"asset_cfg": _SERVO_JOINT_CFG, "biased": False})
+        joint_pos = ObsTerm(
+            func=mdp.joint_pos_rel_articulation_biased, params={"asset_cfg": _SERVO_JOINT_CFG, "biased": False}
+        )
         joint_vel = ObsTerm(func=mdp.joint_vel_rel, params={"asset_cfg": _SERVO_JOINT_CFG})
         actions = ObsTerm(func=mdp.last_action)
         velocity_commands = ObsTerm(func=mdp.generated_commands, params={"command_name": "base_velocity"})
-        foot_air_time = ObsTerm(func=mdp.foot_air_time_safe, params={"sensor_cfg": _FOOT_SENSOR_CFG})
-        foot_contact = ObsTerm(func=mdp.foot_contact, params={"sensor_cfg": _FOOT_SENSOR_CFG})
-        foot_contact_forces = ObsTerm(func=mdp.foot_contact_forces_safe, params={"sensor_cfg": _FOOT_SENSOR_CFG})
+        foot_air_time = ObsTerm(func=mdp.foot_group_air_time_safe, params={"sensor_cfg": _FOOT_SENSOR_CFG})
+        foot_contact = ObsTerm(func=mdp.foot_group_contact, params={"sensor_cfg": _FOOT_SENSOR_CFG})
+        foot_contact_forces = ObsTerm(func=mdp.foot_group_contact_forces_safe, params={"sensor_cfg": _FOOT_SENSOR_CFG})
         head_pose_commands = ObsTerm(func=mdp.zero_command_padding, params={"dim": 4})
         body_pose_commands = ObsTerm(func=mdp.zero_command_padding, params={"dim": 6})
 
@@ -552,7 +554,7 @@ class EventsCfg:
     )
 
     encoder_bias = EventTerm(
-        func=mdp.randomize_encoder_bias,
+        func=mdp.randomize_articulation_encoder_bias,
         mode="startup",
         params={"bias_range": (-0.015, 0.015)},
     )
@@ -790,7 +792,7 @@ class RewardsCfg:
         params={"asset_cfg": _FOOT_BODY_CFG, "normal_axis": (0.0, 1.0, 0.0)},
     )
     upright = RewTerm(
-        func=mdp.upright,
+        func=mdp.upright_selected_body,
         weight=0.2,
         params={"std": math.sqrt(0.05), "asset_cfg": _TRUNK_BODY_CFG},
     )
@@ -804,7 +806,7 @@ class RewardsCfg:
     # ``saturate`` keeps the many-to-many sensor on upstream's 0-or-1 scale, so the weight is the
     # penalty for touching yourself at all rather than a per-collider tariff.
     self_collisions = RewTerm(
-        func=mdp.self_collision_cost,
+        func=mdp.self_collision_cost_saturable,
         weight=-1.0,
         params={"sensor_cfg": _SELF_COLLISION_SENSOR_CFG, "saturate": True},
     )
@@ -813,8 +815,8 @@ class RewardsCfg:
     # Regularization, heavier than the walking task's.
     ##
 
-    body_ang_vel = RewTerm(func=mdp.body_ang_vel_xy_l2, weight=-0.05, params={"asset_cfg": _TRUNK_BODY_CFG})
-    angular_momentum = RewTerm(func=mdp.angular_momentum_l2, weight=-0.02)
+    body_ang_vel = RewTerm(func=mdp.body_ang_vel_xy_l2_raw, weight=-0.05, params={"asset_cfg": _TRUNK_BODY_CFG})
+    angular_momentum = RewTerm(func=mdp.angular_momentum_l2_raw, weight=-0.02)
     # Inherited silently by upstream -- it is simply not in this task's deletion list (addendum
     # section 13.18) -- so it is stated here rather than left to be discovered.
     dof_pos_limits = RewTerm(func=mdp.joint_pos_limits, weight=-1.0)
@@ -868,7 +870,7 @@ class TerminationsCfg:
     # foot observations, the grounded reward and -- uniquely -- a *reward* read straight off a
     # contact force, where a single non-finite value poisons the episode sum.
     nan_state = DoneTerm(
-        func=mdp.robot_state_is_nan,
+        func=mdp.robot_state_is_nan_optional_sensors,
         time_out=False,
         params={"sensor_names": ("contact_forces", "feet_ground_contact", "head_impact_contact")},
     )

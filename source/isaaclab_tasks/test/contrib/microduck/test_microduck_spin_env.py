@@ -37,7 +37,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.sim import SimulationContext
 
 import isaaclab_tasks  # noqa: F401
-import isaaclab_tasks.contrib.microduck.pollen_mdp as mdp
+import isaaclab_tasks.contrib.microduck.mdp as mdp
 from isaaclab_tasks.contrib.microduck.rollercrouch.rollercrouch_env_cfg import MicroDuckRollerCrouchFlatEnvCfg
 from isaaclab_tasks.contrib.microduck.spin.agents.rsl_rl_ppo_cfg import MicroDuckSpinPPORunnerCfg
 from isaaclab_tasks.contrib.microduck.spin.spin_env_cfg import (
@@ -159,7 +159,7 @@ def test_the_angular_momentum_penalty_is_the_one_term_this_task_drops():
     assert not hasattr(spin, "angular_momentum")
     assert crouch.angular_momentum.weight == pytest.approx(-0.02)
     assert spin.body_ang_vel.weight == pytest.approx(crouch.body_ang_vel.weight)
-    assert spin.body_ang_vel.func is mdp.body_ang_vel_xy_l2
+    assert spin.body_ang_vel.func is mdp.body_ang_vel_xy_l2_raw
 
 
 @pytest.mark.unit

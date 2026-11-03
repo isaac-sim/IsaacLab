@@ -22,7 +22,7 @@ import torch
 
 from isaaclab.managers import RewardTermCfg, SceneEntityCfg, TerminationTermCfg
 
-import isaaclab_tasks.contrib.microduck.pollen_mdp as mdp
+import isaaclab_tasks.contrib.microduck.mdp as mdp
 
 pytestmark = pytest.mark.unit
 
@@ -174,7 +174,7 @@ def test_track_linear_velocity_is_one_when_the_command_is_met_exactly():
     """A robot moving at the commanded planar velocity with no vertical drift scores the maximum."""
     env = _velocity_env([0.3, -0.2, 0.0], [0.0, 0.0, 0.0], [0.3, -0.2, 0.0])
 
-    reward = mdp.track_linear_velocity(env.as_env(), std=math.sqrt(0.1), command_name="twist")
+    reward = mdp.track_linear_velocity_raw(env.as_env(), std=math.sqrt(0.1), command_name="twist")
 
     torch.testing.assert_close(reward, torch.tensor([1.0]))
 
@@ -184,7 +184,7 @@ def test_track_linear_velocity_charges_vertical_drift_inside_the_exponent():
     std = 0.5
     env = _velocity_env([0.3, -0.2, std], [0.0, 0.0, 0.0], [0.3, -0.2, 0.0])
 
-    reward = mdp.track_linear_velocity(env.as_env(), std=std, command_name="twist")
+    reward = mdp.track_linear_velocity_raw(env.as_env(), std=std, command_name="twist")
 
     # only error is v_z = std, so the exponent is exactly -1
     torch.testing.assert_close(reward, torch.tensor([math.exp(-1.0)]))
@@ -195,7 +195,7 @@ def test_track_angular_velocity_charges_roll_and_pitch_rate_inside_the_exponent(
     std = 0.5
     env = _velocity_env([0.0, 0.0, 0.0], [std, 0.0, 0.7], [0.0, 0.0, 0.7])
 
-    reward = mdp.track_angular_velocity(env.as_env(), std=std, command_name="twist")
+    reward = mdp.track_angular_velocity_raw(env.as_env(), std=std, command_name="twist")
 
     torch.testing.assert_close(reward, torch.tensor([math.exp(-1.0)]))
 
@@ -204,7 +204,7 @@ def test_track_angular_velocity_is_one_when_the_yaw_rate_is_met_and_the_base_is_
     """Meeting the yaw command with no roll or pitch rate scores the maximum."""
     env = _velocity_env([0.0, 0.0, 0.0], [0.0, 0.0, 0.7], [0.0, 0.0, 0.7])
 
-    reward = mdp.track_angular_velocity(env.as_env(), std=math.sqrt(0.5), command_name="twist")
+    reward = mdp.track_angular_velocity_raw(env.as_env(), std=math.sqrt(0.5), command_name="twist")
 
     torch.testing.assert_close(reward, torch.tensor([1.0]))
 
@@ -222,7 +222,7 @@ def test_upright_is_one_when_level_and_decays_with_tilt():
     robot = _DummyAsset(projected_gravity_b=gravity_b)
     env = _DummyEnv(num_envs=2, assets={"robot": robot})
 
-    reward = mdp.upright(env.as_env(), std=std)
+    reward = mdp.upright_selected_body(env.as_env(), std=std)
 
     torch.testing.assert_close(reward, torch.tensor([1.0, math.exp(-1.0)]))
 
@@ -239,8 +239,12 @@ def test_upright_reads_the_selected_body_rather_than_the_root():
     )
     env = _DummyEnv(num_envs=1, assets={"robot": robot})
 
-    level = mdp.upright(env.as_env(), std=std, asset_cfg=_entity("robot", body_ids=[0], body_names=["trunk"]))
-    rolled = mdp.upright(env.as_env(), std=std, asset_cfg=_entity("robot", body_ids=[1], body_names=["other"]))
+    level = mdp.upright_selected_body(
+        env.as_env(), std=std, asset_cfg=_entity("robot", body_ids=[0], body_names=["trunk"])
+    )
+    rolled = mdp.upright_selected_body(
+        env.as_env(), std=std, asset_cfg=_entity("robot", body_ids=[1], body_names=["other"])
+    )
 
     torch.testing.assert_close(level, torch.tensor([1.0]))
     torch.testing.assert_close(rolled, torch.tensor([math.exp(-1.0 / 0.05)]))
@@ -253,7 +257,9 @@ def test_upright_rejects_a_configuration_with_more_than_one_body():
     env = _DummyEnv(num_envs=1, assets={"robot": robot})
 
     with pytest.raises(ValueError, match="single body"):
-        mdp.upright(env.as_env(), std=0.2, asset_cfg=_entity("robot", body_ids=[0, 1], body_names=["trunk", "other"]))
+        mdp.upright_selected_body(
+            env.as_env(), std=0.2, asset_cfg=_entity("robot", body_ids=[0, 1], body_names=["trunk", "other"])
+        )
 
 
 ##
@@ -338,7 +344,7 @@ def test_head_pose_tracking_is_one_when_the_head_sits_on_the_command():
     command = torch.tensor([[0.05, -0.02, 0.07, 0.01]])
     env = _head_env(command.clone(), command)
 
-    reward = mdp.head_pose_tracking(
+    reward = mdp.head_pose_tracking_raw(
         env.as_env(),
         command_name="head_pose",
         std=0.5,
@@ -354,7 +360,7 @@ def test_head_pose_tracking_averages_the_per_joint_gaussian():
     command = torch.zeros(1, 4)
     env = _head_env(torch.full((1, 4), std), command)
 
-    reward = mdp.head_pose_tracking(
+    reward = mdp.head_pose_tracking_raw(
         env.as_env(),
         command_name="head_pose",
         std=std,
@@ -370,7 +376,7 @@ def test_head_pose_tracking_is_a_mean_not_a_sum():
     joint_pos = torch.tensor([[std, 0.0, 0.0, 0.0]])
     env = _head_env(joint_pos, torch.zeros(1, 4))
 
-    reward = mdp.head_pose_tracking(
+    reward = mdp.head_pose_tracking_raw(
         env.as_env(),
         command_name="head_pose",
         std=std,
@@ -393,8 +399,8 @@ def _head_bias_term(joint_pos: torch.Tensor, command: torch.Tensor, tau_s: float
         "tau_s": tau_s,
         "asset_cfg": _entity("robot", joint_ids=HEAD_JOINT_IDS),
     }
-    cfg = RewardTermCfg(func=mdp.head_pose_bias_penalty, weight=1.0, params=params)
-    return mdp.head_pose_bias_penalty(cfg, env.as_env()), env, params
+    cfg = RewardTermCfg(func=mdp.head_pose_bias_penalty_gated, weight=1.0, params=params)
+    return mdp.head_pose_bias_penalty_gated(cfg, env.as_env()), env, params
 
 
 def test_head_pose_bias_penalty_follows_the_analytic_exponential_moving_average():
@@ -569,7 +575,7 @@ def test_feet_air_time_windowed_counts_the_feet_inside_the_window():
     command = torch.tensor([[0.3, 0.0, 0.0]] * 4)
     env = _feet_env(current_air_time=air_time, command=command)
 
-    reward = mdp.feet_air_time_windowed(
+    reward = mdp.feet_air_time_windowed_gated(
         env.as_env(),
         sensor_cfg=_entity("contact_forces", body_ids=FOOT_BODY_IDS),
         command_name="twist",
@@ -588,7 +594,7 @@ def test_feet_air_time_windowed_is_gated_on_the_command_magnitude():
     command = torch.tensor([[0.0, 0.0, 0.0], [0.0, 0.0, 0.5]])
     env = _feet_env(current_air_time=air_time, command=command)
 
-    reward = mdp.feet_air_time_windowed(
+    reward = mdp.feet_air_time_windowed_gated(
         env.as_env(),
         sensor_cfg=_entity("contact_forces", body_ids=FOOT_BODY_IDS),
         command_name="twist",
@@ -611,7 +617,7 @@ def test_foot_clearance_charges_height_error_weighted_by_planar_foot_speed():
         command=torch.tensor([[0.3, 0.0, 0.0]]),
     )
 
-    cost = mdp.foot_clearance(
+    cost = mdp.foot_origin_clearance(
         env.as_env(),
         target_height=target_height,
         command_name="twist",
@@ -634,7 +640,7 @@ def test_foot_clearance_measures_height_above_the_environment_origin():
     )
     env.scene.env_origins = torch.tensor([[0.0, 0.0, 1.0]])
 
-    cost = mdp.foot_clearance(
+    cost = mdp.foot_origin_clearance(
         env.as_env(),
         target_height=0.02,
         command_name="twist",
@@ -655,7 +661,7 @@ def test_foot_slip_charges_squared_planar_speed_of_feet_in_contact():
         command=torch.tensor([[0.3, 0.0, 0.0]]),
     )
 
-    cost = mdp.foot_slip(
+    cost = mdp.foot_slip_raw(
         env.as_env(),
         sensor_cfg=_entity("contact_forces", body_ids=FOOT_BODY_IDS),
         command_name="twist",
@@ -683,8 +689,8 @@ def _swing_height_term(target_height: float = 0.02, command: torch.Tensor | None
         "command_name": "twist",
         "command_threshold": 0.01,
     }
-    cfg = RewardTermCfg(func=mdp.foot_swing_height, weight=1.0, params=params)
-    return mdp.foot_swing_height(cfg, env.as_env()), env, params, sensor, robot
+    cfg = RewardTermCfg(func=mdp.foot_origin_swing_height, weight=1.0, params=params)
+    return mdp.foot_origin_swing_height(cfg, env.as_env()), env, params, sensor, robot
 
 
 def test_foot_swing_height_charges_the_peak_only_on_the_landing_step():
@@ -791,19 +797,19 @@ def test_head_pose_bias_penalty_rejects_a_configuration_without_a_joint_selectio
     robot = _DummyAsset(joint_pos=torch.zeros(1, 4), default_joint_pos=torch.zeros(1, 4))
     env = _DummyEnv(num_envs=1, assets={"robot": robot}, commands={"head_pose": torch.zeros(1, 4)})
     params = {"command_name": "head_pose", "tau_s": 1.0, "asset_cfg": SceneEntityCfg("robot")}
-    cfg = RewardTermCfg(func=mdp.head_pose_bias_penalty, weight=1.0, params=params)
+    cfg = RewardTermCfg(func=mdp.head_pose_bias_penalty_gated, weight=1.0, params=params)
 
     with pytest.raises(ValueError, match="select its joints by name"):
-        mdp.head_pose_bias_penalty(cfg, env.as_env())
+        mdp.head_pose_bias_penalty_gated(cfg, env.as_env())
 
 
 def test_foot_swing_height_rejects_a_configuration_without_a_sensor():
     """The peak buffer is sized from the sensor, so it cannot be left out."""
     env = _DummyEnv(num_envs=1)
-    cfg = RewardTermCfg(func=mdp.foot_swing_height, weight=1.0, params={"command_name": "twist"})
+    cfg = RewardTermCfg(func=mdp.foot_origin_swing_height, weight=1.0, params={"command_name": "twist"})
 
     with pytest.raises(ValueError, match="sensor_cfg"):
-        mdp.foot_swing_height(cfg, env.as_env())
+        mdp.foot_origin_swing_height(cfg, env.as_env())
 
 
 ##
@@ -817,7 +823,7 @@ def test_body_ang_vel_xy_l2_ignores_the_yaw_rate():
     robot = _DummyAsset(body_link_ang_vel_w=ang_vel)
     env = _DummyEnv(num_envs=1, assets={"robot": robot})
 
-    cost = mdp.body_ang_vel_xy_l2(env.as_env(), asset_cfg=_entity("robot", body_ids=[0]))
+    cost = mdp.body_ang_vel_xy_l2_raw(env.as_env(), asset_cfg=_entity("robot", body_ids=[0]))
 
     torch.testing.assert_close(cost, torch.tensor([0.25]))
 
@@ -842,7 +848,7 @@ def test_angular_momentum_l2_is_zero_for_an_articulation_at_rest():
     """A motionless articulation carries no angular momentum."""
     env = _angular_momentum_env(ang_vel=[[0.0, 0.0, 0.0]], lin_vel=[[0.0, 0.0, 0.0]])
 
-    cost = mdp.angular_momentum_l2(env.as_env())
+    cost = mdp.angular_momentum_l2_raw(env.as_env())
 
     torch.testing.assert_close(cost, torch.tensor([0.0]))
 
@@ -851,7 +857,7 @@ def test_angular_momentum_l2_is_the_squared_spin_momentum_of_a_single_body():
     """With one body at the centre of mass the momentum reduces to ``I * w``."""
     env = _angular_momentum_env(ang_vel=[[1.0, 2.0, 3.0]], lin_vel=[[0.0, 0.0, 0.0]])
 
-    cost = mdp.angular_momentum_l2(env.as_env())
+    cost = mdp.angular_momentum_l2_raw(env.as_env())
 
     # diag(2, 3, 4) @ (1, 2, 3) = (2, 6, 12)
     torch.testing.assert_close(cost, torch.tensor([2.0**2 + 6.0**2 + 12.0**2]))
@@ -865,7 +871,7 @@ def test_angular_momentum_l2_includes_the_orbital_term_about_the_centre_of_mass(
         positions=[[1.0, 0.0, 0.0], [-1.0, 0.0, 0.0]],
     )
 
-    cost = mdp.angular_momentum_l2(env.as_env())
+    cost = mdp.angular_momentum_l2_raw(env.as_env())
 
     # each body contributes r x v = (1, 0, 0) x (0, 1, 0) = (0, 0, 1)
     torch.testing.assert_close(cost, torch.tensor([4.0]))
@@ -883,7 +889,7 @@ def test_self_collision_cost_counts_the_bodies_touching_the_robot_itself():
     sensor = _DummySensor(force_matrix_w=forces)
     env = _DummyEnv(num_envs=3, sensors={"self_collision": sensor})
 
-    cost = mdp.self_collision_cost(
+    cost = mdp.self_collision_cost_saturable(
         env.as_env(),
         sensor_cfg=_entity("self_collision", body_ids=[0, 1]),
         force_threshold=1.0,
@@ -898,7 +904,7 @@ def test_self_collision_cost_ignores_forces_below_the_threshold():
     sensor = _DummySensor(force_matrix_w=forces)
     env = _DummyEnv(num_envs=1, sensors={"self_collision": sensor})
 
-    cost = mdp.self_collision_cost(
+    cost = mdp.self_collision_cost_saturable(
         env.as_env(),
         sensor_cfg=_entity("self_collision", body_ids=[0, 1]),
         force_threshold=1.0,
@@ -925,8 +931,8 @@ def test_self_collision_cost_saturates_to_upstreams_zero_or_one():
     env = _DummyEnv(num_envs=2, sensors={"self_collision": sensor})
     sensor_cfg = _entity("self_collision", body_ids=[0, 1])
 
-    saturated = mdp.self_collision_cost(env.as_env(), sensor_cfg=sensor_cfg, saturate=True)
-    counted = mdp.self_collision_cost(env.as_env(), sensor_cfg=sensor_cfg, saturate=False)
+    saturated = mdp.self_collision_cost_saturable(env.as_env(), sensor_cfg=sensor_cfg, saturate=True)
+    counted = mdp.self_collision_cost_saturable(env.as_env(), sensor_cfg=sensor_cfg, saturate=False)
 
     torch.testing.assert_close(saturated, torch.tensor([0.0, 1.0]))
     # the same physical contact, counted from each of its two sides
@@ -959,7 +965,7 @@ def test_robot_state_is_nan_flags_only_the_broken_environments():
     env.scene["robot"].data.joint_pos.torch[1, 3] = float("nan")
     env.scene["robot"].data.root_link_quat_w.torch[2, 0] = float("inf")
 
-    done = mdp.robot_state_is_nan(env.as_env())
+    done = mdp.robot_state_is_nan_optional_sensors(env.as_env())
 
     torch.testing.assert_close(done, torch.tensor([False, True, True, False]))
 
@@ -970,7 +976,7 @@ def test_robot_state_is_nan_checks_the_named_contact_sensors():
     forces[3, 1, 2] = float("nan")
     env = _nan_env(sensor_forces=forces)
 
-    done = mdp.robot_state_is_nan(env.as_env(), sensor_names=("contact_forces",))
+    done = mdp.robot_state_is_nan_optional_sensors(env.as_env(), sensor_names=("contact_forces",))
 
     torch.testing.assert_close(done, torch.tensor([False, False, False, True]))
 
@@ -979,7 +985,7 @@ def test_robot_state_is_nan_ignores_sensors_that_are_not_in_the_scene():
     """Naming a sensor the scene does not carry is not an error."""
     env = _nan_env()
 
-    done = mdp.robot_state_is_nan(env.as_env(), sensor_names=("does_not_exist",))
+    done = mdp.robot_state_is_nan_optional_sensors(env.as_env(), sensor_names=("does_not_exist",))
 
     torch.testing.assert_close(done, torch.zeros(4, dtype=torch.bool))
 
@@ -1543,7 +1549,7 @@ def test_the_state_reading_reward_kernels_survive_a_diverged_solver():
             )
         },
     )
-    reward = mdp.upright(
+    reward = mdp.upright_selected_body(
         upright_env.as_env(), std=math.sqrt(0.08), asset_cfg=_entity("robot", body_ids=[0], body_names=["trunk_base"])
     )
     assert torch.isfinite(reward).all()
@@ -2135,8 +2141,8 @@ def test_feet_air_time_windowed_is_gated_on_the_robot_still_being_upright():
         "command_threshold": 0.01,
     }
 
-    ungated = mdp.feet_air_time_windowed(env.as_env(), **params)
-    gated = mdp.feet_air_time_windowed(env.as_env(), gate_tilt_above_deg=40.0, **params)
+    ungated = mdp.feet_air_time_windowed_gated(env.as_env(), **params)
+    gated = mdp.feet_air_time_windowed_gated(env.as_env(), gate_tilt_above_deg=40.0, **params)
 
     torch.testing.assert_close(ungated, torch.tensor([2.0, 2.0]))
     torch.testing.assert_close(gated, torch.tensor([2.0, 0.0]))

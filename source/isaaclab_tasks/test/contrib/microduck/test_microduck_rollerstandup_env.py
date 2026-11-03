@@ -41,7 +41,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.sim import SimulationContext
 
 import isaaclab_tasks  # noqa: F401
-import isaaclab_tasks.contrib.microduck.pollen_mdp as mdp
+import isaaclab_tasks.contrib.microduck.mdp as mdp
 from isaaclab_tasks.contrib.microduck.rollerstandup.agents.rsl_rl_ppo_cfg import MicroDuckRollerStandUpPPORunnerCfg
 from isaaclab_tasks.contrib.microduck.rollerstandup.rollerstandup_env_cfg import (
     MICRODUCK_ROLLER_PRONE_HEIGHT,
@@ -403,7 +403,7 @@ def test_the_command_is_a_neutralized_shape_placeholder():
     assert set(vars(cfg.commands)) == {"base_velocity"}
     # downgraded from the skating task's relative-heading command: a live heading error in a slot
     # nothing tracks would be a distractor rather than a placeholder
-    assert isinstance(command, mdp.MicroDuckVelocityCommandCfg)
+    assert isinstance(command, mdp.ForwardMaskVelocityCommandCfg)
     assert not isinstance(command, mdp.RelativeHeadingVelocityCommandCfg)
     assert command.ranges.lin_vel_x == (-0.01, 0.01)
     assert command.ranges.lin_vel_y == (-0.01, 0.01)

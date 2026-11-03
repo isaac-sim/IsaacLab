@@ -34,7 +34,7 @@ from isaaclab.managers import ObservationTermCfg, SceneEntityCfg
 from isaaclab.sim import SimulationContext
 
 import isaaclab_tasks  # noqa: F401
-import isaaclab_tasks.contrib.microduck.pollen_mdp as mdp
+import isaaclab_tasks.contrib.microduck.mdp as mdp
 from isaaclab_tasks.contrib.microduck.velocity.agents.rsl_rl_ppo_cfg import MicroDuckPPORunnerCfg
 from isaaclab_tasks.contrib.microduck.velocity.flat_env_cfg import MicroDuckVelocityFlatEnvCfg
 from isaaclab_tasks.contrib.microduck.velocity.velocity_env_cfg import MicroDuckVelocityRoughEnvCfg
@@ -487,9 +487,9 @@ def test_the_actor_reads_its_sensors_through_the_upstream_imperfections():
 
     # the encoder bias is a closed loop: the observation adds what the action term subtracts. The
     # biased observation without the biased action trains a permanent joint-space offset instead.
-    assert terms["joint_pos"].func is mdp.joint_pos_rel_biased
+    assert terms["joint_pos"].func is mdp.joint_pos_rel_articulation_biased
     assert terms["joint_pos"].params["biased"] is True
-    assert isinstance(cfg.actions.joint_pos, mdp.BiasedJointPositionActionCfg)
+    assert isinstance(cfg.actions.joint_pos, mdp.ArticulationEncoderBiasActionCfg)
 
 
 @pytest.mark.unit
@@ -512,10 +512,10 @@ def test_the_critic_group_is_privileged_and_reads_the_true_state():
     assert terms["joint_pos"].params["biased"] is False
     # the privileged half: the base velocity upstream deletes from the actor, and the foot terms
     assert terms["base_lin_vel"].func is mdp.base_lin_vel
-    assert terms["foot_height"].func is mdp.foot_height_safe
-    assert terms["foot_air_time"].func is mdp.foot_air_time_safe
-    assert terms["foot_contact"].func is mdp.foot_contact
-    assert terms["foot_contact_forces"].func is mdp.foot_contact_forces_safe
+    assert terms["foot_height"].func is mdp.foot_origin_height_safe
+    assert terms["foot_air_time"].func is mdp.foot_group_air_time_safe
+    assert terms["foot_contact"].func is mdp.foot_group_contact
+    assert terms["foot_contact_forces"].func is mdp.foot_group_contact_forces_safe
     # a privileged group the runner never reads is dead weight
     assert MicroDuckPPORunnerCfg().obs_groups == {"actor": ["policy"], "critic": ["critic"]}
 

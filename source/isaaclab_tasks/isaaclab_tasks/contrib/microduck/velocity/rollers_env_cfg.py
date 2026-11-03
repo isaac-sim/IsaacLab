@@ -67,7 +67,7 @@ from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 from isaaclab.visualizers import VisualizerCfg
 
-import isaaclab_tasks.contrib.microduck.pollen_mdp as mdp
+import isaaclab_tasks.contrib.microduck.mdp as mdp
 from isaaclab_tasks.contrib.microduck.assets import MICRODUCK_ROLLERS_CFG
 from isaaclab_tasks.contrib.microduck.velocity.velocity_env_cfg import (
     MICRODUCK_HEAD_BODY_NAMES,
@@ -107,7 +107,7 @@ MICRODUCK_TIRE_BODY_NAMES = ["tire", "tire_2", "tire_3", "tire_4"]
 This order is a contract, not a preference. It is the order the contact sensor reports slots in, and
 every foot term folds consecutive pairs of slots into one foot, so a permutation would silently swap
 the left and right feet -- which
-:class:`~isaaclab_tasks.contrib.microduck.pollen_mdp.rewards.gait_symmetry_penalty` reads directly.
+:class:`~isaaclab_tasks.contrib.microduck.mdp.rewards.gait_symmetry_penalty` reads directly.
 """
 
 MICRODUCK_FOOT_BODY_NAMES = ["ankle_l_v1", "ankle_r_v1"]
@@ -124,7 +124,7 @@ MICRODUCK_TIRES_PER_FOOT = 2
 Upstream gets the family's two-slot, left-first foot semantics from a ``mode="subtree"`` contact
 sensor that reduces each ankle's subtree -- its two tires -- to a single slot (addendum section 5.2).
 Isaac Lab's contact sensor reports one slot per body, so the reduction happens in the terms instead;
-see :func:`~isaaclab_tasks.contrib.microduck.pollen_mdp.observations.fold_bodies_into_feet`.
+see :func:`~isaaclab_tasks.contrib.microduck.mdp.observations.fold_bodies_into_feet`.
 """
 
 MICRODUCK_FOOT_NORMAL_AXIS = (0.0, 1.0, 0.0)
@@ -301,7 +301,7 @@ class MicroDuckRollersSceneCfg(InteractiveSceneCfg):
     # Self-collision sensor, carrying the same documented narrowing of upstream's
     # trunk-subtree-against-itself sensor that the stand-up and roll tasks do: it senses the trunk
     # against the collider-carrying bodies below it, which reports the same 0-or-1 signal through
-    # :func:`~isaaclab_tasks.contrib.microduck.pollen_mdp.rewards.self_collision_cost` but does not see, for
+    # :func:`~isaaclab_tasks.contrib.microduck.mdp.rewards.self_collision_cost_saturable` but does not see, for
     # instance, one blade clipping the other. Isaac Lab resolves a per-partner force matrix only for
     # a ``prim_path`` matching a single prim per environment; widening it needs the Newton backend's
     # shape-level ``sensor_shape_prim_expr`` / ``filter_shape_prim_expr`` and is tracked separately.
@@ -334,7 +334,7 @@ class CommandsCfg:
     * ``cmd[1]`` is pinned to zero: a skate cannot translate sideways;
     * ``cmd[2]`` is a **heading error** in radians, and its range is the clamp applied to it. At
       ``(0.0, 0.0)`` the clamp is to zero, so the heading machinery
-      :class:`~isaaclab_tasks.contrib.microduck.pollen_mdp.commands.RelativeHeadingVelocityCommand` runs is
+      :class:`~isaaclab_tasks.contrib.microduck.mdp.commands.RelativeHeadingVelocityCommand` runs is
       computed and then discarded (addendum section 7.21). Upstream disabled turning while it worked
       on the stride; the term is carried across because re-enabling it is a range change.
     """
@@ -376,7 +376,7 @@ class ActionsCfg:
     policy-side deterrent that replaces it, and it exports with the network.
     """
 
-    joint_pos = mdp.BiasedJointPositionActionCfg(
+    joint_pos = mdp.ArticulationEncoderBiasActionCfg(
         asset_name="robot",
         joint_names=MICRODUCK_JOINT_NAMES,
         preserve_order=True,
@@ -430,7 +430,7 @@ class ObservationsCfg:
             noise=Unoise(n_min=-0.01, n_max=0.01),
         )
         joint_pos = ObsTerm(
-            func=mdp.joint_pos_rel_biased,
+            func=mdp.joint_pos_rel_articulation_biased,
             params={"asset_cfg": _SERVO_JOINT_CFG, "biased": True},
             noise=Unoise(n_min=-0.001, n_max=0.001),
         )
@@ -473,20 +473,22 @@ class ObservationsCfg:
         base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel)
         projected_gravity = ObsTerm(func=mdp.projected_gravity)
-        joint_pos = ObsTerm(func=mdp.joint_pos_rel_biased, params={"asset_cfg": _SERVO_JOINT_CFG, "biased": False})
+        joint_pos = ObsTerm(
+            func=mdp.joint_pos_rel_articulation_biased, params={"asset_cfg": _SERVO_JOINT_CFG, "biased": False}
+        )
         joint_vel = ObsTerm(func=mdp.joint_vel_rel, params={"asset_cfg": _SERVO_JOINT_CFG})
         actions = ObsTerm(func=mdp.last_action)
         velocity_commands = ObsTerm(func=mdp.generated_commands, params={"command_name": "base_velocity"})
         foot_air_time = ObsTerm(
-            func=mdp.foot_air_time_safe,
+            func=mdp.foot_group_air_time_safe,
             params={"sensor_cfg": _FOOT_SENSOR_CFG, "bodies_per_foot": MICRODUCK_TIRES_PER_FOOT},
         )
         foot_contact = ObsTerm(
-            func=mdp.foot_contact,
+            func=mdp.foot_group_contact,
             params={"sensor_cfg": _FOOT_SENSOR_CFG, "bodies_per_foot": MICRODUCK_TIRES_PER_FOOT},
         )
         foot_contact_forces = ObsTerm(
-            func=mdp.foot_contact_forces_safe,
+            func=mdp.foot_group_contact_forces_safe,
             params={"sensor_cfg": _FOOT_SENSOR_CFG, "bodies_per_foot": MICRODUCK_TIRES_PER_FOOT},
         )
         wheel_vel = ObsTerm(func=mdp.joint_vel_rel, params={"asset_cfg": _WHEEL_JOINT_CFG})
@@ -528,7 +530,7 @@ class EventsCfg:
     ##
 
     encoder_bias = EventTerm(
-        func=mdp.randomize_encoder_bias,
+        func=mdp.randomize_articulation_encoder_bias,
         mode="startup",
         params={"bias_range": (-0.015, 0.015)},
     )
@@ -655,7 +657,7 @@ class RewardsCfg:
     # narrows it for MicroDuck in the velocity recipe only, and this task re-derives from the
     # template and never revisits it.
     upright = RewTerm(
-        func=mdp.upright,
+        func=mdp.upright_selected_body,
         weight=2.0,
         params={"std": math.sqrt(0.2), "asset_cfg": _TRUNK_BODY_CFG},
     )
@@ -708,8 +710,8 @@ class RewardsCfg:
         },
     )
 
-    body_ang_vel = RewTerm(func=mdp.body_ang_vel_xy_l2, weight=-0.05, params={"asset_cfg": _TRUNK_BODY_CFG})
-    angular_momentum = RewTerm(func=mdp.angular_momentum_l2, weight=-0.02)
+    body_ang_vel = RewTerm(func=mdp.body_ang_vel_xy_l2_raw, weight=-0.05, params={"asset_cfg": _TRUNK_BODY_CFG})
+    angular_momentum = RewTerm(func=mdp.angular_momentum_l2_raw, weight=-0.02)
     # Ramped to -2.0 by iteration 500, which is upstream's main lever for a calmer stride.
     action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-1.0)
 
@@ -735,7 +737,7 @@ class RewardsCfg:
     )
 
     self_collisions = RewTerm(
-        func=mdp.self_collision_cost,
+        func=mdp.self_collision_cost_saturable,
         weight=-1.0,
         params={"sensor_cfg": _SELF_COLLISION_SENSOR_CFG},
     )
@@ -882,7 +884,7 @@ class TerminationsCfg:
     # guard only changes behaviour in states that are already broken, and the matching half of it is
     # the pair of NaN-safe critic terms in :class:`ObservationsCfg`.
     nan_state = DoneTerm(
-        func=mdp.robot_state_is_nan,
+        func=mdp.robot_state_is_nan_optional_sensors,
         time_out=False,
         params={"sensor_names": ("contact_forces",)},
     )

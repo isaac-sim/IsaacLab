@@ -15,7 +15,7 @@ from isaaclab.utils.configclass import configclass
 
 from isaaclab_rl.rsl_rl import RslRlSymmetryCfg
 
-from isaaclab_tasks.contrib.microduck.pollen_mdp.symmetry import compute_symmetric_states
+from isaaclab_tasks.contrib.microduck.mdp.symmetry import compute_roulade_symmetric_states
 from isaaclab_tasks.contrib.microduck.velocity.agents.rsl_rl_ppo_cfg import MicroDuckPPORunnerCfg
 
 MICRODUCK_ROULADE_MIRROR_LOSS_COEFF = 0.5
@@ -47,7 +47,7 @@ class MicroDuckRouladePPORunnerCfg(MicroDuckPPORunnerCfg):
     # The mirror **loss**, not data augmentation: the loss is defined on the actor's action means
     # and never touches the critic group, which is what makes it sound with the family's symmetry
     # tables -- they mirror the 61-wide actor observation and leave the privileged group alone. See
-    # :mod:`~isaaclab_tasks.contrib.microduck.pollen_mdp.symmetry`.
+    # :mod:`~isaaclab_tasks.contrib.microduck.mdp.symmetry`.
     # ``replace`` on an *instance* of the parent, because a configclass turns a mutable default
     # into a field factory and leaves no class attribute to read; the result is an independent copy.
     algorithm = MicroDuckPPORunnerCfg().algorithm.replace(
@@ -55,6 +55,6 @@ class MicroDuckRouladePPORunnerCfg(MicroDuckPPORunnerCfg):
             use_data_augmentation=False,
             use_mirror_loss=True,
             mirror_loss_coeff=MICRODUCK_ROULADE_MIRROR_LOSS_COEFF,
-            data_augmentation_func=compute_symmetric_states,
+            data_augmentation_func=compute_roulade_symmetric_states,
         )
     )

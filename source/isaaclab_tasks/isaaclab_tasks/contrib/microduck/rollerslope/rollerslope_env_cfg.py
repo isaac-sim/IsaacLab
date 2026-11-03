@@ -79,7 +79,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.terrains import TerrainGeneratorCfg, TerrainImporterCfg
 from isaaclab.utils.configclass import configclass
 
-import isaaclab_tasks.contrib.microduck.pollen_mdp as mdp
+import isaaclab_tasks.contrib.microduck.mdp as mdp
 from isaaclab_tasks.contrib.microduck.rollerslope.terrain import MICRODUCK_RAMP_DEG_MAX, FlatRampTerrainCfg
 from isaaclab_tasks.contrib.microduck.velocity.rollers_env_cfg import (
     MICRODUCK_FOOT_BODY_NAMES,
@@ -177,7 +177,7 @@ MICRODUCK_SLOPE_UPRIGHT_STD = math.sqrt(0.08)
 """Width [-] of the upright reward's Gaussian, converted from upstream's rather than copied.
 
 Upstream scores tilt with ``exp(-(1 - cos t) / 0.2^2)`` and
-:func:`~isaaclab_tasks.contrib.microduck.pollen_mdp.rewards.upright` scores
+:func:`~isaaclab_tasks.contrib.microduck.mdp.rewards.upright_selected_body` scores
 ``exp(-sin^2(t) / std^2)`` (addendum section 4.6). Since ``sin^2 t = (1 - cos t)(1 + cos t)``,
 matching the exponents needs ``std^2 = 0.2^2 * (1 + cos t)``, which is exact at one tilt only;
 normalizing at vertical -- where the reward and its gradient matter most -- gives
@@ -254,7 +254,7 @@ class CommandsCfg(RollersCommandsCfg):
         :attr:`rel_forward_envs` is zeroed here where upstream leaves the template's 0.2, and that
         is a **deliberate deviation** rather than a tidy-up. The forced-forward bucket clamps the
         surge slot to at least 0.3 at resample time, and upstream's own
-        :class:`~isaaclab_tasks.contrib.microduck.pollen_mdp.commands.RelativeHeadingVelocityCommand`
+        :class:`~isaaclab_tasks.contrib.microduck.mdp.commands.RelativeHeadingVelocityCommand`
         override *replaces* the base ``_update_command`` and so never applies the
         standing-environment zeroing that ``rel_standing_envs = 1.0`` was set to trigger. On
         upstream's stack the two combine to feed a 0.3 throttle to a fifth of the environments, for
@@ -339,7 +339,7 @@ class RewardsCfg:
     # The heaviest term in the dict. See :data:`MICRODUCK_SLOPE_UPRIGHT_STD` for why the width is
     # converted from upstream's 0.2 rather than copied.
     upright = RewTerm(
-        func=mdp.upright,
+        func=mdp.upright_selected_body,
         weight=3.0,
         params={"std": MICRODUCK_SLOPE_UPRIGHT_STD, "asset_cfg": _TRUNK_BODY_CFG},
     )

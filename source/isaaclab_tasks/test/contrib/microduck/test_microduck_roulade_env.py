@@ -42,9 +42,9 @@ from isaaclab.managers import ObservationTermCfg, SceneEntityCfg
 from isaaclab.sim import SimulationContext
 
 import isaaclab_tasks  # noqa: F401
-import isaaclab_tasks.contrib.microduck.pollen_mdp as mdp
+import isaaclab_tasks.contrib.microduck.mdp as mdp
 from isaaclab_tasks.contrib.microduck.assets import MICRODUCK_ALLCOLLISIONS_USD_PATH
-from isaaclab_tasks.contrib.microduck.pollen_mdp.symmetry import compute_symmetric_states
+from isaaclab_tasks.contrib.microduck.mdp.symmetry import compute_roulade_symmetric_states
 from isaaclab_tasks.contrib.microduck.roulade.agents.rsl_rl_ppo_cfg import MicroDuckRouladePPORunnerCfg
 from isaaclab_tasks.contrib.microduck.roulade.roulade_env_cfg import (
     MICRODUCK_LANDING_GATE,
@@ -730,8 +730,8 @@ def test_the_critic_group_guards_its_sensor_reads():
     assert list(terms) == [name for name, _ in CRITIC_OBSERVATION_TERMS]
     assert not observations.critic.enable_corruption
     assert "foot_height" not in terms
-    assert terms["foot_air_time"].func is mdp.foot_air_time_safe
-    assert terms["foot_contact_forces"].func is mdp.foot_contact_forces_safe
+    assert terms["foot_air_time"].func is mdp.foot_group_air_time_safe
+    assert terms["foot_contact_forces"].func is mdp.foot_group_contact_forces_safe
     # a privileged group the runner never reads is dead weight
     assert MicroDuckRouladePPORunnerCfg().obs_groups == {"actor": ["policy"], "critic": ["critic"]}
 
@@ -776,7 +776,7 @@ def test_the_runner_turns_the_family_symmetry_machinery_on():
     # privileged observations, which the family's tables do not produce
     assert symmetry.use_data_augmentation is False
     assert symmetry.mirror_loss_coeff == pytest.approx(0.5)
-    assert symmetry.data_augmentation_func is compute_symmetric_states
+    assert symmetry.data_augmentation_func is compute_roulade_symmetric_states
 
 
 @pytest.mark.unit
@@ -788,8 +788,8 @@ def test_the_symmetry_tables_mirror_the_deploy_vector_and_undo_themselves():
     actions = torch.randn(3, 14)
     obs = TensorDict({"policy": observation, "critic": critic}, batch_size=[3])
 
-    mirrored_obs, mirrored_actions = compute_symmetric_states(None, obs, actions)
-    twice_obs, twice_actions = compute_symmetric_states(
+    mirrored_obs, mirrored_actions = compute_roulade_symmetric_states(None, obs, actions)
+    twice_obs, twice_actions = compute_roulade_symmetric_states(
         None, TensorDict({"policy": mirrored_obs["policy"][3:], "critic": critic}, batch_size=[3]), mirrored_actions[3:]
     )
 
@@ -813,9 +813,9 @@ def test_the_symmetry_tables_refuse_an_observation_they_do_not_describe():
     obs = TensorDict({"policy": torch.zeros(2, 51), "critic": torch.zeros(2, 74)}, batch_size=[2])
 
     with pytest.raises(ValueError, match="61-wide"):
-        compute_symmetric_states(None, obs, None)
+        compute_roulade_symmetric_states(None, obs, None)
     with pytest.raises(ValueError, match="14 servos"):
-        compute_symmetric_states(None, None, torch.zeros(2, 12))
+        compute_roulade_symmetric_states(None, None, torch.zeros(2, 12))
 
 
 @pytest.mark.unit

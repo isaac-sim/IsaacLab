@@ -46,7 +46,7 @@ from isaaclab.managers import ObservationTermCfg, SceneEntityCfg
 from isaaclab.sim import SimulationContext
 
 import isaaclab_tasks  # noqa: F401
-import isaaclab_tasks.contrib.microduck.pollen_mdp as mdp
+import isaaclab_tasks.contrib.microduck.mdp as mdp
 from isaaclab_tasks.contrib.microduck.rollercrouch.agents.rsl_rl_ppo_cfg import MicroDuckRollerCrouchPPORunnerCfg
 from isaaclab_tasks.contrib.microduck.rollercrouch.rollercrouch_env_cfg import (
     MICRODUCK_CROUCH_DESCENT_END,

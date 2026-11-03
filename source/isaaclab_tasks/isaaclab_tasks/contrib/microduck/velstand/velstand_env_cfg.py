@@ -22,7 +22,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.utils.configclass import configclass
 
-import isaaclab_tasks.contrib.microduck.pollen_mdp as shared
+import isaaclab_tasks.contrib.microduck.mdp as shared
 from isaaclab_tasks.contrib.microduck.assets import (
     MICRODUCK_FULLCONTACT_BACKLASH_CFG,
     MICRODUCK_FULLCONTACT_CFG,

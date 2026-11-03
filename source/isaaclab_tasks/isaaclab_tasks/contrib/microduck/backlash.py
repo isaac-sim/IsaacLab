@@ -19,7 +19,8 @@ from isaaclab.utils import clone
 
 from isaaclab_tasks.utils import PresetCfg, preset
 
-from .pollen_mdp.observations import delayed_observation, joint_pos_rel_biased
+from .mdp.observations import delayed_observation
+from .mdp.observations import joint_pos_rel_articulation_biased as joint_pos_rel_biased
 
 if TYPE_CHECKING:
     from isaaclab.assets import ArticulationCfg
