@@ -69,6 +69,12 @@ def test_cosmos_camera_renders_a_canvas_with_the_same_view_and_publishes_the_ori
     assert torch.equal(published, colors.expand(2, height, width, 3))
 
 
+def test_cosmos_camera_drops_the_isp_of_the_image_it_replaces():
+    """An ISP processes the rendered rgb, which the Cosmos camera no longer renders."""
+    camera = cosmos_camera(_camera(64, 64).replace(isp_cfg="ppisp"), CosmosModelCfg())
+    assert camera.isp_cfg is None
+
+
 def test_cosmos_camera_rejects_cameras_it_cannot_reproduce():
     with pytest.raises(ValueError, match="only 'rgb'"):
         cosmos_camera(_camera(64, 64).replace(data_types=["rgb", "depth"]), CosmosModelCfg())
