@@ -1,0 +1,201 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Marker-gated tests on self-hosted Windows GPU runners, the counterpart of arm-ci.yml.
+# Windows has no Docker, so the job syncs the locked uv environment on the runner and
+# hands it to the same orchestrator (tools/conftest.py) the container jobs run.
+
+name: Windows CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+      - develop
+      - 'release/**'
+  push:
+    branches:
+      - main
+      - develop
+      - 'release/**'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+  pull-requests: read
+
+env:
+  # Decode subprocess output as UTF-8 instead of the cp1252 code page.
+  PYTHONUTF8: "1"
+  # A test the orchestrator kills on timeout would otherwise lose its buffered output.
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.detect.outputs.should_run }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: .github/actions/detect-changes
+          sparse-checkout-cone-mode: false
+      - id: detect
+        uses: ./.github/actions/detect-changes
+        with:
+          triggered-jobs-push: windows-ci
+          triggered-jobs-pr: windows-ci
+          patterns: |
+            ^source/ :: Library source code
+            ^tools/ :: Build tooling
+            ^apps/ :: Standalone apps
+            ^scripts/ :: Standalone scripts
+            (^|/)pyproject\.toml$ :: Python project metadata
+            ^uv\.lock$ :: Locked dependency graph
+            ^VERSION$ :: Version file
+            ^\.github/workflows/windows-ci\.yaml$ :: This workflow file
+            ^\.github/actions/(warp-cache-key/collection_id|run-package-tests/warp_cache_inventory)\.py$ :: Shared cache scripts
+            ^\.github/scripts/windows_ci_caches\.py$ :: Cache script
+
+  windows-ci:
+    name: windows-ci
+    needs: [changes]
+    if: needs.changes.outputs.should_run == 'true'
+    runs-on: [self-hosted, gpu-windows]
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: powershell
+    env:
+      OMNI_KIT_ACCEPT_EULA: "yes"
+      # Same policy as the Linux test jobs: pull requests only restore, so they never publish
+      # anything built from unmerged code; pushes to protected branches also save.
+      CACHE_MODE: ${{ github.event_name == 'push' && 'save' || 'restore' }}
+    steps:
+      - uses: actions/checkout@v6
+
+      # v6.8.0, which the Linux workflows pin, crashes on exit on these runners once uv
+      # is in the tool cache (astral-sh/setup-uv#686).
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
+        with:
+          version: "0.12.9"
+
+      # Checkout cleans the workspace, so the environment lives in the runner's tool cache, where a
+      # reused runner keeps the installed packages and their compiled bytecode between jobs.
+      - name: Locate environment
+        run: '"UV_PROJECT_ENVIRONMENT=$env:RUNNER_TOOL_CACHE\isaaclab-windows-ci" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append'
+
+      - name: Sync environment
+        id: sync
+        timeout-minutes: 30
+        run: |
+          if ($env:CACHE_MODE -eq 'save') {
+            # Pull requests run in the kept environment and uv cache, so a run that publishes caches
+            # installs from neither.
+            if (Test-Path $env:UV_PROJECT_ENVIRONMENT) { Remove-Item -Recurse -Force $env:UV_PROJECT_ENVIRONMENT }
+            $env:UV_CACHE_DIR = "$env:RUNNER_TEMP\uv-cache"
+          }
+          uv sync --frozen --extra test --extra isaacsim --extra ov
+          if ($LASTEXITCODE -ne 0) {
+            # A job killed mid-sync can leave the kept environment broken, so rebuild it once.
+            Remove-Item -Recurse -Force $env:UV_PROJECT_ENVIRONMENT -ErrorAction SilentlyContinue
+            uv sync --frozen --extra test --extra isaacsim --extra ov
+          }
+
+      - name: Resolve cache keys
+        id: cache-keys
+        run: uv run --frozen --no-sync python .github/scripts/windows_ci_caches.py keys
+
+      - name: Restore Warp kernel cache
+        id: restore-warp
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ steps.cache-keys.outputs.warp-dir }}
+          key: ${{ steps.cache-keys.outputs.warp-key }}
+          restore-keys: ${{ steps.cache-keys.outputs.warp-restore-keys }}
+
+      - name: Restore Kit shader cache
+        id: restore-kit
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ steps.cache-keys.outputs.kit-dir }}
+          key: ${{ steps.cache-keys.outputs.kit-key }}
+          restore-keys: ${{ steps.cache-keys.outputs.kit-restore-keys }}
+
+      - name: Restore OVRTX shader cache
+        id: restore-kitless
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ steps.cache-keys.outputs.kitless-dir }}
+          key: ${{ steps.cache-keys.outputs.kitless-key }}
+          restore-keys: ${{ steps.cache-keys.outputs.kitless-restore-keys }}
+
+      - name: Report restored caches
+        id: caches-restored
+        env:
+          WARP_HIT: ${{ steps.restore-warp.outputs.cache-matched-key }}
+          KIT_HIT: ${{ steps.restore-kit.outputs.cache-matched-key }}
+          KITLESS_HIT: ${{ steps.restore-kitless.outputs.cache-matched-key }}
+        run: uv run --frozen --no-sync python .github/scripts/windows_ci_caches.py restored
+
+      - name: Run windows_ci marker tests
+        env:
+          CI_MARKER: windows_ci
+          TEST_RESULT_FILE: windows-ci-report.xml
+        run: uv run --frozen --no-sync python -m pytest tools
+
+      # tools/test_settings.py keeps the orchestrator's own tests out of its runs, so its Windows case runs here.
+      - name: Run orchestrator Windows timeout test
+        if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
+        run: uv run --frozen --no-sync python -m pytest -v source/isaaclab/test/cli/test_test_orchestrator_result_handling.py::test_windows_timeout_keeps_output_and_kills_the_process_tree --junitxml=tests/windows-ci-orchestrator-report.xml
+
+      # The orchestrator skips install_ci/, so the Cartpole probes run here; --run-gpu adds camera
+      # training on every other physics and renderer pairing.
+      - name: Run Cartpole smoke tests
+        if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
+        run: uv run --frozen --no-sync python -m pytest -v source/isaaclab/test/install_ci/misc/cartpole_training_smoke.py --run-gpu --junitxml=tests/windows-ci-smoke-report.xml
+
+      # Not success(): compiled kernels and shaders stay valid when a test fails. Cancellation still
+      # skips, so a cache the run was mid-write on is never published.
+      - name: Report cache growth
+        id: caches-growth
+        if: ${{ !cancelled() && steps.caches-restored.outcome == 'success' }}
+        run: uv run --frozen --no-sync python .github/scripts/windows_ci_caches.py growth
+
+      - name: Save Warp kernel cache
+        if: ${{ !cancelled() && steps.caches-growth.outputs.warp-changed == 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ steps.cache-keys.outputs.warp-dir }}
+          key: ${{ steps.cache-keys.outputs.warp-key }}
+
+      - name: Save Kit shader cache
+        if: ${{ !cancelled() && steps.caches-growth.outputs.kit-changed == 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ steps.cache-keys.outputs.kit-dir }}
+          key: ${{ steps.cache-keys.outputs.kit-key }}
+
+      - name: Save OVRTX shader cache
+        if: ${{ !cancelled() && steps.caches-growth.outputs.kitless-changed == 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ steps.cache-keys.outputs.kitless-dir }}
+          key: ${{ steps.cache-keys.outputs.kitless-key }}
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-ci-reports
+          path: tests/
+          retention-days: 7
