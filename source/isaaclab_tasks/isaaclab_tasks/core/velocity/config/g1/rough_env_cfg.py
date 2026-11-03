@@ -3,12 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configurations for the Unitree G1 velocity-tracking environment on rough terrain.
-
-This module holds the two stages of the depth pipeline: a teacher whose actor reads a terrain
-height scan and the base linear velocity, and a student that replaces both with a chest-mounted
-depth camera and is distilled from the teacher in the teacher's own environment.
-"""
+"""G1 rough-terrain tasks using the minimal robot or the 29-DoF deployment robot."""
 
 from __future__ import annotations
 
@@ -30,13 +25,15 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.sensors import CameraCfg, RayCasterCfg, patterns
 from isaaclab.sim import PinholeCameraCfg, SimulationCfg, UsdFileCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.modifiers import ModifierCfg
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
+
+from isaaclab_assets import G1_MINIMAL_CFG
 
 from ... import mdp, velocity_env_cfg
 from ...velocity_env_cfg import (
@@ -54,6 +51,132 @@ DEPTH_STACK = 3
 DEPTH_MAX_RANGE = 3.0
 DEPTH_OFFSET_POS = (0.0576, 0.0175, 0.4299)
 DEPTH_OFFSET_ROT = (0.9150, 0.0, -0.4035, 0.0)
+
+
+@configclass
+class G1MinimalRewards(RewardsCfg):
+    """Locomotion rewards for the minimal G1 robot."""
+
+    termination_penalty = RewTerm(func=mdp.is_terminated, weight=-200.0)
+    track_lin_vel_xy_exp = RewTerm(
+        func=mdp.track_lin_vel_xy_yaw_frame_exp,
+        weight=1.0,
+        params={"command_name": "base_velocity", "std": 0.5},
+    )
+    track_ang_vel_z_exp = RewTerm(
+        func=mdp.track_ang_vel_z_world_exp, weight=2.0, params={"command_name": "base_velocity", "std": 0.5}
+    )
+    feet_air_time = RewTerm(
+        func=mdp.feet_air_time_positive_biped,
+        weight=0.25,
+        params={
+            "command_name": "base_velocity",
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_ankle_roll_link"),
+            "threshold": 0.4,
+        },
+    )
+    feet_slide = RewTerm(
+        func=mdp.feet_slide,
+        weight=-0.1,
+        params={
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_ankle_roll_link"),
+            "asset_cfg": SceneEntityCfg("robot", body_names=".*_ankle_roll_link"),
+        },
+    )
+
+    # Penalize ankle joint limits
+    dof_pos_limits = RewTerm(
+        func=mdp.joint_pos_limits,
+        weight=-1.0,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_ankle_pitch_joint", ".*_ankle_roll_joint"])},
+    )
+    # Penalize deviation from default of the joints that are not essential for locomotion
+    joint_deviation_hip = RewTerm(
+        func=mdp.joint_deviation_l1,
+        weight=-0.1,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_hip_yaw_joint", ".*_hip_roll_joint"])},
+    )
+    joint_deviation_arms = RewTerm(
+        func=mdp.joint_deviation_l1,
+        weight=-0.1,
+        params={
+            "asset_cfg": SceneEntityCfg(
+                "robot",
+                joint_names=[
+                    ".*_shoulder_pitch_joint",
+                    ".*_shoulder_roll_joint",
+                    ".*_shoulder_yaw_joint",
+                    ".*_elbow_pitch_joint",
+                    ".*_elbow_roll_joint",
+                ],
+            )
+        },
+    )
+    joint_deviation_fingers = RewTerm(
+        func=mdp.joint_deviation_l1,
+        weight=-0.05,
+        params={
+            "asset_cfg": SceneEntityCfg(
+                "robot",
+                joint_names=[
+                    ".*_five_joint",
+                    ".*_three_joint",
+                    ".*_six_joint",
+                    ".*_four_joint",
+                    ".*_zero_joint",
+                    ".*_one_joint",
+                    ".*_two_joint",
+                ],
+            )
+        },
+    )
+    joint_deviation_torso = RewTerm(
+        func=mdp.joint_deviation_l1,
+        weight=-0.1,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names="torso_joint")},
+    )
+
+
+@configclass
+class G1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
+    """Configuration for the Unitree G1 velocity-tracking environment on rough terrain."""
+
+    rewards: G1MinimalRewards = G1MinimalRewards()
+
+    def __post_init__(self):
+        super().__post_init__()
+
+        # physics
+        self.sim.physics.newton_mjwarp.solver_cfg.njmax = 300
+        # scene
+        self.scene.robot = replace(G1_MINIMAL_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_link"
+        # commands
+        self.commands.base_velocity.vel_yaw_success_threshold = 0.8
+        self.commands.base_velocity.marker_pos_offset = (0.0, 0.0, 0.75)
+        self.commands.base_velocity.ranges.lin_vel_x = (0.0, 1.0)
+        self.commands.base_velocity.ranges.lin_vel_y = (-0.0, 0.0)
+        self.commands.base_velocity.ranges.ang_vel_z = (-1.0, 1.0)
+        # rewards
+        self.rewards.lin_vel_z_l2.weight = 0.0
+        self.rewards.undesired_contacts = None
+        self.rewards.flat_orientation_l2.weight = -1.0
+        self.rewards.action_rate_l2.weight = -0.005
+        self.rewards.dof_acc_l2.weight = -1.25e-7
+        self.rewards.dof_acc_l2.params["asset_cfg"] = SceneEntityCfg(
+            "robot", joint_names=[".*_hip_.*", ".*_knee_joint"]
+        )
+        self.rewards.dof_torques_l2.weight = -1.5e-7
+        self.rewards.dof_torques_l2.params["asset_cfg"] = SceneEntityCfg(
+            "robot", joint_names=[".*_hip_.*", ".*_knee_joint", ".*_ankle_.*"]
+        )
+        # terminations
+        self.terminations.base_contact.params["sensor_cfg"].body_names = "torso_link"
+        # events
+        self.events.add_base_mass.params["asset_cfg"].body_names = "torso_link"
+        self.events.base_com = None
+        self.events.base_external_force_torque.params["asset_cfg"].body_names = "torso_link"
+        self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
 
 
 @configclass
