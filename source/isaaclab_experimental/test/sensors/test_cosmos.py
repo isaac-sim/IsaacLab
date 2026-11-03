@@ -513,6 +513,20 @@ def test_cameras_sharing_a_session_generate_all_their_views_in_one_batch(cosmos_
     assert session.closed.wait(2)
 
 
+def test_cameras_sharing_a_closed_session_can_open_a_new_one(cosmos_service, monkeypatch):
+    """Cameras rebuilt after their shared session closed, for example after a restart, join a new session."""
+    model, _ = _camera_group(cosmos_service, monkeypatch)
+    try:
+        first = model.open_stream(2, (0, 1))
+        first.bind("front")
+        first.close()
+        second = model.open_stream(2, (0, 1))
+        second.bind("front")
+        assert second._group is not first._group
+    finally:
+        model.close()
+
+
 def test_a_camera_that_misses_a_shared_capture_fails_the_session_for_every_camera(cosmos_service, monkeypatch):
     model, cameras = _camera_group(cosmos_service, monkeypatch)
     front, wrist = cameras["front"], cameras["wrist"]

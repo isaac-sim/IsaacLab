@@ -816,17 +816,24 @@ class Camera(SensorBase):
         """Run the processors in order on a newly published capture and publish their outputs."""
         if not self.cfg.tensor_processors:
             return
-        buffers = dict(self._render_outputs)
-        # The capture mask is an input for processors, not a camera output.
-        mask = {CAPTURE_MASK_NAME: ProxyArray(self._is_outdated)}
+        buffers = {**self._render_outputs, CAPTURE_MASK_NAME: ProxyArray(self._is_outdated)}
         for index, processor_cfg in enumerate(self.cfg.tensor_processors):
             # Construction needs the outputs of earlier processors, which exist after their first call.
             if index == len(self._tensor_processors):
-                self._tensor_processors.append(processor_cfg.func(processor_cfg, {**buffers, **mask}))
-            buffers.update(self._tensor_processors[index]({**buffers, **mask}))
+                self._tensor_processors.append(processor_cfg.func(processor_cfg, buffers))
+            buffers.update(self._tensor_processors[index](buffers))
+        # The capture mask is an input for processors, not a camera output.
+        del buffers[CAPTURE_MASK_NAME]
         self._data.output.update(buffers)
-        # Processor outputs enter info with output, at their first publication.
-        self._data.info.update(dict.fromkeys(buffers.keys() - self._data.info.keys()))
+        # Processor outputs enter info at their first publication. Renderers fill only existing info keys, so a new
+        # output takes the capture metadata of the render outputs it was computed from; later captures fill it.
+        new_names = buffers.keys() - self._data.info.keys()
+        if new_names:
+            capture = next(
+                (info["capture"] for info in self._data.info.values() if isinstance(info, dict) and "capture" in info),
+                None,
+            )
+            self._data.info.update({name: None if capture is None else {"capture": capture} for name in new_names})
 
     """
     Private Helpers
