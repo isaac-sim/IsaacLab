@@ -54,10 +54,24 @@ DEPTH_OFFSET_ROT = (0.9150, 0.0, -0.4035, 0.0)
 
 
 @configclass
-class G1MinimalRewards(RewardsCfg):
+class G1Rewards(RewardsCfg):
     """Locomotion rewards for the minimal G1 robot."""
 
     termination_penalty = RewTerm(func=mdp.is_terminated, weight=-200.0)
+    lin_vel_z_l2 = RewTerm(func=mdp.lin_vel_z_l2, weight=0.0)
+    undesired_contacts = None
+    flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-1.0)
+    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.005)
+    dof_acc_l2 = RewTerm(
+        func=mdp.joint_acc_l2,
+        weight=-1.25e-7,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_hip_.*", ".*_knee_joint"])},
+    )
+    dof_torques_l2 = RewTerm(
+        func=mdp.joint_torques_l2,
+        weight=-1.5e-7,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_hip_.*", ".*_knee_joint", ".*_ankle_.*"])},
+    )
     track_lin_vel_xy_exp = RewTerm(
         func=mdp.track_lin_vel_xy_yaw_frame_exp,
         weight=1.0,
@@ -141,70 +155,35 @@ class G1MinimalRewards(RewardsCfg):
 class G1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
     """Configuration for the Unitree G1 velocity-tracking environment on rough terrain."""
 
-    rewards: G1MinimalRewards = G1MinimalRewards()
-
-    def __post_init__(self):
-        super().__post_init__()
-
-        # physics
-        self.sim.physics.newton_mjwarp.solver_cfg.njmax = 300
-        # scene
-        self.scene.robot = replace(G1_MINIMAL_CFG, prim_path="{ENV_REGEX_NS}/Robot")
-        self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_link"
-        # commands
-        self.commands.base_velocity.vel_yaw_success_threshold = 0.8
-        self.commands.base_velocity.marker_pos_offset = (0.0, 0.0, 0.75)
-        self.commands.base_velocity.ranges.lin_vel_x = (0.0, 1.0)
-        self.commands.base_velocity.ranges.lin_vel_y = (-0.0, 0.0)
-        self.commands.base_velocity.ranges.ang_vel_z = (-1.0, 1.0)
-        # rewards
-        self.rewards.lin_vel_z_l2.weight = 0.0
-        self.rewards.undesired_contacts = None
-        self.rewards.flat_orientation_l2.weight = -1.0
-        self.rewards.action_rate_l2.weight = -0.005
-        self.rewards.dof_acc_l2.weight = -1.25e-7
-        self.rewards.dof_acc_l2.params["asset_cfg"] = SceneEntityCfg(
-            "robot", joint_names=[".*_hip_.*", ".*_knee_joint"]
-        )
-        self.rewards.dof_torques_l2.weight = -1.5e-7
-        self.rewards.dof_torques_l2.params["asset_cfg"] = SceneEntityCfg(
-            "robot", joint_names=[".*_hip_.*", ".*_knee_joint", ".*_ankle_.*"]
-        )
-        # terminations
-        self.terminations.base_contact.params["sensor_cfg"].body_names = "torso_link"
-        # events
-        self.events.add_base_mass.params["asset_cfg"].body_names = "torso_link"
-        self.events.base_com = None
-        self.events.base_external_force_torque.params["asset_cfg"].body_names = "torso_link"
-        self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
+    rewards: G1Rewards = G1Rewards()
+    sim = SimulationCfg(physics=velocity_env_cfg.RoughPhysicsCfg())
+    sim.physics.newton_mjwarp.solver_cfg.njmax = 300
+    scene = velocity_env_cfg.MySceneCfg(
+        num_envs=4096, env_spacing=2.5, robot=replace(G1_MINIMAL_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+    )
+    scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_link"
+    commands = velocity_env_cfg.CommandsCfg()
+    commands.base_velocity.vel_yaw_success_threshold = 0.8
+    commands.base_velocity.marker_pos_offset = (0.0, 0.0, 0.75)
+    commands.base_velocity.ranges.lin_vel_x = (0.0, 1.0)
+    commands.base_velocity.ranges.lin_vel_y = (-0.0, 0.0)
+    commands.base_velocity.ranges.ang_vel_z = (-1.0, 1.0)
+    terminations = velocity_env_cfg.TerminationsCfg()
+    terminations.base_contact.params["sensor_cfg"].body_names = "torso_link"
+    events = velocity_env_cfg.EventsCfg(base_com=None)
+    events.add_base_mass.params["asset_cfg"].body_names = "torso_link"
+    events.base_external_force_torque.params["asset_cfg"].body_names = "torso_link"
+    events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
 
 
 @configclass
-class G1Rewards(RewardsCfg):
+class G129DofRewards(G1Rewards):
     """Reward terms for the G1 teacher and depth student."""
 
-    termination_penalty = RewTerm(func=mdp.is_terminated, weight=-200.0)
-    lin_vel_z_l2 = RewTerm(func=mdp.lin_vel_z_l2, weight=0.0)
-    undesired_contacts = None
-    flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-1.0)
-    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.005)
-    dof_acc_l2 = RewTerm(
-        func=mdp.joint_acc_l2,
-        weight=-1.25e-7,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_hip_.*", ".*_knee_joint"])},
-    )
-    dof_torques_l2 = RewTerm(
-        func=mdp.joint_torques_l2,
-        weight=-1.5e-7,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_hip_.*", ".*_knee_joint", ".*_ankle_.*"])},
-    )
     track_lin_vel_xy_exp = RewTerm(
         func=mdp.track_lin_vel_xy_yaw_frame_exp,
         weight=2.0,
         params={"command_name": "base_velocity", "std": 0.5},
-    )
-    track_ang_vel_z_exp = RewTerm(
-        func=mdp.track_ang_vel_z_world_exp, weight=2.0, params={"command_name": "base_velocity", "std": 0.5}
     )
     feet_air_time = RewTerm(
         func=mdp.feet_air_time_positive_biped,
@@ -224,12 +203,6 @@ class G1Rewards(RewardsCfg):
         },
     )
 
-    # Penalize ankle joint limits
-    dof_pos_limits = RewTerm(
-        func=mdp.joint_pos_limits,
-        weight=-1.0,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_ankle_pitch_joint", ".*_ankle_roll_joint"])},
-    )
     # Penalize deviation from default of the joints that are not essential for locomotion
     joint_deviation_hip = RewTerm(
         func=mdp.joint_deviation_l2,
@@ -610,7 +583,7 @@ class G1RoughTeacherEnvCfg(LocomotionVelocityRoughEnvCfg):
 
     seed = 42
     scene: G1SceneCfg = G1SceneCfg(num_envs=4096, env_spacing=2.5)
-    rewards: G1Rewards = G1Rewards()
+    rewards: G129DofRewards = G129DofRewards()
     events: G1EventsCfg = G1EventsCfg(asset_parameters=EventTerm(func=configure_asset_parameters, mode="prestartup"))
     curriculum: G1CurriculumCfg = G1CurriculumCfg()
     terminations: G1TerminationsCfg = G1TerminationsCfg()
