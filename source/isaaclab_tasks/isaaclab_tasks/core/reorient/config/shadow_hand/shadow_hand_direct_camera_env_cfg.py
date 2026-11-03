@@ -272,6 +272,13 @@ def validate_shadow_hand_cosmos_preset(env_cfg) -> None:
             "scene.tiled_camera.renderer_cfg.async_rendering=False "
             "(env.scene.tiled_camera.renderer_cfg.async_rendering=False on the command line)."
         )
+    if env_cfg.feature_extractor.train and env_cfg.scene.num_envs > 1 and camera.update_period > 0:
+        # Environments that reset at different times then capture on different steps, so a generated image can come
+        # from an earlier capture than the step it appears on, while training pairs it with the current pose.
+        raise ValueError(
+            "Training the Shadow Hand Cosmos preset with several environments requires a capture every step; set "
+            "scene.tiled_camera.update_period=0 (env.scene.tiled_camera.update_period=0 on the command line)."
+        )
     transfer = _cosmos_transfer(env_cfg)
     if env_cfg.feature_extractor.image_update_frames != transfer.update_frames:
         raise ValueError(

@@ -135,8 +135,10 @@ initial generated frame, Cosmos updates every four captures, so fresh generated
 observations arrive at 15 Hz of simulation time. Generation latency determines the
 elapsed time needed to run those captures.
 The task keeps its 10-second episode length and requests 601 frames: one capture per step, plus the initial capture.
-For fewer Cosmos requests, capture less often, for example `env.scene.tiled_camera.update_period=0.1` (10 Hz,
-101 frames); generated images then change less often.
+For fewer Cosmos requests with one environment, capture less often, for example
+`env.scene.tiled_camera.update_period=0.1` (10 Hz, 101 frames); generated images then change less often. Training
+with several environments needs a capture every step: environments that reset at different times would otherwise
+capture on different steps, and the feature extractor pairs each new image with the current cube pose.
 The preset requires `scene.lazy_sensor_update=True` and synchronous rendering so
 each image remains aligned with its simulation state. With OVRTX, set
 `env.scene.tiled_camera.renderer_cfg.async_rendering=False` on the command line.
