@@ -250,9 +250,10 @@ def test_binary_policy_likelihoods():
     suction.init_mlp_weights(head)
     suction.update(head(torch.zeros(1, 3)))
     assert -1.0 < suction.mean[0, -1] < -0.9, "Initial exploration should usually preserve a suction seal."
-    output = torch.tensor([[10.0, -10.0, 0.2, -3.0], [-10.0, 10.0, -0.2, 3.0]])
+    output = torch.tensor([[10.0, -10.0, 0.2, -30.0], [-10.0, 10.0, -0.2, 30.0]])
     suction.update(output)
     assert (suction.mean[:, :3].abs() <= 1.0).all()
+    assert (suction.mean[:, -1].abs() <= 0.981).all(), "Both binary commands must retain sampling probability."
     assert torch.isfinite(suction.log_prob(suction.sample())).all()
     deterministic = suction.deterministic_output(output)
     torch.testing.assert_close(deterministic[:, :3], suction.mean[:, :3])

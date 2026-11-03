@@ -49,7 +49,8 @@ With Isaac Sim installed, use `--viz kit` for RTX visualization.
 The policy outputs three Cartesian target increments and one binary vacuum command. Standard
 differential IK maintains a downward tool orientation, with bounded target lead and normal
 Franka joint velocity limits. The policy bounds Cartesian means to the accepted action range and
-starts near rest with a 99% vacuum-hold exploration prior. Observations include the selected parcel's pose, velocity and
+starts near rest with a 98% vacuum-hold exploration prior. Either vacuum command retains at least 1%
+sampling probability during training. Observations include the selected parcel's pose, velocity and
 dimensions, robot and tool states, pickup and placement qualification, and the commanded
 parcel-center goal in the robot frame. A small overhead ray scan observes collision geometry
 as robot-frame points and hit-validity bits. It uses Newton physics rather than an RTX camera;

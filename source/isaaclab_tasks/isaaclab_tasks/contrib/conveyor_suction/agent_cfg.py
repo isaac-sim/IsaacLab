@@ -17,23 +17,26 @@ from ..conveyor_franka.agents.rsl_rl_ppo_cfg import (
     ConveyorGaussianBernoulliDistribution,
 )
 
+_GRIPPER_LOGIT_BOUND = math.log(99.0)
+
 
 class _SuctionOutput(nn.Module):
-    """Keep Cartesian means inside the accepted action range."""
+    """Bound Cartesian means and retain at least 1% exploration for either tool command."""
 
     def forward(self, output: torch.Tensor) -> torch.Tensor:
-        return torch.cat((output[..., :-1].tanh(), output[..., -1:]), dim=-1)
+        logit = _GRIPPER_LOGIT_BOUND * (output[..., -1:] / _GRIPPER_LOGIT_BOUND).tanh()
+        return torch.cat((output[..., :-1].tanh(), logit), dim=-1)
 
 
 class SuctionGaussianBernoulliDistribution(ConveyorGaussianBernoulliDistribution):
     """Explore Cartesian motion while initially preserving native suction seals."""
 
     def init_mlp_weights(self, mlp: nn.Sequential) -> None:
-        """Start near rest with a finite 99% probability of keeping vacuum on."""
+        """Start near rest with a finite 98% probability of keeping vacuum on."""
         nn.init.orthogonal_(mlp[-1].weight, gain=0.01)
         nn.init.zeros_(mlp[-1].bias)
         with torch.no_grad():
-            mlp[-1].bias[-1] = math.log(0.01 / 0.99)
+            mlp[-1].bias[-1] = _GRIPPER_LOGIT_BOUND * math.atanh(math.log(0.02 / 0.98) / _GRIPPER_LOGIT_BOUND)
 
     def update(self, mlp_output: torch.Tensor) -> None:
         super().update(_SuctionOutput()(mlp_output))
