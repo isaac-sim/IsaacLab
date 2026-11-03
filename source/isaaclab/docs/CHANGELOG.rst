@@ -3,6 +3,130 @@ Changelog
 
 .. towncrier release notes start
 
+43.0.0 (2026-11-03)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added shared joint-deviation, body angular-velocity, downward root-speed and terrain-clearance
+  MDP terms, together with a curriculum callback that updates parameters after a step threshold.
+
+Changed
+^^^^^^^
+
+* Replaced per-world recorder episode containers with batched field allocations and
+  independent insertion indices, reusing storage across resets and growing without dropping samples.
+* Added :meth:`~isaaclab.managers.RecorderManager.get_term` for direct access to captured batches.
+* Preserve slices through recorder reset callbacks and normalize Python sequences to lists so tuple
+  environment indices work for capture, reset and success updates.
+* **Breaking:** Removed the implicit observation computation before RL post-step recorder callbacks.
+  Physical capture no longer consumes extra observation noise. Custom terms needing observations
+  of the completed transition must call ``env.observation_manager.compute_group(name, update_history=False)``
+  explicitly; ``env.obs_buf`` still contains the preceding policy input. Use a noiseless group without
+  history or delay for current measurements that do not consume policy noise draws.
+* **Breaking:** Changed :meth:`~isaaclab.managers.RecorderManager.get_episode` to return an owned
+  snapshot with tensor leaves. To update live recording, use ``add_to_episodes`` and
+  ``set_success_to_episodes``; do not mutate the snapshot. Set ``buffer_initial_capacity``
+  to control the initial allocation per field.
+* **Breaking:** Removed ``EpisodeData.add()`` and ``pre_export()``. Collection now belongs to
+  ``RecorderManager.add_to_episodes()``; assign nested tensors with leading sample dimensions
+  to ``EpisodeData.data`` when constructing an episode directly. Playback and HDF5 loading remain supported.
+* **Breaking:** Removed the unused ``RecorderTerm.close(file_path)`` hook. Dataset handlers own
+  file finalization; applications must explicitly close any additional resources they own.
+
+* Documented independent capture, retention and export choices, with task-selected schemas and
+  consumer-owned processing. Core recorder storage remains independent of task and learning packages.
+
+Fixed
+^^^^^
+
+* Kept retained recorder allocations writable after leaving PyTorch inference mode, including
+  grown buffers and schema changes, so subsequent reset and export can finalize those episodes.
+
+
+42.3.2 (2026-11-01)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab.envs.mdp.events.reset_joints_within_limits_range` clamping every joint with the soft
+  limits of the listed joints, which moved unlisted joints off their defaults, failed for joint subsets and applied
+  the wrong limits for out-of-order keys. Empty range dictionaries no longer raise an ``IndexError``.
+
+
+42.3.1 (2026-10-31)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``fix_root_link=True`` raising ``NotImplementedError`` for an articulation rooted at the fixed joint that
+  attaches it to the world when the joint's ``body0`` targets the asset prim, a fixed-base layout that UsdPhysics
+  allows. It now enables that joint instead of raising. A fixed joint between two bodies, between a body and a static
+  collider, or between two prims that are not rigid bodies still raises the error.
+  ``fix_root_link=False`` is not supported for an articulation rooted at its fixed world joint; it now logs a warning
+  and leaves the joint enabled. :func:`~isaaclab.sim.utils.find_global_fixed_joint_prim` returns that joint when
+  called on it.
+* Fixed :class:`~isaaclab.utils.noise.NoiseModelWithAdditiveBias` accumulating the bias across resets when
+  ``bias_noise_cfg.operation`` is ``"add"`` (the default). Each reset now samples a fresh bias as documented, which
+  matches the ``"abs"`` operation; configurations that use ``"abs"`` or ``"scale"`` are unchanged.
+
+
+42.3.0 (2026-10-30)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Centralized Warp wrench composition with on-demand writer/reset kernels and one host owner for destination selection.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the wrench entry points in ``isaaclab.utils.warp.kernels`` for removal in Isaac Lab 3.2. Existing imports and launch signatures remain supported with a ``DeprecationWarning``; use ``WrenchComposer`` or ``isaaclab.utils.warp.wrench`` instead. The new writer factory takes selected force/torque destinations rather than five buffers and ``is_global``.
+
+Fixed
+^^^^^
+
+* Fixed ``configclass`` raising ``FrozenInstanceError`` when a field holds a frozen dataclass with no callable
+  strings to wrap.
+
+
+42.2.0 (2026-10-29)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed ``isaaclab teleop`` to call :func:`isaaclab_teleop.entrypoints.run_cli` in process, like
+  ``isaaclab train``, instead of launching the scripts under ``scripts/``.
+* Reused native Warp views/copy/fill for ordinary data movement. Shared memory utilities own selector normalization, component views, boolean-masked updates, and fused packing/splitting. Callers supply layouts and own simulator row-ID bookkeeping. Custom kernels and articulation ordering use cached concrete factories without enumerating unused variants. Warm the execution path before graph capture.
+* Added tiled component concatenation through ``memory.concat(first, second, result)``. The operation owns scalar views and launch dimensions, preserves strided layouts, and supports native recorded launches without rebuilding views on each read.
+
+
+42.1.0 (2026-10-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab.managers.ObservationTermCfg.history_newest_first` and
+  :attr:`~isaaclab.managers.ObservationGroupCfg.history_newest_first` to place the current step first along the
+  history dimension for policies whose deployment runtime builds observation history in that order.
+
+Fixed
+^^^^^
+
+* Fixed ``--checkpoint latest`` in the skrl and rl_games benchmark play entrypoints loading the best-reward
+  checkpoint instead of the newest one, matching the fix in the training and play entrypoints.
+* Fixed :func:`~isaaclab.utils.math.sample_triangle` sampling a V-shaped distribution with the least density at the
+  midpoint and the most at the bounds. It now samples the documented symmetric triangular distribution, with its mode
+  at the midpoint of ``lower`` and ``upper``.
+* Preserved tuple containers when serializing and restoring nested ``slice`` values in dictionary utilities.
+
+
 42.0.0 (2026-10-27)
 ~~~~~~~~~~~~~~~~~~~
 

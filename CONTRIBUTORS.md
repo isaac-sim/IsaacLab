@@ -49,6 +49,7 @@ Guidelines for modifications:
 * Achintya Paningapalli
 * Advait Jayant
 * Agon Serifi
+* Ahmet Gundogdu
 * Alessandro Assirelli
 * Alex Omar
 * Alexander Millane
@@ -215,6 +216,7 @@ Guidelines for modifications:
 * Song Yi
 * Stefan Van de Mosselaer
 * Stephan Pleines
+* Sujal
 * Tiffany Chen
 * Trushant Adeshara
 * Tsz Ki GAO

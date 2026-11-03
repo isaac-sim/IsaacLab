@@ -4,14 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 # region help
-# Docker builds and their dependent tests run only on a labeled PR event, a push to a protected
-# branch, or a manual workflow dispatch. Do not filter the label with a job-level ``if``:
-# GitHub treats skipped required jobs as successful status checks.
-#
-# GitHub cannot filter label names at trigger time, so adding any label to a PR
-# starts this workflow. Only a ``ci:run-docker`` event cancels an in-flight run;
-# other label events queue behind it so that a triage label cannot cancel a
-# build whose required checks have already been reported.
+# Unactivated updates fail on a CPU runner because skipped required jobs count as successful.
+# Any label starts a run because GitHub cannot filter label names at trigger time.
+# Ordinary label events queue to avoid cancelling builds with reported required checks.
 #
 # Pushes to protected branches still run the post-merge integration tests.
 #
@@ -61,19 +56,31 @@ on:
       - develop
       - 'release/**'
   pull_request:
-    types: [labeled]
+    types: [labeled, synchronize]
     branches:
       - main
       - develop
       - 'release/**'
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      config_ref:
+        description: 'Git ref whose .github/workflows/config.yaml supplies the CI image pins'
+        required: false
+        type: string
+        default: ''
+      ci_image_repository:
+        description: 'Repository name used for the temporary CI image tag'
+        required: false
+        type: string
+        default: 'isaac-lab-ci'
 
 # Concurrency control to prevent parallel runs on the same PR
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   # Push and workflow_dispatch events carry no label, so this stays false for them and
   # preserves the post-merge runs that ``github.event_name == 'pull_request'`` used to protect.
-  cancel-in-progress: ${{ github.event.label.name == 'ci:run-docker' }}
+  cancel-in-progress: ${{ github.event.action == 'synchronize' || github.event.label.name == 'ci:run-docker' }}
 
 permissions:
   contents: read
@@ -91,9 +98,35 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+      issues: read
     outputs:
       should_run: ${{ steps.detect.outputs.should_run }}
+      activated: ${{ steps.activation.outputs.activated }}
     steps:
+    - name: Check PR update activation
+      id: activation
+      continue-on-error: true
+      timeout-minutes: 5
+      uses: actions/github-script@v9
+      with:
+        script: |
+          // Label history preserves activation after run-ci removes its triggering label.
+          core.setOutput('activated', 'false');
+          if (context.eventName !== 'pull_request' || context.payload.action !== 'synchronize') {
+            core.setOutput('activated', 'true');
+            return;
+          }
+          for await (const response of github.paginate.iterator(github.rest.issues.listEvents, {
+            ...context.repo, issue_number: context.payload.pull_request.number, per_page: 100,
+            request: {timeout: 60000},
+          })) {
+            // GITHUB_TOKEN labeler events cannot trigger another workflow.
+            if (response.data.some(event => event.event === 'labeled'
+                && event.actor?.login && event.actor.login !== 'github-actions[bot]')) {
+              core.setOutput('activated', 'true');
+              return;
+            }
+          }
     - uses: actions/checkout@v6
       with:
         fetch-depth: 1
@@ -133,6 +166,7 @@ jobs:
     steps:
     - uses: actions/checkout@v6
       with:
+        ref: ${{ inputs.config_ref }}
         fetch-depth: 1
         sparse-checkout: .github/workflows/config.yaml
         sparse-checkout-cone-mode: false
@@ -144,9 +178,11 @@ jobs:
         echo "isaacsim_image_tag=$(yq -r .isaacsim_image_tag "$f")" >> "$GITHUB_OUTPUT"
         echo "isaaclab_image_name=$(yq -r .isaaclab_image_name "$f")" >> "$GITHUB_OUTPUT"
         echo "ovphysx_wheelhouse_image=$(yq -r '.ovphysx_wheelhouse_image // ""' "$f")" >> "$GITHUB_OUTPUT"
-    # NOTE: this ci_image_tag formula is intentionally duplicated in arm-ci.yml's
-    # config job — the two images are independent (x86 here vs -arm64 there), so
-    # they are not shared. Keep the two formulas in sync if either changes.
+        echo "config_hash=$(sha256sum "$f" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+    # NOTE: the default ci_image_tag formula is intentionally duplicated in
+    # arm-ci.yml's config job. Reusable x86 runs can select another repository
+    # and append a referenced-config identity; the independent ARM image cannot.
+    # Keep the shared ref/SHA portion in sync if either formula changes.
     - id: image_tag
       shell: bash
       env:
@@ -154,6 +190,9 @@ jobs:
         PR_NUMBER: ${{ github.event.pull_request.number }}
         REF_NAME: ${{ github.ref_name }}
         SHA: ${{ github.sha }}
+        CI_IMAGE_REPOSITORY: ${{ inputs.ci_image_repository || 'isaac-lab-ci' }}
+        CONFIG_REF: ${{ inputs.config_ref }}
+        CONFIG_HASH: ${{ steps.load.outputs.config_hash }}
       run: |
         set -euo pipefail
 
@@ -165,8 +204,15 @@ jobs:
 
         # Sanitize the ref name for use as a Docker tag suffix.
         sanitized_ref=$(echo "$ref_component" | sed 's/[^a-zA-Z0-9._-]/-/g')
-        echo "ci_image_tag=isaac-lab-ci:${sanitized_ref}-${SHA}" >> "$GITHUB_OUTPUT"
-        echo "CI image tag: isaac-lab-ci:${sanitized_ref}-${SHA}"
+        config_suffix=""
+        if [ -n "$CONFIG_REF" ]; then
+          # A referenced config can advance independently of the tested source
+          # commit. Include its identity so a rerun never reuses a stale image.
+          config_suffix="-${CONFIG_HASH:0:12}"
+        fi
+        ci_image_tag="${CI_IMAGE_REPOSITORY}:${sanitized_ref}-${SHA}${config_suffix}"
+        echo "ci_image_tag=$ci_image_tag" >> "$GITHUB_OUTPUT"
+        echo "CI image tag: $ci_image_tag"
 
   test-dockerfile-contract:
     name: dockerfile-contract
@@ -195,10 +241,16 @@ jobs:
   #region build jobs
   build:
     name: Build Base Docker Image
-    runs-on: [self-hosted, gpu]
+    # Fail the build check when activation is missing so an untested PR cannot merge.
+    runs-on: ${{ fromJSON(needs.changes.outputs.activated == 'true' && '["self-hosted", "gpu"]' || '["ubuntu-latest"]') }}
     needs: [changes, config]
     if: needs.changes.outputs.should_run == 'true'
     steps:
+    - name: Explain missing PR activation
+      if: needs.changes.outputs.activated != 'true'
+      run: |
+        echo '::error::Docker CI has not been activated, or prior activation could not be verified. Apply a label or use the existing run-ci command. No GPU build or benchmark was started.'
+        exit 1
     - name: Checkout Code
       uses: actions/checkout@v6
       with:
@@ -229,7 +281,9 @@ jobs:
     runs-on: [self-hosted, gpu]
     needs: [changes, config]
     # Also runs on push so PRs find the cuRobo deps image already built.
-    if: needs.changes.outputs.should_run == 'true'
+    if: >-
+      needs.changes.outputs.activated == 'true' &&
+      needs.changes.outputs.should_run == 'true'
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
@@ -933,6 +987,7 @@ jobs:
     - uses: actions/checkout@v6
       with:
         fetch-depth: 1
+        lfs: true
     - name: Pull pull-request image
       uses: ./.github/actions/ecr-build-push-pull
       with:
@@ -941,6 +996,7 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.base
         cache-tag: cache-base
+        pull-on-deps-hit: 'true'
 
     # Kit-free combinations only: name|task|num_envs|bench_timeout_s|args
     - name: Define benchmark matrix
@@ -971,96 +1027,21 @@ jobs:
         restore-keys: |
           perf-jit-warp${{ steps.warp_version.outputs.value }}-
 
+    - name: Prepare benchmark source revision evidence
+      run: |
+        python3 tools/performance_regression/source_revision.py prepare \
+          --checkout-root "$GITHUB_WORKSPACE" --commit "$GITHUB_SHA" \
+          --output "$GITHUB_WORKSPACE/benchmark-output/source-manifest.json"
+
     - name: Run runtime benchmarks
       env:
         CI_IMAGE_TAG: ${{ needs.config.outputs.ci_image_tag }}
       run: |
-        set -uo pipefail
-        install -d -m 0777 "${GITHUB_WORKSPACE}/jit-cache/warp" "${GITHUB_WORKSPACE}/jit-cache/nv"
-        # Restored version directories and kernels must also be writable by the container user.
-        chmod -R a+rwX "${GITHUB_WORKSPACE}/jit-cache" || exit 1
-        container=""
-        cleanup_container() {
-          if [ -n "$container" ]; then
-            docker rm -f "$container" >/dev/null 2>&1 || true
-          fi
-        }
-        trap cleanup_container EXIT
-        trap 'exit 130' INT
-        trap 'exit 143' TERM
-
-        run_attempt() {
-          local attempt="$1"
-          container="performance-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${leg}-${sample}-${attempt}"
-          cleanup_container
-          # actions/cache restores the tree with the runner's ownership, while
-          # each benchmark container runs as uid 1000. A previous container can
-          # also add directories, so normalize ownership before every attempt.
-          docker run --rm --user root \
-            -v "${GITHUB_WORKSPACE}/jit-cache:/tmp/jit-cache" \
-            --entrypoint bash "$CI_IMAGE_TAG" -lc \
-            "chown -R isaaclab:isaaclab /tmp/jit-cache"
-          timeout "${bench_timeout_s}" docker run --name "$container" --gpus all --network=host --ipc=host \
-            -e WARP_CACHE_PATH=/tmp/jit-cache/warp \
-            -e CUDA_CACHE_PATH=/tmp/jit-cache/nv \
-            -v "${GITHUB_WORKSPACE}/jit-cache:/tmp/jit-cache" \
-            --entrypoint bash "$CI_IMAGE_TAG" -lc \
-            "set -euo pipefail
-            mkdir -p /tmp/benchmark-output
-            uv run --no-sync isaaclab benchmark runtime \
-              --task '$task' \
-              --num_envs '$num_envs' \
-              --num_steps 200 \
-              --warmup_steps 100 \
-              --seed 42 \
-              --benchmark_formatter schema \
-              --output_path /tmp/benchmark-output \
-              $args"
-          local status=$?
-          docker cp "$container:/tmp/benchmark-output/." "benchmark-output/${leg}/sample-${sample}/" 2>/dev/null || true
-          cleanup_container
-          container=""
-          local -a bundles
-          mapfile -t bundles < <(find "benchmark-output/${leg}/sample-${sample}" -maxdepth 1 -type f -name 'benchmark_runtime_*.json')
-          if [ "$status" -eq 0 ] && [ "${#bundles[@]}" -ne 1 ]; then
-            echo "::error::${leg} exited 0 but did not produce exactly one benchmark JSON"
-            return 1
-          fi
-          return $status
-        }
-
-        failed_legs=()
-        while IFS='|' read -r leg task num_envs bench_timeout_s args; do
-          echo "::group::performance-smoke: ${leg}"
-          install -d -m 0777 "benchmark-output/${leg}"
-          leg_ok=true
-          # ASV needs repeated independent runs on both sides for significance tests.
-          # Per-frame samples within one simulation are not independent CI runs.
-          for sample in 1 2 3; do
-            mkdir -p "benchmark-output/${leg}/sample-${sample}"
-            if ! run_attempt 1; then
-              echo "::warning::${leg} sample ${sample} failed; retrying once"
-              rm -f "benchmark-output/${leg}/sample-${sample}/"benchmark_runtime_*.json
-              if ! run_attempt 2; then
-                echo "::error::${leg} sample ${sample} failed on both attempts"
-                leg_ok=false
-                break
-              fi
-            fi
-          done
-          if [ "$leg_ok" = true ]; then
-            echo ok > "benchmark-output/${leg}/status"
-          else
-            echo failed > "benchmark-output/${leg}/status"
-            failed_legs+=("$leg")
-          fi
-          echo "::endgroup::"
-        done < benchmark-legs.tsv
-
-        if [ "${#failed_legs[@]}" -gt 0 ]; then
-          echo "::error::performance-smoke: failed combination(s): ${failed_legs[*]}"
-          exit 1
-        fi
+        CHECKOUT_ROOT="$GITHUB_WORKSPACE" BENCHMARK_OUTPUT="$GITHUB_WORKSPACE/benchmark-output" \
+        SOURCE_REVISION_LAUNCHER="$GITHUB_WORKSPACE/tools/performance_regression/source_revision.py" \
+        SOURCE_MANIFEST="$GITHUB_WORKSPACE/benchmark-output/source-manifest.json" \
+        BENCHMARK_LEGS="$GITHUB_WORKSPACE/benchmark-legs.tsv" JIT_CACHE_ROOT="$GITHUB_WORKSPACE/jit-cache" \
+        exec bash "$GITHUB_WORKSPACE/tools/performance_regression/run_benchmarks.sh"
 
     - name: Save warm JIT cache
       if: always() && github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
@@ -1088,10 +1069,10 @@ jobs:
         venv="${RUNNER_TEMP}/perf-smoke-venv"
         uv venv --python 3.12 "$venv"
         uv pip install --python "$venv/bin/python" \
-          -r tools/perf_smoke/requirements.txt
+          -r tools/performance_regression/requirements.txt
         echo "python=$venv/bin/python" >> "$GITHUB_OUTPUT"
 
-    # Read-only. Runs PR-checkout code (tools.perf_smoke), so it must use a separate
+    # Read-only. Runs PR-checkout code (tools.performance_regression), so it must use a separate
     # list/read-only SAS, never the write-capable credential below
     - name: Compare against baseline history
       # The exit code carries the verdict to the summary job through the uploaded
@@ -1114,7 +1095,7 @@ jobs:
             results=("benchmark-output/${leg}/benchmark_runtime_MISSING.json")
           fi
           # A missing credential yields SKIP, a gate fault yields ERROR; neither fails.
-          uv run --no-project --python "${PERF_PYTHON:-python3}" python -m tools.perf_smoke.cli compare \
+          uv run --no-project --python "${PERF_PYTHON:-python3}" python -m tools.performance_regression.cli compare \
             --benchmark_result "${results[@]}" \
             --label "$leg" \
             --output_json "benchmark-output/${leg}/comparison.json" \
@@ -1148,7 +1129,7 @@ jobs:
             continue
           fi
           for index in "${!results[@]}"; do
-            uv run --no-project --python "${PERF_PYTHON:-python3}" python -m tools.perf_smoke.cli write \
+            uv run --no-project --python "${PERF_PYTHON:-python3}" python -m tools.performance_regression.cli write \
               --benchmark_result "${results[$index]}" \
               --commit "$GITHUB_SHA" \
               --timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
@@ -1186,7 +1167,7 @@ jobs:
     - name: Summarise performance comparisons
       run: |
         set -euo pipefail
-        uv run --no-project python -m tools.perf_smoke.cli aggregate \
+        uv run --no-project python -m tools.performance_regression.cli aggregate \
           --comparison_dir comparisons \
           | tee -a "$GITHUB_STEP_SUMMARY"
 
@@ -1242,7 +1223,7 @@ jobs:
           test_multi_agent_environments.py,
           test_environment_determinism.py,
           test_contrib_environments_kitless.py,
-          test_newton_manager_abstraction.py
+          test_newton_manager.py
         # Keep this warmer focused on rigid environments.
         test-k-expr: "not (Soft or Cloth or Cable)"
         warp-cache: ${{ env.PUBLISHES_WARP_CACHE == 'true' && 'save' || 'restore' }}

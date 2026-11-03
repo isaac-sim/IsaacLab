@@ -24,6 +24,15 @@ rigid-body scenes, the named-entry coupling options are:
 * :class:`~isaaclab_contrib.coupling.CouplerAdmmCfg` for linearized ADMM
   coupling between named solver entries.
 
+Explore material stiffness, cloth and cable bending, and pulley loads in these
+compact scenes. The pulley workshop compares an ideal force reference with the
+reaction measured by its VBD cable simulation.
+
+.. isaaclab-demos:: stiffness, cloth_bending, cable_bending, pulley
+   :title: Explore VBD materials and cables
+   :physics: vbd
+   :activity: tuning
+
 Start from a Supported Deformable Task
 --------------------------------------
 
@@ -251,7 +260,7 @@ Custom MJWarp + VBD Parameters
 ------------------------------
 
 The opt-in
-:class:`~isaaclab_contrib.custom_coupling.newton_manager_cfg.CoupledMJWarpVBDSolverCfg`
+:class:`~isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_solver_cfg.CoupledMJWarpVBDSolverCfg`
 runs MJWarp and VBD over one shared model. Import
 :mod:`isaaclab_contrib.custom_coupling.tasks` explicitly to register
 ``IsaacContrib-Lift-Soft-Franka-Custom-Coupling``, which selects the
@@ -280,7 +289,7 @@ in the scene. ``ccd_iterations`` can affect fast rigid contacts near
 deformables. See :doc:`/source/how-to/solver_tuning_mjwarp` for the rigid-solver
 parameters.
 
-Use the custom manager for direct shared-model substep ordering. Use proxy
+Use the custom coupled solver adapter for direct shared-model substep ordering. Use proxy
 coupling when deformable contact is localized to selected rigid bodies.
 
 Start from ``coupling_mode="two_way"``. With two-way coupling the body-particle
@@ -458,10 +467,6 @@ for volume deformables:
       - Default: ``0.0`` [Pa*s]. Damping for tetrahedral elements. Increase it to reduce oscillations after deformation, but avoid overdamping if the object should rebound.
 
 
-Try the :ref:`interactive material demo <interactive-demo-stiffness>` to vary
-shear and volume stiffness independently, with fixed reference cubes.
-
-
 Surface Deformable Materials
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -489,10 +494,6 @@ for cloth or surface deformables:
       - Default: ``5.0`` [N*m]. Bending stiffness. Increase it for stiffer cloth folds; decrease it for softer draping.
     * - ``edge_kd``
       - Default: ``1.0e-2`` [N*m*s]. Bending damping. Increase it to damp fold oscillations.
-
-Try the :ref:`interactive cloth demo <interactive-demo-cloth-bending>` to compare
-bending stiffness while three sheets drape over horizontal rollers.
-
 
 Tuning Workflow
 ---------------
@@ -545,5 +546,5 @@ Symptoms and First Parameters to Check
     * - Self-contact is too expensive.
       - Increase ``particle_collision_detection_interval``, reduce mesh resolution, or disable self-contact until the rest of the scene is tuned.
 
-For implementation details of the VBD managers and Newton coupler, see
+For implementation details of the VBD solver adapter and Newton coupler, see
 :ref:`newton-extending-solvers`.

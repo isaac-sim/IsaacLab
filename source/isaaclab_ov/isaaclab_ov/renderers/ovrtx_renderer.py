@@ -75,12 +75,15 @@ from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_ov.cloner import ovrtx_replicate
 from isaaclab_ov.renderers.ovrtx_annotator_utils import (
+    IdentifierMap,
     build_instance_id_to_labels_and_semantics,
     build_semantic_id_to_labels,
     decode_semantic_id_map,
     decode_stable_id_map,
     decode_stable_id_semantic_id_map,
 )
+from isaaclab_ov.renderers.ovrtx_compat import OVRTX_USES_NAMED_SEGMENTATION_MAPS
+from isaaclab_ov.renderers.ovrtx_compat import OVRTX_VERSION as _OVRTX_VERSION
 from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg, OVRTXRendererCfg
 from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
     accumulate_mesh_normals,
@@ -98,6 +101,7 @@ from isaaclab_ov.renderers.ovrtx_usd import (
 )
 from isaaclab_ov.renderers.visual_materials import OVRTXVisualMaterialWriter
 from isaaclab_ov.stage import (
+    _handle_raw_id,
     export_stage_to_string,
     points_tensor_from_warp,
     xform_tensor_from_numpy,
@@ -115,6 +119,7 @@ from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 
 _RENDER_VAR_PRIM_NAMES = render_var_prim_names_by_source()
 _RENDER_DELTA_TIME = 1.0 / 60.0
+_GPU_CAMERA_TRANSFORMS_ATTRIBUTE = "omni:rtx:scene:hydra:readGPUCameraTransformsFromFabricInRenderDelegate"
 _LDR_COLOR_VAR = "LdrColor"
 _CAMERA_INTRINSIC_ATTRIBUTES = (
     "focalLength",
@@ -173,6 +178,23 @@ def _write_file(output_dir: Path, file_name: str, content: str) -> None:
     output_path = output_dir / file_name
     output_path.write_text(content, encoding="utf-8")
     logger.info("Wrote USD file: %s", output_path)
+
+
+def _decode_segmentation_map_named(render_var: RenderVarOutput, decoder: Callable[[IdentifierMap], Any]) -> Any:
+    """Decode OVRTX 0.7 label tensors before their mapping is released."""
+    with render_var.map(device=Device.CPU) as mapping:
+        return decoder({name: np.from_dlpack(mapping[name]) for name in mapping.keys()})
+
+
+def _decode_segmentation_map_packed(render_var: RenderVarOutput, decoder: Callable[[IdentifierMap], Any]) -> Any:
+    """Decode the OVRTX 0.6 label buffer before its mapping is released."""
+    with render_var.map(device=Device.CPU) as mapping:
+        return decoder(np.from_dlpack(mapping))
+
+
+_decode_segmentation_map = (
+    _decode_segmentation_map_named if OVRTX_USES_NAMED_SEGMENTATION_MAPS else _decode_segmentation_map_packed
+)
 
 
 def _write_combined_stage(output_dir: Path, render_product_usd: str) -> None:
@@ -326,6 +348,7 @@ class OVRTXRenderer(BaseRenderer):
 
         # Clone preparation resolves scene ownership before acquiring native resources.
         self._use_ovstage = False
+        self._needs_transform_initialization = False
         self.scene: OvstageBackend | OVRTXBackend | None = None
         self.backend: OVRTXBackend | None = None
         """Native engine borrowed from the simulation registry after clone preparation."""
@@ -359,6 +382,19 @@ class OVRTXRenderer(BaseRenderer):
                     self._use_ovstage and self.scene.cfg.population_domains & ovstage.PopulationDomain.PHYSICS
                 ),
             )  # fmt: skip
+            if not self._use_ovstage and _OVRTX_VERSION is not None and _OVRTX_VERSION.release[:2] == (0, 7):
+                # Author the camera mode before loading the stage: changing it later
+                # leaves cached camera poses stale until another scene update.
+                settings_path = Sdf.Path(stage.GetMetadata("renderSettingsPrimPath") or "/Render/IsaacLabSettings")
+                layer = Sdf.Layer.CreateAnonymous()
+                layer.ImportFromString(usd)
+                attribute = layer.GetAttributeAtPath(settings_path.AppendProperty(_GPU_CAMERA_TRANSFORMS_ATTRIBUTE))
+                if attribute is None:
+                    attribute = Sdf.AttributeSpec(
+                        layer.GetPrimAtPath(settings_path), _GPU_CAMERA_TRANSFORMS_ATTRIBUTE, Sdf.ValueTypeNames.Bool
+                    )
+                attribute.default = False
+                usd = layer.ExportToString()
             if self.cfg.temp_usd_dir is not None:
                 _write_file(Path(self.cfg.temp_usd_dir), "ovrtx_renderer_stage.usda", usd)
             if self._use_ovstage:
@@ -372,7 +408,9 @@ class OVRTXRenderer(BaseRenderer):
                 with self.scene.query(env_paths) as query:
                     self.scene.stage.write_attribute(
                         query, "primvars:omni:scenePartition", ordinal=self.scene.ordinal,
-                        tensors=np.array([self.scene.paths.intern_token(token) for token in tokens], np.uint64),
+                        tensors=np.array(
+                            [_handle_raw_id(self.scene.paths.intern_token(token)) for token in tokens], dtype=np.uint64
+                        ),
                         is_array=False, semantic=ovstage.AttributeSemantic.TOKEN_ID,
                     ).wait()  # fmt: skip
             else:
@@ -382,6 +420,17 @@ class OVRTXRenderer(BaseRenderer):
                 )  # fmt: skip
         self._setup_xform_bindings(stage)
         self._setup_geometry_bindings()
+        if self._use_ovstage and _OVRTX_VERSION is not None and _OVRTX_VERSION.release[:2] == (0, 7):
+            # OVRTX 0.7's GPU camera cache mixes tiled views and misses pose updates.
+            # Disable only camera reads before registering products (and before attaching
+            # an OVStage), retaining GPU instance transforms for large articulated scenes.
+            settings_path = str(stage.GetMetadata("renderSettingsPrimPath") or "/Render/IsaacLabSettings")
+            cpu_cameras = np.array([False], dtype=np.bool_)
+            with self.scene.query([settings_path]) as query:
+                self.scene.stage.write_attribute(
+                    query, _GPU_CAMERA_TRANSFORMS_ATTRIBUTE, ordinal=self.scene.ordinal,
+                    tensors=cpu_cameras, is_array=False,
+                ).wait()  # fmt: skip
         if self._use_ovstage:
             self.scene.commit()
             if not self.backend.attached:
@@ -391,6 +440,7 @@ class OVRTXRenderer(BaseRenderer):
             self.scene.resources.callback(self._sim.render_context.reset_stage_prepare_flag)
             self.scene.resources.callback(self.close)
         self._initialized_scene = True
+        self._needs_transform_initialization = not self._use_ovstage and self.backend.cfg.read_gpu_transforms
 
     def _setup_xform_bindings(self, stage: Usd.Stage) -> None:
         """Bind SDP body paths and preserve their authored scales when writing world poses."""
@@ -537,7 +587,9 @@ class OVRTXRenderer(BaseRenderer):
                         query,
                         "camera",
                         ordinal=self.scene.ordinal,
-                        tensors=np.array([self.scene.paths.intern_path(p) for p in camera_paths], dtype=np.uint64),
+                        tensors=np.array(
+                            [_handle_raw_id(self.scene.paths.intern_path(p)) for p in camera_paths], dtype=np.uint64
+                        ),
                         is_array=True,
                         semantic=ovstage.AttributeSemantic.RELATIONSHIP_PATH_ID,
                     ).wait()
@@ -555,7 +607,10 @@ class OVRTXRenderer(BaseRenderer):
                         "omni:scenePartition",
                         ordinal=self.scene.ordinal,
                         tensors=np.array(
-                            [self.scene.paths.intern_token(partition) for partition in camera_partitions],
+                            [
+                                _handle_raw_id(self.scene.paths.intern_token(partition))
+                                for partition in camera_partitions
+                            ],
                             dtype=np.uint64,
                         ),
                         is_array=False,
@@ -706,8 +761,7 @@ class OVRTXRenderer(BaseRenderer):
             )
         labels = None
         if maps[_SEMANTIC_ID_MAP_VAR] is not None:
-            with maps[_SEMANTIC_ID_MAP_VAR].map(device=Device.CPU) as mapping:
-                labels = decode_semantic_id_map(np.from_dlpack(mapping))
+            labels = _decode_segmentation_map(maps[_SEMANTIC_ID_MAP_VAR], decode_semantic_id_map)
 
         for source, key, colorize in (
             (_SEMANTIC_SEGMENTATION_VAR, semantic, self.cfg.colorize_semantic_segmentation),
@@ -747,10 +801,8 @@ class OVRTXRenderer(BaseRenderer):
                 )
             }
         if instance in output_buffers:
-            with maps[_STABLE_ID_SEMANTIC_ID_MAP_VAR].map(device=Device.CPU) as mapping:
-                instances = decode_stable_id_semantic_id_map(np.from_dlpack(mapping))
-            with maps[_STABLE_ID_MAP_VAR].map(device=Device.CPU) as mapping:
-                paths = decode_stable_id_map(np.from_dlpack(mapping))
+            instances = _decode_segmentation_map(maps[_STABLE_ID_SEMANTIC_ID_MAP_VAR], decode_stable_id_semantic_id_map)
+            paths = _decode_segmentation_map(maps[_STABLE_ID_MAP_VAR], decode_stable_id_map)
             id_to_labels, id_to_semantics = build_instance_id_to_labels_and_semantics(
                 instances, paths, labels, colorize=self.cfg.colorize_instance_segmentation, device=self._device
             )
@@ -902,11 +954,11 @@ class OVRTXRenderer(BaseRenderer):
             if data.render_product_path not in products or not products[data.render_product_path].frames:
                 raise RuntimeError(f"OVRTX returned no frame for render product {data.render_product_path!r}.")
         for data in render_data:
-            self._process_render_frame(
-                data,
-                products[data.render_product_path].frames[0],
-                data.warp_buffers,
-            )
+            frames = products[data.render_product_path].frames
+            # DLSS-generated images have earlier capture times than the real frame. Keep all
+            # camera outputs on the latest capture without assuming the returned list's order.
+            frame = frames[0] if len(frames) == 1 else max(frames, key=lambda frame: frame.end_time)
+            self._process_render_frame(data, frame, data.warp_buffers)
 
     def update_transforms(self) -> None:
         """Write changed SDP transforms to OVRTX."""
@@ -1083,6 +1135,12 @@ class OVRTXRenderer(BaseRenderer):
         try:
             if material_writer is not None:
                 material_writer.publish()
+            if self._needs_transform_initialization:
+                # OVRTX 0.6 initializes GPU world transforms on its first step using
+                # authored poses. Flush that initialization before capturing runtime
+                # camera poses, without advancing the sensor simulation clock.
+                self.backend.renderer.step(render_products=products, delta_time=0.0)
+                self._needs_transform_initialization = False
             if self._use_ovstage:
                 ordinal = self.scene.commit()
             elif self.cfg.async_rendering:
@@ -1174,6 +1232,8 @@ class OVRTXMesh:
     def __init__(self, renderer: OVRTXRenderer, path: str):
         self.renderer = renderer
         self.path = path
+        self._reference_generation = 0
+        self._reference_path = path
         self.resources = contextlib.ExitStack()
         self.stage = None
         self._native_resources = self.resources.enter_context(contextlib.ExitStack())
@@ -1279,14 +1339,20 @@ class OVRTXMesh:
                 sampler = UsdShade.Shader.Get(self.stage, "/Mesh/Material/Texture")
                 sampler.CreateInput("scale", Sdf.ValueTypeNames.Float4).Set((*appearance[1], 1.0))
             self._native_resources.close()
+            # OVRTX 0.6 loses geometry when a removed reference's path is reused.
+            # Give each replacement its own path; ordinary GPU geometry writes reuse it.
+            self._reference_path = f"{self.path}/generation_{self._reference_generation}"
+            self._reference_generation += 1
             usd = self.stage.GetRootLayer().ExportToString()
             if self.renderer._use_ovstage:
-                reference = ovstage.population.add_usd_reference_from_string(self.renderer.scene.stage, usd, self.path)
+                reference = ovstage.population.add_usd_reference_from_string(
+                    self.renderer.scene.stage, usd, self._reference_path
+                )
                 self._native_resources.callback(self.renderer._remove_usd_reference, reference)
                 ovstage.population.apply_usd_changes(self.renderer.scene.stage, ordinal=self.renderer.scene.ordinal)
-                self.query = self._native_resources.enter_context(self.renderer.scene.query([self.path]))
+                self.query = self._native_resources.enter_context(self.renderer.scene.query([self._reference_path]))
             else:
-                reference = self.renderer.backend.renderer.add_usd_reference_from_string(usd, self.path)
+                reference = self.renderer.backend.renderer.add_usd_reference_from_string(usd, self._reference_path)
                 self._native_resources.callback(self.renderer.backend.renderer.remove_usd, reference)
         attributes = {"points": points, "normals": normals}
         if uvs is not None:
@@ -1318,7 +1384,7 @@ class OVRTXMesh:
                 ).wait()
             else:
                 self.renderer.backend.renderer.write_array_attribute(
-                    [self.path], name, [values], data_access=DataAccess.ASYNC, cuda_stream=stream
+                    [self._reference_path], name, [values], data_access=DataAccess.ASYNC, cuda_stream=stream
                 )
         token = "invisible" if hidden or not len(points) else "inherited"
         if self.renderer._use_ovstage:
@@ -1326,13 +1392,13 @@ class OVRTXMesh:
                 self.query,
                 "visibility",
                 ordinal=self.renderer.scene.ordinal,
-                tensors=np.array([self.renderer.scene.paths.intern_token(token)], np.uint64),
+                tensors=np.array([_handle_raw_id(self.renderer.scene.paths.intern_token(token))], dtype=np.uint64),
                 is_array=False,
                 semantic=ovstage.AttributeSemantic.TOKEN_ID,
             ).wait()
         else:
             self.renderer.backend.renderer.write_attribute(
-                [self.path], "visibility", [token], semantic=Semantic.TOKEN_STRING
+                [self._reference_path], "visibility", [token], semantic=Semantic.TOKEN_STRING
             )
 
     def close(self) -> None:
@@ -1442,7 +1508,7 @@ class OVRTXMarkers:
                     self._root_query,
                     "visibility",
                     ordinal=renderer.scene.ordinal,
-                    tensors=np.array([renderer.scene.paths.intern_token(token)], dtype=np.uint64),
+                    tensors=np.array([_handle_raw_id(renderer.scene.paths.intern_token(token))], dtype=np.uint64),
                     is_array=False,
                     semantic=ovstage.AttributeSemantic.TOKEN_ID,
                 ).wait()
