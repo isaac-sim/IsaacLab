@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import contextlib
 from types import SimpleNamespace
-from unittest.mock import Mock, call
+from unittest.mock import ANY, Mock, call
 
 import numpy as np
 import pytest
@@ -18,7 +18,7 @@ import warp as wp
 
 from isaaclab.benchmark.stepping import RENDER_PROFILE_SCOPE, profile_renderers
 from isaaclab.cloner import ReplicateContext
-from isaaclab.renderers.base_renderer import BaseRenderer
+from isaaclab.renderers.base_renderer import BaseRenderer, CaptureInfo
 from isaaclab.renderers.render_context import RenderContext
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.scene import InteractiveScene
@@ -242,15 +242,16 @@ def test_render_into_cameras_groups_renderers_and_reads_each_output(sim):
     assert sim.render_context.render_into_cameras([], physics_step_count=1) == []
     first.render_batch.assert_not_called()
     second.render_batch.assert_not_called()
-    first.read_output.side_effect = [True, False]
-    second.read_output.return_value = None
+    captures = [CaptureInfo(env_mask=wp.ones(2, dtype=wp.bool, device="cpu")) for _ in range(2)]
+    first.read_output.side_effect = [captures[0], None]
+    second.read_output.return_value = captures[1]
     published = sim.render_context.render_into_cameras(
         [(first, data[0], cameras[0]), (second, data[1], cameras[1]), (first, data[2], cameras[2])],
         physics_step_count=1,
     )
 
-    # Request order, not renderer-group order; a renderer returning None still publishes.
-    assert published == [True, True, False]
+    # Request order, not renderer-group order; None marks a request that published no new capture.
+    assert published == [captures[0], captures[1], None]
     first.render_batch.assert_called_once_with([data[0], data[2]])
     second.render_batch.assert_called_once_with([data[1]])
     assert first.read_output.call_args_list == [call(data[0], cameras[0]), call(data[2], cameras[2])]
@@ -402,10 +403,14 @@ def camera_batch_context(sim, monkeypatch):
     renderer.render.side_effect = lambda rd: batches.append([(rd.name, rd.pose)])
     renderer.render_batch = Mock(side_effect=lambda requests: batches.append([(rd.name, rd.pose) for rd in requests]))
 
+    def prepare_capture(rd, data, frame, env_mask):
+        rd.env_mask = env_mask
+
     def read_output(rd, data):
         data.info.update(pose=rd.pose)
-        return rd.published
+        return CaptureInfo(env_mask=rd.env_mask) if rd.published else None
 
+    renderer.prepare_capture.side_effect = prepare_capture
     renderer.read_output.side_effect = read_output
     return ctx, renderer, batches
 
@@ -610,7 +615,7 @@ def test_camera_batch_respects_period_partial_reset_and_updated_pose(camera_batc
     np.testing.assert_array_equal(slow.frame.warp.numpy(), [1, 1])
     np.testing.assert_allclose(slow._timestamp_last_update.numpy(), [0.1, 0.1])
     assert renderer.prepare_capture.call_args_list == [
-        call(camera._render_data, camera._data, camera._frame) for camera in (fast, slow, fast)
+        call(camera._render_data, camera._data, camera._frame, ANY) for camera in (fast, slow, fast)
     ]
 
     slow.pose = 3.0
@@ -647,6 +652,21 @@ def test_camera_processors_skip_retained_captures(camera_batch_context, lazy):
     processors[1].assert_not_called()
 
 
+def test_processors_receive_the_published_capture_mask(camera_batch_context):
+    """With asynchronous rendering, the published image is an earlier request's; processors get that request's mask."""
+    _, renderer, _ = camera_batch_context
+    earlier = wp.array([True, False], dtype=wp.bool, device="cpu")
+    renderer.read_output.side_effect = lambda rd, data: CaptureInfo(env_mask=earlier)
+    masks = []
+    processor = Mock(side_effect=lambda buffers: masks.append(buffers["env_mask"].warp.numpy().tolist()) or {})
+    camera = _CpuCamera(renderer, "camera", processors=[processor])
+
+    InteractiveScene.update(_camera_scene([camera]), 0.01)
+
+    # The camera requested both environments, but the published capture covered only the first.
+    assert masks == [[True, False]]
+
+
 def test_first_processor_output_carries_the_capture_metadata(camera_batch_context):
     """A processor output published for the first time has the capture metadata of the render outputs it used."""
     _, renderer, _ = camera_batch_context
@@ -655,7 +675,7 @@ def test_first_processor_output_carries_the_capture_metadata(camera_batch_contex
         # Like OVRTX with delayed captures: fill the metadata of every existing info key.
         for name in data.info:
             data.info[name] = {"capture": {"frame": rd.pose}}
-        return True
+        return CaptureInfo(env_mask=rd.env_mask)
 
     renderer.read_output.side_effect = read_output
     camera = _CpuCamera(renderer, "camera", processors=[Mock(return_value={"rgb": object()})])
