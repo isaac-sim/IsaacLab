@@ -22,8 +22,8 @@ from isaaclab.sensors.camera import CameraData
 from isaaclab.utils import math as math_utils
 from isaaclab.utils.buffers import CircularBuffer
 from isaaclab.utils.leapp import utils as leapp_utils
-from isaaclab.utils.leapp.export_annotator import ExportPatcher
-from isaaclab.utils.leapp.leapp_semantics import InputKindEnum, OutputKindEnum
+from isaaclab.utils.leapp.export_annotator import ExportPatcher, export_function_patches
+from isaaclab.utils.leapp.leapp_semantics import Kind
 from isaaclab.utils.leapp.proxy import _ArticulationWriteProxy, _DataProxy, _EnvProxy
 from isaaclab.utils.warp import ProxyArray
 
@@ -104,7 +104,7 @@ def test_direct_projected_gravity_b_read_preserves_vector3d_input(monkeypatch: p
     task_name, semantics = annotated_inputs[0]
     assert task_name == "Isaac-Velocity-Flat-G1"
     assert semantics.name == "robot_projected_gravity_b"
-    assert semantics.kind == InputKindEnum.VECTOR3D
+    assert semantics.kind == Kind.VECTOR3D
     assert semantics.extra == {"isaaclab_connection": "state:robot:projected_gravity_b"}
 
 
@@ -135,7 +135,7 @@ def test_projected_gravity_observation_exports_root_quat_w_input(monkeypatch: py
     task_name, semantics = annotated_inputs[0]
     assert task_name == "Isaac-Velocity-Flat-G1"
     assert semantics.name == "robot_root_quat_w"
-    assert semantics.kind == InputKindEnum.BODY_ROTATION
+    assert semantics.kind == Kind.FRAME_ORIENTATION
     assert semantics.extra == {"isaaclab_connection": "state:robot:root_quat_w"}
 
 
@@ -218,9 +218,9 @@ def test_camera_pixels_drive_joint_target_through_export_and_deployment(tmp_path
     assert len(writes) == 2
     assert writes[-1]["joint_ids"] == [1]
     output = outputs[0]
-    assert output.kind == OutputKindEnum.JOINT_POSITION
+    assert output.kind == Kind.JOINT_POSITION
     assert output.extra == {"isaaclab_connection": "write:robot:set_joint_position_target_index"}
-    assert output.element_names == [["slider_to_cart"]]
+    assert output.axes == [None, leapp.Axis(leapp.AxisKind.ELEMENT, names=["slider_to_cart"])]
 
     pipeline = tmp_path / "camera-action" / "camera-action.yaml"
     description = yaml.safe_load(pipeline.read_text())
@@ -286,7 +286,7 @@ def test_rgb_observation_export_keeps_live_camera_input(tmp_path: Path, frame_st
     patcher._patch_observation_manager(obs_manager, proxy_env)
     patcher._patch_history_buffers(obs_manager)
 
-    leapp.start("camera-task", save_path=str(tmp_path))
+    leapp.start("camera-task", save_path=str(tmp_path), patching=export_function_patches())
     try:
         for frame in frames:
             camera_buffer.copy_(frame)
@@ -316,6 +316,44 @@ def test_rgb_observation_export_keeps_live_camera_input(tmp_path: Path, frame_st
                 expected = expected.movedim(-1, 1)
             actual = manager.run_policy({input_name: frame})["camera-task/observation"]
             torch.testing.assert_close(actual, expected)
+
+
+def test_rotation_function_patches_preserve_broadcasting(tmp_path: Path):
+    """Quaternion adapters export broadcast rotations, replay fresh inputs, and restore their targets."""
+    from leapp import InferenceManager, annotate
+
+    original_apply = math_utils.quat_apply
+    original_inverse = math_utils.quat_apply_inverse
+    generator = torch.Generator().manual_seed(42)
+    samples = []
+    for _ in range(5):
+        quat = torch.randn(2, 1, 4, generator=generator)
+        quat = quat / quat.norm(dim=-1, keepdim=True)
+        vec = torch.randn(3, 3, generator=generator)
+        samples.append((quat, vec, original_apply(quat, vec), original_inverse(quat, vec)))
+
+    leapp.start("rotation", save_path=str(tmp_path), max_cached_io=2, patching=export_function_patches())
+    try:
+        # Plain tensors continue to use the original functions during capture.
+        torch.testing.assert_close(math_utils.quat_apply(samples[0][0], samples[0][1]), samples[0][2])
+        for quat, vec, _, _ in samples[:2]:
+            quat, vec = annotate.input_tensors("rotation", {"quat": quat, "vec": vec})
+            annotate.output_tensors(
+                "rotation",
+                {"forward": math_utils.quat_apply(quat, vec), "inverse": math_utils.quat_apply_inverse(quat, vec)},
+                export_with="onnx",
+            )
+    finally:
+        leapp.stop()
+    assert math_utils.quat_apply is original_apply
+    assert math_utils.quat_apply_inverse is original_inverse
+    leapp.compile_graph(visualize=False, validate=True)
+
+    manager = InferenceManager(str(tmp_path / "rotation" / "rotation.yaml"))
+    for quat, vec, forward, inverse in samples[2:]:
+        outputs = manager.run_policy({"rotation/quat": quat, "rotation/vec": vec})
+        torch.testing.assert_close(outputs["rotation/forward"], forward)
+        torch.testing.assert_close(outputs["rotation/inverse"], inverse)
 
 
 @pytest.mark.parametrize("stack_dim", [None, 1])
@@ -443,6 +481,6 @@ def test_deformable_nodal_positions_use_inherited_semantics(monkeypatch: pytest.
     task_name, semantics = annotated_inputs[0]
     assert task_name == "Isaac-Lift-Soft-Franka"
     assert semantics.name == "deformable_nodal_pos_w"
-    assert semantics.kind == InputKindEnum.BODY_POSITION
-    assert semantics.element_names == [["x", "y", "z"]]
+    assert semantics.kind == Kind.FRAME_POSITION
+    assert semantics.axes == [None, None, leapp.Axis(leapp.AxisKind.COMPONENT, names=["x", "y", "z"])]
     assert semantics.extra == {"isaaclab_connection": "state:deformable:nodal_pos_w"}

@@ -21,7 +21,7 @@ Cache lifecycle (assuming single-env play-mode export):
 
     compute()                clear cache → obs terms populate cache
     policy inference         TracedTensors propagate through NN
-    process_action()         register_buffer for raw_actions
+    process_action()         trace the manager's in-place action buffer writes
     apply_action() [tracing] reuse cached TracedTensors for state reads,
                              capture write outputs, call output_tensors(),
                              then clear cache
@@ -40,16 +40,16 @@ from functools import wraps
 from typing import TYPE_CHECKING, Any
 
 import torch
-from leapp import ExportManager, annotate
-from leapp.utils.tensor_description import TensorSemantics
+from leapp import ExportManager, FunctionPatch, Kind, TensorSemantics, annotate
 
 from ...actuators import IdealPDActuator, ImplicitActuator
 from ...assets.articulation.base_articulation import BaseArticulation
 from ...envs.mdp.actions import EMAJointPositionToLimitsAction
 from ...managers import ManagerTermBase
+from .. import math as math_utils
 from ..array import convert_to_torch
 from ..images import CameraFrameStack
-from .leapp_semantics import select_element_names
+from .leapp_semantics import resolve_leapp_axes, select_element_names
 from .proxy import _ArticulationWriteProxy, _DataProxy, _EnvProxy, _ManagerTermProxy
 from .utils import (
     TracedProxyArray,
@@ -94,8 +94,8 @@ def _gain_semantics(
     return TensorSemantics(
         name=f"{term_name}_{kind}_gains",
         ref=ref,
-        kind=kind,
-        element_names=element_names,
+        kind=Kind.KP if kind == "kp" else Kind.KD,
+        axes=resolve_leapp_axes(ref, Kind.KP if kind == "kp" else Kind.KD, element_names),
         extra=build_write_connection(scene_key, _GAIN_WRITE_METHODS[kind]),
     )
 
@@ -184,27 +184,58 @@ def _leapp_history_buffer_append(circular_buffer, task_name: str, state_name: st
 
 
 class _ImageRgbExportProxy(_ManagerTermProxy):
-    """Run RGB observation preprocessing through traceable Torch operations during export."""
+    """Keep destination mutation outside the pure RGB normalization function patch."""
 
     def __call__(self, *args, **kwargs):
-        """Compute the wrapped RGB observation without its runtime-only Warp fast path."""
+        """Run the original observation and copy its result into the caller's destination."""
         out = kwargs.pop("out", None)
-        normalize = kwargs.get("normalize", True)
-        mean = kwargs.get("mean")
-        channel_first = kwargs.get("channel_first", False)
-        kwargs["normalize"] = False
-
         image = super().__call__(*args, **kwargs)
-        if normalize:
-            channel_dim = 1 if channel_first else image.ndim - 1
-            spatial_dims = tuple(dim for dim in range(1, image.ndim) if dim != channel_dim)
-            image = image.float() / 255.0
-            image = image - (torch.mean(image, dim=spatial_dims, keepdim=True) if mean is None else mean)
-
         if out is None:
             return image
         out.copy_(image)
         return out
+
+
+def _normalize_rgb_for_export(images, channel_dim=-1, output_channel_dim=None, mean=None, out=None):
+    """Trace RGB normalization as pure Torch computation instead of fused Warp kernels."""
+    if out is not None:
+        raise ValueError("The LEAPP RGB function patch requires out=None; copy the result at the observation boundary.")
+    channel_dim %= images.ndim
+    spatial_dims = tuple(dim for dim in range(1, images.ndim) if dim != channel_dim)
+    result = images.float() / 255.0
+    result = result - (result.mean(dim=spatial_dims, keepdim=True) if mean is None else mean)
+    if output_channel_dim is not None:
+        result = result.movedim(channel_dim, output_channel_dim).contiguous()
+    return result
+
+
+def _quat_apply_for_export(quat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
+    """Preserve quaternion broadcasting without LEAPP 0.8.0's broadcast_tensors rewrite."""
+    shape = torch.broadcast_shapes(quat.shape[:-1], vec.shape[:-1]) + (3,)
+    xyz = quat[..., :3].expand(shape)
+    vec = vec.expand(shape)
+    t = torch.cross(xyz, vec, dim=-1) * 2.0
+    return vec + quat[..., 3:4] * t + torch.cross(xyz, t, dim=-1)
+
+
+def _quat_apply_inverse_for_export(quat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
+    """Apply the same pure rotation adapter to the conjugate quaternion."""
+    return _quat_apply_for_export(torch.cat((-quat[..., :3], quat[..., 3:4]), dim=-1), vec)
+
+
+def export_function_patches() -> list[FunctionPatch]:
+    """Return session-scoped adapters for unsupported pure functions used by observations."""
+    from ...envs.mdp import observations
+    from .. import images
+
+    # observations imports normalize_rgb directly, so patch its binding as well
+    # as the utility module used by callers that look the function up there.
+    return [
+        FunctionPatch(images, "normalize_rgb", _normalize_rgb_for_export),
+        FunctionPatch(observations, "normalize_rgb", _normalize_rgb_for_export),
+        FunctionPatch(math_utils, "quat_apply", _quat_apply_for_export),
+        FunctionPatch(math_utils, "quat_apply_inverse", _quat_apply_inverse_for_export),
+    ]
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -476,8 +507,7 @@ class ExportPatcher:
     def _patch_action_manager_methods(self, action_manager):
         """Patch ``process_action`` and ``apply_action`` on the action manager instance.
 
-        ``process_action`` registers raw_action buffers for LEAPP tracing and
-        preserves the action tensor clone.
+        ``process_action`` traces the original manager's action buffer writes.
 
         ``apply_action`` coordinates the cache and output lifecycle:
 
@@ -503,9 +533,8 @@ class ExportPatcher:
         cache = self._annotated_tensor_cache
 
         def patched_process_action(action: torch.Tensor):
-            """Register raw_action buffers, call real process_action, preserve action clone."""
+            """Process the action and request output capture on the next apply."""
             original_process(action)
-            action_manager._action = action.clone()
             self._pending_action_output_export = True
 
         def patched_apply_action():
@@ -600,10 +629,7 @@ class ExportPatcher:
             root_quat_w = proxy_env.scene[asset_name].data.root_quat_w.torch
             gravity_w = torch.zeros((*root_quat_w.shape[:-1], 3), dtype=root_quat_w.dtype, device=root_quat_w.device)
             gravity_w[..., 2] = -1.0
-            quat_xyz = root_quat_w[..., :3]
-            quat_w = root_quat_w[..., 3:4]
-            t = torch.cross(quat_xyz, gravity_w, dim=-1) * 2.0
-            return gravity_w - quat_w * t + torch.cross(quat_xyz, t, dim=-1)
+            return math_utils.quat_apply_inverse(root_quat_w, gravity_w)
 
         wrapped.__name__ = getattr(original_func, "__name__", "unknown")
         return wrapped
@@ -675,11 +701,16 @@ class ExportPatcher:
             command_cfg = None
             with suppress(AttributeError, KeyError):
                 command_cfg = env.command_manager.get_term(leapp_input_name).cfg
+            kind = getattr(command_cfg, "cmd_kind", None)
+            kind = next((quantity for quantity in Kind if quantity.value == kind), kind)
             sem = TensorSemantics(
                 name=leapp_input_name,
                 ref=result,
-                kind=getattr(command_cfg, "cmd_kind", None),
-                element_names=getattr(command_cfg, "element_names", None),
+                kind=kind,
+                axes=resolve_leapp_axes(result, kind, getattr(command_cfg, "element_names", None)),
+                is_setpoint=True,
+                reference=getattr(command_cfg, "cmd_reference", None),
+                expressed_in=getattr(command_cfg, "cmd_expressed_in", None),
                 extra=build_command_connection(leapp_input_name),
             )
             return annotate.input_tensors(task_name, sem)
@@ -747,7 +778,6 @@ class ExportPatcher:
                         name=term_name,
                         ref=processed.clone(),
                         kind=None,
-                        element_names=None,
                     )
                 )
                 fallback_terms.add(term_name)

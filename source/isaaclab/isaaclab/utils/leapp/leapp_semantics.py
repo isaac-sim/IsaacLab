@@ -17,14 +17,14 @@ import warp as wp
 from ..array import convert_to_torch
 
 try:
-    from leapp import InputKindEnum, OutputKindEnum
+    from leapp import Axis, AxisKind, ExpressionFrame, InputKindEnum, Kind, OutputKindEnum
 except ImportError:
 
     class _LeappEnumSentinel:
         """Stand-in when leapp is not installed.
 
         Any attribute access returns ``None`` so that
-        ``@leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE)``
+        ``@leapp_tensor_semantics(kind=Kind.FRAME_POSE)``
         silently stores ``kind=None`` instead of crashing at import time.
         The real enum values are only needed at export time, when leapp
         *is* guaranteed to be available.
@@ -35,6 +35,8 @@ except ImportError:
 
     InputKindEnum = _LeappEnumSentinel()  # type: ignore[assignment,misc]
     OutputKindEnum = _LeappEnumSentinel()  # type: ignore[assignment,misc]
+    Kind = _LeappEnumSentinel()  # type: ignore[assignment,misc]
+    ExpressionFrame = _LeappEnumSentinel()  # type: ignore[assignment,misc]
 
 
 @dataclass(frozen=True)
@@ -45,6 +47,9 @@ class LeappTensorSemantics:
     element_names: list[str] | list[list[str]] | None = None
     element_names_resolver: Callable | None = None
     const: bool = False
+    is_setpoint: bool | None = None
+    reference: str | None = None
+    expressed_in: Any = None
 
 
 XYZ_ELEMENT_NAMES: list[str] = ["x", "y", "z"]
@@ -79,6 +84,9 @@ def leapp_tensor_semantics(
     element_names: list[str] | list[list[str]] | None = None,
     element_names_resolver: Callable | None = None,
     const: bool = False,
+    is_setpoint: bool | None = None,
+    reference: str | None = None,
+    expressed_in: Any = None,
 ) -> Callable:
     """Attach LEAPP semantic metadata to a raw tensor-producing function."""
     semantics = LeappTensorSemantics(
@@ -86,6 +94,9 @@ def leapp_tensor_semantics(
         element_names=element_names,
         element_names_resolver=element_names_resolver,
         const=const,
+        is_setpoint=is_setpoint,
+        reference=reference,
+        expressed_in=expressed_in,
     )
 
     def _apply(func: Callable) -> Callable:
@@ -104,6 +115,40 @@ def resolve_leapp_element_names(semantics: LeappTensorSemantics | None, data_sel
     if semantics.element_names_resolver is not None:
         return semantics.element_names_resolver(data_self)
     return None
+
+
+def resolve_leapp_axes(ref, kind, element_names: list | None) -> list | None:
+    """Place existing ordered labels on the tensor's element and component dimensions.
+
+    Batch and unlabeled dimensions remain unspecified. Spatial quantities use a
+    trailing component dimension; preceding body/frame labels identify elements.
+    Joint quantities and gains use a trailing element dimension.
+    """
+    if element_names is None:
+        return None
+    names_by_axis = [element_names] if not element_names or isinstance(element_names[0], str) else element_names
+    spatial = kind in (
+        Kind.FRAME_POSE,
+        Kind.FRAME_POSITION,
+        Kind.FRAME_ORIENTATION,
+        Kind.FRAME_TWIST,
+        Kind.FRAME_LINEAR_VELOCITY,
+        Kind.FRAME_ANGULAR_VELOCITY,
+        Kind.FRAME_ACCELERATION,
+        Kind.FRAME_LINEAR_ACCELERATION,
+        Kind.FRAME_ANGULAR_ACCELERATION,
+        Kind.FRAME_WRENCH,
+        Kind.FORCE_APPLICATION_POSITION,
+        Kind.VECTOR3D,
+    )
+    # Relative per-body/source-frame quantities retain Isaac Lab-specific kinds:
+    # LEAPP reference names cannot express a different parent frame per element.
+    spatial = spatial or (isinstance(kind, str) and kind.startswith(("state/body/com_", "state/frame/")))
+    spatial = spatial or kind in ("command/body/pose", "command/body/velocity")
+    axes = [Axis(AxisKind.ELEMENT, names=names) for names in names_by_axis]
+    if spatial:
+        axes[-1] = Axis(AxisKind.COMPONENT, names=names_by_axis[-1])
+    return [None] * (ref.ndim - len(axes)) + axes
 
 
 # ── Predefined element-name resolvers ─────────────────────────────

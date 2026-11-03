@@ -13,8 +13,9 @@ import pytest
 import torch
 import warp as wp
 
-pytest.importorskip("leapp")
+leapp = pytest.importorskip("leapp")
 
+from isaaclab.envs.leapp_deployment_env import LeappDeploymentEnv
 from isaaclab.utils.leapp.export_annotator import ExportPatcher
 from isaaclab.utils.leapp.leapp_semantics import select_element_names
 
@@ -60,5 +61,55 @@ def test_static_action_gains_accept_selector_representations(
     assert torch.equal(outputs_by_name["binary_gripper_kd_gains"].ref, kd_gains[:, expected_indices])
     expected_names = [[asset.joint_names[index] for index in expected_indices]]
     assert select_element_names(asset.joint_names, selector) == expected_names[0]
-    assert outputs_by_name["binary_gripper_kp_gains"].element_names == expected_names
-    assert outputs_by_name["binary_gripper_kd_gains"].element_names == expected_names
+    assert outputs_by_name["binary_gripper_kp_gains"].axes == [
+        None,
+        leapp.Axis(leapp.AxisKind.ELEMENT, names=expected_names[0]),
+    ]
+    assert outputs_by_name["binary_gripper_kd_gains"].axes == [
+        None,
+        leapp.Axis(leapp.AxisKind.ELEMENT, names=expected_names[0]),
+    ]
+
+
+@pytest.mark.parametrize("legacy", [False, True])
+def test_deployment_preserves_joint_axis_order(legacy: bool):
+    """New and saved legacy bundles read and write joint subsets in their declared order."""
+    positions = torch.tensor([[10.0, 20.0, 30.0]])
+    written = torch.zeros_like(positions)
+    names = ["shoulder", "elbow", "wrist"]
+
+    def find_joints(joint_names, preserve_order):
+        assert preserve_order
+        return [names.index(name) for name in joint_names], joint_names
+
+    def write_target(target, joint_ids=None):
+        written[:, joint_ids] = target
+
+    entity = SimpleNamespace(
+        joint_names=names,
+        find_joints=find_joints,
+        data=SimpleNamespace(joint_pos=SimpleNamespace(torch=positions)),
+        write_target=write_target,
+    )
+    labels = (
+        {"element_names": [["wrist", "shoulder"]]}
+        if legacy
+        else {"axes": [None, {"kind": "element", "names": ["wrist", "shoulder"]}]}
+    )
+    env = LeappDeploymentEnv.__new__(LeappDeploymentEnv)
+    env.scene = {"robot": entity}
+    env._input_mapping = {}
+    env._output_mapping = {}
+    env._leapp_desc = {"pipeline": {"inputs": {"policy": ["q"]}, "outputs": {"policy": ["target"]}}}
+    env.inference = SimpleNamespace(
+        nodes={
+            "policy": SimpleNamespace(
+                input_descriptions=[{"name": "q", "isaaclab_connection": "state:robot:joint_pos", **labels}],
+                output_descriptions=[{"name": "target", "isaaclab_connection": "write:robot:write_target", **labels}],
+            )
+        }
+    )
+    env._resolve_io()
+    torch.testing.assert_close(env._read_inputs()["policy/q"], torch.tensor([[30.0, 10.0]]))
+    env._write_outputs({"policy/target": torch.tensor([[3.0, 1.0]])})
+    torch.testing.assert_close(written, torch.tensor([[1.0, 0.0, 3.0]]))

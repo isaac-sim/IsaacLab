@@ -127,6 +127,10 @@ class CommandTermCfg:
     """Type hint for the command for deployment."""
     element_names: list[str] | list[list[str]] | None = None
     """Element names for the command for deployment."""
+    cmd_reference: str | None = None
+    """Frame relative to which a spatial command is defined. None uses the generator's default."""
+    cmd_expressed_in: str | None = None
+    """Frame whose axes express a spatial command. None uses the generator's default."""
 
 
 ##
