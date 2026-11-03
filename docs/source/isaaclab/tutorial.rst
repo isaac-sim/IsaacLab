@@ -15,9 +15,10 @@ Tutorial
    `workshop repository <https://github.com/isaac-sim/Sim-to-Real-SO-101-Workshop>`__, which present a broader
    end-to-end physical AI workflow with the SO-101, Isaac Lab, and NVIDIA Isaac GR00T.
 
-   For a guided introduction to robot learning, project setup, and policy training, see the
-   `Getting Started With Isaac Lab learning path
-   <https://docs.nvidia.com/learning/physical-ai/getting-started-with-isaac-lab/latest/index.html>`__.
+   The `Getting Started With Isaac Lab learning path
+   <https://docs.nvidia.com/learning/physical-ai/getting-started-with-isaac-lab/latest/index.html>`__
+   uses the same task and code as this tutorial, with a broader, guided introduction to robot learning,
+   project setup, and policy training.
 
 Build a vial-placement task for an `SO-101 arm
 <https://github.com/TheRobotStudio/SO-ARM100>`__ using the
