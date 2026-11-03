@@ -1,37 +1,21 @@
 # Performance smoke comparisons
 
+Compare the PR against its exact base, reuse a verified baseline when safe, and always test the latest PR update fresh.
+
 Open **Checks → Performance smoke comparison → Open rendered Performance smoke Summary**.
 
-The table shows each workload's baseline FPS, PR FPS, percentage change, and **Improved**, **Regressed**, or **Not comparable** result.
-Small FPS changes may be normal variation between runs.
+[View the validated CI result](https://github.com/isaac-sim/IsaacLab/actions/runs/41561655180/attempts/1#summary-125679219775).
 
-## How it runs
+Example from run **41561655180**, commit **acf2b8cd**:
 
-Once CI is activated for a PR, updates rerun automatically and cancel superseded runs.
-CI compares GitHub's tested merge revision against its first parent, the base revision.
+**🟢 Improved 2 · 🔴 Regressed 2 · ⚪ Not comparable 0**
 
-Both runs use the PR’s code for warmup, timing, and calculating FPS.
+| Status | Workload | Baseline FPS | PR FPS | Change % |
+| --- | --- | ---: | ---: | ---: |
+| 🔴 Regressed | cartpole-newton | 1,448,437.85 | 1,429,423.67 | -1.31% |
+| 🟢 Improved | shadow-camera-newton-renderer | 36,726.13 | 37,061.07 | +0.91% |
+| 🟢 Improved | g1-newton | 43,315.19 | 43,378.02 | +0.15% |
+| 🔴 Regressed | shadow-camera-ovphysx-newton | 18,145.77 | 18,039.48 | -0.59% |
 
-The baseline run uses the **base’s task and simulation code**. The PR run uses the **PR’s task and simulation code**.
-This compares the two versions using the same measuring method. For example, if the PR changes the timer or FPS calculation, **both runs use that new code**.
-
-We compare:
-
-- Base task/simulation code + new measurement code.
-- PR task/simulation code + new measurement code.
-
-We do **not** compare the old measurement code against the new measurement code. Therefore, this comparison cannot tell us whether changing the measurement code itself made the benchmark faster or slower.
-
-Reuse requires verified base results and matching base, workload matrix, launcher settings, and measurement-code digest.
-If no reusable results are found, CI measures the base and PR on the same runner.
-Every new PR commit gets fresh measurements, even when the base results are reused.
-
-## Comparison safety
-
-Source verification checks workload and measurement code separately and ties both to the results.
-Their revisions and the measurement digest appear in the Summary's collapsed source details.
-
-Percentage comparisons require matching task settings, measurement protocols, CPU/GPU models, and device counts.
-Missing, incomplete, unverified, or incompatible results remain visible as **Not comparable**.
-
-This build comparison is for PRs. The existing rolling-history gate remains separate and also runs for non-PR builds.
+Small FPS changes may be normal variation. Both runs use the PR's measuring code.
+The separate rolling-history check passed in this run.

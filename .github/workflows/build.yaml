@@ -181,7 +181,7 @@ jobs:
       id: perf_pair
       if: github.event_name == 'pull_request'
       continue-on-error: true
-      run: python3 -m tools.performance_regression.paired resolve --checkout-root "$GITHUB_WORKSPACE"
+      run: python3 -m tools.performance_regression.pr_comparison resolve --checkout-root "$GITHUB_WORKSPACE"
 
     - name: Check out the PR base image configuration
       id: base_config_checkout
@@ -1034,7 +1034,7 @@ jobs:
         GITHUB_TOKEN: ${{ github.token }}
       run: |
         cd "$PERF_CONTROLLER"
-        python3 -m tools.performance_regression.paired restore \
+        python3 -m tools.performance_regression.pr_comparison restore \
           --checkout-root "$GITHUB_WORKSPACE" --output-dir "$PERF_BASELINE_OUTPUT" \
           --selection "$PERF_CONTROLLER/selection.json" --legs "$PERF_CONTROLLER/benchmark-legs.tsv"
 
@@ -1063,7 +1063,7 @@ jobs:
         # Clear failed lookup diagnostics before collecting fresh benchmark results.
         rm -rf -- "$PERF_BASELINE_OUTPUT"
         mkdir -p "$PERF_BASELINE_OUTPUT"
-        python3 -m tools.performance_regression.paired capture \
+        python3 -m tools.performance_regression.pr_comparison capture \
           --checkout-root "$GITHUB_WORKSPACE" --output-dir "$PERF_BASELINE_OUTPUT" \
           --image "$CI_IMAGE_TAG" --role baseline --legs "$PERF_CONTROLLER/benchmark-legs.tsv"
         CHECKOUT_ROOT="$GITHUB_WORKSPACE" BENCHMARK_OUTPUT="$PERF_BASELINE_OUTPUT" \
@@ -1134,7 +1134,7 @@ jobs:
           baseline_issue="The base measurement setup failed; baseline FPS is unavailable."
         fi
         cd "$PERF_CONTROLLER"
-        python3 -m tools.performance_regression.paired bind \
+        python3 -m tools.performance_regression.pr_comparison bind \
           --selection "$PERF_CONTROLLER/selection.json" --output-dir "$GITHUB_WORKSPACE/benchmark-output" \
           --artifact-id "$BASE_ARTIFACT_ID" --baseline-issue "$baseline_issue"
 
@@ -1145,7 +1145,7 @@ jobs:
         CI_IMAGE_TAG: ${{ needs.config.outputs.ci_image_tag }}
       run: |
         cd "$PERF_CONTROLLER"
-        python3 -m tools.performance_regression.paired capture \
+        python3 -m tools.performance_regression.pr_comparison capture \
           --checkout-root "$GITHUB_WORKSPACE" --output-dir "$GITHUB_WORKSPACE/benchmark-output" \
           --image "$CI_IMAGE_TAG" --role current --legs "$PERF_CONTROLLER/benchmark-legs.tsv"
 
@@ -1288,7 +1288,7 @@ jobs:
         if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
           args+=(--gate-only)
         fi
-        uv run --no-project python -m tools.performance_regression.build_compare \
+        uv run --no-project python -m tools.performance_regression.pr_comparison report \
           --comparison_dir comparisons --output_dir build-comparison "${args[@]}"
 
     - name: Upload the automatic build comparison

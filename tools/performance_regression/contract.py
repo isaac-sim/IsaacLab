@@ -23,12 +23,7 @@ from typing import Any
 
 from .metrics import PerfSmokeError, mapping, positive_int
 
-#: Externally pinned versions that affect measured performance, keyed by where they
-#: apply. Keys are the values a bundle reports in ``run.config``, which are NOT the
-#: matrix names. An unrecognised value raises.
-#: ``version`` is a manual invalidation switch. It is part of the hashed contract, so
-#: raising it retires every baseline recorded so far, and the gate reports SKIP until
-#: history rebuilds.
+#: Increasing the contract version starts new history for the gate.
 RUNTIME_COMPATIBILITY: dict[str, Any] = {
     "version": 3,
     "always": ("torch", "warp"),
@@ -40,8 +35,7 @@ RUNTIME_COMPATIBILITY: dict[str, Any] = {
         "newton_xpbd": ("newton",),
         "newton_vbd": ("newton",),
         "newton_mpm": ("newton",),
-        # Standalone, kit-less solver; isaacsim is null on this path, so it is pinned
-        # to its own version instead.
+        # OVPhysX runs without Kit, so use its own version.
         "ovphysx": ("ovphysx",),
     },
     "by_render_backend": {
@@ -53,9 +47,7 @@ RUNTIME_COMPATIBILITY: dict[str, Any] = {
     },
 }
 
-#: Versions whose semver build metadata is rebuild noise rather than a real variant.
-#: e.g. Isaac Sim reports ``6.0.1-rc.7+release.42383.32955d8d.gl``.
-#: This should NOT be applied to torch e.g. ``+cu128`` vs ``+cu130``.
+#: Ignore Isaac Sim build tags; keep meaningful tags such as PyTorch's CUDA version.
 _STRIP_BUILD_METADATA = ("isaacsim",)
 
 _UNKNOWN_GPU = "unknown-gpu"
