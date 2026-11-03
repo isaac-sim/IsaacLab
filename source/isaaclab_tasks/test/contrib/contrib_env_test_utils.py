@@ -44,7 +44,8 @@ _COVERED_TASKS = [
     "IsaacContrib-Lift-Cube-Franka",  # Already covered by test_environment_determinism.py
 ]
 _COVERED_TASK_PREFIXES = (
-    "IsaacContrib-VLA-PickPlace",  # 256 generated tasks; IsaacContrib-VLA-Heterogeneous-Franka runs all of them.
+    # The VLA tasks download their assets from Hugging Face; the manager and success terms have their own tests.
+    "IsaacContrib-VLA-",
 )
 
 
