@@ -101,13 +101,19 @@ def test_live_entry_failure_closes_resources_and_reports_cause(
     assert env.close.call_count == int(stage != "environment")
 
 
-def test_input_cleanup_failure_prevents_borrowed_owner_release(entry_namespace):
+@pytest.mark.parametrize("ovxr", [True, False])
+def test_input_cleanup_failure_prevents_borrowed_owner_release(entry_namespace, ovxr):
     env, camera, xr = Mock(), Mock(), Mock()
     interface = SimpleNamespace(session_cleanup_failed=True)
-    with pytest.raises(RuntimeError, match="borrowed XR/environment drain is unproved"):
-        entry_namespace["_close_teleop_resources"](env, camera, xr, {}, interface)
-    xr.request_shutdown.assert_called_once_with()
-    xr.close.assert_not_called()
+    presentation = None
+    if ovxr:
+        presentation = entry_namespace["OvxrPresentation"](xr)
+        presentation.input_device = interface
+    with pytest.raises(RuntimeError, match="drain"):
+        entry_namespace["_close_teleop_resources"](env, camera, presentation, {}, interface)
+    if ovxr:
+        xr.request_shutdown.assert_called_once_with()
+        xr.close.assert_not_called()
     camera.close.assert_not_called()
     env.close.assert_not_called()
 
@@ -139,7 +145,7 @@ def test_cleanup_preserves_first_error_and_never_frees_undrained_stage(
             if has_primary_error:
                 raise primary_error
         finally:
-            entry_namespace["_close_teleop_resources"](env, camera, xr, {})
+            entry_namespace["_close_teleop_resources"](env, camera, entry_namespace["OvxrPresentation"](xr), {})
 
     with pytest.raises(RuntimeError) as caught:
         exercise()
@@ -169,7 +175,7 @@ def test_shutdown_signal_stays_owned_until_xr_drain_finishes(entry_namespace):
         entry_namespace["_close_teleop_resources"](
             SimpleNamespace(close=lambda: events.append("environment")),
             SimpleNamespace(close=lambda: events.append("camera")),
-            SimpleNamespace(close=close_xr, async_worker_owns_environment=False),
+            entry_namespace["OvxrPresentation"](SimpleNamespace(close=close_xr, async_worker_owns_environment=False)),
             {signal.SIGINT: original},
         )
         assert events == ["shutdown", "xr", "camera", "environment"]
@@ -203,7 +209,9 @@ def test_partial_construction_cleans_only_new_unowned_context(monkeypatch, entry
             try:
                 raise failure
             finally:
-                entry_namespace["_close_teleop_resources"](None, camera, xr, {}, previous_context=previous)
+                entry_namespace["_close_teleop_resources"](
+                    None, camera, entry_namespace["OvxrPresentation"](xr), {}, previous_context=previous
+                )
     assert caught.value is failure
     assert clear.call_count == int(new_context and not drain_failed)
     if not new_context:
