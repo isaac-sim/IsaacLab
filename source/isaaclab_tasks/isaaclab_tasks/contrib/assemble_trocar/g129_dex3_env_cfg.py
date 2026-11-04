@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
+from isaaclab_newton.sim.schemas import MujocoCollisionCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxRigidBodyCfg
 
@@ -108,10 +109,17 @@ class AssembleTrocarSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/trocar_1",
         spawn=UsdFileCfg(
             usd_path=f"{USD_ROOT}/Assets/Trocar002/Trocar002-xform-wo.usd",
-            collision_props=[
-                sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
-                PhysxCollisionCfg(contact_offset=0.001, rest_offset=-0.001),
-            ],
+            collision_props={
+                "/.*": [
+                    sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
+                    PhysxCollisionCfg(contact_offset=0.001, rest_offset=-0.001),
+                ],
+                # Stiffen only the inner bore on Newton. The high-friction grip colliders retain
+                # their imported contact parameters, so hand-object contact is unaffected.
+                r"/Trocar002/Collisions/(?:Xform/.*|Trocar002_Collider(?:1|1[3-9]|2[0-7]))": [
+                    MujocoCollisionCfg(priority=1, solref=(0.002, 1.0))
+                ],
+            },
         ),
         init_state=RigidObjectCfg.InitialStateCfg(
             pos=[-1.60202, 1.91362, 0.87183],
@@ -349,6 +357,13 @@ class EventCfg:
 
     # Reset task stage tracker when environment resets
     reset_task_stage = EventTermCfg(func=mdp.reset_task_stage, mode="reset")
+
+    # The trocar_1 bore (mu 1.2) against the obturator needle (mu 0.1) averages to 0.65 on PhysX
+    newton_bore_friction = EventTermCfg(
+        func=mdp.remap_newton_shape_friction,
+        mode="startup",
+        params={"asset_cfg": SceneEntityCfg("trocar_1"), "source_mu": 1.2, "target_mu": 0.65},
+    )
 
     # Random rotation for tray and trocars
     reset_tray_random_rotation = EventTermCfg(
