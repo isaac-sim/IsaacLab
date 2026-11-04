@@ -69,7 +69,7 @@ def rollout(policy, env, success_term, horizon, device):
         device: The device to run the policy on.
 
     Returns:
-        terminated: Whether the rollout terminated.
+        success: Whether the success termination term was satisfied during the rollout.
         traj: The trajectory of the rollout.
     """
     policy.start_episode()

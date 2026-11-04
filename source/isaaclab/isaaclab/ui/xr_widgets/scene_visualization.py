@@ -307,23 +307,33 @@ class VisualizationManager:
         Args:
             trigger: Type of trigger that should execute the callback
             arg: Dictionary containing trigger-specific parameters:
-                - For TRIGGER_ON_PERIOD: {"period": float}
-                - For TRIGGER_ON_EVENT: {"event_name": str}
-                - For TRIGGER_ON_CHANGE: {"variable_name": str}
-                - For TRIGGER_ON_UPDATE: {}
+
+                - For TRIGGER_ON_PERIOD: ``{"period": float}``
+                - For TRIGGER_ON_EVENT: ``{"event_name": str}``
+                - For TRIGGER_ON_CHANGE: ``{"variable_name": str}``
+                - For TRIGGER_ON_UPDATE: ``{}``
+
             callback: Function to execute when trigger condition is met. The callback should have
                 the following signatures according to the trigger type:
+
                 - For TRIGGER_ON_EVENT:
-                    callback(
-                        manager: VisualizationManager,
-                        data_collector: DataCollector,
-                        event_params: Any,
-                    )
+
+                  .. code-block:: python
+
+                      callback(
+                          manager: VisualizationManager,
+                          data_collector: DataCollector,
+                          event_params: Any,
+                      )
+
                 - For others:
-                    callback(
-                        manager: VisualizationManager,
-                        data_collector: DataCollector,
-                    )
+
+                  .. code-block:: python
+
+                      callback(
+                          manager: VisualizationManager,
+                          data_collector: DataCollector,
+                      )
 
         Raises:
             TypeError: If callback signature doesn't match the expected signature for the trigger type

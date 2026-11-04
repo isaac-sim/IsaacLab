@@ -404,10 +404,11 @@ free_thresh: {free_thresh}
     def buffered_meters(self, buffer_distance_meters: float) -> "OccupancyMap":
         """Get a buffered occupancy map by dilating the occupied regions.
 
-        See OccupancyMap.buffer() for more details.
+        See :meth:`buffered` for more details.
 
         Args:
-            buffer_distance_meters (int): The buffer radius / distance in pixels.
+            buffer_distance_meters: Buffer radius [m], converted to an integer pixel radius
+                using the map resolution.
 
         Returns:
             OccupancyMap: The buffered (aka: dilated / padded) occupancy map.

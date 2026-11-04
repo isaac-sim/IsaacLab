@@ -210,7 +210,7 @@ def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
         A context manager that sets the stage in the context.
 
     Raises:
-        AssertionError: If the stage is not a USD stage instance.
+        TypeError: If the stage is not a USD stage instance.
 
     Example:
         >>> from pxr import Usd

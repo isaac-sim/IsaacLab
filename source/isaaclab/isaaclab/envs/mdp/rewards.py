@@ -285,7 +285,8 @@ def joint_vel_limits(
 ) -> torch.Tensor:
     """Penalize joint velocities if they cross the soft limits.
 
-    This is computed as a sum of the absolute value of the difference between the joint velocity and the soft limits.
+    For each joint, the excess is ``abs(joint_velocity) - soft_joint_velocity_limit * soft_ratio``.
+    Each excess is clipped to [0, 1] before summing over the selected joints, so the penalty is at most 1 per joint.
 
     Args:
         soft_ratio: The ratio of the soft limits to be used.

@@ -10,7 +10,7 @@ This file processes a given dae mesh file and saves the resulting mesh file in o
 
 It needs to be called using the python packaged with blender, i.e.:
 
-    blender --background --python blender_obj.py -- -in_file FILE -out_file FILE
+    blender --background --python blender_obj.py -- --in_file FILE --out_file FILE
 
 For more information: https://docs.blender.org/api/current/index.html
 
@@ -42,7 +42,9 @@ def parse_cli_args():
     )
     parser = argparse.ArgumentParser(description=usage_text)
     # Add arguments
-    parser.add_argument("-i", "--in_file", metavar="FILE", type=str, required=True, help="Path to input OBJ file.")
+    parser.add_argument(
+        "-i", "--in_file", metavar="FILE", type=str, required=True, help="Path to input DAE or STL file."
+    )
     parser.add_argument("-o", "--out_file", metavar="FILE", type=str, required=True, help="Path to output OBJ file.")
     args = parser.parse_args(argv)
     # Check if any arguments provided

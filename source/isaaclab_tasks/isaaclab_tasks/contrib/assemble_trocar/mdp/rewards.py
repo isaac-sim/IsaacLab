@@ -233,6 +233,12 @@ def lift_trocars_reward(
     Only active in Stage 0. Once completed, this reward is locked at the achieved value.
 
     Args:
+        env: Environment instance.
+        table_height: Table height in world Z [m]. Defaults to 0.85483.
+        lift_threshold: Height [m] above table_height required for both trocars to count
+            as lifted. Defaults to 0.05.
+        asset_cfg1: Scene entity configuration for the first trocar.
+        asset_cfg2: Scene entity configuration for the second trocar.
         use_sparse_reward: If True, only give reward (1.0) when stage transitions from 0->1.
                           If False, give continuous reward based on current state.
         print_log: If True, log debug information.
@@ -469,8 +475,8 @@ def trocar_insertion_reward(
         center_dist_std: Standard deviation for center distance reward shaping
         asset_cfg1: Configuration for trocar 1
         asset_cfg2: Configuration for trocar 2
-        use_sparse_reward: If True, only give reward (1.0) when stage >= 3.
-                          If False (default), give continuous reward based on alignment and distance.
+        use_sparse_reward: If True (default), give the sparse stage-completion reward.
+            If False, give continuous reward based on alignment and distance.
         print_log: If True, print debug information.
     Returns:
         torch.Tensor: Reward tensor (num_envs,)
@@ -562,8 +568,8 @@ def trocar_placement_reward(
         z_min: Z threshold (below this is considered placed)
         asset_cfg1: Configuration for trocar 1
         asset_cfg2: Configuration for trocar 2
-        use_sparse_reward: If True, only give reward (1.0) when stage >= 4.
-                          If False (default), give continuous reward based on placement status.
+        use_sparse_reward: If True (default), give the sparse stage-completion reward.
+            If False, give continuous reward based on placement status.
         print_log: If True, print debug information.
 
     Returns:

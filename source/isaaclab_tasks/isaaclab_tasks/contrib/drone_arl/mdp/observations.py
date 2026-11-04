@@ -122,8 +122,8 @@ class ImageLatentObservation(ManagerTermBase):
             env: The manager-based RL environment instance.
 
         Raises:
-            KeyError: If required params ("sensor_cfg", "data_type") are missing.
-            RuntimeError: If the specified camera sensor is not found in the scene.
+            KeyError: If required params ("sensor_cfg", "data_type") are missing, or if
+                the specified camera sensor is not found in the scene's sensor dictionary.
         """
         super().__init__(cfg, env)
         self.camera_sensor: TiledCamera | Camera | RayCasterCamera | MultiMeshRayCasterCamera = env.scene.sensors[
@@ -175,8 +175,8 @@ class ImageLatentObservation(ManagerTermBase):
                 Shape is determined by the VAE architecture (typically (num_envs, latent_dim)).
 
         Raises:
-            ValueError: If data_type is "distance_to_image_plane" but normalize is False,
-                or if an unsupported data_type is encountered with normalize=True.
+            ValueError: If normalization is enabled for a data type other than
+                "distance_to_image_plane".
             RuntimeError: If the VAE model inference fails or tensors have incompatible shapes.
 
         Notes:

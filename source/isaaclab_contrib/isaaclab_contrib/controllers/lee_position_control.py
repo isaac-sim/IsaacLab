@@ -56,7 +56,8 @@ class LeePosController(LeeControllerBase):
         """Compute wrench command from position setpoint.
 
         Args:
-            command: (num_envs, 4) [x, y, z, yaw] in body frame.
+            command: Absolute world-frame position [m] and yaw [rad] setpoints
+                [x, y, z, yaw]. Shape is (num_envs, 4).
 
         Returns:
             (num_envs, 6) wrench command [fx, fy, fz, tx, ty, tz] in body frame.
@@ -122,10 +123,12 @@ class LeePosController(LeeControllerBase):
         """Compute desired acceleration from position error.
 
         Args:
-            setpoint_position: (num_envs, 3) desired position in world frame.
+            setpoint_position: Desired world-frame position [m]. Shape is (num_envs, 3).
+            root_pos_w: Current world-frame position [m]. Shape is (num_envs, 3).
+            root_lin_vel_w: Current world-frame linear velocity [m/s]. Shape is (num_envs, 3).
 
         Returns:
-            (num_envs, 3) desired acceleration in body frame.
+            Desired world-frame acceleration [m/s²]. Shape is (num_envs, 3).
         """
         position_error = setpoint_position - root_pos_w
         # Compute velocity error for position controller

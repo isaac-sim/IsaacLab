@@ -452,17 +452,19 @@ def object_abs_obs_in_base_frame(
     ee_frame_cfg: SceneEntityCfg = SceneEntityCfg("ee_frame"),
     robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ):
-    """
-    Object Abs observations (in base frame): remove the relative observations,
-    and add abs gripper pos and quat in robot base frame
-        cube_1 pos,
-        cube_1 quat,
-        cube_2 pos,
-        cube_2 quat,
-        cube_3 pos,
-        cube_3 quat,
-        gripper pos,
-        gripper quat,
+    """Absolute object and gripper poses in the robot base frame.
+
+    The observation concatenates the following components in order. Positions are in [m],
+    and orientations are xyzw quaternions:
+
+    - cube_1 position
+    - cube_1 quaternion
+    - cube_2 position
+    - cube_2 quaternion
+    - cube_3 position
+    - cube_3 quaternion
+    - gripper position
+    - gripper quaternion
     """
     cube_1: RigidObject = env.scene[cube_1_cfg.name]
     cube_2: RigidObject = env.scene[cube_2_cfg.name]

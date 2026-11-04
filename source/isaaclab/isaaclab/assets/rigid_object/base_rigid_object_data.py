@@ -335,10 +335,14 @@ class BaseRigidObjectData(ABC):
     @abstractmethod
     @leapp_tensor_semantics(const=True)
     def body_inertia(self) -> ProxyArray:
-        """Inertia of all bodies in the simulation world frame.
+        """Inertia about each body's center of mass, expressed in local axes.
 
         Shape is (num_instances, 1, 9), dtype = wp.float32.
         In torch this resolves to (num_instances, 1, 9).
+
+        PhysX uses the center-of-mass frame axes; Newton uses axes aligned with the body link frame.
+        To express the inertia in world coordinates, reshape each tensor to (3, 3) and compute
+        ``R @ I @ R.transpose(-1, -2)``, where ``R`` maps the backend's local inertia axes to the world frame.
         """
         raise NotImplementedError()
 

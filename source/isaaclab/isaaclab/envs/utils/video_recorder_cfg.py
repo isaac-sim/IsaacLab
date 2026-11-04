@@ -106,9 +106,9 @@ class VideoRecorderCfg:
     fps: int | None = None
     """Output video frame rate in frames per second.
 
-    ``None`` (default): resolved automatically from the environment at recording time
-    using ``env.metadata["render_fps"]`` when available, falling back to
-    ``round(1.0 / env.step_dt)``.  Set an explicit integer to override.
+    ``None`` (default): resolved automatically as ``max(1, round(base_fps / frame_stride))``.
+    The base rate uses ``env.metadata["render_fps"]`` when available, falling back to
+    ``1.0 / env.step_dt``. Set an explicit integer to override.
     """
 
     video_length: int = 200

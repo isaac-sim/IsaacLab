@@ -97,7 +97,9 @@ class reach_key(ManagerTermBase):
     encouraging the policy to push down rather than just hover on the cap. Body indices, tip offsets, and
     the press offset are resolved once at construction so each step only does the gather and kernel.
 
-    Args (from ``cfg.params``):
+    The following arguments are supplied through ``cfg.params``.
+
+    Args:
         command_name: Name of the :class:`LetterTypingCommand` term providing the next target key.
         moving_jaw_body: Body name of the moving jaw link.
         moving_jaw_offset: Tip offset [m] in the moving jaw link frame.

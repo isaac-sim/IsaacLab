@@ -987,11 +987,11 @@ def transform_points(
 ) -> torch.Tensor:
     r"""Transform input points in a given frame to a target frame.
 
-    This function transform points from a source frame to a target frame. The transformation is defined by the
-    position :math:`t` and orientation :math:`R` of the target frame in the source frame.
+    This function transforms points from a source frame to a target frame. The transformation is defined by the
+    position :math:`t` and orientation :math:`R` of the source frame expressed in the target frame.
 
     .. math::
-        p_{target} = R_{target} \times p_{source} + t_{target}
+        p_{target} = R \times p_{source} + t
 
     If the input `points` is a batch of points, the inputs `pos` and `quat` must be either a batch of
     positions and quaternions or a single position and quaternion. If the inputs `pos` and `quat` are
@@ -1001,9 +1001,10 @@ def transform_points(
 
     Args:
         points: Points to transform. Shape is (N, P, 3) or (P, 3).
-        pos: Position of the target frame. Shape is (N, 3) or (3,).
+        pos: Position of the source frame's origin in the target frame. Shape is (N, 3) or (3,).
             Defaults to None, in which case the position is assumed to be zero.
-        quat: Quaternion orientation of the target frame in (x, y, z, w). Shape is (N, 4) or (4,).
+        quat: Orientation of the source frame expressed in the target frame, in (x, y, z, w).
+            Shape is (N, 4) or (4,).
             Defaults to None, in which case the orientation is assumed to be identity.
 
     Returns:
@@ -1630,32 +1631,27 @@ def create_rotation_matrix_from_view(
     up_axis: Literal["Y", "Z"] = "Z",
     device: str = "cpu",
 ) -> torch.Tensor:
-    """Compute the rotation matrix from world to view coordinates.
+    """Compute the camera orientation mapping OpenGL view coordinates to world coordinates.
 
-    This function takes a vector ''eyes'' which specifies the location
-    of the camera in world coordinates and the vector ''targets'' which
-    indicate the position of the object.
-    The output is a rotation matrix representing the transformation
-    from world coordinates -> view coordinates.
-
-        The inputs eyes and targets can each be a
-        - 3 element tuple/list
-        - torch tensor of shape (1, 3)
-        - torch tensor of shape (N, 3)
+    The camera looks from ``eyes`` towards ``targets``, using OpenGL camera axes (-Z forward, +Y up).
+    The columns of the returned rotation matrix are the camera basis vectors expressed in world coordinates.
+    Both inputs must be Torch tensors with shape (N, 3) or (1, 3). A single-row input is broadcast
+    against the other input's batch.
 
     Args:
-        eyes: Position of the camera in world coordinates.
-        targets: Position of the object in world coordinates.
-        up_axis: The up axis of the camera. Defaults to "Z".
-        device: The device to create torch tensors on. Defaults to "cpu".
-
-    The vectors are broadcast against each other so they all have shape (N, 3).
+        eyes: Camera positions in world coordinates. Shape is (N, 3) or (1, 3).
+        targets: Target positions in world coordinates. Shape is (N, 3) or (1, 3).
+        up_axis: The world axis used as the reference up direction. Defaults to "Z".
+        device: The device for temporary tensors, which must match the input tensors. Defaults to "cpu".
 
     Returns:
         ``(N, 3, 3)`` batched rotation matrices. Rows with an undefined forward
         direction (``eyes == targets`` or non-finite input) are filled with NaN.
         Callers detect per-row failure with ``torch.isnan(R).any(dim=(-2, -1))``
         and total failure with ``.all()``.
+
+    Raises:
+        ValueError: If ``up_axis`` is neither "Y" nor "Z".
 
     Note:
         When the look-at direction is parallel to ``up_axis`` the camera roll

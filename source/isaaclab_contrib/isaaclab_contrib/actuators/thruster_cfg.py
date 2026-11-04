@@ -60,4 +60,4 @@ class ThrusterCfg:
     """Numerical integrator for the first-order model. Defaults to 'rk4'."""
 
     thruster_names_expr: list[str] = MISSING
-    """Articulation's joint names that are part of the group."""
+    """Regular expressions matching articulation body names for the thruster group."""

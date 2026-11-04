@@ -832,10 +832,13 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def body_inertia(self) -> ProxyArray:
-        """Flattened body inertia [kg*m^2].
+        """Body inertia tensors about the COM in the local inertial frame [kg*m^2].
 
         Shape is (num_instances, num_bodies, 9), dtype = wp.float32. In torch this resolves to
         (num_instances, num_bodies, 9).
+
+        The tensors are flattened in row-major order. World-frame inertia is ``R @ I @ R.transpose(-1, -2)``, where
+        ``R`` is the rotation matrix from :attr:`body_com_quat_w` and ``I`` is the local 3-by-3 tensor.
 
         The buffer refreshes from the tensor view at most once per simulation timestamp. Direct tensor-view writes
         after that refresh become visible after the next update; use
@@ -2040,10 +2043,12 @@ class ArticulationData(BaseArticulationData):
         """Generates a position array from a transform array.
 
         Args:
-            transform: The transform array. Shape is (N, 7).
+            transform: Structured Warp array with dtype wp.transformf. Logical shape is (N,) for roots
+                or (N, B) for bodies.
 
         Returns:
-            The position array. Shape is (N, 3).
+            A wp.vec3f view with the same logical shape as the input. Torch conversion appends a component
+            dimension of size 3.
         """
         return wp.array(
             ptr=transform.ptr,
@@ -2057,10 +2062,12 @@ class ArticulationData(BaseArticulationData):
         """Generates a quaternion array from a transform array.
 
         Args:
-            transform: The transform array. Shape is (N, 7).
+            transform: Structured Warp array with dtype wp.transformf. Logical shape is (N,) for roots
+                or (N, B) for bodies.
 
         Returns:
-            The quaternion array. Shape is (N, 4).
+            A wp.quatf view with the same logical shape as the input, in (x, y, z, w) order.
+            Torch conversion appends a component dimension of size 4.
         """
         return wp.array(
             ptr=transform.ptr + 3 * 4,
@@ -2074,10 +2081,12 @@ class ArticulationData(BaseArticulationData):
         """Generates a linear velocity array from a spatial vector array.
 
         Args:
-            spatial_vector: The spatial vector array. Shape is (N, 6).
+            spatial_vector: Structured Warp array with dtype wp.spatial_vectorf. Logical shape is (N,)
+                for roots or (N, B) for bodies.
 
         Returns:
-            The linear velocity array. Shape is (N, 3).
+            A wp.vec3f view with the same logical shape as the input. Torch conversion appends a component
+            dimension of size 3.
         """
         return wp.array(
             ptr=spatial_vector.ptr,
@@ -2091,10 +2100,12 @@ class ArticulationData(BaseArticulationData):
         """Generates an angular velocity array from a spatial vector array.
 
         Args:
-            spatial_vector: The spatial vector array. Shape is (N, 6).
+            spatial_vector: Structured Warp array with dtype wp.spatial_vectorf. Logical shape is (N,)
+                for roots or (N, B) for bodies.
 
         Returns:
-            The angular velocity array. Shape is (N, 3).
+            A wp.vec3f view with the same logical shape as the input. Torch conversion appends a component
+            dimension of size 3.
         """
         return wp.array(
             ptr=spatial_vector.ptr + 3 * 4,

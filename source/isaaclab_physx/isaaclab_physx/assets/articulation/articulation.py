@@ -1560,8 +1560,10 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            limits: Joint limits. Shape is (len(env_ids), len(joint_ids), 2) or (num_instances, num_joints, 2).
-                In warp the expected shape is (num_instances, num_joints), with dtype wp.vec2f.
+            limits: Joint limits. With full_data=False, Torch shape is (len(env_ids), len(joint_ids), 2)
+                and Warp shape is (len(env_ids), len(joint_ids)). With full_data=True, Torch shape is
+                (num_instances, num_joints, 2) and Warp shape is (num_instances, num_joints).
+                Warp arrays use dtype wp.vec2f.
             joint_ids: Joint indices. If None, then all joints are used.
             env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.

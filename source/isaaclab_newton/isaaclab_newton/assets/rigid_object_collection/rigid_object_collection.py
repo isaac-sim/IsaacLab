@@ -492,7 +492,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         """Set the body center of mass pose over selected environment and body indices into the simulation.
 
         The body center of mass pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
-        The orientation is the orientation of the principal axes of inertia.
+        The COM axes are aligned with the link frame, so the quaternion sets the link orientation.
+        These axes need not coincide with the principal axes of inertia.
 
         .. note::
             This method expects partial data.
@@ -544,7 +545,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         """Set the body center of mass pose over selected environment mask into the simulation.
 
         The body center of mass pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
-        The orientation is the orientation of the principal axes of inertia.
+        The COM axes are aligned with the link frame, so the quaternion sets the link orientation.
+        These axes need not coincide with the principal axes of inertia.
 
         .. note::
             This method expects full data.
