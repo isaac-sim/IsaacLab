@@ -10,7 +10,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from isaaclab.sim import SimulationContext
-from isaaclab.sim.spawners.from_files.from_files import spawn_from_usd_file
 from isaaclab.sim.utils import clone, get_current_stage
 
 if TYPE_CHECKING:
@@ -31,8 +30,10 @@ def spawn_usd_with_newton_compatible_colliders(
 
     The healthcare G1 and surgical tray assets use two USD patterns that PhysX supports but Newton's USD importer
     does not: mesh-merge collisions authored on Xforms and mirrored collider meshes with negative scales. Applying
-    the equivalent geometry edits here confines the compatibility workaround to this task and leaves PhysX unchanged.
+    the equivalent geometry edits here confines the compatibility conversion to this task and leaves PhysX unchanged.
     """
+    from isaaclab.sim.spawners.from_files.from_files import spawn_from_usd_file
+
     prim = spawn_from_usd_file(prim_path, cfg.usd_path, cfg, translation, orientation, **kwargs)
     sim = SimulationContext.instance()
     physics_modules = (

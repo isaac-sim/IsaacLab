@@ -5,6 +5,9 @@
 
 """Tests for the assemble trocar task configuration."""
 
+import subprocess
+import sys
+
 import numpy as np
 from isaaclab_newton.sim.schemas import MujocoCollisionCfg
 from isaaclab_physx.sim.schemas import PhysxCollisionCfg
@@ -17,6 +20,16 @@ from isaaclab_tasks.contrib.assemble_trocar.config.assemble_trocar_assets import
     spawn_usd_with_newton_compatible_colliders,
 )
 from isaaclab_tasks.contrib.assemble_trocar.g129_dex3_env_cfg import G1AssembleTrocarEnvCfg
+
+
+def test_task_config_import_does_not_preload_pxr():
+    """RLinf must be able to parse the task config before starting SimulationApp."""
+    code = """
+import sys
+import isaaclab_tasks.contrib.assemble_trocar.g129_dex3_env_cfg
+assert not any(name == "pxr" or name.startswith("pxr.") for name in sys.modules)
+"""
+    subprocess.run([sys.executable, "-c", code], check=True)
 
 
 def _define_triangle(stage: Usd.Stage, path: str) -> UsdGeom.Mesh:
