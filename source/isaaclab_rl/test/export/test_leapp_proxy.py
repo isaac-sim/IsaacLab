@@ -19,6 +19,7 @@ from isaaclab.envs import mdp
 from isaaclab.envs.leapp_deployment_env import LeappDeploymentEnv, StateInputSpec
 from isaaclab.managers import ObservationTermCfg, SceneEntityCfg
 from isaaclab.sensors.camera import CameraData
+from isaaclab.utils import images as image_utils
 from isaaclab.utils import math as math_utils
 from isaaclab.utils.buffers import CircularBuffer
 from isaaclab.utils.leapp import utils as leapp_utils
@@ -250,13 +251,24 @@ def test_camera_pixels_drive_joint_target_through_export_and_deployment(tmp_path
     torch.testing.assert_close(writes[-1]["value"], torch.ones(1, 1))
 
 
-@pytest.mark.parametrize("frame_stack,channel_first", [(1, True), (2, True), (2, False)])
-def test_rgb_observation_export_keeps_live_camera_input(tmp_path: Path, frame_stack: int, channel_first: bool):
+@pytest.mark.parametrize(
+    "frame_stack,channel_first,mean,dtype",
+    [
+        (1, True, None, torch.uint8),
+        (2, True, 0.5, torch.uint8),
+        (2, False, None, torch.uint8),
+        (1, False, 0.5, torch.float32),
+    ],
+)
+def test_rgb_observation_export_keeps_live_camera_input(
+    tmp_path: Path, frame_stack: int, channel_first: bool, mean: float | None, dtype: torch.dtype
+):
     """Test exported RGB observations retain live inputs and frame history across inference calls."""
     from leapp import InferenceManager, annotate
 
-    rgb = torch.arange(48, dtype=torch.uint8).reshape(1, 4, 4, 3)
-    camera_buffer = rgb.clone()
+    rgba = torch.arange(64, dtype=dtype).reshape(1, 4, 4, 4)
+    rgb = rgba[..., :3]
+    camera_buffer = rgba.clone()[..., :3]
     changed_rgb = rgb.clone()
     changed_rgb[:, :2] = 0
     frames = [rgb, changed_rgb, rgb.flip(1)]
@@ -271,6 +283,7 @@ def test_rgb_observation_export_keeps_live_camera_input(tmp_path: Path, frame_st
         "normalize": True,
         "channel_first": channel_first,
         "frame_stack": frame_stack,
+        "mean": mean,
     }
     cfg = ObservationTermCfg(func=mdp.image_rgb, params=params)
     term_cfg = SimpleNamespace(func=mdp.image_rgb(cfg, env), params=params, noise=None)
@@ -286,36 +299,61 @@ def test_rgb_observation_export_keeps_live_camera_input(tmp_path: Path, frame_st
     patcher._patch_observation_manager(obs_manager, proxy_env)
     patcher._patch_history_buffers(obs_manager)
 
+    shape = (1, 3 * frame_stack, 4, 4) if channel_first else (1, 4, 4, 3 * frame_stack)
+    destination = torch.empty(shape, dtype=torch.float32)
     leapp.start("camera-task", save_path=str(tmp_path), patching=export_function_patches())
     try:
         for frame in frames:
             camera_buffer.copy_(frame)
             cache.clear()
-            shape = (1, 3 * frame_stack, 4, 4) if channel_first else (1, 4, 4, 3 * frame_stack)
-            destination = torch.empty(shape, dtype=torch.float32)
             observation = term_cfg.func(env, **params, out=destination)
             assert observation is destination
             annotate.output_tensors("camera-task", {"observation": observation}, export_with="onnx-dynamo")
     finally:
         leapp.stop()
-    leapp.compile_graph(visualize=False, validate=True)
+    leapp.compile_graph(visualize=False, validate=True, strict=True)
 
     pipeline = tmp_path / "camera-task" / "camera-task.yaml"
     manager = InferenceManager(str(pipeline))
     input_name = "camera-task/base_camera_output_rgb"
     assert manager.inputs == [input_name]
     # Replay a different sequence and restart it to check feedback initialization as well as updates.
-    for sequence in (frames[::-1], frames):
+    fresh_frames = [rgb.flip(2), changed_rgb.flip(2), torch.full_like(rgb, 127)]
+    for sequence in (fresh_frames, fresh_frames[::-1]):
         manager.reset()
         history = [sequence[0]] * frame_stack
         for frame in sequence:
             history = history[1:] + [frame]
             expected = torch.cat(history, dim=-1).float() / 255.0
-            expected = expected - expected.mean(dim=(1, 2), keepdim=True)
+            expected = expected - (expected.mean(dim=(1, 2), keepdim=True) if mean is None else mean)
             if channel_first:
                 expected = expected.movedim(-1, 1)
-            actual = manager.run_policy({input_name: frame})["camera-task/observation"]
+            actual = manager.run_policy({input_name: frame.clone()})["camera-task/observation"]
             torch.testing.assert_close(actual, expected)
+
+
+def test_rgb_function_patch_preserves_destination(tmp_path: Path):
+    """Direct normalization writes into and returns the supplied output during export and replay."""
+    from leapp import InferenceManager, annotate
+
+    destination = torch.empty(1, 3, 2, 2)
+    frames = [torch.full((1, 2, 2, 3), value, dtype=torch.uint8) for value in (0, 255)]
+    leapp.start("normalize", save_path=str(tmp_path), patching=export_function_patches())
+    try:
+        for frame, expected in zip(frames, (-0.5, 0.5)):
+            image = annotate.input_tensors("rgb", {"image": frame})
+            result = image_utils.normalize_rgb(image, output_channel_dim=1, mean=0.5, out=destination)
+            assert result is destination
+            torch.testing.assert_close(destination, torch.full_like(destination, expected))
+            annotate.output_tensors("rgb", {"normalized": destination}, export_with="onnx")
+    finally:
+        leapp.stop()
+    leapp.compile_graph(visualize=False, validate=True, strict=True)
+
+    manager = InferenceManager(str(tmp_path / "normalize" / "normalize.yaml"))
+    image = torch.full((1, 2, 2, 3), 102, dtype=torch.uint8)
+    actual = manager.run_policy({"rgb/image": image})["rgb/normalized"]
+    torch.testing.assert_close(actual, torch.full((1, 3, 2, 2), -0.1))
 
 
 def test_rotation_function_patches_preserve_broadcasting(tmp_path: Path):
