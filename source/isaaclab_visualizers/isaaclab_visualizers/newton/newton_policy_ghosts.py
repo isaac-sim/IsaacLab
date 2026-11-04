@@ -120,7 +120,7 @@ class NewtonPolicyGhostPanel:
 
     def apply_tint(self, model: Any) -> None:
         """Write each slot's tint color and opacity to the shapes of its worlds when anything changed."""
-        tint_signature = tuple((slot.shown, slot.opacity, slot.tint) for slot in self.layout.slots)
+        tint_signature = tuple((slot.shown, slot.opacity, slot.tint, slot.color) for slot in self.layout.slots)
         if tint_signature == self._tint_signature or model.shape_color is None or model.shape_world is None:
             return
         self._tint_signature = tint_signature

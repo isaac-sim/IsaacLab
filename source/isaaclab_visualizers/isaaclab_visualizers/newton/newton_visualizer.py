@@ -2406,10 +2406,12 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         if panel is None:
             return
         self._policy_ghost_panel = None
+        self._ghosts_aligned = False
         self._visible_env_count = self._visible_env_count_before_ghosts
         if self._viewer is not None:
             self._viewer._policy_ghost_panel = None
             panel.restore(self.backend.model, self._viewer)
+            self._clear_rtx_ghost_offsets()
             self._apply_visible_worlds()
 
     def attach_policy_ghosts(
@@ -2507,6 +2509,16 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             self._base_world_offsets + ghost, dtype=wp.vec3, device=viewer.world_offsets.device
         )
         self._apply_rtx_ghost_offsets(ghost)
+
+    def _clear_rtx_ghost_offsets(self) -> None:
+        """Stop shifting environments in the OVRTX view, and forget the offsets it was last given."""
+        self._rtx_ghost_offsets = None
+        index = self.rtx_view_index
+        if index is None:
+            return
+        renderer = self._sim.get_or_create_backend(self._image_views[index].camera.cfg.renderer_cfg)
+        renderer.set_environment_offsets(None)
+        self._image_views[index].invalidate()
 
     def _apply_rtx_ghost_offsets(self, offsets: np.ndarray) -> None:
         """Overlay the ghosts in the OVRTX view, which draws every environment at its simulated position."""

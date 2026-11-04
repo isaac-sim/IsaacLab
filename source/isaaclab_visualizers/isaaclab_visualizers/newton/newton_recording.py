@@ -462,6 +462,9 @@ class NewtonRecordingPanel:
         """Record the frame that was just rendered; call once per window update, outside the frame."""
         owner = self._owner
         if self._scene is not None:
+            offsets = getattr(owner._viewer, "world_offsets", None)
+            if owner._policy_ghost_panel is not None and offsets is not None:
+                self._scene.world_offsets = offsets  # Aligning roots replaces the array every frame.
             self._scene.begin_frame(owner._sim_time)
             try:
                 self._scene.log_state(owner._update_state())

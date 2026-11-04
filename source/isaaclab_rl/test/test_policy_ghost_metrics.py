@@ -13,8 +13,8 @@ from isaaclab_rl.entrypoints.policy_ghost_metrics import PolicyGhostMetricsTrack
 pytestmark = pytest.mark.unit
 
 
-def _tracker(pool=8):
-    tracker = PolicyGhostMetricsTracker(slice_size=2, num_slots=3, num_envs=pool, step_dt=0.5, device="cpu")
+def _tracker():
+    tracker = PolicyGhostMetricsTracker(slice_size=2, num_slots=3, step_dt=0.5, device="cpu")
     for slot in range(3):
         tracker.set_active(slot, True)
     return tracker

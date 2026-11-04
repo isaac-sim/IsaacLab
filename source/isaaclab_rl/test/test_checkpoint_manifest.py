@@ -229,6 +229,23 @@ def test_relaunch_argv_removes_policy_ghosts_with_their_options() -> None:
     assert relaunch_argv(argv, enable=False) == [*_PLAY, "--seed", "1"]
 
 
+def test_disabling_policy_ghosts_restores_the_environment_count_they_replaced() -> None:
+    enabled = relaunch_argv(_PLAY, enable=True, envs=2, slots=3)
+    assert enabled[enabled.index("--num_envs") + 1] == "2" and "--policy_ghost_plain_envs" in enabled
+
+    assert relaunch_argv(enabled, enable=False) == _PLAY
+    # Enabling again from a ghost run keeps the first record, not the per-slot count.
+    again = relaunch_argv(enabled, enable=True, envs=5, slots=3)
+    assert relaunch_argv(again, enable=False) == _PLAY
+
+
+def test_disabling_policy_ghosts_goes_back_to_the_default_count_when_none_was_given() -> None:
+    no_count = ["python", "isaaclab", "play", "--task", "Isaac-Cartpole-v0"]
+    enabled = relaunch_argv(no_count, enable=True, envs=2, slots=3)
+
+    assert relaunch_argv(enabled, enable=False) == no_count
+
+
 def test_launch_argv_reuses_the_original_command_line(monkeypatch) -> None:
     monkeypatch.setattr(sys, "orig_argv", ["python", "/venv/bin/isaaclab", "play", "--task", "T"])
     monkeypatch.setattr(sys, "argv", ["/venv/bin/isaaclab", "play", "--task", "T"])

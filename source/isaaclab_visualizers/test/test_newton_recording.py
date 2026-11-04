@@ -275,3 +275,20 @@ def test_a_failed_save_is_reported_as_a_save_error_and_can_be_retried(tmp_path, 
     monkeypatch.undo()
     panel.save_video()
     assert not panel.unsaved_video and (tmp_path / "video" / "newton_0001.mp4").exists()
+
+
+def test_a_ghost_recording_follows_the_offsets_the_window_updates_every_frame(tmp_path):
+    owner = _owner(output_dir=str(tmp_path))
+    owner._policy_ghost_panel = object()
+    panel = NewtonRecordingPanel(owner)
+    panel._scene = Mock()
+    panel._record_markers = lambda owner: None
+    first, second = object(), object()
+
+    owner._viewer.world_offsets = first
+    panel.capture()
+    assert panel._scene.world_offsets is first
+
+    owner._viewer.world_offsets = second  # Align to Reference Root replaced the array between frames.
+    panel.capture()
+    assert panel._scene.world_offsets is second

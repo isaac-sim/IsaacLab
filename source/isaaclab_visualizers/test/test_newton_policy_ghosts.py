@@ -102,6 +102,20 @@ def test_tint_strength_blends_between_native_and_ghost_color() -> None:
     assert np.allclose(model.shape_color.numpy()[ghost_shape], 0.5)
 
 
+def test_a_changed_ghost_color_is_written_even_when_nothing_else_changed() -> None:
+    layout = PolicyGhostLayout(SLICE_SIZE, 3)
+    layout.slots[0].checkpoint = CHECKPOINT
+    layout.slots[1].checkpoint = CHECKPOINT
+    layout.slots[1].tint = 1.0
+    panel, model = _panel(layout), _model()
+    panel.apply_tint(model)
+
+    layout.slots[1].color = (0.0, 0.0, 1.0)
+    panel.apply_tint(model)
+
+    assert np.allclose(model.shape_color.numpy()[1 + SLICE_SIZE], (0.0, 0.0, 1.0))
+
+
 def _viewer_with_batch() -> SimpleNamespace:
     """Viewer with one batch holding a textured, metallic instance for each of the three slots' first worlds."""
     worlds = np.array([0, SLICE_SIZE, 2 * SLICE_SIZE])

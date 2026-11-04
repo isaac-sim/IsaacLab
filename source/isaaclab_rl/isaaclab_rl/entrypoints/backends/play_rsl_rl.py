@@ -55,6 +55,7 @@ from ..policy_ghosts import (
     DEFAULT_GHOST_ENVS,
     DEFAULT_GHOST_SLOTS,
     MAX_POLICY_GHOST_SLOTS,
+    PLAIN_ENVS_FLAG,
     PolicyGhostMode,
     PolicyGhostRestart,
     PolicyGhostSession,
@@ -109,6 +110,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         default=None,
         help="Directory searched for ghost checkpoints. Defaults to the experiment's log directory.",
     )
+    parser.add_argument(PLAIN_ENVS_FLAG, type=int, default=None, help=argparse.SUPPRESS)  # Set when relaunching.
     cli_args.add_rsl_rl_args(parser)
     add_launcher_args(parser)
     remaining_args_env_registration = cli_args.register_external_tasks(argv)

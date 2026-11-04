@@ -104,6 +104,24 @@ def test_commands_are_copied_from_the_reference_after_every_update() -> None:
     assert torch.equal(command[2 * SLICE_SIZE :], command[:SLICE_SIZE])
 
 
+def test_world_frame_command_positions_are_moved_to_the_ghost_s_own_origin() -> None:
+    env = _make_env()
+    env.scene.env_origins[:] = torch.arange(NUM_ENVS, dtype=torch.float32)[:, None] * torch.tensor([10.0, 0.0, 0.0])
+    term = env.command_manager.term
+    term.pos_command_w = torch.zeros(NUM_ENVS, 3)
+    term.heading_command_w = torch.zeros(NUM_ENVS)
+    PolicyGhostSync(env, SLICE_SIZE, NUM_SLICES)
+
+    # Environment 0 is told to walk to a spot 2 m in front of its own origin.
+    term.pos_command_w[0] = env.scene.env_origins[0] + torch.tensor([2.0, 0.0, 0.0])
+    term.heading_command_w[0] = 1.5
+    env.command_manager.compute(0.02)
+
+    ghost = SLICE_SIZE  # The ghost counterpart of environment 0 in the next slice.
+    assert term.pos_command_w[ghost].tolist() == (env.scene.env_origins[ghost] + torch.tensor([2.0, 0.0, 0.0])).tolist()
+    assert term.heading_command_w[ghost] == 1.5  # A heading is the same in every world.
+
+
 def test_close_restores_the_environment_hooks() -> None:
     env = _make_env()
     reset_idx, compute = env._reset_idx, env.command_manager.compute

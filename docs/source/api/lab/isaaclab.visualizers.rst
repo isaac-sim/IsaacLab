@@ -26,6 +26,7 @@ The following classes are part of the public :mod:`isaaclab.visualizers` API.
    PolicyGhostCheckpoint
    PolicyGhostController
    PolicyGhostLayout
+   PolicyGhostMetrics
    PolicyGhostSlot
    VisualizerCfg
    VisualizerBackendCfg
@@ -59,9 +60,16 @@ The following classes are part of the public :mod:`isaaclab.visualizers` API.
    :members:
    :show-inheritance:
 
+.. autoclass:: PolicyGhostMetrics
+   :members:
+   :show-inheritance:
+
 .. autoclass:: PolicyGhostSlot
    :members:
    :show-inheritance:
+
+.. autodata:: POLICY_GHOST_COLORS
+   :no-value:
 
 .. autoclass:: VisualizerCfg
    :show-inheritance:

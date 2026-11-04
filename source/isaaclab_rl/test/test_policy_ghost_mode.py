@@ -121,7 +121,8 @@ def test_a_restart_carries_the_chosen_layout_into_the_command_line() -> None:
     assert (restart.requested, restart.enable, restart.envs, restart.slots) == (True, True, 2, 3)
     argv = ["python", "play", "--num_envs", "4", "--policy_ghost_slots=8", "--task", "T"]
     assert relaunch_argv(argv, True, 2, 3) == [
-        "python", "play", "--num_envs", "2", "--policy_ghost_slots=3", "--task", "T", "--policy_ghosts"
+        "python", "play", "--num_envs", "2", "--policy_ghost_slots=3", "--task", "T", "--policy_ghosts",
+        "--policy_ghost_plain_envs", "4",
     ]  # fmt: skip
 
 

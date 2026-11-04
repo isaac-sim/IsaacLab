@@ -1554,3 +1554,25 @@ def test_a_mesh_logged_to_the_rtx_view_refreshes_its_cached_image():
     renderer.log_mesh.assert_called_once()
     camera.update.assert_called_once_with(0.0)
     view.invalidate.assert_called_once_with()
+
+
+def test_switching_policy_ghosts_off_stops_shifting_environments_in_the_rtx_view():
+    visualizer = _make_newton_visualizer(SimpleNamespace(_policy_ghost_panel=None))
+    renderer = Mock()
+    view = Mock()
+    view.camera = SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/viewer_camera_0_rtx", renderer_cfg=object()))
+    visualizer._image_views = [view]
+    visualizer._sim = SimpleNamespace(get_or_create_backend=Mock(return_value=renderer))
+    visualizer._policy_ghost_panel = SimpleNamespace(restore=Mock())
+    visualizer._viewer._policy_ghost_panel = visualizer._policy_ghost_panel
+    visualizer._visible_env_count_before_ghosts = 2
+    visualizer._rtx_ghost_offsets = np.ones((2, 3), dtype=np.float32)
+    visualizer._ghosts_aligned = True
+    visualizer._apply_visible_worlds = Mock()
+    visualizer.backend = SimpleNamespace(model=object())
+
+    visualizer.detach_policy_ghosts()
+
+    renderer.set_environment_offsets.assert_called_once_with(None)
+    assert visualizer._rtx_ghost_offsets is None and not visualizer._ghosts_aligned
+    view.invalidate.assert_called_once_with()

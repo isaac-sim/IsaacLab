@@ -13,7 +13,7 @@ import re
 import sys
 from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import Any, Protocol
 
 import numpy as np
 import torch
@@ -28,9 +28,6 @@ from isaaclab.visualizers.policy_ghost import (
 
 from .common import _compatible_runs, _natural_sort_key, normalize_task_name
 from .policy_ghost_metrics import PolicyGhostMetricsTracker
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 
@@ -84,8 +81,36 @@ class PolicyGhostRestart:
         self.envs, self.slots = envs, slots
 
 
-_POLICY_GHOST_VALUE_FLAGS = ("--policy_ghost_slots", "--policy_ghost_envs", "--policy_ghost_root")
+PLAIN_ENVS_FLAG = "--policy_ghost_plain_envs"
+"""Holds the ``--num_envs`` the run had before Policy Ghosts changed it (0 if none), so disabling restores it."""
+
+_POLICY_GHOST_VALUE_FLAGS = ("--policy_ghost_slots", "--policy_ghost_envs", "--policy_ghost_root", PLAIN_ENVS_FLAG)
 """Policy Ghost options that take a value and are dropped when the feature is disabled."""
+
+
+def _flag_value(argv: list[str], flag: str) -> str | None:
+    """Return the value of ``flag value`` or ``flag=value`` in ``argv``, or None when it is absent."""
+    for index, arg in enumerate(argv):
+        if arg == flag and index + 1 < len(argv):
+            return argv[index + 1]
+        if arg.startswith(f"{flag}="):
+            return arg.split("=", 1)[1]
+    return None
+
+
+def _without_flag(argv: list[str], flag: str) -> list[str]:
+    """Return ``argv`` without ``flag value`` or ``flag=value``."""
+    result, skip = [], False
+    for arg in argv:
+        if skip:
+            skip = False
+        elif arg.startswith(f"{flag}="):
+            continue
+        elif arg == flag:
+            skip = True
+        else:
+            result.append(arg)
+    return result
 
 
 def _with_flag(argv: list[str], flag: str, value: int) -> list[str]:
@@ -120,10 +145,17 @@ def relaunch_argv(argv: list[str], enable: bool, envs: int | None = None, slots:
     if enable:
         result = argv if "--policy_ghosts" in argv else [*argv, "--policy_ghosts"]
         if envs is not None:
+            if _flag_value(result, PLAIN_ENVS_FLAG) is None:  # Keep the first record when enabling again.
+                result = _with_flag(result, PLAIN_ENVS_FLAG, int(_flag_value(result, "--num_envs") or 0))
             result = _with_flag(result, "--num_envs", envs)
         if slots is not None:
             result = _with_flag(result, "--policy_ghost_slots", slots)
         return result
+    plain_envs = _flag_value(argv, PLAIN_ENVS_FLAG)
+    if plain_envs is not None:  # Policy Ghosts changed --num_envs to the per-slot count; put the original back.
+        argv = _without_flag(argv, "--num_envs")
+        if int(plain_envs) > 0:
+            argv = _with_flag(argv, "--num_envs", int(plain_envs))
     result, skip = [], False
     for arg in argv:
         if skip:
@@ -349,9 +381,7 @@ class PolicyGhostSession(PolicyGhostController):
         self._sync = PolicyGhostSync(env.unwrapped, slice_size, num_slots)
         self._policies: list[PolicyGhostPolicy | None] = [None] * num_slots
         self._restart_pending = False
-        self._metrics = PolicyGhostMetricsTracker(
-            slice_size, num_slots, env.num_envs, env.unwrapped.step_dt, env.unwrapped.device
-        )
+        self._metrics = PolicyGhostMetricsTracker(slice_size, num_slots, env.unwrapped.step_dt, env.unwrapped.device)
         try:
             self._load(0, reference)
             self._obs = env.get_observations()

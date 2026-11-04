@@ -25,13 +25,12 @@ class PolicyGhostMetricsTracker:
     is counted then.
     """
 
-    def __init__(self, slice_size: int, num_slots: int, num_envs: int, step_dt: float, device: torch.device | str):
+    def __init__(self, slice_size: int, num_slots: int, step_dt: float, device: torch.device | str):
         """Create the tracker.
 
         Args:
             slice_size: Environments per slot.
             num_slots: Slots including the reference.
-            num_envs: Environments of the simulation, at least ``slice_size * num_slots``.
             step_dt: Duration of one environment step [s].
             device: Device of the environment tensors.
         """

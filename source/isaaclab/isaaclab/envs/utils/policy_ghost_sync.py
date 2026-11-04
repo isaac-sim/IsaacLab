@@ -198,10 +198,14 @@ class PolicyGhostSync:
         ghosts = (reference[None, :] + self._ghost_offsets[:, None]).reshape(-1)
         source = reference.repeat(self._num_slices - 1)
         manager = self._env.command_manager
+        origins = self._env.scene.env_origins
         for name in manager.active_terms:
-            for value in vars(manager.get_term(name)).values():
+            for key, value in vars(manager.get_term(name)).items():
                 if isinstance(value, torch.Tensor) and value.ndim >= 1 and value.shape[0] == self._env.num_envs:
                     value[ghosts] = value[source]
+                    if key.endswith("_w") and value.ndim == 2 and value.shape[1] in (3, 7):
+                        # A world-frame position names a place in the reference's world, so move it to the ghost's.
+                        value[ghosts, :3] += origins[ghosts] - origins[source]
 
 
 def _gather(state: dict[str, Any], ids: torch.Tensor) -> dict[str, Any]:
