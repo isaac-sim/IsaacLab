@@ -178,7 +178,7 @@ def _write_pose_and_render(
 
 
 def run_rigid_object_scale_and_pose_rendering_contract(backend: RigidObjectRenderingBackend) -> None:
-    """Assert root-scale preservation, pose/calibration changes, and zoom-camera agreement in rendered pixels."""
+    """Assert root-scale preservation, pose/calibration changes, and zoom-camera agreement on one shared renderer."""
     with backend.simulation_context_factory() as sim:
         sim._app_control_on_stop_handle = None
         scene = InteractiveScene(_make_scene_cfg(backend))
@@ -193,6 +193,10 @@ def run_rigid_object_scale_and_pose_rendering_contract(backend: RigidObjectRende
             _require(rigid_object.is_initialized, f"[{backend.name}] Rigid object did not initialize.")
             if backend.with_articulation:
                 _require(scene["articulation"].is_initialized, f"[{backend.name}] Articulation did not initialize.")
+            _require(
+                zoom_camera._renderer is camera._renderer,  # noqa: SLF001
+                f"[{backend.name}] Expected both cameras to share one renderer instance.",
+            )
 
             camera_eyes = scene.env_origins.clone()
             camera_eyes[:, 1] -= _CAMERA_DISTANCE
