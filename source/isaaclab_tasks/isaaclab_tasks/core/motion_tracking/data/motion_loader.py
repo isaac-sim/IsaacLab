@@ -7,15 +7,18 @@
 
 import hashlib
 import json
+import os
 from collections.abc import Sequence
 from pathlib import Path
 
 import numpy as np
 import torch
 
+from isaaclab.utils.assets import retrieve_file_path
+
 
 class MotionLoader:
-    """Reference trajectory sampled at the policy rate.
+    """Local or server-hosted reference trajectory sampled at the policy rate.
 
     NPZ files contain ``fps``, ``joint_names``, ``body_names``, ``joint_pos`` [rad],
     ``joint_vel`` [rad/s], ``body_pos_w`` [m], ``body_quat_w`` (WXYZ),
@@ -28,12 +31,13 @@ class MotionLoader:
     """
 
     def __init__(self, motion_file: str, body_names: Sequence[str], joint_names: Sequence[str], device: str):
-        path = Path(motion_file)
+        path = Path(retrieve_file_path(motion_file))
         with np.load(path, allow_pickle=False) as data:
             if "body_names" in data and "joint_names" in data:
                 names = {key: data[key].tolist() for key in ("body_names", "joint_names")}
             else:
-                names = json.loads(path.with_suffix(".json").read_text())
+                metadata_path = retrieve_file_path(os.path.splitext(motion_file)[0] + ".json")
+                names = json.loads(Path(metadata_path).read_text())
                 if names["sha256"] != hashlib.sha256(path.read_bytes()).hexdigest():
                     raise ValueError(f"Motion metadata does not match {path}.")
             for key in ("body_names", "joint_names"):
