@@ -10,3 +10,7 @@
   its own Play/Pause, a draggable timeline, Loop, and Speed, independent of the simulation's pause. The Recording
   section keeps "Hide live simulation" and Show markers, Opacity, Tint, Offset, and Frame options. Animations record
   the visualization markers, such as velocity arrows, and replay them with their changing scales.
+* Recording a Policy Ghosts session now writes a ``.json`` file next to the ``.viser`` animation that names each slot
+  and its tint, and places the ghost slots on the reference as in the window. Opening the animation lists the slots with
+  a checkbox each, tints and fades the ghosts, and hides the live simulation, so a ghost comparison can be scrubbed
+  frame by frame.

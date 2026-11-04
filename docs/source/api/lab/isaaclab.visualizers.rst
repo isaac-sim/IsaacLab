@@ -23,6 +23,10 @@ The following classes are part of the public :mod:`isaaclab.visualizers` API.
    BaseVisualizer
    KeyEventSource
    KeyboardSubscription
+   PolicyGhostCheckpoint
+   PolicyGhostController
+   PolicyGhostLayout
+   PolicyGhostSlot
    VisualizerCfg
    VisualizerBackendCfg
    WindowCfg
@@ -42,6 +46,22 @@ The following classes are part of the public :mod:`isaaclab.visualizers` API.
    :members: closed, close
 
 .. autofunction:: add_key_callbacks
+
+.. autoclass:: PolicyGhostCheckpoint
+   :members:
+   :show-inheritance:
+
+.. autoclass:: PolicyGhostController
+   :members:
+   :show-inheritance:
+
+.. autoclass:: PolicyGhostLayout
+   :members:
+   :show-inheritance:
+
+.. autoclass:: PolicyGhostSlot
+   :members:
+   :show-inheritance:
 
 .. autoclass:: VisualizerCfg
    :show-inheritance:

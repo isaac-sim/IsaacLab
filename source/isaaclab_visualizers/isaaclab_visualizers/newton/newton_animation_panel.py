@@ -145,7 +145,7 @@ class NewtonAnimationPanel:
             imgui.tree_pop()
 
     def _draw_slots(self, imgui: Any) -> None:
-        """Draw one row per slot of a multi-slot recording, with a checkbox to show or hide it."""
+        """Draw one row per Policy Ghost slot of a recorded ghost session, with a checkbox to show or hide it."""
         imgui.set_next_item_open(True, imgui.Cond_.appearing)
         if imgui.tree_node("Slots##animation"):
             for slot in self.player.recording.slots:

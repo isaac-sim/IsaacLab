@@ -9,9 +9,15 @@ __all__ = [
     "ImageViewCfg",
     "KeyEventSource",
     "KeyboardSubscription",
+    "POLICY_GHOST_COLORS",
     "PerspectiveCameraCfg",
-    "TrackingCameraCfg",
+    "PolicyGhostCheckpoint",
+    "PolicyGhostController",
+    "PolicyGhostLayout",
+    "PolicyGhostMetrics",
+    "PolicyGhostSlot",
     "SceneCameraCfg",
+    "TrackingCameraCfg",
     "VisualizerCfg",
     "VisualizerBackendCfg",
     "WindowCfg",
@@ -21,6 +27,14 @@ __all__ = [
 from .base_visualizer import BaseVisualizer
 from .image_view import ImageView
 from .key_event_source import KeyboardSubscription, KeyEventSource, add_key_callbacks
+from .policy_ghost import (
+    POLICY_GHOST_COLORS,
+    PolicyGhostCheckpoint,
+    PolicyGhostController,
+    PolicyGhostLayout,
+    PolicyGhostMetrics,
+    PolicyGhostSlot,
+)
 from .visualizer_cfg import (
     ImageViewCfg,
     PerspectiveCameraCfg,

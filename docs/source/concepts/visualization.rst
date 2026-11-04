@@ -307,7 +307,7 @@ Visualizer Overview
          staircase sub-terrain</p>
 
       Picking, visualization markers, camera selection, pause controls, Visible Envs, and headless recording work in
-      the RTX view. Model overlays and rigid-body dragging apply to the OpenGL view only.
+      the RTX view. Policy Ghost tint, model overlays, and rigid-body dragging apply to the OpenGL view only.
 
       .. warning::
 
@@ -660,7 +660,9 @@ window without the HUD, and a ``.pt`` checkpoint of the policy being played. Fil
 
 **Open...** lists the ``.viser`` animations below a folder and plays the chosen one as a tinted ghost over the
 simulation, remembering the folder for the next time. A transport bar along the bottom of the window has its own
-Play/Pause, a timeline to scrub, Loop, and Speed, independent of the simulation's pause.
+Play/Pause, a timeline to scrub, Loop, and Speed, independent of the simulation's pause. An animation recorded
+during a Policy Ghosts session has a ``.json`` file next to it, so that opening it lists each slot with a checkbox
+and its tint.
 
 .. _record_video_cli:
 
@@ -815,10 +817,53 @@ without screen-sharing, running with ``--viz viser``:
 The share URL is logged on startup. Rerun has no equivalent config field, but exposes its own
 share button in the native UI.
 
+**Comparing checkpoints with Policy Ghosts**
+
+Newton can overlay several checkpoints of one task in a single viewport. The ``--checkpoint``
+drives the reference robots; ghosts of other checkpoints are tinted, translucent copies that start
+from the same terrain, spawn pose, and commands, so differences in behavior show up as the robots
+drift apart:
+
+.. code-block:: bash
+
+    uv run isaaclab play --rl_library rsl_rl --task Isaac-Velocity-Rough-AnymalD \
+        --num_envs 4 --checkpoint latest --viz newton --policy_ghosts
+
+You can also start from a normal ``play`` run: open **Policy Ghosts** in the viewer's left panel and choose
+**Enable Policy Ghosts**. The section has **Envs per slot** (``--policy_ghost_envs``, default 4) and **Slots**
+(``--policy_ghost_slots``, default 3) fields. When their product does not exceed the environments the run simulates,
+the ghosts take the first environments of the running simulation:
+the other environments are hidden and stop acting, and **Disable Policy Ghosts** resets every environment and returns to
+the plain view. A run with fewer environments shows **Enable Policy Ghosts (restarts)**, which relaunches with
+``--policy_ghosts`` added, because the simulation fixes its environment count at startup. This mode does not remove
+per-environment randomization such as startup events, so ghosts of a task that uses it can differ from the reference
+for reasons other than the checkpoint. Policy Ghosts stay off unless you ask for them.
+
+Open **Policy Ghosts** in the viewer's left panel and choose **Add Checkpoint...** to list the
+checkpoints of runs of this task that were written by training (those with a ``run.json``) under the
+experiment's log directory; pass ``--policy_ghost_root`` to search another directory. Each loaded checkpoint has a checkbox that
+shows or hides it. Under **Settings**, each ghost has opacity and tint sliders; a tint of 1.0 replaces all of
+the robot's native colors and textures with the ghost color, and lower values blend it with the native colors.
+**Align to Reference Root** moves each ghost horizontally every frame so that its root sits under the
+reference's root. Robots that walk away from where they started, such as humanoids, then stay overlapped, which
+makes differences in their movements easier to inspect. Heights and orientations stay each ghost's own.
+**Change...** replaces a ghost's checkpoint in place, and **Remove** frees the slot. ``--policy_ghost_slots`` sets the number of slots, including the reference, up to eight;
+the default is eight with ``--policy_ghosts`` and three for the in-place switch.
+
+* Every slot simulates ``--num_envs`` environments, even an empty one. With a few environments per
+  slot the extra cost is small, since the step time is dominated by fixed overhead; it grows with the
+  total environment count (slots times ``--num_envs``).
+* Randomization that cannot be mirrored between slots is disabled: startup and interval events,
+  curriculum terms, and observation noise. Reset events and commands are copied from the reference.
+* Identical checkpoints do not stay exactly on top of each other; physics differences grow
+  to centimeters over a few seconds on rough terrain.
+* Policy Ghosts support RSL-RL and manager-based environments only.
+
 **Choosing how many environments are drawn**
 
 Every Newton viewer has a **Visible Envs** slider in its left panel that sets how many
-environments are drawn. It changes only what is rendered, not the simulation.
+environments are drawn. It changes only what is rendered, not the simulation. With Policy Ghosts, it
+counts environments per slot.
 
 Resolution Rules
 ~~~~~~~~~~~~~~~~
@@ -980,7 +1025,8 @@ Limitations
      - ✓
      - ✓
 
-In Newton's RTX view, model overlays and rigid-body dragging are not available.
+In Newton's RTX view, Policy Ghost tint, model overlays, and rigid-body dragging are not available. Ghosts are still
+overlaid on the reference, including with **Align to Reference Root**.
 
 **Lighting differences across visualizers**
 

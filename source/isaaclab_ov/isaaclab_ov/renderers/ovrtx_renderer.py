@@ -90,6 +90,7 @@ from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
     generate_random_colors_from_ids_kernel,
     hide_environment_bodies_kernel,
     normalize_mesh_normals,
+    offset_environment_bodies_kernel,
 )
 from isaaclab_ov.renderers.ovrtx_shader_cache import redirect_shader_cache
 from isaaclab_ov.renderers.ovrtx_usd import (
@@ -333,6 +334,8 @@ class OVRTXRenderer(BaseRenderer):
         self._hidden_envs: wp.array | None = None
         self._body_envs: wp.array | None = None
         self._hidden_matrices: wp.array | None = None
+        self._env_offsets: wp.array | None = None
+        self._offset_matrices: wp.array | None = None
         self._geometry_offsets: dict[str, int] = {}
         self._geometry_writes = _AsyncWriteBuffers[wp.array]()
         self._geometry_timestamp = -1
@@ -978,6 +981,27 @@ class OVRTXRenderer(BaseRenderer):
             None if t is None else t.reshape(num_envs, per_env, *t.shape[1:])[keep].flatten(0, 1) for t in tensors
         )
 
+    def set_environment_offsets(self, offsets: np.ndarray | None) -> None:
+        """Move whole cloned environments' bodies by a fixed translation, such as to overlay them on another one.
+
+        Only bodies move. Markers and geometry published through other paths keep their poses.
+
+        Args:
+            offsets: Per-environment translation [m], shape ``[num_envs, 3]``, in environment order, or None for none.
+        """
+        num_envs = len(self._env_paths)
+        if offsets is None or not np.any(offsets):
+            self._env_offsets = None
+        else:
+            if np.shape(offsets) != (num_envs, 3):
+                raise ValueError(f"Expected offsets of shape ({num_envs}, 3), got {np.shape(offsets)}.")
+            padded = np.zeros(
+                (num_envs + 1, 3), dtype=np.float32
+            )  # The last row is for bodies outside any environment.
+            padded[:num_envs] = offsets
+            self._env_offsets = wp.array(padded, dtype=wp.vec3, device=self._device)
+        self._transforms_timestamp = -1  # Publish the poses again even when the simulation has not stepped.
+
     def _body_environment_ids(self) -> wp.array:
         """Return each published body's environment index, or ``num_envs`` for a body outside any environment."""
         paths = self._sdp.backend.transform_paths
@@ -1006,6 +1030,22 @@ class OVRTXRenderer(BaseRenderer):
         )
         return self._hidden_matrices
 
+    def _offset_environment_bodies(self, matrices: wp.array, stream: wp.Stream) -> wp.array:
+        """Return the body poses translated by their environment's offset."""
+        if self._env_offsets is None:
+            return matrices
+        body_envs = self._body_environment_ids()
+        if self._offset_matrices is None or len(self._offset_matrices) != len(matrices):
+            self._offset_matrices = wp.empty(len(matrices), dtype=wp.mat44d, device=self._device)
+        wp.launch(
+            offset_environment_bodies_kernel,
+            len(matrices),
+            [matrices, body_envs, self._env_offsets, self._offset_matrices],
+            device=self._device,
+            stream=stream,
+        )
+        return self._offset_matrices
+
     def update_transforms(self) -> None:
         """Write changed SDP transforms to OVRTX."""
         binding = self._object_xform_binding
@@ -1019,7 +1059,7 @@ class OVRTXRenderer(BaseRenderer):
         output = self._transform_writes.acquire(stream)
         if not self._sdp.get_transforms(output, allow_passthrough=not asynchronous, scales=self._object_scales):
             return
-        matrices = self._hide_environment_bodies(output.matrices, stream)
+        matrices = self._offset_environment_bodies(self._hide_environment_bodies(output.matrices, stream), stream)
         if self._use_ovstage:
             # The write waits for consumption; the producing CUDA stream orders access to the
             # borrowed buffer.

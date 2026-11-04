@@ -7,11 +7,13 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from pathlib import Path
 
 import pytest
 
 from isaaclab_rl.entrypoints.common import RUN_MANIFEST_FILENAME, resolve_checkpoint_selector, write_run_manifest
+from isaaclab_rl.entrypoints.policy_ghosts import _launch_argv, discover_checkpoints, relaunch_argv
 
 
 def _set_created_at(run_dir: Path, created_at: str) -> None:
@@ -185,3 +187,60 @@ def test_latest_rejects_unmanifested_historical_run(tmp_path: Path) -> None:
             task="Isaac-Cartpole",
             checkpoint_pattern=r"model_.*\.pt",
         )
+
+
+def test_discover_checkpoints_lists_compatible_runs_newest_first_in_natural_order(tmp_path: Path) -> None:
+    old_run, new_run, other_task_run = tmp_path / "old", tmp_path / "new", tmp_path / "other"
+    for run_dir, task in ((old_run, "Isaac-Cartpole"), (new_run, "Isaac-Cartpole"), (other_task_run, "Isaac-Ant")):
+        run_dir.mkdir()
+        (run_dir / "model_10.pt").touch()
+        (run_dir / "model_9.pt").touch()
+        (run_dir / "notes.txt").touch()
+        write_run_manifest(str(run_dir), library="rsl_rl", task=task)
+    _set_created_at(old_run, "2026-01-01T00:00:00+00:00")
+    _set_created_at(new_run, "2026-01-02T00:00:00+00:00")
+
+    found = discover_checkpoints(
+        str(tmp_path), library="rsl_rl", task="Isaac-Cartpole", checkpoint_pattern=r"model_.*\.pt"
+    )
+
+    assert [(c.run, c.name) for c in found] == [
+        ("new", "model_9.pt"),
+        ("new", "model_10.pt"),
+        ("old", "model_9.pt"),
+        ("old", "model_10.pt"),
+    ]
+    assert all(Path(c.path).is_absolute() for c in found)
+
+
+_PLAY = ["python", "isaaclab", "play", "--task", "Isaac-Cartpole-v0", "--num_envs", "4"]
+
+
+def test_relaunch_argv_adds_policy_ghosts_once() -> None:
+    enabled = relaunch_argv(_PLAY, enable=True)
+
+    assert enabled == [*_PLAY, "--policy_ghosts"]
+    assert relaunch_argv(enabled, enable=True) == enabled
+
+
+def test_relaunch_argv_removes_policy_ghosts_with_their_options() -> None:
+    argv = [*_PLAY, "--policy_ghosts", "--policy_ghost_slots", "8", "--policy_ghost_root=/runs", "--seed", "1"]
+
+    assert relaunch_argv(argv, enable=False) == [*_PLAY, "--seed", "1"]
+
+
+def test_launch_argv_reuses_the_original_command_line(monkeypatch) -> None:
+    monkeypatch.setattr(sys, "orig_argv", ["python", "/venv/bin/isaaclab", "play", "--task", "T"])
+    monkeypatch.setattr(sys, "argv", ["/venv/bin/isaaclab", "play", "--task", "T"])
+
+    assert _launch_argv() == ["python", "/venv/bin/isaaclab", "play", "--task", "T"]
+
+
+def test_launch_argv_runs_the_cli_with_arguments_a_launcher_script_set(monkeypatch) -> None:
+    monkeypatch.setattr(sys, "orig_argv", ["python", "/tmp/launch.py"])
+    monkeypatch.setattr(sys, "argv", ["isaaclab", "play", "--task", "T"])
+
+    argv = _launch_argv()
+
+    assert argv[1:3] == ["-c", "from isaaclab.cli import cli; cli()"] and argv[3:] == ["play", "--task", "T"]
+    assert relaunch_argv(argv, enable=True)[-1] == "--policy_ghosts"

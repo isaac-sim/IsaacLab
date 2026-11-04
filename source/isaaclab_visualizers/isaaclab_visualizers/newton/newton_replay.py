@@ -83,7 +83,7 @@ class ReplayShape:
 
 @dataclass
 class RecordedSlot:
-    """One slot of a recorded session: a slice of environments driven by one checkpoint."""
+    """One Policy Ghost slot of a recorded session: a slice of environments driven by one checkpoint."""
 
     index: int
     """Slot index. Slot 0 is the reference."""
@@ -102,7 +102,7 @@ class ViserRecording:
     """Time of each frame [s]. Frame 0 is the recorded initial state."""
     shapes: list[ReplayShape]
     slots: list[RecordedSlot] = field(default_factory=list)
-    """Slots of the session, empty for a recording without them."""
+    """Policy Ghost slots of the session, empty for a recording without them."""
     slice_size: int = 0
     """Number of environments per slot."""
 
@@ -274,7 +274,7 @@ def load_viser_recording(path: str) -> ViserRecording:
 
 
 def sidecar_path(path: str | Path) -> Path:
-    """Return the JSON file that describes the slots of the recording at ``path``."""
+    """Return the JSON file that describes the Policy Ghost slots of the recording at ``path``."""
     return Path(path).with_suffix(".json")
 
 
@@ -375,7 +375,7 @@ class NewtonReplayPlayer:
         self.show_markers = True
         """Whether visualization markers, such as velocity arrows, are drawn."""
         self.slot_visible: dict[int, bool] = {}
-        """Whether each slot of a multi-slot recording is shown; a missing slot is shown."""
+        """Whether each slot of a Policy Ghost recording is shown; a missing slot is shown."""
         self.hide_static = False
         """Skip shapes that never move, which the live scene already draws."""
         self.offset = np.zeros(3, np.float32)
@@ -529,7 +529,7 @@ class NewtonReplayPlayer:
     def _appearance(self, recording: ViserRecording, shape: ReplayShape, count: int):
         """Return the tint color, tint strength, and opacity of each instance of ``shape``.
 
-        A multi-slot recording tints and fades the ghost slots and leaves the reference slot and
+        A recording of a Policy Ghost session tints and fades the ghost slots and leaves the reference slot and
         shared shapes alone; any other recording takes the player's single tint color.
         """
         if recording.slots and shape.worlds is not None and recording.slice_size:
