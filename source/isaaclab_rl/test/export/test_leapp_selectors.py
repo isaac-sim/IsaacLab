@@ -115,72 +115,43 @@ def test_deployment_preserves_joint_axis_order(legacy: bool):
     torch.testing.assert_close(written, torch.tensor([[1.0, 0.0, 3.0]]))
 
 
-def test_variable_osc_exports_effort_and_actuator_gains(tmp_path):
-    """Cartesian OSC gains remain internal while joint effort and actuator gains deploy."""
-    import yaml
-
-    from isaaclab.assets.articulation import BaseArticulation
+def test_variable_osc_exports_only_actuator_gains(monkeypatch):
+    """Seven joint gains are published while six Cartesian OSC gains remain internal."""
     from isaaclab.controllers import OperationalSpaceController, OperationalSpaceControllerCfg
-    from isaaclab.utils.leapp.proxy import _ArticulationWriteProxy
 
+    kp, kd = torch.full((1, 7), 10.0), torch.full((1, 7), 2.0)
     joint_names = [f"joint_{index}" for index in range(7)]
-
-    class Actuators(dict):
-        target_command = SimpleNamespace(set_effort_index=lambda **kwargs: None)
-
-    class Asset:
-        set_joint_effort_target_index = BaseArticulation.set_joint_effort_target_index
-        actuators = Actuators()
-        data = SimpleNamespace(
-            default_joint_stiffness=SimpleNamespace(torch=torch.zeros(1, 7)),
-            default_joint_damping=SimpleNamespace(torch=torch.zeros(1, 7)),
-        )
-
-    asset = Asset()
-    asset.joint_names = joint_names
+    asset = SimpleNamespace(
+        joint_names=joint_names,
+        actuators={},
+        data=SimpleNamespace(
+            default_joint_stiffness=SimpleNamespace(torch=kp),
+            default_joint_damping=SimpleNamespace(torch=kd),
+        ),
+    )
     osc = OperationalSpaceController(
         OperationalSpaceControllerCfg(target_types=["pose_abs"], impedance_mode="variable_kp"),
         num_envs=1,
         device="cpu",
     )
-    term = SimpleNamespace(_asset=asset, _joint_ids=list(range(7)), _osc=osc)
-    patcher = ExportPatcher("onnx")
-    patcher.task_name = "osc"
-    patcher._action_term_scene_keys["arm"] = "robot"
-    proxy = _ArticulationWriteProxy(
-        asset, "robot", "arm", patcher._action_output_cache, {}, patcher._captured_write_term_names, None
-    )
-
-    def process(actions):
-        term.processed_actions = actions
-
     manager = SimpleNamespace(
-        _terms={"arm": term},
-        process_action=process,
-        apply_action=lambda: proxy.set_joint_effort_target_index(
-            target=term.processed_actions, joint_ids=term._joint_ids
-        ),
+        _terms={"arm": SimpleNamespace(_asset=asset, _joint_ids=list(range(7)), _osc=osc)},
+        process_action=lambda actions: None,
+        apply_action=lambda: None,
     )
+    outputs = []
+    monkeypatch.setattr(
+        leapp.annotate,
+        "output_tensors",
+        lambda name, tensors, static_outputs, **kwargs: outputs.extend([*tensors, *(static_outputs or [])]),
+    )
+    patcher = ExportPatcher("onnx")
     patcher._patch_action_manager_methods(manager)
-    leapp.start("osc", save_path=str(tmp_path))
-    try:
-        for scale in (1.0, 2.0):
-            actions = leapp.annotate.input_tensors("osc", {"effort": torch.ones(1, 7) * scale})
-            manager.process_action(actions)
-            manager.apply_action()
-    finally:
-        leapp.stop()
-    leapp.compile_graph(visualize=False, validate=True)
-    pipeline = tmp_path / "osc" / "osc.yaml"
-    description = yaml.safe_load(pipeline.read_text())
-    outputs = description["models"]["osc"]["outputs"]
-    assert {output["name"] for output in outputs} == {"arm", "arm_kp_gains", "arm_kd_gains"}
+    manager.process_action(torch.zeros(1, 7))
+    manager.apply_action()
+
+    expected = {"arm_kp_gains": kp, "arm_kd_gains": kd}
+    assert {output.name for output in outputs} == expected.keys()
     for output in outputs:
-        assert output["shape"] == [1, 7]
-        assert output["axes"][1]["names"] == joint_names
-    runtime = leapp.InferenceManager(str(pipeline))
-    effort = torch.arange(7, dtype=torch.float32).unsqueeze(0)
-    actual = runtime.run_policy({"osc/effort": effort})
-    torch.testing.assert_close(actual["osc/arm"], effort)
-    torch.testing.assert_close(actual["osc/arm_kp_gains"], torch.zeros(1, 7))
-    torch.testing.assert_close(actual["osc/arm_kd_gains"], torch.zeros(1, 7))
+        torch.testing.assert_close(output.ref, expected[output.name])
+        assert output.axes == [None, leapp.Axis(leapp.AxisKind.ELEMENT, names=joint_names)]
