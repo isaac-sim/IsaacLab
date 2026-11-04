@@ -199,8 +199,7 @@ you can import from ``isaaclab_physx.sensors``:
    # Direct PhysX implementation imports
    from isaaclab_physx.sensors import ContactSensor, ContactSensorData
    from isaaclab_physx.sensors import Imu, ImuData
-   from isaaclab_physx.sensors import Pva
-   from isaaclab.sensors import PvaData
+   from isaaclab_physx.sensors import Pva, PvaData  # PvaData deprecated; prefer sensor.data
    from isaaclab_physx.sensors import FrameTransformer, FrameTransformerData
    from isaaclab_physx.sensors import JointWrenchSensor, JointWrenchSensorData
 
@@ -1551,8 +1550,9 @@ to :class:`~isaaclab.sensors.PvaData` which provides all of them.
 
 .. rubric:: Shared PVA data and backend capabilities
 
-Import ``PvaData`` from ``isaaclab.sensors``. Backend-specific ``PvaData`` classes and
-``BasePvaData`` have been removed; the sensor still selects its native backend.
+Import ``PvaData`` from ``isaaclab.sensors`` for direct construction, or read
+measurements through ``sensor.data``. Backend-specific ``PvaData`` classes and
+``BasePvaData`` remain available with deprecation warnings during the transition.
 ``PvaCfg.data_types`` defaults to ``["pose", "velocity", "acceleration", "projected_gravity"]``.
 Pose is required, while each remaining group can be omitted:
 
@@ -1577,11 +1577,10 @@ Newton zero-gravity initialization and zero-quaternion STOP state, and clears st
 measurements on STOP.
 
 A new backend can advertise fewer groups and select the corresponding generated kernel
-once during construction. Extensions advertise additional groups on their sensor class and
-instantiate a local data subclass: pass the standard subset to ``PvaData.__init__`` and own
-additional storage, getters, updates and resets in that subclass/backend. The core data's
-``data_types`` describes its standard groups. No core registry or new universal optional
-fields are needed. Native gathering and input layouts remain backend-owned.
+once during construction. Extensions advertise additional groups on their sensor class;
+their backend data subclass may own additional storage, getters, updates and resets.
+The shared storage's ``data_types`` describes its standard groups. Native gathering
+and input layouts remain backend-owned.
 
 
 .. rubric:: Sensor Pose Properties Deprecation

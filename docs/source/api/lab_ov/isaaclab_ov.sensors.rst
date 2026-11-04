@@ -54,3 +54,6 @@ The following classes are part of the public :mod:`isaaclab_ov.sensors` API.
 
 .. autoclass:: Pva
    :show-inheritance:
+
+.. autoclass:: PvaData
+   :show-inheritance:

@@ -65,6 +65,9 @@ The following classes are part of the public :mod:`isaaclab_physx.sensors` API.
 .. autoclass:: Pva
    :show-inheritance:
 
+.. autoclass:: PvaData
+   :show-inheritance:
+
 .. autoclass:: RayCaster
    :show-inheritance:
 
