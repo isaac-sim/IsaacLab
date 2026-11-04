@@ -85,7 +85,7 @@ This list includes only community projects based on Isaac Lab 3.0 or later.
 * [basic-locomotion-isaaclab](https://github.com/iit-DLSLab/basic-locomotion-isaaclab): Quadruped locomotion with sim-to-sim and sim-to-real transfer.
 * [robot_lab](https://github.com/fan-ziqi/robot_lab): Locomotion tasks for quadrupeds, wheeled-legged robots, and humanoids.
 
-See [Community Projects](https://isaac-sim.github.io/IsaacLab/main/source/isaaclab/community_projects.html)
+See [Community Projects](docs/source/isaaclab/community_projects.rst)
 for how to add your project. Follow each project's documentation for its supported versions and setup.
 
 ## Show & Tell: Share Your Inspiration
