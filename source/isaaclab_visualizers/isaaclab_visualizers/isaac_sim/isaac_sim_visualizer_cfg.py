@@ -45,6 +45,14 @@ class IsaacSimBackendCfg(VisualizerBackendCfg):
     navigable viewport and no panes, needing only the installed Isaac Sim client.
     """
 
+    camera_controls: Literal["newton", "isaac_sim"] = "newton"
+    """Viewport camera bindings for ``host="app"``.
+
+    ``"newton"`` matches Isaac Lab's Newton viewer: left-drag looks, middle-drag orbits, Shift+middle-drag pans and
+    Ctrl+middle-drag dollies; a left click still selects. ``"isaac_sim"`` keeps the client's Kit-style bindings:
+    Alt+left-drag orbits, middle-drag pans and right-drag looks. See :mod:`.isaac_sim_camera_controls`.
+    """
+
     ui: Literal["desktop", "browser"] = "desktop"
     """Where the viewer is presented: the Electron window attached to the host, or a logged browser URL."""
 

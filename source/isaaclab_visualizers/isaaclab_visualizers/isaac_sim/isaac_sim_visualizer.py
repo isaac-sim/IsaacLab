@@ -174,6 +174,14 @@ class IsaacSimVisualizer(BaseVisualizer):
         client_roots = client_roots_for_backend("web")
         if self.backend_cfg.app_client_root is not None:
             client_roots = [("/app/", Path(self.backend_cfg.app_client_root) / "renderer"), *client_roots[1:]]
+        if self.backend_cfg.camera_controls == "newton":
+            from .isaac_sim_camera_controls import newton_controls_client
+
+            directory = Path(self._resources.enter_context(tempfile.TemporaryDirectory(prefix="isaaclab_client_")))
+            client_roots = [
+                (prefix, newton_controls_client(root, directory) or root) if prefix == "/" else (prefix, root)
+                for prefix, root in client_roots
+            ]
         self._host = AppHost(
             open_world=self._shared,
             scene=str(scene),
