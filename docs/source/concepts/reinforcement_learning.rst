@@ -40,7 +40,7 @@ scenes illustrate policy control; use native playback for full task evaluation.
    :physics: rigid
    :activity: policy
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/rl_learning_progression_anymald.gif
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/reinforcement_learning/rl_learning_progression_anymal_d.gif
    :width: 100%
    :align: center
    :alt: ANYmal-D locomotion at RSL-RL training iterations 0, 100, and 299
