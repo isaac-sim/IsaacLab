@@ -35,7 +35,7 @@ def height_field_to_mesh(func: Callable) -> Callable:
 
     Raises:
         ValueError: When the border width is positive but smaller than the horizontal scale.
-        TypeError: When the height field function does not return a tuple of the height field and the origin.
+        TypeError: When the height field function does not return the height field and the origin.
     """
 
     @functools.wraps(func)
@@ -59,19 +59,21 @@ def height_field_to_mesh(func: Callable) -> Callable:
         # update the config
         terrain_size = copy.deepcopy(cfg.size)
         cfg.size = tuple(sub_terrain_size)
-        # generate the height field
-        result = func(difficulty, cfg)
-        if not (isinstance(result, tuple) and len(result) == 2):
+        try:
+            # generate the height field
+            result = func(difficulty, cfg)
+            try:
+                z_gen, origin = result
+            except (TypeError, ValueError) as err:
+                raise TypeError(
+                    f"The height-field generator '{func.__name__}' must return (height_field, origin),"
+                    f" got {type(result).__name__}."
+                ) from err
+            # handle the border for the terrain
+            heights[border_pixels:-border_pixels, border_pixels:-border_pixels] = z_gen
+        finally:
+            # set terrain size back to config
             cfg.size = terrain_size
-            raise TypeError(
-                f"The height-field generator '{func.__name__}' must return a tuple (height_field, origin),"
-                f" got {type(result).__name__}."
-            )
-        z_gen, origin = result
-        # handle the border for the terrain
-        heights[border_pixels:-border_pixels, border_pixels:-border_pixels] = z_gen
-        # set terrain size back to config
-        cfg.size = terrain_size
 
         # convert to trimesh
         vertices, triangles = convert_height_field_to_mesh(

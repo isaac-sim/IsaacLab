@@ -30,7 +30,7 @@ from isaaclab.terrains.height_field import (
     HfSteppingStonesTerrainCfg,
     HfWaveTerrainCfg,
 )
-from isaaclab.terrains.height_field.utils import height_field_to_mesh, to_discrete_units
+from isaaclab.terrains.height_field.utils import height_field_to_mesh
 from isaaclab.terrains.trimesh.utils import make_box, make_cone, make_cylinder
 from isaaclab.utils.seed import configure_seed
 
@@ -194,15 +194,13 @@ def test_height_field_generator_without_origin_raises_type_error():
 
     @height_field_to_mesh
     def flat_terrain(difficulty: float, cfg: HfRandomUniformTerrainCfg) -> np.ndarray:
-        width_pixels = to_discrete_units(cfg.size[0], cfg.horizontal_scale) + 1
-        length_pixels = to_discrete_units(cfg.size[1], cfg.horizontal_scale) + 1
-        return np.zeros((width_pixels, length_pixels), dtype=np.int16)
+        return np.zeros((1, 1), dtype=np.int16)
 
     cfg = HfRandomUniformTerrainCfg(
         size=(2.0, 2.0), horizontal_scale=0.1, border_width=0.2, noise_range=(0.0, 0.0), noise_step=0.02
     )
 
-    with pytest.raises(TypeError, match=r"'flat_terrain' must return a tuple \(height_field, origin\)"):
+    with pytest.raises(TypeError, match=r"'flat_terrain' must return \(height_field, origin\)"):
         flat_terrain(0.5, cfg)
 
     assert cfg.size == (2.0, 2.0)
