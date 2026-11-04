@@ -213,6 +213,7 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
         Args:
             episode: The episode data to add.
             demo_id: Custom index for the episode. If None, uses default index.
+            dataset_compression: Whether to gzip-compress the stored datasets. Defaults to True.
         """
         self._raise_if_not_initialized()
         if episode.is_empty():

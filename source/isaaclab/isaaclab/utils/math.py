@@ -605,7 +605,7 @@ def quat_box_plus(q: torch.Tensor, delta: torch.Tensor, eps: float = 1.0e-6) -> 
     Args:
         q: The initial quaternion in (x, y, z, w). Shape is (N, 4).
         delta: The axis-angle perturbation. Shape is (N, 3).
-            eps: A small value to avoid division by zero. Defaults to 1e-6.
+        eps: A small value to avoid division by zero. Defaults to 1e-6.
 
     Returns:
         The updated quaternion after applying the perturbation. Shape is (N, 4).

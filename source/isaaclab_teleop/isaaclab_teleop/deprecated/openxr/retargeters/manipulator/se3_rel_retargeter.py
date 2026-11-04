@@ -194,12 +194,34 @@ class Se3RelRetargeterCfg(RetargeterCfg):
     """Configuration for relative position retargeter."""
 
     zero_out_xy_rotation: bool = True
+    """If True, ignore rotations around the x and y axes, allowing only z-axis rotation. Defaults to True."""
+
     use_wrist_rotation: bool = False
+    """If True, use the wrist rotation for control instead of averaging the finger orientations.
+    Defaults to False."""
+
     use_wrist_position: bool = True
+    """If True, use the wrist position instead of the pinch position (midpoint between the fingers).
+    Defaults to True."""
+
     delta_pos_scale_factor: float = 10.0
+    """Amplification factor for position changes. Higher values give larger robot movements. Defaults to 10.0."""
+
     delta_rot_scale_factor: float = 10.0
+    """Amplification factor for rotation changes. Higher values give larger robot rotations. Defaults to 10.0."""
+
     alpha_pos: float = 0.5
+    """Position smoothing parameter in [0, 1]. Higher values track the input more closely, lower values
+    smooth more. Defaults to 0.5."""
+
     alpha_rot: float = 0.5
+    """Rotation smoothing parameter in [0, 1]. Higher values track the input more closely, lower values
+    smooth more. Defaults to 0.5."""
+
     enable_visualization: bool = False
+    """If True, show a visual marker representing the target end-effector pose. Defaults to False."""
+
     bound_hand: DeviceBase.TrackingTarget = DeviceBase.TrackingTarget.HAND_RIGHT
+    """The hand to track (``HAND_LEFT`` or ``HAND_RIGHT``). Defaults to ``HAND_RIGHT``."""
+
     retargeter_type: type[RetargeterBase] = Se3RelRetargeter

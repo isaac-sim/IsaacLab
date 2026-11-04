@@ -64,6 +64,7 @@ def rollout(policy, env, success_term, horizon, device):
     Args:
         policy: The robomimicpolicy to play.
         env: The environment to play in.
+        success_term: The success termination term, evaluated each step to detect task success.
         horizon: The step horizon of each rollout.
         device: The device to run the policy on.
 

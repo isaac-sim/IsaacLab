@@ -17,8 +17,8 @@ from ..utils.warp import raycast_mesh
 def color_meshes_by_height(meshes: list[trimesh.Trimesh], **kwargs) -> trimesh.Trimesh:
     """
     Color the vertices of a trimesh object based on the z-coordinate (height) of each vertex,
-    using the Turbo colormap. If the z-coordinates are all the same, the vertices will be colored
-    with a single color.
+    using a matplotlib colormap (``inferno`` by default). If the z-coordinates are all the same, the vertices
+    will be colored with a single color.
 
     Args:
         meshes: A list of trimesh objects.
@@ -27,7 +27,8 @@ def color_meshes_by_height(meshes: list[trimesh.Trimesh], **kwargs) -> trimesh.T
         color: A list of 3 integers in the range [0,255] representing the RGB
             color of the mesh. Used when the z-coordinates of all vertices are the same.
             Defaults to [172, 216, 230].
-        color_map: The name of the color map to be used. Defaults to "turbo".
+        color_map: The name of the color map to be used. Valid options are ``"viridis"``, ``"inferno"``,
+            ``"plasma"`` and ``"magma"``. Defaults to ``"inferno"``.
 
     Returns:
         A trimesh object with the vertices colored based on the z-coordinate (height) of each vertex.

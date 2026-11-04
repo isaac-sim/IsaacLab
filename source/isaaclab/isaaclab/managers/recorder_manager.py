@@ -366,6 +366,9 @@ class RecorderManager(ManagerBase):
 
         Args:
             env_ids: The environment ids in which a reset is triggered.
+            force_export_or_skip: Whether to export the episodes at the end of this call. If True, the episodes
+                are exported; if False, the export is skipped. If None, the export follows
+                :attr:`RecorderManagerBaseCfg.export_in_record_pre_reset`. Defaults to None.
         """
         # Do nothing if no active recorder terms are provided
         if len(self.active_terms) == 0:

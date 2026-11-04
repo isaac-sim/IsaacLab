@@ -156,6 +156,12 @@ class UnitreeG1RetargeterCfg(RetargeterCfg):
     """Configuration for the UnitreeG1 retargeter."""
 
     enable_visualization: bool = False
+    """If True, visualize the tracked hand joints. Defaults to False."""
+
     num_open_xr_hand_joints: int = 100
-    hand_joint_names: list[str] | None = None  # List of robot hand joint names
+    """Number of joints tracked by OpenXR. Defaults to 100."""
+
+    hand_joint_names: list[str] | None = None
+    """List of robot hand joint names. Defaults to None."""
+
     retargeter_type: type[RetargeterBase] = UnitreeG1Retargeter

@@ -126,8 +126,8 @@ class ManagerCallSwitch:
             stage: Stage identifier in the form ``"ManagerName_function_name"``.
             warp_call: Call spec for the warp path (eager or captured).
             stable_call: Call spec for the stable (torch) path. Defaults to ``None``.
-            timer: Whether to wrap execution in a :class:`Timer`. Defaults to ``True``
-                (controlled by the global :attr:`Timer.enable` class-level toggle).
+            timer: Whether to wrap execution in a :class:`Timer`. Defaults to ``False``
+                (timing is further gated by the global :attr:`Timer.enable` class-level toggle).
                 Pass a module-level flag like ``TIMER_ENABLED_STEP`` to make timing
                 conditional on that flag.
 

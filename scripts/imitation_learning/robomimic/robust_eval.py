@@ -83,6 +83,7 @@ def rollout(policy, env: gym.Env, success_term, horizon: int, device: torch.devi
     Args:
         policy: The robomimic policy to evaluate.
         env: The environment to evaluate in.
+        success_term: The success termination term, evaluated each step to detect task success.
         horizon: The step horizon of each rollout.
         device: The device to run the policy on.
 
@@ -157,6 +158,7 @@ def evaluate_model(
         model_path: Path to the model checkpoint.
         env: The environment to evaluate in.
         device: The device to run the policy on.
+        success_term: The success termination term, evaluated each step to detect task success.
         num_rollouts: Number of rollouts to perform.
         horizon: Step horizon of each rollout.
         seed: Random seed to use.

@@ -59,6 +59,7 @@ def convert_to_obj(in_file: str, out_file: str, save_usd: bool = False):
     Args:
         in_file: Input mesh file to process.
         out_file: Path to store output obj file.
+        save_usd: Whether to also save the converted mesh as a USD file. Defaults to False.
     """
     # check valid input file
     if not os.path.exists(in_file):

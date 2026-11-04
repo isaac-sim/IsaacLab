@@ -157,8 +157,18 @@ class Se3AbsRetargeterCfg(RetargeterCfg):
     """Configuration for absolute position retargeter."""
 
     zero_out_xy_rotation: bool = True
+    """If True, zero out the rotation around the x and y axes. Defaults to True."""
+
     use_wrist_rotation: bool = False
+    """If True, use the wrist rotation instead of the finger average. Defaults to False."""
+
     use_wrist_position: bool = True
+    """If True, use the wrist position instead of the pinch position. Defaults to True."""
+
     enable_visualization: bool = False
+    """If True, visualize the target pose in the scene. Defaults to False."""
+
     bound_hand: DeviceBase.TrackingTarget = DeviceBase.TrackingTarget.HAND_RIGHT
+    """The hand to track (``HAND_LEFT`` or ``HAND_RIGHT``). Defaults to ``HAND_RIGHT``."""
+
     retargeter_type: type[RetargeterBase] = Se3AbsRetargeter

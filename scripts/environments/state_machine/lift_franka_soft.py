@@ -191,6 +191,8 @@ class PickAndLiftSm:
             dt: The environment time step.
             num_envs: The number of environments to simulate.
             device: The device to run the state machine on.
+            position_threshold: Distance [m] between the end-effector and its target below which a state is
+                considered reached. Defaults to 0.03.
         """
         # save parameters
         self.dt = float(dt)
