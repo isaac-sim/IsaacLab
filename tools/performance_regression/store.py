@@ -25,7 +25,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from .contract import from_dict
-from .metrics import METRICS, PerfSmokeError, mapping, number
+from .metrics import METRICS, PerformanceRegressionError, mapping, number
 
 BLOB_PREFIX = "baselines"
 """Root key prefix for stored measurements."""
@@ -59,7 +59,7 @@ _QUERY = re.compile(r"\?[^\s\"'<>]*")
 
 def _warn(message: str) -> None:
     """Emit a non-fatal warning that GitHub Actions surfaces as an annotation."""
-    print(f"::warning::perf-smoke: {message}", file=sys.stderr)
+    print(f"::warning::performance-regression: {message}", file=sys.stderr)
 
 
 def scrub(text: str) -> str:
@@ -115,7 +115,7 @@ def parse_row(data: Any, source: str) -> BaselineRow:
         The validated row.
 
     Raises:
-        PerfSmokeError: If required fields are missing or malformed.
+        PerformanceRegressionError: If required fields are missing or malformed.
     """
     payload = mapping(data, source)
     stored_metrics = mapping(payload.get("metrics"), f"{source}.metrics")
@@ -127,19 +127,19 @@ def parse_row(data: Any, source: str) -> BaselineRow:
         try:
             value = number(stored_metrics[metric.name], f"{source}.metrics.{metric.name}")
             if value < 0:
-                raise PerfSmokeError(f"{source}.metrics.{metric.name} must be non-negative")
+                raise PerformanceRegressionError(f"{source}.metrics.{metric.name} must be non-negative")
             values[metric.name] = value
-        except PerfSmokeError as exc:
+        except PerformanceRegressionError as exc:
             # Same treatment as an absent metric. A malformed advisory value must not
             # cost us the gating one recorded beside it, which cannot be re-recorded.
             _warn(f"ignoring metric in {source}: {exc}")
     if not values:
-        raise PerfSmokeError(f"{source}.metrics contains no recognised metric")
+        raise PerformanceRegressionError(f"{source}.metrics contains no recognised metric")
 
     contract = from_dict(payload.get("contract"))
     contract_hash = payload.get("contract_hash")
     if contract.hash != contract_hash:
-        raise PerfSmokeError(f"{source}.contract_hash does not match its contract")
+        raise PerformanceRegressionError(f"{source}.contract_hash does not match its contract")
 
     return BaselineRow(
         contract=contract.as_dict(),
@@ -161,13 +161,13 @@ def month_of(timestamp: str) -> str:
     """Return the ``YYYY-MM`` partition for an ISO-8601 timestamp.
 
     Raises:
-        PerfSmokeError: If ``timestamp`` does not start with a calendar month.
+        PerformanceRegressionError: If ``timestamp`` does not start with a calendar month.
     """
     head = timestamp.strip()[:7]
     try:
         datetime.strptime(head, "%Y-%m")
     except ValueError:
-        raise PerfSmokeError(f"timestamp {timestamp!r} must be ISO-8601, starting YYYY-MM") from None
+        raise PerformanceRegressionError(f"timestamp {timestamp!r} must be ISO-8601, starting YYYY-MM") from None
     return head
 
 
@@ -231,12 +231,12 @@ def make_container_client(sas_url: str) -> Any:
     Isolated so the SDK construction, including the retry tuning above, has one call site.
 
     Raises:
-        PerfSmokeError: If ``azure-storage-blob`` is not available.
+        PerformanceRegressionError: If ``azure-storage-blob`` is not available.
     """
     try:
         from azure.storage.blob import ContainerClient
     except ImportError as exc:  # pragma: no cover - depends on runner image
-        raise PerfSmokeError(
+        raise PerformanceRegressionError(
             "the baseline store requires azure-storage-blob (see tools/performance_regression/requirements.txt)"
         ) from exc
     try:
@@ -249,7 +249,7 @@ def make_container_client(sas_url: str) -> Any:
             read_timeout=_READ_TIMEOUT_S,
         )
     except ValueError as exc:
-        raise PerfSmokeError(f"${BLOB_URL_ENV} is not a container SAS URL: {scrub(str(exc))}") from None
+        raise PerformanceRegressionError(f"${BLOB_URL_ENV} is not a container SAS URL: {scrub(str(exc))}") from None
 
 
 def sas_expiry(sas_url: str) -> datetime | None:
@@ -270,7 +270,7 @@ def _check_expiry(sas_url: str, now: datetime) -> None:
     if expires is None:
         return
     if expires <= now:
-        raise PerfSmokeError(
+        raise PerformanceRegressionError(
             f"the {BLOB_URL_ENV} credential expired on {expires.date().isoformat()}; it must be reissued"
         )
     remaining = expires - now
@@ -297,7 +297,7 @@ class _Container:
     def __init__(self) -> None:
         sas_url = os.environ.get(BLOB_URL_ENV, "").strip()
         if not sas_url:
-            raise PerfSmokeError(f"the baseline store requires the container SAS URL in ${BLOB_URL_ENV}")
+            raise PerformanceRegressionError(f"the baseline store requires the container SAS URL in ${BLOB_URL_ENV}")
         _check_expiry(sas_url, datetime.now(timezone.utc))
         self._client = make_container_client(sas_url)
 
@@ -316,7 +316,7 @@ class _Container:
                 key=lambda blob: (blob.last_modified, blob.name),
             )
         except AzureError as exc:
-            raise PerfSmokeError(_describe(exc, f"listing {prefix}")) from None
+            raise PerformanceRegressionError(_describe(exc, f"listing {prefix}")) from None
         return [blob.name for blob in reversed(blobs)]
 
     def read_text(self, name: str) -> str | None:
@@ -331,7 +331,7 @@ class _Container:
             _warn(f"skipping unreadable baseline row {name}: {exc}")
             return None
         except AzureError as exc:
-            raise PerfSmokeError(_describe(exc, f"reading {name}")) from None
+            raise PerformanceRegressionError(_describe(exc, f"reading {name}")) from None
 
     def create_text(self, name: str, text: str, metadata: dict[str, str]) -> bool:
         """Create the blob. Return ``False`` if it already exists, never overwrite."""
@@ -342,7 +342,7 @@ class _Container:
         except ResourceExistsError:
             return False
         except AzureError as exc:
-            raise PerfSmokeError(_describe(exc, f"writing {name}")) from None
+            raise PerformanceRegressionError(_describe(exc, f"writing {name}")) from None
         return True
 
 
@@ -362,10 +362,10 @@ def read(contract_hash: str, limit: int, now: datetime | None = None) -> list[Ba
         been recorded, or when no sample falls inside the lookback window.
 
     Raises:
-        PerfSmokeError: If the store cannot be reached.
+        PerformanceRegressionError: If the store cannot be reached.
     """
     if limit <= 0:
-        raise PerfSmokeError("limit must be a positive integer")
+        raise PerformanceRegressionError("limit must be a positive integer")
     deadline = time.monotonic() + _TOTAL_BUDGET_S
     base = _contract_prefix(contract_hash)
     rows: list[BaselineRow] = []
@@ -373,20 +373,20 @@ def read(contract_hash: str, limit: int, now: datetime | None = None) -> list[Ba
         names: list[str] = []
         for month in _months_back(now or datetime.now(timezone.utc), MAX_LOOKBACK_MONTHS):
             if time.monotonic() > deadline:
-                raise PerfSmokeError(f"the baseline store did not respond within {_TOTAL_BUDGET_S}s")
+                raise PerformanceRegressionError(f"the baseline store did not respond within {_TOTAL_BUDGET_S}s")
             names = container.list_names(f"{base}/{month}/", limit - len(names)) + names
             if len(names) == limit:
                 break
 
         for name in names:
             if time.monotonic() > deadline:
-                raise PerfSmokeError(f"the baseline store did not respond within {_TOTAL_BUDGET_S}s")
+                raise PerformanceRegressionError(f"the baseline store did not respond within {_TOTAL_BUDGET_S}s")
             text = container.read_text(name)
             if text is None:
                 continue
             try:
                 rows.append(parse_row(json.loads(text), name))
-            except (PerfSmokeError, json.JSONDecodeError) as exc:
+            except (PerformanceRegressionError, json.JSONDecodeError) as exc:
                 _warn(f"skipping unreadable baseline row {name}: {exc}")
     return rows
 
@@ -401,7 +401,7 @@ def write(row: BaselineRow) -> bool:
         ``True`` when the row was created, ``False`` when an identical name exists.
 
     Raises:
-        PerfSmokeError: If the store cannot be reached or the row cannot be named.
+        PerformanceRegressionError: If the store cannot be reached or the row cannot be named.
     """
     payload = json.dumps(row.as_dict(), sort_keys=True, separators=(",", ":"))
     with closing(_Container()) as container:

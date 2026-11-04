@@ -15,7 +15,7 @@ from unittest.mock import patch
 
 from . import cli, compare
 from .contract import Contract, build
-from .metrics import METRICS, PerfSmokeError
+from .metrics import METRICS, PerformanceRegressionError
 from .store import BaselineRow
 
 
@@ -157,7 +157,7 @@ class TestAsvComparison(unittest.TestCase):
                     patch.object(cli.contract_mod, "build", return_value=self.contract),
                     patch.object(cli.metrics_mod, "extract", return_value=_measurement(80)),
                     patch.object(cli.store_mod, "is_configured", return_value=configured),
-                    patch.object(cli.store_mod, "read", side_effect=PerfSmokeError("unavailable")),
+                    patch.object(cli.store_mod, "read", side_effect=PerformanceRegressionError("unavailable")),
                 ):
                     status = cli.main(
                         [
@@ -206,7 +206,7 @@ class TestContracts(unittest.TestCase):
         config["physics_backend"] = "newton_kamino"
         config["physics_solvers"] = ["newton_kamino", "newton_mjwarp"]
         del bundle["versions"]["mjwarp"]
-        with self.assertRaisesRegex(compare.PerfSmokeError, "versions.mjwarp"):
+        with self.assertRaisesRegex(compare.PerformanceRegressionError, "versions.mjwarp"):
             build(bundle)
 
 

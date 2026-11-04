@@ -89,7 +89,7 @@ def test_benchmark_cancellation(tmp_path: Path) -> None:
     workflow = yaml.safe_load(_WORKFLOW.read_text(encoding="utf-8"))
     command = next(
         step["run"]
-        for step in workflow["jobs"]["performance-smoke"]["steps"]
+        for step in workflow["jobs"]["performance-regression"]["steps"]
         if step.get("name") == "Run runtime benchmarks"
     )
     step_script = tmp_path / "workflow-step.sh"

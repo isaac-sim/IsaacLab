@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Command-line entry points for the performance smoke gate.
+"""Command-line entry points for the performance regression gate.
 
 Wiring only; every decision lives in :mod:`compare`, :mod:`contract` or
 :mod:`store`, so the library stays importable without argparse.
@@ -30,19 +30,19 @@ from . import metrics as metrics_mod
 from . import report as report_mod
 from . import store as store_mod
 
-_DEFAULT_THRESHOLDS = Path(__file__).resolve().parent.parent / "perf_smoke_thresholds.json"
+_DEFAULT_THRESHOLDS = Path(__file__).resolve().parent.parent / "performance_regression_thresholds.json"
 
 
 def _load_json(path: Path, name: str) -> dict:
     try:
         return metrics_mod.mapping(json.loads(path.read_text(encoding="utf-8")), name)
     except FileNotFoundError as exc:
-        raise metrics_mod.PerfSmokeError(f"{name} not found: {path}") from exc
+        raise metrics_mod.PerformanceRegressionError(f"{name} not found: {path}") from exc
     except OSError as exc:
         # A bad path should surface as a gate error.
-        raise metrics_mod.PerfSmokeError(f"{name} could not be read: {path} ({exc})") from exc
+        raise metrics_mod.PerformanceRegressionError(f"{name} could not be read: {path} ({exc})") from exc
     except (json.JSONDecodeError, UnicodeError) as exc:
-        raise metrics_mod.PerfSmokeError(f"{name} is not valid UTF-8 JSON: {exc}") from exc
+        raise metrics_mod.PerformanceRegressionError(f"{name} is not valid UTF-8 JSON: {exc}") from exc
 
 
 def _cmd_compare(args: argparse.Namespace) -> int:
@@ -51,14 +51,14 @@ def _cmd_compare(args: argparse.Namespace) -> int:
         bundles = [_load_json(path, "benchmark result") for path in args.benchmark_result]
         key = contract_mod.build(bundles[0])
         if any(not contract_mod.build(bundle).matches(key) for bundle in bundles[1:]):
-            raise metrics_mod.PerfSmokeError("candidate runs have different runtime contracts")
+            raise metrics_mod.PerformanceRegressionError("candidate runs have different runtime contracts")
         measurements = [metrics_mod.extract(bundle) for bundle in bundles]
         measured = {
             metric.name: statistics.median(row[metric.name] for row in measurements) for metric in metrics_mod.METRICS
         }
-    except metrics_mod.PerfSmokeError as exc:
+    except metrics_mod.PerformanceRegressionError as exc:
         report = compare_mod.errored(str(exc), label=args.label)
-        print(f"::warning::perf-smoke: {exc}", file=sys.stderr)
+        print(f"::warning::performance-regression: {exc}", file=sys.stderr)
     else:
         try:
             thresholds = _load_json(args.thresholds, "threshold config")
@@ -83,9 +83,9 @@ def _cmd_compare(args: argparse.Namespace) -> int:
                     min_samples=args.min_samples,
                     label=args.label,
                 )
-        except metrics_mod.PerfSmokeError as exc:
+        except metrics_mod.PerformanceRegressionError as exc:
             report = compare_mod.unresolved(key, measured, compare_mod.ERROR, str(exc), label=args.label)
-            print(f"::warning::perf-smoke: {exc}", file=sys.stderr)
+            print(f"::warning::performance-regression: {exc}", file=sys.stderr)
 
     # An artifact is always written so that a faulted combination still shows in the summary.
     report_mod.write_json(report, args.output_json)
@@ -107,8 +107,8 @@ def _cmd_write(args: argparse.Namespace) -> int:
     )
     try:
         created = store_mod.write(row)
-    except metrics_mod.PerfSmokeError as exc:
-        print(f"::warning::perf-smoke: baseline not recorded: {exc}", file=sys.stderr)
+    except metrics_mod.PerformanceRegressionError as exc:
+        print(f"::warning::performance-regression: baseline not recorded: {exc}", file=sys.stderr)
         return 0
     action = "Recorded" if created else "Already recorded"
     print(f"{action} baseline for contract {key.hash} at commit {args.commit[:12]}")
@@ -123,8 +123,8 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
             payload = _load_json(path, str(path))
             # A TypeError here means an artifact written by a different version of this tool.
             metrics = tuple(compare_mod.MetricResult(**metric) for metric in payload.get("metrics", []))
-        except (metrics_mod.PerfSmokeError, TypeError) as exc:
-            print(f"::warning::perf-smoke: {path} could not be read: {exc}", file=sys.stderr)
+        except (metrics_mod.PerformanceRegressionError, TypeError) as exc:
+            print(f"::warning::performance-regression: {path} could not be read: {exc}", file=sys.stderr)
             reports.append((name, compare_mod.errored(f"comparison artifact could not be read: {exc}", label=name)))
             continue
         reports.append(
@@ -149,7 +149,7 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
 
     if not reports:
         # Non-blocking: this is an infra fault (e.g. a flaky artifact download)
-        print("::warning::perf-smoke: no comparison artifacts were produced", file=sys.stderr)
+        print("::warning::performance-regression: no comparison artifacts were produced", file=sys.stderr)
         return 0
     return 1 if any(report.verdict == compare_mod.FAIL for _, report in reports) else 0
 
@@ -183,13 +183,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Run the performance smoke CLI."""
+    """Run the performance regression CLI."""
     args = build_parser().parse_args(argv)
     try:
         return int(args.func(args))
-    except metrics_mod.PerfSmokeError as exc:
+    except metrics_mod.PerformanceRegressionError as exc:
         # Exit 2: parse error; exit 1: measured regression or empty results.
-        print(f"::error::perf-smoke: {exc}", file=sys.stderr)
+        print(f"::error::performance-regression: {exc}", file=sys.stderr)
         return 2
 
 

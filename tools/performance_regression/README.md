@@ -1,8 +1,8 @@
-# Performance smoke comparisons
+# Performance regression comparisons
 
 Compare the PR against its exact base, reuse a verified baseline when safe, and always test the latest PR update fresh.
 
-Open **Checks → Performance smoke comparison → Open rendered Performance smoke Summary**.
+Open **Checks → Performance regression comparison → Open rendered Performance regression Summary**.
 
 [View the validated CI result](https://github.com/isaac-sim/IsaacLab/actions/runs/41561655180/attempts/1#summary-125679219775).
 

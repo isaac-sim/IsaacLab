@@ -20,7 +20,7 @@ from math import comb
 from typing import Any
 
 from .contract import Contract, backend_key, valid_backend_keys
-from .metrics import METRICS, Metric, PerfSmokeError, mapping, number
+from .metrics import METRICS, Metric, PerformanceRegressionError, mapping, number
 
 PASS = "PASS"
 WARN = "WARN"
@@ -88,7 +88,7 @@ class Report:
 
 def _warn(message: str) -> None:
     """Report a policy problem that must not stop the comparison."""
-    print(f"::warning::perf-smoke: {message}", file=sys.stderr)
+    print(f"::warning::performance-regression: {message}", file=sys.stderr)
 
 
 def _clean(config: Any, name: str) -> dict[str, Any]:
@@ -100,7 +100,7 @@ def resolve_thresholds(config: Any, gpu_model: str, task: str, key: str) -> dict
     """Resolve gating policy for every metric of one combination.
 
     Args:
-        config: Parsed ``perf_smoke_thresholds.json``.
+        config: Parsed ``performance_regression_thresholds.json``.
         gpu_model: Canonical GPU slug (see :func:`~tools.performance_regression.contract.normalize_gpu_model`).
         task: Gym task id.
         key: ``{physics}`` or ``{physics}_{render}``.
@@ -109,7 +109,7 @@ def resolve_thresholds(config: Any, gpu_model: str, task: str, key: str) -> dict
         Mapping of metric name to its resolved :class:`Thresholds`.
 
     Raises:
-        PerfSmokeError: If the config is malformed.
+        PerformanceRegressionError: If the config is malformed.
     """
     root = _clean(config, "threshold config")
     defaults = _clean(root.get("defaults", {}), "threshold config defaults")
@@ -123,10 +123,10 @@ def resolve_thresholds(config: Any, gpu_model: str, task: str, key: str) -> dict
     if "fail_regression_pct" in override:
         fail = number(override["fail_regression_pct"], f"per_task_regression_pct.{task}.fail_regression_pct")
     if not 0 <= warn <= fail < 100:
-        raise PerfSmokeError(f"regression percentages must satisfy 0 <= warn <= fail < 100 for {task}")
+        raise PerformanceRegressionError(f"regression percentages must satisfy 0 <= warn <= fail < 100 for {task}")
     advisory_only = override.get("advisory_only", False)
     if not isinstance(advisory_only, bool):
-        raise PerfSmokeError(f"per_task_regression_pct.{task}.advisory_only must be a boolean")
+        raise PerformanceRegressionError(f"per_task_regression_pct.{task}.advisory_only must be a boolean")
 
     floors = _clean(root.get("hard_floor_fps", {}), "hard_floor_fps")
     by_task = _clean(floors.get(gpu_model, {}), f"hard_floor_fps.{gpu_model}")
@@ -220,7 +220,9 @@ def _evaluate(
         from asv._stats import mann_whitney_u
         from asv_runner.statistics import compute_stats
     except ImportError as exc:
-        raise PerfSmokeError("ASV is unavailable; install tools/performance_regression/requirements.txt") from exc
+        raise PerformanceRegressionError(
+            "ASV is unavailable; install tools/performance_regression/requirements.txt"
+        ) from exc
 
     # ASV assumes lower is better. Reversing FPS comparisons preserves the
     # original samples and medians, including zero throughput and even counts.
@@ -310,7 +312,7 @@ def compare(
         contract: Comparability contract for this run.
         measurements: Metric mappings from independent candidate runs.
         history: Metric mappings from prior comparable runs, oldest first.
-        threshold_config: Parsed ``perf_smoke_thresholds.json``.
+        threshold_config: Parsed ``performance_regression_thresholds.json``.
         min_samples: Comparable runs required before a verdict is rendered.
         label: Matrix combination name.
 
@@ -320,9 +322,9 @@ def compare(
         metrics are evaluated and reported, but never change the verdict.
     """
     if not measurements:
-        raise PerfSmokeError("at least one candidate run is required")
+        raise PerformanceRegressionError("at least one candidate run is required")
     if min_samples < 2:
-        raise PerfSmokeError("min_samples must be at least 2 for ASV significance testing")
+        raise PerformanceRegressionError("min_samples must be at least 2 for ASV significance testing")
     thresholds = resolve_thresholds(
         threshold_config,
         str(contract.runtime.get("gpu_model", "")),

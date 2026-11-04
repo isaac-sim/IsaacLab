@@ -21,7 +21,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from .metrics import PerfSmokeError, mapping, positive_int
+from .metrics import PerformanceRegressionError, mapping, positive_int
 
 #: Increasing the contract version starts new history for the gate.
 RUNTIME_COMPATIBILITY: dict[str, Any] = {
@@ -98,13 +98,13 @@ def _required_version_names(physics_backend: str, render_backend: str | None) ->
     """Return the version keys that matter for these backends.
 
     Raises:
-        PerfSmokeError: If either backend is not in :data:`RUNTIME_COMPATIBILITY`.
+        PerformanceRegressionError: If either backend is not in :data:`RUNTIME_COMPATIBILITY`.
     """
     names: list[str] = list(RUNTIME_COMPATIBILITY["always"])
 
     physics_map = RUNTIME_COMPATIBILITY["by_physics_backend"]
     if physics_backend not in physics_map:
-        raise PerfSmokeError(
+        raise PerformanceRegressionError(
             f"Unknown physics backend {physics_backend!r}; add it to"
             f" RUNTIME_COMPATIBILITY['by_physics_backend'] (known: {sorted(physics_map)})"
         )
@@ -113,7 +113,7 @@ def _required_version_names(physics_backend: str, render_backend: str | None) ->
     if render_backend:
         render_map = RUNTIME_COMPATIBILITY["by_render_backend"]
         if render_backend not in render_map:
-            raise PerfSmokeError(
+            raise PerformanceRegressionError(
                 f"Unknown render backend {render_backend!r}; add it to"
                 f" RUNTIME_COMPATIBILITY['by_render_backend'] (known: {sorted(render_map)})"
             )
@@ -129,30 +129,30 @@ def workload_identity(bundle: dict[str, Any]) -> dict[str, Any]:
 
     task = run.get("task")
     if not isinstance(task, str) or not task.strip():
-        raise PerfSmokeError("run.task must be a non-empty string")
+        raise PerformanceRegressionError("run.task must be a non-empty string")
 
     physics_backend = config.get("physics_backend")
     if not isinstance(physics_backend, str) or not physics_backend.strip():
-        raise PerfSmokeError("run.config.physics_backend must be a non-empty string")
+        raise PerformanceRegressionError("run.config.physics_backend must be a non-empty string")
 
     raw_render = config.get("rendering_backend")
     if not isinstance(raw_render, str) or not raw_render.strip():
-        raise PerfSmokeError("run.config.rendering_backend must be a non-empty string")
+        raise PerformanceRegressionError("run.config.rendering_backend must be a non-empty string")
     render_backend = None if raw_render == "none" else raw_render
 
     presets = config.get("presets", [])
     if not isinstance(presets, list) or not all(isinstance(item, str) for item in presets):
-        raise PerfSmokeError("run.config.presets must be a list of strings")
+        raise PerformanceRegressionError("run.config.presets must be a list of strings")
 
     solvers = config.get("physics_solvers", [])
     if not isinstance(solvers, list) or not all(isinstance(name, str) and name for name in solvers):
-        raise PerfSmokeError("run.config.physics_solvers must be a list of non-empty strings")
+        raise PerformanceRegressionError("run.config.physics_solvers must be a list of non-empty strings")
     solvers = sorted(set(solvers)) if solvers else [physics_backend]
     if physics_backend not in solvers:
-        raise PerfSmokeError("run.config.physics_backend must be included in physics_solvers")
+        raise PerformanceRegressionError("run.config.physics_backend must be included in physics_solvers")
     coupling = config.get("physics_coupling")
     if coupling is not None and (not isinstance(coupling, str) or not coupling):
-        raise PerfSmokeError("run.config.physics_coupling must be a non-empty string or null")
+        raise PerformanceRegressionError("run.config.physics_coupling must be a non-empty string or null")
 
     workload = {
         "task": task,
@@ -176,14 +176,14 @@ def build(bundle: dict[str, Any]) -> Contract:
 
     gpu_devices = hardware.get("gpu_devices")
     if not isinstance(gpu_devices, list) or not gpu_devices:
-        raise PerfSmokeError("hardware.gpu_devices must contain at least one device")
+        raise PerformanceRegressionError("hardware.gpu_devices must contain at least one device")
     gpu_name = mapping(gpu_devices[0], "hardware.gpu_devices[0]").get("name")
     if not isinstance(gpu_name, str) or not gpu_name.strip():
-        raise PerfSmokeError("hardware.gpu_devices[0].name must be a non-empty string")
+        raise PerformanceRegressionError("hardware.gpu_devices[0].name must be a non-empty string")
 
     cpu_name = hardware.get("cpu_name")
     if not isinstance(cpu_name, str) or not cpu_name.strip():
-        raise PerfSmokeError("hardware.cpu_name must be a non-empty string")
+        raise PerformanceRegressionError("hardware.cpu_name must be a non-empty string")
 
     pinned: dict[str, str] = {}
     required_versions = dict.fromkeys(
@@ -192,9 +192,11 @@ def build(bundle: dict[str, Any]) -> Contract:
     for name in required_versions:
         value = versions.get(name)
         if value is None:
-            raise PerfSmokeError(f"versions.{name} is required to compare {physics_backend} runs but is missing")
+            raise PerformanceRegressionError(
+                f"versions.{name} is required to compare {physics_backend} runs but is missing"
+            )
         if not isinstance(value, str) or not value.strip():
-            raise PerfSmokeError(f"versions.{name} must be a non-empty string")
+            raise PerformanceRegressionError(f"versions.{name} must be a non-empty string")
         pinned[name] = strip_build_metadata(value) if name in _STRIP_BUILD_METADATA else value.strip()
 
     return Contract(

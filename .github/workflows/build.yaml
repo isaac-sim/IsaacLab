@@ -941,8 +941,8 @@ jobs:
         container-name: "isaac-lab-rendering-correctness-kitless-ovstage-test"
         omni-github-test-type: "rendering-correctness-kitless-ovstage"
 
-  performance-smoke:
-    name: performance-smoke-benchmarks
+  performance-regression:
+    name: performance-regression-benchmarks
     runs-on: [self-hosted, gpu]
     # Configured paired attempts total 372 minutes, leaving 78 minutes for setup and reporting.
     timeout-minutes: 450
@@ -992,7 +992,7 @@ jobs:
     - name: Preserve benchmark controller and restored JIT cache
       run: |
         set -euo pipefail
-        controller="${RUNNER_TEMP}/perf-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+        controller="${RUNNER_TEMP}/performance-regression-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
         mkdir -p "$controller/tools" "$controller/baseline-output"
         cp -a tools/performance_regression "$controller/tools/"
         cp benchmark-legs.tsv "$controller/benchmark-legs.tsv"
@@ -1078,7 +1078,7 @@ jobs:
       uses: actions/upload-artifact@v7
       with:
         name: performance-pr-baseline-${{ github.event.pull_request.number }}-${{ needs.config.outputs.paired_base_commit }}-${{ github.run_attempt }}
-        path: ${{ runner.temp }}/perf-smoke-${{ github.run_id }}-${{ github.run_attempt }}/baseline-output/
+        path: ${{ runner.temp }}/performance-regression-${{ github.run_id }}-${{ github.run_attempt }}/baseline-output/
         if-no-files-found: warn
 
     - name: Restore the tested PR revision
@@ -1183,7 +1183,7 @@ jobs:
       id: store_venv
       run: |
         set -euo pipefail
-        venv="${RUNNER_TEMP}/perf-smoke-venv"
+        venv="${RUNNER_TEMP}/performance-regression-venv"
         uv venv --python 3.12 "$venv"
         uv pip install --python "$venv/bin/python" \
           -r tools/performance_regression/requirements.txt
@@ -1252,21 +1252,21 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v7
       with:
-        name: performance-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+        name: performance-regression-${{ github.run_id }}-${{ github.run_attempt }}
         path: benchmark-output/
         if-no-files-found: warn
         retention-days: 7
 
-  # Benchmark execution failures are reported by performance-smoke-benchmarks.
-  performance-smoke-summary:
-    name: performance-smoke
+  # Benchmark execution failures are reported by performance-regression-benchmarks.
+  performance-regression-summary:
+    name: performance-regression
     runs-on: ubuntu-latest
     permissions:
       contents: read
       actions: read
       checks: write
-    needs: [performance-smoke]
-    if: always() && needs.performance-smoke.result != 'skipped'
+    needs: [performance-regression]
+    if: always() && needs.performance-regression.result != 'skipped'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -1311,7 +1311,7 @@ jobs:
           exit "$gate_exit"
         fi
         {
-          printf '## Performance smoke\n\n'
+          printf '## Performance regression\n\n'
           if [ -s build-comparison/build-comparison.md ]; then
             cat build-comparison/build-comparison.md
           else
@@ -1349,32 +1349,32 @@ jobs:
             per_page: 100,
             request: {timeout: 60000},
           });
-          const summaryJob = jobs.find(job => job.name === 'performance-smoke');
-          if (!summaryJob) throw new Error('The Performance smoke Summary job could not be located.');
+          const summaryJob = jobs.find(job => job.name === 'performance-regression');
+          if (!summaryJob) throw new Error('The Performance regression Summary job could not be located.');
           const summaryUrl = `${process.env.GITHUB_SERVER_URL}/${context.repo.owner}/${context.repo.repo}`
             + `/actions/runs/${context.runId}/attempts/${attempt}#summary-${summaryJob.id}`;
           // Link the PR check to the rendered Summary.
-          core.notice(summaryUrl, {title: 'Open rendered Performance smoke Summary'});
+          core.notice(summaryUrl, {title: 'Open rendered Performance regression Summary'});
           const reportPath = 'build-comparison/build-comparison.md';
           const report = fs.existsSync(reportPath) ? fs.readFileSync(reportPath, 'utf8') : '';
           const result = report.match(/^\*\*(.+)\*\*$/m)?.[0]
             || '**Comparison unavailable. Open the Summary for the reason and available evidence.**';
           const {data: check} = await github.rest.checks.create({
             ...context.repo,
-            name: 'Performance smoke comparison',
+            name: 'Performance regression comparison',
             head_sha: context.payload.pull_request.head.sha,
             status: 'completed',
             conclusion: 'neutral',
-            external_id: `performance-smoke-comparison:${context.runId}:${attempt}`,
+            external_id: `performance-regression-comparison:${context.runId}:${attempt}`,
             details_url: summaryUrl,
             output: {
-              title: 'Performance smoke comparison',
+              title: 'Performance regression comparison',
               summary: [
-                `## [Open rendered Performance smoke Summary](${summaryUrl})`,
+                `## [Open rendered Performance regression Summary](${summaryUrl})`,
                 result,
                 'View baseline and PR FPS, percentage changes, and results for every workload. '
                   + 'Builds, source runs, samples, and diagnostics are in the collapsed details.',
-                'This report is informational. The existing `performance-smoke` check retains the rolling-history CI gate.',
+                'This report is informational. The existing `performance-regression` check retains the rolling-history CI gate.',
               ].join('\n\n'),
             },
           });

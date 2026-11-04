@@ -40,7 +40,7 @@ run_attempt() {
       -v "$PERF_MEASUREMENT_ROOT/source/isaaclab/isaaclab/utils/timer.py:/workspace/isaaclab/source/isaaclab/isaaclab/utils/timer.py:ro"
     )
   fi
-  container="performance-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${BENCHMARK_ROLE:+${BENCHMARK_ROLE}-}${leg}-${sample}-${attempt}"
+  container="performance-regression-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${BENCHMARK_ROLE:+${BENCHMARK_ROLE}-}${leg}-${sample}-${attempt}"
   cleanup_container
   python3 "$SOURCE_REVISION_LAUNCHER" check --checkout-root "$CHECKOUT_ROOT" \
     --manifest "$SOURCE_MANIFEST" --output-dir "${BENCHMARK_OUTPUT}/${leg}/sample-${sample}" || return 1
@@ -103,7 +103,7 @@ while IFS='|' read -r leg task num_envs bench_timeout_s args; do
   if [ -n "${PERF_MEASUREMENT_ROOT:-}" ]; then
     bench_timeout_s=$((bench_timeout_s / 2))
   fi
-  echo "::group::performance-smoke: ${BENCHMARK_ROLE:+${BENCHMARK_ROLE}: }${leg}"
+  echo "::group::performance-regression: ${BENCHMARK_ROLE:+${BENCHMARK_ROLE}: }${leg}"
   install -d -m 0777 "${BENCHMARK_OUTPUT}/${leg}"
   leg_ok=true
   # Use separate runs for ASV because frames from one simulation are not independent samples.
@@ -129,6 +129,6 @@ while IFS='|' read -r leg task num_envs bench_timeout_s args; do
 done < "$BENCHMARK_LEGS"
 
 if [ "${#failed_legs[@]}" -gt 0 ]; then
-  echo "::error::performance-smoke: failed combination(s): ${failed_legs[*]}"
+  echo "::error::performance-regression: failed combination(s): ${failed_legs[*]}"
   exit 1
 fi

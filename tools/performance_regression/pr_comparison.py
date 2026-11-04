@@ -30,7 +30,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from .contract import normalize_gpu_model, workload_identity
-from .metrics import PerfSmokeError, nested_number
+from .metrics import PerformanceRegressionError, nested_number
 from .report import render_build_comparison
 from .source_revision import RUNTIME_MODULE, measurement_digest, prepare_manifest
 
@@ -159,7 +159,7 @@ def runtime_fps(bundle: dict) -> float | None:
     try:
         value = nested_number(bundle, ("runtime", "total_fps", "mean"))
         return value if value is not None and value >= 0 else None
-    except PerfSmokeError:
+    except PerformanceRegressionError:
         return None
 
 
@@ -167,7 +167,7 @@ def workload_key(bundle: dict) -> str | None:
     """Shared workload identity, independent of metric formula and runtime versions."""
     try:
         return json.dumps(workload_identity(bundle), sort_keys=True, separators=(",", ":"))
-    except PerfSmokeError:
+    except PerformanceRegressionError:
         return None
 
 
@@ -227,7 +227,7 @@ def read_evidence(
 ) -> Evidence:
     """Download one exact producing attempt; do not discard failed or missing legs."""
     run_id = run["id"]
-    name = artifact_name or f"performance-smoke-{run_id}-{attempt}"
+    name = artifact_name or f"performance-regression-{run_id}-{attempt}"
     if artifact.get("name") != name or (artifact.get("workflow_run") or {}).get("id", run_id) != run_id:
         raise EvidenceError("identity_mismatch", "Artifact does not belong to the requested producing attempt")
     identity = {
@@ -300,7 +300,7 @@ def resolve_candidate(
     artifacts = client.artifacts(run_id)
     for attempt in range(report_attempt, 0, -1):
         run = client.run_attempt(run_id, attempt)
-        name = f"performance-smoke-{run_id}-{attempt}"
+        name = f"performance-regression-{run_id}-{attempt}"
         matches = [artifact for artifact in artifacts if artifact.get("name") == name]
         if len(matches) > 1:
             raise EvidenceError("ambiguous", f"More than one GitHub artifact has the exact name {name}")
@@ -308,7 +308,7 @@ def resolve_candidate(
             return read_evidence(client, run, matches[0], attempt, comparison_dir=comparison_dir)
         started = parse_timestamp(run.get("run_started_at"))
         for job in client.jobs(run_id, attempt):
-            if job.get("name") != "performance-smoke-benchmarks" or job.get("conclusion") == "skipped":
+            if job.get("name") != "performance-regression-benchmarks" or job.get("conclusion") == "skipped":
                 continue
             job_started = parse_timestamp(job.get("started_at"))
             if started is None or job_started is None:
@@ -1299,7 +1299,7 @@ if "pytest" in sys.modules:
             run.update(fields)
             self.runs[run_id, attempt] = run
             self.run_jobs[run_id, attempt] = [
-                dict(name="performance-smoke-benchmarks", started_at=run["run_started_at"], conclusion="success")
+                dict(name="performance-regression-benchmarks", started_at=run["run_started_at"], conclusion="success")
             ]
             return run
 
@@ -1525,7 +1525,7 @@ if "pytest" in sys.modules:
         )
         files["first/comparison.json"] = {"verdict": "FAIL", "label": "first"}
         files["pr-comparison.json"].update(pin_fields)
-        current = pair.client.publish(20, "performance-smoke-20-1", files)
+        current = pair.client.publish(20, "performance-regression-20-1", files)
         return baseline, current
 
     def restore(pair):
@@ -2113,7 +2113,7 @@ if "pytest" in sys.modules:
         files["missing/status"] = "failed"
         pair.client.run_jobs[20, 1][0]["conclusion"] = "failure"
         pair.client.runs[20, 1]["conclusion"] = "failure"
-        pair.client.publish(20, "performance-smoke-20-1", files)
+        pair.client.publish(20, "performance-regression-20-1", files)
         selected = resolve_candidate(pair.client, 20, 1)
         assert len(selected.samples["first"]) == 2 and selected.samples["missing"] == []
         assert selected.statuses["missing"] == "failed" and sum("FPS value" in issue for issue in selected.issues) == 2
@@ -2220,7 +2220,7 @@ if "pytest" in sys.modules:
         assert (detail or "Baseline selection metadata was not produced") in pin["reason"]
         files = artifact_files(pair, "current", 20)
         files["pr-comparison.json"] = pin
-        pair.client.publish(20, "performance-smoke-20-1", files)
+        pair.client.publish(20, "performance-regression-20-1", files)
         candidate = resolve_candidate(pair.client, 20, 1)
         selected, selection = select_pr_baseline(pair.client, candidate)
         assert selected is None and selection["reason"] == pin["reason"] and not pair.client.queries
@@ -2355,7 +2355,7 @@ if "pytest" in sys.modules:
         files = artifact_files(pair, "current", 20) if role == "baseline" else {"first/status": "error"}
         files["paired-failure.json"] = failure
         files["pr-comparison.json"] = {"reference_commit": pair.base, "tested_commit": HEAD}
-        pair.client.publish(20, "performance-smoke-20-1", files)
+        pair.client.publish(20, "performance-regression-20-1", files)
         assert pair.invoke("report") == 0
         report = json.loads((pair.output / "build-comparison.json").read_text())
         text = (pair.output / "build-comparison.md").read_text()
@@ -2377,7 +2377,7 @@ if "pytest" in sys.modules:
         files = artifact_files(pair, "current", 20)
         files["build-context.json"] = b"not JSON"
         files["first/comparison.json"] = {"verdict": "FAIL", "label": "first"}
-        artifact = pair.client.publish(20, "performance-smoke-20-1", files)
+        artifact = pair.client.publish(20, "performance-regression-20-1", files)
         assert pair.invoke("report", comparison_dir=pair.tmp / "comparisons", gate_only=gate_only) == 0
         assert pair.client.downloaded == [artifact["id"]]
         assert cli.main(["aggregate", "--comparison_dir", str(pair.tmp / "comparisons")]) == 1

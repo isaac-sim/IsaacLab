@@ -36,7 +36,7 @@ def _icon(verdict: str) -> str:
 def render(report: Report) -> str:
     """Render measured values, baselines and thresholds as Markdown."""
     lines = [
-        f"## Performance smoke: {_icon(report.verdict)}",
+        f"## Performance regression: {_icon(report.verdict)}",
         "",
         report.message,
         "",
@@ -244,7 +244,7 @@ def _build_source_diagnostics(report: dict) -> list[str]:
 
 
 def render_build_comparison(report: dict) -> str:
-    """Render exact-build FPS observations within the existing Performance smoke summary."""
+    """Render exact-build FPS observations within the existing Performance regression summary."""
     selection = report.get("selection", {})
     identities = {side: report.get(side) for side in ("baseline", "candidate")}
     unavailable_side = selection.get("unavailable_side")
