@@ -58,6 +58,28 @@ from .schemas import drive_instance_name
 
 logger = logging.getLogger(__name__)
 
+_JOINT_TYPES = frozenset({"PhysicsRevoluteJoint", "PhysicsPrismaticJoint"})
+
+_PD_API = "NewtonPDControlAPI"
+_PID_API = "NewtonPIDControlAPI"
+_NEURAL_API = "NewtonNeuralControlAPI"
+_MAX_EFFORT_API = "NewtonMaxEffortClampingAPI"
+_DC_MOTOR_API = "NewtonDCMotorClampingAPI"
+_POSITION_BASED_API = "NewtonPositionBasedClampingAPI"
+_DELAY_API = "NewtonActuatorDelayAPI"
+
+_DRIVE_APIS = frozenset({_PD_API, _PID_API, _NEURAL_API, BAM_DRIVE_API})
+"""Drive schemas; Newton rejects an actuator prim with more than one."""
+
+_COMPONENT_APIS = _DRIVE_APIS | {_MAX_EFFORT_API, _DC_MOTOR_API, _POSITION_BASED_API, _DELAY_API}
+"""Actuator component schemas whose presence an actuator config decides."""
+
+_KNOWN_ACTUATOR_APIS = _COMPONENT_APIS | {"NewtonActuatorControlBaseAPI", "NewtonActuatorClampingBaseAPI"}
+"""Every schema token a config can be authored next to; base APIs are built into the component schemas."""
+
+_FLOAT = Sdf.ValueTypeNames.Float
+_INT = Sdf.ValueTypeNames.Int
+
 
 def _resolve_actuator_class(class_type: type | str) -> type:
     """Resolve and validate an actuator class reference for authoring identity checks."""
@@ -234,28 +256,6 @@ def author_actuator_prims(
 Private helpers.
 """
 
-_JOINT_TYPES = frozenset({"PhysicsRevoluteJoint", "PhysicsPrismaticJoint"})
-
-_PD_API = "NewtonPDControlAPI"
-_PID_API = "NewtonPIDControlAPI"
-_NEURAL_API = "NewtonNeuralControlAPI"
-_MAX_EFFORT_API = "NewtonMaxEffortClampingAPI"
-_DC_MOTOR_API = "NewtonDCMotorClampingAPI"
-_POSITION_BASED_API = "NewtonPositionBasedClampingAPI"
-_DELAY_API = "NewtonActuatorDelayAPI"
-
-_DRIVE_APIS = frozenset({_PD_API, _PID_API, _NEURAL_API, BAM_DRIVE_API})
-"""Drive schemas; Newton rejects an actuator prim with more than one."""
-
-_COMPONENT_APIS = _DRIVE_APIS | {_MAX_EFFORT_API, _DC_MOTOR_API, _POSITION_BASED_API, _DELAY_API}
-"""Actuator component schemas whose presence an actuator config decides."""
-
-_KNOWN_ACTUATOR_APIS = _COMPONENT_APIS | {"NewtonActuatorControlBaseAPI", "NewtonActuatorClampingBaseAPI"}
-"""Every schema token a config can be authored next to; base APIs are built into the component schemas."""
-
-_FLOAT = Sdf.ValueTypeNames.Float
-_INT = Sdf.ValueTypeNames.Int
-
 
 @dataclass(frozen=True)
 class _ActuatorField:
@@ -376,6 +376,18 @@ def _author_group(
                 old_prim.SetActive(False)
         for schema in remove:
             prim.RemoveAppliedSchema(schema)
+        if remove:
+            removed_attrs = {
+                field.attr
+                for known_layout in _ACTUATOR_LAYOUTS.values()
+                for field in known_layout.fields
+                if field.schema in remove
+            }
+            # Shared attributes, such as BAM's maxEffort, still belong to a retained component.
+            kept_attrs = {field.attr for field in layout.fields if field.schema not in disabled}
+            for name in sorted(removed_attrs - kept_attrs):
+                if (attr := prim.GetAttribute(name)) and attr.HasAuthoredValue():
+                    attr.Block()
         for schema in dict.fromkeys([layout.drive, *(f.schema for f, _ in values)]):
             if schema not in present:
                 prim.AddAppliedSchema(schema)

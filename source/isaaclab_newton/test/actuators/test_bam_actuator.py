@@ -243,6 +243,8 @@ def test_configuration_overrides_only_the_values_it_sets(tmp_path, servo_usd, ca
         prim.GetAttribute("newton:kt").Set(0.3 + index * 0.1)
         prim.GetAttribute("newton:frictionScale").Set(2.0)
         prim.CreateAttribute("newton:hasBacklash", Sdf.ValueTypeNames.Int).Set(1)
+        # Removing this clamp must keep maxEffort, which the BAM drive also owns.
+        prim.AddAppliedSchema("NewtonMaxEffortClampingAPI")
         # A sparse asset leaves the current limit to the drive's default; the config need not restate it.
         prim.RemoveProperty("newton:maxCurrent")
         asset.GetPrimAtPath(f"/Robot/{name}").GetAttribute("newton:friction").Set(0.0)

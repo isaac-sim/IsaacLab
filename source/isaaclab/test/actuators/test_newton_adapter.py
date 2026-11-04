@@ -347,6 +347,10 @@ def test_configuration_overrides_only_the_values_it_sets(tmp_path, caplog):
         prim.CreateAttribute("newton:modelPath", Sdf.ValueTypeNames.Asset).Set(Sdf.AssetPath(str(checkpoint)))
         prim.CreateAttribute("newton:saturationEffort", Sdf.ValueTypeNames.Float).Set(20.0)
     stage = _make_asset_stage(tmp_path, asset)
+    asset_layer = Sdf.Layer.FindOrOpen(str(tmp_path / "robot.usda"))
+    asset_opinions = asset_layer.ExportToString()
+    # Cover a removed value in the edit target as well as ones inherited from the asset.
+    stage.GetPrimAtPath("/World/Robot/dc_a_dc_a_actuator").GetAttribute("newton:velocityLimit").Set(3.0)
     # A component the asset lacks takes its joint's drive limit; a kept clamp keeps the asset's limit.
     for index, joint_name in enumerate(_JOINT_NAMES):
         joint_prim = stage.GetPrimAtPath(f"/World/Robot/{joint_name}")
@@ -407,6 +411,16 @@ def test_configuration_overrides_only_the_values_it_sets(tmp_path, caplog):
     for joint_name, (drive, components) in expected.items():
         actuator = _parsed_actuator(stage, joint_name)
         assert (actuator.drive_kwargs, dict(actuator.component_specs)) == (drive, components), joint_name
+
+    # Re-adding the DC clamp must not resurrect values from before its removal.
+    stage.GetPrimAtPath("/World/Robot/dc_a").GetAttribute("drive:angular:physics:maxForce").Block()
+    author_actuator_prims(
+        stage,
+        "/World/Robot",
+        {"dc_a": DCMotorCfg(joint_names_expr=["dc_a"], stiffness=None, damping=None, saturation_effort=20.0)},
+    )
+    assert _parsed_actuator(stage, "dc_a").component_specs == [(ClampingDCMotor, {"saturation_effort": 20.0})]
+    assert asset_layer.ExportToString() == asset_opinions
 
 
 def test_actuators_without_a_matching_drive_are_replaced(tmp_path, caplog):
