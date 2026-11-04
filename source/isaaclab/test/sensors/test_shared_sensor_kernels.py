@@ -101,21 +101,16 @@ def test_pva_data_owns_views_and_reports_unavailable_outputs(monkeypatch):
     np.testing.assert_array_equal(held.numpy()[:, :3], [[1, 2, 3]] * 2)
 
 
-def test_pva_data_hierarchy_remains_importable_during_deprecation(monkeypatch):
+def test_pva_data_hierarchy_remains_importable(monkeypatch):
     from isaaclab.sensors.pva.base_pva_data import BasePvaData
     from isaaclab.sensors.pva.pva_data import PvaData
 
     core = importlib.import_module("isaaclab.sensors.pva")
-    monkeypatch.delitem(vars(core), "BasePvaData", raising=False)
-    with pytest.warns(DeprecationWarning, match="BasePvaData") as caught:
-        assert core.BasePvaData is BasePvaData
-    assert caught[0].filename == __file__
+    assert core.BasePvaData is BasePvaData
     data_classes = {}
     for backend in ("newton", "ov", "physx"):
         package = importlib.import_module(f"isaaclab_{backend}.sensors.pva")
-        monkeypatch.delitem(vars(package), "PvaData", raising=False)
-        with pytest.warns(DeprecationWarning, match="PvaData"):
-            data_class = package.PvaData
+        data_class = package.PvaData
         data_classes[backend] = data_class
         assert issubclass(data_class, BasePvaData)
         assert data_class(["pose"]).data_types == frozenset({"pose"})

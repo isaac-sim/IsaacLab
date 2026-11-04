@@ -1,1 +1,1 @@
-* Deprecated Newton PvaData imports ahead of a future removal. Use isaaclab.sensors.PvaData or read measurements through the sensor's data property.
+* Marked direct use of Newton PvaData as deprecated in its API documentation. Imports remain available without warnings; use isaaclab.sensors.PvaData or sensor.data.

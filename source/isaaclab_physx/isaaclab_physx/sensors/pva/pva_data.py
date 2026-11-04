@@ -9,4 +9,9 @@ from isaaclab.sensors.pva.pva_data import _PvaDataStorage
 
 
 class PvaData(_PvaDataStorage):
-    """PhysX PVA data backed by shared output storage."""
+    """PhysX PVA data backed by shared output storage.
+
+    .. deprecated::
+        Direct use of this backend class is deprecated. Read ``sensor.data`` or construct
+        :class:`isaaclab.sensors.PvaData` instead. No removal release is scheduled.
+    """

@@ -199,7 +199,7 @@ you can import from ``isaaclab_physx.sensors``:
    # Direct PhysX implementation imports
    from isaaclab_physx.sensors import ContactSensor, ContactSensorData
    from isaaclab_physx.sensors import Imu, ImuData
-   from isaaclab_physx.sensors import Pva, PvaData  # PvaData deprecated; prefer sensor.data
+   from isaaclab_physx.sensors import Pva, PvaData  # Direct PvaData use is deprecated; prefer sensor.data
    from isaaclab_physx.sensors import FrameTransformer, FrameTransformerData
    from isaaclab_physx.sensors import JointWrenchSensor, JointWrenchSensorData
 
@@ -1552,7 +1552,8 @@ to :class:`~isaaclab.sensors.PvaData` which provides all of them.
 
 Import ``PvaData`` from ``isaaclab.sensors`` for direct construction, or read
 measurements through ``sensor.data``. Backend-specific ``PvaData`` classes and
-``BasePvaData`` remain available with deprecation warnings during the transition.
+``BasePvaData`` remain importable without warnings. Direct use of the legacy
+classes is deprecated in their API documentation; no removal release is scheduled.
 ``PvaCfg.data_types`` defaults to ``["pose", "velocity", "acceleration", "projected_gravity"]``.
 Pose is required, while each remaining group can be omitted:
 

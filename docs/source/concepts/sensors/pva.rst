@@ -62,9 +62,8 @@ Configure and read the sensor
 The data fields are :class:`~isaaclab.utils.warp.ProxyArray` buffers. Convert them to Torch views only
 where Torch operations are required:
 
-The existing ``BasePvaData`` and backend-specific ``PvaData`` imports remain
-available with deprecation warnings for this transition. Read measurements through
-``sensor.data`` in new code.
+The existing ``BasePvaData`` and backend-specific ``PvaData`` classes remain
+importable. Read measurements through ``sensor.data`` in new code.
 
 .. code-block:: python
 

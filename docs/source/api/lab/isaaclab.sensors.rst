@@ -222,10 +222,8 @@ Inertia Measurement Unit
 Pose Velocity Acceleration Sensor
 ---------------------------------
 
-The PVA data hierarchy remains available during the deprecation period.
-``BasePvaData`` and backend-specific ``PvaData`` imports are deprecated.
-Read standard measurements from ``sensor.data``; direct construction can use
-``isaaclab.sensors.PvaData``.
+The PVA data hierarchy remains available. Read standard measurements from
+``sensor.data``; direct construction can use ``isaaclab.sensors.PvaData``.
 
 .. autoclass:: Pva
     :members:
