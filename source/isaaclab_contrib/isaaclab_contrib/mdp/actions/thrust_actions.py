@@ -14,6 +14,7 @@ import torch
 import isaaclab.utils.string as string_utils
 from isaaclab.managers.action_manager import ActionTerm
 from isaaclab.utils import index_fill_, instantiate
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -190,7 +191,7 @@ class ThrustAction(ActionTerm):
     Methods
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None) -> None:
         """Reset the action term.
 
         This method resets the raw actions to zero for the specified environments.
@@ -198,8 +199,10 @@ class ThrustAction(ActionTerm):
 
         Args:
             env_ids: Environment indices to reset. Defaults to None (all environments).
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Takes precedence over
+                ``env_ids``.
         """
-        index_fill_(self._raw_actions, env_ids, 0.0)
+        index_fill_(self._raw_actions, env_ids if env_mask is None else env_mask.torch, 0.0)
 
     def process_actions(self, actions: torch.Tensor):
         r"""Process actions by applying scaling, offset, and clipping.
@@ -375,6 +378,7 @@ class NavigationAction(ThrustAction):
         self._asset.set_thrust_target(thrust_commands, thruster_ids=self._thruster_ids)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
+        # note: the Lee controllers reset by indices, so this term keeps receiving indices
         # Call parent reset
         super().reset(env_ids)
         # Reset controller internal states
