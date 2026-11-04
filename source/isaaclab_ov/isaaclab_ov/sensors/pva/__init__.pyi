@@ -5,6 +5,8 @@
 
 __all__ = [
     "Pva",
+    "PvaData",
 ]
 
 from .pva import Pva
+from .pva_data import PvaData

@@ -79,6 +79,7 @@ The following classes are part of the public :mod:`isaaclab_newton.sensors` API.
    MultiMeshRayCaster
    MultiMeshRayCasterCamera
    Pva
+   PvaData
    RayCaster
    RayCasterCamera
 

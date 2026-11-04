@@ -222,6 +222,11 @@ Inertia Measurement Unit
 Pose Velocity Acceleration Sensor
 ---------------------------------
 
+The PVA data hierarchy remains available during the deprecation period.
+``BasePvaData`` and backend-specific ``PvaData`` imports are deprecated.
+Read standard measurements from ``sensor.data``; direct construction can use
+``isaaclab.sensors.PvaData``.
+
 .. autoclass:: Pva
     :members:
     :inherited-members:
@@ -277,6 +282,7 @@ The following classes are part of the public :mod:`isaaclab.sensors` API.
    BaseJointWrenchSensor
    BaseJointWrenchSensorData
    BasePva
+   BasePvaData
    ImuData
    MultiMeshRayCasterCameraData
    TiledCamera
@@ -307,6 +313,9 @@ The following classes are part of the public :mod:`isaaclab.sensors` API.
    :show-inheritance:
 
 .. autoclass:: BasePva
+   :show-inheritance:
+
+.. autoclass:: BasePvaData
    :show-inheritance:
 
 .. autoclass:: ImuData

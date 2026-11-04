@@ -409,6 +409,9 @@ before changing an interface. Apply these rules when adding code or cleaning up 
 * Preserve observable behavior unless the change explicitly requires otherwise. Check ordering, shapes,
   dtype, device, input mutation, and failure behavior as well as return values. Public API removals and
   renames require a deprecation and migration path.
+* Before removing a sensor data hierarchy, compare the same ownership pattern across sensor families.
+  Keep public base classes, backend data classes, and factories available through a deprecation release
+  when the broader consolidation is not part of the same change.
 * Prefer a functional approach for stateless computations and transformations: use plain functions with
   explicit inputs and outputs, keeping side effects at clear boundaries. Use classes when they own
   meaningful state or resources, enforce invariants over a lifecycle, or implement an interface required

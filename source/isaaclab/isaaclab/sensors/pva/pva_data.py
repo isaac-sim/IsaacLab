@@ -7,10 +7,12 @@
 
 from __future__ import annotations
 
+import importlib
 from collections.abc import Sequence
 
 import warp as wp
 
+from ...utils.backend_utils import FactoryBase
 from ...utils.leapp import (
     POSE7_ELEMENT_NAMES,
     QUAT_XYZW_ELEMENT_NAMES,
@@ -20,11 +22,12 @@ from ...utils.leapp import (
 )
 from ...utils.warp import ProxyArray
 from ...utils.warp.memory import split_views
+from .base_pva_data import BasePvaData
 
 
 @wp.struct
 class PvaBuffers:
-    """Kernel arguments referencing the allocations owned by :class:`PvaData`.
+    """Kernel arguments referencing the allocations owned by :class:`_PvaDataStorage`.
 
     Pose is always present. Disabled output groups have null arrays, not zero-valued
     measurements. Linear and angular components share a spatial-vector allocation.
@@ -36,15 +39,15 @@ class PvaBuffers:
     projected_gravity_b: wp.array(dtype=wp.vec3f)
 
 
-class PvaData:
+class _PvaDataStorage(BasePvaData):
     """Shared PVA measurements with explicit optional output groups.
 
     Enabled properties return ``None`` before allocation. Disabled properties raise
     ``NotImplementedError``. Pose/component views share memory, including mutations,
     and may be noncontiguous. Reading a property never launches a kernel.
 
-    Backends may subclass this container for additional measurements while retaining
-    these contracts; native input layouts do not need to match this output layout.
+    Backends subclass this container for compatibility or additional measurements while
+    retaining these contracts; native input layouts do not need to match this output layout.
     """
 
     def __init__(self, data_types: Sequence[str] = ("pose", "velocity", "acceleration", "projected_gravity")):
@@ -176,3 +179,19 @@ class PvaData:
         if "acceleration" not in self.data_types:
             raise NotImplementedError("PVA acceleration output was not enabled in PvaCfg.data_types")
         return self._ang_acc_b
+
+
+class PvaData(FactoryBase, BasePvaData):
+    """Create the backend PVA data container using the active simulation backend."""
+
+    @classmethod
+    def resolve_class(cls, *args, **kwargs) -> type[BasePvaData]:
+        backend = cls._get_backend(*args, **kwargs)
+        if backend not in cls._registry:
+            # Import the implementation directly so factory use does not warn about its public export.
+            module = importlib.import_module(f"{cls._get_module_name(backend)}.pva_data")
+            cls.register(backend, module.PvaData)
+        return cls._registry[backend]
+
+    def __new__(cls, *args, **kwargs) -> BasePvaData:
+        return super().__new__(cls, *args, **kwargs)

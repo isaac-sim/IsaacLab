@@ -6,13 +6,13 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 import warp as wp
 
 from ..sensor_base import SensorBase
+from .base_pva_data import BasePvaData
 from .kernels import pva_reset_kernel
-from .pva_data import PvaData
 
 if TYPE_CHECKING:
     from .pva_cfg import PvaCfg
@@ -53,7 +53,7 @@ class BasePva(SensorBase):
     __backend_name__: str = "base"
     """The name of the backend for the PVA sensor."""
 
-    supported_data_types = frozenset({"pose"})
+    supported_data_types: ClassVar[frozenset[str]] = frozenset({"pose"})
     """Output groups implemented by the concrete backend; extensions may add groups."""
 
     def __init__(self, cfg: PvaCfg):
@@ -92,7 +92,7 @@ class BasePva(SensorBase):
     """
 
     @property
-    def data(self) -> PvaData:
+    def data(self) -> BasePvaData:
         """Refresh and return the enabled measurements."""
         self._update_outdated_buffers()
         return self._data

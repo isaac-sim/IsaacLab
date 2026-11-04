@@ -236,3 +236,29 @@ def lazy_export(
     setattr(mod, "__dir__", __dir__)
     setattr(mod, "__all__", __all__)
     return __getattr__, __dir__, __all__
+
+
+def warn_on_lazy_exports(getattr_handler: Callable[[str], object], replacements: dict[str, str]) -> None:
+    """Warn once when a deprecated public name is first resolved by lazy_export."""
+    caller_globals = sys._getframe(1).f_globals
+    caller_file = caller_globals["__file__"]
+    skip_prefixes = (
+        os.path.dirname(__file__),
+        os.path.dirname(os.path.dirname(caller_file)),
+        os.path.dirname(lazy.__file__),
+        "<frozen importlib",
+    )
+
+    def __getattr__(name: str) -> object:
+        value = getattr_handler(name)
+        if replacement := replacements.get(name):
+            warnings.warn(
+                f"{name} is deprecated and will be removed in a future release. Use {replacement} instead.",
+                DeprecationWarning,
+                stacklevel=2,
+                skip_file_prefixes=skip_prefixes,
+            )
+            caller_globals[name] = value
+        return value
+
+    setattr(sys.modules[caller_globals["__name__"]], "__getattr__", __getattr__)

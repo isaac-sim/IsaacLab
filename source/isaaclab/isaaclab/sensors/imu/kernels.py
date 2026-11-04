@@ -5,7 +5,7 @@
 
 import warp as wp
 
-from isaaclab.utils.warp.math import acceleration_at_offset
+from ...utils.warp.math import acceleration_at_offset
 
 
 @wp.kernel

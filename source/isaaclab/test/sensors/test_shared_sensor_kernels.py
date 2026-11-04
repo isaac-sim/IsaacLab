@@ -15,8 +15,8 @@ import warp as wp
 
 from isaaclab.sensors.frame_transformer.kernels import frame_transformer_update_kernel
 from isaaclab.sensors.imu.kernels import imu_update_kernel
-from isaaclab.sensors.pva import PvaData
 from isaaclab.sensors.pva.kernels import make_pva_update, pva_reset_kernel
+from isaaclab.sensors.pva.pva_data import _PvaDataStorage
 from isaaclab.test.utils import DeviceScope, test_devices
 
 pytestmark = pytest.mark.unit
@@ -46,7 +46,7 @@ def test_imu_and_pva_transport_preserve_masks_and_distinct_gravity_contracts():
         for subset in (s for n in range(4) for s in combinations(("velocity", "acceleration", "projected_gravity"), n)):
             data_types = frozenset(("pose", *subset))
             kernel = make_pva_update(data_types)
-            data = PvaData(data_types)
+            data = _PvaDataStorage(data_types)
             data.create_buffers(2, "cpu")
             for group in data_types:
                 for field in expected[group]:
@@ -72,7 +72,7 @@ def test_imu_and_pva_transport_preserve_masks_and_distinct_gravity_contracts():
 
 
 def test_pva_data_owns_views_and_reports_unavailable_outputs(monkeypatch):
-    data = PvaData(["pose", "velocity"])
+    data = _PvaDataStorage(["pose", "velocity"])
     assert data.pose_w is None
     assert data.lin_vel_b is None
     with pytest.raises(NotImplementedError, match="acceleration"):
@@ -101,9 +101,32 @@ def test_pva_data_owns_views_and_reports_unavailable_outputs(monkeypatch):
     np.testing.assert_array_equal(held.numpy()[:, :3], [[1, 2, 3]] * 2)
 
 
+def test_pva_data_hierarchy_remains_importable_during_deprecation(monkeypatch):
+    from isaaclab.sensors.pva.base_pva_data import BasePvaData
+    from isaaclab.sensors.pva.pva_data import PvaData
+
+    core = importlib.import_module("isaaclab.sensors.pva")
+    monkeypatch.delitem(vars(core), "BasePvaData", raising=False)
+    with pytest.warns(DeprecationWarning, match="BasePvaData") as caught:
+        assert core.BasePvaData is BasePvaData
+    assert caught[0].filename == __file__
+    data_classes = {}
+    for backend in ("newton", "ov", "physx"):
+        package = importlib.import_module(f"isaaclab_{backend}.sensors.pva")
+        monkeypatch.delitem(vars(package), "PvaData", raising=False)
+        with pytest.warns(DeprecationWarning, match="PvaData"):
+            data_class = package.PvaData
+        data_classes[backend] = data_class
+        assert issubclass(data_class, BasePvaData)
+        assert data_class(["pose"]).data_types == frozenset({"pose"})
+    assert issubclass(PvaData, BasePvaData)
+    monkeypatch.setattr(PvaData, "_get_backend", classmethod(lambda cls, *args, **kwargs: "newton"))
+    assert isinstance(PvaData(["pose"]), data_classes["newton"])
+
+
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_pva_partial_outputs_replay_and_reset_aliases(device):
-    data = PvaData(["pose", "acceleration"])
+    data = _PvaDataStorage(["pose", "acceleration"])
     data.create_buffers(2, device)
     pose = wp.array([[1, 2, 3, 0, 0, 0, 1]] * 2, dtype=wp.transformf, device=device)
     velocity = wp.array([[0, 0, 0, 0, 0, 2]] * 2, dtype=wp.spatial_vectorf, device=device)
@@ -272,11 +295,13 @@ def test_sensor_ownership_and_optional_compilation(source_checkout_root):
         assert pva_reset_kernel.module.hash_module() == reset_hash
     source = source_checkout_root / "source"
     core = source / "isaaclab/isaaclab"
-    assert not (core / "sensors/pva/base_pva_data.py").exists()
+    assert (core / "sensors/pva/base_pva_data.py").is_file()
     assert not (core / "sensors/joint_wrench/kernels.py").exists()
     data = ast.parse((core / "sensors/pva/pva_data.py").read_text())
-    data_class = next(n for n in data.body if isinstance(n, ast.ClassDef) and n.name == "PvaData")
-    assert not data_class.bases, "PvaData owns storage without an abstract shell or backend factory"
+    storage = next(n for n in data.body if isinstance(n, ast.ClassDef) and n.name == "_PvaDataStorage")
+    factory = next(n for n in data.body if isinstance(n, ast.ClassDef) and n.name == "PvaData")
+    assert [base.id for base in storage.bases] == ["BasePvaData"]
+    assert [base.id for base in factory.bases] == ["FactoryBase", "BasePvaData"]
     for family in ("imu", "pva", "frame_transformer"):
         owner = core / f"sensors/{family}/kernels.py"
         assert owner.is_file()
@@ -297,9 +322,14 @@ def test_sensor_ownership_and_optional_compilation(source_checkout_root):
             ), owner
     for backend in ("ov", "physx", "newton"):
         package = source / f"isaaclab_{backend}/isaaclab_{backend}"
-        assert not (package / "sensors/pva/pva_data.py").exists()
+        data_file = package / "sensors/pva/pva_data.py"
+        assert data_file.is_file()
+        backend_data = ast.parse(data_file.read_text())
+        container = next(n for n in backend_data.body if isinstance(n, ast.ClassDef) and n.name == "PvaData")
+        assert [base.id for base in container.bases] == ["_PvaDataStorage"]
+        assert not any(isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) for n in container.body)
         for stub in (package / "sensors/__init__.pyi", package / "sensors/pva/__init__.pyi"):
-            assert not any(
+            assert any(
                 isinstance(n, ast.ImportFrom) and any(a.name == "PvaData" for a in n.names)
                 for n in ast.parse(stub.read_text()).body
             )
@@ -331,7 +361,6 @@ def test_sensor_ownership_and_optional_compilation(source_checkout_root):
         for file in (package / package.name).rglob("*.py"):
             for node in ast.walk(ast.parse(file.read_text())):
                 if isinstance(node, ast.ImportFrom):
-                    assert not any(a.name == "BasePvaData" for a in node.names), file
                     assert node.module != "isaaclab.sensors.joint_wrench.kernels", file
                 if isinstance(node, ast.Import):
                     assert all(a.name != "isaaclab.sensors.joint_wrench.kernels" for a in node.names), file

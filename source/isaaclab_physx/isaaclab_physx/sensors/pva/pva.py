@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 import math
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 import torch
 import warp as wp
@@ -16,9 +16,11 @@ from pxr import UsdGeom
 
 import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
-from isaaclab.sensors.pva import BasePva, PvaData
+from isaaclab.sensors.pva import BasePva
 from isaaclab.sensors.pva.kernels import make_pva_update
 from isaaclab.sim.utils.queries import path_expr_to_glob
+
+from .pva_data import PvaData
 
 if TYPE_CHECKING:
     from isaaclab.sensors.pva import PvaCfg
@@ -61,7 +63,9 @@ class Pva(BasePva):
     __backend_name__: str = "physx"
     """The name of the backend for the PVA sensor."""
 
-    supported_data_types = frozenset({"pose", "velocity", "acceleration", "projected_gravity"})
+    supported_data_types: ClassVar[frozenset[str]] = frozenset(
+        {"pose", "velocity", "acceleration", "projected_gravity"}
+    )
 
     def __init__(self, cfg: PvaCfg):
         """Initializes the PVA sensor.

@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-__all__ = ["Pva"]
+__all__ = ["Pva", "PvaData"]
 
 from .pva import Pva
+from .pva_data import PvaData

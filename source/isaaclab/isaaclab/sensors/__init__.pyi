@@ -39,6 +39,7 @@ __all__ = [
     "JointWrenchSensorCfg",
     "JointWrenchSensorData",
     "BasePva",
+    "BasePvaData",
     "Pva",
     "PvaCfg",
     "PvaData",
@@ -94,7 +95,7 @@ from .joint_wrench import (
     JointWrenchSensorCfg,
     JointWrenchSensorData,
 )
-from .pva import BasePva, Pva, PvaCfg, PvaData
+from .pva import BasePva, BasePvaData, Pva, PvaCfg, PvaData
 from .ray_caster import (
     MultiMeshRayCaster,
     MultiMeshRayCasterCamera,

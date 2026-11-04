@@ -7,6 +7,7 @@
 PVA Sensor
 """
 
-from ...utils.module import lazy_export
+from ...utils.module import lazy_export, warn_on_lazy_exports
 
-lazy_export()
+_lazy_getattr, _, _ = lazy_export()
+warn_on_lazy_exports(_lazy_getattr, {"BasePvaData": "sensor.data or PvaData from isaaclab.sensors"})

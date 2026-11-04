@@ -19,9 +19,10 @@ from isaaclab_physx.sensors.imu.imu import Imu
 from isaaclab_physx.sensors.imu.imu_data import ImuData
 from isaaclab_physx.sensors.pva import pva as pva_module
 from isaaclab_physx.sensors.pva.pva import Pva
+from isaaclab_physx.sensors.pva.pva_data import PvaData
 
 from isaaclab.sensors.imu import BaseImu
-from isaaclab.sensors.pva import BasePva, PvaData
+from isaaclab.sensors.pva import BasePva
 
 pytestmark = [
     pytest.mark.isaacsim_ci,

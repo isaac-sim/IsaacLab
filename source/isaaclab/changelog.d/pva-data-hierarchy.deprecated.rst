@@ -1,0 +1,1 @@
+* Deprecated BasePvaData and backend PvaData imports ahead of a future removal. Read standard measurements through the sensor's data property and use isaaclab.sensors.PvaData when constructing data directly.

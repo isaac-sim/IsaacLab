@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 from ...utils.backend_utils import FactoryBase
 from .base_pva import BasePva
-from .pva_data import PvaData
+from .base_pva_data import BasePvaData
 
 if TYPE_CHECKING:
     from isaaclab_newton.sensors.pva import Pva as NewtonPva
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 class Pva(FactoryBase, BasePva):
     """Factory for creating PVA sensor instances."""
 
-    data: PvaData
+    data: BasePvaData
 
     def __new__(cls, *args, **kwargs) -> BasePva | NewtonPva | PhysXPva:
         """Create a new instance of a PVA sensor based on the backend."""

@@ -5,6 +5,7 @@
 
 """Sub-module for Newton PVA sensor."""
 
-from isaaclab.utils.module import lazy_export
+from isaaclab.utils.module import lazy_export, warn_on_lazy_exports
 
-lazy_export()
+_lazy_getattr, _, _ = lazy_export()
+warn_on_lazy_exports(_lazy_getattr, {"PvaData": "sensor.data or PvaData from isaaclab.sensors"})
