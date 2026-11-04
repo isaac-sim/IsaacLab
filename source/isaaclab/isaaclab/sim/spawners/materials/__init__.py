@@ -52,7 +52,7 @@ Usage:
 .. _Physics Scene: https://openusd.org/dev/api/usd_physics_page_front.html
 """
 
-from isaaclab.utils.module import lazy_export
+from isaaclab.utils.module import lazy_export, warn_on_lazy_exports
 
 _stub_getattr, _stub_dir, __all__ = lazy_export()
 
@@ -85,3 +85,10 @@ def __getattr__(name):
 
 def __dir__():
     return sorted(set(_stub_dir()) | _PHYSX_FORWARDS)
+
+
+warn_on_lazy_exports(
+    __getattr__,
+    {name: "isaaclab_physx.sim.spawners.materials" for name in _PHYSX_FORWARDS},
+    removal_version="4.0",
+)

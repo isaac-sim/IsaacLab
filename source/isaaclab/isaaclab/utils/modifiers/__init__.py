@@ -6,7 +6,8 @@
 """Deprecated import path for tensor processors."""
 
 import sys
-import warnings
+
+from ..module import warn_on_module_import
 
 from .. import tensor_processors as _processors
 
@@ -22,11 +23,9 @@ __all__ = [
     "scale",
 ]
 
-warnings.warn(
-    "isaaclab.utils.modifiers is deprecated; use isaaclab.utils.tensor_processors."
-    " ModifierBase and ModifierCfg are now TensorProcessor and TensorProcessorCfg.",
-    DeprecationWarning,
-    stacklevel=2,
+warn_on_module_import(
+    "isaaclab.utils.tensor_processors",
+    details="ModifierBase and ModifierCfg are now TensorProcessor and TensorProcessorCfg.",
 )
 
 

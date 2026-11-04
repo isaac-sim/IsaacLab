@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import logging
-import warnings
 from collections.abc import Sequence
 from typing import Any
 
@@ -17,6 +16,7 @@ import warp as wp
 
 from .. import cloner
 from ..sensors.camera.camera_data import CameraData
+from ..utils.module import warn_on_lazy_exports
 from ..utils.string import string_to_callable
 from .base_renderer import BaseRenderer, VisualMaterialBatch
 from .renderer_cfg import RendererCfg
@@ -28,14 +28,11 @@ def __getattr__(name: str) -> Any:
     if name == "RENDER_PROFILE_SCOPE":
         from ..benchmark.stepping import RENDER_PROFILE_SCOPE
 
-        warnings.warn(
-            "isaaclab.renderers.render_context.RENDER_PROFILE_SCOPE is deprecated; "
-            "use isaaclab.benchmark.stepping.RENDER_PROFILE_SCOPE instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
         return RENDER_PROFILE_SCOPE
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+warn_on_lazy_exports(__getattr__, {"RENDER_PROFILE_SCOPE": "isaaclab.benchmark.stepping.RENDER_PROFILE_SCOPE"})
 
 
 @wp.kernel(enable_backward=False)

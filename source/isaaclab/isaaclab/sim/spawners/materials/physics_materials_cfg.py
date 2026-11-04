@@ -11,6 +11,7 @@ from dataclasses import MISSING
 from typing import ClassVar
 
 from isaaclab.utils import configclass
+from isaaclab.utils.module import warn_on_lazy_exports
 
 from ...schemas.schemas_cfg import SchemaFragment
 
@@ -43,6 +44,13 @@ def __getattr__(name):
             ) from e
         return getattr(_physx_mat_cfg, name)
     raise AttributeError(f"module 'isaaclab.sim.spawners.materials.physics_materials_cfg' has no attribute {name!r}")
+
+
+warn_on_lazy_exports(
+    __getattr__,
+    {name: "isaaclab_physx.sim.spawners.materials.physics_materials_cfg" for name in _PHYSX_FORWARDS},
+    removal_version="4.0",
+)
 
 
 @configclass

@@ -409,6 +409,10 @@ before changing an interface. Apply these rules when adding code or cleaning up 
 * Preserve observable behavior unless the change explicitly requires otherwise. Check ordering, shapes,
   dtype, device, input mutation, and failure behavior as well as return values. Public API removals and
   renames require a deprecation and migration path.
+* For deprecated module imports and lazily resolved names, use ``warn_on_module_import`` and
+  ``warn_on_lazy_exports`` from ``isaaclab.utils.module``. Give the replacement path and set
+  ``removal_version`` when the removal release is scheduled; keep the warning at the importing
+  caller and preserve the old import until that release.
 * Prefer a functional approach for stateless computations and transformations: use plain functions with
   explicit inputs and outputs, keeping side effects at clear boundaries. Use classes when they own
   meaningful state or resources, enforce invariants over a lifecycle, or implement an interface required

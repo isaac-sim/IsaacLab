@@ -556,15 +556,14 @@ def test_generated_writers_replay_changed_inputs_under_cuda_capture(device):
 )
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_deprecated_wrench_writers_preserve_launch_signatures(name, device):
-    """Old imports warn about 3.2 and still route optional contributions into the original buffers."""
+    """Old kernels still route optional contributions into the original buffers."""
     from isaaclab.utils.warp import kernels
 
     with wp.ScopedDevice(device):
         indexed = "_index" in name
         env_ids = wp.array([1], dtype=wp.int64) if indexed else wp.array([False, True], dtype=wp.bool)
         body_ids = wp.array([0], dtype=wp.int32) if indexed else wp.array([True, False], dtype=wp.bool)
-        with pytest.warns(DeprecationWarning, match=r"will be removed in Isaac Lab 3\.2"):
-            kernel = getattr(kernels, name)
+        kernel = getattr(kernels, name)
         if name.endswith("_kernel"):
             # Preserve Torch selectors as well as Warp arrays in the old selector helpers.
             kernel = kernel(wp.to_torch(env_ids), body_ids)
@@ -602,9 +601,7 @@ def test_deprecated_wrench_writers_preserve_launch_signatures(name, device):
 def test_deprecated_wrench_composition_and_resets_preserve_launch_signatures(device):
     """Old composition, buffer addition and reset imports remain launchable until 3.2."""
     from isaaclab.utils.warp import kernels
-
-    with pytest.warns(DeprecationWarning, match=r"will be removed in Isaac Lab 3\.2"):
-        from isaaclab.utils.warp.kernels import add_raw_wrench_buffers, compose_wrench_to_body_frame
+    from isaaclab.utils.warp.kernels import add_raw_wrench_buffers, compose_wrench_to_body_frame
 
     with wp.ScopedDevice(device):
         sources = [
@@ -624,8 +621,7 @@ def test_deprecated_wrench_composition_and_resets_preserve_launch_signatures(dev
             ("reset_wrench_composer_mask", wp.array([False, True], dtype=wp.bool)),
             ("reset_wrench_composer_index_kernel", wp.array([1], dtype=wp.int32)),
         ):
-            with pytest.warns(DeprecationWarning, match=r"will be removed in Isaac Lab 3\.2"):
-                kernel = getattr(kernels, name)
+            kernel = getattr(kernels, name)
             if name.endswith("_kernel"):
                 kernel = kernel(wp.to_torch(selection))
             for buffer in buffers:

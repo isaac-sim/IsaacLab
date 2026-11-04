@@ -12,6 +12,7 @@ from typing import ClassVar, Literal
 from typing_extensions import deprecated
 
 from ...utils import configclass
+from ...utils.module import warn_on_lazy_exports
 
 # Names that moved out of this submodule into ``isaaclab_physx.sim.schemas.schemas_cfg``.
 # Resolved lazily so callers using ``from isaaclab.sim.schemas.schemas_cfg import
@@ -86,6 +87,16 @@ def __getattr__(name):
             ) from e
         return getattr(_newton_cfg, name)
     raise AttributeError(f"module 'isaaclab.sim.schemas.schemas_cfg' has no attribute {name!r}")
+
+
+warn_on_lazy_exports(
+    __getattr__,
+    {
+        **{name: "isaaclab_physx.sim.schemas.schemas_cfg" for name in _PHYSX_FORWARDS},
+        **{name: "isaaclab_newton.sim.schemas.schemas_cfg" for name in _NEWTON_FORWARDS},
+    },
+    removal_version="4.0",
+)
 
 
 def deprecate_field_alias(cfg, alias: str, canonical: str) -> None:

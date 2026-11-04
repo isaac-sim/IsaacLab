@@ -184,6 +184,12 @@ The following sensor classes also remain in the ``isaaclab`` package with unchan
 These sensor classes now use factory patterns that automatically instantiate the appropriate backend
 implementation (PhysX by default), maintaining full backward compatibility.
 
+Legacy imports forwarded through ``isaaclab.sim``, ``isaaclab.sim.schemas``, and
+``isaaclab.sim.spawners.materials`` still resolve, but now emit a one-time
+``DeprecationWarning`` at the importing line. Import the corresponding name from
+``isaaclab_physx`` or ``isaaclab_newton`` instead. These forwarding imports are
+scheduled for removal in Isaac Lab 4.0.
+
 .. note::
 
    The ``Imu`` sensor in Isaac Lab 3.0 is **not** the same as the ``Imu`` sensor in 2.x.

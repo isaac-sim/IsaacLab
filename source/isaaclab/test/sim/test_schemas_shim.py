@@ -162,9 +162,10 @@ def test_deprecated_aliases_emit_deprecation_warning(name):
 @pytest.mark.parametrize("name", DEPRECATED_FORWARDED_MATERIAL_NAMES)
 def test_deprecated_material_aliases_emit_deprecation_warning(name):
     """Instantiating a deprecated material alias via the shim still emits ``DeprecationWarning``."""
+    cls = getattr(materials, name)
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        getattr(materials, name)()
+        cls()
     deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
     assert len(deprecations) == 1, f"{name}: expected one DeprecationWarning, got {len(deprecations)}"
     assert "3.2" in str(deprecations[0].message)
