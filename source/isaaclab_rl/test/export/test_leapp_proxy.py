@@ -420,42 +420,65 @@ def test_rgb_function_patch_preserves_destination(tmp_path: Path):
     torch.testing.assert_close(actual, torch.full((1, 3, 2, 2), -0.1))
 
 
-def test_rotation_function_patches_preserve_broadcasting(tmp_path: Path):
-    """Quaternion adapters export broadcast rotations, replay fresh inputs, and restore their targets."""
+def test_broadcast_function_patch_preserves_rotations_distributions_and_aliases(tmp_path: Path):
+    """Original rotation/distribution helpers and broadcast view writes export and replay fresh inputs."""
     from leapp import InferenceManager, annotate
 
-    original_apply = math_utils.quat_apply
-    original_inverse = math_utils.quat_apply_inverse
+    def compute(quat, vec, loc, scale):
+        forward = math_utils.quat_apply(quat, vec)
+        distribution = torch.distributions.Normal(loc, scale, validate_args=False)
+        scalar_scale = torch.distributions.Normal(loc, 0.7, validate_args=False)
+        scalar_loc = torch.distributions.Normal(0.2, scale, validate_args=False)
+        root = loc.clone()
+        view, _ = torch.broadcast_tensors(root, scale)
+        view.add_(0.125)
+        return {
+            "forward": forward,
+            "inverse": math_utils.quat_apply_inverse(quat, vec),
+            "log_prob": distribution.log_prob(forward),
+            "entropy": distribution.entropy(),
+            "scalar_scale": scalar_scale.entropy() + scalar_scale.mean,
+            "scalar_loc": scalar_loc.entropy() + scalar_loc.mean,
+            "mutated_root": root,
+            "mutated_view": view,
+        }
+
+    original_broadcast = torch.broadcast_tensors
     generator = torch.Generator().manual_seed(42)
     samples = []
-    for _ in range(5):
+    for index in range(13):
         quat = torch.randn(2, 1, 4, generator=generator)
-        quat = quat / quat.norm(dim=-1, keepdim=True)
-        vec = torch.randn(3, 3, generator=generator)
-        samples.append((quat, vec, original_apply(quat, vec), original_inverse(quat, vec)))
+        quat /= quat.norm(dim=-1, keepdim=True)
+        inputs = {
+            "quat": quat,
+            "vec": torch.randn(1, 3, 3, generator=generator) * (index + 1) * 0.13,
+            "loc": torch.randn(2, 3, 3, generator=generator) * 0.3 + index * 0.05,
+            "scale": torch.rand(3, generator=generator) * 0.5 + 0.1 + index * 0.02,
+        }
+        samples.append((inputs, compute(**inputs)))
 
-    leapp.start("rotation", save_path=str(tmp_path), max_cached_io=2, patching=export_function_patches())
+    leapp.start("broadcast", save_path=str(tmp_path), max_cached_io=5, patching=export_function_patches())
     try:
         # Plain tensors continue to use the original functions during capture.
-        torch.testing.assert_close(math_utils.quat_apply(samples[0][0], samples[0][1]), samples[0][2])
-        for quat, vec, _, _ in samples[:2]:
-            quat, vec = annotate.input_tensors("rotation", {"quat": quat, "vec": vec})
-            annotate.output_tensors(
-                "rotation",
-                {"forward": math_utils.quat_apply(quat, vec), "inverse": math_utils.quat_apply_inverse(quat, vec)},
-                export_with="onnx",
-            )
+        inputs, expected = samples[0]
+        for name, actual in compute(**inputs).items():
+            torch.testing.assert_close(actual, expected[name])
+        for inputs, expected in samples[:5]:
+            values = annotate.input_tensors("compute", {name: value.clone() for name, value in inputs.items()})
+            actual = compute(*values)
+            for name, value in actual.items():
+                torch.testing.assert_close(value, expected[name])
+            annotate.output_tensors("compute", actual, export_with="onnx")
     finally:
         leapp.stop()
-    assert math_utils.quat_apply is original_apply
-    assert math_utils.quat_apply_inverse is original_inverse
-    leapp.compile_graph(visualize=False, validate=True)
+    assert torch.broadcast_tensors is original_broadcast
+    leapp.compile_graph(visualize=False, validate=True, strict=True)
 
-    manager = InferenceManager(str(tmp_path / "rotation" / "rotation.yaml"))
-    for quat, vec, forward, inverse in samples[2:]:
-        outputs = manager.run_policy({"rotation/quat": quat, "rotation/vec": vec})
-        torch.testing.assert_close(outputs["rotation/forward"], forward)
-        torch.testing.assert_close(outputs["rotation/inverse"], inverse)
+    manager = InferenceManager(str(tmp_path / "broadcast" / "broadcast.yaml"))
+    for inputs, expected in samples[5:]:
+        actual = manager.run_policy({f"compute/{name}": value.clone() for name, value in inputs.items()})
+        for name, value in expected.items():
+            torch.testing.assert_close(actual[f"compute/{name}"], value)
 
 
 @pytest.mark.parametrize("stack_dim", [None, 1])
