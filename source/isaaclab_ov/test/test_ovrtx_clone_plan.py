@@ -32,6 +32,7 @@ pytestmark = [
         bool(_MISSING_MODULES),
         reason=f"requires optional modules: {', '.join(_MISSING_MODULES)}",
     ),
+    pytest.mark.ov,
 ]
 
 if not _MISSING_MODULES:

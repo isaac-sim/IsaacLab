@@ -22,7 +22,7 @@ These Isaac Lab Mimic examples cover three humanoid tasks:
 Demo 1: Data Generation and Policy Training for a Humanoid Robot
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_steering_wheel_pick_place.gif
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/imitation_learning/humanoids/gr1_steering_wheel_pick_place.gif
    :width: 100%
    :align: center
    :alt: GR-1 humanoid robot performing a pick and place task
@@ -64,11 +64,11 @@ position. Mimic uses the object pose to interpolate the right-hand trajectory wh
 object positions change during generation.
 
 
-.. |good_demo| image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_steering_wheel_pick_place_good_demo.gif
+.. |good_demo| image:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/imitation_learning/humanoids/gr1_steering_wheel_pick_place_good_demo.gif
    :width: 49%
    :alt: GR-1 humanoid robot performing a good pick and place demonstration
 
-.. |bad_demo| image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_steering_wheel_pick_place_bad_demo.gif
+.. |bad_demo| image:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/imitation_learning/humanoids/gr1_steering_wheel_pick_place_bad_demo.gif
    :width: 49%
    :alt: GR-1 humanoid robot performing a bad pick and place demonstration
 
@@ -124,7 +124,7 @@ Annotations denote the end of a subtask. For the pick and place task, this means
 Each demo requires a single annotation between the first and second subtask of the right arm. This annotation ("S" button press) should be done when the right robot arm finishes the "idle" subtask and begins to
 move towards the target object. An example of a correct annotation is shown below:
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/tasks/manipulation/gr-1_pick_place_annotation.jpg
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/environments/previews/manipulation/gr1_pick_place_annotation.jpg
    :width: 100%
    :align: center
 
@@ -222,7 +222,7 @@ Visualize the results of the trained policy by running the following command, us
    **If you don't see expected performance results:** It is critical to test policies from various checkpoint epochs.
    Performance can vary significantly between epochs, and the best-performing checkpoint is often not the final one.
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_steering_wheel_pick_place_policy.gif
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/imitation_learning/humanoids/gr1_steering_wheel_pick_place_policy.gif
    :width: 100%
    :align: center
    :alt: GR-1 humanoid robot performing a pick and place task
@@ -243,7 +243,7 @@ Visualize the results of the trained policy by running the following command, us
 Demo 2: Visuomotor Policy for a Humanoid Robot
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_nut_pouring_policy.gif
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/imitation_learning/humanoids/gr1_nut_pouring_policy.gif
    :width: 100%
    :align: center
    :alt: GR-1 humanoid robot performing a pouring task
@@ -363,7 +363,7 @@ Visualize the results of the trained policy by running the following command, us
    **If you don't see expected performance results:** Test policies from various checkpoint epochs, not just the final one.
    Policy performance can vary substantially across training, and intermediate checkpoints often yield better results.
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_nut_pouring_policy.gif
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/imitation_learning/humanoids/gr1_nut_pouring_policy.gif
    :width: 100%
    :align: center
    :alt: GR-1 humanoid robot performing a pouring task
@@ -388,7 +388,7 @@ This example combines G1 manipulation and navigation. First generate pick-and-pl
 data, then add a route between two locations. The robot picks up the object at
 point A, walks to point B, and places it there.
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/locomanipulation-g-1_steering_wheel_pick_place.gif
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/imitation_learning/humanoids/locomanipulation_g1_steering_wheel_pick_place.gif
    :width: 100%
    :align: center
    :alt: G1 humanoid robot with locomanipulation performing a pick and place task
@@ -509,7 +509,7 @@ Visualize the trained policy performance:
    **If you don't see expected performance results:** Always test policies from various checkpoint epochs.
    Different epochs can produce significantly different results, so evaluate multiple checkpoints to find the optimal model.
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/locomanipulation-g-1_steering_wheel_pick_place.gif
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/imitation_learning/humanoids/locomanipulation_g1_steering_wheel_pick_place.gif
    :width: 100%
    :align: center
    :alt: G1 humanoid robot performing a pick and place task
@@ -555,13 +555,13 @@ To create a comprehensive locomanipulation dataset that combines both manipulati
    :widths: 50 50
    :header-rows: 0
 
-   * - .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/g1_locomanip_no_obstacles.gif
+   * - .. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/imitation_learning/humanoids/g1_locomanip_no_obstacles.gif
          :height: 260px
          :align: center
          :alt: G1 locomanipulation data generation without obstacles
 
          Default: no obstacles (open scene).
-     - .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/g1_locomanip_with_obstacles.gif
+     - .. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/imitation_learning/humanoids/g1_locomanip_with_obstacles.gif
          :height: 260px
          :align: center
          :alt: G1 locomanipulation data generation with forklift obstacles
@@ -781,7 +781,7 @@ its protocol is intended for a trusted local connection.
 The legacy ``--model_path`` rollout option remains available for custom compatible
 environments, but the standard Isaac Lab environment requires the server/client workflow.
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/locomanipulation_sdg_disjoint_nav_groot_policy_4x.gif
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/imitation_learning/humanoids/locomanipulation_sdg_disjoint_nav_groot_policy_4x.gif
    :width: 100%
    :align: center
    :alt: Simulation rollout of GR00T N1.5 policy finetuned for locomanipulation
@@ -913,7 +913,7 @@ observations. Install FFmpeg-enabled OpenCV, then convert the ego-centric camera
 Set ``--video_width`` and ``--video_height`` to match the resolution captured during
 generation: 512×320 with ``--high_res_video``, or 256×160 without it.
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/locomanipulation_sdg_gaussian_background_2x.webp
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/imitation_learning/humanoids/locomanipulation_sdg_gaussian_background_2x.webp
    :width: 100%
    :align: center
    :alt: locomanipulation SDG with a 3D Gaussian background
