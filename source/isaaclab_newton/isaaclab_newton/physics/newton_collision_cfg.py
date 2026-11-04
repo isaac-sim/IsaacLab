@@ -127,13 +127,14 @@ class NewtonCollisionPipelineCfg:
     Defaults to ``None`` (auto-estimate, same as Newton's default).
     """
 
-    max_triangle_pairs: int = 1_000_000
+    max_triangle_pairs: int | None = None
     """Maximum number of triangle pairs allocated by narrow phase for mesh and heightfield collisions.
 
-    Increase this when scenes with large/complex meshes or heightfields report
-    triangle-pair overflow warnings.
+    Also sizes the global contact-reduction buffer and hashtable, which all worlds share.
+    If ``None``, Newton estimates it from the model, so it grows with the number of worlds.
+    Set it explicitly to choose the memory budget, or when overflow warnings appear.
 
-    Defaults to ``1_000_000`` (same as Newton's default).
+    Defaults to ``None`` (auto-estimate, same as Newton's default).
     """
 
     soft_contact_max: int | None = None
