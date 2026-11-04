@@ -57,6 +57,7 @@ class RigidObjectRenderingBackend:
     simulation_context_factory: Callable[[], AbstractContextManager[SimulationContext]]
     renderer_cfg: RendererCfg
     with_articulation: bool = False
+    with_zoom_camera: bool = False
     cleanup: Callable[[], None] | None = None
 
 
@@ -88,11 +89,12 @@ def _make_scene_cfg(backend: RigidObjectRenderingBackend) -> InteractiveSceneCfg
                 clipping_range=(_MIN_OBJECT_DEPTH, 100.0),
             ),
         )
-        zoom_camera: CameraCfg = replace(
-            camera,
-            prim_path="{ENV_REGEX_NS}/ZoomCamera",
-            spawn=replace(camera.spawn, focal_length=camera.spawn.focal_length * _ZOOM),
-        )
+        if backend.with_zoom_camera:
+            zoom_camera: CameraCfg = replace(
+                camera,
+                prim_path="{ENV_REGEX_NS}/ZoomCamera",
+                spawn=replace(camera.spawn, focal_length=camera.spawn.focal_length * _ZOOM),
+            )
         if backend.with_articulation:
             articulation: ArticulationCfg = ArticulationCfg(
                 prim_path="{ENV_REGEX_NS}/Articulation",
@@ -141,9 +143,11 @@ def _measure_depth_mask(
 
 
 def _require_zoom_consistency(
-    backend_name: str, heights: torch.Tensor, centroids: torch.Tensor, zoom_camera: Camera
+    backend_name: str, heights: torch.Tensor, centroids: torch.Tensor, zoom_camera: Camera | None
 ) -> None:
-    """Assert that the co-located zoom camera renders the same frame magnified by :data:`_ZOOM`."""
+    """Assert that the co-located zoom camera, if any, renders the same frame magnified by :data:`_ZOOM`."""
+    if zoom_camera is None:
+        return
     zoom_depth = zoom_camera.data.output["depth"].torch
     zoom_heights, _, zoom_centroids = _measure_depth_mask(zoom_depth, backend_name, zoom_camera)
     expected_heights = heights * _ZOOM
@@ -178,14 +182,14 @@ def _write_pose_and_render(
 
 
 def run_rigid_object_scale_and_pose_rendering_contract(backend: RigidObjectRenderingBackend) -> None:
-    """Assert root-scale preservation, pose/calibration changes, and zoom-camera agreement on one shared renderer."""
+    """Assert root-scale preservation, pose/calibration changes, and the optional zoom-camera agreement."""
     with backend.simulation_context_factory() as sim:
         sim._app_control_on_stop_handle = None
         scene = InteractiveScene(_make_scene_cfg(backend))
         sim.register_interactive_scene(scene)
         rigid_object = scene["rigid_object"]
         camera = scene["camera"]
-        zoom_camera = scene["zoom_camera"]
+        zoom_camera = scene["zoom_camera"] if backend.with_zoom_camera else None
 
         try:
             sim.reset()
@@ -193,15 +197,16 @@ def run_rigid_object_scale_and_pose_rendering_contract(backend: RigidObjectRende
             _require(rigid_object.is_initialized, f"[{backend.name}] Rigid object did not initialize.")
             if backend.with_articulation:
                 _require(scene["articulation"].is_initialized, f"[{backend.name}] Articulation did not initialize.")
-            _require(
-                zoom_camera._renderer is camera._renderer,  # noqa: SLF001
-                f"[{backend.name}] Expected both cameras to share one renderer instance.",
-            )
 
             camera_eyes = scene.env_origins.clone()
             camera_eyes[:, 1] -= _CAMERA_DISTANCE
             camera.set_world_poses_from_view(camera_eyes, scene.env_origins)
-            zoom_camera.set_world_poses_from_view(camera_eyes, scene.env_origins)
+            if zoom_camera is not None:
+                _require(
+                    zoom_camera._renderer is camera._renderer,  # noqa: SLF001
+                    f"[{backend.name}] Expected both cameras to share one renderer instance.",
+                )
+                zoom_camera.set_world_poses_from_view(camera_eyes, scene.env_origins)
 
             center_poses = torch.zeros((_NUM_ENVS, 7), device=rigid_object.device)
             center_poses[:, :3] = scene.env_origins
@@ -285,7 +290,8 @@ def run_rigid_object_scale_and_pose_rendering_contract(backend: RigidObjectRende
             sim.register_interactive_scene(None)
             # Release camera-owned render products before another parametrized case creates a stage.
             camera._invalidate_initialize_callback(None)  # noqa: SLF001
-            zoom_camera._invalidate_initialize_callback(None)  # noqa: SLF001
+            if zoom_camera is not None:
+                zoom_camera._invalidate_initialize_callback(None)  # noqa: SLF001
             del camera, zoom_camera, rigid_object, scene
             gc.collect()
             if backend.cleanup is not None:
