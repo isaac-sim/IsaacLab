@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import ast
 import contextlib
+import importlib.metadata
 import importlib.util
 from dataclasses import replace
 from pathlib import Path
@@ -148,23 +149,35 @@ def _prepare_clones(renderer, plan, routed=None):
 
 
 @pytest.mark.parametrize(
-    "use_ovstage, names, worlds, weights, copies",
+    "use_ovstage, runtime_version, prepare_hierarchy, names, worlds, weights, copies",
     [
-        (False, ("",), ((0,),), (1,), [(0, "", [1, 2, 3])]),
-        (
-            True,
-            ("/Robot", "/Object", "/Light", "/Robot/Camera"),
-            ((3, 0, 2), (3, 0, 1)),
-            (1, 3),
-            [(0, "/Robot", [1, 2, 3]), (1, "/Object", [2, 3])],
+        pytest.param(False, None, False, ("",), ((0,),), (1,), [(0, "", [1, 2, 3])], id="environment-roots"),
+        *(
+            pytest.param(
+                True,
+                runtime_version,
+                prepare_hierarchy,
+                ("/Robot", "/Object", "/Light", "/Robot/Camera"),
+                ((3, 0, 2), (3, 0, 1)),
+                (1, 3),
+                [(0, "/Robot", [1, 2, 3]), (1, "/Object", [2, 3])],
+                id=f"nested-assets-{runtime_version}",
+            )
+            for runtime_version, prepare_hierarchy in (
+                (None, False),
+                ("0.3.0.1791986420", False),
+                ("0.4.0.1793320890", True),
+                ("0.4.0.dev1793793581+main.29a7740d", True),
+                ("0.4.1", True),
+                ("0.5.0.dev1", False),
+            )
         ),
     ],
-    ids=["environment-roots", "nested-assets"],
 )
 def test_native_replication_applies_compositions_then_positions(
-    monkeypatch, use_ovstage, names, worlds, weights, copies
+    monkeypatch, use_ovstage, runtime_version, prepare_hierarchy, names, worlds, weights, copies
 ):
-    """Both native APIs consume the same prepared copies without consulting the clone plan."""
+    """Native replication selects version-specific preparation before copies and placement."""
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._use_ovstage = use_ovstage
     positions = np.array([[0, 0, 0], [2, -1, 0.5], [-3, 4, 1.5], [5, 2, 0]], dtype=np.float32)
@@ -174,6 +187,23 @@ def test_native_replication_applies_compositions_then_positions(
     native = Mock()
     backend = renderer.backend
     if use_ovstage:
+        import ovstage
+        from isaaclab_ov import ovstage_compat
+
+        def distribution_version(name):
+            assert name == "ovstage"
+            if runtime_version is None:
+                raise importlib.metadata.PackageNotFoundError(name)
+            return runtime_version
+
+        monkeypatch.setattr(importlib.metadata, "version", distribution_version)
+        spec = importlib.util.spec_from_file_location("isaaclab_ov._compat_probe", ovstage_compat.__file__)
+        compat = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(compat)
+        monkeypatch.setattr(
+            "isaaclab_ov.stage.OVSTAGE_REQUIRES_CPU_HIERARCHY_BEFORE_CLONE",
+            compat.OVSTAGE_REQUIRES_CPU_HIERARCHY_BEFORE_CLONE,
+        )
         paths = Mock()
         paths.create_path_list_from_strings.return_value = "env_paths"
         native.query_from_path_list.return_value = contextlib.nullcontext("env_query")
@@ -181,6 +211,12 @@ def test_native_replication_applies_compositions_then_positions(
         ovstage_replicate(
             native, paths, backend.clone_copies, backend.clone_env_paths, backend.clone_positions, ordinal=3
         )
+        if prepare_hierarchy:
+            native.compute_hierarchy.assert_called_once_with(
+                input_ordinal=3, output_ordinal=3, model=ovstage.HierarchyComputationModel.CPU_INCREMENTAL
+            )
+        else:
+            native.compute_hierarchy.assert_not_called()
         paths.create_path_list_from_strings.assert_called_once_with(backend.clone_env_paths)
         paths.destroy_path_list.assert_called_once_with("env_paths")
         actual = native.write_attribute.call_args.kwargs["tensors"]
@@ -201,12 +237,27 @@ def test_native_replication_applies_compositions_then_positions(
         )
         for world, suffix, targets in copies
     ]
-    calls = [method[0] for method in native.method_calls if method[0] in {"clone", "clone_usd", "write_attribute"}]
-    assert calls == ["clone" if use_ovstage else "clone_usd"] * len(copies) + ["write_attribute"]
+    calls = [
+        method[0]
+        for method in native.method_calls
+        if method[0] in {"compute_hierarchy", "clone", "clone_usd", "write_attribute"}
+    ]
+    preparation = ["compute_hierarchy"] if prepare_hierarchy else []
+    assert calls == preparation + ["clone" if use_ovstage else "clone_usd"] * len(copies) + ["write_attribute"]
     assert backend.clone_env_paths == [f"/World/envs/env_{world}" for world in range(4)]
     expected = np.tile(np.eye(4, dtype=np.float64), (4, 1, 1))
     expected[:, 3, :3] = positions
     np.testing.assert_array_equal(actual, expected)
+
+
+@pytest.mark.parametrize("copies", [[], [("/World/Source", [])]], ids=["no-copies", "no-targets"])
+def test_ovstage_replication_skips_hierarchy_without_clones(monkeypatch, copies):
+    """OVStage 0.4 does no hierarchy work when there are no clone destinations."""
+    monkeypatch.setattr("isaaclab_ov.stage.OVSTAGE_REQUIRES_CPU_HIERARCHY_BEFORE_CLONE", True)
+    native, paths = Mock(), Mock()
+    ovstage_replicate(native, paths, copies, [], ordinal=3)
+    native.compute_hierarchy.assert_not_called()
+    native.clone.assert_not_called()
 
 
 @pytest.mark.parametrize("env_template", ["/World/envs/env_{}", "/World/Instances/World_{}"])
