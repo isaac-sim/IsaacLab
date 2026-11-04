@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 import torch
 
 from ..shoelace_constants import CONTACT_DISTANCE_CAP
-from .observations import finger_tail_signed_distance, tail_tcp_relative_speed
+from .observations import tail_tcp_relative_speed
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -29,12 +29,13 @@ def shoelace_grasp_quality(
     *,
     robot_cfgs: tuple[SceneEntityCfg, SceneEntityCfg],
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """Score dual-finger surface contact and low tail speed relative to the fixed TCP.
+    """Score opposing inward contacts and low tail speed relative to the fixed TCP.
 
     Contact distances come from Newton collision candidates over the configured finger shapes
-    and free-tail segments. Contact may occur anywhere on those surfaces; no pad landmarks,
-    aperture, or tail-to-pinch-line constraints are imposed. This is the shared grasp score for
-    acquisition, retention, and success, not a force-closure or loaded-pull measurement.
+    and free-tail segments. The sensor accepts inward contacts between the finger centres;
+    both fingers must touch the same or adjacent segments. No pad landmarks or aperture limits
+    are imposed. This is the shared score for acquisition, retention, and success, not a
+    force-closure or loaded-pull measurement.
 
     Args:
         env: Shoelace environment with current finger-tail contact observations.
@@ -55,14 +56,17 @@ def shoelace_grasp_quality(
         raise ValueError("Contact and relative-speed widths must be finite and positive")
     if not math.isfinite(contact_penetration_tolerance) or contact_penetration_tolerance < 0:
         raise ValueError("Contact penetration tolerance must be finite and nonnegative")
-    signed = finger_tail_signed_distance(env).reshape(env.num_envs, 2, 2)
+    signed = env.scene["finger_tail_contacts"].pinch_distance.reshape(env.num_envs, 2, 2, 3)
     error = signed.clamp_min(0.0) + (-signed - contact_penetration_tolerance).clamp_min(0.0)
     observed = signed < CONTACT_DISTANCE_CAP - 1.0e-7
     finger_contact = torch.exp(-(error / contact_std).square()) * observed
-    contact = hamacher_product(finger_contact[:, :, 0], finger_contact[:, :, 1])
+    pairs = hamacher_product(finger_contact[:, :, 0, :, None], finger_contact[:, :, 1, None, :])
+    # Neighbouring segments can share a physical pinch; separated tail segments cannot.
+    pairs[:, :, 0, 2] = pairs[:, :, 2, 0] = 0.0
+    contact = pairs.flatten(2).amax(dim=2)
     relative_speed = tail_tcp_relative_speed(env, cable_cfgs, robot_cfgs)
     motion_match = 1.0 - torch.tanh(relative_speed / relative_speed_std)
-    finite = torch.isfinite(signed).all(dim=(1, 2)) & torch.isfinite(relative_speed).all(dim=1)
+    finite = torch.isfinite(signed).all(dim=(1, 2, 3)) & torch.isfinite(relative_speed).all(dim=1)
     return hamacher_product(contact, motion_match), finite
 
 

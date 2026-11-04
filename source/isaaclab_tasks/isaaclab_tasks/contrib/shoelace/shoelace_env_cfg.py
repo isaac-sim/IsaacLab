@@ -314,7 +314,7 @@ class RewardsCfg:
             "closure_weight": 0.25,
         },
     )
-    # Reward retained dual-finger surface contacts with low TCP-relative slip even without further task progress.
+    # Reward retained inward contacts for a bounded time to encourage moving on to pulling.
     grasp_hold = RewTerm(
         func=mdp.grasp_hold_reward,
         weight=1.0,
@@ -322,7 +322,7 @@ class RewardsCfg:
             **GRASP_PARAMS,
             "bilateral_grasp_fraction": 0.5,
             "full_reward_duration": 2.0,
-            "sustained_reward_fraction": 0.2,
+            "sustained_reward_fraction": 0.0,
         },
     )
 

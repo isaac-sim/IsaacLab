@@ -350,7 +350,7 @@ class grasp_hold_reward(ManagerTermBase):
         robot_cfgs: tuple[SceneEntityCfg, SceneEntityCfg],
         contact_penetration_tolerance: float = 0.0,
         full_reward_duration: float | None = None,
-        sustained_reward_fraction: float = 0.2,
+        sustained_reward_fraction: float = 0.0,
     ) -> torch.Tensor:
         """Return sustained grasp quality with a bilateral bonus.
 
