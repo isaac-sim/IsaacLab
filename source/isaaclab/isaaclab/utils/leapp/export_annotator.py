@@ -77,9 +77,7 @@ def _leapp_ema_process_actions(term, task_name: str, state_name: str):
             original_process(actions)
             return
 
-        previous = annotate.state_tensors(task_name, {state_name: term._prev_applied_actions})
-        # Processing updates this buffer in place; preserve the registered input state.
-        term._prev_applied_actions = previous.clone()
+        term._prev_applied_actions = annotate.state_tensors(task_name, {state_name: term._prev_applied_actions})
         original_process(actions)
         term._prev_applied_actions = annotate.update_state(task_name, {state_name: term.processed_actions})
 
@@ -513,7 +511,7 @@ class ExportPatcher:
     def _patch_action_manager_methods(self, action_manager):
         """Patch ``process_action`` and ``apply_action`` on the action manager instance.
 
-        ``process_action`` traces the original manager's action buffer writes.
+        ``process_action`` marks a new policy step after the manager's native processing.
 
         ``apply_action`` coordinates the cache and output lifecycle:
 
@@ -524,8 +522,7 @@ class ExportPatcher:
           keeping the LEAPP graph connected.  After ``output_tensors()`` the
           cache is cleared so subsequent decimation sub-steps read fresh values.
 
-        - **Non-tracing passes** (remaining decimation sub-steps and all
-          subsequent iterations): The cache is cleared **before** running
+        - **Remaining decimation sub-steps**: The cache is cleared **before** running
           action terms so every ``.data`` read returns the current simulator
           value, preserving simulation correctness.
 
@@ -756,7 +753,7 @@ class ExportPatcher:
                 tensors.append(
                     TensorSemantics(
                         name=term_name,
-                        ref=processed.clone(),
+                        ref=processed,
                         kind=None,
                     )
                 )

@@ -9,3 +9,4 @@
   yaw-only planar references unspecified.
 * Removed the RGB export observation proxy by tracing destination writes directly in the
   normalization function patch.
+* Removed redundant export-only clones from EMA state registration and processed-action fallback outputs.
