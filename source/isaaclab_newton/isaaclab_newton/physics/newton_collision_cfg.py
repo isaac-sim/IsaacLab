@@ -123,7 +123,7 @@ class NewtonCollisionPipelineCfg:
     1. If provided, use this value, raised to the solver's contact capacity if that is larger.
     2. Else the contact capacity of the solver, for solvers that take the pipeline's contacts into a buffer of
        their own (MuJoCo Warp), which cannot use more.
-    3. Else if ``model.rigid_contact_max > 0``, use the model value.
+    3. Else if ``model.rigid_contact_max`` is not ``None``, use the model value.
     4. Else estimate automatically from model shape and pair metadata.
 
     Defaults to ``None``.
