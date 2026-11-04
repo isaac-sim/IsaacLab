@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import math
+from contextlib import nullcontext
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -106,6 +107,7 @@ def test_direct_projected_gravity_b_read_preserves_vector3d_input(monkeypatch: p
     assert task_name == "Isaac-Velocity-Flat-G1"
     assert semantics.name == "robot_projected_gravity_b"
     assert semantics.kind == Kind.VECTOR3D
+    assert semantics.axes == [None, leapp.Axis(leapp.AxisKind.COMPONENT, names=["x", "y", "z"])]
     assert semantics.extra == {"isaaclab_connection": "state:robot:projected_gravity_b"}
 
 
@@ -138,6 +140,68 @@ def test_projected_gravity_observation_exports_root_quat_w_input(monkeypatch: py
     assert semantics.name == "robot_root_quat_w"
     assert semantics.kind == Kind.FRAME_ORIENTATION
     assert semantics.extra == {"isaaclab_connection": "state:robot:root_quat_w"}
+
+
+def test_ray_caster_coordinates_use_component_axes(monkeypatch: pytest.MonkeyPatch):
+    """Sensor coordinates are components even when the quantity uses a custom kind."""
+    from isaaclab.sensors.ray_caster import RayCasterData
+
+    annotated_inputs = _capture_leapp_inputs(monkeypatch)
+    data = RayCasterData()
+    data.create_buffers(2, 4, "cpu")
+    proxy = _DataProxy(data, "ray_caster", "ray-task", {}, {}, lambda name: f"ray_{name}")
+
+    assert proxy.pos_w.torch.shape == (2, 3)
+    assert proxy.quat_w.torch.shape == (2, 4)
+    position, orientation = [semantics for _, semantics in annotated_inputs]
+    assert position.axes == [None, leapp.Axis(leapp.AxisKind.COMPONENT, names=["x", "y", "z"])]
+    assert orientation.axes == [None, leapp.Axis(leapp.AxisKind.COMPONENT, names=["qx", "qy", "qz", "qw"])]
+    assert position.extra == {"isaaclab_connection": "state:ray_caster:pos_w"}
+    assert orientation.extra == {"isaaclab_connection": "state:ray_caster:quat_w"}
+
+
+@pytest.mark.parametrize("layout", ["physx-aggregate", "physx-filtered", "newton"])
+def test_contact_axes_follow_backend_tensor_layout(monkeypatch: pytest.MonkeyPatch, layout):
+    """Contact aliases retain component axes across aggregate, filtered, and pose layouts."""
+    common = dict(
+        num_envs=2,
+        num_sensors=2,
+        history_length=1,
+        track_pose=True,
+        track_air_time=False,
+        track_contact_points=False,
+        track_friction_forces=True,
+        device="cpu",
+    )
+    if layout == "newton":
+        contact_data = pytest.importorskip("isaaclab_newton.sensors.contact_sensor.contact_sensor_data")
+        data = contact_data.ContactSensorData()
+        data.create_buffers(**common, num_filter_objects=1, generate_force_matrix=True)
+        pose_shape, friction_shape = (2,), (2, 2)
+    else:
+        contact_data = pytest.importorskip("isaaclab_physx.sensors.contact_sensor.contact_sensor_data")
+        data = contact_data.ContactSensorData()
+        data.create_buffers(**common, num_filter_shapes=1, supports_total_contact_forces=layout == "physx-aggregate")
+        pose_shape = (2, 2)
+        friction_shape = (2, 2, 1) if layout == "physx-filtered" else (2, 2)
+
+    annotated_inputs = _capture_leapp_inputs(monkeypatch)
+    proxy = _DataProxy(data, "contact", "contact-task", {}, {}, lambda name: f"contact_{name}")
+    warning = (
+        pytest.warns(UserWarning, match="only provides filtered friction")
+        if layout == "physx-filtered"
+        else nullcontext()
+    )
+    with warning:
+        assert proxy.pos_w.torch.shape == (*pose_shape, 3)
+        assert proxy.quat_w.torch.shape == (*pose_shape, 4)
+        assert proxy.friction_forces_w.torch.shape == (*friction_shape, 3)
+    position, orientation, friction = [semantics for _, semantics in annotated_inputs]
+    assert position.axes == [None] * len(pose_shape) + [leapp.Axis(leapp.AxisKind.COMPONENT, names=["x", "y", "z"])]
+    assert orientation.axes == [None] * len(pose_shape) + [
+        leapp.Axis(leapp.AxisKind.COMPONENT, names=["qx", "qy", "qz", "qw"])
+    ]
+    assert friction.axes == [None] * len(friction_shape) + [leapp.Axis(leapp.AxisKind.COMPONENT, names=["x", "y", "z"])]
 
 
 def test_camera_output_mapping_round_trips_through_deployment(monkeypatch: pytest.MonkeyPatch):
@@ -523,8 +587,10 @@ def test_deformable_nodal_positions_use_inherited_semantics(monkeypatch: pytest.
     assert semantics.extra == {"isaaclab_connection": "state:deformable:nodal_pos_w"}
 
 
-@pytest.mark.parametrize("command_type", ["velocity", "pose", "planar"])
-def test_command_metadata_uses_the_actual_reference_frame(monkeypatch, command_type):
+@pytest.mark.parametrize(
+    ("command_type", "custom_axes"), [("velocity", False), ("pose", False), ("planar", False), ("velocity", True)]
+)
+def test_command_metadata_uses_the_actual_reference_frame(monkeypatch, command_type, custom_axes):
     """Command annotations use the backend root and leave yaw-only references unspecified."""
     from isaaclab.envs.mdp.commands import (
         UniformPose2dCommand,
@@ -547,6 +613,8 @@ def test_command_metadata_uses_the_actual_reference_frame(monkeypatch, command_t
         sim=SimpleNamespace(vis_marker_registry=SimpleNamespace(clear_debug_vis_callback=lambda term: None)),
     )
     common = {"asset_name": "robot", "resampling_time_range": (1.0, 1.0)}
+    if custom_axes:
+        common["axes"] = [None, leapp.Axis("operator_controls", names=["forward", "sideways", "turn"])]
     if command_type == "velocity":
         cfg = UniformVelocityCommandCfg(
             **common,
@@ -585,5 +653,14 @@ def test_command_metadata_uses_the_actual_reference_frame(monkeypatch, command_t
             "planar": "command/body/pose",
         }[command_type]
     )
+    if custom_axes:
+        assert semantics.axes == common["axes"]
+    else:
+        names = {
+            "velocity": ["lin_vel_x", "lin_vel_y", "ang_vel_z"],
+            "pose": ["x", "y", "z", "qx", "qy", "qz", "qw"],
+            "planar": ["x", "y", "z", "heading"],
+        }[command_type]
+        assert semantics.axes == [None, leapp.Axis(leapp.AxisKind.COMPONENT, names=names)]
     assert semantics.expressed_in == ("base" if command_type == "velocity" else None)
     assert semantics.reference == ("base" if command_type == "pose" else None)
