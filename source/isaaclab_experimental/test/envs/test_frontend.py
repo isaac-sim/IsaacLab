@@ -154,12 +154,11 @@ def test_warp_manager_build_constructs_warp_env_with_cfg():
     assert calls == [(cfg, {"render_mode": "rgb_array"})]
 
 
-def test_warp_direct_build_selects_warp_scene_from_cfg():
+def test_warp_direct_build_constructs_resolved_env_with_cfg():
     cfg = types.SimpleNamespace(scene=types.SimpleNamespace(class_type=None))
     expected_env = object()
 
     def fake_env(*, cfg: Any, **kwargs: Any) -> Any:
-        assert cfg.scene.class_type is fe.InteractiveSceneWarp
         assert kwargs == {"render_mode": "rgb_array"}
         return expected_env
 

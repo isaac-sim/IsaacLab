@@ -182,12 +182,20 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
 
     # Lifecycle.
 
-    def reset(self, env_ids: Sequence[int] | slice | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None) -> None:
         """Reset all actuator group states.
 
         Args:
             env_ids: Environment indices to reset. Defaults to all environments.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_instances,). Takes precedence over
+                ``env_ids`` and does not synchronize the device. Defaults to None.
         """
+        if env_mask is not None:
+            for actuator in self._groups.values():
+                if isinstance(actuator, ActuatorBase):
+                    actuator.reset(env_mask=env_mask)
+            self._control.reset_native_actuators(slice(None), env_mask)
+            return
         group_env_ids = self._control._normalize_index_sequence(env_ids)
         for actuator in self._groups.values():
             # Newton-executed groups are reset through the backend below.

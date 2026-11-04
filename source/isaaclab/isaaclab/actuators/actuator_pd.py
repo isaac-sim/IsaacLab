@@ -11,6 +11,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, ClassVar
 
 import torch
+import warp as wp
 
 from ..utils import DelayBuffer, LinearInterpolation
 from ..utils.types import ArticulationActions
@@ -169,7 +170,7 @@ class ImplicitActuator(ActuatorBase):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None):
         # This is a no-op. There is no state to reset for implicit actuators.
         pass
 
@@ -288,7 +289,7 @@ class IdealPDActuator(ActuatorBase):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int]):
+    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None):
         pass
 
     def compute(
@@ -426,14 +427,27 @@ class DelayedPDActuator(IdealPDActuator):
 
     def __init__(self, cfg: DelayedPDActuatorCfg, *args, **kwargs):
         super().__init__(cfg, *args, **kwargs)
+        # masked resets write sampled delays without the host-side range check of set_time_lag
+        if not 0 <= cfg.min_delay <= cfg.max_delay:
+            raise ValueError(f"Expected 0 <= min_delay <= max_delay, received {cfg.min_delay} and {cfg.max_delay}.")
         # instantiate the delay buffers
         self.positions_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
         self.velocities_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
         self.efforts_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
         self._delay_buffers = (self.positions_delay_buffer, self.velocities_delay_buffer, self.efforts_delay_buffer)
 
-    def reset(self, env_ids: Sequence[int]):
-        super().reset(env_ids)
+    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None):
+        super().reset(env_ids, env_mask)
+        if env_mask is not None:
+            # draw a delay for every environment and keep the selected ones, so the mask stays on the device
+            time_lags = torch.randint(
+                self.cfg.min_delay, self.cfg.max_delay + 1, (self._num_envs,), dtype=torch.int, device=self._device
+            )
+            selected = wp.to_torch(env_mask)
+            for delay_buffer in self._delay_buffers:
+                torch.where(selected, time_lags, delay_buffer.time_lags, out=delay_buffer.time_lags)
+                delay_buffer.reset(selected)
+            return
         # number of environments (since env_ids can be a slice)
         if env_ids is None:
             env_ids = slice(None)
