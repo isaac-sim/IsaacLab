@@ -48,9 +48,7 @@ class MotionCommand(CommandTerm):
         self.body_indices = torch.tensor(
             self.robot.find_bodies(self.cfg.body_names, preserve_order=True)[0], dtype=torch.long, device=self.device
         )
-        self.motion = MotionLoader(
-            self.cfg.motion_file, body_names=self.cfg.body_names, joint_names=self.robot.joint_names, device=self.device
-        )
+        self.motion = self._load_motion()
         if not math.isclose(self.motion.fps * env.step_dt, 1.0, rel_tol=1e-5):
             raise ValueError("Motion FPS must match the policy rate; resample the reference before training.")
         if cfg.body_names[0] != self.robot.body_names[0]:
@@ -78,6 +76,12 @@ class MotionCommand(CommandTerm):
             "sampling_top1_prob": torch.zeros(self.num_envs, device=self.device),
             "sampling_top1_bin": torch.zeros(self.num_envs, device=self.device),
         }
+
+    def _load_motion(self) -> MotionLoader:
+        """Load the reference in tracked-body and articulation-joint order."""
+        return MotionLoader(
+            self.cfg.motion_file, body_names=self.cfg.body_names, joint_names=self.robot.joint_names, device=self.device
+        )
 
     def __str__(self) -> str:
         msg = "MotionCommand:\n"
