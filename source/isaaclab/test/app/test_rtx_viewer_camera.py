@@ -14,7 +14,7 @@ from isaaclab_physx.physics import PhysxCfg
 from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
 import isaaclab.app.sim_launcher as sim_launcher
-from isaaclab.visualizers import VisualizerCfg
+from isaaclab.visualizers import ImageViewCfg, VisualizerCfg
 
 
 def _fake_display(monkeypatch: pytest.MonkeyPatch, width: int = 1920, height: int = 1080) -> None:
@@ -70,3 +70,24 @@ def test_viewer_camera_is_declared_only_where_it_can_be_used(
     simulations = [types.SimpleNamespace(physics=physics)]
 
     assert sim_launcher._wants_rtx_viewer_camera(visualizer, simulations) is expected
+
+
+@pytest.mark.parametrize(
+    ("headless", "view"),
+    [(True, None), (False, ImageViewCfg(source="/World/envs/env_0/Camera"))],
+    ids=["recording-only-window", "window-with-a-view"],
+)
+def test_starting_in_rtx_declares_the_viewer_camera_even_without_a_window_or_with_a_view(
+    monkeypatch: pytest.MonkeyPatch, headless, view
+) -> None:
+    monkeypatch.setattr(importlib.util, "find_spec", lambda name: None)
+    visualizer = VisualizerCfg(backend=NewtonGLBackendCfg(initial_renderer="rtx"), headless=headless, view=view)
+
+    assert sim_launcher._wants_rtx_viewer_camera(visualizer, [types.SimpleNamespace(physics=None)]) is True
+
+
+def test_starting_in_rtx_without_the_viewer_camera_is_rejected() -> None:
+    visualizer = VisualizerCfg(backend=NewtonGLBackendCfg(initial_renderer="rtx", rtx_camera=False))
+
+    with pytest.raises(ValueError, match="requires rtx_camera"):
+        sim_launcher._wants_rtx_viewer_camera(visualizer, [types.SimpleNamespace(physics=None)])

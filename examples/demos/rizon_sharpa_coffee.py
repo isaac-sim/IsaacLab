@@ -163,7 +163,7 @@ def _make_env_cfg(args, video_stride):
     from isaaclab_tasks.contrib.rizon_sharpa_coffee.demo_env_cfg import (
         CoffeeDemoEnvCfg,
         CoffeeKitBackendCfg,
-        CoffeeRTXVisualizerCfg,
+        CoffeeVisualizerCfg,
     )
 
     cfg = CoffeeDemoEnvCfg(water_enabled=args.water)
@@ -207,7 +207,7 @@ def _make_env_cfg(args, video_stride):
     )
     cfg.sim.visualizer_cfgs = [
         view.replace(
-            backend=CoffeeRTXVisualizerCfg(
+            backend=CoffeeVisualizerCfg(
                 backdrop=args.backdrop,
                 initial_renderer="rtx" if args.video else "opengl",
                 show_particles=args.grains_per_particle == 0,

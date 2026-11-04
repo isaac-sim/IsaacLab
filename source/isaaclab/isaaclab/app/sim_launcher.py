@@ -182,12 +182,14 @@ def _fit_window_to_display(size: tuple[int, int], margin: float = 0.92) -> tuple
 def _wants_rtx_viewer_camera(visualizer: VisualizerCfg, simulations: list[SimulationCfg]) -> bool:
     """Return whether a Newton GL window should get an OVRTX viewer camera in its scene."""
     backend = visualizer.backend
-    if not isinstance(backend, NewtonGLBackendCfg) or visualizer.headless or visualizer.view is not None:
+    if not isinstance(backend, NewtonGLBackendCfg):
         return False
-    if backend.initial_renderer == "rtx" and backend.rtx_camera is False:
-        raise ValueError("NewtonGLBackendCfg.initial_renderer='rtx' requires rtx_camera to be enabled.")
     if backend.initial_renderer == "rtx":
-        return True
+        if backend.rtx_camera is False:
+            raise ValueError("NewtonGLBackendCfg.initial_renderer='rtx' requires rtx_camera to be enabled.")
+        return True  # Starting in RTX needs the camera for a recording-only window or one with a view as well.
+    if visualizer.headless or visualizer.view is not None:
+        return False
     if backend.rtx_camera is not None:
         return backend.rtx_camera
     on_physx = any(isinstance(sim.physics, (PhysxCfg, PhysxAutoCfg, OvPhysxCfg)) for sim in simulations)
@@ -341,18 +343,19 @@ def validate_launch(  # noqa: C901
     # Declare RTX perspective cameras before scene construction; runtime viewers only borrow their output.
     scene_cfg = next((node for node in configs if isinstance(node, InteractiveSceneCfg)), None)
     # A Newton window can switch its main view to an OVRTX camera, which must already exist in the scene.
-    implicit_viewer_cameras: list[str] = []
+    implicit_viewer_cameras: list[tuple[str, VisualizerCfg, tuple[int, int], bool]] = []
     for viewer_index, visualizer in enumerate(viewers):
         if scene_cfg is None or not _wants_rtx_viewer_camera(visualizer, simulations):
             continue
         name = f"viewer_camera_{viewer_index}_rtx"
         # The window must open at the camera's aspect ratio; an oversized window is clamped by the window manager.
+        declared = (visualizer.window.size, visualizer.streaming_view)  # Restored if a Kit run drops the camera.
         visualizer.window.size = _fit_window_to_display(visualizer.window.size)
         width, height = visualizer.window.size
         rotation = quat_from_matrix(create_rotation_matrix_from_view(
             torch.tensor([visualizer.eye]), torch.tensor([visualizer.lookat]), "Z", device="cpu"
         ))[0].tolist()  # fmt: skip
-        implicit_viewer_cameras.append(name)
+        implicit_viewer_cameras.append((name, visualizer, *declared))
         vars(scene_cfg)[name] = CameraCfg(
             prim_path=f"/World/{name}", width=width, height=height, data_types=["rgba"],
             spawn=PinholeCameraCfg(
@@ -404,8 +407,9 @@ def validate_launch(  # noqa: C901
     configs = _walk_runtime_configs(cfg, replacements)
     if kit_sources and implicit_viewer_cameras:
         # The OVRTX runtime cannot share a process with Kit, so a Kit run keeps the OpenGL view only.
-        for name in implicit_viewer_cameras:
+        for name, visualizer, window_size, streaming_view in implicit_viewer_cameras:
             vars(scene_cfg).pop(name, None)
+            visualizer.window.size, visualizer.streaming_view = window_size, streaming_view
         configs = _walk_runtime_configs(cfg, replacements)
     if kit_sources:
         for node in configs:

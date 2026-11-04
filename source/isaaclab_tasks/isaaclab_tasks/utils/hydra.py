@@ -190,6 +190,9 @@ class PresetCfg:
     _quiet_aliases: ClassVar[frozenset[str]] = frozenset()
     """Names in :attr:`_aliases` that are alternative spellings, so selecting them does not warn."""
 
+    _removed: ClassVar[dict[str, str]] = {}
+    """Names that were removed from this preset, each with a message that says what to use instead."""
+
     def __getattr__(self, name: str):
         """Alias a deprecated preset name to its replacement field.
 
@@ -343,6 +346,8 @@ def _pick_alternative(
         )
         if explicit_name in fields:
             return fields[explicit_name]
+        if explicit_name in preset_obj._removed:
+            raise ValueError(f"Unknown preset '{explicit_name}' for {path}. {preset_obj._removed[explicit_name]}")
         avail = list(fields)
         hint = ""
         if explicit_name in _LEGACY_PRESET_ALIASES:

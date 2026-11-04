@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 import re
@@ -313,15 +314,21 @@ class NewtonRecordingPanel:
             )  # fmt: skip
         if frame.shape[:2] != self._video_shape:
             return  # The window was resized mid-recording; skip frames the encoder cannot accept.
+        video = self._video
         try:
-            self._video.stdin.write(np.ascontiguousarray(frame).tobytes())
-            self._video_frames += 1
-            if self._video_limit is not None and self._video_frames >= self._video_limit:
-                self.stop_video()
-                self.save_video()  # A fixed length is meant to need no further clicks.
-        except (BrokenPipeError, OSError):
-            self._message = "ffmpeg stopped unexpectedly; video recording ended."
+            video.stdin.write(np.ascontiguousarray(frame).tobytes())
+        except OSError:  # Includes a broken pipe, which means ffmpeg has exited.
             self._video = None
+            with contextlib.suppress(OSError):
+                video.stdin.close()
+            video.wait()
+            self._video_unsaved = self._video_temp if self._video_temp.exists() else None
+            self._message = "ffmpeg stopped unexpectedly; video recording ended."
+            return
+        self._video_frames += 1
+        if self._video_limit is not None and self._video_frames >= self._video_limit:
+            self.stop_video()
+            self.save_video()  # A fixed length is meant to need no further clicks.
 
     def stop_video(self) -> None:
         """End the capture. The clip stays in a temporary file until :meth:`save_video` keeps it."""
@@ -338,11 +345,16 @@ class NewtonRecordingPanel:
 
     def save_video(self) -> None:
         """Move the stopped video to its numbered file in the output folder."""
-        temp, self._video_unsaved = self._video_unsaved, None
+        temp = self._video_unsaved
         if temp is None:
             return
         path = self._output_path("video", ".mp4")
-        os.replace(temp, path)
+        try:
+            os.replace(temp, path)
+        except OSError as exc:  # The clip stays in its temporary file, so Save can be pressed again.
+            self._message = f"Could not save the video: {exc}"
+            return
+        self._video_unsaved = None
         self.video_path = str(path)
         self._message = f"Saved {self._video_frames} frames to {self.video_path}"
         logger.info("[NewtonRecording] Wrote %d video frames to %s", self._video_frames, self.video_path)

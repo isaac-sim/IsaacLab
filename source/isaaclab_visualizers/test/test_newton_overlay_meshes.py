@@ -87,3 +87,28 @@ def test_a_changing_segment_count_reuses_the_meshes_until_it_outgrows_them():
         publisher.publish([renderer])
         paths.append(renderer.calls[-1][0])
     assert paths == [f"Viewer_1/overlay/contacts_normals_{capacity}_0" for capacity in (64, 64, 64, 128, 128)]
+
+
+def test_a_color_class_that_stops_occurring_is_hidden():
+    renderer, publisher = _Renderer(), OverlayMeshPublisher("Viewer_1")
+    three = _vec3s([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+    publisher.record(
+        "/model/joints", _vec3s(np.zeros((3, 3))), _vec3s(np.ones((3, 3))), three, 0.01, False, arrow=False
+    )
+    publisher.publish([renderer])
+    assert sorted(call[0] for call in renderer.calls) == [f"Viewer_1/overlay/model_joints_64_{i}" for i in range(3)]
+    renderer.calls.clear()
+
+    two = _vec3s([[1, 0, 0], [0, 1, 0], [1, 0, 0], [0, 1, 0]])  # A different count makes the colors be read again.
+    publisher.record("/model/joints", _vec3s(np.zeros((4, 3))), _vec3s(np.ones((4, 3))), two, 0.01, False, arrow=False)
+    publisher.publish([renderer])
+
+    hidden = [call[0] for call in renderer.calls if call[3]["hidden"]]
+    assert hidden == ["Viewer_1/overlay/model_joints_64_2"]
+    assert {call[0] for call in renderer.calls if not call[3]["hidden"]} == {
+        "Viewer_1/overlay/model_joints_64_0",
+        "Viewer_1/overlay/model_joints_64_1",
+    }
+    renderer.calls.clear()
+    publisher.hide_all([renderer])  # Only the two classes still published are hidden afterwards.
+    assert sorted(call[0] for call in renderer.calls) == [f"Viewer_1/overlay/model_joints_64_{i}" for i in range(2)]

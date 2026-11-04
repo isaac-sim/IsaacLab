@@ -21,9 +21,9 @@ def parse_video_source(source: str) -> tuple[str, str, str]:
     """Split a string :attr:`VideoRecorderCfg.source` into ``(kind, name, sub)``.
 
     ``kind`` is ``"viz"`` or ``"sensor"``; ``name`` is the canonical visualizer type (``""`` for a bare
-    ``"viz"``) or the sensor name; ``sub`` is ``"streaming_view"``, a sensor channel, or ``""``. The prefix
-    ``visualizer`` is the long form of ``viz``, as ``--visualizer`` is of ``--viz``; the ``newton_gl`` alias is
-    mapped to ``newton``.
+    ``"viz"``) or the sensor name; ``sub`` is ``"streaming_view"``, ``"tracking"``, a sensor channel, or ``""``.
+    The prefix ``visualizer`` is the long form of ``viz``, as ``--visualizer`` is of ``--viz``; the ``newton_gl``
+    alias is mapped to ``newton``.
     A bare visualizer type is shorthand for ``viz:<type>``.
 
     Raises:

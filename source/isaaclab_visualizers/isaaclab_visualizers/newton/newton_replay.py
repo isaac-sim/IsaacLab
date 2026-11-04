@@ -33,6 +33,9 @@ logger = logging.getLogger(__name__)
 REPLAY_PREFIX = "/replay"
 """Name prefix of every object the player adds to the viewer."""
 
+_MAX_FRAME_DT = 0.25
+"""Longest time [s] one update advances a recording, so that time spent in another view does not skip it ahead."""
+
 _MESH_MESSAGES = ("BatchedMeshesMessage", "BatchedGlbMessage")
 
 
@@ -441,7 +444,7 @@ class NewtonReplayPlayer:
     def update(self) -> None:
         """Advance the clock and publish the current frame; call once per viewer frame, inside the frame."""
         now = time.perf_counter()
-        dt, self._last_clock = now - self._last_clock, now
+        dt, self._last_clock = min(now - self._last_clock, _MAX_FRAME_DT), now
         viewer = self._viewer_getter()
         if viewer is None:
             return

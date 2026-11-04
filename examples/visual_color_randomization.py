@@ -63,6 +63,7 @@ from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass, replace
 from isaaclab.utils.timer import Timer
+from isaaclab.visualizers.visualizer_cfg import VISUALIZER_ALIASES
 
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort: skip
 
@@ -250,7 +251,8 @@ def main() -> None:
     """Launch the selected backends and run the randomization scene."""
     env_cfg = VisualMaterialEnvCfg()
     env_cfg.scene.num_envs = args_cli.num_envs
-    if "newton" in args_cli.visualizer:
+    visualizers = [VISUALIZER_ALIASES.get(name, name) for name in args_cli.visualizer]  # newton_gl is the same viewer
+    if "newton" in visualizers:
         for material in (
             env_cfg.scene.surface_body,
             env_cfg.scene.surface_leg,
@@ -266,7 +268,7 @@ def main() -> None:
         env_cfg.events.randomize_glass_style.params["channels"] = {
             "color": {"r": (0.05, 1.0), "g": (0.05, 1.0), "b": (0.05, 1.0)}
         }
-    if args_cli.visualizer != ["newton"]:
+    if visualizers != ["newton"]:
         env_cfg.events.randomize_parts_per_env = None
 
     with launch_simulation(env_cfg, args_cli):

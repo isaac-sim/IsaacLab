@@ -27,6 +27,16 @@ VISUALIZER_ALIASES = {"newton_gl": "newton"}
 """Alternative ``--visualizer`` names and the identifiers they select."""
 
 
+REMOVED_VISUALIZERS = {
+    "newton_rtx": (
+        "The 'newton_rtx' visualizer was removed. Use the 'newton' visualizer, which supports RTX rendering:"
+        " switch the Renderer to RTX in its window, or set NewtonGLBackendCfg.initial_renderer='rtx' to start"
+        " in RTX."
+    )
+}
+"""Removed ``--visualizer`` names and what to use instead."""
+
+
 def reject_removed_visualizer(name: str) -> None:
     """Raise a :class:`ValueError` that points a removed visualizer name at its replacement.
 
@@ -36,12 +46,8 @@ def reject_removed_visualizer(name: str) -> None:
     Raises:
         ValueError: If *name* is ``newton_rtx``, which the ``newton`` visualizer replaced.
     """
-    if name == "newton_rtx":
-        raise ValueError(
-            "The 'newton_rtx' visualizer was removed. Use the 'newton' visualizer, which supports RTX rendering:"
-            " switch the Renderer to RTX in its window, or set NewtonGLBackendCfg.initial_renderer='rtx' to start"
-            " in RTX."
-        )
+    if name in REMOVED_VISUALIZERS:
+        raise ValueError(REMOVED_VISUALIZERS[name])
 
 
 def with_free_view(
