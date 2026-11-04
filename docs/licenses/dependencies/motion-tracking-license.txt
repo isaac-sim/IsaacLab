@@ -11,7 +11,7 @@ https://github.com/Mayankm96/isaac-spinning-up
 The adaptation adds named NPZ loading, current Isaac Lab configuration and
 backend interfaces, and physics-rate filtered contact history.
 
-The bundled g1_cartwheel.npz, g1_run.npz, g1_speed_vault.npz, g1_spinkick.npz
+The server-hosted g1_cartwheel.npz, g1_run.npz, g1_speed_vault.npz, g1_spinkick.npz
 and g1_walk.npz are converted derivatives of the Apache-2.0 G1 motion data
 distributed with MimicKit, obtained through Mayankm96/isaac-spinning-up:
 https://github.com/xbpeng/MimicKit
@@ -23,10 +23,10 @@ contact.
 The trajectories were resampled to 50 Hz and packaged with joint/body names;
 source-data terms are not replaced by the Isaac Lab source-code license.
 
-The data README.txt records per-file sources, licenses and modifications.
-Applicable data license texts accompany the NPZ files in data/LICENSE/ under
-source/isaaclab_tasks/isaaclab_tasks/core/motion_tracking/ and are included in
-the installed package.
+The reference motions are loaded from NVIDIA's asset server at
+Assets/Isaac/6.2/Isaac/IsaacLab/Motions/G1/v1/.
+The accompanying README.txt records per-file sources, licenses and modifications;
+LICENSE/ contains the applicable data license texts and SHA256SUMS lists file hashes.
 
 The Unitree G1 USD is referenced from NVIDIA's asset server, not redistributed
 here. Its asset terms remain applicable.
