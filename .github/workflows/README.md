@@ -11,8 +11,9 @@ and `push:` triggers use the event branch normally.
 Installation checks use the environments already prepared by Docker + Tests,
 ARM CI, Windows CI, and Kit-less Docker Image. Build PIP Wheel checks workspace
 lock consistency and unlocked dependency resolution, dry-runs wheel extras
-resolution, and installs the built base wheel into a fresh environment outside
-the checkout. It reuses the installation suite's import, CLI, and packaged-resource
+resolution (including Isaac Sim on Windows and Linux aarch64), and installs the
+built base wheel into a fresh environment outside the checkout. It reuses the
+installation suite's import, CLI, and packaged-resource
 probe on a Linux CPU runner. There is no separate Installation Tests workflow.
 
 This removes three GPU-runner jobs and their repeated fresh environments and

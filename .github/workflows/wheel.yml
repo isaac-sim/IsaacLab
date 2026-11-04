@@ -237,7 +237,21 @@ jobs:
             --python-platform windows \
             --target /tmp/isaaclab-wheel-windows \
             --torch-backend cu130 \
-            "$wheel"
+            --overrides "$overrides" \
+            --extra-index-url https://pypi.nvidia.com \
+            --index-strategy unsafe-best-match \
+            "${wheel}[isaacsim]"
+
+          # Ubuntu 22.04's glibc 2.35 also supports warp-lang's aarch64 wheels (>= 2.34).
+          bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" uv pip install \
+            --dry-run \
+            --python-platform aarch64-manylinux_2_35 \
+            --target /tmp/isaaclab-wheel-aarch64 \
+            --overrides "$overrides" \
+            --extra-index-url https://pypi.nvidia.com \
+            --torch-backend cu130 \
+            --index-strategy unsafe-best-match \
+            "${wheel}[isaacsim]"
 
           bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" uv pip install \
             --dry-run \
