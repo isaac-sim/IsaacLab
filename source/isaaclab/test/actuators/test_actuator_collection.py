@@ -299,7 +299,6 @@ class NativeFakeActuatorControl(FakeActuatorControl):
         return True
 
     def prepare_native_actuators(self, collection, actuator_cfgs) -> set[str]:
-        self.prepared_actuator_cfgs = actuator_cfgs
         return set(actuator_cfgs)
 
     def compute_native_actuators(self, collection: ActuatorCollection, dt: float) -> bool:
