@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 
-from .newton_visualizer import NewtonGLVisualizer, NewtonRTXVisualizer
+from .newton_visualizer import NewtonGLVisualizer
 
 if TYPE_CHECKING:
     from isaaclab_newton.physics import NewtonManager
@@ -61,9 +61,7 @@ class ParticleSurfaceRenderer:
 
         visualizers = tuple(visualizers)
         self._visualizers = tuple(
-            visualizer
-            for visualizer in visualizers
-            if isinstance(visualizer, (NewtonGLVisualizer, NewtonRTXVisualizer))
+            visualizer for visualizer in visualizers if isinstance(visualizer, NewtonGLVisualizer)
         )
         self._kit_mesh = None
         if any(isinstance(visualizer, KitVisualizer) for visualizer in visualizers):

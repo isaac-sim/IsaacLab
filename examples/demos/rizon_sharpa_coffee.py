@@ -5,7 +5,7 @@
 
 """Scripted IK control of the Rizon–Sharpa coffee scene.
 
-Run ``uv run isaaclab demo rizon-sharpa-coffee --water --visualizer newton_gl``.
+Run ``uv run isaaclab demo rizon-sharpa-coffee --water --visualizer newton``.
 Use ``--visualizer none --headless`` for a physics-only rollout.
 """
 
@@ -142,9 +142,12 @@ def _parse_args():
     if args.control_hz % args.video_fps:
         parser.error("--video_fps must divide the control rate (60 Hz at 120 Hz physics, otherwise 100 Hz).")
     if args.visualizer is None:
-        args.visualizer = ["newton_rtx" if args.video else "newton_gl"]
-    if any(name not in ("newton_gl", "newton_rtx", "kit", "none") for name in args.visualizer):
-        parser.error("This demo's grain/surface presentation supports newton_gl, newton_rtx, kit or none.")
+        args.visualizer = ["newton"]
+    if any(name not in ("newton", "newton_gl", "kit", "none") for name in args.visualizer):
+        parser.error(
+            "This demo's grain/surface presentation supports newton, kit or none"
+            " (newton_rtx was removed; newton renders with RTX)."
+        )
     if args.keep_open and args.headless:
         parser.error("--keep_open requires a desktop viewer.")
     if args.render_samples < 1:
@@ -154,7 +157,6 @@ def _parse_args():
 
 def _make_env_cfg(args, video_stride):
     from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
-    from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
     from isaaclab.visualizers import VisualizerCfg, WindowCfg
 
@@ -205,18 +207,14 @@ def _make_env_cfg(args, video_stride):
     )
     cfg.sim.visualizer_cfgs = [
         view.replace(
-            backend=NewtonGLBackendCfg(
-                class_type="isaaclab_tasks.contrib.rizon_sharpa_coffee.rendering:CoffeeGLVisualizer",
+            backend=CoffeeRTXVisualizerCfg(
+                backdrop=args.backdrop,
+                initial_renderer="rtx" if args.video else "opengl",
                 show_particles=args.grains_per_particle == 0,
                 particle_color=(0.095, 0.029, 0.010) if not args.water else None,
                 enable_picking=False,
                 enable_sky=False,
-            )
-        ),
-        view.replace(
-            backend=CoffeeRTXVisualizerCfg(
-                backdrop=args.backdrop,
-                render_settings={
+                rtx_render_settings={
                     "omni:rtx:rtpt:spp": ("Int", args.render_samples),
                     "omni:rtx:rtpt:maxBounces": ("UInt", 8),
                     "omni:rtx:rtpt:extraSpecularAndTransmissiveBounces": ("UInt", 4),
@@ -244,7 +242,8 @@ def _make_env_cfg(args, video_stride):
         ),
     ]
     if args.backdrop == "kitchen":
-        for visualizer in cfg.sim.visualizer_cfgs[1:]:
+        # The kitchen framing applies to the Kit view and to the Newton view when it starts in RTX.
+        for visualizer in cfg.sim.visualizer_cfgs[0 if args.video else 1 :]:
             visualizer.eye, visualizer.lookat = (0.86, -0.61, 0.70), (0.53, -0.03, 0.10)
     return cfg
 

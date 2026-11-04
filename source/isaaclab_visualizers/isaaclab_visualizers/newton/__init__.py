@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Newton visualizer backends (GL and RTX).
+"""Newton visualizer backend (OpenGL and RTX rendering).
 
 This package keeps imports lazy so configuration-only imports do not pull in
 the heavy viewer/runtime stack before Isaac Sim has finished bootstrapping.
@@ -17,28 +17,22 @@ from .newton_visualizer_cfg import (
     NewtonGLBackendCfg,
     NewtonGLVisualizerCfg,
     NewtonRecordingCfg,
-    NewtonRTXBackendCfg,
-    NewtonRTXVisualizerCfg,
     NewtonVisualizerCfg,
 )
 
 if TYPE_CHECKING:
-    from .newton_visualizer import NewtonGLVisualizer, NewtonRTXVisualizer
+    from .newton_visualizer import NewtonGLVisualizer
     from .particle_surface import ParticleSurfaceRenderer
 
 __all__ = [
     # Deprecated combined configurations
     "NewtonGLVisualizerCfg",
-    "NewtonRTXVisualizerCfg",
     "NewtonVisualizerCfg",
     # GL backend
     "NewtonGLVisualizer",
     "NewtonGLBackendCfg",
     "NewtonGLVisualizerCfg",
     "NewtonRecordingCfg",
-    # RTX backend
-    "NewtonRTXVisualizer",
-    "NewtonRTXBackendCfg",
     # MPM particle-surface rendering
     "ParticleSurfaceRenderer",
 ]
@@ -49,10 +43,11 @@ def __getattr__(name: str):
         from .particle_surface import ParticleSurfaceRenderer
 
         return ParticleSurfaceRenderer
-    if name == "NewtonRTXVisualizer":
-        from .newton_visualizer import NewtonRTXVisualizer
-
-        return NewtonRTXVisualizer
+    if name in ("NewtonRTXVisualizer", "NewtonRTXBackendCfg", "NewtonRTXVisualizerCfg"):
+        raise AttributeError(
+            f"{name} was removed. Use NewtonGLBackendCfg, which renders with OpenGL or RTX;"
+            " set initial_renderer='rtx' to start in RTX."
+        )
     if name in ("NewtonVisualizer", "NewtonGLVisualizer"):
         from .newton_visualizer import NewtonGLVisualizer
 

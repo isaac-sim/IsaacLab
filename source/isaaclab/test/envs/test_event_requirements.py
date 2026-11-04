@@ -50,7 +50,7 @@ from isaaclab.envs.mdp import randomize_physics_scene_gravity
 
 @pytest.mark.parametrize(
     "visualizers,renderers",
-    [(("kit",), ()), (("newton_gl",), ("isaac_rtx",)), ((), ())],
+    [(("kit",), ()), (("newton",), ("isaac_rtx",)), ((), ())],
 )
 def test_shape_event_rejects_consumers_without_shape_storage(visualizers, renderers) -> None:
     env = SimpleNamespace(

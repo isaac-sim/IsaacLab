@@ -141,7 +141,7 @@ def _build_env_cfg_example_2(num_envs: int):
 def _build_env_cfg_example_3(num_envs: int):
     """Shadow Hand + Kit viewport + Kit tiled grid + Newton viewport + sensor: four simultaneous streams.
 
-    Note: ``source='viz:newton_gl'`` captures the full Newton GL window. When
+    Note: ``source='viz:newton'`` captures the full Newton GL window. When
     ``streaming_view=True`` is set on :class:`~isaaclab_visualizers.newton.NewtonGLBackendCfg`,
     the GL window displays the per-environment camera panel, so this effectively records
     a Newton streaming view without a separate ``render_tiled_rgb_array()`` call.
@@ -185,7 +185,7 @@ def _build_env_cfg_example_3(num_envs: int):
             step_offset=_KIT_STEP_OFFSET,
         ),
         VideoRecorderCfg(
-            source="viz:newton_gl",
+            source="viz:newton",
             output_dir=out,
             output_filename_prefix="newton_viewport",
             video_length=_VIDEO_LENGTH,

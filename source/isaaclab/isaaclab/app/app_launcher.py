@@ -51,10 +51,6 @@ class AppLauncher:
         # update the caller's namespace in place, as scripts read resolved values such as ``headless`` from it
         args = vars(launcher_args) if isinstance(launcher_args, argparse.Namespace) else dict(launcher_args or {})
         args.update(kwargs, require_kit=True)
-        # Kit cannot share the process with the OVRTX visualizer; drop it as Kit did when it failed to load it
-        if "newton_rtx" in (args.get("visualizer") or []):
-            logger.warning("AppLauncher starts Kit, which cannot run the 'newton_rtx' visualizer; skipping it.")
-            args["visualizer"] = [v for v in args["visualizer"] if v != "newton_rtx"]
         _RUNTIME.enter_context(launch_simulation(None, args))
 
         import omni.kit.app

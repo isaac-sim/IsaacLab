@@ -21,11 +21,11 @@ other optical channels to RTX renderers.
 
     # Newton physics and Newton GL visualizer.
     uvx isaaclab example visual-color-randomization \
-        --physics newton_mjwarp --visualizer newton_gl
+        --physics newton_mjwarp --visualizer newton
 
-    # Newton physics and scene-camera RTX rendering.
+    # The same visualizer renders with RTX when the window's Renderer is switched to RTX.
     uv run --extra ov isaaclab example visual-color-randomization \
-        --physics newton_mjwarp --visualizer newton_rtx
+        --physics newton_mjwarp --visualizer newton
 
 """
 
@@ -44,7 +44,7 @@ parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this m
 add_launcher_args(parser)
 # a Newton viewer cannot build its model from this PhysX scene, so PhysX defaults to the Kit viewer
 physics_args, _ = parser.parse_known_args()
-parser.set_defaults(visualizer=["kit"] if physics_args.physics == "isaacsim_physx" else ["newton_gl"])
+parser.set_defaults(visualizer=["kit"] if physics_args.physics == "isaacsim_physx" else ["newton"])
 args_cli = parser.parse_args()
 if args_cli.max_steps == 0 or args_cli.max_steps < -1:
     parser.error("--max_steps must be positive or -1.")
@@ -250,7 +250,7 @@ def main() -> None:
     """Launch the selected backends and run the randomization scene."""
     env_cfg = VisualMaterialEnvCfg()
     env_cfg.scene.num_envs = args_cli.num_envs
-    if "newton_gl" in args_cli.visualizer:
+    if "newton" in args_cli.visualizer:
         for material in (
             env_cfg.scene.surface_body,
             env_cfg.scene.surface_leg,
@@ -266,7 +266,7 @@ def main() -> None:
         env_cfg.events.randomize_glass_style.params["channels"] = {
             "color": {"r": (0.05, 1.0), "g": (0.05, 1.0), "b": (0.05, 1.0)}
         }
-    if args_cli.visualizer != ["newton_gl"]:
+    if args_cli.visualizer != ["newton"]:
         env_cfg.events.randomize_parts_per_env = None
 
     with launch_simulation(env_cfg, args_cli):

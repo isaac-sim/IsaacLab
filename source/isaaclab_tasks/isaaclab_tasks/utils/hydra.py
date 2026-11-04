@@ -31,7 +31,7 @@ import ast
 import enum
 import sys
 import warnings
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import is_dataclass
 from types import SimpleNamespace
 from typing import ClassVar
@@ -120,7 +120,12 @@ def user_stacklevel() -> int:
     return level
 
 
-def _normalize_preset_name(name: str, known_names: set[str], aliases: Mapping[str, str] | None = None) -> str:
+def _normalize_preset_name(
+    name: str,
+    known_names: set[str],
+    aliases: Mapping[str, str] | None = None,
+    quiet: Collection[str] = (),
+) -> str:
     """Map a deprecated preset name to its replacement and emit a warning.
 
     Returns ``name`` unchanged when:
@@ -129,15 +134,18 @@ def _normalize_preset_name(name: str, known_names: set[str], aliases: Mapping[st
           value can flow into the unknown-preset error), or
         * ``name`` is itself a real field in ``known_names`` (a user-defined preset
           legitimately reusing the deprecated spelling shadows the alias).
+
+    No warning is emitted for names in ``quiet``, which are alternative spellings rather than deprecated ones.
     """
     replacement = (aliases or {}).get(name, _LEGACY_PRESET_ALIASES.get(name))
     if replacement is None or replacement not in known_names or name in known_names:
         return name
-    warnings.warn(
-        f"Preset '{name}' is deprecated. Use '{replacement}' instead.",
-        FutureWarning,
-        stacklevel=user_stacklevel(),
-    )
+    if name not in quiet:
+        warnings.warn(
+            f"Preset '{name}' is deprecated. Use '{replacement}' instead.",
+            FutureWarning,
+            stacklevel=user_stacklevel(),
+        )
     return replacement
 
 
@@ -179,6 +187,9 @@ class PresetCfg:
 
     _aliases: ClassVar[dict[str, str]] = {}
 
+    _quiet_aliases: ClassVar[frozenset[str]] = frozenset()
+    """Names in :attr:`_aliases` that are alternative spellings, so selecting them does not warn."""
+
     def __getattr__(self, name: str):
         """Alias a deprecated preset name to its replacement field.
 
@@ -191,11 +202,12 @@ class PresetCfg:
         replacement = self._aliases.get(name, _LEGACY_PRESET_ALIASES.get(name))
         fields = self.__dataclass_fields__
         if replacement is not None and replacement in fields and name not in fields:
-            warnings.warn(
-                f"Preset '{name}' is deprecated. Use '{replacement}' instead.",
-                FutureWarning,
-                stacklevel=user_stacklevel(),
-            )
+            if name not in self._quiet_aliases:
+                warnings.warn(
+                    f"Preset '{name}' is deprecated. Use '{replacement}' instead.",
+                    FutureWarning,
+                    stacklevel=user_stacklevel(),
+                )
             return getattr(self, replacement)
         raise AttributeError(f"{type(self).__name__!s} object has no attribute {name!r}")
 
@@ -326,7 +338,9 @@ def _pick_alternative(
     fields = _preset_fields(preset_obj)
     field_names = set(fields)
     if explicit_name is not None:
-        explicit_name = _normalize_preset_name(explicit_name, field_names, preset_obj._aliases)
+        explicit_name = _normalize_preset_name(
+            explicit_name, field_names, preset_obj._aliases, preset_obj._quiet_aliases
+        )
         if explicit_name in fields:
             return fields[explicit_name]
         avail = list(fields)

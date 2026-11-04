@@ -46,7 +46,7 @@ parser.add_argument(
 )
 parser.add_argument("--substeps", type=int, default=1, help="Solver substeps per frame.")
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["newton_gl"])
+parser.set_defaults(visualizer=["newton"])
 args_cli = parser.parse_args()
 
 
@@ -91,7 +91,7 @@ def create_sim_cfg():
         device=args_cli.device,
         gravity=GRAVITY,
         visualizer_cfgs=VisualizerCfg(
-            backend=MultiBackendVisualizerCfg(newton_gl=NewtonGLBackendCfg(particle_color=PARTICLE_COLOR)),
+            backend=MultiBackendVisualizerCfg(newton=NewtonGLBackendCfg(particle_color=PARTICLE_COLOR)),
         ),
         physics=NewtonCfg(
             solver_cfg=MPMSolverCfg(

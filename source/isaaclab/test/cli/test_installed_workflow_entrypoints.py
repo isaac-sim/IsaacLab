@@ -171,7 +171,7 @@ def _visualizer(visualizer_type: str) -> mock.Mock:
 
 def test_newton_gl_selector_omits_incompatible_programs():
     """The selector must feature GL-compatible showcases and omit Kit-only programs."""
-    gl_visualizer = _visualizer("newton_gl")
+    gl_visualizer = _visualizer("newton")
     kit_visualizer = _visualizer("kit")
     sim = mock.Mock(visualizers=[gl_visualizer, kit_visualizer])
     imgui = mock.Mock()
@@ -215,7 +215,7 @@ def test_programs_run_without_warp_backward_kernels(monkeypatch):
 
 def test_newton_gl_selector_switches_programs_after_script_returns(monkeypatch):
     """A GL selection must restart with GL after the current program finishes."""
-    visualizer = _visualizer("newton_gl")
+    visualizer = _visualizer("newton")
     imgui = mock.Mock()
     imgui.collapsing_header.return_value = True
     imgui.tree_node.return_value = True
@@ -230,12 +230,12 @@ def test_newton_gl_selector_switches_programs_after_script_returns(monkeypatch):
 
     monkeypatch.setattr(programs, "_run_script", run_script)
     with mock.patch.object(programs.os, "execv") as execv:
-        cli.demo(["zoo", "--viz", "newton_gl"])
+        cli.demo(["zoo", "--viz", "newton"])
 
     visualizer.request_close.assert_called_once_with()
     assert not SimulationContext._reset_callbacks
     execv.assert_called_once_with(
-        sys.executable, [sys.executable, "-m", "isaaclab", "example", "cables", "--viz", "newton_gl"]
+        sys.executable, [sys.executable, "-m", "isaaclab", "example", "cables", "--viz", "newton"]
     )
 
 

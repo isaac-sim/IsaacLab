@@ -90,7 +90,7 @@ Headless execution with off-screen render
 """""""""""""""""""""""""""""""""""""""""
 
 To inspect behavior from a training run without an interactive window, pass ``--video``.
-By default, it records the scene from a headless Newton GL visualizer. See
+By default, it records the scene from a headless Newton visualizer. See
 :doc:`/source/how-to/record_video` to choose a different visualizer or a camera-sensor output.
 
 .. tab-set::

@@ -263,7 +263,7 @@ class VisualizationMarkers:
         # Markers need the Kit (USD) backend to appear in any rendered frame: a native GUI window,
         # RTX sensor rendering, XR, headless offscreen video capture (``has_offscreen_render``), or
         # a Kit-pumping visualizer. Note that this deliberately does NOT use ``sim.is_rendering``,
-        # which is also true for non-Kit visualizers (e.g. ``newton_gl``) that never pump Kit's
+        # which is also true for non-Kit visualizers (e.g. ``newton``) that never pump Kit's
         # ``app.update()``. Standing up the Kit backend for such a visualizer leaves its raw USD
         # marker writes undigested by Fabric, which desyncs the point-instancer prototype table
         # (``FabricManager::initializePointInstancer mismatched prototypes``) and can crash the next

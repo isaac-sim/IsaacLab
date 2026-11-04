@@ -30,8 +30,8 @@ Running the tutorials
 ---------------------
 
 The material and rigid-body tutorials launch Kit by default, requiring the
-``isaacsim`` extra. The surface-reconstruction tutorial launches Newton GL by
-default. Use ``--viz`` to select another visualizer; Newton RTX also requires
+``isaacsim`` extra. The surface-reconstruction tutorial launches Newton by
+default. Use ``--viz`` to select another visualizer; the Newton RTX view also requires
 ``uv run --extra ovrtx``.
 
 
@@ -172,7 +172,7 @@ for rendering, while leaving the particle simulation unchanged.
 .. code-block:: bash
 
    uv run python scripts/tutorials/08_mpm/surface_reconstruction.py \
-     --surface_preset balanced --viz newton_gl
+     --surface_preset balanced --viz newton
 
 Run the same scene again with another ``--surface_preset``:
 
@@ -205,7 +205,7 @@ receive the mesh for the current particle state. See
 
 .. note::
 
-   This tutorial selects Newton GL or Newton RTX for surface reconstruction.
+   This tutorial selects Newton, with OpenGL or RTX rendering, for surface reconstruction.
    Select ``--fluid_render_mode particles`` for Kit, Viser, or Rerun.
    The shared ``ParticleSurfaceRenderer`` also supports Kit; see the teapot
    example in :ref:`newton-using-mpm`.

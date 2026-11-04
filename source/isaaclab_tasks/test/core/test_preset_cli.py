@@ -71,7 +71,7 @@ def test_setup_preset_cli_passes_typed_tokens_verbatim(monkeypatch):
 @pytest.mark.parametrize("spelling", ["hydra", "flags", "equals"])
 def test_setup_preset_cli_namespace_carries_no_preset_attributes(monkeypatch, spelling):
     """Task selectors never leak into Kit arguments; explicit Kit settings stay untouched."""
-    selections = dict(physics="newton_mjwarp", renderer="newton_renderer", visualizer="newton_gl")
+    selections = dict(physics="newton_mjwarp", renderer="newton_renderer", visualizer="newton")
     tokens = []
     for key, value in selections.items():
         if spelling == "flags":

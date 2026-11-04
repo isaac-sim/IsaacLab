@@ -142,7 +142,7 @@ The physics backend and visualizer are selected independently. Run one of these 
          uv run --extra isaacsim isaaclab example multi-asset \
              --physics newton_mjwarp --visualizer kit --num_envs 2048
 
-   .. tab-item:: Newton MJWarp with Newton GL
+   .. tab-item:: Newton MJWarp with Newton
 
       .. code-block:: bash
 

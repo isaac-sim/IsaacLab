@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import warp as wp
 from isaaclab_newton.physics.mpm_solver import implicit_mpm_solvers
-from isaaclab_visualizers.newton import NewtonGLVisualizer, NewtonRTXVisualizer
+from isaaclab_visualizers.newton import NewtonGLVisualizer
 from newton.geometry import ParticleSurface
 
 import isaaclab.sim as sim_utils
@@ -32,19 +32,7 @@ BREW_COLOR = (0.12, 0.041, 0.014)
 
 
 class CoffeeGLVisualizer(NewtonGLVisualizer):
-    """Publish task geometry while the native GL frame is active."""
-
-    rendering: CoffeeRendering | None = None
-
-    def _update_state(self):
-        state = super()._update_state()
-        if self.rendering is not None:
-            self.rendering.draw(self._viewer)
-        return state
-
-
-class CoffeeRTXVisualizer(NewtonRTXVisualizer):
-    """Publish task geometry into the camera's shared RTX scene."""
+    """Publish task geometry while the native GL frame is active, and into the RTX view's shared scene."""
 
     rendering: CoffeeRendering | None = None
 
@@ -53,8 +41,14 @@ class CoffeeRTXVisualizer(NewtonRTXVisualizer):
             return
         super().initialize(sim, cameras=cameras)
         self._geometry_queries = {}
-        for renderer in self._renderers:
+        for renderer in self._rtx_renderers:
             renderer.geometry_callbacks[self] = self._update_geometry
+
+    def _update_state(self):
+        state = super()._update_state()
+        if self.rendering is not None:
+            self.rendering.draw(self._viewer)
+        return state
 
     def _update_geometry(self, renderer) -> None:
         if self.rendering is not None:
@@ -167,9 +161,7 @@ class CoffeeRendering:
         self._model = self._backend_manager.backend.model
         self._env = env
         self._visualizers = [
-            visualizer
-            for visualizer in env.sim.visualizers
-            if isinstance(visualizer, (CoffeeGLVisualizer, CoffeeRTXVisualizer))
+            visualizer for visualizer in env.sim.visualizers if isinstance(visualizer, CoffeeGLVisualizer)
         ]
         if any(visualizer.cfg.backend.visualizer_type == "kit" for visualizer in env.sim.visualizers):
             # Defer the optional runtime implementation until Kit has launched.
