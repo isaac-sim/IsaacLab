@@ -13,6 +13,7 @@ import torch
 
 from isaaclab.managers.action_manager import ActionTerm
 from isaaclab.utils import index_fill_
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from isaaclab_physx.assets import SurfaceGripper
@@ -101,5 +102,5 @@ class SurfaceGripperBinaryAction(ActionTerm):
         self._asset.set_grippers_command(self._processed_actions.view(-1))
         self._asset.write_data_to_sim()
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        index_fill_(self._raw_actions, env_ids, 0.0)
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None) -> None:
+        index_fill_(self._raw_actions, env_ids if env_mask is None else env_mask.torch, 0.0)

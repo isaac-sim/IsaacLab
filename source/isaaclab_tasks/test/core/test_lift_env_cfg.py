@@ -200,17 +200,19 @@ def test_franka_lift_pregrasp_resolves_object_variants_from_clone_topology() -> 
         4,
     )
     robot = SimpleNamespace(
+        device="cpu",
+        num_joints=3,
         find_joints=lambda _: ([0, 1], []),
         data=SimpleNamespace(
             body_pos_w=SimpleNamespace(torch=torch.zeros((4, 1, 3))),
             body_quat_w=SimpleNamespace(torch=torch.tensor([[[0.0, 0.0, 0.0, 1.0]]] * 4)),
         ),
-        write_joint_position_to_sim_index=Mock(),
-        write_joint_velocity_to_sim_index=Mock(),
-        set_joint_position_target_index=Mock(),
+        write_joint_position_to_sim_mask=Mock(),
+        write_joint_velocity_to_sim_mask=Mock(),
+        actuators=SimpleNamespace(target_command=SimpleNamespace(set_position_mask=Mock())),
     )
     object_asset = SimpleNamespace(
-        device="cpu", write_root_pose_to_sim_index=Mock(), write_root_velocity_to_sim_index=Mock()
+        device="cpu", write_root_pose_to_sim_mask=Mock(), write_root_velocity_to_sim_mask=Mock()
     )
     scene = _FakeScene(torch.arange(4), robot=robot, object=object_asset)
     scene.clone_plan = plan
@@ -235,24 +237,25 @@ def test_franka_lift_pregrasp_resolves_object_variants_from_clone_topology() -> 
     )
 
     term = mdp.reset_to_grasp(cfg, env)
-    term(env, torch.arange(4), **cfg.params)
+    term(env, ProxyArray(wp.ones(4, dtype=wp.bool, device="cpu")), **cfg.params)
 
+    write_kwargs = robot.write_joint_position_to_sim_mask.call_args.kwargs
     torch.testing.assert_close(
-        robot.write_joint_position_to_sim_index.call_args.kwargs["position"],
+        write_kwargs["position"][:, :2],
         torch.tensor([[0.011, 0.011], [0.011, 0.011], [0.026, 0.026], [0.026, 0.026]]),
     )
-    root_pose = object_asset.write_root_pose_to_sim_index.call_args.kwargs["root_pose"]
+    assert wp.to_torch(write_kwargs["joint_mask"]).tolist() == [True, True, False]
+    root_pose = object_asset.write_root_pose_to_sim_mask.call_args.kwargs["root_pose"]
     torch.testing.assert_close(root_pose[:, :3], torch.zeros((4, 3)))
     torch.testing.assert_close(
         root_pose[:, 3:],
         torch.tensor([[0.0, 0.7071068, 0.0, 0.7071068]] * 2 + [[0.0, 0.0, 0.0, 1.0]] * 2),
     )
 
-    for selector in ([3, 0], slice(1, 3)):
-        term(env, selector, **cfg.params)
-        torch.testing.assert_close(
-            object_asset.write_root_pose_to_sim_index.call_args.kwargs["env_ids"], torch.arange(4)[selector]
-        )
+    env_mask = ProxyArray(wp.array([True, False, False, True], dtype=wp.bool, device="cpu"))
+    term(env, env_mask, **cfg.params)
+    written_mask = object_asset.write_root_pose_to_sim_mask.call_args.kwargs["env_mask"]
+    assert wp.to_torch(written_mask).tolist() == [True, False, False, True]
 
     cfg.params["grasp_configs"] = cfg.params["grasp_configs"][:1]
     with pytest.raises(ValueError, match="no configured pre-grasp"):

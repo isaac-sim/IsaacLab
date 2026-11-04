@@ -26,11 +26,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import torch
 import warp as wp
 
 from isaaclab.envs.mdp.events import randomize_rigid_body_mass as _StableRandomizeRigidBodyMass
 from isaaclab.envs.mdp.events import randomize_rigid_body_material as _StableRandomizeRigidBodyMaterial
+from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_experimental.managers import ManagerTermBase as _WarpManagerTermBase
 from isaaclab_experimental.managers import SceneEntityCfg
@@ -600,22 +600,15 @@ def reset_joints_by_scale(
 # The stable material/mass randomization terms already dispatch to the active
 # physics backend (Newton included); only their calling convention differs —
 # the warp EventManager invokes terms with a Warp env-mask while the stable
-# class terms expect torch env indices. Both terms run in ``startup`` mode,
-# once at construction and outside any captured path, so a host-side
-# mask-to-ids conversion is acceptable.
-
-
-def _mask_to_env_ids(env_mask: wp.array) -> torch.Tensor:
-    """Convert a Warp boolean env-mask to the torch index tensor the stable terms expect."""
-    return torch.nonzero(wp.to_torch(env_mask), as_tuple=False).squeeze(-1)
+# class terms expect a :class:`ProxyArray` env-mask.
 
 
 class randomize_rigid_body_material(_StableRandomizeRigidBodyMaterial, _WarpManagerTermBase):
     """Warp adapter for the stable, backend-dispatched material randomization term.
 
-    Converts the warp event manager's env-mask calling convention to the stable
-    term's env-ids convention and delegates. Startup mode only. Inherits the
-    warp :class:`ManagerTermBase` so the warp managers accept it as a class term.
+    Wraps the warp event manager's Warp env-mask in the stable term's
+    :class:`ProxyArray` env-mask and delegates. Startup mode only. Inherits the warp
+    :class:`ManagerTermBase` so the warp managers accept it as a class term.
     """
 
     def __call__(
@@ -631,7 +624,7 @@ class randomize_rigid_body_material(_StableRandomizeRigidBodyMaterial, _WarpMana
     ) -> None:
         super().__call__(
             env,
-            _mask_to_env_ids(env_mask),
+            ProxyArray(env_mask),
             static_friction_range,
             dynamic_friction_range,
             restitution_range,
@@ -648,9 +641,9 @@ class randomize_rigid_body_material(_StableRandomizeRigidBodyMaterial, _WarpMana
 class randomize_rigid_body_mass(_StableRandomizeRigidBodyMass, _WarpManagerTermBase):
     """Warp adapter for the stable, backend-dispatched mass randomization term.
 
-    Converts the warp event manager's env-mask calling convention to the stable
-    term's env-ids convention and delegates. Startup mode only. Inherits the
-    warp :class:`ManagerTermBase` so the warp managers accept it as a class term.
+    Wraps the warp event manager's Warp env-mask in the stable term's
+    :class:`ProxyArray` env-mask and delegates. Startup mode only. Inherits the warp
+    :class:`ManagerTermBase` so the warp managers accept it as a class term.
     """
 
     def __call__(
@@ -666,7 +659,7 @@ class randomize_rigid_body_mass(_StableRandomizeRigidBodyMass, _WarpManagerTermB
     ) -> None:
         super().__call__(
             env,
-            _mask_to_env_ids(env_mask),
+            ProxyArray(env_mask),
             asset_cfg,
             mass_distribution_params,
             operation,

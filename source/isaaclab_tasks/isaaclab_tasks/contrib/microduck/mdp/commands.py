@@ -15,6 +15,7 @@ import torch
 from isaaclab.envs.mdp.commands import UniformVelocityCommand
 from isaaclab.envs.mdp.commands.commands_cfg import UniformVelocityCommandCfg
 from isaaclab.managers import CommandTerm, CommandTermCfg
+from isaaclab.utils import env_mask_from_ids
 from isaaclab.utils import math as math_utils
 from isaaclab.utils.configclass import configclass
 
@@ -76,7 +77,7 @@ class MicroDuckVelocityCommand(UniformVelocityCommand):
             env_ids = torch.arange(self.num_envs, device=self.device)[env_ids]
         else:
             env_ids = torch.as_tensor(env_ids, dtype=torch.long, device=self.device)
-        super()._resample_command(env_ids)
+        super()._resample_command(env_mask_from_ids(env_ids, self.num_envs, self.device))
         r = torch.empty(len(env_ids), device=self.device)
         forward_ids = env_ids[r.uniform_(0.0, 1.0) <= self.cfg.rel_forward_envs]
         if len(forward_ids) > 0:

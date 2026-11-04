@@ -11,13 +11,13 @@ the curriculum introduced by the class.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
 
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg
 from isaaclab.managers.manager_term_cfg import CurriculumTermCfg
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
@@ -67,17 +67,17 @@ class ObstacleDensityCurriculum(ManagerTermBase):
     def __call__(
         self,
         env: ManagerBasedRLEnv,
-        env_ids: Sequence[int],
+        env_mask: ProxyArray,
         asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
         command_name: str = "target_pose",
         min_difficulty: int | None = None,
         max_difficulty: int | None = None,
-    ) -> float:
+    ) -> torch.Tensor:
         """Update obstacle density curriculum based on performance.
 
         Args:
             env: The manager-based RL environment instance.
-            env_ids: Environment indices to update.
+            env_mask: Boolean mask of the environments to update. Shape is (num_envs,).
             asset_cfg: Scene entity configuration for the robot. Defaults to SceneEntityCfg("robot").
             command_name: Name of the command to track. Defaults to "target_pose".
             max_difficulty: Maximum difficulty level. Defaults to 10.
@@ -92,20 +92,22 @@ class ObstacleDensityCurriculum(ManagerTermBase):
 
         target_position_w = command[:, :3].clone()
         current_position = asset.data.root_pos_w.torch - env.scene.env_origins
-        position_error = torch.norm(target_position_w[env_ids] - current_position[env_ids], dim=1)
+        position_error = torch.norm(target_position_w - current_position, dim=1)
 
         # Decide difficulty changes
-        crashed = env.termination_manager.terminated[env_ids]
+        crashed = env.termination_manager.terminated
         move_up = position_error < 1.5  # Success
         move_down = crashed & ~move_up
 
-        # Update difficulty levels
-        self._difficulty_levels[env_ids] += move_up.long() - move_down.long()
-        self._difficulty_levels[env_ids] = torch.clamp(
-            self._difficulty_levels[env_ids], min=self._min_difficulty, max=self._max_difficulty - 1
+        # Update difficulty levels of the selected environments
+        difficulty_levels = torch.clamp(
+            self._difficulty_levels + move_up.long() - move_down.long(),
+            min=self._min_difficulty,
+            max=self._max_difficulty - 1,
         )
+        torch.where(env_mask.torch, difficulty_levels, self._difficulty_levels, out=self._difficulty_levels)
 
-        return self._difficulty_levels.float().mean().item()
+        return self._difficulty_levels.float().mean()
 
     @property
     def difficulty_levels(self) -> torch.Tensor:

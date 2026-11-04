@@ -15,7 +15,8 @@ import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation import Articulation
 from isaaclab.managers.action_manager import ActionTerm
-from isaaclab.utils import index_fill_
+from isaaclab.utils import env_mask_from_ids, index_fill_
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from ... import ManagerBasedEnv
@@ -175,10 +176,10 @@ class JointPositionToLimitsAction(ActionTerm):
 
     def apply_actions(self):
         # set position targets
-        self._asset.set_joint_position_target_index(target=self.processed_actions, joint_ids=self._joint_ids)
+        self._asset.actuators.target_command.set_position_index(value=self.processed_actions, joint_ids=self._joint_ids)
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        index_fill_(self._raw_actions, env_ids, 0.0)
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None) -> None:
+        index_fill_(self._raw_actions, env_ids if env_mask is None else env_mask.torch, 0.0)
 
 
 class EMAJointPositionToLimitsAction(JointPositionToLimitsAction):
@@ -268,14 +269,11 @@ class EMAJointPositionToLimitsAction(JointPositionToLimitsAction):
             )
         return self._IO_descriptor
 
-    def reset(self, env_ids: Sequence[int] | slice | None = None) -> None:
-        if env_ids is None:
-            env_ids = slice(None)
-        super().reset(env_ids)
-        env_index = env_ids
-        if isinstance(env_ids, torch.Tensor) and not isinstance(self._joint_ids, slice):
-            env_index = env_ids[:, None]
-        self._prev_applied_actions[env_ids] = self._asset.data.joint_pos.torch[env_index, self._joint_ids]
+    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: ProxyArray | None = None) -> None:
+        env_mask = env_mask_from_ids(env_ids, self.num_envs, self.device) if env_mask is None else env_mask
+        super().reset(env_mask=env_mask)
+        joint_pos = self._asset.data.joint_pos.torch[:, self._joint_ids]
+        torch.where(env_mask.torch[:, None], joint_pos, self._prev_applied_actions, out=self._prev_applied_actions)
 
     def process_actions(self, actions: torch.Tensor):
         # apply affine transformations
