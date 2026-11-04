@@ -83,9 +83,19 @@ AVAILABLE = [name for name in ("physx", "newton", "ovphysx") if name not in UNAV
 
 
 def backends(*names: str) -> list:
-    """Return pytest parameters for the named backends (default: all), skipping the unavailable ones."""
+    """Return pytest parameters for the named backends (default: all), skipping the unavailable ones.
+
+    The ``ovphysx`` parameter also carries ``pytest.mark.ov``.
+    """
     return [
-        pytest.param(name, id=name, marks=pytest.mark.skipif(name in UNAVAILABLE, reason=UNAVAILABLE.get(name, "")))
+        pytest.param(
+            name,
+            id=name,
+            marks=[
+                pytest.mark.skipif(name in UNAVAILABLE, reason=UNAVAILABLE.get(name, "")),
+                *([pytest.mark.ov] if name == "ovphysx" else []),
+            ],
+        )
         for name in names or ("physx", "newton", "ovphysx")
     ]
 
