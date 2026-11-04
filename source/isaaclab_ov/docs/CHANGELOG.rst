@@ -3,6 +3,22 @@ Changelog
 
 .. towncrier release notes start
 
+8.0.4 (2026-11-03)
+~~~~~~~~~~~~~~~~~~
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated ``Articulation.write_joint_state_to_sim_index``. Use ``write_joint_state_to_sim_mask``, or
+  ``write_joint_position_to_sim_index`` and ``write_joint_velocity_to_sim_index``.
+
+Fixed
+^^^^^
+
+* Fixed OVRTX stage preparation, camera relationships, and mesh and marker visibility writes with typed OVStage
+  token and path handles (new in OVStage 0.4.0) while preserving compatibility with integer IDs from older builds.
+
+
 8.0.3 (2026-10-31)
 ~~~~~~~~~~~~~~~~~~
 
