@@ -20,6 +20,7 @@ import torch
 from isaaclab.assets import Articulation
 from isaaclab.managers import CommandTerm, CommandTermCfg
 from isaaclab.utils import configclass
+from isaaclab.utils.datasets import MotionLoader
 from isaaclab.utils.math import (
     quat_apply,
     quat_error_magnitude,
@@ -29,8 +30,6 @@ from isaaclab.utils.math import (
     sample_uniform,
     yaw_quat,
 )
-
-from ..data.motion_loader import MotionLoader
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
