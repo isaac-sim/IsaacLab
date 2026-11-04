@@ -181,6 +181,9 @@ def _leapp_history_buffer_append(circular_buffer, task_name: str, state_name: st
     return decorate
 
 
+# For now, RGB export deliberately avoids Warp capture and its runtime adapter.
+# The normalization patch replaces fused Warp kernels with Torch operations;
+# this proxy handles destination writes outside that pure function patch.
 class _ImageRgbExportProxy(_ManagerTermProxy):
     """Keep destination mutation outside the pure RGB normalization function patch."""
 
