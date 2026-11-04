@@ -36,6 +36,16 @@ class IsaacSimBackendCfg(VisualizerBackendCfg):
     cloning_contexts: ClassVar[tuple[type | str, ...]] = ("isaaclab.cloner:UsdReplicateContext",)
     """The shared stage is populated from the authored USD stage, so every environment is authored there."""
 
+    host: Literal["viewer", "app"] = "viewer"
+    """How the viewer attaches to Isaac Lab.
+
+    ``"viewer"`` follows Isaac Sim's ``viewer.viewport_direct`` example: Isaac Lab applies the client's input and
+    renders on its own thread, with no host world or scheduler. It shows one navigable viewport and needs only the
+    installed Isaac Sim client. ``"app"`` runs the Isaac Sim 7 application host, which adds the stage, property and
+    content panes and the Play, Pause, Step and Stop controls, and needs the ``sim_viewer`` application sources and a
+    built client (:attr:`app_client_root`).
+    """
+
     ui: Literal["desktop", "browser"] = "desktop"
     """Where the viewer is presented: the Electron window attached to the host, or a logged browser URL."""
 
@@ -46,8 +56,8 @@ class IsaacSimBackendCfg(VisualizerBackendCfg):
     """Port of the host's HTTP service; zero picks a free one."""
 
     app_client_root: str | None = None
-    """Directory with the built ``sim_viewer`` application client: ``renderer/`` (``index.js``, ``manifest.js``)
-    and, for ``ui="desktop"``, ``main.cjs``.
+    """For ``host="app"``: directory with the built ``sim_viewer`` application client: ``renderer/`` (``index.js``,
+    ``manifest.js``) and, for ``ui="desktop"``, ``main.cjs``.
 
     The renderer supplies the stage, property and content panes. ``None`` uses the
     ``ISAACLAB_ISAAC_SIM_APP_CLIENT_ROOT`` environment variable, or serves only the shared shell when it is unset.

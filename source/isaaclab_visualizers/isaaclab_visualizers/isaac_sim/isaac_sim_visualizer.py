@@ -63,6 +63,7 @@ class IsaacSimVisualizer(BaseVisualizer):
         self._desktop = None
         self._provider = None
         self._shared = None
+        self._direct = None
         self._markers = None
         self._paths: list[str] = []
         self._scales = None
@@ -74,13 +75,10 @@ class IsaacSimVisualizer(BaseVisualizer):
         """Accumulated wall time [s] of the viewer's work in :meth:`step`, for benchmarking."""
 
     @property
-    def url(self) -> str:
-        """Address of the host's HTTP service."""
-        return self._host.url
-
-    @property
     def client_url(self) -> str:
         """Address that opens the viewer in a browser, including the launch token."""
+        if self._direct is not None:
+            return self._direct.url
         return f"{self._host.url}/index.html?entry=index.js&token={self._host.token}"
 
     def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
@@ -95,15 +93,7 @@ class IsaacSimVisualizer(BaseVisualizer):
             return
         super().initialize(sim, cameras=cameras)
 
-        from sim_viewer.cli import client_roots_for_backend
-        from sim_viewer.scene import CAMERA_SCOPE, RENDER_SCOPE, dynamic_viewport_spec, read_scene_metadata
-
-        from isaacsim.application.host import AppHost
-        from isaacsim.foundation.orchestration import RationalRate
-        from isaacsim.viewports.presentation import FrameEncoder
-
         from .isaac_sim_shared_markers import SharedMarkers
-        from .isaac_sim_shared_world import SharedWorldOpener
 
         self._provider = sim.get_scene_data_provider()
         self._paths = list(self._provider.backend.transform_paths)
@@ -111,16 +101,76 @@ class IsaacSimVisualizer(BaseVisualizer):
         started = time.perf_counter()
         scene, replication = self._export_prototypes(sim)
         self.timings["export"] = time.perf_counter() - started
+        self._markers = SharedMarkers()
+        device = str(sim.device)
+        device_index = int(device.split(":")[1]) if ":" in device else 0
+        if self.backend_cfg.host == "viewer":
+            self._start_direct(scene, replication, cameras, device_index)
+        else:
+            self._start_app(scene, replication, device_index)
+        self._log_initialization_table(
+            logger=logger,
+            title="IsaacSimVisualizer Configuration",
+            rows=[
+                ("ui", "headless" if self.cfg.headless else self.backend_cfg.ui),
+                ("bodies", len(self._paths)),
+                ("fps", self.cfg.window.fps),
+            ],
+        )
+        self._running = True
+        self._is_initialized = True
+
+    def _start_direct(
+        self,
+        scene: Path,
+        replication: Replication | None,
+        cameras: list[PerspectiveCameraCfg | Camera],
+        device: int,
+    ) -> None:
+        """Attach Isaac Sim's viewer directly to Isaac Lab's loop."""
+        from isaacsim.viewports.adapters import Camera as ViewerCamera
+
+        from .isaac_sim_direct_viewer import VIEWER_CAMERA, DirectViewer, viewer_layer
+
+        started = time.perf_counter()
+        layer = Sdf.Layer.FindOrOpen(str(scene))
+        root = layer.pseudoRoot
+        up_axis = root.GetInfo("upAxis") if root.HasInfo("upAxis") else "Z"
+        meters_per_unit = root.GetInfo("metersPerUnit") if root.HasInfo("metersPerUnit") else 1.0
+        perspective = next((cam for cam in cameras if isinstance(cam, PerspectiveCameraCfg)), PerspectiveCameraCfg())
+        eye, target = perspective.eye, perspective.lookat
+        world_up = (0.0, 1.0, 0.0) if up_axis == "Y" else (0.0, 0.0, 1.0)
+        self._direct = DirectViewer(
+            viewer_layer(scene.resolve().as_posix(), tuple(self.cfg.window.size), up_axis, meters_per_unit),
+            replication,
+            ViewerCamera(path=VIEWER_CAMERA, eye=tuple(eye), target=tuple(target), world_up=world_up),
+            device=device,
+            desktop=not self.cfg.headless and self.backend_cfg.ui == "desktop",
+            port=self.backend_cfg.port,
+        )
+        self._resources.callback(self._direct.close)
+        self.timings["shared_stage"] = time.perf_counter() - started
+        if not self.cfg.headless and self.backend_cfg.ui == "browser":
+            self._log_viewer_url("IsaacSimVisualizer", self._direct.url)
+
+    def _start_app(self, scene: Path, replication: Replication | None, device: int) -> None:
+        """Run the Isaac Sim 7 application host, with its panes and transport controls, on the shared stage."""
+        from sim_viewer.cli import client_roots_for_backend
+        from sim_viewer.scene import CAMERA_SCOPE, RENDER_SCOPE, dynamic_viewport_spec, read_scene_metadata
+
+        from isaacsim.application.host import AppHost
+        from isaacsim.foundation.orchestration import RationalRate
+        from isaacsim.viewports.presentation import FrameEncoder
+
+        from .isaac_sim_shared_world import SharedWorldOpener
+
+        started = time.perf_counter()
         metadata = read_scene_metadata(scene)
         specs: list = []
         rate = RationalRate(int(self.cfg.window.fps))
-        device = str(sim.device)
-        self._markers = SharedMarkers()
-        self._shared = SharedWorldOpener(
-            scene, specs, rate, device=int(device.split(":")[1]) if ":" in device else 0, replication=replication
-        )
+        self._shared = SharedWorldOpener(scene, specs, rate, device=device, replication=replication)
         self._resources.callback(self._shared.close)
-        self.timings["shared_stage"] = time.perf_counter() - started - self.timings["export"]
+        self.timings["shared_stage"] = time.perf_counter() - started
         client_roots = client_roots_for_backend("web")
         if self.backend_cfg.app_client_root is not None:
             client_roots = [("/app/", Path(self.backend_cfg.app_client_root) / "renderer"), *client_roots[1:]]
@@ -150,17 +200,6 @@ class IsaacSimVisualizer(BaseVisualizer):
             self._log_viewer_url("IsaacSimVisualizer", self.client_url)
         elif not self.cfg.headless:
             self._open_desktop()
-        self._log_initialization_table(
-            logger=logger,
-            title="IsaacSimVisualizer Configuration",
-            rows=[
-                ("ui", "headless" if self.cfg.headless else self.backend_cfg.ui),
-                ("bodies", len(self._paths)),
-                ("fps", self.cfg.window.fps),
-            ],
-        )
-        self._running = True
-        self._is_initialized = True
 
     def _open_desktop(self) -> None:
         """Open the Electron window attached to the host that this process runs."""
@@ -258,6 +297,12 @@ class IsaacSimVisualizer(BaseVisualizer):
             # matrices stay on the device; ovstage copies them in on the producing stream.
             stage.write_device(paths, "omni:xform", xform_tensor_from_warp(matrices), stream)
 
+        if self._direct is not None:
+            if not self._direct.step(int(self._sim_time * 1e9), write_state):
+                # The user closed the viewer.
+                self._running = False
+            self.timings["renders"] = self._direct.renders
+            return
         self._shared.step(int(self._sim_time * 1e9), int(dt * 1e9), write_state)
         self.timings["renders"] = self._shared.renders
 
@@ -290,7 +335,7 @@ class IsaacSimVisualizer(BaseVisualizer):
             return
         self._sim_time += dt
         start = time.perf_counter()
-        if self._shared.take_reset():
+        if self._shared is not None and self._shared.take_reset():
             # The viewer's Stop resets the environments, which then keep running.
             self._reset_requested = True
             self._play()
@@ -315,5 +360,5 @@ class IsaacSimVisualizer(BaseVisualizer):
             self._resources.close()
         finally:
             self._running = False
-            self._host = self._desktop = self._provider = self._shared = None
+            self._host = self._desktop = self._provider = self._shared = self._direct = None
             super().close()
