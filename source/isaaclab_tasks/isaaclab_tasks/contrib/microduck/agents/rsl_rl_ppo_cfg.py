@@ -7,11 +7,12 @@
 
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg
+from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg, RslRlSymmetryCfg
 
 from isaaclab_tasks.utils import preset
 
 from ..flat_env_cfg import MICRODUCK_STEPS_PER_ITERATION
+from ..mdp.symmetry import compute_symmetric_states
 
 
 @configclass
@@ -51,3 +52,29 @@ class MicroDuckRoughPPORunnerCfg(MicroDuckPPORunnerCfg):
     """The same PPO recipe with a separate experiment directory for rough terrain."""
 
     experiment_name = preset(default="microduck_velocity_rough", backlash="microduck_velocity_rough_backlash")
+
+
+@configclass
+class MicroDuckSymmetricPPORunnerCfg(MicroDuckPPORunnerCfg):
+    """The flat walking runner with left/right data augmentation and no mirror loss."""
+
+    experiment_name = preset(
+        default="microduck_velocity_flat_symmetry", backlash="microduck_velocity_flat_backlash_symmetry"
+    )
+
+    def __post_init__(self):
+        self.algorithm.symmetry_cfg = RslRlSymmetryCfg(
+            use_data_augmentation=True,
+            use_mirror_loss=False,
+            mirror_loss_coeff=0.0,
+            data_augmentation_func=compute_symmetric_states,
+        )
+
+
+@configclass
+class MicroDuckRoughSymmetricPPORunnerCfg(MicroDuckSymmetricPPORunnerCfg):
+    """The rough walking runner with the same symmetry augmentation."""
+
+    experiment_name = preset(
+        default="microduck_velocity_rough_symmetry", backlash="microduck_velocity_rough_backlash_symmetry"
+    )
