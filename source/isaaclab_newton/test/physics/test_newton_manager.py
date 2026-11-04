@@ -74,6 +74,11 @@ def test_newton_shape_cfg_defaults_match_newton():
     assert (shape_cfg.ke, shape_cfg.kd, shape_cfg.mu) == (upstream.ke, upstream.kd, upstream.mu)
 
 
+def test_collision_cfg_leaves_max_triangle_pairs_to_newton():
+    """The default must not override Newton's estimate, which grows with the world count."""
+    assert NewtonCollisionPipelineCfg().to_pipeline_args()["max_triangle_pairs"] is None
+
+
 def test_reset_lets_consumers_bind_each_new_backend_before_the_solver_exists(monkeypatch):
     """Each hard reset finalizes a new backend, dispatches ``PHYSICS_READY``, then builds the solver.
 

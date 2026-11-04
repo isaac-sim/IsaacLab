@@ -49,6 +49,7 @@ Guidelines for modifications:
 * Achintya Paningapalli
 * Advait Jayant
 * Agon Serifi
+* Ahmet Gundogdu
 * Alessandro Assirelli
 * Alex Omar
 * Alexander Millane

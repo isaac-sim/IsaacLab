@@ -542,7 +542,7 @@ choose the tab that matches your hardware.
 
       #. Teleoperate the robot by moving your hands.
 
-         .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/cloudxr_bimanual_teleop.gif
+         .. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/imitation_learning/teleop/cloudxr_bimanual_teleop.gif
             :align: center
             :alt: Bimanual dexterous teleoperation with CloudXR
 

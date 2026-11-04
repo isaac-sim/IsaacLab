@@ -44,7 +44,7 @@ Isaac Sim PhysX implementation and a standalone (Kit-less) OvPhysX implementatio
 .. raw:: html
 
    <video autoplay loop muted playsinline controls preload="metadata" aria-label="A PhysX-trained ANYmal-D policy runs side by side in PhysX and Newton MJWarp" style="width:100%; max-width:960px; display:block; margin:1.5em auto;">
-     <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/sim2sim_anymal_d_transfer_10s_trimmed.mp4" type="video/mp4">
+     <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/policy_deployment/sim2sim/sim2sim_anymal_d_transfer_10s_trimmed.mp4" type="video/mp4">
    </video>
 
 Additionally, Isaac Lab provides multiple rendering options through the Newton Tiled Camera sensor and
@@ -78,7 +78,7 @@ RTX, available as a standalone library OvRTX, as well as Isaac Sim Kit-based Isa
 
    .. grid-item-card:: Newton Tiled Camera
 
-      .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-newton.webp
+      .. image:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/renderers/camera_renderer_newton.webp
          :alt: Material spheres rendered with the Newton Tiled Camera Sensor
          :width: 100%
 
@@ -86,7 +86,7 @@ RTX, available as a standalone library OvRTX, as well as Isaac Sim Kit-based Isa
 
    .. grid-item-card:: OVRTX
 
-      .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-ovrtx.webp
+      .. image:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/renderers/camera_renderer_ovrtx.webp
          :alt: Material spheres rendered with the kit-less OVRTX renderer
          :width: 100%
 
@@ -94,7 +94,7 @@ RTX, available as a standalone library OvRTX, as well as Isaac Sim Kit-based Isa
 
    .. grid-item-card:: Isaac RTX
 
-      .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-isaac-rtx.webp
+      .. image:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/renderers/camera_renderer_isaac_rtx.webp
          :alt: Material spheres rendered with Isaac RTX in Isaac Sim
          :width: 100%
 
@@ -123,7 +123,7 @@ for more examples.
 
    .. grid-item-card:: Real-to-sim scene reconstruction
 
-      .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/nurec_real2sim_living_room.gif
+      .. image:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/policy_deployment/compass_nurec/nurec_real2sim_living_room.gif
          :width: 100%
          :alt: A camera capture becomes a simulation-ready NuRec reconstruction of a living room.
 
@@ -133,7 +133,7 @@ for more examples.
 
    .. grid-item-card:: Vision-policy distillation
 
-      .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/tutorial_so101_vialplace_play.gif
+      .. image:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/tutorials/tutorial_so101_vialplace_play.gif
          :width: 100%
          :alt: An SO-101 arm uses a wrist-camera policy to place a vial in a rack.
 
@@ -145,7 +145,7 @@ for more examples.
       .. raw:: html
 
          <video autoplay loop muted playsinline preload="metadata" aria-label="A Rizon robot uses a Sharpa hand to manipulate an RJ45 cable" style="width:100%;">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/rizon_sharpa_rj45_gb300.mp4" type="video/mp4">
+           <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/demos/rizon_sharpa_rj45_gb300.mp4" type="video/mp4">
          </video>
 
       A Rizon robot and Sharpa hand demonstrate contact-rich manipulation of an RJ45 cable.
@@ -155,7 +155,7 @@ for more examples.
       .. raw:: html
 
          <video autoplay loop muted playsinline preload="metadata" aria-label="A Rizon robot uses a Sharpa hand to manipulate a teapot" style="width:100%;">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/rizon_sharpa_teapot.mp4" type="video/mp4">
+           <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/demos/rizon_sharpa_teapot.mp4" type="video/mp4">
          </video>
 
       A Rizon robot and Sharpa hand demonstrate dexterous teapot manipulation with MPM fluid simulation.
