@@ -201,6 +201,7 @@ def build_render_product_as_string(
     render_mode_lines.append("bool omni:rtx:rt:ecoMode:enabled = false")
 
     # An ISP needs Gaussian splats tonemapped with the rest of the frame.
+    # OMPE-117939 tracks deprecation of the Gaussian skip-tonemapping setting.
     if spec.cfg.isp_cfg is not None:
         render_mode_lines.append("bool omni:rtx:gaussian:skipTonemapping:enabled = false")
 

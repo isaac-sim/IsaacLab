@@ -324,6 +324,7 @@ class IsaacRtxRenderer(BaseRenderer):
         )
         if spec.cfg.isp_cfg is not None:
             # Isaac Sim 6.2 reads this legacy setting instead of the render-product attribute authored below.
+            # OMPE-117939 tracks deprecation of the Gaussian skip-tonemapping setting.
             settings.set("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
 
         # Unique UUID name so concurrent tiled cameras and sequential env create/destroy
@@ -439,6 +440,7 @@ class IsaacRtxRenderer(BaseRenderer):
             annotator.attach([rp.path])
 
         # Newer Kit reads Gaussian tonemapping policy from the render product, as standalone OVRTX does.
+        # OMPE-117939 tracks deprecation of the Gaussian skip-tonemapping setting.
         if spec.cfg.isp_cfg is not None:
             stage.GetPrimAtPath(rp.path).CreateAttribute(
                 "omni:rtx:gaussian:skipTonemapping:enabled", Sdf.ValueTypeNames.Bool
