@@ -41,6 +41,7 @@ from newton import ModelBuilder
 from newton.solvers import SolverImplicitMPM, SolverMuJoCo, SolverXPBD
 
 from isaaclab.sim import SimulationContext
+from isaaclab.test.utils import test_devices
 
 
 def _model_stub(state_attributes=()) -> SimpleNamespace:
@@ -140,6 +141,45 @@ def test_replicated_joint_properties_follow_schema_precedence(monkeypatch, solve
 
 
 # ----- MuJoCo Warp -------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("device", test_devices())
+def test_mjwarp_authored_reset_imports_only_selected_worlds(device):
+    """Authored state reaches MuJoCo for selected worlds, including during CUDA graph replay."""
+    builder = ModelBuilder(gravity=(0.0, 0.0, 0.0))
+    for _ in range(2):
+        builder.begin_world()
+        body = builder.add_link(mass=1.0, inertia=wp.mat33(np.eye(3)))
+        joint = builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
+        builder.add_articulation([joint])
+        builder.end_world()
+    model = builder.finalize(device=device)
+    cfg = MJWarpSolverCfg(use_mujoco_cpu=device == "cpu", update_data_interval=2)
+    solver = SolverMuJoCo(model, use_mujoco_cpu=cfg.use_mujoco_cpu, separate_worlds=True, update_data_interval=2)
+    state = model.state()
+    world_mask = wp.zeros(3, dtype=wp.bool, device=device)
+    data = solver.mj_data if cfg.use_mujoco_cpu else solver.mjw_data
+    # Zero-copy views give native NumPy and Warp buffers the same fill/read interface.
+    qpos = wp.array(data.qpos, copy=False, device=device)
+    qvel = wp.array(data.qvel, copy=False, device=device)
+    qpos.fill_(1.25)
+    qvel.fill_(-0.75)
+    reset = functools.partial(MJWarpSolver.reset, cfg, solver, state, world_mask)
+    reset()  # Warm the reset kernels with an empty mask before capture.
+    if not cfg.use_mujoco_cpu:
+        with wp.ScopedCapture(device=device) as capture:
+            reset()
+        reset = functools.partial(wp.capture_launch, capture.graph)
+
+    count = 1 if cfg.use_mujoco_cpu else 2  # Native MuJoCo exposes only template world 0.
+    for world, expected_q, expected_qd in ((1, [1.25, 0.25], [-0.75, 0.5]), (0, [-0.25, 0.25], [-0.5, 0.5])):
+        state.joint_q.fill_(expected_q[world])
+        state.joint_qd.fill_(expected_qd[world])
+        world_mask.zero_()
+        world_mask[world : world + 1].fill_(True)
+        reset()
+        np.testing.assert_allclose(qpos.numpy().ravel(), expected_q[:count])
+        np.testing.assert_allclose(qvel.numpy().ravel(), expected_qd[:count])
 
 
 @pytest.fixture

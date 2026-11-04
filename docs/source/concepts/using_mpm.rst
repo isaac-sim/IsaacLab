@@ -27,7 +27,7 @@ default. Pass ``--device cuda:N`` to select a different GPU.
       .. raw:: html
 
          <video autoplay loop muted playsinline controls preload="metadata" style="width:100%;">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_granular.mp4" type="video/mp4">
+           <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/mpm/mpm_granular.mp4" type="video/mp4">
          </video>
 
       .. code-block:: bash
@@ -39,7 +39,7 @@ default. Pass ``--device cuda:N`` to select a different GPU.
       .. raw:: html
 
          <video autoplay loop muted playsinline controls preload="metadata" style="width:100%;">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_two_way.mp4" type="video/mp4">
+           <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/mpm/mpm_two_way.mp4" type="video/mp4">
          </video>
 
       .. code-block:: bash
@@ -51,7 +51,7 @@ default. Pass ``--device cuda:N`` to select a different GPU.
       .. raw:: html
 
          <video autoplay loop muted playsinline controls preload="metadata" style="width:100%;">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_snowball.mp4" type="video/mp4">
+           <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/mpm/mpm_snowball.mp4" type="video/mp4">
          </video>
 
       .. code-block:: bash
@@ -63,7 +63,7 @@ default. Pass ``--device cuda:N`` to select a different GPU.
       .. raw:: html
 
          <video autoplay loop muted playsinline controls preload="metadata" style="width:100%;">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_teapot_particles.mp4" type="video/mp4">
+           <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/mpm/mpm_teapot_particles.mp4" type="video/mp4">
          </video>
 
       .. code-block:: bash
@@ -331,7 +331,7 @@ Surface rendering is available in the Kit, Newton GL, and Newton RTX visualizers
 .. raw:: html
 
    <video autoplay loop muted playsinline controls preload="metadata" style="width:100%; max-width:960px;">
-     <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_surface_reconstruction.mp4" type="video/mp4">
+     <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/mpm/mpm_surface_reconstruction.mp4" type="video/mp4">
    </video>
 
 This recording demonstrates rendering appearance, not a different
