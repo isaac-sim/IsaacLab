@@ -204,3 +204,21 @@ def test_integral(device):
 
         # check if the modified data is close to the expected result
         torch.testing.assert_close(processed_data, test_cfg.result)
+
+
+@pytest.mark.parametrize(
+    "cfg", [tensor_processors.DigitalFilterCfg(A=[0.0, 0.1], B=[0.5, 0.5]), tensor_processors.IntegratorCfg(dt=0.1)]
+)
+def test_stateful_tensor_processor_mask_reset(cfg):
+    """A mask reset clears the history of the selected environments only."""
+    processor, reference = (cfg.func(cfg, (3, 2), device="cpu") for _ in range(2))
+    data = torch.ones(3, 2)
+    expected = [reference(data).clone() for _ in range(3)]
+    for _ in range(2):
+        processor(data)
+
+    processor.reset(env_mask=wp.array([True, False, True], dtype=wp.bool, device="cpu"))
+    output = processor(data)
+
+    torch.testing.assert_close(output[[0, 2]], expected[0][[0, 2]])
+    torch.testing.assert_close(output[1], expected[2][1])

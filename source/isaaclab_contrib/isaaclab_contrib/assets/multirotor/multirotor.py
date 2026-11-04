@@ -41,14 +41,18 @@ class _ThrusterCollection(dict):
     exposing the :meth:`reset` entry point that :meth:`isaaclab.assets.Articulation.reset` invokes.
     """
 
-    def reset(self, env_ids: Sequence[int] | slice | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None) -> None:
         """Reset every thruster actuator for the given environments.
+
+        .. caution::
+            If both ``env_ids`` and ``env_mask`` are provided, ``env_mask`` takes precedence.
 
         Args:
             env_ids: Environment indices to reset. Defaults to None (all environments).
+            env_mask: Boolean environment mask. Shape is (num_instances,). Defaults to None.
         """
         for actuator in self.values():
-            actuator.reset(env_ids)
+            actuator.reset(env_ids, env_mask=env_mask)
 
 
 class Multirotor(Articulation):
@@ -244,23 +248,39 @@ class Multirotor(Articulation):
         # set targets
         self._data.thrust_target[env_ids, thruster_ids] = target
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
         """Reset the multirotor to default state.
 
         This method resets both the base articulation state (pose, velocities) and
         multirotor-specific state (thruster targets) to their default values as specified
         in the configuration.
 
+        .. caution::
+            If both ``env_ids`` and ``env_mask`` are provided, ``env_mask`` takes precedence.
+
         Args:
             env_ids: Environment indices to reset. Defaults to None (all environments).
                 Can be a sequence of integers or None.
+            env_mask: Boolean environment mask. Shape is (num_instances,). Resets without synchronizing the
+                device. Defaults to None.
 
         Note:
             The default thruster state is set via the :attr:`MultirotorCfg.init_state.rps`
             configuration parameter.
         """
         # call parent reset
-        super().reset(env_ids)
+        super().reset(env_ids, env_mask)
+
+        if env_mask is not None:
+            # reset thruster targets of the masked environments to their default values
+            if self._data.thrust_target is not None and self._data.default_thruster_rps is not None:
+                torch.where(
+                    wp.to_torch(env_mask)[:, None],
+                    self._data.default_thruster_rps,
+                    self._data.thrust_target,
+                    out=self._data.thrust_target,
+                )
+            return
 
         # reset multirotor-specific data
         if env_ids is None:
