@@ -14,7 +14,7 @@ from leapp import TensorSemantics
 
 from ...managers import ManagerTermBase
 from ..warp.proxy_array import ProxyArray
-from .leapp_semantics import resolve_leapp_axes, resolve_leapp_element_names
+from .leapp_semantics import resolve_semantics_axes
 from .utils import TracedProxyArray, build_write_connection
 
 
@@ -533,12 +533,8 @@ class _ArticulationWriteProxy:
                     name=_unique_output_name(term_name, name, output_cache),
                     ref=target.clone(),
                     kind=semantics_meta.kind,
-                    axes=resolve_leapp_axes(
-                        target,
-                        semantics_meta.kind,
-                        resolve_leapp_element_names(
-                            semantics_meta, _WriteJointNameContext(real_asset.joint_names, joint_ids)
-                        ),
+                    axes=resolve_semantics_axes(
+                        semantics_meta, _WriteJointNameContext(real_asset.joint_names, joint_ids), target
                     ),
                     reference=semantics_meta.reference,
                     expressed_in=semantics_meta.expressed_in,

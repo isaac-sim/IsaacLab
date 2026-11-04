@@ -10,3 +10,8 @@
 * Removed the RGB export observation proxy by tracing destination writes directly in the
   normalization function patch.
 * Removed redundant export-only clones from EMA state registration and processed-action fallback outputs.
+* **Breaking:** Replaced decorator ``element_names`` and ``element_names_resolver`` with
+  explicit LEAPP ``axes`` and ``axes_resolver`` declarations. Replaced component-label constants
+  with ``*_COMPONENT_AXIS`` descriptors and body/joint resolvers with axis resolvers. Command
+  configurations now declare ``axes`` instead of ``element_names``. Removed kind-based axis
+  inference and corrected ray-caster coordinates to use component axes.

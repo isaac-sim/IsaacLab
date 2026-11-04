@@ -17,6 +17,7 @@ from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.terrains import TerrainImporter
 from isaaclab.utils import index_fill_
+from isaaclab.utils.leapp import Axis, AxisKind
 from isaaclab.utils.math import quat_apply_inverse, quat_from_euler_xyz, wrap_to_pi, yaw_quat
 
 if TYPE_CHECKING:
@@ -68,7 +69,7 @@ class UniformPose2dCommand(CommandTerm):
         # adds (optional) cmd kind and element names for leapp export
         # during export, semantic data about this command will be used to annotate the command input
         self.cfg.cmd_kind = self.cfg.cmd_kind or "command/body/pose"
-        self.cfg.element_names = self.cfg.element_names or ["x", "y", "z", "heading"]
+        self.cfg.axes = self.cfg.axes or [None, Axis(AxisKind.COMPONENT, names=["x", "y", "z", "heading"])]
 
     def __str__(self) -> str:
         msg = "PositionCommand:\n"

@@ -19,7 +19,7 @@ import warp as wp
 
 from ...sim import SimulationContext
 from ...utils.buffers import TimestampedBuffer
-from ...utils.leapp.leapp_semantics import Kind, joint_names_resolver, leapp_tensor_semantics
+from ...utils.leapp.leapp_semantics import Kind, joint_axes_resolver, leapp_tensor_semantics
 from ...utils.warp import ProxyArray
 from ..asset_base import AssetBase
 from . import ordering_kernels
@@ -1637,7 +1637,7 @@ class BaseArticulation(AssetBase):
         """
         raise NotImplementedError()
 
-    @leapp_tensor_semantics(kind=Kind.JOINT_POSITION, element_names_resolver=joint_names_resolver)
+    @leapp_tensor_semantics(kind=Kind.JOINT_POSITION, axes_resolver=joint_axes_resolver)
     def set_joint_position_target_index(
         self,
         *,
@@ -1720,7 +1720,7 @@ class BaseArticulation(AssetBase):
                 joint_ids=group_columns,
             )
 
-    @leapp_tensor_semantics(kind=Kind.JOINT_POSITION, element_names_resolver=joint_names_resolver)
+    @leapp_tensor_semantics(kind=Kind.JOINT_POSITION, axes_resolver=joint_axes_resolver)
     def set_joint_position_target_mask(
         self,
         *,
@@ -1758,7 +1758,7 @@ class BaseArticulation(AssetBase):
             env_mask=_as_bool_mask(env_mask),
         )
 
-    @leapp_tensor_semantics(kind=Kind.JOINT_VELOCITY, element_names_resolver=joint_names_resolver)
+    @leapp_tensor_semantics(kind=Kind.JOINT_VELOCITY, axes_resolver=joint_axes_resolver)
     def set_joint_velocity_target_index(
         self,
         *,
@@ -1797,7 +1797,7 @@ class BaseArticulation(AssetBase):
             value=target, joint_ids=joint_ids, env_ids=env_ids, full_data=full_data
         )
 
-    @leapp_tensor_semantics(kind=Kind.JOINT_VELOCITY, element_names_resolver=joint_names_resolver)
+    @leapp_tensor_semantics(kind=Kind.JOINT_VELOCITY, axes_resolver=joint_axes_resolver)
     def set_joint_velocity_target_mask(
         self,
         *,
@@ -1835,7 +1835,7 @@ class BaseArticulation(AssetBase):
             env_mask=_as_bool_mask(env_mask),
         )
 
-    @leapp_tensor_semantics(kind=Kind.JOINT_EFFORT, element_names_resolver=joint_names_resolver)
+    @leapp_tensor_semantics(kind=Kind.JOINT_EFFORT, axes_resolver=joint_axes_resolver)
     def set_joint_effort_target_index(
         self,
         *,
@@ -1874,7 +1874,7 @@ class BaseArticulation(AssetBase):
             value=target, joint_ids=joint_ids, env_ids=env_ids, full_data=full_data
         )
 
-    @leapp_tensor_semantics(kind=Kind.JOINT_EFFORT, element_names_resolver=joint_names_resolver)
+    @leapp_tensor_semantics(kind=Kind.JOINT_EFFORT, axes_resolver=joint_axes_resolver)
     def set_joint_effort_target_mask(
         self,
         *,

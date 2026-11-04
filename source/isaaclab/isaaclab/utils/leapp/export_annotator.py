@@ -40,7 +40,7 @@ from functools import wraps
 from typing import TYPE_CHECKING, Any
 
 import torch
-from leapp import ExportManager, FunctionPatch, Kind, TensorSemantics, annotate
+from leapp import Axis, AxisKind, ExportManager, FunctionPatch, Kind, TensorSemantics, annotate
 
 from ...actuators import IdealPDActuator, ImplicitActuator
 from ...assets.articulation.base_articulation import BaseArticulation
@@ -50,7 +50,7 @@ from .. import images as image_utils
 from .. import math as math_utils
 from ..array import convert_to_torch
 from ..images import CameraFrameStack
-from .leapp_semantics import resolve_leapp_axes, select_element_names
+from .leapp_semantics import select_element_names
 from .proxy import _ArticulationWriteProxy, _DataProxy, _EnvProxy, _ManagerTermProxy
 from .utils import (
     TracedProxyArray,
@@ -92,7 +92,7 @@ def _gain_semantics(
         name=f"{term_name}_{kind}_gains",
         ref=ref,
         kind=Kind.KP if kind == "kp" else Kind.KD,
-        axes=resolve_leapp_axes(ref, Kind.KP if kind == "kp" else Kind.KD, element_names),
+        axes=[None, Axis(AxisKind.ELEMENT, names=element_names)] if element_names is not None else None,
         extra=build_write_connection(scene_key, _GAIN_WRITE_METHODS[kind]),
     )
 
@@ -674,7 +674,7 @@ class ExportPatcher:
     def _wrap_generated_commands(self, original_func, term_cfg):
         """Wrap the ``generated_commands`` observation term to annotate its output as a LEAPP input.
 
-        Resolves command semantics (kind, element_names) from the command manager
+        Resolves command semantics (kind, axes) from the command manager
         configuration when available.
 
         Args:
@@ -709,7 +709,7 @@ class ExportPatcher:
                 name=leapp_input_name,
                 ref=result,
                 kind=kind,
-                axes=resolve_leapp_axes(result, kind, getattr(command_cfg, "element_names", None)),
+                axes=getattr(command_cfg, "axes", None),
                 is_setpoint=True,
                 reference=getattr(command_cfg, "cmd_reference", None),
                 expressed_in=getattr(command_cfg, "cmd_expressed_in", None),
