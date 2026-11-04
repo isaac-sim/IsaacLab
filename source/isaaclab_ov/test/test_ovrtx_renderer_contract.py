@@ -129,19 +129,19 @@ def _simulation_registry(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "settings, with_physics, use_ovstage, shared_physics",
+    "settings, with_physics, use_ovstage, shared_physics, minimal_only",
     [
-        pytest.param((None, None), False, False, False, id="other-default"),
-        pytest.param((None, None), True, False, False, id="ovphysx-default"),
-        pytest.param(("1", None), False, True, False, id="other-ovstage"),
-        pytest.param(("1", None), True, True, False, id="ovphysx-render-only"),
-        pytest.param(("0", None), True, False, False, id="ovphysx-native"),
-        pytest.param((None, "1"), True, True, True, id="shared"),
-        pytest.param(("0", "1"), True, True, True, id="shared-override"),
+        pytest.param((None, None), False, False, False, False, id="other-default"),
+        pytest.param((None, None), True, False, False, True, id="ovphysx-default"),
+        pytest.param(("1", None), False, True, False, True, id="other-ovstage"),
+        pytest.param(("1", None), True, True, False, False, id="ovphysx-render-only"),
+        pytest.param(("0", None), True, False, False, False, id="ovphysx-native"),
+        pytest.param((None, "1"), True, True, True, True, id="shared"),
+        pytest.param(("0", "1"), True, True, True, False, id="shared-override"),
     ],
 )
 def test_ovrtx_renderer_config_enables_supported_runtime_options(
-    monkeypatch, tmp_path, settings, with_physics, use_ovstage, shared_physics
+    monkeypatch, tmp_path, settings, with_physics, use_ovstage, shared_physics, minimal_only
 ):
     """Preparation resolves routes before native allocation; registry ownership outlives borrowers."""
     from isaaclab_ov.cloner import OvPhysxReplicateContext, OvrtxReplicateContext, OvstageReplicateContext
@@ -209,7 +209,7 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
         routes = {OvPhysxReplicateContext: {0}, OvrtxReplicateContext: {1}}
         OvrtxReplicateContext.prepare(sim, routes)
         assert routes == {OvPhysxReplicateContext: {0}, OvrtxReplicateContext: {1}}
-    cfg = OVRTXRendererCfg(_minimal_only=use_ovstage)
+    cfg = OVRTXRendererCfg(_minimal_only=minimal_only)
     renderer = sim.get_or_create_backend(cfg)
     shared = sim.get_or_create_backend(replace(cfg))
     assert shared is renderer
@@ -240,8 +240,8 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
     assert config_kwargs["suppress_deprecation_warnings"] is True
     assert config_kwargs["texture_streaming_mode"] is ovrtx_renderer_module.TextureStreamingMode.SYNCHRONOUS
     assert config_kwargs["enable_minimal"] is True
-    assert config_kwargs["enable_realtimepathtracing"] is (not use_ovstage)
-    assert config_kwargs["enable_pathtracing"] is (not use_ovstage)
+    assert config_kwargs["enable_realtimepathtracing"] is (not minimal_only)
+    assert config_kwargs["enable_pathtracing"] is (not minimal_only)
     expected_contexts = {OvstageReplicateContext if use_ovstage else OvrtxReplicateContext}
     if with_physics and not shared_physics:
         expected_contexts.add(OvPhysxReplicateContext)

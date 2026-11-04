@@ -213,7 +213,11 @@ def _write_combined_stage(output_dir: Path, render_product_usd: str) -> None:
 class OVRTXBackend:
     """Own one native renderer, independently of its camera products and optional OVStage."""
 
+    # Track open Isaac Lab backends so mode changes cannot tear down shared graphics resources still in use.
+    # Weak references keep this registry from extending a backend's lifetime.
     _instances: weakref.WeakSet[OVRTXBackend] = weakref.WeakSet()
+    # Remember the configuration of native graphics resources retained by keep_system_alive=True.
+    # This survives the last backend closing, so the next backend can reuse them or release them to change modes.
     _retained_config: RendererConfig | None = None
 
     def __init__(self, cfg: OVRTXBackendCfg):
