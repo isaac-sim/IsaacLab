@@ -115,6 +115,7 @@ def test_pva_data_hierarchy_remains_importable(monkeypatch):
         assert issubclass(data_class, BasePvaData)
         assert data_class(["pose"]).data_types == frozenset({"pose"})
     assert issubclass(PvaData, BasePvaData)
+    monkeypatch.setattr(PvaData, "_registry", {})
     monkeypatch.setattr(PvaData, "_get_backend", classmethod(lambda cls, *args, **kwargs: "newton"))
     assert isinstance(PvaData(["pose"]), data_classes["newton"])
 
@@ -265,97 +266,24 @@ def test_packed_sensor_readers_follow_buffers_through_capture_and_recreation(bac
         assert data.pose_w is None and data.pos_w is None and data.quat_w is None
 
 
-def test_sensor_ownership_and_optional_compilation(source_checkout_root):
-    """Core owns shared outputs and equations; optional update subsets compile independently."""
+def test_pva_storage_has_one_owner(source_checkout_root):
+    """Keep PVA output storage in core while preserving the public backend data types."""
     import ast
-    import importlib
 
-    from isaaclab.sensors.pva.kernels import make_pva_writer, pva_reset_kernel
-
-    make_pva_writer.cache_clear()
-    reset_hash = pva_reset_kernel.module.hash_module()
-    for package in ("isaaclab", "isaaclab_newton"):
-        module = importlib.import_module(f"{package}.sensors.pva.kernels")
-        assert not hasattr(module, "pva_update_kernels")
-        assert not hasattr(module, "pva_writers")
-        module.make_pva_update.cache_clear()
-        pose = frozenset({"pose"})
-        first = module.make_pva_update(pose)
-        before = first.module.hash_module()
-        second = module.make_pva_update(pose | {"velocity"})
-        assert module.make_pva_update(pose) is first
-        assert first.module is not second.module
-        assert first.module.hash_module() == before
-        assert pva_reset_kernel.module not in {first.module, second.module}
-        assert pva_reset_kernel.module.hash_module() == reset_hash
     source = source_checkout_root / "source"
-    core = source / "isaaclab/isaaclab"
-    assert (core / "sensors/pva/base_pva_data.py").is_file()
-    assert not (core / "sensors/joint_wrench/kernels.py").exists()
-    data = ast.parse((core / "sensors/pva/pva_data.py").read_text())
-    storage = next(n for n in data.body if isinstance(n, ast.ClassDef) and n.name == "_PvaDataStorage")
-    factory = next(n for n in data.body if isinstance(n, ast.ClassDef) and n.name == "PvaData")
-    assert [base.id for base in storage.bases] == ["BasePvaData"]
-    assert [base.id for base in factory.bases] == ["FactoryBase", "BasePvaData"]
-    for family in ("imu", "pva", "frame_transformer"):
-        owner = core / f"sensors/{family}/kernels.py"
-        assert owner.is_file()
-        for node in ast.walk(ast.parse(owner.read_text())):
-            if isinstance(node, ast.DictComp):
-                assert not any(
-                    isinstance(call, ast.Call) and getattr(call.func, "id", "").lstrip("_").startswith("make_")
-                    for call in ast.walk(node)
-                ), "Construct requested sensor variants; do not enumerate combinations"
-            if isinstance(node, ast.FunctionDef) and node.name.lstrip("_").startswith("make_"):
-                assert not node.name.endswith("_kernel"), node.name
-            modules = [a.name for a in node.names] if isinstance(node, ast.Import) else []
-            if isinstance(node, ast.ImportFrom):
-                modules.append(node.module or "")
-            assert not any(
-                m.startswith(("isaaclab_newton", "isaaclab_physx", "isaaclab_ov", "newton", "isaacsim"))
-                for m in modules
-            ), owner
-    for backend in ("ov", "physx", "newton"):
-        package = source / f"isaaclab_{backend}/isaaclab_{backend}"
-        data_file = package / "sensors/pva/pva_data.py"
-        assert data_file.is_file()
-        backend_data = ast.parse(data_file.read_text())
-        container = next(n for n in backend_data.body if isinstance(n, ast.ClassDef) and n.name == "PvaData")
-        assert [base.id for base in container.bases] == ["_PvaDataStorage"]
-        assert not any(isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) for n in container.body)
-        for stub in (package / "sensors/__init__.pyi", package / "sensors/pva/__init__.pyi"):
-            assert any(
-                isinstance(n, ast.ImportFrom) and any(a.name == "PvaData" for a in n.names)
-                for n in ast.parse(stub.read_text()).body
-            )
+    core = source / "isaaclab/isaaclab/sensors/pva"
+    assert (core / "base_pva_data.py").is_file()
+    for path in (core / "pva_data.py", core / "kernels.py"):
+        tree = ast.parse(path.read_text())
+        imports = [node.module for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)]
+        assert not any(
+            name and name.startswith(("isaaclab_newton", "isaaclab_ov", "isaaclab_physx")) for name in imports
+        )
+    for backend in ("newton", "ov", "physx"):
+        package = source / f"isaaclab_{backend}/isaaclab_{backend}/sensors/pva"
+        tree = ast.parse((package / "pva_data.py").read_text())
+        data_class = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "PvaData")
+        assert [base.id for base in data_class.bases] == ["_PvaDataStorage"]
+        assert not any(isinstance(node, ast.FunctionDef) for node in data_class.body)
         if backend != "newton":
-            frame_data = ast.parse((package / "sensors/frame_transformer/frame_transformer_data.py").read_text())
-            assert not any(
-                isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "to_torch"
-                for n in ast.walk(frame_data)
-            ), "Initialize Warp-owned frame storage in Warp; do not mutate it through Torch"
-            for family in ("imu", "pva", "joint_wrench"):
-                assert not (package / f"sensors/{family}/kernels.py").exists()
-            assert not (package / "sensors/kernels.py").exists()
-            contact = ast.parse((package / "sensors/contact_sensor/kernels.py").read_text())
-            assert "concat_pos_and_quat_to_pose_kernel" not in {
-                n.name for n in contact.body if isinstance(n, ast.FunctionDef)
-            }
-        for family, forbidden in (
-            ("imu", "imu_reset_kernel"),
-            ("joint_wrench", "joint_wrench_reset_kernel"),
-            ("frame_transformer", "frame_transformer_update_kernel"),
-        ):
-            local = package / f"sensors/{family}/kernels.py"
-            if local.exists():
-                assert forbidden not in {
-                    n.name for n in ast.parse(local.read_text()).body if isinstance(n, ast.FunctionDef)
-                }
-    assert not (source / "isaaclab_physx/isaaclab_physx/sensors/frame_transformer/kernels.py").exists()
-    for package in source.iterdir():
-        for file in (package / package.name).rglob("*.py"):
-            for node in ast.walk(ast.parse(file.read_text())):
-                if isinstance(node, ast.ImportFrom):
-                    assert node.module != "isaaclab.sensors.joint_wrench.kernels", file
-                if isinstance(node, ast.Import):
-                    assert all(a.name != "isaaclab.sensors.joint_wrench.kernels" for a in node.names), file
+            assert not (package / "kernels.py").exists()

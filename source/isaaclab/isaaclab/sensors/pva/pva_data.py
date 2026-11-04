@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import importlib
 from collections.abc import Sequence
 
 import warp as wp
@@ -183,15 +182,3 @@ class _PvaDataStorage(BasePvaData):
 
 class PvaData(FactoryBase, BasePvaData):
     """Create the backend PVA data container using the active simulation backend."""
-
-    @classmethod
-    def resolve_class(cls, *args, **kwargs) -> type[BasePvaData]:
-        backend = cls._get_backend(*args, **kwargs)
-        if backend not in cls._registry:
-            # Import the implementation directly so factory use does not warn about its public export.
-            module = importlib.import_module(f"{cls._get_module_name(backend)}.pva_data")
-            cls.register(backend, module.PvaData)
-        return cls._registry[backend]
-
-    def __new__(cls, *args, **kwargs) -> BasePvaData:
-        return super().__new__(cls, *args, **kwargs)

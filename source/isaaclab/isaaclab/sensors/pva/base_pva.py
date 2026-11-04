@@ -8,7 +8,13 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, ClassVar
 
+import torch
 import warp as wp
+
+from pxr import UsdGeom
+
+import isaaclab.utils.math as math_utils
+from isaaclab.markers import VisualizationMarkers
 
 from ..sensor_base import SensorBase
 from .base_pva_data import BasePvaData
@@ -70,6 +76,16 @@ class BasePva(SensorBase):
             raise ValueError("PVA debug visualization requires the 'acceleration' output")
         super().__init__(cfg)
 
+    """
+    Properties
+    """
+
+    @property
+    def data(self) -> BasePvaData:
+        """Refresh and return the enabled measurements."""
+        self._update_outdated_buffers()
+        return self._data
+
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
         """Reset enabled measurements and timing for the selected environments."""
         env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
@@ -87,12 +103,32 @@ class BasePva(SensorBase):
         if self._data.buffers.pose_w:
             wp.launch(pva_reset_kernel, self._num_envs, [self._ALL_ENV_MASK, self._data.buffers], device=self._device)
 
-    """
-    Properties
-    """
+    def _set_debug_vis_impl(self, debug_vis: bool):
+        if debug_vis:
+            if not hasattr(self, "acceleration_visualizer"):
+                self.acceleration_visualizer = VisualizationMarkers(self.cfg.visualizer_cfg)
+            self.acceleration_visualizer.set_visibility(True)
+        elif hasattr(self, "acceleration_visualizer"):
+            self.acceleration_visualizer.set_visibility(False)
 
-    @property
-    def data(self) -> BasePvaData:
-        """Refresh and return the enabled measurements."""
+    def _debug_vis_callback(self, event):
+        if not self._is_initialized:
+            return
         self._update_outdated_buffers()
-        return self._data
+        pos_w = self._data.pos_w.torch
+        accel_w = math_utils.quat_apply(self._data.quat_w.torch, self._data.lin_acc_b.torch)
+        valid = (torch.linalg.norm(accel_w, dim=-1) > 1e-5).nonzero(as_tuple=True)[0]
+        if valid.numel() == 0:
+            return
+        pos = pos_w.index_select(0, valid)
+        accel = accel_w.index_select(0, valid)
+        rotation = math_utils.create_rotation_matrix_from_view(
+            pos, pos + accel, up_axis=UsdGeom.GetStageUpAxis(self.stage), device=self._device
+        )
+        quat = math_utils.convert_camera_frame_orientation_convention(
+            math_utils.quat_from_matrix(rotation), "opengl", "world"
+        )
+        marker_pos = pos.clone()
+        marker_pos[:, 2] += 0.5
+        scale = torch.tensor(self.acceleration_visualizer.cfg.markers["arrow"].scale, device=self.device)
+        self.acceleration_visualizer.visualize(marker_pos, quat, scale.repeat(valid.numel(), 1))

@@ -11,10 +11,7 @@ from typing import TYPE_CHECKING, ClassVar
 import torch
 import warp as wp
 
-from pxr import UsdGeom
-
 import isaaclab.utils.math as math_utils
-from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.pva import BasePva
 from isaaclab.sensors.pva.kernels import make_pva_update
 from isaaclab.sim.utils.queries import path_expr_to_glob
@@ -226,49 +223,3 @@ class Pva(BasePva):
             )
         if "acceleration" in self._data.data_types:
             self._accelerations = wp.zeros(self._num_bodies, dtype=wp.spatial_vectorf, device=self._device)
-
-    def _set_debug_vis_impl(self, debug_vis: bool):
-        if debug_vis:
-            if not hasattr(self, "acceleration_visualizer"):
-                self.acceleration_visualizer = VisualizationMarkers(self.cfg.visualizer_cfg)
-            self.acceleration_visualizer.set_visibility(True)
-        else:
-            if hasattr(self, "acceleration_visualizer"):
-                self.acceleration_visualizer.set_visibility(False)
-
-    def _debug_vis_callback(self, event):
-        # safely return if the sensor has not been bound yet (matches the PhysX `_view is None` idiom)
-        if self._root_view is None:
-            return
-        self._update_outdated_buffers()
-        # get marker location
-        # -- base state (convert warp -> torch for visualization)
-        base_pos_w = self._data.pos_w.torch.clone()
-        base_pos_w[:, 2] += 0.5
-        # -- resolve the scales
-        default_scale = self.acceleration_visualizer.cfg.markers["arrow"].scale
-        arrow_scale = torch.tensor(default_scale, device=self.device).repeat(self._data.lin_acc_b.torch.shape[0], 1)
-        # get up axis of current stage
-        up_axis = UsdGeom.GetStageUpAxis(self.stage)
-        # arrow-direction; filter out bodies with effectively zero accel (no defined direction)
-        pos_w_torch = self._data.pos_w.torch
-        accel_w = math_utils.quat_apply(self._data.quat_w.torch, self._data.lin_acc_b.torch)
-        valid_indices = (torch.linalg.norm(accel_w, dim=-1) > 1e-5).nonzero(as_tuple=True)[0]
-        if valid_indices.numel() == 0:
-            return
-        pos_filtered = pos_w_torch.index_select(0, valid_indices)
-        accel_filtered = accel_w.index_select(0, valid_indices)
-        rotation_matrix = math_utils.create_rotation_matrix_from_view(
-            pos_filtered,
-            pos_filtered + accel_filtered,
-            up_axis=up_axis,
-            device=self._device,
-        )
-        quat_opengl = math_utils.quat_from_matrix(rotation_matrix)
-        quat_w = math_utils.convert_camera_frame_orientation_convention(quat_opengl, "opengl", "world")
-        # display markers
-        self.acceleration_visualizer.visualize(
-            base_pos_w.index_select(0, valid_indices),
-            quat_w,
-            arrow_scale.index_select(0, valid_indices),
-        )
