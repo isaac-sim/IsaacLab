@@ -589,7 +589,7 @@ To generate the locomanipulation dataset, use the following command:
 
 .. note::
 
-   The input dataset (``--dataset``) should be the manipulation dataset generated in the previous step. You can specify any output filename using the ``--output_file_name`` parameter.
+   The input dataset (``--dataset``) should be the manipulation dataset generated in the previous step. You can specify any output filename using the ``--output_file`` parameter.
 
 The key parameters for locomanipulation dataset generation are:
 

@@ -27,8 +27,8 @@ class NewtonIKSolver:
     concrete Newton objectives are appended to the underlying
     :class:`newton.ik.IKSolver`. The built objectives are exposed via
     :attr:`objectives` / :attr:`objectives_by_name`; callers update a pose
-    objective's target by calling :meth:`~..newton_ik_objectives.NewtonIKPoseObjective.set_target_pose`
-    on it directly.
+    objective's target through its ``position_objective`` and ``rotation_objective``
+    (for example with ``set_target_positions`` / ``set_target_rotations``).
 
     The solver solves ``num_envs`` independent problems and is agnostic to how
     targets are produced -- the prototype-broadcast policy used by the Newton IK

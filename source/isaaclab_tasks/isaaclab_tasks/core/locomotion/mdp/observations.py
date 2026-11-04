@@ -62,7 +62,7 @@ def _walk_target_offset(target_pos: tuple[float, float, float], device: str) -> 
 def base_heading_proj(
     env: ManagerBasedEnv, target_pos: tuple[float, float, float], asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
-    """Projection of the base forward vector onto the world forward vector."""
+    """Projection of the base forward vector onto the planar direction to the walk target."""
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     # compute desired heading direction

@@ -84,8 +84,8 @@ class Multirotor(Articulation):
             thruster_cfg = ThrusterCfg(
                 thruster_names_expr=["rotor_[0-3]"],  # Match rotors 0-3
                 thrust_range=(0.0, 10.0),  # Min and max thrust in Newtons
-                rise_time_constant=0.1,  # Time constant for thrust increase
-                fall_time_constant=0.2,  # Time constant for thrust decrease
+                tau_inc_range=(0.1, 0.1),  # Time constant range for thrust increase [s]
+                tau_dec_range=(0.2, 0.2),  # Time constant range for thrust decrease [s]
             )
 
             # Create multirotor configuration

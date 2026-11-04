@@ -59,8 +59,8 @@ class MultirotorCfg(ArticulationCfg):
                     "thrusters": ThrusterCfg(
                         thruster_names_expr=["rotor_[0-3]"],
                         thrust_range=(0.0, 12.0),  # 0-12N per thruster
-                        rise_time_constant=0.12,
-                        fall_time_constant=0.25,
+                        tau_inc_range=(0.12, 0.12),
+                        tau_dec_range=(0.25, 0.25),
                     ),
                 },
                 allocation_matrix=[
@@ -143,8 +143,8 @@ class MultirotorCfg(ArticulationCfg):
                 "thrusters": ThrusterCfg(
                     thruster_names_expr=["rotor_.*"],  # Regex to match thruster bodies
                     thrust_range=(0.0, 10.0),
-                    rise_time_constant=0.1,
-                    fall_time_constant=0.2,
+                    tau_inc_range=(0.1, 0.1),
+                    tau_dec_range=(0.2, 0.2),
                 )
             }
 
@@ -165,8 +165,8 @@ class MultirotorCfg(ArticulationCfg):
     - ``(0.0, 0.0, -1.0)``: Thrusters push downward
     - ``(1.0, 0.0, 0.0)``: Thrusters push forward (X-axis)
 
-    This is used in conjunction with the allocation matrix to compute the wrench
-    produced by each thruster.
+    It is currently informational only; the wrench produced by the thrusters is
+    computed solely from :attr:`allocation_matrix`.
 
     Default: ``(0.0, 0.0, 1.0)`` (upward along Z-axis)
     """

@@ -809,7 +809,7 @@ class image_features(ManagerTermBase):
 
             Args:
                 model: The ResNet model.
-                images: The preprocessed image tensor. Shape is (num_envs, channel, height, width).
+                images: The preprocessed image tensor. Shape is (num_envs, height, width, channel).
 
             Returns:
                 The extracted features tensor. Shape is (num_envs, feature_dim).

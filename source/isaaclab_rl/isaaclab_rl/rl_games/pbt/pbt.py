@@ -171,7 +171,7 @@ class PbtAlgoObserver(AlgoObserver):
             - Filters out existing Hydra-style overrides that will be replaced,
               and appends `--checkpoint=<path>` and new param overrides.
             - On distributed runs, assigns a fresh master port and forwards
-              distributed args to the python.sh launcher.
+              distributed args to ``torch.distributed.run``.
         """
         cli_args = sys.argv
         print(f"previous command line args: {cli_args}")

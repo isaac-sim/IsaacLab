@@ -105,7 +105,7 @@ def create_pointcloud_from_depth(
         intrinsic_matrix: A (3, 3) array providing camera's calibration matrix.
         depth: An array of shape (H, W) with values encoding the depth measurement.
         keep_invalid: Whether to keep invalid points in the cloud or not. Invalid points
-            correspond to pixels with depth values 0.0 or NaN. Defaults to False.
+            correspond to pixels with NaN or infinite depth values. Defaults to False.
         position: The position of the camera in a target frame. Defaults to None.
         orientation: The orientation (x, y, z, w) of the camera in a target frame. Defaults to None.
         device: The device for torch where the computation should be executed.

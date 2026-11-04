@@ -825,8 +825,9 @@ def _resolve_articulation_ordering_names(
 ) -> tuple[str, ...]:
     """Resolve configured public articulation ordering to concrete names.
 
-    ``None`` and conventions matching :paramref:`active_backend_name` take an
-    identity fast path and return :paramref:`backend_names`. Explicit sequences
+    ``None`` and conventions listed in the articulation's
+    ``__backend_native_orderings__`` take an identity fast path and return
+    :paramref:`backend_names`. Explicit sequences
     are type-checked here; complete-permutation validation is performed later by
     :func:`build_articulation_name_map`.
 

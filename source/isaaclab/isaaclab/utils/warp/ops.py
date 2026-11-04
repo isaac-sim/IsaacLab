@@ -154,7 +154,8 @@ def raycast_single_mesh(
         The ray hit position. Shape (B, N, 3).
             The returned tensor contains :obj:`float('inf')` for missed hits.
         The ray hit distance. Shape (B, N,).
-            Will only return if :attr:`return_distance` is True, else returns None.
+            Always returned, because the kernels resolve the closest hit through it; it is moved to the
+            input device only if :attr:`return_distance` is True.
             The returned tensor contains :obj:`float('inf')` for missed hits.
         The ray hit normal. Shape (B, N, 3).
             Will only return if :attr:`return_normal` is True else returns None.
@@ -216,7 +217,8 @@ def raycast_dynamic_meshes(
         The ray hit position. Shape (B, N, 3).
             The returned tensor contains :obj:`float('inf')` for missed hits.
         The ray hit distance. Shape (B, N,).
-            Will only return if :attr:`return_distance` is True, else returns None.
+            Always returned, because the kernels resolve the closest hit through it; it is moved to the
+            input device only if :attr:`return_distance` is True.
             The returned tensor contains :obj:`float('inf')` for missed hits.
         The ray hit normal. Shape (B, N, 3).
             Will only return if :attr:`return_normal` is True else returns None.

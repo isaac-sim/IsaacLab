@@ -51,7 +51,7 @@ class FrameTransformer(BaseFrameTransformer):
 
         Registers site requests via :meth:`NewtonManager.register_site` for
         the source frame, each target frame, and a shared world-origin reference.
-        Sites are injected into prototype builders by ``newton_replicate`` before
+        Sites are injected into prototype builders by :class:`~isaaclab_newton.cloner.NewtonReplicateContext` before
         replication, so they end up correctly in each world.
 
         Args:

@@ -164,12 +164,12 @@ class CuroboPlanner(MotionPlannerBase):
             env: The Isaac Lab environment instance containing the robot and scene
             robot: Robot articulation to plan motions for
             config: Configuration object containing planner parameters and settings
-            task_name: Task name for auto-configuration
+            task_name: Unused.
             env_id: Environment ID for multi-environment setups (0 to num_envs-1)
-            collision_checker: Type of collision checker
-            num_trajopt_seeds: Number of seeds for trajectory optimization
-            num_graph_seeds: Number of seeds for graph search
-            interpolation_dt: Time step for interpolating waypoints
+            collision_checker: Unused; ``config.collision_checker_type`` is used instead.
+            num_trajopt_seeds: Unused; ``config.num_trajopt_seeds`` is used instead.
+            num_graph_seeds: Unused; ``config.num_graph_seeds`` is used instead.
+            interpolation_dt: Unused; ``config.interpolation_dt`` is used instead.
 
         Raises:
             ValueError: If ``robot_config_file`` is not provided

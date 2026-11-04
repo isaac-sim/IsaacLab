@@ -43,12 +43,12 @@ class MultiAssetSpawnerCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
 
     random_choice: bool = True
     """ This parameter is ignored.
-    See :attr:`isaaclab.scene.interactive_scene_cfg.InteractiveSceneCfg.random_heterogeneous_cloning` for details.
+    See :attr:`isaaclab.cloner.CloneCfg.clone_strategy` for details.
 
     .. warning::
 
         This attribute is deprecated. Use
-        :attr:`~isaaclab.scene.interactive_scene_cfg.InteractiveSceneCfg.random_heterogeneous_cloning` instead.
+        :attr:`~isaaclab.cloner.CloneCfg.clone_strategy` instead.
     """
 
 
@@ -86,5 +86,5 @@ class MultiUsdFileCfg(UsdFileCfg):
     .. warning::
 
         This attribute is deprecated. Use
-        :attr:`~isaaclab.scene.interactive_scene_cfg.InteractiveSceneCfg.random_heterogeneous_cloning` instead.
+        :attr:`~isaaclab.cloner.CloneCfg.clone_strategy` instead.
     """

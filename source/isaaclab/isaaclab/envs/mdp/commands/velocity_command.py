@@ -40,7 +40,11 @@ class UniformVelocityCommand(CommandTerm):
 
     .. math::
 
-        \omega_z = \frac{1}{2} \text{wrap_to_pi}(\theta_{\text{target}} - \theta_{\text{current}})
+        \omega_z = \text{clip}\left(k \, \text{wrap_to_pi}(\theta_{\text{target}} - \theta_{\text{current}}),
+            \omega_{z,\min}, \omega_{z,\max}\right)
+
+    where :math:`k` is :attr:`UniformVelocityCommandCfg.heading_control_stiffness` and the clip bounds are
+    :attr:`UniformVelocityCommandCfg.Ranges.ang_vel_z`.
 
     """
 

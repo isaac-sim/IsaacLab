@@ -129,8 +129,8 @@ def update_task_stage(
 
     This function checks conditions and advances stages automatically.
     Once a stage is completed, it never goes back.
-    Returns a zero-valued tensor (num_envs,) so it can be used as a
-    weight=0 reward term to run before the actual reward terms.
+    Returns a zero-valued tensor (num_envs,). Note that the reward manager skips
+    terms with weight 0.0, so it does not run when registered as a weight=0 reward term.
     """
     state = get_assemble_trocar_state(env)
     stage = state.task_stage
@@ -475,8 +475,8 @@ def trocar_insertion_reward(
         center_dist_std: Standard deviation for center distance reward shaping
         asset_cfg1: Configuration for trocar 1
         asset_cfg2: Configuration for trocar 2
-        use_sparse_reward: If True (default), give the sparse stage-completion reward.
-            If False, give continuous reward based on alignment and distance.
+        use_sparse_reward: If True (default), give a one-step reward of ``1 / env.step_dt`` on the step the
+            stage advances from 2 to 3 or beyond. If False, give continuous reward based on alignment and distance.
         print_log: If True, print debug information.
     Returns:
         torch.Tensor: Reward tensor (num_envs,)
@@ -568,8 +568,8 @@ def trocar_placement_reward(
         z_min: Z threshold (below this is considered placed)
         asset_cfg1: Configuration for trocar 1
         asset_cfg2: Configuration for trocar 2
-        use_sparse_reward: If True (default), give the sparse stage-completion reward.
-            If False, give continuous reward based on placement status.
+        use_sparse_reward: If True (default), give a one-step reward of ``1 / env.step_dt`` on the step the
+            stage advances from 3 to 4 or beyond. If False, give continuous reward based on placement status.
         print_log: If True, print debug information.
 
     Returns:

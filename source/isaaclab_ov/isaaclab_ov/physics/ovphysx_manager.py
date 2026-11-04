@@ -536,7 +536,7 @@ class OvPhysxManager(PhysicsManager):
         - Serializes the current USD stage in memory
         - Creates the ovphysx.PhysX instance
         - Populates and attaches an OVStage
-        - Warms up GPU buffers (if on CUDA)
+        - Runs the runtime warmup entry point (on CPU and CUDA)
         - Dispatches PHYSICS_READY
 
         A forced re-warm dispatches :attr:`~isaaclab.physics.PhysicsEvent.STOP`

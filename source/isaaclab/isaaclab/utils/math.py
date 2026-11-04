@@ -1816,14 +1816,14 @@ def interpolate_rotations(R1: torch.Tensor, R2: torch.Tensor, num_steps: int, ax
     """Interpolates between two rotation matrices.
 
     Args:
-        R1: First rotation matrix. (4x4).
-        R2: Second rotation matrix. (4x4).
+        R1: First rotation matrix. (3x3).
+        R2: Second rotation matrix. (3x3).
         num_steps: Number of desired interpolated rotations (excluding start and end).
         axis_angle: If True, interpolate in axis-angle representation;
                    otherwise use slerp. Defaults to True.
 
     Returns:
-        Stack of interpolated rotation matrices of shape (num_steps + 1, 4, 4),
+        Stack of interpolated rotation matrices of shape (num_steps + 1, 3, 3),
         including the start and end rotations.
     """
     assert isinstance(R1, torch.Tensor), "Input must be a torch tensor"

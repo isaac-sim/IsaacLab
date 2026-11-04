@@ -430,7 +430,7 @@ def position_command_error_tanh(
     """Reward tracking of the position error using the tanh kernel.
 
     The position error [m] is computed as in :func:`position_command_error` and mapped through a tanh
-    kernel with standard deviation ``std`` [m], yielding a bounded reward in ``[0, 1)``.
+    kernel with standard deviation ``std`` [m], yielding a bounded reward in ``(0, 1]``.
     """
     distance = position_command_error(env, command_name, asset_cfg)
     return 1 - torch.tanh(distance / std)

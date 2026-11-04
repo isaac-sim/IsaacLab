@@ -2278,8 +2278,7 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, num_bodies, 13).
 
         The position, quaternion, and linear/angular velocity are of the body's center of mass frame relative to the
-        world. Center of mass frame is assumed to be the same orientation as the link rather than the orientation of the
-        principal inertia.
+        world. The orientation is that of the principal axes of inertia, as in :attr:`body_com_pose_w`.
         """
         warnings.warn(
             "The `body_com_state_w` property will be deprecated in IsaacLab 4.0. Please use `body_com_pose_w` and "

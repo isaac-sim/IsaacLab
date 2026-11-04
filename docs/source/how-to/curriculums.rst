@@ -3,12 +3,12 @@
 Curriculum Utilities
 ====================
 
-.. currentmodule:: isaaclab.envs.mdp
+.. currentmodule:: isaaclab.envs.mdp.curriculums
 
 Curriculum terms change an environment as training progresses. Pass these helpers
 to :class:`~isaaclab.managers.CurriculumTermCfg`:
 
-* :func:`modify_reward_weight` changes a reward's weight.
+* :class:`modify_reward_weight` changes a reward's weight.
 * :class:`modify_env_param` changes an environment parameter.
 * :class:`modify_term_cfg` changes a manager term's configuration.
 
@@ -22,7 +22,7 @@ to :class:`~isaaclab.managers.CurriculumTermCfg`:
 Modifying Reward Weights
 ------------------------
 
-The function :func:`modify_reward_weight` updates the weight of a reward term after a specified number of simulation
+The class :class:`modify_reward_weight` updates the weight of a reward term after a specified number of simulation
 steps. This can be passed directly as the ``func`` in a ``CurriculumTermCfg``.
 
 .. literalinclude:: ../../../source/isaaclab/isaaclab/envs/mdp/curriculums.py

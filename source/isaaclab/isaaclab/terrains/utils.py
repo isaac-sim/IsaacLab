@@ -129,7 +129,8 @@ def find_flat_patches(
             the patch is rejected.
 
     Returns:
-        A tensor of shape (num_patches, 3) containing the flat patches. The patches are defined in the mesh frame.
+        A tensor of shape (num_patches, 3) containing the flat patches. The patches are expressed in the mesh frame
+        relative to ``origin``.
 
     Raises:
         RuntimeError: If the function fails to find valid patches. This can happen if the input parameters

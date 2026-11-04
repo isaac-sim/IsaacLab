@@ -447,8 +447,8 @@ def build_startup_bundle(
         hardware: Host hardware snapshot.
         phases: Per-phase timing and cProfile data, keyed by phase name.
         top_n: Number of top cProfile functions retained per phase.
-        whitelist: Optional cProfile name-filter pattern; ``None`` means no
-            filtering.
+        whitelist: Path to the YAML whitelist config of per-phase cProfile name
+            patterns, or ``None`` when no whitelist was used.
         extra: Optional free-form scalar values not covered by the stable
             schema.
 

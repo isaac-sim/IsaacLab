@@ -341,7 +341,7 @@ def get_gpu_node_resources(
     Args:
         total_resources: When true, return total available resources. Defaults to False.
         one_node_only: When true, return resources for a single node. Defaults to False.
-        include_gb_ram: Set to true to convert MB to GB in result
+        include_gb_ram: Set to true to add the node RAM in GB (converted from bytes) under the ``ram_gb`` key
         include_id: Set to true to include node ID
 
     Returns:

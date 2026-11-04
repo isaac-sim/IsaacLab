@@ -357,7 +357,7 @@ Shape is ``[N, D]``, dtype ``float32``.
 """
 
 """
-Fixed tendon properties (CPU)
+Fixed tendon properties (GPU)
 """
 
 FIXED_TENDON_STIFFNESS = _TT.ARTICULATION_FIXED_TENDON_STIFFNESS
@@ -397,7 +397,7 @@ Shape is ``[N, T_fix]``, dtype ``float32``.
 """
 
 """
-Spatial tendon properties (CPU)
+Spatial tendon properties (GPU)
 """
 
 SPATIAL_TENDON_STIFFNESS = _TT.ARTICULATION_SPATIAL_TENDON_STIFFNESS

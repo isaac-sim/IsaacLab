@@ -44,7 +44,7 @@ class FrameTransformer(BaseFrameTransformer):
     and target frames from the physics engine and then computing the relative transform between the two.
 
     Additionally, the user can specify an offset for the source frame and each target frame. This is useful
-    for specifying the transform of the desired frame with respect to the body's center of mass, for instance.
+    for specifying the transform of the desired frame with respect to the body's link (actor) frame, for instance.
 
     A common example of using this sensor is to track the position and orientation of the end effector of a
     robotic manipulator. In this case, the source frame would be the body corresponding to the base frame of the

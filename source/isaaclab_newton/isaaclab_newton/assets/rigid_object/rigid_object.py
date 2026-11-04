@@ -347,8 +347,8 @@ class RigidObject(BaseRigidObject):
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            root_pose: Root link poses in simulation frame. Shape is (len(env_ids), 7) or (num_instances, 7),
-                or (len(env_ids),) / (num_instances,) with dtype wp.transformf.
+            root_pose: Root link poses in simulation frame. Shape is (len(env_ids), 7)
+                or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
@@ -441,8 +441,8 @@ class RigidObject(BaseRigidObject):
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7) or (num_instances, 7),
-                or (len(env_ids),) / (num_instances,) with dtype wp.transformf.
+            root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7)
+                or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
@@ -632,8 +632,7 @@ class RigidObject(BaseRigidObject):
 
         Args:
             root_velocity: Root frame velocities in simulation world frame.
-                Shape is (len(env_ids), 6) or (num_instances, 6),
-                or (len(env_ids),) / (num_instances,) with dtype wp.spatial_vectorf.
+                Shape is (len(env_ids), 6) or (len(env_ids),) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.

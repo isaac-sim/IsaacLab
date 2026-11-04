@@ -201,8 +201,8 @@ free_thresh: {free_thresh}
             resolution (float): The resolution (meter/px) of the occupancy map.
             origin (tp.Tuple[float, float, float]): The origin of the occupancy map in world coordinates.
             negate (bool, optional): See "negate" in ROS occupancy map documentation. Defaults to False.
-            occupied_thresh (float, optional): The threshold to consider a value occupied.
-                Defaults to ROS_OCCUPIED_THRESH_DEFAULT.
+            occupied_thresh (float, optional): Unused; every pixel that is not free (including unknown)
+                is treated as occupied. Defaults to ROS_OCCUPIED_THRESH_DEFAULT.
             free_thresh (float, optional): The threshold to consider a value free. Defaults to
                 ROS_FREESPACE_THRESH_DEFAULT.
 
@@ -407,7 +407,7 @@ free_thresh: {free_thresh}
         See :meth:`buffered` for more details.
 
         Args:
-            buffer_distance_meters: Buffer radius [m], converted to an integer pixel radius
+            buffer_distance_meters (float): Buffer radius [m], converted to an integer pixel radius
                 using the map resolution.
 
         Returns:

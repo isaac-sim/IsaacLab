@@ -84,7 +84,7 @@ class HfPyramidSlopedTerrainCfg(HfTerrainBaseCfg):
     function: str = "{DIR}.hf_terrains:pyramid_sloped_terrain"
 
     slope_range: tuple[float, float] = MISSING
-    """The slope of the terrain (in radians)."""
+    """The minimum and maximum slope of the terrain, as the ratio of height change to horizontal distance."""
 
     platform_width: float = 1.0
     """The width of the square platform at the center of the terrain. Defaults to 1.0."""

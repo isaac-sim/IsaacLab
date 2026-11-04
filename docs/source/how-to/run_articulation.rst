@@ -66,8 +66,9 @@ Similar to a rigid object, an articulation also has a root state. This state cor
 articulation tree. On top of the root state, an articulation also has joint states. These states correspond to the
 joint positions and velocities.
 
-To reset the articulation, we first set the root state by calling the :meth:`Articulation.write_root_pose_to_sim` and :meth:`Articulation.write_root_velocity_to_sim`
-methods. Similarly, we set the joint states by calling the :meth:`Articulation.write_joint_state_to_sim` method.
+To reset the articulation, we first set the root state by calling the :meth:`Articulation.write_root_pose_to_sim_index` and :meth:`Articulation.write_root_velocity_to_sim_index`
+methods. Similarly, we set the joint states by calling the :meth:`Articulation.write_joint_position_to_sim_index` and
+:meth:`Articulation.write_joint_velocity_to_sim_index` methods.
 Finally, we call the :meth:`Articulation.reset` method to reset any internal buffers and caches.
 
 .. literalinclude:: ../../../scripts/tutorials/01_assets/run_articulation.py

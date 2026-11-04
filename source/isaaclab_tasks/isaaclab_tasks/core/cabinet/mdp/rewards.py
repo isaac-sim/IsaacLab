@@ -51,7 +51,7 @@ def align_ee_handle(env: ManagerBasedRLEnv) -> torch.Tensor:
 
     .. math::
 
-        reward = 0.5 * (align_z^2 + align_x^2)
+        reward = 0.5 * (sign(align_z) * align_z^2 + sign(align_x) * align_x^2)
 
     where :math:`align_z` is the dot product of the z direction of the gripper and the -x direction of the handle
     and :math:`align_x` is the dot product of the x direction of the gripper and the -y direction of the handle.

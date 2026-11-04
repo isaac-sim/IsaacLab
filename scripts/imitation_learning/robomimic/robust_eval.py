@@ -106,7 +106,7 @@ def rollout(policy, env: gym.Env, success_term, horizon: int, device: torch.devi
             # Process image observations for robomimic inference
             for image_name in env.cfg.image_obs_list:
                 if image_name in obs_dict["policy"].keys():
-                    # Convert from chw uint8 to hwc normalized float
+                    # Convert from hwc uint8 to chw normalized float
                     image = torch.squeeze(obs_dict["policy"][image_name])
                     image = image.permute(2, 0, 1).clone().float()
                     image = image / 255.0

@@ -833,9 +833,9 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         """Eagerly allocate every per-body TimestampedBuffer and the slots for
         cached :class:`ProxyArray` wrappers.
 
-        Buffers use direct ``(num_instances, num_bodies, D)`` shapes, matching
-        the fused binding output.  No flat+strided tricks are needed because the
-        fused binding returns a contiguous ``(N, B, D)`` array directly.
+        Buffers use instance-major ``(num_instances, num_bodies, D)`` shapes. The
+        native fused binding returns body-major flat ``(N * B[, D])`` data, which the
+        read helpers reshape into these buffers through strided views or transposes.
         """
         super()._create_buffers()
 

@@ -186,7 +186,6 @@ class Camera(SensorBase):
     .. note::
         Currently the following sensor types are not supported in a "view" format:
 
-        - ``"instance_segmentation"``: The instance segmentation data. Please use the fast counterparts instead.
         - ``"instance_id_segmentation"``: The instance id segmentation data. Please use the fast counterparts instead.
         - ``"bounding_box_2d_tight"``: The tight 2D bounding box data (only contains non-occluded regions).
         - ``"bounding_box_2d_tight_fast"``: The tight 2D bounding box data (only contains non-occluded regions).

@@ -291,7 +291,7 @@ class ActionManager(ManagerBase):
            IO descriptors will be removed in Isaac Lab 3.2.
 
         Returns:
-            A dictionary with keys as the term names and values as the IO descriptors.
+            A list of dictionaries, one per exported action term, each holding the term's name and IO descriptor.
         """
         _warn_io_descriptors_deprecated(stacklevel=3)
         return self._collect_io_descriptors()

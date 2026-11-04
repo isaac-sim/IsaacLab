@@ -88,7 +88,7 @@ class RecorderTerm(ManagerTermBase):
         Returns:
             A tuple of key and value to be recorded.
             The key can contain nested keys separated by '/'. For example, "obs/joint_pos" would add the given
-            value under ['obs']['policy'] in the underlying dictionary in the recorded episode data.
+            value under ['obs']['joint_pos'] in the underlying dictionary in the recorded episode data.
             The value can be a tensor or a nested dictionary of tensors. The shape of a tensor in the value
             is (env_ids, ...).
         """

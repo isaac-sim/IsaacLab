@@ -577,7 +577,7 @@ Available Warp MDP Terms
 
    * - Category
      - Available Terms
-   * - Observations (11)
+   * - Observations (12)
      - | ``base_pos_z``
        | ``base_lin_vel``
        | ``base_ang_vel``
@@ -589,12 +589,15 @@ Available Warp MDP Terms
        | ``joint_vel_rel``
        | ``last_action``
        | ``generated_commands``
-   * - Rewards (16)
+       | ``body_incoming_wrench``
+   * - Rewards (18)
      - | ``is_alive``
        | ``is_terminated``
+       | ``is_terminated_term``
        | ``lin_vel_z_l2``
        | ``ang_vel_xy_l2``
        | ``flat_orientation_l2``
+       | ``base_height_l2``
        | ``joint_torques_l2``
        | ``joint_vel_l1``
        | ``joint_vel_l2``

@@ -400,7 +400,9 @@ class KitVisualizer(BaseVisualizer):
 
         Note:
             Scalar groups (e.g. episode metrics) are stored in :attr:`_live_plot_sources` via
-            the base implementation but are not yet wired into the omni.ui viewport panel.
+            the base implementation and are wired into the omni.ui viewport panel as
+            :class:`~isaaclab.ui.widgets.manager_live_visualizer.DirectScalarLiveVisualizer` entries of
+            :attr:`kit_manager_visualizers`.
 
         Args:
             managers: Mapping of manager name to manager instance.

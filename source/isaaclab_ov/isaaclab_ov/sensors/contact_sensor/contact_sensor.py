@@ -47,7 +47,7 @@ class ContactSensor(BaseContactSensor):
     Reports normal, friction, and total contact forces in world frame using the ovphysx
     :class:`ContactBinding` API. The `PhysxContactReportAPI` USD schema must
     be applied to each sensor body (set
-    :attr:`isaaclab.sim.spawner.RigidObjectSpawnerCfg.activate_contact_sensors`
+    :attr:`isaaclab.sim.spawners.RigidObjectSpawnerCfg.activate_contact_sensors`
     on the asset spawner).
 
     Optional features tracked by :attr:`ContactSensorCfg`:

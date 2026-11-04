@@ -38,7 +38,7 @@ def task_done_pick_place(
 
     This function checks whether all success conditions for the task have been met:
     1. object is within the target x/y range
-    2. object is below a minimum height
+    2. object is below a maximum height
     3. object velocity is below threshold
     4. Right robot wrist is retracted back towards body (past a given x pos threshold)
 

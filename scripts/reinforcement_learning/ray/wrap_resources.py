@@ -31,7 +31,7 @@ of sub-jobs that can be near-simultaneously submitted.
 
 This script is meant to be executed on a Ray cluster head node as an aggregate cluster job.
 To submit aggregate cluster jobs such as this script to one or more remote clusters,
-see :file:`../submit_isaac_ray_job.py`.
+see :file:`submit_job.py`.
 
 KubeRay clusters on Google GKE can be created with :file:`../launch.py`
 
@@ -49,10 +49,10 @@ Usage:
     --num_workers <NUM_TO_DIVIDE_TOTAL_RESOURCES_BY> \
     --sub_jobs <JOB0>+<JOB1>
     # Manual Resource Isolation; Example B:  needed for parallelization
-    uv run python scripts/reinforcement_learning/ray/wrap_resources.py --num_cpu_per_worker <CPU> \
+    uv run python scripts/reinforcement_learning/ray/wrap_resources.py --cpu_per_worker <CPU> \
     --gpu_per_worker <GPU> --ram_gb_per_worker <RAM> --sub_jobs <JOB0>+<JOB1>
     # Manual Resource Isolation; Example C: Needed for parallelization, for heterogeneous workloads
-    uv run python scripts/reinforcement_learning/ray/wrap_resources.py --num_cpu_per_worker <CPU> \
+    uv run python scripts/reinforcement_learning/ray/wrap_resources.py --cpu_per_worker <CPU> \
     --gpu_per_worker <GPU1> <GPU2> --ram_gb_per_worker <RAM> --sub_jobs <JOB0>+<JOB1>
     # to see all arguments
     uv run python scripts/reinforcement_learning/ray/wrap_resources.py -h

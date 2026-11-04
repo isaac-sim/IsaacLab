@@ -68,7 +68,7 @@ class GR1T2Retargeter(RetargeterBase):
             data: Dictionary mapping tracking targets to joint data dictionaries.
 
         Returns:
-            tuple containing:
+            A single tensor concatenating:
                 Left wrist pose
                 Right wrist pose in USD frame
                 Retargeted hand joint angles

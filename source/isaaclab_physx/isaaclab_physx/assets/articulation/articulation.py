@@ -382,10 +382,9 @@ class Articulation(BaseArticulation):
         on the name matching.
 
         Args:
-            name_keys: A regular expression or a list of regular expressions to match the joint
-                names with fixed tendons.
-            tendon_subsets: A subset of joints with fixed tendons to search for. Defaults to None, which means
-                all joints in the articulation are searched.
+            name_keys: A regular expression or a list of regular expressions to match the fixed tendon names.
+            tendon_subsets: A subset of fixed tendon names to search for. Defaults to None, which means
+                all fixed tendons in the articulation are searched.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
             as_proxy: Whether to return cached proxy indices. Subset searches use asset-global proxy indices.
                 Defaults to False.
@@ -3040,7 +3039,7 @@ class Articulation(BaseArticulation):
         desired values. To apply it, call the :meth:`write_data_to_sim` function.
 
         .. note::
-            This method expects partial data.
+            This method expects partial data or full data.
 
         Args:
             target: Target tendon length [m or rad, depending on the spanned joints' type]. Shape is
@@ -3089,7 +3088,7 @@ class Articulation(BaseArticulation):
         :meth:`write_fixed_tendon_properties_to_sim_index` method.
 
         .. note::
-            This method expects partial data.
+            This method expects partial data or full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -3229,7 +3228,7 @@ class Articulation(BaseArticulation):
         only the selected cached values before this method pushes the complete rows.
 
         .. tip::
-            For maximum performance we recommend using the mask method. This is because in PhysX, the tensor API
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
@@ -3613,7 +3612,7 @@ class Articulation(BaseArticulation):
         this method pushes the complete rows.
 
         .. tip::
-            For maximum performance we recommend using the mask method. This is because in PhysX, the tensor API
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:

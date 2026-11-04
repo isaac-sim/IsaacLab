@@ -230,7 +230,8 @@ class ObservationManager(ManagerBase):
         """Whether the observation terms are concatenated in each group or not.
 
         The key is the group name and the value is a boolean specifying whether the observation terms in the group
-        are concatenated into a single tensor. If True, the observations are concatenated along the last dimension.
+        are concatenated into a single tensor. If True, the observations are concatenated along
+        :attr:`~ObservationGroupCfg.concatenate_dim` (the last dimension by default).
 
         The values are set based on the :attr:`~ObservationGroupCfg.concatenate_terms` attribute in the group
         configuration.
@@ -398,8 +399,7 @@ class ObservationManager(ManagerBase):
         in the data.
 
         Args:
-            group_name: The name of the group for which to compute the observations. Defaults to None,
-                in which case observations for all the groups are computed and returned.
+            group_name: The name of the group for which to compute the observations.
             update_history: Whether to record a new sample in delay and observation history buffers.
                 Defaults to False, which reads recorded data without advancing either buffer. For a delay
                 buffer with no sample since initialization or reset, the current observation is returned.

@@ -110,7 +110,7 @@ def get_mlflow_info(namespace: str = None, cluster_prefix: str = "isaacray") -> 
 
 def check_clusters_running(pods: list, clusters: set) -> bool:
     """
-    Check that all of the pods in all provided clusters are running.
+    Check whether all of the pods in at least one of the provided clusters are running.
 
     Args:
         pods (list): A list of tuples where each tuple contains the pod name and its status.
@@ -143,7 +143,7 @@ def get_ray_address(head_pod: str, namespace: str = "default", ray_head_name: st
         str: The ray address if found, None otherwise.
 
     Raises:
-        ValueError: If the logs cannot be retrieved or the ray address is not found.
+        ValueError: If the logs cannot be retrieved.
     """
     cmd = ["kubectl", "logs", head_pod, "-c", ray_head_name, "-n", namespace]
     try:
@@ -164,7 +164,7 @@ def process_cluster(cluster_info: dict, ray_head_name: str = "head") -> str:
     For each cluster, check that it is running, and get the Ray head address that will accept jobs.
 
     Args:
-        cluster_info: A dictionary containing cluster information with keys 'cluster', 'pods', and 'namespace'.
+        cluster_info: A tuple of (cluster name, list of (pod name, status) tuples, namespace).
         ray_head_name: The name of the ray head container. Defaults to "head".
 
     Returns:

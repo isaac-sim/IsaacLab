@@ -49,5 +49,5 @@ def ee_quat(env: ManagerBasedRLEnv, make_quat_unique: bool = True) -> torch.Tens
     """
     ee_tf_data: FrameTransformerData = env.scene["ee_frame"].data
     ee_quat = ee_tf_data.target_quat_w.torch[..., 0, :]
-    # make first element of quaternion positive
+    # make the real part (w) of the quaternion non-negative
     return math_utils.quat_unique(ee_quat) if make_quat_unique else ee_quat

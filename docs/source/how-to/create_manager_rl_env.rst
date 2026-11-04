@@ -32,7 +32,7 @@ For this tutorial, we use the cartpole environment defined in ``isaaclab_tasks.c
 
 The script for running the environment ``run_cartpole_rl_env.py`` is present in the
 ``isaaclab/scripts/tutorials/03_envs`` directory. The script is similar to the
-``cartpole_base_env.py`` script in the previous tutorial, except that it uses the
+``create_cartpole_base_env.py`` script in the previous tutorial, except that it uses the
 :class:`envs.ManagerBasedRLEnv` instead of the :class:`envs.ManagerBasedEnv`.
 
 .. dropdown:: Code for run_cartpole_rl_env.py
@@ -87,8 +87,8 @@ or unsafe state, we want to terminate the episode. On the other hand, if the age
 for a long time, we want to terminate the episode and start a new one so that the agent can learn to balance the
 pole from a different starting configuration.
 
-The example's ``TerminationsCfg`` groups the terms that determine when an episode ends. In this example,
-we want the task to terminate when either of the following conditions is met:
+The example's ``TerminationsCfg`` groups the :class:`managers.TerminationTermCfg` terms that determine when an
+episode ends. In this example, we want the task to terminate when either of the following conditions is met:
 
 * **Episode Length** The episode length is greater than the defined max_episode_length
 * **Cart out of bounds** The cart goes outside of the bounds [-3, 3]

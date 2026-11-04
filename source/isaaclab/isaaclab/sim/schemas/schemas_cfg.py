@@ -406,7 +406,7 @@ class UsdPhysicsMeshCollisionCfg(MeshCollisionFragment):
         The ``physics:approximation`` attribute is a ``TfToken`` validated against
         :const:`~isaaclab.sim.schemas.MESH_APPROXIMATION_TOKENS`; the family writer (not the generic
         :func:`~isaaclab.sim.schemas.apply_namespaced` applier) handles the token write, so this
-        fragment overrides nothing but the namespace metadata. When a PhysX/Newton cooking fragment
+        fragment overrides nothing but the namespace metadata. When a PhysX cooking fragment
         is present alongside this one, its default :attr:`mesh_approximation_name` sets the token.
 
     .. _UsdPhysics.MeshCollisionAPI: https://openusd.org/release/api/class_usd_physics_mesh_collision_a_p_i.html

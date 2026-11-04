@@ -318,8 +318,8 @@ class RigidObjectData(BaseRigidObjectData):
     def body_mass(self) -> ProxyArray:
         """Mass of all bodies in the simulation world frame.
 
-        Shape is (num_instances, 1, 1), dtype = wp.float32.
-        In torch this resolves to (num_instances, 1, 1).
+        Shape is (num_instances, 1), dtype = wp.float32.
+        In torch this resolves to (num_instances, 1).
         """
         return self._body_mass_ta
 

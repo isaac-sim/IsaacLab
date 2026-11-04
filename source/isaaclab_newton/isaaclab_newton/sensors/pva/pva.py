@@ -89,7 +89,8 @@ class Pva(BasePva):
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
         """Reset the sensor for the given environments.
 
-        Zeroes out all PVA buffers for the specified environments.
+        Resets all PVA buffers for the specified environments: identity poses and orientations, a
+        ``(0, 0, -1)`` projected gravity, and zero positions, velocities and accelerations.
 
         Args:
             env_ids: Environment indices to reset. Defaults to all environments.

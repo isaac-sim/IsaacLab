@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Script to replay demonstrations with Isaac Lab environments."""
+"""Script to roll out a GR00T policy in the locomanipulation SDG environment."""
 
 from __future__ import annotations
 

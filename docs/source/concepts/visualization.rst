@@ -618,8 +618,7 @@ shown greyed out.
 
 .. note::
 
-   Visualization markers are supported on Kit, Newton GL, Rerun, and Viser; not yet
-   supported on Newton RTX (experimental).
+   Visualization markers are supported on Kit, Newton GL, Newton RTX, Rerun, and Viser.
 
 
 Live Plots
@@ -968,7 +967,7 @@ Limitations
      - Kit
    * - Visualization markers
      - ✓
-     - ✗
+     - ✓
      - ✓
      - ✓
      - ✓

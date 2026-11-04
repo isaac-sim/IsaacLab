@@ -19,7 +19,7 @@ Override categories (applied in order):
        global preset, but must resolve against a config of that type or it errors
     3. Path presets: ``env.backend=newton_mjwarp`` -- REPLACE specific section
     4. Preset-path scalars: ``env.backend.dt=0.001`` -- handled by us
-    5. Global scalars: ``env.decimation=10`` -- handled by Hydra
+    5. Global scalars: ``env.decimation=10`` -- handled by us; other keys are passed to Hydra
 
 Example usage::
 
