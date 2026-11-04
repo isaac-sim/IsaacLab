@@ -1088,6 +1088,11 @@ or pruning tests. It maintains the detailed criteria for deciding whether a test
   and retry with ``uv run --extra <extra> python -m pytest ...``.
   For changes intended to reduce test time, measure before and after on the same machine and separate
   kernel compilation from execution time.
+* Mark tests for the CI selections they belong to: ``kitless`` when the test passes without Isaac Sim,
+  and ``ov`` when it runs or imports ``ovphysx``, ``ovrtx`` or ``ovstage``. Mark the whole file through
+  ``pytestmark`` when every test qualifies; otherwise mark the qualifying tests or parameters. CI selects
+  test files by searching their text for ``pytest.mark.<marker>``, so a mark applied by a shared helper
+  must also be named in the test file.
 
 Use the same commands on Linux and Windows:
 
