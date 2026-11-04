@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Task-local USD adaptations required by the assemble trocar assets on Newton."""
+"""USD spawning and collider adaptations for the assemble trocar task."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 
 @clone
-def spawn_usd_with_newton_mesh_workarounds(
+def spawn_usd_with_newton_compatible_colliders(
     prim_path: str,
     cfg: UsdFileCfg,
     translation: tuple[float, float, float] | None = None,

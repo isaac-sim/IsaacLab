@@ -11,10 +11,10 @@ from isaaclab_physx.sim.schemas import PhysxCollisionCfg
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
-from isaaclab_tasks.contrib.assemble_trocar.config.newton_asset_workarounds import (
+from isaaclab_tasks.contrib.assemble_trocar.config.assemble_trocar_assets import (
     _bake_negative_mesh_collider_scales,
     _expand_merged_mesh_colliders,
-    spawn_usd_with_newton_mesh_workarounds,
+    spawn_usd_with_newton_compatible_colliders,
 )
 from isaaclab_tasks.contrib.assemble_trocar.g129_dex3_env_cfg import G1AssembleTrocarEnvCfg
 
@@ -28,14 +28,14 @@ def _define_triangle(stage: Usd.Stage, path: str) -> UsdGeom.Mesh:
     return mesh
 
 
-def test_task_scopes_newton_asset_workarounds_to_robot_and_tray():
+def test_task_scopes_newton_compatible_colliders_to_robot_and_tray():
     """Only assets requiring compatibility edits use the task-local spawner."""
     cfg = G1AssembleTrocarEnvCfg()
 
-    assert cfg.scene.robot.spawn.func is spawn_usd_with_newton_mesh_workarounds
-    assert cfg.scene.tray.spawn.func is spawn_usd_with_newton_mesh_workarounds
-    assert cfg.scene.trocar_1.spawn.func is not spawn_usd_with_newton_mesh_workarounds
-    assert cfg.scene.trocar_2.spawn.func is not spawn_usd_with_newton_mesh_workarounds
+    assert cfg.scene.robot.spawn.func is spawn_usd_with_newton_compatible_colliders
+    assert cfg.scene.tray.spawn.func is spawn_usd_with_newton_compatible_colliders
+    assert cfg.scene.trocar_1.spawn.func is not spawn_usd_with_newton_compatible_colliders
+    assert cfg.scene.trocar_2.spawn.func is not spawn_usd_with_newton_compatible_colliders
 
 
 def test_expand_merged_mesh_collider():
