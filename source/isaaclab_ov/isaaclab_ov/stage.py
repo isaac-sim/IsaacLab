@@ -131,6 +131,9 @@ def ovstage_replicate(
 ) -> None:
     """Apply the same prepared copies and placement to an OVStage scene.
 
+    On OVStage 0.4, compute the source hierarchy on CPU at ``ordinal`` before cloning
+    when any destination paths exist. The runtime hierarchy model remains unchanged.
+
     Args:
         stage: Native stage holding the source prims.
         paths: Path dictionary of ``stage``.
@@ -138,11 +141,13 @@ def ovstage_replicate(
             Self-copies must be excluded.
         env_paths: Environment-root paths in placement order.
         positions: Optional environment positions [m], shape ``[len(env_paths), 3]``.
-        ordinal: Write ordinal for the clones and environment placement.
+        ordinal: Input and output ordinal for hierarchy preparation, and write ordinal
+            for the clones and environment placement.
     """
     if OVSTAGE_REQUIRES_CPU_HIERARCHY_BEFORE_CLONE and any(targets for _, targets in copies):
         # Propagate source transforms on CPU before cloning to avoid copying
         # GPU-resident transform columns per clone. Keep the runtime GPU default.
+        # OVSTAGE tracking NVBUG 7027326, when fixed, we can remove this compute call.
         stage.compute_hierarchy(
             input_ordinal=ordinal,
             output_ordinal=ordinal,

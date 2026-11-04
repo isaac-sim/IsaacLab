@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import ast
 import contextlib
-import importlib.metadata
 import importlib.util
 from dataclasses import replace
 from pathlib import Path
@@ -149,35 +148,27 @@ def _prepare_clones(renderer, plan, routed=None):
 
 
 @pytest.mark.parametrize(
-    "use_ovstage, runtime_version, prepare_hierarchy, names, worlds, weights, copies",
+    "use_ovstage, prepare_hierarchy, names, worlds, weights, copies",
     [
-        pytest.param(False, None, False, ("",), ((0,),), (1,), [(0, "", [1, 2, 3])], id="environment-roots"),
+        pytest.param(False, False, ("",), ((0,),), (1,), [(0, "", [1, 2, 3])], id="environment-roots"),
         *(
             pytest.param(
                 True,
-                runtime_version,
                 prepare_hierarchy,
                 ("/Robot", "/Object", "/Light", "/Robot/Camera"),
                 ((3, 0, 2), (3, 0, 1)),
                 (1, 3),
                 [(0, "/Robot", [1, 2, 3]), (1, "/Object", [2, 3])],
-                id=f"nested-assets-{runtime_version}",
+                id=f"nested-assets-prepare-{prepare_hierarchy}",
             )
-            for runtime_version, prepare_hierarchy in (
-                (None, False),
-                ("0.3.0.1791986420", False),
-                ("0.4.0.1793320890", True),
-                ("0.4.0.dev1793793581+main.29a7740d", True),
-                ("0.4.1", True),
-                ("0.5.0.dev1", False),
-            )
+            for prepare_hierarchy in (False, True)
         ),
     ],
 )
 def test_native_replication_applies_compositions_then_positions(
-    monkeypatch, use_ovstage, runtime_version, prepare_hierarchy, names, worlds, weights, copies
+    monkeypatch, use_ovstage, prepare_hierarchy, names, worlds, weights, copies
 ):
-    """Native replication selects version-specific preparation before copies and placement."""
+    """Native replication gates hierarchy preparation before copies and placement."""
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._use_ovstage = use_ovstage
     positions = np.array([[0, 0, 0], [2, -1, 0.5], [-3, 4, 1.5], [5, 2, 0]], dtype=np.float32)
@@ -188,21 +179,10 @@ def test_native_replication_applies_compositions_then_positions(
     backend = renderer.backend
     if use_ovstage:
         import ovstage
-        from isaaclab_ov import ovstage_compat
 
-        def distribution_version(name):
-            assert name == "ovstage"
-            if runtime_version is None:
-                raise importlib.metadata.PackageNotFoundError(name)
-            return runtime_version
-
-        monkeypatch.setattr(importlib.metadata, "version", distribution_version)
-        spec = importlib.util.spec_from_file_location("isaaclab_ov._compat_probe", ovstage_compat.__file__)
-        compat = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(compat)
         monkeypatch.setattr(
             "isaaclab_ov.stage.OVSTAGE_REQUIRES_CPU_HIERARCHY_BEFORE_CLONE",
-            compat.OVSTAGE_REQUIRES_CPU_HIERARCHY_BEFORE_CLONE,
+            prepare_hierarchy,
         )
         paths = Mock()
         paths.create_path_list_from_strings.return_value = "env_paths"
