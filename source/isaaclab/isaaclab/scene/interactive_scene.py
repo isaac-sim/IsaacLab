@@ -15,6 +15,7 @@ import numpy as np
 if TYPE_CHECKING:
     from isaaclab_physx.assets import SurfaceGripper
 
+    from ..assets import AssetBase
     from ..terrains.terrain_importer import TerrainImporter
 
 import torch
@@ -439,21 +440,26 @@ class InteractiveScene:
         for sensor in self._sensors.values():
             sensor.reset(env_ids)
 
+    @property
+    def supports_graph_capture(self) -> bool:
+        """Whether :meth:`write_data_to_sim` can be recorded into a CUDA graph."""
+        return all(asset.supports_graph_capture for asset in self._sim_writers())
+
     def write_data_to_sim(self):
         """Writes the data of the scene entities to the simulation."""
-        # -- assets
-        for articulation in self._articulations.values():
-            articulation.write_data_to_sim()
-        for cable_object in self._cable_objects.values():
-            cable_object.write_data_to_sim()
-        for deformable_object in self._deformable_objects.values():
-            deformable_object.write_data_to_sim()
-        for rigid_object in self._rigid_objects.values():
-            rigid_object.write_data_to_sim()
-        for surface_gripper in self._surface_grippers.values():
-            surface_gripper.write_data_to_sim()
-        for rigid_object_collection in self._rigid_object_collections.values():
-            rigid_object_collection.write_data_to_sim()
+        for asset in self._sim_writers():
+            asset.write_data_to_sim()
+
+    def _sim_writers(self) -> tuple[AssetBase, ...]:
+        """Assets that write to the simulation, in write order."""
+        return (
+            *self._articulations.values(),
+            *self._cable_objects.values(),
+            *self._deformable_objects.values(),
+            *self._rigid_objects.values(),
+            *self._surface_grippers.values(),
+            *self._rigid_object_collections.values(),
+        )
 
     def update(self, dt: float) -> None:
         """Update the scene entities.

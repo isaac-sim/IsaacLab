@@ -42,6 +42,8 @@ class SurfaceGripperBinaryAction(ActionTerm):
     interface than joint-based grippers.
     """
 
+    apply_every_physics_step = False
+
     cfg: actions_cfg.SurfaceGripperBinaryActionCfg
     """The configuration of the action term."""
     _asset: SurfaceGripper

@@ -10,15 +10,22 @@ from types import SimpleNamespace
 import pytest
 import torch
 
-from isaaclab.envs.mdp.actions.actions_cfg import AbsBinaryJointPositionActionCfg, BinaryJointPositionActionCfg
+from isaaclab.envs.mdp.actions.actions_cfg import (
+    AbsBinaryJointPositionActionCfg,
+    BinaryJointPositionActionCfg,
+    JointEffortActionCfg,
+    JointPositionToLimitsActionCfg,
+)
 from isaaclab.envs.mdp.actions.binary_joint_actions import AbsBinaryJointPositionAction, BinaryJointPositionAction
+from isaaclab.envs.mdp.actions.joint_actions import JointEffortAction
+from isaaclab.envs.mdp.actions.joint_actions_to_limits import JointPositionToLimitsAction
 
 
 class _JointIds:
     """Stand-in for the proxy returned by ``find_joints(..., as_proxy=True)``."""
 
     def __init__(self, count: int):
-        self.warp = torch.arange(count, dtype=torch.int32)
+        self.warp = self.torch = torch.arange(count, dtype=torch.int32)
 
     def __len__(self) -> int:
         return len(self.warp)
@@ -54,3 +61,27 @@ def test_binary_joint_action_clips_each_processed_joint(action_cls, cfg_cls) -> 
     action.process_actions(torch.ones((2, 1)))
 
     torch.testing.assert_close(action.processed_actions, torch.tensor([[0.5, 1.5], [0.5, 1.5]]))
+
+
+@pytest.mark.parametrize(
+    "action_cls, cfg",
+    [
+        (
+            BinaryJointPositionAction,
+            BinaryJointPositionActionCfg(open_command_expr={".*": 1.0}, close_command_expr={".*": -1.0}),
+        ),
+        (JointEffortAction, JointEffortActionCfg(scale=2.0, clip={".*": (-1.0, 1.0)})),
+        (JointPositionToLimitsAction, JointPositionToLimitsActionCfg(scale=2.0, rescale_to_limits=False)),
+    ],
+)
+def test_recordable_joint_actions_process_into_the_same_buffer(action_cls, cfg) -> None:
+    """A step that records ``apply_actions`` reads the processed buffer, so processing writes it in place."""
+    cfg.asset_name, cfg.joint_names = "robot", [".*"]
+    action = action_cls(cfg, _make_env(["a", "b"]))
+    assert action_cls.supports_graph_capture and not action_cls.apply_every_physics_step
+    processed = action.processed_actions
+
+    action.process_actions(torch.full((2, action.action_dim), -0.25))
+
+    assert action.processed_actions is processed
+    assert torch.all(processed < 0.0)
