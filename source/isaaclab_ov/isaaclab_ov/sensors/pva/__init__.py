@@ -5,7 +5,21 @@
 
 """Sub-module for OVPhysX PVA sensor."""
 
-from isaaclab.utils.module import lazy_export, warn_on_lazy_exports
+import warnings
+
+from isaaclab.utils.module import lazy_export
 
 _lazy_getattr, _, _ = lazy_export()
-warn_on_lazy_exports(_lazy_getattr, {"PvaData": "sensor.data or PvaData from isaaclab.sensors"})
+
+
+def __getattr__(name: str):
+    value = _lazy_getattr(name)
+    if name == "PvaData":
+        warnings.warn(
+            "isaaclab_ov.sensors.pva.PvaData is deprecated and will be removed in a future release."
+            " Use sensor.data or PvaData from isaaclab.sensors instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        globals()[name] = value
+    return value

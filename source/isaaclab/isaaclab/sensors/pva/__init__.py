@@ -7,7 +7,21 @@
 PVA Sensor
 """
 
-from ...utils.module import lazy_export, warn_on_lazy_exports
+import warnings
+
+from ...utils.module import lazy_export
 
 _lazy_getattr, _, _ = lazy_export()
-warn_on_lazy_exports(_lazy_getattr, {"BasePvaData": "sensor.data or PvaData from isaaclab.sensors"})
+
+
+def __getattr__(name: str):
+    value = _lazy_getattr(name)
+    if name == "BasePvaData":
+        warnings.warn(
+            "isaaclab.sensors.pva.BasePvaData is deprecated and will be removed in a future release."
+            " Use sensor.data or PvaData from isaaclab.sensors instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        globals()[name] = value
+    return value
