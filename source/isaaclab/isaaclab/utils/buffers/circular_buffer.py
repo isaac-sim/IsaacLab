@@ -160,12 +160,13 @@ class CircularBuffer:
         if self._buffer is not None:
             index_fill_(self._buffer, batch_ids, 0.0, dim=1 if self._stack_dim_internal is None else 0)
 
-    def append(self, data: torch.Tensor):
+    def append(self, data: torch.Tensor, batch_ids: Sequence[int] | slice | None = None):
         """Append the data to the circular buffer.
 
         Args:
             data: The data to append to the circular buffer. The first dimension should be the batch dimension.
-                Shape is (batch_size, ...).
+                Shape is (batch_size, ...), or (len(batch_ids), ...) when selecting batches.
+            batch_ids: Batches to update, in the same order as the input rows. None updates all batches.
 
         Raises:
             ValueError: If the input data has a different batch size than the buffer.
@@ -173,44 +174,68 @@ class CircularBuffer:
                 appended data's rank.
         """
         # check the batch size
-        if data.shape[0] != self.batch_size:
-            raise ValueError(f"The input data has '{data.shape[0]}' batch size while expecting '{self.batch_size}'")
+        selected_batch_size = self.batch_size
+        if batch_ids is not None:
+            selected_batch_size = (
+                len(range(self.batch_size)[batch_ids]) if isinstance(batch_ids, slice) else len(batch_ids)
+            )
+        if data.shape[0] != selected_batch_size:
+            raise ValueError(f"The input data has '{data.shape[0]}' batch size while expecting '{selected_batch_size}'")
+        if selected_batch_size == 0:
+            return
 
         data = data.to(self._device)
 
         if self._buffer is None:
             self._allocate_buffer(data)
+            if batch_ids is not None:
+                self._buffer.zero_()
+
+        if batch_ids is None:
+            history = self._buffer
+            num_pushes = self._num_pushes
+        else:
+            history = self._buffer[:, batch_ids] if self._stack_dim_internal is None else self._buffer[batch_ids]
+            num_pushes = self._num_pushes[batch_ids]
 
         # Drop the oldest slot and write the newest at the last K slot.
         k_pos = 0 if self._stack_dim_internal is None else self._stack_dim_internal
         k = self._max_len_int
         if k > 2 and data.numel() * data.element_size() <= _STAGED_SHIFT_MAX_FRAME_BYTES:
             # small frames are launch bound: stage the overlapping shift in two kernels regardless of K
-            self._buffer.copy_(torch.cat((self._buffer.narrow(k_pos, 1, k - 1), data.unsqueeze(k_pos)), dim=k_pos))
+            history.copy_(torch.cat((history.narrow(k_pos, 1, k - 1), data.unsqueeze(k_pos)), dim=k_pos))
         else:
             # large frames are bandwidth bound: front-to-back slot copies move the least data
             for i in range(k - 1):
-                self._buffer.narrow(k_pos, i, 1).copy_(self._buffer.narrow(k_pos, i + 1, 1))
-            self._buffer.narrow(k_pos, k - 1, 1).copy_(data.unsqueeze(k_pos))
+                history.narrow(k_pos, i, 1).copy_(history.narrow(k_pos, i + 1, 1))
+            history.narrow(k_pos, k - 1, 1).copy_(data.unsqueeze(k_pos))
 
-        if self._need_reset:
+        if self._need_reset or batch_ids is not None:
             # branchless backfill: boolean-mask indexing and an any() gate both synchronize
             # the stream; torch.where(out=...) stays on-device
-            is_first_push = self._num_pushes == 0
+            is_first_push = num_pushes == 0
             if self._stack_dim_internal is None:
                 mask = is_first_push.view(1, -1, *([1] * (data.ndim - 1)))
-                torch.where(mask, data.unsqueeze(0), self._buffer, out=self._buffer)
+                torch.where(mask, data.unsqueeze(0), history, out=history)
             else:
-                mask = is_first_push.view(-1, *([1] * (self._buffer.ndim - 1)))
-                torch.where(mask, data.unsqueeze(self._stack_dim_internal), self._buffer, out=self._buffer)
-            self._need_reset = False
+                mask = is_first_push.view(-1, *([1] * (history.ndim - 1)))
+                torch.where(mask, data.unsqueeze(self._stack_dim_internal), history, out=history)
+            # Other batches may still need their first sample after a partial append.
+            self._need_reset = batch_ids is not None
 
-        self._num_pushes += 1
+        num_pushes += 1
+        if batch_ids is not None:
+            self._num_pushes[batch_ids] = num_pushes
+            if self._stack_dim_internal is None:
+                self._buffer[:, batch_ids] = history
+            else:
+                self._buffer[batch_ids] = history
 
     def _allocate_buffer(self, data: torch.Tensor) -> None:
         """Allocate the internal buffer and finalize the storage layout on first append."""
+        frame_shape = (self.batch_size, *data.shape[1:])
         if self._stack_dim_arg is None:
-            self._buffer = torch.empty((self._max_len_int, *data.shape), dtype=data.dtype, device=self._device)
+            self._buffer = torch.empty((self._max_len_int, *frame_shape), dtype=data.dtype, device=self._device)
             return
 
         ndim = data.ndim
@@ -224,7 +249,7 @@ class CircularBuffer:
             )
         self._stack_dim_internal = k_pos
         self._buffer = torch.empty(
-            (*data.shape[:k_pos], self._max_len_int, *data.shape[k_pos:]),
+            (*frame_shape[:k_pos], self._max_len_int, *frame_shape[k_pos:]),
             dtype=data.dtype,
             device=self._device,
         )
