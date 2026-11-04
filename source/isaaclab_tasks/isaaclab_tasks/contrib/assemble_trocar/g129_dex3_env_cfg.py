@@ -28,6 +28,9 @@ from isaaclab_tasks.contrib.assemble_trocar.config import (  # isort: skip
     CameraPresets,
     G1RobotPresets,
 )
+from isaaclab_tasks.contrib.assemble_trocar.config.newton_asset_workarounds import (
+    spawn_usd_with_newton_mesh_workarounds,
+)
 from isaaclab_tasks.utils import PresetCfg
 from isaaclab_tasks.utils.presets import set_isaac_rtx_global_settings
 
@@ -93,6 +96,7 @@ class AssembleTrocarSceneCfg(InteractiveSceneCfg):
     robot: ArticulationCfg = G1RobotPresets.g1_29dof_dex3_base_fix(
         init_pos=(-1.84919, 1.94, 0.81168), init_rot=(0.0, 0.0, 0.0, 1.0)
     )
+    robot.spawn.func = spawn_usd_with_newton_mesh_workarounds
     # add camera configuration
     front_camera = CameraPresets.g1_front_camera()
     left_wrist_camera = CameraPresets.left_dex3_wrist_camera()
@@ -148,6 +152,7 @@ class AssembleTrocarSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/surgical_tray",
         spawn=UsdFileCfg(
             usd_path=f"{USD_ROOT}/Assets/SurgicalTray001/SurgicalTray001.usd",
+            func=spawn_usd_with_newton_mesh_workarounds,
         ),
         init_state=ArticulationCfg.InitialStateCfg(pos=[-1.54919, 2.03365, 0.84554], rot=[0.0, 0.0, -0.70711, 0.70711]),
         actuators={},  # Empty dict for passive articulation (no motors)

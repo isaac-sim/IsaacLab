@@ -5,10 +5,68 @@
 
 """Tests for the assemble trocar task configuration."""
 
+import numpy as np
 from isaaclab_newton.sim.schemas import MujocoCollisionCfg
 from isaaclab_physx.sim.schemas import PhysxCollisionCfg
 
+from pxr import Usd, UsdGeom, UsdPhysics
+
+from isaaclab_tasks.contrib.assemble_trocar.config.newton_asset_workarounds import (
+    _bake_negative_mesh_collider_scales,
+    _expand_merged_mesh_colliders,
+    spawn_usd_with_newton_mesh_workarounds,
+)
 from isaaclab_tasks.contrib.assemble_trocar.g129_dex3_env_cfg import G1AssembleTrocarEnvCfg
+
+
+def _define_triangle(stage: Usd.Stage, path: str) -> UsdGeom.Mesh:
+    """Define one triangle mesh for USD adaptation tests."""
+    mesh = UsdGeom.Mesh.Define(stage, path)
+    mesh.CreatePointsAttr([(1.0, 2.0, 3.0), (4.0, 5.0, 6.0), (7.0, 8.0, 9.0)])
+    mesh.CreateFaceVertexCountsAttr([3])
+    mesh.CreateFaceVertexIndicesAttr([0, 1, 2])
+    return mesh
+
+
+def test_task_scopes_newton_asset_workarounds_to_robot_and_tray():
+    """Only assets requiring compatibility edits use the task-local spawner."""
+    cfg = G1AssembleTrocarEnvCfg()
+
+    assert cfg.scene.robot.spawn.func is spawn_usd_with_newton_mesh_workarounds
+    assert cfg.scene.tray.spawn.func is spawn_usd_with_newton_mesh_workarounds
+    assert cfg.scene.trocar_1.spawn.func is not spawn_usd_with_newton_mesh_workarounds
+    assert cfg.scene.trocar_2.spawn.func is not spawn_usd_with_newton_mesh_workarounds
+
+
+def test_expand_merged_mesh_collider():
+    """An Xform mesh-merge collider becomes a regular mesh collider."""
+    stage = Usd.Stage.CreateInMemory()
+    root = UsdGeom.Xform.Define(stage, "/Asset")
+    merged = UsdGeom.Xform.Define(stage, "/Asset/Collision").GetPrim()
+    UsdPhysics.CollisionAPI.Apply(merged).CreateCollisionEnabledAttr(True)
+    UsdPhysics.MeshCollisionAPI.Apply(merged).CreateApproximationAttr("convexHull")
+    mesh = _define_triangle(stage, "/Asset/Collision/Mesh").GetPrim()
+
+    assert _expand_merged_mesh_colliders(stage, root.GetPath()) == 1
+    assert not merged.HasAPI(UsdPhysics.CollisionAPI)
+    assert mesh.HasAPI(UsdPhysics.CollisionAPI)
+    assert UsdPhysics.CollisionAPI(mesh).GetCollisionEnabledAttr().Get()
+    assert UsdPhysics.MeshCollisionAPI(mesh).GetApproximationAttr().Get() == "convexHull"
+
+
+def test_bake_negative_mesh_collider_scale():
+    """A mirrored collider preserves its geometry with a positive USD scale."""
+    stage = Usd.Stage.CreateInMemory()
+    root = UsdGeom.Xform.Define(stage, "/Asset")
+    mesh = _define_triangle(stage, "/Asset/Mesh")
+    UsdPhysics.CollisionAPI.Apply(mesh.GetPrim())
+    scale_op = UsdGeom.Xformable(mesh).AddScaleOp()
+    scale_op.Set((-1.0, 1.0, 1.0))
+
+    assert _bake_negative_mesh_collider_scales(stage, root.GetPath()) == 1
+    np.testing.assert_allclose(UsdGeom.Xformable(mesh).GetOrderedXformOps()[-1].Get(), (1.0, 1.0, 1.0))
+    np.testing.assert_allclose(mesh.GetPointsAttr().Get()[0], (-1.0, 2.0, 3.0))
+    assert list(mesh.GetFaceVertexIndicesAttr().Get()) == [2, 1, 0]
 
 
 def test_bore_contact_tuning_preserves_physx_properties():
