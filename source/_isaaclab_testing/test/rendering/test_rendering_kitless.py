@@ -11,12 +11,18 @@ from rendering_runner import run_rendering_case
 
 pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.arm_ci]
 
+_CASES = [
+    pytest.param(
+        stage,
+        case,
+        id=f"{stage}-{case.id}",
+        marks=pytest.mark.ov if case.physics == "ovphysx" or case.renderer == "ovrtx" else (),
+    )
+    for stage, case in KITLESS_RENDERING_CASES
+]
 
-@pytest.mark.parametrize(
-    "stage_variant,case",
-    KITLESS_RENDERING_CASES,
-    ids=[f"{stage}-{case.id}" for stage, case in KITLESS_RENDERING_CASES],
-)
+
+@pytest.mark.parametrize("stage_variant,case", _CASES)
 def test_rendering(
     stage_variant: str, case: RenderCase, request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
 ) -> None:
