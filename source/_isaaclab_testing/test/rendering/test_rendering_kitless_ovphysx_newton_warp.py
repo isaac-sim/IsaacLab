@@ -6,12 +6,12 @@
 """Golden scenes rendered by Newton Warp without Kit while OVPhysX advances physics."""
 
 import pytest
-from rendering_cases import RenderCase, kitless_cases
+from rendering_cases import RenderCase, kitless_rendering_cases
 from rendering_runner import run_kitless_rendering_case
 
 pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.arm_ci, pytest.mark.ov]
 
-_CASES = kitless_cases("ovphysx", "newton_warp")
+_CASES = kitless_rendering_cases("ovphysx", "newton_warp")
 
 
 @pytest.mark.parametrize("stage_variant,case", _CASES, ids=[f"{stage}-{case.id}" for stage, case in _CASES])

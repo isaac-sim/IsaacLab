@@ -41,11 +41,13 @@ def test_rendering_is_downstream_and_task_independent() -> None:
 
 
 def test_case_and_golden_inventory() -> None:
-    """Each case is unique; both OVRTX readers share one complete reference inventory."""
+    """Each case is unique and collected; both OVRTX readers share one complete reference inventory."""
     kit_ids = [case.id for case in KIT_RENDERING_CASES]
     kitless_ids = [f"{stage}-{case.id}" for stage, case in KITLESS_RENDERING_CASES]
     assert len(kit_ids) == len(set(kit_ids))
     assert len(kitless_ids) == len(set(kitless_ids))
+    pair_files = {f"test_rendering_kitless_{case.physics}_{case.renderer}.py" for _, case in KITLESS_RENDERING_CASES}
+    assert pair_files == {path.name for path in _SUITE.glob("test_rendering_kitless_*.py")}
     expected = {
         Path(case.scene) / case.golden_filename(aov, "kit") for case in KIT_RENDERING_CASES for aov in case.golden_aovs
     } | {
