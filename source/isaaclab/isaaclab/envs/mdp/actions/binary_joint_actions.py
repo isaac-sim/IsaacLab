@@ -41,6 +41,10 @@ class BinaryJointAction(ActionTerm):
     add such constraints to the gripper.
     """
 
+    supports_graph_capture = True
+
+    apply_every_physics_step = False
+
     cfg: actions_cfg.BinaryJointActionCfg
     """The configuration of the action term."""
     _asset: Articulation
@@ -136,12 +140,10 @@ class BinaryJointAction(ActionTerm):
             close_mask = ~actions
         else:
             close_mask = actions < 0
-        # compute the command
-        self._processed_actions = torch.where(close_mask, self._close_command, self._open_command)
+        # compute the command in place: a recorded apply_actions reads this buffer
+        torch.where(close_mask, self._close_command, self._open_command, out=self._processed_actions)
         if self.cfg.clip is not None:
-            self._processed_actions = torch.clamp(
-                self._processed_actions, min=self._clip[:, :, 0], max=self._clip[:, :, 1]
-            )
+            self._processed_actions.clamp_(min=self._clip[:, :, 0], max=self._clip[:, :, 1])
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         index_fill_(self._raw_actions, env_ids, 0.0)
@@ -189,12 +191,10 @@ class AbsBinaryJointPositionAction(BinaryJointAction):
         else:
             # true: close 0.0, false: open 0.785
             binary_mask = actions < self.cfg.threshold
-        # compute the command
-        self._processed_actions = torch.where(binary_mask, self._open_command, self._close_command)
+        # compute the command in place: a recorded apply_actions reads this buffer
+        torch.where(binary_mask, self._open_command, self._close_command, out=self._processed_actions)
         if self.cfg.clip is not None:
-            self._processed_actions = torch.clamp(
-                self._processed_actions, min=self._clip[:, :, 0], max=self._clip[:, :, 1]
-            )
+            self._processed_actions.clamp_(min=self._clip[:, :, 0], max=self._clip[:, :, 1])
 
     def apply_actions(self):
         self._asset.set_joint_position_target_index(target=self._processed_actions, joint_ids=self._joint_ids)

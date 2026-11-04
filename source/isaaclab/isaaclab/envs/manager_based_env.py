@@ -94,6 +94,7 @@ class ManagerBasedEnv:
         self.cfg = cfg
         # initialize internal variables
         self._physics_handles_decimation = False
+        self._physics_handles_actions = False
 
         # set the seed for the environment
         if self.cfg.seed is not None:
@@ -202,14 +203,15 @@ class ManagerBasedEnv:
             self.scene.update(dt=self.physics_dt)
         self.video_recorders: list[VideoRecorder] = [VideoRecorder(cfg, self) for cfg in self.cfg.video_recorders]
 
-        # let the physics backend know about the env decimation so it can
-        # fold the full loop into a single step() when possible
-        self.sim.backend_manager.set_decimation(self.cfg.decimation)
-        self._physics_handles_decimation = self.sim.backend_manager.handles_decimation()
         # add timeline event to load managers
         report_activity("Setting up managers")
         self.load_managers()
         report_activity(None)
+        # let the physics backend run the actions and asset writes inside its step, and fold the full loop
+        # into a single step() when possible
+        self._physics_handles_actions = self.sim.backend_manager.bind_control(self.action_manager, self.scene)
+        self.sim.backend_manager.set_decimation(self.cfg.decimation)
+        self._physics_handles_decimation = self.sim.backend_manager.handles_decimation()
 
         # Wire live plots into all active visualizers (Newton, Rerun, Viser) and create
         # Kit omni.ui ManagerLiveVisualizer widgets when a GUI window is present.
@@ -555,8 +557,9 @@ class ManagerBasedEnv:
         steps_per_call = self.cfg.decimation if self._physics_handles_decimation else 1
         for _ in range(self.cfg.decimation // steps_per_call):
             self._sim_step_counter += steps_per_call
-            self.action_manager.apply_action()
-            self.scene.write_data_to_sim()
+            if not self._physics_handles_actions:
+                self.action_manager.apply_action()
+                self.scene.write_data_to_sim()
             self.sim.step(render=False)
             # render_enabled=False skips Kit (camera/GUI); standalone visualizers still update
             if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:

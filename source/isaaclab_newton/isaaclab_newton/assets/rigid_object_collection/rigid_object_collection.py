@@ -178,6 +178,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self._instantaneous_wrench_composer.reset(env_ids)
         self._permanent_wrench_composer.reset(env_ids)
 
+    supports_graph_capture = True
+
     def write_data_to_sim(self) -> None:
         """Write external wrench to the simulation.
 
@@ -186,8 +188,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             This ensures that the external wrench is applied at every simulation step.
         """
         # write external wrench
-        if self._instantaneous_wrench_composer.active or self._permanent_wrench_composer.active:
-            if self._instantaneous_wrench_composer.active:
+        if self._instantaneous_wrench_composer.pending or self._permanent_wrench_composer.pending:
+            if self._instantaneous_wrench_composer.pending:
                 composer = self._instantaneous_wrench_composer
                 composer.add_raw_buffers_from(self._permanent_wrench_composer)
             else:
@@ -1199,6 +1201,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # external wrench composer
         self._instantaneous_wrench_composer = WrenchComposer(self)
         self._permanent_wrench_composer = WrenchComposer(self)
+        for composer in (self._instantaneous_wrench_composer, self._permanent_wrench_composer):
+            # a captured step records wrench work only once forces are written, so it is captured again then
+            composer.on_first_use = self._backend_manager.backend.invalidate_graph
 
         # Temporary 2D wrench buffer for write_data_to_sim
         self._wrench_buffer = wp.zeros(
