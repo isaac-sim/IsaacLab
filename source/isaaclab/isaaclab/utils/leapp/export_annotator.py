@@ -201,33 +201,10 @@ def _normalize_rgb_for_export(images, channel_dim=-1, output_channel_dim=None, m
     return out
 
 
-def _quat_apply_for_export(quat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
-    """Preserve quaternion broadcasting without LEAPP 0.8.0's broadcast_tensors rewrite."""
-    shape = torch.broadcast_shapes(quat.shape[:-1], vec.shape[:-1]) + (3,)
-    xyz = quat[..., :3].expand(shape)
-    vec = vec.expand(shape)
-    t = torch.cross(xyz, vec, dim=-1) * 2.0
-    return vec + quat[..., 3:4] * t + torch.cross(xyz, t, dim=-1)
-
-
-def _quat_apply_inverse_for_export(quat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
-    """Apply the same pure rotation adapter to the conjugate quaternion."""
-    return _quat_apply_for_export(torch.cat((-quat[..., :3], quat[..., 3:4]), dim=-1), vec)
-
-
-def _normal_parameters_for_export(loc: torch.Tensor | float, scale: torch.Tensor | float):
-    """Broadcast Normal's numerical parameters without the unsupported ATen rewrite.
-
-    Only Normal's constructor binding is patched. Its parameters are consumed as
-    values during policy export; clone the expanded results to keep the adapter pure.
-    """
-    reference = loc if isinstance(loc, torch.Tensor) else scale
-    if not isinstance(loc, torch.Tensor):
-        loc = torch.tensor(loc, dtype=reference.dtype, device=reference.device)
-    if not isinstance(scale, torch.Tensor):
-        scale = torch.tensor(scale, dtype=reference.dtype, device=reference.device)
-    shape = torch.broadcast_shapes(loc.shape, scale.shape)
-    return loc.expand(shape).clone(), scale.expand(shape).clone()
+def _broadcast_tensors_for_export(*tensors: torch.Tensor) -> tuple[torch.Tensor, ...]:
+    """Trace expand views to avoid LEAPP 0.8.0's list-to-varargs broadcast rewrite."""
+    shape = torch.broadcast_shapes(*(tensor.shape for tensor in tensors))
+    return tuple(tensor.expand(shape) for tensor in tensors)
 
 
 def export_function_patches() -> list[FunctionPatch]:
@@ -238,9 +215,7 @@ def export_function_patches() -> list[FunctionPatch]:
     return [
         FunctionPatch(image_utils, "normalize_rgb", _normalize_rgb_for_export),
         FunctionPatch(observations, "normalize_rgb", _normalize_rgb_for_export),
-        FunctionPatch(math_utils, "quat_apply", _quat_apply_for_export),
-        FunctionPatch(math_utils, "quat_apply_inverse", _quat_apply_inverse_for_export),
-        FunctionPatch(torch.distributions.normal, "broadcast_all", _normal_parameters_for_export),
+        FunctionPatch(torch, "broadcast_tensors", _broadcast_tensors_for_export),
     ]
 
 
