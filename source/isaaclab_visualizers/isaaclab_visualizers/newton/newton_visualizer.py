@@ -1135,12 +1135,18 @@ class NewtonVisualizerBase(BaseVisualizer):
             hidden=hidden, backface_culling=backface_culling, color=color,
             roughness=roughness, metallic=metallic, dynamic=dynamic, opacity=opacity,
         )  # fmt: skip
-        for renderer in self._rtx_renderers:
+        renderers = self._rtx_renderers
+        for renderer in renderers:
             # The OVRTX viewer camera draws its own scene, so the mesh is published there as well.
             renderer.log_mesh(
                 f"Viewer_{id(self)}/{name.lstrip('/')}", points, indices, normals, uvs, texture, hidden,
                 backface_culling, color, roughness, metallic, dynamic, opacity,
             )  # fmt: skip
+        if renderers:
+            # The cached RTX image predates the mesh, which matters while paused or between renders.
+            view = self._image_views[self.rtx_view_index]
+            view.camera.update(0.0)
+            view.invalidate()
 
     @property
     def _rtx_renderers(self) -> tuple:
@@ -2087,8 +2093,9 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         if self.cfg.backend.initial_renderer == "rtx":
             if self.rtx_view_index is None:
                 raise RuntimeError(
-                    "NewtonGLBackendCfg.initial_renderer='rtx' needs the OVRTX viewer camera, which is declared at"
-                    " launch; it is missing from this scene (see NewtonGLBackendCfg.rtx_camera)."
+                    "NewtonGLBackendCfg.initial_renderer='rtx' needs the OVRTX viewer camera. Launch declares it for"
+                    " a run with an InteractiveSceneCfg (see NewtonGLBackendCfg.rtx_camera); a script that builds its"
+                    " scene itself must add an OVRTX Camera whose prim_path starts with '/World/viewer_camera_'."
                 )
             self.set_rtx_rendering(True)
 

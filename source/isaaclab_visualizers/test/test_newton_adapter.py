@@ -1431,3 +1431,22 @@ def test_the_statistics_overlay_starts_closed():
     from isaaclab_visualizers.newton.newton_visualizer import NewtonViewerGL
 
     assert NewtonViewerGL._show_stats is False
+
+
+def test_a_mesh_logged_to_the_rtx_view_refreshes_its_cached_image():
+    from isaaclab_visualizers.newton.newton_visualizer import NewtonGLVisualizer
+
+    visualizer = NewtonGLVisualizer.__new__(NewtonGLVisualizer)
+    camera = Mock()
+    camera.cfg = SimpleNamespace(prim_path="/World/viewer_camera_0_rtx", renderer_cfg="ovrtx")
+    view = Mock(camera=camera)
+    renderer = Mock()
+    visualizer._is_initialized, visualizer._viewer = True, object()
+    visualizer._pending_mesh_submissions = {}
+    visualizer._image_views, visualizer._sim = [view], SimpleNamespace(get_or_create_backend=lambda cfg: renderer)
+
+    visualizer.log_mesh("/m", points=None, indices=None)
+
+    renderer.log_mesh.assert_called_once()
+    camera.update.assert_called_once_with(0.0)
+    view.invalidate.assert_called_once_with()

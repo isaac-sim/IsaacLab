@@ -15,7 +15,7 @@ from isaaclab_visualizers.viser import ViserBackendCfg
 
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils import configclass
-from isaaclab.visualizers.visualizer_cfg import VISUALIZER_ALIASES, VisualizerBackendCfg
+from isaaclab.visualizers.visualizer_cfg import REMOVED_VISUALIZERS, VISUALIZER_ALIASES, VisualizerBackendCfg
 
 from .hydra import PresetCfg
 
@@ -64,3 +64,4 @@ class MultiBackendVisualizerCfg(PresetCfg):
 
     _aliases: ClassVar[dict[str, str]] = VISUALIZER_ALIASES
     _quiet_aliases: ClassVar[frozenset[str]] = frozenset(VISUALIZER_ALIASES)
+    _removed: ClassVar[dict[str, str]] = REMOVED_VISUALIZERS

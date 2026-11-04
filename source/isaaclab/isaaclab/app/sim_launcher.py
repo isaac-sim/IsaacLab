@@ -182,12 +182,14 @@ def _fit_window_to_display(size: tuple[int, int], margin: float = 0.92) -> tuple
 def _wants_rtx_viewer_camera(visualizer: VisualizerCfg, simulations: list[SimulationCfg]) -> bool:
     """Return whether a Newton GL window should get an OVRTX viewer camera in its scene."""
     backend = visualizer.backend
-    if not isinstance(backend, NewtonGLBackendCfg) or visualizer.headless or visualizer.view is not None:
+    if not isinstance(backend, NewtonGLBackendCfg):
         return False
-    if backend.initial_renderer == "rtx" and backend.rtx_camera is False:
-        raise ValueError("NewtonGLBackendCfg.initial_renderer='rtx' requires rtx_camera to be enabled.")
     if backend.initial_renderer == "rtx":
-        return True
+        if backend.rtx_camera is False:
+            raise ValueError("NewtonGLBackendCfg.initial_renderer='rtx' requires rtx_camera to be enabled.")
+        return True  # Starting in RTX needs the camera for a recording-only window or one with a view as well.
+    if visualizer.headless or visualizer.view is not None:
+        return False
     if backend.rtx_camera is not None:
         return backend.rtx_camera
     on_physx = any(isinstance(sim.physics, (PhysxCfg, PhysxAutoCfg, OvPhysxCfg)) for sim in simulations)
