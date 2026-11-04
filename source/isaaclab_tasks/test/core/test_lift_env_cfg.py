@@ -318,8 +318,12 @@ def test_camera_normalization_is_stationary(data_type: str) -> None:
         if data_type != "semantic_segmentation":
             expected = expected[:3]
     sensor = SimpleNamespace(data=SimpleNamespace(output={data_type: ProxyArray(wp.from_torch(images))}))
+    # mid-episode, so that blank_first_frame keeps the image
     env = SimpleNamespace(
-        num_envs=1, device="cpu", scene=SimpleNamespace(sensors={"base_camera": sensor, "wrist_camera": sensor})
+        num_envs=1,
+        device="cpu",
+        episode_length_buf=torch.ones(1, dtype=torch.long),
+        scene=SimpleNamespace(sensors={"base_camera": sensor, "wrist_camera": sensor}),
     )
     for term_cfg in (cfg.observations.base_image.object_observation_b, cfg.observations.wrist_image.wrist_observation):
         term = term_cfg.func(term_cfg, env)
