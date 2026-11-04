@@ -24,7 +24,14 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from .isaac_sim_host_adapter import BorrowedContext, HostClock, HostData, StageView
+from .isaac_sim_host_adapter import (
+    BorrowedContext,
+    CloneAuthoring,
+    HostClock,
+    HostData,
+    StageView,
+    live_inspection_type,
+)
 from .isaac_sim_shared_stage import FrameStore, Replication, SharedStage, ViewerRenderer
 
 if TYPE_CHECKING:
@@ -87,6 +94,7 @@ class SharedWorldOpener:
 
         self._specs = specs
         self._rate = rate
+        self._copies = replication.copies if replication is not None else ()
         self.metadata = read_scene_metadata(scene)
         started = time.perf_counter()
         self.authoring = AuthoringSession(str(scene.resolve()))
@@ -161,6 +169,7 @@ class SharedWorldOpener:
     def __call__(self, scene: str, wake: Callable[[], None]) -> World:
         """Open a host world on the shared stage."""
         from isaacsim.application.host import AuthoringSync, SceneCommands
+        from isaacsim.foundation.orchestration import RationalRate
         from isaacsim.viewports.adapters import RendererOutput
 
         world_type = _shared_world_type()
@@ -181,11 +190,13 @@ class SharedWorldOpener:
         )
         world.on_simulation_step = self._grant_step
         world.renderer_name = "ovrtx"
-        world.authoring = self.authoring
+        world.authoring = CloneAuthoring(self.authoring, self._copies)
         world.authoring_revision = self.authoring.revision
         world.authoring_sync = AuthoringSync(self.authoring.stage)
-        # Live property inspection reads velocities through Isaac Sim physics views, which Isaac Lab's physics does not
-        # provide; the property pane shows the stage's authored values instead.
+        # Property inspection supplies the selected prims' live world poses; Isaac Lab drains it with the commands.
+        inspection = SceneCommands(rate=RationalRate(10), on_submit=wake)
+        world.inspection = live_inspection_type()(inspection, set(), context)
+        world.command_sources.append(inspection)
         frames = self.frames
         world.renderer_output_factory = lambda path, product: RendererOutput(read=lambda: frames.latest(product))
         self._attach_viewports(world)

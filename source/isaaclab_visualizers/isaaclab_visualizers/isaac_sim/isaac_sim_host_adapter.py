@@ -169,6 +169,93 @@ class StageView:
         return getattr(self._data.context, name)
 
 
+class CloneAuthoring:
+    """Authoring session that describes cloned prims by their source prim.
+
+    Isaac Lab clones environments in the shared stage only, so the host's authored stage holds just the source of each
+    clone. Without this, a cloned prim's property fields have no declared types. Clones are described read-only: an
+    authored edit would land on the source prim.
+
+    Args:
+        session: The host's ``isaacsim.viewports.authoring.AuthoringSession``.
+        copies: Source subtrees and their clone destinations.
+    """
+
+    def __init__(self, session: Any, copies: Sequence[tuple[str, Sequence[str]]]):
+        self._session = session
+        self._sources = {target: source for source, targets in copies for target in targets}
+
+    def source_of(self, path: str) -> str | None:
+        """Return the authored prim a cloned path was copied from, or ``None`` if it is not a clone."""
+        prefix, suffix = path, ""
+        while prefix and prefix != "/":
+            source = self._sources.get(prefix)
+            if source is not None:
+                return source + suffix
+            prefix, name = prefix.rsplit("/", 1)
+            suffix = f"/{name}{suffix}"
+        return None
+
+    def attributes(self, path: str) -> dict[str, dict[str, Any]]:
+        """Describe a prim's declared attributes, using the clone's source prim for cloned paths."""
+        described = self._session.attributes(path)
+        source = None if described else self.source_of(path)
+        if source is None:
+            return described
+        reason = f"Cloned from {source}; edit the source prim"
+        return {
+            name: {**row, "writable": False, "write_reason": reason}
+            for name, row in self._session.attributes(source).items()
+        }
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._session, name)
+
+
+def live_inspection_type() -> type:
+    """Return a property inspection that reads live world poses from the shared stage.
+
+    Isaac Sim's inspection composes poses with native helpers that need a native simulation view, and reads velocities
+    through Isaac Sim physics views. Neither exists when Isaac Lab drives the world, so this one reads the stage's world
+    matrices, which Isaac Lab keeps current, through the Python view it is drained with. Velocities keep their authored
+    values.
+    """
+    import numpy as np
+
+    from isaacsim.application.host import PropertyInspection
+
+    class LiveInspection(PropertyInspection):
+        def _capture_selection(self, view: Any, demand: Any) -> dict[str, Any]:
+            from pxr import Gf
+
+            objects = {}
+            for path in demand.paths:
+                item: dict[str, Any] = {"values": {}, "pose": None, "transform": None}
+                try:
+                    matrix = np.asarray(view.read([path], "omni:fabric:worldMatrix"), dtype=float).reshape(4, 4)
+                except Exception:  # noqa: BLE001 - prims without a transform have no pose
+                    objects[path] = item
+                    continue
+                transform = Gf.Transform(Gf.Matrix4d(*matrix.reshape(-1).tolist()))
+                rotation = transform.GetRotation()
+                quat = rotation.GetQuat()
+                angles = rotation.Decompose(Gf.Vec3d.ZAxis(), Gf.Vec3d.YAxis(), Gf.Vec3d.XAxis())
+                item["pose"] = {
+                    "position": matrix[3, :3].tolist(),
+                    "orientation": [*quat.GetImaginary(), quat.GetReal()],
+                }
+                item["transform"] = {
+                    "matrix": matrix.reshape(-1).tolist(),
+                    "position": list(transform.GetTranslation()),
+                    "rotation": list(reversed(angles)),
+                    "scale": list(transform.GetScale()),
+                }
+                objects[path] = item
+            return {"state": "ready", "time_ns": str(view.current_time), "objects": objects}
+
+    return LiveInspection
+
+
 class BorrowedContext:
     """Stage context whose stage outlives the host's world: ``close()`` leaves it open.
 
