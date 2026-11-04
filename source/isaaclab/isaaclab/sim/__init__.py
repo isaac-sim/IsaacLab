@@ -26,7 +26,9 @@ To make it convenient to use the module, we recommend importing the module as fo
 
 """
 
-from ..utils.module import lazy_export, warn_on_lazy_exports
+import warnings
+
+from ..utils.module import lazy_export
 
 _stub_getattr, _stub_dir, __all__ = lazy_export()
 
@@ -105,8 +107,9 @@ def __getattr__(name):
                 " Install the isaaclab_physx extension or update your import. This forwarding"
                 " shim is scheduled for removal in 4.0."
             ) from e
-        return getattr(_physx_cfg, name)
-    if name in _PHYSX_FORWARDS_MATERIALS:
+        value = getattr(_physx_cfg, name)
+        replacement = "isaaclab_physx.sim.schemas"
+    elif name in _PHYSX_FORWARDS_MATERIALS:
         try:
             from isaaclab_physx.sim.spawners.materials import physics_materials_cfg as _physx_mat_cfg
         except ImportError as e:
@@ -115,8 +118,9 @@ def __getattr__(name):
                 " Install the isaaclab_physx extension or update your import. This forwarding"
                 " shim is scheduled for removal in 4.0."
             ) from e
-        return getattr(_physx_mat_cfg, name)
-    if name in _NEWTON_FORWARDS:
+        value = getattr(_physx_mat_cfg, name)
+        replacement = "isaaclab_physx.sim.spawners.materials"
+    elif name in _NEWTON_FORWARDS:
         try:
             from isaaclab_newton.sim.schemas import schemas_cfg as _newton_cfg
         except ImportError as e:
@@ -125,20 +129,18 @@ def __getattr__(name):
                 " Install the isaaclab_newton extension or update your import. This forwarding"
                 " shim is scheduled for removal in 4.0."
             ) from e
-        return getattr(_newton_cfg, name)
-    return _stub_getattr(name)
+        value = getattr(_newton_cfg, name)
+        replacement = "isaaclab_newton.sim.schemas"
+    else:
+        return _stub_getattr(name)
+    warnings.warn(
+        f"isaaclab.sim.{name} is deprecated and will be removed in Isaac Lab 4.0. Use {replacement} instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    globals()[name] = value
+    return value
 
 
 def __dir__():
     return sorted(set(_stub_dir()) | _PHYSX_FORWARDS | _NEWTON_FORWARDS)
-
-
-warn_on_lazy_exports(
-    __getattr__,
-    {
-        **{name: "isaaclab_physx.sim.schemas" for name in _PHYSX_FORWARDS_SCHEMAS},
-        **{name: "isaaclab_physx.sim.spawners.materials" for name in _PHYSX_FORWARDS_MATERIALS},
-        **{name: "isaaclab_newton.sim.schemas" for name in _NEWTON_FORWARDS},
-    },
-    removal_version="4.0",
-)

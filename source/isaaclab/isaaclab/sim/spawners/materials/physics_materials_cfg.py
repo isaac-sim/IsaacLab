@@ -6,12 +6,12 @@
 from __future__ import annotations
 
 import math
+import warnings
 from collections.abc import Callable
 from dataclasses import MISSING
 from typing import ClassVar
 
 from isaaclab.utils import configclass
-from isaaclab.utils.module import warn_on_lazy_exports
 
 from ...schemas.schemas_cfg import SchemaFragment
 
@@ -42,15 +42,16 @@ def __getattr__(name):
                 " isaaclab_physx extension or update your import. This forwarding shim is scheduled"
                 " for removal in 4.0."
             ) from e
-        return getattr(_physx_mat_cfg, name)
+        value = getattr(_physx_mat_cfg, name)
+        warnings.warn(
+            f"isaaclab.sim.spawners.materials.physics_materials_cfg.{name} is deprecated and will be removed"
+            " in Isaac Lab 4.0. Use isaaclab_physx.sim.spawners.materials.physics_materials_cfg instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        globals()[name] = value
+        return value
     raise AttributeError(f"module 'isaaclab.sim.spawners.materials.physics_materials_cfg' has no attribute {name!r}")
-
-
-warn_on_lazy_exports(
-    __getattr__,
-    {name: "isaaclab_physx.sim.spawners.materials.physics_materials_cfg" for name in _PHYSX_FORWARDS},
-    removal_version="4.0",
-)
 
 
 @configclass

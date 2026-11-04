@@ -13,8 +13,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from isaaclab.utils.module import warn_on_lazy_exports
-
 from .newton_visualizer_cfg import (
     NewtonGLBackendCfg,
     NewtonGLVisualizerCfg,
@@ -57,8 +55,12 @@ def __getattr__(name: str):
 
         if name == "NewtonGLVisualizer":
             return NewtonGLVisualizer
+        import warnings
+
+        warnings.warn(
+            "NewtonVisualizer is deprecated and will be removed in a future release. Use NewtonGLVisualizer instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return NewtonGLVisualizer
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-
-
-warn_on_lazy_exports(__getattr__, {"NewtonVisualizer": "isaaclab_visualizers.newton.NewtonGLVisualizer"})

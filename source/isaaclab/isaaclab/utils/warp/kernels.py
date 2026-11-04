@@ -13,12 +13,12 @@
     torque destinations directly instead of five buffers and an ``is_global`` argument.
 """
 
+import warnings
 from typing import Any
 
 import torch
 import warp as wp
 
-from ..module import warn_on_lazy_exports
 from .index_kernel import IndexKernelDispatcher
 
 _DEPRECATED_WRENCH_NAMES = (
@@ -42,6 +42,12 @@ def __getattr__(name: str):
 
     from . import _wrench_compat, wrench
 
+    warnings.warn(
+        f"{__name__}.{name} is deprecated and will be removed in Isaac Lab 3.2. "
+        "Use WrenchComposer or the kernels and factories in isaaclab.utils.warp.wrench instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     if name in ("compose_wrench_to_body_frame", "add_raw_wrench_buffers"):
         return getattr(wrench, name)
     if name == "reset_wrench_composer_mask":
@@ -50,16 +56,6 @@ def __getattr__(name: str):
         return getattr(_wrench_compat, name)
     dtype = wp.bool if name.endswith("_mask") else Any
     return _wrench_compat.make_write_wrench(dtype, dtype, accumulate=name.startswith("add_"))
-
-
-warn_on_lazy_exports(
-    __getattr__,
-    {
-        name: "isaaclab.utils.wrench_composer.WrenchComposer or isaaclab.utils.warp.wrench"
-        for name in _DEPRECATED_WRENCH_NAMES
-    },
-    removal_version="3.2",
-)
 
 
 def __dir__():

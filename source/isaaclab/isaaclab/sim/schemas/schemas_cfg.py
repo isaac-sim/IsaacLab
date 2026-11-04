@@ -12,7 +12,6 @@ from typing import ClassVar, Literal
 from typing_extensions import deprecated
 
 from ...utils import configclass
-from ...utils.module import warn_on_lazy_exports
 
 # Names that moved out of this submodule into ``isaaclab_physx.sim.schemas.schemas_cfg``.
 # Resolved lazily so callers using ``from isaaclab.sim.schemas.schemas_cfg import
@@ -74,8 +73,9 @@ def __getattr__(name):
                 " extension or update your import. This forwarding shim is scheduled for"
                 " removal in 4.0."
             ) from e
-        return getattr(_physx_cfg, name)
-    if name in _NEWTON_FORWARDS:
+        value = getattr(_physx_cfg, name)
+        replacement = "isaaclab_physx.sim.schemas.schemas_cfg"
+    elif name in _NEWTON_FORWARDS:
         try:
             from isaaclab_newton.sim.schemas import schemas_cfg as _newton_cfg
         except ImportError as e:
@@ -85,18 +85,18 @@ def __getattr__(name):
                 " extension or update your import. This forwarding shim is scheduled for"
                 " removal in 4.0."
             ) from e
-        return getattr(_newton_cfg, name)
-    raise AttributeError(f"module 'isaaclab.sim.schemas.schemas_cfg' has no attribute {name!r}")
-
-
-warn_on_lazy_exports(
-    __getattr__,
-    {
-        **{name: "isaaclab_physx.sim.schemas.schemas_cfg" for name in _PHYSX_FORWARDS},
-        **{name: "isaaclab_newton.sim.schemas.schemas_cfg" for name in _NEWTON_FORWARDS},
-    },
-    removal_version="4.0",
-)
+        value = getattr(_newton_cfg, name)
+        replacement = "isaaclab_newton.sim.schemas.schemas_cfg"
+    else:
+        raise AttributeError(f"module 'isaaclab.sim.schemas.schemas_cfg' has no attribute {name!r}")
+    warnings.warn(
+        f"isaaclab.sim.schemas.schemas_cfg.{name} is deprecated and will be removed in Isaac Lab 4.0."
+        f" Use {replacement} instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    globals()[name] = value
+    return value
 
 
 def deprecate_field_alias(cfg, alias: str, canonical: str) -> None:

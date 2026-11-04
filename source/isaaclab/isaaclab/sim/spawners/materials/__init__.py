@@ -52,7 +52,9 @@ Usage:
 .. _Physics Scene: https://openusd.org/dev/api/usd_physics_page_front.html
 """
 
-from isaaclab.utils.module import lazy_export, warn_on_lazy_exports
+import warnings
+
+from isaaclab.utils.module import lazy_export
 
 _stub_getattr, _stub_dir, __all__ = lazy_export()
 
@@ -79,16 +81,17 @@ def __getattr__(name):
                 " 'isaaclab_physx.sim.spawners.materials'. Install the isaaclab_physx extension"
                 " or update your import. This forwarding shim is scheduled for removal in 4.0."
             ) from e
-        return getattr(_physx_cfg, name)
+        value = getattr(_physx_cfg, name)
+        warnings.warn(
+            f"isaaclab.sim.spawners.materials.{name} is deprecated and will be removed in Isaac Lab 4.0."
+            " Use isaaclab_physx.sim.spawners.materials instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        globals()[name] = value
+        return value
     return _stub_getattr(name)
 
 
 def __dir__():
     return sorted(set(_stub_dir()) | _PHYSX_FORWARDS)
-
-
-warn_on_lazy_exports(
-    __getattr__,
-    {name: "isaaclab_physx.sim.spawners.materials" for name in _PHYSX_FORWARDS},
-    removal_version="4.0",
-)

@@ -6,16 +6,17 @@
 """Deprecated import path for Warp-native tensor processors."""
 
 import sys
-
-from isaaclab.utils.module import warn_on_module_import
+import warnings
 
 from .. import tensor_processors as _processors
 
 __all__ = ["ModifierBase", "ModifierCfg", "bias", "clip", "scale"]
 
-warn_on_module_import(
-    "isaaclab_experimental.utils.tensor_processors",
-    details="ModifierBase and ModifierCfg are now TensorProcessor and TensorProcessorCfg.",
+warnings.warn(
+    "isaaclab_experimental.utils.modifiers is deprecated; use isaaclab_experimental.utils.tensor_processors."
+    " ModifierBase and ModifierCfg are now TensorProcessor and TensorProcessorCfg.",
+    DeprecationWarning,
+    stacklevel=2,
 )
 
 

@@ -4,11 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import sys
+import warnings
 
-from ..utils.module import warn_on_module_import
 from . import actuator_base_cfg, actuator_net_cfg, actuator_pd_cfg
-
-warn_on_module_import("isaaclab.actuators or the corresponding actuator configuration module")
 
 
 def __getattr__(name):
@@ -21,6 +19,12 @@ def __getattr__(name):
         new_module = actuator_base_cfg
 
     if new_module is not None:
+        warnings.warn(
+            f"The module actuator_cfg.py is deprecated. Please import {name} directly from the isaaclab.actuators"
+            f" package, or from its new module {new_module.__name__}.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return getattr(new_module, name)
     if name in dir(sys.modules[__name__]):
         return vars(sys.modules[__name__])[name]
