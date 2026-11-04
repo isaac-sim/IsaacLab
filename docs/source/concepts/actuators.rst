@@ -616,8 +616,9 @@ properties. Use articulation data and joint writers to read or change them.
 
 The runtime group properties ``effort_limit_sim``, ``velocity_limit_sim``, ``armature``,
 ``friction``, ``dynamic_friction``, and ``viscous_friction`` were removed. Read their live values
-from articulation data and use the corresponding joint writers. The deprecated
-``effort_limit_sim`` and ``velocity_limit_sim`` configuration aliases remain available through 3.x.
+from articulation data and use the corresponding joint writers. The ``effort_limit_sim`` and
+``velocity_limit_sim`` configuration aliases were removed in 3.1; use ``joint_effort_limit`` and
+``joint_velocity_limit`` instead.
 See :ref:`actuators-solver-limit-migration` for replacement data views and writers.
 
 Explicit actuators store model state such as ``actuator_effort_limit``, rated ``actuator_velocity_limit``, gains,
