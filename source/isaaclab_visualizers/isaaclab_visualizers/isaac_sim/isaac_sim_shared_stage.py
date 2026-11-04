@@ -99,6 +99,13 @@ class SharedStage:
         import ovstage
 
         array = np.asarray(values)
+        if array.dtype.kind in "USO":
+            # Text values, such as ``visibility``, are stored as interned tokens.
+            tokens = [self._dictionary.intern_token(str(value)) for value in array.reshape(-1)]
+            array = np.asarray(tokens, dtype=np.uint64)
+            kwargs = {"semantic": ovstage.AttributeSemantic.TOKEN_ID}
+            self.stage.write_attribute(self._query(paths), attribute, self.open, array, is_array=False, **kwargs).wait()
+            return
         if attribute in _MATRIX_ATTRIBUTES:
             array = np.ascontiguousarray(array, dtype=np.float64).reshape(len(paths), 16)
             semantic = ovstage.AttributeSemantic.MATRIX

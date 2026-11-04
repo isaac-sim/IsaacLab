@@ -43,7 +43,7 @@ class IsaacSimVisualizer(BaseVisualizer):
     """Isaac Sim 7 viewer application on an OVStage shared with Isaac Lab.
 
     The host's stage context creates and registers one OVStage; Isaac Lab borrows it and owns its ordinals. Each
-    rendered frame, Isaac Lab writes body poses and visualization markers, runs the host's participants, seals the
+    rendered frame, Isaac Lab writes body poses and visualization markers, applies the host's commands, seals the
     ordinal and renders the viewer's products with OVRTX. The host reads the same stage for its stage tree and property
     panes and streams the frames to its client. Isaac Lab keeps its own loop and physics.
     """
@@ -144,6 +144,8 @@ class IsaacSimVisualizer(BaseVisualizer):
         # The host steps, and so publishes frames, only on request; each rendered frame requests one.
         self._shared.on_frame = self._host.simulation.request_redraw
         self._host.start()
+        # Isaac Lab is already running, so the viewer's transport controls start in Playing.
+        self._play()
         if not self.cfg.headless and self.backend_cfg.ui == "browser":
             self._log_viewer_url("IsaacSimVisualizer", self.client_url)
         elif not self.cfg.headless:
@@ -259,6 +261,21 @@ class IsaacSimVisualizer(BaseVisualizer):
         self._shared.step(int(self._sim_time * 1e9), int(dt * 1e9), write_state)
         self.timings["renders"] = self._shared.renders
 
+    def _play(self) -> None:
+        """Put the viewer's transport controls in Playing."""
+        from isaacsim.application.host import Command, TimeTarget
+
+        self._host.inbox.submit(Command(verb="play", args={}, time_target=TimeTarget.immediate()))
+
+    def is_training_paused(self) -> bool:
+        """Return whether the viewer's Pause holds Isaac Lab's loop; each Step lets one simulation step through."""
+        if self._host is None or self._shared is None:
+            return False
+        if self._host.simulation.run_state.value != "paused":
+            self._shared.clear_steps()
+            return False
+        return not self._shared.take_step()
+
     def supports_markers(self) -> bool:
         """Return whether visualization markers are drawn."""
         return self.cfg.enable_markers
@@ -273,7 +290,14 @@ class IsaacSimVisualizer(BaseVisualizer):
             return
         self._sim_time += dt
         start = time.perf_counter()
+        if self._shared.take_reset():
+            # The viewer's Stop resets the environments, which then keep running.
+            self._reset_requested = True
+            self._play()
         self._render_frame(dt)
+        if dt == 0.0:
+            # Isaac Lab calls this in a loop while the viewer is paused; keep serving the viewer without spinning.
+            time.sleep(0.002)
         self.timings["publish"] += time.perf_counter() - start
         self.timings["steps"] += 1
 

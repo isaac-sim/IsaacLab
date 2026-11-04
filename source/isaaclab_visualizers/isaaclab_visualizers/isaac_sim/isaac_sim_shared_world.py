@@ -6,9 +6,10 @@
 """Isaac Sim 7 host worlds on a stage that Isaac Lab owns.
 
 :class:`SharedWorldOpener` is the ``open_world`` callable of the host. Every world it opens, including after the user
-stops the scene, runs on the same shared stage under an :class:`ExternalSimulation`. Isaac Lab calls :meth:`step` once
-per frame: it writes simulation state, runs the host's participants (scene edits, camera moves, clock), seals the
-ordinal and renders the viewer's products at it with OVRTX.
+stops the scene, uses the same shared stage and runs no scheduler. Isaac Lab calls :meth:`step` once per frame: it
+writes simulation state, applies the host's queued commands (camera moves, viewport changes, property reads), seals the
+ordinal and renders the viewer's products at it with OVRTX. The host's transport controls are recorded for Isaac Lab:
+Pause and Step gate its loop, and Stop requests an environment reset.
 """
 
 from __future__ import annotations
@@ -23,7 +24,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from .isaac_sim_external_simulation import BorrowedContext, ExternalSimulation
+from .isaac_sim_host_adapter import BorrowedContext, HostClock, HostData, StageView
 from .isaac_sim_shared_stage import FrameStore, Replication, SharedStage, ViewerRenderer
 
 if TYPE_CHECKING:
@@ -39,12 +40,24 @@ def _shared_world_type() -> type:
     class SharedWorld(World):
         """Host world whose queued work Isaac Lab drains on its own steps.
 
-        The host loop steps a stopped world while it has pending work. Here only Isaac Lab's activations drain it, so
-        the loop must not spin on it; it steps when Isaac Lab requests a redraw after rendering.
+        The host loop steps a stopped world while it has pending work. Here only Isaac Lab drains it, so the loop must
+        not spin on it; it steps when Isaac Lab requests a redraw after rendering. A simulation step (Play or Step) is
+        recorded as a grant for Isaac Lab's loop instead of advancing a clock.
         """
+
+        on_simulation_step: Callable[[], None] | None = None
 
         def has_pending(self) -> bool:
             return False
+
+        def set_running(self, running: bool) -> None:
+            self.running = running
+
+        def step_simulation_frame(self) -> int:
+            if self.on_simulation_step is not None:
+                self.on_simulation_step()
+            self.frames_stepped += 1
+            return self.sim_time_ns
 
     return SharedWorld
 
@@ -87,7 +100,12 @@ class SharedWorldOpener:
         self.startup["renderer"] = time.perf_counter() - started
         self.frames = FrameStore()
         self._lock = threading.Lock()
-        self.simulation: ExternalSimulation | None = None
+        self._world: World | None = None
+        self._data: HostData | None = None
+        self._activation = 0
+        self._opened = 0
+        self._step_grants = 0
+        self._reset_requested = False
         self.renders = 0
         self.timings = {"write": 0.0, "host": 0.0, "seal": 0.0, "render": 0.0, "steps": 0}
         """Accumulated wall time [s] per phase of :meth:`step`, for benchmarking."""
@@ -113,17 +131,26 @@ class SharedWorldOpener:
         if busy:
             return None
         with self._lock:
-            simulation = self.simulation
+            world, data = self._world, self._data
         t0 = clock()
         write_state(self.stage)
         t1 = clock()
-        if simulation is not None:
-            simulation.activate()
+        sources = [world.commands, *world.command_sources] if world is not None else []
+        if data is not None:
+            data.time_ns = time_ns
+            self._activation += 1
+            view = StageView(data)
+            for source in sources:
+                try:
+                    source._capture_activation(view, self._activation)
+                except Exception:  # noqa: BLE001 - a viewer command must not stop Isaac Lab's simulation
+                    logger.exception("An Isaac Sim viewer command failed; continuing.")
         t2 = clock()
         ordinal = self.stage.seal()
         t3 = clock()
-        if simulation is not None:
-            simulation.published()
+        for source in sources:
+            # Resolves the commands' futures now that their writes are sealed.
+            source._published()
         self.renderer.render(ordinal, time_ns)
         t4 = clock()
         for key, value in (("write", t1 - t0), ("host", t2 - t1), ("seal", t3 - t2), ("render", t4 - t3)):
@@ -133,50 +160,64 @@ class SharedWorldOpener:
 
     def __call__(self, scene: str, wake: Callable[[], None]) -> World:
         """Open a host world on the shared stage."""
-        from sim_viewer.scene import CAPTURE_POSITION, CLOCK_POSITION, MANIPULATION_POSITION
-
-        from isaacsim.application.host import AuthoringSync, PropertyInspection, SceneCommands
-        from isaacsim.application.host.impl.clock import SimulationClock
-        from isaacsim.foundation.orchestration import RationalRate
+        from isaacsim.application.host import AuthoringSync, SceneCommands
         from isaacsim.viewports.adapters import RendererOutput
 
         world_type = _shared_world_type()
         context = BorrowedContext(self.stage.context)
-        simulation = ExternalSimulation(context, self.stage, self._rate)
+        data = HostData(context, self.stage)
         commands = SceneCommands(rate=self._rate, on_submit=wake)
-        simulation.attach_participant("capture", commands.capture, position=CAPTURE_POSITION)
-        clock = SimulationClock(simulation, position=CLOCK_POSITION, rate=self._rate)
-        simulation.suspend_participant(clock.identity)
-        clock.start()
         world = world_type(
             context,
-            simulation,
+            data,
             commands,
             self._rate,
             scene,
-            clock=clock,
-            simulation_participants=[clock.identity],
+            clock=HostClock(data),
+            simulation_participants=[],
             up=self.metadata.up_vector,
             meters_per_unit=self.metadata.meters_per_unit,
             on_external_submit=wake,
         )
-        simulation.attach_participant("external-client", world.external_client, position=CAPTURE_POSITION + 1)
+        world.on_simulation_step = self._grant_step
         world.renderer_name = "ovrtx"
         world.authoring = self.authoring
         world.authoring_revision = self.authoring.revision
         world.authoring_sync = AuthoringSync(self.authoring.stage)
-        inspection_worker = SceneCommands(rate=RationalRate(10), on_submit=wake)
-        simulation.attach_participant(
-            "property-inspection", inspection_worker.capture, position=MANIPULATION_POSITION + 1
-        )
-        world.inspection = PropertyInspection(inspection_worker, world.authoring_sync.body_paths, context)
-        world.command_sources.append(inspection_worker)
+        # Live property inspection reads velocities through Isaac Sim physics views, which Isaac Lab's physics does not
+        # provide; the property pane shows the stage's authored values instead.
         frames = self.frames
         world.renderer_output_factory = lambda path, product: RendererOutput(read=lambda: frames.latest(product))
         self._attach_viewports(world)
         with self._lock:
-            self.simulation = simulation
+            self._world, self._data = world, data
+            self._opened += 1
+            # The host reopens its world when the user stops the scene; Isaac Lab resets its environments instead.
+            self._reset_requested = self._opened > 1
         return world
+
+    def _grant_step(self) -> None:
+        with self._lock:
+            self._step_grants += 1
+
+    def take_step(self) -> bool:
+        """Consume one step the user requested while paused; return whether one was pending."""
+        with self._lock:
+            if self._step_grants:
+                self._step_grants -= 1
+                return True
+            return False
+
+    def clear_steps(self) -> None:
+        """Drop steps granted while the host was playing; they only matter while it is paused."""
+        with self._lock:
+            self._step_grants = 0
+
+    def take_reset(self) -> bool:
+        """Consume a reset that the host's Stop requested; return whether one was pending."""
+        with self._lock:
+            requested, self._reset_requested = self._reset_requested, False
+            return requested
 
     def _attach_viewports(self, world: World) -> None:
         """Create client viewports by cloning the template subtree at Isaac Lab's open ordinal."""
