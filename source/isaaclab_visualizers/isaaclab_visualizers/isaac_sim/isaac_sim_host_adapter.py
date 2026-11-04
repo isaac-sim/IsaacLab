@@ -198,10 +198,10 @@ class CloneAuthoring:
 
     def attributes(self, path: str) -> dict[str, dict[str, Any]]:
         """Describe a prim's declared attributes, using the clone's source prim for cloned paths."""
-        described = self._session.attributes(path)
-        source = None if described else self.source_of(path)
+        # Clones are looked up first: the authored stage may keep a deactivated copy at a clone's path.
+        source = self.source_of(path)
         if source is None:
-            return described
+            return self._session.attributes(path)
         reason = f"Cloned from {source}; edit the source prim"
         return {
             name: {**row, "writable": False, "write_reason": reason}

@@ -88,8 +88,8 @@ def newton_controls_client(shared_renderer: Path, directory: Path) -> Path | Non
     Returns:
         The patched renderer directory, or ``None`` if this client version does not match the expected bindings.
     """
-    source = (shared_renderer / _CAMERA_MODULE).read_text()
-    patched = source
+    module = shared_renderer / _CAMERA_MODULE
+    patched = module.read_text() if module.is_file() else ""
     for old, new in _PATCHES:
         if patched.count(old) != 1:
             logger.warning(

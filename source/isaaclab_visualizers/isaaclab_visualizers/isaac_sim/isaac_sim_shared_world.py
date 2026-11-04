@@ -61,7 +61,9 @@ def _shared_world_type() -> type:
             self.running = running
 
         def step_simulation_frame(self) -> int:
-            if self.on_simulation_step is not None:
+            # While playing, the host steps at its own rate; Isaac Lab runs freely then, so only a Step while paused
+            # is a grant.
+            if not self.running and self.on_simulation_step is not None:
                 self.on_simulation_step()
             self.frames_stepped += 1
             return self.sim_time_ns
@@ -114,6 +116,7 @@ class SharedWorldOpener:
         self._opened = 0
         self._step_grants = 0
         self._reset_requested = False
+        self._revision: int | None = None
         self.renders = 0
         self.timings = {"write": 0.0, "host": 0.0, "seal": 0.0, "render": 0.0, "steps": 0}
         """Accumulated wall time [s] per phase of :meth:`step`, for benchmarking."""
@@ -203,8 +206,11 @@ class SharedWorldOpener:
         with self._lock:
             self._world, self._data = world, data
             self._opened += 1
-            # The host reopens its world when the user stops the scene; Isaac Lab resets its environments instead.
-            self._reset_requested = self._opened > 1
+            # The host reopens its world when the user stops the scene, and also to apply authored edits while playing.
+            # Only Stop resets Isaac Lab's environments; an edit changes the authoring revision.
+            revision = self.authoring.revision
+            self._reset_requested = self._opened > 1 and revision == self._revision
+            self._revision = revision
         return world
 
     def _grant_step(self) -> None:

@@ -88,6 +88,11 @@ class IsaacSimVisualizer(BaseVisualizer):
         if self._is_initialized:
             logger.debug("[IsaacSimVisualizer] initialize() called while already initialized.")
             return
+        if not self.cfg.headless and self.backend_cfg.ui == "desktop" and self.backend_cfg.app_client_root is None:
+            raise ValueError(
+                "IsaacSimBackendCfg.app_client_root (or ISAACLAB_ISAAC_SIM_APP_CLIENT_ROOT) is required for"
+                " ui='desktop'."
+            )
         super().initialize(sim, cameras=cameras)
 
         from .isaac_sim_shared_markers import SharedMarkers
@@ -174,8 +179,6 @@ class IsaacSimVisualizer(BaseVisualizer):
         """Open the Electron window attached to the host that this process runs."""
         from isaacsim.application.client import start_desktop
 
-        if self.backend_cfg.app_client_root is None:
-            raise ValueError("IsaacSimBackendCfg.app_client_root is required for ui='desktop'.")
         self._desktop = start_desktop(
             Path(self.backend_cfg.app_client_root) / "main.cjs",
             environment={"SIM_VIEWER_ATTACH_URL": self._host.url, "SIM_VIEWER_ATTACH_TOKEN": self._host.token},
@@ -252,7 +255,6 @@ class IsaacSimVisualizer(BaseVisualizer):
         stream = wp.get_device(matrices.device).stream.cuda_stream or 1
         paths = self._paths
         first = not self._armed
-        self._armed = True
         markers = self._markers if self.supports_markers() else None
         registry = self._sim.vis_marker_registry if markers is not None else None
 
@@ -262,6 +264,8 @@ class IsaacSimVisualizer(BaseVisualizer):
             if first:
                 # Bodies carry world matrices: their local transform is their world transform.
                 stage.write(paths, "omni:resetXformStack", np.ones(len(paths), dtype=np.bool_))
+                # Armed only once written: the step skips writing while a render is in flight.
+                self._armed = True
             # The stage's hierarchy derives world matrices from ``omni:xform`` when it seals, so poses go there. The
             # matrices stay on the device; ovstage copies them in on the producing stream.
             stage.write_device(paths, "omni:xform", xform_tensor_from_warp(matrices), stream)
