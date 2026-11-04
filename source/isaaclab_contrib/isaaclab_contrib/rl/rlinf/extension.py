@@ -534,7 +534,9 @@ def _create_generic_env_wrapper(task_id: str) -> type:
                     overrides=list(self.cfg.init_params.get("env_overrides", None) or ()),
                 )
                 sim_app = contextlib.ExitStack()
-                sim_app.enter_context(launch_simulation(isaac_env_cfg, {"enable_cameras": True}))
+                # Each RLinf env worker owns one GPU; Kit's renderer enumerates GPUs through Vulkan, which
+                # ignores CUDA_VISIBLE_DEVICES, so pin it to the worker's GPU or concurrent workers crash it.
+                sim_app.enter_context(launch_simulation(isaac_env_cfg, {"enable_cameras": True, "multi_gpu": False}))
 
                 env = gym.make(self.isaaclab_env_id, cfg=isaac_env_cfg, render_mode="rgb_array").unwrapped
 
