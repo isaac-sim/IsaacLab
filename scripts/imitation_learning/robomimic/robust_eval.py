@@ -85,7 +85,6 @@ def rollout(policy, env: gym.Env, success_term, horizon: int, device: torch.devi
         env: The environment to evaluate in.
         horizon: The step horizon of each rollout.
         device: The device to run the policy on.
-        args_cli: Command line arguments containing normalization factors.
 
     Returns:
         terminated: Whether the rollout terminated successfully.

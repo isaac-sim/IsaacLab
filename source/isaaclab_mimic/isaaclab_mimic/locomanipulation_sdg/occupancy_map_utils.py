@@ -503,8 +503,8 @@ free_thresh: {free_thresh}
         """Check if a pixel coordinate is inside the bounds of the occupancy map.
 
         Args:
-            x (int): The x coordinate.
-            y (int): The y coordinate.
+            x_px (int): The x coordinate.
+            y_px (int): The y coordinate.
 
         Returns:
             bool: True if the coordinate is inside the bounds of the occupancy map.

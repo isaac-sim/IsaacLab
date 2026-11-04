@@ -35,18 +35,7 @@ class Se3RelRetargeter(RetargeterBase):
         """Initialize the relative motion retargeter.
 
         Args:
-            bound_hand: The hand to track (DeviceBase.TrackingTarget.HAND_LEFT or DeviceBase.TrackingTarget.HAND_RIGHT)
-            zero_out_xy_rotation: If True, ignore rotations around x and y axes, allowing only z-axis rotation
-            use_wrist_rotation: If True, use wrist rotation for control instead of averaging finger orientations
-            use_wrist_position: If True, use wrist position instead of pinch position (midpoint between fingers)
-            delta_pos_scale_factor: Amplification factor for position changes (higher = larger robot movements)
-            delta_rot_scale_factor: Amplification factor for rotation changes (higher = larger robot rotations)
-            alpha_pos: Position smoothing parameter (0-1); higher values track more closely to input,
-                lower values smooth more
-            alpha_rot: Rotation smoothing parameter (0-1); higher values track more closely to input,
-                lower values smooth more
-            enable_visualization: If True, show a visual marker representing the target end-effector pose
-            device: The device to place the returned tensor on ('cpu' or 'cuda')
+            cfg: The retargeter configuration (:class:`Se3RelRetargeterCfg`).
         """
         # Store the hand to track
         if cfg.bound_hand not in [DeviceBase.TrackingTarget.HAND_LEFT, DeviceBase.TrackingTarget.HAND_RIGHT]:

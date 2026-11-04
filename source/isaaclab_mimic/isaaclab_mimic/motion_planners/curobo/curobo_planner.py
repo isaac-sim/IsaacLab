@@ -1162,8 +1162,6 @@ class CuroboPlanner(MotionPlannerBase):
             start_state: Starting joint configuration for planning
             goal_pose: Target pose to reach in cuRobo coordinate frame
             contact: True to disable hand/attached object collisions for contact planning
-            retime_plan: Whether to apply linear retiming to the resulting trajectory
-            step_size: Step size for retiming if retime_plan is True
 
         Returns:
             True if planning succeeded, False if no valid trajectory found

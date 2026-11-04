@@ -34,12 +34,7 @@ class Se3AbsRetargeter(RetargeterBase):
         """Initialize the retargeter.
 
         Args:
-            bound_hand: The hand to track (DeviceBase.TrackingTarget.HAND_LEFT or DeviceBase.TrackingTarget.HAND_RIGHT)
-            zero_out_xy_rotation: If True, zero out rotation around x and y axes
-            use_wrist_rotation: If True, use wrist rotation instead of finger average
-            use_wrist_position: If True, use wrist position instead of pinch position
-            enable_visualization: If True, visualize the target pose in the scene
-            device: The device to place the returned tensor on ('cpu' or 'cuda')
+            cfg: The retargeter configuration (:class:`Se3AbsRetargeterCfg`).
         """
         super().__init__(cfg)
         if cfg.bound_hand not in [DeviceBase.TrackingTarget.HAND_LEFT, DeviceBase.TrackingTarget.HAND_RIGHT]:

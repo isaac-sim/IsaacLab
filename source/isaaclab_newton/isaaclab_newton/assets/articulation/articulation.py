@@ -2574,11 +2574,9 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            stiffness: Fixed tendon stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)) or
-                (num_instances, num_fixed_tendons) if full_data.
+            stiffness: Fixed tendon stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)).
             fixed_tendon_ids: The tendon indices to set the stiffness for. Defaults to None (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
-            full_data: Whether to expect full data. Defaults to False.
         """
         # resolve indices
         env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))

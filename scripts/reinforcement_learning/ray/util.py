@@ -340,7 +340,6 @@ def get_gpu_node_resources(
         one_node_only: When true, return resources for a single node. Defaults to False.
         include_gb_ram: Set to true to convert MB to GB in result
         include_id: Set to true to include node ID
-        ray_address: The ray address to connect to.
 
     Returns:
         Resource information for all nodes, sorted by descending GPU count, then descending CPU

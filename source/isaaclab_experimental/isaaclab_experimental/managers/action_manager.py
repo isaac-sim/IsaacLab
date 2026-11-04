@@ -359,9 +359,6 @@ class ActionManager(ManagerBase):
         """Sets whether to visualize the action data.
         Args:
             debug_vis: Whether to visualize the action data.
-        Returns:
-            Whether the debug visualization was successfully set. False if the action
-            does not support debug visualization.
         """
         for term in self._terms.values():
             term.set_debug_vis(debug_vis)

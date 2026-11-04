@@ -169,9 +169,6 @@ class ImageLatentObservation(ManagerTermBase):
             env: The manager-based environment providing scene and device information.
             sensor_cfg: Scene entity config for the camera sensor (unused, already set in __init__).
             data_type: Data type to extract from the sensor (unused, already set in __init__).
-            convert_perspective_to_orthogonal: Whether to convert perspective to orthogonal depth
-                (unused, already set in __init__).
-            normalize: Whether to normalize images (unused, already set in __init__).
 
         Returns:
             torch.Tensor: Latent representations from the VAE model.

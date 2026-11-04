@@ -942,9 +942,6 @@ class Camera(SensorBase):
 
         This methods uses the ROS convention to resolve the input pose. In this convention,
         we assume that the camera front-axis is +Z-axis and up-axis is -Y-axis.
-
-        Returns:
-            A tuple of the position (in meters) and quaternion (x, y, z, w).
         """
         # check camera prim exists
         if len(self._sensor_prims) == 0:

@@ -38,10 +38,7 @@ class GR1T2Retargeter(RetargeterBase):
         """Initialize the GR1T2 hand retargeter.
 
         Args:
-            enable_visualization: If True, visualize tracked hand joints
-            num_open_xr_hand_joints: Number of joints tracked by OpenXR
-            device: PyTorch device for computations
-            hand_joint_names: List of robot hand joint names
+            cfg: The retargeter configuration (:class:`GR1T2RetargeterCfg`).
         """
 
         super().__init__(cfg)
