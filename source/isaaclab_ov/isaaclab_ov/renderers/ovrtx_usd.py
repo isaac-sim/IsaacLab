@@ -153,6 +153,11 @@ def get_render_mode(cfg: CameraCfg) -> str:
     return cfg.render_settings.get("omni:rtx:rendermode", ("Token", default))[1]
 
 
+def uses_minimal_rendering(cfg: CameraCfg) -> bool:
+    """Return whether the camera requests Minimal, accepting both native mode spellings."""
+    return get_render_mode(cfg) in ("Minimal", "MinimalRendering")
+
+
 def build_render_product_as_string(
     spec: CameraRenderSpec,
     render_data: OVRTXCameraRenderData,

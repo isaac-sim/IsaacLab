@@ -34,7 +34,7 @@ from collections import deque
 from collections.abc import Callable, Iterable, Iterator, Sequence
 from dataclasses import replace
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Generic, TypeVar
+from typing import TYPE_CHECKING, Any, ClassVar, Generic, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -98,8 +98,8 @@ from isaaclab_ov.renderers.ovrtx_shader_cache import redirect_shader_cache
 from isaaclab_ov.renderers.ovrtx_usd import (
     _RTX_MINIMAL_MODES,
     build_render_product_as_string,
-    get_render_mode,
     render_var_prim_names_by_source,
+    uses_minimal_rendering,
 )
 from isaaclab_ov.renderers.visual_materials import OVRTXVisualMaterialWriter
 from isaaclab_ov.stage import (
@@ -215,10 +215,10 @@ class OVRTXBackend:
 
     # Track open Isaac Lab backends so mode changes cannot tear down shared graphics resources still in use.
     # Weak references keep this registry from extending a backend's lifetime.
-    _instances: weakref.WeakSet[OVRTXBackend] = weakref.WeakSet()
+    _instances: ClassVar[weakref.WeakSet[OVRTXBackend]] = weakref.WeakSet()
     # Remember the configuration of native graphics resources retained by keep_system_alive=True.
     # This survives the last backend closing, so the next backend can reuse them or release them to change modes.
-    _retained_config: RendererConfig | None = None
+    _retained_config: ClassVar[RendererConfig | None] = None
 
     def __init__(self, cfg: OVRTXBackendCfg):
         self.cfg = cfg
@@ -590,7 +590,7 @@ class OVRTXRenderer(BaseRenderer):
 
     def create_render_data(self, spec: CameraRenderSpec) -> OVRTXCameraRenderData:
         """Register a camera's product and bindings in the prepared scene."""
-        if self.backend.cfg.minimal_only and get_render_mode(spec.cfg) not in ("Minimal", "MinimalRendering"):
+        if self.backend.cfg.minimal_only and not uses_minimal_rendering(spec.cfg):
             raise ValueError(
                 "This OVRTX backend was initialized for Minimal-only rendering. "
                 "Include every camera and viewer in launch_simulation() configuration before startup."
