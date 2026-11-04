@@ -61,6 +61,7 @@ _build
 **/runs/*
 **/logs/*
 **/recordings/*
+**/recording/*
 
 # Local development tools and generated media.
 /tools/local/

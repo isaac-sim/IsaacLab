@@ -292,6 +292,31 @@ Visualizer Overview
       Try :ref:`Domino cascade <interactive-demo-dominoes>` for a compact 24-slab version running
       locally in the browser, with friction and a repeatable toppling pulse.
 
+      **RTX rendering**
+
+      The **Renderer** selector in the Camera View section switches the main view to the OVRTX path tracer for
+      photorealistic rendering without a Kit process. It appears when the scene has the OVRTX viewer camera, which launch
+      declares when ``ovrtx`` is installed and the physics is not PhysX. RTX rendering is slightly slower than OpenGL.
+
+      .. raw:: html
+
+         <video autoplay loop muted playsinline controls preload="auto" style="width:100%;">
+           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/showcase_newton_rtx_h1_stairs.mp4" type="video/mp4">
+         </video>
+         <p class="viz-cap">Isaac-Velocity-Rough-H1 in the Newton Visualizer with RTX rendering<br>Each H1 humanoid climbs a
+         staircase sub-terrain</p>
+
+      Picking, visualization markers, camera selection, pause controls, Visible Envs, and headless recording work in
+      the RTX view. Model overlays and rigid-body dragging apply to the OpenGL view only.
+
+      .. warning::
+
+         OVRTX is a kitless renderer and cannot be used in the same process as Kit
+         (``presets=isaacsim_physx``). ``presets=ovphysx`` is itself kitless and works fine with
+         RTX rendering. Use ``presets=newton_mjwarp,ovrtx`` or ``presets=ovphysx,ovrtx`` with
+         ``--viz newton_gl``, or switch to ``--viz viser``, ``--viz rerun``,
+         or ``--viz kit`` with a Kit-compatible physics backend.
+
       .. dropdown:: NewtonGLBackendCfg source
          :icon: code
 
@@ -569,6 +594,10 @@ sit side by side with the default viewport for dual monitoring. **Newton GL** an
 provide a **Camera View** selector in the sidebar for switching between perspective and scene-camera
 views. A perspective view can also be a *tracking camera* that follows a robot or frames an environment; only Newton GL
 supports it.
+Selecting a scene sensor in **Camera View** shows its channel: the **Channel** selector lists the
+sensor's outputs (RGB, depth, normals, or segmentation), and depth, normals, and segmentation are
+converted to colors for display. When the sensor is declared once per environment, **Tiled Envs**
+sets how many of its feeds are tiled into the window.
 
 See :doc:`/source/how-to/visualizer_streaming_camera_view` for the ``VisualizerCfg`` options, display
 sources, tracking cameras that follow a robot, troubleshooting, migration from generated cameras, and step-by-step examples.
@@ -674,6 +703,20 @@ streaming views, and renderer-based sensor data capture.
        <p class="viz-cap">Recorded clip with ground-truth sensor views</p>
      </div>
    </div>
+
+.. _visualization-newton-recording:
+
+Newton Window Recording and Animations
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The **Recording** section of the Newton visualizer saves four things: an ``mp4`` video of the window, a
+``.viser`` **animation** of the visible environments (including visualization markers), a ``.png`` screenshot of the
+window without the HUD, and a ``.pt`` checkpoint of the policy being played. Files go to the output folder set by
+:class:`~isaaclab_visualizers.newton.NewtonRecordingCfg`.
+
+**Open...** lists the ``.viser`` animations below a folder and plays the chosen one as a tinted ghost over the
+simulation, remembering the folder for the next time. A transport bar along the bottom of the window has its own
+Play/Pause, a timeline to scrub, Loop, and Speed, independent of the simulation's pause.
 
 .. _record_video_cli:
 
@@ -832,6 +875,11 @@ without screen-sharing, running with ``--viz viser``:
 
 The share URL is logged on startup. Rerun has no equivalent config field, but exposes its own
 share button in the native UI.
+
+**Choosing how many environments are drawn**
+
+Every Newton viewer has a **Visible Envs** slider in its left panel that sets how many
+environments are drawn. It changes only what is rendered, not the simulation.
 
 Resolution Rules
 ~~~~~~~~~~~~~~~~
@@ -1002,12 +1050,8 @@ Limitations
      - ✓
      - ✓
      - ✓
-   * - Keyboard input, ``key_event_source``
-     - ✓
-     - ✓
-     - ✗
-     - ✗
-     - ✓
+
+In Newton's RTX view, model overlays and rigid-body dragging are not available.
 
 **Lighting differences across visualizers**
 
