@@ -141,3 +141,22 @@ def test_bounds_cover_the_first_frame_positions(recording_path):
 
     np.testing.assert_allclose(low, [0.0, 0.0, 0.0])
     np.testing.assert_allclose(high, [0.0, 0.0, 0.0])  # Both instances start at the origin.
+
+
+def test_time_spent_away_from_the_window_does_not_skip_the_animation_ahead(monkeypatch):
+    from types import SimpleNamespace
+
+    from isaaclab_visualizers.newton import newton_replay
+    from isaaclab_visualizers.newton.newton_replay import NewtonReplayPlayer
+
+    clock = iter([100.0, 100.1, 400.0])
+    monkeypatch.setattr(newton_replay.time, "perf_counter", lambda: next(clock))
+    player = NewtonReplayPlayer(lambda: object())  # The clock starts at 100 s.
+    recording = SimpleNamespace(duration=1000.0, frame_at=lambda t: 0, shapes=[], path="a.viser", num_frames=1)
+    player.recording, player._registered, player.playing = recording, recording, True
+    monkeypatch.setattr(player, "_publish", lambda *args: None)
+
+    player.update()
+    player.update()  # The free view was hidden for 300 s, such as while a sensor or the RTX view was shown.
+
+    assert player.time == pytest.approx(0.1 + newton_replay._MAX_FRAME_DT)

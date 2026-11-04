@@ -164,18 +164,17 @@ def test_initial_renderer_opens_in_opengl_and_rtx_needs_the_viewer_camera():
         sim_launcher.validate_launch(cfg, {})
 
 
-def test_kit_run_drops_the_implicit_ovrtx_viewer_camera():
+def test_kit_run_drops_the_implicit_ovrtx_viewer_camera(monkeypatch: pytest.MonkeyPatch):
     """A Kit run cannot load the OVRTX runtime, so its Newton GL window keeps the OpenGL view only."""
+    monkeypatch.setattr(sim_launcher, "_fit_window_to_display", lambda size: (640, 360))  # As on a small display.
     from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
     from isaaclab.scene import InteractiveSceneCfg
-    from isaaclab.visualizers import VisualizerCfg
+    from isaaclab.visualizers import VisualizerCfg, WindowCfg
 
+    visualizer = VisualizerCfg(window=WindowCfg(size=(5000, 3000)), backend=NewtonGLBackendCfg(rtx_camera=True))
     cfg = types.SimpleNamespace(
-        sim=SimulationCfg(
-            physics=sim_launcher.NewtonCfg(),
-            visualizer_cfgs=VisualizerCfg(backend=NewtonGLBackendCfg(rtx_camera=True)),
-        ),
+        sim=SimulationCfg(physics=sim_launcher.NewtonCfg(), visualizer_cfgs=visualizer),
         scene=InteractiveSceneCfg(num_envs=2, env_spacing=4.0),
     )
 
@@ -183,6 +182,9 @@ def test_kit_run_drops_the_implicit_ovrtx_viewer_camera():
 
     assert kit_sources
     assert not [name for name in vars(cfg.scene) if name.startswith("viewer_camera_")]
+    # The camera only justified fitting the window to the display and listing scene cameras, so none of it stays.
+    launched = cfg.sim.visualizer_cfgs[0]  # The launcher may hold a copy of the declaration.
+    assert launched.window.size == (5000, 3000) and not launched.streaming_view
     assert not [node for node in configs if isinstance(node, sim_launcher.OVRTXRendererCfg)]
 
 

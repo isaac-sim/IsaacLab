@@ -70,3 +70,36 @@ def test_markers_are_untouched_when_all_environments_show_or_the_batch_is_global
     assert _renderer([True, False, True])._visible_marker_rows(marker)[0] is marker.translations
     assert _renderer([True, True, True])._visible_marker_rows(marker)[0] is marker.translations
     assert _renderer(None)._visible_marker_rows(marker)[0] is marker.translations
+
+
+def test_bodies_map_to_the_environment_that_contains_their_prim_path():
+    renderer = _renderer(None)
+    renderer._device = "cpu"
+    renderer._body_envs = None
+    paths = [
+        "/World/envs/env_0/Robot/base",
+        "/World/envs/env_2/Robot/arm/link_3",
+        "/World/envs/env_1",  # The environment root itself is not inside one.
+        "/World/ground",
+        "/World/envs/env_10/Robot",  # Shares a prefix with env_1 but is not env_1.
+    ]
+    renderer._sdp = SimpleNamespace(backend=SimpleNamespace(transform_paths=paths))
+
+    assert renderer._body_environment_ids().numpy().tolist() == [0, 2, 3, 3, 3]
+
+
+def test_hidden_poses_use_one_buffer_per_source_buffer():
+    renderer = _renderer(None)
+    renderer._device = "cpu"
+    renderer._body_envs = wp.array([0, 1], dtype=wp.int32, device="cpu")
+    renderer._hidden_matrices = {}
+    renderer._hidden_envs = wp.array([1, 0, 0, 0], dtype=wp.uint8, device="cpu")
+    renderer._sdp = SimpleNamespace(backend=SimpleNamespace(transform_paths=["a", "b"]))
+    sources = [wp.zeros(2, dtype=wp.mat44d, device="cpu") for _ in range(2)]
+
+    first = [renderer._hide_environment_bodies(source, None) for source in sources]
+    again = [renderer._hide_environment_bodies(source, None) for source in sources]
+
+    # An asynchronous write may still read the previous frame's copy, so alternating sources must not share one.
+    assert first[0].ptr != first[1].ptr
+    assert [a.ptr for a in again] == [f.ptr for f in first]

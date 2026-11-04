@@ -332,7 +332,7 @@ class OVRTXRenderer(BaseRenderer):
         self._visible_envs: np.ndarray | None = None
         self._hidden_envs: wp.array | None = None
         self._body_envs: wp.array | None = None
-        self._hidden_matrices: wp.array | None = None
+        self._hidden_matrices: dict[int, wp.array] = {}
         self._geometry_offsets: dict[str, int] = {}
         self._geometry_writes = _AsyncWriteBuffers[wp.array]()
         self._geometry_timestamp = -1
@@ -982,10 +982,17 @@ class OVRTXRenderer(BaseRenderer):
         """Return each published body's environment index, or ``num_envs`` for a body outside any environment."""
         paths = self._sdp.backend.transform_paths
         if self._body_envs is None or len(self._body_envs) != len(paths):
-            env_ids = [
-                next((i for i, root in enumerate(self._env_paths) if path.startswith(root + "/")), len(self._env_paths))
-                for path in paths
-            ]
+            roots = {root: i for i, root in enumerate(self._env_paths)}
+            outside = len(self._env_paths)
+            env_ids = []
+            for path in paths:
+                env_id, end = outside, path.rfind("/")
+                while end > 0:  # Walk up the prim path until it reaches an environment root.
+                    env_id = roots.get(path[:end], outside)
+                    if env_id != outside:
+                        break
+                    end = path.rfind("/", 0, end)
+                env_ids.append(env_id)
             self._body_envs = wp.array(env_ids, dtype=wp.int32, device=self._device)
         return self._body_envs
 
@@ -994,17 +1001,19 @@ class OVRTXRenderer(BaseRenderer):
         if self._hidden_envs is None:
             return matrices
         body_envs = self._body_environment_ids()
-        # A published buffer may be shared with other consumers, so hidden poses are written to a copy.
-        if self._hidden_matrices is None or len(self._hidden_matrices) != len(matrices):
-            self._hidden_matrices = wp.empty(len(matrices), dtype=wp.mat44d, device=self._device)
+        # A published buffer may be shared with other consumers, so hidden poses are written to a copy. The copy is
+        # kept per source buffer: an asynchronous write still reads it until the source buffer is acquired again.
+        hidden = self._hidden_matrices.get(matrices.ptr)
+        if hidden is None or len(hidden) != len(matrices):
+            hidden = self._hidden_matrices[matrices.ptr] = wp.empty(len(matrices), dtype=wp.mat44d, device=self._device)
         wp.launch(
             hide_environment_bodies_kernel,
             len(matrices),
-            [matrices, body_envs, self._hidden_envs, _HIDDEN_DROP, self._hidden_matrices],
+            [matrices, body_envs, self._hidden_envs, _HIDDEN_DROP, hidden],
             device=self._device,
             stream=stream,
         )
-        return self._hidden_matrices
+        return hidden
 
     def update_transforms(self) -> None:
         """Write changed SDP transforms to OVRTX."""
