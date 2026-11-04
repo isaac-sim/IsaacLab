@@ -46,6 +46,7 @@ from ...actuators import IdealPDActuator, ImplicitActuator
 from ...assets.articulation.base_articulation import BaseArticulation
 from ...envs.mdp.actions import EMAJointPositionToLimitsAction
 from ...managers import ManagerTermBase
+from .. import images as image_utils
 from .. import math as math_utils
 from ..array import convert_to_torch
 from ..images import CameraFrameStack
@@ -181,33 +182,25 @@ def _leapp_history_buffer_append(circular_buffer, task_name: str, state_name: st
     return decorate
 
 
-# For now, RGB export deliberately avoids Warp capture and its runtime adapter.
-# The normalization patch replaces fused Warp kernels with Torch operations;
-# this proxy handles destination writes outside that pure function patch.
-class _ImageRgbExportProxy(_ManagerTermProxy):
-    """Keep destination mutation outside the pure RGB normalization function patch."""
-
-    def __call__(self, *args, **kwargs):
-        """Run the original observation and copy its result into the caller's destination."""
-        out = kwargs.pop("out", None)
-        image = super().__call__(*args, **kwargs)
-        if out is None:
-            return image
-        out.copy_(image)
-        return out
-
-
 def _normalize_rgb_for_export(images, channel_dim=-1, output_channel_dim=None, mean=None, out=None):
-    """Trace RGB normalization as pure Torch computation instead of fused Warp kernels."""
-    if out is not None:
-        raise ValueError("The LEAPP RGB function patch requires out=None; copy the result at the observation boundary.")
+    """Normalize RGB with Torch to avoid Warp capture and its runtime adapter."""
+    if images.dtype == torch.uint8 and images.ndim == 4:
+        channel_dim, output_channel_dim = image_utils._resolve_image_channel_dims(channel_dim, output_channel_dim)
+        if out is not None:
+            out = image_utils._image_output(images, channel_dim, output_channel_dim, out)
+    else:
+        out = None  # The original float fallback ignores the destination.
     channel_dim %= images.ndim
     spatial_dims = tuple(dim for dim in range(1, images.ndim) if dim != channel_dim)
     result = images.float() / 255.0
+    # The float fallback's in-place subtraction trips LEAPP's layout check on strided camera inputs.
     result = result - (result.mean(dim=spatial_dims, keepdim=True) if mean is None else mean)
     if output_channel_dim is not None:
         result = result.movedim(channel_dim, output_channel_dim).contiguous()
-    return result
+    if out is None:
+        return result
+    out.copy_(result)
+    return out
 
 
 def _quat_apply_for_export(quat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
@@ -240,14 +233,12 @@ def _normal_parameters_for_export(loc: torch.Tensor | float, scale: torch.Tensor
 
 
 def export_function_patches() -> list[FunctionPatch]:
-    """Return session-scoped adapters for unsupported pure functions used by observations."""
+    """Return session-scoped adapters for operations unsupported by the export backend."""
     from ...envs.mdp import observations
-    from .. import images
 
-    # observations imports normalize_rgb directly, so patch its binding as well
-    # as the utility module used by callers that look the function up there.
+    # Patch both bindings because observations imports normalize_rgb directly.
     return [
-        FunctionPatch(images, "normalize_rgb", _normalize_rgb_for_export),
+        FunctionPatch(image_utils, "normalize_rgb", _normalize_rgb_for_export),
         FunctionPatch(observations, "normalize_rgb", _normalize_rgb_for_export),
         FunctionPatch(math_utils, "quat_apply", _quat_apply_for_export),
         FunctionPatch(math_utils, "quat_apply_inverse", _quat_apply_inverse_for_export),
@@ -461,8 +452,6 @@ class ExportPatcher:
                     term_cfg.func = self._wrap_last_action(original_func)
                 elif func_name == "generated_commands":
                     term_cfg.func = self._wrap_generated_commands(original_func, term_cfg)
-                elif func_name == "image_rgb":
-                    term_cfg.func = _ImageRgbExportProxy(original_func, proxy_env)
                 elif func_name == "projected_gravity":
                     term_cfg.func = self._wrap_projected_gravity(original_func, proxy_env)
                 else:

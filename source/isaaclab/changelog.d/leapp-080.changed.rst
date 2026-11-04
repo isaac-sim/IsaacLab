@@ -7,3 +7,5 @@
 * Kept OSC task-space gains internal to exported effort computation instead of labeling them
   as joint gains. Resolved command frames independently of public body ordering and left
   yaw-only planar references unspecified.
+* Removed the RGB export observation proxy by tracing destination writes directly in the
+  normalization function patch.
