@@ -3,6 +3,17 @@ Changelog
 
 .. towncrier release notes start
 
+2.0.0 (2026-11-03)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Removed the implicit observation computation before Warp RL post-step recorder callbacks.
+  Capture runs before automatic reset. Custom terms needing observations must request them explicitly
+  from the observation manager; ``env.obs_buf`` is no longer refreshed for recorder dispatch.
+
+
 1.0.0 (2026-10-29)
 ~~~~~~~~~~~~~~~~~~
 
