@@ -341,6 +341,31 @@ def test_convention_converter_leading_dims(device, origin, target):
     torch.testing.assert_close(single, expected[0])
 
 
+def _round_to_tf32(x: torch.Tensor) -> torch.Tensor:
+    """Round a float32 tensor to TF32 precision (10 explicit mantissa bits)."""
+    bits = x.contiguous().view(torch.int32)
+    bits = (bits + 0x1000) & ~0x1FFF
+    return bits.view(torch.float32)
+
+
+@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize(
+    "origin, target", [("ros", "world"), ("opengl", "world"), ("world", "ros"), ("world", "opengl")]
+)
+def test_convention_converter_world_under_tf32(device, origin, target, monkeypatch):
+    """The world conversion must not depend on matmul precision (TF32 made it return NaN)."""
+    quat = math_utils.random_orientation(256, device)
+    expected = math_utils.convert_camera_frame_orientation_convention(quat, origin, target)
+
+    real_matmul = torch.matmul
+    monkeypatch.setattr(torch, "matmul", lambda a, b: real_matmul(_round_to_tf32(a), _round_to_tf32(b)))
+    result = math_utils.convert_camera_frame_orientation_convention(quat, origin, target)
+
+    assert not torch.isnan(result).any()
+    # quaternions q and -q describe the same rotation
+    assert torch.allclose(torch.abs((result * expected).sum(-1)), torch.ones(256, device=device), atol=1e-5)
+
+
 @pytest.mark.parametrize("device", test_devices())
 def test_convert_quat(device):
     """Test convert_quat from "xyzw" to "wxyz" and back to "xyzw" and verify the correct rolling of the tensor.
