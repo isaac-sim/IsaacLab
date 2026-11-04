@@ -14,16 +14,24 @@ import sys
 import textwrap
 import time
 from io import StringIO
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 from rich.cells import cell_len
 from rich.console import Console, RenderableType
+from rich.text import Text
 
 from isaaclab.app import loading_screen
 
 _ALT_SCREEN_ON = "\x1b[?1049h"
 _ALT_SCREEN_OFF = "\x1b[?1049l"
+
+
+@pytest.fixture(autouse=True)
+def _local_greetings(monkeypatch):
+    # These tests own console behavior; network and cache contracts are tested separately.
+    monkeypatch.setattr(loading_screen, "RemoteGreetings", lambda **kwargs: SimpleNamespace(logos=None), raising=False)
 
 
 def _render(display: RenderableType, width: int) -> str:
@@ -113,6 +121,52 @@ def test_live_lifecycle_restores_normal_screen(monkeypatch: pytest.MonkeyPatch):
     assert "hidden diagnostic" not in rendered
     assert "Ready in" in rendered
     assert builtins.input is original_input
+
+
+def test_seasonal_pair_updates_both_layouts_and_the_final_header(monkeypatch: pytest.MonkeyPatch):
+    published = SimpleNamespace(logos=None)
+    monkeypatch.setattr(loading_screen, "RemoteGreetings", lambda **kwargs: published)
+    screen = loading_screen.LoadingScreen(2, enabled=True)
+    screen._ascii_only = False
+    output = _prepare_redirect(screen, monkeypatch)
+    with screen:
+        screen.summary("Seasonal run", {"Task": "Cartpole"})
+        assert "NARROW HOLIDAY" not in _render(screen._display, 80)
+        published.logos = (
+            "\n".join(["\x1b[38;2;255;0;0m" + "NARROW HOLIDAY".ljust(24) + "\x1b[0m"] + [" " * 24] * 11),
+            "\n".join(["\x1b[38;2;0;255;0m" + "WIDE HOLIDAY".ljust(74) + "\x1b[0m"] + [" " * 74] * 11),
+        )
+        assert "NARROW HOLIDAY" in _render(screen._display, 80)
+        assert "WIDE HOLIDAY" in _render(screen._display, 130)
+        screen.close()
+    assert "NARROW HOLIDAY" in output.getvalue().split(_ALT_SCREEN_OFF)[-1]
+
+
+@pytest.mark.parametrize(("enabled", "logo"), [(True, False), (False, True)])
+def test_hidden_greetings_do_not_start_remote_loading(monkeypatch: pytest.MonkeyPatch, enabled, logo):
+    def unexpected_download(**kwargs):
+        pytest.fail("A hidden greeting started remote loading")
+
+    monkeypatch.setattr(loading_screen, "RemoteGreetings", unexpected_download)
+    screen = loading_screen.LoadingScreen(1, enabled=enabled, logo=logo)
+    _prepare_redirect(screen, monkeypatch)
+    with screen:
+        screen.summary("Local run", {"Task": "Cartpole"})
+        screen.close()
+
+
+def test_multiline_artwork_styles_do_not_color_the_run_summary():
+    # A legitimate color can continue across artwork rows, but not into the left column.
+    art = "\x1b[48;2;255;0;0m" + "\n".join(["SEASON".ljust(24)] * 12) + "\x1b[0m"
+    header, _ = loading_screen._format_header("Run", {"First": "one", "Second": "two"}, (art,), 80)
+    rendered = Text.from_ansi(header)
+    console = Console()
+
+    assert rendered.get_style_at_offset(console, rendered.plain.index("Second")).bgcolor is None
+    first_art = rendered.plain.index("SEASON")
+    second_art = rendered.plain.index("SEASON", first_art + 1)
+    assert rendered.get_style_at_offset(console, first_art).bgcolor.get_truecolor() == (255, 0, 0)
+    assert rendered.get_style_at_offset(console, second_art).bgcolor.get_truecolor() == (255, 0, 0)
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="Pseudo-terminals require POSIX.")
