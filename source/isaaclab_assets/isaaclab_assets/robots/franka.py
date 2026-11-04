@@ -23,7 +23,7 @@ available as an explicit USD-path override.
 Reference: https://github.com/frankaemika/franka_ros
 """
 
-from isaaclab_newton.sim.schemas import MujocoJointCfg, MujocoRigidBodyCfg, NewtonArticulationCfg
+from isaaclab_newton.sim.schemas import MujocoRigidBodyCfg, NewtonArticulationCfg
 from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
@@ -184,26 +184,20 @@ FRANKA_PANDA_MENAGERIE_CFG.actuators = {
 """Configuration of the Franka Emika Panda robot with Menagerie actuator settings."""
 
 
-# TODO: Point to the Isaac Lab Nucleus once the asset is uploaded there.
-FRANKA_ROBOTIQ_USD_PATH = (
-    "https://huggingface.co/datasets/LiFanxing/franka_robotiq/resolve/main/franka_robotiq_2f_85_isaaclab_inertia.usd"
-)
-"""Franka arm with a Robotiq 2F-85 gripper on its flange, as a complete USD file.
-
-It is the Isaac Sim Franka asset with the Robotiq gripper variant, corrected where that asset's values are
-placeholders: the arm links take the inertial properties of the Isaac Lab Franka asset, the Franka hand is replaced
-by the flange that carries the gripper, and the finger pads have a rubber friction material and a convex
-decomposition that Newton imports as is.
-"""
-
 FRANKA_ROBOTIQ_GRIPPER_CFG = clone(FRANKA_PANDA_LEGACY_CFG)
-FRANKA_ROBOTIQ_GRIPPER_CFG.spawn.usd_path = FRANKA_ROBOTIQ_USD_PATH
-# Newton reads gravity switches only on the physics scene, so MuJoCo Warp compensates gravity instead.
+# TODO: Point to the Isaac Lab Nucleus once the asset is uploaded there. It is the Isaac Sim Franka asset with the
+# Isaac Lab Franka arm inertias; its Robotiq gripper variant sits on the flange ``panda_link8`` with rubber finger pads.
+FRANKA_ROBOTIQ_GRIPPER_CFG.spawn.usd_path = (
+    "https://huggingface.co/datasets/LiFanxing/franka_robotiq/resolve/47163169a7decfe1131d3734b51007f74fe0f594"
+    "/franka.usd"
+)
+FRANKA_ROBOTIQ_GRIPPER_CFG.spawn.variants = {"Gripper": "Robotiq_2F_85"}
+# PhysX switches gravity off per body, while Newton reads gravity switches only on the physics scene, so MuJoCo Warp
+# compensates gravity on the bodies instead.
 FRANKA_ROBOTIQ_GRIPPER_CFG.spawn.rigid_props = [
     PhysxRigidBodyCfg(disable_gravity=True, max_depenetration_velocity=5.0),
     MujocoRigidBodyCfg(gravcomp=1.0),
 ]
-FRANKA_ROBOTIQ_GRIPPER_CFG.spawn.joint_drive_props = [MujocoJointCfg(actuatorgravcomp=True)]
 FRANKA_ROBOTIQ_GRIPPER_CFG.init_state.joint_pos = {
     "panda_joint1": 0.0,
     "panda_joint2": -0.569,
@@ -257,5 +251,4 @@ FRANKA_ROBOTIQ_GRIPPER_CFG.actuators = {
         damping=0.0,
     ),
 }
-"""Configuration of the Franka Emika Panda robot with a Robotiq 2F-85 gripper, holding its arm against gravity on PhysX
-and on Newton with MuJoCo Warp."""
+"""Configuration of the Franka Emika Panda robot with a Robotiq 2F-85 gripper."""
