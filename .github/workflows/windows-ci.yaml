@@ -78,7 +78,7 @@ jobs:
       OMNI_KIT_ACCEPT_EULA: "yes"
       # Same policy as the Linux test jobs: pull requests only restore, so they never publish
       # anything built from unmerged code; pushes to protected branches also save.
-      CACHE_MODE: save  # TEMP: exercise save on the PR; revert before merge
+      CACHE_MODE: ${{ github.event_name == 'push' && 'save' || 'restore' }}
     steps:
       - uses: actions/checkout@v6
 
