@@ -218,6 +218,8 @@ class NewtonViewerGL(ViewerGL):
     _rate_sample = (0.0, 0)
 
     impulse_drag: ImpulseDrag | None = None
+    impulse_substep_dt = 1.0 / 120.0
+    """Duration of one solver substep [s], which impulses are applied over; kept across :meth:`set_model`."""
     """Impulses aimed while paused; None until a model is set."""
     _impulse_arrows_shown = False
 
@@ -244,8 +246,14 @@ class NewtonViewerGL(ViewerGL):
     def set_model(self, model, *args, **kwargs):
         """Set the model, and prepare the Impulse Drag buffers for it."""
         super().set_model(model, *args, **kwargs)
-        self.impulse_drag = ImpulseDrag(model.device, 1.0 / 120.0) if model is not None else None
+        self.impulse_drag = ImpulseDrag(model.device, self.impulse_substep_dt) if model is not None else None
         self._impulse_arrows_shown = False
+
+    def set_impulse_substep_dt(self, substep_dt: float) -> None:
+        """Set the solver substep that impulses are applied over, now and for every later model."""
+        self.impulse_substep_dt = substep_dt
+        if self.impulse_drag is not None:
+            self.impulse_drag.set_substep_dt(substep_dt)
 
     def apply_forces(self, state):
         """Apply picking, wind, and the impulses aimed while paused."""
@@ -1022,6 +1030,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._rtx_appearance: RtxAppearance | None = None
         self._rtx_appearance_failed = False
         self._sky_custom = ""
+        self._sky_custom_open = False
 
     def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
         """Bind camera sources and the display mode shared by both windows."""
@@ -1358,22 +1367,24 @@ class NewtonVisualizerBase(BaseVisualizer):
         """Choose the dome light's sky texture from the ones tasks use, or a file; returns whether it changed."""
         names = list(SKY_TEXTURES)
         current = appearance.dome_texture
-        index = (
-            0
-            if not current
-            else (
-                names.index(next(n for n in names if SKY_TEXTURES[n] == current)) + 1
-                if current in SKY_TEXTURES.values()
-                else len(names) + 1
-            )
-        )
+        custom = len(names) + 1
+        if self._sky_custom_open:  # Stays selected until a listed sky is chosen, since the file is set only on Load.
+            index = custom
+        elif not current:
+            index = 0
+        elif current in SKY_TEXTURES.values():
+            index = names.index(next(n for n in names if SKY_TEXTURES[n] == current)) + 1
+        else:
+            index = custom
         changed, chosen = imgui.combo("Sky", index, ["None", *names, "Custom File..."])
         hover_tooltip(imgui, "Wrap a panoramic HDR image around the scene as its sky")
         edited = False
+        if changed:
+            self._sky_custom_open = chosen == custom
         if changed and chosen <= len(names):
             appearance.use_sky(SKY_TEXTURES[names[chosen - 1]] if chosen else "")
             edited = True
-        if chosen == len(names) + 1 or (not changed and index == len(names) + 1):
+        if chosen == custom:
             _c, self._sky_custom = imgui.input_text("File##sky", self._sky_custom)
             hover_tooltip(imgui, "Path or URL of a panoramic .hdr or .exr image")
             if imgui.button("Load##sky") and self._sky_custom:
@@ -2019,8 +2030,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
 
         self._picking_enabled = self.cfg.backend.enable_picking and picking_supported and not self._runtime_headless
         self._viewer.set_model(self.backend.model)
-        if self._viewer.impulse_drag is not None:
-            self._viewer.impulse_drag.set_substep_dt(getattr(self.backend, "solver_dt", None) or sim.get_physics_dt())
+        self._viewer.set_impulse_substep_dt(getattr(self.backend, "solver_dt", None) or sim.get_physics_dt())
         if self._picking_enabled:
             # Keep Newton's public force path scoped to picking for this integration.
             self._viewer.wind = None

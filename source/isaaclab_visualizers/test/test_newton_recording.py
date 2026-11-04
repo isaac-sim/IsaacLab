@@ -8,6 +8,7 @@
 import re
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import numpy as np
 import pytest
@@ -221,3 +222,56 @@ def test_screenshot_writes_the_next_frame_as_a_numbered_png(tmp_path):
     assert sorted(file.name for file in folder.iterdir()) == ["newton_gl_0001.png", "newton_gl_0002.png"]
     assert np.array(Image.open(folder / "newton_gl_0001.png"))[0, 0].tolist() == [200, 0, 0]
     assert panel.screenshot_path == str(folder / "newton_gl_0002.png")
+
+
+class _Encoder:
+    """Stand-in for the ffmpeg process whose input pipe can break."""
+
+    def __init__(self, broken=False):
+        self.broken, self.waited, self.written = broken, False, 0
+        self.stdin = SimpleNamespace(write=self._write, close=self._close)
+
+    def _write(self, data):
+        if self.broken:
+            raise BrokenPipeError
+        self.written += 1
+
+    def _close(self):
+        if self.broken:
+            raise BrokenPipeError
+
+    def wait(self):
+        self.waited = True
+
+
+def _recording_to(tmp_path, encoder, **recording):
+    panel = NewtonRecordingPanel(_owner(output_dir=str(tmp_path), **recording))
+    panel._video, panel._video_shape, panel._video_limit = encoder, (4, 4), None
+    panel._video_temp = tmp_path / ".unsaved_video.mp4"
+    panel._video_temp.write_bytes(b"partial")
+    return panel
+
+
+def test_a_broken_encoder_pipe_ends_the_recording_and_keeps_the_partial_clip(tmp_path):
+    encoder = _Encoder(broken=True)
+    panel = _recording_to(tmp_path, encoder)
+
+    panel._write_video_frame(np.zeros((4, 4, 3), np.uint8))
+
+    assert not panel.recording_video and encoder.waited  # The dead process is reaped, not left as a zombie.
+    assert panel.unsaved_video  # The partial clip can still be saved or discarded.
+    assert "ffmpeg stopped unexpectedly" in panel._message
+
+
+def test_a_failed_save_is_reported_as_a_save_error_and_can_be_retried(tmp_path, monkeypatch):
+    panel = _recording_to(tmp_path, _Encoder(), video_length=0.0)
+    panel.stop_video()
+    assert panel.unsaved_video
+
+    monkeypatch.setattr("os.replace", Mock(side_effect=OSError("disk full")))
+    panel.save_video()
+
+    assert panel.unsaved_video and "disk full" in panel._message and "ffmpeg" not in panel._message
+    monkeypatch.undo()
+    panel.save_video()
+    assert not panel.unsaved_video and (tmp_path / "video" / "newton_gl_0001.mp4").exists()

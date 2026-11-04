@@ -241,3 +241,18 @@ def test_a_paused_ovrtx_view_follows_the_camera_and_a_running_one_is_left_alone(
     viz, renders = _paused_rtx(paused=False, timestamp=-1.0)
     viz._refresh_paused_rtx_view(True)
     assert renders == []  # The simulation renders it.
+
+
+def test_the_solver_substep_survives_a_model_reset(monkeypatch):
+    from isaaclab_visualizers.newton import newton_visualizer
+    from isaaclab_visualizers.newton.newton_visualizer import NewtonViewerGL
+
+    monkeypatch.setattr(newton_visualizer.ViewerGL, "set_model", lambda self, model, *args, **kwargs: None)
+    viewer = object.__new__(NewtonViewerGL)
+    model = SimpleNamespace(device="cpu")
+
+    viewer.set_model(model)
+    viewer.set_impulse_substep_dt(1.0 / 240.0)
+    viewer.set_model(model)  # A reset replaces the Impulse Drag, which must keep the solver's substep.
+
+    assert viewer.impulse_drag._inverse_dt.numpy()[0] == pytest.approx(240.0)

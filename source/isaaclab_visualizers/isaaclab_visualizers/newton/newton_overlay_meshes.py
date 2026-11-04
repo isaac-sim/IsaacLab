@@ -216,6 +216,7 @@ class OverlayMeshPublisher:
         batch.publishes += 1
         shaft = max(0.5 * float(width), LINE_RADIUS) if arrow else LINE_RADIUS
         head_radius, head_length = (2.5 * shaft, 6.0 * shaft) if arrow else (0.0, 0.0)
+        previous = self._published.get(name, ())
         paths = []
         for index, color in enumerate(batch.colors):
             points = batch.points[index]
@@ -232,6 +233,9 @@ class OverlayMeshPublisher:
                     path, points, batch.indices, hidden=False, backface_culling=False, color=color,
                     roughness=0.8, metallic=0.0,
                 )  # fmt: skip
+        for index in range(len(paths), len(previous)):  # A color class that no longer occurs must not stay visible.
+            for renderer in renderers:
+                renderer.log_mesh(previous[index], batch.points[index], batch.indices, hidden=True)
         self._published[name] = paths
 
     def _hide(self, name: str, renderers) -> None:

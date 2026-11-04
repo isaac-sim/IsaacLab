@@ -290,3 +290,56 @@ def test_the_controls_are_unavailable_on_the_shared_stage_path():
     appearance, _ = _appearance(ovstage=True)
 
     assert not appearance.available
+
+
+class _SkyImgui:
+    """Minimal imgui double for the Sky combo; the combo answers with the scripted selections."""
+
+    class ImVec4:
+        def __init__(self, *values):
+            self.values = values
+
+    class HoveredFlags_:
+        allow_when_disabled = 1
+
+    def __init__(self, selections):
+        self.selections, self.inputs = list(selections), []
+
+    def combo(self, label, index, items):
+        chosen = self.selections.pop(0) if self.selections else index
+        return chosen != index, chosen
+
+    def input_text(self, label, text):
+        self.inputs.append(label)
+        return False, text
+
+    def button(self, label):
+        return False
+
+    def is_item_hovered(self, *_flags):
+        return False
+
+    def text_colored(self, *_args):
+        pass
+
+    def set_tooltip(self, _text):
+        pass
+
+
+def test_the_custom_sky_file_input_stays_open_until_a_listed_sky_is_chosen():
+    from isaaclab_visualizers.newton.newton_rtx_appearance import SKY_TEXTURES
+    from isaaclab_visualizers.newton.newton_visualizer import NewtonGLVisualizer
+
+    visualizer = object.__new__(NewtonGLVisualizer)
+    visualizer._sky_custom, visualizer._sky_custom_open = "", False
+    appearance = SimpleNamespace(dome_texture="", texture_status="", use_sky=lambda path: None)
+    custom = len(SKY_TEXTURES) + 1
+    imgui = _SkyImgui([custom])  # Picked once; later frames keep the same selection.
+
+    visualizer._draw_sky_texture(imgui, appearance)
+    visualizer._draw_sky_texture(imgui, appearance)  # The next frame, with the texture still unset until Load.
+    assert imgui.inputs == ["File##sky", "File##sky"]
+
+    imgui.selections = [0]  # Back to "None".
+    visualizer._draw_sky_texture(imgui, appearance)
+    assert len(imgui.inputs) == 2 and not visualizer._sky_custom_open
