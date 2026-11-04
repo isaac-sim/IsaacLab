@@ -12,23 +12,23 @@ rendering-correctness = [
 ]
 
 rendering-correctness-kitless-legacy = [
-  "source/_isaaclab_testing/test/rendering/test_rendering_kitless.py::test_rendering[legacy-cartpole-newton-newton_warp]",
-  "source/_isaaclab_testing/test/rendering/test_rendering_kitless.py::test_rendering[legacy-cartpole-newton-ovrtx]",
-  "source/_isaaclab_testing/test/rendering/test_rendering_kitless.py::test_rendering[legacy-cartpole-ovphysx-newton_warp]",
-  "source/_isaaclab_testing/test/rendering/test_rendering_kitless.py::test_rendering[legacy-cartpole-ovphysx-ovrtx]",
-  "source/_isaaclab_testing/test/rendering/test_rendering_kitless.py::test_rendering[legacy-franka_cloth-newton-ovrtx]",
-  "source/_isaaclab_testing/test/rendering/test_rendering_kitless.py::test_rendering[legacy-franka_soft-newton-ovrtx]",
-  "source/_isaaclab_testing/test/rendering/test_rendering_kitless.py::test_rendering[legacy-franka_cable-newton-ovrtx]",
-  "source/_isaaclab_testing/test/rendering/test_rendering_kitless.py::test_rendering[legacy-cartpole-newton-ovrtx-async]",
-  "source/_isaaclab_testing/test/rendering/test_rendering_kitless.py::test_rendering[legacy-cartpole-ovphysx-ovrtx-async]",
+  "source/_isaaclab_testing/test/rendering/test_rendering_kitless_newton_newton_warp.py::test_rendering[legacy-cartpole-newton-newton_warp]",
+  "source/_isaaclab_testing/test/rendering/test_rendering_kitless_newton_ovrtx.py::test_rendering[legacy-cartpole-newton-ovrtx]",
+  "source/_isaaclab_testing/test/rendering/test_rendering_kitless_ovphysx_newton_warp.py::test_rendering[legacy-cartpole-ovphysx-newton_warp]",
+  "source/_isaaclab_testing/test/rendering/test_rendering_kitless_ovphysx_ovrtx.py::test_rendering[legacy-cartpole-ovphysx-ovrtx]",
+  "source/_isaaclab_testing/test/rendering/test_rendering_kitless_newton_ovrtx.py::test_rendering[legacy-franka_cloth-newton-ovrtx]",
+  "source/_isaaclab_testing/test/rendering/test_rendering_kitless_newton_ovrtx.py::test_rendering[legacy-franka_soft-newton-ovrtx]",
+  "source/_isaaclab_testing/test/rendering/test_rendering_kitless_newton_ovrtx.py::test_rendering[legacy-franka_cable-newton-ovrtx]",
+  "source/_isaaclab_testing/test/rendering/test_rendering_kitless_newton_ovrtx.py::test_rendering[legacy-cartpole-newton-ovrtx-async]",
+  "source/_isaaclab_testing/test/rendering/test_rendering_kitless_ovphysx_ovrtx.py::test_rendering[legacy-cartpole-ovphysx-ovrtx-async]",
 ]
 
 rendering-correctness-kitless-ovstage = [
-  "source/_isaaclab_testing/test/rendering/test_rendering_kitless.py::test_rendering[ovstage-cartpole-newton-ovrtx]",
-  "source/_isaaclab_testing/test/rendering/test_rendering_kitless.py::test_rendering[ovstage-cartpole-ovphysx-ovrtx]",
-  "source/_isaaclab_testing/test/rendering/test_rendering_kitless.py::test_rendering[ovstage-franka_cloth-newton-ovrtx]",
-  "source/_isaaclab_testing/test/rendering/test_rendering_kitless.py::test_rendering[ovstage-franka_soft-newton-ovrtx]",
-  "source/_isaaclab_testing/test/rendering/test_rendering_kitless.py::test_rendering[ovstage-franka_cable-newton-ovrtx]",
+  "source/_isaaclab_testing/test/rendering/test_rendering_kitless_newton_ovrtx.py::test_rendering[ovstage-cartpole-newton-ovrtx]",
+  "source/_isaaclab_testing/test/rendering/test_rendering_kitless_ovphysx_ovrtx.py::test_rendering[ovstage-cartpole-ovphysx-ovrtx]",
+  "source/_isaaclab_testing/test/rendering/test_rendering_kitless_newton_ovrtx.py::test_rendering[ovstage-franka_cloth-newton-ovrtx]",
+  "source/_isaaclab_testing/test/rendering/test_rendering_kitless_newton_ovrtx.py::test_rendering[ovstage-franka_soft-newton-ovrtx]",
+  "source/_isaaclab_testing/test/rendering/test_rendering_kitless_newton_ovrtx.py::test_rendering[ovstage-franka_cable-newton-ovrtx]",
 ]
 
 # Nodes the shader-cache warmer runs: the RTX-renderer subset of the lists above,
@@ -39,14 +39,14 @@ rendering-correctness-kitless-ovstage = [
 ovrtx-cache-warm = [
   "source/_isaaclab_testing/test/rendering/test_rendering_kit.py::test_rendering[rendering_scene-newton-isaac_rtx]",
   "source/_isaaclab_testing/test/rendering/test_rendering_kit.py::test_rendering[rendering_scene-physx-isaac_rtx]",
-  "source/_isaaclab_testing/test/rendering/test_rendering_kitless.py::test_rendering[legacy-cartpole-newton-ovrtx]",
-  "source/_isaaclab_testing/test/rendering/test_rendering_kitless.py::test_rendering[legacy-cartpole-ovphysx-ovrtx]",
-  "source/_isaaclab_testing/test/rendering/test_rendering_kitless.py::test_rendering[legacy-franka_cloth-newton-ovrtx]",
-  "source/_isaaclab_testing/test/rendering/test_rendering_kitless.py::test_rendering[legacy-franka_soft-newton-ovrtx]",
-  "source/_isaaclab_testing/test/rendering/test_rendering_kitless.py::test_rendering[legacy-franka_cable-newton-ovrtx]",
-  "source/_isaaclab_testing/test/rendering/test_rendering_kitless.py::test_rendering[ovstage-cartpole-newton-ovrtx]",
-  "source/_isaaclab_testing/test/rendering/test_rendering_kitless.py::test_rendering[ovstage-cartpole-ovphysx-ovrtx]",
-  "source/_isaaclab_testing/test/rendering/test_rendering_kitless.py::test_rendering[ovstage-franka_cloth-newton-ovrtx]",
-  "source/_isaaclab_testing/test/rendering/test_rendering_kitless.py::test_rendering[ovstage-franka_soft-newton-ovrtx]",
-  "source/_isaaclab_testing/test/rendering/test_rendering_kitless.py::test_rendering[ovstage-franka_cable-newton-ovrtx]",
+  "source/_isaaclab_testing/test/rendering/test_rendering_kitless_newton_ovrtx.py::test_rendering[legacy-cartpole-newton-ovrtx]",
+  "source/_isaaclab_testing/test/rendering/test_rendering_kitless_ovphysx_ovrtx.py::test_rendering[legacy-cartpole-ovphysx-ovrtx]",
+  "source/_isaaclab_testing/test/rendering/test_rendering_kitless_newton_ovrtx.py::test_rendering[legacy-franka_cloth-newton-ovrtx]",
+  "source/_isaaclab_testing/test/rendering/test_rendering_kitless_newton_ovrtx.py::test_rendering[legacy-franka_soft-newton-ovrtx]",
+  "source/_isaaclab_testing/test/rendering/test_rendering_kitless_newton_ovrtx.py::test_rendering[legacy-franka_cable-newton-ovrtx]",
+  "source/_isaaclab_testing/test/rendering/test_rendering_kitless_newton_ovrtx.py::test_rendering[ovstage-cartpole-newton-ovrtx]",
+  "source/_isaaclab_testing/test/rendering/test_rendering_kitless_ovphysx_ovrtx.py::test_rendering[ovstage-cartpole-ovphysx-ovrtx]",
+  "source/_isaaclab_testing/test/rendering/test_rendering_kitless_newton_ovrtx.py::test_rendering[ovstage-franka_cloth-newton-ovrtx]",
+  "source/_isaaclab_testing/test/rendering/test_rendering_kitless_newton_ovrtx.py::test_rendering[ovstage-franka_soft-newton-ovrtx]",
+  "source/_isaaclab_testing/test/rendering/test_rendering_kitless_newton_ovrtx.py::test_rendering[ovstage-franka_cable-newton-ovrtx]",
 ]
