@@ -268,7 +268,11 @@ class UsdFileCfg(FileCfg):
     func: Callable | str = "{DIR}.from_files:spawn_from_usd"
 
     usd_path: str = MISSING
-    """Path to the USD file to spawn asset from."""
+    """Local or remote USD path, including public ``hf://`` file URIs.
+
+    A SimReady ``com.nvidia.simready.packaging.json`` path selects the package's root USD automatically.
+    See :ref:`huggingface-simready-assets` for discovery and version pinning.
+    """
 
     variants: object | dict[str, str] | None = None
     """Variants to select from in the input USD file. Defaults to None, in which case no variants are applied.

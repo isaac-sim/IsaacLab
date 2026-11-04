@@ -14,6 +14,9 @@ Isaac Lab assets are hosted on AWS S3 and are downloaded as a workflow needs the
 to cache frequently used assets, migrate an existing Nucleus setup, or select the regional asset
 service for mainland China.
 
+Public Hugging Face URLs and ``hf://`` file URIs use the same download cache. For URI syntax
+and discovery of registered SimReady packages, see :ref:`huggingface-simready-assets`.
+
 
 Cache remote assets
 -------------------

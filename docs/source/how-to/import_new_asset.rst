@@ -24,6 +24,72 @@ The Kit visualizer and GUI import dialogs still require an Omniverse Kit runtime
 For repeated assets, use `instanceable`_ USD files so instances can share geometry
 in memory. See the Isaac Sim `documentation`_ for how to prepare them.
 
+.. _huggingface-simready-assets:
+
+Hugging Face and SimReady assets
+--------------------------------
+
+Public, ungated Hugging Face assets can be used directly with
+:class:`~isaaclab.sim.spawners.from_files.UsdFileCfg`:
+
+.. code-block:: python
+
+   import isaaclab.sim as sim_utils
+
+   robot = sim_utils.UsdFileCfg(
+       usd_path=(
+           "hf://datasets/Menlo/asimov-1-simready-usd@091c4726c8b8bf8899683e31cc241c296754aa26/"
+           "asimov_1/simready_usd/asimov_1.usd"
+       ),
+   )
+
+The URI format is ``hf://[datasets/|spaces/|models/]<owner>/<repo>[@<revision>]/<file>``.
+The default repository type is ``models`` and the default revision is ``main``.
+Pin a commit for reproducible runs. Encode slashes in revision names as ``%2F``;
+for example, ``repo@release%2Fv1/robot.usd`` selects the branch ``release/v1``.
+The :func:`~isaaclab.utils.assets.check_file_path`, :func:`~isaaclab.utils.assets.read_file`,
+and :func:`~isaaclab.utils.assets.retrieve_file_path` helpers also accept these URIs.
+They use the existing HTTPS download cache, including relative USD dependencies;
+no Hugging Face SDK is required. Private and gated datasets are not supported by this path.
+
+To find the packages registered for a dataset in `SimReady Central
+<https://github.com/NVIDIA-Omniverse/simready-central>`_, use:
+
+.. code-block:: python
+
+   from isaaclab.utils.assets import discover_simready_assets
+
+   packages = discover_simready_assets("Menlo/asimov-1-simready-usd")
+   for package in packages:
+       print(package)
+
+Discovery reads the public catalog and returns commit-pinned package-definition URLs without
+downloading the USD content. It preserves all registered versions; inspect the URLs and save your
+chosen version in the task configuration rather than selecting an entry by list position at every run.
+It does not search datasets that have not been registered in SimReady Central.
+
+A package-definition URL can itself be the ``usd_path``:
+
+.. code-block:: python
+
+   robot = sim_utils.UsdFileCfg(
+       usd_path=(
+           "hf://datasets/Menlo/asimov-1-simready-usd@091c4726c8b8bf8899683e31cc241c296754aa26/"
+           "asimov_1/com.nvidia.simready.packaging.json"
+       ),
+   )
+
+The loader reads the package's bill of materials and selects a root USD at the package top level
+or one directory below it, preferring a file named after the package directory. If no unique root
+can be selected, specify the USD file directly. Local package-definition paths work too.
+``read_file`` continues to return the literal JSON when given a package definition.
+
+Discovery and loading do not run SimReady validation, verify package hashes, or establish task/backend
+compatibility. Check the package's license and validation results, then configure and validate the robot's
+joints, actuators, initial pose, and physics backend for your task. SimReady registration does not copy
+the asset to Isaac Lab's asset server.
+
+
 .. _installation-standalone-importers:
 
 Standalone URDF/MJCF importers

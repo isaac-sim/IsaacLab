@@ -26,7 +26,7 @@ import uuid
 from collections.abc import Iterator
 from types import ModuleType
 from typing import Literal, NotRequired, TypedDict
-from urllib.parse import urlparse
+from urllib.parse import quote, unquote, urlparse
 
 from filelock import FileLock
 
@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 
 # USDZ packages own their internal dependency layout and must not be rewritten.
 _USD_EXTENSIONS = {".usd", ".usda", ".usdc"}
+_SIMREADY_PACKAGE = "com.nvidia.simready.packaging.json"
 
 
 _KIT_EXPERIENCE_PATH = str(ISAACLAB_ROOT / "apps" / "isaaclab.python.kit")
@@ -396,7 +397,7 @@ def _store_mirror(url: str, data: bytes) -> None:
 
 
 def check_file_path(path: str) -> Literal[0, 1, 2]:
-    """Checks if a file exists on the Nucleus Server or locally.
+    """Check whether a local or remote file exists, including public ``hf://`` files.
 
     Args:
         path: The path to the file.
@@ -406,8 +407,9 @@ def check_file_path(path: str) -> Literal[0, 1, 2]:
 
         * :obj:`0` if the file does not exist
         * :obj:`1` if the file exists locally
-        * :obj:`2` if the file exists on the Nucleus Server
+        * :obj:`2` if the file exists remotely
     """
+    path = _resolve_hf_path(path)
     if os.path.isfile(path):
         return 1
 
@@ -421,6 +423,8 @@ def check_file_path(path: str) -> Literal[0, 1, 2]:
 def retrieve_file_path(path: str, download_dir: str | None = None, force_download: bool = False) -> str:
     """Retrieves the path to a file on the Nucleus Server or locally.
 
+    Public Hugging Face files may use ``hf://[datasets/|spaces/]<owner>/<repo>[@<revision>]/<file>``.
+    SimReady package-definition paths automatically select the package's root USD.
     USD layers are localized in the bound resolver context without modifying authored files or
     raw downloads. Each retrieval resolves dependencies afresh while reusing downloaded files.
     Unresolved references retain their anchors; USD decides which the selected composition requires.
@@ -440,9 +444,15 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
     Raises:
         FileNotFoundError: When the requested file cannot be resolved or found.
         RuntimeError: When a download fails or a resolved USD copy cannot be saved.
+        ValueError: When a Hugging Face URI is invalid or a SimReady package has no unique root USD.
     """
     root, cached_dir = _ASSET_SOURCES.get(os.path.abspath(path), (path, ""))
+    root = _resolve_hf_path(root)
     download_dir = os.path.abspath(download_dir or cached_dir or tempfile.gettempdir())
+    if force_download:
+        _REMOTE_FINGERPRINTS.pop(root, None)
+    if posixpath.basename(root.replace("\\", "/")) == _SIMREADY_PACKAGE:
+        root = _resolve_simready_package(root, download_dir, force_download)
     if os.path.splitext(root)[1].lower() in _USD_EXTENSIONS:
         from pxr import Ar, Sdf, UsdShade, UsdUtils  # noqa: PLC0415
 
@@ -553,7 +563,9 @@ def _download_file(source: str, download_dir: str, force_download: bool) -> Iter
 
 
 def read_file(path: str) -> io.BytesIO:
-    """Reads a file from the Nucleus Server or locally.
+    """Read a local or remote file, including public ``hf://`` files.
+
+    Package definitions are read literally; only :func:`retrieve_file_path` selects their root USD.
 
     Args:
         path: The path to the file.
@@ -564,6 +576,7 @@ def read_file(path: str) -> io.BytesIO:
     Returns:
         The content of the file.
     """
+    path = _resolve_hf_path(path)
     # check file status
     file_status = check_file_path(path)
     if file_status == 1:
@@ -597,7 +610,7 @@ def _resolve_reference_url(base_url: str, ref: str) -> str:
 
     parsed_ref = urlparse(ref)
     if parsed_ref.scheme:
-        return ref
+        return _resolve_hf_path(ref)
 
     base = urlparse(base_url)
     if not _is_remote_path(base_url):
@@ -616,3 +629,120 @@ def _resolve_reference_url(base_url: str, ref: str) -> str:
 def _is_remote_path(path: str) -> bool:
     """Return whether a path has a URL scheme rather than a Windows drive letter."""
     return len(urlparse(path).scheme) > 1 and not os.path.isabs(path)
+
+
+def _resolve_hf_path(path: str) -> str:
+    """Translate public Hub file URIs to HTTPS so downloads share the existing asset cache."""
+    path = os.fspath(path)
+    if not path.startswith("hf://"):
+        return path
+    parts = path[5:].split("/")
+    prefix = ""
+    if parts[0] in ("buckets", "kernels", "dataset", "model", "space"):
+        raise ValueError(f"Unsupported Hugging Face repository type in: {path}")
+    if parts[0] in ("datasets", "spaces", "models"):
+        kind = parts.pop(0)
+        prefix = "" if kind == "models" else kind + "/"
+    if len(parts) < 3:
+        raise ValueError(f"Expected hf://[datasets/|spaces/]<owner>/<repo>[@<revision>]/<file>: {path}")
+    owner, repository, *files = parts
+    repository, separator, revision = repository.partition("@")
+    revision = unquote(revision) if separator else "main"
+    # Hub special refs consume three segments; other slash-containing revisions must be encoded.
+    if revision == "refs" and len(files) >= 2 and files[0] in ("pr", "convert"):
+        revision = "/".join([revision, *files[:2]])
+        files = files[2:]
+    if not all(re.fullmatch(r"[\w.-]+", value) and value not in (".", "..") for value in (owner, repository)):
+        raise ValueError(f"Invalid Hugging Face repository in: {path}")
+    if not revision or any(not part or part in (".", "..") for part in revision.split("/")):
+        raise ValueError(f"Invalid Hugging Face revision in: {path}")
+    files = [unquote(part) for part in files]
+    if not files or any(not part or part in (".", "..") or "/" in part or "\\" in part for part in files):
+        raise ValueError(f"Invalid Hugging Face file path in: {path}")
+    filename = "/".join(quote(part, safe="") for part in files)
+    return f"https://huggingface.co/{prefix}{owner}/{repository}/resolve/{quote(revision, safe='')}/{filename}"
+
+
+def discover_simready_assets(dataset: str) -> list[str]:
+    """Find the registered SimReady packages for a Hugging Face dataset.
+
+    Read the dataset's submission in NVIDIA's SimReady Central index. Returned package-definition
+    URLs are pinned to the reviewed Hub commits and can be passed directly to :func:`retrieve_file_path`
+    or :class:`~isaaclab.sim.spawners.from_files.UsdFileCfg`. All registered versions are returned;
+    this function neither chooses a latest version nor downloads USD files. Discovery requires access
+    to GitHub, or a previously cached index. Public, ungated assets are supported.
+
+    Args:
+        dataset: Hugging Face dataset ID, for example ``Menlo/asimov-1-simready-usd``.
+
+    Returns:
+        Registered package URLs, in index order, with duplicate entries removed.
+
+    Raises:
+        ValueError: If the dataset ID or a catalog entry is invalid.
+        FileNotFoundError: If the dataset has no accessible SimReady Central submission.
+    """
+    if not re.fullmatch(r"[\w-]+/[\w.-]+", dataset) or dataset.split("/")[1] in (".", ".."):
+        raise ValueError(f"Expected a Hugging Face dataset ID '<owner>/<repo>', got: {dataset}")
+    index = f"https://raw.githubusercontent.com/NVIDIA-Omniverse/simready-central/main/submissions/{dataset}"
+    entries = read_file(index).getvalue().decode("utf-8").splitlines()
+    pattern = (
+        rf"https://huggingface\.co/datasets/{re.escape(dataset)}/resolve/[0-9a-f]{{40}}/"
+        rf"[\w-][\w.-]*/{re.escape(_SIMREADY_PACKAGE)}"
+    )
+    packages = []
+    for entry in entries:
+        entry = entry.strip()
+        if not entry or entry.startswith("#"):
+            continue
+        if not re.fullmatch(pattern, entry):
+            raise ValueError(f"Invalid SimReady package URL in {index}: {entry}")
+        if entry not in packages:
+            packages.append(entry)
+    return packages
+
+
+def _resolve_simready_package(path: str, download_dir: str, force_download: bool) -> str:
+    """Find a root USD using the package BOM and SimReady Central's root naming convention."""
+    with _download_file(path, download_dir, force_download) as local_path:
+        with open(local_path, encoding="utf-8") as stream:
+            package = json.load(stream)
+    if package.get("format_version") != "1.0":
+        raise ValueError(f"Unsupported SimReady package format in: {path}")
+    bom_name = "com.nvidia.simready.packaging.bom.json"
+    if not any(item.get("name") == bom_name for item in package.get("metadata", [])):
+        raise ValueError(f"SimReady package has no bill of materials: {path}")
+    # Published packages keep metadata either beside the definition or under .metadata/.
+    bom_path = _resolve_reference_url(path, bom_name)
+    if force_download:
+        _REMOTE_FINGERPRINTS.pop(bom_path, None)
+    if not _usable_mirror(bom_path, download_dir) and not check_file_path(bom_path):
+        bom_path = _resolve_reference_url(path, f".metadata/{bom_name}")
+    if force_download:
+        _REMOTE_FINGERPRINTS.pop(bom_path, None)
+    with _download_file(bom_path, download_dir, force_download) as local_path:
+        with open(local_path, encoding="utf-8") as stream:
+            bom = json.load(stream)
+    if bom.get("format_version") != "1.0":
+        raise ValueError(f"Unsupported SimReady bill of materials format in: {bom_path}")
+    candidates = []
+    for item in bom["items"]:
+        relative = item["relative_path"]
+        parts = relative.split("/")
+        if any(not part or part in (".", "..") for part in parts) or "\\" in relative or ":" in relative:
+            raise ValueError(f"Invalid SimReady package-relative path: {relative}")
+        if len(parts) <= 2 and not any(part.startswith(".") for part in parts):
+            if posixpath.splitext(relative)[1] in _USD_EXTENSIONS:
+                candidates.append(relative)
+    # Match the package directory's name first; never guess among multiple possible roots.
+    asset_name = posixpath.basename(posixpath.dirname(path.replace("\\", "/")))
+    if _is_remote_path(path):
+        asset_name = unquote(asset_name)
+    named = [name for name in candidates if posixpath.splitext(posixpath.basename(name))[0] == asset_name]
+    roots = sorted(set(named or candidates))
+    if len(roots) != 1:
+        raise ValueError(
+            f"Cannot select a unique root USD in {path}; specify a USD file explicitly. Candidates: {roots}"
+        )
+    root = quote(roots[0], safe="/") if _is_remote_path(path) else roots[0]
+    return _resolve_reference_url(path, root)

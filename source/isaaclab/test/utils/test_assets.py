@@ -323,7 +323,9 @@ def _cache_asset(cache_dir, url: str, payload: bytes, fingerprint: dict | None) 
     return mirrored
 
 
-@pytest.mark.parametrize("layout", ["direct", "nested", "remote", "package"])
+@pytest.mark.parametrize(
+    "layout", ["direct", "nested", "remote", "package", pytest.param("hf", marks=pytest.mark.kitless)]
+)
 def test_local_usd_mirrors_remote_sublayer_without_editing_source(asset_cache, monkeypatch, layout):
     """Compose local and remote dependency chains without editing the authored layers."""
     import omni.client
@@ -337,11 +339,19 @@ def test_local_usd_mirrors_remote_sublayer_without_editing_source(asset_cache, m
     for name, content in layers.items():
         (asset_cache / name).write_text(content, encoding="utf-8")
     root_url = "https://example.com/scene.usda"
+    if layout == "hf":
+        root_url = "https://huggingface.co/datasets/team/robots/resolve/v1/scene.usda"
+    local_url = root_url.rsplit("/", 1)[0] + "/local.usda"
     payloads = {
         _REMOTE_URL: '#usda 1.0\ndef Xform "cartpole" {}\n',
         root_url: layers["robot.usda"],
-        "https://example.com/local.usda": layers["local.usda"],
+        local_url: layers["local.usda"],
     }
+    if layout == "hf":
+        layer = Sdf.Layer.CreateAnonymous()
+        layer.subLayerPaths = ["hf://datasets/team/dependency@v1/cartpole.usda", "local.usda"]
+        payloads[root_url] = layer.ExportToString()
+        payloads["https://huggingface.co/datasets/team/dependency/resolve/v1/cartpole.usda"] = payloads[_REMOTE_URL]
     revision = {"hash": "abc123", "version": "", "size": 32, "modified_time": "2026-07-01 10:00:00"}
 
     def fake_copy(url, target_path, behavior):
@@ -353,6 +363,7 @@ def test_local_usd_mirrors_remote_sublayer_without_editing_source(asset_cache, m
 
     monkeypatch.setattr(omni.client, "copy", fake_copy)
     source = {"direct": str(asset_cache / "robot.usda"), "nested": str(asset_cache / "scene.usda"), "remote": root_url}
+    source["hf"] = "hf://datasets/team/robots@v1/scene.usda"
     if layout == "package":
         source[layout] = _REMOTE_URL + "z"
         package_path = asset_cache / "scene.usdz"
@@ -691,3 +702,131 @@ def test_newton_asset_dir_uses_environment_override(tmp_path, monkeypatch):
     finally:
         monkeypatch.delenv("NEWTON_ASSET_DIR", raising=False)
         importlib.reload(assets_utils)
+
+
+@pytest.mark.parametrize(
+    ("uri", "url"),
+    [
+        ("hf://team/model/weights.bin", "https://huggingface.co/team/model/resolve/main/weights.bin"),
+        ("hf://models/team/model@v1/weights.bin", "https://huggingface.co/team/model/resolve/v1/weights.bin"),
+        (
+            "hf://datasets/team/robots@release%2Fv1/robot%20one/mesh.bin",
+            "https://huggingface.co/datasets/team/robots/resolve/release%2Fv1/robot%20one/mesh.bin",
+        ),
+        ("hf://spaces/team/demo/data.bin", "https://huggingface.co/spaces/team/demo/resolve/main/data.bin"),
+        (
+            "hf://datasets/team/robots@refs/pr/7/data.bin",
+            "https://huggingface.co/datasets/team/robots/resolve/refs%2Fpr%2F7/data.bin",
+        ),
+    ],
+)
+@pytest.mark.kitless
+def test_hf_files_share_https_cache(asset_cache, monkeypatch, uri, url):
+    """Hub URI spelling preserves repository, revision and filename, and reuses HTTPS downloads."""
+    revision = {"hash": "abc123", "version": "", "size": 7, "modified_time": ""}
+    _serve(monkeypatch, {url: revision}, {url: b"payload"})
+    assert assets_utils.check_file_path(uri) == 2
+    assert assets_utils.read_file(uri).read() == b"payload"
+    # Once read, retrieval and the HTTPS alias must work without another server read or copy.
+    _serve(monkeypatch, {url: revision})
+    local = assets_utils.retrieve_file_path(uri)
+    assert Path(local).read_bytes() == b"payload"
+    assert assets_utils.retrieve_file_path(url) == local
+    assert assets_utils.unmirror_file_path(local) == url
+
+
+@pytest.mark.parametrize(
+    "path", ["hf://datasets/team/repo", "hf://team/repo@/x", "hf://team/repo/../x", "hf://buckets/team/data/file"]
+)
+@pytest.mark.kitless
+def test_invalid_hf_paths_fail_before_download(path):
+    """Reject incomplete or escaping paths instead of requesting a different Hub resource."""
+    with pytest.raises(ValueError, match="Hugging Face|Expected hf"):
+        assets_utils.retrieve_file_path(path)
+
+
+@pytest.mark.kitless
+def test_local_path_objects_remain_readable(tmp_path):
+    """URI handling must preserve the existing local PathLike file-helper behavior."""
+    path = tmp_path / "data.bin"
+    path.write_bytes(b"local data")
+    assert assets_utils.check_file_path(path) == 1
+    assert assets_utils.read_file(path).read() == b"local data"
+
+
+@pytest.mark.kitless
+def test_simready_discovery_and_package_composition(asset_cache, monkeypatch):
+    """Catalog discovery returns every pinned version and package loading composes nested USD dependencies."""
+    import omni.client
+    from pxr import Usd
+
+    base = "https://huggingface.co/datasets/team/robots/resolve/" + "a" * 40 + "/robot/"
+    package = base + "com.nvidia.simready.packaging.json"
+    older = package.replace("a" * 40, "b" * 40)
+    index = "https://raw.githubusercontent.com/NVIDIA-Omniverse/simready-central/main/submissions/team/robots"
+    bom = "com.nvidia.simready.packaging.bom.json"
+    payloads = {
+        index: f"# Registered versions\n\n{older}\n{package}\n{package}\n".encode(),
+        package: json.dumps({"format_version": "1.0", "metadata": [{"name": bom}]}).encode(),
+        base + ".metadata/" + bom: json.dumps(
+            {
+                "format_version": "1.0",
+                "items": [
+                    {"relative_path": "simready_usd/robot.usda"},
+                    {"relative_path": "simready_usd/configuration/body.usda"},
+                    {"relative_path": "simready_usd/other.usda"},
+                ],
+            }
+        ).encode(),
+        base + "simready_usd/robot.usda": b"#usda 1.0\n(subLayers = [@configuration/body.usda@])\n",
+        base + "simready_usd/configuration/body.usda": b'#usda 1.0\ndef Xform "Robot" {}\n',
+    }
+    revision = {"hash": "abc123", "version": "", "size": 100, "modified_time": ""}
+    _serve(monkeypatch, dict.fromkeys(payloads, revision), payloads)
+
+    def copy(url, target, behavior):
+        Path(target).write_bytes(payloads[url])
+        return omni.client.Result.OK
+
+    monkeypatch.setattr(omni.client, "copy", copy)
+    packages = assets_utils.discover_simready_assets("team/robots")
+    assert packages == [older, package]
+    local = assets_utils.retrieve_file_path(packages[1])
+    stage = Usd.Stage.Open(local)
+    assert stage.GetPrimAtPath("/Robot").IsValid()
+    assert not stage.GetCompositionErrors()
+    assert assets_utils.unmirror_file_path(local) == base + "simready_usd/robot.usda"
+    # read_file retains its literal-file contract; it must not return the discovered USD.
+    assert json.load(assets_utils.read_file(package))["format_version"] == "1.0"
+
+
+@pytest.mark.parametrize(
+    "entries",
+    [["one.usda", "two.usda"], ["configuration/nested/body.usda"], ["../outside.usda"]],
+    ids=["ambiguous", "no-root", "escapes-package"],
+)
+@pytest.mark.kitless
+def test_simready_package_rejects_unusable_roots(tmp_path, entries):
+    """Do not silently choose an unrelated USD or follow a path outside the declared package."""
+    package = tmp_path / "com.nvidia.simready.packaging.json"
+    bom = "com.nvidia.simready.packaging.bom.json"
+    package.write_text(json.dumps({"format_version": "1.0", "metadata": [{"name": bom}]}))
+    (tmp_path / bom).write_text(
+        json.dumps({"format_version": "1.0", "items": [{"relative_path": entry} for entry in entries]})
+    )
+    with pytest.raises(ValueError, match="unique root USD|package-relative path"):
+        assets_utils.retrieve_file_path(str(package))
+
+
+@pytest.mark.kitless
+def test_simready_discovery_rejects_unpinned_catalog_entry(asset_cache, monkeypatch):
+    """Discovery must not label a mutable Hub branch as a reviewed immutable package."""
+    index = "https://raw.githubusercontent.com/NVIDIA-Omniverse/simready-central/main/submissions/team/robots"
+    revision = {"hash": "abc123", "version": "", "size": 100, "modified_time": ""}
+    _serve(
+        monkeypatch,
+        {index: revision},
+        {index: b"https://huggingface.co/datasets/team/robots/resolve/main/robot/com.nvidia.simready.packaging.json\n"},
+    )
+    with pytest.raises(ValueError, match="Invalid SimReady package URL"):
+        assets_utils.discover_simready_assets("team/robots")
