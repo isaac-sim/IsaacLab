@@ -659,20 +659,19 @@ class OVRTXRenderer(BaseRenderer):
     ) -> None:
         """Snapshot delayed-image metadata without changing live camera state.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.prepare_capture`."""
-        if not self.cfg.async_rendering or self._use_ovstage:
-            # The capture is published in the same step, before the camera changes its mask.
-            render_data.capture_env_mask = env_mask
-            return
-        render_data.capture_env_mask = wp.clone(env_mask)
-        render_data.capture = {
-            name: ProxyArray(wp.clone(value.warp))
-            for name, value in (
-                ("pos_w", camera_data.pos_w),
-                ("quat_w_world", camera_data.quat_w_world),
-                ("intrinsic_matrices", camera_data.intrinsic_matrices),
-                ("frame", frame),
-            )
-        }
+        # A synchronous capture is published in the same step, before the camera changes its mask.
+        render_data.capture_env_mask = env_mask
+        if self.cfg.async_rendering and not self._use_ovstage:
+            render_data.capture_env_mask = wp.clone(env_mask)
+            render_data.capture = {
+                name: ProxyArray(wp.clone(value.warp))
+                for name, value in (
+                    ("pos_w", camera_data.pos_w),
+                    ("quat_w_world", camera_data.quat_w_world),
+                    ("intrinsic_matrices", camera_data.intrinsic_matrices),
+                    ("frame", frame),
+                )
+            }
 
     def read_output(
         self,
