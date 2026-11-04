@@ -36,17 +36,8 @@ class IsaacSimBackendCfg(VisualizerBackendCfg):
     cloning_contexts: ClassVar[tuple[type | str, ...]] = ("isaaclab.cloner:UsdReplicateContext",)
     """The shared stage is populated from the authored USD stage, so every environment is authored there."""
 
-    host: Literal["app", "viewer"] = "app"
-    """How the viewer attaches to Isaac Lab. Isaac Lab drives every update in both; neither runs a scheduler.
-
-    ``"app"`` runs the Isaac Sim 7 application host for its services: the stage tree, property and content panes, the
-    Play, Pause, Step and Stop controls and frame streaming. It needs the ``sim_viewer`` application sources and a built
-    client (:attr:`app_client_root`). ``"viewer"`` follows Isaac Sim's ``viewer.viewport_direct`` example: one
-    navigable viewport and no panes, needing only the installed Isaac Sim client.
-    """
-
     camera_controls: Literal["newton", "isaac_sim"] = "newton"
-    """Viewport camera bindings for ``host="app"``.
+    """Viewport camera bindings.
 
     ``"newton"`` matches Isaac Lab's Newton viewer: left-drag looks, middle-drag orbits, Shift+middle-drag pans and
     Ctrl+middle-drag dollies; a left click still selects. ``"isaac_sim"`` keeps the client's Kit-style bindings:
@@ -63,7 +54,7 @@ class IsaacSimBackendCfg(VisualizerBackendCfg):
     """Port of the host's HTTP service; zero picks a free one."""
 
     app_client_root: str | None = None
-    """For ``host="app"``: directory with the built ``sim_viewer`` application client: ``renderer/`` (``index.js``,
+    """Directory with the built ``sim_viewer`` application client: ``renderer/`` (``index.js``,
     ``manifest.js``) and, for ``ui="desktop"``, ``main.cjs``.
 
     The renderer supplies the stage, property and content panes. ``None`` uses the
