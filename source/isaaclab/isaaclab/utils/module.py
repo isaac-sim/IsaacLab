@@ -238,13 +238,20 @@ def lazy_export(
     return __getattr__, __dir__, __all__
 
 
-def warn_on_lazy_exports(getattr_handler: Callable[[str], object], replacements: dict[str, str]) -> None:
-    """Warn once when a deprecated public name is first resolved by lazy_export."""
+def warn_on_lazy_exports(
+    getattr_handler: Callable[[str], object], replacements: dict[str, str], *, removal_version: str | None = None
+) -> None:
+    """Warn once when a deprecated name is resolved by a module's lazy ``__getattr__``.
+
+    ``replacements`` maps legacy names to import paths or migration guidance. The
+    caller owns name resolution and keeps its existing error behavior. Supplying a
+    removal version makes the release commitment explicit in the warning.
+    """
     caller_globals = sys._getframe(1).f_globals
-    caller_file = caller_globals["__file__"]
+    module = sys.modules[caller_globals["__name__"]]
     skip_prefixes = (
         os.path.dirname(__file__),
-        os.path.dirname(os.path.dirname(caller_file)),
+        os.path.dirname(os.path.dirname(caller_globals["__file__"])),
         os.path.dirname(lazy.__file__),
         "<frozen importlib",
     )
@@ -252,8 +259,9 @@ def warn_on_lazy_exports(getattr_handler: Callable[[str], object], replacements:
     def __getattr__(name: str) -> object:
         value = getattr_handler(name)
         if replacement := replacements.get(name):
+            removal = f"Isaac Lab {removal_version}" if removal_version else "a future release"
             warnings.warn(
-                f"{name} is deprecated and will be removed in a future release. Use {replacement} instead.",
+                f"{module.__name__}.{name} is deprecated and will be removed in {removal}. Use {replacement} instead.",
                 DeprecationWarning,
                 stacklevel=2,
                 skip_file_prefixes=skip_prefixes,
@@ -261,4 +269,26 @@ def warn_on_lazy_exports(getattr_handler: Callable[[str], object], replacements:
             caller_globals[name] = value
         return value
 
-    setattr(sys.modules[caller_globals["__name__"]], "__getattr__", __getattr__)
+    module.__getattr__ = __getattr__
+
+
+def warn_on_module_import(replacement: str, *, removal_version: str | None = None, details: str = "") -> None:
+    """Warn at the importing call site for a deprecated compatibility module."""
+    caller_globals = sys._getframe(1).f_globals
+    caller_file = caller_globals["__file__"]
+    removal = f"Isaac Lab {removal_version}" if removal_version else "a future release"
+    message = f"{caller_globals['__name__']} is deprecated and will be removed in {removal}. Use {replacement} instead."
+    if details:
+        message += f" {details}"
+    warnings.warn(
+        message,
+        DeprecationWarning,
+        stacklevel=2,
+        skip_file_prefixes=(
+            os.path.dirname(__file__),
+            os.path.dirname(os.path.dirname(caller_file)),
+            os.path.dirname(importlib.__file__),
+            os.path.dirname(lazy.__file__),
+            "<frozen importlib",
+        ),
+    )
