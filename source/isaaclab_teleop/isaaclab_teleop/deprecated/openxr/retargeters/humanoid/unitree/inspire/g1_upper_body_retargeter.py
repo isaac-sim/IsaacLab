@@ -38,7 +38,7 @@ class UnitreeG1Retargeter(RetargeterBase):
         """Initialize the UnitreeG1 hand retargeter.
 
         Args:
-            cfg: The retargeter configuration (:class:`UnitreeG1RetargeterCfg`).
+            cfg: The retargeter configuration.
         """
 
         super().__init__(cfg)

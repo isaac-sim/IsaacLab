@@ -35,7 +35,7 @@ class Se3RelRetargeter(RetargeterBase):
         """Initialize the relative motion retargeter.
 
         Args:
-            cfg: The retargeter configuration (:class:`Se3RelRetargeterCfg`).
+            cfg: The retargeter configuration.
         """
         # Store the hand to track
         if cfg.bound_hand not in [DeviceBase.TrackingTarget.HAND_LEFT, DeviceBase.TrackingTarget.HAND_RIGHT]:

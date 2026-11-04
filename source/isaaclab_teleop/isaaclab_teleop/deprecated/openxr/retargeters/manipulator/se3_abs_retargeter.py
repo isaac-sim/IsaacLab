@@ -34,7 +34,7 @@ class Se3AbsRetargeter(RetargeterBase):
         """Initialize the retargeter.
 
         Args:
-            cfg: The retargeter configuration (:class:`Se3AbsRetargeterCfg`).
+            cfg: The retargeter configuration.
         """
         super().__init__(cfg)
         if cfg.bound_hand not in [DeviceBase.TrackingTarget.HAND_LEFT, DeviceBase.TrackingTarget.HAND_RIGHT]:

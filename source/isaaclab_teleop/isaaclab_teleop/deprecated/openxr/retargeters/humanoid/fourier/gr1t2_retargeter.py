@@ -38,7 +38,7 @@ class GR1T2Retargeter(RetargeterBase):
         """Initialize the GR1T2 hand retargeter.
 
         Args:
-            cfg: The retargeter configuration (:class:`GR1T2RetargeterCfg`).
+            cfg: The retargeter configuration.
         """
 
         super().__init__(cfg)
