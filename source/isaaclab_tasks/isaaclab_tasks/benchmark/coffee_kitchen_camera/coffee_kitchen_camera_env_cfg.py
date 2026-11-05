@@ -275,6 +275,8 @@ class CoffeeKitchenCameraEnvCfg(ManagerBasedRLEnvCfg):
     curriculum = None
     # Without terminations nothing resets after the first reset, so episodes never end.
     episode_length_s = 3600.0
+    # The seed sets which environment gets which motion offset; a fixed default keeps runs without --seed comparable.
+    seed = 42
 
     def __post_init__(self):
         super().__post_init__()
