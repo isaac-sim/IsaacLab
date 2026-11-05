@@ -11,10 +11,13 @@ from rendering_runner import run_kitless_rendering_case
 
 pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.arm_ci]
 
-_CASES = kitless_rendering_cases("newton", "newton_warp")
+_CASES = [
+    pytest.param(stage, case, id=f"{stage}-{case.id}", marks=case.marks)
+    for stage, case in kitless_rendering_cases("newton", "newton_warp")
+]
 
 
-@pytest.mark.parametrize("stage_variant,case", _CASES, ids=[f"{stage}-{case.id}" for stage, case in _CASES])
+@pytest.mark.parametrize("stage_variant,case", _CASES)
 def test_rendering(
     stage_variant: str, case: RenderCase, request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
 ) -> None:
