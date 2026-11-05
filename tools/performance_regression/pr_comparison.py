@@ -29,9 +29,11 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from . import cli as gate_cli
+from .compare import errored
 from .contract import normalize_gpu_model, workload_identity
 from .metrics import PerformanceRegressionError, nested_number
-from .report import render_build_comparison
+from .report import render_build_comparison, write_json
 from .source_revision import RUNTIME_MODULE, measurement_digest, prepare_manifest
 
 _REQUEST_TIMEOUT_SECONDS = 60
@@ -224,6 +226,7 @@ def read_evidence(
     artifact_name: str | None = None,
     contents: tuple[str, dict[str, bytes]] | None = None,
     comparison_dir: Path | None = None,
+    history_dir: Path | None = None,
 ) -> Evidence:
     """Download one exact producing attempt; do not discard failed or missing legs."""
     run_id = run["id"]
@@ -244,9 +247,12 @@ def read_evidence(
         "branch": run.get("head_branch"),
     }
     try:
-        digest, files = contents if contents is not None else download_artifact(client, artifact, comparison_dir)
+        saved_reports = None if history_dir else comparison_dir
+        digest, files = contents if contents is not None else download_artifact(client, artifact, saved_reports)
     except EvidenceError as exc:
         raise EvidenceError(exc.code, str(exc), identity) from None
+    if history_dir is not None:
+        _refresh_history(files, history_dir)
     context = artifact_json(files, "build-context.json") if "build-context.json" in files else {}
     execution = context.get("execution", {})
     source = context.get("source", {})
@@ -294,7 +300,11 @@ def read_evidence(
 
 
 def resolve_candidate(
-    client: GitHubClient, run_id: int, report_attempt: int, comparison_dir: Path | None = None
+    client: GitHubClient,
+    run_id: int,
+    report_attempt: int,
+    comparison_dir: Path | None = None,
+    history_dir: Path | None = None,
 ) -> Evidence:
     """Read the measured attempt shared by the paired report and rolling-history gate."""
     artifacts = client.artifacts(run_id)
@@ -305,7 +315,9 @@ def resolve_candidate(
         if len(matches) > 1:
             raise EvidenceError("ambiguous", f"More than one GitHub artifact has the exact name {name}")
         if matches:
-            return read_evidence(client, run, matches[0], attempt, comparison_dir=comparison_dir)
+            return read_evidence(
+                client, run, matches[0], attempt, comparison_dir=comparison_dir, history_dir=history_dir
+            )
         started = parse_timestamp(run.get("run_started_at"))
         for job in client.jobs(run_id, attempt):
             if job.get("name") != "performance-regression-benchmarks" or job.get("conclusion") == "skipped":
@@ -1099,12 +1111,65 @@ def _paired_failure(candidate: Evidence) -> dict | None:
     return failure
 
 
+def _refresh_history(files: dict[str, bytes], directory: Path) -> None:
+    """Recompute the existing history gate from saved measurements."""
+    try:
+        expected = _object(artifact_json(files, "build-context.json").get("execution")).get("expected_legs")
+    except EvidenceError:
+        expected = None
+    if not isinstance(expected, list) or not expected or any(not isinstance(leg, str) for leg in expected):
+        write_json(errored("The configured workload list is unavailable."), directory / "comparison.json")
+        expected = []
+    samples = defaultdict(list)
+    for name, data in files.items():
+        leg, _, rest = name.partition("/")
+        if rest == "status":
+            samples.setdefault(leg, [])
+        elif rest and PurePosixPath(name).name.startswith("benchmark_runtime_") and name.endswith(".json"):
+            samples[leg].append(data)
+    try:
+        for index, leg in enumerate(sorted(set(expected) | samples.keys())):
+            output = directory / str(index) / "comparison.json"
+            if files.get(f"{leg}/status", b"").strip() != b"ok" or len(samples[leg]) != 3:
+                write_json(errored("Expected three samples from a successful benchmark run.", label=leg), output)
+                continue
+            try:
+                with tempfile.TemporaryDirectory() as temporary:
+                    paths = [Path(temporary, f"sample-{number}.json") for number in range(3)]
+                    for path, data in zip(paths, samples[leg]):
+                        path.write_bytes(data)
+                    gate_cli.main(
+                        [
+                            "compare",
+                            "--benchmark_result",
+                            *map(str, paths),
+                            f"--label={leg}",
+                            "--output_json",
+                            str(output),
+                        ]
+                    )
+            except Exception as exc:
+                if not output.exists():
+                    write_json(errored(f"History comparison failed ({type(exc).__name__}).", label=leg), output)
+    finally:
+        gate_exit = gate_cli.main(
+            [
+                "aggregate",
+                "--comparison_dir",
+                str(directory),
+                "--output_markdown",
+                str(directory / "rolling-history.md"),
+            ]
+        )
+        _write(directory / "status.json", {"failed": gate_exit == 1})
+
+
 def _report(args: argparse.Namespace) -> int:
     candidate = selected = paired_failure = None
     selection = {}
     try:
         client = GitHubClient(args.repository)
-        candidate = resolve_candidate(client, args.run_id, args.run_attempt, args.comparison_dir)
+        candidate = resolve_candidate(client, args.run_id, args.run_attempt, args.comparison_dir, args.history_dir)
         print(f"Using benchmark results from attempt {candidate.identity['run_attempt']}.")
         if not args.gate_only:
             paired_failure = _paired_failure(candidate)
@@ -1172,6 +1237,7 @@ def main(argv: list[str] | None = None) -> int:
     report.add_argument("--run_attempt", type=int, default=os.environ.get("GITHUB_RUN_ATTEMPT"))
     report.add_argument("--output_dir", type=Path, default=Path("build-comparison"))
     report.add_argument("--comparison_dir", type=Path, help="Save rolling-history reports from the same artifact")
+    report.add_argument("--history_dir", type=Path, help="Compare saved measurements against Azure history")
     report.add_argument(
         "--gate-only", action="store_true", help="Collect rolling-history reports without a PR comparison"
     )

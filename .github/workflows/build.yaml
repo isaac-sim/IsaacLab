@@ -1192,7 +1192,7 @@ jobs:
     # This step runs PR code, so it receives only read access to stored baselines.
     - name: Compare against baseline history
       continue-on-error: true
-      if: always()
+      if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.id == github.event.repository.id)
       timeout-minutes: 30
       env:
         ISAACLAB_BLOB_URL: ${{ secrets.ISAACLAB_BLOB_READ_URL }}
@@ -1259,7 +1259,7 @@ jobs:
 
   # Benchmark execution failures are reported by performance-regression-benchmarks.
   performance-regression-summary:
-    name: performance-regression
+    name: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.id != github.event.repository.id && 'performance-regression-summary' || 'performance-regression' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -1301,11 +1301,16 @@ jobs:
       if: always()
       env:
         COMPARISON_ARTIFACT_URL: ${{ steps.build_comparison_artifact.outputs.artifact-url }}
+        HISTORY_IN_REPORTER: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.id != github.event.repository.id }}
       run: |
         set -euo pipefail
         gate_exit=0
-        uv run --no-project python -m tools.performance_regression.cli aggregate \
-          --comparison_dir comparisons > rolling-history.md || gate_exit=$?
+        if [ "$HISTORY_IN_REPORTER" = true ]; then
+          printf '### Rolling-history CI gate: reported separately\n\nSee the `performance-regression` check on this PR for the history result.\n' > rolling-history.md
+        else
+          uv run --no-project python -m tools.performance_regression.cli aggregate \
+            --comparison_dir comparisons > rolling-history.md || gate_exit=$?
+        fi
         if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
           cat rolling-history.md >> "$GITHUB_STEP_SUMMARY"
           exit "$gate_exit"
@@ -1334,7 +1339,7 @@ jobs:
         exit "$gate_exit"
 
     - name: Link the rendered comparison from PR Checks
-      if: always() && github.event_name == 'pull_request'
+      if: always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.id == github.event.repository.id
       continue-on-error: true
       timeout-minutes: 5
       uses: actions/github-script@v9
