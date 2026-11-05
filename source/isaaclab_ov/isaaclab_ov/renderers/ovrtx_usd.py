@@ -16,7 +16,7 @@ from pxr import Sdf, Usd
 
 from isaaclab.renderers._rtx_renderer_cfg import _RTX_MINIMAL_MODE_ATTR, _RTX_RENDER_MODE_ATTR, _resolve_rtx_render_mode
 
-from isaaclab_ov.renderers import RtxRenderMode
+from .ovrtx_renderer_cfg import RtxRenderMode
 
 if TYPE_CHECKING:
     from isaaclab.renderers.camera_render_spec import CameraRenderSpec

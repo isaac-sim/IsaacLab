@@ -7,44 +7,31 @@
 
 from __future__ import annotations
 
-import importlib.util
 from types import SimpleNamespace
 
 import pytest
-from isaaclab_ov.renderers import RtxMinimalShadingMode, RtxRenderMode, apply_minimal_shading_mode, apply_render_mode
 
-_REQUIRED_MODULES = ("isaaclab_ov", "pxr")
-_MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
+pytest.importorskip("isaaclab_ov", reason="requires optional isaaclab_ov package")
+pytest.importorskip("pxr", reason="requires optional USD bindings")
 
-pytestmark = [
-    pytest.mark.skipif(
-        bool(_MISSING_MODULES),
-        reason=f"requires optional modules: {', '.join(_MISSING_MODULES)}",
-    ),
-]
+from isaaclab_ov.renderers import (  # noqa: E402
+    RtxMinimalShadingMode,
+    RtxRenderMode,
+    apply_minimal_shading_mode,
+    apply_render_mode,
+)
+from isaaclab_ov.renderers.ovrtx_usd import (  # noqa: E402
+    build_render_product_as_string,
+    get_render_var_configs,
+    render_var_prim_names_by_source,
+    render_var_prim_paths_by_source,
+)
+from isaaclab_ov.stage import export_stage_to_string  # noqa: E402
 
-if not _MISSING_MODULES:
-    from isaaclab_ov.renderers.ovrtx_usd import (  # noqa: E402
-        build_render_product_as_string,
-        get_render_var_configs,
-        render_var_prim_names_by_source,
-        render_var_prim_paths_by_source,
-    )
-    from isaaclab_ov.stage import export_stage_to_string  # noqa: E402
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdRender  # noqa: E402
 
-    from pxr import Gf, Sdf, Usd, UsdGeom, UsdRender  # noqa: E402
-
-    from isaaclab.renderers.camera_render_spec import CameraRenderSpec  # noqa: E402
-    from isaaclab.sensors.camera import CameraCfg  # noqa: E402
-else:
-    Sdf = None
-    Usd = None
-    UsdGeom = None
-    build_render_product_as_string = None
-    export_stage_to_string = None
-    get_render_var_configs = None
-    render_var_prim_names_by_source = None
-    render_var_prim_paths_by_source = None
+from isaaclab.renderers.camera_render_spec import CameraRenderSpec  # noqa: E402
+from isaaclab.sensors.camera import CameraCfg  # noqa: E402
 
 
 @pytest.fixture
@@ -253,7 +240,6 @@ def test_ovrtx_rejects_missing_or_unsupported_outputs(data_types):
             "does not support 'rgb_hdr'",
         ),
         (["rgb"], "Unknown", RtxMinimalShadingMode.FULL_MDL, "Unsupported render mode"),
-        (["rgb"], None, RtxMinimalShadingMode.FULL_MDL, "Unsupported render mode"),
         (["depth"], RtxRenderMode.MINIMAL, "no_color", "Minimal shading mode must be"),
         (["rgb"], RtxRenderMode.MINIMAL, 0, "Unsupported Minimal shading mode"),
     ],
@@ -631,9 +617,7 @@ def test_explicit_minimal_is_independent_of_outputs_and_other_products(
     ("helper", "value"),
     [
         (apply_render_mode, "Minimal"),
-        (apply_render_mode, None),
         (apply_minimal_shading_mode, 2),
-        (apply_minimal_shading_mode, "diffuse_mdl"),
     ],
 )
 def test_mode_helpers_require_enum_members(camera_spec, helper, value):

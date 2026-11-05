@@ -178,7 +178,7 @@ casts shadows. Isaac RTX retains Kit's Minimal shadow settings. HDR outputs and 
 tracing and cannot be combined with a simple-shading shortcut. See
 :doc:`../how-to/configure_rendering` for configuration examples and shortcut precedence.
 
-RTX Minimal uses the first distant light in the scene and hard shadows. See
+RTX Minimal uses the first distant light in the scene. See
 the :ovrtx-docs:`OVRTX Minimal mode <sensors/cameras/render_modes/minimal.rst>` and
 `RTX Minimal renderer <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/rtx-renderer_minimal.html>`_
 documentation for the renderer-level settings and limitations.

@@ -29,8 +29,6 @@ from isaaclab.sim.utils import enable_extension
 from isaaclab.utils.warp.kernels import reshape_tiled_image
 from isaaclab.utils.warp.warp_math import clamp_depth_to_inf_wp, replace_inf_depth_wp
 
-from isaaclab_physx.renderers import RtxRenderMode
-
 from .fabric import FabricBackendCfg
 from .isaac_rtx_renderer_utils import (
     apply_isaac_rtx_determinism_settings,
@@ -50,7 +48,7 @@ if TYPE_CHECKING:
     from isaaclab.sensors.camera.camera_data import CameraData
     from isaaclab.utils.warp import ProxyArray
 
-from .isaac_rtx_renderer_cfg import SIMPLE_SHADING_MODES, IsaacRtxRendererCfg
+from .isaac_rtx_renderer_cfg import SIMPLE_SHADING_MODES, IsaacRtxRendererCfg, RtxRenderMode
 
 # RTX simple-shading constants.
 #

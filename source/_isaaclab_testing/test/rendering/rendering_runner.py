@@ -188,6 +188,7 @@ def run_rendering_case(
             assert constant.count_nonzero() and color.count_nonzero() and full_mdl.count_nonzero()
             assert (constant != full_mdl).float().mean() > 0.01, "Cameras lost distinct Minimal shading levels"
             assert (constant != color).float().mean() > 0.01, "Minimal camera changed path-traced color output"
+            assert (color != full_mdl).float().mean() > 0.01, "Path-traced camera lost its distinct execution mode"
         if case.scene == "mpm":
             rgb = outputs["rgb"].to(torch.int16)
             tan = (rgb[..., 0] - rgb[..., 2] > 50) & (rgb[..., 1] - rgb[..., 2] > 20)
