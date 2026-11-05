@@ -14,6 +14,8 @@ from ...utils.leapp import (
     POSE7_COMPONENT_AXIS,
     QUAT_XYZW_COMPONENT_AXIS,
     XYZ_COMPONENT_AXIS,
+    Axis,
+    AxisKind,
     Kind,
     leapp_tensor_semantics,
 )
@@ -308,7 +310,7 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics()
+    @leapp_tensor_semantics(kind="time/duration", axes=[None, Axis(AxisKind.ELEMENT)])
     def last_air_time(self) -> ProxyArray | None:
         """Time spent in air before last contact.
 
@@ -320,7 +322,7 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics()
+    @leapp_tensor_semantics(kind="time/duration", axes=[None, Axis(AxisKind.ELEMENT)])
     def current_air_time(self) -> ProxyArray | None:
         """Time spent in air since last detach.
 
@@ -332,7 +334,7 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics()
+    @leapp_tensor_semantics(kind="time/duration", axes=[None, Axis(AxisKind.ELEMENT)])
     def last_contact_time(self) -> ProxyArray | None:
         """Time spent in contact before last detach.
 
@@ -344,7 +346,7 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics()
+    @leapp_tensor_semantics(kind="time/duration", axes=[None, Axis(AxisKind.ELEMENT)])
     def current_contact_time(self) -> ProxyArray | None:
         """Time spent in contact since last contact.
 

@@ -132,6 +132,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(const=True)
     def default_root_state(self) -> ProxyArray:
         """Deprecated, same as :attr:`default_root_pose` and :attr:`default_root_vel`."""
         raise NotImplementedError()

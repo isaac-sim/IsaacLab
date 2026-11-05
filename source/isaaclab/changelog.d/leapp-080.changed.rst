@@ -17,3 +17,5 @@
   inference and corrected ray-caster coordinates to use component axes.
 * Consolidated quaternion and Normal-parameter adapters into one tensor-broadcasting patch,
   retaining the original helpers and their view aliases.
+* Added contact-duration kinds, cable and joint-wrench axis labels, and constant metadata for the
+  deprecated default root state. Migrated cable pose and velocity labels to LEAPP quantity kinds.

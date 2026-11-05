@@ -488,6 +488,30 @@ before changing an interface. Apply these rules when adding code or cleaning up 
 * Prefer existing project dependencies and the standard library. Do not add dependencies or compatibility
   layers for hypothetical future uses.
 
+LEAPP Semantic Metadata
+^^^^^^^^^^^^^^^^^^^^^^^
+
+LEAPP labels raw tensor inputs and actuator writes so deployment can identify their physical meaning.
+When adding or changing an observation, check the data properties it reads and the export path that
+annotates them. Metadata on a property is insufficient if the observation bypasses that path.
+
+* Declare ``@leapp_tensor_semantics`` on the shared data property or write method. Concrete backend
+  overrides inherit the metadata through the exporter. Prefer a built-in ``Kind``; use a descriptive
+  custom kind when LEAPP has no matching quantity.
+* Declare ``axes`` or ``axes_resolver`` for known coordinate, joint, body, and time dimensions. Match
+  the actual Torch layout with one entry per dimension. Use ``None`` for an unspecified dimension.
+  Preserve selected element order, quaternion order, and known reference and expression frames.
+* Mark fixed defaults with ``const=True``. Keep evolving state in explicit feedback. Do not assign
+  physical kinds to normalized features, embeddings, or concatenated observations merely because
+  their raw inputs have physical meaning.
+* Verify the generated input/output metadata and deployment connections. Validate multiple capture
+  steps with changing inputs, then replay unseen inputs and stateful reset sequences. Do not claim
+  export support for a new raw source until its annotation and deployment wiring are covered.
+
+See :doc:`/source/policy_deployment/05_leapp/exporting_policies_with_leapp` for the export workflow and
+``source/isaaclab/isaaclab/utils/leapp/leapp_semantics.py`` for the annotation API and axis resolvers.
+
+
 Array Operations and Runtime Cost
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
