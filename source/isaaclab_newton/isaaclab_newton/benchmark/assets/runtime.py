@@ -257,7 +257,8 @@ def create_test_collection(
 
 
 def _refresh_articulation_data(data, _config) -> None:
-    data._sim_time += 1.0
+    data._sim_timestamp += 1.0
+    data._backend_manager.backend.state_version += 1
 
 
 def _refresh_rigid_object_data(mock_view, data, config) -> None:
@@ -303,7 +304,8 @@ def _refresh_rigid_object_data(mock_view, data, config) -> None:
             device=device,
         )
     )
-    data._sim_time += 1.0
+    data._sim_timestamp += 1.0
+    data._backend_manager.backend.state_version += 1
 
 
 def _refresh_collection_data(mock_view, data, config) -> None:
@@ -339,7 +341,8 @@ def _refresh_collection_data(mock_view, data, config) -> None:
             device=device,
         )
     )
-    data._sim_time += 1.0
+    data._sim_timestamp += 1.0
+    data._backend_manager.backend.state_version += 1
 
 
 def _create_articulation_data_target(config, backend_manager):

@@ -1532,7 +1532,7 @@ def test_newton_ordered_state_publishes_in_step_and_refreshes_same_timestamp_wri
 
     articulation.update(scene.sim.cfg.dt)
     root_body_idx = articulation.find_bodies("base")[0][0]
-    sim_time = data._sim_time
+    sim_timestamp = data._sim_timestamp
 
     frame_view = FrameView(f"{articulation.cfg.prim_path}/base", device=device)
     frame_view.get_world_poses()
@@ -1544,7 +1544,7 @@ def test_newton_ordered_state_publishes_in_step_and_refreshes_same_timestamp_wri
     torch.testing.assert_close(position.torch, written_root_pose[:, :3])
     torch.testing.assert_close(orientation.torch, written_root_pose[:, 3:])
     frame_view.close()
-    assert data._sim_time == sim_time
+    assert data._sim_timestamp == sim_timestamp
     torch.testing.assert_close(data.root_link_pose_w.torch, written_root_pose)
     scene.sim.backend_manager.forward()  # Another consumer may resolve shared FK before this view reads.
     refreshed_body_pose = data.body_link_pose_w.torch[:, root_body_idx]
@@ -1555,7 +1555,7 @@ def test_newton_ordered_state_publishes_in_step_and_refreshes_same_timestamp_wri
     cached_body_vel = data.body_com_vel_w.torch[:, root_body_idx].clone()
     written_root_vel = torch.tensor([[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]], device=device).repeat(2, 1)
     articulation.write_root_com_velocity_to_sim_index(root_velocity=written_root_vel)
-    assert data._sim_time == sim_time
+    assert data._sim_timestamp == sim_timestamp
     torch.testing.assert_close(data.root_com_vel_w.torch, written_root_vel)
     refreshed_body_vel = data.body_com_vel_w.torch[:, root_body_idx]
     torch.testing.assert_close(refreshed_body_vel, written_root_vel)
