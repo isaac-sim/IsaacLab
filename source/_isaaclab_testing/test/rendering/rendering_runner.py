@@ -86,6 +86,7 @@ def run_rendering_case(
         background_color=case.background_color,
         physics_cfg=scene.physics_cfg,
         dt=scene.dt,
+        on_scene_created=scene.on_scene_created,
     ) as runtime:
         if case.scene == "shadow_hand":
             # A static image tests the declared pose, not contacts during PhysX's initialization steps.
@@ -122,6 +123,8 @@ def run_rendering_case(
             reset_mpm_solver_state(
                 runtime.sim.backend_manager.backend, world_mask=world_mask, flags=StateFlags.BODY | StateFlags.PARTICLE
             )
+        if scene.after_reset is not None:
+            scene.after_reset(runtime)
         for step in range(scene.steps_before_capture):
             if case.scene == "mpm" and step % 2 == 0:
                 robot = runtime.scene["robot"]
@@ -205,6 +208,11 @@ def run_rendering_case(
                 max_diff_pct=image_max_diff_pct,
                 min_ssim=None if aov in _NO_SSIM else min_ssim,
                 alpha_only=aov in _ALPHA_ONLY_AOVS,
+                **(
+                    {"pixel_l2_threshold": scene.pixel_l2_thresholds[case.renderer, aov]}
+                    if (case.renderer, aov) in scene.pixel_l2_thresholds
+                    else {}
+                ),
             )
             comparison.record(request)
             if not comparison.passed:
