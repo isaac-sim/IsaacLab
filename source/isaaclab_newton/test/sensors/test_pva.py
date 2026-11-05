@@ -238,3 +238,36 @@ def test_no_stale_data_after_scene_reset(sim):
     quat = pva.data.quat_w.torch
     expected_quat = torch.tensor([[0.0, 0.0, 0.0, 1.0]], dtype=quat.dtype, device=quat.device).repeat(2, 1)
     torch.testing.assert_close(quat, expected_quat)
+
+
+def test_pose_only_sensor_updates_without_acceleration_state(sim):
+    """An explicitly narrower backend contract needs no extended acceleration state."""
+    from isaaclab_newton.sensors.pva import Pva as NewtonPva
+
+    class PoseOnlyPva(NewtonPva):
+        supported_data_types = frozenset({"pose"})
+
+    cfg = PvaTestSceneCfg(num_envs=2)
+    cfg.pva = PvaCfg(prim_path="{ENV_REGEX_NS}/Cube", class_type=PoseOnlyPva, data_types=["pose"])
+    scene = InteractiveScene(cfg)
+    sim.reset()
+    sensor = scene["pva"]
+    for _ in range(10):
+        sim.step()
+        scene.update(sim.get_physics_dt())
+    assert torch.all(sensor.data.pos_w.torch[:, 2] < 1.0)
+    assert torch.all(sensor.data.pos_w.torch[:, 2] > 0.8)
+    torch.testing.assert_close(sensor.data.quat_w.torch, torch.tensor([[0.0, 0, 0, 1]] * 2, device=scene.device))
+    with pytest.raises(NotImplementedError, match="acceleration"):
+        _ = sensor.data.lin_acc_b
+    scene.reset()
+    torch.testing.assert_close(
+        sensor.data.pose_w.torch, torch.tensor([[0.0, 0, 0, 0, 0, 0, 1]] * 2, device=scene.device)
+    )
+
+    # STOP while a lazy sample is pending must not reacquire a released native model.
+    sensor.update(sim.get_physics_dt())
+    sensor._invalidate_initialize_callback(None)
+    torch.testing.assert_close(
+        sensor.data.pose_w.torch, torch.tensor([[0.0, 0, 0, 0, 0, 0, 1]] * 2, device=scene.device)
+    )
