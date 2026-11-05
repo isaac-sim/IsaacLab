@@ -116,7 +116,7 @@ class NewtonSceneDataBackend(SceneDataBackend):
         backend = manager.backend
         if backend is None:
             return None
-        if manager.transforms_may_change_on_graph_replay:
+        if backend.transforms_may_change_on_graph_replay:
             # Raw external graph replays bypass Python invalidation, so these reads must stay conservative.
             self.transforms_timestamp += 1
             self.geometry_timestamp += 1

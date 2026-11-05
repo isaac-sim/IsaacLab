@@ -21,7 +21,10 @@ from isaaclab.sim import SimulationContext
 
 _REQUIRED_MODULES = ("isaaclab_ov", "ovrtx", "pxr")
 _MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
-pytestmark = pytest.mark.skipif(bool(_MISSING_MODULES), reason=f"requires optional modules: {_MISSING_MODULES}")
+pytestmark = [
+    pytest.mark.skipif(bool(_MISSING_MODULES), reason=f"requires optional modules: {_MISSING_MODULES}"),
+    pytest.mark.ov,
+]
 
 if not _MISSING_MODULES:
     import isaaclab_ov.renderers.ovrtx_renderer as ovrtx_renderer_module

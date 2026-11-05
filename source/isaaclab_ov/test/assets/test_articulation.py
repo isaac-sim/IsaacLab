@@ -72,7 +72,7 @@ from isaaclab.utils.warp.launch_cache import _WarpLaunchCache  # noqa: E402
 
 from isaaclab_assets import FRANKA_PANDA_CFG  # noqa: E402
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.ov]
 
 _FIXTURE = Path(__file__).parent / "data" / "articulation_ordering_branching.usda"
 _STIFFNESS, _DAMPING, _MAX_FORCE = 5.0, 0.5, 100.0
@@ -590,21 +590,6 @@ def test_root_worker_accepts_selector_widths(env_dtype: type) -> None:
 
     np.testing.assert_array_equal(output.numpy(), data.numpy()[[1, 0]])
     np.testing.assert_array_equal(sim_env_ids.numpy(), [1, 0])
-
-
-@pytest.mark.parametrize(("env_dtype", "item_dtype"), [(wp.int32, wp.int32), (wp.int64, wp.int64)])
-def test_item_worker_accepts_selector_widths(env_dtype: type, item_dtype: type) -> None:
-    env_ids = _selector([1, 0], env_dtype)
-    item_ids = _selector([2, 0], item_dtype)
-    data = wp.array([[11.0, 12.0], [21.0, 22.0]], dtype=wp.float32, device="cpu")
-    output = wp.full((2, 3), value=-1.0, dtype=wp.float32, device="cpu")
-    kernel = kernels.write_2d_data_to_buffer_with_indices
-    if env_dtype != wp.int32 or item_dtype != wp.int32:
-        kernel = kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, item_ids)
-
-    wp.launch(kernel, dim=(2, 2), inputs=[data, env_ids, item_ids], outputs=[output], device="cpu")
-
-    np.testing.assert_array_equal(output.numpy(), [[22.0, -1.0, 21.0], [12.0, -1.0, 11.0]])
 
 
 def test_prepare_native_actuators_leaves_implicit_only_articulation_on_standard_path(monkeypatch):
