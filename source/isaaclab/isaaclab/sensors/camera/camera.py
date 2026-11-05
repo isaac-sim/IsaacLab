@@ -19,7 +19,7 @@ from pxr import Usd, UsdGeom, UsdPhysics
 
 from ... import sim as sim_utils
 from ...app.logging_utils import force_log_level
-from ...renderers import BaseRenderer, CameraRenderSpec, CaptureInfo
+from ...renderers import BaseRenderer, CameraRenderSpec
 from ...sim.views import FrameView
 from ...utils import replace
 from ...utils.math import (
@@ -330,7 +330,7 @@ class Camera(SensorBase):
         self._renderer: BaseRenderer = sim_ctx.get_or_create_backend(self.cfg.renderer_cfg)
         with force_log_level(logging.INFO):
             logger.info("Using renderer: %s", type(self._renderer).__name__)
-        # Render data and outputs — assigned in _initialize_impl; processors — at the first published capture.
+        # Render data and outputs — assigned in _initialize_impl; processors — at the first capture.
         self._render_data = None
         self._render_outputs: dict[str, ProxyArray] = {}
         self._tensor_processors: list[TensorProcessor] = []
@@ -787,18 +787,17 @@ class Camera(SensorBase):
             self._update_poses(env_mask=env_mask, frame_op=1)
         else:
             self._update_camera_state(env_mask=env_mask, frame_op=1)
-        self._renderer.prepare_capture(self._render_data, self._data, self._frame, env_mask)
+        self._renderer.prepare_capture(self._render_data, self._data, self._frame)
 
     def _update_buffers_impl(self, env_mask: wp.array):
         if not self._env_mask_has_any(env_mask):
             return
         self._prepare_camera(env_mask)
 
-        capture = self._sim.render_context.render_into_camera(
+        self._sim.render_context.render_into_camera(
             self._renderer, self._render_data, self._data, self._sim.get_physics_step_count()
         )
-        if capture is not None:
-            self._apply_tensor_processors(capture)
+        self._apply_tensor_processors(env_mask)
 
     @staticmethod
     def _update_buffers_batch_impl(sensors: Sequence[SensorBase]) -> None:
@@ -814,13 +813,12 @@ class Camera(SensorBase):
             return
 
         sim = ready[0]._sim
-        captures = sim.render_context.render_into_cameras(
+        sim.render_context.render_into_cameras(
             [(camera._renderer, camera._render_data, camera._data) for camera in ready],
             sim.get_physics_step_count(),
         )
-        for camera, capture in zip(ready, captures, strict=True):
-            if capture is not None:
-                camera._apply_tensor_processors(capture)
+        for camera in ready:
+            camera._apply_tensor_processors(camera._is_outdated)
 
     def _close_tensor_processors(self) -> None:
         """Close every processor, then raise their failures, so one failure does not leave the others open."""
@@ -838,12 +836,11 @@ class Camera(SensorBase):
             # TODO: Use ExceptionGroup when ruff target-version is bumped to py311+
             raise RuntimeError(f"{len(errors)} camera tensor processors failed to close") from errors[0]
 
-    def _apply_tensor_processors(self, capture: CaptureInfo) -> None:
-        """Run the processors in order on a newly published capture and publish their outputs."""
+    def _apply_tensor_processors(self, env_mask: wp.array) -> None:
+        """Run the processors in order on the capture and publish their outputs."""
         if not self.cfg.tensor_processors:
             return
-        # The mask belongs to the published image, which with asynchronous rendering is an earlier request's.
-        buffers = {**self._render_outputs, CAPTURE_MASK_NAME: ProxyArray(capture.env_mask)}
+        buffers = {**self._render_outputs, CAPTURE_MASK_NAME: ProxyArray(env_mask)}
         for index, processor_cfg in enumerate(self.cfg.tensor_processors):
             # Construction needs the outputs of earlier processors, which exist after their first call.
             if index == len(self._tensor_processors):

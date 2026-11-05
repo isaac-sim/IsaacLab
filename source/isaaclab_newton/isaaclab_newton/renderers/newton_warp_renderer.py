@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any
 import newton
 import warp as wp
 
-from isaaclab.renderers import BaseRenderer, CaptureInfo, RenderBufferKind, RenderBufferSpec
+from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL, SceneDataFormat
 from isaaclab.sim import SimulationContext
@@ -132,8 +132,6 @@ class RenderData:
         self.camera_transforms: wp.array(dtype=wp.transformf, ndim=2) = None
         self._intrinsic_status = wp.zeros(1, dtype=wp.int32, device=newton_sensor.model.device)
         self.graph = None
-        # Environments due for the capture being rendered; read in the same step, so the camera's array is kept.
-        self.capture_env_mask: wp.array | None = None
         self.outputs = RenderData.CameraOutputs()
         # Requested depth-family destination views keyed by data-type name. Each view aliases the
         # caller's output buffer as ``(world_count, 1, H, W)`` float32.
@@ -615,21 +613,13 @@ class NewtonWarpRenderer(BaseRenderer):
         # Remap the shape-index buffer into the requested segmentation outputs.
         render_data._convert_segmentation()
 
-    def prepare_capture(
-        self, render_data: RenderData, camera_data: CameraData, frame: ProxyArray, env_mask: wp.array
-    ) -> None:
-        """Keep the capture's environment mask for :meth:`read_output`.
-        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.prepare_capture`."""
-        render_data.capture_env_mask = env_mask
-
-    def read_output(self, render_data: RenderData, camera_data: CameraData) -> CaptureInfo:
+    def read_output(self, render_data: RenderData, camera_data: CameraData) -> None:
         """Publish segmentation metadata; pixel outputs alias the camera buffers bound in :meth:`set_outputs`.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.read_output`."""
         # Publish the segmentation id-to-label metadata (idToLabels / idToSemantics) alongside the
         # pixel buffers.
         for output_name, info in render_data.segmentation_info().items():
             camera_data.info[output_name] = info
-        return CaptureInfo(env_mask=render_data.capture_env_mask)
 
     def cleanup(self, render_data: RenderData | None):
         """Release the camera's buffers and captured query.

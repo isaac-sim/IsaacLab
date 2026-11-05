@@ -348,6 +348,11 @@ def test_camera_cfg_rejects_outputs_unsupported_by_renderer():
         validate(make_cfg("half", processor("simple_shading_full_mdl", "half")))
     with pytest.raises(ValueError, match="reserved"):
         validate(make_cfg("rgb_hdr", processor("rgb_hdr", "env_mask")))
+    # Asynchronous rendering publishes the previous request's image, which the current mask does not describe.
+    async_cfg = make_cfg("half", processor("rgb_hdr", "half"))
+    async_cfg.renderer_cfg.async_rendering = True
+    with pytest.raises(ValueError, match="synchronous rendering"):
+        validate(async_cfg)
 
 
 @pytest.mark.parametrize("colorize", [True, False])

@@ -245,16 +245,16 @@ class CameraCfg(SensorBaseCfg):
     """Processors that compute camera outputs from render outputs. Defaults to an empty list.
 
     Each ``func`` is a :class:`~isaaclab.utils.tensor_processors.TensorProcessor` class, constructed at the first
-    published capture with the configuration and the named camera buffers. After each published capture, processors
-    run in order on the render outputs and earlier processors' outputs, and their outputs are added to
-    :attr:`CameraData.output`. The renderer produces every input that no earlier processor produces, so a processor
-    can replace an output it reads. Camera resets and teardown call the processors' ``reset`` and ``close``.
+    capture with the configuration and the named camera buffers. After each capture, processors run in order on the
+    render outputs and earlier processors' outputs, and their outputs are added to :attr:`CameraData.output`. The
+    renderer produces every input that no earlier processor produces, so a processor can replace an output it reads.
+    Camera resets and teardown call the processors' ``reset`` and ``close``.
 
     With ``update_period > 0``, environments become due on different steps, but each capture renders every
     environment. A stateful processor can list ``"env_mask"`` in its ``inputs`` to receive a boolean mask of shape
     ``(N,)`` marking the environments due for the capture, whose frame and timestamp advance. The name is reserved
-    and the mask is not published as a camera output. With asynchronous rendering it is the mask of the request whose
-    image is published.
+    and the mask is not published as a camera output. It describes the current capture request, so these processors
+    need synchronous rendering.
     """
 
     def __post_init__(self):
@@ -287,9 +287,19 @@ class CameraCfg(SensorBaseCfg):
             setattr(self, field_name, default)
 
     def validate_config(self) -> None:
-        """Validate processor output names and the requested data types against the selected renderer contract."""
+        """Validate processor names, the capture mask's rendering mode, and the requested data types against the
+        selected renderer contract."""
         if any(CAPTURE_MASK_NAME in processor_cfg.outputs for processor_cfg in self.tensor_processors):
             raise ValueError(f"Processor output name {CAPTURE_MASK_NAME!r} is reserved for the capture mask.")
+        if getattr(self.renderer_cfg, "async_rendering", False) and any(
+            CAPTURE_MASK_NAME in processor_cfg.inputs for processor_cfg in self.tensor_processors
+        ):
+            # The mask marks the environments of the current request, while asynchronous rendering publishes the
+            # previous request's image, so the mask would select the wrong rows.
+            raise ValueError(
+                f"Processors reading {CAPTURE_MASK_NAME!r} need synchronous rendering; set "
+                "renderer_cfg.async_rendering=False."
+            )
         if self.renderer_cfg is None:
             return
         supported_specs = self.renderer_cfg.supported_output_types()

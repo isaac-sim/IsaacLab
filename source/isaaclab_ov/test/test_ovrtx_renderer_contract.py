@@ -614,17 +614,6 @@ def test_async_cameras_publish_independently_with_capture_metadata_and_reset(mon
         camera_data.append(data)
         renderer.backend.render_products.add(camera.render_product_path)
     frame = ProxyArray(wp.zeros(2, dtype=wp.int64, device="cpu"))
-    # One mask array reused for every capture, as the camera does; each request marks different environments.
-    env_mask = wp.zeros(2, dtype=wp.bool, device="cpu")
-    request_masks = {
-        1: [True, True],
-        2: [True, False],
-        3: [False, True],
-        4: [True, False],
-        5: [True, True],
-        6: [False, True],
-    }
-    published = {0: [], 1: []}
     operations = []
     ordinal = 0
 
@@ -652,30 +641,23 @@ def test_async_cameras_publish_independently_with_capture_metadata_and_reset(mon
         nonlocal ordinal
         ordinal = value
         frame.warp.fill_(value)
-        env_mask.assign(np.array(request_masks[value]))
         for index in indices:
             data = camera_data[index]
             data.pos_w.warp.fill_(wp.vec3f(value))
             data.intrinsic_matrices.warp.fill_(wp.mat33f(value))
-            renderer.prepare_capture(cameras[index], data, frame, env_mask)
+            renderer.prepare_capture(cameras[index], data, frame)
         if batch:
             renderer.render_batch([cameras[index] for index in indices])
         else:
             for index in indices:
                 renderer.render(cameras[index])
-        results = []
         for index in indices:
-            capture_info = renderer.read_output(cameras[index], camera_data[index])
-            published[index].append(None if capture_info is None else capture_info.env_mask.numpy().tolist())
-            results.append(capture_info is not None)
-        return results
+            renderer.read_output(cameras[index], camera_data[index])
 
-    assert capture(1, (0, 1)) == [True, True]
-    assert capture(2, (0, 1)) == [False, False]
-    assert capture(3, (0,)) == [True]
+    capture(1, (0, 1))
+    capture(2, (0, 1))
+    capture(3, (0,))
     assert consume.call_count == 3  # Priming images are not extracted again on the next capture.
-    # Each published capture carries its own request's mask; the already-published priming image returns None.
-    assert published == {0: [[True, True], None, [True, False]], 1: [[True, True], None]}
     for index, expected in enumerate((2, 1)):
         data = camera_data[index]
         np.testing.assert_array_equal(data.output["rgb"].warp.numpy(), expected)
@@ -683,16 +665,16 @@ def test_async_cameras_publish_independently_with_capture_metadata_and_reset(mon
             np.testing.assert_array_equal(data.info["rgb"]["capture"][name].warp.numpy(), expected)
     np.testing.assert_array_equal(camera_data[0].pos_w.warp.numpy(), 3)
     saved_capture = camera_data[0].info["rgb"]["capture"]
-    assert not renderer.read_output(cameras[0], camera_data[0])
+    renderer.read_output(cameras[0], camera_data[0])
     assert camera_data[0].info["rgb"]["capture"] is saved_capture
     assert renderer.drain_pending_renders() == []
     np.testing.assert_array_equal(camera_data[1].output["rgb"].warp.numpy(), 1)
 
     renderer.reset(cameras[0])
-    assert capture(4, (0,)) == [True]
+    capture(4, (0,))
     np.testing.assert_array_equal(camera_data[0].output["rgb"].warp.numpy(), 4)
     np.testing.assert_array_equal(saved_capture["pos_w"].warp.numpy(), 2)
-    assert capture(5, (0, 1)) == [False, True]
+    capture(5, (0, 1))
     assert consume.call_count == 5
     np.testing.assert_array_equal(camera_data[0].output["rgb"].warp.numpy(), 4)
     np.testing.assert_array_equal(camera_data[1].output["rgb"].warp.numpy(), 2)
@@ -1084,7 +1066,7 @@ def test_ovrtx_cleanup_releases_only_the_given_render_data(monkeypatch, cleanup_
     operations = [MagicMock(), MagicMock()]
     operations[-1].wait.side_effect = RuntimeError("device lost")
     if failure == "render":
-        render_data.pending = (operations[-1], {}, None)
+        render_data.pending = (operations[-1], {})
     elif failure == "write":
         render_data.camera_writes = _AsyncWriteBuffers((object(), object()))
         binding = MagicMock()

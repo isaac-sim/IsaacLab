@@ -5,7 +5,6 @@
 
 __all__ = [
     "BaseRenderer",
-    "CaptureInfo",
     "CameraRenderSpec",
     "RenderBufferKind",
     "RenderBufferSpec",
@@ -13,7 +12,7 @@ __all__ = [
     "RenderContext",
 ]
 
-from .base_renderer import BaseRenderer, CaptureInfo
+from .base_renderer import BaseRenderer
 from .camera_render_spec import CameraRenderSpec
 from .output_contract import RenderBufferKind, RenderBufferSpec
 from .renderer_cfg import RendererCfg

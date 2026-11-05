@@ -22,7 +22,7 @@ from packaging import version
 from pxr import Sdf, Usd, UsdGeom
 
 from isaaclab.app.settings_manager import get_settings_manager
-from isaaclab.renderers import BaseRenderer, CaptureInfo, RenderBufferKind, RenderBufferSpec
+from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import enable_extension
@@ -119,8 +119,6 @@ class IsaacRtxRenderData:
     intrinsic_selection: Any = None
     intrinsic_row_attribute: str = ""
     intrinsic_stage: Any = None
-    capture_env_mask: wp.array | None = None
-    """Environments due for the capture being rendered; read in the same step, so the camera's array is kept."""
 
     def __post_init__(self):
         """Compile the stage-bound calibration columns owned by this render product."""
@@ -654,14 +652,7 @@ class IsaacRtxRenderer(BaseRenderer):
                 replacement = 0.0 if self.cfg.depth_clipping_behavior == "zero" else cfg.spawn.clipping_range[1]
                 replace_inf_depth_wp(buf_wp, replacement, device=device)
 
-    def prepare_capture(
-        self, render_data: IsaacRtxRenderData, camera_data: CameraData, frame: ProxyArray, env_mask: wp.array
-    ) -> None:
-        """Keep the capture's environment mask for :meth:`read_output`.
-        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.prepare_capture`."""
-        render_data.capture_env_mask = env_mask
-
-    def read_output(self, render_data: IsaacRtxRenderData, camera_data: CameraData) -> CaptureInfo:
+    def read_output(self, render_data: IsaacRtxRenderData, camera_data: CameraData) -> None:
         """Populate per-output metadata collected during render(). Pixel data already written in render().
 
         This is a *replace*, not a *merge*: every seeded output key is reset to this frame's metadata,
@@ -674,7 +665,6 @@ class IsaacRtxRenderer(BaseRenderer):
         assert camera_data.info is not None, "CameraData.info should be created in CameraData.allocate"
         for output_name in camera_data.info:
             camera_data.info[output_name] = render_data.renderer_info.get(output_name)
-        return CaptureInfo(env_mask=render_data.capture_env_mask)
 
     def cleanup(self, render_data: IsaacRtxRenderData | None):
         """Detach annotators, destroy the owned tiled render product, and drop held refs.
