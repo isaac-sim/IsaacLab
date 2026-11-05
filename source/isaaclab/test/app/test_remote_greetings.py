@@ -3,9 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Startup and persistence contracts for remote greeting I/O."""
+"""Contracts for scheduled greetings, validated artwork, and offline startup."""
 
-import datetime
 import hashlib
 import io
 import json
@@ -13,55 +12,60 @@ import os
 import random
 import shutil
 import threading
-import time
 import urllib.request
 from contextlib import contextmanager
+from copy import deepcopy
+from datetime import date, datetime, timezone
 from types import SimpleNamespace
 from urllib.parse import urlsplit
 
 import pytest
 
-import isaaclab.app._remote_greetings as remote_greetings
+import isaaclab.app._remote_greetings as remote
+from isaaclab.app._greeting_catalog import AssetReference, decode_greeting, select_assets
 
 pytestmark = pytest.mark.kitless
 
 
-def _set_date(monkeypatch, day):
-    class FrozenDateTime(datetime.datetime):
-        @classmethod
-        def now(cls, tz=None):
-            return datetime.datetime(2026, 12, day, tzinfo=datetime.timezone.utc)
-
-    monkeypatch.setattr(remote_greetings, "datetime", FrozenDateTime)
+def _encode(payload, identifier="first"):
+    blob = json.dumps(payload, ensure_ascii=False).encode()
+    digest = hashlib.sha256(blob).hexdigest()
+    return blob, AssetReference(identifier, "holiday", f"assets/{identifier}.{digest[:16]}.json", digest, len(blob))
 
 
 def _add_asset(source, identifier, label="Season"):
     logos = tuple(
-        "\n".join([f"\x1b[38;2;255;0;128m{text}{' ' * padding}\x1b[0m"] * 12)
-        for text, padding in (("新春", 20), (label, 74 - len(label)))
+        "\n".join(["\x1b[0;38;2;255;0;128;48;2;0;32;255m" + text + "\x1b[39;49m"] * 12)
+        for text in ("新春" + " " * 20, label.ljust(74))
     )
     payload = {
         "schema_version": 1,
         "id": identifier,
         "collection": "holiday",
         "slots": [
-            {"cols": cols, "rows": 12, "frame_duration_ms": 100, "frames": [logo]}
-            for cols, logo in zip((24, 74), logos)
+            {"cols": cols, "rows": 12, "frame_duration_ms": duration, "frames": [logo, "\n".join([" " * cols] * 12)]}
+            for cols, duration, logo in zip((24, 74), (50, 5000), logos)
         ],
     }
-    blob = json.dumps(payload, ensure_ascii=False).encode()
-    digest = hashlib.sha256(blob).hexdigest()
-    path = f"assets/{identifier}.{digest[:16]}.json"
-    (source.directory / path).write_bytes(blob)
-    source.manifest["assets"][identifier] = {"path": path, "sha256": digest, "bytes": len(blob)}
+    blob, reference = _encode(payload, identifier)
+    (source.directory / reference.path).write_bytes(blob)
+    source.manifest["assets"][identifier] = {"path": reference.path, "sha256": reference.sha256, "bytes": len(blob)}
     source.manifest["collections"]["holiday"]["asset_ids"].append(identifier)
     source.catalog.write_text(json.dumps(source.manifest), encoding="utf-8")
-    return logos, path, blob
+    return SimpleNamespace(logos=logos, payload=payload, blob=blob, reference=reference)
 
 
 @pytest.fixture
 def source(tmp_path, monkeypatch):
-    source = SimpleNamespace(directory=tmp_path / "remote" / "Greetings", cache=tmp_path / "cache")
+    source = SimpleNamespace(
+        directory=tmp_path / "remote" / "Greetings",
+        cache=tmp_path / "cache",
+        now=datetime(2026, 12, 24, tzinfo=timezone.utc),
+        requests=[],
+        entered=threading.Event(),
+        release=threading.Event(),
+        done=threading.Event(),
+    )
     (source.directory / "assets").mkdir(parents=True)
     source.catalog = source.directory / "manifest.json"
     source.manifest = {
@@ -71,140 +75,189 @@ def source(tmp_path, monkeypatch):
         "assets": {},
         "schedule": {
             "timezone": "UTC",
-            "events": [{"id": "winter", "collection": "holiday", "start": "2026-12-24", "end": "2026-12-24"}],
+            "events": [
+                {"id": "later", "collection": "holiday", "start": "2027-01-01", "end": "2027-01-02"},
+                {"id": "winter", "collection": "holiday", "start": "2026-12-20", "end": "2026-12-27"},
+            ],
         },
     }
-    source.logos, source.asset, source.payload = _add_asset(source, "seasonal")
-    monkeypatch.setenv("XDG_CACHE_HOME", str(source.cache))
-    monkeypatch.setattr(remote_greetings, "ISAACLAB_NUCLEUS_DIR", str(source.directory.parent))
-    _set_date(monkeypatch, 24)
-    return source
+    source.first = _add_asset(source, "first")
+    source.release.set()
+    refresh = remote.RemoteGreetings._refresh
 
-
-def _wait_for_logos(loader, expected):
-    deadline = time.monotonic() + 2
-    while loader.logos != expected and time.monotonic() < deadline:
-        time.sleep(0.005)
-    assert loader.logos == expected
-
-
-def _assert_logos_stay(loader, expected):
-    deadline = time.monotonic() + 0.1
-    while time.monotonic() < deadline:
-        assert loader.logos == expected
-        time.sleep(0.005)
-
-
-def _serve_http(monkeypatch, source, release=None):
-    requested, entered, finished = [], threading.Event(), threading.Event()
+    def observed_refresh(loader):
+        try:
+            refresh(loader)
+        finally:
+            source.done.set()
 
     @contextmanager
     def open_url(opener, request, *args, **kwargs):
-        relative = urlsplit(request.full_url).path.removeprefix("/IsaacLab/Greetings/")
-        requested.append(relative)
-        entered.set()
-        if release is not None and not release.wait(3):
-            raise TimeoutError("The test did not release its HTTP response.")
-        with io.BytesIO((source.directory / relative).read_bytes()) as response:
+        path = urlsplit(request.full_url).path.removeprefix("/IsaacLab/Greetings/")
+        source.requests.append(path)
+        source.entered.set()
+        if not source.release.wait(2):
+            raise TimeoutError("Test did not release its HTTP response.")
+        with io.BytesIO((source.directory / path).read_bytes()) as response:
             yield response
-        finished.set()
 
+    monkeypatch.setenv("XDG_CACHE_HOME", str(source.cache))
+    monkeypatch.setattr(remote, "ISAACLAB_NUCLEUS_DIR", "https://greetings.example/IsaacLab")
+    monkeypatch.setattr(remote, "datetime", SimpleNamespace(now=lambda tz: source.now))
+    monkeypatch.setattr(remote.RemoteGreetings, "_refresh", observed_refresh)
     monkeypatch.setattr(urllib.request.OpenerDirector, "open", open_url)
-    monkeypatch.setattr(remote_greetings, "ISAACLAB_NUCLEUS_DIR", "https://greetings.example/IsaacLab")
-    return requested, entered, finished
+    return source
 
 
-def test_cold_start_returns_before_http_and_publishes_during_startup(source, monkeypatch):
-    release, result = threading.Event(), []
-    _, entered, _ = _serve_http(monkeypatch, source, release)
-    startup = threading.Thread(target=lambda: result.append(remote_greetings.RemoteGreetings()), daemon=True)
+def _load(source, **kwargs):
+    source.done.clear()
+    loader = remote.RemoteGreetings(**kwargs)
+    assert source.done.wait(2), "The background refresh did not finish."
+    return loader
+
+
+def test_utc_calendar_boundaries_order_and_fallback(source):
+    _add_asset(source, "second")
+    source.manifest["assets"] = dict(reversed(source.manifest["assets"].items()))
+    for day, identifiers in ((19, ()), (20, ("first", "second")), (27, ("first", "second")), (28, ())):
+        assert tuple(ref.identifier for ref in select_assets(source.manifest, date(2026, 12, day))) == identifiers, day
+    source.manifest["active_collection"] = "holiday"
+    source.manifest["schedule"]["events"][1]["collection"] = "default"
+    assert select_assets(source.manifest, source.now.date()) == ()
+    assert len(select_assets(source.manifest, date(2026, 1, 1))) == 2
+    del source.manifest["schedule"]
+    assert len(select_assets(source.manifest, source.now.date())) == 2
+
+
+def test_invalid_catalogs(source):
+    for field, value in (
+        ("path", "assets/../first." + source.first.reference.sha256[:16] + ".json"),
+        ("path", "https://example.com/" + source.first.reference.path),
+        ("sha256", "0" * 64),
+        ("bytes", 262145),
+    ):
+        manifest = deepcopy(source.manifest)
+        manifest["assets"]["first"][field] = value
+        with pytest.raises(ValueError):
+            select_assets(manifest, date(2026, 12, 19))
+    for field, value in (
+        ("start", "20261220"),
+        ("end", "2026-12-19"),
+        ("id", "later"),
+        ("collection", "missing"),
+        ("end", "2027-01-01"),
+    ):
+        manifest = deepcopy(source.manifest)
+        manifest["schedule"]["events"][1][field] = value
+        with pytest.raises(ValueError):
+            select_assets(manifest, source.now.date())
+    for change in (
+        {"schema_version": 2},
+        {"schedule": {"timezone": "local", "events": []}},
+        {"collections": {"default": {"asset_ids": []}, "holiday": {"asset_ids": ["first", "first"]}}},
+        {"collections": {"default": {"asset_ids": []}, "holiday": {"asset_ids": ["missing"]}}},
+    ):
+        with pytest.raises(ValueError):
+            select_assets({**source.manifest, **change}, source.now.date())
+
+
+def test_invalid_payloads(source):
+    blob, reference = _encode(source.first.payload)
+    for invalid in (reference._replace(size=len(blob) + 1), reference._replace(sha256="0" * 64)):
+        with pytest.raises(ValueError):
+            decode_greeting(blob, invalid)
+    for change in (
+        {"schema_version": 2},
+        {"id": "wrong"},
+        {"collection": "default"},
+        {"padding": " " * 262144},
+        {"slots": source.first.payload["slots"][::-1]},
+    ):
+        with pytest.raises(ValueError):
+            decode_greeting(*_encode({**source.first.payload, **change}))
+    for change in (
+        {"frames": ["\n".join(["新" * 24] * 12)]},
+        {"frames": [source.first.logos[0]] * 25},
+        {"frame_duration_ms": 49},
+    ):
+        payload = deepcopy(source.first.payload)
+        payload["slots"][0].update(change)
+        with pytest.raises(ValueError):
+            decode_greeting(*_encode(payload))
+    with pytest.raises(ValueError):
+        decode_greeting(*_encode([]))
+
+
+@pytest.mark.parametrize(
+    "control", ["\x1b[2J", "\x1b]8;;x\x07", "\x1b[1m", "\x1b[38;2;256;0;0m", "\r", "\x9b", "\u2028", "\u2029"]
+)
+def test_terminal_controls_in_unused_frames(source, control):
+    source.first.payload["slots"][1]["frames"][1] = "\n".join([" " * 37 + control + " " * 37] * 12)
+    with pytest.raises(ValueError):
+        decode_greeting(*_encode(source.first.payload))
+
+
+def test_startup_cache_variety_and_utc_expiry(source, monkeypatch):
+    second = _add_asset(source, "second", "Spring")
+    _add_asset(source, "third", "Winter")
+    monkeypatch.setattr(remote, "random", random.Random(1))
+    source.release.clear()
+    result = []
+    startup = threading.Thread(target=lambda: result.append(remote.RemoteGreetings()), daemon=True)
     startup.start()
     try:
-        assert entered.wait(1)
+        assert source.entered.wait(1)
         startup.join(0.25)
-        assert result, "Greeting construction waited for the HTTP response."
-        assert result[0].logos is None
+        assert result and result[0].logos is None
     finally:
-        release.set()
-    _wait_for_logos(result[0], source.logos)
-
-
-def test_partial_cache_is_available_offline_and_expires_by_utc_date(source, monkeypatch):
-    for identifier in ("alternate", "third"):
-        _add_asset(source, identifier)
-    monkeypatch.setattr(remote_greetings, "random", random.Random(1))
-    _wait_for_logos(remote_greetings.RemoteGreetings(), source.logos)
-    shutil.rmtree(source.directory)
-    # Seed 6 tries an uncached design first with either choice or shuffle.
-    monkeypatch.setattr(remote_greetings, "random", random.Random(6))
-    assert remote_greetings.RemoteGreetings().logos == source.logos
-    _set_date(monkeypatch, 25)
-    assert remote_greetings.RemoteGreetings().logos is None
-
-
-def test_cached_fallback_still_downloads_the_next_chosen_design(source, monkeypatch):
-    alternate, _, blob = _add_asset(source, "alternate", "Spring")
-    _serve_http(monkeypatch, source)
-    monkeypatch.setattr(remote_greetings, "random", random.Random(1))
-    _wait_for_logos(remote_greetings.RemoteGreetings(), source.logos)
-    release = threading.Event()
-    _, entered, _ = _serve_http(monkeypatch, source, release)
-    monkeypatch.setattr(remote_greetings, "random", random.Random(1))
-    loader = remote_greetings.RemoteGreetings()
+        source.release.set()
+    assert source.done.wait(2)
+    assert result[0].logos == source.first.logos
+    offline = source.directory.with_name("offline")
+    source.directory.rename(offline)
+    monkeypatch.setattr(remote, "random", random.Random(6))
+    assert _load(source).logos == source.first.logos
+    offline.rename(source.directory)
+    monkeypatch.setattr(remote, "random", random.Random(6))
+    source.entered.clear()
+    source.done.clear()
+    source.release.clear()
+    loader = remote.RemoteGreetings()
     try:
-        assert entered.wait(1), "Cached fallback prevented fetching the uncached chosen design."
-        assert loader.logos == source.logos
+        assert source.entered.wait(1)
+        assert loader.logos == source.first.logos
     finally:
-        release.set()
-    _wait_for_logos(loader, alternate)
-    assert any(cached.read_bytes() == blob for cached in source.cache.rglob(f"{hashlib.sha256(blob).hexdigest()}.json"))
+        source.release.set()
+    assert source.done.wait(2)
+    assert loader.logos == second.logos
+    assert any(path.read_bytes() == second.blob for path in source.cache.rglob(f"{second.reference.sha256}.json"))
+    source.now = datetime(2026, 12, 28, tzinfo=timezone.utc)
+    assert remote.RemoteGreetings().logos is None
 
 
-def test_invalid_refresh_preserves_valid_cache(source, monkeypatch):
-    _, _, finished = _serve_http(monkeypatch, source)
-    _wait_for_logos(remote_greetings.RemoteGreetings(), source.logos)
+def test_corrupt_refresh_preserves_valid_offline_cache(source):
+    corrupt = source.first.blob.replace(b"Season", b"Tamper")
+    asset = source.directory / source.first.reference.path
+    asset.write_bytes(corrupt)
+    assert _load(source).logos is None
+    assert all(path.read_bytes() != corrupt for path in source.cache.rglob("*") if path.is_file())
+    asset.write_bytes(source.first.blob)
+    assert _load(source).logos == source.first.logos
     source.catalog.write_text('{"schema_version": 99}', encoding="utf-8")
     for path in source.cache.rglob("manifest.json"):
         os.utime(path, (0, 0))
-    finished.clear()
-    loader = remote_greetings.RemoteGreetings()
-    assert finished.wait(1), "The stale catalog was not refreshed."
-    _assert_logos_stay(loader, source.logos)
+    assert _load(source).logos == source.first.logos
     shutil.rmtree(source.directory)
-    assert remote_greetings.RemoteGreetings().logos == source.logos
+    assert _load(source).logos == source.first.logos
 
 
-def test_corrupt_payload_is_not_displayed_or_cached(source, monkeypatch):
-    requested, _, _ = _serve_http(monkeypatch, source)
-    corrupt = source.payload.replace(b"Season", b"Tamper")
-    (source.directory / source.asset).write_bytes(corrupt)
-    loader = remote_greetings.RemoteGreetings()
-    deadline = time.monotonic() + 1
-    while source.asset not in requested and time.monotonic() < deadline:
-        time.sleep(0.005)
-    assert source.asset in requested
-    _assert_logos_stay(loader, None)
-    assert all(path.read_bytes() != corrupt for path in source.cache.rglob("*") if path.is_file())
-    (source.directory / source.asset).write_bytes(source.payload)
-    _wait_for_logos(remote_greetings.RemoteGreetings(), source.logos)
-
-
-def test_default_collection_never_fetches_remote_art(source, monkeypatch):
-    source.manifest["collections"] = {"default": {"asset_ids": ["seasonal"]}}
+def test_encoding_cache_permissions_and_default_fallback(source):
+    assert _load(source, encoding="ascii").logos is None
+    source.cache.write_text("Cache directory is blocked by a file.", encoding="utf-8")
+    assert _load(source).logos == source.first.logos
+    source.manifest["collections"] = {"default": {"asset_ids": ["first"]}}
     del source.manifest["schedule"]
     source.catalog.write_text(json.dumps(source.manifest), encoding="utf-8")
-    requested, _, finished = _serve_http(monkeypatch, source)
-    loader = remote_greetings.RemoteGreetings()
-    assert finished.wait(1)
-    _assert_logos_stay(loader, None)
-    assert not any(path.startswith("assets/") for path in requested)
-
-
-def test_encoding_and_unwritable_cache_do_not_break_startup(source, monkeypatch):
-    requested, _, finished = _serve_http(monkeypatch, source)
-    loader = remote_greetings.RemoteGreetings(encoding="ascii")
-    assert finished.wait(1)
-    _assert_logos_stay(loader, None)
-    assert source.asset in requested
-    source.cache.write_text("A file blocks cache directory creation.", encoding="utf-8")
-    _wait_for_logos(remote_greetings.RemoteGreetings(), source.logos)
+    source.requests.clear()
+    assert _load(source).logos is None
+    assert source.requests == ["manifest.json"]
