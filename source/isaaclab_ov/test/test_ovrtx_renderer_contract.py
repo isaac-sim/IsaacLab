@@ -251,8 +251,8 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
     OvrtxReplicateContext.prepare(sim, {OvrtxReplicateContext: set()})
     assert tuple(sim._backend_registry) == resources
     if use_ovstage:
-        domains = ovrtx_renderer_module.ovstage.PopulationDomain
-        assert renderer.scene.cfg.population_domains == (domains.ALL if shared_physics else domains.RENDERING)
+        assert renderer.scene.cfg.population_domains == ovrtx_renderer_module.ovstage.PopulationDomain.RENDERING
+        assert renderer.scene.cfg.populate_physics is shared_physics
     if shared_physics:
         with pytest.raises(ValueError, match="one OVRTX engine"):
             sim.get_or_create_backend(replace(renderer.cfg, log_level="error"))
