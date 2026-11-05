@@ -24,6 +24,10 @@ class BasePvaData(ABC):
 
     This base class defines the interface for PVA sensor data. Backend-specific
     implementations should inherit from this class and provide the actual data storage.
+
+    .. deprecated::
+        This public interface is retained for compatibility during the PVA data transition.
+        Read measurements through ``sensor.data`` instead. No removal release is scheduled.
     """
 
     @property

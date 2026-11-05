@@ -13,15 +13,13 @@ from .base_pva_data import BasePvaData
 
 if TYPE_CHECKING:
     from isaaclab_newton.sensors.pva import Pva as NewtonPva
-    from isaaclab_newton.sensors.pva import PvaData as NewtonPvaData
     from isaaclab_physx.sensors.pva import Pva as PhysXPva
-    from isaaclab_physx.sensors.pva import PvaData as PhysXPvaData
 
 
 class Pva(FactoryBase, BasePva):
     """Factory for creating PVA sensor instances."""
 
-    data: BasePvaData | NewtonPvaData | PhysXPvaData
+    data: BasePvaData
 
     def __new__(cls, *args, **kwargs) -> BasePva | NewtonPva | PhysXPva:
         """Create a new instance of a PVA sensor based on the backend."""

@@ -14,10 +14,11 @@ import warp as wp
 
 import isaaclab.utils.math as math_utils
 from isaaclab.sensors.imu import BaseImu
+from isaaclab.sensors.imu.kernels import imu_update_kernel
 from isaaclab.sim.utils.queries import path_expr_to_glob
+from isaaclab.utils.warp import memory as memory_kernels
 
 from .imu_data import ImuData
-from .kernels import imu_reset_kernel, imu_update_kernel
 
 if TYPE_CHECKING:
     from isaaclab.sensors.imu import ImuCfg
@@ -103,7 +104,7 @@ class Imu(BaseImu):
         super().reset(None, env_mask)
 
         wp.launch(
-            imu_reset_kernel,
+            memory_kernels.make_clear_pair(wp.vec3f, 1),
             dim=self._num_envs,
             inputs=[
                 env_mask,

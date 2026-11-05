@@ -3,11 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Warp kernels for the PhysX frame transformer sensor."""
-
 import warp as wp
-
-# ---- Frame transformer update kernel ----
 
 
 @wp.kernel
@@ -27,15 +23,15 @@ def frame_transformer_update_kernel(
     target_pos_source: wp.array2d(dtype=wp.vec3f),
     target_quat_source: wp.array2d(dtype=wp.quatf),
 ):
-    """Update frame transformer sensor data from raw PhysX transforms.
+    """Update frame transformer sensor data from world-frame transforms.
 
-    This kernel processes raw transforms from PhysX and computes:
+    This kernel processes raw transforms from the backend and computes:
     1. Source frame pose in world frame (with optional offset)
     2. Target frame poses in world frame (with optional offsets)
     3. Target frame poses relative to source frame
 
     Args:
-        raw_transforms: Raw transforms from PhysX view. Shape is (N*M,) where N is num_envs and M is num_bodies.
+        raw_transforms: Raw transforms from the backend view. Shape is (N*M,) where N is num_envs and M is num_bodies.
         source_raw_indices: Indices into raw_transforms for source frame per environment. Shape is (N,).
         target_raw_indices: Indices into raw_transforms for target frames per (env, frame). Shape is (N, M) where M is
             num_target_frames.
@@ -62,8 +58,9 @@ def frame_transformer_update_kernel(
     # Apply source frame offset
     source_offset_tf = wp.transform(source_offset_pos[env_id], source_offset_quat[env_id])
     source_tf_offset = wp.transform_multiply(source_tf, source_offset_tf)
-    source_pos_w[env_id] = wp.transform_get_translation(source_tf_offset)
-    source_quat_w[env_id] = wp.transform_get_rotation(source_tf_offset)
+    if frame_id == 0:
+        source_pos_w[env_id] = wp.transform_get_translation(source_tf_offset)
+        source_quat_w[env_id] = wp.transform_get_rotation(source_tf_offset)
 
     # Get target frame transform
     target_idx = target_raw_indices[env_id, frame_id]

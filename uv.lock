@@ -1773,7 +1773,7 @@ ui = [
 
 [[package]]
 name = "isaaclab"
-version = "43.0.0"
+version = "43.0.1"
 source = { editable = "source/isaaclab" }
 
 [[package]]
@@ -2182,7 +2182,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-newton"
-version = "14.0.0"
+version = "14.0.1"
 source = { editable = "source/isaaclab_newton" }
 dependencies = [
     { name = "isaaclab" },
@@ -2247,7 +2247,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-tasks"
-version = "30.0.0"
+version = "30.1.0"
 source = { editable = "source/isaaclab_tasks" }
 dependencies = [
     { name = "isaaclab" },
