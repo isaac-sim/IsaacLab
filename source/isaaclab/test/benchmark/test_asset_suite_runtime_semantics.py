@@ -130,7 +130,7 @@ def test_physx_collection_refresh_uses_flattened_body_count(monkeypatch) -> None
 def test_newton_rigid_object_refresh_regenerates_kinematics_and_mass_properties(monkeypatch) -> None:
     """Newton rigid-object preparation should refresh every legacy source buffer."""
     view = _RecordingView()
-    data = SimpleNamespace(_sim_timestamp=0.0)
+    data = SimpleNamespace(_sim_time=0.0)
     monkeypatch.setattr(newton_runtime, "np", np, raising=False)
     monkeypatch.setattr(newton_runtime, "wp", wp, raising=False)
     refresh = getattr(newton_runtime, "_refresh_rigid_object_data", None)
@@ -147,13 +147,13 @@ def test_newton_rigid_object_refresh_regenerates_kinematics_and_mass_properties(
         "inertias": (2, 1, 3),
         "masses": (2, 1, 3),
     }
-    assert data._sim_timestamp == 1.0
+    assert data._sim_time == 1.0
 
 
 def test_newton_collection_refresh_regenerates_kinematics_and_mass_properties(monkeypatch) -> None:
     """Newton collection preparation should refresh every source buffer."""
     view = _RecordingView()
-    data = SimpleNamespace(_sim_timestamp=0.0)
+    data = SimpleNamespace(_sim_time=0.0)
     monkeypatch.setattr(newton_runtime, "np", np, raising=False)
     monkeypatch.setattr(newton_runtime, "wp", wp, raising=False)
     refresh = getattr(newton_runtime, "_refresh_collection_data", None)
@@ -168,7 +168,7 @@ def test_newton_collection_refresh_regenerates_kinematics_and_mass_properties(mo
         "masses": (2, 3, 1),
         "inertias": (2, 3, 1),
     }
-    assert data._sim_timestamp == 1.0
+    assert data._sim_time == 1.0
 
 
 def test_ovphysx_data_targets_are_independent_and_properties_preflight_when_available() -> None:
@@ -230,9 +230,9 @@ def test_newton_articulation_open_targets_constructs_real_method_and_data_target
         # The dedicated data target applies joint/body ordering and installs the dynamics stubs.
         assert targets.data_target._jacobian_body_user_to_backend is not None
         assert targets.data_target.mass_matrix is not None
-        sim_timestamp = targets.data_target._sim_timestamp
+        sim_time = targets.data_target._sim_time
         targets.refresh_data(_CONFIG)
-        assert targets.data_target._sim_timestamp == sim_timestamp + 1.0
+        assert targets.data_target._sim_time == sim_time + 1.0
 
 
 def test_physx_cpu_boundary_reuses_int32_scratch_for_int64_env_ids(monkeypatch) -> None:

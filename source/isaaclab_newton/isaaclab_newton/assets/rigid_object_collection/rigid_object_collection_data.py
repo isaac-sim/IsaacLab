@@ -76,7 +76,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         self.num_instances = self._root_view.count // num_bodies
 
         # Set initial time stamp
-        self._sim_timestamp = 0.0
+        self._sim_time = 0.0
         self._is_primed = False
 
         # Bind ``GRAVITY_VEC_W`` to Newton's per-env ``model.gravity`` (m/s^2); the
@@ -114,13 +114,13 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         self._is_primed = value
 
     @property
-    def _data_stamp(self) -> float:
+    def _sim_timestamp(self) -> float:
         """Cache stamp of derived data; it advances with the simulated time and the backend's state version."""
         backend = self._backend_manager.backend
         if backend.device.is_capturing:
             # Replays bypass this host check, so every read recorded into a graph records its recompute.
             backend.state_version += 1
-        return self._sim_timestamp + backend.state_version
+        return self._sim_time + backend.state_version
 
     def update(self, dt: float) -> None:
         """Updates the data for the rigid object collection.
@@ -129,7 +129,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             dt: The time step for the update. This must be a positive value.
         """
         # update the simulation timestamp
-        self._sim_timestamp += dt
+        self._sim_time += dt
         # Trigger an update of the body com acceleration buffer at a higher frequency
         # since we do finite differencing.
         self.body_com_acc_w
@@ -270,7 +270,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         This quantity contains the linear and angular velocities of the actor frame of the root
         rigid body relative to the world.
         """
-        if self._body_link_vel_w.timestamp < self._data_stamp:
+        if self._body_link_vel_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_link_vel_w",
                 wp.launch,
@@ -285,7 +285,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
                     self._body_link_vel_w.data,
                 ],
             )
-            self._body_link_vel_w.timestamp = self._data_stamp
+            self._body_link_vel_w.timestamp = self._sim_timestamp
 
         return self._body_link_vel_w_ta
 
@@ -298,7 +298,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         This quantity is the pose of the center of mass frame of the rigid body relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
-        if self._body_com_pose_w.timestamp < self._data_stamp:
+        if self._body_com_pose_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_com_pose_w",
                 wp.launch,
@@ -312,7 +312,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
                     self._body_com_pose_w.data,
                 ],
             )
-            self._body_com_pose_w.timestamp = self._data_stamp
+            self._body_com_pose_w.timestamp = self._sim_timestamp
 
         return self._body_com_pose_w_ta
 
@@ -336,9 +336,9 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         (num_instances, num_bodies, 6).
         This quantity is the acceleration of the rigid bodies' center of mass frame relative to the world.
         """
-        if self._body_com_acc_w.timestamp < self._sim_timestamp:
+        if self._body_com_acc_w.timestamp < self._sim_time:
             # Finite-difference over the elapsed time, which spans the decimation when Newton owns it.
-            time_elapsed = self._sim_timestamp - self._body_com_acc_w.timestamp
+            time_elapsed = self._sim_time - self._body_com_acc_w.timestamp
             wp.launch(
                 shared_kernels.derive_body_acceleration_from_body_com_velocities,
                 dim=(self.num_instances, self.num_bodies),
@@ -352,7 +352,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
                     self._body_com_acc_w.data,
                 ],
             )
-            self._body_com_acc_w.timestamp = self._sim_timestamp
+            self._body_com_acc_w.timestamp = self._sim_time
         return self._body_com_acc_w_ta
 
     @property
@@ -370,7 +370,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             category=UserWarning,
             stacklevel=2,
         )
-        if self._body_com_pose_b.timestamp < self._data_stamp:
+        if self._body_com_pose_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_com_pose_b",
                 wp.launch,
@@ -383,7 +383,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
                     self._body_com_pose_b.data,
                 ],
             )
-            self._body_com_pose_b.timestamp = self._data_stamp
+            self._body_com_pose_b.timestamp = self._sim_timestamp
         return self._body_com_pose_b_ta
 
     @property
@@ -425,7 +425,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
         (num_instances, num_bodies, 3).
         """
-        if self._projected_gravity_b.timestamp < self._data_stamp:
+        if self._projected_gravity_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "projected_gravity_b",
                 wp.launch,
@@ -434,7 +434,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
                 inputs=[self.GRAVITY_VEC_W.warp, self.body_link_quat_w.warp],
                 outputs=[self._projected_gravity_b.data],
             )
-            self._projected_gravity_b.timestamp = self._data_stamp
+            self._projected_gravity_b.timestamp = self._sim_timestamp
         return self._projected_gravity_b_ta
 
     @property
@@ -447,7 +447,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             This quantity is computed by assuming that the forward-direction of the base
             frame is along x-direction, i.e. :math:`(1, 0, 0)`.
         """
-        if self._heading_w.timestamp < self._data_stamp:
+        if self._heading_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "heading_w",
                 wp.launch,
@@ -456,7 +456,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
                 inputs=[self.FORWARD_VEC_B.warp, self.body_link_quat_w.warp],
                 outputs=[self._heading_w.data],
             )
-            self._heading_w.timestamp = self._data_stamp
+            self._heading_w.timestamp = self._sim_timestamp
         return self._heading_w_ta
 
     @property
@@ -468,7 +468,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         This quantity is the linear velocity of the actor frame of the root rigid body frame with respect to the
         rigid body's actor frame.
         """
-        if self._body_link_lin_vel_b.timestamp < self._data_stamp:
+        if self._body_link_lin_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_link_lin_vel_b",
                 wp.launch,
@@ -477,7 +477,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
                 inputs=[self.body_link_quat_w.warp, self.body_link_lin_vel_w.warp],
                 outputs=[self._body_link_lin_vel_b.data],
             )
-            self._body_link_lin_vel_b.timestamp = self._data_stamp
+            self._body_link_lin_vel_b.timestamp = self._sim_timestamp
         return self._body_link_lin_vel_b_ta
 
     @property
@@ -489,7 +489,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         This quantity is the angular velocity of the actor frame of the root rigid body frame with respect to the
         rigid body's actor frame.
         """
-        if self._body_link_ang_vel_b.timestamp < self._data_stamp:
+        if self._body_link_ang_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_link_ang_vel_b",
                 wp.launch,
@@ -498,7 +498,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
                 inputs=[self.body_link_quat_w.warp, self.body_link_ang_vel_w.warp],
                 outputs=[self._body_link_ang_vel_b.data],
             )
-            self._body_link_ang_vel_b.timestamp = self._data_stamp
+            self._body_link_ang_vel_b.timestamp = self._sim_timestamp
         return self._body_link_ang_vel_b_ta
 
     @property
@@ -510,7 +510,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         This quantity is the linear velocity of the root rigid body's center of mass frame with respect to the
         rigid body's actor frame.
         """
-        if self._body_com_lin_vel_b.timestamp < self._data_stamp:
+        if self._body_com_lin_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_com_lin_vel_b",
                 wp.launch,
@@ -519,7 +519,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
                 inputs=[self.body_link_quat_w.warp, self.body_com_lin_vel_w.warp],
                 outputs=[self._body_com_lin_vel_b.data],
             )
-            self._body_com_lin_vel_b.timestamp = self._data_stamp
+            self._body_com_lin_vel_b.timestamp = self._sim_timestamp
         return self._body_com_lin_vel_b_ta
 
     @property
@@ -531,7 +531,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         This quantity is the angular velocity of the root rigid body's center of mass frame with respect to the
         rigid body's actor frame.
         """
-        if self._body_com_ang_vel_b.timestamp < self._data_stamp:
+        if self._body_com_ang_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_com_ang_vel_b",
                 wp.launch,
@@ -540,7 +540,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
                 inputs=[self.body_link_quat_w.warp, self.body_com_ang_vel_w.warp],
                 outputs=[self._body_com_ang_vel_b.data],
             )
-            self._body_com_ang_vel_b.timestamp = self._data_stamp
+            self._body_com_ang_vel_b.timestamp = self._sim_timestamp
         return self._body_com_ang_vel_b_ta
 
     """
@@ -869,7 +869,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             DeprecationWarning,
             stacklevel=2,
         )
-        if self._body_state_w.timestamp < self._data_stamp:
+        if self._body_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_state_w",
                 memory_kernels.concat,
@@ -877,7 +877,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
                 self.body_com_vel_w.warp,
                 self._body_state_w.data,
             )
-            self._body_state_w.timestamp = self._data_stamp
+            self._body_state_w.timestamp = self._sim_timestamp
 
         return self._body_state_w_ta
 
@@ -890,7 +890,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             DeprecationWarning,
             stacklevel=2,
         )
-        if self._body_link_state_w.timestamp < self._data_stamp:
+        if self._body_link_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_link_state_w",
                 memory_kernels.concat,
@@ -898,7 +898,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
                 self.body_link_vel_w.warp,
                 self._body_link_state_w.data,
             )
-            self._body_link_state_w.timestamp = self._data_stamp
+            self._body_link_state_w.timestamp = self._sim_timestamp
 
         return self._body_link_state_w_ta
 
@@ -911,7 +911,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             DeprecationWarning,
             stacklevel=2,
         )
-        if self._body_com_state_w.timestamp < self._data_stamp:
+        if self._body_com_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_com_state_w",
                 memory_kernels.concat,
@@ -919,6 +919,6 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
                 self.body_com_vel_w.warp,
                 self._body_com_state_w.data,
             )
-            self._body_com_state_w.timestamp = self._data_stamp
+            self._body_com_state_w.timestamp = self._sim_timestamp
 
         return self._body_com_state_w_ta
