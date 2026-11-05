@@ -30,8 +30,8 @@ from isaaclab.sim.schemas import MassCfg, UsdPhysicsCollisionCfg, UsdPhysicsRigi
 from isaaclab.utils import replace
 
 import isaaclab_tasks  # noqa: F401
+from isaaclab_tasks.benchmark.benchmark_mode import read_benchmark_mode
 from isaaclab_tasks.benchmark.render_benchmark.render_benchmark_env import RenderBenchmarkEnv
-from isaaclab_tasks.benchmark.render_benchmark.render_benchmark_env_cfg import _read_benchmark_mode
 from isaaclab_tasks.utils.hydra import collect_presets, resolve_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
@@ -63,9 +63,9 @@ def test_benchmark_mode_from_environment(monkeypatch, mode):
         monkeypatch.setenv("BENCHMARK_MODE", mode)
     if mode == "invalid":
         with pytest.raises(ValueError, match="Unknown BENCHMARK_MODE"):
-            _read_benchmark_mode()
+            read_benchmark_mode()
     else:
-        assert _read_benchmark_mode() == mode
+        assert read_benchmark_mode() == mode
 
 
 @pytest.mark.parametrize(
