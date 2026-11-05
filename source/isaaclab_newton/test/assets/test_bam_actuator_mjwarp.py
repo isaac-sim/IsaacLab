@@ -16,6 +16,8 @@ from newton import ModelBuilder
 from newton.solvers import SolverMuJoCo
 from newton_test_utils import local_usd, spawn_assets
 
+from pxr import Sdf, Usd
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import BamActuatorCfg, BamMotorCfg
 from isaaclab.actuators.newton import read_group_parameter, write_group_parameter
@@ -137,9 +139,11 @@ def test_native_pendulum_matches_recorded_trajectory(native_sim, device, pendulu
     """Replay command reversals, settling and per-environment friction changes.
 
     On CUDA the friction scales change after graph capture, so live parameter updates are
-    exercised with both state-buffer parities.
+    exercised with both state-buffer parities. The fixture authors the same fit, so the
+    decimation-2 run configures no drive value and runs on the asset's fit alone.
     """
-    (robot,) = _spawn_pendulums(native_sim, pendulum_usd, {"Robot": _make_cfg()})
+    cfg = _make_cfg() if decimation == 1 else BamActuatorCfg(joint_names_expr=[".*"])
+    (robot,) = _spawn_pendulums(native_sim, pendulum_usd, {"Robot": cfg})
     drive = robot.actuators["servo"].drive
     np.testing.assert_allclose(
         robot.data.joint_viscous_friction_coeff.torch.cpu().numpy(), _make_cfg().motor.friction_viscous, rtol=1e-6
@@ -252,22 +256,35 @@ def test_groups_sharing_one_actuator_reject_conflicting_settings(native_sim, dev
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.parametrize(
-    "solver_cfg, use_newton_actuators, overrides, error",
+    "solver_cfg, use_newton_actuators, overrides, usd_backlash, error",
     [
-        (FeatherstoneSolverCfg(), True, [{}], "BAM actuators require.*MJWarp"),
-        (None, False, [{}], "use_newton_actuators"),
+        (FeatherstoneSolverCfg(), True, [{}], False, "BAM actuators require.*MJWarp"),
+        (None, False, [{}], False, "use_newton_actuators"),
         (
             None,
             True,
             [{"backlash_joint_template": "passive_{}_backlash"}],
+            False,
             "BAM backlash requires.*passive_joint_backlash",
         ),
-        (None, True, [{}, {"vin_drop_gain_range": (0.0, 0.2)}], "sharing a Newton BAM actuator"),
+        (None, True, [{}], True, "model gearbox backlash; set.*backlash_joint_template"),
+        (None, True, [{}, {"vin_drop_gain_range": (0.0, 0.2)}], False, "sharing a Newton BAM actuator"),
     ],
-    ids=["featherstone", "lab-executed", "missing-play-hinge", "conflicting-robots"],
+    ids=["featherstone", "lab-executed", "missing-play-hinge", "missing-backlash-template", "conflicting-robots"],
 )
-def test_unsupported_setups_fail_at_startup(device, pendulum_usd, solver_cfg, use_newton_actuators, overrides, error):
+def test_unsupported_setups_fail_at_startup(
+    device, pendulum_usd, solver_cfg, use_newton_actuators, overrides, usd_backlash, error, tmp_path
+):
     """Setups BAM cannot run fail while the scene starts, instead of approximating friction or dropping settings."""
+    if usd_backlash:
+        layer = Sdf.Layer.CreateAnonymous()
+        layer.TransferContent(Sdf.Layer.FindOrOpen(pendulum_usd))
+        stage = Usd.Stage.Open(layer)
+        for prim in Usd.PrimRange(stage.GetDefaultPrim()):
+            if prim.GetTypeName() == "NewtonActuator":
+                prim.CreateAttribute("newton:hasBacklash", Sdf.ValueTypeNames.Int).Set(1)
+        pendulum_usd = str(tmp_path / "backlash_pendulum.usda")
+        stage.Export(pendulum_usd)
     sim_cfg = _make_sim_cfg(device, solver_cfg=solver_cfg, use_newton_actuators=use_newton_actuators)
     with build_simulation_context(device=device, gravity_enabled=True, add_ground_plane=False, sim_cfg=sim_cfg) as sim:
         sim._app_control_on_stop_handle = None  # noqa: SLF001

@@ -906,7 +906,6 @@ def test_lab_executed_explicit_groups_warn_once():
             damping=1.0,
             actuator_effort_limit=10.0,
             actuator_velocity_limit=10.0,
-            max_delay=0,
         ),
     }
     with warnings.catch_warnings(record=True) as caught_warnings:
