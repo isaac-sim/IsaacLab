@@ -3,6 +3,24 @@ Changelog
 
 .. towncrier release notes start
 
+43.0.1 (2026-11-04)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Reduced ray-caster memory use and ray-transform bandwidth by sharing the fixed local ray pattern
+  across sensor instances. The local ``ray_starts`` and ``ray_directions`` arrays became read-only
+  broadcast views; patterns should be configured through ``pattern_cfg`` before initialization.
+
+Fixed
+^^^^^
+
+* Fixed the first reset with PhysX physics taking many minutes on a machine without cached GPU kernels. Capturing the
+  Newton actuator graphs forced Warp to load and compile every imported module; it now loads only the kernels it
+  records.
+
+
 43.0.0 (2026-11-03)
 ~~~~~~~~~~~~~~~~~~~
 
