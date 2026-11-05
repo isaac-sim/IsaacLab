@@ -22,7 +22,7 @@ from packaging import version
 from pxr import Sdf, Usd, UsdGeom
 
 from isaaclab.app.settings_manager import get_settings_manager
-from isaaclab.renderers import BaseRenderer, CaptureInfo, RenderBufferKind, RenderBufferSpec
+from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import enable_extension
@@ -123,8 +123,6 @@ class IsaacRtxRenderData:
     intrinsic_stage: Any = None
     ppisp_pipeline: PpispPipeline | None = None
     """Post-render PPISP pipeline composed when ``spec.cfg.isp_cfg`` is set."""
-    capture_env_mask: wp.array | None = None
-    """Environments due for the capture being rendered; read in the same step, so the camera's array is kept."""
     _hdr_scratch_wp: wp.array | None = None
     """Internal HDR scratch buffer allocated when the user did not request
     ``"rgb_hdr"`` in ``data_types`` but the PPISP pipeline still needs
@@ -716,14 +714,7 @@ class IsaacRtxRenderer(BaseRenderer):
             hdr_source = hdr_proxy.warp if hdr_proxy is not None else render_data._hdr_scratch_wp
             render_data.ppisp_pipeline.apply(hdr_source, output_data[str(RenderBufferKind.RGBA)].warp)
 
-    def prepare_capture(
-        self, render_data: IsaacRtxRenderData, camera_data: CameraData, frame: ProxyArray, env_mask: wp.array
-    ) -> None:
-        """Keep the capture's environment mask for :meth:`read_output`.
-        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.prepare_capture`."""
-        render_data.capture_env_mask = env_mask
-
-    def read_output(self, render_data: IsaacRtxRenderData, camera_data: CameraData) -> CaptureInfo:
+    def read_output(self, render_data: IsaacRtxRenderData, camera_data: CameraData) -> None:
         """Populate per-output metadata collected during render(). Pixel data already written in render().
 
         This is a *replace*, not a *merge*: every seeded output key is reset to this frame's metadata,
@@ -736,7 +727,6 @@ class IsaacRtxRenderer(BaseRenderer):
         assert camera_data.info is not None, "CameraData.info should be created in CameraData.allocate"
         for output_name in camera_data.info:
             camera_data.info[output_name] = render_data.renderer_info.get(output_name)
-        return CaptureInfo(env_mask=render_data.capture_env_mask)
 
     def cleanup(self, render_data: IsaacRtxRenderData | None):
         """Detach annotators, destroy the owned tiled render product, and drop held refs.

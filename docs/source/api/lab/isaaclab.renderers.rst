@@ -8,7 +8,6 @@ isaaclab.renderers
   .. autosummary::
 
     BaseRenderer
-    CaptureInfo
     RendererCfg
 
 Base Renderer
@@ -17,10 +16,6 @@ Base Renderer
 .. autoclass:: BaseRenderer
   :members:
   :show-inheritance:
-  :exclude-members: __init__
-
-.. autoclass:: CaptureInfo
-  :members:
   :exclude-members: __init__
 
 Renderer Configuration
