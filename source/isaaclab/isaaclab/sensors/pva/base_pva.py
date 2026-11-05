@@ -90,7 +90,18 @@ class BasePva(SensorBase):
         """Reset enabled measurements and timing for the selected environments."""
         env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
         super().reset(None, env_mask)
-        wp.launch(pva_reset_kernel, self._num_envs, [env_mask, self._data.buffers], device=self._device)
+        wp.launch(
+            pva_reset_kernel,
+            self._num_envs,
+            [
+                env_mask,
+                self._data.pose_w.warp,
+                self._data._velocity_b,
+                self._data._acceleration_b,
+                self._data._gravity_b,
+            ],
+            device=self._device,
+        )
 
     def set_debug_vis(self, debug_vis: bool) -> bool:
         if debug_vis and "acceleration" not in self.cfg.data_types:
@@ -100,8 +111,19 @@ class BasePva(SensorBase):
     def _invalidate_initialize_callback(self, event):
         super()._invalidate_initialize_callback(event)
         self._data_dirty = False
-        if self._data.buffers.pose_w:
-            wp.launch(pva_reset_kernel, self._num_envs, [self._ALL_ENV_MASK, self._data.buffers], device=self._device)
+        if self._data.pose_w is not None:
+            wp.launch(
+                pva_reset_kernel,
+                self._num_envs,
+                [
+                    self._ALL_ENV_MASK,
+                    self._data.pose_w.warp,
+                    self._data._velocity_b,
+                    self._data._acceleration_b,
+                    self._data._gravity_b,
+                ],
+                device=self._device,
+            )
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         if debug_vis:

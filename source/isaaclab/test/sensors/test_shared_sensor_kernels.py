@@ -12,11 +12,11 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
+from isaaclab_newton.sensors.pva.pva_data import PvaData as NewtonPvaData
 
 from isaaclab.sensors.frame_transformer.kernels import frame_transformer_update_kernel
 from isaaclab.sensors.imu.kernels import imu_update_kernel
 from isaaclab.sensors.pva.kernels import make_pva_update, pva_reset_kernel
-from isaaclab.sensors.pva.pva_data import _PvaDataStorage
 from isaaclab.test.utils import DeviceScope, test_devices
 
 pytestmark = pytest.mark.unit
@@ -46,7 +46,7 @@ def test_imu_and_pva_transport_preserve_masks_and_distinct_gravity_contracts():
         for subset in (s for n in range(4) for s in combinations(("velocity", "acceleration", "projected_gravity"), n)):
             data_types = frozenset(("pose", *subset))
             kernel = make_pva_update(data_types)
-            data = _PvaDataStorage(data_types)
+            data = NewtonPvaData(data_types)
             data.create_buffers(2, "cpu")
             for group in data_types:
                 for field in expected[group]:
@@ -57,13 +57,22 @@ def test_imu_and_pva_transport_preserve_masks_and_distinct_gravity_contracts():
                 selected_inputs[2] = selected_inputs[4] = None
             if "acceleration" not in data_types:
                 selected_inputs[3] = None
-            wp.launch(kernel, 2, selected_inputs + [wp.vec3f(0, 0, -1), data.buffers])
+            wp.launch(
+                kernel,
+                2,
+                selected_inputs
+                + [wp.vec3f(0, 0, -1), data.pose_w.warp, data._velocity_b, data._acceleration_b, data._gravity_b],
+            )
             for group in data_types:
                 for field, value in expected[group].items():
                     actual = getattr(data, field).warp.numpy()
                     np.testing.assert_allclose(actual[0], value, atol=3e-6)
                     np.testing.assert_array_equal(actual[1], 99.0)
-            wp.launch(pva_reset_kernel, 2, [mask, data.buffers])
+            wp.launch(
+                pva_reset_kernel,
+                2,
+                [mask, data.pose_w.warp, data._velocity_b, data._acceleration_b, data._gravity_b],
+            )
             np.testing.assert_array_equal(data.pose_w.warp.numpy()[0], [0, 0, 0, 0, 0, 0, 1])
             for group in data_types - {"pose"}:
                 for field in expected[group]:
@@ -72,7 +81,7 @@ def test_imu_and_pva_transport_preserve_masks_and_distinct_gravity_contracts():
 
 
 def test_pva_data_owns_views_and_reports_unavailable_outputs(monkeypatch):
-    data = _PvaDataStorage(["pose", "velocity"])
+    data = NewtonPvaData(["pose", "velocity"])
     assert data.pose_w is None
     assert data.lin_vel_b is None
     with pytest.raises(NotImplementedError, match="acceleration"):
@@ -82,7 +91,7 @@ def test_pva_data_owns_views_and_reports_unavailable_outputs(monkeypatch):
     data.pos_w.warp.fill_(wp.vec3f(1, 2, 3))
     data.ang_vel_b.warp.fill_(wp.vec3f(4, 5, 6))
     np.testing.assert_array_equal(pose.warp.numpy(), [[1, 2, 3, 0, 0, 0, 1]] * 2)
-    np.testing.assert_array_equal(data.buffers.velocity_b.numpy(), [[0, 0, 0, 4, 5, 6]] * 2)
+    np.testing.assert_array_equal(data._velocity_b.numpy(), [[0, 0, 0, 4, 5, 6]] * 2)
     # Existing cached Torch views must observe mutations without a packing read.
     held = pose.torch
     data.quat_w.warp.fill_(wp.quatf(0, 0, 1, 0))
@@ -122,7 +131,7 @@ def test_pva_data_hierarchy_remains_importable(monkeypatch):
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_pva_partial_outputs_replay_and_reset_aliases(device):
-    data = _PvaDataStorage(["pose", "acceleration"])
+    data = NewtonPvaData(["pose", "acceleration"])
     data.create_buffers(2, device)
     pose = wp.array([[1, 2, 3, 0, 0, 0, 1]] * 2, dtype=wp.transformf, device=device)
     velocity = wp.array([[0, 0, 0, 0, 0, 2]] * 2, dtype=wp.spatial_vectorf, device=device)
@@ -130,7 +139,20 @@ def test_pva_partial_outputs_replay_and_reset_aliases(device):
     offset = wp.full(2, wp.vec3f(1, 0, 0), device=device)
     quat = wp.full(2, wp.quatf(0, 0, 0, 1), device=device)
     mask = wp.ones(2, dtype=wp.bool, device=device)
-    args = [mask, pose, velocity, acceleration, pose, offset, quat, wp.vec3f(), data.buffers]
+    args = [
+        mask,
+        pose,
+        velocity,
+        acceleration,
+        pose,
+        offset,
+        quat,
+        wp.vec3f(),
+        data.pose_w.warp,
+        data._velocity_b,
+        data._acceleration_b,
+        data._gravity_b,
+    ]
     kernel = make_pva_update(data.data_types)
     wp.launch(kernel, 2, args, device=device)
     with wp.ScopedCapture(device=device) as capture:
@@ -141,7 +163,12 @@ def test_pva_partial_outputs_replay_and_reset_aliases(device):
     np.testing.assert_allclose(data.pose_w.warp.numpy(), [[1, 0, 0, 0, 0, 0, 1]] * 2)
     held = data.pose_w.torch
     mask.assign(np.array([True, False]))
-    wp.launch(pva_reset_kernel, 2, [mask, data.buffers], device=device)
+    wp.launch(
+        pva_reset_kernel,
+        2,
+        [mask, data.pose_w.warp, data._velocity_b, data._acceleration_b, data._gravity_b],
+        device=device,
+    )
     torch.testing.assert_close(held, torch.tensor([[0.0, 0, 0, 0, 0, 0, 1], [1.0, 0, 0, 0, 0, 0, 1]], device=device))
 
 

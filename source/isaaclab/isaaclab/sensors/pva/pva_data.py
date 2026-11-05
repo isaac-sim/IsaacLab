@@ -24,20 +24,6 @@ from ...utils.warp.memory import split_views
 from .base_pva_data import BasePvaData
 
 
-@wp.struct
-class PvaBuffers:
-    """Kernel arguments referencing the allocations owned by :class:`_PvaDataStorage`.
-
-    Pose is always present. Disabled output groups have null arrays, not zero-valued
-    measurements. Linear and angular components share a spatial-vector allocation.
-    """
-
-    pose_w: wp.array(dtype=wp.transformf)
-    velocity_b: wp.array(dtype=wp.spatial_vectorf)
-    acceleration_b: wp.array(dtype=wp.spatial_vectorf)
-    projected_gravity_b: wp.array(dtype=wp.vec3f)
-
-
 class _PvaDataStorage(BasePvaData):
     """Shared PVA measurements with explicit optional output groups.
 
@@ -56,8 +42,8 @@ class _PvaDataStorage(BasePvaData):
         unknown = self._data_types - {"pose", "velocity", "acceleration", "projected_gravity"}
         if unknown:
             raise ValueError(f"Unknown core PVA data types: {sorted(unknown)}")
-        self.buffers = PvaBuffers()
         self._pose_w = self._pos_w = self._quat_w = None
+        self._velocity_b = self._acceleration_b = self._gravity_b = None
         self._lin_vel_b = self._ang_vel_b = None
         self._lin_acc_b = self._ang_acc_b = None
         self._projected_gravity_b = None
@@ -73,25 +59,22 @@ class _PvaDataStorage(BasePvaData):
         Reset defaults are identity pose, zero velocity/acceleration, and projected
         gravity along -Z until the first sample supplies the actual scene direction.
         """
-        self.buffers = PvaBuffers()
-        self.buffers.pose_w = wp.full(num_envs, wp.transform_identity(), dtype=wp.transformf, device=device)
-        pos, quat = split_views(self.buffers.pose_w, (wp.vec3f, wp.quatf))
-        self._pose_w, self._pos_w, self._quat_w = (ProxyArray(a) for a in (self.buffers.pose_w, pos, quat))
+        pose_w = wp.full(num_envs, wp.transform_identity(), dtype=wp.transformf, device=device)
+        pos, quat = split_views(pose_w, (wp.vec3f, wp.quatf))
+        self._pose_w, self._pos_w, self._quat_w = (ProxyArray(a) for a in (pose_w, pos, quat))
         if "velocity" in self.data_types:
-            self.buffers.velocity_b = wp.zeros(num_envs, dtype=wp.spatial_vectorf, device=device)
+            self._velocity_b = wp.zeros(num_envs, dtype=wp.spatial_vectorf, device=device)
             self._lin_vel_b, self._ang_vel_b = (
-                ProxyArray(a) for a in split_views(self.buffers.velocity_b, (wp.vec3f, wp.vec3f))
+                ProxyArray(a) for a in split_views(self._velocity_b, (wp.vec3f, wp.vec3f))
             )
         if "acceleration" in self.data_types:
-            self.buffers.acceleration_b = wp.zeros(num_envs, dtype=wp.spatial_vectorf, device=device)
+            self._acceleration_b = wp.zeros(num_envs, dtype=wp.spatial_vectorf, device=device)
             self._lin_acc_b, self._ang_acc_b = (
-                ProxyArray(a) for a in split_views(self.buffers.acceleration_b, (wp.vec3f, wp.vec3f))
+                ProxyArray(a) for a in split_views(self._acceleration_b, (wp.vec3f, wp.vec3f))
             )
         if "projected_gravity" in self.data_types:
-            self.buffers.projected_gravity_b = wp.full(
-                num_envs, wp.vec3f(0.0, 0.0, -1.0), dtype=wp.vec3f, device=device
-            )
-            self._projected_gravity_b = ProxyArray(self.buffers.projected_gravity_b)
+            self._gravity_b = wp.full(num_envs, wp.vec3f(0.0, 0.0, -1.0), dtype=wp.vec3f, device=device)
+            self._projected_gravity_b = ProxyArray(self._gravity_b)
 
     @property
     @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names=POSE7_ELEMENT_NAMES)

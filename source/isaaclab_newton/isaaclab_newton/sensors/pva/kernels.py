@@ -10,16 +10,16 @@ from functools import cache
 import warp as wp
 
 from isaaclab.sensors.pva.kernels import make_pva_writer
-from isaaclab.sensors.pva.pva_data import PvaBuffers
 
 
 @cache
 def make_pva_update(data_types: frozenset[str]) -> wp.Kernel:
     """Return a native gather and shared writer for the requested output groups."""
-    write = make_pva_writer(data_types)
-    velocity = "velocity" in data_types or "acceleration" in data_types
+    write_velocity = "velocity" in data_types
     acceleration = "acceleration" in data_types
     gravity_enabled = "projected_gravity" in data_types
+    write = make_pva_writer(write_velocity, acceleration, gravity_enabled)
+    read_velocity = write_velocity or acceleration
 
     @wp.kernel(module="unique")
     def update(
@@ -33,7 +33,10 @@ def make_pva_update(data_types: frozenset[str]) -> wp.Kernel:
         body_q: wp.array(dtype=wp.transformf),
         body_qd: wp.array(dtype=wp.spatial_vectorf),
         body_qdd: wp.array(dtype=wp.spatial_vectorf),
-        out: PvaBuffers,
+        pose_w: wp.array(dtype=wp.transformf),
+        velocity_b: wp.array(dtype=wp.spatial_vectorf),
+        acceleration_b: wp.array(dtype=wp.spatial_vectorf),
+        projected_gravity_b: wp.array(dtype=wp.vec3f),
     ):
         i = wp.tid()
         if not env_mask[i]:
@@ -44,13 +47,25 @@ def make_pva_update(data_types: frozenset[str]) -> wp.Kernel:
         acc = wp.spatial_vectorf()
         com = wp.vec3f()
         g = wp.vec3f()
-        if wp.static(velocity):
+        if wp.static(read_velocity):
             vel = body_qd[body]
             com = body_com[body]
         if wp.static(acceleration):
             acc = body_qdd[body]
         if wp.static(gravity_enabled):
             g = wp.normalize(gravity[wp.max(body_world[body], 0)])
-        write(i, body_q[body], shape_transform[site], com, vel, acc, g, out)
+        write(
+            i,
+            body_q[body],
+            shape_transform[site],
+            com,
+            vel,
+            acc,
+            g,
+            pose_w,
+            velocity_b,
+            acceleration_b,
+            projected_gravity_b,
+        )
 
     return update

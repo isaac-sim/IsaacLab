@@ -67,8 +67,6 @@ class Pva(BasePva):
         self._data = PvaData(self.cfg.data_types)
         self._update_kernel = make_pva_update(self._data.data_types)
         self._rigid_parent_expr: str | None = None
-        # Sentinel — set in :meth:`_initialize_impl`; ``None`` means the sensor has not been bound yet
-        # (used by :meth:`_debug_vis_callback` to safely no-op before init).
         self._root_view: OvPhysxView | None = None
 
     def __str__(self) -> str:
@@ -194,7 +192,10 @@ class Pva(BasePva):
                 self._offset_pos_b,
                 self._offset_quat_b,
                 self._gravity_vec_w,
-                self._data.buffers,
+                self._data.pose_w.warp,
+                self._data._velocity_b,
+                self._data._acceleration_b,
+                self._data._gravity_b,
             ],
             device=self._device,
         )

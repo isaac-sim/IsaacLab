@@ -138,7 +138,12 @@ class Pva(BasePva):
                 state.body_qd,
                 state.body_qdd if "acceleration" in self._data.data_types else None,
             ],
-            outputs=[self._data.buffers],
+            outputs=[
+                self._data.pose_w.warp,
+                self._data._velocity_b,
+                self._data._acceleration_b,
+                self._data._gravity_b,
+            ],
             device=self._device,
         )
 
