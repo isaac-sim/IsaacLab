@@ -55,6 +55,7 @@ class _RecordingView:
 
     def _record(self, name: str, value) -> None:
         self.calls[name] = tuple(value.shape)
+        self._attributes[name] = value.numpy()
 
     def set_mock_transforms(self, value) -> None:
         self._record("transforms", value)
@@ -128,7 +129,7 @@ def test_physx_collection_refresh_uses_flattened_body_count(monkeypatch) -> None
 
 
 def test_newton_rigid_object_refresh_regenerates_kinematics_and_mass_properties(monkeypatch) -> None:
-    """Newton rigid-object preparation should refresh every legacy source buffer."""
+    """Newton rigid-object preparation should refresh sources with consistent root/body kinematics."""
     view = _RecordingView()
     data = SimpleNamespace(_sim_timestamp=0.0)
     monkeypatch.setattr(newton_runtime, "np", np, raising=False)
@@ -148,6 +149,8 @@ def test_newton_rigid_object_refresh_regenerates_kinematics_and_mass_properties(
         "masses": (2, 1, 3),
     }
     assert data._sim_timestamp == 1.0
+    np.testing.assert_array_equal(view._attributes["root_transforms"], view._attributes["link_transforms"][:, :, 0])
+    np.testing.assert_array_equal(view._attributes["root_velocities"], view._attributes["link_velocities"][:, :, 0])
 
 
 def test_newton_collection_refresh_regenerates_kinematics_and_mass_properties(monkeypatch) -> None:

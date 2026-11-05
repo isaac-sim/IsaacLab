@@ -15,6 +15,10 @@ from isaaclab.benchmark.asset_suites.types import AssetBenchmarkTargets
 args = SimpleNamespace(no_shape_checks=False)
 
 
+def _noop(*_args, **_kwargs) -> None:
+    pass
+
+
 def _initialize_mock_asset(asset) -> None:
     for name in ("_initialize_handle", "_invalidate_initialize_handle", "_prim_deletion_handle", "_debug_vis_handle"):
         object.__setattr__(asset, name, None)
@@ -115,6 +119,7 @@ def create_test_articulation(
     object.__setattr__(articulation, "_ALL_FIXED_TENDON_MASK", wp.zeros((0,), dtype=wp.bool, device=device))
     object.__setattr__(articulation, "_ALL_SPATIAL_TENDON_INDICES", wp.array([], dtype=wp.int32, device=device))
     object.__setattr__(articulation, "_ALL_SPATIAL_TENDON_MASK", wp.zeros((0,), dtype=wp.bool, device=device))
+    object.__setattr__(articulation, "_clamped_default_count", wp.zeros(1, dtype=wp.int32, device=device))
 
     from isaaclab.actuators import ActuatorCollection
 
@@ -264,20 +269,24 @@ def _refresh_rigid_object_data(mock_view, data, config) -> None:
     num_instances, num_bodies, device = config.num_instances, config.num_bodies, config.device
     root_transforms = np.random.randn(num_instances, 1, 7).astype(np.float32)
     root_transforms[..., 3:7] /= np.linalg.norm(root_transforms[..., 3:7], axis=-1, keepdims=True)
+    root_velocities = np.random.randn(num_instances, 1, 6).astype(np.float32)
     mock_view.set_mock_root_transforms(wp.array(root_transforms, dtype=wp.transformf, device=device))
     mock_view.set_mock_root_velocities(
         wp.array(
-            np.random.randn(num_instances, 1, 6).astype(np.float32),
+            root_velocities,
             dtype=wp.spatial_vectorf,
             device=device,
         )
     )
     link_transforms = np.random.randn(num_instances, 1, num_bodies, 7).astype(np.float32)
     link_transforms[..., 3:7] /= np.linalg.norm(link_transforms[..., 3:7], axis=-1, keepdims=True)
+    link_transforms[:, :, 0] = root_transforms
+    link_velocities = np.random.randn(num_instances, 1, num_bodies, 6).astype(np.float32)
+    link_velocities[:, :, 0] = root_velocities
     mock_view.set_mock_link_transforms(wp.array(link_transforms, dtype=wp.transformf, device=device))
     mock_view.set_mock_link_velocities(
         wp.array(
-            np.random.randn(num_instances, 1, num_bodies, 6).astype(np.float32),
+            link_velocities,
             dtype=wp.spatial_vectorf,
             device=device,
         )
@@ -400,7 +409,12 @@ def open_asset_targets(adapter, request, method_config, data_config):
         num_instances=method_config.num_instances,
         num_bodies=method_config.num_bodies,
         num_joints=method_config.num_joints,
+        device=method_config.device,
     )
+    # Mock call histories retain arrays and distort the measured Python overhead.
+    backend_manager.forward = _noop
+    backend_manager.invalidate_fk = _noop
+    backend_manager.add_model_change = _noop
     if adapter.component == "articulation":
         target, _ = create_test_articulation(
             num_instances=method_config.num_instances,
