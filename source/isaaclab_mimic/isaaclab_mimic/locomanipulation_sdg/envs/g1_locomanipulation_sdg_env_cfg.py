@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg, IsaacRtxRendererGlobalSettingsCfg
 
 import isaaclab.sim as sim_utils
@@ -124,6 +125,11 @@ class G1LocomanipulationSDGObservationsCfg(ObservationsCfg):
 @configclass
 class G1LocomanipulationSDGEnvCfg(LocomanipulationG1EnvCfg, LocomanipulationSDGEnvCfg):
     """Configuration for the G1 29DoF environment."""
+
+    class_type: type | str = "{DIR}.g1_locomanipulation_sdg_env:G1LocomanipulationSDGEnv"
+    sim: sim_utils.SimulationCfg = sim_utils.SimulationCfg(physics=PhysxCfg())
+    """Isaac Sim PhysX only: the SDG environment does not run the teleoperation task's kitless
+    backend preparation, so the inherited ``ovphysx``/``newton_mjwarp`` selectors are not offered."""
 
     # Scene settings
     scene: G1LocomanipulationSDGSceneCfg = G1LocomanipulationSDGSceneCfg(num_envs=1, env_spacing=2.5)

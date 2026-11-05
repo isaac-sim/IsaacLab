@@ -21,8 +21,14 @@ XR anchor synchronization, retargeting pipelines, and action-tensor generation.
   parameters when `retargeters_to_tune` is provided.
 - **XR camera feedback** -- selected scene cameras can be shown through Kit Scene UI using a
   feed-owned CUDA view of their existing RTX render product, with camera-buffer fallback.
+  The optional [OVXR path](kitless_xr.md) shows them as OpenXR quad layers; its desktop mirror
+  shows eye images without those layers.
 
 ## Architecture
+
+The [OVXR application adapter](OVXR_ADAPTER.md) connects a simulation-owned
+renderer to Isaac Capture. XR session integration belongs to `isaaclab_teleop`;
+`isaaclab_ov` supplies the generic renderer/scene lease and lifetime checks.
 
 `IsaacTeleopDevice` composes three focused collaborators:
 
@@ -31,6 +37,15 @@ XR anchor synchronization, retargeting pipelines, and action-tensor generation.
 | `XrAnchorManager` | XR anchor prim setup, dynamic/static synchronization, coordinate-frame transform computation |
 | `TeleopSessionLifecycle` | Pipeline building, OpenXR handle acquisition, session create/destroy, action-tensor extraction |
 | `CommandHandler` | Callback registration and XR message-bus command dispatch |
+
+For kitless XR, `isaaclab_teleop` owns session preparation and tracking anchors.
+It borrows the application renderer through `isaaclab_ov`'s `OvLibrariesRenderLease`
+interface. The renderer retains ownership of native resources, thread synchronization
+and GPU scene publication. Robot-specific action conditioning and physics preparation
+remain in the task package.
+`isaaclab_teleop` also owns camera-panel selection and presentation policy; live
+teleoperation and replay share the camera-feed configuration helpers in
+`isaaclab_teleop.camera_feed`.
 
 ## Usage
 
@@ -98,6 +113,9 @@ uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
     --task My-Isaac-Capture-Env-v0 --xr
 ```
 
+For kitless teleoperation, installation, MCAP replay, camera panels and the
+optional desktop mirror, see [Kitless XR teleoperation](kitless_xr.md).
+
 See [XR Camera Feedback](../../../docs/source/features/isaac_teleop.rst#xr-camera-feedback) for
 reference tasks, camera selection, layout, placement, renderer, disable, and kitless behavior.
 
@@ -136,6 +154,9 @@ rendering without blocking.
 | `sim_device` | `str` | `"cuda:0"` | Torch device for output action tensors |
 | `retargeting_execution` | `RetargetingExecutionConfig \| None` | `None` (resolved at session start to `mode="pipelined", pacing=DeadlinePacingConfig(safety_margin_s=0.025)`) | Isaac Capture retargeting execution settings; deferred so the config imports without `isaacteleop` |
 | `teleoperation_active_default` | `bool` | `False` | Whether teleoperation is active on session start |
+| `require_initial_bimanual_hand_tracking` | `bool` | `False` | Wait for initial hand presence before stepping |
+| `action_conditioner` | `Callable \| None` | `None` | Task-owned stateful pre-step action conditioning |
+| `action_validator` | `Callable \| None` | `None` | Task-owned fail-closed action validation |
 | `app_name` | `str` | `"IsaacLabTeleop"` | Application name for the Isaac Capture session |
 
 The 25 ms `DeadlinePacingConfig` safety margin staggers Isaac Capture's Python work behind Isaac Lab's
@@ -148,17 +169,36 @@ contend for the GIL at the start of the step.
 |---|---|---|---|
 | `anchor_pos` | `tuple[float, float, float]` | `(0, 0, 0)` | XR anchor position in world frame |
 | `anchor_rot` | `tuple[float, float, float, float]` | `(0, 0, 0, 1)` | XR anchor rotation (quaternion xyzw) |
-| `anchor_prim_path` | `str \| None` | `None` | Prim to attach anchor to for dynamic positioning |
+| `excluded_visual_meshes` | `list[str]` | `[]` | Visual-mesh regexes assigned to a separate render-export partition, without changing source USD visibility |
+| `anchor_prim_path` | `str \| None` | `None` | Prim to attach anchor to for dynamic positioning; OVXR reads committed physics poses and shares the same anchor policy |
 | `anchor_rotation_mode` | `XrAnchorRotationMode` | `FIXED` | How anchor rotation tracks the reference prim |
 | `anchor_rotation_smoothing_time` | `float` | `1.0` | Slerp time constant (seconds) for `FOLLOW_PRIM_SMOOTHED` mode |
 | `anchor_rotation_custom_func` | `Callable` | identity | Custom rotation function for `CUSTOM` mode |
 | `near_plane` | `float` | `0.15` | Near clipping plane distance for the XR device |
 | `fixed_anchor_height` | `bool` | `True` | Fix anchor height to initial value of the reference prim |
 
+For single-environment OVXR, prefer `excluded_visual_meshes` for a robot
+head surrounding the eyes. Match only visual mesh paths, not head links or
+collision geometry. Environment cameras select `env_0`; excluded meshes use
+`xr_excluded`, with `showAllPartitionsByDefault=false`. This also excludes the
+head from PiP cameras selecting `env_0`; other camera views require an explicit
+partition policy. The source Stage's visibility and instancing are restored after
+render export. GR1T2 and fixed-base G1 use this policy.
+
+## Capture and replay boundaries
+
+MCAP records DeviceIO tracker/control input, not historical simulation scenes.
+Environment/control reset does not rewind MCAP input. HDF5
+demonstration scripts use the Kit/Isaac Sim application path; these OVXR
+commands do not qualify HDF5 recording/replay.
+PiP and mirror consume latest completed images rather than a history of simulation
+scenes; they are not lossless recorders or rolling-shutter playback.
+
 ## Utilities
 
-- **`remove_camera_configs(env_cfg)`** -- strips camera sensors and their associated policy
+- **`remove_camera_configs(env_cfg, keep=())`** -- strips camera sensors and their associated policy
   observation terms.
+  Cameras named in `keep` stay in the scene, but their observation terms are still removed.
 
 ## Run with Docker
 
@@ -177,8 +217,13 @@ In the Isaac Sim UI, set the AR panel to **System OpenXR Runtime** and click **S
 For a fully headless experience, omit `--visualizer kit` when running Docker, and the XR teleop session will
 run automatically.
 
+For OVXR, use the separate [kitless XR installation and runtime guide](kitless_xr.md).
+
 ## Dependencies
 
 - **`isaaclab`** -- core Isaac Lab framework
+- **`isaaclab_ov`** -- required by the optional OVXR session adapter; the standalone `isaaclab_teleop` package does not install this backend automatically
 - **`isaacteleop`** -- Isaac Capture retargeting engine, device I/O, and session management
 - **`isaacsim`** -- Isaac Sim runtime (provides the Kit XR bridge for OpenXR handle acquisition)
+- **OVXR / OVRTX / OVStage** -- matched native runtime and stock peers for OVXR
+- **OVUI** -- optional desktop-mirror extra; headset-only operation does not import it

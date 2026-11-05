@@ -51,6 +51,15 @@ class XrCfg:
     This quantity is only effective if :attr:`xr_anchor_pos` is set.
     """
 
+    excluded_visual_meshes: list[str] = []
+    """Mesh-path regexes excluded from the OVXR eye cameras and camera panels by scene partition.
+
+    This leaves USD visibility and the source scene unchanged. Only matching
+    visual meshes in the single-environment render export enter the
+    ``xr_excluded`` partition. Camera selectors remain independent; collisions
+    and link/camera transforms must not be matched.
+    """
+
     anchor_prim_path: str | None = None
     """Specifies the prim path to attach the XR anchor to for dynamic positioning.
 
@@ -59,6 +68,10 @@ class XrCfg:
     robot teleoperation where the robot moves and the XR camera should follow it.
     :func:`~isaaclab_teleop.create_isaac_teleop_device` expands ``{ENV_REGEX_NS}`` when
     given an ``env_prim_path``; direct device construction requires a concrete path.
+
+    Kit sessions use XRCore to follow the reference. Application-owned OVXR presentation
+    uses committed physics references for the same rotation and height policies. Input cannot
+    consume an unseeded or failed publication epoch; no static pose is substituted.
 
     If None, the anchor will use the static :attr:`anchor_pos` and :attr:`anchor_rot` values.
     """
@@ -111,7 +124,7 @@ class XrCfg:
 from typing import Any
 
 
-def remove_camera_configs(env_cfg: Any) -> Any:
+def remove_camera_configs(env_cfg: Any, *, keep: tuple[str, ...] = ()) -> Any:
     """Removes cameras from environments when using XR devices.
 
     Having additional cameras cause operation performance issues. This function scans the environment
@@ -120,6 +133,9 @@ def remove_camera_configs(env_cfg: Any) -> Any:
 
     Args:
         env_cfg: The environment configuration to modify.
+        keep: Camera attribute names to retain for the OVXR renderer.
+            Observation terms are removed for retained cameras as well, so the
+            application loop never requests a second camera render.
 
     Returns:
         The modified environment configuration with cameras removed.
@@ -136,8 +152,9 @@ def remove_camera_configs(env_cfg: Any) -> Any:
     for attr_name in dir(env_cfg.scene):
         attr = getattr(env_cfg.scene, attr_name)
         if isinstance(attr, CameraCfg):
-            delattr(env_cfg.scene, attr_name)
-            logger.info(f"Removed camera config: {attr_name}")
+            if attr_name not in keep:
+                delattr(env_cfg.scene, attr_name)
+                logger.info(f"Removed camera config: {attr_name}")
 
             # Remove any ObsTerms for the camera
             if hasattr(env_cfg.observations, "policy"):

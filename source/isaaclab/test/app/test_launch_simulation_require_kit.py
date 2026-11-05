@@ -256,3 +256,40 @@ def test_legacy_recording_reuses_the_display_producer(kit_branch_taken, visualiz
         assert cfg.sim.visualizer_cfgs[0].headless == (not visualizers)
         assert args.get("enable_cameras", False) == (source == "kit")
     assert kit_branch_taken == [True] * (source == "kit")
+
+
+@pytest.mark.parametrize(
+    "application_owns_cleanup,drain_failed", [(False, False), (False, True), (True, False), (True, True)]
+)
+def test_context_cleanup_respects_application_drain_ownership(monkeypatch, application_owns_cleanup, drain_failed):
+    """An outer launcher must not release a context retained by a failed native drain."""
+    from isaaclab.sim import SimulationContext
+
+    state = {"context": None}
+    released = []
+
+    def clear():
+        released.append(state["context"])
+        state["context"] = None
+
+    monkeypatch.setattr(SimulationContext, "instance", lambda: state["context"])
+    monkeypatch.setattr(SimulationContext, "clear_instance", clear)
+    context = object()
+
+    def run():
+        with launch_simulation(PhysicsCfg(), cleanup_context=not application_owns_cleanup):
+            state["context"] = context
+            if drain_failed:
+                raise RuntimeError("consumer drain unproved")
+            if application_owns_cleanup:
+                # The already-owning environment/worker performs normal release.
+                SimulationContext.clear_instance()
+
+    if drain_failed:
+        with pytest.raises(RuntimeError, match="consumer drain unproved"):
+            run()
+    else:
+        run()
+    retained = application_owns_cleanup and drain_failed
+    assert released == ([] if retained else [context])
+    assert state["context"] is (context if retained else None)

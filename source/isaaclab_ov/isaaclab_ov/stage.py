@@ -199,11 +199,12 @@ class OvstageBackend:
         self.clone_env_paths: list[str] = []
         self.population_env_paths: list[str] = []
         self.clone_positions: np.ndarray | None = None
+        self._render_lease_owner = None
         self.resources = contextlib.ExitStack()
         """Release borrowers before paths and stage, in reverse registration order."""
         self.reset()
 
-    def populate(self, usda: str) -> None:
+    def populate(self, usda: str, *, population_desc: ovstage.population.Desc | None = None) -> None:
         """Import the exported prototypes and apply the clone context's prepared operations.
 
         Population commits ordinal 1. Consumers may then author render products and poses
@@ -211,12 +212,18 @@ class OvstageBackend:
 
         Args:
             usda: USD scene containing the routed prototypes and their materials.
+            population_desc: Optional native property selection for this scene population.
         """
         if self.ordinal:
             return
 
         # Ordinal 0 is the empty state; population and cloning form the first committed write.
-        ovstage.population.open_usd_from_string(self.stage, usda, ordinal=1, domains=self.cfg.population_domains)
+        if population_desc is None:
+            ovstage.population.open_usd_from_string(self.stage, usda, ordinal=1, domains=self.cfg.population_domains)
+        else:
+            ovstage.population.open_usd_from_string_with_desc(
+                self.stage, usda, ordinal=1, time=float("nan"), descs=population_desc
+            )
         ovstage_replicate(
             self.stage, self.paths, self.clone_copies, self.clone_env_paths, self.clone_positions, ordinal=1
         )
@@ -248,12 +255,22 @@ class OvstageBackend:
         return ordinal
 
     def close(self) -> None:
-        """Release borrowers, then the path dictionary and stage."""
+        """Release borrowers, then the path dictionary and stage.
+
+        Raises:
+            RuntimeError: If an :class:`~isaaclab_ov.renderers.OvLibrariesRenderLease` is active.
+        """
+        if self._render_lease_owner is not None:
+            raise RuntimeError("Cannot destroy or reset a stage with an active render lease")
         self.resources.close()
         self.stage = self.paths = None
 
     def reset(self) -> None:
-        """Recreate the native stage after all consumers detach, retaining the prepared clone operations."""
+        """Recreate the native stage after all consumers detach, retaining the prepared clone operations.
+
+        Raises:
+            RuntimeError: If an :class:`~isaaclab_ov.renderers.OvLibrariesRenderLease` is active.
+        """
         self.close()
         self.ordinal = self.next_camera_id = 0
         with contextlib.ExitStack() as resources:
@@ -270,6 +287,7 @@ def export_stage_to_string(
     *,
     env_paths: Sequence[str] = (),
     preserve_references: bool = False,
+    preserve_partition_visibility: bool = False,
 ) -> str:
     """Export routed prototypes without mutating the simulation's authored USD stage.
 
@@ -286,6 +304,9 @@ def export_stage_to_string(
         preserve_references: Retain clean file-backed references and instances instead of baking
             their geometry into text. Anonymous or unsaved referenced layers require full
             composition so that the returned string does not depend on their Python lifetime.
+        preserve_partition_visibility: Keep an authored ``showAllPartitionsByDefault`` value instead
+            of forcing every scene partition visible to perspective cameras. Leased exports set this
+            so that an external presenter's scene partition can hide meshes from its cameras.
 
     Returns:
         USDA text containing the selected prototypes. By default, composition arcs are baked.
@@ -294,13 +315,16 @@ def export_stage_to_string(
     export_session.subLayerPaths = [stage.GetSessionLayer().identifier]
     export_stage = Usd.Stage.Open(stage.GetRootLayer(), export_session)
     export_stage.SetEditTarget(export_session)
-    # Perspective cameras see every partition; sensor cameras retain their explicit partition.
+    # Perspective cameras see every partition, unless a leased export preserves an authored value
+    # (the XR scene partition hides excluded meshes this way); sensor cameras retain their partition.
     settings_path = export_stage.GetMetadata("renderSettingsPrimPath") or "/Render/IsaacLabSettings"
     settings = UsdRender.Settings.Define(export_stage, settings_path)
     settings.GetPrim().AddAppliedSchema("OmniRtxSettingsGlobalCommonAPI_1")
-    settings.GetPrim().CreateAttribute(
+    show_all = settings.GetPrim().CreateAttribute(
         "omni:rtx:scenePartitioning:showAllPartitionsByDefault", Sdf.ValueTypeNames.Bool
-    ).Set(True)
+    )
+    if not (preserve_partition_visibility and show_all.HasAuthoredValue()):
+        show_all.Set(True)
     export_stage.SetMetadata("renderSettingsPrimPath", settings_path)
     prim_paths = []
     if len(clone_env_paths) > 1:
