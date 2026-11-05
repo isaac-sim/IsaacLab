@@ -50,6 +50,7 @@ from ..common import (
     set_hydra_args,
     show_run_summary,
     startup_screen,
+    validate_play_teleop,
 )
 from . import cli_args_skrl as cli_args
 
@@ -121,6 +122,7 @@ def _run(args_cli: argparse.Namespace) -> None:
         )
         algorithm = resolve_skrl_algorithm(agent_cfg, args_cli.algorithm)
         pre_launch_video_config(env_cfg, args_cli)
+        validate_play_teleop(env_cfg, args_cli)
         screen.stage("Launching simulation")
         with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
             show_run_summary(screen, args_cli, env_cfg, library=f"skrl ({args_cli.ml_framework})", action="play")
@@ -152,6 +154,7 @@ def _run(args_cli: argparse.Namespace) -> None:
                 env_cfg,
                 args_cli,
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg) and algorithm == "ppo",
+                enable_teleop=True,
             )
             cleanup.callback(lambda: close_env(env))
             dt = env.unwrapped.step_dt

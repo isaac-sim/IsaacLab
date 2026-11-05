@@ -23,6 +23,8 @@ Lab. For migration details see :ref:`migrating-to-isaaclab-3-0`.
 .. tip::
 
    Start with :ref:`cloudxr-teleoperation` for installation and a first run.
+   To add desktop input to an ordinary RL task through ``isaaclab play``, see
+   :ref:`teleop-rl-env`.
 
 
 .. _isaac-teleop-supported-devices:

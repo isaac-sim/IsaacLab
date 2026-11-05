@@ -295,6 +295,8 @@ def test_simple_agents_leave_the_device_to_the_launch(
         device=cli_device,
         disable_fabric=False,
         task="Cpu-Task",
+        teleop=None,
+        seed=None,
     )
 
     def launch_simulation(cfg, launcher_args):
@@ -320,7 +322,9 @@ def test_zero_agent_rejects_invalid_config_before_launch(monkeypatch: pytest.Mon
         def validate(self) -> None:
             raise ValueError("unsupported physics backend")
 
-    args = SimpleNamespace(num_envs=None, device=None, disable_fabric=False, task="Invalid-Task")
+    args = SimpleNamespace(
+        num_envs=None, device=None, disable_fabric=False, task="Invalid-Task", teleop=None, seed=None
+    )
     monkeypatch.setattr(simple_agents, "_parse_args", lambda argv, policy: args)
     monkeypatch.setattr(simple_agents, "resolve_task_config", lambda task, agent: (_InvalidCfg(), None))
     monkeypatch.setattr(
@@ -359,7 +363,16 @@ def test_random_agent_closes_environment_after_keyboard_interrupt(monkeypatch, i
         close=close,
     )
     getattr(env, interrupted_operation).side_effect = KeyboardInterrupt
-    args = SimpleNamespace(max_steps=None, task="Example", device=None, num_envs=None)
+    args = SimpleNamespace(
+        max_steps=None,
+        task="Example",
+        device=None,
+        num_envs=None,
+        teleop=None,
+        seed=None,
+        frontend="torch",
+        real_time=False,
+    )
     monkeypatch.setattr(simple_agents, "_parse_args", lambda argv, policy: args)
     monkeypatch.setattr(simple_agents, "resolve_task_config", lambda task, agent: (cfg, None))
     monkeypatch.setattr(simple_agents, "launch_simulation", lambda cfg, launcher_args: contextlib.nullcontext())
@@ -417,6 +430,10 @@ def test_simple_agent_video_step_budget(
         video=True,
         video_length=video_length,
         video_interval=None,
+        teleop=None,
+        seed=None,
+        frontend="torch",
+        real_time=False,
     )
     launched = mock.Mock(return_value=contextlib.nullcontext())
     monkeypatch.setattr(simple_agents, "_parse_args", lambda argv, policy: args)
