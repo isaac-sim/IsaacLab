@@ -47,7 +47,7 @@ Supported Workflows
 Prerequisites
 -------------
 
-This export flow requires ``leapp``, Python >= 3.10, and PyTorch >= 2.6.
+This export flow requires ``leapp==0.8.0``, Python >= 3.10, and PyTorch >= 2.7.
 ``leapp`` is a specialized optional extra (it is not part of ``--extra all``).
 
 Select extras the same way as ``isaaclab train``: add ``--extra leapp`` on every

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from ...utils.leapp import leapp_tensor_semantics
+from ...utils.leapp import XYZ_COMPONENT_AXIS, Axis, AxisKind, leapp_tensor_semantics
 from ...utils.warp import ProxyArray
 
 
@@ -18,7 +18,7 @@ class BaseJointWrenchSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind="state/joint/force")
+    @leapp_tensor_semantics(kind="state/joint/force", axes=[None, Axis(AxisKind.ELEMENT), XYZ_COMPONENT_AXIS])
     def force(self) -> ProxyArray | None:
         """Linear component of the joint reaction wrench [N].
 
@@ -32,7 +32,7 @@ class BaseJointWrenchSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind="state/joint/torque")
+    @leapp_tensor_semantics(kind="state/joint/torque", axes=[None, Axis(AxisKind.ELEMENT), XYZ_COMPONENT_AXIS])
     def torque(self) -> ProxyArray | None:
         """Angular component of the joint reaction wrench [N·m].
 

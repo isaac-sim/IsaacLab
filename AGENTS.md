@@ -6,6 +6,8 @@ Read the relevant sections of [the contribution guide](docs/source/refs/contribu
 
 - [Agent Development](docs/source/refs/contributing.rst#agent-development) for context, worktrees, and validation reuse.
 - [Coding Style](docs/source/refs/contributing.rst#coding-style) for implementation, refactoring, and review.
+- [LEAPP Semantic Metadata](docs/source/refs/contributing.rst#leapp-semantic-metadata) when adding or changing
+  observations, tensor-producing data properties, or actuator write APIs.
 - [Unit Testing](docs/source/refs/contributing.rst#unit-testing) for test changes and validation;
   use the [test-audit skill](skills/developer/test-audit/SKILL.md) when adding, changing, reviewing, or pruning tests.
 - [Contributing Documentation](docs/source/refs/contributing.rst#contributing-documentation) for documentation changes.

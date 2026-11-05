@@ -21,7 +21,7 @@ Cache lifecycle (assuming single-env play-mode export):
 
     compute()                clear cache → obs terms populate cache
     policy inference         TracedTensors propagate through NN
-    process_action()         register_buffer for raw_actions
+    process_action()         trace the manager's in-place action buffer writes
     apply_action() [tracing] reuse cached TracedTensors for state reads,
                              capture write outputs, call output_tensors(),
                              then clear cache
@@ -40,13 +40,14 @@ from functools import wraps
 from typing import TYPE_CHECKING, Any
 
 import torch
-from leapp import ExportManager, annotate
-from leapp.utils.tensor_description import TensorSemantics
+from leapp import Axis, AxisKind, ExportManager, FunctionPatch, Kind, TensorSemantics, annotate
 
 from ...actuators import IdealPDActuator, ImplicitActuator
 from ...assets.articulation.base_articulation import BaseArticulation
 from ...envs.mdp.actions import EMAJointPositionToLimitsAction
 from ...managers import ManagerTermBase
+from .. import images as image_utils
+from .. import math as math_utils
 from ..array import convert_to_torch
 from ..images import CameraFrameStack
 from .leapp_semantics import select_element_names
@@ -63,8 +64,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-VARIABLE_IMPEDANCE_MODES = frozenset({"variable", "variable_kp"})
-
 _GAIN_WRITE_METHODS = {"kp": "write_joint_stiffness_to_sim_index", "kd": "write_joint_damping_to_sim_index"}
 
 
@@ -78,9 +77,7 @@ def _leapp_ema_process_actions(term, task_name: str, state_name: str):
             original_process(actions)
             return
 
-        previous = annotate.state_tensors(task_name, {state_name: term._prev_applied_actions})
-        # Processing updates this buffer in place; preserve the registered input state.
-        term._prev_applied_actions = previous.clone()
+        term._prev_applied_actions = annotate.state_tensors(task_name, {state_name: term._prev_applied_actions})
         original_process(actions)
         term._prev_applied_actions = annotate.update_state(task_name, {state_name: term.processed_actions})
 
@@ -94,8 +91,8 @@ def _gain_semantics(
     return TensorSemantics(
         name=f"{term_name}_{kind}_gains",
         ref=ref,
-        kind=kind,
-        element_names=element_names,
+        kind=Kind.KP if kind == "kp" else Kind.KD,
+        axes=[None, Axis(AxisKind.ELEMENT, names=element_names)] if element_names is not None else None,
         extra=build_write_connection(scene_key, _GAIN_WRITE_METHODS[kind]),
     )
 
@@ -183,28 +180,43 @@ def _leapp_history_buffer_append(circular_buffer, task_name: str, state_name: st
     return decorate
 
 
-class _ImageRgbExportProxy(_ManagerTermProxy):
-    """Run RGB observation preprocessing through traceable Torch operations during export."""
+def _normalize_rgb_for_export(images, channel_dim=-1, output_channel_dim=None, mean=None, out=None):
+    """Normalize RGB with Torch to avoid Warp capture and its runtime adapter."""
+    if images.dtype == torch.uint8 and images.ndim == 4:
+        channel_dim, output_channel_dim = image_utils._resolve_image_channel_dims(channel_dim, output_channel_dim)
+        if out is not None:
+            out = image_utils._image_output(images, channel_dim, output_channel_dim, out)
+    else:
+        out = None  # The original float fallback ignores the destination.
+    channel_dim %= images.ndim
+    spatial_dims = tuple(dim for dim in range(1, images.ndim) if dim != channel_dim)
+    result = images.float() / 255.0
+    # The float fallback's in-place subtraction trips LEAPP's layout check on strided camera inputs.
+    result = result - (result.mean(dim=spatial_dims, keepdim=True) if mean is None else mean)
+    if output_channel_dim is not None:
+        result = result.movedim(channel_dim, output_channel_dim).contiguous()
+    if out is None:
+        return result
+    out.copy_(result)
+    return out
 
-    def __call__(self, *args, **kwargs):
-        """Compute the wrapped RGB observation without its runtime-only Warp fast path."""
-        out = kwargs.pop("out", None)
-        normalize = kwargs.get("normalize", True)
-        mean = kwargs.get("mean")
-        channel_first = kwargs.get("channel_first", False)
-        kwargs["normalize"] = False
 
-        image = super().__call__(*args, **kwargs)
-        if normalize:
-            channel_dim = 1 if channel_first else image.ndim - 1
-            spatial_dims = tuple(dim for dim in range(1, image.ndim) if dim != channel_dim)
-            image = image.float() / 255.0
-            image = image - (torch.mean(image, dim=spatial_dims, keepdim=True) if mean is None else mean)
+def _broadcast_tensors_for_export(*tensors: torch.Tensor) -> tuple[torch.Tensor, ...]:
+    """Trace expand views to avoid LEAPP 0.8.0's list-to-varargs broadcast rewrite."""
+    shape = torch.broadcast_shapes(*(tensor.shape for tensor in tensors))
+    return tuple(tensor.expand(shape) for tensor in tensors)
 
-        if out is None:
-            return image
-        out.copy_(image)
-        return out
+
+def export_function_patches() -> list[FunctionPatch]:
+    """Return session-scoped adapters for operations unsupported by the export backend."""
+    from ...envs.mdp import observations
+
+    # Patch both bindings because observations imports normalize_rgb directly.
+    return [
+        FunctionPatch(image_utils, "normalize_rgb", _normalize_rgb_for_export),
+        FunctionPatch(observations, "normalize_rgb", _normalize_rgb_for_export),
+        FunctionPatch(torch, "broadcast_tensors", _broadcast_tensors_for_export),
+    ]
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -413,8 +425,6 @@ class ExportPatcher:
                     term_cfg.func = self._wrap_last_action(original_func)
                 elif func_name == "generated_commands":
                     term_cfg.func = self._wrap_generated_commands(original_func, term_cfg)
-                elif func_name == "image_rgb":
-                    term_cfg.func = _ImageRgbExportProxy(original_func, proxy_env)
                 elif func_name == "projected_gravity":
                     term_cfg.func = self._wrap_projected_gravity(original_func, proxy_env)
                 else:
@@ -476,8 +486,7 @@ class ExportPatcher:
     def _patch_action_manager_methods(self, action_manager):
         """Patch ``process_action`` and ``apply_action`` on the action manager instance.
 
-        ``process_action`` registers raw_action buffers for LEAPP tracing and
-        preserves the action tensor clone.
+        ``process_action`` marks a new policy step after the manager's native processing.
 
         ``apply_action`` coordinates the cache and output lifecycle:
 
@@ -488,8 +497,7 @@ class ExportPatcher:
           keeping the LEAPP graph connected.  After ``output_tensors()`` the
           cache is cleared so subsequent decimation sub-steps read fresh values.
 
-        - **Non-tracing passes** (remaining decimation sub-steps and all
-          subsequent iterations): The cache is cleared **before** running
+        - **Remaining decimation sub-steps**: The cache is cleared **before** running
           action terms so every ``.data`` read returns the current simulator
           value, preserving simulation correctness.
 
@@ -503,9 +511,8 @@ class ExportPatcher:
         cache = self._annotated_tensor_cache
 
         def patched_process_action(action: torch.Tensor):
-            """Register raw_action buffers, call real process_action, preserve action clone."""
+            """Process the action and request output capture on the next apply."""
             original_process(action)
-            action_manager._action = action.clone()
             self._pending_action_output_export = True
 
         def patched_apply_action():
@@ -519,7 +526,6 @@ class ExportPatcher:
             self._captured_write_term_names.clear()
             original_apply()
 
-            self._action_output_cache.extend(self._collect_action_outputs(action_manager))
             self._action_output_cache.extend(self._collect_processed_action_fallbacks(action_manager))
             if self._last_action_state_terms:
                 last_action_updates = {}
@@ -600,10 +606,7 @@ class ExportPatcher:
             root_quat_w = proxy_env.scene[asset_name].data.root_quat_w.torch
             gravity_w = torch.zeros((*root_quat_w.shape[:-1], 3), dtype=root_quat_w.dtype, device=root_quat_w.device)
             gravity_w[..., 2] = -1.0
-            quat_xyz = root_quat_w[..., :3]
-            quat_w = root_quat_w[..., 3:4]
-            t = torch.cross(quat_xyz, gravity_w, dim=-1) * 2.0
-            return gravity_w - quat_w * t + torch.cross(quat_xyz, t, dim=-1)
+            return math_utils.quat_apply_inverse(root_quat_w, gravity_w)
 
         wrapped.__name__ = getattr(original_func, "__name__", "unknown")
         return wrapped
@@ -646,7 +649,7 @@ class ExportPatcher:
     def _wrap_generated_commands(self, original_func, term_cfg):
         """Wrap the ``generated_commands`` observation term to annotate its output as a LEAPP input.
 
-        Resolves command semantics (kind, element_names) from the command manager
+        Resolves command semantics (kind, axes) from the command manager
         configuration when available.
 
         Args:
@@ -675,11 +678,16 @@ class ExportPatcher:
             command_cfg = None
             with suppress(AttributeError, KeyError):
                 command_cfg = env.command_manager.get_term(leapp_input_name).cfg
+            kind = getattr(command_cfg, "cmd_kind", None)
+            kind = next((quantity for quantity in Kind if quantity.value == kind), kind)
             sem = TensorSemantics(
                 name=leapp_input_name,
                 ref=result,
-                kind=getattr(command_cfg, "cmd_kind", None),
-                element_names=getattr(command_cfg, "element_names", None),
+                kind=kind,
+                axes=getattr(command_cfg, "axes", None),
+                is_setpoint=True,
+                reference=getattr(command_cfg, "cmd_reference", None),
+                expressed_in=getattr(command_cfg, "cmd_expressed_in", None),
                 extra=build_command_connection(leapp_input_name),
             )
             return annotate.input_tensors(task_name, sem)
@@ -688,31 +696,6 @@ class ExportPatcher:
         return wrapped
 
     # ── Output collection ─────────────────────────────────────────
-
-    def _collect_action_outputs(self, action_manager) -> list[TensorSemantics]:
-        """Collect non-writer action tensors that should be exported.
-
-        Args:
-            action_manager: Action manager whose terms should be inspected.
-
-        Returns:
-            Exportable tensor semantics for dynamic action outputs such as OSC
-            gains.
-        """
-        tensors: list[TensorSemantics] = []
-        for term_name, term in action_manager._terms.items():
-            osc = getattr(term, "_osc", None)
-            if osc and hasattr(osc, "cfg") and osc.cfg.impedance_mode in VARIABLE_IMPEDANCE_MODES:
-                asset = getattr(term, "_asset", None)
-                real_asset = getattr(asset, "_real_asset", asset)
-                joint_ids = getattr(term, "_joint_ids", None)
-                joint_names = getattr(real_asset, "joint_names", None) if real_asset else None
-                scene_key = self._action_term_scene_keys.get(term_name, "ego")
-                element_names = select_element_names(joint_names, joint_ids)
-                for kind, gains in (("kp", osc._motion_p_gains_task), ("kd", osc._motion_d_gains_task)):
-                    ref = torch.diagonal(gains, dim1=-2, dim2=-1)
-                    tensors.append(_gain_semantics(term_name, scene_key, kind, ref, element_names))
-        return tensors
 
     def _collect_processed_action_fallbacks(self, action_manager) -> list[TensorSemantics]:
         """Fallback: use ``term.processed_actions`` for terms that produced no write outputs.
@@ -745,9 +728,8 @@ class ExportPatcher:
                 tensors.append(
                     TensorSemantics(
                         name=term_name,
-                        ref=processed.clone(),
+                        ref=processed,
                         kind=None,
-                        element_names=None,
                     )
                 )
                 fallback_terms.add(term_name)
@@ -774,9 +756,6 @@ class ExportPatcher:
         static_values: list[TensorSemantics] = []
         for term_name, term in action_manager._terms.items():
             if skip_terms and term_name in skip_terms:
-                continue
-            osc = getattr(term, "_osc", None)
-            if osc and hasattr(osc, "cfg") and osc.cfg.impedance_mode in VARIABLE_IMPEDANCE_MODES:
                 continue
             asset = getattr(term, "_asset", None)
             real_asset = getattr(asset, "_real_asset", asset)

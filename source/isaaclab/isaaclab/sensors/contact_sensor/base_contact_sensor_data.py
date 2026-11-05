@@ -11,10 +11,12 @@ import warnings
 from abc import ABC, abstractmethod
 
 from ...utils.leapp import (
-    POSE7_ELEMENT_NAMES,
-    QUAT_XYZW_ELEMENT_NAMES,
-    XYZ_ELEMENT_NAMES,
-    InputKindEnum,
+    POSE7_COMPONENT_AXIS,
+    QUAT_XYZW_COMPONENT_AXIS,
+    XYZ_COMPONENT_AXIS,
+    Axis,
+    AxisKind,
+    Kind,
     leapp_tensor_semantics,
 )
 from ...utils.warp import ProxyArray
@@ -39,7 +41,7 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names=POSE7_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSE, axes=[None, None, POSE7_COMPONENT_AXIS])
     def pose_w(self) -> ProxyArray | None:
         """Pose of the sensor origin in world frame.
 
@@ -49,7 +51,10 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(
+        kind=Kind.FRAME_POSITION,
+        axes_resolver=lambda _data, ref: [None] * (ref.ndim - 1) + [XYZ_COMPONENT_AXIS],
+    )
     def pos_w(self) -> ProxyArray | None:
         """Position of the sensor origin in world frame.
 
@@ -62,7 +67,10 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names=QUAT_XYZW_ELEMENT_NAMES)
+    @leapp_tensor_semantics(
+        kind=Kind.FRAME_ORIENTATION,
+        axes_resolver=lambda _data, ref: [None] * (ref.ndim - 1) + [QUAT_XYZW_COMPONENT_AXIS],
+    )
     def quat_w(self) -> ProxyArray | None:
         """Orientation of the sensor origin in world frame.
 
@@ -75,7 +83,7 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes=[None, None, XYZ_COMPONENT_AXIS])
     def net_normal_forces_w(self) -> ProxyArray | None:
         """The net normal contact forces [N] in world frame.
 
@@ -89,7 +97,7 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes=[None, None, None, XYZ_COMPONENT_AXIS])
     def net_normal_forces_w_history(self) -> ProxyArray | None:
         """History of net normal contact forces [N].
 
@@ -100,7 +108,7 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes=[None, None, None, XYZ_COMPONENT_AXIS])
     def normal_force_matrix_w(self) -> ProxyArray | None:
         """Normal contact forces [N] filtered between sensor and filtered bodies.
 
@@ -116,7 +124,7 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes=[None, None, None, None, XYZ_COMPONENT_AXIS])
     def normal_force_matrix_w_history(self) -> ProxyArray | None:
         """History of filtered normal contact forces [N].
 
@@ -129,7 +137,7 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSITION, axes=[None, None, None, XYZ_COMPONENT_AXIS])
     def contact_pos_w(self) -> ProxyArray | None:
         """Average position of contact points.
 
@@ -142,7 +150,7 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes=[None, None, XYZ_COMPONENT_AXIS])
     def net_friction_forces_w(self) -> ProxyArray | None:
         """The net friction contact forces [N] in world frame.
 
@@ -155,7 +163,7 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes=[None, None, None, XYZ_COMPONENT_AXIS])
     def net_friction_forces_w_history(self) -> ProxyArray | None:
         """History of net friction contact forces [N] in world frame.
 
@@ -168,7 +176,7 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes=[None, None, None, XYZ_COMPONENT_AXIS])
     def friction_force_matrix_w(self) -> ProxyArray | None:
         """Friction contact forces [N] filtered between sensor and filtered bodies.
 
@@ -181,7 +189,7 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes=[None, None, None, None, XYZ_COMPONENT_AXIS])
     def friction_force_matrix_w_history(self) -> ProxyArray | None:
         """History of filtered friction contact forces [N].
 
@@ -193,7 +201,7 @@ class BaseContactSensorData(ABC):
         raise NotImplementedError
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes=[None, None, XYZ_COMPONENT_AXIS])
     def net_forces_w(self) -> ProxyArray | None:
         """The net total contact forces [N] in world frame.
 
@@ -214,7 +222,7 @@ class BaseContactSensorData(ABC):
         return self.net_normal_forces_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes=[None, None, None, XYZ_COMPONENT_AXIS])
     def net_forces_w_history(self) -> ProxyArray | None:
         """History of net total contact forces [N] in world frame.
 
@@ -232,7 +240,7 @@ class BaseContactSensorData(ABC):
         return self.net_normal_forces_w_history
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes=[None, None, None, XYZ_COMPONENT_AXIS])
     def force_matrix_w(self) -> ProxyArray | None:
         """Total filtered contact forces [N] between sensor and filtered bodies.
 
@@ -255,7 +263,7 @@ class BaseContactSensorData(ABC):
         return self.normal_force_matrix_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes=[None, None, None, None, XYZ_COMPONENT_AXIS])
     def force_matrix_w_history(self) -> ProxyArray | None:
         """History of total filtered contact forces [N].
 
@@ -275,7 +283,10 @@ class BaseContactSensorData(ABC):
         return self.normal_force_matrix_w_history
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(
+        kind=Kind.VECTOR3D,
+        axes_resolver=lambda _data, ref: [None] * (ref.ndim - 1) + [XYZ_COMPONENT_AXIS],
+    )
     def friction_forces_w(self) -> ProxyArray | None:
         """The net total friction contact forces [N] in world frame.
 
@@ -299,7 +310,7 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics()
+    @leapp_tensor_semantics(kind="time/duration", axes=[None, Axis(AxisKind.ELEMENT)])
     def last_air_time(self) -> ProxyArray | None:
         """Time spent in air before last contact.
 
@@ -311,7 +322,7 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics()
+    @leapp_tensor_semantics(kind="time/duration", axes=[None, Axis(AxisKind.ELEMENT)])
     def current_air_time(self) -> ProxyArray | None:
         """Time spent in air since last detach.
 
@@ -323,7 +334,7 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics()
+    @leapp_tensor_semantics(kind="time/duration", axes=[None, Axis(AxisKind.ELEMENT)])
     def last_contact_time(self) -> ProxyArray | None:
         """Time spent in contact before last detach.
 
@@ -335,7 +346,7 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics()
+    @leapp_tensor_semantics(kind="time/duration", axes=[None, Axis(AxisKind.ELEMENT)])
     def current_contact_time(self) -> ProxyArray | None:
         """Time spent in contact since last contact.
 

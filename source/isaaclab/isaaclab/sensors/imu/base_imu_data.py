@@ -10,8 +10,9 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 from ...utils.leapp import (
-    XYZ_ELEMENT_NAMES,
-    InputKindEnum,
+    XYZ_COMPONENT_AXIS,
+    ExpressionFrame,
+    Kind,
     leapp_tensor_semantics,
 )
 from ...utils.warp import ProxyArray
@@ -29,7 +30,9 @@ class BaseImuData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(
+        kind=Kind.FRAME_ANGULAR_VELOCITY, axes=[None, XYZ_COMPONENT_AXIS], expressed_in=ExpressionFrame.SELF
+    )
     def ang_vel_b(self) -> ProxyArray:
         """IMU frame angular velocity relative to the world expressed in IMU frame [rad/s].
 
@@ -39,7 +42,9 @@ class BaseImuData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_ACCELERATION, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(
+        kind=Kind.FRAME_LINEAR_ACCELERATION, axes=[None, XYZ_COMPONENT_AXIS], expressed_in=ExpressionFrame.SELF
+    )
     def lin_acc_b(self) -> ProxyArray:
         """Linear acceleration (proper) in the IMU frame [m/s^2].
 

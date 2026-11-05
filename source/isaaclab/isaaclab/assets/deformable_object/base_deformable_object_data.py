@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from ...utils.leapp import XYZ_ELEMENT_NAMES, InputKindEnum, leapp_tensor_semantics
+from ...utils.leapp import XYZ_COMPONENT_AXIS, Kind, leapp_tensor_semantics
 from ...utils.warp import ProxyArray
 
 
@@ -77,7 +77,7 @@ class BaseDeformableObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSITION, axes=[None, None, XYZ_COMPONENT_AXIS])
     def nodal_pos_w(self) -> ProxyArray:
         """Nodal positions in simulation world frame [m].
 
@@ -89,7 +89,7 @@ class BaseDeformableObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.FRAME_LINEAR_VELOCITY, axes=[None, None, XYZ_COMPONENT_AXIS])
     def nodal_vel_w(self) -> ProxyArray:
         """Nodal velocities in simulation world frame [m/s].
 
@@ -117,7 +117,7 @@ class BaseDeformableObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSITION, axes=[None, XYZ_COMPONENT_AXIS])
     def root_pos_w(self) -> ProxyArray:
         """Root position from nodal positions of the simulation mesh for the deformable bodies
         in simulation world frame [m]. Shape is (num_instances,) vec3f.
@@ -130,7 +130,7 @@ class BaseDeformableObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.FRAME_LINEAR_VELOCITY, axes=[None, XYZ_COMPONENT_AXIS])
     def root_vel_w(self) -> ProxyArray:
         """Root velocity from vertex velocities for the deformable bodies in simulation
         world frame [m/s]. Shape is (num_instances,) vec3f.

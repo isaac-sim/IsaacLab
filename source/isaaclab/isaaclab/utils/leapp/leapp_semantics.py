@@ -17,24 +17,32 @@ import warp as wp
 from ..array import convert_to_torch
 
 try:
-    from leapp import InputKindEnum, OutputKindEnum
+    from leapp import Axis, AxisKind, ExpressionFrame, InputKindEnum, Kind, OutputKindEnum
 except ImportError:
 
     class _LeappEnumSentinel:
-        """Stand-in when leapp is not installed.
+        """Stand-in for optional LEAPP enums and axis constructors.
 
         Any attribute access returns ``None`` so that
-        ``@leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE)``
+        ``@leapp_tensor_semantics(kind=Kind.FRAME_POSE)``
         silently stores ``kind=None`` instead of crashing at import time.
-        The real enum values are only needed at export time, when leapp
+        Axis construction also returns ``None``. Real descriptors and enum
+        values are only needed at export time, when leapp
         *is* guaranteed to be available.
         """
 
         def __getattr__(self, name: str):
             return None
 
+        def __call__(self, *args, **kwargs):
+            return None
+
+    Axis = _LeappEnumSentinel()  # type: ignore[assignment,misc]
+    AxisKind = _LeappEnumSentinel()  # type: ignore[assignment,misc]
     InputKindEnum = _LeappEnumSentinel()  # type: ignore[assignment,misc]
     OutputKindEnum = _LeappEnumSentinel()  # type: ignore[assignment,misc]
+    Kind = _LeappEnumSentinel()  # type: ignore[assignment,misc]
+    ExpressionFrame = _LeappEnumSentinel()  # type: ignore[assignment,misc]
 
 
 @dataclass(frozen=True)
@@ -42,16 +50,19 @@ class LeappTensorSemantics:
     """Semantic metadata attached directly to a raw tensor-producing function."""
 
     kind: Any = None
-    element_names: list[str] | list[list[str]] | None = None
-    element_names_resolver: Callable | None = None
+    axes: list[Axis | None] | None = None
+    axes_resolver: Callable[[Any, Any], list[Axis | None] | None] | None = None
     const: bool = False
+    is_setpoint: bool | None = None
+    reference: str | None = None
+    expressed_in: Any = None
 
 
-XYZ_ELEMENT_NAMES: list[str] = ["x", "y", "z"]
-QUAT_XYZW_ELEMENT_NAMES: list[str] = ["qx", "qy", "qz", "qw"]
-POSE7_ELEMENT_NAMES: list[str] = ["x", "y", "z", "qx", "qy", "qz", "qw"]
-POSE6_ELEMENT_NAMES: list[str] = ["x", "y", "z", "angular_x", "angular_y", "angular_z"]
-WRENCH6_ELEMENT_NAMES: list[str] = ["fx", "fy", "fz", "tx", "ty", "tz"]
+XYZ_COMPONENT_AXIS: Axis = Axis(AxisKind.COMPONENT, names=["x", "y", "z"])
+QUAT_XYZW_COMPONENT_AXIS: Axis = Axis(AxisKind.COMPONENT, names=["qx", "qy", "qz", "qw"])
+POSE7_COMPONENT_AXIS: Axis = Axis(AxisKind.COMPONENT, names=["x", "y", "z", "qx", "qy", "qz", "qw"])
+POSE6_COMPONENT_AXIS: Axis = Axis(AxisKind.COMPONENT, names=["x", "y", "z", "angular_x", "angular_y", "angular_z"])
+WRENCH6_COMPONENT_AXIS: Axis = Axis(AxisKind.COMPONENT, names=["fx", "fy", "fz", "tx", "ty", "tz"])
 
 
 def select_element_names(names: list[str] | None, indices: Any = None) -> list[str] | None:
@@ -76,16 +87,28 @@ def select_element_names(names: list[str] | None, indices: Any = None) -> list[s
 def leapp_tensor_semantics(
     *,
     kind: Any = None,
-    element_names: list[str] | list[list[str]] | None = None,
-    element_names_resolver: Callable | None = None,
+    axes: list[Axis | None] | None = None,
+    axes_resolver: Callable[[Any, Any], list[Axis | None] | None] | None = None,
     const: bool = False,
+    is_setpoint: bool | None = None,
+    reference: str | None = None,
+    expressed_in: Any = None,
 ) -> Callable:
-    """Attach LEAPP semantic metadata to a raw tensor-producing function."""
+    """Attach deferred LEAPP metadata without wrapping or evaluating the function.
+
+    ``axes`` uses LEAPP axis descriptors, including one entry for each tensor
+    dimension. Use ``axes_resolver`` instead when labels depend on the data
+    object, such as selected joint names. Resolvers receive the data object and Torch
+    tensor. Export supplies the port name.
+    """
     semantics = LeappTensorSemantics(
         kind=kind,
-        element_names=element_names,
-        element_names_resolver=element_names_resolver,
+        axes=axes,
+        axes_resolver=axes_resolver,
         const=const,
+        is_setpoint=is_setpoint,
+        reference=reference,
+        expressed_in=expressed_in,
     )
 
     def _apply(func: Callable) -> Callable:
@@ -95,26 +118,25 @@ def leapp_tensor_semantics(
     return _apply
 
 
-def resolve_leapp_element_names(semantics: LeappTensorSemantics | None, data_self) -> list | None:
-    """Resolve element names from attached semantics and a tensor-producing object."""
-    if semantics is None:
-        return None
-    if semantics.element_names is not None:
-        return semantics.element_names
-    if semantics.element_names_resolver is not None:
-        return semantics.element_names_resolver(data_self)
+def resolve_semantics_axes(semantics: LeappTensorSemantics, data_self, ref) -> list[Axis | None] | None:
+    """Resolve explicitly declared axes, including runtime joint or body labels."""
+    if semantics.axes is not None:
+        return semantics.axes
+    if semantics.axes_resolver is not None:
+        return semantics.axes_resolver(data_self, ref)
     return None
 
 
-# ── Predefined element-name resolvers ─────────────────────────────
+# ── Predefined axis resolvers ─────────────────────────────────────
 
 
-def joint_names_resolver(data_self) -> list[str] | None:
-    """Resolve joint element names from the data object at trace time."""
-    return select_element_names(
+def joint_axes_resolver(data_self, ref) -> list[Axis | None] | None:
+    """Label the joint dimension using the selected runtime joint order."""
+    names = select_element_names(
         getattr(data_self, "joint_names", getattr(data_self, "_joint_names", None)),
         getattr(data_self, "_joint_ids", None),
     )
+    return [None, Axis(AxisKind.ELEMENT, names=names)] if names is not None else None
 
 
 def body_names_resolver(data_self) -> list[str] | None:
@@ -125,12 +147,12 @@ def body_names_resolver(data_self) -> list[str] | None:
     )
 
 
-def _compound_resolver(outer_fn: Callable, inner_names: list[str]) -> Callable:
-    """Build a 2D resolver: ``[outer_names, inner_constant_names]``."""
+def _compound_axes_resolver(outer_fn: Callable, component_axis: Axis) -> Callable:
+    """Build axes for batched body/frame quantities with trailing components."""
 
-    def resolver(data_self) -> list | None:
-        outer = outer_fn(data_self)
-        return [outer, inner_names] if outer else None
+    def resolver(data_self, ref) -> list[Axis | None] | None:
+        names = outer_fn(data_self)
+        return [None, Axis(AxisKind.ELEMENT, names=names), component_axis] if names else None
 
     return resolver
 
@@ -140,11 +162,11 @@ def _target_frame_names(data_self) -> list[str] | None:
     return list(names) if names is not None else None
 
 
-body_xyz_resolver = _compound_resolver(body_names_resolver, XYZ_ELEMENT_NAMES)
-body_pose_resolver = _compound_resolver(body_names_resolver, POSE7_ELEMENT_NAMES)
-body_pose6_resolver = _compound_resolver(body_names_resolver, POSE6_ELEMENT_NAMES)
-body_quat_resolver = _compound_resolver(body_names_resolver, QUAT_XYZW_ELEMENT_NAMES)
-body_wrench_resolver = _compound_resolver(body_names_resolver, WRENCH6_ELEMENT_NAMES)
-target_frame_xyz_resolver = _compound_resolver(_target_frame_names, XYZ_ELEMENT_NAMES)
-target_frame_quat_resolver = _compound_resolver(_target_frame_names, QUAT_XYZW_ELEMENT_NAMES)
-target_frame_pose_resolver = _compound_resolver(_target_frame_names, POSE7_ELEMENT_NAMES)
+body_xyz_axes_resolver = _compound_axes_resolver(body_names_resolver, XYZ_COMPONENT_AXIS)
+body_pose_axes_resolver = _compound_axes_resolver(body_names_resolver, POSE7_COMPONENT_AXIS)
+body_pose6_axes_resolver = _compound_axes_resolver(body_names_resolver, POSE6_COMPONENT_AXIS)
+body_quat_axes_resolver = _compound_axes_resolver(body_names_resolver, QUAT_XYZW_COMPONENT_AXIS)
+body_wrench_axes_resolver = _compound_axes_resolver(body_names_resolver, WRENCH6_COMPONENT_AXIS)
+target_frame_xyz_axes_resolver = _compound_axes_resolver(_target_frame_names, XYZ_COMPONENT_AXIS)
+target_frame_quat_axes_resolver = _compound_axes_resolver(_target_frame_names, QUAT_XYZW_COMPONENT_AXIS)
+target_frame_pose_axes_resolver = _compound_axes_resolver(_target_frame_names, POSE7_COMPONENT_AXIS)

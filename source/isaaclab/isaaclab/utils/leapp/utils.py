@@ -9,11 +9,10 @@ from types import SimpleNamespace
 from typing import Any
 
 import torch
-from leapp import annotate
-from leapp.utils.tensor_description import TensorSemantics
+from leapp import TensorSemantics, annotate
 
 from ..warp.proxy_array import ProxyArray
-from .leapp_semantics import LeappTensorSemantics, resolve_leapp_element_names
+from .leapp_semantics import LeappTensorSemantics, resolve_semantics_axes
 
 
 class TracedProxyArray(ProxyArray):
@@ -36,7 +35,10 @@ class TracedProxyArray(ProxyArray):
             name=input_name,
             ref=astorch,
             kind=semantics_meta.kind,
-            element_names=resolve_leapp_element_names(semantics_meta, real_data),
+            axes=resolve_semantics_axes(semantics_meta, real_data, astorch),
+            is_setpoint=semantics_meta.is_setpoint,
+            reference=semantics_meta.reference,
+            expressed_in=semantics_meta.expressed_in,
             extra=build_state_connection(entity_name, property_name),
         )
         annotated = annotate.input_tensors(task_name, sem)
