@@ -42,6 +42,7 @@ from ..common import (
     set_hydra_args,
     show_run_summary,
     startup_screen,
+    validate_play_teleop,
 )
 from . import cli_args_rl_games as cli_args
 
@@ -109,6 +110,7 @@ def run(argv: list[str]) -> None:
                 " --agent rl_games_cfg_entry_point, or use --rl_library rsl_rl for RSL-RL runner configurations."
             )
         pre_launch_video_config(env_cfg, args_cli)
+        validate_play_teleop(env_cfg, args_cli)
         screen.stage("Launching simulation")
         with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
             show_run_summary(screen, args_cli, env_cfg, library="rl_games", action="play")
@@ -132,6 +134,7 @@ def run(argv: list[str]) -> None:
                 env_cfg,
                 args_cli,
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
+                enable_teleop=True,
             )
             cleanup.callback(lambda: close_env(env))
 

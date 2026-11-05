@@ -28,6 +28,11 @@
     SubTaskConfig
     SubTaskConstraintConfig
     ViewerCfg
+    TeleopCfg
+    TeleopSourceCfg
+    TeleopSample
+    TeleopSource
+    TeleopEnvWrapper
 
 Manager Based Environment
 -------------------------
@@ -113,6 +118,28 @@ Common
 .. autoclass:: ViewerCfg
     :members:
     :exclude-members: __init__
+
+Interactive Playback
+--------------------
+
+See :ref:`teleop-rl-env` for adding an input source to an RL task.
+
+.. autoclass:: TeleopCfg
+    :members:
+    :exclude-members: __init__
+
+.. autoclass:: TeleopSourceCfg
+    :members:
+    :exclude-members: __init__
+
+.. autoclass:: TeleopSample
+    :members:
+
+.. autoclass:: TeleopSource
+    :members:
+
+.. autoclass:: TeleopEnvWrapper
+    :members:
 
 Additional Public Classes
 -------------------------

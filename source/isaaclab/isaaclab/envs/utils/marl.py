@@ -48,6 +48,7 @@ def multi_agent_to_single_agent(env: DirectMARLEnv, state_as_observation: bool =
     class Env(DirectRLEnv):
         def __init__(self, env: DirectMARLEnv) -> None:
             self.env: DirectMARLEnv = env.unwrapped
+            self._wrapped_env = env
             self._is_closed = False
 
             # check if it is possible to use the multi-agent environment state as single-agent observation
@@ -137,7 +138,7 @@ def multi_agent_to_single_agent(env: DirectMARLEnv, state_as_observation: bool =
             return {**extras, "final_obs": self._convert_observations(final_obs)}
 
         def reset(self, seed: int | None = None, options: dict[str, Any] | None = None) -> tuple[VecEnvObs, dict]:
-            obs, extras = self.env.reset(seed, options)
+            obs, extras = self._wrapped_env.reset(seed=seed, options=options)
             self._obs_buf = self._convert_observations(obs)
             self._extras = extras
             return self._obs_buf, self._extras
@@ -153,7 +154,7 @@ def multi_agent_to_single_agent(env: DirectMARLEnv, state_as_observation: bool =
                 index += delta
 
             # step the environment
-            obs, rewards, terminated, time_outs, extras = self.env.step(_actions)
+            obs, rewards, terminated, time_outs, extras = self._wrapped_env.step(_actions)
 
             self._obs_buf = self._convert_observations(obs)
             self._extras = self._convert_final_obs(extras)
@@ -170,7 +171,7 @@ def multi_agent_to_single_agent(env: DirectMARLEnv, state_as_observation: bool =
 
         def close(self) -> None:
             if not self._is_closed:
-                self.env.close()
+                self._wrapped_env.close()
                 self._is_closed = True
 
     return Env(env)
@@ -206,6 +207,7 @@ def multi_agent_with_one_agent(env: DirectMARLEnv, state_as_observation: bool = 
     class Env(DirectMARLEnv):
         def __init__(self, env: DirectMARLEnv) -> None:
             self.env: DirectMARLEnv = env.unwrapped
+            self._wrapped_env = env
             self._is_closed = False
 
             # check if it is possible to use the multi-agent environment state as agent observation
@@ -256,7 +258,7 @@ def multi_agent_with_one_agent(env: DirectMARLEnv, state_as_observation: bool = 
         def reset(
             self, seed: int | None = None, options: dict[str, Any] | None = None
         ) -> tuple[dict[AgentID, ObsType], dict[AgentID, dict]]:
-            obs, extras = self.env.reset(seed, options)
+            obs, extras = self._wrapped_env.reset(seed=seed, options=options)
 
             # use environment state as observation
             if self._state_as_observation:
@@ -283,7 +285,7 @@ def multi_agent_with_one_agent(env: DirectMARLEnv, state_as_observation: bool = 
                 index += delta
 
             # step the environment
-            obs, rewards, terminated, time_outs, extras = self.env.step(_actions)
+            obs, rewards, terminated, time_outs, extras = self._wrapped_env.step(_actions)
 
             # use environment state as observation
             if self._state_as_observation:
@@ -312,7 +314,7 @@ def multi_agent_with_one_agent(env: DirectMARLEnv, state_as_observation: bool = 
 
         def close(self) -> None:
             if not self._is_closed:
-                self.env.close()
+                self._wrapped_env.close()
                 self._is_closed = True
 
     return Env(env)

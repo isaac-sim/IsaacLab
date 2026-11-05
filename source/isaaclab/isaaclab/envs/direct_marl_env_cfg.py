@@ -16,6 +16,7 @@ from ..sim import SimulationCfg
 from ..utils import configclass
 from ..utils.noise import NoiseModelCfg
 from .common import AgentID, SpaceType, ViewerCfg
+from .teleop_cfg import TeleopCfg
 from .utils.video_recorder_cfg import VideoRecorderCfg
 
 
@@ -25,6 +26,9 @@ class DirectMARLEnvCfg:
 
     Please refer to the :class:`isaaclab.envs.direct_marl_env.DirectMARLEnv` class for more details.
     """
+
+    teleop: TeleopCfg | None = None
+    """Optional source controlling a selected agent during ``isaaclab play``. Inert during training."""
 
     # simulation settings
     sim: SimulationCfg = SimulationCfg()

@@ -38,6 +38,7 @@ from ..common import (
     set_hydra_args,
     show_run_summary,
     startup_screen,
+    validate_play_teleop,
 )
 
 logger = logging.getLogger(__name__)
@@ -92,6 +93,7 @@ def run(argv: list[str]) -> None:
     with startup_screen(args_cli, num_stages=3) as screen:
         env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent, play_mode=not args_cli.train_env_cfg)
         pre_launch_video_config(env_cfg, args_cli)
+        validate_play_teleop(env_cfg, args_cli)
         screen.stage("Launching simulation")
         with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
             show_run_summary(screen, args_cli, env_cfg, library="torchrl", action="play")
@@ -121,6 +123,7 @@ def run(argv: list[str]) -> None:
                 env_cfg,
                 args_cli,
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
+                enable_teleop=True,
             )
             cleanup.callback(lambda: close_env(env))
             env = IsaacLabTorchRLWrapper(env, clip_actions=agent_cfg.clip_actions)
