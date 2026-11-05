@@ -52,7 +52,33 @@ def run_train_cli(argv: list[str] | None = None) -> int:
 
 
 def run_play_cli(argv: list[str] | None = None) -> int:
-    """Dispatch unified playback command-line arguments to a backend."""
+    """Play the configured teleop source or a selected learned policy."""
+    argv = _normalize_argv(argv)
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--task")
+    parser.add_argument("--rl_library")
+    parser.add_argument("--checkpoint")
+    parser.add_argument("--agent")
+    parser.add_argument("--teleop", action=argparse.BooleanOptionalAction, default=None)
+    args, _ = parser.parse_known_args(argv)
+    if (
+        args.task is not None
+        and args.rl_library is None
+        and args.checkpoint is None
+        and args.agent is None
+        and args.teleop is not False
+        and not any(flag in argv for flag in ("--help", "-h"))
+    ):
+        from .simple_agents import run_teleop_if_configured
+
+        configure_console_logging()
+        load_external_tasks()
+        original_argv = sys.argv
+        try:
+            if run_teleop_if_configured(argv):
+                return 0
+        finally:
+            sys.argv = original_argv
     return run_cli("play", argv)
 
 

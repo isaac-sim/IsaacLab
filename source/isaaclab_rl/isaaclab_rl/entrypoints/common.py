@@ -32,6 +32,7 @@ from isaaclab.app import LoadingScreen
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg, parse_video_source
 from isaaclab.renderers.renderer_cfg import RendererCfg
+from isaaclab.utils import validate
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.images import make_camera_output_grid, normalize_camera_output_for_display
@@ -264,6 +265,14 @@ def add_common_train_args(
     )
 
 
+def parse_step_limit(value: str) -> int:
+    """Parse a playback step limit, accepting zero for environment setup without stepping."""
+    steps = int(value)
+    if steps < 0:
+        raise argparse.ArgumentTypeError("--max_steps must be non-negative")
+    return steps
+
+
 def add_common_play_args(parser: argparse.ArgumentParser, *, agent_default: str | None, agent_help: str) -> None:
     """Add the playback arguments shared by all reinforcement learning backends.
 
@@ -284,6 +293,15 @@ def add_common_play_args(parser: argparse.ArgumentParser, *, agent_default: str 
     parser.add_argument("--agent", type=str, default=agent_default, help=agent_help)
     parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment.")
     parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
+    parser.add_argument(
+        "--teleop",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Use the environment's optional teleop configuration (enabled when configured).",
+    )
+    parser.add_argument(
+        "--max_steps", type=parse_step_limit, default=None, help="Stop playback after this many environment steps."
+    )
     parser.add_argument(
         "--train_env_cfg",
         action="store_true",
@@ -508,12 +526,43 @@ Environment creation.
 """
 
 
+def validate_play_teleop(env_cfg: Any, args_cli: argparse.Namespace) -> None:
+    """Reject unsupported interactive playback before starting simulation runtimes.
+
+    The initial Capture integration supports kitless environments.
+    Resolve the actual launch requirements so task presets, sensors, viewers, and CLI
+    selections all participate in this check. Policy-only playback is unaffected.
+    """
+    if args_cli.teleop is False:
+        return
+    teleop_cfg = getattr(env_cfg, "teleop", None)
+    if teleop_cfg is None:
+        if args_cli.teleop is True:
+            raise ValueError("--teleop requires the task to declare env_cfg.teleop")
+        return
+    if args_cli.frontend != "torch":
+        raise ValueError(
+            "Task-configured teleoperation requires --frontend torch; use --no-teleop for other frontends."
+        )
+    from isaaclab.app.sim_launcher import validate_launch
+
+    validate(teleop_cfg)
+    _, kit_sources = validate_launch(env_cfg, args_cli)
+    if kit_sources:
+        raise ValueError(
+            "Task-configured teleoperation currently requires a kitless runtime. "
+            f"This configuration requires Kit for: {', '.join(kit_sources)}. "
+            "Select a kitless task/preset or use --no-teleop for policy-only playback."
+        )
+
+
 def create_isaaclab_env(
     task: str,
     env_cfg: Any,
     args_cli: argparse.Namespace,
     *,
     convert_marl_to_single_agent: bool,
+    enable_teleop: bool = False,
 ) -> gym.Env:
     """Create the Isaac Lab Gymnasium environment.
 
@@ -522,10 +571,14 @@ def create_isaaclab_env(
         env_cfg: Isaac Lab environment config.
         args_cli: Parsed command-line arguments.
         convert_marl_to_single_agent: Whether to convert direct MARL environments to single-agent environments.
+        enable_teleop: Whether playback may activate the environment's optional teleop configuration.
+            Training leaves this disabled. ``--no-teleop`` also disables it during playback.
 
     Returns:
         The created Gymnasium environment.
     """
+    if enable_teleop and args_cli.teleop is True and getattr(env_cfg, "teleop", None) is None:
+        raise ValueError("--teleop requires the task to declare env_cfg.teleop")
     if args_cli.frontend == "torch":
         env = gym.make(task, cfg=env_cfg)
     else:
@@ -533,11 +586,22 @@ def create_isaaclab_env(
         from isaaclab_experimental.envs.frontend import WarpFrontend
 
         env = WarpFrontend.build_env(env_cfg, task)
-    if convert_marl_to_single_agent and isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
-        # Import the environment runtime only after simulation launch.
-        from isaaclab.envs import multi_agent_to_single_agent
+    try:
+        if enable_teleop and args_cli.teleop is not False and getattr(env_cfg, "teleop", None) is not None:
+            from isaaclab.envs import TeleopEnvWrapper
 
-        env = multi_agent_to_single_agent(env)
+            env = TeleopEnvWrapper(env)
+        if convert_marl_to_single_agent and isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
+            # Import the environment runtime only after simulation launch.
+            from isaaclab.envs import multi_agent_to_single_agent
+
+            env = multi_agent_to_single_agent(env)
+    except BaseException:
+        try:
+            env.close()
+        except BaseException:
+            logger.exception("Failed to close the environment after wrapper setup failed.")
+        raise
     return env
 
 
@@ -1034,10 +1098,12 @@ def run_playback(step: Callable[[], None], *, dt: float, args_cli: argparse.Name
         step: Callable that infers one action and steps the environment. Runs under
             :func:`torch.inference_mode`.
         dt: Environment step duration [s], used to pace real-time playback.
-        args_cli: Parsed command-line arguments providing ``video``, ``video_length`` and ``real_time``.
+        args_cli: Parsed command-line arguments providing ``video``, ``video_length``, ``real_time``
+            and the optional ``max_steps`` limit.
         env_cfg: Environment config whose first video recorder bounds the clip when ``--video_length`` is omitted.
     """
-    max_steps = video_playback_steps(args_cli, env_cfg)
+    budgets = [n for n in (args_cli.max_steps, video_playback_steps(args_cli, env_cfg)) if n is not None]
+    max_steps = min(budgets, default=None)
     logger.info("Policy playback is running, press Ctrl+C to exit...")
     step_count = 0
     with contextlib.suppress(KeyboardInterrupt):
