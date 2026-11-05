@@ -651,6 +651,7 @@ def _make_newton_visualizer(viewer, scene_data_provider=None, state=None, *, cfg
     visualizer._viewer = viewer
     state = state or SimpleNamespace(body_q=wp.empty(1, dtype=wp.transform, device="cpu"))
     visualizer.backend = SimpleNamespace(
+        cfg=None,
         model=SimpleNamespace(num_envs=1, body_count=len(state.body_q)),
         state_0=state,
         geometry_offsets={},
@@ -677,6 +678,20 @@ def _make_newton_visualizer(viewer, scene_data_provider=None, state=None, *, cfg
     if viewer is not None and isinstance(visualizer, NewtonGLVisualizer):
         visualizer._viewer_picking_binding.bind(viewer)
     return visualizer
+
+
+def test_newton_visualizer_binds_published_poses_to_render_only_backends():
+    """A visualizer that shares the simulation backend leaves the backend's body poses in place."""
+    visualizer = _make_newton_visualizer(_Viewer())
+    state = visualizer.backend.state_0
+    provider = visualizer._sim.get_scene_data_provider()
+    provider.poses = wp.empty(1, dtype=wp.transform, device="cpu")
+    visualizer.backend.cfg = object()
+    assert visualizer._update_state() is state
+    assert state.body_q is not provider.poses
+    visualizer.backend.cfg = None
+    visualizer._update_state()
+    assert state.body_q is provider.poses
 
 
 def test_newton_visualizer_forwards_and_neutralizes_picking():
@@ -715,7 +730,7 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
 
     new_model = SimpleNamespace(body_label=["/Object"])
     new_state = object()
-    backend = SimpleNamespace(model=new_model, state_0=new_state, variants_version=0)
+    backend = SimpleNamespace(cfg=None, model=new_model, state_0=new_state, variants_version=0)
     sim = SimpleNamespace(get_or_create_backend=Mock(return_value=backend), backend_manager=Mock())
     monkeypatch.setattr(SimulationContext, "instance", Mock(side_effect=AssertionError("No global resource lookup")))
 

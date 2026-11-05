@@ -92,11 +92,13 @@ def test_switchable_object_follows_selected_candidate():
         backend = sim.backend_manager.backend
         model = backend.model
         assert obj.num_instances == 2 and obj.num_bodies == 1
-        assert model.body_variant_count == 4
+        assert model.body_variant_labels(0) == model.body_variant_labels(1) == ["asset_0", "asset_1"]
         assert wp.to_torch(model.body_variant).tolist().count(0) == 2
-        # Each world pairs its selected candidate with the ground plane only.
-        assert backend.collision_pipeline.shape_pairs_max == 2
-        visible = (model.shape_flags.numpy() & int(newton.ShapeFlags.VISIBLE)) != 0
+        # Each candidate is one collider, so each body holds its candidates in one variant shape row.
+        rows = [model.body_shapes[body] for body in range(2)]
+        assert [len(shapes) for shapes in rows] == [1, 1]
+        rows = [shapes[0] for shapes in rows]
+        selected = [0, 0]
         changes = []
         viewer = SimpleNamespace(notify_model_changed=changes.append)
         version = backend.notify_viewer(viewer, backend.variants_version)
@@ -106,9 +108,12 @@ def test_switchable_object_follows_selected_candidate():
             nonlocal version
             variant_ids = torch.tensor(variants, dtype=torch.int32, device=sim.device)
             obj.replace_mesh_to_sim(variant_ids=variant_ids, env_ids=env_ids)
-            active = model.shape_active.numpy()
-            # One visible candidate shape per environment is selected, the other is not.
-            assert (visible & active).sum() == 2 and (visible & ~active).sum() == 2
+            for env, variant in zip(range(2) if env_ids is None else env_ids, variants):
+                selected[env] = variant
+            # The row of each environment holds the selected candidate's visible shape.
+            shapes = [newton.GeoType.SPHERE if variant else newton.GeoType.BOX for variant in selected]
+            assert model.shape_type.numpy()[rows].tolist() == shapes
+            assert (model.shape_flags.numpy()[rows] & int(newton.ShapeFlags.VISIBLE)).all()
             version = backend.notify_viewer(viewer, backend.notify_viewer(viewer, version))
 
         select([0, 1])
@@ -120,6 +125,7 @@ def test_switchable_object_follows_selected_candidate():
         scene_data = sim.backend_manager._scene_data_backend
         paths = scene_data.transform_paths
         transforms = wp.to_torch(scene_data.transforms.transforms)
+        assert scene_data.transform_count == len(paths) == transforms.shape[0]
         body = paths.index("/World/Env_1/Object")
         torch.testing.assert_close(transforms[paths.index("/World/Env_1/Object/asset_1")], transforms[body])
         assert transforms[paths.index("/World/Env_1/Object/asset_0"), 2] < -1000.0
@@ -128,7 +134,7 @@ def test_switchable_object_follows_selected_candidate():
         heights = _settle(sim, obj, [0])
         torch.testing.assert_close(obj.data.body_mass.torch[:, 0], torch.tensor([2.0, 2.0], device=sim.device))
         torch.testing.assert_close(heights, torch.tensor([0.15, 0.15], device=sim.device), atol=5e-3, rtol=0.0)
-        assert changes == [newton.ModelFlags.SHAPE_ACTIVE] * 2
+        assert changes == [newton.ModelFlags.SHAPE_TYPE_AND_SOURCE] * 2
 
 
 def test_switchable_object_under_a_parent_source():
@@ -149,8 +155,9 @@ def test_switchable_object_under_a_parent_source():
         replicate(plan)
         sim.reset()
 
+        model = sim.backend_manager.backend.model
         assert obj.num_instances == 2 and obj.num_bodies == 1
-        assert sim.backend_manager.backend.model.body_variant_count == 4
+        assert model.body_variant_labels(0) == model.body_variant_labels(1) == ["asset_0", "asset_1"]
         obj.replace_mesh_to_sim(variant_ids=torch.tensor([0, 1], dtype=torch.int32, device=sim.device))
         sim.step(render=False)
         obj.update(_DT)

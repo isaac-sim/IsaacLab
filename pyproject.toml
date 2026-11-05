@@ -83,8 +83,9 @@ dependencies = [
     "rsl-rl-lib==5.5.1",  # default RL framework
     "gitpython>=3.1.60",  # used by RL training and experiment logging
     # ----- newton (default physics engine) -----
-    # TODO: Pin a newton-physics/newton revision again once #4857 (body shape variants) is merged.
-    "newton[sim] @ git+https://github.com/eric-heiden/newton.git@1f6f01da3497ace9e23502990f4a423c030cadf5",
+    # Pin the current Newton development revision until it is included in a release. It includes the per-world
+    # body shape variants of newton-physics/newton#4959, which SwitchableAssetsCfg requires.
+    "newton[sim] @ git+https://github.com/newton-physics/newton.git@531c14801d41396cd344c92e25b35e53feb4a5ad",
     # Import and mesh-processing packages used by Newton, including the ones that honoring
     # USD-authored ``physics:approximation`` requires. Keep these explicit instead of selecting
     # newton[importers], whose standalone USD dependency would overlap with usd-exchange.
@@ -98,9 +99,9 @@ dependencies = [
     "pycollada>=0.9",
     "resolve-robotics-uri-py>=0.4.0",
     "open3d>=0.19.0 ; python_version < '3.13' and (sys_platform != 'linux' or platform_machine != 'aarch64')",
-    # Authored MPM particle import requires the 0.5 schema revision. The managed
+    # The pinned Newton revision's USD importer requires the 0.6 schema revision. The managed
     # Isaac Sim workflow overrides its older exact transitive pin below.
-    "newton-usd-schemas>=0.5.0",
+    "newton-usd-schemas>=0.6.0",
     "PyOpenGL-accelerate>=3.1.0",
     # ----- newton interactive viewer GUI (in base, no extra required) -----
     "imgui-bundle>=1.92.5",
@@ -416,11 +417,11 @@ environments = [
 # Direct torch-stack pins also apply to published wheels; overrides reconcile Isaac Sim's older pins.
 override-dependencies = [
     "numpy>=2",
-    "mujoco~=3.16.0",
-    "mujoco-warp~=3.16.0",
-    "newton[sim] @ git+https://github.com/eric-heiden/newton.git@1f6f01da3497ace9e23502990f4a423c030cadf5",
+    "mujoco~=3.17.0",
+    "mujoco-warp~=3.17.0",
+    "newton[sim] @ git+https://github.com/newton-physics/newton.git@531c14801d41396cd344c92e25b35e53feb4a5ad",
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
-    "newton-usd-schemas>=0.5.0",
+    "newton-usd-schemas>=0.6.0",
     # isaacsim-asset-isolated and isaacsim-robot-schema 6.2 pin usd-exchange ==2.3.0.
     "usd-exchange==3.0.1",
     # usd-optimize must share usd-exchange's OpenUSD build (26.08); bump the two together.

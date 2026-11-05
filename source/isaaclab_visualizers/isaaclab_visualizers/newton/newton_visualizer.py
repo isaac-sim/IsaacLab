@@ -945,7 +945,11 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         state = self.backend.state_0
         provider = self._sim.get_scene_data_provider()
         poses = SceneDataFormat.Transform()
-        if provider.get_transforms(poses, mapping=self._transform_mapping, count=self.backend.model.body_count):
+        # Only a render-only backend takes the published poses; a simulation backend owns them.
+        if (
+            provider.get_transforms(poses, mapping=self._transform_mapping, count=self.backend.model.body_count)
+            and self.backend.cfg is None
+        ):
             state.body_q = poses.transforms
         if self.backend.geometry_offsets:
             provider.get_geometry_points(output=state.particle_q, offsets=self.backend.geometry_offsets)

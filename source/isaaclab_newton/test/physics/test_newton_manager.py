@@ -366,7 +366,7 @@ def test_deterministic_collision_pipeline_grows_with_the_solver_contact_capacity
 
     backend = backend_stub(
         cfg=NewtonCfg(collision_cfg=collision_cfg, solver_cfg=NewtonSolverCfg(class_type=RecordingSolver)),
-        model=SimpleNamespace(body_variant_count=0),
+        model=None,
         solver=SimpleNamespace(get_max_contact_count=lambda: 2),
         collision_pipeline=None,
         device="cpu",
@@ -390,34 +390,6 @@ def test_collision_cfg_is_rejected_when_the_solver_does_not_use_the_collision_pi
 
     with pytest.raises(ValueError, match="collision_cfg cannot be set"):
         backend._allocate_contacts()
-
-
-def _array(values) -> SimpleNamespace:
-    return SimpleNamespace(numpy=lambda: np.asarray(values))
-
-
-@pytest.mark.parametrize(
-    "world_count, shape_world, starts, ranges, body_world, expected",
-    [
-        # A ground shared by both worlds, a body in world 0 with a one- and a two-shape variant, and a shared body:
-        # world 0 holds 4 colliders, world 1 holds 2, and the 2 shared ones pair among themselves.
-        (2, [-1, 0, 0, 0, -1], [0, 2, 3], [[1, 2], [2, 4], [4, 5]], [0, -1], 6 + 1 + 1),
-        # A single one-shape variant pairs with nothing, but the broad phase needs room for a pair.
-        (1, [0], [0, 1], [[0, 1]], [0], 1),
-    ],
-)
-def test_body_variant_pair_bound(world_count, shape_world, starts, ranges, body_world, expected):
-    """The bound counts shared variant bodies in every world and stays positive."""
-    model = SimpleNamespace(
-        shape_flags=_array(np.full(len(shape_world), int(newton_backend.ShapeFlags.COLLIDE_SHAPES))),
-        shape_world=_array(shape_world),
-        body_variant_start=_array(starts),
-        _body_variant_shape_range=_array(ranges),
-        body_world=_array(body_world),
-        world_count=world_count,
-        shape_count=len(shape_world),
-    )
-    assert newton_backend._body_variant_shape_pairs_max(model) == expected
 
 
 # ----- The step ----------------------------------------------------------------------------

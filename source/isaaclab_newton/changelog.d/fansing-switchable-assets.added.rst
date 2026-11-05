@@ -2,6 +2,6 @@
   body whose shape variants are its candidates, selected with
   :meth:`~isaaclab_newton.assets.RigidObject.replace_mesh_to_sim` or
   :meth:`~isaaclab_newton.physics.NewtonManager.select_body_variants`. Renderers receive the candidate prims with the
-  unselected ones out of view, Newton viewers follow the selection through
-  :meth:`~isaaclab_newton.physics.NewtonBackend.notify_viewer`, and the broad phase is sized by the largest candidate
-  of each body. The candidates of an object must all be kinematic or all dynamic.
+  unselected ones out of view, and Newton viewers follow the selection through
+  :meth:`~isaaclab_newton.physics.NewtonBackend.notify_viewer`. The candidates of an object must all be kinematic or
+  all dynamic.

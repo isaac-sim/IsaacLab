@@ -1,8 +1,8 @@
 numpy>=2
-mujoco~=3.16.0
-mujoco-warp~=3.16.0
-newton[sim] @ git+https://github.com/eric-heiden/newton.git@1f6f01da3497ace9e23502990f4a423c030cadf5
-newton-usd-schemas>=0.5.0
+mujoco~=3.17.0
+mujoco-warp~=3.17.0
+newton[sim] @ git+https://github.com/newton-physics/newton.git@531c14801d41396cd344c92e25b35e53feb4a5ad
+newton-usd-schemas>=0.6.0
 usd-exchange==3.0.1
 usd-optimize~=1.3.1
 urdf-usd-converter==0.3.4

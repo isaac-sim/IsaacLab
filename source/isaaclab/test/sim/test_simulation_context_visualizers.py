@@ -400,6 +400,7 @@ class _DummyViserSceneDataProvider:
 def web_backend(monkeypatch):
     model = SimpleNamespace(body_label=["/Object"], body_count=1, num_envs=4)
     backend = SimpleNamespace(
+        cfg=None,
         model=model,
         state_0=SimpleNamespace(body_q=None),
         geometry_offsets={},
@@ -474,6 +475,7 @@ def test_viser_visualizer_reads_sdp_and_rebinds_native_resource(
     assert viewer.calls[1] == ("log_state", backend.state_0)
     assert viewer.calls[2] == ("end_frame",)
     replacement = SimpleNamespace(
+        cfg=None,
         model=backend.model,
         state_0=SimpleNamespace(body_q=None),
         geometry_offsets={},

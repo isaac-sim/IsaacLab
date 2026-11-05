@@ -63,7 +63,7 @@ class SwitchableAssetsCfg(RigidObjectSpawnerCfg):
 
     Supported by Newton physics only. The MuJoCo Warp solver supports candidates only with Newton's collision
     pipeline: set ``use_mujoco_contacts=False`` (it defaults to ``True``) and keep ``use_mujoco_cpu=False``,
-    otherwise Newton raises :class:`NotImplementedError` when the model is built. For example:
+    otherwise Newton raises :class:`NotImplementedError` when the solver is created. For example:
 
     .. code-block:: python
 
@@ -72,7 +72,12 @@ class SwitchableAssetsCfg(RigidObjectSpawnerCfg):
             collision_cfg=NewtonCollisionPipelineCfg(broad_phase="sap"),
         )
 
-    Render with OVRTX: the Newton Warp renderer does not support candidates.
+    Render with OVRTX and visualize with the Newton GL or Viser visualizers: the Newton Warp renderer and the Rerun
+    visualizer do not support candidates. Selecting a candidate gives the object the candidate's authored colors and
+    contact materials, so randomize contact materials after selecting. OVRTX binds visual materials per candidate
+    prim, whereas the Newton GL and Viser visualizers do not apply :class:`~isaaclab.assets.VisualMaterialCfg` writes
+    to candidates. The candidate prims are not Newton shapes: contact sensors and other shape lookups address the
+    object through its own prim path.
 
     Properties set on this configuration override those of the candidates, as in :class:`MultiAssetSpawnerCfg`.
     """

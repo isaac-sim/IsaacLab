@@ -699,8 +699,9 @@ class BaseRigidObject(AssetBase):
 
         Args:
             variant_ids: Candidate indices into :attr:`~isaaclab.sim.SwitchableAssetsCfg.assets_cfg`.
-                Shape is (len(env_ids),) with dtype int32.
-            env_ids: Environment indices. If None, then all indices are used.
+                Shape is (len(env_ids),) with dtype int32. An index outside the candidates, such as ``-1``,
+                leaves the candidate of its environment unchanged.
+            env_ids: Environment indices, each at most once. If None, then all indices are used.
         """
         raise NotImplementedError(f"{type(self).__name__} does not support switchable assets.")
 

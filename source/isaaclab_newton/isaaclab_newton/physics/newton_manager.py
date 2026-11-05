@@ -159,6 +159,7 @@ class NewtonManager(PhysicsManager):
         if dispatch_stop:
             self.dispatch_event(PhysicsEvent.STOP)
         self.views.clear()
+        self._scene_data_backend.close_model()
         self.backend = None
         SimulationContext.instance().close_backend(backend)
 

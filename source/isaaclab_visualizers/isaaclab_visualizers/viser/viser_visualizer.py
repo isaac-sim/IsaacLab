@@ -385,7 +385,11 @@ class ViserVisualizer(BaseVisualizer):
             if not self.cfg.streaming_view:
                 backend, provider = self.backend, self._sim.get_scene_data_provider()
                 poses = SceneDataFormat.Transform()
-                if provider.get_transforms(poses, mapping=self._transform_mapping, count=backend.model.body_count):
+                # Only a render-only backend takes the published poses; a simulation backend owns them.
+                if (
+                    provider.get_transforms(poses, mapping=self._transform_mapping, count=backend.model.body_count)
+                    and backend.cfg is None
+                ):
                     backend.state_0.body_q = poses.transforms
                 if backend.geometry_offsets:
                     provider.get_geometry_points(output=backend.state_0.particle_q, offsets=backend.geometry_offsets)

@@ -192,12 +192,14 @@ def add_switchable_body(builder: ModelBuilder, label: str, candidates: Sequence[
         raise ValueError(f"The candidates of the switchable asset '{label}' mix kinematic and dynamic bodies.")
     body = builder.add_link(xform=candidates[0].body_q[0], label=label, is_kinematic=kinematic.pop())
     builder.add_articulation([builder.add_joint_free(child=body, label=f"{label}_free_joint")], label=label)
-    names = []
+    # Newton gives the body's shapes the initial candidate's visual material binding for every selection, so no
+    # candidate's material addresses them. The binding exists when visual shapes are loaded.
     for candidate in candidates:
-        path = candidate.body_label[0]
-        # Newton labels variant shapes "<body>/<variant>/<shape label>"; relative labels keep their prim paths.
-        candidate.shape_label = [shape[len(path) + 1 :] for shape in candidate.shape_label]
-        names.append(path[len(label) + 1 :])
+        binding = candidate.custom_attributes.get("isaaclab:visual_material_path")
+        if binding is not None:
+            binding.values.clear()
+    # The candidates' prim names label the variants, which the scene data publishes as ``<body>/<name>``.
+    names = [candidate.body_label[0][len(label) + 1 :] for candidate in candidates]
     builder.add_body_variants(body, candidates, labels=names)
 
 

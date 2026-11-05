@@ -138,7 +138,7 @@ def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monke
     newton_backend = backend_stub(
         cfg=owner._cfg,
         model_changes=set(),
-        model=SimpleNamespace(body_count=1, body_variant_count=0, world_count=1, articulation_world=None),
+        model=SimpleNamespace(body_count=1, world_count=1, articulation_world=None),
         state_0=state,
         solver=None,
         world_mask=wp.zeros(2, dtype=wp.bool, device="cpu"),
