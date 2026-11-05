@@ -16,6 +16,7 @@ import contextlib
 import logging
 import os
 import sys
+import time
 from collections.abc import Callable
 from typing import Any, Literal
 
@@ -32,13 +33,18 @@ import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
 
 from .common import (
+    add_frontend_args,
     add_video_args,
     apply_env_overrides,
     apply_video_recording,
     close_env,
+    create_isaaclab_env,
     enable_cameras_for_video,
     normalize_task_name,
+    parse_step_limit,
     pre_launch_video_config,
+    resolve_seed,
+    validate_play_teleop,
     video_playback_steps,
 )
 
@@ -73,11 +79,57 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
         raise ValueError(f"Unsupported policy {policy!r}. Expected one of: {sorted(_DESCRIPTIONS)}.")
 
     args_cli = _parse_args(argv, policy)
-    torch.manual_seed(_SEED)
-
+    args_cli.seed = resolve_seed(args_cli.seed)
+    torch.manual_seed(_SEED if args_cli.seed is None else args_cli.seed)
     env_cfg, _ = resolve_task_config(args_cli.task, "")
+    _run_environment(args_cli, env_cfg, policy=policy, enable_teleop=args_cli.teleop is True)
+
+
+def run_teleop_if_configured(argv: list[str]) -> bool:
+    """Run checkpoint-free playback when the resolved task declares teleoperation.
+
+    Args:
+        argv: Playback arguments without a policy backend or checkpoint selection.
+
+    Returns:
+        Whether teleoperation handled this playback request. Tasks without teleoperation
+        continue through the existing policy backend dispatcher.
+    """
+    args_cli = _parse_args(argv, "zero")
+    overrides = sys.argv[1:]
+    # Backend-only flags and agent overrides belong to the policy dispatcher.
+    if args_cli.teleop is not True and any(
+        arg.startswith("-") or arg.lstrip("+~").partition("=")[0].partition(".")[0] == "agent" for arg in overrides
+    ):
+        return False
+    try:
+        env_cfg, _ = resolve_task_config(args_cli.task, "", play_mode=not args_cli.train_env_cfg, overrides=overrides)
+    except ValueError:
+        # An implicit probe cannot resolve presets declared only by the agent.
+        # Let the policy backend compose the complete config and report errors.
+        if args_cli.teleop is True:
+            raise
+        return False
+    if getattr(env_cfg, "teleop", None) is None:
+        if args_cli.teleop is True:
+            raise ValueError("--teleop requires the task to declare env_cfg.teleop")
+        return False
+    args_cli.seed = resolve_seed(args_cli.seed)
+    torch.manual_seed(_SEED if args_cli.seed is None else args_cli.seed)
+    _run_environment(args_cli, env_cfg, policy="zero", enable_teleop=True)
+    return True
+
+
+def _run_environment(
+    args_cli: argparse.Namespace, env_cfg: Any, *, policy: PolicyName, enable_teleop: bool = False
+) -> None:
+    """Run the resolved environment with a zero/random baseline and optional teleop overrides."""
     apply_env_overrides(args_cli, env_cfg)
+    if args_cli.seed is not None:
+        env_cfg.seed = args_cli.seed
     pre_launch_video_config(env_cfg, args_cli)
+    if enable_teleop:
+        validate_play_teleop(env_cfg, args_cli)
     # reject unsupported configurations before launching Kit or initializing a native physics backend
     try:
         validate(env_cfg)
@@ -87,7 +139,9 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
     with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
         log_dir = os.path.abspath(os.path.join("logs", f"{policy}_agent", normalize_task_name(args_cli.task)))
         apply_video_recording(env_cfg, log_dir, args_cli, subdir="play")
-        env = gym.make(args_cli.task, cfg=env_cfg)
+        env = create_isaaclab_env(
+            args_cli.task, env_cfg, args_cli, convert_marl_to_single_agent=False, enable_teleop=enable_teleop
+        )
         cleanup.callback(lambda: close_env(env))
         logger.info(f"Gym observation space: {env.observation_space}")
         logger.info(f"Gym action space: {env.action_space}")
@@ -108,8 +162,11 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
             if max_steps is not None and step >= max_steps:
                 break
             step += 1
+            started = time.perf_counter()
             with torch.inference_mode():
                 env.step(action_policy())
+            if args_cli.real_time:
+                time.sleep(max(0.0, env.unwrapped.step_dt - (time.perf_counter() - started)))
 
 
 def create_zero_action_policy(env: gym.Env) -> Callable[[], Any]:
@@ -258,10 +315,20 @@ def _parse_args(argv: list[str] | None, policy: PolicyName) -> argparse.Namespac
     )
     parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
     parser.add_argument("--task", type=str, default=None, help="Name of the task.")
+    parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment.")
     parser.add_argument(
-        "--max_steps", type=int, default=None, help="Number of environment steps to run. Runs unbounded when omitted."
+        "--teleop", action=argparse.BooleanOptionalAction, default=None, help="Use the task's teleop configuration."
+    )
+    parser.add_argument("--real-time", action="store_true", help="Pace playback to the simulation timestep.")
+    parser.add_argument("--train_env_cfg", action="store_true", help="Skip play-mode overrides during teleoperation.")
+    parser.add_argument(
+        "--max_steps",
+        type=parse_step_limit,
+        default=None,
+        help="Number of environment steps to run. Runs unbounded when omitted.",
     )
     add_video_args(parser, action=f"the {policy} agent run")
+    add_frontend_args(parser)
     add_launcher_args(parser)
     # let task configs select the simulation device
     parser.set_defaults(device=None)

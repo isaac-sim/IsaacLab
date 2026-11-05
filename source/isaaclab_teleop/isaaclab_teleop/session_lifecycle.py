@@ -8,9 +8,11 @@
 from __future__ import annotations
 
 import collections
+import dataclasses
 import json
 import logging
 import os
+import threading
 import time
 from collections.abc import Callable, Sequence
 from contextlib import ExitStack
@@ -382,6 +384,10 @@ class TeleopSessionLifecycle:
         self._restart_holdoff_until = 0.0
         # Fallback for host-initiated resets when no control pipeline is configured
         self._pending_reset = False
+        # Host notifications belong to the retargeting graph, not the control channel.
+        # The worker consumes them only when it actually executes that graph.
+        self._retargeter_reset_lock = threading.Lock()
+        self._retargeter_reset_pending = False
 
         # Keep the supplied live sequence so windows initialized later can join the session.
         self._visualizers = visualizers
@@ -543,6 +549,17 @@ class TeleopSessionLifecycle:
             self._message_processor.inject_reset(pause=pause)
         else:
             self._pending_reset = True
+
+    def notify_reset(self) -> None:
+        """Reset main-pipeline retargeters on their next execution without emitting a control event.
+
+        Unlike :meth:`request_reset`, this reports a reset the environment has
+        already performed. It leaves operator commands and execution state intact.
+        The notification survives dropped pipelined submissions; a worker consumes
+        it only while executing the main graph. Multiple pending notifications coalesce.
+        """
+        with self._retargeter_reset_lock:
+            self._retargeter_reset_pending = True
 
     def request_start(self) -> None:
         """Locally drive the teleop state machine toward RUNNING (headset-free start).
@@ -736,6 +753,8 @@ class TeleopSessionLifecycle:
         self._pipeline = None
         self._teleop_control_pipeline = None
         self._message_processor = None
+        with self._retargeter_reset_lock:
+            self._retargeter_reset_pending = False
         self._last_step_result = None
         self._last_left_controller = None
         self._last_control_events = _NO_OP_EVENTS
@@ -793,7 +812,37 @@ class TeleopSessionLifecycle:
         self._chain_hand_presence_outputs(user_pipeline, pipeline_outputs)
         if self._enable_debug_visualization:
             pipeline_outputs[self._CONTROLLER_LEFT_KEY] = self._button_controllers.output(ControllersSource.LEFT)
-        return OutputCombiner(pipeline_outputs)
+        lifecycle = self
+
+        class _HostResetOutputCombiner(OutputCombiner):
+            """Deliver host reset notifications inside the graph's normal execution context."""
+
+            def _compute_with_cache(self, cache):
+                # Shared main/sink graphs may revisit this node in the same frame.
+                cached = cache.get_cached(id(self))
+                if cached is not None:
+                    return cached
+                with lifecycle._retargeter_reset_lock:
+                    reset = lifecycle._retargeter_reset_pending
+                    lifecycle._retargeter_reset_pending = False
+                if not reset:
+                    return super()._compute_with_cache(cache)
+
+                context = cache.context
+                cache.context = dataclasses.replace(
+                    context, execution_events=dataclasses.replace(context.execution_events, reset=True)
+                )
+                try:
+                    return super()._compute_with_cache(cache)
+                except BaseException:
+                    lifecycle.notify_reset()
+                    raise
+                finally:
+                    # Capture publishes the original control context, so a host
+                    # notification cannot echo back as an operator reset command.
+                    cache.context = context
+
+        return _HostResetOutputCombiner(pipeline_outputs)
 
     # ------------------------------------------------------------------
     # Keyboards

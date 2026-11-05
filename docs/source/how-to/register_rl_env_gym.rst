@@ -30,7 +30,7 @@ the :meth:`gymnasium.make` function.
    .. literalinclude:: ../../../source/isaaclab_rl/isaaclab_rl/entrypoints/simple_agents.py
       :language: python
       :start-at: env_cfg, _ = resolve_task_config(args_cli.task, "")
-      :end-at: gym.make(args_cli.task, cfg=env_cfg)
+      :end-at: _run_environment(args_cli, env_cfg, policy=policy, enable_teleop=args_cli.teleop is True)
 
 
 The Code
@@ -141,9 +141,17 @@ and whether to render, are used to override the default configuration.
 .. literalinclude:: ../../../source/isaaclab_rl/isaaclab_rl/entrypoints/simple_agents.py
    :language: python
    :start-at: env_cfg, _ = resolve_task_config(args_cli.task, "")
-   :end-at: gym.make(args_cli.task, cfg=env_cfg)
+   :end-at: _run_environment(args_cli, env_cfg, policy=policy, enable_teleop=args_cli.teleop is True)
 
-Once creating the environment, the rest of the execution follows the standard resetting and stepping.
+The runner applies the configuration overrides and launches simulation. Its shared environment
+creator uses the registered Gym task and resolved configuration:
+
+.. literalinclude:: ../../../source/isaaclab_rl/isaaclab_rl/entrypoints/common.py
+   :language: python
+   :start-at: env = gym.make(task, cfg=env_cfg)
+   :end-at: env = gym.make(task, cfg=env_cfg)
+
+After creating the environment, execution follows the standard resetting and stepping.
 
 
 The Code Execution

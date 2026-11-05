@@ -502,6 +502,12 @@ How-to Guides
 
       .. container:: guide-entry
 
+         :doc:`Adding teleoperation to an RL environment </source/how-to/teleop_rl_env>`
+
+         Declare an input source on an ordinary RL task and combine it with policy playback.
+
+      .. container:: guide-entry
+
          :doc:`Setting up Isaac Capture with CloudXR </source/how-to/cloudxr_teleoperation>`
 
          Connect XR devices through CloudXR for immersive teleoperation.

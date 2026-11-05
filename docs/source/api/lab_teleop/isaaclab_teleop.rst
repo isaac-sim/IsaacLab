@@ -11,6 +11,8 @@ isaaclab_teleop
 
     IsaacTeleopCfg
     IsaacTeleopDevice
+    CaptureTeleopSourceCfg
+    CaptureTeleopSource
     XrCameraFeedCfg
     XrCameraFeedLayoutCfg
     XrCameraFeedSession
@@ -84,6 +86,19 @@ Device
     :show-inheritance:
 
 .. autofunction:: create_isaac_teleop_device
+
+RL Environment Playback
+-----------------------
+
+See :ref:`teleop-rl-env` for standalone Capture input through ``isaaclab play``.
+
+.. autoclass:: CaptureTeleopSourceCfg
+    :members:
+    :show-inheritance:
+
+.. autoclass:: CaptureTeleopSource
+    :members:
+    :show-inheritance:
 
 Keyboard
 --------

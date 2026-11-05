@@ -7,6 +7,8 @@ __all__ = [
     "CLOUDXR_AVP_ENV",
     "CLOUDXR_JS_ENV",
     "CLOUDXR_STANDALONE_ENV",
+    "CaptureTeleopSource",
+    "CaptureTeleopSourceCfg",
     "ControlEvents",
     "ControllerHapticFeedbackCfg",
     "GloveHapticFeedbackCfg",
@@ -71,6 +73,8 @@ from .isaac_teleop_cfg import (
 from .isaac_teleop_device import IsaacTeleopDevice, create_isaac_teleop_device
 from .ov_libraries_xr import OvLibrariesXrSession
 from .ovxr_cfg import OvLibrariesXrCameraCfg, OvLibrariesXrCfg
+from .play_source import CaptureTeleopSource
+from .play_source_cfg import CaptureTeleopSourceCfg
 from .session_lifecycle import cloudxr_eula_accepted
 from .system_check import SystemCheckItem, SystemCheckResult, check_system_requirements
 from .xr_anchor_utils import XrAnchorSynchronizer
