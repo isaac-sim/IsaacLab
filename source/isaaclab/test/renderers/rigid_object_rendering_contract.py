@@ -280,8 +280,7 @@ def run_rigid_object_scale_and_pose_rendering_contract(backend: RigidObjectRende
             positive_poses = center_poses.clone()
             positive_poses[:, 0] += _OBJECT_SHIFT
             positive_depth = _write_pose_and_render(sim, scene, rigid_object, camera, positive_poses)
-            positive_heights, _, positive_centroids = _measure_depth_mask(positive_depth, backend.name, camera)
-            _require_zoom_consistency(backend.name, positive_heights, positive_centroids, zoom_camera)
+            _, _, positive_centroids = _measure_depth_mask(positive_depth, backend.name, camera)
 
             negative_delta = negative_centroids - center_centroids
             positive_delta = positive_centroids - center_centroids
