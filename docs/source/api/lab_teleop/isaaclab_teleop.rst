@@ -13,6 +13,12 @@ isaaclab_teleop
     IsaacTeleopDevice
     CaptureTeleopSourceCfg
     CaptureTeleopSource
+    TeleopActionCfg
+    TeleopAction
+    TeleopObservationCfg
+    TeleopSample
+    TeleopSource
+    TeleopSourceCfg
     XrCameraFeedCfg
     XrCameraFeedLayoutCfg
     XrCameraFeedSession
@@ -91,6 +97,24 @@ RL Environment Playback
 -----------------------
 
 See :ref:`teleop-rl-env` for standalone Capture input through ``isaaclab play``.
+
+.. autoclass:: TeleopActionCfg
+    :members:
+
+.. autoclass:: TeleopAction
+    :members:
+
+.. autoclass:: TeleopObservationCfg
+    :members:
+
+.. autoclass:: TeleopSample
+    :members:
+
+.. autoclass:: TeleopSource
+    :members:
+
+.. autoclass:: TeleopSourceCfg
+    :members:
 
 .. autoclass:: CaptureTeleopSourceCfg
     :members:

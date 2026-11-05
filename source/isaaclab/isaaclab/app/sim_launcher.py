@@ -31,6 +31,7 @@ from isaaclab_visualizers.rerun import RerunBackendCfg
 from isaaclab_visualizers.viser import ViserBackendCfg
 
 from ..envs.utils.video_recorder_cfg import CAPTURE_VISUALIZER_TYPES, VideoRecorderCfg, parse_video_source
+from ..managers.manager_term_cfg import ObservationPresentationCfg
 from ..physics.physics_manager_cfg import PhysicsCfg, PhysxAutoCfg, _resolve_physx_auto_cfg
 from ..renderers.renderer_cfg import RendererCfg
 from ..scene.interactive_scene_cfg import InteractiveSceneCfg
@@ -128,7 +129,7 @@ def _walk_runtime_configs(cfg: Any, replacements: dict[int, Any] | None = None) 
             visited[id(node)] = visit(replacements[id(node)])
             return visited[id(node)]
         visited[id(node)] = node
-        if callable(node):
+        if callable(node) or isinstance(node, ObservationPresentationCfg):
             return node
         if isinstance(node, (PhysicsCfg, RendererCfg, VisualizerBackendCfg)):
             configs.append(node)

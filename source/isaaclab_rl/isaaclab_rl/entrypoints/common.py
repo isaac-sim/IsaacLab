@@ -21,22 +21,26 @@ from collections.abc import Callable, Iterator
 from contextlib import ExitStack, contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import gymnasium as gym
 import torch
 import warp as wp
 from PIL import Image
 
-from isaaclab.app import LoadingScreen
+from isaaclab.app import LoadingScreen, launch_simulation
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg, parse_video_source
+from isaaclab.managers import InteractiveActionTermCfg
 from isaaclab.renderers.renderer_cfg import RendererCfg
-from isaaclab.utils import validate
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.images import make_camera_output_grid, normalize_camera_output_for_display
 from isaaclab.utils.io import dump_yaml
+
+if TYPE_CHECKING:
+    from isaaclab_teleop.playback import CapturePlaySession
+
 
 logger = logging.getLogger(__name__)
 
@@ -297,7 +301,7 @@ def add_common_play_args(parser: argparse.ArgumentParser, *, agent_default: str 
         "--teleop",
         action=argparse.BooleanOptionalAction,
         default=None,
-        help="Use the environment's optional teleop configuration (enabled when configured).",
+        help="Activate the task's TeleopActionCfg terms (enabled when configured).",
     )
     parser.add_argument(
         "--max_steps", type=parse_step_limit, default=None, help="Stop playback after this many environment steps."
@@ -526,34 +530,62 @@ Environment creation.
 """
 
 
-def validate_play_teleop(env_cfg: Any, args_cli: argparse.Namespace) -> None:
-    """Reject unsupported interactive playback before starting simulation runtimes.
+def has_play_teleop(env_cfg: Any) -> bool:
+    """Whether the task declares Capture action terms for interactive playback."""
+    if not isinstance(env_cfg, ManagerBasedRLEnvCfg):
+        return False
+    actions = env_cfg.actions if isinstance(env_cfg.actions, dict) else vars(env_cfg.actions)
+    return any(isinstance(cfg, InteractiveActionTermCfg) for cfg in actions.values())
 
-    The initial Capture integration supports kitless environments.
-    Resolve the actual launch requirements so task presets, sensors, viewers, and CLI
-    selections all participate in this check. Policy-only playback is unaffected.
+
+@contextmanager
+def launch_playback(
+    env_cfg: Any, args_cli: argparse.Namespace, *, enable_teleop: bool = True
+) -> Iterator[CapturePlaySession | None]:
+    """Launch playback and own Capture/XR resources across environment construction.
+
+    Training uses :func:`launch_simulation` directly. Action terms remain ordinary
+    controllers until this interactive scope attaches their input source.
     """
-    if args_cli.teleop is False:
-        return
-    teleop_cfg = getattr(env_cfg, "teleop", None)
-    if teleop_cfg is None:
-        if args_cli.teleop is True:
-            raise ValueError("--teleop requires the task to declare env_cfg.teleop")
-        return
-    if args_cli.frontend != "torch":
-        raise ValueError(
-            "Task-configured teleoperation requires --frontend torch; use --no-teleop for other frontends."
-        )
-    from isaaclab.app.sim_launcher import validate_launch
+    session = None
+    if has_play_teleop(env_cfg) and args_cli.frontend != "torch":
+        raise ValueError("TeleopActionCfg requires --frontend torch, including policy-only playback.")
+    if enable_teleop and args_cli.teleop is not False:
+        if has_play_teleop(env_cfg):
+            from isaaclab_teleop.playback import CapturePlaySession, PlaybackStopped
 
-    validate(teleop_cfg)
-    _, kit_sources = validate_launch(env_cfg, args_cli)
-    if kit_sources:
-        raise ValueError(
-            "Task-configured teleoperation currently requires a kitless runtime. "
-            f"This configuration requires Kit for: {', '.join(kit_sources)}. "
-            "Select a kitless task/preset or use --no-teleop for policy-only playback."
-        )
+            session = CapturePlaySession(env_cfg)
+            session.prepare_environment()
+            from isaaclab.app.sim_launcher import validate_launch
+
+            _, kit_sources = validate_launch(session.launch_config, args_cli)
+            if kit_sources:
+                raise ValueError(
+                    "Task teleoperation requires a kitless runtime. "
+                    f"This configuration requires Kit for: {', '.join(kit_sources)}. "
+                    "Use --no-teleop for policy playback."
+                )
+            session.validate()
+        elif args_cli.teleop is True:
+            raise ValueError("--teleop requires a TeleopActionCfg in the task's actions.")
+    launch_cfg = env_cfg if session is None else session.launch_config
+    with launch_simulation(launch_cfg, args_cli, cleanup_context=session is None):
+        if session is None:
+            yield None
+        else:
+            try:
+                session.prepare()
+                yield session
+            except PlaybackStopped:
+                session.close()
+            except BaseException as error:
+                try:
+                    session.close()
+                except BaseException as cleanup_error:
+                    error.add_note(f"Capture cleanup also failed: {cleanup_error!r}")
+                raise
+            else:
+                session.close()
 
 
 def create_isaaclab_env(
@@ -562,7 +594,7 @@ def create_isaaclab_env(
     args_cli: argparse.Namespace,
     *,
     convert_marl_to_single_agent: bool,
-    enable_teleop: bool = False,
+    playback_session: CapturePlaySession | None = None,
 ) -> gym.Env:
     """Create the Isaac Lab Gymnasium environment.
 
@@ -571,14 +603,13 @@ def create_isaaclab_env(
         env_cfg: Isaac Lab environment config.
         args_cli: Parsed command-line arguments.
         convert_marl_to_single_agent: Whether to convert direct MARL environments to single-agent environments.
-        enable_teleop: Whether playback may activate the environment's optional teleop configuration.
-            Training leaves this disabled. ``--no-teleop`` also disables it during playback.
+        playback_session: Prepared interactive session, or None for training and policy-only playback.
 
     Returns:
         The created Gymnasium environment.
     """
-    if enable_teleop and args_cli.teleop is True and getattr(env_cfg, "teleop", None) is None:
-        raise ValueError("--teleop requires the task to declare env_cfg.teleop")
+    if args_cli.frontend != "torch" and has_play_teleop(env_cfg):
+        raise ValueError("TeleopActionCfg requires the Torch frontend; retain the original controller for Warp tasks.")
     if args_cli.frontend == "torch":
         env = gym.make(task, cfg=env_cfg)
     else:
@@ -587,10 +618,8 @@ def create_isaaclab_env(
 
         env = WarpFrontend.build_env(env_cfg, task)
     try:
-        if enable_teleop and args_cli.teleop is not False and getattr(env_cfg, "teleop", None) is not None:
-            from isaaclab.envs import TeleopEnvWrapper
-
-            env = TeleopEnvWrapper(env)
+        if playback_session is not None:
+            env = playback_session.attach(env)
         if convert_marl_to_single_agent and isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
             # Import the environment runtime only after simulation launch.
             from isaaclab.envs import multi_agent_to_single_agent
@@ -598,7 +627,10 @@ def create_isaaclab_env(
             env = multi_agent_to_single_agent(env)
     except BaseException:
         try:
-            env.close()
+            if playback_session is not None:
+                playback_session.close()
+            else:
+                env.close()
         except BaseException:
             logger.exception("Failed to close the environment after wrapper setup failed.")
         raise
@@ -1091,7 +1123,14 @@ Playback.
 """
 
 
-def run_playback(step: Callable[[], None], *, dt: float, args_cli: argparse.Namespace, env_cfg: Any) -> None:
+def run_playback(
+    step: Callable[[], None],
+    *,
+    dt: float,
+    args_cli: argparse.Namespace,
+    env_cfg: Any,
+    playback_session: CapturePlaySession | None = None,
+) -> None:
     """Step a policy until interrupted, or until the requested video clip is complete.
 
     Args:
@@ -1101,6 +1140,7 @@ def run_playback(step: Callable[[], None], *, dt: float, args_cli: argparse.Name
         args_cli: Parsed command-line arguments providing ``video``, ``video_length``, ``real_time``
             and the optional ``max_steps`` limit.
         env_cfg: Environment config whose first video recorder bounds the clip when ``--video_length`` is omitted.
+        playback_session: Optional input/presentation session whose shutdown ends playback.
     """
     budgets = [n for n in (args_cli.max_steps, video_playback_steps(args_cli, env_cfg)) if n is not None]
     max_steps = min(budgets, default=None)
@@ -1108,6 +1148,8 @@ def run_playback(step: Callable[[], None], *, dt: float, args_cli: argparse.Name
     step_count = 0
     with contextlib.suppress(KeyboardInterrupt):
         while max_steps is None or step_count < max_steps:
+            if playback_session is not None and playback_session.shutdown_requested:
+                break
             start_time = time.time()
             with torch.inference_mode():
                 step()

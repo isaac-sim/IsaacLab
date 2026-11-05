@@ -103,6 +103,16 @@ class ActionTermCfg:
     """Clip range for the action (dict of regex expressions). Defaults to None."""
 
 
+@configclass
+class InteractiveActionTermCfg(ActionTermCfg):
+    """An action term whose optional input is activated by an interactive runner.
+
+    Task construction and training retain the term's policy behavior. Runners can
+    discover these declarations without importing optional input-device packages.
+    The concrete term and runner define the activation and ownership contract.
+    """
+
+
 ##
 # Command manager.
 ##
@@ -153,6 +163,17 @@ class CurriculumTermCfg(ManagerTermBaseCfg):
 ##
 # Observation manager.
 ##
+
+
+@configclass
+class ObservationPresentationCfg:
+    """Task declaration for an external observer, excluded from tensor observations.
+
+    Presentation consumers (for example an operator headset) have an independent
+    lifecycle owned by an interactive runner. Merely declaring one must not start
+    that consumer. The observation manager ignores these declarations when building
+    groups, spaces, histories, and recorder-visible observation dictionaries.
+    """
 
 
 @configclass

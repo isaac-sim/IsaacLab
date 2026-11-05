@@ -17,14 +17,16 @@ import pytest
 import torch
 from isaaclab_newton.physics import NewtonCfg
 from isaaclab_physx.physics import PhysxCfg
+from isaaclab_teleop import CaptureTeleopSourceCfg, TeleopActionCfg, TeleopSample, TeleopSource, se3_keyboard_teleop_cfg
 
-import isaaclab.envs
-from isaaclab.envs import DirectMARLEnvCfg, TeleopCfg, TeleopSample, TeleopSource, TeleopSourceCfg
+from isaaclab.envs import ManagerBasedRLEnvCfg
+from isaaclab.managers import ActionManager, ActionTerm, ActionTermCfg
+from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
-from isaaclab_rl.entrypoints import dispatch, simple_agents
-from isaaclab_rl.entrypoints.common import create_isaaclab_env, run_playback
+from isaaclab_rl.entrypoints import common, dispatch, simple_agents
+from isaaclab_rl.entrypoints.common import create_isaaclab_env, launch_playback, run_playback
 
 from isaaclab_tasks.utils import preset, resolve_task_config
 
@@ -34,10 +36,14 @@ pytestmark = pytest.mark.kitless
 class _InputSource(TeleopSource):
     """Supply one input sample, then release control to the baseline policy."""
 
-    def __init__(self, cfg, env, *, env_ids):
+    def __init__(self, cfg, env, *, env_ids, xr_session=None):
         self.polls = 0
         self.closed = False
+        self.session_cleanup_failed = False
         env.input_source = self
+
+    def start(self):
+        pass
 
     def advance(self):
         self.polls += 1
@@ -50,19 +56,52 @@ class _InputSource(TeleopSource):
         self.closed = True
 
 
-@configclass
-class _SceneCfg:
-    num_envs: int = 3
+class _EffortTerm(ActionTerm):
+    """Minimal controller retaining the real ActionManager arbitration path."""
+
+    def __init__(self, cfg, env):
+        super().__init__(cfg, env)
+        self._actions = torch.zeros(env.num_envs, 1)
+
+    @property
+    def action_dim(self):
+        return 1
+
+    @property
+    def raw_actions(self):
+        return self._actions
+
+    @property
+    def processed_actions(self):
+        return self._actions
+
+    def process_actions(self, actions):
+        self._actions[:] = actions
+
+    def apply_actions(self):
+        pass
 
 
 @configclass
-class _PlaybackCfg:
-    sim: SimulationCfg = SimulationCfg(device="cpu", physics=NewtonCfg())
-    scene: _SceneCfg = _SceneCfg()
-    teleop: TeleopCfg | None = TeleopCfg(
-        source=TeleopSourceCfg(class_type=_InputSource), env_ids=[1], action_indices=[0]
+class _ActionsCfg:
+    controlled = TeleopActionCfg(
+        controller=ActionTermCfg(class_type=_EffortTerm, asset_name="robot"),
+        source=CaptureTeleopSourceCfg(class_type=_InputSource, device=se3_keyboard_teleop_cfg()),
+        env_ids=[1],
     )
-    video_recorders: list = []
+    policy = ActionTermCfg(class_type=_EffortTerm, asset_name="robot")
+
+
+@configclass
+class _PlaybackCfg(ManagerBasedRLEnvCfg):
+    sim: SimulationCfg = SimulationCfg(device="cpu", physics=NewtonCfg())
+    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=3, env_spacing=2.0)
+    actions: _ActionsCfg = _ActionsCfg()
+    observations: dict = {}
+    rewards: dict = {}
+    terminations: dict = {}
+    decimation: int = 1
+    episode_length_s: float = 1.0
 
     def play_mode(self):
         pass
@@ -75,7 +114,13 @@ class _ActionSink(gym.Env):
         self.cfg = cfg
         self.num_envs = cfg.scene.num_envs
         self.device = "cpu"
-        self.sim = SimpleNamespace(is_running=lambda: True)
+        self.sim = SimpleNamespace(
+            is_running=lambda: True,
+            is_playing=lambda: True,
+            vis_marker_registry=SimpleNamespace(clear_debug_vis_callback=lambda term: None),
+        )
+        self.scene = {"robot": object()}
+        self.action_manager = ActionManager(cfg.actions, self)
         self.step_dt = 0.01
         self.single_action_space = gym.spaces.Box(-10.0, 10.0, shape=(2,))
         self.action_spaces = {"robot": self.single_action_space}
@@ -86,13 +131,16 @@ class _ActionSink(gym.Env):
         self.closed = False
 
     def reset(self, **kwargs):
+        self.action_manager.reset(kwargs.get("env_ids"))
         return {}, {}
 
     def step(self, action):
-        self.applied.append(action.clone())
+        self.action_manager.process_action(action)
+        self.applied.append(self.action_manager.action.clone())
         return {}, torch.zeros(self.num_envs), self.reset_buf, self.reset_buf, {}
 
     def close(self):
+        self.action_manager.close()
         self.closed = True
 
 
@@ -116,7 +164,7 @@ def playback_task(monkeypatch):
     # Launcher imports/runtime are the external boundary; config resolution, dispatch, Gym creation,
     # action selection, source lifecycle, and the bounded playback loop are real.
     monkeypatch.setattr(simple_agents, "add_launcher_args", lambda parser: None)
-    monkeypatch.setattr(simple_agents, "launch_simulation", lambda cfg, args: contextlib.nullcontext())
+    monkeypatch.setattr(common, "launch_simulation", lambda cfg, args, **kwargs: contextlib.nullcontext())
     try:
         yield task, created
     finally:
@@ -149,12 +197,12 @@ def test_zero_agent_seeds_before_config_construction_without_reseeding(playback_
         draws.append(torch.rand(()))
         return _PlaybackCfg()
 
-    def launch(cfg, args):
+    def launch(cfg, args, **kwargs):
         draws.append(torch.rand(()))
         return contextlib.nullcontext()
 
     gym.spec(task).kwargs["env_cfg_entry_point"] = config_factory
-    monkeypatch.setattr(simple_agents, "launch_simulation", launch)
+    monkeypatch.setattr(common, "launch_simulation", launch)
     expected = torch.rand(2, generator=torch.Generator().manual_seed(42))
     previous_state = torch.get_rng_state()
     try:
@@ -172,7 +220,7 @@ def test_play_rejects_kit_task_before_launch(playback_task, monkeypatch):
     cfg = _PlaybackCfg()
     cfg.sim.physics = PhysxCfg()
     gym.spec(task).kwargs["env_cfg_entry_point"] = lambda: cfg
-    monkeypatch.setattr(simple_agents, "launch_simulation", lambda *args: pytest.fail("attempted to launch Kit"))
+    monkeypatch.setattr(common, "launch_simulation", lambda *args, **kwargs: pytest.fail("attempted to launch Kit"))
 
     with pytest.raises(ValueError, match="requires a kitless.*--no-teleop"):
         dispatch.run_play_cli(["--task", task, "--max_steps", "1"])
@@ -183,9 +231,11 @@ def test_play_rejects_kit_task_before_launch(playback_task, monkeypatch):
 def test_play_rejects_warp_frontend_before_launch(playback_task, monkeypatch):
     """Input action tensors require the Torch frontend; reject an unsupported conversion before launching."""
     task, created = playback_task
-    monkeypatch.setattr(simple_agents, "launch_simulation", lambda *args: pytest.fail("attempted to launch simulation"))
+    monkeypatch.setattr(
+        common, "launch_simulation", lambda *args, **kwargs: pytest.fail("attempted to launch simulation")
+    )
 
-    with pytest.raises(ValueError, match="--frontend torch.*--no-teleop"):
+    with pytest.raises(ValueError, match="--frontend torch"):
         dispatch.run_play_cli(["--task", task, "--frontend", "warp", "--max_steps", "1"])
 
     assert not created
@@ -217,7 +267,7 @@ def test_implicit_policy_playback_preserves_agent_configuration(
     """Teleop discovery must not reject agent presets or consume Hydra agent additions."""
     task, created = playback_task
     gym.spec(task).kwargs["env_cfg_entry_point"] = lambda: (
-        _PlaybackCfg() if teleop_enabled else _PlaybackCfg(teleop=None)
+        _PlaybackCfg() if teleop_enabled else _PlaybackCfg(actions={"policy": _ActionsCfg().policy})
     )
     gym.spec(task).kwargs["rsl_rl_cfg_entry_point"] = lambda: {
         "network": preset(default={"width": 64}, small={"width": 32})
@@ -236,18 +286,18 @@ def test_implicit_policy_playback_preserves_agent_configuration(
 
 @pytest.mark.parametrize("activation", ["training", "disabled", "policy"])
 def test_env_factory_activates_input_only_for_enabled_playback(playback_task, activation):
-    """Training and --no-teleop leave input unopened; policy playback adds input after policy clipping."""
+    """Training and --no-teleop retain policy actions; interactive playback activates task arbitration."""
     task, created = playback_task
     args = argparse.Namespace(frontend="torch", teleop=False if activation == "disabled" else None)
-    env = create_isaaclab_env(
-        task, _PlaybackCfg(), args, convert_marl_to_single_agent=False, enable_teleop=activation != "training"
-    )
-    try:
-        env.reset()
-        policy_action = torch.full((3, 2), 2.0).clamp(-1.0, 1.0)
-        env.step(policy_action)
-    finally:
-        env.close()
+    cfg = _PlaybackCfg()
+    with launch_playback(cfg, args, enable_teleop=activation != "training") as session:
+        env = create_isaaclab_env(task, cfg, args, convert_marl_to_single_agent=False, playback_session=session)
+        try:
+            env.reset()
+            policy_action = torch.ones(3, 2)
+            env.step(policy_action)
+        finally:
+            env.close()
 
     sink = created[0]
     expected = torch.ones(3, 2)
@@ -259,31 +309,6 @@ def test_env_factory_activates_input_only_for_enabled_playback(playback_task, ac
     assert torch.equal(sink.applied[0], expected)
     assert torch.equal(policy_action, torch.ones(3, 2))
     assert sink.closed
-
-
-def test_env_factory_closes_input_when_marl_conversion_fails(playback_task, monkeypatch):
-    """Failure after source construction closes both source and environment and preserves the original error."""
-    task, created = playback_task
-    cfg = DirectMARLEnvCfg()
-    cfg.scene = _SceneCfg()
-    cfg.teleop = _PlaybackCfg().teleop
-    cfg.teleop.agent = "robot"
-    args = argparse.Namespace(frontend="torch", teleop=None)
-
-    def fail_conversion(env):
-        raise ValueError("conversion failed")
-
-    def fail_close(env):
-        env.closed = True
-        raise RuntimeError("cleanup failed")
-
-    monkeypatch.setattr(isaaclab.envs, "multi_agent_to_single_agent", fail_conversion)
-    monkeypatch.setattr(_ActionSink, "close", fail_close)
-
-    with pytest.raises(ValueError, match="conversion failed"):
-        create_isaaclab_env(task, cfg, args, convert_marl_to_single_agent=True, enable_teleop=True)
-
-    assert created[0].input_source.closed and created[0].closed
 
 
 @pytest.mark.parametrize("max_steps", [0, 2])

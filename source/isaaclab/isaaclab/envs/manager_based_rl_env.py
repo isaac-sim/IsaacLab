@@ -329,6 +329,9 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
 
     def close(self):
         if not self._is_closed:
+            # Terms may borrow other managers as well as simulation resources.
+            # Keep the complete environment alive if a term cannot close yet.
+            self.action_manager.close()
             # destructor is order-sensitive
             del self.command_manager
             del self.reward_manager

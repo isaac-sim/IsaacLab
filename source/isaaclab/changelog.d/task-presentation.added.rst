@@ -1,0 +1,1 @@
+* Added presentation-only observation declarations that remain outside policy tensors, observation spaces, and recorder data. Interactive runners own activation; ordinary simulation launches leave these declarations dormant.

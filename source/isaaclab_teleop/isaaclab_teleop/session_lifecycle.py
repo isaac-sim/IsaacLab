@@ -799,7 +799,8 @@ class TeleopSessionLifecycle:
             An ``OutputCombiner`` ready for ``TeleopSessionConfig``.
         """
         from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
-        from isaacteleop.retargeting_engine.interface import OutputCombiner
+        from isaacteleop.retargeting_engine.interface import ComputeContext, OutputCombiner
+        from isaacteleop.retargeting_engine.interface.retargeter_core_types import ExecutionCache
 
         # Forward every output the user pipeline declares, not just "action", so the
         # device can read the others (e.g. the SpaceMouse buttons) from last_step_result.
@@ -815,10 +816,21 @@ class TeleopSessionLifecycle:
         lifecycle = self
 
         class _HostResetOutputCombiner(OutputCombiner):
-            """Deliver host reset notifications inside the graph's normal execution context."""
+            """Deliver host notifications at Capture's public pipeline execution boundary.
 
-            def _compute_with_cache(self, cache):
-                # Shared main/sink graphs may revisit this node in the same frame.
+            Passing execution_events to TeleopSession.step would bypass operator
+            controls. Override the root pipeline's public execution methods so
+            the normal and shared-cache sink paths reset retargeters while
+            preserving the control context that Capture returns to the host.
+            """
+
+            def execute_pipeline(self, inputs, context=None):
+                if context is None:
+                    context = ComputeContext()
+                return self.execute_pipeline_with_cache(ExecutionCache(inputs, context))
+
+            def execute_pipeline_with_cache(self, cache):
+                # Reusing this completed frame must not consume a newer notification.
                 cached = cache.get_cached(id(self))
                 if cached is not None:
                     return cached
@@ -826,14 +838,14 @@ class TeleopSessionLifecycle:
                     reset = lifecycle._retargeter_reset_pending
                     lifecycle._retargeter_reset_pending = False
                 if not reset:
-                    return super()._compute_with_cache(cache)
+                    return super().execute_pipeline_with_cache(cache)
 
                 context = cache.context
                 cache.context = dataclasses.replace(
                     context, execution_events=dataclasses.replace(context.execution_events, reset=True)
                 )
                 try:
-                    return super()._compute_with_cache(cache)
+                    return super().execute_pipeline_with_cache(cache)
                 except BaseException:
                     lifecycle.notify_reset()
                     raise

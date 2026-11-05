@@ -18,6 +18,7 @@ import argparse
 import signal
 import sys
 import types
+from typing import ClassVar
 
 import isaaclab_physx.app as physx_app
 import pytest
@@ -293,3 +294,22 @@ def test_context_cleanup_respects_application_drain_ownership(monkeypatch, appli
     retained = application_owns_cleanup and drain_failed
     assert released == ([] if retained else [context])
     assert state["context"] is (context if retained else None)
+
+
+@pytest.mark.kitless
+def test_dormant_presentation_does_not_launch_its_renderer(kit_branch_taken):
+    """Training and direct Gym construction cannot activate an interactive renderer declaration."""
+    from isaaclab.managers import ObservationPresentationCfg
+    from isaaclab.utils import configclass
+
+    @configclass
+    class RuntimeRendererCfg(RendererCfg):
+        launcher_type: ClassVar[str] = "isaaclab_physx.app:KitLauncher"
+
+    @configclass
+    class PresentationCfg(ObservationPresentationCfg):
+        renderer: RendererCfg = RuntimeRendererCfg()
+
+    with launch_simulation({"sim": SimulationCfg(device="cpu", physics=PhysicsCfg()), "operator": PresentationCfg()}):
+        assert not kit_branch_taken
+    assert not kit_branch_taken

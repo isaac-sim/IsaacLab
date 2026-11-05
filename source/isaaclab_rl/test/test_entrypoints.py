@@ -13,6 +13,7 @@ import os
 import signal
 import subprocess
 import sys
+import textwrap
 import types
 from pathlib import Path
 from types import SimpleNamespace
@@ -28,7 +29,15 @@ from omegaconf import OmegaConf
 from isaaclab import cli
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg
 
-from isaaclab_rl.entrypoints import PlaybackRequest, SimpleAgentRequest, TrainingRequest, api, dispatch, simple_agents
+from isaaclab_rl.entrypoints import (
+    PlaybackRequest,
+    SimpleAgentRequest,
+    TrainingRequest,
+    api,
+    common,
+    dispatch,
+    simple_agents,
+)
 from isaaclab_rl.entrypoints.backends import play_rlinf, train_rlinf
 from isaaclab_rl.entrypoints.backends.cli_args_rsl_rl import checkpoint_load_cfg
 from isaaclab_rl.entrypoints.simple_agents import create_random_action_policy, create_zero_action_policy
@@ -40,6 +49,36 @@ from isaaclab_rl.entrypoints.simple_agents import create_random_action_policy, c
         ("import isaaclab_rl", ["isaaclab_rl.entrypoints", "torch"]),
         ("import isaaclab_rl.entrypoints.backends", ["torch"]),
         ("import isaaclab_rl.entrypoints.common", ["isaaclab.envs.direct_marl_env", "moviepy"]),
+        pytest.param(
+            textwrap.dedent(
+                """
+                import builtins
+                from types import SimpleNamespace
+
+                original_import = builtins.__import__
+                def without_teleop_extra(name, *args, **kwargs):
+                    if name == "isaaclab_teleop" or name.startswith("isaaclab_teleop."):
+                        raise AssertionError(f"Stock playback imported optional dependency: {name}")
+                    return original_import(name, *args, **kwargs)
+
+                builtins.__import__ = without_teleop_extra
+                import torch
+                from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpoleEnvCfg
+                from isaaclab_rl.entrypoints.common import has_play_teleop
+                from isaaclab_rl.entrypoints.simple_agents import create_zero_action_policy
+
+                assert not has_play_teleop(CartpoleEnvCfg())
+                term = SimpleNamespace(action_dim=1)
+                manager = SimpleNamespace(
+                    action=torch.empty(2, 1), active_terms=["joint_effort"], get_term=lambda name: term
+                )
+                env = SimpleNamespace(unwrapped=SimpleNamespace(action_manager=manager))
+                assert torch.equal(create_zero_action_policy(env)(), torch.zeros(2, 1))
+                """
+            ).strip(),
+            ["isaaclab_teleop", "isaaccapture", "isaacteleop"],
+            id="stock-playback-without-teleop",
+        ),
         # the LEAPP runtime must only load once the simulation has launched
         ("import isaaclab_rl.entrypoints.backends.export_rsl_rl", ["leapp", "isaaclab.utils.leapp"]),
         ("import isaaclab_rl.rl_games", ["isaaclab_rl.rl_games.rl_games", "rl_games", "torch"]),
@@ -299,14 +338,14 @@ def test_simple_agents_leave_the_device_to_the_launch(
         seed=None,
     )
 
-    def launch_simulation(cfg, launcher_args):
+    def launch_simulation(cfg, launcher_args, **kwargs):
         assert cfg.sim.device == "cpu"
         assert launcher_args.device == cli_device
         raise _ExpectedStop
 
     monkeypatch.setattr(simple_agents, "_parse_args", lambda argv, policy: args)
     monkeypatch.setattr(simple_agents, "resolve_task_config", lambda task, agent: (_Cfg(), None))
-    monkeypatch.setattr(simple_agents, "launch_simulation", launch_simulation)
+    monkeypatch.setattr(common, "launch_simulation", launch_simulation)
 
     with pytest.raises(_ExpectedStop):
         simple_agents.run([], policy=policy)
@@ -328,7 +367,7 @@ def test_zero_agent_rejects_invalid_config_before_launch(monkeypatch: pytest.Mon
     monkeypatch.setattr(simple_agents, "_parse_args", lambda argv, policy: args)
     monkeypatch.setattr(simple_agents, "resolve_task_config", lambda task, agent: (_InvalidCfg(), None))
     monkeypatch.setattr(
-        simple_agents,
+        common,
         "launch_simulation",
         lambda *args, **kwargs: pytest.fail("simulation launched before config validation"),
     )
@@ -375,7 +414,7 @@ def test_random_agent_closes_environment_after_keyboard_interrupt(monkeypatch, i
     )
     monkeypatch.setattr(simple_agents, "_parse_args", lambda argv, policy: args)
     monkeypatch.setattr(simple_agents, "resolve_task_config", lambda task, agent: (cfg, None))
-    monkeypatch.setattr(simple_agents, "launch_simulation", lambda cfg, launcher_args: contextlib.nullcontext())
+    monkeypatch.setattr(common, "launch_simulation", lambda cfg, launcher_args, **kwargs: contextlib.nullcontext())
     monkeypatch.setattr(simple_agents.gym, "make", lambda task, cfg: env)
     monkeypatch.setattr(simple_agents, "create_random_action_policy", lambda environment: lambda: None)
 
@@ -438,7 +477,7 @@ def test_simple_agent_video_step_budget(
     launched = mock.Mock(return_value=contextlib.nullcontext())
     monkeypatch.setattr(simple_agents, "_parse_args", lambda argv, policy: args)
     monkeypatch.setattr(simple_agents, "resolve_task_config", lambda task, agent: (cfg, None))
-    monkeypatch.setattr(simple_agents, "launch_simulation", launched)
+    monkeypatch.setattr(common, "launch_simulation", launched)
     monkeypatch.setattr(simple_agents.gym, "make", lambda task, cfg: env)
     monkeypatch.setattr(simple_agents, "create_random_action_policy", lambda environment: lambda: None)
 

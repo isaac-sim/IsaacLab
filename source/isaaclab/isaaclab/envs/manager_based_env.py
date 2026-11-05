@@ -123,8 +123,17 @@ class ManagerBasedEnv:
         # singleton (only if we created it) so callers can retry or proceed.
         try:
             self._init_sim()
-        except Exception:
-            if created_sim:
+        except Exception as exc:
+            action_manager = getattr(self, "action_manager", None)
+            actions_closed = True
+            if action_manager is not None:
+                try:
+                    action_manager.close()
+                except Exception:
+                    actions_closed = False
+                    exc.add_note("Action-term cleanup failed; simulation resources were retained for their borrowers.")
+                    logger.exception("Failed to close action terms after environment initialization failed.")
+            if created_sim and actions_closed:
                 self.sim.clear_instance()
             raise
         self._is_closed = False
@@ -591,6 +600,10 @@ class ManagerBasedEnv:
     def close(self):
         """Cleanup for the environment."""
         if not self._is_closed:
+            # Input terms may borrow renderer and visualizer resources. Release
+            # them before stopping simulation. A failed close must retain those
+            # resources and the manager so the caller can retry safely.
+            self.action_manager.close()
             # Stop simulation first to allow physics to clean up properly
             self.sim.stop()
 

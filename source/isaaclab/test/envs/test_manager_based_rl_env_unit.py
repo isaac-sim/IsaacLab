@@ -102,3 +102,46 @@ def test_obs_space_follows_clip_constraint():
             assert term_space.shape == expected_shapes[term_name]
             assert np.all(term_space.low == low)
             assert np.all(term_space.high == high)
+
+
+@pytest.mark.kitless
+def test_close_retains_borrowed_resources_until_action_terms_release_them():
+    """Failed input teardown must be retryable before managers and simulation disappear."""
+    events = []
+    state = SimpleNamespace(fail=True, closed=False)
+
+    def close_actions():
+        if state.closed:
+            return
+        events.append("actions")
+        if state.fail:
+            raise RuntimeError("Input still owns a renderer lease")
+        state.closed = True
+
+    env = object.__new__(ManagerBasedRLEnv)
+    env._is_closed = False
+    env._window = None
+    env.action_manager = SimpleNamespace(close=close_actions)
+    env.sim = SimpleNamespace(stop=lambda: events.append("stop"), clear_instance=lambda: events.append("clear"))
+    for name in (
+        "command_manager",
+        "reward_manager",
+        "termination_manager",
+        "curriculum_manager",
+        "observation_manager",
+        "event_manager",
+        "recorder_manager",
+        "scene",
+    ):
+        setattr(env, name, object())
+    with pytest.raises(RuntimeError, match="renderer lease"):
+        env.close()
+    assert events == ["actions"]
+    assert env.command_manager is not None
+    assert env.scene is not None
+
+    state.fail = False
+    env.close()
+    env.close()
+    assert events == ["actions", "actions", "stop", "clear"]
+    assert env.action_space is None

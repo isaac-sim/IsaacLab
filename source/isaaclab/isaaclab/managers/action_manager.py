@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import inspect
+import logging
 import re
 from abc import abstractmethod
 from collections.abc import Sequence
@@ -24,6 +25,9 @@ from .manager_term_cfg import ActionTermCfg
 if TYPE_CHECKING:
     from ..assets import AssetBase
     from ..envs import ManagerBasedEnv
+
+
+logger = logging.getLogger(__name__)
 
 
 class ActionTerm(ManagerTermBase):
@@ -65,6 +69,14 @@ class ActionTerm(ManagerTermBase):
         registry = getattr(sim, "vis_marker_registry", None)
         if registry is not None:
             registry.clear_debug_vis_callback(self)
+
+    def close(self) -> None:
+        """Release resources owned by the term before simulation teardown.
+
+        Implementations that own external resources should release them here and
+        call the parent implementation. Repeated calls must be harmless.
+        """
+        self._env.sim.vis_marker_registry.clear_debug_vis_callback(self)
 
     """
     Properties.
@@ -158,6 +170,17 @@ class ActionTerm(ManagerTermBase):
         """
         raise NotImplementedError
 
+    def resolve_actions(self, actions: torch.Tensor) -> torch.Tensor:
+        """Select raw actions before processing and recording.
+
+        Called once per environment step. The default preserves policy input.
+        Terms that arbitrate another input source may return a replacement with
+        the same shape, device, and dtype, without mutating ``actions``. The
+        manager records this result in :attr:`ActionManager.action` before any
+        term processes its actions.
+        """
+        return actions
+
     @abstractmethod
     def apply_actions(self):
         """Applies the actions to the asset managed by the term.
@@ -212,7 +235,15 @@ class ActionManager(ManagerBase):
             raise ValueError("Action manager configuration is None. Please provide a valid configuration.")
 
         # call the base class constructor (this prepares the terms)
-        super().__init__(cfg, env)
+        self._closed = False
+        try:
+            super().__init__(cfg, env)
+        except BaseException:
+            try:
+                self.close()
+            except Exception:
+                logger.exception("Failed to close action terms after manager initialization failed.")
+            raise
         # fixed once the terms are built
         self._action_term_dim = [term.action_dim for term in self._terms.values()]
         self._total_action_dim = sum(self._action_term_dim)
@@ -391,14 +422,43 @@ class ActionManager(ManagerBase):
             raise ValueError(f"Invalid action shape, expected: {self.total_action_dim}, received: {action.shape[1]}.")
         # store the input actions
         self._prev_action[:] = self._action
-        self._action[:] = action.to(self.device)
+        action = action.to(self.device)
+        self._action[:] = action
 
-        # split the actions and apply to each tensor
+        # Resolve all inputs before processing so observations, rewards, and
+        # recorders see the same raw actions that the controllers consume.
         idx = 0
+        resolved_actions = []
         for term in self._terms.values():
             term_actions = action[:, idx : idx + term.action_dim]
-            term.process_actions(term_actions)
+            resolved = term.resolve_actions(term_actions)
+            if resolved is not term_actions:
+                if resolved.shape != term_actions.shape:
+                    raise ValueError(
+                        f"Resolved action shape {tuple(resolved.shape)} does not match {tuple(term_actions.shape)}."
+                    )
+                self._action[:, idx : idx + term.action_dim].copy_(resolved)
+            resolved_actions.append(resolved)
             idx += term.action_dim
+
+        # Keep controller inputs separate from the manager's recorded history.
+        for term, term_actions in zip(self._terms.values(), resolved_actions):
+            term.process_actions(term_actions)
+
+    def close(self) -> None:
+        """Close every action term, including when another term fails to close."""
+        if self._closed:
+            return
+        errors = []
+        for term in getattr(self, "_terms", {}).values():
+            try:
+                term.close()
+            except Exception as exc:
+                logger.error("Failed to close action term %s: %s", type(term).__name__, exc)
+                errors.append(exc)
+        if errors:
+            raise RuntimeError(f"Failed to close {len(errors)} action term(s)") from errors[0]
+        self._closed = True
 
     def apply_action(self) -> None:
         """Applies the actions to the environment/simulation.

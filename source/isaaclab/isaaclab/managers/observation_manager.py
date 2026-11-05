@@ -19,7 +19,7 @@ from ..envs.utils.io_descriptors import _warn_io_descriptors_deprecated
 from ..utils import instantiate, noise, tensor_processors, to_dict
 from ..utils.buffers import CircularBuffer, DelayBuffer
 from .manager_base import ManagerBase, ManagerTermBase
-from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
+from .manager_term_cfg import ObservationGroupCfg, ObservationPresentationCfg, ObservationTermCfg
 
 if TYPE_CHECKING:
     from ..envs import ManagerBasedEnv
@@ -595,7 +595,7 @@ class ObservationManager(ManagerBase):
         # iterate over all the groups
         for group_name, group_cfg in group_cfg_items:
             # check for non config
-            if group_cfg is None:
+            if group_cfg is None or isinstance(group_cfg, ObservationPresentationCfg):
                 continue
             # check if the term is a curriculum term
             if not isinstance(group_cfg, ObservationGroupCfg):

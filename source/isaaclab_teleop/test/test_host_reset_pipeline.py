@@ -144,7 +144,9 @@ def test_async_notification_survives_dropped_requests_without_echo(reset_pipelin
         assert latest is not None and latest.frame_id == 3
         assert probe.events == [(True, ExecutionState.RUNNING), (False, ExecutionState.RUNNING)]
         assert not latest.context.execution_events.reset
-        assert runner.latest() is latest  # the application can observe this completed frame repeatedly
+        repeated = runner.latest()
+        assert repeated is not None and repeated.frame_id == latest.frame_id
+        assert not repeated.context.execution_events.reset
 
         # The host reset completion was superseded; a later operator reset still reaches the host.
         runner.submit(request(4, reset=True, state=ExecutionState.PAUSED))

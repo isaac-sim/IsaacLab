@@ -95,9 +95,12 @@ def run(argv: list[str]) -> None:
         task_spec = gym.registry.get(selected_task.split(":")[-1])
         if task_spec is not None and "env_cfg_entry_point" in task_spec.kwargs:
             env_cfg, _ = resolve_task_config(selected_task, "", play_mode=True, overrides=[])
-            if getattr(env_cfg, "teleop", None) is not None:
+            from ..common import has_play_teleop
+
+            if has_play_teleop(env_cfg):
                 raise ValueError(
-                    "RLinf runs environments in remote workers and cannot activate env_cfg.teleop; use --no-teleop"
+                    "RLinf runs environments in remote workers and cannot activate task teleop action terms; "
+                    "use --no-teleop"
                 )
     logger.info(f"Task: {task_id}")
     # hyphens instead of colons in the time stamp; colons are invalid in Windows paths

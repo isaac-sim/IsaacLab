@@ -25,7 +25,6 @@ from ..scene import InteractiveSceneCfg
 from ..sim import SimulationCfg
 from ..utils import configclass
 from .common import ViewerCfg
-from .teleop_cfg import TeleopCfg
 from .utils.video_recorder_cfg import VideoRecorderCfg
 
 
@@ -147,13 +146,6 @@ class ManagerBasedEnvCfg:
 
     teleop_devices: DevicesCfg = field(default_factory=DevicesCfg)
     """Configuration for teleoperation devices."""
-
-    teleop: TeleopCfg | None = None
-    """Optional action source activated by ``isaaclab play``. Inert during training.
-
-    This uses the task's existing actions and is independent of the legacy
-    :attr:`teleop_devices` and :attr:`isaac_teleop` script configurations.
-    """
 
     isaac_teleop: object | None = None
     """Configuration for Isaac Capture-based teleoperation.
