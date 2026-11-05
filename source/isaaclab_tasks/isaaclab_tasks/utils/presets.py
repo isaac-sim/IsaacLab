@@ -13,7 +13,7 @@ from isaaclab_visualizers.newton import NewtonGLBackendCfg, NewtonRTXBackendCfg
 from isaaclab_visualizers.rerun import RerunBackendCfg
 from isaaclab_visualizers.viser import ViserBackendCfg
 
-from isaaclab.renderers._rtx_renderer_cfg import _RtxRendererCfg
+from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils import configclass
 from isaaclab.visualizers.visualizer_cfg import VISUALIZER_ALIASES, VisualizerBackendCfg
 
@@ -21,7 +21,7 @@ from .hydra import PresetCfg
 
 
 @configclass
-class _AutoRtxRendererCfg(_RtxRendererCfg):
+class _AutoRtxRendererCfg(RendererCfg):
     renderer_type: str = "auto_rtx"
 
 

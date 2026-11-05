@@ -17,7 +17,7 @@ import warp as wp
 from golden_image import camera_output_image, compare_to_golden
 from isaaclab_newton.physics import reset_mpm_solver_state
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
-from isaaclab_ov.renderers import OVRTXRendererCfg, RtxMinimalShadingMode, RtxRenderMode
+from isaaclab_ov.renderers import OVRTXRendererCfg, RtxMinimalShadingMode, RtxRenderMode, apply_render_mode, apply_minimal_shading_mode
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from newton import StateFlags
 from rendering_cases import RenderCase
@@ -86,12 +86,12 @@ def run_rendering_case(
         scene.cfg.minimal_probe = scene.cfg.camera.copy()
         scene.cfg.minimal_probe.prim_path = "{ENV_REGEX_NS}/MinimalProbe"
         scene.cfg.minimal_probe.data_types = ["rgb"]
-        scene.cfg.minimal_probe.renderer_cfg.render_mode = RtxRenderMode.MINIMAL
-        scene.cfg.minimal_probe.renderer_cfg.minimal_shading_mode = RtxMinimalShadingMode.CONSTANT_DIFFUSE
+        apply_render_mode(scene.cfg.minimal_probe, RtxRenderMode.MINIMAL)
+        apply_minimal_shading_mode(scene.cfg.minimal_probe, RtxMinimalShadingMode.CONSTANT_DIFFUSE)
         scene.cfg.color_probe = scene.cfg.camera.copy()
         scene.cfg.color_probe.prim_path = "{ENV_REGEX_NS}/ColorProbe"
         scene.cfg.color_probe.data_types = ["rgb"]
-        scene.cfg.color_probe.renderer_cfg.render_mode = RtxRenderMode.REAL_TIME_PATH_TRACING
+        apply_render_mode(scene.cfg.color_probe, RtxRenderMode.REAL_TIME_PATH_TRACING)
     with build_rendering_scene(
         scene.cfg,
         case.physics,
@@ -178,6 +178,8 @@ def run_rendering_case(
             runtime.render_camera()
             outputs, info = runtime.camera_outputs()
         if check_mode_isolation:
+            assert runtime.scene.sensors["minimal_probe"]._renderer is runtime.camera._renderer
+            assert runtime.scene.sensors["color_probe"]._renderer is runtime.camera._renderer
             constant = runtime.scene.sensors["minimal_probe"].data.output["rgb"].torch
             color = runtime.scene.sensors["color_probe"].data.output["rgb"].torch
             full_mdl = outputs["simple_shading_full_mdl"]

@@ -16,7 +16,7 @@ from unittest.mock import MagicMock, call, patch
 import numpy as np
 import pytest
 import warp as wp
-from isaaclab_physx.renderers import RtxMinimalShadingMode, RtxRenderMode
+from isaaclab_physx.renderers import RtxMinimalShadingMode, RtxRenderMode, apply_minimal_shading_mode, apply_render_mode
 
 from isaaclab.renderers import RenderBufferKind, RenderBufferSpec
 from isaaclab.scene_data import SceneDataFormat
@@ -127,6 +127,7 @@ def test_create_render_data_uses_unique_sdf_safe_render_product_name(monkeypatch
             width=64,
             height=64,
             isp_cfg=None,
+            render_settings={},
             colorize_semantic_segmentation=False,
             colorize_instance_segmentation=False,
             colorize_instance_id_segmentation=False,
@@ -257,16 +258,17 @@ def test_simple_shading_configures_its_render_product(
             width=64,
             height=64,
             isp_cfg=None,
+            render_settings={},
             colorize_semantic_segmentation=False,
             colorize_instance_segmentation=False,
             colorize_instance_id_segmentation=False,
         ),
     )
     renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)
-    renderer.cfg = IsaacRtxRendererCfg(
-        render_mode=configured_mode,
-        minimal_shading_mode=shading_mode,
-    )
+    renderer.cfg = IsaacRtxRendererCfg()
+    spec.cfg.render_settings = {"omni:rtx:quality": ("Int", 0)}
+    apply_render_mode(spec.cfg, configured_mode)
+    apply_minimal_shading_mode(spec.cfg, shading_mode)
 
     with (
         patch.object(rtx_renderer, "get_settings_manager", return_value=settings),
@@ -279,6 +281,7 @@ def test_simple_shading_configures_its_render_product(
         index for index, operation in enumerate(operation_order) if operation == "attach"
     )
     stage.GetSessionLayer.assert_called_once()
+    assert authored_attributes["omni:rtx:quality"].Set.call_args == call(0)
     assert authored_attributes["omni:rtx:rendermode"].Set.call_args == call(expected_mode)
     assert authored_attributes["omni:rtx:rendermode"].value_type == Sdf.ValueTypeNames.Token
     assert authored_attributes["omni:rtx:minimal:mode"].Set.call_args == call(expected_shading_mode)
@@ -326,7 +329,7 @@ def test_depth_only_camera_color_render_setting(monkeypatch, has_gui, expected_d
     stage.GetPrimAtPath.return_value.IsA.return_value = False
     spec = SimpleNamespace(
         camera_prim_paths=["/World/NotACamera"],
-        cfg=SimpleNamespace(data_types=["depth"], isp_cfg=None),
+        cfg=SimpleNamespace(data_types=["depth"], isp_cfg=None, render_settings={}),
     )
     renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)
     renderer.cfg = IsaacRtxRendererCfg()

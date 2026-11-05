@@ -122,47 +122,52 @@ that legacy renderer; use Newton Warp or OVRTX for new Newton and kit-less workl
 Explicit RTX execution modes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Both :class:`~isaaclab_physx.renderers.IsaacRtxRendererCfg` and
-:class:`~isaaclab_ov.renderers.OVRTXRendererCfg` accept ``render_mode`` and
-``minimal_shading_mode``. Import ``RtxRenderMode`` and ``RtxMinimalShadingMode`` from the backend
-package you configure: ``isaaclab_ov.renderers`` or ``isaaclab_physx.renderers``. Set these on the
-camera's ``renderer_cfg``:
+RTX execution and shading modes belong to each camera's render product. They are stored in
+``CameraCfg.render_settings``, independently of the shared renderer configuration. Use the
+helpers and enums from ``isaaclab_ov.renderers`` or ``isaaclab_physx.renderers``:
 
 .. code-block:: python
 
-   from isaaclab_ov.renderers import RtxMinimalShadingMode, OVRTXRendererCfg, RtxRenderMode
-
-   camera_cfg.renderer_cfg = OVRTXRendererCfg(
-       render_mode=RtxRenderMode.MINIMAL,
-       minimal_shading_mode=RtxMinimalShadingMode.DIFFUSE_MDL,
-       enable_shadows=True,
+   from isaaclab_ov.renderers import (
+       OVRTXRendererCfg,
+       RtxMinimalShadingMode,
+       RtxRenderMode,
+       apply_minimal_shading_mode,
+       apply_render_mode,
    )
+
+   camera_cfg.renderer_cfg = OVRTXRendererCfg(enable_shadows=True)
    camera_cfg.data_types = ["rgb", "depth"]
+   apply_render_mode(camera_cfg, RtxRenderMode.MINIMAL)
+   apply_minimal_shading_mode(camera_cfg, RtxMinimalShadingMode.DIFFUSE_MDL)
 
-``render_mode`` defaults to ``RtxRenderMode.REAL_TIME_PATH_TRACING``. Select
-``RtxRenderMode.MINIMAL`` for simplified rendering, even without a ``simple_shading_*`` output.
-Ordinary outputs such as ``rgb`` and ``depth`` respect the configured mode. The execution mode
-also accepts the string values ``"RealTimePathTracing"`` and ``"Minimal"`` in configuration overrides.
+The helpers update the camera's render settings in place and preserve unrelated attributes.
+They require enum members. Selecting a shading level does not change the execution mode.
+Cameras with equal renderer configurations share the same renderer, even when their execution
+and shading modes differ.
 
-``minimal_shading_mode`` accepts ``RtxMinimalShadingMode`` members: ``CONSTANT_DIFFUSE`` uses
+The default execution mode is ``RtxRenderMode.REAL_TIME_PATH_TRACING``. In Minimal mode,
+``rgb`` returns the image produced by the selected shading level: ``CONSTANT_DIFFUSE`` uses
 constant diffuse shading, ``DIFFUSE_MDL`` evaluates textured diffuse materials, and ``FULL_MDL``
-evaluates full MDL materials (the default). In Minimal mode, ``rgb`` returns the image produced
-by the selected shading mode. Use enum members in Python configuration; serialized configurations
-retain their native integer values.
+evaluates full MDL materials (the default).
+
+The helpers store native values under ``omni:rtx:rendermode`` (USD ``Token``) and
+``omni:rtx:minimal:mode`` (USD ``Int``). Serialized configurations can supply these entries in
+``render_settings`` directly. Both backends validate these attributes before creating a product.
 
 Simple-shading output shortcuts
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The ``simple_shading_*`` camera outputs are a deliberate exception to configuration-driven mode
-selection. They override **both** the configured execution mode and shading mode for that camera:
+selection. They override **both** mode attributes in that camera's ``render_settings``:
 
 * ``simple_shading_constant_diffuse`` selects Minimal and ``RtxMinimalShadingMode.CONSTANT_DIFFUSE``.
 * ``simple_shading_diffuse_mdl`` selects Minimal and ``RtxMinimalShadingMode.DIFFUSE_MDL``.
 * ``simple_shading_full_mdl`` selects Minimal and ``RtxMinimalShadingMode.FULL_MDL``.
 
-For example, requesting ``simple_shading_diffuse_mdl`` from a renderer configured for real-time
+For example, requesting ``simple_shading_diffuse_mdl`` from a camera configured for real-time
 path tracing with full MDL still renders in Minimal mode with diffuse MDL. The shortcut changes
-the effective render-product settings; it does not mutate the renderer configuration object.
+the effective render-product settings; it does not mutate the camera configuration object.
 Requesting different simple-shading modes from the same camera is rejected; use separate cameras.
 These shortcuts are supported directly, without a compatibility default or deprecation warning.
 Existing preset selectors continue to work.

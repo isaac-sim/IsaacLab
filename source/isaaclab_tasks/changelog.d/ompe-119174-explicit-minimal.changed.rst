@@ -1,2 +1,1 @@
-* Preserved configured RTX execution and shading modes when resolving the automatic renderer backend.
-* Preserved enum types when applying scalar command-line configuration overrides.
+* Preserved per-camera RTX render settings when resolving the automatic renderer backend.

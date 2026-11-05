@@ -264,9 +264,7 @@ class IsaacRtxRenderer(BaseRenderer):
         data_types = list(spec.cfg.data_types)
         if spec.cfg.isp_cfg is not None and "rgb_hdr" not in data_types:
             data_types.append("rgb_hdr")
-        render_mode, shading_mode = _resolve_rtx_render_mode(
-            self.cfg.render_mode, self.cfg.minimal_shading_mode, data_types
-        )
+        render_mode, shading_mode = _resolve_rtx_render_mode(spec.cfg.render_settings, data_types)
         has_simple_shading = any(dt in SIMPLE_SHADING_MODES for dt in data_types)
         needs_color_render = any(dt in data_types for dt in ("rgb", "rgba", "rgb_hdr"))
         has_gui = settings.get("/isaaclab/has_gui")
@@ -398,7 +396,7 @@ class IsaacRtxRenderer(BaseRenderer):
             annotator.attach([rp.path])
 
         # Annotator attachment may resynchronize global settings; author per-product overrides last.
-        self._apply_render_mode_settings(stage, rp.path, render_mode, shading_mode)
+        self._apply_render_mode_settings(stage, rp.path, render_mode, shading_mode, spec.cfg.render_settings)
 
         ppisp_pipeline = None
         if spec.cfg.isp_cfg is not None:
@@ -414,7 +412,12 @@ class IsaacRtxRenderer(BaseRenderer):
         )
 
     def _apply_render_mode_settings(
-        self, stage: Usd.Stage, render_product_path: str, render_mode: str, shading_mode: int
+        self,
+        stage: Usd.Stage,
+        render_product_path: str,
+        render_mode: str,
+        shading_mode: int,
+        render_settings: dict[str, tuple[str, Any]],
     ) -> None:
         """Author execution and shading settings without changing other cameras or the viewport."""
         rp_prim = stage.GetPrimAtPath(render_product_path)
@@ -422,6 +425,9 @@ class IsaacRtxRenderer(BaseRenderer):
             raise RuntimeError(f"Cannot apply RTX render_mode: render product {render_product_path!r} is missing.")
         with Usd.EditContext(stage, stage.GetSessionLayer()):
             with Sdf.ChangeBlock():
+                for name, (type_name, value) in render_settings.items():
+                    if name not in (RTX_RENDER_MODE_ATTR, RTX_MINIMAL_MODE_ATTR):
+                        rp_prim.CreateAttribute(name, getattr(Sdf.ValueTypeNames, type_name)).Set(value)
                 rp_prim.CreateAttribute(RTX_RENDER_MODE_ATTR, Sdf.ValueTypeNames.Token).Set(render_mode)
                 rp_prim.CreateAttribute(RTX_MINIMAL_MODE_ATTR, Sdf.ValueTypeNames.Int).Set(shading_mode)
 

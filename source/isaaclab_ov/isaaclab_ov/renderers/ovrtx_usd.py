@@ -14,9 +14,9 @@ from typing import TYPE_CHECKING
 
 from pxr import Sdf, Usd
 
-from isaaclab.renderers._rtx_renderer_cfg import _resolve_rtx_render_mode
+from isaaclab.renderers._rtx_renderer_cfg import _RTX_MINIMAL_MODE_ATTR, _RTX_RENDER_MODE_ATTR, _resolve_rtx_render_mode
 
-from isaaclab_ov.renderers import RtxMinimalShadingMode, RtxRenderMode
+from isaaclab_ov.renderers import RtxRenderMode
 
 if TYPE_CHECKING:
     from isaaclab.renderers.camera_render_spec import CameraRenderSpec
@@ -126,8 +126,6 @@ def build_render_product_as_string(
     *,
     device_id: int,
     enable_shadows: bool = False,
-    render_mode: RtxRenderMode = RtxRenderMode.REAL_TIME_PATH_TRACING,
-    minimal_shading_mode: RtxMinimalShadingMode = RtxMinimalShadingMode.FULL_MDL,
 ) -> str:
     """Build a complete render product USD layer as a string.
 
@@ -143,8 +141,6 @@ def build_render_product_as_string(
         device_id: CUDA device index the render product is pinned to, so its render var buffers are
             allocated on the same device as the Warp kernels that read them.
         enable_shadows: Whether lights cast shadows in Minimal mode. Defaults to False.
-        render_mode: Configured execution mode. Simple-shading outputs override it with Minimal.
-        minimal_shading_mode: Named Minimal material evaluation mode. Defaults to full MDL.
 
     Returns:
         Render product USD layer, including the USDA header and default prim metadata.
@@ -154,7 +150,7 @@ def build_render_product_as_string(
         data_types.append("rgb_hdr")
     tiled_width, tiled_height = render_data.num_cols * render_data.width, render_data.num_rows * render_data.height
     render_var_configs = get_render_var_configs(data_types, render_data.render_scope_name)
-    render_mode, minimal_mode = _resolve_rtx_render_mode(render_mode, minimal_shading_mode, data_types)
+    render_mode, minimal_mode = _resolve_rtx_render_mode(spec.cfg.render_settings, data_types)
 
     background_color = spec.cfg.background_color
     if background_color is None:
@@ -222,14 +218,8 @@ def Scope "{render_data.render_scope_name}"
     stage.GetRootLayer().ImportFromString(layer)
     product = stage.GetPrimAtPath(render_data.render_product_path)
     for name, (type_name, value) in spec.cfg.render_settings.items():
-        expected = {
-            "omni:rtx:rendermode": render_mode,
-            "omni:rtx:minimal:mode": minimal_mode,
-        }
-        if name in expected and value != expected[name]:
-            raise ValueError(
-                f"Camera render_settings[{name!r}] conflicts with the renderer configuration. "
-                "Set render_mode and minimal_shading_mode on renderer_cfg instead."
-            )
+        # Mode settings were resolved above; simple-shading requests take precedence.
+        if name in (_RTX_RENDER_MODE_ATTR, _RTX_MINIMAL_MODE_ATTR):
+            continue
         product.CreateAttribute(name, getattr(Sdf.ValueTypeNames, type_name)).Set(value)
     return stage.GetRootLayer().ExportToString()

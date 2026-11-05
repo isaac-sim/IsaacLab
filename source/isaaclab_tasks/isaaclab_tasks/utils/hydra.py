@@ -708,10 +708,6 @@ def _setattr(obj, path: str, val):
     *parts, leaf = path.split(".")
     for p in parts:
         obj = obj[p] if isinstance(obj, Mapping) else getattr(obj, p)
-    # Overrides may add keys or attributes; restore the type of existing enum fields.
-    current = obj.get(leaf) if isinstance(obj, dict) else getattr(obj, leaf, None)
-    if isinstance(current, enum.Enum) and val is not None:
-        val = type(current)(val)
     if isinstance(obj, dict):
         obj[leaf] = val
     else:

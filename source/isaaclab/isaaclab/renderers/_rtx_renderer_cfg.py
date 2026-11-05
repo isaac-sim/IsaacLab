@@ -10,10 +10,13 @@ deprecated and the configuration moves into OVRTX. Import public aliases from th
 configuration modules instead of depending on this module.
 """
 
-from enum import IntEnum, StrEnum
+from __future__ import annotations
 
-from ..utils import configclass
-from .renderer_cfg import RendererCfg
+from enum import IntEnum, StrEnum
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from ..sensors.camera.camera_cfg import CameraCfg
 
 
 class _RtxRenderMode(StrEnum):
@@ -43,23 +46,38 @@ class _RtxMinimalShadingMode(IntEnum):
     """Evaluate diffuse, glossy, and emissive MDL materials."""
 
 
-@configclass
-class _RtxRendererCfg(RendererCfg):
-    """Shared per-product RTX execution settings for Isaac RTX and OVRTX."""
+_RTX_RENDER_MODE_ATTR = "omni:rtx:rendermode"
+_RTX_MINIMAL_MODE_ATTR = "omni:rtx:minimal:mode"
 
-    render_mode: _RtxRenderMode = _RtxRenderMode.REAL_TIME_PATH_TRACING
-    """Per-product execution mode. Defaults to real-time path tracing.
 
-    A ``simple_shading_*`` camera output is a shortcut that overrides this setting with
-    ``RtxRenderMode.MINIMAL`` and selects its matching shading mode. Other outputs respect
-    this setting. String values such as ``"Minimal"`` are also accepted in configuration overrides.
+def _apply_render_mode(camera_cfg: CameraCfg, mode: _RtxRenderMode) -> None:
+    """Set a camera's RTX execution mode without changing its shared renderer.
+
+    Args:
+        camera_cfg: Camera whose render-product settings are updated in place.
+        mode: Execution mode. Simple-shading outputs override this selection.
+
+    Raises:
+        ValueError: If mode is not a RtxRenderMode member.
     """
+    if not isinstance(mode, _RtxRenderMode):
+        raise ValueError("mode must be a RtxRenderMode member.")
+    camera_cfg.render_settings = {**camera_cfg.render_settings, _RTX_RENDER_MODE_ATTR: ("Token", mode.value)}
 
-    minimal_shading_mode: _RtxMinimalShadingMode = _RtxMinimalShadingMode.FULL_MDL
-    """Minimal material evaluation mode. Defaults to ``RtxMinimalShadingMode.FULL_MDL``.
 
-    A ``simple_shading_*`` camera output overrides this setting with its matching mode.
+def _apply_minimal_shading_mode(camera_cfg: CameraCfg, mode: _RtxMinimalShadingMode) -> None:
+    """Set a camera's Minimal shading level, leaving its execution mode unchanged.
+
+    Args:
+        camera_cfg: Camera whose render-product settings are updated in place.
+        mode: Shading level. Simple-shading outputs override this selection.
+
+    Raises:
+        ValueError: If mode is not a RtxMinimalShadingMode member.
     """
+    if not isinstance(mode, _RtxMinimalShadingMode):
+        raise ValueError("mode must be a RtxMinimalShadingMode member.")
+    camera_cfg.render_settings = {**camera_cfg.render_settings, _RTX_MINIMAL_MODE_ATTR: ("Int", int(mode))}
 
 
 _SIMPLE_SHADING_MODES = {
@@ -71,8 +89,7 @@ _SIMPLE_SHADING_MODES = {
 
 
 def _resolve_rtx_render_mode(
-    render_mode: _RtxRenderMode,
-    minimal_shading_mode: _RtxMinimalShadingMode,
+    render_settings: dict[str, tuple[str, Any]],
     data_types: list[str],
 ) -> tuple[str, int]:
     """Resolve per-product RTX settings, including simple-shading output shortcuts.
@@ -81,8 +98,7 @@ def _resolve_rtx_render_mode(
     and its matching shading mode. Other outputs leave the configured settings unchanged.
 
     Args:
-        render_mode: Configured RTX execution mode.
-        minimal_shading_mode: Configured Minimal material evaluation mode.
+        render_settings: Per-camera render-product attributes, including serialized mode values.
         data_types: Requested camera output names, including implicit ISP inputs.
 
     Returns:
@@ -92,14 +108,26 @@ def _resolve_rtx_render_mode(
         ValueError: If a setting is invalid, different shading outputs are requested, or the
             effective mode cannot produce a requested output.
     """
-    if not isinstance(render_mode, _RtxRenderMode):
-        raise ValueError(
-            f"Unsupported render_mode {render_mode!r}; use RtxRenderMode.MINIMAL "
-            "or RtxRenderMode.REAL_TIME_PATH_TRACING."
-        )
-    if not isinstance(minimal_shading_mode, _RtxMinimalShadingMode):
-        supported = ", ".join(f"RtxMinimalShadingMode.{mode.name}" for mode in _RtxMinimalShadingMode)
-        raise ValueError(f"minimal_shading_mode must be one of: {supported}.")
+    mode_type, mode_value = render_settings.get(
+        _RTX_RENDER_MODE_ATTR, ("Token", _RtxRenderMode.REAL_TIME_PATH_TRACING)
+    )
+    shading_type, shading_value = render_settings.get(
+        _RTX_MINIMAL_MODE_ATTR, ("Int", _RtxMinimalShadingMode.FULL_MDL)
+    )
+    if mode_type != "Token":
+        raise ValueError(f"{_RTX_RENDER_MODE_ATTR} requires USD type 'Token'.")
+    if shading_type != "Int":
+        raise ValueError(f"{_RTX_MINIMAL_MODE_ATTR} requires USD type 'Int'.")
+    try:
+        render_mode = _RtxRenderMode(mode_value)
+    except (ValueError, TypeError) as exc:
+        raise ValueError(f"Unsupported render mode {mode_value!r}.") from exc
+    if not isinstance(shading_value, int) or isinstance(shading_value, bool):
+        raise ValueError("Minimal shading mode must be an integer RtxMinimalShadingMode value.")
+    try:
+        minimal_shading_mode = _RtxMinimalShadingMode(shading_value)
+    except ValueError as exc:
+        raise ValueError(f"Unsupported Minimal shading mode {shading_value!r}.") from exc
     requested = {name for name in data_types if name in _SIMPLE_SHADING_MODES}
     if len(requested) > 1:
         raise ValueError("A render product supports at most one simple shading level; use separate cameras.")

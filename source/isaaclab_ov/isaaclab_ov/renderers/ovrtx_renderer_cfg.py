@@ -15,12 +15,22 @@ from typing import TYPE_CHECKING, ClassVar
 import warp as wp
 
 from isaaclab.renderers import RenderBufferKind, RenderBufferSpec
-from isaaclab.renderers._rtx_renderer_cfg import _RtxMinimalShadingMode, _RtxRendererCfg, _RtxRenderMode
+from isaaclab.renderers._rtx_renderer_cfg import (
+    _apply_minimal_shading_mode,
+    _apply_render_mode,
+    _RtxMinimalShadingMode,
+    _RtxRenderMode,
+)
+from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from .ovrtx_renderer import OVRTXBackend, OVRTXRenderer
+
+
+apply_render_mode = _apply_render_mode
+apply_minimal_shading_mode = _apply_minimal_shading_mode
 
 
 RtxRenderMode = _RtxRenderMode
@@ -50,7 +60,7 @@ class OVRTXBackendCfg(BackendCfg):
 
 
 @configclass
-class OVRTXRendererCfg(_RtxRendererCfg):
+class OVRTXRendererCfg(RendererCfg):
     """Configuration for OVRTX Renderer.
 
     The OVRTX renderer uses the ovrtx library for high-fidelity RTX-based rendering.

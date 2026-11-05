@@ -157,10 +157,12 @@ Minimal mode, which disables indirect lighting and offers three levels of materi
 - **Diffuse MDL** is Isaac Lab's stable name for textured diffuse shading.
 - **Full MDL** is Isaac Lab's stable name for diffuse, glossy, and emissive material evaluation.
 
-Set ``renderer_cfg.render_mode=RtxRenderMode.MINIMAL`` and choose ``minimal_shading_mode`` explicitly
-from ``RtxMinimalShadingMode``: ``CONSTANT_DIFFUSE``, ``DIFFUSE_MDL``,
-or ``FULL_MDL`` (default). Import the enums from ``isaaclab_ov.renderers`` or
-``isaaclab_physx.renderers``. The enum values match the native RTX settings.
+Use ``apply_render_mode(camera_cfg, RtxRenderMode.MINIMAL)`` and
+``apply_minimal_shading_mode(camera_cfg, RtxMinimalShadingMode.DIFFUSE_MDL)`` to set per-camera
+render-product attributes. Import the helpers and enums from ``isaaclab_ov.renderers`` or
+``isaaclab_physx.renderers``. Shading levels are ``CONSTANT_DIFFUSE``, ``DIFFUSE_MDL``, and
+``FULL_MDL`` (default). These helpers update ``camera_cfg.render_settings``; cameras can retain
+one shared renderer while using different execution and shading modes.
 Ordinary outputs respect these settings. In Minimal mode, ``rgb`` returns the image produced by
 the configured shading mode (``FULL_MDL`` by default).
 

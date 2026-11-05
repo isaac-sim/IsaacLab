@@ -14,12 +14,22 @@ import warp as wp
 
 from isaaclab.renderers import RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers._rtx_renderer_cfg import _SIMPLE_SHADING_MODES as SIMPLE_SHADING_MODES
-from isaaclab.renderers._rtx_renderer_cfg import _RtxMinimalShadingMode, _RtxRendererCfg, _RtxRenderMode
+from isaaclab.renderers._rtx_renderer_cfg import (
+    _apply_minimal_shading_mode,
+    _apply_render_mode,
+    _RtxMinimalShadingMode,
+    _RtxRenderMode,
+)
+from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.renderers import isaac_rtx_per_env_scene_partition_enabled
 
 if TYPE_CHECKING:
     from .isaac_rtx_renderer import IsaacRtxRenderer
+
+
+apply_render_mode = _apply_render_mode
+apply_minimal_shading_mode = _apply_minimal_shading_mode
 
 
 RtxRenderMode = _RtxRenderMode
@@ -118,7 +128,7 @@ class IsaacRtxRendererGlobalSettingsCfg:
 
 
 @configclass
-class IsaacRtxRendererCfg(_RtxRendererCfg):
+class IsaacRtxRendererCfg(RendererCfg):
     """Configuration for Isaac RTX renderer using Omniverse Replicator.
 
     Holds the Replicator/RTX-specific knobs (semantic segmentation, instance

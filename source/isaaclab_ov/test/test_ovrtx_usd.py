@@ -11,7 +11,7 @@ import importlib.util
 from types import SimpleNamespace
 
 import pytest
-from isaaclab_ov.renderers import RtxMinimalShadingMode, RtxRenderMode
+from isaaclab_ov.renderers import RtxMinimalShadingMode, RtxRenderMode, apply_minimal_shading_mode, apply_render_mode
 
 _REQUIRED_MODULES = ("isaaclab_ov", "pxr")
 _MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
@@ -252,19 +252,21 @@ def test_ovrtx_rejects_missing_or_unsupported_outputs(data_types):
             RtxMinimalShadingMode.FULL_MDL,
             "does not support 'rgb_hdr'",
         ),
-        (["rgb"], "Minimal", RtxMinimalShadingMode.FULL_MDL, "Unsupported render_mode"),
-        (["rgb"], None, RtxMinimalShadingMode.FULL_MDL, "Unsupported render_mode"),
-        (["depth"], RtxRenderMode.MINIMAL, "no_color", "minimal_shading_mode must be"),
-        (["rgb"], RtxRenderMode.MINIMAL, 2, "minimal_shading_mode must be"),
+        (["rgb"], "Unknown", RtxMinimalShadingMode.FULL_MDL, "Unsupported render mode"),
+        (["rgb"], None, RtxMinimalShadingMode.FULL_MDL, "Unsupported render mode"),
+        (["depth"], RtxRenderMode.MINIMAL, "no_color", "Minimal shading mode must be"),
+        (["rgb"], RtxRenderMode.MINIMAL, 0, "Unsupported Minimal shading mode"),
     ],
 )
 def test_ovrtx_rejects_incompatible_mode_outputs(camera_spec, render_data, data_types, mode, level, message):
     """Invalid mode/output requests fail at product creation rather than silently selecting a mode."""
     camera_spec.cfg.data_types = data_types
+    camera_spec.cfg.render_settings = {
+        "omni:rtx:rendermode": ("Token", mode),
+        "omni:rtx:minimal:mode": ("Int", level),
+    }
     with pytest.raises(ValueError, match=message):
-        build_render_product_as_string(
-            camera_spec, render_data, device_id=0, render_mode=mode, minimal_shading_mode=level
-        )
+        build_render_product_as_string(camera_spec, render_data, device_id=0)
 
 
 @pytest.mark.parametrize(
@@ -288,14 +290,9 @@ def test_ovrtx_simple_shading_alone_uses_ldr_color(
         ("/RenderCamera_0/Vars/LdrColor", "LdrColor", "LdrColor")
     ]
     camera_spec.cfg.data_types = [data_type]
-    usd = build_render_product_as_string(
-        camera_spec,
-        render_data,
-        device_id=0,
-        enable_shadows=enable_shadows,
-        render_mode=RtxRenderMode.REAL_TIME_PATH_TRACING,
-        minimal_shading_mode=shading_mode,
-    )
+    apply_render_mode(camera_spec.cfg, RtxRenderMode.REAL_TIME_PATH_TRACING)
+    apply_minimal_shading_mode(camera_spec.cfg, shading_mode)
+    usd = build_render_product_as_string(camera_spec, render_data, device_id=0, enable_shadows=enable_shadows)
     layer = Sdf.Layer.CreateAnonymous(".usda")
     assert layer.ImportFromString(usd)
     assert layer.GetAttributeAtPath("/RenderCamera_0/RenderProduct.omni:rtx:rendermode").default == "Minimal"
@@ -601,16 +598,19 @@ def test_explicit_minimal_is_independent_of_outputs_and_other_products(
 ):
     """Ordinary outputs retain settings, shortcuts override shading, and another product stays isolated."""
     camera_spec.cfg.data_types = data_types
-    settings = {} if shading_mode is None else {"minimal_shading_mode": shading_mode}
-    minimal = build_render_product_as_string(
-        camera_spec, render_data, device_id=0, render_mode=RtxRenderMode.MINIMAL, **settings
-    )
+    renderer_before = camera_spec.cfg.renderer_cfg.to_dict()
+    camera_spec.cfg.render_settings = {"omni:rtx:quality": ("Int", 0)}
+    if shading_mode is not None:
+        apply_minimal_shading_mode(camera_spec.cfg, shading_mode)
+    assert "omni:rtx:rendermode" not in camera_spec.cfg.render_settings
+    apply_render_mode(camera_spec.cfg, RtxRenderMode.MINIMAL)
+    assert camera_spec.cfg.renderer_cfg.to_dict() == renderer_before
+    minimal = build_render_product_as_string(camera_spec, render_data, device_id=0)
     camera_spec.cfg.data_types = ["rgb"]
     render_data.render_scope_name = "ColorCamera"
     render_data.render_product_path = "/ColorCamera/RenderProduct"
-    color = build_render_product_as_string(
-        camera_spec, render_data, device_id=0, render_mode=RtxRenderMode.REAL_TIME_PATH_TRACING
-    )
+    apply_render_mode(camera_spec.cfg, RtxRenderMode.REAL_TIME_PATH_TRACING)
+    color = build_render_product_as_string(camera_spec, render_data, device_id=0)
     stage = Usd.Stage.CreateInMemory()
     layers = []
     for usd in (minimal, color):
@@ -621,22 +621,45 @@ def test_explicit_minimal_is_independent_of_outputs_and_other_products(
     product = stage.GetPrimAtPath("/RenderCamera_0/RenderProduct")
     assert product.GetAttribute("omni:rtx:rendermode").Get() == "Minimal"
     assert product.GetAttribute("omni:rtx:minimal:mode").Get() == native_mode
+    assert product.GetAttribute("omni:rtx:quality").Get() == 0
     color_product = stage.GetPrimAtPath("/ColorCamera/RenderProduct")
     assert color_product.GetAttribute("omni:rtx:rendermode").Get() == "RealTimePathTracing"
     assert not color_product.HasAttribute("omni:rtx:minimal:mode")
 
 
-def test_explicit_mode_rejects_conflicting_raw_settings(camera_spec, render_data):
-    """Raw camera overrides cannot silently defeat the renderer's configured execution mode."""
-    camera_spec.cfg.render_settings = {"omni:rtx:rendermode": ("Token", "Minimal")}
-    with pytest.raises(ValueError, match="conflicts with the renderer configuration"):
-        build_render_product_as_string(
-            camera_spec, render_data, device_id=0, render_mode=RtxRenderMode.REAL_TIME_PATH_TRACING
-        )
+@pytest.mark.parametrize(
+    ("helper", "value"),
+    [
+        (apply_render_mode, "Minimal"),
+        (apply_render_mode, None),
+        (apply_minimal_shading_mode, 2),
+        (apply_minimal_shading_mode, "diffuse_mdl"),
+    ],
+)
+def test_mode_helpers_require_enum_members(camera_spec, helper, value):
+    """Typed helpers reject raw inputs before modifying camera settings."""
+    before = camera_spec.cfg.render_settings.copy()
+    with pytest.raises(ValueError, match="must be a"):
+        helper(camera_spec.cfg, value)
+    assert camera_spec.cfg.render_settings == before
+
+
+@pytest.mark.parametrize(
+    ("name", "setting", "message"),
+    [
+        ("omni:rtx:rendermode", ("String", "Minimal"), "requires USD type 'Token'"),
+        ("omni:rtx:minimal:mode", ("Float", 2), "requires USD type 'Int'"),
+    ],
+)
+def test_raw_mode_settings_require_native_usd_types(camera_spec, render_data, name, setting, message):
+    camera_spec.cfg.render_settings[name] = setting
+    with pytest.raises(ValueError, match=message):
+        build_render_product_as_string(camera_spec, render_data, device_id=0)
 
 
 def test_explicit_minimal_rejects_implicit_isp_hdr(camera_spec, render_data):
     """An ISP request must be validated against its implicit HDR input, even with RGB-only outputs."""
     camera_spec.cfg.isp_cfg = object()
+    apply_render_mode(camera_spec.cfg, RtxRenderMode.MINIMAL)
     with pytest.raises(ValueError, match="ISP, which requires HDR"):
-        build_render_product_as_string(camera_spec, render_data, device_id=0, render_mode=RtxRenderMode.MINIMAL)
+        build_render_product_as_string(camera_spec, render_data, device_id=0)

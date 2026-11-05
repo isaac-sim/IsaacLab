@@ -581,8 +581,6 @@ class OVRTXRenderer(BaseRenderer):
             render_data,
             device_id=self._warp_device.ordinal,
             enable_shadows=self.cfg.enable_shadows,
-            render_mode=self.cfg.render_mode,
-            minimal_shading_mode=self.cfg.minimal_shading_mode,
         )
         try:
             # Registration mutates the shared scene; finish renders using its existing products first.
