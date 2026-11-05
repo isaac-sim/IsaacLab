@@ -128,8 +128,8 @@ class NewtonBackend:
         """Finalized Newton model; :attr:`model.num_envs` is its world count."""
         self.model.num_envs = self.model.world_count
         self.device: wp.Device = self.model.device
-        self.is_stepping = False
-        """Whether the step is executing or being recorded, including its callbacks."""
+        self.state_version = 0
+        """Advanced whenever the step or FK changes the state; asset data recomputes derived values cached before it."""
         self.particle_ranges: dict[str, tuple[int, int]] = {}
         """``(start, count)`` particle range per replicated deformable prim path."""
         self.deformable_ranges = {
@@ -220,11 +220,6 @@ class NewtonBackend:
         """Records the step as a CUDA graph, or ``None`` when the step runs eagerly; set by :meth:`init_solver`."""
         self.graphs: dict[object, wp.Graph] = {}
         """Captured parts of the step, keyed by part; empty until the first step is captured."""
-
-    @property
-    def live(self) -> bool:
-        """Whether derived data must be recomputed on read because a step or graph recording bypasses timestamps."""
-        return self.is_stepping or self.device.is_capturing
 
     def create_visual_material_writer(self, batches: tuple[VisualMaterialBatch, ...]) -> VisualMaterialWriter:
         """Bind material writes to this resource's native shape-color buffer."""
@@ -346,6 +341,7 @@ class NewtonBackend:
         self.fk_mask.zero_()
         self.world_mask.zero_()
         self.kinematics_dirty = False
+        self.state_version += 1
 
     def activate_actuators(self) -> None:
         """Run the model's Newton actuators inside the step. Idempotent."""
@@ -456,23 +452,21 @@ class NewtonBackend:
         """
         steps = self.decimation if self.handles_decimation() else 1
         actuators = self.actuators
-        self.is_stepping = True
-        try:
-            with wp.ScopedDevice(self.device):
-                self.forward()
-                if actuators is None or actuators.is_all_graphable:
-                    self._launch(("simulate", steps), partial(self._simulate, steps))
-                else:
-                    if self.device.is_capturing:
-                        raise RuntimeError("Newton actuators that cannot be captured prevent recording the step.")
-                    self._stage_body_forces()
-                    for _ in range(steps):
-                        self._launch("step1", self._step1)
-                        actuators.step(self.state_0, self.control, self.dt)
-                        self._launch("step2", self._step2)
-                    self._launch("finish_step", self._finish_step)
-        finally:
-            self.is_stepping = False
+        with wp.ScopedDevice(self.device):
+            self.forward()
+            if actuators is None or actuators.is_all_graphable:
+                self._launch(("simulate", steps), partial(self._simulate, steps))
+            else:
+                if self.device.is_capturing:
+                    raise RuntimeError("Newton actuators that cannot be captured prevent recording the step.")
+                self._stage_body_forces()
+                for _ in range(steps):
+                    self._launch("step1", self._step1)
+                    actuators.step(self.state_0, self.control, self.dt)
+                    self._launch("step2", self._step2)
+                self._launch("finish_step", self._finish_step)
+        # Graph replays skip the per-step increments in _step2.
+        self.state_version += 1
         captured = bool(self.graphs)
         if not self.device.is_capturing:
             solver_cfg = self.cfg.solver_cfg
@@ -609,6 +603,7 @@ class NewtonBackend:
         for callback in self.post_control_callbacks:
             callback()
         self._run_solver_substeps(self.contacts if self.collision_pipeline is not None else None)
+        self.state_version += 1
 
     def _finish_step(self) -> None:
         """Run the post-step callbacks and update the sensors once after the last physics step."""

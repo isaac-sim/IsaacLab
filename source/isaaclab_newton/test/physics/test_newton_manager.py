@@ -289,7 +289,7 @@ def _recording_backend(
         fk_mask=wp.zeros(1, dtype=wp.bool, device=device),
         kinematics_dirty=False,
         transforms_may_change_on_graph_replay=False,
-        is_stepping=False,
+        state_version=0,
         model_changes=set(),
         warned_model_changes=set(),
         control_callbacks=[],
@@ -522,6 +522,7 @@ def test_forward_resolves_flagged_worlds_once_and_not_while_an_outer_graph_recor
         kinematics_dirty=True,
         transforms_may_change_on_graph_replay=False,
         model_changes=set(),
+        state_version=0,
     )
     scene_data = NewtonSceneDataBackend(manager)
 

@@ -139,6 +139,15 @@ class ArticulationData(BaseArticulationData):
             raise ValueError("The articulation data is already primed.")
         self._is_primed = True
 
+    @property
+    def _data_stamp(self) -> float:
+        """Cache stamp of derived data; it advances with the simulated time and the backend's state version."""
+        backend = self._backend_manager.backend
+        if backend.device.is_capturing:
+            # Replays bypass this host check, so every read recorded into a graph records its recompute.
+            backend.state_version += 1
+        return self._sim_timestamp + backend.state_version
+
     def update(self, dt: float) -> None:
         """Updates the data for the articulation.
 
@@ -422,7 +431,7 @@ class ArticulationData(BaseArticulationData):
                 wp.zeros((self._num_instances, self._num_joints), wp.vec2f, self.device)
             )
             self._joint_pos_limits_ta = ProxyArray(self._joint_pos_limits.data)
-        if self._joint_pos_limits.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
+        if self._joint_pos_limits.timestamp < self._data_stamp:
             joint_pos_limits_lower = (
                 self._joint_pos_limits_lower_user if self.has_joint_ordering else self._sim_bind_joint_pos_limits_lower
             )
@@ -437,7 +446,7 @@ class ArticulationData(BaseArticulationData):
                 inputs=[joint_pos_limits_lower, joint_pos_limits_upper],
                 outputs=[self._joint_pos_limits.data],
             )
-            self._joint_pos_limits.timestamp = self._sim_timestamp
+            self._joint_pos_limits.timestamp = self._data_stamp
         return self._joint_pos_limits_ta
 
     @property
@@ -623,7 +632,7 @@ class ArticulationData(BaseArticulationData):
         """
         if self._root_link_vel_w.data is None:
             self._root_link_vel_w.data = ProxyArray(wp.empty(self._num_instances, wp.spatial_vectorf, self.device))
-        if self._root_link_vel_w.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
+        if self._root_link_vel_w.timestamp < self._data_stamp:
             self._read_launch_cache.launch(
                 "root_link_vel_w",
                 wp.launch,
@@ -632,7 +641,7 @@ class ArticulationData(BaseArticulationData):
                 inputs=[self.root_com_vel_w, self.root_link_pose_w, self._sim_bind_body_com_pos_b],
                 outputs=[self._root_link_vel_w.data],
             )
-            self._root_link_vel_w.timestamp = self._sim_timestamp
+            self._root_link_vel_w.timestamp = self._data_stamp
 
         return self._root_link_vel_w.data
 
@@ -647,7 +656,7 @@ class ArticulationData(BaseArticulationData):
         """
         if self._root_com_pose_w.data is None:
             self._root_com_pose_w.data = ProxyArray(wp.empty(self._num_instances, wp.transformf, self.device))
-        if self._root_com_pose_w.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
+        if self._root_com_pose_w.timestamp < self._data_stamp:
             self._read_launch_cache.launch(
                 "root_com_pose_w",
                 wp.launch,
@@ -656,7 +665,7 @@ class ArticulationData(BaseArticulationData):
                 inputs=[self.root_link_pose_w, self._sim_bind_body_com_pos_b],
                 outputs=[self._root_com_pose_w.data],
             )
-            self._root_com_pose_w.timestamp = self._sim_timestamp
+            self._root_com_pose_w.timestamp = self._data_stamp
 
         return self._root_com_pose_w.data
 
@@ -721,7 +730,7 @@ class ArticulationData(BaseArticulationData):
         if self._body_link_vel_w.data is None:
             shape = (self._num_instances, self._num_bodies)
             self._body_link_vel_w.data = ProxyArray(wp.empty(shape, wp.spatial_vectorf, self.device))
-        if self._body_link_vel_w.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
+        if self._body_link_vel_w.timestamp < self._data_stamp:
             self._read_launch_cache.launch(
                 "body_link_vel_w",
                 wp.launch,
@@ -730,7 +739,7 @@ class ArticulationData(BaseArticulationData):
                 inputs=[self.body_com_vel_w, self.body_link_pose_w, self.body_com_pos_b],
                 outputs=[self._body_link_vel_w.data],
             )
-            self._body_link_vel_w.timestamp = self._sim_timestamp
+            self._body_link_vel_w.timestamp = self._data_stamp
 
         return self._body_link_vel_w.data
 
@@ -747,7 +756,7 @@ class ArticulationData(BaseArticulationData):
         if self._body_com_pose_w.data is None:
             shape = (self._num_instances, self._num_bodies)
             self._body_com_pose_w.data = ProxyArray(wp.empty(shape, wp.transformf, self.device))
-        if self._body_com_pose_w.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
+        if self._body_com_pose_w.timestamp < self._data_stamp:
             self._read_launch_cache.launch(
                 "body_com_pose_w",
                 wp.launch,
@@ -756,7 +765,7 @@ class ArticulationData(BaseArticulationData):
                 inputs=[self.body_link_pose_w, self.body_com_pos_b],
                 outputs=[self._body_com_pose_w.data],
             )
-            self._body_com_pose_w.timestamp = self._sim_timestamp
+            self._body_com_pose_w.timestamp = self._data_stamp
 
         return self._body_com_pose_w.data
 
@@ -801,7 +810,7 @@ class ArticulationData(BaseArticulationData):
                 (self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device
             )
             self._body_joint_wrench_ta = ProxyArray(self._body_joint_wrench.data)
-        if self._body_joint_wrench.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
+        if self._body_joint_wrench.timestamp < self._data_stamp:
             self._read_launch_cache.launch(
                 "body_joint_wrench",
                 wp.launch,
@@ -818,7 +827,7 @@ class ArticulationData(BaseArticulationData):
                 ],
                 outputs=[self._body_joint_wrench.data],
             )
-            self._body_joint_wrench.timestamp = self._sim_timestamp
+            self._body_joint_wrench.timestamp = self._data_stamp
         return self._body_joint_wrench_ta
 
     @property
@@ -880,7 +889,7 @@ class ArticulationData(BaseArticulationData):
         if self._body_com_pose_b.data is None:
             shape = (self._num_instances, self._num_bodies)
             self._body_com_pose_b.data = ProxyArray(wp.empty(shape, wp.transformf, self.device))
-        if self._body_com_pose_b.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
+        if self._body_com_pose_b.timestamp < self._data_stamp:
             self._read_launch_cache.launch(
                 "body_com_pose_b",
                 wp.launch,
@@ -889,7 +898,7 @@ class ArticulationData(BaseArticulationData):
                 inputs=[self.body_com_pos_b],
                 outputs=[self._body_com_pose_b.data],
             )
-            self._body_com_pose_b.timestamp = self._sim_timestamp
+            self._body_com_pose_b.timestamp = self._data_stamp
         return self._body_com_pose_b.data
 
     """
@@ -1132,7 +1141,7 @@ class ArticulationData(BaseArticulationData):
         """
         if self._projected_gravity_b.data is None:
             self._projected_gravity_b.data = ProxyArray(wp.empty(self._num_instances, wp.vec3f, self.device))
-        if self._projected_gravity_b.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
+        if self._projected_gravity_b.timestamp < self._data_stamp:
             self._read_launch_cache.launch(
                 "projected_gravity_b",
                 wp.launch,
@@ -1141,7 +1150,7 @@ class ArticulationData(BaseArticulationData):
                 inputs=[self.GRAVITY_VEC_W, self.root_link_quat_w],
                 outputs=[self._projected_gravity_b.data],
             )
-            self._projected_gravity_b.timestamp = self._sim_timestamp
+            self._projected_gravity_b.timestamp = self._data_stamp
         return self._projected_gravity_b.data
 
     @property
@@ -1156,7 +1165,7 @@ class ArticulationData(BaseArticulationData):
         """
         if self._heading_w.data is None:
             self._heading_w.data = ProxyArray(wp.empty(self._num_instances, wp.float32, self.device))
-        if self._heading_w.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
+        if self._heading_w.timestamp < self._data_stamp:
             self._read_launch_cache.launch(
                 "heading_w",
                 wp.launch,
@@ -1165,7 +1174,7 @@ class ArticulationData(BaseArticulationData):
                 inputs=[self.FORWARD_VEC_B, self.root_link_quat_w],
                 outputs=[self._heading_w.data],
             )
-            self._heading_w.timestamp = self._sim_timestamp
+            self._heading_w.timestamp = self._data_stamp
         return self._heading_w.data
 
     @property
@@ -1180,7 +1189,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_link_lin_vel_b is None:
             self._root_link_lin_vel_b = TimestampedBuffer(wp.empty(self._num_instances, wp.vec3f, self.device))
             self._root_link_lin_vel_b_ta = ProxyArray(self._root_link_lin_vel_b.data)
-        if self._root_link_lin_vel_b.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
+        if self._root_link_lin_vel_b.timestamp < self._data_stamp:
             self._read_launch_cache.launch(
                 "root_link_lin_vel_b",
                 wp.launch,
@@ -1189,7 +1198,7 @@ class ArticulationData(BaseArticulationData):
                 inputs=[self.root_link_quat_w.warp, self.root_link_lin_vel_w.warp],
                 outputs=[self._root_link_lin_vel_b.data],
             )
-            self._root_link_lin_vel_b.timestamp = self._sim_timestamp
+            self._root_link_lin_vel_b.timestamp = self._data_stamp
         return self._root_link_lin_vel_b_ta
 
     @property
@@ -1204,7 +1213,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_link_ang_vel_b is None:
             self._root_link_ang_vel_b = TimestampedBuffer(wp.empty(self._num_instances, wp.vec3f, self.device))
             self._root_link_ang_vel_b_ta = ProxyArray(self._root_link_ang_vel_b.data)
-        if self._root_link_ang_vel_b.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
+        if self._root_link_ang_vel_b.timestamp < self._data_stamp:
             self._read_launch_cache.launch(
                 "root_link_ang_vel_b",
                 wp.launch,
@@ -1213,7 +1222,7 @@ class ArticulationData(BaseArticulationData):
                 inputs=[self.root_link_quat_w.warp, self.root_link_ang_vel_w.warp],
                 outputs=[self._root_link_ang_vel_b.data],
             )
-            self._root_link_ang_vel_b.timestamp = self._sim_timestamp
+            self._root_link_ang_vel_b.timestamp = self._data_stamp
         return self._root_link_ang_vel_b_ta
 
     @property
@@ -1228,7 +1237,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_com_lin_vel_b is None:
             self._root_com_lin_vel_b = TimestampedBuffer(wp.empty(self._num_instances, wp.vec3f, self.device))
             self._root_com_lin_vel_b_ta = ProxyArray(self._root_com_lin_vel_b.data)
-        if self._root_com_lin_vel_b.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
+        if self._root_com_lin_vel_b.timestamp < self._data_stamp:
             self._read_launch_cache.launch(
                 "root_com_lin_vel_b",
                 wp.launch,
@@ -1237,7 +1246,7 @@ class ArticulationData(BaseArticulationData):
                 inputs=[self.root_link_quat_w.warp, self.root_com_lin_vel_w.warp],
                 outputs=[self._root_com_lin_vel_b.data],
             )
-            self._root_com_lin_vel_b.timestamp = self._sim_timestamp
+            self._root_com_lin_vel_b.timestamp = self._data_stamp
         return self._root_com_lin_vel_b_ta
 
     @property
@@ -1252,7 +1261,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_com_ang_vel_b is None:
             self._root_com_ang_vel_b = TimestampedBuffer(wp.empty(self._num_instances, wp.vec3f, self.device))
             self._root_com_ang_vel_b_ta = ProxyArray(self._root_com_ang_vel_b.data)
-        if self._root_com_ang_vel_b.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
+        if self._root_com_ang_vel_b.timestamp < self._data_stamp:
             self._read_launch_cache.launch(
                 "root_com_ang_vel_b",
                 wp.launch,
@@ -1261,7 +1270,7 @@ class ArticulationData(BaseArticulationData):
                 inputs=[self.root_link_quat_w.warp, self.root_com_ang_vel_w.warp],
                 outputs=[self._root_com_ang_vel_b.data],
             )
-            self._root_com_ang_vel_b.timestamp = self._sim_timestamp
+            self._root_com_ang_vel_b.timestamp = self._data_stamp
         return self._root_com_ang_vel_b_ta
 
     """
@@ -2310,7 +2319,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_state_w is None:
             self._root_state_w = TimestampedBuffer(wp.empty(self._num_instances, vec13f, self.device))
             self._root_state_w_ta = ProxyArray(self._root_state_w.data)
-        if self._root_state_w.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
+        if self._root_state_w.timestamp < self._data_stamp:
             self._read_launch_cache.launch(
                 "root_state_w",
                 memory_kernels.concat,
@@ -2318,7 +2327,7 @@ class ArticulationData(BaseArticulationData):
                 self.root_com_vel_w.warp,
                 self._root_state_w.data,
             )
-            self._root_state_w.timestamp = self._sim_timestamp
+            self._root_state_w.timestamp = self._data_stamp
 
         return self._root_state_w_ta
 
@@ -2334,7 +2343,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_link_state_w is None:
             self._root_link_state_w = TimestampedBuffer(wp.empty(self._num_instances, vec13f, self.device))
             self._root_link_state_w_ta = ProxyArray(self._root_link_state_w.data)
-        if self._root_link_state_w.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
+        if self._root_link_state_w.timestamp < self._data_stamp:
             self._read_launch_cache.launch(
                 "root_link_state_w",
                 memory_kernels.concat,
@@ -2342,7 +2351,7 @@ class ArticulationData(BaseArticulationData):
                 self.root_link_vel_w.warp,
                 self._root_link_state_w.data,
             )
-            self._root_link_state_w.timestamp = self._sim_timestamp
+            self._root_link_state_w.timestamp = self._data_stamp
 
         return self._root_link_state_w_ta
 
@@ -2358,7 +2367,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_com_state_w is None:
             self._root_com_state_w = TimestampedBuffer(wp.empty(self._num_instances, vec13f, self.device))
             self._root_com_state_w_ta = ProxyArray(self._root_com_state_w.data)
-        if self._root_com_state_w.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
+        if self._root_com_state_w.timestamp < self._data_stamp:
             self._read_launch_cache.launch(
                 "root_com_state_w",
                 memory_kernels.concat,
@@ -2366,7 +2375,7 @@ class ArticulationData(BaseArticulationData):
                 self.root_com_vel_w.warp,
                 self._root_com_state_w.data,
             )
-            self._root_com_state_w.timestamp = self._sim_timestamp
+            self._root_com_state_w.timestamp = self._data_stamp
 
         return self._root_com_state_w_ta
 
@@ -2417,7 +2426,7 @@ class ArticulationData(BaseArticulationData):
                 wp.empty((self._num_instances, self._num_bodies), vec13f, self.device)
             )
             self._body_state_w_ta = ProxyArray(self._body_state_w.data)
-        if self._body_state_w.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
+        if self._body_state_w.timestamp < self._data_stamp:
             self._read_launch_cache.launch(
                 "body_state_w",
                 memory_kernels.concat,
@@ -2425,7 +2434,7 @@ class ArticulationData(BaseArticulationData):
                 self.body_com_vel_w.warp,
                 self._body_state_w.data,
             )
-            self._body_state_w.timestamp = self._sim_timestamp
+            self._body_state_w.timestamp = self._data_stamp
 
         return self._body_state_w_ta
 
@@ -2447,7 +2456,7 @@ class ArticulationData(BaseArticulationData):
                 wp.empty((self._num_instances, self._num_bodies), vec13f, self.device)
             )
             self._body_link_state_w_ta = ProxyArray(self._body_link_state_w.data)
-        if self._body_link_state_w.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
+        if self._body_link_state_w.timestamp < self._data_stamp:
             self._read_launch_cache.launch(
                 "body_link_state_w",
                 memory_kernels.concat,
@@ -2455,7 +2464,7 @@ class ArticulationData(BaseArticulationData):
                 self.body_link_vel_w.warp,
                 self._body_link_state_w.data,
             )
-            self._body_link_state_w.timestamp = self._sim_timestamp
+            self._body_link_state_w.timestamp = self._data_stamp
 
         return self._body_link_state_w_ta
 
@@ -2479,7 +2488,7 @@ class ArticulationData(BaseArticulationData):
                 wp.empty((self._num_instances, self._num_bodies), vec13f, self.device)
             )
             self._body_com_state_w_ta = ProxyArray(self._body_com_state_w.data)
-        if self._body_com_state_w.timestamp < self._sim_timestamp or self._backend_manager.backend.live:
+        if self._body_com_state_w.timestamp < self._data_stamp:
             self._read_launch_cache.launch(
                 "body_com_state_w",
                 memory_kernels.concat,
@@ -2487,6 +2496,6 @@ class ArticulationData(BaseArticulationData):
                 self.body_com_vel_w.warp,
                 self._body_com_state_w.data,
             )
-            self._body_com_state_w.timestamp = self._sim_timestamp
+            self._body_com_state_w.timestamp = self._data_stamp
 
         return self._body_com_state_w_ta
