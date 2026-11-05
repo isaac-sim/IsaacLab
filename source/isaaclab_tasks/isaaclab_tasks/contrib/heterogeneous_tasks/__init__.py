@@ -19,6 +19,6 @@ VLA_BENCHMARKS_ASSETS_DIR = os.environ.get(
 )
 """Root of the tasks' assets: the objects from the RoboLab and Omniverse libraries as complete USD files, and the
 robot table and dome light texture. Defaults to the HeteroTask dataset on Hugging Face; the environment variable of the
-same name overrides it, e.g. with a local copy. The robot is
-:obj:`~isaaclab_assets.robots.franka.FRANKA_ROBOTIQ_USD_PATH`.
+same name overrides it, e.g. with a local copy. The robot is that of
+:obj:`~isaaclab_assets.robots.franka.FRANKA_ROBOTIQ_GRIPPER_CFG`.
 """

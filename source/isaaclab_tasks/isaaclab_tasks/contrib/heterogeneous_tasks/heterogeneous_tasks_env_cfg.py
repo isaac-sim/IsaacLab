@@ -195,8 +195,7 @@ class VLABenchmarkEnvCfg(ManagerBasedRLEnvCfg):
                 use_mujoco_contacts=False,
                 ccd_iterations=35,
             ),
-            # Random actions on the 256 tasks peak at 1.7k broad-phase pairs in a world (Newton warns on overflow).
-            collision_cfg=NewtonCollisionPipelineCfg(broad_phase="sap", shape_pairs_max_per_world=4096),
+            collision_cfg=NewtonCollisionPipelineCfg(broad_phase="sap"),
             num_substeps=2,
             # The cameras render the USD stage with OVRTX, which does not draw Newton's visual shapes.
             load_visual_shapes=False,

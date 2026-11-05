@@ -7,7 +7,7 @@
 
 import math
 
-from isaaclab_newton.sim.schemas import NewtonArticulationCfg
+from isaaclab_newton.sim.schemas import MujocoJointCfg, NewtonArticulationCfg
 from isaaclab_physx.sim.schemas import PhysxArticulationCfg
 
 from isaaclab.assets import ArticulationCfg
@@ -24,6 +24,8 @@ FRANKA_ROBOTIQ_CFG.spawn.articulation_props = [
     ),
     NewtonArticulationCfg(self_collision_enabled=False),
 ]
+# MuJoCo Warp applies the gravity compensation through the joint actuators, within their effort limits.
+FRANKA_ROBOTIQ_CFG.spawn.joint_drive_props = [MujocoJointCfg(actuatorgravcomp=True)]
 FRANKA_ROBOTIQ_CFG.init_state = ArticulationCfg.InitialStateCfg(
     joint_pos={
         "panda_joint1": 0.0,
