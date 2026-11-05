@@ -47,6 +47,7 @@ _MIN_CENTROID_SHIFT = 10.0
 # Focal-length ratio of the co-located zoom camera; the shifted objects stay inside its narrower view.
 _ZOOM = 1.5
 _ZOOM_PIXEL_TOLERANCE = 3.0
+_ZOOM_CAMERA_RETREAT = 1.0
 
 
 @dataclass(frozen=True)
@@ -116,12 +117,23 @@ def _require(condition: torch.Tensor | bool, message: str) -> None:
         raise AssertionError(message)
 
 
+def _object_mask(depth: torch.Tensor) -> torch.Tensor:
+    """Return the pixels that hit the object for every camera."""
+    depth_image = depth[..., 0]
+    return torch.isfinite(depth_image) & (depth_image > _MIN_OBJECT_DEPTH) & (depth_image < _MAX_OBJECT_DEPTH)
+
+
+def _nearest_object_depth(depth: torch.Tensor) -> torch.Tensor:
+    """Return the nearest object depth [m] for every camera."""
+    return torch.where(_object_mask(depth), depth[..., 0], torch.inf).amin(dim=(1, 2))
+
+
 def _measure_depth_mask(
     depth: torch.Tensor, backend_name: str, camera: Camera
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Return silhouette height, width, and horizontal centroid for every camera."""
     depth_image = depth[..., 0]
-    valid = torch.isfinite(depth_image) & (depth_image > _MIN_OBJECT_DEPTH) & (depth_image < _MAX_OBJECT_DEPTH)
+    valid = _object_mask(depth)
     pixel_counts = valid.sum(dim=(1, 2))
     finite = torch.where(torch.isfinite(depth_image), depth_image, torch.zeros_like(depth_image))
     diagnostics = (
@@ -286,6 +298,20 @@ def run_rigid_object_scale_and_pose_rendering_contract(backend: RigidObjectRende
                 f"[{backend.name}] Opposite translations must move silhouettes in opposite directions, got "
                 f"deltas {negative_delta.tolist()} and {positive_delta.tolist()}.",
             )
+
+            if zoom_camera is not None:
+                zoom_eyes = camera_eyes.clone()
+                zoom_eyes[:, 1] -= _ZOOM_CAMERA_RETREAT
+                zoom_camera.set_world_poses_from_view(zoom_eyes, scene.env_origins)
+                depth = _write_pose_and_render(sim, scene, rigid_object, camera, center_poses)
+                torch.testing.assert_close(depth, center_depth)
+                expected_zoom_depth = _nearest_object_depth(center_depth) + _ZOOM_CAMERA_RETREAT
+                zoom_depth = _nearest_object_depth(zoom_camera.data.output["depth"].torch)
+                _require(
+                    torch.all(torch.abs(zoom_depth - expected_zoom_depth) < 1.0e-3),
+                    f"[{backend.name}] Expected the retreated zoom camera's nearest depth near "
+                    f"{expected_zoom_depth.tolist()}, got {zoom_depth.tolist()}.",
+                )
         finally:
             sim.register_interactive_scene(None)
             # Release camera-owned render products before another parametrized case creates a stage.
