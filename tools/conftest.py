@@ -1480,7 +1480,7 @@ def _collect_test_files(
 
         for root, _, files in os.walk(source_dir):
             # source/isaaclab/test/install_ci/ has its own pytest config and conftest.
-            # It is run via .github/actions/install-ci-run, never via this collector,
+            # It is run via tools/run_install_ci.py, never via this collector,
             # so skip the whole subtree to keep install_ci tests out of build.yaml jobs.
             if "install_ci" in root.replace("\\", "/").split("/"):
                 continue

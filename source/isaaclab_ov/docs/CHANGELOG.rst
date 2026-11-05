@@ -3,6 +3,46 @@ Changelog
 
 .. towncrier release notes start
 
+9.0.0 (2026-11-05)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Adopted shared PVA output storage and optional output groups; skip unused native bindings and clear measurements on STOP.
+* Reused shared sensor math, packing, and reset operations while retaining native gathering and solver-specific policies.
+* Used tiled concatenation for packed contact and frame-transformer poses, reusing recorded CUDA commands until sensor buffers are recreated.
+* Initialized frame-transformer orientations directly in Warp without Torch mutation.
+
+Deprecated
+^^^^^^^^^^
+
+* Marked direct use of OVPhysX PvaData as deprecated in its API documentation. Imports remain available without warnings; use isaaclab.sensors.PvaData or sensor.data.
+
+Fixed
+^^^^^
+
+* Fixed environment-owned lights affecting cameras in other OVRTX scene partitions.
+* Added CPU hierarchy preparation before cloning on the OVStage 0.4 release line, including
+  development builds, to reduce clone time while preserving the GPU hierarchy default at runtime.
+
+
+8.0.4 (2026-11-03)
+~~~~~~~~~~~~~~~~~~
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated ``Articulation.write_joint_state_to_sim_index``. Use ``write_joint_state_to_sim_mask``, or
+  ``write_joint_position_to_sim_index`` and ``write_joint_velocity_to_sim_index``.
+
+Fixed
+^^^^^
+
+* Fixed OVRTX stage preparation, camera relationships, and mesh and marker visibility writes with typed OVStage
+  token and path handles (new in OVStage 0.4.0) while preserving compatibility with integer IDs from older builds.
+
+
 8.0.3 (2026-10-31)
 ~~~~~~~~~~~~~~~~~~
 

@@ -3,6 +3,64 @@ Changelog
 
 .. towncrier release notes start
 
+15.0.0 (2026-11-05)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Adopted shared PVA output storage and optional output groups; request acceleration state only when enabled, and normalize initialization/STOP defaults.
+* Isolate optional PVA update compilation from other feature subsets and the shared reset path to reduce cold sensor startup time.
+* Reused shared sensor math, packing, and reset operations while retaining native gathering and solver-specific policies.
+
+Deprecated
+^^^^^^^^^^
+
+* Marked direct use of Newton PvaData as deprecated in its API documentation. Imports remain available without warnings; use isaaclab.sensors.PvaData or sensor.data.
+
+
+14.0.1 (2026-11-04)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed :attr:`~isaaclab_newton.physics.NewtonCollisionPipelineCfg.max_triangle_pairs` to default to ``None``
+  so Newton sizes it from the model. The fixed ``1_000_000`` is shared by all worlds and dropped mesh contacts once
+  the world count grew.
+
+Fixed
+^^^^^
+
+* Fixed MJWarp losing authored state writes and environment resets when the next solver substep
+  skipped its periodic Newton-state import. Flagged worlds were synchronized at forward and
+  physics-step boundaries even with sparse or disabled periodic imports, including CUDA graph replay.
+
+
+14.0.0 (2026-11-03)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed :meth:`~isaaclab_newton.physics.NewtonManager.invalidate_fk` and
+  :meth:`~isaaclab_newton.physics.NewtonManager.invalidate_body_state` (and their backend counterparts) to select
+  environments by mask only. Removed their ``env_ids`` argument; pass a boolean ``env_mask`` instead, and
+  ``articulation_mask`` to select view-local articulations.
+* Changed the ``*_index`` state writes of Newton assets to flag the written environments into a scratch mask that
+  the backend clears as it reads it, so the backend's reset and FK flagging is mask-only.
+* Changed asset data classes to invalidate only their derived caches.
+* Changed rigid object collection ``*_mask`` state writes to use dedicated mask kernels instead of converting masks to
+  indices, and limited FK invalidation to the selected objects.
+* Avoided refreshing derived state while obtaining authoritative write destinations.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated ``Articulation.write_joint_state_to_sim_index``. Use ``write_joint_state_to_sim_mask``, or
+  ``write_joint_position_to_sim_index`` and ``write_joint_velocity_to_sim_index``.
+
+
 13.0.0 (2026-10-31)
 ~~~~~~~~~~~~~~~~~~~
 

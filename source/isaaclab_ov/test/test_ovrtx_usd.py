@@ -14,6 +14,8 @@ import pytest
 pytest.importorskip("isaaclab_ov", reason="requires optional isaaclab_ov package")
 pytest.importorskip("pxr", reason="requires optional USD bindings")
 
+pytestmark = pytest.mark.ov
+
 from isaaclab_ov.renderers import (  # noqa: E402
     RtxMinimalShadingMode,
     RtxRenderMode,
