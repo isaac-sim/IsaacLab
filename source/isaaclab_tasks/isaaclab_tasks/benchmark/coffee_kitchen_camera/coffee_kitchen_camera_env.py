@@ -85,7 +85,8 @@ class CoffeeMotionPlayback(ActionTerm):
         frames = (self._offsets[selected] + self._env.common_step_counter) % len(self._frames)
         pose = self._default_pose[selected].clone()
         pose[:, self._arm_ids] = self._frames[frames]
-        self._asset.write_joint_state_to_sim_index(position=pose, velocity=torch.zeros_like(pose), env_ids=env_ids)
+        self._asset.write_joint_position_to_sim_index(position=pose, env_ids=env_ids)
+        self._asset.write_joint_velocity_to_sim_index(velocity=torch.zeros_like(pose), env_ids=env_ids)
         self._asset.actuators.target_command.set_position_index(value=pose, env_ids=env_ids)
 
 
@@ -102,10 +103,8 @@ class CoffeeKitchenCameraEnv(ManagerBasedRLEnv):
 
     def _disable_contacts(self, builder, env_id: int, _position, _quaternion) -> None:
         """Turn off shape contacts for everything but the robot, as the demo's ``_configure_colliders`` does."""
-        prefix = f"/World/envs/env_{env_id}/"
         for index in range(self._next_shape, builder.shape_count):
-            label = str(builder.shape_label[index])
-            if label.startswith(prefix) and "/Robot/" not in label:
+            if builder.shape_world[index] == env_id and "/Robot/" not in str(builder.shape_label[index]):
                 builder.shape_flags[index] &= ~int(newton.ShapeFlags.COLLIDE_SHAPES)
         self._next_shape = builder.shape_count
 
