@@ -31,7 +31,7 @@ _DEPRECATED_RENDERER_FIELD_DEFAULTS: dict = {
     "depth_clipping_behavior": "none",
 }
 
-CAPTURE_MASK_NAME = "env_mask"
+_CAPTURE_MASK_NAME = "env_mask"
 """Processor input holding the boolean mask of environments due for the capture."""
 
 
@@ -283,15 +283,15 @@ class CameraCfg(SensorBaseCfg):
     def validate_config(self) -> None:
         """Validate processor names, the capture mask's rendering mode, and the requested data types against the
         selected renderer contract."""
-        if any(CAPTURE_MASK_NAME in processor_cfg.outputs for processor_cfg in self.tensor_processors):
-            raise ValueError(f"Processor output name {CAPTURE_MASK_NAME!r} is reserved for the capture mask.")
+        if any(_CAPTURE_MASK_NAME in processor_cfg.outputs for processor_cfg in self.tensor_processors):
+            raise ValueError(f"Processor output name {_CAPTURE_MASK_NAME!r} is reserved for the capture mask.")
         if getattr(self.renderer_cfg, "async_rendering", False) and any(
-            CAPTURE_MASK_NAME in processor_cfg.inputs for processor_cfg in self.tensor_processors
+            _CAPTURE_MASK_NAME in processor_cfg.inputs for processor_cfg in self.tensor_processors
         ):
             # The mask marks the environments of the current request, while asynchronous rendering publishes the
             # previous request's image, so the mask would select the wrong rows.
             raise ValueError(
-                f"Processors reading {CAPTURE_MASK_NAME!r} need synchronous rendering; set "
+                f"Processors reading {_CAPTURE_MASK_NAME!r} need synchronous rendering; set "
                 "renderer_cfg.async_rendering=False."
             )
         if self.renderer_cfg is None:
@@ -313,6 +313,6 @@ def _render_data_types(cfg: CameraCfg) -> list[str]:
     """Return the data types that no processor produces and the inputs that no earlier processor produces."""
     produced, inputs = set(), []
     for processor_cfg in cfg.tensor_processors:
-        inputs += [name for name in processor_cfg.inputs if name not in produced and name != CAPTURE_MASK_NAME]
+        inputs += [name for name in processor_cfg.inputs if name not in produced and name != _CAPTURE_MASK_NAME]
         produced.update(processor_cfg.outputs)
     return list(dict.fromkeys([name for name in cfg.data_types if name not in produced] + inputs))
