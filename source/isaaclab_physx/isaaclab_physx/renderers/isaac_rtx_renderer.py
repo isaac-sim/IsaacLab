@@ -19,7 +19,7 @@ import numpy as np
 import warp as wp
 from packaging import version
 
-from pxr import Sdf, Usd, UsdGeom
+from pxr import Sdf, Usd, UsdGeom, UsdLux
 
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
@@ -221,7 +221,7 @@ class IsaacRtxRenderer(BaseRenderer):
 
         When enabled, for each environment root declared by the clone plan, writes the inheriting primvar
         ``primvars:omni:scenePartition`` (token ``env_{i}``) on the root and the matching
-        non-primvar ``omni:scenePartition`` token on every :class:`UsdGeom.Camera` descendant.
+        non-primvar ``omni:scenePartition`` token on every camera and light descendant.
         RTX honors primvar inheritance, so the env-root primvar propagates to all descendant
         geometry and isolates each env's render tile.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.prepare_stage`."""
@@ -245,7 +245,7 @@ class IsaacRtxRenderer(BaseRenderer):
                 for prim in Usd.PrimRange(env_prim):
                     if prim == env_prim:
                         attr_path = prim.GetPath().AppendProperty("primvars:omni:scenePartition")
-                    elif prim.IsA(UsdGeom.Camera):
+                    elif prim.IsA(UsdGeom.Camera) or prim.HasAPI(UsdLux.LightAPI):
                         attr_path = prim.GetPath().AppendProperty("omni:scenePartition")
                     else:
                         continue
