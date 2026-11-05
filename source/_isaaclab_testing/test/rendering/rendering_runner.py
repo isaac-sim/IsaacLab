@@ -213,7 +213,7 @@ def run_rendering_case(
 
 
 def run_kitless_rendering_case(stage_variant: str, case: RenderCase, request: Any, monkeypatch: Any) -> None:
-    """Render one kitless case through the OVRTX scene reader named by ``stage_variant``."""
+    """Apply the ``stage_variant`` setting and run one kitless rendering case."""
     monkeypatch.delenv("ISAAC_LAB_SHARE_OVSTAGE", raising=False)
     monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", str(int(stage_variant == "ovstage")))
     run_rendering_case(case, request, golden_namespace=None, artifact_namespace=stage_variant)
