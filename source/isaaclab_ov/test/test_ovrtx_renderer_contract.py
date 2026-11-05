@@ -1426,13 +1426,16 @@ def test_ovrtx_close_releases_bindings_before_registry_resources(use_ovstage):
         ("0.7.0", "independent"),
         ("0.7.0.dev1", "shared"),
         ("0.8.0", "shared"),
+        ("0.7.0", "shared-debug"),
     ],
 )
-def test_camera_transform_mode_is_set_before_scene_attachment(monkeypatch, runtime_version, stage_mode):
-    """Only 0.7 disables camera GPU reads, before consumption, with one owner per stage path."""
+def test_scene_preparation_respects_ownership_and_camera_transform_mode(
+    monkeypatch, tmp_path, runtime_version, stage_mode
+):
+    """Scene ownership controls reference export; only 0.7 disables camera GPU reads before attachment."""
     from packaging.version import Version
 
-    from pxr import Sdf, Usd, UsdRender
+    from pxr import Sdf, Usd, UsdGeom, UsdRender
 
     attribute_name = "omni:rtx:scene:hydra:readGPUCameraTransformsFromFabricInRenderDelegate"
     settings_path = "/Render/CustomSettings"
@@ -1440,26 +1443,42 @@ def test_camera_transform_mode_is_set_before_scene_attachment(monkeypatch, runti
     settings = UsdRender.Settings.Define(stage, settings_path)
     settings.GetPrim().CreateAttribute(attribute_name, Sdf.ValueTypeNames.Bool).Set(True)
     stage.SetMetadata("renderSettingsPrimPath", settings_path)
-    exported = stage.GetRootLayer().ExportToString()
+    asset_path = tmp_path / "asset.usda"
+    asset = Usd.Stage.CreateNew(str(asset_path))
+    asset.SetDefaultPrim(UsdGeom.Xform.Define(asset, "/Asset").GetPrim())
+    UsdGeom.Mesh.Define(asset, "/Asset/Geometry")
+    asset.GetRootLayer().Save()
+    UsdGeom.Xform.Define(stage, "/World/Asset").GetPrim().GetReferences().AddReference(str(asset_path))
     needs_fallback = runtime_version in ("0.7.0.dev1", "0.7.0")
+    shared = stage_mode.startswith("shared")
     events = []
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._use_ovstage = stage_mode != "legacy"
+    if stage_mode == "shared-debug":
+        renderer.cfg.temp_usd_dir = str(tmp_path / "debug")
     monkeypatch.setattr(ovrtx_renderer_module, "_OVRTX_VERSION", Version(runtime_version))
+    # New OVStage builds expose rendering domains only; scene policy must not query physics flags.
+    monkeypatch.setattr(ovrtx_renderer_module.ovstage, "PopulationDomain", types.SimpleNamespace(NONE=0, RENDERING=1))
     monkeypatch.setattr(renderer, "_setup_xform_bindings", lambda stage: None)
     monkeypatch.setattr(renderer, "_setup_geometry_bindings", lambda: None)
     monkeypatch.setattr(ovrtx_renderer_module, "ovrtx_replicate", lambda *args: None)
 
+    export_stage = ovrtx_renderer_module.export_stage_to_string
+
     def export(*args, **kwargs):
         events.append("export")
         assert stage_mode != "shared"
-        return exported
+        return export_stage(*args, **kwargs)
 
     monkeypatch.setattr(ovrtx_renderer_module, "export_stage_to_string", export)
 
     def load(text):
         layer = Sdf.Layer.CreateAnonymous()
-        layer.ImportFromString(text)
+        assert layer.ImportFromString(text)
+        result = Usd.Stage.Open(layer)
+        assert result.GetPrimAtPath("/World/Asset/Geometry").IsA(UsdGeom.Mesh)
+        assert result.GetPrimAtPath("/World/Asset").HasAuthoredReferences() is not shared
+        assert (layer.GetPrimAtPath("/World/Asset/Geometry") is not None) is shared
         value = layer.GetAttributeAtPath(Sdf.Path(settings_path).AppendProperty(attribute_name)).default
         # OVStage population preserves authored input; only the legacy path rewrites USD.
         assert value is not (needs_fallback and stage_mode == "legacy")
@@ -1482,8 +1501,8 @@ def test_camera_transform_mode_is_set_before_scene_attachment(monkeypatch, runti
         clone_copies=[],
         clone_positions=np.zeros((0, 3)),
         population_env_paths=[],
-        ordinal=1 if stage_mode == "shared" else 0,
-        cfg=types.SimpleNamespace(population_domains=ovrtx_renderer_module.ovstage.PopulationDomain.RENDERING),
+        ordinal=1 if shared else 0,
+        cfg=types.SimpleNamespace(scene_key=None if shared else renderer.backend.cfg, population_domains=1),
         populate=load,
         stage=types.SimpleNamespace(write_attribute=write),
         query=lambda paths: contextlib.nullcontext(paths),
