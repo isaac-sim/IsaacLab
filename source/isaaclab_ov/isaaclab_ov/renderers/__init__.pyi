@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "RtxMinimalShadingMode",
+    "RtxRenderMode",
     "OVRTXRenderer",
     "OVRTXRendererCfg",
     "OVRTXBackendCfg",
@@ -13,3 +15,4 @@ __all__ = [
 from .ovrtx_renderer import OVRTXRenderer
 from .ovrtx_renderer import OVRTXRenderer as Renderer
 from .ovrtx_renderer_cfg import OVRTXBackendCfg, OVRTXRendererCfg
+from .ovrtx_renderer_cfg import RtxMinimalShadingMode, RtxRenderMode

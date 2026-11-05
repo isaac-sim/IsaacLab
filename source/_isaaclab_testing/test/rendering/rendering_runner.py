@@ -17,7 +17,7 @@ import warp as wp
 from golden_image import camera_output_image, compare_to_golden
 from isaaclab_newton.physics import reset_mpm_solver_state
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
-from isaaclab_ov.renderers import OVRTXRendererCfg
+from isaaclab_ov.renderers import OVRTXRendererCfg, RtxMinimalShadingMode, RtxRenderMode
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from newton import StateFlags
 from rendering_cases import RenderCase
@@ -79,6 +79,19 @@ def run_rendering_case(
                 "class:cylinder": (239, 62, 54, 255),
                 "class:sphere": (65, 201, 87, 255),
             }
+    check_mode_isolation = case.scene == "rendering_scene" and case.aovs == (RenderBufferKind.SIMPLE_SHADING_FULL_MDL,)
+    if check_mode_isolation:
+        # Reuse the golden scene: one full-MDL camera, one constant Minimal RGB camera,
+        # and one path-traced RGB camera must render concurrently without changing one another.
+        scene.cfg.minimal_probe = scene.cfg.camera.copy()
+        scene.cfg.minimal_probe.prim_path = "{ENV_REGEX_NS}/MinimalProbe"
+        scene.cfg.minimal_probe.data_types = ["rgb"]
+        scene.cfg.minimal_probe.renderer_cfg.render_mode = RtxRenderMode.MINIMAL
+        scene.cfg.minimal_probe.renderer_cfg.minimal_shading_mode = RtxMinimalShadingMode.CONSTANT_DIFFUSE
+        scene.cfg.color_probe = scene.cfg.camera.copy()
+        scene.cfg.color_probe.prim_path = "{ENV_REGEX_NS}/ColorProbe"
+        scene.cfg.color_probe.data_types = ["rgb"]
+        scene.cfg.color_probe.renderer_cfg.render_mode = RtxRenderMode.REAL_TIME_PATH_TRACING
     with build_rendering_scene(
         scene.cfg,
         case.physics,
@@ -164,6 +177,13 @@ def run_rendering_case(
                 break
             runtime.render_camera()
             outputs, info = runtime.camera_outputs()
+        if check_mode_isolation:
+            constant = runtime.scene.sensors["minimal_probe"].data.output["rgb"].torch
+            color = runtime.scene.sensors["color_probe"].data.output["rgb"].torch
+            full_mdl = outputs["simple_shading_full_mdl"]
+            assert constant.count_nonzero() and color.count_nonzero() and full_mdl.count_nonzero()
+            assert (constant != full_mdl).float().mean() > 0.01, "Cameras lost distinct Minimal shading levels"
+            assert (constant != color).float().mean() > 0.01, "Minimal camera changed path-traced color output"
         if case.scene == "mpm":
             rgb = outputs["rgb"].to(torch.int16)
             tan = (rgb[..., 0] - rgb[..., 2] > 50) & (rgb[..., 1] - rgb[..., 2] > 20)

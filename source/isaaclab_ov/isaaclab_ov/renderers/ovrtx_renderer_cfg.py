@@ -15,12 +15,19 @@ from typing import TYPE_CHECKING, ClassVar
 import warp as wp
 
 from isaaclab.renderers import RenderBufferKind, RenderBufferSpec
-from isaaclab.renderers.renderer_cfg import RendererCfg
+from isaaclab.renderers._rtx_renderer_cfg import _RtxMinimalShadingMode, _RtxRendererCfg, _RtxRenderMode
 from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from .ovrtx_renderer import OVRTXBackend, OVRTXRenderer
+
+
+RtxRenderMode = _RtxRenderMode
+"""Execution modes for OVRTX render products."""
+
+RtxMinimalShadingMode = _RtxMinimalShadingMode
+"""Material evaluation modes for OVRTX Minimal rendering."""
 
 
 @configclass
@@ -43,7 +50,7 @@ class OVRTXBackendCfg(BackendCfg):
 
 
 @configclass
-class OVRTXRendererCfg(RendererCfg):
+class OVRTXRendererCfg(_RtxRendererCfg):
     """Configuration for OVRTX Renderer.
 
     The OVRTX renderer uses the ovrtx library for high-fidelity RTX-based rendering.
@@ -95,11 +102,8 @@ class OVRTXRendererCfg(RendererCfg):
     Shadow rays cost render time that rarely changes what a policy learns, so they are turned off
     and opted back into for visually faithful renders.
 
-    Only the ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl`` and
-    ``simple_shading_full_mdl`` data types are affected, because those are the ones that put the
-    render product into RTX Minimal mode, whose ``omni:rtx:minimal:castShadows`` switch this drives.
-    OVRTX's path-traced modes offer no equivalent switch and always cast shadows, so this setting
-    does not change ``rgb`` and the other AOV outputs.
+    This drives ``omni:rtx:minimal:castShadows`` for every output in explicit Minimal mode,
+    including RGB. Path tracing always casts shadows and ignores this switch.
     """
 
     colorize_semantic_segmentation: bool = True

@@ -18,7 +18,7 @@ import isaaclab_physx.app as physx_app
 import pytest
 from isaaclab_newton.physics import NewtonCfg
 from isaaclab_ov.physics import OvPhysxCfg
-from isaaclab_ov.renderers import OVRTXRendererCfg
+from isaaclab_ov.renderers import OVRTXRendererCfg, RtxMinimalShadingMode, RtxRenderMode
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from isaaclab_visualizers.kit import KitBackendCfg
@@ -306,7 +306,17 @@ def test_rtx_with_kit_visualizer_is_valid_and_resolves_to_isaac_rtx():
 
 def test_livestream_rtx_injects_kit_before_auto_rtx_resolution(monkeypatch: pytest.MonkeyPatch):
     """Livestreaming should make ``presets=newton_mjwarp,rtx`` choose Isaac RTX."""
-    env_cfg, _ = resolve_task_config(_CAMERA_PRESETS_TASK, None, overrides=["presets=newton_mjwarp,rtx"])
+    env_cfg, _ = resolve_task_config(
+        _CAMERA_PRESETS_TASK,
+        None,
+        overrides=[
+            "presets=newton_mjwarp,rtx",
+            "env.scene.tiled_camera.renderer_cfg.render_mode=Minimal",
+            "env.scene.tiled_camera.renderer_cfg.minimal_shading_mode=2",
+        ],
+    )
+    assert env_cfg.scene.tiled_camera.renderer_cfg.render_mode is RtxRenderMode.MINIMAL
+    assert env_cfg.scene.tiled_camera.renderer_cfg.minimal_shading_mode is RtxMinimalShadingMode.DIFFUSE_MDL
     launcher_args = argparse.Namespace(livestream=2, visualizer=None)
     received = {}
 
@@ -323,6 +333,9 @@ def test_livestream_rtx_injects_kit_before_auto_rtx_resolution(monkeypatch: pyte
     assert received["enable_cameras"] is True
     assert launcher_args.visualizer is None
     assert isinstance(env_cfg.scene.tiled_camera.renderer_cfg, IsaacRtxRendererCfg)
+
+    assert env_cfg.scene.tiled_camera.renderer_cfg.render_mode is RtxRenderMode.MINIMAL
+    assert env_cfg.scene.tiled_camera.renderer_cfg.minimal_shading_mode is RtxMinimalShadingMode.DIFFUSE_MDL
 
 
 def test_kit_visualizer_with_isaacsim_rtx_is_valid():

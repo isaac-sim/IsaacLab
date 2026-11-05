@@ -17,18 +17,19 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import warp as wp
-from packaging import version
 
 from pxr import Sdf, Usd, UsdGeom
 
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
+from isaaclab.renderers._rtx_renderer_cfg import _resolve_rtx_render_mode
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import enable_extension
-from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab.utils.warp.kernels import reshape_tiled_image
 from isaaclab.utils.warp.warp_math import clamp_depth_to_inf_wp, replace_inf_depth_wp
+
+from isaaclab_physx.renderers import RtxRenderMode
 
 from .fabric import FabricBackendCfg
 from .isaac_rtx_renderer_utils import (
@@ -55,7 +56,6 @@ from .isaac_rtx_renderer_cfg import SIMPLE_SHADING_MODES, IsaacRtxRendererCfg
 #
 # Simple shading requires Kit's RTX "Minimal" render mode. Its shading level is
 # selected by an integer:
-#   0 = No Rendering (black output; only other AOVs are produced)
 #   1 = Constant Diffuse (single constant color for all surfaces)
 #   2 = Texture Diffuse  (diffuse shading using texture colors)
 #   3 = Diffuse/Glossy/Emission (full material shading)
@@ -69,7 +69,6 @@ SIMPLE_SHADING_AOV = "SimpleShadingSD"
 # the Kit viewport — on their configured render mode.
 RTX_RENDER_MODE_ATTR = "omni:rtx:rendermode"
 RTX_MINIMAL_MODE_ATTR = "omni:rtx:minimal:mode"
-RTX_MINIMAL_RENDER_MODE = "Minimal"
 
 _CAMERA_INTRINSIC_ATTRIBUTES = (
     "focalLength",
@@ -196,20 +195,11 @@ class IsaacRtxRenderer(BaseRenderer):
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
         """Publish the per-output Replicator layout this RTX backend writes.
 
-        ``ALBEDO`` and the three ``SIMPLE_SHADING_*`` outputs require Isaac Sim 6.0+
-        and are omitted on older versions. The three segmentation outputs report
+        The three segmentation outputs report
         ``RenderBufferSpec(4, uint8)`` when the matching ``self.cfg.colorize_*`` flag is
         set, otherwise ``RenderBufferSpec(1, int32)``.
         """
-        sim_major = get_isaac_sim_version().major
-
-        specs = self.cfg.supported_output_types()
-        if sim_major < 6:
-            specs.pop(RenderBufferKind.ALBEDO)
-            for shading_type in SIMPLE_SHADING_MODES:
-                specs.pop(RenderBufferKind(shading_type))
-
-        return specs
+        return self.cfg.supported_output_types()
 
     def prepare_stage(self, stage: Usd.Stage, num_envs: int) -> None:
         """Author per-env ``omni:scenePartition`` attributes for RTX cull-by-env rendering.
@@ -270,45 +260,20 @@ class IsaacRtxRenderer(BaseRenderer):
         from isaaclab.sim.utils.stage import get_current_stage
 
         settings = get_settings_manager()
-        isaac_sim_version = get_isaac_sim_version()
 
-        simple_shading_mode = None
-        needs_color_render = False
-        if isaac_sim_version.major >= 6:
-            simple_shading_mode = self._resolve_simple_shading_mode(spec)
-            needs_color_render = any(
-                data_type in spec.cfg.data_types for data_type in ("rgb", "rgba", str(RenderBufferKind.RGB_HDR))
-            )
-            has_gui = settings.get("/isaaclab/has_gui")
-            if simple_shading_mode is None and (not needs_color_render or has_gui):
-                settings.set("/rtx/sdg/force/disableColorRender", not needs_color_render and not has_gui)
-        else:
-            unsupported = []
-            if "albedo" in spec.cfg.data_types:
-                unsupported.append("albedo")
-            unsupported.extend(dt for dt in spec.cfg.data_types if dt in SIMPLE_SHADING_MODES)
-            if unsupported:
-                raise ValueError(
-                    "Isaac RTX renderer does not support the following requested data types in"
-                    " Isaac Sim versions before 6.0:"
-                    f" {unsupported}."
-                )
+        data_types = list(spec.cfg.data_types)
+        if spec.cfg.isp_cfg is not None and "rgb_hdr" not in data_types:
+            data_types.append("rgb_hdr")
+        render_mode, shading_mode = _resolve_rtx_render_mode(
+            self.cfg.render_mode, self.cfg.minimal_shading_mode, data_types
+        )
+        has_simple_shading = any(dt in SIMPLE_SHADING_MODES for dt in data_types)
+        needs_color_render = any(dt in data_types for dt in ("rgb", "rgba", "rgb_hdr"))
+        has_gui = settings.get("/isaaclab/has_gui")
+        if render_mode != RtxRenderMode.MINIMAL and (not needs_color_render or has_gui):
+            settings.set("/rtx/sdg/force/disableColorRender", not needs_color_render and not has_gui)
 
-        # HACK: Isaac Sim 4.5 has a bug in Camera that breaks segmentation
-        # outputs for instanceable assets. Disable instancing as a workaround.
         stage = get_current_stage()
-        if isaac_sim_version == version.parse("4.5") and (
-            "semantic_segmentation" in spec.cfg.data_types or "instance_segmentation" in spec.cfg.data_types
-        ):
-            logger.warning(
-                "Isaac Sim 4.5 introduced a bug in Camera when outputting instance and semantic"
-                " segmentation outputs for instanceable assets. As a workaround, the instanceable flag on assets"
-                " will be disabled in the current workflow and may lead to longer load times and increased memory"
-                " usage."
-            )
-            with Sdf.ChangeBlock():
-                for prim in stage.Traverse():
-                    prim.SetInstanceable(False)
 
         # Get camera prim paths from sensor view
         cam_prim_paths = list(spec.camera_prim_paths)
@@ -352,7 +317,7 @@ class IsaacRtxRenderer(BaseRenderer):
         )
 
         # Register simple shading if needed
-        if simple_shading_mode is not None:
+        if has_simple_shading:
             rep.AnnotatorRegistry.register_annotator_from_aov(
                 aov=SIMPLE_SHADING_AOV, output_data_type=np.uint8, output_channels=4
             )
@@ -432,14 +397,8 @@ class IsaacRtxRenderer(BaseRenderer):
         for annotator in annotators.values():
             annotator.attach([rp.path])
 
-        # Annotator attachment may resynchronize process-wide RTX settings onto the product.
-        if simple_shading_mode is not None:
-            self._apply_simple_shading_settings(
-                stage,
-                rp.path,
-                simple_shading_mode,
-                enable_minimal_render_mode=not needs_color_render,
-            )
+        # Annotator attachment may resynchronize global settings; author per-product overrides last.
+        self._apply_render_mode_settings(stage, rp.path, render_mode, shading_mode)
 
         ppisp_pipeline = None
         if spec.cfg.isp_cfg is not None:
@@ -454,60 +413,17 @@ class IsaacRtxRenderer(BaseRenderer):
             ppisp_pipeline=ppisp_pipeline,
         )
 
-    def _apply_simple_shading_settings(
-        self,
-        stage: Usd.Stage,
-        render_product_path: str,
-        shading_mode: int,
-        *,
-        enable_minimal_render_mode: bool,
+    def _apply_render_mode_settings(
+        self, stage: Usd.Stage, render_product_path: str, render_mode: str, shading_mode: int
     ) -> None:
-        """Configure one render product for the requested simple-shading level.
-
-        Simple shading only becomes cheaper than a full render when the render product's render
-        mode is Minimal. Selecting a shading level while the product stays in
-        ``RealTimePathTracing`` still pays for the path-tracing pipeline on every frame.
-
-        The shading level is always authored per render product. Minimal render mode is enabled
-        only when the product has no regular color output, preserving existing ``rgb``, ``rgba``,
-        and ``rgb_hdr`` behavior for mixed requests. These values are not written through their
-        process-wide carb settings, so color cameras, the Kit viewport, and
-        :func:`~isaaclab_physx.renderers.isaac_rtx_renderer_utils.apply_isaac_rtx_determinism_settings`
-        keep path tracing, and so cameras requesting different shading levels do not overwrite
-        each other.
-
-        Args:
-            stage: Stage owning the render product.
-            render_product_path: Prim path of the render product to configure.
-            shading_mode: Minimal shading level, one of the values in :data:`SIMPLE_SHADING_MODES`.
-            enable_minimal_render_mode: Whether to switch the render product to RTX Minimal mode.
-        """
+        """Author execution and shading settings without changing other cameras or the viewport."""
         rp_prim = stage.GetPrimAtPath(render_product_path)
-        if rp_prim is None or not rp_prim.IsValid():
-            logger.warning(
-                "create_render_data: render product prim at '%s' not found; simple-shading settings will not be"
-                " applied and output may use default shading at full cost.",
-                render_product_path,
-            )
-            return
+        if not rp_prim or not rp_prim.IsValid():
+            raise RuntimeError(f"Cannot apply RTX render_mode: render product {render_product_path!r} is missing.")
         with Usd.EditContext(stage, stage.GetSessionLayer()):
             with Sdf.ChangeBlock():
-                if enable_minimal_render_mode:
-                    rp_prim.CreateAttribute(RTX_RENDER_MODE_ATTR, Sdf.ValueTypeNames.Token).Set(RTX_MINIMAL_RENDER_MODE)
+                rp_prim.CreateAttribute(RTX_RENDER_MODE_ATTR, Sdf.ValueTypeNames.Token).Set(render_mode)
                 rp_prim.CreateAttribute(RTX_MINIMAL_MODE_ATTR, Sdf.ValueTypeNames.Int).Set(shading_mode)
-
-    def _resolve_simple_shading_mode(self, spec: CameraRenderSpec) -> int | None:
-        """Resolve the requested simple shading mode from data types."""
-        requested = [dt for dt in spec.cfg.data_types if dt in SIMPLE_SHADING_MODES]
-        if not requested:
-            return None
-        if len(requested) > 1:
-            logger.warning(
-                "Multiple simple shading modes requested (%s). Using '%s' only.",
-                requested,
-                requested[0],
-            )
-        return SIMPLE_SHADING_MODES[requested[0]]
 
     def set_outputs(self, render_data: IsaacRtxRenderData, output_data: dict[str, ProxyArray]):
         """Store reference to output buffers for writing during render.

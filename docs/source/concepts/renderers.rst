@@ -157,8 +157,26 @@ Minimal mode, which disables indirect lighting and offers three levels of materi
 - **Diffuse MDL** is Isaac Lab's stable name for textured diffuse shading.
 - **Full MDL** is Isaac Lab's stable name for diffuse, glossy, and emissive material evaluation.
 
-Requesting a ``simple_shading_*`` output switches that camera to RTX Minimal, so request regular color
-from a separate camera. RTX Minimal uses the first distant light in the scene and hard shadows. See
+Set ``renderer_cfg.render_mode=RtxRenderMode.MINIMAL`` and choose ``minimal_shading_mode`` explicitly
+from ``RtxMinimalShadingMode``: ``CONSTANT_DIFFUSE``, ``DIFFUSE_MDL``,
+or ``FULL_MDL`` (default). Import the enums from ``isaaclab_ov.renderers`` or
+``isaaclab_physx.renderers``. The enum values match the native RTX settings.
+Ordinary outputs respect these settings. In Minimal mode, ``rgb`` returns the image produced by
+the configured shading mode (``FULL_MDL`` by default).
+
+The ``simple_shading_*`` output names are shortcuts: they override the configured render mode
+with Minimal and select their matching shading mode, even when path tracing was configured.
+Different simple-shading modes cannot share one camera. OVRTX reads these outputs from Minimal's
+LdrColor buffer; Isaac RTX uses its separate SimpleShadingSD AOV. A camera requesting RGB alongside
+a simple-shading output uses Minimal for both. Other cameras and the Kit viewport retain their
+own settings. Without a shortcut, the default execution mode is real-time path tracing.
+
+OVRTX's ``enable_shadows`` controls Minimal hard shadows (default False); path tracing always
+casts shadows. Isaac RTX retains Kit's Minimal shadow settings. HDR outputs and ISP require path
+tracing and cannot be combined with a simple-shading shortcut. See
+:doc:`../how-to/configure_rendering` for configuration examples and shortcut precedence.
+
+RTX Minimal uses the first distant light in the scene and hard shadows. See
 the :ovrtx-docs:`OVRTX Minimal mode <sensors/cameras/render_modes/minimal.rst>` and
 `RTX Minimal renderer <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/rtx-renderer_minimal.html>`_
 documentation for the renderer-level settings and limitations.
