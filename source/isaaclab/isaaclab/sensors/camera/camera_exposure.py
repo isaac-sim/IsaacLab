@@ -28,8 +28,7 @@ class ExposureCfg:
 
     - ``"default"``: keep the exposure authored on the camera prim, or the renderer's own default.
     - ``"neutral"``: disable automatic exposure and author unit exposure on the camera prims, so color outputs keep
-      the scene's linear radiance. Isaac RTX and OVRTX also tonemap Gaussian splats with the rest of the frame.
-      Image processors that apply their own exposure, such as PPISP, require it.
+      the scene's linear radiance. Image processors that apply their own exposure, such as PPISP, require it.
     """
 
 

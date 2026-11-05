@@ -311,10 +311,9 @@ class IsaacRtxRenderer(BaseRenderer):
             if not cam_prim.IsA(UsdGeom.Camera):
                 raise RuntimeError(f"Prim at path '{cam_prim_path}' is not a Camera.")
 
-        # Neutral exposure keeps color linear for image processors such as PPISP, which also need Gaussian splats
-        # tonemapped with the rest of the frame.
-        tonemap_gaussians = spec.cfg.exposure.mode == "neutral"
-        if tonemap_gaussians:
+        # HDR consumers such as PPISP need Gaussian splats tonemapped with the rest of the frame.
+        needs_hdr_color = str(RenderBufferKind.RGB_HDR) in spec.cfg.data_types
+        if needs_hdr_color:
             # Isaac Sim 6.2 reads this legacy setting instead of the render-product attribute authored below.
             # OMPE-117939 tracks deprecation of the Gaussian skip-tonemapping setting.
             settings.set("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
@@ -359,7 +358,7 @@ class IsaacRtxRenderer(BaseRenderer):
                 aov=SIMPLE_SHADING_AOV, output_data_type=np.uint8, output_channels=4
             )
 
-        if str(RenderBufferKind.RGB_HDR) in spec.cfg.data_types:
+        if needs_hdr_color:
             rep.AnnotatorRegistry.register_annotator_from_aov(
                 aov="HdrColor", output_data_type=np.float32, output_channels=4
             )
@@ -425,7 +424,7 @@ class IsaacRtxRenderer(BaseRenderer):
 
         # Newer Kit reads Gaussian tonemapping policy from the render product, as standalone OVRTX does.
         # OMPE-117939 tracks deprecation of the Gaussian skip-tonemapping setting.
-        if tonemap_gaussians:
+        if needs_hdr_color:
             stage.GetPrimAtPath(rp.path).CreateAttribute(
                 "omni:rtx:gaussian:skipTonemapping:enabled", Sdf.ValueTypeNames.Bool
             ).Set(False)

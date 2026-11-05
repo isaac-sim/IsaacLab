@@ -132,7 +132,6 @@ def test_create_render_data_uses_unique_sdf_safe_render_product_name(monkeypatch
             data_types=["rgb"],
             width=64,
             height=64,
-            exposure=SimpleNamespace(mode="default"),
             colorize_semantic_segmentation=False,
             colorize_instance_segmentation=False,
             colorize_instance_id_segmentation=False,
@@ -169,9 +168,9 @@ def test_create_render_data_uses_unique_sdf_safe_render_product_name(monkeypatch
         assert Sdf.Path.IsValidPathString(f"/Render/{name}")
 
 
-@pytest.mark.parametrize("mode", ["default", "neutral"])
-def test_neutral_exposure_tonemaps_gaussian_splats(monkeypatch, mode):
-    """Neutral exposure, which PPISP requires, tonemaps Gaussian splats with the rest of the frame."""
+@pytest.mark.parametrize("data_type", ["rgb", "rgb_hdr"])
+def test_hdr_output_tonemaps_gaussian_splats(monkeypatch, data_type):
+    """An ``rgb_hdr`` request, which PPISP makes, tonemaps Gaussian splats with the rest of the frame."""
     replicator_core_module, syntheticdata_module = _install_omni_stubs(monkeypatch)
     monkeypatch.setattr(syntheticdata_module, "SyntheticData", MagicMock(), raising=False)
 
@@ -195,10 +194,9 @@ def test_neutral_exposure_tonemaps_gaussian_splats(monkeypatch, mode):
         camera_prim_paths=["/World/envs/env_0/Camera"],
         device="cpu",
         cfg=SimpleNamespace(
-            data_types=["rgb_hdr"],
+            data_types=[data_type],
             width=64,
             height=64,
-            exposure=SimpleNamespace(mode=mode),
             colorize_semantic_segmentation=False,
             colorize_instance_segmentation=False,
             colorize_instance_id_segmentation=False,
@@ -214,11 +212,11 @@ def test_neutral_exposure_tonemaps_gaussian_splats(monkeypatch, mode):
     ):
         renderer.create_render_data(spec)
 
-    neutral = mode == "neutral"
+    hdr = data_type == "rgb_hdr"
     # Isaac Sim 6.2 reads the process setting; newer Kit reads the render-product attribute.
-    assert (call("/rtx/rtpt/gaussian/skipTonemapping/enabled", False) in settings.set.call_args_list) == neutral
+    assert (call("/rtx/rtpt/gaussian/skipTonemapping/enabled", False) in settings.set.call_args_list) == hdr
     attribute_names = [created.args[0] for created in stage.GetPrimAtPath.return_value.CreateAttribute.call_args_list]
-    assert ("omni:rtx:gaussian:skipTonemapping:enabled" in attribute_names) == neutral
+    assert ("omni:rtx:gaussian:skipTonemapping:enabled" in attribute_names) == hdr
 
 
 @pytest.mark.parametrize(
@@ -300,7 +298,6 @@ def test_simple_shading_configures_its_render_product(
             data_types=data_types,
             width=64,
             height=64,
-            exposure=SimpleNamespace(mode="default"),
             colorize_semantic_segmentation=False,
             colorize_instance_segmentation=False,
             colorize_instance_id_segmentation=False,
