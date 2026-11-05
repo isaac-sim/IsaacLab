@@ -7,6 +7,7 @@ from collections.abc import Generator
 
 import pytest
 import torch
+import warp as wp
 
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import DelayBuffer
@@ -99,6 +100,44 @@ def test_random_time_lags(delay_buffer, hold_prob, monkeypatch):
         expected = torch.maximum(step - expected_lags, first_step).unsqueeze(-1)
         torch.testing.assert_close(result, expected)
         torch.testing.assert_close(delay_buffer.compute(data + 100, update_history=False), expected)
+
+
+@pytest.mark.parametrize("mask_type", ["torch", "warp"])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_mask_selects_like_indices(device, mask_type, monkeypatch):
+    """A boolean mask sets lags and resets histories of the same batches as indices, without synchronizing CUDA."""
+    batch_ids = [1, 3]
+    by_ids, by_mask = (DelayBuffer(4, 10, device, hold_prob=1.0) for _ in range(2))
+    mask = torch.zeros(by_mask.batch_size, dtype=torch.bool, device=device)
+    mask[batch_ids] = True
+    if mask_type == "warp":
+        mask = wp.array(mask.tolist(), dtype=wp.bool, device=device)
+    # Masked lags are full-sized; unmasked entries differ from the current lags so applying them shows.
+    masked_lags = torch.ones(by_mask.batch_size, dtype=torch.long, device=device)
+    masked_lags[batch_ids] = torch.tensor([4, 0], device=device)
+    monkeypatch.setattr(torch, "randint", lambda low, high, size, **kwargs: torch.full(size, 2, **kwargs))
+    for delay_buffer in (by_ids, by_mask):
+        delay_buffer.set_time_lag(torch.arange(delay_buffer.batch_size, device=device) % 5)
+        for data in _generate_data(delay_buffer.batch_size, 3, device):
+            delay_buffer.compute(data)
+
+    def without_sync(call):
+        torch.cuda.synchronize(device)
+        previous = torch.cuda.get_sync_debug_mode()
+        torch.cuda.set_sync_debug_mode("error")
+        try:
+            call()
+        finally:
+            torch.cuda.set_sync_debug_mode(previous)
+
+    by_ids.set_time_lag(masked_lags[batch_ids], batch_ids)
+    without_sync(lambda: by_mask.set_time_lag(masked_lags, batch_mask=mask))
+    torch.testing.assert_close(by_mask.time_lags, by_ids.time_lags)
+    by_ids.reset(batch_ids)
+    without_sync(lambda: by_mask.reset(batch_mask=mask))
+    torch.testing.assert_close(by_mask.time_lags, by_ids.time_lags)
+    for data in _generate_data(by_mask.batch_size, 4, device):
+        torch.testing.assert_close(by_mask.compute(data), by_ids.compute(data))
 
 
 @pytest.mark.parametrize(

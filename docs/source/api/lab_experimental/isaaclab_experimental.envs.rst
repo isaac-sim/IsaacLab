@@ -14,14 +14,10 @@ The following classes are part of the public :mod:`isaaclab_experimental.envs` A
    :nosignatures:
 
    DirectRLEnvWarp
-   InteractiveSceneWarp
    ManagerBasedEnvWarp
    ManagerBasedRLEnvWarp
 
 .. autoclass:: DirectRLEnvWarp
-   :show-inheritance:
-
-.. autoclass:: InteractiveSceneWarp
    :show-inheritance:
 
 .. autoclass:: ManagerBasedEnvWarp
