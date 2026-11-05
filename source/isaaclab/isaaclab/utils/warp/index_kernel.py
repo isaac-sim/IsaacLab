@@ -14,7 +14,8 @@ import warp as wp
 _INDEX_DTYPES = (wp.int32, wp.int64)
 
 
-def _selector_dtype(selector: torch.Tensor | wp.array) -> type[wp.int32] | type[wp.int64]:
+def selector_dtype(selector: torch.Tensor | wp.array) -> type[wp.int32] | type[wp.int64]:
+    """Return a signed Warp index type without converting the selector storage."""
     if isinstance(selector, torch.Tensor):
         dtype = wp.dtype_from_torch(selector.dtype)
     elif isinstance(selector, wp.array):
@@ -73,5 +74,5 @@ class IndexKernelDispatcher:
             raise ValueError(
                 f"Expected {len(self._selector_names)} selectors for {self._selector_names}, got {len(selectors)}."
             )
-        dtypes = tuple(_selector_dtype(selector) for selector in selectors)
+        dtypes = tuple(selector_dtype(selector) for selector in selectors)
         return self.select_dtypes(*dtypes)

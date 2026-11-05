@@ -102,9 +102,13 @@ drive stiffness.
 Tune friction and contact behavior
 ----------------------------------
 
-Try the :ref:`interactive friction demo <interactive-demo-rigid-friction>` to
-adjust a box's friction on an incline and compare its sliding motion with two
-fixed references.
+Adjust a box's friction on an incline and compare its sliding motion with two
+fixed references in this compact MJWarp scene.
+
+.. isaaclab-demos:: rigid_friction
+   :title: Explore sliding friction
+   :physics: rigid
+   :activity: tuning
 
 Validate colliders, contact locations, normal force, material friction, and
 ``condim`` before changing global friction settings. ``cone`` selects the
@@ -151,6 +155,14 @@ reproducible complex-geometry collision failure. Keep
 reporting, and sensors are verified; a larger interval reduces synchronization
 work but can expose stale data. ``save_to_mjcf``, ``use_mujoco_cpu``, and
 ``disable_contacts`` are diagnostic tools, not production tuning targets.
+
+``update_data_interval`` counts solver substeps, with
+``decimation * num_substeps`` solver steps per control step. ``0`` disables
+periodic imports. With MuJoCo Warp, state writes through Isaac Lab's asset APIs
+still synchronize flagged worlds at the next ``forward()`` or physics-step
+boundary, including environment resets. The native MuJoCo CPU backend only
+synchronizes template world 0 when that world is flagged. Raw Newton state writes
+must also flag the manager's reset masks through ``sim.backend_manager.invalidate_fk()``.
 
 The diagnose-first order is: validate the model and fixed reproduction; choose
 timestep and substeps; size capacities; validate convergence; tune contact
