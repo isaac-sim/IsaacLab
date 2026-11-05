@@ -3,6 +3,24 @@ Changelog
 
 .. towncrier release notes start
 
+14.0.1 (2026-11-04)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed :attr:`~isaaclab_newton.physics.NewtonCollisionPipelineCfg.max_triangle_pairs` to default to ``None``
+  so Newton sizes it from the model. The fixed ``1_000_000`` is shared by all worlds and dropped mesh contacts once
+  the world count grew.
+
+Fixed
+^^^^^
+
+* Fixed MJWarp losing authored state writes and environment resets when the next solver substep
+  skipped its periodic Newton-state import. Flagged worlds were synchronized at forward and
+  physics-step boundaries even with sparse or disabled periodic imports, including CUDA graph replay.
+
+
 14.0.0 (2026-11-03)
 ~~~~~~~~~~~~~~~~~~~
 
