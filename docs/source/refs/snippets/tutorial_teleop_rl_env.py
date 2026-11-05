@@ -10,9 +10,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import gymnasium as gym
-from isaaclab_teleop import CaptureTeleopSourceCfg, se3_keyboard_teleop_cfg
+from isaaclab_teleop import CaptureTeleopSourceCfg, TeleopActionCfg, se3_keyboard_teleop_cfg
 
-from isaaclab.envs import TeleopCfg
 from isaaclab.utils import configclass
 
 import isaaclab_tasks  # noqa: F401
@@ -35,14 +34,19 @@ def keyboard_to_cart_action(actions: torch.Tensor, env: ManagerBasedRLEnv, env_i
 class CartpoleInteractiveEnvCfg(CartpoleEnvCfg):
     """Keep the Cartpole task and add an optional input source for playback."""
 
-    teleop = TeleopCfg(
-        source=CaptureTeleopSourceCfg(
-            device=se3_keyboard_teleop_cfg(pos_sensitivity=KEYBOARD_STEP, gripper_term=False),
-        ),
-        env_ids=[0],
-        action_terms=["joint_effort"],
-        action_adapter=keyboard_to_cart_action,
-    )
+    def __post_init__(self):
+        super().__post_init__()
+        if isinstance(self.actions.joint_effort, TeleopActionCfg):
+            return
+        # Wrap after parent initialization, which may tune the original controller.
+        self.actions.joint_effort = TeleopActionCfg(
+            controller=self.actions.joint_effort,
+            source=CaptureTeleopSourceCfg(
+                device=se3_keyboard_teleop_cfg(pos_sensitivity=KEYBOARD_STEP, gripper_term=False),
+            ),
+            env_ids=[0],
+            action_adapter=keyboard_to_cart_action,
+        )
 
 
 # Retain the original environment implementation and all registered RL agent configurations.

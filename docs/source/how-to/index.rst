@@ -612,5 +612,6 @@ How-to Guides
 .. toctree::
    :hidden:
 
+   teleop_rl_env
    kitless_xr
    kitless_xr_source

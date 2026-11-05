@@ -1,3 +1,4 @@
-* Added optional ``TeleopCfg`` and an input-source interface for interactive playback
-  of existing manager-based, direct, and multi-agent RL tasks, with explicit action
-  ownership and environment selection. Training and legacy teleoperation remained unchanged.
+* Added action-term input resolution before processing so recorded actions, action
+  observations, and rewards reflect the inputs applied by composed controllers.
+  Action terms now have an explicit close lifecycle before simulation teardown.
+* Added interactive action declarations for discovering optional input without importing device packages.

@@ -20,6 +20,7 @@ import signal
 import sys
 import types
 import warnings
+from typing import ClassVar
 
 import isaaclab_isaacsim.app as physx_app
 import pytest
@@ -282,3 +283,22 @@ def test_the_launcher_physics_selector_warns_for_isaac_sim_and_still_selects_it(
     with pytest.warns(FutureWarning, match="'isaacsim_physx' runs on Isaac Sim"):
         sim_launcher.validate_launch(cfg, {"physics": "isaacsim_physx"})
     assert isinstance(cfg.physics, PhysxCfg)
+
+
+@pytest.mark.kitless
+def test_dormant_presentation_does_not_launch_its_renderer(kit_branch_taken):
+    """Training and direct Gym construction cannot activate an interactive renderer declaration."""
+    from isaaclab.managers import ObservationPresentationCfg
+    from isaaclab.utils import configclass
+
+    @configclass
+    class RuntimeRendererCfg(RendererCfg):
+        launcher_type: ClassVar[str] = "isaaclab_isaacsim.app:KitLauncher"
+
+    @configclass
+    class PresentationCfg(ObservationPresentationCfg):
+        renderer: RendererCfg = RuntimeRendererCfg()
+
+    with launch_simulation({"sim": SimulationCfg(device="cpu", physics=PhysicsCfg()), "operator": PresentationCfg()}):
+        assert not kit_branch_taken
+    assert not kit_branch_taken

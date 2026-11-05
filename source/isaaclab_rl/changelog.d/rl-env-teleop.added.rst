@@ -1,5 +1,5 @@
-* Added task-configured Capture teleoperation to kitless ``isaaclab play``. Tasks with
-  ``teleop`` configured can run without a checkpoint, or override selected actions during policy playback.
-  ``--no-teleop`` disables input, and training leaves teleoperation inactive. RLinf rejects
-  local teleoperation because its environments run in remote workers.
+* Added task action term activation to kitless ``isaaclab play``, with checkpoint-free
+  input or Capture takeover during policy playback. Optional operator presentation used
+  the independent OVXR render worker. Training and ``--no-teleop`` kept input inactive.
+  RLinf rejected local input because its environments run in remote workers.
 * Added ``--max_steps`` to policy playback for bounded interactive runs.

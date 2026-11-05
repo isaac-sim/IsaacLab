@@ -15,7 +15,6 @@ from ..sim import SimulationCfg
 from ..utils import configclass
 from ..utils.noise import NoiseModelCfg
 from .common import SpaceType, ViewerCfg
-from .teleop_cfg import TeleopCfg
 from .utils.video_recorder_cfg import VideoRecorderCfg
 
 
@@ -25,9 +24,6 @@ class DirectRLEnvCfg:
 
     Please refer to the :class:`isaaclab.envs.direct_rl_env.DirectRLEnv` class for more details.
     """
-
-    teleop: TeleopCfg | None = None
-    """Optional action source activated by ``isaaclab play``. Inert during training."""
 
     # simulation settings
     sim: SimulationCfg = SimulationCfg()

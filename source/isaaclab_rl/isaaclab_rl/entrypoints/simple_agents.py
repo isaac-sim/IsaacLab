@@ -23,7 +23,7 @@ from typing import Any, Literal
 import gymnasium as gym
 import torch
 
-from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.app import add_launcher_args
 from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.envs.utils.spaces import sample_space
 from isaaclab.utils import math as math_utils
@@ -40,11 +40,12 @@ from .common import (
     close_env,
     create_isaaclab_env,
     enable_cameras_for_video,
+    has_play_teleop,
+    launch_playback,
     normalize_task_name,
     parse_step_limit,
     pre_launch_video_config,
     resolve_seed,
-    validate_play_teleop,
     video_playback_steps,
 )
 
@@ -110,9 +111,9 @@ def run_teleop_if_configured(argv: list[str]) -> bool:
         if args_cli.teleop is True:
             raise
         return False
-    if getattr(env_cfg, "teleop", None) is None:
+    if not has_play_teleop(env_cfg):
         if args_cli.teleop is True:
-            raise ValueError("--teleop requires the task to declare env_cfg.teleop")
+            raise ValueError("--teleop requires a TeleopActionCfg in the task's actions.")
         return False
     args_cli.seed = resolve_seed(args_cli.seed)
     torch.manual_seed(_SEED if args_cli.seed is None else args_cli.seed)
@@ -128,19 +129,20 @@ def _run_environment(
     if args_cli.seed is not None:
         env_cfg.seed = args_cli.seed
     pre_launch_video_config(env_cfg, args_cli)
-    if enable_teleop:
-        validate_play_teleop(env_cfg, args_cli)
     # reject unsupported configurations before launching Kit or initializing a native physics backend
     try:
         validate(env_cfg)
     except (TypeError, ValueError) as exc:
         raise SystemExit(f"Invalid environment configuration: {exc}") from None
 
-    with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
+    with (
+        launch_playback(env_cfg, args_cli, enable_teleop=enable_teleop) as playback_session,
+        contextlib.ExitStack() as cleanup,
+    ):
         log_dir = os.path.abspath(os.path.join("logs", f"{policy}_agent", normalize_task_name(args_cli.task)))
         apply_video_recording(env_cfg, log_dir, args_cli, subdir="play")
         env = create_isaaclab_env(
-            args_cli.task, env_cfg, args_cli, convert_marl_to_single_agent=False, enable_teleop=enable_teleop
+            args_cli.task, env_cfg, args_cli, convert_marl_to_single_agent=False, playback_session=playback_session
         )
         cleanup.callback(lambda: close_env(env))
         logger.info(f"Gym observation space: {env.observation_space}")
@@ -159,6 +161,8 @@ def _run_environment(
         sim = env.unwrapped.sim
         step = 0
         while sim.is_running():
+            if playback_session is not None and playback_session.shutdown_requested:
+                break
             if max_steps is not None and step >= max_steps:
                 break
             step += 1
@@ -230,6 +234,13 @@ def _create_manager_zero_action_policy(action_manager: Any, env: Any) -> Callabl
 
 def _create_action_term_zero_policy(term: Any, env: Any) -> Callable[[], torch.Tensor] | None:
     """Create the specialized zero-action policy required by an action term."""
+    from isaaclab.managers import ActionTerm, InteractiveActionTermCfg
+
+    if isinstance(term, ActionTerm) and isinstance(term.cfg, InteractiveActionTermCfg):
+        from isaaclab_teleop.action import TeleopAction
+
+        if isinstance(term, TeleopAction):
+            return _create_action_term_zero_policy(term.controller, env)
     term_types = {cls.__name__ for cls in type(term).__mro__}
 
     if "PinkInverseKinematicsAction" in term_types:

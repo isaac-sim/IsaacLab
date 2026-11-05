@@ -1,70 +1,67 @@
-:orphan:
-
 .. _teleop-rl-env:
 
-Adding teleoperation to an RL environment
-=========================================
+Adding teleoperation to an RL task
+==================================
 
-An RL environment can declare an optional :class:`~isaaclab.envs.TeleopCfg` and use
-``isaaclab play`` for interactive control. The configuration selects an input source and the
-existing task actions it controls. The task continues to own its scene, observations, action
-processing, rewards, terminations, and resets. Training does not start the input source.
+Declare :class:`~isaaclab_teleop.TeleopActionCfg` inside a manager-based task's actions
+and use ``isaaclab play`` for interactive control. The term wraps an existing controller:
+its action dimensions, scaling, joint selection, and processing stay the same. Capture
+supplies input during interactive playback; training and direct Gym construction leave
+input inactive. The task continues to own observations, rewards, terminations, and resets.
 
-This guide adds keyboard control to the ordinary manager-based Cartpole task. It uses Isaac
-Capture for desktop input and the Newton GL visualizer, without Kit or XR. Install the
-``teleop`` extra and follow the keyboard focus and device-permission instructions in
-:ref:`isaac-teleop-keyboard`.
+Declare the action term
+-----------------------
 
-Declare the input and its action mapping
-----------------------------------------
-
-For a task you own, add a ``teleop`` field to its environment configuration. To try the example
-without modifying a built-in task, place the following code in an installed external task
-package, for example ``my_tasks/cartpole_interactive.py``:
+This example adds keyboard control to the ordinary Cartpole task, using Isaac Capture
+and Newton GL without Kit. Install the ``teleop`` extra and follow the focus and permission
+instructions in :ref:`isaac-teleop-keyboard`. Place this module in an installed external
+task package, for example ``my_tasks/cartpole_interactive.py``:
 
 .. literalinclude:: ../refs/snippets/tutorial_teleop_rl_env.py
    :language: python
    :start-after: """An ordinary Cartpole RL task with optional keyboard control during playback."""
 
-The keyboard pipeline emits six pose-delta components. Cartpole instead expects one
-dimensionless effort action. The adapter takes the keyboard's x component and divides by its
-configured sensitivity, producing ``-1``, ``0``, or ``1`` for backward, idle, or forward input.
-Cartpole's existing ``joint_effort`` action term applies its scale of 100 N. The other keyboard
-axes are ignored. This is an explicit mapping of the input signal, not a change to Cartpole's
-controller or action space.
+The adapter maps the keyboard's x component to a dimensionless effort action. The original
+Cartpole controller then applies its 100 N scale. Capture pipelines must produce the wrapped
+controller's raw input conventions, including units and coordinate frames; the action term
+does not infer a robot-specific retargeter.
 
-The registration reuses Cartpole's environment implementation and agent configurations. Make
-the module discoverable through your external project's ``pyproject.toml`` and install that
-project into your Isaac Lab environment:
+For a task you own, the same ``TeleopActionCfg(controller=..., source=...)`` declaration can
+appear directly in ``ActionsCfg``. Wrapping after the parent's ``__post_init__`` is useful
+when an inherited task adjusts controller fields during initialization. Subsequent controller
+customization uses ``actions.<name>.controller``.
+
+Register the external package in its ``pyproject.toml`` and install it into your Lab environment:
 
 .. code-block:: toml
+
+   [project]
+   dependencies = ["isaaclab-teleop"]
 
    [project.entry-points."isaaclab.tasks"]
    my_tasks = "my_tasks.cartpole_interactive"
 
-Existing external projects may already expose a task-package entry point; importing the new
-module from that package is sufficient. See :ref:`tutorial-register-rl-env-gym` for task
-registration and project setup. If the external project is not already installed, add
-``--with-editable /path/to/my_project`` to each ``uv run`` command below.
+The task package needs ``isaaclab-teleop`` to import its configuration even when input is
+inactive; that package alone does not install or start the Capture SDK.
+An existing task-package entry point can import this module instead. See
+:ref:`tutorial-register-rl-env-gym`. Add ``--with-editable /path/to/my_project`` to ``uv run``
+if the external project is not installed.
 
 Play with or without a policy
 -----------------------------
 
-With no explicit RL backend, agent, or checkpoint, ``play`` uses the declared source and a
-checkpoint-free baseline:
+With no explicit RL backend, agent, or checkpoint, playback uses a checkpoint-free baseline:
 
 .. code-block:: bash
 
    uv run --extra teleop isaaclab play \
        --task Isaac-Cartpole-Interactive --num_envs 1 --viz newton_gl --real-time
 
-Use ``W`` and ``S`` for cart force while the keyboard input window has focus. This example
-starts the source active. The baseline supplies zero force; it does not balance the pole.
-For other tasks the baseline infers zero or supported hold actions, which are not a general
-stabilizing controller. Keep normal task resets enabled when exploring an asset this way.
+Use ``W`` and ``S`` while the input window has focus. The baseline supplies zero force and
+does not balance the pole. Other controllers may use supported hold commands, but the
+baseline is not a general stabilizing controller. Normal task resets remain active.
 
-Select a trained policy explicitly to use it as the baseline. The source replaces only its
-configured environment rows and action columns; the policy controls the remaining entries:
+Select a policy explicitly to combine it with Capture:
 
 .. code-block:: bash
 
@@ -72,57 +69,87 @@ configured environment rows and action columns; the policy controls the remainin
        --rl_library rsl_rl --task Isaac-Cartpole-Interactive \
        --checkpoint /path/to/model.pt --num_envs 4 --viz newton_gl --real-time
 
-Here the keyboard controls row 0. Rows 1--3 continue using the policy. Press ``P`` in the
-visualizer window to disengage Capture and return all rows to the policy; press ``B`` to
-resume Capture control. Releasing motion keys sends zero input while Capture remains active.
-When the source is inactive or supplies no action, the policy controls all rows. Disengaging
-Capture does not pause physics. Add ``--no-teleop`` to use normal policy playback without opening a device.
-RLinf's remote-worker playback does not support this local input workflow; use
-``--no-teleop`` with that backend.
+Capture controls row 0 of the wrapped action term. The policy controls the other rows and
+other action terms. ``P`` disengages Capture, and ``B`` resumes input. Releasing motion keys
+sends zero input while Capture stays active; inactive or unavailable input yields to the
+policy. Disengaging input does not pause physics. ``--no-teleop`` leaves all actions under
+policy control. ``--max_steps`` bounds a playback run.
 
-The same task can be trained normally:
+Training uses the original controller without opening Capture:
 
 .. code-block:: bash
 
    uv run --extra rsl-rl isaaclab train \
        --rl_library rsl_rl --task Isaac-Cartpole-Interactive
 
-The ``teleop`` field is inert during training; this workflow does not perform intervention
-training or alter the learner's rollouts.
+This is interactive policy playback, not intervention training. RLinf remote workers do
+not support local input; use ``--no-teleop`` with that backend.
 
-Select actions for Capture input
---------------------------------
+Operator presentation with kitless XR
+-------------------------------------
 
-``env_ids`` selects environment rows. For manager-based environments, ``action_terms`` selects
-existing action-manager terms in the source's output order. For direct environments, or to
-select individual flattened action components, use ``action_indices`` instead. Leaving both
-action selections empty selects all actions. The source or ``action_adapter`` must use the
-selected task actions' units, scale, frame, dtype, and shape; the wrapper does not infer
-retargeting or clip the source's actions.
+An optional :class:`~isaaclab_teleop.TeleopObservationCfg` belongs alongside the task's
+observation groups:
 
-This iteration uses the Torch frontend. The core wrapper supports tensor actions from
-``Box``, ``Discrete``, and ``MultiDiscrete`` spaces. A direct multi-agent environment
-also requires ``agent`` to name the controlled
-agent. Composite action spaces require a task-specific integration. The Capture adapter
-supports one selected environment in a batch, so its anchor and retargeter state have one
-owner. Compatible gamepad and SpaceMouse pipelines can replace the keyboard pipeline.
+.. code-block:: python
 
-Reset, recording, and XR behavior
----------------------------------
+   from isaaclab_ov.renderers import OVRTXRendererCfg
+   from isaaclab_teleop import CLOUDXR_JS_ENV, OvLibrariesXrCfg, TeleopObservationCfg
 
-A source reset pulse requests the simulation's existing global reset: all environment rows
-end their episodes on that step, even when the source controls only one row. Normal task
-terminations still reset individual rows, and the source receives reset notifications for
-its controlled rows. Press ``R`` to reset and disengage Capture, then ``B`` to resume control.
-Neither operation restores an intermediate demonstration state.
+   @configclass
+   class ObservationsCfg:
+       policy = PolicyCfg()
+       operator = TeleopObservationCfg(
+           presentation=OvLibrariesXrCfg(cloudxr_env_file=CLOUDXR_JS_ENV),
+           renderer=OVRTXRendererCfg(),
+       )
 
-The task's configured recorders observe the action that reaches the environment, after input
-selection. Adding ``TeleopCfg`` does not configure a dataset recorder, choose successful
-episodes, or enable a collection profile. Existing ``isaaclab teleop`` commands and
-``record_demos.py`` remain available with their existing configurations.
+The operator declaration describes presentation, not a tensor observation. It is excluded
+from observation spaces, policy inputs, history buffers, and recorder observations. The XR
+camera is strictly the operator's point of view. Use separate task cameras for visual IL.
 
-``CaptureTeleopSourceCfg`` currently provides desktop input without Kit or XR. Existing XR
-teleop workflows are unchanged. A future kitless XR integration can reuse the task's action
-selection, but requires Capture adapter and launch integration plus validation. Declaring
-``TeleopCfg`` alone does not enable it. The XR camera provides the operator's point of view;
-task cameras remain the sources of camera observations and recorded training data.
+Playback reserves Hougant's OVXR renderer before constructing the environment, starts its
+worker after the scene and Capture input are ready, and publishes complete scene states.
+The worker renders the headset independently of physics and policy inference. Input drains
+before XR shutdown; the render worker owns teardown after it takes ownership of the scene.
+
+Use the Capture 1.7.93a1 installation described in :doc:`kitless_xr_source` and the prepared
+``ovxr`` dependency selection. The repository's default ``teleop`` extra still selects the
+older desktop/Kit Capture version; do not combine those dependency selections. With an
+XR-capable source declared in the task, use the same ``isaaclab play`` command under
+``uv run --extra ovxr`` with ``--viz none --num_envs 1``. Use Capture's desktop mirror
+for a local preview; other local visualizers cannot share this XR lifecycle. No legacy ``--xr`` or ``--ovxr`` flag is needed on this path.
+
+Learning cameras remain configured. A camera that resolves to the renderer leased by XR
+is rejected before startup unless it is an explicitly configured operator panel. Cameras
+using independent renderers may coexist. Operator panels cannot also be referenced by
+policy/critic observation terms or video recorders. Custom observation functions must also
+respect this boundary; the validator checks explicit scene-entity references and cannot
+inspect arbitrary function bodies.
+
+Reset and recording semantics
+-----------------------------
+
+An operator reset interrupts the controlled row, resets it, and returns a zero-reward
+truncation boundary without advancing physics. Other rows pause for that one call. Normal
+task terminations continue to reset their own rows and notify the source when its row resets.
+``R`` resets and disengages Capture; ``B`` resumes. This does not rewind a demonstration.
+
+The action manager stores the selected raw action before controller processing, so
+``last_action`` and configured action recorders see Capture's command during takeover.
+The operator-reset boundary does not create an artificial recorded physics transition.
+Adding an action term does not configure dataset recording, success selection, or export.
+Existing teleop environments, ``isaaclab teleop`` commands, and ``record_demos.py`` remain
+available with their existing configurations.
+
+Current boundaries
+------------------
+
+This path supports the Torch frontend, a non-Kit runtime, and one Capture-owned action term
+controlling one row. Desktop playback can retain a larger policy-controlled batch. XR
+currently requires exactly one environment. A single term may wrap a composite controller,
+but sharing one Capture session across multiple action terms needs a separate ownership API.
+Direct RL and multi-agent environments do not have action managers and need a separate task
+integration. Keyboard, gamepad, and SpaceMouse pipelines are supported on the desktop;
+XR input uses the task's compatible Capture pipeline and the operator presentation session.
+Physical-headset qualification is required before treating the combined XR path as supported.

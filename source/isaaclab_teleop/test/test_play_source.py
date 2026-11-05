@@ -32,6 +32,8 @@ def capture(monkeypatch):
         reset=Mock(),
         notify_reset=Mock(),
         last_control_events=ControlEvents(),
+        session_cleanup_failed=False,
+        target_frame_prim_path=None,
     )
     create = Mock(return_value=device)
     monkeypatch.setattr(device_selection, "create_teleop_device", create)
@@ -50,6 +52,10 @@ def test_selected_environment_input_and_lifetime(capture):
     device, create, env = capture
     cfg = CaptureTeleopSourceCfg(device=IsaacTeleopCfg(), cloudxr_env_file=None)
     source = instantiate(cfg, env, env_ids=[2])
+    device.__enter__.assert_not_called()
+    with pytest.raises(RuntimeError, match="start"):
+        source.advance()
+    source.start()
     assert create.call_args.kwargs["env_prim_path"] == "/World/envs/env_2"
     assert create.call_args.kwargs["visualizers"] is env.sim.visualizers
     assert create.call_args.kwargs["sim_device"] == "cpu"
@@ -75,12 +81,14 @@ def test_selected_environment_input_and_lifetime(capture):
         source.advance()
 
 
-def test_host_reset_does_not_swallow_later_operator_reset(capture):
-    """A skipped host-reset completion cannot consume the next operator reset."""
+def test_host_and_operator_resets_are_independent(capture):
+    """Only the controlled row resets input; each device reset event reaches playback."""
     device, _, env = capture
     source = CaptureTeleopSource(CaptureTeleopSourceCfg(device=IsaacTeleopCfg()), env, env_ids=[2])
+    source.start()
     try:
         source.reset([])
+        source.reset([0, 1])
         device.notify_reset.assert_not_called()
         source.reset(torch.tensor([2]))
         assert not source.advance().reset
@@ -92,7 +100,9 @@ def test_host_reset_does_not_swallow_later_operator_reset(capture):
         assert sample.reset and not sample.active
         device.notify_reset.assert_called_once()
         device.reset.assert_not_called()
-        assert not source.advance().reset  # repeated operator frame cannot reset the environment twice
+        # The device owns returned-frame deduplication. Two distinct reset
+        # frames can arrive consecutively without an intervening false pulse.
+        assert source.advance().reset
         source.reset([2])
         device.last_control_events = ControlEvents(is_active=False)
         assert not source.advance().reset
@@ -102,14 +112,61 @@ def test_host_reset_does_not_swallow_later_operator_reset(capture):
         source.close()
 
 
-def test_start_failure_releases_device(capture):
-    """Startup still attempts cleanup, and a cleanup error cannot hide the original failure."""
+def test_xr_borrows_presentation_handles_and_target_frame(capture, monkeypatch):
+    """XR uses the owner's handles and physics transform without starting another runtime."""
+    from isaaclab_teleop import play_source
+
+    device, create, env = capture
+    device.target_frame_prim_path = "/World/envs/env_2/robot/base"
+    transform = object()
+    session = SimpleNamespace(external_oxr_handles=Mock(), get_target_frame_T_world=Mock(return_value=transform))
+    monkeypatch.setattr(play_source, "_desktop_pipeline", Mock(side_effect=AssertionError("desktop validation")))
+    cfg = CaptureTeleopSourceCfg(device=IsaacTeleopCfg(), start_active=False)
+    source = CaptureTeleopSource(cfg, env, env_ids=[2], xr_session=session)
+    source.start()
+    try:
+        assert source.device is device
+        assert create.call_args.kwargs["external_oxr_handles_provider"] is session.external_oxr_handles
+        assert create.call_args.kwargs["cloudxr_env_file"] is None
+        assert not create.call_args.kwargs["auto_launch_cloudxr"]
+        assert not create.call_args.kwargs["use_kit_xr_bridge"]
+        device.request_start.assert_not_called()
+        source.advance()
+        session.get_target_frame_T_world.assert_called_once_with("/World/envs/env_2/robot/base")
+        device.advance.assert_called_once_with(transform)
+    finally:
+        source.close()
+
+
+def test_failed_input_drain_can_be_retried(capture):
+    """A close failure stays observable so playback retains the borrowed XR environment."""
+    device, _, env = capture
+    source = CaptureTeleopSource(CaptureTeleopSourceCfg(device=IsaacTeleopCfg()), env, env_ids=[0])
+    source.start()
+    device.__exit__.side_effect = [RuntimeError("input did not drain"), None]
+    device.session_cleanup_failed = True
+    with pytest.raises(RuntimeError, match="input did not drain"):
+        source.close()
+    assert source.session_cleanup_failed
+    device.session_cleanup_failed = False
+    source.close()
+    source.close()
+    assert device.__exit__.call_count == 2
+    assert not source.session_cleanup_failed
+
+
+def test_start_failure_retains_input_for_owner_cleanup(capture):
+    """The owner retains the source even if native startup and its cleanup both fail."""
     device, _, env = capture
     device.__enter__.side_effect = RuntimeError("runtime failed during startup")
-    device.__exit__.side_effect = RuntimeError("cleanup failed")
+    device.__exit__.side_effect = [RuntimeError("cleanup failed"), None]
+    source = CaptureTeleopSource(CaptureTeleopSourceCfg(device=IsaacTeleopCfg()), env, env_ids=[0])
     with pytest.raises(RuntimeError, match="runtime failed"):
-        CaptureTeleopSource(CaptureTeleopSourceCfg(device=IsaacTeleopCfg()), env, env_ids=[0])
-    device.__exit__.assert_called_once()
+        source.start()
+    with pytest.raises(RuntimeError, match="cleanup failed"):
+        source.close()
+    source.close()
+    assert device.__exit__.call_count == 2
     device.request_start.assert_not_called()
 
 
@@ -125,7 +182,7 @@ def test_incompatible_bindings_fail_before_start(capture, monkeypatch):
         CaptureTeleopSource(cfg, env, env_ids=[0])
     monkeypatch.setattr(play_source, "has_kit", lambda: False)
     env.sim.get_setting = lambda _: True
-    with pytest.raises(ValueError, match="desktop input only"):
+    with pytest.raises(ValueError, match="task-configured XR presentation"):
         CaptureTeleopSource(cfg, env, env_ids=[0])
     create.assert_not_called()
     device.__enter__.assert_not_called()
