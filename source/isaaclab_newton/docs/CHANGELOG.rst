@@ -3,6 +3,40 @@ Changelog
 
 .. towncrier release notes start
 
+15.0.0 (2026-11-05)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Adopted shared PVA output storage and optional output groups; request acceleration state only when enabled, and normalize initialization/STOP defaults.
+* Isolate optional PVA update compilation from other feature subsets and the shared reset path to reduce cold sensor startup time.
+* Reused shared sensor math, packing, and reset operations while retaining native gathering and solver-specific policies.
+
+Deprecated
+^^^^^^^^^^
+
+* Marked direct use of Newton PvaData as deprecated in its API documentation. Imports remain available without warnings; use isaaclab.sensors.PvaData or sensor.data.
+
+
+14.0.1 (2026-11-04)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed :attr:`~isaaclab_newton.physics.NewtonCollisionPipelineCfg.max_triangle_pairs` to default to ``None``
+  so Newton sizes it from the model. The fixed ``1_000_000`` is shared by all worlds and dropped mesh contacts once
+  the world count grew.
+
+Fixed
+^^^^^
+
+* Fixed MJWarp losing authored state writes and environment resets when the next solver substep
+  skipped its periodic Newton-state import. Flagged worlds were synchronized at forward and
+  physics-step boundaries even with sparse or disabled periodic imports, including CUDA graph replay.
+
+
 14.0.0 (2026-11-03)
 ~~~~~~~~~~~~~~~~~~~
 

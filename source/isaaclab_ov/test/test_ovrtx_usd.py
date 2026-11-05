@@ -20,6 +20,7 @@ pytestmark = [
         bool(_MISSING_MODULES),
         reason=f"requires optional modules: {', '.join(_MISSING_MODULES)}",
     ),
+    pytest.mark.ov,
 ]
 
 if not _MISSING_MODULES:
@@ -272,6 +273,17 @@ def test_ovrtx_simple_shading_alone_uses_ldr_color(camera_spec, render_data, dat
     assert (
         layer.GetAttributeAtPath("/RenderCamera_0/RenderProduct.omni:rtx:minimal:castShadows").default == enable_shadows
     )
+
+
+@pytest.mark.parametrize("mode", ["default", "neutral"])
+def test_ovrtx_neutral_exposure_tonemaps_gaussian_splats(camera_spec, render_data, mode):
+    """Neutral exposure, which PPISP requires, tonemaps Gaussian splats with the rest of the frame."""
+    camera_spec.cfg.exposure.mode = mode
+    usd = build_render_product_as_string(camera_spec, render_data, device_id=0, enable_shadows=False)
+    layer = Sdf.Layer.CreateAnonymous(".usda")
+    assert layer.ImportFromString(usd)
+    attribute = layer.GetAttributeAtPath("/RenderCamera_0/RenderProduct.omni:rtx:gaussian:skipTonemapping:enabled")
+    assert (attribute.default is False) if mode == "neutral" else attribute is None
 
 
 def test_ovrtx_duplicate_simple_shading_data_types_collapse():

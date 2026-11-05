@@ -198,6 +198,12 @@ def build_render_product_as_string(
     # Workaround: ovrtx 0.5 misses GPU-read transform changes, so eco mode freezes output after 500 frames.
     render_mode_lines.append("bool omni:rtx:rt:ecoMode:enabled = false")
 
+    # Neutral exposure keeps color linear for image processors such as PPISP, which also need Gaussian splats
+    # tonemapped with the rest of the frame.
+    # OMPE-117939 tracks deprecation of the Gaussian skip-tonemapping setting.
+    if spec.cfg.exposure.mode == "neutral":
+        render_mode_lines.append("bool omni:rtx:gaussian:skipTonemapping:enabled = false")
+
     render_mode_block = "\n        ".join(render_mode_lines)
     ordered_vars = ", ".join(f"<{path}>" for path, _, _ in render_var_configs)
     render_var_defs = "\n".join(
