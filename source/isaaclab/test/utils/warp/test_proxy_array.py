@@ -469,3 +469,36 @@ class TestWpToTorchShim:
         assert isinstance(t, torch.Tensor)
         assert t.shape == (2,)
         assert t.requires_grad is False
+
+    def test_empty_cpu_arrays_convert_through_dlpack(self):
+        """Empty CPU views preserve dtype, shape and gradient selection."""
+        import isaaclab.utils.warp  # noqa: F401  # ensure shim is installed
+
+        empty_ids = wp.from_torch(torch.arange(4, dtype=torch.int32)[:0])
+        ids = wp.to_torch(empty_ids)
+        assert ids.shape == (0,) and ids.dtype == torch.int32
+        assert ids.data_ptr() == 0 and ids.stride() == (1,)
+
+        for inherited, override, expected, has_grad in (
+            (False, None, False, False),
+            (True, None, True, True),
+            (True, False, False, False),
+            (False, True, True, False),
+        ):
+            empty = wp.zeros((0, 3), dtype=wp.float32, device="cpu", requires_grad=inherited)
+            view = wp.to_torch(empty, requires_grad=override)
+            assert view.shape == (0, 3) and view.dtype == torch.float32
+            assert view.requires_grad is expected
+            assert (view.grad is not None) is has_grad
+            if has_grad:
+                assert view.grad.shape == (0, 3) and view.grad.dtype == torch.float32
+
+    def test_conversion_survives_patched_array_constructor(self, monkeypatch):
+        """Tests may replace ``wp.array`` with a factory; conversion must not depend on it."""
+        import isaaclab.utils.warp  # noqa: F401  # ensure shim is installed
+
+        empty = wp.zeros(0, dtype=wp.float32, device="cpu")
+        full = wp.array([1.0, 2.0], dtype=wp.float32, device="cpu")
+        monkeypatch.setattr(wp, "array", lambda value, dtype=None, device=None: value)
+        assert wp.to_torch(empty).shape == (0,)
+        assert wp.to_torch(full).tolist() == [1.0, 2.0]

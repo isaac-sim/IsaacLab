@@ -19,7 +19,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import sys
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -95,6 +95,7 @@ def _install_stubs():
 _install_stubs()
 
 from isaaclab_teleop.control_events import ControlEvents, poll_control_events  # noqa: E402
+from isaaclab_teleop.session_lifecycle import TeleopSessionLifecycle  # noqa: E402
 from isaaclab_teleop.teleop_message_processor import (  # noqa: E402
     TeleopMessageProcessor,
     _classify_command,
@@ -535,3 +536,29 @@ class TestPollControlEvents:
         result = poll_control_events(FakeDevice())
         assert result.is_active is False
         assert result.should_reset is True
+
+
+class TestPipelinedControlEvents:
+    def test_reset_edge_is_emitted_once_per_returned_frame(self):
+        from isaacteleop.retargeting_engine.interface.execution_events import ExecutionEvents, ExecutionState
+
+        lifecycle = TeleopSessionLifecycle.__new__(TeleopSessionLifecycle)
+        lifecycle._message_processor = object()
+        lifecycle._last_control_event_frame_id = None
+        lifecycle._last_control_events = ControlEvents()
+        lifecycle._session = SimpleNamespace(
+            last_context=SimpleNamespace(
+                execution_events=ExecutionEvents(reset=True, execution_state=ExecutionState.RUNNING)
+            ),
+            last_step_info=SimpleNamespace(returned_frame_id=7),
+        )
+
+        lifecycle._update_control_events()
+        assert lifecycle.last_control_events == ControlEvents(is_active=True, should_reset=True)
+
+        lifecycle._update_control_events()
+        assert lifecycle.last_control_events == ControlEvents(is_active=True, should_reset=False)
+
+        lifecycle._session.last_step_info.returned_frame_id = 8
+        lifecycle._update_control_events()
+        assert lifecycle.last_control_events == ControlEvents(is_active=True, should_reset=True)
