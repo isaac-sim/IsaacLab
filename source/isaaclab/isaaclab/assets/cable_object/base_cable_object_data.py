@@ -5,7 +5,7 @@
 
 from abc import ABC, abstractmethod
 
-from ...utils.leapp import leapp_tensor_semantics
+from ...utils.leapp import POSE7_COMPONENT_AXIS, Axis, AxisKind, Kind, leapp_tensor_semantics
 from ...utils.warp import ProxyArray
 
 
@@ -36,7 +36,7 @@ class BaseCableObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind="state/body/pose")
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSE, axes=[None, Axis(AxisKind.ELEMENT), POSE7_COMPONENT_AXIS])
     def segment_pose_w(self) -> ProxyArray:
         """Segment actor-frame poses in the simulation world frame.
 
@@ -47,7 +47,10 @@ class BaseCableObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind="state/body/velocity")
+    @leapp_tensor_semantics(
+        kind=Kind.FRAME_TWIST,
+        axes=[None, Axis(AxisKind.ELEMENT), Axis(AxisKind.COMPONENT, names=["vx", "vy", "vz", "wx", "wy", "wz"])],
+    )
     def segment_velocity_w(self) -> ProxyArray:
         """Segment center-of-mass velocities in the simulation world frame.
 

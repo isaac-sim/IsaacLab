@@ -15,6 +15,7 @@ import torch
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
+from isaaclab.utils.leapp import POSE7_COMPONENT_AXIS
 
 from isaaclab_tasks.core.reorient.utils import EpisodeErrorRecorder
 
@@ -34,6 +35,8 @@ class HandoverCommand(CommandTerm):
 
     def __init__(self, cfg: HandoverCommandCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
+        self.cfg.cmd_kind = self.cfg.cmd_kind or "frame/pose"
+        self.cfg.axes = self.cfg.axes or [None, POSE7_COMPONENT_AXIS]
         self._object: RigidObject = env.scene[cfg.asset_name]
         self._goal = HandoverGoal(
             torch.stack(
