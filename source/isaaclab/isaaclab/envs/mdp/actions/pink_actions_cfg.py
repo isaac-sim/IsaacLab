@@ -29,7 +29,10 @@ class PinkInverseKinematicsActionCfg(ActionTermCfg):
     """List of joint names or regular expression patterns that specify the joints controlled by pink IK."""
 
     hand_joint_names: list[str] = MISSING
-    """List of joint names or regular expression patterns that specify the joints controlled by hand retargeting."""
+    """List of joint names or regular expression patterns that specify the joints controlled by hand retargeting.
+
+    Hand targets in the action are applied in this order.
+    """
 
     controller: PinkIKControllerCfg = MISSING
     """Configuration for the Pink IK controller that will be used to solve the inverse kinematics."""
