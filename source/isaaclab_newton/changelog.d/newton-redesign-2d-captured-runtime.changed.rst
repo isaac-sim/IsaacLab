@@ -8,6 +8,8 @@
 * **Breaking:** Renamed ``NewtonManager.register_pre_actuator_callback`` and ``register_post_actuator_callback`` to
   :meth:`~isaaclab_newton.physics.NewtonManager.register_control_callback` and
   :meth:`~isaaclab_newton.physics.NewtonManager.register_post_control_callback`, named after MuJoCo's ``mjcb_control``.
+* **Breaking:** Replaced ``NewtonBackend.graph`` with :attr:`~isaaclab_newton.physics.NewtonBackend.graphs`, the
+  captured parts of the step keyed by part.
 * Changed :meth:`~isaaclab_newton.physics.NewtonManager.handles_decimation` to fold the decimation loop into one step
   whenever Newton actuators run in the step. Actuators that cannot be captured, such as Torch networks, ran eagerly
   between captured graphs before and after them instead of disabling the folded loop.

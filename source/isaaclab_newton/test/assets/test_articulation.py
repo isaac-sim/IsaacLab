@@ -2148,7 +2148,7 @@ def test_body_q_consistent_after_root_write(scene: _Scene) -> None:
     Regression test for a NaN bug where collide() used stale body_q after env
     reset because eval_fk was not called between write_root_pose and collide.
 
-    The scene uses Newton's collision pipeline, and a pre-actuator callback captures body_q right after collide()
+    The scene uses Newton's collision pipeline, and a control callback captures body_q right after collide()
     and asserts it matches joint_q.
     """
     device = scene.device
@@ -2171,7 +2171,7 @@ def test_body_q_consistent_after_root_write(scene: _Scene) -> None:
         env_ids=torch.tensor([0], device=device, dtype=torch.int32),
     )
 
-    # Pre-actuator callbacks run after the reset is resolved and before collision.
+    # Control callbacks run after the reset is resolved and after collision.
     captured = {}
     backend_manager = scene.sim.backend_manager
 

@@ -218,7 +218,7 @@ class NewtonBackend:
         """Physics steps per environment step."""
         self.capture: Callable[[Callable[[], None]], wp.Graph] | None = None
         """Records the step as a CUDA graph, or ``None`` when the step runs eagerly; set by :meth:`init_solver`."""
-        self.graphs: dict[object, wp.Graph] = {}
+        self.graphs: dict[str | tuple[str, int], wp.Graph] = {}
         """Captured parts of the step, keyed by part; empty until the first step is captured."""
 
     def create_visual_material_writer(self, batches: tuple[VisualMaterialBatch, ...]) -> VisualMaterialWriter:
@@ -342,6 +342,24 @@ class NewtonBackend:
         self.world_mask.zero_()
         self.kinematics_dirty = False
         self.state_version += 1
+
+    def notify_model_changes(self) -> None:
+        """Notify the solver of the queued model-property changes once, combining their categories.
+
+        Inside an enclosing CUDA graph capture, the refresh is recorded and runs on every replay.
+        """
+        if not self.model_changes:
+            return
+        ignored = self.cfg.solver_cfg.class_type.ignored_model_changes
+        flags = 0
+        for change in self.model_changes:
+            if change in ignored and change not in self.warned_model_changes:
+                logger.warning(ignored[change])
+                self.warned_model_changes.add(change)
+            flags |= change
+        with wp.ScopedDevice(self.device):
+            self.solver.notify_model_changed(flags)
+        self.model_changes.clear()
 
     def activate_actuators(self) -> None:
         """Run the model's Newton actuators inside the step. Idempotent."""
@@ -473,20 +491,6 @@ class NewtonBackend:
             solver_cfg.class_type.check_step(solver_cfg, self.solver, captured, self.cfg.debug_mode)
         return captured
 
-    def _launch(self, key: object, fn: Callable[[], None]) -> None:
-        """Replay ``fn`` from its captured graph, or run it and capture it; inside an enclosing capture, record it."""
-        if self.device.is_capturing:
-            fn()
-            return
-        graph = self.graphs.get(key)
-        if graph is not None:
-            wp.capture_launch(graph)
-            return
-        fn()
-        if self.capture is not None:
-            with Timer(name="newton_cuda_graph", msg="CUDA graph took:"):
-                self.graphs[key] = self.capture(fn)
-
     def state_pointers(self) -> tuple[int, int]:
         """Addresses of :attr:`state_0`'s body and particle arrays, ``0`` for an absent array.
 
@@ -558,23 +562,19 @@ class NewtonBackend:
         if self.contacts is not None:
             solver_cls.prepare_contacts(solver_cfg, solver, self.contacts, self.collision_pipeline)
 
-    def notify_model_changes(self) -> None:
-        """Notify the solver of the queued model-property changes once, combining their categories.
-
-        Inside an enclosing CUDA graph capture, the refresh is recorded and runs on every replay.
-        """
-        if not self.model_changes:
+    def _launch(self, key: str | tuple[str, int], fn: Callable[[], None]) -> None:
+        """Replay ``fn`` from its captured graph, or run it and capture it; inside an enclosing capture, record it."""
+        if self.device.is_capturing:
+            fn()
             return
-        ignored = self.cfg.solver_cfg.class_type.ignored_model_changes
-        flags = 0
-        for change in self.model_changes:
-            if change in ignored and change not in self.warned_model_changes:
-                logger.warning(ignored[change])
-                self.warned_model_changes.add(change)
-            flags |= change
-        with wp.ScopedDevice(self.device):
-            self.solver.notify_model_changed(flags)
-        self.model_changes.clear()
+        graph = self.graphs.get(key)
+        if graph is not None:
+            wp.capture_launch(graph)
+            return
+        fn()
+        if self.capture is not None:
+            with Timer(name="newton_cuda_graph", msg="CUDA graph took:"):
+                self.graphs[key] = self.capture(fn)
 
     def _simulate(self, steps: int) -> None:
         """Run ``steps`` physics steps with the Newton actuators, then finish the step."""
