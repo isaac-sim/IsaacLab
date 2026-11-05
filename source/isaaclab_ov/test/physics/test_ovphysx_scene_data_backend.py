@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import sys
 from contextlib import ExitStack, closing, nullcontext
 from types import ModuleType, SimpleNamespace
 
@@ -416,8 +417,64 @@ def test_manager_destroys_ovstage_when_population_fails(manager, monkeypatch):
     assert destroyed == ["isaaclab.scene"]
 
 
+@pytest.mark.parametrize(
+    "population_api, physics",
+    [("domains", True), ("selectors", True), ("selectors", False)],
+    ids=["legacy-physics", "selector-physics", "rendering-only"],
+)
+def test_population_dispatch_preserves_requested_data_and_write_ordinal(monkeypatch, population_api, physics):
+    """Route physics intent, rendering domains, and the write ordinal through either native API."""
+    from isaaclab_ov import ovstage_compat
+
+    native_stage, physics_desc = object(), object()
+    calls = []
+    descriptions = []
+
+    class DomainPopulation:
+        @staticmethod
+        def open_usd_from_string(stage, usda, ordinal, domains):
+            calls.append((stage, usda, ordinal, domains))
+
+    class SelectorPopulation(DomainPopulation):
+        DEFAULT_TIME = 17.0
+
+        class Desc:
+            def __init__(self, *, domains):
+                self.domains = domains
+
+        @staticmethod
+        def open_usd_from_string_with_desc(stage, usda, ordinal, time, descs):
+            calls.append((stage, usda, ordinal, time, tuple(descs)))
+
+    def describe_physics():
+        descriptions.append(physics_desc)
+        return physics_desc
+
+    runtime = ModuleType("ovstage")
+    runtime.PopulationDomain = SimpleNamespace(NONE=0, RENDERING=1)
+    if population_api == "domains":
+        runtime.PopulationDomain.PHYSICS = 2
+        runtime.population = DomainPopulation
+    else:
+        runtime.population = SelectorPopulation
+    monkeypatch.setitem(sys.modules, "ovstage", runtime)
+    monkeypatch.setattr(ovstage_compat, "_physics_population_desc", describe_physics)
+
+    ovstage_compat.populate_stage(native_stage, "#usda 1.0", ordinal=7, domains=1, physics=physics)
+
+    if population_api == "selectors" and physics:
+        assert descriptions == [physics_desc]
+        assert len(calls) == 1
+        stage, usda, ordinal, time, descs = calls[0]
+        assert (stage, usda, ordinal, time) == (native_stage, "#usda 1.0", 7, SelectorPopulation.DEFAULT_TIME)
+        assert len(descs) == 2 and descs[0].domains == 1 and descs[1] is physics_desc
+    else:
+        assert descriptions == []
+        assert calls == [(native_stage, "#usda 1.0", 7, 3 if physics else 1)]
+
+
 def test_physics_population_preserves_resolved_values_and_clone_relationships():
-    """Both OVStage population APIs retain units-aware defaults, overrides, materials, and joints."""
+    """Population retains units-aware defaults, overrides, material bindings, and cloned joint targets."""
     import numpy as np
     import ovstage
     from isaaclab_ov.stage import OvstageBackend, OvstageBackendCfg, _handle_raw_id

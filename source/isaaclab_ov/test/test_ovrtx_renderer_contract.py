@@ -1424,15 +1424,16 @@ def test_ovrtx_close_releases_bindings_before_registry_resources(use_ovstage):
         ("0.7.0.dev1", "legacy"),
         ("0.6.0", "independent"),
         ("0.7.0", "independent"),
+        ("0.7.0", "independent-physics"),
         ("0.7.0.dev1", "shared"),
         ("0.8.0", "shared"),
         ("0.7.0", "shared-debug"),
     ],
 )
-def test_scene_preparation_respects_ownership_and_camera_transform_mode(
+def test_scene_preparation_respects_physics_population_and_camera_transform_mode(
     monkeypatch, tmp_path, runtime_version, stage_mode
 ):
-    """Scene ownership controls reference export; only 0.7 disables camera GPU reads before attachment."""
+    """Physics population requires composed geometry; only 0.7 disables camera GPU reads before attachment."""
     from packaging.version import Version
 
     from pxr import Sdf, Usd, UsdGeom, UsdRender
@@ -1451,6 +1452,7 @@ def test_scene_preparation_respects_ownership_and_camera_transform_mode(
     UsdGeom.Xform.Define(stage, "/World/Asset").GetPrim().GetReferences().AddReference(str(asset_path))
     needs_fallback = runtime_version in ("0.7.0.dev1", "0.7.0")
     shared = stage_mode.startswith("shared")
+    populate_physics = shared or stage_mode == "independent-physics"
     events = []
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._use_ovstage = stage_mode != "legacy"
@@ -1477,8 +1479,8 @@ def test_scene_preparation_respects_ownership_and_camera_transform_mode(
         assert layer.ImportFromString(text)
         result = Usd.Stage.Open(layer)
         assert result.GetPrimAtPath("/World/Asset/Geometry").IsA(UsdGeom.Mesh)
-        assert result.GetPrimAtPath("/World/Asset").HasAuthoredReferences() is not shared
-        assert (layer.GetPrimAtPath("/World/Asset/Geometry") is not None) is shared
+        assert result.GetPrimAtPath("/World/Asset").HasAuthoredReferences() is not populate_physics
+        assert (layer.GetPrimAtPath("/World/Asset/Geometry") is not None) is populate_physics
         value = layer.GetAttributeAtPath(Sdf.Path(settings_path).AppendProperty(attribute_name)).default
         # OVStage population preserves authored input; only the legacy path rewrites USD.
         assert value is not (needs_fallback and stage_mode == "legacy")
@@ -1502,7 +1504,9 @@ def test_scene_preparation_respects_ownership_and_camera_transform_mode(
         clone_positions=np.zeros((0, 3)),
         population_env_paths=[],
         ordinal=1 if shared else 0,
-        cfg=types.SimpleNamespace(scene_key=None if shared else renderer.backend.cfg, population_domains=1),
+        cfg=types.SimpleNamespace(
+            scene_key=None if shared else renderer.backend.cfg, populate_physics=populate_physics
+        ),
         populate=load,
         stage=types.SimpleNamespace(write_attribute=write),
         query=lambda paths: contextlib.nullcontext(paths),

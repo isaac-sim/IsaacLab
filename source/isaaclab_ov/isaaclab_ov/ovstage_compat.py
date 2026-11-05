@@ -23,7 +23,9 @@ except PackageNotFoundError:
 OVSTAGE_REQUIRES_CPU_HIERARCHY_BEFORE_CLONE = OVSTAGE_VERSION is not None and OVSTAGE_VERSION.release[:2] == (0, 4)
 
 
-def populate_stage(stage: "ovstage.Stage", usda: str, *, ordinal: int, domains: int, physics: bool = False) -> None:
+def populate_stage(
+    stage: "ovstage.Stage", usda: str, *, ordinal: int, domains: "ovstage.PopulationDomain", physics: bool = False
+) -> None:
     """Populate rendering and optional physics data across the OVStage 0.4 API transition.
 
     Older builds expose a physics domain bit; newer 0.4 builds require selectors.
@@ -70,24 +72,24 @@ def _physics_population_desc() -> "ovstage.population.Desc":
     scene = PrimPredicate.is_a_type("PhysicsScene")
     body = PrimPredicate.has_applied_schema("PhysicsRigidBodyAPI")
     collider = PrimPredicate.has_applied_schema("PhysicsCollisionAPI")
-    meters = Expression.stage_metadata("metersPerUnit")
-    speed = Expression.divide(Expression.number(10.0), meters)
+    meters_per_unit = Expression.stage_metadata("metersPerUnit")
+    speed = Expression.divide(Expression.number(10.0), meters_per_unit)
     speed_squared = Expression.multiply(speed, speed)
     float_dtype = ovstage.DLDataType(code=ovstage.DLDataTypeCode.kDLFloat, bits=32, lanes=1)
     float_max = Expression.number(3.4028234663852886e38)
     defaults = (
-        ("physics:gravityMagnitude", scene, Expression.divide(Expression.number(9.81), meters)),
-        ("physxScene:frictionOffsetThreshold", scene, Expression.divide(Expression.number(0.04), meters)),
-        ("physxScene:frictionCorrelationDistance", scene, Expression.divide(Expression.number(0.025), meters)),
+        ("physics:gravityMagnitude", scene, Expression.divide(Expression.number(9.81), meters_per_unit)),
+        ("physxScene:frictionOffsetThreshold", scene, Expression.divide(Expression.number(0.04), meters_per_unit)),
+        ("physxScene:frictionCorrelationDistance", scene, Expression.divide(Expression.number(0.025), meters_per_unit)),
         ("physxRigidBody:sleepThreshold", body, Expression.multiply(Expression.number(5e-5), speed_squared)),
         ("physxRigidBody:stabilizationThreshold", body, Expression.multiply(Expression.number(1e-5), speed_squared)),
-        ("physxRigidBody:maxDepenetrationVelocity", body, Expression.divide(Expression.number(3.0), meters)),
+        ("physxRigidBody:maxDepenetrationVelocity", body, Expression.divide(Expression.number(3.0), meters_per_unit)),
         ("physxRigidBody:maxLinearVelocity", body, Expression.number(1e16)),
         ("physxRigidBody:maxContactImpulse", body, float_max),
         (
             "physxCollision:contactOffset",
             PrimPredicate.and_(collider, PrimPredicate.is_a_type("Plane")),
-            Expression.divide(Expression.number(0.02), meters),
+            Expression.divide(Expression.number(0.02), meters_per_unit),
         ),
         (
             "physxConvexGeometry:margin",
