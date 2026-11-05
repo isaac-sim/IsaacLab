@@ -69,6 +69,8 @@ def run_rendering_case(
         # Explicit colors and shadows belong to this synthetic fixture, not every scene.
         if case.renderer == "ovrtx":
             scene.cfg.camera.renderer_cfg.enable_shadows = True
+            # OVRTX references use this explicit color; Isaac RTX references use Kit's defaults.
+            scene.cfg.camera.render_settings["omni:rtx:minimal:constantColor"] = ("Color3f", (0.5, 0.5, 0.5))
         else:
             scene.cfg.camera.renderer_cfg.semantic_filter = ["class"]
             scene.cfg.camera.renderer_cfg.semantic_segmentation_mapping = {
