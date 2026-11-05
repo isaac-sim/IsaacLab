@@ -18,7 +18,7 @@ import warp as wp
 from .. import cloner
 from ..sensors.camera.camera_data import CameraData
 from ..utils.string import string_to_callable
-from .base_renderer import BaseRenderer, CaptureInfo, VisualMaterialBatch
+from .base_renderer import BaseRenderer, VisualMaterialBatch
 from .renderer_cfg import RendererCfg
 
 logger = logging.getLogger(__name__)
@@ -338,15 +338,15 @@ class RenderContext:
         render_data: Any,
         camera_data: CameraData,
         physics_step_count: int,
-    ) -> CaptureInfo | None:
-        """Capture one camera through :meth:`render_into_cameras` and return its published capture, if any."""
-        return self.render_into_cameras([(renderer, render_data, camera_data)], physics_step_count)[0]
+    ) -> None:
+        """Sync scene state and capture one camera through :meth:`render_into_cameras`."""
+        self.render_into_cameras([(renderer, render_data, camera_data)], physics_step_count)
 
     def render_into_cameras(
         self,
         requests: Sequence[tuple[BaseRenderer, Any, CameraData]],
         physics_step_count: int,
-    ) -> list[CaptureInfo | None]:
+    ) -> None:
         """Render prepared cameras in batches grouped by renderer instance.
 
         Camera poses must be updated before this call. Requests are used only for this
@@ -356,25 +356,20 @@ class RenderContext:
             requests: Tuples of renderer, renderer-specific render data, and output camera data.
                 An empty sequence performs no work.
             physics_step_count: Current physics step for shared scene synchronization.
-
-        Returns:
-            Each request's published capture, or None when it published none, in request order.
         """
         if not requests:
-            return []
+            return
 
         self.update_scene_state(physics_step_count)
 
-        groups: dict[int, tuple[BaseRenderer, list[tuple[int, Any, CameraData]]]] = {}
-        for index, (renderer, render_data, camera_data) in enumerate(requests):
-            groups.setdefault(id(renderer), (renderer, []))[1].append((index, render_data, camera_data))
+        groups: dict[int, tuple[BaseRenderer, list[tuple[Any, CameraData]]]] = {}
+        for renderer, render_data, camera_data in requests:
+            groups.setdefault(id(renderer), (renderer, []))[1].append((render_data, camera_data))
 
-        captures: list[CaptureInfo | None] = [None] * len(requests)
         for renderer, cameras in groups.values():
-            renderer.render_batch([render_data for _, render_data, _ in cameras])
-            for index, render_data, camera_data in cameras:
-                captures[index] = renderer.read_output(render_data, camera_data)
-        return captures
+            renderer.render_batch([render_data for render_data, _ in cameras])
+            for render_data, camera_data in cameras:
+                renderer.read_output(render_data, camera_data)
 
     def reset_stage_prepare_flag(self) -> None:
         """Allow :meth:`ensure_prepare_stage` to run ``prepare_stage`` again (e.g. a new USD stage)."""
