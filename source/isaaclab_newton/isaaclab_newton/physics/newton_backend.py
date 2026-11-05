@@ -58,24 +58,24 @@ def _make_flag_worlds_and_articulations(num_articulations: int, masked: bool) ->
         world_mask: wp.array(dtype=wp.bool),
         fk_mask: wp.array(dtype=wp.bool),
     ):
-        """Flag the masked view rows' articulations for FK and their worlds for a solver reset.
+        """Flag the masked envs' articulations for FK and their worlds for a solver reset.
 
         Global articulations (world ``-1``) get FK without resetting the global world. Optionally consumes the env mask.
         """
-        row = wp.tid()
-        if not env_mask[row]:
+        env = wp.tid()
+        if not env_mask[env]:
             return
-        for column in range(wp.static(num_articulations)):
+        for view_articulation in range(wp.static(num_articulations)):
             if wp.static(masked):
-                if not articulation_mask[column]:
+                if not articulation_mask[view_articulation]:
                     continue
-            articulation = articulation_ids[row, column]
+            articulation = articulation_ids[env, view_articulation]
             fk_mask[articulation] = True
             world = articulation_world[articulation]
             if world >= 0:
                 world_mask[world] = True
         if consume_mask:
-            env_mask[row] = False
+            env_mask[env] = False
 
     return flag_worlds_and_articulations
 
@@ -294,8 +294,8 @@ class NewtonBackend:
         """Schedule solver reset and FK for the masked worlds and articulations.
 
         Args:
-            env_mask: Mask over view rows, which map to worlds through the model's articulation-to-world table.
-            articulation_ids: Model articulation index of each ``(row, view-local articulation)``, from
+            env_mask: Mask over envs, which map to worlds through the model's articulation-to-world table.
+            articulation_ids: Model articulation index of each ``(env, view-local articulation)``, from
                 ``ArticulationView.articulation_ids``. With either argument None, every world and articulation is
                 flagged, as for native state writes.
             articulation_mask: View-local articulations to flag. None selects every articulation of the view.
