@@ -620,9 +620,13 @@ def _create_actuators_from_usd(
 
     parsed_per_joint: dict[int, Any] = {}
     for prim in Usd.PrimRange(root_prim):
-        # Isaac Lab actuator configs explicitly select this checkpoint. Preserve
-        # their existing execution semantics with Newton's trust-gated parser.
-        parsed = parse_actuator_prim(prim, allow_unsafe_torch_checkpoints=True)
+        allow_unsafe_torch_checkpoint = False
+        if prim.GetTypeName() == "NewtonActuator":
+            model_path_attr = prim.GetAttribute("newton:modelPath")
+            model_path = model_path_attr.Get() if model_path_attr else None
+            model_path = getattr(model_path, "path", model_path)
+            allow_unsafe_torch_checkpoint = str(model_path).lower().endswith((".pt", ".pth", ".pt2"))
+        parsed = parse_actuator_prim(prim, allow_unsafe_torch_checkpoints=allow_unsafe_torch_checkpoint)
         if parsed is None:
             continue
         target_name = parsed.target_path.rsplit("/", 1)[-1]
