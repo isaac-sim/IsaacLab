@@ -3,6 +3,29 @@ Changelog
 
 .. towncrier release notes start
 
+30.1.0 (2026-11-04)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added optional left/right data augmentation for MicroDuck walking, with servo-axis-aware observation and action reflection and no mirror loss.
+
+Changed
+^^^^^^^
+
+* Promoted the locomotion-first recipe to the default ``IsaacContrib-Velocity-Rough-MicroDuck``
+  task with 16,384 environments, earlier action smoothing, delayed standing, head-pose and
+  center-of-mass curricula, a 0.5 rad/s yaw-tracking reward width, and left/right data augmentation
+  without mirror loss. Kept the flat task's defaults unchanged.
+
+Fixed
+^^^^^
+
+* Resolved MicroDuck symmetry observation columns from the observation manager's term names and dimensions,
+  so same-width term reorderings are reflected correctly and unsupported terms or shapes are rejected.
+
+
 30.0.0 (2026-11-03)
 ~~~~~~~~~~~~~~~~~~~
 
