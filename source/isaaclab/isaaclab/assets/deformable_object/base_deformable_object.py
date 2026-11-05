@@ -15,6 +15,7 @@ import warp as wp
 
 from ...utils import math as math_utils
 from ...utils.warp import ProxyArray
+from ...utils.warp.memory import resolve_ids
 from ..asset_base import AssetBase
 
 if TYPE_CHECKING:
@@ -200,6 +201,9 @@ class BaseDeformableObject(AssetBase):
 
     """
     Operations - Write to simulation (mask variants).
+
+    These convert the mask to ids, which waits for the device, and call the index variants.
+    Backends with a mask write path override them.
     """
 
     def write_nodal_state_to_sim_mask(
@@ -214,10 +218,7 @@ class BaseDeformableObject(AssetBase):
                 Shape is (num_instances, max_sim_vertices_per_body, 6).
             env_mask: Environment mask. If None, then all indices are used.
         """
-        if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
-        else:
-            env_ids = self._ALL_INDICES
+        env_ids = resolve_ids(mask=env_mask, all_ids=self._ALL_INDICES)
         self.write_nodal_state_to_sim_index(nodal_state, env_ids=env_ids, full_data=True)
 
     def write_nodal_pos_to_sim_mask(
@@ -232,10 +233,7 @@ class BaseDeformableObject(AssetBase):
                 Shape is (num_instances, max_sim_vertices_per_body, 3).
             env_mask: Environment mask. If None, then all indices are used.
         """
-        if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
-        else:
-            env_ids = self._ALL_INDICES
+        env_ids = resolve_ids(mask=env_mask, all_ids=self._ALL_INDICES)
         self.write_nodal_pos_to_sim_index(nodal_pos, env_ids=env_ids, full_data=True)
 
     def write_nodal_velocity_to_sim_mask(
@@ -250,10 +248,7 @@ class BaseDeformableObject(AssetBase):
                 Shape is (num_instances, max_sim_vertices_per_body, 3).
             env_mask: Environment mask. If None, then all indices are used.
         """
-        if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
-        else:
-            env_ids = self._ALL_INDICES
+        env_ids = resolve_ids(mask=env_mask, all_ids=self._ALL_INDICES)
         self.write_nodal_velocity_to_sim_index(nodal_vel, env_ids=env_ids, full_data=True)
 
     def write_nodal_kinematic_target_to_sim_mask(
@@ -268,10 +263,7 @@ class BaseDeformableObject(AssetBase):
                 Shape is (num_instances, max_sim_vertices_per_body, 4).
             env_mask: Environment mask. If None, then all indices are used.
         """
-        if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
-        else:
-            env_ids = self._ALL_INDICES
+        env_ids = resolve_ids(mask=env_mask, all_ids=self._ALL_INDICES)
         self.write_nodal_kinematic_target_to_sim_index(targets, env_ids=env_ids, full_data=True)
 
     """

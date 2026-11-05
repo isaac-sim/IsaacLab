@@ -125,10 +125,15 @@ class PhysxActuatorRuntime:
                     return
         self._run_native_actuator_kernels(collection, dt)
 
-    def reset(self, env_ids: Sequence[int] | slice) -> None:
-        """Reset selected native actuator state."""
+    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None) -> None:
+        """Reset selected native actuator state.
+
+        Args:
+            env_ids: Environments to reset. Defaults to all environments.
+            env_mask: Environment mask. Takes precedence over ``env_ids``. Shape is (num_instances,).
+        """
         if self.adapter is not None:
-            self.adapter.reset(env_ids)
+            self.adapter.reset(env_ids, env_mask)
 
     def _run_native_actuator_kernels(self, collection: ActuatorCollection, dt: float) -> None:
         from . import kernels as actuator_kernels  # noqa: PLC0415

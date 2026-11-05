@@ -61,11 +61,12 @@ class BaseCableObject(AssetBase):
         raise NotImplementedError()
 
     @abstractmethod
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Reset the cable object.
 
         Args:
             env_ids: Environment indices. If None, all instances are used.
+            env_mask: Environment mask. If None, all instances are used. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
