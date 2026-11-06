@@ -197,19 +197,13 @@ class BaseRigidObject(AssetBase):
         variant_ids: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Select collision geometry and inertial properties for selected environments.
+        """Select the configured shape and inertial variant for each requested environment.
 
-        Variant indices follow the configured multi-asset spawner's order. Static variant spawning
-        is independent of reset-time selection support. Newton MJWarp supports compatible single-body
-        variants with external contacts and disabled sleeping; other backends raise
-        :class:`NotImplementedError` for this operation.
+        IDs follow the spawner's list order. Unsupported backends raise :class:`NotImplementedError`.
 
         Args:
-            variant_ids: Variant index per selected environment, shape ``(len(env_ids),)``.
-                Every value must be in ``[0, num_mesh_variants)``. Accepts signed 32-bit or 64-bit integers
-                on the asset's device.
-            env_ids: Valid, unique environment indices, as signed 32-bit or 64-bit integers.
-                Tensor and array inputs must be on the asset's device. If ``None``, select every environment.
+            variant_ids: One signed int32/int64 variant ID per selected environment, on the asset's device.
+            env_ids: Environment indices on the asset's device. If ``None``, select every environment.
         """
         raise NotImplementedError(f"Backend {self.__backend_name__!r} does not support reset-time mesh selection.")
 

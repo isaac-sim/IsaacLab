@@ -260,16 +260,8 @@ def _prepare_cloning(
             groups.append(indices)
     worlds = tuple(itertools.product(*groups)) if world_prototypes is None else world_prototypes
     positions = grid_transforms(num_clones, env_spacing)[0] if positions is None else positions
-    plan = make_clone_plan(
-        asset_prototypes,
-        worlds,
-        num_clones,
-        weights=weights,
-        shared_assets=shared,
-        clone_strategy=clone_strategy,
-        env_template=env_template,
-        positions=positions,
-    )
+    options = dict(weights=weights, shared_assets=shared, clone_strategy=clone_strategy, env_template=env_template)
+    plan = make_clone_plan(asset_prototypes, worlds, num_clones, positions=positions, **options)
     source_paths = cloner_path.get_asset_prototype_paths(plan)
     for cfg, indices in declarations:
         spawn = getattr(cfg, "spawn", None)
@@ -280,8 +272,6 @@ def _prepare_cloning(
             spawn.spawn_path, spawn.spawn_paths = None, paths
             for index, path in zip(indices, paths, strict=True):
                 plan.asset_cfgs[index].spawn.spawn_paths = [path]
-                if len(indices) > 1:
-                    plan.asset_cfgs[index].spawn.spawn_path = path
         else:
             spawn.spawn_path = paths[0]
     sim.set_clone_plan(plan)

@@ -124,9 +124,8 @@ For more detail on prototype assignment and replication, see :doc:`cloning`.
 Reset-time selection
 ~~~~~~~~~~~~~~~~~~~~
 
-The multi-asset spawner's catalog also supplies the alternatives for reset-time selection. There is no separate
-static or dynamic mode: the clone plan assigns the initial variant, which stays unchanged unless the task selects
-another one. For example, a rigid object's spawn configuration can list two USD assets:
+A rigid object's multi-asset spawner defines the variants and their IDs in list order. Clone composition chooses
+the initial variant for each world. A reset event can change it before writing the episode's pose and velocity:
 
 .. code-block:: python
 
@@ -135,28 +134,14 @@ another one. For example, a rigid object's spawn configuration can list two USD 
        spawn=sim_utils.MultiUsdFileCfg(usd_path=["small_part.usd", "large_part.usd"]),
    )
 
-On a supported backend, clone construction declares one native Newton body-variant set for each catalog. Newton
-shares the alternatives between worlds, adds enough shape rows for the largest alternative, and owns the selected
-IDs. A reset event calls
-``scene["part"].write_mesh_variant_to_sim(variant_ids, env_ids)`` before writing the episode's initial pose and
-velocity. Indices follow the spawner's list order. Sampling decisions remain with the reset event, not the spawner.
-
-For matching fixed/movable catalogs, the task's startup and reset events select the same index on both objects.
-This relationship belongs to task reset logic, not an additional clone-composition API.
+Call ``scene["part"].write_mesh_variant_to_sim(variant_ids, env_ids)`` to select variants. A task with matching
+fixed and movable objects selects the same ID on both. Newton owns the selected IDs, geometry, and mass properties.
 
 Reset-time selection currently requires Newton MJWarp with external contacts and sleeping disabled. Every
-alternative must have one rigid body and the same fixed/free root-joint type and kinematic flags. Native Newton
-allows different shape types and counts, including colliders and visuals, while requiring compatible collision
-groups for shapes sharing a row. Collision geometry, materials, mass, and inertia follow the selected alternative;
-apply per-environment material randomization after selection. Newton GL and Viser follow the native model-change
-notification. RTX and MuJoCo's internal contacts do not support switching. Native shape-row storage scales with
-the largest alternative per body, rather than the catalog size multiplied by the number of worlds.
-Each switchable binding must own its target bodies independently. A source shared with an ordinary binding keeps
-its initial assignment instead of enabling selection.
-
-Other backends and catalogs can still use their initial clone assignments without switching. Calling
-``write_mesh_variant_to_sim`` raises ``NotImplementedError`` when the backend or catalog does not support selection;
-static multi-asset spawning does not require the narrower reset-time compatibility contract.
+alternative must contain one rigid body with the same fixed/free root-joint type and kinematic flags. Newton permits
+different shape types and counts, but shapes sharing a row need compatible collision groups. Select before
+randomizing contact materials because Newton restores the variant's materials. Other backends and unsupported
+objects keep their initial clone assignment; calling ``write_mesh_variant_to_sim`` raises ``NotImplementedError``.
 
 Run the example
 ---------------
