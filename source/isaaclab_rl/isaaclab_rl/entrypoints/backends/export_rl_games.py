@@ -8,10 +8,13 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 from typing import Any
 
 import torch
+
+logger = logging.getLogger(__name__)
 
 # LEAPP traces Isaac Lab's Python tensor operations, so TorchScript is disabled before importing task
 # or environment modules that compile decorated helpers at import time.
@@ -21,7 +24,7 @@ import gymnasium as gym
 from rl_games.common.player import BasePlayer
 from rl_games.torch_runner import Runner
 
-from isaaclab.envs import DirectMARLEnvCfg
+from isaaclab.envs import DirectMARLEnvCfg, multi_agent_to_single_agent
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.seed import configure_seed
 
@@ -29,6 +32,7 @@ import isaaclab_tasks  # noqa: F401
 
 from ...rl_games import RlGamesVecEnvWrapper, register_rl_games_env
 from ..common import resolve_published_checkpoint
+from . import cli_args_rl_games as cli_args
 from .export_common import (
     add_common_export_args,
     finalize_export_args,
@@ -47,6 +51,7 @@ def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace
     """Parse export arguments and return the remaining Hydra overrides."""
     parser = argparse.ArgumentParser(description="Export an RL agent with RL-Games.")
     add_common_export_args(parser, agent_default="rl_games_cfg_entry_point")
+    parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment.")
     parser.add_argument(
         "--use_last_checkpoint",
         action="store_true",
@@ -98,23 +103,20 @@ def _resolve_checkpoint(args_cli: argparse.Namespace, agent_cfg: dict, env_cfg: 
 
 def export_rl_games_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg: dict) -> bool:
     """Export an RL-Games agent; returns whether a graph was written."""
-    # concrete environment classes and the LEAPP runtime load simulation modules, so import them
-    # only after launch_simulation has initialized the selected backend
+    # the LEAPP runtime loads simulation modules, so import it only after launch_simulation has
+    # initialized the selected backend
     from leapp import annotate
 
-    from isaaclab.envs import multi_agent_to_single_agent
-
+    agent_cfg = cli_args.update_rl_games_cfg(agent_cfg, args_cli)
     params = agent_cfg["params"]
     env_cfg.scene.num_envs = 1
     env_cfg.seed = params["seed"]
-    if args_cli.device is not None:
-        env_cfg.sim.device = args_cli.device
 
     log_root_path = os.path.abspath(os.path.join("logs", "rl_games", params["config"]["name"]))
-    print(f"[INFO] Loading checkpoint search path from directory: {log_root_path}")
+    logger.info(f"Loading checkpoint search path from directory: {log_root_path}")
     resume_path = _resolve_checkpoint(args_cli, agent_cfg, env_cfg, log_root_path)
     if not resume_path:
-        print(f"[INFO] No checkpoint found for task: {args_cli.task} in directory: {log_root_path}")
+        logger.info(f"No checkpoint found for task: {args_cli.task} in directory: {log_root_path}")
         return False
     log_dir = os.path.dirname(os.path.dirname(resume_path))
     env_cfg.log_dir = log_dir
@@ -130,7 +132,7 @@ def export_rl_games_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg:
         params["load_checkpoint"] = True
         params["load_path"] = resume_path
         params["config"]["num_actors"] = env.unwrapped.num_envs
-        print(f"[INFO]: Loading model checkpoint from: {resume_path}")
+        logger.info(f"Loading model checkpoint from: {resume_path}")
         runner = Runner()
         # configure_seed must run after Runner() so torch determinism does not disturb its initialization
         if args_cli.deterministic:

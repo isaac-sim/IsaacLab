@@ -26,6 +26,21 @@ the Galbot Right Arm Suction stacking task, and its relative and absolute Mimic 
 Pass ``--device cpu`` when running teleoperation. Zero and random agents preserve these tasks'
 CPU defaults when ``--device`` is omitted; an explicit GPU override is unsupported.
 
+GPU articulation solver partition aliasing
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Affects:** ``physics=isaacsim_physx`` on CUDA when
+``PhysxCfg.gpu_max_num_partitions > 1``.
+
+The PhysX GPU articulation solver can corrupt articulation state when a scene contains
+more than 32 articulation instances and at least one articulation has more than 64 links.
+The corruption can appear as runaway joint velocities or NaNs in otherwise separate
+environments. See `Isaac Lab issue #8121`_ for the reported repro.
+
+As a workaround, set ``PhysxCfg(gpu_max_num_partitions=1)`` until the underlying PhysX
+issue is fixed. Isaac Lab logs a warning for managed PhysX
+:class:`~isaaclab.assets.Articulation` assets when the known conditions are detected.
+
 Sensor readings are stale immediately after a reset
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -154,6 +169,25 @@ its pose:
     for _ in range(12):
         sim.render()
 
+.. _known-issues-ovrtx-gaussian-cold-cache:
+
+Gaussian scenes can return near-black images with a cold OVRTX cache
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Affects:** ``renderer=ovrtx`` with OVRTX 0.6 / OVStage 0.3 on both scene readers.
+This issue is fixed in OVRTX 0.7.
+
+The Valiant Gaussian-splat scene can return near-black images when OVRTX's ``DerivedDataCache``
+is empty, even though the render product requests ``AllLoadingFinished`` and ``OnlyOnFirstRequest``.
+Rerunning with the populated cache can produce a valid image. Clearing only the downloaded asset
+or driver shader cache did not reproduce this failure when the derived-data cache remained warm.
+
+On Linux, this cache is under
+``${XDG_CACHE_HOME:-$HOME/.cache}/ovrtx/<ovrtx-version>/DerivedDataCache``; for example, OVRTX 0.6
+uses the ``0.6.0`` directory. Isaac Lab currently pins OVRTX 0.6, so the Valiant rendering tests
+remain marked as expected failures. There is no supported Isaac Lab configuration workaround
+for the affected version.
+
 .. _known-issues-scene-partition-count-cap:
 
 Scene partitioning is capped at 15625 partitions
@@ -178,6 +212,33 @@ Environments beyond the cap are left without their own partition and end up shar
 with another environment, so their tiled camera views can render another environment's
 geometry instead of their own.
 
+.. _known-issues-rtx-buffer-limit:
+
+Large RTX camera workloads can return black or corrupted images
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Affects:** RTX-based renderers (``renderer=isaacsim_rtx``, ``renderer=ovrtx``), independent of
+the physics backend.
+
+Increasing the camera count, resolution, or path-tracing samples per pixel (SPP) can cause camera
+views to become black or corrupted without raising an error. Simulation and training can continue
+with invalid observations.
+
+Camera views are combined into a tiled image (an atlas). On affected renderer versions, the
+rendering workload for a large atlas can exceed the supported Vulkan shader-access range for a
+buffer, approximately 4 GiB in the reported configuration. This can happen even with free GPU
+memory. The threshold depends on the padded atlas dimensions and rendering settings, so there is
+no universal camera-count limit. See `Isaac Lab issue #8412`_ for affected configurations,
+reproduction steps, and fix status.
+
+As a workaround, reduce the camera resolution, camera count, or path-tracing SPP, and inspect
+images from all cameras before training. Reducing the camera count may leave the atlas dimensions
+unchanged because of tile padding. Path-tracing SPP is distinct from the direct-lighting
+``samples_per_pixel`` setting.
+
+If RTX image quality is not required, the Newton Warp renderer (``renderer=newton_renderer``) does
+not render through Vulkan and is not subject to this limit.
+
 Using instanceable assets for markers
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -192,6 +253,8 @@ This is then replicated across other references of the same asset since physics 
 are stored in the instanceable asset's USD file and not in its stage reference's USD file.
 
 .. _instanceable assets: https://docs.isaacsim.omniverse.nvidia.com/latest/isaac_lab_tutorials/tutorial_instanceable_assets.html
+.. _Isaac Lab issue #8121: https://github.com/isaac-sim/IsaacLab/issues/8121
+.. _Isaac Lab issue #8412: https://github.com/isaac-sim/IsaacLab/issues/8412
 .. _Omniverse Isaac Sim documentation: https://docs.isaacsim.omniverse.nvidia.com/latest/overview/known_issues.html#
 .. _OpenUSD PR #4002: https://github.com/PixarAnimationStudios/OpenUSD/pull/4002
 
@@ -210,18 +273,3 @@ those links are treated as full bodies rather than zero-mass reference frames.
 However, the USD importer currently raises ``ReportError`` warnings showing unresolved references for such links
 when they lack visuals or colliders. This is a known bug in the importer; it creates references to visuals
 that do not exist. The warnings can be safely ignored until the importer is updated.
-
-
-Environment and setup
----------------------
-
-GLIBCXX errors in conda environments
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**Affects:** conda-based installations, independent of the physics backend.
-
-Some workflows exit with an ``OSError`` indicating ``version 'GLIBCXX_3.4.30' not found``
-when running from a conda environment. The issue appears to stem from importing torch or
-torch-related packages, such as tensorboard, before Isaac Sim starts. As a workaround, ensure
-that all torch imports happen inside :func:`~isaaclab.app.launch_simulation`, after the runtime has
-started, which should resolve the error.

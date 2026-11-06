@@ -12,7 +12,6 @@ These tests need no Omniverse/Isaac Sim stack.
 
 from __future__ import annotations
 
-from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -20,6 +19,8 @@ import pytest
 import torch
 from isaaclab_teleop.isaac_teleop_device import IsaacTeleopDevice
 from isaaclab_teleop.session_lifecycle import TeleopSessionLifecycle, _to_numpy_4x4
+
+from pxr import Gf
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -146,32 +147,34 @@ class TestBuildExternalInputsRebase:
 # ---------------------------------------------------------------------------
 
 _EXPLICIT = np.diag([2.0, 2.0, 2.0, 1.0]).astype(np.float32)
-_AUTO = np.diag([3.0, 3.0, 3.0, 1.0]).astype(np.float32)
+_AUTO = np.array([[0, 1, 0, -2], [-1, 0, 0, 1], [0, 0, 1, -3], [0, 0, 0, 1]], dtype=np.float32)
 
 
 @pytest.mark.parametrize(
-    ("prim_path", "explicit", "auto_result", "expected", "expect_auto_read"),
+    ("configured", "explicit", "expected"),
     [
-        pytest.param(None, None, _AUTO, None, False, id="no-config-no-explicit"),
-        pytest.param(None, _EXPLICIT, _AUTO, _EXPLICIT, False, id="explicit-only"),
-        pytest.param("/World/Robot/base_link", None, _AUTO, _AUTO, True, id="config-auto-read"),
-        pytest.param("/World/Robot/base_link", _EXPLICIT, _AUTO, _EXPLICIT, False, id="explicit-overrides-config"),
-        pytest.param("/World/Robot/base_link", None, None, None, True, id="config-read-fails"),
+        pytest.param(False, None, None, id="no-config-no-explicit"),
+        pytest.param(False, _EXPLICIT, _EXPLICIT, id="explicit-only"),
+        pytest.param(True, None, _AUTO, id="config-auto-read"),
+        pytest.param(True, _EXPLICIT, _EXPLICIT, id="explicit-overrides-config"),
     ],
 )
-def test_advance_selects_target_frame(prim_path, explicit, auto_result, expected, expect_auto_read):
-    """advance() passes an explicit target_T_world through, else reads the configured prim."""
+def test_advance_selects_target_frame(configured, explicit, expected):
+    """An explicit transform wins; otherwise invert the bound frame's current pose."""
     device = object.__new__(IsaacTeleopDevice)
-    device._cfg = SimpleNamespace(target_frame_prim_path=prim_path)
+    reference = MagicMock()
+    reference.Get.return_value = Gf.Matrix4d(0, 1, 0, 0, -1, 0, 0, 0, 0, 0, 1, 0, 1, 2, 3, 1)
+    device._target_world_matrix = reference if configured else None
     device._session_lifecycle = MagicMock()
     device._session_lifecycle.step.return_value = None
     device._anchor_manager = MagicMock()
-    device._get_target_frame_T_world = MagicMock(return_value=auto_result)
     device._dispatch_control_callbacks = lambda: None
 
     device.advance(target_T_world=explicit)
 
-    assert device._get_target_frame_T_world.called is expect_auto_read
     step_kwargs = device._session_lifecycle.step.call_args.kwargs
     assert step_kwargs["anchor_world_matrix_fn"] is device._anchor_manager.get_world_matrix
-    assert step_kwargs["target_T_world"] is expected
+    if expected is None or explicit is not None:
+        assert step_kwargs["target_T_world"] is expected
+    else:
+        np.testing.assert_allclose(step_kwargs["target_T_world"], expected, atol=1e-6)

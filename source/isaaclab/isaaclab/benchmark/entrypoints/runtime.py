@@ -16,7 +16,7 @@ Usage example::
     uv run isaaclab benchmark runtime \\
         --task Isaac-Cartpole-Direct \\
         --num_envs 16 --num_steps 1000 --warmup_steps 50 \\
-        presets=newton_mjwarp --visualizer none
+        presets=newton_mjwarp
 
 Use ``isaaclab benchmark runtime_multigpu`` to measure rank 0 while every GPU steps an
 independent workload; see :mod:`isaaclab.benchmark.entrypoints.multigpu`.
@@ -196,7 +196,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
                     env.unwrapped.sim.render_context, active=profile_render, timings=profile_timings
                 ),
                 stepping.profile_physics_steps(
-                    env.unwrapped.sim.physics_manager, active=profile_physics, timings=profile_timings
+                    env.unwrapped.sim.backend_manager, active=profile_physics, timings=profile_timings
                 ),
                 environment_step_timer,
                 BenchmarkMonitor(benchmark, interval=1.0),

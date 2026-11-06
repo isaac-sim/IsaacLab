@@ -51,7 +51,7 @@ class RenderBenchmarkEnv(DirectRLEnv):
         ):
             self.close()
             raise ValueError(
-                "Isaac RTX direct posing requires --visualizer none or a visualizer that does not pump the Kit app"
+                "Isaac RTX direct posing requires no visualizer, or only visualizers that do not pump the Kit app"
                 " loop. Alternatively, use benchmark_mode=physics_render."
             )
 

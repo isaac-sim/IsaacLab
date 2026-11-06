@@ -8,9 +8,12 @@
 from __future__ import annotations
 
 import contextlib
+import logging
 import os
 import re
 from urllib.parse import parse_qs, urlparse
+
+logger = logging.getLogger(__name__)
 
 # Suppress import error if wandb is not installed; only needed when a wandb checkpoint is requested.
 with contextlib.suppress(ImportError):
@@ -108,13 +111,13 @@ def announce_new_run(project: str, entity: str | None = None) -> None:
     run_id = os.environ["WANDB_RUN_ID"]
 
     if entity is None:
-        print(f"[INFO] Logging to wandb project '{project}', run id '{run_id}'.")
-        print(
-            f"[INFO] Once your entity is known, resume or play it with: --checkpoint wandb:<entity>/{project}/{run_id}"
+        logger.info(f"Logging to wandb project '{project}', run id '{run_id}'.")
+        logger.info(
+            f"Once your entity is known, resume or play it with: --checkpoint wandb:<entity>/{project}/{run_id}"
         )
     else:
-        print(f"[INFO] Logging to wandb run: wandb:{entity}/{project}/{run_id}")
-        print(f"[INFO] Resume or play it later with: --checkpoint wandb:{entity}/{project}/{run_id}")
+        logger.info(f"Logging to wandb run: wandb:{entity}/{project}/{run_id}")
+        logger.info(f"Resume or play it later with: --checkpoint wandb:{entity}/{project}/{run_id}")
 
 
 def get_model_checkpoint(
@@ -152,7 +155,7 @@ def get_model_checkpoint(
             "WANDB_ENTITY or WANDB_USERNAME environment variable."
         )
 
-    print(f"[INFO] Downloading model checkpoint from wandb run: {wandb_entity}/{project}/{run_id}")
+    logger.info(f"Downloading model checkpoint from wandb run: {wandb_entity}/{project}/{run_id}")
     api = wandb.Api()
     wdb_run = api.run(f"{wandb_entity}/{project}/{run_id}")
 

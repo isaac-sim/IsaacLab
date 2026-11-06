@@ -22,6 +22,9 @@ __all__ = [
     "GR1T2_CFG",
     "GR1T2_HIGH_PD_CFG",
     "FRANKA_PANDA_CFG",
+    "FRANKA_MINIMAL_CFG",
+    "FRANKA_PANDA_LEGACY_CFG",
+    "FRANKA_PANDA_LEGACY_HIGH_PD_CFG",
     "FRANKA_PANDA_HIGH_PD_CFG",
     "FRANKA_PANDA_MENAGERIE_CFG",
     "FRANKA_ROBOTIQ_GRIPPER_CFG",
@@ -33,10 +36,21 @@ __all__ = [
     "KINOVA_JACO2_N6S300_CFG",
     "KINOVA_GEN3_N7_CFG",
     "KUKA_ALLEGRO_CFG",
+    "MICRODUCK_CFG",
+    "MICRODUCK_ALLCOLLISIONS_CFG",
+    "MICRODUCK_BACKLASH_CFG",
+    "MICRODUCK_ALLCOLLISIONS_BACKLASH_CFG",
     "PICK_AND_PLACE_CFG",
+    "P7_CFG",
     "P7_L6_CFG",
     "P7_O6_CFG",
     "P7_L20_CFG",
+    "L6_LEFT_CFG",
+    "L6_RIGHT_CFG",
+    "O6_LEFT_CFG",
+    "O6_RIGHT_CFG",
+    "L20_LEFT_CFG",
+    "L20_RIGHT_CFG",
     "CRAZYFLIE_CFG",
     "RIDGEBACK_FRANKA_PANDA_CFG",
     "SAWYER_CFG",
@@ -85,6 +99,9 @@ from .cassie import CASSIE_CFG
 from .fourier import GR1T2_CFG, GR1T2_HIGH_PD_CFG
 from .franka import (
     FRANKA_PANDA_CFG,
+    FRANKA_MINIMAL_CFG,
+    FRANKA_PANDA_LEGACY_CFG,
+    FRANKA_PANDA_LEGACY_HIGH_PD_CFG,
     FRANKA_PANDA_HIGH_PD_CFG,
     FRANKA_PANDA_MENAGERIE_CFG,
     FRANKA_ROBOTIQ_GRIPPER_CFG,
@@ -95,8 +112,25 @@ from .humanoid import HUMANOID_CFG
 from .humanoid_28 import HUMANOID_28_CFG
 from .kinova import KINOVA_JACO2_N7S300_CFG, KINOVA_JACO2_N6S300_CFG, KINOVA_GEN3_N7_CFG
 from .kuka_allegro import KUKA_ALLEGRO_CFG
+from .microduck import (
+    MICRODUCK_CFG,
+    MICRODUCK_ALLCOLLISIONS_CFG,
+    MICRODUCK_BACKLASH_CFG,
+    MICRODUCK_ALLCOLLISIONS_BACKLASH_CFG,
+)
 from .pick_and_place import PICK_AND_PLACE_CFG
-from .realhand import P7_L6_CFG, P7_O6_CFG, P7_L20_CFG
+from .realhand import (
+    P7_CFG,
+    P7_L6_CFG,
+    P7_O6_CFG,
+    P7_L20_CFG,
+    L6_LEFT_CFG,
+    L6_RIGHT_CFG,
+    O6_LEFT_CFG,
+    O6_RIGHT_CFG,
+    L20_LEFT_CFG,
+    L20_RIGHT_CFG,
+)
 from .quadcopter import CRAZYFLIE_CFG
 from .ridgeback_franka import RIDGEBACK_FRANKA_PANDA_CFG
 from .sawyer import SAWYER_CFG

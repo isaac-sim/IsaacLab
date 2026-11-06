@@ -93,7 +93,7 @@ uv run --extra isaacsim python validation/evaluate_checkpoint.py \
   --num_envs 64 --steps 256 --device cuda:0
 ```
 
-Ensure standalone simulation helpers explicitly select the same physics preset as training. Omit `--viz` for headless validation. Use `--viz none` only when a config or command would otherwise enable visualizers. These project-root `uv` commands also work from PowerShell without platform-specific import-path setup.
+Ensure standalone simulation helpers explicitly select the same physics preset as training. Omit `--viz` for headless validation. These project-root `uv` commands also work from PowerShell without platform-specific import-path setup.
 
 If no validation helper scripts exist, create the smallest scratch-only smoke, scalar parsing, and checkpoint evaluation scripts needed for the migration task. Do not add those helpers to Isaac Lab unless the user asks for committed validation files.
 

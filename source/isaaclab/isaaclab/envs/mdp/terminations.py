@@ -86,6 +86,20 @@ def root_height_below_minimum(
     return asset.data.root_pos_w.torch[:, 2] < minimum_height
 
 
+def pelvis_below_terrain_clearance(
+    env: ManagerBasedRLEnv,
+    minimum_height: float,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    sensor_cfg: SceneEntityCfg = SceneEntityCfg("height_scanner"),
+) -> torch.Tensor:
+    """Terminate when the root sits less than ``minimum_height`` above the ground beneath it."""
+    asset = env.scene[asset_cfg.name]
+    sensor = env.scene[sensor_cfg.name]
+    hits = sensor.data.ray_hits_w.torch[..., 2]
+    ground = torch.nan_to_num(hits, nan=0.0, posinf=0.0, neginf=0.0).median(dim=1).values
+    return asset.data.root_pos_w.torch[:, 2] - ground < minimum_height
+
+
 """
 Joint terminations.
 """
@@ -128,7 +142,7 @@ class joint_vel_out_of_limit(ManagerTermBase):
 
     def __init__(self, cfg: TerminationTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
-        asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg", SceneEntityCfg("robot"))
+        asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         self._asset: Articulation = env.scene[asset_cfg.name]
         joint_ids = asset_cfg.joint_ids
         if isinstance(joint_ids, list):
@@ -143,9 +157,10 @@ class joint_vel_out_of_limit(ManagerTermBase):
 def joint_vel_out_of_manual_limit(
     env: ManagerBasedRLEnv, max_velocity: float, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
-    """Terminate when the asset's joint velocities are outside the provided limits."""
+    """Terminate when joint velocities are non-finite or outside the provided limits."""
     asset: Articulation = env.scene[asset_cfg.name]
-    return torch.any(torch.abs(asset.data.joint_vel.torch[:, asset_cfg.joint_ids]) > max_velocity, dim=1)
+    joint_vel = asset.data.joint_vel.torch[:, asset_cfg.joint_ids]
+    return torch.any(~torch.isfinite(joint_vel) | (torch.abs(joint_vel) > max_velocity), dim=1)
 
 
 def joint_effort_out_of_limit(

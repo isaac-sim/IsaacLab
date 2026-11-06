@@ -15,7 +15,7 @@ from .keyboard_gen_cfg import KeyboardSpawnerCfg
 from .keyboard_geometry import base_profile_visuals, generate_keyboard
 
 _KEYBOARD_DOF = 108
-_KEYBOARD_VARIANTS = 32
+_KEYBOARD_VARIANTS = 19
 _PARTITION_DOF = 6
 
 

@@ -162,6 +162,22 @@ class RigidObjectSpawnerCfg(SpawnerCfg):
     i.e. the anchor prim itself.
     """
 
+    mesh_collision_props: (
+        dict[str, list[schemas.MeshCollisionFragment]]
+        | schemas.MeshCollisionFragment
+        | list[schemas.MeshCollisionFragment]
+        | schemas.MeshCollisionBaseCfg
+        | None
+    ) = None
+    """Mesh-collision properties for existing colliders. Defaults to None.
+
+    Accepts a fragment, a list of fragments, a target-pattern mapping, or a legacy
+    :class:`~isaaclab.sim.schemas.MeshCollisionBaseCfg`. Patterns anchor at the spawn prim for file
+    spawners and the geometry prim for shape and mesh spawners. A bare value reaches every collider
+    under a file asset or the geometry collider of a shape or mesh. Non-colliders are ignored.
+    Deformable spawners reject this slot because they collide through their simulation mesh.
+    """
+
     activate_contact_sensors: bool = False
     """Activate contact reporting on all rigid bodies. Defaults to False.
 
@@ -192,7 +208,17 @@ class DeformableObjectSpawnerCfg(SpawnerCfg):
     """Mass properties."""
 
     deformable_props: schemas.DeformableBodyPropertiesBaseCfg | None = None
-    """Deformable body properties."""
+    """Deformable body properties.
+
+    .. deprecated:: 3.1
+        Use :attr:`volume_deformable_props` or :attr:`surface_deformable_props` with deformable-body
+        schema fragments instead. This field has no deformable type of its own: it authors a surface
+        deformable when the spawner's ``physics_material`` is a
+        :class:`~isaaclab.sim.spawners.materials.SurfaceDeformableBodyMaterialBaseCfg` and a volume
+        deformable otherwise, so pick the slot the same way. The field emits no warning of its own:
+        the legacy cfgs it takes warn when constructed, and spawning through it calls the deprecated
+        deformable writers, which warn as well. This field will be removed in 3.2.
+    """
 
     volume_deformable_props: (
         dict[str, list[schemas.DeformableBodyFragment]]

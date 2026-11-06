@@ -3,11 +3,26 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for the RealHand P7 robot configurations."""
+"""Tests for the assembled and standalone RealHand asset configurations."""
+
+import re
 
 import pytest
 
-from isaaclab_assets import P7_L6_CFG, P7_L20_CFG, P7_O6_CFG
+from isaaclab_assets import (
+    L6_LEFT_CFG,
+    L6_RIGHT_CFG,
+    L20_LEFT_CFG,
+    L20_RIGHT_CFG,
+    O6_LEFT_CFG,
+    O6_RIGHT_CFG,
+    P7_CFG,
+    P7_L6_CFG,
+    P7_L20_CFG,
+    P7_O6_CFG,
+)
+
+pytestmark = pytest.mark.kitless
 
 
 @pytest.mark.parametrize(
@@ -62,3 +77,63 @@ def test_realhand_mimic_configs_are_independent():
         assert l20_patterns == original
     finally:
         o6_patterns.pop()
+
+
+def test_standalone_p7_configuration():
+    """The bare arm preset has no hand actuators or hand initial-state expressions."""
+    assert re.fullmatch(
+        r"https://huggingface.co/realhandinc/realhand-teleop/resolve/[0-9a-f]{40}/assets/isaaclab/robots/P7/P7.usda",
+        P7_CFG.spawn.usd_path,
+    )
+    assert set(P7_CFG.actuators) == {"arms"}
+    assert P7_CFG.init_state.pos == (0.0, 0.0, 1.25)
+    assert len(P7_CFG.init_state.joint_pos) == 14
+    assert all("_hand_" not in name and value == 0.0 for name, value in P7_CFG.init_state.joint_pos.items())
+
+
+@pytest.mark.parametrize(
+    ("cfg", "model", "side", "has_mimics"),
+    [
+        (L6_LEFT_CFG, "L6", "left", False),
+        (L6_RIGHT_CFG, "L6", "right", False),
+        (O6_LEFT_CFG, "O6", "left", True),
+        (O6_RIGHT_CFG, "O6", "right", True),
+        (L20_LEFT_CFG, "L20", "left", True),
+        (L20_RIGHT_CFG, "L20", "right", True),
+    ],
+)
+def test_standalone_realhand_configuration(cfg, model, side, has_mimics):
+    """Each public hand preset addresses only its own side, in the native palm frame."""
+    assert re.fullmatch(
+        r"https://huggingface.co/realhandinc/realhand-teleop/resolve/[0-9a-f]{40}/assets/isaaclab/robots/.*",
+        cfg.spawn.usd_path,
+    )
+    assert cfg.spawn.usd_path.endswith(f"/{model}_{side}/{model}_{side}.usda")
+    assert set(cfg.actuators) == ({"hands", "hand_mimics"} if has_mimics else {"hands"})
+    assert cfg.init_state.pos == (0.0, 0.0, 0.5)
+    assert cfg.init_state.rot == (0.0, 0.0, 0.0, 1.0)
+    assert cfg.init_state.joint_pos == {f"{side}_hand_.*": 0.0}
+    for joint in ("thumb_cmc_pitch", "index_mcp_pitch"):
+        assert any(
+            re.fullmatch(expression, f"{side}_hand_{joint}") for expression in cfg.actuators["hands"].joint_names_expr
+        )
+    other_side = "right" if side == "left" else "left"
+    for actuator in cfg.actuators.values():
+        for expression in actuator.joint_names_expr:
+            assert not re.fullmatch(expression, f"{other_side}_hand_thumb_cmc_pitch")
+            assert not re.fullmatch(expression, f"{side}_joint1")
+    if has_mimics:
+        assert cfg.actuators["hand_mimics"].joint_effort_limit == 0.0
+        assert cfg.actuators["hand_mimics"].stiffness == 0.0
+        assert cfg.actuators["hand_mimics"].damping == 0.0
+
+
+def test_standalone_realhand_configs_are_independent():
+    """Editing a standalone preset cannot change its sibling or assembled preset."""
+    original = list(L20_LEFT_CFG.actuators["hand_mimics"].joint_names_expr)
+    try:
+        L20_LEFT_CFG.actuators["hand_mimics"].joint_names_expr.append("test_only_mimic_joint")
+        assert "test_only_mimic_joint" not in L20_RIGHT_CFG.actuators["hand_mimics"].joint_names_expr
+        assert "test_only_mimic_joint" not in P7_L20_CFG.actuators["hand_mimics"].joint_names_expr
+    finally:
+        L20_LEFT_CFG.actuators["hand_mimics"].joint_names_expr[:] = original

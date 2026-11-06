@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import builtins
 import os
 import random
 import re
@@ -15,6 +16,8 @@ import sys
 import tempfile
 import threading
 import time
+from collections.abc import Callable
+from functools import wraps
 from typing import IO, Any
 
 from rich.cells import cell_len, chop_cells, set_cell_size
@@ -280,6 +283,10 @@ class LoadingScreen:
     hands the console back, so whatever runs next (typically an RL library's
     training log) prints undisturbed.
 
+    While active, the context replaces :func:`builtins.input` process-wide.
+    An interactive prompt restores normal output and replays captured context
+    before waiting for input. Later stages and summaries use plain console output.
+
     The screen degrades to plain stage lines, with no redirection, when it is
     disabled -- for a non-interactive console or a verbose run -- so nothing is
     hidden from a captured log.
@@ -331,6 +338,8 @@ class LoadingScreen:
         self._spool: IO[str] | None = None
         self._saved_fds: tuple[int, int] | None = None
         self._saved_streams: tuple[IO[str], IO[str]] | None = None
+        self._original_input: Callable[..., str] | None = None
+        self._input_wrapper: Callable[..., str] | None = None
         self._started = 0.0
         self._index = 0
         self._stage = ""
@@ -342,7 +351,7 @@ class LoadingScreen:
         self._summary_fields: dict[str, str] = {}
 
     def __enter__(self) -> LoadingScreen:
-        """Take over the console and start spooling startup output."""
+        """Take over the console and replace :func:`builtins.input` until a prompt or shutdown."""
         global _active_screen
         self._started = time.monotonic()
         if self._enabled:
@@ -363,6 +372,18 @@ class LoadingScreen:
                     redirect_stderr=False,
                 )
                 self._live.start(refresh=True)
+                original_input = builtins.input
+
+                @wraps(original_input)
+                def input_with_console(*args: Any, **kwargs: Any) -> str:
+                    # Interactive questions need both the captured context and
+                    # their prompt visible before they wait for an answer.
+                    self._shut_down(replay=True)
+                    return original_input(*args, **kwargs)
+
+                self._original_input = original_input
+                self._input_wrapper = input_with_console
+                builtins.input = input_with_console
         _active_screen = self
         return self
 
@@ -437,6 +458,10 @@ class LoadingScreen:
         global _active_screen
         if _active_screen is self:
             _active_screen = None
+        if self._original_input is not None and builtins.input is self._input_wrapper:
+            builtins.input = self._original_input
+            self._original_input = None
+            self._input_wrapper = None
         live: Live | None
         final_header = ""
         with self._render_lock:
@@ -454,6 +479,7 @@ class LoadingScreen:
                 )
             self._live = None
             self._rich_console = None
+            self._enabled = False
         try:
             if live is not None:
                 live.stop()

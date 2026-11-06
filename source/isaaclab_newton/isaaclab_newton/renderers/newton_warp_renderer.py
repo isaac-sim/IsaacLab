@@ -8,9 +8,10 @@
 from __future__ import annotations
 
 import logging
+import warnings
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, Any, NoReturn
+from typing import TYPE_CHECKING, Any
 
 import newton
 import warp as wp
@@ -19,9 +20,10 @@ from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL, SceneDataFormat
 from isaaclab.sim import SimulationContext
+from isaaclab.utils.version import has_kit
 from isaaclab.utils.warp.warp_math import replace_background_depth_wp
 
-from ..physics import NewtonBackendCfg, NewtonQueries
+from ..physics import NewtonBackendCfg, newton_backend
 from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
 from .segmentation import NewtonSegmentationMapper, NewtonSegmentationMapping
 
@@ -32,6 +34,17 @@ if TYPE_CHECKING:
     from isaaclab.utils.warp import ProxyArray
 
 logger = logging.getLogger(__name__)
+
+
+@wp.kernel(enable_backward=False)
+def _fill_hdr_background(
+    image: wp.array4d(dtype=wp.vec3f),
+    shape_ids: wp.array4d(dtype=wp.uint32),
+    color: wp.vec3f,
+):
+    world, camera, row, col = wp.tid()
+    if shape_ids[world, camera, row, col] == wp.uint32(0xFFFFFFFF):
+        image[world, camera, row, col] = color
 
 
 @wp.kernel(enable_backward=False)
@@ -54,21 +67,6 @@ def _update_camera_rays(intrinsics: wp.array(dtype=wp.mat33f), rays: wp.array4d(
     )
     rays[0, y, x, 0] = wp.vec3f(0.0)
     rays[0, y, x, 1] = wp.normalize(direction)
-
-
-_PPISP_IMPORT_ERROR_MESSAGE = (
-    "isaaclab_ppisp is required when CameraCfg.isp_cfg is set. "
-    "It ships with the Isaac Lab wheel (`pip install isaaclab`); otherwise install the "
-    "isaaclab-ppisp extension from the Isaac Lab source checkout."
-)
-
-
-def _raise_missing_ppisp_error(exc: ModuleNotFoundError) -> NoReturn:
-    # Only translate missing isaaclab_ppisp imports into the optional-dependency hint;
-    # unrelated missing modules should surface unchanged for easier debugging.
-    if exc.name != "isaaclab_ppisp" and not (exc.name and exc.name.startswith("isaaclab_ppisp.")):
-        raise exc
-    raise ModuleNotFoundError(_PPISP_IMPORT_ERROR_MESSAGE, name="isaaclab_ppisp") from exc
 
 
 class RenderData:
@@ -143,20 +141,25 @@ class RenderData:
         # Requested segmentation outputs keyed by data-type name -> (destination view, mapping). Each view
         # aliases the caller's output buffer as ``(world_count, 1, H, W)`` uint32.
         self._seg_dests: dict[str, tuple[wp.array, NewtonSegmentationMapping]] = {}
-        self.width = getattr(spec.cfg, "width", 100)
-        self.height = getattr(spec.cfg, "height", 100)
+        self.width = spec.cfg.width
+        self.height = spec.cfg.height
         # Camera clipping planes [m] from ``spawn.clipping_range`` (``[0]`` near, ``[1]`` far).
         # Newton's ray tracer has no near-plane parameter, so only the far plane is enforced (through
         # the sensor's ``max_distance``); ``near_clip`` is captured for consumers but not applied.
         spawn = spec.cfg.spawn
-        clipping_range = getattr(spawn, "clipping_range", None)
+        clipping_range = spawn.clipping_range if spawn is not None else None
         self.near_clip: float | None = float(clipping_range[0]) if clipping_range is not None else None
         self.far_clip: float | None = float(clipping_range[1]) if clipping_range is not None else None
 
         # ABGR clear color packed as uint32 — Newton's SensorTiledCamera reads the low byte as R,
         # next as G, next as B, high byte as A (little-endian RGBA in memory). Default is 93% gray
         # (0xFFEEEEEE), matching the RTX renderer background and improving visibility of dark objects.
-        background_color = getattr(spec.cfg, "background_color", None)
+        background_color = spec.cfg.background_color
+        self._hdr_background_color = (
+            wp.vec3f(*newton.utils.color_srgb_to_linear(tuple(max(0.0, min(1.0, c)) for c in background_color)))
+            if background_color is not None
+            else None
+        )
         if background_color is not None:
             r, g, b = (max(0, min(255, round(c * 255))) for c in background_color)
             self.clear_color: int = (0xFF << 24) | (b << 16) | (g << 8) | r
@@ -167,13 +170,10 @@ class RenderData:
         # to trace distorted per-pixel rays instead of the centered, square-pixel pinhole field.
         self._distortion = spawn.distortion if spawn is not None else None
         # Post-render PPISP pipeline composed when ``spec.cfg.isp_cfg`` is set.
-        # ``isp_cfg`` is already fully normalized by ``prepare_cameras`` by the time it reaches here.
+        # Camera construction has already resolved the ISP configuration.
         self.ppisp_pipeline: PpispPipeline | None = None
         if spec.cfg.isp_cfg is not None:
-            try:
-                from isaaclab_ppisp import PpispPipeline
-            except ModuleNotFoundError as exc:
-                _raise_missing_ppisp_error(exc)
+            from isaaclab_ppisp import PpispPipeline
 
             self.ppisp_pipeline = PpispPipeline(spec.cfg.isp_cfg)
         self._hdr_scratch_wp: wp.array | None = None
@@ -263,6 +263,13 @@ class RenderData:
                 device=self._hdr_scratch_wp.device,
                 copy=False,
             )
+        # Newton clears HDR to black regardless of clear_color. A hit mask preserves dark geometry.
+        if (
+            self.outputs.hdr_color_image is not None
+            and self._hdr_background_color is not None
+            and self.outputs.shape_index_image is None
+        ):
+            self.outputs.shape_index_image = wp.zeros(shape, dtype=wp.uint32, device=self.newton_sensor.model.device)
         # Bind the two warp arrays the per-frame PPISP dispatch needs.
         if self.ppisp_pipeline is not None:
             if str(RenderBufferKind.RGBA) not in output_data:
@@ -429,16 +436,13 @@ class NewtonWarpRenderer(BaseRenderer):
 
     RenderData = RenderData
 
-    def __init__(self, cfg: NewtonWarpRendererCfg):
+    def __init__(self, cfg: NewtonWarpRendererCfg, *, sim: SimulationContext):
         """Pre-physics initialization."""
-        self.cfg = cfg
+        super().__init__(cfg, sim=sim)
         self.newton_sensor: newton.sensors.SensorTiledCamera | None = None
-        # USD stage captured in ``prepare_cameras``; used by the segmentation mapper to read semantics.
-        self._stage: Any = None
         # Shared, scene-static segmentation lookup builder, created lazily in ``create_render_data``.
         self._seg_mapper: NewtonSegmentationMapper | None = None
 
-        sim = SimulationContext.instance()
         self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
         requires_stage, requires_model = REQUIRES_STAGE_AND_MODEL["newton_warp"]
         sim.requires_usd_stage |= requires_stage
@@ -446,9 +450,8 @@ class NewtonWarpRenderer(BaseRenderer):
 
     def initialize(self) -> None:
         """Acquire the clone-built native resource and bind its SDP layout."""
-        sim = SimulationContext.instance()
-        self.backend = sim.get_or_create_backend(self.newton_cfg)
-        self._scene_data_provider = sim.get_scene_data_provider()
+        self.backend = self._sim.get_or_create_backend(self.newton_cfg)
+        self._scene_data_provider = self._sim.get_scene_data_provider()
         self._transform_mapping = self._scene_data_provider.create_mapping(list(self.backend.model.body_label))
 
         self.newton_sensor = newton.sensors.SensorTiledCamera(
@@ -487,28 +490,6 @@ class NewtonWarpRenderer(BaseRenderer):
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.supported_output_types`."""
         return self.cfg.supported_output_types()
 
-    def prepare_cameras(self, stage: Any, spec: CameraRenderSpec) -> None:
-        """Resolve the camera's PPISP cfg before rendering.
-
-        :mod:`isaaclab.sensors.camera` does not depend on PPISP; the renderer
-        owns the sentinel-resolution + cfg-normalization step. Newton has no
-        USD-side overrides to author beyond this.
-
-        Also captures the USD ``stage`` so the segmentation mapper can read the scene's
-        :class:`UsdSemantics.LabelsAPI` labels when a segmentation output is requested.
-
-        """
-        self._stage = stage
-        if spec.cfg.isp_cfg is None:
-            return
-        try:
-            from isaaclab_ppisp import resolve_and_normalize
-        except ModuleNotFoundError as exc:
-            _raise_missing_ppisp_error(exc)
-
-        camera_prim_path = spec.camera_prim_paths[0] if spec.camera_prim_paths else None
-        spec.cfg.isp_cfg = resolve_and_normalize(spec.cfg.isp_cfg, stage, camera_prim_path)
-
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
         """No-op for Newton Warp - uses Newton scene directly without stage export.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.prepare_stage`."""
@@ -517,14 +498,30 @@ class NewtonWarpRenderer(BaseRenderer):
     def create_render_data(self, spec: CameraRenderSpec) -> RenderData:
         """Create render data for the Newton tiled camera.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data`."""
+        if spec.cfg.spawn is None or spec.cfg.spawn.distortion is None:
+            for path in spec.camera_prim_paths:
+                prim = self._sim.stage.GetPrimAtPath(path)
+                if not prim.IsValid():
+                    continue
+                schemas = prim.GetMetadata("apiSchemas")
+                if prim.GetAttribute("omni:lensdistortion:model").Get() or (
+                    schemas and any("LensDistortion" in name for name in schemas.GetAppliedItems())
+                ):
+                    warnings.warn(
+                        "Newton Warp does not read lens distortion coefficients from camera USD assets. "
+                        "Configure spawn.distortion to apply the OpenCV camera model.",
+                        UserWarning,
+                        stacklevel=2,
+                    )
+                    break
 
         # Build the shared segmentation mapper and its per-kind lookup tables up-front for all
         # requested segmentation outputs.
         has_semantic = RenderBufferKind.SEMANTIC_SEGMENTATION in spec.cfg.data_types
         has_instance = RenderBufferKind.INSTANCE_SEGMENTATION in spec.cfg.data_types
         if (has_semantic or has_instance) and self._seg_mapper is None:
-            plan = SimulationContext.instance().get_clone_plan()
-            self._seg_mapper = NewtonSegmentationMapper(self.newton_sensor.model, self._stage, self.cfg, plan)
+            plan = self._sim.get_clone_plan()
+            self._seg_mapper = NewtonSegmentationMapper(self.newton_sensor.model, self._sim.stage, self.cfg, plan)
         if has_semantic:
             self._seg_mapper.build_mapping(
                 RenderBufferKind.SEMANTIC_SEGMENTATION, bool(self.cfg.colorize_semantic_segmentation)
@@ -593,14 +590,20 @@ class NewtonWarpRenderer(BaseRenderer):
             backend.state_0.body_q = poses.transforms
         if backend.geometry_offsets:
             provider.get_geometry_points(output=backend.state_0.particle_q, offsets=backend.geometry_offsets)
-        render_data.graph = NewtonQueries.run_query(
-            self.backend,
-            provider.backend.transforms_timestamp + provider.backend.geometry_timestamp,
-            partial(self._launch_render, render_data),
-            render_data.graph,
-            # Native triangle-mesh updates read back indices and may allocate after pointer swaps.
-            use_cuda_graph=self.cfg.use_cuda_graph and backend.model.tri_count == 0,
-        )
+        # Native triangle-mesh updates read back indices and may allocate after pointer swaps.
+        use_graph = self.cfg.use_cuda_graph and backend.device.is_cuda and backend.model.tri_count == 0
+        timestamp = provider.backend.transforms_timestamp + provider.backend.geometry_timestamp
+        backend.refit_bvh(timestamp, use_cuda_graph=use_graph)
+        if not use_graph or backend.device.is_capturing:
+            self._launch_render(render_data)
+        else:
+            pointers = backend.state_pointers()
+            if render_data.graph is None or render_data.graph[0] != pointers:
+                graph = newton_backend.capture_graph(
+                    backend.device, partial(self._launch_render, render_data), relaxed=has_kit()
+                )
+                render_data.graph = pointers, graph
+            wp.capture_launch(render_data.graph[1])
 
         # Post-render PPISP: HDR scene-linear → LDR RGBA. Source/destination
         # tensors were bound once in ``set_outputs``.
@@ -648,6 +651,18 @@ class NewtonWarpRenderer(BaseRenderer):
             kernel_block_dim=self.cfg.kernel_block_dim,
         )
 
+        if render_data.outputs.hdr_color_image is not None and render_data._hdr_background_color is not None:
+            wp.launch(
+                _fill_hdr_background,
+                dim=render_data.outputs.hdr_color_image.shape,
+                inputs=[
+                    render_data.outputs.hdr_color_image,
+                    render_data.outputs.shape_index_image,
+                    render_data._hdr_background_color,
+                ],
+                device=render_data.outputs.hdr_color_image.device,
+            )
+
         if _depth_kinds & render_data._PLANE_DEPTH_KINDS:
             render_data._copy_plane_depth()
             render_data._apply_depth_clipping(self.cfg.depth_clipping_behavior)
@@ -656,17 +671,8 @@ class NewtonWarpRenderer(BaseRenderer):
         render_data._convert_segmentation()
 
     def read_output(self, render_data: RenderData, camera_data: CameraData) -> None:
-        """Copy rendered outputs to the camera data buffers.
+        """Publish segmentation metadata; pixel outputs alias the camera buffers bound in :meth:`set_outputs`.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.read_output`."""
-        for output_name in camera_data.output:
-            if output_name == "rgb":
-                continue
-            image_data = render_data.get_output(output_name)
-            if image_data is not None:
-                output_wp = camera_data.output[output_name].warp
-                if image_data.ptr != output_wp.ptr:
-                    wp.copy(output_wp, image_data)
-
         # Publish the segmentation id-to-label metadata (idToLabels / idToSemantics) alongside the
         # pixel buffers.
         for output_name, info in render_data.segmentation_info().items():

@@ -6,7 +6,6 @@
 
 from isaaclab_physx.assets import SurfaceGripperCfg
 from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxRigidBodyCfg
-from isaaclab_teleop import IsaacTeleopCfg
 
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.envs.mdp.actions.actions_cfg import SurfaceGripperBinaryActionCfg
@@ -21,6 +20,7 @@ from isaaclab.utils import clone, configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.visualizers import VisualizerCfg
 
+from isaaclab_tasks.contrib import ISAACLAB_TELEOP_AVAILABLE
 from isaaclab_tasks.contrib.stack import mdp
 from isaaclab_tasks.contrib.stack.mdp import franka_stack_events
 from isaaclab_tasks.contrib.stack.stack_env_cfg import (
@@ -30,10 +30,6 @@ from isaaclab_tasks.contrib.stack.stack_env_cfg import (
     raise_if_surface_gripper_on_newton,
 )
 
-# Marker consumed by ``env_test_utils._is_teleop_env`` to bucket teleop
-# environments in the test suite.
-_TELEOP_AVAILABLE = True
-
 ##
 # Pre-defined configs
 ##
@@ -42,7 +38,7 @@ from isaaclab_assets.robots.galbot import GALBOT_ONE_CHARLIE_CFG  # isort: skip
 
 
 def _build_se3_abs_gripper_pipeline(hand_side="left"):
-    """Build an IsaacTeleop Se3Abs + Gripper pipeline for single-arm manipulator teleoperation.
+    """Build an Isaac Capture Se3Abs + Gripper pipeline for single-arm manipulator teleoperation.
 
     Creates a Se3AbsRetargeter for end-effector absolute pose tracking and
     a GripperRetargeter for pinch-based gripper control from hand tracking data.
@@ -244,7 +240,7 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
         # MDP settings
 
         # visualizer camera settings
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(1.8, 0.0, 1.8), lookat=(0.3, 0.0, 0.8))
+        self.sim.visualizer_cfgs = VisualizerCfg(eye=(1.8, 0.0, 1.8), lookat=(0.3, 0.0, 0.8))
 
         # Set events
         self.events = EventCfg()
@@ -334,12 +330,15 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
             ],
         )
 
-        # IsaacTeleop-based teleoperation pipeline (left hand)
-        self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=lambda: _build_se3_abs_gripper_pipeline(hand_side="left"),
-            sim_device=self.sim.device,
-            xr_cfg=self.xr,
-        )
+        # Isaac Capture-based teleoperation pipeline (left hand)
+        if ISAACLAB_TELEOP_AVAILABLE:
+            from isaaclab_teleop import IsaacTeleopCfg
+
+            self.isaac_teleop = IsaacTeleopCfg(
+                pipeline_builder=lambda: _build_se3_abs_gripper_pipeline(hand_side="left"),
+                sim_device=self.sim.device,
+                **({"xr_cfg": self.xr} if self.xr is not None else {}),
+            )
 
 
 @configclass
@@ -383,9 +382,12 @@ class GalbotRightArmCubeStackEnvCfg(GalbotLeftArmCubeStackEnvCfg):
 
         self.scene.ee_frame.target_frames[0].prim_path = "{ENV_REGEX_NS}/Robot/right_suction_cup_tcp_link"
 
-        # IsaacTeleop-based teleoperation pipeline (right hand)
-        self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=lambda: _build_se3_abs_gripper_pipeline(hand_side="right"),
-            sim_device=self.sim.device,
-            xr_cfg=self.xr,
-        )
+        # Isaac Capture-based teleoperation pipeline (right hand)
+        if ISAACLAB_TELEOP_AVAILABLE:
+            from isaaclab_teleop import IsaacTeleopCfg
+
+            self.isaac_teleop = IsaacTeleopCfg(
+                pipeline_builder=lambda: _build_se3_abs_gripper_pipeline(hand_side="right"),
+                sim_device=self.sim.device,
+                **({"xr_cfg": self.xr} if self.xr is not None else {}),
+            )

@@ -10,14 +10,14 @@ Isaac Lab supports saving image-like outputs from scene sensors during training 
 Isaac Lab iterates over the environment's :class:`~isaaclab.scene.InteractiveScene` sensors and
 writes each sensor's ``data.output`` tensors (for example, ``rgb``, ``depth``, or ``normals`` from a
 :class:`~isaaclab.sensors.Camera`). The flag value is the number of parallel environment views to
-tile into each saved frame grid. This differs from :doc:`/source/features/record_video`, which records a single
+tile into each saved frame grid. This differs from :doc:`/source/how-to/record_video`, which records a single
 perspective viewport clip of the scene.
 
 The capture flags are registered on the shared training entrypoints for RSL-RL, RL-Games, Stable
 Baselines3, and skrl. They are not available on ``play`` scripts.
 
 This feature can be enabled using the following command line arguments with
-``./isaaclab.sh train``:
+``uv run isaaclab train``:
 
 * ``--capture_env_sensors``: number of parallel environments to include in each saved frame grid
   (default: ``0``, which disables capture)
@@ -42,13 +42,6 @@ Example usage:
       .. code-block:: shell
 
           uv run isaaclab train --rl_library rsl_rl --task=Isaac-Reorient-Cube-Shadow-Camera-Direct --capture_env_sensors 4 --capture_env_sensors_length 100 --capture_env_sensors_interval 2000 --capture_env_sensors_format file
-
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: shell
-
-          ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Reorient-Cube-Shadow-Camera-Direct --capture_env_sensors 4 --capture_env_sensors_length 100 --capture_env_sensors_interval 2000 --capture_env_sensors_format file
 
 
 The captured frames will be saved in the same directory as the training checkpoints, under
@@ -105,7 +98,7 @@ steps, another capture window opens at episode steps ``2000-2099``, then ``4000-
 
 .. note::
 
-   This schedule uses a **per-episode** step counter. :doc:`/source/features/record_video` instead keys off the
+   This schedule uses a **per-episode** step counter. :doc:`/source/how-to/record_video` instead keys off the
    Gymnasium ``RecordVideo`` wrapper's **global** environment-step counter across episodes.
 
 
@@ -161,12 +154,6 @@ subdirectory:
 
           uv run python -m tensorboard.main --logdir logs/rsl_rl/Isaac-Reorient-Cube-Shadow-Camera-Direct/<run>/sensor_frames/train
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: shell
-
-          ./isaaclab.sh -p -m tensorboard.main --logdir logs/rsl_rl/Isaac-Reorient-Cube-Shadow-Camera-Direct/<run>/sensor_frames/train
-
 **File.** PNG images are written per sensor, data type, episode, and step:
 
 ``<sensor_name>/<data_type>/episode_<index>_step_<step>.png``
@@ -208,14 +195,14 @@ Choosing a capture method
      - This page (``--capture_env_sensors``)
      - PNG files or TensorBoard images
    * - Record or share a video
-     - :doc:`/source/features/record_video` (``VideoRecorderCfg``)
+     - :doc:`/source/how-to/record_video` (``VideoRecorderCfg``)
      - MP4 video
 
 
 See also
 --------
 
-* :doc:`/source/features/record_video` - record a perspective viewport clip with ``--video``
+* :doc:`/source/how-to/record_video` - record a perspective viewport clip with ``--video``
 * :doc:`/source/concepts/reinforcement_learning` - the shared ``train``/``play`` entrypoints
   that register the capture flags
 * :doc:`/source/concepts/visualization` - visualizers and rendering during training

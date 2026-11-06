@@ -12,7 +12,8 @@ from pathlib import Path
 import pytest
 import torch
 import warp as wp
-from isaaclab_newton.physics import KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg, NewtonManager
+from isaaclab_newton.physics import KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg
+from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
@@ -36,6 +37,14 @@ from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
+MATERIAL_PARAMS = {
+    "asset_cfg": SceneEntityCfg("robot", body_ids=[0]),
+    "static_friction_range": (0.5, 1.0),
+    "dynamic_friction_range": (0.0, 0.0),
+    "restitution_range": (0.3, 0.9),
+    "num_buckets": 1,
+}
+
 
 @configclass
 class ActionsCfg:
@@ -56,10 +65,17 @@ def event_env(
     body_names = ["base", "left_upper", "left_tip", "right_upper", "right_tip"]
     for body_index, name in enumerate(body_names):
         for shape_index in range(body_index + 1):
-            cube = UsdGeom.Cube.Define(stage, f"/Robot/{name}/Collider_{shape_index}")
-            cube.CreateSizeAttr(0.05)
-            UsdGeom.Xformable(cube).AddTranslateOp().Set((0.0, shape_index * 0.1, 0.0))
-            UsdPhysics.CollisionAPI.Apply(cube.GetPrim())
+            # Mixed collider types: Newton imports colliders grouped by type, so a body's shapes are not
+            # contiguous in the model's shape order.
+            collider_path = f"/Robot/{name}/Collider_{shape_index}"
+            if shape_index % 2:
+                collider = UsdGeom.Sphere.Define(stage, collider_path)
+                collider.CreateRadiusAttr(0.025)
+            else:
+                collider = UsdGeom.Cube.Define(stage, collider_path)
+                collider.CreateSizeAttr(0.05)
+            UsdGeom.Xformable(collider).AddTranslateOp().Set((0.0, shape_index * 0.1, 0.0))
+            UsdPhysics.CollisionAPI.Apply(collider.GetPrim())
     path = tmp_path_factory.mktemp("newton_events") / "robot.usda"
     stage.Export(str(path))
     scene_cfg = InteractiveSceneCfg(num_envs=4, env_spacing=5.0)
@@ -80,7 +96,8 @@ def event_env(
         decimation=1,
         observations={"policy": observations},
         actions=ActionsCfg(),
-        events={},
+        # Built by the event manager, before the solver exists.
+        events={"material": EventTermCfg(func=randomize_rigid_body_material, mode="reset", params=MATERIAL_PARAMS)},
         seed=7,
     )
     env = ManagerBasedEnv(cfg)
@@ -90,9 +107,10 @@ def event_env(
         env.close()
 
 
+@pytest.mark.parametrize("event_env", [MJWarpSolverCfg(), KaminoPADMMSolverCfg()], indirect=True)
 def test_material_body_selection(event_env: ManagerBasedEnv):
     env = event_env
-    model = env.sim.physics_manager.get_model()
+    model = env.sim.backend_manager.backend.model
     shape_bodies = wp.to_torch(model.shape_body)
     selected = torch.tensor(
         [
@@ -124,7 +142,7 @@ def test_material_body_selection(event_env: ManagerBasedEnv):
 
 def test_collider_offsets_preserve_unselected_environments(event_env: ManagerBasedEnv):
     env = event_env
-    model = env.sim.physics_manager.get_model()
+    model = env.sim.backend_manager.backend.model
     worlds = wp.to_torch(model.shape_world)
     margin = wp.to_torch(model.shape_margin)
     gap = wp.to_torch(model.shape_gap)
@@ -151,7 +169,7 @@ def test_collider_offsets_preserve_unselected_environments(event_env: ManagerBas
 
 def test_gravity_selectors_preserve_global_world(event_env: ManagerBasedEnv):
     env = event_env
-    gravity = wp.to_torch(env.sim.physics_manager.get_model().gravity)
+    gravity = wp.to_torch(env.sim.backend_manager.backend.model.gravity)
     original = gravity.clone()
     params = {"gravity_distribution_params": ((1.0, 2.0, 3.0), (1.0, 2.0, 3.0)), "operation": "abs"}
     term = randomize_physics_scene_gravity(EventTermCfg(func=randomize_physics_scene_gravity, params=params), env)
@@ -188,7 +206,7 @@ def test_gravity_selectors_preserve_global_world(event_env: ManagerBasedEnv):
 def test_joint_friction_preserves_unselected_environments(event_env: ManagerBasedEnv):
     env = event_env
     robot = env.scene["robot"]
-    model = env.sim.physics_manager.get_model()
+    model = env.sim.backend_manager.backend.model
     friction = wp.to_torch(model.joint_friction)
     damping = wp.to_torch(model.joint_damping)
     expected_friction = friction.clone()
@@ -216,9 +234,9 @@ def test_visual_colors_select_bodies_and_rebind(
     event_env: ManagerBasedEnv, monkeypatch: pytest.MonkeyPatch, consumer: str
 ):
     env = event_env
-    model = env.sim.physics_manager.get_model()
+    model = env.sim.backend_manager.backend.model
     if consumer == "visualizer":
-        monkeypatch.setattr(env.sim.cfg, "visualizer_cfgs", [VisualizerCfg(visualizer_type="newton_gl")])
+        monkeypatch.setattr(env.sim.cfg, "visualizer_cfgs", [VisualizerCfg(backend=NewtonGLBackendCfg())])
     else:
         monkeypatch.setattr(
             env.sim, "_render_context", RenderContext([(RendererCfg(renderer_type="newton_warp"), None)])
@@ -230,7 +248,7 @@ def test_visual_colors_select_bodies_and_rebind(
     term = randomize_visual_shape(EventTermCfg(func=randomize_visual_shape, params=params), env)
     replacement = copy(model)
     replacement.shape_color = wp.clone(model.shape_color)
-    monkeypatch.setattr(NewtonManager.backend, "model", replacement)
+    monkeypatch.setattr(env.sim.backend_manager.backend, "model", replacement)
     monkeypatch.setattr(env.scene["robot"].root_view, "model", model)
     colors = wp.to_torch(replacement.shape_color)
     before = colors.clone()
@@ -265,9 +283,30 @@ def test_visual_colors_select_bodies_and_rebind(
 
 
 @pytest.mark.parametrize("event_env", [KaminoPADMMSolverCfg()], indirect=True)
+def test_configured_kamino_material_term_samples_per_environment(event_env: ManagerBasedEnv):
+    env = event_env
+    model = env.sim.backend_manager.backend.model
+    friction = wp.to_torch(model.shape_material_mu)
+    selected = torch.tensor(
+        [
+            index
+            for index, body in enumerate(wp.to_torch(model.shape_body).tolist())
+            if model.body_label[body].endswith("/env_1/Robot/right_tip")
+        ],
+        device=env.device,
+    )
+    untouched = torch.ones(len(friction), dtype=torch.bool, device=env.device)
+    untouched[selected] = False
+    original = friction.clone()
+    env.event_manager.apply(mode="reset", env_ids=torch.tensor([1], device=env.device), global_env_step_count=0)
+    torch.testing.assert_close(friction[untouched], original[untouched])
+    assert ((friction[selected] >= 0.5) & (friction[selected] <= 1.0)).all()
+
+
+@pytest.mark.parametrize("event_env", [KaminoPADMMSolverCfg(use_collision_detector=True)], indirect=True)
 def test_kamino_material_groups_persist(event_env: ManagerBasedEnv):
     env = event_env
-    model = env.sim.physics_manager.get_model()
+    model = env.sim.backend_manager.backend.model
     friction = wp.to_torch(model.shape_material_mu)
     restitution = wp.to_torch(model.shape_material_restitution)
     shape_bodies = wp.to_torch(model.shape_body).tolist()

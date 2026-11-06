@@ -7,13 +7,14 @@
 
 The visible dynamic source cup and kinematic receiving cup are scene-owned rigid objects loaded
 from one authored USD asset. A narrow per-world Newton hook assigns the authored bowls their
-particle-collision roles and replaces the receiver's rigid mesh with an analytic box.
+particle-collision roles, replaces the receiver's rigid mesh with an analytic box, and adds a
+particle-only spill floor.
 
 A Newton :class:`~isaaclab_contrib.coupling.CouplerProxyCfg` advances the robot and both cups
-in the ``arm`` MJWarp entry and the particles in the implicit ``media`` entry. Proxy coupling makes
-both cups' particle colliders available to MPM without assigning one body to two entries. The policy
-commands arm joint positions and a continuous symmetric finger target; all observable and reset state
-flows through the scene assets' public APIs.
+in the ``arm`` MJWarp entry and the particles and spill floor in the implicit ``media`` entry. Proxy
+coupling makes both cups' particle colliders available to MPM without assigning one body to two
+entries. The policy commands arm joint positions and a continuous symmetric finger target; all
+observable and reset state flows through the scene assets' public APIs.
 """
 
 from __future__ import annotations
@@ -26,7 +27,7 @@ import newton
 import torch
 import warp as wp
 from isaaclab_newton.cloner import newton_builder_world_hook
-from isaaclab_newton.physics import NewtonMPMManager
+from isaaclab_newton.physics import reset_mpm_solver_state
 
 from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.utils import index_fill_
@@ -137,11 +138,12 @@ class FrankaPourEnv(ManagerBasedRLEnv):
         self._rigid_contact_margin = float(cfg.collider_margin)
         self._mpm_collider_margin = MPM_COLLIDER_MARGIN
         self._particle_max_velocity = float(cfg.particle_max_velocity)
+        self._spill_floor_height = float(cfg.scene.plane.init_state.pos[2])
 
-    def _add_pour_world_to_builder(self, builder, env_id: int, _position, _quaternion) -> None:
+    def _add_pour_world_to_builder(self, builder, env_id: int, position, quaternion) -> None:
         """Add only solver-specific collision representations to one imported scene world."""
         builder.particle_max_velocity = self._particle_max_velocity
-        env_root = f"/World/envs/env_{env_id}"
+        env_root = self.cfg.scene.clone_cfg.clone_template.format(env_id)
         body_ids = self._current_world_range(builder, "body", env_id)
         shape_ids = self._current_world_range(builder, "shape", env_id)
         self._disable_robot_particle_collision(builder, body_ids, shape_ids)
@@ -229,6 +231,34 @@ class FrankaPourEnv(ManagerBasedRLEnv):
         )
         builder.shape_margin[table_collider] = 0.0
         self._configure_mjwarp_force_space_shape(builder, table_collider)
+
+        world_xform = wp.transform(
+            wp.vec3(float(position[0]), float(position[1]), self._spill_floor_height),
+            wp.quat_identity(),
+        )
+        spill_floor = builder.add_body(
+            xform=world_xform,
+            mass=0.0,
+            inertia=wp.mat33(),
+            is_kinematic=True,
+            lock_inertia=True,
+            label=f"{env_root}/SpillFloor",
+        )
+        spill_shape = builder.add_shape_plane(
+            body=spill_floor,
+            xform=wp.transform_identity(),
+            width=0.0,
+            length=0.0,
+            cfg=newton.ModelBuilder.ShapeConfig(
+                mu=0.8,
+                margin=self._mpm_collider_margin,
+                has_shape_collision=False,
+                has_particle_collision=True,
+            ),
+            color=(0.3, 0.3, 0.3),
+            label=f"{env_root}/SpillFloor/Collision",
+        )
+        self._set_shape_roles(builder, spill_shape, rigid=False, particles=True, visible=False)
 
     @staticmethod
     def _current_world_range(builder, prefix: str, env_id: int) -> range:
@@ -576,22 +606,18 @@ class FrankaPourEnv(ManagerBasedRLEnv):
         finger_qd = states["finger_joint_velocity"][rows]
         finger_target = states["finger_joint_target"][rows]
 
-        self._robot.write_joint_state_to_sim_index(
-            position=arm_q,
-            velocity=arm_qd,
-            joint_ids=self._arm_joint_ids,
-            env_ids=env_ids,
-        )
+        self._robot.write_joint_position_to_sim_index(position=arm_q, joint_ids=self._arm_joint_ids, env_ids=env_ids)
+        self._robot.write_joint_velocity_to_sim_index(velocity=arm_qd, joint_ids=self._arm_joint_ids, env_ids=env_ids)
         self._robot.set_joint_position_target_index(
             target=arm_q,
             joint_ids=self._arm_joint_ids,
             env_ids=env_ids,
         )
-        self._robot.write_joint_state_to_sim_index(
-            position=finger_q,
-            velocity=finger_qd,
-            joint_ids=self._finger_joint_ids,
-            env_ids=env_ids,
+        self._robot.write_joint_position_to_sim_index(
+            position=finger_q, joint_ids=self._finger_joint_ids, env_ids=env_ids
+        )
+        self._robot.write_joint_velocity_to_sim_index(
+            velocity=finger_qd, joint_ids=self._finger_joint_ids, env_ids=env_ids
         )
         self._robot.set_joint_position_target_index(
             target=finger_target,
@@ -631,7 +657,8 @@ class FrankaPourEnv(ManagerBasedRLEnv):
 
         # Public particle writers restore both Newton state buffers. This masked solver reset then
         # clears MPM stress/deformation and every private contact/collider history for the worlds.
-        NewtonMPMManager.reset_solver_state(
+        reset_mpm_solver_state(
+            self.sim.backend_manager.backend,
             world_mask=wp.from_torch(world_mask, dtype=wp.bool),
             flags=newton.StateFlags.BODY | newton.StateFlags.PARTICLE,
         )
@@ -652,5 +679,5 @@ class FrankaPourEnv(ManagerBasedRLEnv):
             return
         # Newton reset masks include one trailing slot for global (world -1) entities.
         world_mask = torch.zeros(self.num_envs + 1, device=self.device, dtype=torch.bool)
-        index_fill_(world_mask, env_ids, True)
+        index_fill_(world_mask[: self.num_envs], env_ids, True)
         self._reset_from_dataset(env_ids, world_mask)

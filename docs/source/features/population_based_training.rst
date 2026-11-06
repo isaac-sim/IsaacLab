@@ -3,11 +3,9 @@
 Population-Based Training
 =========================
 
-Population-based training (PBT) is an online optimization loop around regular reinforcement learning (RL)
-training. Instead of choosing one set of hyperparameters and training one policy, PBT trains a population of
-independent policies on the same task. It periodically ranks them by a task-level objective. An underperforming
-learner copies a promising learner's checkpoint, mutates selected hyperparameters, and continues training from
-the copied weights.
+Population-based training (PBT) trains several policies on the same task and
+periodically ranks them by an objective. Underperforming learners copy a better
+checkpoint, change selected hyperparameters, and continue from those weights.
 
 This cycle combines two ideas:
 
@@ -47,65 +45,6 @@ runs, not with one run.
 PBT is also different from :doc:`multi-GPU training </source/features/multi_gpu>`. Distributed data-parallel
 training uses several devices to update one policy. PBT gives each learner its own policy, optimizer state,
 experience, and checkpoint, and only exchanges checkpoints during selection.
-
-
-Example Where PBT Was Enabling
-------------------------------
-
-The `DexPBT study`_ tested contact-rich manipulation tasks with large observation and action spaces, sparse task
-success, and many locally useful behaviors that did not lead to a complete solution. For its PBT-versus-PPO
-comparison, the authors held aggregate compute constant: the best learner in an eight-policy PBT population was
-compared with the best of eight independent PPO seeds, with every learner trained for five billion environment
-steps.
-
-.. list-table:: Single-arm object reorientation comparison reported in Figure 4 of the `DexPBT study`_
-   :header-rows: 1
-   :widths: 20 38 42
-
-   * - Condition
-     - Training behavior
-     - Outcome under the study budget
-   * - PPO without PBT
-     - Eight policies trained independently with fixed hyperparameters; discoveries were not shared.
-     - None of the eight runs reached the final 1 cm success tolerance.
-   * - PPO with PBT
-     - Eight learners periodically shared promising weights and explored mutated hyperparameters.
-     - The population reached the final tolerance and continued improving the number of consecutive successes.
-
-The study reported improvement in every tested scenario and found PBT to be an enabling factor for non-trivial
-performance in three of them. In the harder dual-arm reorientation task, its best PBT policy reached almost 40 of
-50 consecutive successes. See the paper's `training curves`_ and `supplementary policy videos`_ for the full
-comparison and learned behaviors.
-
-No task mathematically requires PBT. Here, "enabling" means that fixed PPO did not solve the task within the tested
-budget while PBT did. These experiments used the Isaac Gym DexPBT tasks; they motivate the Isaac Lab workflow below
-but are not benchmark results for the included Shadow Hand example.
-
-
-How Isaac Lab Selects Policies
-------------------------------
-
-Every ``interval_steps``, each learner saves its checkpoint and current objective to a shared workspace. For the
-initialized policies, let the objective mean and standard deviation be :math:`\mu` and :math:`\sigma`. Isaac Lab
-computes the leader and underperformer cuts as:
-
-.. math::
-
-   U = \max(\mu + \mathtt{threshold\_std}\,\sigma,\ \mu + \mathtt{threshold\_abs})
-
-.. math::
-
-   L = \min(\mu - \mathtt{threshold\_std}\,\sigma,\ \mu - \mathtt{threshold\_abs})
-
-Policies with an objective greater than :math:`U` are leaders; policies below :math:`L` are underperformers. Only
-an underperformer is changed. It copies a randomly selected leader and mutates each whitelisted hyperparameter with
-probability ``mutation_rate``. If there is no leader, it keeps its own checkpoint and mutates its hyperparameters.
-All other policies continue unchanged.
-
-The learners coordinate through checkpoint and YAML metadata files rather than a central process. They may progress
-asynchronously: a learner compares checkpoints from the latest PBT iteration available at or before its own. Every
-learner must still use the same ``num_policies`` and must see the shared directory at the same absolute path because
-checkpoint paths stored in the metadata are absolute.
 
 
 Choose the Ranking Objective
@@ -196,6 +135,65 @@ project.
 During training, each policy writes numbered ``.pth`` checkpoints and matching ``.yaml`` metadata under its policy
 directory in the shared workspace. The metadata records the objective and mutated parameter values. At the end of
 the run, select the checkpoint with the best validated objective, then evaluate it as a normal RL-Games policy.
+
+
+Example Where PBT Was Enabling
+------------------------------
+
+The `DexPBT study`_ tested contact-rich manipulation tasks with large observation and action spaces, sparse task
+success, and many locally useful behaviors that did not lead to a complete solution. For its PBT-versus-PPO
+comparison, the authors held aggregate compute constant: the best learner in an eight-policy PBT population was
+compared with the best of eight independent PPO seeds, with every learner trained for five billion environment
+steps.
+
+.. list-table:: Single-arm object reorientation comparison reported in Figure 4 of the `DexPBT study`_
+   :header-rows: 1
+   :widths: 20 38 42
+
+   * - Condition
+     - Training behavior
+     - Outcome under the study budget
+   * - PPO without PBT
+     - Eight policies trained independently with fixed hyperparameters; discoveries were not shared.
+     - None of the eight runs reached the final 1 cm success tolerance.
+   * - PPO with PBT
+     - Eight learners periodically shared promising weights and explored mutated hyperparameters.
+     - The population reached the final tolerance and continued improving the number of consecutive successes.
+
+The study reported improvement in every tested scenario and found PBT to be an enabling factor for non-trivial
+performance in three of them. In the harder dual-arm reorientation task, its best PBT policy reached almost 40 of
+50 consecutive successes. See the paper's `training curves`_ and `supplementary policy videos`_ for the full
+comparison and learned behaviors.
+
+Here, "enabling" means PBT solved tasks that fixed PPO did not solve within the
+tested budget. These are Isaac Gym DexPBT results, not benchmarks of the Isaac Lab
+Shadow Hand example on this page.
+
+
+How Isaac Lab Selects Policies
+------------------------------
+
+Every ``interval_steps``, each learner saves its checkpoint and current objective to a shared workspace. For the
+initialized policies, let the objective mean and standard deviation be :math:`\mu` and :math:`\sigma`. Isaac Lab
+computes the leader and underperformer cuts as:
+
+.. math::
+
+   U = \max(\mu + \mathtt{threshold\_std}\,\sigma,\ \mu + \mathtt{threshold\_abs})
+
+.. math::
+
+   L = \min(\mu - \mathtt{threshold\_std}\,\sigma,\ \mu - \mathtt{threshold\_abs})
+
+Policies with an objective greater than :math:`U` are leaders; policies below :math:`L` are underperformers. Only
+an underperformer is changed. It copies a randomly selected leader and mutates each whitelisted hyperparameter with
+probability ``mutation_rate``. If there is no leader, it keeps its own checkpoint and mutates its hyperparameters.
+All other policies continue unchanged.
+
+The learners coordinate through checkpoint and YAML metadata files rather than a central process. They may progress
+asynchronously: a learner compares checkpoints from the latest PBT iteration available at or before its own. Every
+learner must still use the same ``num_policies`` and must see the shared directory at the same absolute path because
+checkpoint paths stored in the metadata are absolute.
 
 
 Troubleshooting

@@ -7,10 +7,10 @@
 
 Mirrors ``isaaclab_physx/benchmark/sensors/benchmark_contact_sensor.py`` but
 runs kitless against the OVPhysX backend. Also times the blocking native
-``read_net_forces`` fetch in isolation.
+normal and friction force reads in isolation.
 
 Usage:
-    ./isaaclab.sh -p source/isaaclab_ov/benchmark/sensors/benchmark_contact_sensor.py --num_envs 4096
+    uv run python source/isaaclab_ov/benchmark/sensors/benchmark_contact_sensor.py --num_envs 4096
 """
 
 from __future__ import annotations
@@ -96,7 +96,7 @@ def main() -> None:
             step=sim.step,
             update=lambda: sensor.update(sim_dt, force_recompute=True),
             synchronize=synchronize_device,
-            native_read=lambda: sensor._contact_binding.read_net_forces(sensor._net_forces_flat_buf),
+            native_read=lambda: sensor._fetch_ovphysx_buffers(include_pose=False),
         )
 
         net_forces = sensor.data.net_normal_forces_w.torch

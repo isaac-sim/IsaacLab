@@ -51,15 +51,14 @@ parser.add_argument(
 )
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["newton_gl"])
+# a Newton viewer cannot build its model from this PhysX scene, so PhysX defaults to the Kit viewer
+physics_args, _ = parser.parse_known_args()
+parser.set_defaults(visualizer=["kit"] if physics_args.physics == "isaacsim_physx" else ["newton_gl"])
 args_cli = parser.parse_args()
 if args_cli.max_steps == 0 or args_cli.max_steps < -1:
     parser.error("--max_steps must be positive or -1.")
-if args_cli.physics == "newton_mjwarp":
-    if not getattr(args_cli, "visualizer_explicit", False):
-        args_cli.visualizer = ["newton_gl"]
-    elif "kit" in (args_cli.visualizer or []):
-        parser.error("the Kit visualizer is not supported with Newton physics; select newton, rerun, viser, or none")
+if args_cli.physics == "newton_mjwarp" and "kit" in (args_cli.visualizer or []):
+    parser.error("the Kit visualizer is not supported with Newton physics; select newton_gl, rerun, or viser")
 
 import random
 
@@ -69,7 +68,6 @@ from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.markers.config import VisualizationMarkersCfg
-from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors.ray_caster import MultiMeshRayCasterCfg, patterns
 from isaaclab.utils import configclass, replace
@@ -81,7 +79,7 @@ from isaaclab_assets.robots.anymal import ANYMAL_D_CFG
 if TYPE_CHECKING:
     from isaaclab.scene import InteractiveScene
 
-DEBUG_VISUALIZATION_ENABLED = "none" not in (args_cli.visualizer or [])
+DEBUG_VISUALIZATION_ENABLED = bool(args_cli.visualizer)
 if args_cli.flat_ground:
     ground_spawn_cfg = sim_utils.MeshCuboidCfg(
         size=(20.0, 20.0, 0.1),
@@ -312,20 +310,15 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
 
 def main():
     """Main function."""
-    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
+    sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device)
+    with launch_simulation(sim_cfg, args_cli):
         from isaaclab.scene import InteractiveScene
 
-        sim_cfg = sim_utils.SimulationCfg(
-            dt=0.005,
-            device=args_cli.device,
-            physics=physics_cfg,
-            visualizer_cfgs=None,
-        )
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
         sim.set_camera_view(eye=[3.5, 3.5, 3.5], target=[0.0, 0.0, 0.0])
         # design scene
-        scene_cfg = RaycasterSensorSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0, replicate_physics=True)
+        scene_cfg = RaycasterSensorSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
         scene = InteractiveScene(scene_cfg)
 
         if args_cli.asset_type == "objects":

@@ -1,12 +1,12 @@
 # Isaac Lab Teleop
 
-`isaaclab_teleop` integrates the [IsaacTeleop](https://github.com/NVIDIA/IsaacTeleop) retargeting
+`isaaclab_teleop` integrates the [Isaac Capture](https://github.com/NVIDIA/IsaacCapture) retargeting
 framework with Isaac Lab, providing a single teleoperation device class that manages OpenXR sessions,
 XR anchor synchronization, retargeting pipelines, and action-tensor generation.
 
 ## Key Features
 
-- **`IsaacTeleopDevice`** -- unified device that wraps an IsaacTeleop `TeleopSession` behind a
+- **`IsaacTeleopDevice`** -- unified device that wraps an Isaac Capture `TeleopSession` behind a
   context-manager interface. Returns a flat `torch.Tensor` action each frame.
 - **`IsaacTeleopCfg` / `XrCfg`** -- declarative configuration for retargeting pipelines, XR anchor
   placement, rotation modes, and tuning UI.
@@ -70,7 +70,7 @@ class MyEnvCfg(ManagerBasedRLEnvCfg):
 
 ### 2. Define a Pipeline Builder
 
-Create a function that builds your IsaacTeleop retargeting pipeline. The builder should return an
+Create a function that builds your Isaac Capture retargeting pipeline. The builder should return an
 `OutputCombiner` with an `"action"` key containing the flattened action tensor (typically via
 `TensorReorderer`). Optionally return a list of retargeters to expose in the tuning UI:
 
@@ -95,7 +95,7 @@ The existing teleop scripts automatically detect `isaac_teleop` in the environme
 
 ```bash
 uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
-    --task My-IsaacTeleop-Env-v0 --xr
+    --task My-Isaac-Capture-Env-v0 --xr
 ```
 
 See [XR Camera Feedback](../../../docs/source/features/isaac_teleop.rst#xr-camera-feedback) for
@@ -132,13 +132,13 @@ rendering without blocking.
 | `xr_camera_feed_layout` | `XrCameraFeedLayoutCfg` | viewer-start manual layout | Placement reference and ordered multi-feed packing |
 | `pipeline_builder` | `Callable[[], OutputCombiner]` | *required* | Builds the retargeting pipeline |
 | `retargeters_to_tune` | `Callable[[], list[BaseRetargeter]] \| None` | `None` | Retargeters to expose in the tuning UI |
-| `plugins` | `list[PluginConfig]` | `[]` | IsaacTeleop plugin configurations |
+| `plugins` | `list[PluginConfig]` | `[]` | Isaac Capture plugin configurations |
 | `sim_device` | `str` | `"cuda:0"` | Torch device for output action tensors |
-| `retargeting_execution` | `RetargetingExecutionConfig \| None` | `None` (resolved at session start to `mode="pipelined", pacing=DeadlinePacingConfig(safety_margin_s=0.025)`) | IsaacTeleop retargeting execution settings; deferred so the config imports without `isaacteleop` |
+| `retargeting_execution` | `RetargetingExecutionConfig \| None` | `None` (resolved at session start to `mode="pipelined", pacing=DeadlinePacingConfig(safety_margin_s=0.025)`) | Isaac Capture retargeting execution settings; deferred so the config imports without `isaacteleop` |
 | `teleoperation_active_default` | `bool` | `False` | Whether teleoperation is active on session start |
-| `app_name` | `str` | `"IsaacLabTeleop"` | Application name for the IsaacTeleop session |
+| `app_name` | `str` | `"IsaacLabTeleop"` | Application name for the Isaac Capture session |
 
-The 25 ms `DeadlinePacingConfig` safety margin staggers IsaacTeleop's Python work behind Isaac Lab's
+The 25 ms `DeadlinePacingConfig` safety margin staggers Isaac Capture's Python work behind Isaac Lab's
 step Python, giving native work such as rendering time to overlap instead of having both Python stacks
 contend for the GIL at the start of the step.
 
@@ -164,7 +164,7 @@ contend for the GIL at the start of the step.
 
 Teleoperation with Isaac Lab runs in a **single container**. Build the image yourself and run a single container. **Do not use Docker Compose** for this workflow (no multi-container setup). Everything runs inside one container with Isaac Lab.
 
-Inside the container: install Isaac Teleop once (`uv pip install 'isaacteleop[retargeters,cloudxr]~=1.0.0' --extra-index-url https://pypi.nvidia.com`), then start the CloudXR runtime with `--accept-eula` so there is no interactive EULA prompt, and run your teleop script. Example:
+Inside the container: install Isaac Capture once (`uv pip install 'isaacteleop[retargeters,cloudxr]~=1.0.0' --extra-index-url https://pypi.nvidia.com`), then start the CloudXR runtime with `--accept-eula` so there is no interactive EULA prompt, and run your teleop script. Example:
 
 ```bash
 uv run python -m isaacteleop.cloudxr --accept-eula &
@@ -172,13 +172,13 @@ source ~/.cloudxr/run/cloudxr.env
 uv run python scripts/tools/record_demos.py --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs --num_demos 5 --dataset_file ./datasets/dataset.hdf5 --xr --visualizer kit
 ```
 
-In the Isaac Sim UI, set the AR panel to **System OpenXR Runtime** and click **Start XR**. For the full flow and options, see the [CloudXR teleoperation how-to](https://isaac-sim.github.io/IsaacLab/main/source/how-to/cloudxr_teleoperation.html) and [Isaac Teleop Quick Start](https://nvidia.github.io/IsaacCapture/main/getting_started/quick_start.html).
+In the Isaac Sim UI, set the AR panel to **System OpenXR Runtime** and click **Start XR**. For the full flow and options, see the [CloudXR teleoperation how-to](https://isaac-sim.github.io/IsaacLab/main/source/how-to/cloudxr_teleoperation.html) and [Isaac Capture Quick Start](https://nvidia.github.io/IsaacCapture/main/getting_started/quick_start.html).
 
-For a fully headless experience, replace `--visualizer kit` with `--visualizer none` or
-`--viz none` when running Docker, and the XR teleop session will run automatically.
+For a fully headless experience, omit `--visualizer kit` when running Docker, and the XR teleop session will
+run automatically.
 
 ## Dependencies
 
 - **`isaaclab`** -- core Isaac Lab framework
-- **`isaacteleop`** -- IsaacTeleop retargeting engine, device I/O, and session management
+- **`isaacteleop`** -- Isaac Capture retargeting engine, device I/O, and session management
 - **`isaacsim`** -- Isaac Sim runtime (provides the Kit XR bridge for OpenXR handle acquisition)

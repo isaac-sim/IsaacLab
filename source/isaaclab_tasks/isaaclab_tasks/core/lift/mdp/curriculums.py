@@ -14,6 +14,19 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
 
+def difficulty_interpolate_float(
+    env: ManagerBasedRLEnv,
+    _env_ids: Sequence[int],
+    _data: float,
+    initial_value: float,
+    final_value: float,
+) -> float:
+    """Interpolate a scalar continuously with an ADR term's success-driven difficulty."""
+    difficulty_term = env.curriculum_manager.cfg.adr.func
+    fraction = min(max(difficulty_term.difficulty_frac, 0.0), 1.0)
+    return initial_value + fraction * (final_value - initial_value)
+
+
 def gravity_range_linear(
     env: ManagerBasedRLEnv,
     _env_ids: Sequence[int],

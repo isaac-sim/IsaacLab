@@ -26,8 +26,9 @@ from typing import TYPE_CHECKING, Any
 import warp as wp
 
 import isaaclab.utils.string as string_utils
+from isaaclab.managers.manager_base import _populate_term_defaults
 from isaaclab.managers.manager_term_cfg import ManagerTermBaseCfg
-from isaaclab.utils import clone, string_to_callable, to_dict
+from isaaclab.utils import string_to_callable, to_dict
 
 from isaaclab_experimental.utils.warp import is_warp_capturable
 
@@ -82,6 +83,8 @@ class ManagerTermBase(ABC):
             cfg: The configuration object.
             env: The environment instance.
         """
+        if isinstance(cfg, ManagerTermBaseCfg):
+            _populate_term_defaults(self.__call__, cfg.params)
         # store the inputs
         self.cfg = cfg
         self._env = env
@@ -386,15 +389,8 @@ class ManagerBase(ABC):
         if not callable(func_static):
             raise AttributeError(f"The term '{term_name}' is not callable. Received: {term_cfg.func}")
 
-        # Materialize configclass defaults from the function signature into params.
-        # Without this, defaults live only in the callable signature and never get
-        # resolved/cached by the manager (e.g. SceneEntityCfg.resolve() is never called).
         signature = inspect.signature(func_static)
-        for param in list(signature.parameters.values())[min_argc:]:
-            if param.default is inspect.Parameter.empty:
-                continue
-            if param.name not in term_cfg.params and hasattr(param.default, "__dataclass_fields__"):
-                term_cfg.params[param.name] = clone(param.default)
+        _populate_term_defaults(func_static, term_cfg.params)
 
         # check statically if the term's arguments are matched by params
         term_params = list(term_cfg.params.keys())

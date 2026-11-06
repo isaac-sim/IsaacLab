@@ -218,8 +218,9 @@ class MeshCollisionFragment(SchemaFragment):
     A mesh-collision concept is split across one *core* fragment carrying the standard
     ``physics:approximation`` token (:class:`UsdPhysicsMeshCollisionCfg`) and one cooking
     fragment per backend cooking schema (PhysX convex hull / decomposition / triangle mesh /
-    SDF, Newton mesh / SDF). Whichever cooking fragment is present implies the approximation
-    token written to ``physics:approximation`` -- see
+    SDF, Newton mesh / SDF). A PhysX cooking fragment implies the approximation token written to
+    ``physics:approximation`` through its default ``mesh_approximation_name``; the Newton cooking
+    fragments carry no token and leave it unchanged -- see
     :func:`~isaaclab.sim.schemas.apply_mesh_collision_properties`.
     """
 
@@ -970,10 +971,19 @@ class BoundingSpherePropertiesCfg(MeshCollisionBaseCfg):
     """Name of mesh collision approximation method. Default: "boundingSphere"."""
 
 
+@deprecated_schema_cfg(
+    "a DeformableBodyFragment subclass in the spawner's volume_deformable_props or surface_deformable_props slot"
+    " (this base class carries no fields)"
+)
 @configclass
 class DeformableBodyPropertiesBaseCfg:
     """Base deformable body properties for backend-specific extensions.
 
-    This class is currently empty. It will be populated once the USD deformable
-    schemas can be unified more cleanly between physics backends.
+    This legacy base class has no fields; backend-specific subclasses define them.
+
+    .. deprecated:: 3.1
+        Use the deformable-body schema fragments instead, passed in the spawner's
+        ``volume_deformable_props`` or ``surface_deformable_props`` slot. This class carries no
+        fields; for a custom deformable-body cfg, subclass :class:`DeformableBodyFragment`. This
+        class will be removed in 3.2.
     """

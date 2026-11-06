@@ -4,20 +4,22 @@
 # SPDX-License-Identifier: BSD-3-Clause
 from __future__ import annotations
 
-import logging
 import warnings
 import weakref
 from typing import TYPE_CHECKING
 
 import numpy as np
 import warp as wp
+from newton import JointType
 
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
+from isaaclab.assets.rigid_object.base_rigid_object_data import vec13f
 from isaaclab.utils.buffers import TimestampedBuffer, reset_timestamps
 from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp import math as warp_math
+from isaaclab.utils.warp import memory as memory_kernels
 from isaaclab.utils.warp.launch_cache import _WarpLaunchCache
-from isaaclab.utils.warp.utils import capture_unsafe
 
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
@@ -25,22 +27,10 @@ from isaaclab_newton.assets.articulation.joint_coordinates import (
     build_ball_joint_coordinate_map,
     gather_joint_coordinates,
 )
-from isaaclab_newton.physics import NewtonManager as SimulationManager
-
-from ..kernels import vec13f
+from isaaclab_newton.physics import NewtonManager
 
 if TYPE_CHECKING:
     from newton.selection import ArticulationView
-
-# import logger
-logger = logging.getLogger(__name__)
-
-_LAZY_CAPTURE_REASON = (
-    "This is a lazily-computed derived property guarded by a Python timestamp check "
-    "that is invisible during graph replay.  Use Tier 1 base data (root_link_pose_w, "
-    "root_com_vel_w, body_link_pose_w, body_com_vel_w, joint_pos, joint_vel) and "
-    "inline the computation in your warp kernel.  See GRAPH_CAPTURE_MIGRATION.md."
-)
 
 
 # Shared tendon properties that Isaac Lab's Newton backend does not implement.
@@ -91,13 +81,18 @@ class ArticulationData(BaseArticulationData):
     __backend_name__: str = "newton"
     """The name of the backend for the articulation data."""
 
-    def __init__(self, root_view: ArticulationView, device: str):
+    def __init__(self, root_view: ArticulationView, device: str, *, backend_manager: NewtonManager | None = None):
         """Initializes the articulation data.
 
         Args:
             root_view: The root articulation view.
             device: The device used for processing.
+            backend_manager: Newton physics manager that owns the simulation state.
+                Defaults to the active simulation's manager (deprecated; pass it explicitly).
         """
+        if backend_manager is None:
+            backend_manager = NewtonManager._deprecated_active("ArticulationData()")
+        self._backend_manager = backend_manager
         super().__init__(root_view, device)
         # Set the root articulation view
         # note: this is stored as a weak reference to avoid circular references between the asset class
@@ -114,7 +109,7 @@ class ArticulationData(BaseArticulationData):
         # per-env gravity randomization stays live; consumers normalize on read.
         # The final entry is reserved for Newton's global world and is not an
         # Isaac Lab environment.
-        model = SimulationManager.get_model()
+        model = self._backend_manager.backend.model
         self.GRAVITY_VEC_W = ProxyArray(model.gravity[: model.world_count])
         forward_vec = np.full((self._root_view.count, 3), (1.0, 0.0, 0.0), dtype=np.float32)
         self.FORWARD_VEC_B = ProxyArray(wp.array(forward_vec, dtype=wp.vec3f, device=self.device))
@@ -144,6 +139,15 @@ class ArticulationData(BaseArticulationData):
             raise ValueError("The articulation data is already primed.")
         self._is_primed = True
 
+    @property
+    def _state_version(self) -> int:
+        """Backend state version that keys the derived-data caches."""
+        backend = self._backend_manager.backend
+        if backend.device.is_capturing:
+            # Replays bypass this host check, so every read recorded into a graph records its recompute.
+            backend.state_version += 1
+        return backend.state_version
+
     def update(self, dt: float) -> None:
         """Updates the data for the articulation.
 
@@ -152,6 +156,8 @@ class ArticulationData(BaseArticulationData):
         """
         # update the simulation timestamp
         self._sim_timestamp += dt
+        # Replaying an outer capture of the step skips the backend's version increments, so invalidate here.
+        self._backend_manager.backend.state_version += 1
         # Trigger an update of the joint and body com acceleration buffers at a higher frequency
         # since we do finite differencing.
         self.joint_acc
@@ -159,28 +165,15 @@ class ArticulationData(BaseArticulationData):
 
     def _update_body_state(self) -> None:
         """Resolve shared FK, then refresh this view's reordered body state after a manual write."""
-        SimulationManager.forward()
-        if self._body_state_dirty or SimulationManager.transforms_may_change_on_graph_replay:
+        self._backend_manager.forward()
+        if self._body_state_dirty or self._backend_manager.backend.transforms_may_change_on_graph_replay:
             self._refresh_user_order_body_state()
 
-    def _reset_pose(
-        self, from_link: bool = True, *, env_ids: wp.array | None = None, env_mask: wp.array | None = None
-    ) -> None:
-        """Reset the pose of the articulation.
-
-        This will mark all the pose related properties as stale, and trigger a FK refresh.
-
-        Args:
-            env_ids: Environment indices. If None, then all indices are used.
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            from_link: Set ``True`` when the root link pose was written so the derived root
-                center-of-mass pose (:attr:`root_com_pose_w`) is also invalidated; set ``False`` when
-                the center-of-mass pose was written directly so it is not clobbered. Defaults to True.
-        """
-        # Invalidate the derived root com pose only when it was not the quantity just written.
+    def _reset_pose(self) -> None:
+        """Invalidate pose-dependent caches after an authoritative state write."""
         reset_timestamps(
             [
-                self._root_com_pose_w if from_link else None,
+                self._root_com_pose_w,
                 self._body_com_pose_w,
                 self._root_link_vel_w,
                 self._body_link_vel_w,
@@ -201,28 +194,12 @@ class ArticulationData(BaseArticulationData):
             ]
         )
         self._body_state_dirty = True
-        SimulationManager.invalidate_fk(
-            env_mask=env_mask, env_ids=env_ids, articulation_ids=self._root_view.articulation_ids
-        )
 
-    def _reset_velocity(
-        self, from_com: bool = True, *, env_ids: wp.array | None = None, env_mask: wp.array | None = None
-    ) -> None:
-        """Reset the velocity of the articulation.
-
-        This will mark all the velocity related properties as stale, and trigger a FK refresh.
-
-        Args:
-            env_ids: Environment indices. If None, then all indices are used.
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            from_com: Set ``True`` when the root center-of-mass velocity was written so the derived root
-                link velocity (:attr:`root_link_vel_w`) is also invalidated; set ``False`` when the link
-                velocity was written directly so it is not clobbered. Defaults to True.
-        """
-        # Invalidate the derived root link velocity only when it was not the quantity just written.
+    def _reset_velocity(self) -> None:
+        """Invalidate velocity-dependent caches after an authoritative state write."""
         reset_timestamps(
             [
-                self._root_link_vel_w if from_com else None,
+                self._root_link_vel_w,
                 self._body_link_vel_w,
                 self._root_link_lin_vel_b,
                 self._root_link_ang_vel_b,
@@ -239,9 +216,6 @@ class ArticulationData(BaseArticulationData):
             ]
         )
         self._body_state_dirty = True
-        SimulationManager.invalidate_fk(
-            env_mask=env_mask, env_ids=env_ids, articulation_ids=self._root_view.articulation_ids
-        )
 
     def _reset_body_com_pose_b_dependents(self) -> None:
         """Reset cached properties derived from body-frame center-of-mass offsets."""
@@ -459,7 +433,7 @@ class ArticulationData(BaseArticulationData):
                 wp.zeros((self._num_instances, self._num_joints), wp.vec2f, self.device)
             )
             self._joint_pos_limits_ta = ProxyArray(self._joint_pos_limits.data)
-        if self._joint_pos_limits.timestamp < self._sim_timestamp:
+        if self._joint_pos_limits.timestamp < self._state_version:
             joint_pos_limits_lower = (
                 self._joint_pos_limits_lower_user if self.has_joint_ordering else self._sim_bind_joint_pos_limits_lower
             )
@@ -468,12 +442,13 @@ class ArticulationData(BaseArticulationData):
             )
             self._read_launch_cache.launch(
                 "joint_pos_limits",
+                wp.launch,
                 articulation_kernels.concat_joint_pos_limits_lower_and_upper,
                 dim=(self._num_instances, self._num_joints),
                 inputs=[joint_pos_limits_lower, joint_pos_limits_upper],
                 outputs=[self._joint_pos_limits.data],
             )
-            self._joint_pos_limits.timestamp = self._sim_timestamp
+            self._joint_pos_limits.timestamp = self._state_version
         return self._joint_pos_limits_ta
 
     @property
@@ -649,7 +624,6 @@ class ArticulationData(BaseArticulationData):
         return self._root_link_pose_w_ta
 
     @property
-    @capture_unsafe(_LAZY_CAPTURE_REASON)
     def root_link_vel_w(self) -> ProxyArray:
         """Root link velocity ``[lin_vel, ang_vel]`` in simulation world frame.
 
@@ -660,20 +634,20 @@ class ArticulationData(BaseArticulationData):
         """
         if self._root_link_vel_w.data is None:
             self._root_link_vel_w.data = ProxyArray(wp.empty(self._num_instances, wp.spatial_vectorf, self.device))
-        if self._root_link_vel_w.timestamp < self._sim_timestamp:
+        if self._root_link_vel_w.timestamp < self._state_version:
             self._read_launch_cache.launch(
                 "root_link_vel_w",
+                wp.launch,
                 shared_kernels.get_root_link_vel_from_root_com_vel,
                 dim=self._num_instances,
                 inputs=[self.root_com_vel_w, self.root_link_pose_w, self._sim_bind_body_com_pos_b],
                 outputs=[self._root_link_vel_w.data],
             )
-            self._root_link_vel_w.timestamp = self._sim_timestamp
+            self._root_link_vel_w.timestamp = self._state_version
 
         return self._root_link_vel_w.data
 
     @property
-    @capture_unsafe(_LAZY_CAPTURE_REASON)
     def root_com_pose_w(self) -> ProxyArray:
         """Root center of mass pose ``[pos, quat]`` in simulation world frame.
 
@@ -684,15 +658,16 @@ class ArticulationData(BaseArticulationData):
         """
         if self._root_com_pose_w.data is None:
             self._root_com_pose_w.data = ProxyArray(wp.empty(self._num_instances, wp.transformf, self.device))
-        if self._root_com_pose_w.timestamp < self._sim_timestamp:
+        if self._root_com_pose_w.timestamp < self._state_version:
             self._read_launch_cache.launch(
                 "root_com_pose_w",
+                wp.launch,
                 shared_kernels.get_root_com_pose_from_root_link_pose,
                 dim=self._num_instances,
                 inputs=[self.root_link_pose_w, self._sim_bind_body_com_pos_b],
                 outputs=[self._root_com_pose_w.data],
             )
-            self._root_com_pose_w.timestamp = self._sim_timestamp
+            self._root_com_pose_w.timestamp = self._state_version
 
         return self._root_com_pose_w.data
 
@@ -745,7 +720,6 @@ class ArticulationData(BaseArticulationData):
         return self._body_link_pose_w_ta
 
     @property
-    @capture_unsafe(_LAZY_CAPTURE_REASON)
     def body_link_vel_w(self) -> ProxyArray:
         """Body link velocity ``[lin_vel, ang_vel]`` in simulation world frame.
 
@@ -758,20 +732,20 @@ class ArticulationData(BaseArticulationData):
         if self._body_link_vel_w.data is None:
             shape = (self._num_instances, self._num_bodies)
             self._body_link_vel_w.data = ProxyArray(wp.empty(shape, wp.spatial_vectorf, self.device))
-        if self._body_link_vel_w.timestamp < self._sim_timestamp:
+        if self._body_link_vel_w.timestamp < self._state_version:
             self._read_launch_cache.launch(
                 "body_link_vel_w",
+                wp.launch,
                 shared_kernels.get_body_link_vel_from_body_com_vel,
                 dim=(self._num_instances, self._num_bodies),
                 inputs=[self.body_com_vel_w, self.body_link_pose_w, self.body_com_pos_b],
                 outputs=[self._body_link_vel_w.data],
             )
-            self._body_link_vel_w.timestamp = self._sim_timestamp
+            self._body_link_vel_w.timestamp = self._state_version
 
         return self._body_link_vel_w.data
 
     @property
-    @capture_unsafe(_LAZY_CAPTURE_REASON)
     def body_com_pose_w(self) -> ProxyArray:
         """Body center of mass pose ``[pos, quat]`` in simulation world frame.
 
@@ -784,15 +758,16 @@ class ArticulationData(BaseArticulationData):
         if self._body_com_pose_w.data is None:
             shape = (self._num_instances, self._num_bodies)
             self._body_com_pose_w.data = ProxyArray(wp.empty(shape, wp.transformf, self.device))
-        if self._body_com_pose_w.timestamp < self._sim_timestamp:
+        if self._body_com_pose_w.timestamp < self._state_version:
             self._read_launch_cache.launch(
                 "body_com_pose_w",
+                wp.launch,
                 shared_kernels.get_body_com_pose_from_body_link_pose,
                 dim=(self._num_instances, self._num_bodies),
                 inputs=[self.body_link_pose_w, self.body_com_pos_b],
                 outputs=[self._body_com_pose_w.data],
             )
-            self._body_com_pose_w.timestamp = self._sim_timestamp
+            self._body_com_pose_w.timestamp = self._state_version
 
         return self._body_com_pose_w.data
 
@@ -810,6 +785,54 @@ class ArticulationData(BaseArticulationData):
         return self._body_com_vel_w_ta
 
     @property
+    def body_joint_wrench(self) -> ProxyArray:
+        """Incoming joint reaction wrenches in public body order; see the base data contract."""
+        if self._sim_bind_body_parent_f is None:
+            raise RuntimeError("Set ArticulationCfg.enable_joint_wrench=True before simulation startup.")
+        if self._body_joint_wrench.data is None:
+            model = self._backend_manager.backend.model
+            articulation_ids = self._root_view.articulation_ids.numpy()[:, 0]
+            starts = model.articulation_start.numpy()[articulation_ids]
+            end = model.articulation_end.numpy()[articulation_ids[0]]
+            tree_joints = np.arange(starts[0], end)
+            children = model.joint_child.numpy()
+            body_ids = np.unique(children[tree_joints])
+            joint_types = model.joint_type.numpy()[tree_joints]
+            parents = model.joint_parent.numpy()[tree_joints]
+            report_joint = (joint_types != JointType.FREE) & ((joint_types != JointType.FIXED) | (parents != -1))
+            report_body = np.zeros(self._num_bodies, dtype=bool)
+            body_indices = np.searchsorted(body_ids, children[tree_joints[report_joint]])
+            report_body[body_indices] = True
+            joint_ids = starts[:, None] + (tree_joints[report_joint] - starts[0])
+            joint_poses = np.zeros((self._num_instances, self._num_bodies, 7), dtype=np.float32)
+            joint_poses[:, body_indices] = model.joint_X_c.numpy()[joint_ids]
+            self._wrench_body_joint_pose = wp.array(joint_poses, dtype=wp.transformf, device=self.device)
+            self._wrench_report_body = wp.array(report_body, dtype=wp.bool, device=self.device)
+            self._body_joint_wrench.data = wp.empty(
+                (self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device
+            )
+            self._body_joint_wrench_ta = ProxyArray(self._body_joint_wrench.data)
+        if self._body_joint_wrench.timestamp < self._state_version:
+            self._read_launch_cache.launch(
+                "body_joint_wrench",
+                wp.launch,
+                articulation_kernels.update_body_joint_wrench,
+                dim=(self._num_instances, self._num_bodies),
+                inputs=[
+                    self._sim_bind_body_parent_f,
+                    self._sim_bind_body_link_pose_w,
+                    self._sim_bind_body_com_pos_b,
+                    self._wrench_body_joint_pose,
+                    self._wrench_report_body,
+                    self.body_ordering.user_to_backend if self.has_body_ordering else None,
+                    self.has_body_ordering,
+                ],
+                outputs=[self._body_joint_wrench.data],
+            )
+            self._body_joint_wrench.timestamp = self._state_version
+        return self._body_joint_wrench_ta
+
+    @property
     def body_com_acc_w(self) -> ProxyArray:
         """Acceleration of all bodies center of mass ``[lin_acc, ang_acc]``.
 
@@ -819,6 +842,8 @@ class ArticulationData(BaseArticulationData):
         All values are relative to the world.
         """
         if self._body_com_acc_w.timestamp < self._sim_timestamp:
+            # Finite-difference over the elapsed time, which spans the decimation when Newton owns it.
+            time_elapsed = self._sim_timestamp - self._body_com_acc_w.timestamp
             body_ordering = self.body_ordering
             wp.launch(
                 articulation_kernels.get_body_com_acc_from_body_com_vel_ordered,
@@ -829,7 +854,7 @@ class ArticulationData(BaseArticulationData):
                     self._previous_body_com_vel,
                     body_ordering.user_to_backend if body_ordering is not None else None,
                     body_ordering is not None,
-                    SimulationManager.get_dt(),
+                    time_elapsed,
                 ],
                 outputs=[self._body_com_acc_w.data],
             )
@@ -866,15 +891,16 @@ class ArticulationData(BaseArticulationData):
         if self._body_com_pose_b.data is None:
             shape = (self._num_instances, self._num_bodies)
             self._body_com_pose_b.data = ProxyArray(wp.empty(shape, wp.transformf, self.device))
-        if self._body_com_pose_b.timestamp < self._sim_timestamp:
+        if self._body_com_pose_b.timestamp < self._state_version:
             self._read_launch_cache.launch(
                 "body_com_pose_b",
+                wp.launch,
                 shared_kernels.make_dummy_body_com_pose_b,
                 dim=(self._num_instances, self._num_bodies),
                 inputs=[self.body_com_pos_b],
                 outputs=[self._body_com_pose_b.data],
             )
-            self._body_com_pose_b.timestamp = self._sim_timestamp
+            self._body_com_pose_b.timestamp = self._state_version
         return self._body_com_pose_b.data
 
     """
@@ -900,14 +926,15 @@ class ArticulationData(BaseArticulationData):
         jacobian = self._body_com_jacobian_w_ta.warp
         # eval_jacobian writes every articulation in the model; gather kernel extracts this
         # view's rows. ``link_offset`` skips Newton's fixed-root row for fixed-base; the DoF
-        # axis is preserved in full (free-root joint's 6 columns up front for floating-base),
+        # axis is preserved in full (a free root joint's 6 columns up front),
         # matching the PhysX layout and the cross-library industry convention.
         self._root_view.eval_jacobian(
-            SimulationManager.get_state_0(), J=self._jacobian_buf_flat, joint_S_s=self._joint_S_s_buf
+            self._backend_manager.backend.state_0, J=self._jacobian_buf_flat, joint_S_s=self._joint_S_s_buf
         )
         joint_ordering = self.joint_ordering
         self._read_launch_cache.launch(
             "body_com_jacobian_w",
+            wp.launch,
             articulation_kernels.gather_jacobian_rows,
             dim=jacobian.shape,
             inputs=[
@@ -929,7 +956,7 @@ class ArticulationData(BaseArticulationData):
         Newton implementation: applies the COM→origin shift kernel to
         :attr:`body_com_jacobian_w` (Newton's ``eval_jacobian`` is COM-referenced).
         """
-        # ``body_link_pose_w`` accessor triggers ``SimulationManager.forward()`` if FK is
+        # ``body_link_pose_w`` accessor triggers ``NewtonManager.forward()`` if FK is
         # stale (after a manual joint / root write that bypassed the sim step). Reading the
         # property here — not ``_sim_bind_body_link_pose_w`` directly — keeps the shift
         # kernel from using stale link rotations during reset / IK-warm-start paths.
@@ -940,7 +967,8 @@ class ArticulationData(BaseArticulationData):
         jacobian = self._body_link_jacobian_w_ta.warp
         self._read_launch_cache.launch(
             "body_link_jacobian_w",
-            articulation_kernels.shift_jacobian_com_to_origin,
+            wp.launch,
+            warp_math.shift_jacobian_reference,
             dim=jacobian.shape[:2] + (jacobian.shape[3],),
             inputs=[
                 link_pose_w,
@@ -980,7 +1008,7 @@ class ArticulationData(BaseArticulationData):
         # provided), so we must populate the scratch first via eval_jacobian. Reusing
         # ``_jacobian_buf_flat`` (same shape) avoids a second allocation. Buffers are
         # allocated on first use and reused on subsequent calls, including graph replay.
-        state = SimulationManager.get_state_0()
+        state = self._backend_manager.backend.state_0
         self._root_view.eval_jacobian(state, J=self._jacobian_buf_flat, joint_S_s=self._joint_S_s_buf)
         self._root_view.eval_mass_matrix(
             state,
@@ -992,6 +1020,7 @@ class ArticulationData(BaseArticulationData):
         joint_ordering = self.joint_ordering
         self._read_launch_cache.launch(
             "mass_matrix",
+            wp.launch,
             articulation_kernels.gather_mass_matrix_rows,
             dim=mass_matrix.shape,
             inputs=[
@@ -1032,7 +1061,7 @@ class ArticulationData(BaseArticulationData):
         # enabled (validated by Newton's own graph-capture test) — so only the output
         # and gather buffers are retained here.
         self._root_view.eval_inverse_dynamics_passive(
-            SimulationManager.get_state_0(), gravity_force=self._gravity_force_full_buf
+            self._backend_manager.backend.state_0, gravity_force=self._gravity_force_full_buf
         )
         # Topology arrays come from the same Model object the eval above computed
         # against (the view's), so the gather can never mix models across a rebuild.
@@ -1107,7 +1136,6 @@ class ArticulationData(BaseArticulationData):
     """
 
     @property
-    @capture_unsafe(_LAZY_CAPTURE_REASON)
     def projected_gravity_b(self) -> ProxyArray:
         """Projection of the gravity direction on base frame.
 
@@ -1115,19 +1143,19 @@ class ArticulationData(BaseArticulationData):
         """
         if self._projected_gravity_b.data is None:
             self._projected_gravity_b.data = ProxyArray(wp.empty(self._num_instances, wp.vec3f, self.device))
-        if self._projected_gravity_b.timestamp < self._sim_timestamp:
+        if self._projected_gravity_b.timestamp < self._state_version:
             self._read_launch_cache.launch(
                 "projected_gravity_b",
+                wp.launch,
                 shared_kernels.projected_gravity_b_kernel,
                 dim=self._num_instances,
                 inputs=[self.GRAVITY_VEC_W, self.root_link_quat_w],
                 outputs=[self._projected_gravity_b.data],
             )
-            self._projected_gravity_b.timestamp = self._sim_timestamp
+            self._projected_gravity_b.timestamp = self._state_version
         return self._projected_gravity_b.data
 
     @property
-    @capture_unsafe(_LAZY_CAPTURE_REASON)
     def heading_w(self) -> ProxyArray:
         """Yaw heading of the base frame (in radians).
 
@@ -1139,19 +1167,19 @@ class ArticulationData(BaseArticulationData):
         """
         if self._heading_w.data is None:
             self._heading_w.data = ProxyArray(wp.empty(self._num_instances, wp.float32, self.device))
-        if self._heading_w.timestamp < self._sim_timestamp:
+        if self._heading_w.timestamp < self._state_version:
             self._read_launch_cache.launch(
                 "heading_w",
-                shared_kernels.root_heading_w,
+                wp.launch,
+                warp_math.heading[1],
                 dim=self._num_instances,
                 inputs=[self.FORWARD_VEC_B, self.root_link_quat_w],
                 outputs=[self._heading_w.data],
             )
-            self._heading_w.timestamp = self._sim_timestamp
+            self._heading_w.timestamp = self._state_version
         return self._heading_w.data
 
     @property
-    @capture_unsafe(_LAZY_CAPTURE_REASON)
     def root_link_lin_vel_b(self) -> ProxyArray:
         """Root link linear velocity in base frame.
 
@@ -1163,15 +1191,16 @@ class ArticulationData(BaseArticulationData):
         if self._root_link_lin_vel_b is None:
             self._root_link_lin_vel_b = TimestampedBuffer(wp.empty(self._num_instances, wp.vec3f, self.device))
             self._root_link_lin_vel_b_ta = ProxyArray(self._root_link_lin_vel_b.data)
-        if self._root_link_lin_vel_b.timestamp < self._sim_timestamp:
+        if self._root_link_lin_vel_b.timestamp < self._state_version:
             self._read_launch_cache.launch(
                 "root_link_lin_vel_b",
-                shared_kernels.quat_apply_inverse_1D_kernel,
+                wp.launch,
+                warp_math.quat_rotate_inv[1],
                 dim=self._num_instances,
-                inputs=[self.root_link_lin_vel_w.warp, self.root_link_quat_w.warp],
+                inputs=[self.root_link_quat_w.warp, self.root_link_lin_vel_w.warp],
                 outputs=[self._root_link_lin_vel_b.data],
             )
-            self._root_link_lin_vel_b.timestamp = self._sim_timestamp
+            self._root_link_lin_vel_b.timestamp = self._state_version
         return self._root_link_lin_vel_b_ta
 
     @property
@@ -1186,15 +1215,16 @@ class ArticulationData(BaseArticulationData):
         if self._root_link_ang_vel_b is None:
             self._root_link_ang_vel_b = TimestampedBuffer(wp.empty(self._num_instances, wp.vec3f, self.device))
             self._root_link_ang_vel_b_ta = ProxyArray(self._root_link_ang_vel_b.data)
-        if self._root_link_ang_vel_b.timestamp < self._sim_timestamp:
+        if self._root_link_ang_vel_b.timestamp < self._state_version:
             self._read_launch_cache.launch(
                 "root_link_ang_vel_b",
-                shared_kernels.quat_apply_inverse_1D_kernel,
+                wp.launch,
+                warp_math.quat_rotate_inv[1],
                 dim=self._num_instances,
-                inputs=[self.root_link_ang_vel_w.warp, self.root_link_quat_w.warp],
+                inputs=[self.root_link_quat_w.warp, self.root_link_ang_vel_w.warp],
                 outputs=[self._root_link_ang_vel_b.data],
             )
-            self._root_link_ang_vel_b.timestamp = self._sim_timestamp
+            self._root_link_ang_vel_b.timestamp = self._state_version
         return self._root_link_ang_vel_b_ta
 
     @property
@@ -1209,15 +1239,16 @@ class ArticulationData(BaseArticulationData):
         if self._root_com_lin_vel_b is None:
             self._root_com_lin_vel_b = TimestampedBuffer(wp.empty(self._num_instances, wp.vec3f, self.device))
             self._root_com_lin_vel_b_ta = ProxyArray(self._root_com_lin_vel_b.data)
-        if self._root_com_lin_vel_b.timestamp < self._sim_timestamp:
+        if self._root_com_lin_vel_b.timestamp < self._state_version:
             self._read_launch_cache.launch(
                 "root_com_lin_vel_b",
-                shared_kernels.quat_apply_inverse_1D_kernel,
+                wp.launch,
+                warp_math.quat_rotate_inv[1],
                 dim=self._num_instances,
-                inputs=[self.root_com_lin_vel_w.warp, self.root_link_quat_w.warp],
+                inputs=[self.root_link_quat_w.warp, self.root_com_lin_vel_w.warp],
                 outputs=[self._root_com_lin_vel_b.data],
             )
-            self._root_com_lin_vel_b.timestamp = self._sim_timestamp
+            self._root_com_lin_vel_b.timestamp = self._state_version
         return self._root_com_lin_vel_b_ta
 
     @property
@@ -1232,15 +1263,16 @@ class ArticulationData(BaseArticulationData):
         if self._root_com_ang_vel_b is None:
             self._root_com_ang_vel_b = TimestampedBuffer(wp.empty(self._num_instances, wp.vec3f, self.device))
             self._root_com_ang_vel_b_ta = ProxyArray(self._root_com_ang_vel_b.data)
-        if self._root_com_ang_vel_b.timestamp < self._sim_timestamp:
+        if self._root_com_ang_vel_b.timestamp < self._state_version:
             self._read_launch_cache.launch(
                 "root_com_ang_vel_b",
-                shared_kernels.quat_apply_inverse_1D_kernel,
+                wp.launch,
+                warp_math.quat_rotate_inv[1],
                 dim=self._num_instances,
-                inputs=[self.root_com_ang_vel_w.warp, self.root_link_quat_w.warp],
+                inputs=[self.root_link_quat_w.warp, self.root_com_ang_vel_w.warp],
                 outputs=[self._root_com_ang_vel_b.data],
             )
-            self._root_com_ang_vel_b.timestamp = self._sim_timestamp
+            self._root_com_ang_vel_b.timestamp = self._state_version
         return self._root_com_ang_vel_b_ta
 
     """
@@ -1516,9 +1548,6 @@ class ArticulationData(BaseArticulationData):
         .. caution:: This is possible if and only if the properties that we access are strided from newton and not
         indexed. Newton willing this is the case all the time, but we should pay attention to this if things look off.
         """
-        # A full Newton reset recreates model/state arrays, invalidating recorded pointers.
-        self._read_launch_cache.clear()
-
         # Short-hand for the number of instances, number of links, and number of joints.
         self._num_instances = self._root_view.count
         self._num_joints = self._root_view.joint_dof_count
@@ -1526,35 +1555,29 @@ class ArticulationData(BaseArticulationData):
         self._num_fixed_tendons = self._root_view.tendon_count
         self._num_spatial_tendons = 0  # spatial tendons not supported
 
+        backend = self._backend_manager.backend
+        model, state, control = backend.model, backend.state_0, backend.control
         # -- root properties
-        self._sim_bind_root_link_pose_w = self._root_view.get_root_transforms(SimulationManager.get_state_0())[:, 0]
-        # ``get_root_velocities`` returns ``None`` for fixed-base articulations; the
-        # ``wp.zeros`` fallback set by :meth:`_create_buffers` must survive subsequent
-        # resets, so only overwrite when the solver actually exposes the binding.
-        root_vel_w = self._root_view.get_root_velocities(SimulationManager.get_state_0())
-        if root_vel_w is not None:
-            if self._root_view.is_fixed_base:
-                self._sim_bind_root_com_vel_w = root_vel_w[:, 0, 0]
-            else:
-                self._sim_bind_root_com_vel_w = root_vel_w[:, 0]
+        self._sim_bind_root_link_pose_w = self._root_view.get_root_transforms(state)[:, 0]
+        # Newton exposes root velocities only for floating bases.
+        root_vel_w = self._root_view.get_root_velocities(state)
+        self._sim_bind_root_com_vel_w = (
+            wp.zeros(self._num_instances, dtype=wp.spatial_vectorf, device=self.device)
+            if root_vel_w is None
+            else root_vel_w[:, 0]
+        )
         # -- body properties
-        self._sim_bind_body_com_pos_b = self._root_view.get_attribute("body_com", SimulationManager.get_model())[:, 0]
-        self._sim_bind_body_link_pose_w = self._root_view.get_link_transforms(SimulationManager.get_state_0())[:, 0]
-        body_com_vel_w = self._root_view.get_link_velocities(SimulationManager.get_state_0())
-        if body_com_vel_w is not None:
-            self._sim_bind_body_com_vel_w = body_com_vel_w[:, 0]
-        self._sim_bind_body_mass = self._root_view.get_attribute("body_mass", SimulationManager.get_model())[:, 0]
-        self._sim_bind_body_inv_mass = self._root_view.get_attribute("body_inv_mass", SimulationManager.get_model())[
-            :, 0
-        ]
-        self._sim_bind_body_inv_inertia = self._root_view.get_attribute(
-            "body_inv_inertia", SimulationManager.get_model()
-        )[:, 0]
+        self._sim_bind_body_com_pos_b = self._root_view.get_attribute("body_com", model)[:, 0]
+        self._sim_bind_body_link_pose_w = self._root_view.get_link_transforms(state)[:, 0]
+        self._sim_bind_body_com_vel_w = self._root_view.get_link_velocities(state)[:, 0]
+        self._sim_bind_body_mass = self._root_view.get_attribute("body_mass", model)[:, 0]
+        self._sim_bind_body_inv_mass = self._root_view.get_attribute("body_inv_mass", model)[:, 0]
+        self._sim_bind_body_inv_inertia = self._root_view.get_attribute("body_inv_inertia", model)[:, 0]
         # Newton stores body_inertia as (N, 1, B) mat33f — the [:, 0] removes the padding dim
         # giving (N, B) mat33f. Reinterpret as (N, B, 9) float32 via pointer aliasing.
         # Each mat33f element is 9 contiguous float32 values (36 bytes), so the inner stride is 4.
         # The slice may be non-contiguous in the outer dims, so we preserve those strides.
-        _body_inertia_raw = self._root_view.get_attribute("body_inertia", SimulationManager.get_model())[:, 0]
+        _body_inertia_raw = self._root_view.get_attribute("body_inertia", model)[:, 0]
         self._sim_bind_body_inertia = wp.array(
             ptr=_body_inertia_raw.ptr,
             dtype=wp.float32,
@@ -1563,50 +1586,28 @@ class ArticulationData(BaseArticulationData):
             device=_body_inertia_raw.device,
             copy=False,
         )
-        self._sim_bind_body_external_wrench = self._root_view.get_attribute("body_f", SimulationManager.get_state_0())[
-            :, 0
-        ]
+        self._sim_bind_body_external_wrench = self._root_view.get_attribute("body_f", state)[:, 0]
         try:
-            self._sim_bind_body_parent_f = self._root_view.get_attribute(
-                "body_parent_f", SimulationManager.get_state_0()
-            )[:, 0]
+            self._sim_bind_body_parent_f = self._root_view.get_attribute("body_parent_f", state)[:, 0]
         except Exception:
             self._sim_bind_body_parent_f = None
         # -- joint properties
         if self._num_joints > 0:
-            self._sim_bind_joint_pos_limits_lower = self._root_view.get_attribute(
-                "joint_limit_lower", SimulationManager.get_model()
-            )[:, 0]
-            self._sim_bind_joint_pos_limits_upper = self._root_view.get_attribute(
-                "joint_limit_upper", SimulationManager.get_model()
-            )[:, 0]
-            self._sim_bind_joint_stiffness_sim = self._root_view.get_attribute(
-                "joint_target_ke", SimulationManager.get_model()
-            )[:, 0]
-            self._sim_bind_joint_damping_sim = self._root_view.get_attribute(
-                "joint_target_kd", SimulationManager.get_model()
-            )[:, 0]
-            self._sim_bind_joint_viscous_friction_coeff = self._root_view.get_attribute(
-                "joint_damping", SimulationManager.get_model()
-            )[:, 0]
-            self._sim_bind_joint_armature = self._root_view.get_attribute(
-                "joint_armature", SimulationManager.get_model()
-            )[:, 0]
-            self._sim_bind_joint_friction_coeff = self._root_view.get_attribute(
-                "joint_friction", SimulationManager.get_model()
-            )[:, 0]
-            self._sim_bind_joint_vel_limits_sim = self._root_view.get_attribute(
-                "joint_velocity_limit", SimulationManager.get_model()
-            )[:, 0]
-            self._sim_bind_joint_effort_limits_sim = self._root_view.get_attribute(
-                "joint_effort_limit", SimulationManager.get_model()
-            )[:, 0]
+            self._sim_bind_joint_pos_limits_lower = self._root_view.get_attribute("joint_limit_lower", model)[:, 0]
+            self._sim_bind_joint_pos_limits_upper = self._root_view.get_attribute("joint_limit_upper", model)[:, 0]
+            self._sim_bind_joint_stiffness_sim = self._root_view.get_attribute("joint_target_ke", model)[:, 0]
+            self._sim_bind_joint_damping_sim = self._root_view.get_attribute("joint_target_kd", model)[:, 0]
+            self._sim_bind_joint_viscous_friction_coeff = self._root_view.get_attribute("joint_damping", model)[:, 0]
+            self._sim_bind_joint_armature = self._root_view.get_attribute("joint_armature", model)[:, 0]
+            self._sim_bind_joint_friction_coeff = self._root_view.get_attribute("joint_friction", model)[:, 0]
+            self._sim_bind_joint_vel_limits_sim = self._root_view.get_attribute("joint_velocity_limit", model)[:, 0]
+            self._sim_bind_joint_effort_limits_sim = self._root_view.get_attribute("joint_effort_limit", model)[:, 0]
             # -- joint states
             # ``get_dof_positions`` returns Newton's ``joint_q``, which is *coordinate* space: a ball
             # joint occupies 4 quaternion components against 3 DOFs, so the array is wider than
             # ``num_joints`` whenever the articulation has one. IsaacLab addresses joints by DOF
             # index everywhere, so keep the coordinate array separate and publish a DOF-space view.
-            self._sim_bind_joint_coords = self._root_view.get_dof_positions(SimulationManager.get_state_0())[:, 0]
+            self._sim_bind_joint_coords = self._root_view.get_dof_positions(state)[:, 0]
             # The view's per-joint counts are already in the column order of the array above and
             # already exclude the free root, fixed joints and loop-closing joints.
             self._joint_coord_map = build_ball_joint_coordinate_map(
@@ -1619,15 +1620,11 @@ class ArticulationData(BaseArticulationData):
                 gather_joint_coordinates(self._joint_coord_map, self._sim_bind_joint_coords, self._sim_bind_joint_pos)
             else:
                 self._sim_bind_joint_pos = self._sim_bind_joint_coords
-            self._sim_bind_joint_vel = self._root_view.get_dof_velocities(SimulationManager.get_state_0())[:, 0]
+            self._sim_bind_joint_vel = self._root_view.get_dof_velocities(state)[:, 0]
             # -- joint commands (sent to the simulation)
-            self._sim_bind_joint_effort = self._root_view.get_attribute("joint_f", SimulationManager.get_control())[
-                :, 0
-            ]
-            self._sim_bind_joint_act = self._root_view.get_attribute("joint_act", SimulationManager.get_control())[:, 0]
-            self._sim_bind_joint_position_target = self._root_view.get_attribute(
-                "joint_target_q", SimulationManager.get_control()
-            )[:, 0]
+            self._sim_bind_joint_effort = self._root_view.get_attribute("joint_f", control)[:, 0]
+            self._sim_bind_joint_act = self._root_view.get_attribute("joint_act", control)[:, 0]
+            self._sim_bind_joint_position_target = self._root_view.get_attribute("joint_target_q", control)[:, 0]
             # ``joint_target_q`` follows ``newton.use_coord_layout_targets``, which defaults to
             # True from Newton 1.6. Under that layout the array is coordinate-shaped, exactly like
             # ``joint_q``, so actuators keep writing DOF-indexed targets into a staging buffer and
@@ -1641,9 +1638,7 @@ class ArticulationData(BaseArticulationData):
                 gather_joint_coordinates(
                     self._joint_coord_map, self._sim_bind_joint_target_coords, self._sim_bind_joint_position_target
                 )
-            self._sim_bind_joint_velocity_target = self._root_view.get_attribute(
-                "joint_target_qd", SimulationManager.get_control()
-            )[:, 0]
+            self._sim_bind_joint_velocity_target = self._root_view.get_attribute("joint_target_qd", control)[:, 0]
         else:
             # No joints (e.g., free-floating rigid body) - set bindings to empty arrays
             self._sim_bind_joint_pos_limits_lower = wp.zeros(
@@ -1689,16 +1684,16 @@ class ArticulationData(BaseArticulationData):
 
         # assumes all tendons are fixed and only one arti in scene
         if self._root_view.tendon_count > 0:
-            self._sim_bind_fixed_tendon_stiffness = self._root_view.get_attribute(
-                "mujoco.tendon_stiffness", SimulationManager.get_model()
-            )[:, 0]
+            self._sim_bind_fixed_tendon_stiffness = self._root_view.get_attribute("mujoco.tendon_stiffness", model)[
+                :, 0
+            ]
             self._sim_bind_fixed_tendon_damping = self._root_view.get_attribute(
                 "mujoco.tendon_damping",
-                SimulationManager.get_model(),
+                model,
             )[:, 0]
             self._sim_bind_fixed_tendon_pos_limits = self._root_view.get_attribute(
                 "mujoco.tendon_range",
-                SimulationManager.get_model(),
+                model,
             )[:, 0]
         else:
             self._sim_bind_fixed_tendon_stiffness = wp.zeros(
@@ -1711,25 +1706,6 @@ class ArticulationData(BaseArticulationData):
                 (self._num_instances, 0), dtype=wp.vec2f, device=self.device
             )
 
-        # Re-pin ProxyArray wrappers to the newly created sim bindings.
-        # On first init, _create_buffers() handles this after all buffers exist.
-        if hasattr(self, "_root_link_pose_w_ta"):
-            self._pin_proxy_arrays()
-            if self.has_joint_ordering:
-                wp.launch(
-                    ordering_kernels.reorder_2d_backend_to_user,
-                    dim=(self._num_instances, self._num_joints),
-                    inputs=[self._sim_bind_joint_vel, self.joint_ordering.user_to_backend],
-                    outputs=[self._previous_joint_vel],
-                    device=self.device,
-                )
-            else:
-                self._previous_joint_vel.assign(self._sim_bind_joint_vel)
-            self._previous_body_com_vel.assign(self._sim_bind_body_com_vel_w)
-            reset_timestamps([self._joint_acc, self._body_com_acc_w])
-            if self._actuator_collection is not None:
-                self._actuator_collection._rebind_state_inputs()
-
     def _create_buffers(self) -> None:
         """Create buffers for the root data."""
         super()._create_buffers()
@@ -1737,21 +1713,6 @@ class ArticulationData(BaseArticulationData):
         body_shape = (num_instances, self._num_bodies)
         joint_shape = (num_instances, self._num_joints)
 
-        # Initialize history for finite differencing. If the articulation is fixed, the root com velocity is not
-        # available, so we use zeros.
-        if self._root_view.get_root_velocities(SimulationManager.get_state_0()) is None:
-            logger.warning(
-                "Failed to get root com velocity. If the articulation is fixed, this is expected. "
-                "Setting root com velocity to zeros."
-            )
-            self._sim_bind_root_com_vel_w = wp.zeros(num_instances, dtype=wp.spatial_vectorf, device=device)
-        # Body velocities are well-defined regardless of the base type (fixed-base articulations
-        # still report link velocities); fall back to zeros only when the view genuinely cannot
-        # provide them. Zeroing this binding together with the root velocity silently zeroes
-        # every body-velocity read for fixed-base robots.
-        if self._root_view.get_link_velocities(SimulationManager.get_state_0()) is None:
-            logger.warning("Failed to get body com velocities. Setting body com velocities to zeros.")
-            self._sim_bind_body_com_vel_w = wp.zeros(body_shape, dtype=wp.spatial_vectorf, device=device)
         # -- default root pose and velocity
         self._default_root_pose = wp.zeros((num_instances,), dtype=wp.transformf, device=device)
         self._default_root_vel = wp.zeros((num_instances,), dtype=wp.spatial_vectorf, device=device)
@@ -1778,7 +1739,7 @@ class ArticulationData(BaseArticulationData):
         # Initialize history for finite differencing
         if self._num_joints > 0:
             self._previous_joint_vel = wp.clone(
-                self._root_view.get_dof_velocities(SimulationManager.get_state_0())[:, 0]
+                self._root_view.get_dof_velocities(self._backend_manager.backend.state_0)[:, 0]
             )
         else:
             self._previous_joint_vel = wp.zeros((num_instances, 0), dtype=wp.float32, device=device)
@@ -1833,7 +1794,8 @@ class ArticulationData(BaseArticulationData):
         # -- optional task-space quantities: retain ordering metadata, but defer large
         # model-wide scratch until the corresponding accessor is actually used.
         self._jacobian_link_offset = 1 if self._root_view.is_fixed_base else 0
-        self._num_base_dofs = 0 if self._root_view.is_fixed_base else 6
+        # only a free root joint's DoFs are excluded from the view's joints (``exclude_joint_types``)
+        self._num_base_dofs = 6 if self._root_view.root_joint_type == JointType.FREE else 0
         self._jacobian_body_user_to_backend: wp.array | None = None
         self._jacobian_view_art_ids = self._root_view.articulation_ids.reshape((-1,))
         self._jacobian_buf_flat: wp.array | None = None
@@ -1853,7 +1815,38 @@ class ArticulationData(BaseArticulationData):
         self._body_com_state_w = None
         self._default_root_state = None
 
-        # Pin all ProxyArray wrappers to current buffers.
+        self._default_root_pose_ta = ProxyArray(self._default_root_pose)
+        self._default_root_vel_ta = ProxyArray(self._default_root_vel)
+        self._default_joint_pos_ta = ProxyArray(self._default_joint_pos)
+        self._default_joint_vel_ta = ProxyArray(self._default_joint_vel)
+        self._joint_pos_target_ta = None
+        self._joint_vel_target_ta = None
+        self._joint_effort_target_ta = None
+        self._computed_torque_ta = ProxyArray(self._computed_torque)
+        self._applied_torque_ta = ProxyArray(self._applied_torque)
+        self._soft_joint_pos_limits_ta = ProxyArray(self._soft_joint_pos_limits)
+        self._soft_joint_vel_limits_ta = ProxyArray(self._soft_joint_vel_limits)
+        self._fixed_tendon_stiffness_ta = ProxyArray(self._sim_bind_fixed_tendon_stiffness)
+        self._fixed_tendon_damping_ta = ProxyArray(self._sim_bind_fixed_tendon_damping)
+        self._fixed_tendon_pos_limits_ta = ProxyArray(self._sim_bind_fixed_tendon_pos_limits)
+
+        # Category 2: TimestampedBuffer properties
+        self._body_com_acc_w_ta = ProxyArray(self._body_com_acc_w.data)
+        self._joint_acc_ta = ProxyArray(self._joint_acc.data)
+        self._body_com_jacobian_w_ta: ProxyArray | None = None
+        self._body_link_jacobian_w_ta: ProxyArray | None = None
+        self._mass_matrix_ta: ProxyArray | None = None
+        self._gravity_compensation_forces_ta: ProxyArray | None = None
+
+        # -- deprecated state properties (lazy); type annotations declared once here
+        self._root_state_w_ta: ProxyArray | None = None
+        self._root_link_state_w_ta: ProxyArray | None = None
+        self._root_com_state_w_ta: ProxyArray | None = None
+        self._default_root_state_ta: ProxyArray | None = None
+        self._body_state_w_ta: ProxyArray | None = None
+        self._body_link_state_w_ta: ProxyArray | None = None
+        self._body_com_state_w_ta: ProxyArray | None = None
+
         self._pin_proxy_arrays()
 
     def _create_jacobian_buffers(self) -> None:
@@ -1930,11 +1923,8 @@ class ArticulationData(BaseArticulationData):
                     setattr(self, field_name, wp.zeros(shape, dtype=wp.float32, device=self.device))
             self._validate_joint_ordering_buffers()
             # Seed the Lab-owned actuator gain records from the solver's initial
-            # gains at ordering-resolve time, before actuator processing overwrites
-            # the actuator-covered DOFs. These records are Lab-owned afterwards
-            # (sim gains are deliberately zeroed for explicit DOFs), so they must
-            # never be resynced from the solver on rebind -- unlike the sim-owned
-            # mirrors in :meth:`_sync_user_ordered_joint_property_buffers`.
+            # gains before actuator processing. Explicit DOFs subsequently zero
+            # the solver gains while retaining the actuator's configured values.
             for backend_data, user_data in (
                 (self._sim_bind_joint_stiffness_sim, self._actuator_stiffness),
                 (self._sim_bind_joint_damping_sim, self._actuator_damping),
@@ -2038,8 +2028,8 @@ class ArticulationData(BaseArticulationData):
 
         Ordering state lives only on :attr:`joint_ordering` / :attr:`body_ordering`;
         a non-``None`` map denotes an active permutation. The staging
-        (re)allocation below reconciles from those maps read directly, so an
-        ordering that was cleared on rebind releases its buffers.
+        (re)allocation below reconciles from those maps read directly, so a
+        cleared ordering releases its buffers.
         """
         self._read_launch_cache.clear()
         # Always build the row map (even under identity ordering) so the gather kernel can
@@ -2067,6 +2057,7 @@ class ArticulationData(BaseArticulationData):
             return
         self._read_launch_cache.launch(
             "joint_state_ordering",
+            wp.launch,
             ordering_kernels.reorder_joint_state_backend_to_user,
             dim=(self._num_instances, self._num_joints),
             inputs=[self._sim_bind_joint_pos, self._sim_bind_joint_vel, self.joint_ordering.user_to_backend],
@@ -2085,6 +2076,7 @@ class ArticulationData(BaseArticulationData):
         if self.has_body_ordering:
             self._read_launch_cache.launch(
                 "body_state_ordering",
+                wp.launch,
                 ordering_kernels.reorder_body_state_backend_to_user,
                 dim=(self._num_instances, self._num_bodies),
                 inputs=[
@@ -2127,19 +2119,8 @@ class ArticulationData(BaseArticulationData):
     def _sync_user_ordered_joint_property_buffers(self) -> None:
         """Refresh user-order joint property buffers from sim-bound backend-order arrays.
 
-        Only sim-owned mirrors belong here: the solver is authoritative for these
-        arrays, so re-gathering them on init and rebind is always correct. This
-        includes the Tier-1 joint-state shadows (``_joint_pos_user`` /
-        ``_joint_vel_user``), which the solver owns; seeding them here at resolve
-        and rebind is what makes the first pre-step reads valid, since the
-        post-step publish in :meth:`_refresh_user_order_state` only runs inside a
-        sim step. The Lab-owned actuator gain records (``_actuator_stiffness`` /
-        ``_actuator_damping``) are deliberately excluded -- they are seeded once in
-        :meth:`_configure_joint_ordering_buffers` and would be clobbered here on
-        every rebind.
-
-        The required public-order buffers are allocated and validated by
-        :meth:`_configure_joint_ordering_buffers`, which always runs before this.
+        Seed state shadows for reads before the first step. Actuator-owned gains
+        are initialized separately in :meth:`_configure_joint_ordering_buffers`.
         """
         for backend_data, user_data in (
             (self._sim_bind_joint_pos, self._joint_pos_user),
@@ -2202,19 +2183,7 @@ class ArticulationData(BaseArticulationData):
         )
 
     def _pin_proxy_arrays(self) -> None:
-        """Create or rebind all pinned ProxyArray wrappers.
-
-        Called from :meth:`_create_buffers` on first initialization and from
-        :meth:`_create_simulation_bindings` after a full simulation reset when
-        the solver recreates its internal arrays. The public-order buffers this
-        pins are allocated and validated by the ``_configure_*_ordering_buffers``
-        methods, which run at ordering-resolve time before any pin or rebind.
-        """
-        is_rebind = hasattr(self, "_root_link_pose_w_ta")
-        if is_rebind and self.has_joint_ordering:
-            self._sync_user_ordered_joint_property_buffers()
-        if is_rebind and self.has_body_ordering:
-            self._sync_user_ordered_body_property_buffers()
+        """Bind public arrays at construction and after joint/body ordering is resolved."""
         joint_stiffness = self._joint_stiffness_user if self.has_joint_ordering else self._sim_bind_joint_stiffness_sim
         joint_damping = self._joint_damping_user if self.has_joint_ordering else self._sim_bind_joint_damping_sim
         joint_armature = self._joint_armature_user if self.has_joint_ordering else self._sim_bind_joint_armature
@@ -2239,7 +2208,6 @@ class ArticulationData(BaseArticulationData):
             self._joint_effort_limits_user if self.has_joint_ordering else self._sim_bind_joint_effort_limits_sim
         )
 
-        # Both initial binding and full reset borrow the current native arrays.
         self._root_link_pose_w_ta = ProxyArray(self._sim_bind_root_link_pose_w)
         self._root_com_vel_w_ta = ProxyArray(self._sim_bind_root_com_vel_w)
         body_link_pose_w = self._body_link_pose_w_user if self.has_body_ordering else self._sim_bind_body_link_pose_w
@@ -2266,41 +2234,7 @@ class ArticulationData(BaseArticulationData):
         self._body_inertia_ta = ProxyArray(body_inertia)
         self._body_com_pos_b_ta = ProxyArray(body_com_pos_b)
 
-        if not is_rebind:
-            # First-time creation: pin ProxyArrays to current buffers
-            self._default_root_pose_ta = ProxyArray(self._default_root_pose)
-            self._default_root_vel_ta = ProxyArray(self._default_root_vel)
-            self._default_joint_pos_ta = ProxyArray(self._default_joint_pos)
-            self._default_joint_vel_ta = ProxyArray(self._default_joint_vel)
-            self._joint_pos_target_ta = None
-            self._joint_vel_target_ta = None
-            self._joint_effort_target_ta = None
-            self._computed_torque_ta = ProxyArray(self._computed_torque)
-            self._applied_torque_ta = ProxyArray(self._applied_torque)
-            self._soft_joint_pos_limits_ta = ProxyArray(self._soft_joint_pos_limits)
-            self._soft_joint_vel_limits_ta = ProxyArray(self._soft_joint_vel_limits)
-            self._fixed_tendon_stiffness_ta = ProxyArray(self._sim_bind_fixed_tendon_stiffness)
-            self._fixed_tendon_damping_ta = ProxyArray(self._sim_bind_fixed_tendon_damping)
-            self._fixed_tendon_pos_limits_ta = ProxyArray(self._sim_bind_fixed_tendon_pos_limits)
-
-            # Category 2: TimestampedBuffer properties
-            self._body_com_acc_w_ta = ProxyArray(self._body_com_acc_w.data)
-            self._joint_acc_ta = ProxyArray(self._joint_acc.data)
-            self._body_com_jacobian_w_ta: ProxyArray | None = None
-            self._body_link_jacobian_w_ta: ProxyArray | None = None
-            self._mass_matrix_ta: ProxyArray | None = None
-            self._gravity_compensation_forces_ta: ProxyArray | None = None
-
-            # -- deprecated state properties (lazy); type annotations declared once here
-            self._root_state_w_ta: ProxyArray | None = None
-            self._root_link_state_w_ta: ProxyArray | None = None
-            self._root_com_state_w_ta: ProxyArray | None = None
-            self._default_root_state_ta: ProxyArray | None = None
-            self._body_state_w_ta: ProxyArray | None = None
-            self._body_link_state_w_ta: ProxyArray | None = None
-            self._body_com_state_w_ta: ProxyArray | None = None
-
-        # Recreate component views after native arrays are rebound.
+        # Component views must follow the resolved joint/body ordering.
         self._root_link_pos_w_ta: ProxyArray | None = None
         self._root_link_quat_w_ta: ProxyArray | None = None
         self._root_link_lin_vel_w_ta: ProxyArray | None = None
@@ -2387,15 +2321,15 @@ class ArticulationData(BaseArticulationData):
         if self._root_state_w is None:
             self._root_state_w = TimestampedBuffer(wp.empty(self._num_instances, vec13f, self.device))
             self._root_state_w_ta = ProxyArray(self._root_state_w.data)
-        if self._root_state_w.timestamp < self._sim_timestamp:
+        if self._root_state_w.timestamp < self._state_version:
             self._read_launch_cache.launch(
                 "root_state_w",
-                shared_kernels.concat_root_pose_and_vel_to_state,
-                dim=(self._num_instances),
-                inputs=[self.root_link_pose_w.warp, self.root_com_vel_w.warp],
-                outputs=[self._root_state_w.data],
+                memory_kernels.concat,
+                self.root_link_pose_w.warp,
+                self.root_com_vel_w.warp,
+                self._root_state_w.data,
             )
-            self._root_state_w.timestamp = self._sim_timestamp
+            self._root_state_w.timestamp = self._state_version
 
         return self._root_state_w_ta
 
@@ -2411,15 +2345,15 @@ class ArticulationData(BaseArticulationData):
         if self._root_link_state_w is None:
             self._root_link_state_w = TimestampedBuffer(wp.empty(self._num_instances, vec13f, self.device))
             self._root_link_state_w_ta = ProxyArray(self._root_link_state_w.data)
-        if self._root_link_state_w.timestamp < self._sim_timestamp:
+        if self._root_link_state_w.timestamp < self._state_version:
             self._read_launch_cache.launch(
                 "root_link_state_w",
-                shared_kernels.concat_root_pose_and_vel_to_state,
-                dim=self._num_instances,
-                inputs=[self.root_link_pose_w.warp, self.root_link_vel_w.warp],
-                outputs=[self._root_link_state_w.data],
+                memory_kernels.concat,
+                self.root_link_pose_w.warp,
+                self.root_link_vel_w.warp,
+                self._root_link_state_w.data,
             )
-            self._root_link_state_w.timestamp = self._sim_timestamp
+            self._root_link_state_w.timestamp = self._state_version
 
         return self._root_link_state_w_ta
 
@@ -2435,15 +2369,15 @@ class ArticulationData(BaseArticulationData):
         if self._root_com_state_w is None:
             self._root_com_state_w = TimestampedBuffer(wp.empty(self._num_instances, vec13f, self.device))
             self._root_com_state_w_ta = ProxyArray(self._root_com_state_w.data)
-        if self._root_com_state_w.timestamp < self._sim_timestamp:
+        if self._root_com_state_w.timestamp < self._state_version:
             self._read_launch_cache.launch(
                 "root_com_state_w",
-                shared_kernels.concat_root_pose_and_vel_to_state,
-                dim=self._num_instances,
-                inputs=[self.root_com_pose_w.warp, self.root_com_vel_w.warp],
-                outputs=[self._root_com_state_w.data],
+                memory_kernels.concat,
+                self.root_com_pose_w.warp,
+                self.root_com_vel_w.warp,
+                self._root_com_state_w.data,
             )
-            self._root_com_state_w.timestamp = self._sim_timestamp
+            self._root_com_state_w.timestamp = self._state_version
 
         return self._root_com_state_w_ta
 
@@ -2468,10 +2402,10 @@ class ArticulationData(BaseArticulationData):
             self._default_root_state_ta = ProxyArray(self._default_root_state)
         self._read_launch_cache.launch(
             "default_root_state",
-            shared_kernels.concat_root_pose_and_vel_to_state,
-            dim=self._num_instances,
-            inputs=[self._default_root_pose, self._default_root_vel],
-            outputs=[self._default_root_state],
+            memory_kernels.concat,
+            self._default_root_pose,
+            self._default_root_vel,
+            self._default_root_state,
         )
         return self._default_root_state_ta
 
@@ -2494,15 +2428,15 @@ class ArticulationData(BaseArticulationData):
                 wp.empty((self._num_instances, self._num_bodies), vec13f, self.device)
             )
             self._body_state_w_ta = ProxyArray(self._body_state_w.data)
-        if self._body_state_w.timestamp < self._sim_timestamp:
+        if self._body_state_w.timestamp < self._state_version:
             self._read_launch_cache.launch(
                 "body_state_w",
-                shared_kernels.concat_body_pose_and_vel_to_state,
-                dim=(self._num_instances, self._num_bodies),
-                inputs=[self.body_link_pose_w.warp, self.body_com_vel_w.warp],
-                outputs=[self._body_state_w.data],
+                memory_kernels.concat,
+                self.body_link_pose_w.warp,
+                self.body_com_vel_w.warp,
+                self._body_state_w.data,
             )
-            self._body_state_w.timestamp = self._sim_timestamp
+            self._body_state_w.timestamp = self._state_version
 
         return self._body_state_w_ta
 
@@ -2524,15 +2458,15 @@ class ArticulationData(BaseArticulationData):
                 wp.empty((self._num_instances, self._num_bodies), vec13f, self.device)
             )
             self._body_link_state_w_ta = ProxyArray(self._body_link_state_w.data)
-        if self._body_link_state_w.timestamp < self._sim_timestamp:
+        if self._body_link_state_w.timestamp < self._state_version:
             self._read_launch_cache.launch(
                 "body_link_state_w",
-                shared_kernels.concat_body_pose_and_vel_to_state,
-                dim=(self._num_instances, self._num_bodies),
-                inputs=[self.body_link_pose_w.warp, self.body_link_vel_w.warp],
-                outputs=[self._body_link_state_w.data],
+                memory_kernels.concat,
+                self.body_link_pose_w.warp,
+                self.body_link_vel_w.warp,
+                self._body_link_state_w.data,
             )
-            self._body_link_state_w.timestamp = self._sim_timestamp
+            self._body_link_state_w.timestamp = self._state_version
 
         return self._body_link_state_w_ta
 
@@ -2556,14 +2490,14 @@ class ArticulationData(BaseArticulationData):
                 wp.empty((self._num_instances, self._num_bodies), vec13f, self.device)
             )
             self._body_com_state_w_ta = ProxyArray(self._body_com_state_w.data)
-        if self._body_com_state_w.timestamp < self._sim_timestamp:
+        if self._body_com_state_w.timestamp < self._state_version:
             self._read_launch_cache.launch(
                 "body_com_state_w",
-                shared_kernels.concat_body_pose_and_vel_to_state,
-                dim=(self._num_instances, self._num_bodies),
-                inputs=[self.body_com_pose_w.warp, self.body_com_vel_w.warp],
-                outputs=[self._body_com_state_w.data],
+                memory_kernels.concat,
+                self.body_com_pose_w.warp,
+                self.body_com_vel_w.warp,
+                self._body_com_state_w.data,
             )
-            self._body_com_state_w.timestamp = self._sim_timestamp
+            self._body_com_state_w.timestamp = self._state_version
 
         return self._body_com_state_w_ta

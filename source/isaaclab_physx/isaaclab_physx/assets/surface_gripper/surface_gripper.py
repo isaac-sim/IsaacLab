@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import logging
-import warnings
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -515,7 +514,7 @@ class SurfaceGripper(AssetBase):
         try:
             max_grip_distance = gripper_prim.GetAttribute("isaac:maxGripDistance").Get()
         except Exception as e:
-            warnings.warn(
+            logger.warning(
                 f"Failed to retrieve max_grip_distance from stage, defaulting to user provided cfg. Exception: {e}"
             )
             max_grip_distance = None
@@ -523,7 +522,7 @@ class SurfaceGripper(AssetBase):
         try:
             coaxial_force_limit = gripper_prim.GetAttribute("isaac:coaxialForceLimit").Get()
         except Exception as e:
-            warnings.warn(
+            logger.warning(
                 f"Failed to retrieve coaxial_force_limit from stage, defaulting to user provided cfg. Exception: {e}"
             )
             coaxial_force_limit = None
@@ -531,7 +530,7 @@ class SurfaceGripper(AssetBase):
         try:
             shear_force_limit = gripper_prim.GetAttribute("isaac:shearForceLimit").Get()
         except Exception as e:
-            warnings.warn(
+            logger.warning(
                 f"Failed to retrieve shear_force_limit from stage, defaulting to user provided cfg. Exception: {e}"
             )
             shear_force_limit = None
@@ -539,7 +538,7 @@ class SurfaceGripper(AssetBase):
         try:
             retry_interval = gripper_prim.GetAttribute("isaac:retryInterval").Get()
         except Exception as e:
-            warnings.warn(
+            logger.warning(
                 f"Failed to retrieve retry_interval from stage defaulting to user provided cfg. Exception: {e}"
             )
             retry_interval = None

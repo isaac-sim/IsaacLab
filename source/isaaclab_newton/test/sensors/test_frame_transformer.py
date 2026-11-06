@@ -24,6 +24,7 @@ from isaaclab.assets import RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import FrameTransformerCfg, OffsetCfg
 from isaaclab.sim import SimulationCfg
+from isaaclab.sim.views import FrameView
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass, replace
 
@@ -62,7 +63,7 @@ class MySceneCfg(InteractiveSceneCfg):
             size=(0.2, 0.2, 0.2),
             rigid_props=PhysxRigidBodyCfg(max_depenetration_velocity=1.0),
             mass_props=sim_utils.MassCfg(mass=1.0),
-            physics_material=sim_utils.RigidBodyMaterialCfg(),
+            physics_material=sim_utils.RigidBodyMaterialBaseCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 0.0)),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(2.0, 0.0, 5)),
@@ -172,12 +173,18 @@ def test_frame_transformer_sources_and_targets(sim):
         target_frames=[FrameTransformerCfg.FrameCfg(prim_path="{ENV_REGEX_NS}/Robot/[^/]*")],
     )
     scene = InteractiveScene(scene_cfg)
+    thigh_prim, thigh_path = sim_utils.resolve_matching_prims_from_source(f"{scene.env_regex_ns}/Robot/LF_THIGH")[0]
+    sim_utils.create_prim(f"{thigh_prim.GetPath()}/SensorFrame", translation=(0.0, 0.0, 0.1))
+    frame_view = FrameView(f"{thigh_path}/SensorFrame", device=sim.device)
 
     # Play the simulator
     sim.reset()
 
     robot = scene.articulations["robot"]
     cube = scene["cube"]
+
+    initial_frames = scene.sensors["ft_cube"].data
+    torch.testing.assert_close(initial_frames.target_pos_w.torch[:, 0], cube.data.root_pos_w.torch)
 
     # -- ft_base: reorder the feet indices to match the target frames with the _USER suffix removed
     base_feet_indices, base_feet_names = robot.find_bodies(["LF_FOOT", "RF_FOOT", "LH_FOOT", "RH_FOOT"])
@@ -218,6 +225,12 @@ def test_frame_transformer_sources_and_targets(sim):
             cube.write_root_velocity_to_sim_index(root_velocity=cube_state[:, 7:])
             # reset buffers
             scene.reset()
+
+            # Read before asset-pose getters or the next physics step can resolve deferred FK.
+            reset_frames = scene.sensors["ft_cube"].data
+            torch.testing.assert_close(reset_frames.source_pos_w.torch, root_state[:, :3])
+            torch.testing.assert_close(reset_frames.target_pos_w.torch[:, 0], cube_state[:, :3])
+            torch.testing.assert_close(reset_frames.target_quat_w.torch[:, 0], cube_state[:, 3:7])
 
         # set joint targets
         robot_actions = default_actions + 0.5 * torch.randn_like(default_actions)
@@ -313,6 +326,34 @@ def test_frame_transformer_sources_and_targets(sim):
             data.target_pos_source.torch,
             data.target_quat_source.torch,
         )
+
+    # Each reader must resolve pending joint FK before an asset getter can publish child poses.
+    joint_pos = default_actions.clone()
+    joint_pos[:, 0] += 0.5
+    robot.write_joint_position_to_sim_index(position=joint_pos)
+    scene.sensors["ft_all"].reset()
+    measured = scene.sensors["ft_all"].data.target_pos_w.torch.clone()
+    torch.testing.assert_close(measured[:, all_reordering_indices], robot.data.body_pos_w.torch)
+
+    joint_pos[:, 0] += 0.5
+    robot.write_joint_position_to_sim_index(position=joint_pos)
+    measured = frame_view.get_world_poses()[0].torch.clone()
+    offset = torch.tensor([[0.0, 0.0, 0.1]], device=sim.device).repeat(scene.num_envs, 1)
+    expected = robot.data.body_pos_w.torch[:, thigh_index] + math_utils.quat_apply(
+        robot.data.body_quat_w.torch[:, thigh_index], offset
+    )
+    torch.testing.assert_close(measured, expected)
+    frame_view.close()
+
+    # A cached update must honor changes to the reset mask.
+    sensor = scene.sensors["ft_cube"]
+    previous_frames = sensor.data.target_pos_w.torch.clone()
+    cube_pose = cube.data.root_pose_w.torch.clone()
+    cube_pose[1, 0] += 1.0
+    cube.write_root_pose_to_sim_index(root_pose=cube_pose[1:2], env_ids=[1])
+    sensor.reset(env_ids=[1])
+    torch.testing.assert_close(sensor.data.target_pos_w.torch[1, 0], cube_pose[1, :3])
+    torch.testing.assert_close(sensor.data.target_pos_w.torch[0], previous_frames[0])
 
 
 # Each source robot and each path prefix is covered once; the axes select independent branches.

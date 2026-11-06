@@ -155,7 +155,7 @@ def test_mpm_program_configs_do_not_load_pxr_before_simulation_launch(module):
         import importlib
         import sys
 
-        sys.argv = ["program.py", "--max_steps", "0", "--visualizer", "none", "--device", "cuda:0"]
+        sys.argv = ["program.py", "--max_steps", "0", "--device", "cuda:0"]
         program = importlib.import_module({module!r})
         program.create_sim_cfg()
 

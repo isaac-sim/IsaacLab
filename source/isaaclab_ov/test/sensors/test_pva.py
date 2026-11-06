@@ -11,11 +11,6 @@ Mirrors the structure of source/isaaclab_physx/test/sensors/test_pva.py
 but runs kitless under uv run python -m pytest — no Kit launch needed.
 SimulationContext is instantiated directly (it does not require Kit).
 
-Tests that load the PhysX pendulum URDF (``test_single_dof_pendulum`` and
-``test_indirect_attachment``) are skipped pending a USD-converted pendulum
-asset. URDF→USD conversion requires the Kit URDF importer extension, which
-is not loaded under the direct uv run python runner.
-
 All tests use procedural USD assets so the kitless suite does not depend on
 Nucleus or ``omni.client`` loader state.
 """
@@ -26,6 +21,8 @@ from __future__ import annotations
 # Wheel gate: skip the whole file if the ovphysx wheel is missing or too old.
 # ---------------------------------------------------------------------------
 import pytest
+
+pytestmark = pytest.mark.ov
 
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 _TT_module = pytest.importorskip(
@@ -55,7 +52,6 @@ from isaaclab.utils import configclass  # noqa: E402
 
 wp.init()
 
-pytestmark = pytest.mark.device_split
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -161,33 +157,6 @@ class _StaleResetSceneCfg(InteractiveSceneCfg):
         ),
     )
     pva_cube: PvaCfg = PvaCfg(prim_path="{ENV_REGEX_NS}/cube")
-
-
-# ---------------------------------------------------------------------------
-# Process-global device-mode lock (matches the IMU and contact-sensor tests).
-# The ovphysx wheel can only run one device per process; parametrized tests
-# skip on the unlocked device so single-device runs finish cleanly.
-# ---------------------------------------------------------------------------
-
-_LOCKED_DEVICE: list[str | None] = [None]
-
-
-@pytest.fixture(autouse=True)
-def _ovphysx_skip_other_device(request):
-    """Skip parametrized tests on the device the session is not pinned to."""
-    callspec = getattr(request.node, "callspec", None)
-    device = callspec.params.get("device") if callspec is not None else None
-    if device is None:
-        return
-    locked = _LOCKED_DEVICE[0]
-    if locked is None:
-        _LOCKED_DEVICE[0] = device
-        return
-    if device != locked:
-        pytest.skip(
-            f"ovphysx process-global device lock is held by '{locked}'; cannot run '{device}' "
-            "tests in the same session.  Run pytest twice (once per device) for full coverage."
-        )
 
 
 # ---------------------------------------------------------------------------
@@ -502,16 +471,16 @@ def test_reset(sim_ctx, device):
         pva_ball.update(dt, force_recompute=True)
 
     # Buffers should hold non-zero state before reset.
-    assert torch.any(wp.to_torch(pva_ball._data._lin_vel_b) != 0), "expected non-zero data before reset"
+    assert torch.any(pva_ball._data.lin_vel_b.torch != 0), "expected non-zero data before reset"
     assert torch.any(pva_ball.data.lin_vel_b.torch[1] != 0), "expected env 1 to have non-zero data before reset"
 
     # reset only env 1
     pva_ball.reset(env_ids=[1])
     torch.testing.assert_close(
-        wp.to_torch(pva_ball._data._lin_vel_b)[1],
+        pva_ball._data.lin_vel_b.torch[1],
         torch.zeros(3, dtype=torch.float32, device=device),
     )
-    assert torch.any(wp.to_torch(pva_ball._data._lin_vel_b)[0] != 0), "env 0 should not be reset"
+    assert torch.any(pva_ball._data.lin_vel_b.torch[0] != 0), "env 0 should not be reset"
 
     pva_ball.reset()
 
@@ -528,13 +497,13 @@ def test_reset(sim_ctx, device):
         torch.testing.assert_close(buf, torch.zeros_like(buf), msg=f"{name} not zeroed by reset()")
 
     # quat_w resets to identity (x, y, z, w) = (0, 0, 0, 1)
-    quat = wp.to_torch(pva_ball._data._quat_w)
+    quat = pva_ball._data.quat_w.torch
     expected_quat = torch.zeros_like(quat)
     expected_quat[:, 3] = 1.0
     torch.testing.assert_close(quat, expected_quat)
 
     # projected_gravity_b resets to (0, 0, -1)
-    pg = wp.to_torch(pva_ball._data._projected_gravity_b)
+    pg = pva_ball._data.projected_gravity_b.torch
     expected_pg = torch.zeros_like(pg)
     expected_pg[:, 2] = -1.0
     torch.testing.assert_close(pg, expected_pg)
@@ -572,41 +541,3 @@ def test_no_stale_data_after_scene_reset(sim_ctx, device):
     torch.testing.assert_close(post_reset_ang_acc, torch.zeros_like(post_reset_ang_acc))
     torch.testing.assert_close(post_reset_lin_vel, torch.zeros_like(post_reset_lin_vel))
     torch.testing.assert_close(post_reset_ang_vel, torch.zeros_like(post_reset_ang_vel))
-
-
-# ===========================================================================
-# URDF-dependent tests — skipped pending USD pendulum asset
-# ===========================================================================
-
-
-_PENDULUM_SKIP_REASON = (
-    "Blocked on a USD-converted pendulum asset (the PhysX test loads"
-    " source/isaaclab_physx/test/sensors/urdfs/simple_2_link.urdf via the Kit URDF importer,"
-    " which is not loaded under the direct uv run python runner). Re-enable"
-    " once a pre-converted USD pendulum is available, and port the assertion body from"
-    " source/isaaclab_physx/test/sensors/test_pva.py."
-)
-
-
-@pytest.mark.skip(reason=_PENDULUM_SKIP_REASON)
-def test_single_dof_pendulum():
-    """Test PVA against analytical pendulum problem."""
-    # If this test is ever un-skipped without porting the PhysX assertions, fail
-    # explicitly rather than passing vacuously.
-    pytest.fail(
-        "test_single_dof_pendulum was un-skipped without a body — port the assertions from"
-        " source/isaaclab_physx/test/sensors/test_pva.py::test_single_dof_pendulum and adapt"
-        " them to the kitless RigidObject/Articulation pattern used by the rest of this file."
-    )
-
-
-@pytest.mark.skip(reason=_PENDULUM_SKIP_REASON)
-def test_indirect_attachment():
-    """Test attaching the PVA through an Xform primitive offset chain."""
-    # If this test is ever un-skipped without porting the PhysX assertions, fail
-    # explicitly rather than passing vacuously.
-    pytest.fail(
-        "test_indirect_attachment was un-skipped without a body — port the assertions from"
-        " source/isaaclab_physx/test/sensors/test_pva.py::test_indirect_attachment and adapt"
-        " them to the kitless RigidObject/Articulation pattern used by the rest of this file."
-    )

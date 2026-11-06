@@ -5,6 +5,14 @@
 
 """Tests for the responsive console loading screen."""
 
+import builtins
+import errno
+import os
+import select
+import subprocess
+import sys
+import textwrap
+import time
 from io import StringIO
 from unittest.mock import Mock
 
@@ -86,6 +94,7 @@ def _prepare_redirect(screen: loading_screen.LoadingScreen, monkeypatch: pytest.
 def test_live_lifecycle_restores_normal_screen(monkeypatch: pytest.MonkeyPatch):
     screen = loading_screen.LoadingScreen(2, enabled=True)
     output = _prepare_redirect(screen, monkeypatch)
+    original_input = builtins.input
 
     with screen:
         screen.summary("Run", {"Task": "Cartpole"})
@@ -103,21 +112,99 @@ def test_live_lifecycle_restores_normal_screen(monkeypatch: pytest.MonkeyPatch):
     assert rendered.rindex("Run") > normal_screen
     assert "hidden diagnostic" not in rendered
     assert "Ready in" in rendered
+    assert builtins.input is original_input
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Pseudo-terminals require POSIX.")
+def test_interactive_input_shows_captured_context_before_waiting_for_answer():
+    import pty
+
+    script = textwrap.dedent("""\
+        import builtins
+        from isaaclab.app.loading_screen import LoadingScreen
+
+        original_input = builtins.input
+        with LoadingScreen(1, logo=False) as screen:
+            screen.summary("Input QA", {"Task": "Terminal"})
+            screen.stage("Launching")
+            print("License context before the question.", flush=True)
+            with LoadingScreen(1, enabled=False):
+                answer = input("Accept terms? ")
+            assert builtins.input is original_input
+            print(f"Answer: {answer}", flush=True)
+            screen.stage("Loading policy after answer")
+            screen.summary("Post-prompt QA", {"Task": "Terminal"})
+            screen.close()
+        assert builtins.input is original_input
+        print("Normal output restored.", flush=True)
+        """)
+    master, slave = pty.openpty()
+    process = subprocess.Popen(
+        [sys.executable, "-u", "-c", script],
+        stdin=slave,
+        stdout=slave,
+        stderr=slave,
+        env={**os.environ, "TERM": "xterm-256color"},
+    )
+    os.close(slave)
+    output = bytearray()
+    try:
+        deadline = time.monotonic() + 10.0
+        while b"Accept terms? " not in output and process.poll() is None and time.monotonic() < deadline:
+            if select.select([master], [], [], 0.1)[0]:
+                try:
+                    chunk = os.read(master, 65536)
+                except OSError as error:
+                    if error.errno == errno.EIO:
+                        break
+                    raise
+                output.extend(chunk)
+        assert b"Accept terms? " in output, output[-1000:].decode(errors="replace")
+        assert output.index(b"License context before the question.") < output.index(b"Accept terms? ")
+
+        os.write(master, b"NO\n")
+        assert process.wait(timeout=10.0) == 0
+        while select.select([master], [], [], 0.1)[0]:
+            try:
+                chunk = os.read(master, 65536)
+            except OSError as error:
+                if error.errno == errno.EIO:
+                    break
+                raise
+            if not chunk:
+                break
+            output.extend(chunk)
+        assert b"Answer: NO" in output
+        assert output.index(b"Loading policy after answer") > output.index(b"Answer: NO")
+        assert output.index(b"Post-prompt QA") > output.index(b"Answer: NO")
+        assert b"Normal output restored." in output
+    finally:
+        if process.poll() is None:
+            process.terminate()
+            process.wait(timeout=10.0)
+        os.close(master)
 
 
 def test_shutdown_restores_output_when_live_rendering_fails(monkeypatch: pytest.MonkeyPatch):
     screen = loading_screen.LoadingScreen(1, enabled=True)
-    screen._live = Mock()
-    screen._live.stop.side_effect = RuntimeError("render failed")
-    screen._saved_fds = (-1, -1)
-    screen._console = Mock()
-    restore = Mock(return_value="")
+    _prepare_redirect(screen, monkeypatch)
+    original_input = builtins.input
+    restore = Mock(wraps=screen._restore)
     monkeypatch.setattr(screen, "_restore", restore)
 
     with pytest.raises(RuntimeError, match="render failed"):
-        screen.close()
+        with screen:
+            stop = screen._live.stop
+
+            def fail_after_stop() -> None:
+                stop()
+                raise RuntimeError("render failed")
+
+            monkeypatch.setattr(screen._live, "stop", fail_after_stop)
+            screen.close()
 
     restore.assert_called_once_with()
+    assert builtins.input is original_input
 
 
 def test_redirect_uses_stream_swapping_on_platforms_without_descriptor_redirection(monkeypatch: pytest.MonkeyPatch):

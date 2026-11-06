@@ -390,22 +390,21 @@ class CameraImageBase(ManagerTermBase):
     """Base for camera image terms: validates the data type and owns the frame stack.
 
     Subclasses read their sensor output and pass it with a normalizer from
-    :mod:`isaaclab.utils.images` to :attr:`_frames`.
+    :mod:`isaaclab.utils.images` to :attr:`_frames`. Each subclass declares a
+    ``data_type`` argument with a default in ``__call__``, which the manager
+    resolves into the term parameters before construction.
     """
-
-    default_data_type: str
-    """Data type used when the term's params do not set ``data_type``."""
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
-        data_type = cfg.params.get("data_type", self.default_data_type)
+        data_type = cfg.params["data_type"]
         if not self._accepts(data_type):
             raise ValueError(f"{type(self).__name__} does not support camera data type '{data_type}'.")
         self._frames = CameraFrameStack(
             env.num_envs,
             env.device,
-            frame_stack=cfg.params.get("frame_stack", 1),
-            channel_first=cfg.params.get("channel_first", False),
+            frame_stack=cfg.params["frame_stack"],
+            channel_first=cfg.params["channel_first"],
         )
 
     def reset(self, env_ids: Sequence[int] | torch.Tensor | None = None):
@@ -439,8 +438,6 @@ class image_rgb(CameraImageBase):
     Returns:
         The image, or ``out`` when supplied. Shape is ``(num_envs, H, W, 3 * frame_stack)``, or channel-first.
     """
-
-    default_data_type = "rgb"
 
     @staticmethod
     def _accepts(data_type: str) -> bool:
@@ -491,8 +488,6 @@ class image_depth(CameraImageBase):
         or channel-first.
     """
 
-    default_data_type = "distance_to_image_plane"
-
     @staticmethod
     def _accepts(data_type: str) -> bool:
         return is_depth_like(data_type)
@@ -530,12 +525,11 @@ class image_normals(CameraImageBase):
         normalize: Whether to normalize the image. Defaults to True.
         channel_first: Whether to return ``(num_envs, C, H, W)``. Defaults to False.
         frame_stack: Number of recent frames to stack along the channel axis. Defaults to 1.
+        data_type: The surface-normal camera data type. Defaults to "normals".
 
     Returns:
         The normals image. Shape is ``(num_envs, H, W, 3 * frame_stack)``, or channel-first.
     """
-
-    default_data_type = "normals"
 
     @staticmethod
     def _accepts(data_type: str) -> bool:
@@ -548,8 +542,10 @@ class image_normals(CameraImageBase):
         normalize: bool = True,
         channel_first: bool = False,
         frame_stack: int = 1,
+        *,
+        data_type: str = "normals",
     ) -> torch.Tensor:
-        images = _read_camera_output(env, sensor_cfg, "normals")
+        images = _read_camera_output(env, sensor_cfg, data_type)
         return self._frames(images, normalize_normals if normalize else None)
 
 
@@ -569,8 +565,6 @@ class image_segmentation(CameraImageBase):
     Returns:
         The segmentation image. Shape is ``(num_envs, H, W, C * frame_stack)``, or channel-first.
     """
-
-    default_data_type = "semantic_segmentation"
 
     @staticmethod
     def _accepts(data_type: str) -> bool:
@@ -634,9 +628,9 @@ class image_features(ManagerTermBase):
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
 
-        self.model_zoo_cfg: dict = cfg.params.get("model_zoo_cfg")  # type: ignore
-        self.model_name: str = cfg.params.get("model_name", "resnet18")  # type: ignore
-        self.model_device: str = cfg.params.get("model_device", env.device)  # type: ignore
+        self.model_zoo_cfg: dict = cfg.params["model_zoo_cfg"]  # type: ignore
+        self.model_name: str = cfg.params["model_name"]  # type: ignore
+        self.model_device: str = cfg.params["model_device"] if cfg.params["model_device"] is not None else env.device  # type: ignore
 
         # List of Theia models - These are configured through `_prepare_theia_transformer_model` function
         default_theia_models = [
@@ -862,7 +856,7 @@ class stacked_image(ManagerTermBase):
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
-        self._frames = CameraFrameStack(env.num_envs, env.device, frame_stack=cfg.params.get("frame_stack", 1))
+        self._frames = CameraFrameStack(env.num_envs, env.device, frame_stack=cfg.params["frame_stack"])
 
     def reset(self, env_ids: torch.Tensor | None = None):
         self._frames.reset(env_ids)

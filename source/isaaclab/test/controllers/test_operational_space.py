@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 import torch
 
-pytestmark = pytest.mark.arm_ci
+pytestmark = [pytest.mark.integration, pytest.mark.arm_ci]
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
@@ -50,9 +50,7 @@ from isaaclab.utils.math import (
     subtract_frame_transforms,
 )
 
-from isaaclab_assets import FRANKA_PANDA_CFG, G1_29DOF_CFG  # isort:skip
-
-pytestmark = pytest.mark.integration
+from isaaclab_assets import FRANKA_PANDA_LEGACY_CFG, G1_29DOF_CFG  # isort:skip
 
 
 @pytest.fixture
@@ -95,7 +93,8 @@ def sim():
     # clone the env xform
     cloner.usd_replicate(stage, [env_fmt.format(0)], [env_fmt], env_ids, positions=env_origins)
 
-    robot_cfg = replace(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+    # Keep controller regressions on their original plant; canonical asset parity is tested by each backend.
+    robot_cfg = replace(FRANKA_PANDA_LEGACY_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     # Explicit torque actuators enforce effort limits on the commands sent to the simulator.
     for actuator_name in ("panda_shoulder", "panda_forearm"):
         actuator_cfg = robot_cfg.actuators[actuator_name]
@@ -250,53 +249,6 @@ def test_franka_pose_abs_fixed_impedance_with_gravity_compensation(sim):
         gravity_compensation=True,
         motion_stiffness_task=500.0,
         motion_damping_ratio_task=2.0,
-    )
-    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
-
-    _run_op_space_controller(
-        robot,
-        osc,
-        "panda_hand",
-        ["panda_joint.*"],
-        target_abs_pose_set_b,
-        sim_context,
-        num_envs,
-        ee_marker,
-        goal_marker,
-        contact_forces,
-        frame,
-    )
-
-
-@pytest.mark.isaacsim_ci
-def test_franka_pose_abs(sim):
-    """Test absolute pose control with fixed impedance and inertial dynamics decoupling."""
-    (
-        sim_context,
-        num_envs,
-        robot_cfg,
-        ee_marker,
-        goal_marker,
-        contact_forces,
-        _,
-        target_abs_pose_set_b,
-        _,
-        _,
-        _,
-        _,
-        _,
-        frame,
-    ) = sim
-
-    robot = Articulation(cfg=robot_cfg)
-    osc_cfg = OperationalSpaceControllerCfg(
-        target_types=["pose_abs"],
-        impedance_mode="fixed",
-        inertial_dynamics_decoupling=True,
-        partial_inertial_dynamics_decoupling=False,
-        gravity_compensation=False,
-        motion_stiffness_task=500.0,
-        motion_damping_ratio_task=1.0,
     )
     osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
 

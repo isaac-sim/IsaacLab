@@ -64,20 +64,41 @@ def test_redirect_skips_missing_destination_for_historical_version(tmp_path, red
     assert not (tmp_path / "old.html").exists()
 
 
-def test_redirect_routes_split_sections_and_rejects_missing_page(tmp_path, redirects):
-    """An old section reaches the page that now contains it, not the default landing page."""
+def test_redirect_skips_missing_fragment_destination_for_historical_version(tmp_path, redirects):
+    """Keep a historical page redirect when a current fragment destination is unavailable."""
+    (tmp_path / "index.html").write_text("new guide")
+    app = SimpleNamespace(
+        builder=SimpleNamespace(format="html", get_outfilename=lambda doc: str(tmp_path / (doc + ".html"))),
+        config=SimpleNamespace(
+            isaaclab_doc_redirects={"old": "index"},
+            isaaclab_doc_redirect_fragments={"old": {"overview": "missing#section"}},
+            smv_current_version="v2.0.0",
+        ),
+    )
+    redirects(app, None)
+    html = (tmp_path / "old.html").read_text()
+    routes = json.loads(re.search(r"const sections = (.*);", html).group(1))
+    assert routes == {}
+    assert '["index.html", location.hash]' in html
+
+
+def test_redirect_routes_page_and_sections_and_rejects_missing_page(tmp_path, redirects):
+    """Old page roots and sections reach the page and section that now contain them."""
     for name in ("index", "cluster"):
         (tmp_path / f"{name}.html").write_text("new guide")
     app = SimpleNamespace(
         builder=SimpleNamespace(format="html", get_outfilename=lambda doc: str(tmp_path / (doc + ".html"))),
         config=SimpleNamespace(
             isaaclab_doc_redirects={"old": "index"},
-            isaaclab_doc_redirect_fragments={"old": {"clusters": "cluster#deployment-cluster"}},
+            isaaclab_doc_redirect_fragments={
+                "old": {"": "cluster#deployment-cluster", "clusters": "cluster#deployment-cluster"}
+            },
         ),
     )
     redirects(app, None)
     html = (tmp_path / "old.html").read_text()
     routes = json.loads(re.search(r"const sections = (.*);", html).group(1))
+    assert routes[""] == ["cluster.html", "#deployment-cluster"]
     assert routes["#clusters"] == ["cluster.html", "#deployment-cluster"]
     assert "location.search" in html
     (tmp_path / "cluster.html").unlink()

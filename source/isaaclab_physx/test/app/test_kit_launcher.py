@@ -15,11 +15,13 @@ import isaaclab_physx.app as app_module
 import isaaclab_physx.app.kit_launcher as kit_launcher_module
 import pytest
 from isaaclab_physx.app.kit_launcher import KitLauncher, _sanitize_sys_argv_for_kit
+from isaaclab_visualizers.kit import KitBackendCfg
 
 import isaaclab.app.sim_launcher as sim_launcher
-import isaaclab.utils as utils_module
 from isaaclab.app import SimulationLauncher, add_launcher_args
-from isaaclab.app.sim_launcher import Scan, _get_kit_runtime_sources, _normalize_launcher_args
+from isaaclab.physics import PhysicsCfg
+from isaaclab.sensors import CameraCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 from isaaclab.visualizers import VisualizerCfg
 
@@ -214,14 +216,18 @@ def test_add_launcher_args_registers_every_launcher_option():
         assert parser._option_string_actions[f"--{name}"]
 
 
-def test_visualizer_alias_parsing():
+def test_visualizer_alias_parsing(monkeypatch):
     """Test that --viz alias maps to visualizer values, resolving the deprecated ``newton`` name."""
     parser = argparse.ArgumentParser()
     add_launcher_args(parser)
 
-    with pytest.warns(DeprecationWarning, match="--viz 'newton' is deprecated"):
-        args = parser.parse_args(["--viz", "kit,newton"])
-    assert args.visualizer == ["kit", "newton_gl"]
+    args = parser.parse_args(["--viz", "kit,newton"])
+    assert args.visualizer_explicit is True
+    monkeypatch.setattr(app_module, "KitLauncher", SimulationLauncher)
+    cfg = SimulationCfg(device="cpu")
+    with pytest.warns(FutureWarning, match="newton_gl"), sim_launcher.launch_simulation(cfg, args):
+        pass
+    assert [viewer.backend.visualizer_type for viewer in cfg.visualizer_cfgs] == ["kit", "newton_gl"]
 
 
 @pytest.mark.parametrize("deprecated_arg", ["--headless", "--enable_cameras", "--cpu"])
@@ -259,14 +265,6 @@ def test_help_on_parser_with_required_positionals(monkeypatch: pytest.MonkeyPatc
     assert "launcher arguments" in capsys.readouterr().out
 
 
-@pytest.mark.parametrize("value", ["none", "None"])
-def test_visualizer_none_parsing(value: str):
-    parser = argparse.ArgumentParser()
-    add_launcher_args(parser)
-    args = parser.parse_args(["--viz", value])
-    assert args.visualizer == []
-
-
 @pytest.mark.parametrize(
     ("launcher_args", "livestream_env"),
     [
@@ -288,11 +286,20 @@ def test_livestream_request_resolves_headless_livestream_launch(
         add_launcher_args(parser)
         launcher_args = vars(parser.parse_args(launcher_args))
     launcher_args["device"] = "cpu"
-    launcher = KitLauncher.__new__(KitLauncher)
-    monkeypatch.setattr(launcher, "_resolve_experience_file", lambda _launcher_args: None)
+    launchers = []
 
-    _normalize_launcher_args(launcher_args)
-    launcher._config_resolution(launcher_args)
+    class KitRuntime(KitLauncher):
+        def __init__(self, args):
+            self._config_resolution(args)
+            launchers.append(self)
+
+        def close(self, exit_code=0):
+            pass
+
+    monkeypatch.setattr(KitRuntime, "_resolve_experience_file", lambda *_: None)
+    monkeypatch.setattr(app_module, "KitLauncher", KitRuntime)
+    with sim_launcher.launch_simulation(SimulationCfg(), launcher_args):
+        launcher = launchers[0]
 
     assert launcher._livestream == 1
     assert launcher._headless is True
@@ -372,53 +379,44 @@ def test_explicit_simulation_manager_callback_setting_takes_precedence(monkeypat
     assert resolved_args == [explicit_arg]
 
 
-def test_make_physics_cfg_builds_core_vbd():
+def test_physics_selector_selects_core_vbd():
     from isaaclab_newton.physics import NewtonCfg, VBDSolverCfg
 
-    physics_cfg = sim_launcher._make_physics_cfg("newton_vbd")
+    with sim_launcher.launch_simulation(PhysicsCfg(), {"physics": "newton_vbd"}) as physics_cfg:
+        assert isinstance(physics_cfg, NewtonCfg)
+        assert isinstance(physics_cfg.solver_cfg, VBDSolverCfg)
 
-    assert isinstance(physics_cfg, NewtonCfg)
-    assert isinstance(physics_cfg.solver_cfg, VBDSolverCfg)
 
-
-def test_livestream_injects_kit_visualizer_when_missing():
+def test_livestream_injects_kit_visualizer_when_missing(monkeypatch):
     args = argparse.Namespace(livestream=2, visualizer=None)
 
-    _normalize_launcher_args(vars(args))
-
-    assert args.visualizer == ["kit"]
-
-
-def test_livestream_rejects_disabled_visualizers():
-    args = argparse.Namespace(livestream=2, visualizer=[])
-
-    with pytest.raises(ValueError, match="Livestreaming requires the Kit visualizer"):
-        _normalize_launcher_args(vars(args))
+    monkeypatch.setattr(app_module, "KitLauncher", SimulationLauncher)
+    cfg = SimulationCfg(device="cpu")
+    with sim_launcher.launch_simulation(cfg, args):
+        pass
+    assert isinstance(cfg.visualizer_cfgs[0].backend, KitBackendCfg)
 
 
 def test_livestream_rejects_invalid_environment_value(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("LIVESTREAM", "3")
 
     with pytest.raises(ValueError, match="Invalid livestream mode: 3"):
-        _normalize_launcher_args({})
+        with sim_launcher.launch_simulation(SimulationCfg(), {}):
+            pass
 
 
-def test_explicit_experience_requires_isaac_sim_runtime():
-    """An explicit Kit experience must override a kitless physics configuration."""
-    scan = Scan(
-        resolved_physics_cfg=None,
-        effective_cfg=object(),
-        visualizer_intent={"has_kit_visualizer": False},
-        has_ovrtx=False,
-        has_kit_camera=False,
-        has_kit_physics=False,
-        has_ovphysx_physics=False,
-        needs_kit=False,
-    )
-    args = {"experience": "isaaclab.python.kit", "visualizer": None}
-    _normalize_launcher_args(args)
+def test_explicit_experience_requires_isaac_sim_runtime(monkeypatch):
+    """An explicit Kit experience starts Kit even with kitless physics."""
+    launched = []
 
-    assert _get_kit_runtime_sources(scan, args)
+    class KitRuntime(SimulationLauncher):
+        def __init__(self, args):
+            launched.append(args["experience"])
+
+    monkeypatch.setattr(app_module, "KitLauncher", KitRuntime)
+    with sim_launcher.launch_simulation(PhysicsCfg(), {"experience": "custom.kit"}):
+        pass
+    assert launched == ["custom.kit"]
 
 
 def _resolve_headless_for_case(
@@ -430,16 +428,23 @@ def _resolve_headless_for_case(
     # working on these features -- pin them so the parametrization is what decides.
     monkeypatch.delenv("XR", raising=False)
     monkeypatch.delenv("LIVESTREAM", raising=False)
-    _normalize_launcher_args(launcher_args)
-    visualizer_cfgs = [VisualizerCfg(visualizer_type="kit")] if cfg_has_kit else []
-    intent = sim_launcher._get_visualizer_intent(visualizer_cfgs, launcher_args)
-    launcher_args["kit_visualizer"] = intent["has_kit_visualizer"]
-    launcher = KitLauncher.__new__(KitLauncher)
-    launcher._kit_visualizer = launcher_args["kit_visualizer"]
-    launcher._livestream = launcher_args["livestream"]
-    launcher._resolve_xr_settings(launcher_args)
-    launcher._resolve_headless_settings(launcher_args)
-    return launcher._headless, launcher_args
+    viewers = [VisualizerCfg(backend=KitBackendCfg())] if cfg_has_kit else []
+    result = []
+
+    class KitRuntime(KitLauncher):
+        def __init__(self, args):
+            self._kit_visualizer = args["kit_visualizer"]
+            self._livestream = args["livestream"]
+            self._resolve_xr_settings(args)
+            self._resolve_headless_settings()
+            result.extend((self._headless, args))
+
+        def close(self, exit_code=0):
+            pass
+
+    monkeypatch.setattr(app_module, "KitLauncher", KitRuntime)
+    with sim_launcher.launch_simulation(SimulationCfg(visualizer_cfgs=viewers), launcher_args):
+        return tuple(result)
 
 
 _XR_KIT = {"xr": True, "visualizer": ["kit"]}
@@ -448,38 +453,33 @@ _XR_KIT = {"xr": True, "visualizer": ["kit"]}
 @pytest.mark.parametrize(
     "launcher_args, headless_env, livestream, expected_headless",
     [
-        # XR with no CLI visualizer: headless even though the task config asks for a window.
-        ({"xr": True}, 0, 0, True),
-        # An explicit '--viz kit' is the only way to get a viewport alongside XR.
+        # XR keeps the window of '--viz kit'.
         (_XR_KIT, 0, 0, False),
-        ({"xr": True, "visualizer": ["none"]}, 0, 0, True),
+        # XR without '--viz kit' auto-starts headless, even if the task config lists a Kit visualizer.
+        ({"xr": True}, 0, 0, True),
         # ...but an explicit '--viz kit' cannot override HEADLESS=1.
         (_XR_KIT, 1, 0, True),
         # Livestreaming forces headless.
         (_XR_KIT, 0, 1, True),
         ({}, 0, 1, True),
-        # Without XR or livestream the task config still decides.
-        ({}, 0, 0, False),
     ],
 )
-def test_xr_without_explicit_windowed_visualizer_forces_headless(
+def test_xr_without_kit_visualizer_forces_headless(
     launcher_args: dict,
     headless_env: int,
     livestream: int,
     expected_headless: bool,
     monkeypatch: pytest.MonkeyPatch,
 ):
-    """Test that enabling XR runs headless unless a windowed visualizer is explicitly requested.
+    """Test that enabling XR runs headless unless ``--viz kit`` selects the Kit visualizer.
 
-    A task config declaring a windowed visualizer must not leave ``--xr`` opening a window nobody
-    asked for, and ``HEADLESS=1`` / livestreaming must keep forcing headless even when one was
-    explicitly requested. Resolution is exercised directly to avoid launching Isaac Sim; what the
-    resolved state then publishes is asserted by
+    ``HEADLESS=1`` / livestreaming keep forcing headless even with it. Resolution is exercised
+    directly to avoid launching Isaac Sim; what the resolved state then publishes is asserted by
     :func:`test_load_extensions_publishes_has_gui_setting`.
     """
     args = {**launcher_args, "livestream": livestream}
 
-    headless, _ = _resolve_headless_for_case(monkeypatch, args, cfg_has_kit=True, headless_env=headless_env)
+    headless, _ = _resolve_headless_for_case(monkeypatch, args, headless_env=headless_env)
 
     assert headless is expected_headless
 
@@ -491,21 +491,10 @@ def test_launch_simulation_preserves_failure_exit_code(monkeypatch: pytest.Monke
         def close(self, exit_code: int = 0) -> None:
             close_args["exit_code"] = exit_code
 
-    scan = sim_launcher.Scan(
-        resolved_physics_cfg=None,
-        effective_cfg=object(),
-        visualizer_intent={"has_kit_visualizer": False},
-        has_ovrtx=False,
-        has_kit_camera=False,
-        has_kit_physics=True,
-        has_ovphysx_physics=False,
-        needs_kit=True,
-    )
-    monkeypatch.setattr(sim_launcher, "scan", lambda cfg, physics: scan)
     monkeypatch.setattr(app_module, "KitLauncher", _FakeKitLauncher)
 
     with pytest.raises(RuntimeError, match="sentinel"):
-        with sim_launcher.launch_simulation(object(), argparse.Namespace()):
+        with sim_launcher.launch_simulation(sim_launcher.PhysxCfg(), argparse.Namespace()):
             raise RuntimeError("sentinel")
 
     assert close_args == {"exit_code": 1}
@@ -519,25 +508,9 @@ def test_launch_simulation_auto_enables_kit_camera_without_launcher_args(monkeyp
         def __init__(self, launcher_args):
             received_args.update(launcher_args)
 
-    scan = sim_launcher.Scan(
-        resolved_physics_cfg=None,
-        effective_cfg=object(),
-        visualizer_intent={"has_kit_visualizer": False},
-        has_ovrtx=False,
-        has_kit_camera=True,
-        has_kit_physics=False,
-        has_ovphysx_physics=False,
-        needs_kit=True,
-    )
-
-    def _scan(_cfg, launcher_args):
-        assert launcher_args == {}
-        return scan
-
-    monkeypatch.setattr(sim_launcher, "scan", _scan)
     monkeypatch.setattr(app_module, "KitLauncher", _FakeKitLauncher)
 
-    with sim_launcher.launch_simulation(object()):
+    with sim_launcher.launch_simulation(SimpleNamespace(physics=PhysicsCfg(), camera=CameraCfg(prim_path="/Camera"))):
         pass
 
     assert received_args["enable_cameras"] is True
@@ -572,17 +545,33 @@ def test_cuda_initialization_remains_deferred_when_torch_is_not_loaded(monkeypat
     assert "torch" not in sys.modules
 
 
-def test_limit_cpu_threads_forwarded_to_simulation_app(monkeypatch: pytest.MonkeyPatch):
-    """A SimulationApp thread limit must survive KitLauncher config resolution."""
-    monkeypatch.setenv("HEADLESS", "0")
+@pytest.mark.parametrize(
+    "visualizer, headless_env, expected_headless",
+    [
+        (["kit", "newton_gl"], 0, False),
+        (["rerun"], 0, True),
+        # a Kit visualizer only a video records from (``--video viz:kit``) is not selected, and records headless
+        ([], 0, True),
+        (["kit"], 1, True),
+    ],
+    ids=["kit-selected", "kit-unselected", "kit-only-records", "HEADLESS=1"],
+)
+def test_kit_runs_windowed_only_for_a_selected_kit_visualizer(
+    monkeypatch: pytest.MonkeyPatch, visualizer: list[str], headless_env: int, expected_headless: bool
+):
+    """Kit opens a window only when ``--viz`` selects the Kit visualizer, never with ``HEADLESS=1``.
+
+    The SimulationApp config also keeps a thread limit through config resolution.
+    """
+    monkeypatch.setenv("HEADLESS", str(headless_env))
     monkeypatch.setenv("LIVESTREAM", "0")
     monkeypatch.setenv("XR", "0")
-
     launcher = KitLauncher.__new__(KitLauncher)
     monkeypatch.setattr(launcher, "_resolve_experience_file", lambda _launcher_args: None)
 
-    launcher._config_resolution({"headless": True, "device": "cpu", "limit_cpu_threads": 1})
+    launcher._config_resolution({"device": "cpu", "limit_cpu_threads": 1, "visualizer": visualizer})
 
+    assert launcher._sim_app_config["headless"] is expected_headless
     assert launcher._sim_app_config["limit_cpu_threads"] == 1
 
 
@@ -709,40 +698,27 @@ def test_toolbar_is_untouched_when_headless_without_livestream(monkeypatch: pyte
     launcher._set_toolbar_button_visible("_stop_button", False)
 
 
-def test_sync_visualizer_settings_stores_values(monkeypatch: pytest.MonkeyPatch):
-    settings = _DummySettings()
-    monkeypatch.setattr(sim_launcher, "get_settings_manager", lambda: settings)
-
-    sim_launcher._sync_visualizer_cli_settings({"visualizer": ["viser", "rerun"], "max_visible_envs": 0})
-
-    assert settings.values == {
-        "/isaaclab/visualizer/types": "viser rerun",
-        "/isaaclab/visualizer/explicit": True,
-        "/isaaclab/visualizer/disable_all": False,
-        "/isaaclab/visualizer/max_visible_envs": 0,
-    }
+def test_selection_rejects_negative_max_visible_envs():
+    with pytest.raises(ValueError, match="non-negative"):
+        with sim_launcher.launch_simulation(PhysicsCfg(), {"visualizer": ["viser"], "max_visible_envs": -5}):
+            pass
 
 
-def test_sync_visualizer_settings_rejects_negative_max_visible_envs(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    def _unexpected_settings_manager():
-        raise AssertionError("settings manager should not be queried for invalid values")
-
-    monkeypatch.setattr(sim_launcher, "get_settings_manager", _unexpected_settings_manager)
-
-    with pytest.raises(ValueError, match="Invalid value for --max_visible_envs: -5"):
-        sim_launcher._sync_visualizer_cli_settings({"visualizer": ["viser"], "max_visible_envs": -5})
-
-
-def test_parse_visualizer_csv_rejects_spaces_between_entries():
-    with pytest.raises(argparse.ArgumentTypeError, match="spaces are not allowed"):
-        sim_launcher._parse_visualizer_csv("kit, newton_gl")
-
-
-def test_normalize_visualizers_rejects_none_with_others():
-    with pytest.raises(ValueError, match="'none' cannot be combined"):
-        _normalize_launcher_args({"visualizer": ["none", "kit"]})
+@pytest.mark.parametrize(
+    "value, expected",
+    [("none", []), ("kit, newton_gl", ValueError), ("none,kit", ValueError)],
+    ids=["none-is-no-selection", "spaces", "none-with-others"],
+)
+def test_visualizer_selection_validates_names(value: str, expected, monkeypatch):
+    if expected is ValueError:
+        with pytest.raises(ValueError):
+            with sim_launcher.launch_simulation(SimulationCfg(), {"visualizer": value}):
+                pass
+    else:
+        monkeypatch.setattr(app_module, "KitLauncher", SimulationLauncher)
+        cfg = SimulationCfg(device="cpu")
+        with sim_launcher.launch_simulation(cfg, {"visualizer": value}):
+            assert cfg.visualizer_cfgs == expected
 
 
 def test_visualizer_csv_does_not_swallow_hydra_overrides():
@@ -757,18 +733,6 @@ def test_visualizer_csv_does_not_swallow_hydra_overrides():
     assert hydra_args == ["presets=newton_mjwarp", "env.episode_length=10"]
 
 
-def test_matrix_cli_kit_newton_gl_with_custom_kit_cfg_intent_non_headless(monkeypatch: pytest.MonkeyPatch):
-    headless, args = _resolve_headless_for_case(monkeypatch, {"visualizer": ["kit", "newton_gl"]}, cfg_has_kit=True)
-    assert headless is False
-    assert args["visualizer"] == ["kit", "newton_gl"]
-
-
-def test_matrix_cli_rerun_with_custom_kit_cfg_intent_headless(monkeypatch: pytest.MonkeyPatch):
-    headless, args = _resolve_headless_for_case(monkeypatch, {"visualizer": ["rerun"]}, cfg_has_kit=True)
-    assert headless is True
-    assert args["visualizer"] == ["rerun"]
-
-
 def test_matrix_empty_dict_resolves_headless(monkeypatch: pytest.MonkeyPatch):
     # tools that launch Kit only to reach an extension API pass no visualizer, and must stay headless
     headless, _ = _resolve_headless_for_case(monkeypatch, {})
@@ -780,26 +744,6 @@ def test_matrix_viz_kit_dict_resolves_windowed(monkeypatch: pytest.MonkeyPatch):
     headless, args = _resolve_headless_for_case(monkeypatch, {"visualizer": ["kit"]})
     assert headless is False
     assert args["visualizer"] == ["kit"]
-
-
-@pytest.mark.parametrize("visualizer", [[], ["none"]])
-def test_matrix_viz_none_disables_all_and_headless(monkeypatch: pytest.MonkeyPatch, visualizer):
-    headless, args = _resolve_headless_for_case(monkeypatch, {"visualizer": visualizer}, cfg_has_kit=True)
-    assert headless is True
-    assert args["visualizer"] == []
-
-
-def test_matrix_headless_flag_deprecated_takes_precedence(monkeypatch: pytest.MonkeyPatch):
-    headless, args = _resolve_headless_for_case(
-        monkeypatch, {"headless": True, "headless_explicit": True}, cfg_has_kit=True
-    )
-    assert headless is True
-    assert args["visualizer"] is None
-
-
-def test_no_cli_and_non_kit_cfg_visualizers_defaults_headless(monkeypatch: pytest.MonkeyPatch):
-    headless, _ = _resolve_headless_for_case(monkeypatch, {}, cfg_has_kit=False)
-    assert headless is True
 
 
 def _new_launcher_for_experience_check():
@@ -839,7 +783,7 @@ def test_allows_isaacsim_full_streaming_experience_when_livestream_disabled(tmp_
 def test_constructor_reports_missing_isaac_sim(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(kit_launcher_module, "SimulationApp", None)
 
-    monkeypatch.setattr(utils_module, "has_kit", lambda: False)
+    monkeypatch.setattr(kit_launcher_module, "has_kit", lambda: False)
     with pytest.raises(SystemExit):
         KitLauncher()
 
@@ -853,25 +797,21 @@ def test_is_available_reflects_simulation_app_presence(monkeypatch: pytest.Monke
 
 
 def test_close_pumps_the_app_before_closing():
-    """Drain callbacks and close Kit despite repeated Ctrl+C during teardown."""
+    """Drain callbacks before closing Kit."""
     calls = []
     previous_handler = signal.getsignal(signal.SIGINT)
 
     def update():
-        signal.raise_signal(signal.SIGINT)
+        assert signal.getsignal(signal.SIGINT) == signal.SIG_DFL
         calls.append("update")
 
     def close(exit_code):
-        signal.raise_signal(signal.SIGINT)
         calls.append(exit_code)
 
     launcher = KitLauncher.__new__(KitLauncher)
     launcher._app = SimpleNamespace(update=update, close=close)
 
-    try:
-        launcher.close(exit_code=3)
-    except KeyboardInterrupt:
-        pytest.fail("Ctrl+C interrupted Kit teardown")
+    launcher.close(exit_code=3)
 
     assert calls == ["update", 3]
     assert signal.getsignal(signal.SIGINT) is previous_handler

@@ -1,0 +1,17 @@
+ovphysx is governed by the following NVIDIA Agreements:
+
+Enterprise Software | NVIDIA Software License Agreement and NVIDIA Agreements https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-software-license-agreement/
+
+and
+
+NVIDIA Agreements | Enterprise Software | Product Specific Terms for Omniverse https://www.nvidia.com/en-us/agreements/enterprise-software/product-specific-terms-for-omniverse
+By downloading or using ovphysx, you agree to the NVIDIA Omniverse terms.
+
+--------------------------------------------------------------------------------
+Third-Party Software
+
+Binary distributions of this software may include third-party libraries that are
+subject to their own license terms. These licenses are included in the
+ovphysx-LICENSES.zip file and, where applicable, in dependency-specific
+third-party notice files distributed alongside this software.
+--------------------------------------------------------------------------------

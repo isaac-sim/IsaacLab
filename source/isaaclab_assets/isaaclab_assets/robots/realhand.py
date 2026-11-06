@@ -3,17 +3,22 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configuration for RealHand P7 bimanual robots.
+"""Configuration for RealHand P7 arms and L6, O6, and L20 dexterous hands.
 
 The following configurations are available:
 
 * :obj:`P7_L6_CFG`: P7 dual-arm robot with two RealHand L6 dexterous hands.
 * :obj:`P7_O6_CFG`: P7 dual-arm robot with two RealHand O6 dexterous hands.
 * :obj:`P7_L20_CFG`: P7 dual-arm robot with two RealHand L20 dexterous hands.
+* :obj:`P7_CFG`: P7 dual-arm robot without hands or hand-side adapters.
+* :obj:`L6_LEFT_CFG`, :obj:`L6_RIGHT_CFG`: Standalone L6 hands.
+* :obj:`O6_LEFT_CFG`, :obj:`O6_RIGHT_CFG`: Standalone O6 hands.
+* :obj:`L20_LEFT_CFG`, :obj:`L20_RIGHT_CFG`: Standalone L20 hands.
 
-All configurations start with straight arms lowered beside the body, open
-hands, and hand backs facing outward (palms inward). All arm joint defaults
-are zero; the fixed hand mounts set the outward orientation.
+P7 configurations start with straight arms lowered beside the body. Mounted
+hands are open, with hand backs facing outward (palms inward). Standalone
+hands are open and use their native palm frame, without a P7 mounting transform.
+All assets have a fixed base authored in their USD.
 
 The versioned robot assets and their license information are hosted at:
 https://huggingface.co/realhandinc/realhand-teleop/tree/main/assets/isaaclab
@@ -24,11 +29,14 @@ from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
+from isaaclab.utils import clone
 
 _REALHAND_ASSET_REVISION = "bc8c711f1346be6f4c7b519f59aba2ec9d058b45"
 _REALHAND_ASSET_ROOT = (
     f"https://huggingface.co/realhandinc/realhand-teleop/resolve/{_REALHAND_ASSET_REVISION}/assets/isaaclab/robots"
 )
+_REALHAND_COMPONENT_ASSET_REVISION = "94e6006e3a752ee91c97247c8e36c806b9ce958e"
+_REALHAND_COMPONENT_ASSET_ROOT = f"https://huggingface.co/realhandinc/realhand-teleop/resolve/{_REALHAND_COMPONENT_ASSET_REVISION}/assets/isaaclab/robots"
 
 _P7_HOME_JOINT_POS = {
     "left_joint1": 0.0,
@@ -124,6 +132,23 @@ def _make_p7_cfg(
     )
 
 
+def _make_standalone_hand_cfg(assembly_cfg: ArticulationCfg, model: str, side: str) -> ArticulationCfg:
+    """Reuse a model's hand dynamics without its arm actuators or mounting frame."""
+    cfg = clone(assembly_cfg)
+    cfg.spawn.usd_path = f"{_REALHAND_COMPONENT_ASSET_ROOT}/{model}_{side}/{model}_{side}.usda"
+    cfg.init_state = ArticulationCfg.InitialStateCfg(
+        pos=(0.0, 0.0, 0.5),
+        joint_pos={f"{side}_hand_.*": 0.0},
+        joint_vel={".*": 0.0},
+    )
+    del cfg.actuators["arms"]
+    for actuator in cfg.actuators.values():
+        actuator.joint_names_expr = [
+            expression.replace(".*_hand_", f"{side}_hand_") for expression in actuator.joint_names_expr
+        ]
+    return cfg
+
+
 P7_L6_CFG = _make_p7_cfg(
     f"{_REALHAND_ASSET_ROOT}/P7_l6_bimanual/P7_l6_bimanual.usda",
     hand_joint_expr=[".*_hand_.*"],
@@ -154,3 +179,29 @@ P7_L20_CFG = _make_p7_cfg(
     hand_velocity_limit=1.0,
 )
 """RealHand P7 bimanual robot with two L20 dexterous hands."""
+
+
+P7_CFG = clone(P7_L6_CFG)
+P7_CFG.spawn.usd_path = f"{_REALHAND_COMPONENT_ASSET_ROOT}/P7/P7.usda"
+P7_CFG.init_state.joint_pos = dict(_P7_HOME_JOINT_POS)
+del P7_CFG.actuators["hands"]
+"""RealHand P7 dual-arm robot without hands, retaining the arm-side terminal flanges."""
+
+
+L6_LEFT_CFG = _make_standalone_hand_cfg(P7_L6_CFG, "L6", "left")
+"""Standalone RealHand L6 left hand, fixed at its palm root."""
+
+L6_RIGHT_CFG = _make_standalone_hand_cfg(P7_L6_CFG, "L6", "right")
+"""Standalone RealHand L6 right hand, fixed at its palm root."""
+
+O6_LEFT_CFG = _make_standalone_hand_cfg(P7_O6_CFG, "O6", "left")
+"""Standalone RealHand O6 left hand, with passive mimic joints."""
+
+O6_RIGHT_CFG = _make_standalone_hand_cfg(P7_O6_CFG, "O6", "right")
+"""Standalone RealHand O6 right hand, with passive mimic joints."""
+
+L20_LEFT_CFG = _make_standalone_hand_cfg(P7_L20_CFG, "L20", "left")
+"""Standalone RealHand L20 left hand, with passive mimic joints."""
+
+L20_RIGHT_CFG = _make_standalone_hand_cfg(P7_L20_CFG, "L20", "right")
+"""Standalone RealHand L20 right hand, with passive mimic joints."""

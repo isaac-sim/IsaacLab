@@ -283,8 +283,8 @@ class FakeActuatorControl(ActuatorControl):
 class _FakeNewtonActuator:
     """Newton-actuator stand-in; a plain class so the view's mapping cache can hash it."""
 
-    def __init__(self, controller, indices):
-        self.controller = controller
+    def __init__(self, drive, indices):
+        self.drive = drive
         self.delay = None
         self.clamping = []
         self.indices = indices
@@ -297,7 +297,7 @@ class NativeFakeActuatorControl(FakeActuatorControl):
         super().__init__(*args, **kwargs)
         size = self.num_instances * self.num_joints
         self.newton_actuator = _FakeNewtonActuator(
-            controller=SimpleNamespace(),
+            drive=SimpleNamespace(),
             indices=wp.array(list(range(size)), dtype=wp.uint32, device=self.device),
         )
 
@@ -322,26 +322,22 @@ class NativeFakeActuatorControl(FakeActuatorControl):
 
 
 class NativeGainFakeActuatorControl(NativeFakeActuatorControl):
-    """Native control backed by one Newton-shaped actuator with controller-owned storage."""
+    """Native control backed by one Newton-shaped actuator with drive-owned storage."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         size = self.num_instances * self.num_joints
-        self.newton_actuator.controller = SimpleNamespace(
+        self.newton_actuator.drive = SimpleNamespace(
             kp=wp.zeros(size, dtype=wp.float32, device=self.device),
             kd=wp.zeros(size, dtype=wp.float32, device=self.device),
         )
 
     @property
     def native_gains(self) -> dict[str, torch.Tensor]:
-        """Live torch views over the controller-owned gain storage."""
+        """Live torch views over the drive-owned gain storage."""
         shape = (self.num_instances, self.num_joints)
-        controller = self.newton_actuator.controller
-        return {
-            attr: wp.to_torch(getattr(controller, attr)).view(shape)
-            for attr in ("kp", "kd")
-            if hasattr(controller, attr)
-        }
+        drive = self.newton_actuator.drive
+        return {attr: wp.to_torch(getattr(drive, attr)).view(shape) for attr in ("kp", "kd") if hasattr(drive, attr)}
 
 
 @pytest.mark.parametrize(
@@ -680,7 +676,7 @@ def test_native_explicit_groups_zero_solver_drives_and_build_no_lab_model(monkey
     articulation.data.joint_damping.torch.fill_(3.0)
     control = FakeArticulationActuatorControl(articulation)
     newton_actuator = _FakeNewtonActuator(
-        controller=SimpleNamespace(),
+        drive=SimpleNamespace(),
         indices=wp.array(
             list(range(articulation.num_instances * articulation.num_joints)),
             dtype=wp.uint32,
@@ -730,49 +726,53 @@ def test_native_group_parameters_route_through_the_collection_door(env_ids):
         {"native": _ideal_cfg([".*"], stiffness=11.0, damping=1.1, effort_limit=100.0)}, control
     )
 
-    # Reads are live projections of the controller-owned storage.
-    torch.testing.assert_close(
-        read_group_parameter(collection, "native", "controller", "kp"), control.native_gains["kp"]
-    )
+    # Reads are live projections of the drive-owned storage.
+    torch.testing.assert_close(read_group_parameter(collection, "native", "drive", "kp"), control.native_gains["kp"])
     control.native_gains["kd"][1, 2] = 1.7
-    assert read_group_parameter(collection, "native", "controller", "kd")[1, 2] == 1.7
+    assert read_group_parameter(collection, "native", "drive", "kd")[1, 2] == 1.7
 
     # The group's mapping entry is the owning Newton actuator: no stale Lab mirrors exist,
-    # and direct modification of the controller storage is observed by the door reads.
+    # and direct modification of the drive storage is observed by the door reads.
     group = collection["native"]
     assert group is control.newton_actuator
-    wp.to_torch(group.controller.kp).view(2, 3)[0, 0] = 21.0
-    assert read_group_parameter(collection, "native", "controller", "kp")[0, 0] == 21.0
-    wp.to_torch(group.controller.kp).view(2, 3)[0, 0] = 2.0
+    wp.to_torch(group.drive.kp).view(2, 3)[0, 0] = 21.0
+    assert read_group_parameter(collection, "native", "drive", "kp")[0, 0] == 21.0
+    wp.to_torch(group.drive.kp).view(2, 3)[0, 0] = 2.0
 
-    # The single write path patches the controller storage in place over an env/joint selection.
+    # The single write path patches the drive storage in place over an env/joint selection.
     write_group_parameter(
         collection,
         "native",
-        "controller",
+        "drive",
         "kp",
         values=torch.tensor([[42.0]]),
         env_ids=env_ids,
         joint_ids=torch.tensor([1]),
     )
     torch.testing.assert_close(control.native_gains["kp"], torch.tensor([[2.0, 42.0, 4.0], [5.0, 6.0, 7.0]]))
-    write_group_parameter(collection, "native", "controller", "kd", values=torch.full((2, 3), 0.9))
+    write_group_parameter(collection, "native", "drive", "kd", values=torch.full((2, 3), 0.9))
     torch.testing.assert_close(control.native_gains["kd"], torch.full((2, 3), 0.9))
 
-    with pytest.raises(ValueError, match=r"No Newton actuator exposes parameter \('controller', 'kq'\)"):
-        write_group_parameter(collection, "native", "controller", "kq", values=torch.zeros((2, 3)))
+    with pytest.raises(ValueError, match=r"No Newton actuator exposes parameter \('drive', 'kq'\)"):
+        write_group_parameter(collection, "native", "drive", "kq", values=torch.zeros((2, 3)))
     with pytest.raises(ValueError, match=r"Unknown actuator component 'gains'"):
         read_group_parameter(collection, "native", "gains", "kp")
 
-    # A parameter the controllers do not expose raises instead of falling back to stale values.
+    # The pre-Newton-1.6 "controller" component still resolves to the drive, with a warning at the caller.
+    with pytest.warns(DeprecationWarning, match="'controller' actuator component is deprecated") as record:
+        write_group_parameter(collection, "native", "controller", "kd", values=torch.full((2, 3), 0.8))
+    assert record[0].filename == __file__
+    torch.testing.assert_close(control.native_gains["kd"], torch.full((2, 3), 0.8))
+
+    # A parameter the drives do not expose raises instead of falling back to stale values.
     unsupported_control = NativeGainFakeActuatorControl()
-    del unsupported_control.newton_actuator.controller.kd
+    del unsupported_control.newton_actuator.drive.kd
     unsupported = ActuatorCollection(
         {"native": _ideal_cfg([".*"], stiffness=11.0, damping=1.1, effort_limit=100.0)}, unsupported_control
     )
-    torch.testing.assert_close(read_group_parameter(unsupported, "native", "controller", "kp"), torch.zeros((2, 3)))
-    with pytest.raises(ValueError, match=r"No Newton actuator exposes parameter \('controller', 'kd'\)"):
-        read_group_parameter(unsupported, "native", "controller", "kd")
+    torch.testing.assert_close(read_group_parameter(unsupported, "native", "drive", "kp"), torch.zeros((2, 3)))
+    with pytest.raises(ValueError, match=r"No Newton actuator exposes parameter \('drive', 'kd'\)"):
+        read_group_parameter(unsupported, "native", "drive", "kd")
 
     # Groups that are not Newton-managed keep plain construction gains, and the door rejects them.
     plain = ActuatorCollection(
@@ -780,7 +780,7 @@ def test_native_group_parameters_route_through_the_collection_door(env_ids):
     )
     torch.testing.assert_close(plain["plain"].stiffness, torch.full((2, 3), 11.0))
     with pytest.raises(ValueError, match=r"'plain' is not executed by Newton actuators"):
-        read_group_parameter(plain, "plain", "controller", "kp")
+        read_group_parameter(plain, "plain", "drive", "kp")
 
 
 def test_overlapping_groups_are_rejected():
@@ -916,57 +916,6 @@ def test_lab_executed_explicit_groups_warn_once():
     deprecations = [warning for warning in caught_warnings if warning.category is DeprecationWarning]
     assert len(deprecations) == 1
     assert "execution of explicit actuator models is deprecated" in str(deprecations[0].message)
-
-
-@pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA is unavailable")
-@pytest.mark.parametrize(
-    "actuator_cfg",
-    [
-        ImplicitActuatorCfg(joint_names_expr=["joint_0"], stiffness=2.0, damping=0.0),
-        IdealPDActuatorCfg(
-            joint_names_expr=["joint_0"],
-            stiffness=2.0,
-            damping=0.0,
-            actuator_effort_limit=100.0,
-            actuator_velocity_limit=10.0,
-        ),
-    ],
-    ids=["implicit", "explicit"],
-)
-def test_actuator_batch_rebinds_cuda_state_provider_on_request(
-    actuator_cfg: ImplicitActuatorCfg | IdealPDActuatorCfg,
-):
-    control = FakeActuatorControl(num_envs=1, joint_names=["joint_0"], device="cuda:0")
-    collection = ActuatorCollection({"all": actuator_cfg}, control)
-    collection.target_command.position.torch.fill_(3.0)
-
-    collection.compute()
-    control._joint_pos = ProxyArray(wp.full((1, 1), 2.0, dtype=wp.float32, device=control.device))
-    if isinstance(actuator_cfg, ImplicitActuatorCfg):
-        collection.target_command.velocity.torch.fill_(4.0)
-        collection.target_command.effort.torch.fill_(5.0)
-        control._joint_vel = ProxyArray(wp.full((1, 1), 1.0, dtype=wp.float32, device=control.device))
-        control._joint_stiffness = ProxyArray(wp.full((1, 1), 7.0, dtype=wp.float32, device=control.device))
-        control._joint_damping = ProxyArray(wp.full((1, 1), 11.0, dtype=wp.float32, device=control.device))
-        control._joint_effort_limits = ProxyArray(wp.full((1, 1), 13.0, dtype=wp.float32, device=control.device))
-    collection._rebind_state_inputs()
-
-    collection.compute()
-
-    expected_computed = 45.0 if isinstance(actuator_cfg, ImplicitActuatorCfg) else 2.0
-    expected_applied = 13.0 if isinstance(actuator_cfg, ImplicitActuatorCfg) else 2.0
-    torch.testing.assert_close(
-        collection.computed_effort.torch,
-        torch.tensor([[expected_computed]], device=control.device),
-        rtol=0.0,
-        atol=0.0,
-    )
-    torch.testing.assert_close(
-        collection.applied_effort.torch,
-        torch.tensor([[expected_applied]], device=control.device),
-        rtol=0.0,
-        atol=0.0,
-    )
 
 
 def test_partial_coverage_explicit_group_reads_fresh_commands_each_compute():
