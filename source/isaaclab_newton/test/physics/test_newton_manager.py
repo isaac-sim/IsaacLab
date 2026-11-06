@@ -338,8 +338,8 @@ def test_deterministic_request_resolves_to_the_mode_the_solver_applies(
 
 @pytest.mark.parametrize("collision_cfg", [None, NewtonCollisionPipelineCfg()], ids=["default", "configured"])
 def test_deterministic_collision_pipeline_grows_with_the_solver_contact_capacity(collision_cfg):
-    """A deterministic pipeline sizes its sort buffer at construction, so it is rebuilt for the solver's contacts."""
-    pipelines, prepared = [], []
+    """Contact allocation can rebuild the pipeline but must leave solver output allocation to its caller."""
+    pipelines, prepared, observable_requests = [], [], []
 
     class FakePipeline:
         def __init__(self, **kwargs):
@@ -351,7 +351,10 @@ def test_deterministic_collision_pipeline_grows_with_the_solver_contact_capacity
 
     class RecordingSolver(NewtonSolver):
         def build(self, model, mode, env_template):
-            return SimpleNamespace(get_max_contact_count=lambda: 2)
+            return SimpleNamespace(
+                get_max_contact_count=lambda: 2,
+                observables=lambda *args, **kwargs: observable_requests.append((args, kwargs)),
+            )
 
         def create_collision_pipeline(self, **kwargs):
             return FakePipeline(**kwargs)
@@ -367,6 +370,7 @@ def test_deterministic_collision_pipeline_grows_with_the_solver_contact_capacity
         solver=ops.native,
         solver_ops=ops,
         collision_pipeline=None,
+        contact_sensors={"foot": object()},
         device="cpu",
         deterministic_mode=wp.DeterministicMode.GPU_TO_GPU,
     )
@@ -377,6 +381,7 @@ def test_deterministic_collision_pipeline_grows_with_the_solver_contact_capacity
     assert pipelines[0]["deterministic"] is True
     assert backend.contacts.rigid_contact_max == 2
     assert prepared == [backend.contacts]
+    assert observable_requests == []
 
 
 def test_collision_cfg_is_rejected_when_the_solver_does_not_use_the_collision_pipeline():

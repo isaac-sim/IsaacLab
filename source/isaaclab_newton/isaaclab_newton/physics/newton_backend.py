@@ -267,6 +267,9 @@ class NewtonBackend:
         if not ops.single_state:
             ops.init_state(self.state_1)
         self._allocate_contacts()
+        self.contact_observables = None
+        if self.contact_sensors:
+            self.contact_observables = solver.observables(SensorContact.solver_observable_kinds, contacts=self.contacts)
         state_0 = self.state_0
         self.staged_body_f = wp.zeros_like(state_0.body_f) if state_0.body_count else None
         callbacks, self.solver_init_callbacks = self.solver_init_callbacks, []
@@ -437,7 +440,7 @@ class NewtonBackend:
         if self.solver is not None:
             if self.contacts is None:
                 self._allocate_contacts()
-            elif self.contact_observables is None:
+            if self.contact_observables is None:
                 self.contact_observables = self.solver.observables(
                     SensorContact.solver_observable_kinds, contacts=self.contacts
                 )
@@ -495,6 +498,7 @@ class NewtonBackend:
                 for i in range(steps):
                     self._launch("before_actuators", self._before_actuators)
                     actuators.step(self.state_0, self.control, self.dt)
+                    # Only the final physics step supplies forces read by the sensors.
                     observables = self.contact_observables if i == steps - 1 else None
                     self._launch(
                         ("after_actuators", observables is not None), partial(self._after_actuators, observables)
@@ -541,9 +545,8 @@ class NewtonBackend:
         cache.timestamp = timestamp
 
     def _allocate_contacts(self) -> None:
-        """Allocate contacts from Newton's collision pipeline, or from the solver when it detects contacts itself."""
+        """Allocate contact storage; solver observables belong to initialization or sensor registration."""
         self.invalidate_graph()
-        self.contact_observables = None
         model, solver, ops = self.model, self.solver, self.solver_ops
         collision_cfg = self.cfg.collision_cfg
         if not ops.uses_collision_pipeline():
@@ -585,10 +588,6 @@ class NewtonBackend:
                     )
         if self.contacts is not None:
             ops.prepare_contacts(self.contacts, self.collision_pipeline)
-            if self.contact_sensors:
-                self.contact_observables = solver.observables(
-                    SensorContact.solver_observable_kinds, contacts=self.contacts
-                )
 
     def _launch(self, key: str | tuple[str, int], fn: Callable[[], None]) -> None:
         """Replay ``fn`` from its captured graph, or run it and capture it; inside an enclosing capture, record it."""
@@ -660,10 +659,11 @@ class NewtonBackend:
             for callback in self.state_force_callbacks:
                 callback(state)
             state_out = state if ops.single_state else self.state_1
-            if observables is None or i < num_substeps - 1:
-                ops.step(state, state_out, control, contacts, dt)
-            else:
+            # Intermediate substep forces are never read; skip their observable work.
+            if observables is not None and i == num_substeps - 1:
                 ops.step(state, state_out, control, contacts, dt, observables=observables)
+            else:
+                ops.step(state, state_out, control, contacts, dt)
             if not ops.single_state:
                 if num_substeps % 2 == 1 and i == num_substeps - 1:
                     state.assign(self.state_1)
