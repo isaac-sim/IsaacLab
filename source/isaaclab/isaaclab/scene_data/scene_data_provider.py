@@ -27,6 +27,7 @@ REQUIRES_STAGE_AND_MODEL: dict[str, tuple[bool, bool]] = {
     "newton_rtx": (True, False),
     "rerun": (False, True),
     "viser": (False, True),
+    "isaac_sim": (True, False),
     "isaac_rtx": (True, False),
     "newton_warp": (False, True),
     "ovrtx": (True, False),

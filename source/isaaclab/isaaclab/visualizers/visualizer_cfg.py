@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from .base_visualizer import BaseVisualizer
 
 
-VISUALIZER_TYPES = ("kit", "newton_gl", "newton_rtx", "rerun", "viser")
+VISUALIZER_TYPES = ("isaac_sim", "kit", "newton_gl", "newton_rtx", "rerun", "viser")
 """Built-in visualizer identifiers accepted by legacy recording sources."""
 
 VISUALIZER_ALIASES = {"newton": "newton_gl"}

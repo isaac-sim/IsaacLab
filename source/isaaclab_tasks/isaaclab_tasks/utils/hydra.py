@@ -130,6 +130,9 @@ def _normalize_preset_name(name: str, known_names: set[str], aliases: Mapping[st
         * ``name`` is itself a real field in ``known_names`` (a user-defined preset
           legitimately reusing the deprecated spelling shadows the alias).
     """
+    if name not in known_names and name.replace("-", "_") in known_names:
+        # Hyphens and underscores are interchangeable in names, e.g. ``--viz isaac-sim``.
+        return name.replace("-", "_")
     replacement = (aliases or {}).get(name, _LEGACY_PRESET_ALIASES.get(name))
     if replacement is None or replacement not in known_names or name in known_names:
         return name
