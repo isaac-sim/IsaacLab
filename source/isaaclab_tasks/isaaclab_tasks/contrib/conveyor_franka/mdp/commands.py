@@ -167,6 +167,9 @@ class ConveyorTransferCommand(CommandTerm):
             source_sides = self.source_side_ids[success_ids]
             self.transfer_counts[success_ids] += 1
             self.direction_transfer_counts[success_ids, source_sides] += 1
+            pool = getattr(self._env, "conveyor_cube_pool", None)
+            if pool is not None:
+                pool.record_transfers(success_ids, self.target_cube_ids[success_ids])
 
         self._last_evaluation_steps[evaluate_mask] = evaluation_steps[evaluate_mask]
         self._env.extras["successes"] = self.ever_success.clone()

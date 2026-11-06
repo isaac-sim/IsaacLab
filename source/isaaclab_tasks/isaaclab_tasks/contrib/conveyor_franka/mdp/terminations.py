@@ -94,7 +94,7 @@ def cube_out_of_workspace(
     ),
 ) -> torch.Tensor:
     """Terminate when any cube leaves the complete guarded racetrack workspace."""
-    positions = cube_values(env, "root_pos_w")
+    positions = cube_values(env, "root_pos_w", all_cubes=True)
     positions -= env.scene.env_origins.unsqueeze(1)
     lower = positions.new_tensor(minimum)
     upper = positions.new_tensor(maximum)
@@ -110,5 +110,5 @@ def nonfinite_scene_state(
     invalid = ~torch.all(torch.isfinite(robot.data.joint_pos.torch), dim=1)
     invalid |= ~torch.all(torch.isfinite(robot.data.joint_vel.torch), dim=1)
     for attribute in ("root_link_pose_w", "root_com_vel_w"):
-        invalid |= ~torch.isfinite(cube_values(env, attribute)).all(dim=(1, 2))
+        invalid |= ~torch.isfinite(cube_values(env, attribute, all_cubes=True)).all(dim=(1, 2))
     return invalid

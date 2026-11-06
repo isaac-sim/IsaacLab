@@ -45,7 +45,7 @@ def classify_cube_conveyors(local_positions: torch.Tensor, transit_half_width: f
 
 def cube_conveyor_state(env: ManagerBasedRLEnv) -> torch.Tensor:
     """Return left/transit/right one-hot state for every numbered cube."""
-    positions = cube_values(env, "root_pos_w")
+    positions = cube_values(env, "root_pos_w", policy_observation=True)
     local_positions = positions - env.scene.env_origins.unsqueeze(1)
     return classify_cube_conveyors(local_positions).flatten(start_dim=1)
 
@@ -57,9 +57,9 @@ def transfer_object_observation(env: ManagerBasedRLEnv) -> torch.Tensor:
     up axes, and linear/angular velocities in four fixed identity slots.
     :func:`target_cube_one_hot` selects the active slot.
     """
-    positions = cube_values(env, "root_pos_w")
-    quaternions = cube_values(env, "root_quat_w")
-    velocities = cube_values(env, "root_vel_w")
+    positions = cube_values(env, "root_pos_w", policy_observation=True)
+    quaternions = cube_values(env, "root_quat_w", policy_observation=True)
+    velocities = cube_values(env, "root_vel_w", policy_observation=True)
     local_positions = positions - env.scene.env_origins.unsqueeze(1)
     tool_position, _ = end_effector_pose(env)
     tool_relative = positions - tool_position.unsqueeze(1)
@@ -79,7 +79,7 @@ def transfer_object_observation(env: ManagerBasedRLEnv) -> torch.Tensor:
 def active_transfer_features(env: ManagerBasedRLEnv, command_name: str = "transfer") -> torch.Tensor:
     """Return active-cube and destination-relative position features [m]."""
     command = env.command_manager.get_term(command_name)
-    positions = cube_values(env, "root_pos_w")
+    positions = cube_values(env, "root_pos_w", policy_observation=True)
     active_position = positions[torch.arange(env.num_envs, device=env.device), command.target_cube_ids.long()]
     local_active_position = active_position - env.scene.env_origins
     tool_position, _ = end_effector_pose(env)

@@ -31,17 +31,20 @@ from isaaclab_tasks.contrib.conveyor_suction.agent_cfg import SuctionGaussianBer
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 _BASE = "IsaacContrib-Conveyor-Racetrack-Transfer-v0"
+_SORTER = "IsaacContrib-Conveyor-Warehouse-Sorting-v0"
+
+pytestmark = pytest.mark.kitless
 
 
-def _environment(**reset_params):
-    cfg = parse_env_cfg(_BASE, device="cpu", num_envs=2)
+def _environment(task=_BASE, **reset_params):
+    cfg = parse_env_cfg(task, device="cpu", num_envs=2)
     cfg.events.reset_from_state_table.params.update(reset_params)
     cfg.sim.physics.use_cuda_graph = False
     cfg.sim.visualizer_cfgs = []
     cfg.sim.use_fabric = False
     cfg.sim.save_logs_to_file = False
     cfg.seed = 41
-    return gym.make(_BASE, cfg=cfg).unwrapped
+    return gym.make(task, cfg=cfg).unwrapped
 
 
 def _parcels(env):
@@ -220,6 +223,191 @@ def test_checkpoint_interface_and_invalid_action_recovery():
         cfg.actions.arm_action.preserve_order = False
         with pytest.raises(ValueError, match="preserve"):
             cfg.validate()
+
+
+def test_sorter_dispatch_inventory_and_selected_resets():
+    """Actual parcels are shuffled, individually dispatched, pinned while grasped, and left sorted."""
+    from isaaclab_tasks.contrib.conveyor_franka.conveyor_warehouse_geometry import warehouse_parcel_positions
+
+    with closing(_environment(_SORTER)) as env:
+        obs, _ = env.reset()
+        pool = env.conveyor_cube_pool
+        command = env.command_manager.get_term("transfer")
+        assert obs["policy"].shape == (2, 123)
+        assert not env.curriculum_manager.active_terms, "Warehouse training starts from home, without phase resets."
+        torch.testing.assert_close(env.scene["robot"].data.root_pos_w.torch[:, 2], env.scene.env_origins[:, 2])
+        # Training uses every policy action; playback parks only idle, finite actions.
+        command.has_target[:] = torch.tensor([False, True])
+        env.step(torch.full((2, 8), 0.5))
+        torch.testing.assert_close(env.action_manager.action, torch.full((2, 8), 0.5))
+        env.cfg.park_when_idle = True
+        command.has_target[:] = torch.tensor([False, True])
+        env.step(torch.full((2, 8), 0.5))
+        torch.testing.assert_close(env.action_manager.action[1], torch.full((8,), 0.5))
+        assert env.action_manager.action[0, :7].abs().max() <= 0.25
+        assert env.action_manager.action[0, 7] == 0
+        command.has_target.zero_()
+        invalid = env.step(torch.full((2, 8), float("nan")))
+        assert invalid[2].all() and torch.isfinite(invalid[0]["policy"]).all()
+        env.cfg.park_when_idle = False
+        env.reset()
+        # Policy slots gather physical identities in each environment's local frame.
+        positions = _waiting_positions(env)
+        positions[:, :4] = torch.tensor([[0.4, 0.27, 0.06], [0.6, -0.27, 0.06], [0.8, 0, 0.2], [0.9, -0.27, 0.06]])
+        positions[0, 4] = torch.tensor([0.52, 0.27, 0.06])
+        positions[1, 5] = torch.tensor([0.72, -0.27, 0.06])
+        pool.slot_ids[:] = torch.tensor([[4, 1, 2, 3], [0, 5, 2, 3]])
+        _place(env, positions)
+        pose = pool.assets[4].data.root_pose_w.torch.clone()
+        pose[0, 3:] = torch.tensor([2**-0.5, 0, 0, 2**-0.5])
+        velocity = torch.zeros(2, 6)
+        velocity[0] = torch.tensor([0.1, 0.2, 0.3, 0.4, 0.5, 0.6])
+        pool.assets[4].write_root_pose_to_sim_index(root_pose=pose, skip_forward=True)
+        pool.assets[4].write_root_velocity_to_sim_index(root_velocity=velocity, skip_forward=True)
+        env.sim.forward()
+        env.scene.update(env.step_dt)
+        policy = env.observation_manager.compute()["policy"]
+        expected = positions[torch.arange(2)[:, None], pool.slot_ids]
+        torch.testing.assert_close(policy[:, 16:28], expected.flatten(1))
+        torch.testing.assert_close(policy[0, 40:43], torch.tensor([0.0, -1.0, 0.0]), atol=1e-6, rtol=0)
+        torch.testing.assert_close(policy[0, 52:58], velocity[0])
+        positions[:, 2:4] = torch.tensor([[2.8, 0.1, 0.56], [1.2, -0.59, 0.16]])
+        _place(env, positions)
+        adapted = env.observation_manager.compute()["policy"][:, 16:28].reshape(2, 4, 3)
+        torch.testing.assert_close(adapted[:, 2:, 1:], torch.tensor([[[0.75, 0.06], [-0.75, 0.06]]] * 2))
+        physical = torch.stack([p.data.root_pos_w.torch for p in pool.assets], dim=1) - env.scene.env_origins[:, None]
+        torch.testing.assert_close(physical, positions)
+        env.reset()
+        before_assignments = pool.assignment_counts.clone()
+        before_transfers = pool.transfer_counts.clone()
+        before_slots = pool.slot_ids[0].clone()
+        before_velocity = torch.stack([p.data.root_vel_w.torch.clone() for p in pool.assets], dim=1)
+        before = torch.stack([p.data.root_pose_w.torch.clone() for p in pool.assets], dim=1)
+        repeated = None
+        for ids in (torch.tensor([1]), slice(1, 2)):
+            pool.assignment_counts.fill_(7)
+            pool.transfer_counts.fill_(3)
+            velocity = pool.assets[-1].data.root_vel_w.torch.clone()
+            velocity[1].fill_(0.2)
+            pool.assets[-1].write_root_velocity_to_sim_index(root_velocity=velocity)
+            torch.manual_seed(42)
+            env._reset_idx(ids)
+            assert not pool.assets[-1].data.root_vel_w.torch[1].any()
+            torch.testing.assert_close(
+                pool.assignment_counts[1], torch.tensor([1] * CUBE_COUNT + [0] * (len(pool.assets) - CUBE_COUNT))
+            )
+            assert not pool.transfer_counts[1].any()
+            assert (pool.assignment_counts[0] == 7).all() and (pool.transfer_counts[0] == 3).all()
+            actual = torch.stack([p.data.root_pose_w.torch.clone() for p in pool.assets], dim=1)
+            torch.testing.assert_close(actual[0], before[0])
+            torch.testing.assert_close(pool.slot_ids[0], before_slots)
+            torch.testing.assert_close(pool.slot_ids[1], torch.arange(4))
+            torch.testing.assert_close(
+                torch.stack([p.data.root_vel_w.torch[0] for p in pool.assets]), before_velocity[0]
+            )
+            local = actual[1, :, :3] - env.scene.env_origins[1]
+            destinations = torch.tensor(warehouse_parcel_positions())
+            distance = torch.linalg.vector_norm(local[:, None] - destinations[None], dim=-1)
+            assert distance.min(1).values.max() < 1e-5
+            assert distance.argmin(1).unique().numel() == len(pool.assets)
+            assert not torch.allclose(local, destinations)
+            if repeated is not None:
+                torch.testing.assert_close(actual, repeated)
+            repeated = actual.clone()
+        pool.assignment_counts.copy_(before_assignments)
+        pool.transfer_counts.copy_(before_transfers)
+        positions = _waiting_positions(env)
+        positions[:, 0] = torch.tensor([0.7, 0.27, 0.06])  # Correct class, so leave it alone.
+        positions[0, 2:4] = torch.tensor([[0.6, 0.27, 0.06], [0.6, -0.27, 0.06]])
+        positions[0, 7] = torch.tensor([0.9, 0.27, 0.06])
+        pool.assignment_counts[0, 7] = 100  # A repeatedly assigned, nearer arrival must not starve a new one.
+        positions[0, 5] = torch.tensor([0.8, 0.27, 0.06])  # Arrival outside the initial four policy slots.
+        _place(env, positions)
+        command = env.command_manager.get_term("transfer")
+        command.has_target.zero_()
+        command._update_command()
+        assert command.has_target.tolist() == [True, False]
+        slot = int(command.target_cube_ids[0])
+        assert pool.slot_ids[0, slot] == 5
+        assert command.command[0, -2:].tolist() == [0, 1]
+        assert pool.slot_ids[0, 0] == 0
+        assert command.metrics["sorted_parcels"].tolist() == [3, 1]
+        torch.testing.assert_close(pool.assets[5].data.root_pos_w.torch[0] - env.scene.env_origins[0], positions[0, 5])
+        # Simultaneous arrivals can select different slots and opposite transfer directions.
+        waiting = positions[1, 2].clone()
+        positions[1, 2] = torch.tensor([0.75, -0.27, 0.06])
+        _place(env, positions)
+        command.has_target.zero_()
+        command._update_command()
+        assert command.target_cube_ids.tolist() == [slot, 2]
+        assert command.source_side_ids.tolist() == [0, 1]
+        positions[1, 2] = waiting
+        _place(env, positions)
+        command._update_command()
+        # Carry the assigned parcel above the workcell; a remote held target must retain its slot.
+        robot = env.scene["robot"]
+        fingers, _ = robot.find_joints("panda_finger_joint[1-2]", preserve_order=True)
+        joints = robot.data.joint_pos.torch.clone()
+        joints[:, fingers] = 0.019
+        robot.write_joint_position_to_sim_index(position=joints)
+        arms, _ = robot.find_joints("panda_joint[1-7]", preserve_order=True)
+        joints[:, arms] = robot.data.default_joint_pos.torch[:, arms]
+        joints[:, arms[1]] = -0.8
+        robot.write_joint_position_to_sim_index(position=joints)
+        env.sim.forward()
+        env.scene.update(env.step_dt)
+        tool, _ = end_effector_pose(env)
+        positions[0, 5] = tool[0] - env.scene.env_origins[0]
+        _place(env, positions)
+        assert positions[0, 5, 2] > 0.4
+        command._update_command()
+        assert pool.slot_ids[0, slot] == 5 and command.has_target[0]
+        positions[0, 5] = torch.tensor([0.8, 0.27, 0.06])
+        joints[:, fingers] = 0.04
+        robot.write_joint_position_to_sim_index(position=joints)
+        _place(env, positions)
+        env.episode_length_buf += command.cfg.minimum_subgoal_steps
+        command.evaluate()
+        assert not command.pending_success[0]
+        positions[0, 5] = torch.tensor([0.8, -0.27, 0.06])
+        joints[:, fingers] = 0.04
+        robot.write_joint_position_to_sim_index(position=joints)
+        _place(env, positions)
+        env.episode_length_buf += command.cfg.minimum_subgoal_steps
+        for _ in range(command.cfg.hold_steps):
+            env.episode_length_buf += 1
+            command.evaluate()
+        assert pool.transfer_counts[0, 5] == 1 and pool.transfer_counts[1].sum() == 0
+        # Completed classes stay circulating and cannot keep paying a previous success reward.
+        positions[:, :, 0] = 0.6
+        positions[:, :, 1] = torch.tensor([0.27, -0.27] * (len(pool.assets) // 2))
+        positions[:, :, 2] = 0.06
+        _place(env, positions)
+        command._update_command()
+        assert not command.has_target.any()
+        assert command.metrics["batch_complete"].tolist() == [1, 1]
+        command.new_success.fill_(True)
+        command.is_success.fill_(True)
+        command.evaluate()
+        assert not command.new_success.any() and not command.is_success.any()
+        assert not mdp.cube_out_of_workspace(env, **env.cfg.terminations.cube_out_of_workspace.params).any()
+        # Present every identity as a separate arrival and let the real dispatcher refill its slots.
+        for parcel_id in range(len(pool.assets)):
+            positions[0] = _waiting_positions(env)[0]
+            source_y = -0.27 if command.parcel_destinations[parcel_id] == 0 else 0.27
+            positions[0, parcel_id] = torch.tensor([0.8, source_y, 0.06])
+            _place(env, positions)
+            command.pending_success[0] = True
+            command._update_command()
+            assert pool.slot_ids[0, command.target_cube_ids[0]] == parcel_id
+        assert (pool.assignment_counts[0] > 0).all()
+        unassigned = next(i for i in range(len(pool.assets)) if i not in pool.slot_ids[0])
+        positions[0, unassigned, 2] = -1
+        _place(env, positions)
+        assert mdp.cube_out_of_workspace(env, **env.cfg.terminations.cube_out_of_workspace.params).tolist() == [
+            True,
+            False,
+        ]
 
 
 def test_success_guided_sampling_records_completed_selected_episodes():
