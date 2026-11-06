@@ -59,6 +59,9 @@ class ClonePlan:
     asset_cfgs: tuple[Any, ...]
     """Host declarations indexed by asset-prototype ID, retained once by reference."""
 
+    asset_catalogs: tuple[tuple[int, ...], ...] = ()
+    """Ordered prototype rows originating from each multi-asset rigid-object declaration."""
+
     env_template: str = DEFAULT_ENV_TEMPLATE
     """Destination-world path template, with one ``{}`` slot for the world ID."""
 
@@ -93,6 +96,7 @@ def make_clone_plan(
     *,
     weights: Sequence[float] | None = None,
     shared_assets: Sequence[int] = (),
+    asset_catalogs: Sequence[Sequence[int]] = (),
     clone_strategy: Callable[[np.ndarray, int], np.ndarray] = sequential,
     env_template: str = DEFAULT_ENV_TEMPLATE,
     positions: np.ndarray | None = None,
@@ -105,6 +109,7 @@ def make_clone_plan(
         num_worlds: Number of destination worlds.
         weights: Relative world-prototype weights; ``None`` gives every prototype equal weight.
         shared_assets: Asset indices instantiated once in the shared world ``-1``.
+        asset_catalogs: Ordered prototype rows for multi-asset rigid objects.
         clone_strategy: Function selecting world-prototype indices from weights.
         env_template: Destination-world path template with one ``{}`` slot for the world ID.
         positions: Destination-world origins [m], shape [num_worlds, 3]; None preserves authored placement.
@@ -137,7 +142,13 @@ def make_clone_plan(
         world_prototype_starts=np.cumsum([0, *(len(world) for world in compositions)], dtype=np.int64),
         world_prototype_layout=np.ascontiguousarray(layout, dtype=np.int32),
     )
-    return ClonePlan(topology, asset_cfgs=asset_cfgs, env_template=env_template, positions=positions)
+    return ClonePlan(
+        topology,
+        asset_cfgs=asset_cfgs,
+        asset_catalogs=tuple(map(tuple, asset_catalogs)),
+        env_template=env_template,
+        positions=positions,
+    )
 
 
 def grid_transforms(N: int, spacing: float = 1.0, up_axis: str = "z") -> tuple[np.ndarray, np.ndarray]:

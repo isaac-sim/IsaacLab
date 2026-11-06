@@ -17,7 +17,7 @@ from newton import Axis, BodyFlags, JointType, ModelBuilder
 
 from pxr import Sdf, Usd, UsdGeom
 
-from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
+from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import ClonePlan, PrototypeWorldTopology, ReplicateContext
 from isaaclab.cloner import path as cloner_path
 from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
@@ -118,15 +118,10 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
         root for root, parent in zip(shared, cloner_path.get_parent_indices(shared), strict=True) if parent == -1
     )
     simulation = isinstance(cfg, NewtonCfg)
-    catalog_rows = {}
+    catalog_rows = []
     if simulation and isinstance(cfg.solver_cfg, MJWarpSolverCfg) and not cfg.solver_cfg.use_mujoco_contacts:
-        rigid_prototypes = {}
-        for row, asset in enumerate(plan.asset_cfgs):
-            if isinstance(asset, RigidObjectCfg) and asset.spawn is not None:
-                rigid_prototypes.setdefault(asset.prim_path, []).append(row)
-        for indices in rigid_prototypes.values():
-            rows = tuple(indices)
-            if len(rows) < 2 or not any(row in asset_prototype_ids for row in rows):
+        for rows in plan.asset_catalogs:
+            if not any(row in asset_prototype_ids for row in rows):
                 continue
             members = [
                 [
@@ -136,17 +131,16 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
                 ]
                 for prototype in plan.topology.world_prototype_layout
             ]
-            if all(len(indices) == 1 for indices in members):
-                catalog_rows[rows] = [indices[0] for indices in members]
-                for row in rows:
-                    if sources[row] is None:
-                        asset = plan.asset_cfgs[row]
-                        spawn = asset.spawn
-                        sources[row] = spawn.spawn_path = f"/World/IsaacLabPrototypes/asset_{row}"
-                        spawn.spawn_paths = [sources[row]]
-                        spawn.func(
-                            sources[row], spawn, translation=asset.init_state.pos, orientation=asset.init_state.rot
-                        )
+            if any(len(indices) != 1 for indices in members):
+                continue
+            catalog_rows.append((rows, [indices[0] for indices in members]))
+            for row in rows:
+                if sources[row] is None:
+                    asset = plan.asset_cfgs[row]
+                    spawn = asset.spawn
+                    sources[row] = spawn.spawn_path = f"/World/IsaacLabPrototypes/asset_{row}"
+                    spawn.spawn_paths = [sources[row]]
+                    spawn.func(sources[row], spawn, translation=asset.init_state.pos, orientation=asset.init_state.rot)
     routed_sources = tuple(sources[index] for index in asset_prototype_ids if sources[index] is not None)
     world_assets = plan.topology.world_prototypes[starts[1] :]
     has_world_source = any(asset in asset_prototype_ids and sources[asset] is not None for asset in world_assets)
@@ -158,7 +152,7 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
         if not isinstance(plan.asset_cfgs[index], SensorBaseCfg)
         if not any(cloner_path.relative_to(source, owner) is not None for owner in routed_sources)
     )
-    variant_sources = tuple(dict.fromkeys(sources[row] for rows in catalog_rows for row in rows))
+    variant_sources = tuple(dict.fromkeys(sources[row] for rows, _ in catalog_rows for row in rows))
     if positions is None:
         positions = np.zeros((len(env_ids), 3), dtype=np.float32)
     if quaternions is None:
@@ -219,58 +213,24 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
     import_results: dict[str, dict[str, Any]] = {}
     options = dict(ignore_paths=ignore_paths, load_visual_shapes=load_visual_shapes)
     options.update(skip_mesh_approximation=not simulation, import_results_out=import_results)
-    source_builders = build_source_builders(stage, source_paths, builder_factory, schema_resolvers, **options)
-    catalogs = {}
-    target_owners = {}
-    for rows, members in catalog_rows.items():
-        builders = tuple(source_builders[sources[row]] for row in rows)
-        if any(source.body_count != 1 or source.joint_count != 1 for source in builders):
+    retained_sources = build_source_builders(stage, source_paths, builder_factory, schema_resolvers, **options)
+    source_builders = dict(retained_sources)
+    initial_selections = []
+    for rows, members in catalog_rows:
+        variants = tuple(retained_sources[sources[row]] for row in rows)
+        if any(source.body_count != 1 or source.joint_count != 1 for source in variants):
             continue
-        joint_types = {source.joint_type[0] for source in builders}
-        body_flags = {source.body_flags[0] for source in builders}
+        joint_types = {source.joint_type[0] for source in variants}
+        body_flags = {source.body_flags[0] for source in variants}
         if len(joint_types) != 1 or joint_types.pop() not in (JointType.FREE, JointType.FIXED) or len(body_flags) != 1:
             continue
-        if any(source.joint_parent[0] != -1 or source.joint_child[0] != 0 for source in builders):
+        if any(source.joint_parent[0] != -1 or source.joint_child[0] != 0 for source in variants):
             continue
-        for row, imported in zip(rows, builders, strict=True):
-            if cloner_path.relative_to(imported.body_label[0], sources[row]) is None:
-                raise ValueError(f"Body variant {imported.body_label[0]!r} is outside source {sources[row]!r}.")
         variant_by_asset = {row: variant for variant, row in enumerate(rows)}
-        initial_ids, targets = [], []
         for world, member in enumerate(members):
             row = plan.topology.world_prototypes[member]
-            target = cloner_path.rebase(builders[0].body_label[0], sources[rows[0]], templates[member].format(world))
-            initial_ids.append(variant_by_asset[row])
-            targets.append(target)
-            target_owners.setdefault(target, []).append(rows)
-        catalogs[rows] = builders, np.asarray(initial_ids, dtype=np.int32), targets
-    # Distinct asset declarations can be views of the same body; neither can own an independent switch.
-    conflicts = {rows for owners in target_owners.values() if len(owners) > 1 for rows in owners}
-    catalogs = {rows: values for rows, values in catalogs.items() if rows not in conflicts}
-    # One imported source can be both a catalog member and an ordinary asset. In that case it
-    # cannot be replaced by a variant-bearing clone source without changing the ordinary asset.
-    while catalogs:
-        owned = {row for rows in catalogs for row in rows}
-        shared = {source for row, source in enumerate(sources) if row not in owned}
-        exclusive = {
-            rows: values for rows, values in catalogs.items() if not any(sources[row] in shared for row in rows)
-        }
-        if len(exclusive) == len(catalogs):
-            break
-        catalogs = exclusive
-
-    retained_sources = source_builders
-    source_builders = dict(retained_sources)
-    for rows, (variants, _initial_ids, _targets) in catalogs.items():
-        inertia_offset = plan.asset_cfgs[rows[0]].mesh_variant_inertia_diagonal_offset
-        if not np.isfinite(inertia_offset) or inertia_offset < 0.0:
-            raise ValueError("mesh_variant_inertia_diagonal_offset must be finite and non-negative.")
-        if inertia_offset:
-            for source in variants:
-                source.body_inertia[0] = wp.mat33(
-                    np.asarray(source.body_inertia[0]).reshape(3, 3) + np.eye(3) * inertia_offset
-                )
-
+            target = cloner_path.rebase(variants[0].body_label[0], sources[rows[0]], templates[member].format(world))
+            initial_selections.append((target, variant_by_asset[row]))
         imported = variants[0]
         template = builder_factory()
         body = template.add_link(
@@ -301,16 +261,16 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
             clone_source.joint_X_c[0] = imported.joint_X_c[0]
             clone_source.joint_q[:] = imported.joint_q
             clone_source.joint_qd[:] = imported.joint_qd
-            for name, labels in vars(clone_source).items():
-                if name.endswith("_label") and isinstance(labels, list):
-                    for index, label in enumerate(labels):
-                        if not isinstance(label, str):
-                            continue
-                        suffix = cloner_path.relative_to(label, sources[rows[0]])
-                        if suffix is None and label.startswith(sources[rows[0]] + "_"):
-                            suffix = label[len(sources[rows[0]]) :]
-                        if suffix is not None:
-                            labels[index] = sources[row] + suffix
+            first_source = sources[rows[0]]
+            for labels in (
+                clone_source.body_label,
+                clone_source.joint_label,
+                clone_source.articulation_label,
+                clone_source.shape_label,
+            ):
+                for index, label in enumerate(labels):
+                    if label == first_source or label.startswith((first_source + "/", first_source + "_")):
+                        labels[index] = sources[row] + label[len(first_source) :]
             source_builders[sources[row]] = clone_source
     # Imports contain authored USD poses, which need not include the planned world placement.
     source_inverse = {}
@@ -390,11 +350,7 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
         if visual_ranges:
             batches.append((SceneDataFormat.Points(), visual_ranges))
         bodies = {label: index for index, label in enumerate(builder.body_label)}
-        initial_body_variants = tuple(
-            (bodies[target], int(variant))
-            for _rows, (_variants, initial_ids, targets) in catalogs.items()
-            for target, variant in zip(targets, initial_ids, strict=True)
-        )
+        initial_body_variants = tuple((bodies[target], variant) for target, variant in initial_selections)
         record = NewtonCloneRecord(
             world_xforms=world_xforms,
             source_builders=retained_sources,

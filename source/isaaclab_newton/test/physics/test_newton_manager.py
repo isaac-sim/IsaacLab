@@ -63,6 +63,8 @@ def test_native_body_variants_have_one_geometry_owner():
     assert not (physics / "mjwarp_manager.py").exists()
     assert "add_body_variants(" in cloner.read_text()
     assert "select_body_variants(" in asset.read_text()
+    assert "plan.asset_catalogs" in cloner.read_text()
+    assert all(symbol not in cloner.read_text() for symbol in ("rigid_prototypes", "target_owners", "while catalogs"))
     forbidden = ("MeshVariants", "_SELECT_MESH_VARIANTS", "mesh_variant_definitions")
     for path in (cloner, asset, physics / "newton_backend.py", physics / "newton_manager.py"):
         assert all(symbol not in path.read_text() for symbol in forbidden)

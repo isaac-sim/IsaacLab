@@ -16,6 +16,7 @@ from typing import Any
 import numpy as np
 
 from .. import sim as sim_utils
+from ..assets import RigidObjectCfg
 from ..sensors.camera.camera_cfg import CameraCfg
 from ..sensors.sensor_base_cfg import SensorBaseCfg
 from ..utils.string import string_to_callable
@@ -224,7 +225,7 @@ def _prepare_cloning(
         cfg.prim_path = expand_env_regex_ns(cfg.prim_path, env_template)
     spawned = [cfg for cfg in cfgs if getattr(cfg, "spawn", None) is not None]
     # Expand spawner variants into asset prototypes; per-asset choices form the default world compositions.
-    asset_prototypes, groups, shared, declarations = [], [], [], []
+    asset_prototypes, groups, shared, declarations, catalogs = [], [], [], [], []
     for cfg in cfgs:
         if isinstance(cfg, CameraCfg):
             sim.get_or_create_backend(cfg.renderer_cfg)
@@ -235,6 +236,8 @@ def _prepare_cloning(
         count = num_spawn_variants(spawn)
         indices = tuple(range(len(asset_prototypes), len(asset_prototypes) + count))
         declarations.append((cfg, indices))
+        if isinstance(cfg, RigidObjectCfg) and count > 1:
+            catalogs.append(indices)
         for variant in range(count):
             prototype = cfg
             if count > 1:
@@ -260,7 +263,8 @@ def _prepare_cloning(
             groups.append(indices)
     worlds = tuple(itertools.product(*groups)) if world_prototypes is None else world_prototypes
     positions = grid_transforms(num_clones, env_spacing)[0] if positions is None else positions
-    options = dict(weights=weights, shared_assets=shared, clone_strategy=clone_strategy, env_template=env_template)
+    options = dict(weights=weights, shared_assets=shared, asset_catalogs=catalogs)
+    options.update(clone_strategy=clone_strategy, env_template=env_template)
     plan = make_clone_plan(asset_prototypes, worlds, num_clones, positions=positions, **options)
     source_paths = cloner_path.get_asset_prototype_paths(plan)
     for cfg, indices in declarations:
