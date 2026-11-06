@@ -3,6 +3,17 @@ Changelog
 
 .. towncrier release notes start
 
+44.0.1 (2026-11-06)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removed the no-op process-wide Gaussian skip-tonemapping setting and warning for OVRTX in
+  :class:`~isaaclab.sensors.Camera`; the OVRTX renderer now authors the setting on its render product.
+* Delegated Isaac RTX rendering policy from camera construction to the renderer.
+
+
 44.0.0 (2026-11-05)
 ~~~~~~~~~~~~~~~~~~~
 

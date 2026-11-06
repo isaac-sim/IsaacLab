@@ -3,6 +3,16 @@ Changelog
 
 .. towncrier release notes start
 
+11.0.1 (2026-11-06)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Configured RTX camera rendering before simulation reset and Gaussian HDR tonemapping when creating render products,
+  including the legacy setting required by Isaac Sim 6.2.
+
+
 11.0.0 (2026-11-05)
 ~~~~~~~~~~~~~~~~~~~
 
