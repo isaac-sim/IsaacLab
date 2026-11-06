@@ -595,7 +595,18 @@ def modify_articulation_root_properties(
                         raise RuntimeError(f"Failed to move '{prop.GetPath()}' to '{parent_prim.GetPath()}'.")
                 for prop in newton_properties:
                     if not articulation_prim.RemoveProperty(prop.GetName()):
-                        raise RuntimeError(f"Failed to remove '{prop.GetPath()}' from the former articulation root.")
+                        # The property may be authored outside the edit target (e.g. in a referenced
+                        # asset layer, as for Mjcf/Urdf converter output), in which case the stage
+                        # cannot remove it. The copy flattened onto the parent above takes precedence
+                        # and removing the schema below still strips the former root's composed
+                        # Newton root behavior, so keep going instead of raising.
+                        logger.warning(
+                            "Could not remove '%s' from the former articulation root because its opinions are"
+                            " authored in a non-editable layer (e.g. a reference). The property was relocated"
+                            " to '%s' and the schema is removed, so the composed stage is unaffected.",
+                            prop.GetPath(),
+                            parent_prim.GetPath(),
+                        )
                 if not articulation_prim.RemoveAppliedSchema(newton_root_schema):
                     raise RuntimeError(f"Failed to remove '{newton_root_schema}' from '{articulation_prim.GetPath()}'.")
 
