@@ -869,26 +869,22 @@ def _damp_body(body_qd: wp.array(dtype=wp.spatial_vector), body_f: wp.array(dtyp
 
 
 def _bound_control(manager: NewtonManager, *, graphable: bool):
-    """An action term that damps a free body and a scene, both bound to ``manager``'s step when ``graphable``."""
+    """Actions that damp a free body, and an empty scene; both support graph capture when ``graphable``."""
     applied = []
-    term = SimpleNamespace(
+    actions = SimpleNamespace(
         supports_graph_capture=graphable,
-        apply_actions=lambda: (
+        apply_every_physics_step=True,
+        apply_action=lambda: (
             applied.append(None),
             wp.launch(_damp_body, 1, inputs=[manager.backend.state_0.body_qd, manager.backend.state_0.body_f]),
         ),
     )
-    actions = SimpleNamespace(active_terms=["damp"], get_term=lambda _: term, apply_every_physics_step=True)
     scene = SimpleNamespace(supports_graph_capture=True, write_data_to_sim=lambda: None)
     return actions, scene, applied
 
 
 def test_bound_control_runs_before_every_physics_step_like_the_environment_loop():
-    """Bound actions run before every physics step of one captured step, also after a hard reset.
-
-    Actions that cannot be recorded and must run every physics step keep the loop in the environment, which the bound
-    step matches.
-    """
+    """Bound actions run before every physics step of one captured step, also after a hard reset, like the env loop."""
     decimation, num_steps, velocities = 3, 4, []
     for bound in (True, False):
         sim_cfg = SimulationCfg(dt=0.01, device="cuda:0", physics=NewtonCfg(solver_cfg=MJWarpSolverCfg()))
@@ -910,7 +906,7 @@ def test_bound_control_runs_before_every_physics_step_like_the_environment_loop(
                 for _ in range(num_steps):
                     for _ in range(1 if bound else decimation):
                         if not bound:
-                            actions.get_term("damp").apply_actions()
+                            actions.apply_action()
                         sim.step(render=False)
                 # bound steps record the actions once per physics step and then replay them
                 assert len(applied) == (2 * decimation if bound else num_steps * decimation)

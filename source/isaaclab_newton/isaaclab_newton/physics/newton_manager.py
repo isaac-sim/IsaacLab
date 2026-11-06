@@ -602,9 +602,8 @@ class NewtonManager(PhysicsManager):
     def bind_control(self, actions: ActionManager, scene: InteractiveScene) -> bool:
         """Run the environment's actions and asset writes as pre-actuator callbacks of every physics step.
 
-        They are bound when every action term and every written asset can be recorded into the captured step
-        (``supports_graph_capture``); one :meth:`step` then advances the whole decimation loop. Hard resets bind them
-        again on the new backend.
+        Binds only when both support graph capture; one :meth:`step` then advances the whole decimation loop. Hard
+        resets bind again on the new backend.
 
         Args:
             actions: Environment action manager.
@@ -621,12 +620,10 @@ class NewtonManager(PhysicsManager):
         """Register the bound control on the current backend, in the environment's order."""
         actions, scene = self._control
         backend = self.backend
-        terms = [actions.get_term(name) for name in actions.active_terms]
         backend.control_every_physics_step = actions.apply_every_physics_step
-        if not all(term.supports_graph_capture for term in terms) or not scene.supports_graph_capture:
+        if not (actions.supports_graph_capture and scene.supports_graph_capture):
             return
-        for term in terms:
-            self.register_pre_actuator_callback(term.apply_actions)
+        self.register_pre_actuator_callback(actions.apply_action)
         self.register_pre_actuator_callback(scene.write_data_to_sim)
         # Asset writes replace the body forces staged before the step.
         self.register_pre_actuator_callback(backend.stage_body_forces)

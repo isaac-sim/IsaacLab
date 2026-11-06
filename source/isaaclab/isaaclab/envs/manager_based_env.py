@@ -207,8 +207,7 @@ class ManagerBasedEnv:
         report_activity("Setting up managers")
         self.load_managers()
         report_activity(None)
-        # let the physics backend run the actions and asset writes inside its step, and fold the full loop
-        # into a single step() when possible
+        # let the physics backend run the actions, asset writes and decimation loop inside its step when it can
         self._physics_handles_actions = self.sim.backend_manager.bind_control(self.action_manager, self.scene)
         self.sim.backend_manager.set_decimation(self.cfg.decimation)
         self._physics_handles_decimation = self.sim.backend_manager.handles_decimation()
