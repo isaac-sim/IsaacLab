@@ -11,8 +11,6 @@ from collections.abc import Sequence
 
 import torch
 
-from isaaclab_contrib.surface_gripper.newton import SurfaceGripper
-
 from ..conveyor_franka.conveyor_franka_env import ConveyorFrankaEnv
 from .actions_cfg import TOOL_OFFSET
 from .scene import (
@@ -27,6 +25,8 @@ class SuctionSortingEnv(ConveyorFrankaEnv):
     """Share conveyor/contact hooks and keep suction attachment state explicit."""
 
     def _init_sim(self) -> None:
+        from isaaclab_contrib.surface_gripper.newton import SurfaceGripper
+
         for index in range(self.cfg.parcel_count, len(PARCEL_SIZES)):
             setattr(self.cfg.scene, f"parcel_{index}", None)
             setattr(self.cfg.events, f"parcel_{index}_mass", None)
