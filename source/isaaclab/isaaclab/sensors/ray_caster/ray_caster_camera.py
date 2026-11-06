@@ -5,12 +5,15 @@
 
 from __future__ import annotations
 
-from isaaclab.utils.backend_utils import FactoryBase
-
+from ...utils.backend_utils import FactoryBase
 from .base_ray_caster_camera import BaseRayCasterCamera
 
 
 class RayCasterCamera(FactoryBase, BaseRayCasterCamera):
     """Backend-dispatching ray-caster camera sensor."""
 
-    _backend_class_names = {"physx": "RayCasterCamera", "newton": "RayCasterCamera"}
+    _backend_class_names = {
+        "physx": "RayCasterCamera",
+        "newton": "LegacyRayCasterCamera",
+        "ovphysx": "RayCasterCamera",
+    }

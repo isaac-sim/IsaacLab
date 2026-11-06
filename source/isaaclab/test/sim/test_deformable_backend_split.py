@@ -8,6 +8,7 @@
 import dataclasses
 
 import isaaclab_physx.sim.schemas as physx_schemas
+import pytest
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import (
     NewtonDeformableBodyMaterialCfg,
@@ -17,7 +18,6 @@ from isaaclab_newton.sim.spawners.materials import (
 from isaaclab_physx.sim.schemas import (
     OmniPhysicsDeformableBodyPropertiesCfg,
     PhysxDeformableBodyPropertiesCfg,
-    PhysxDeformableCollisionPropertiesCfg,
 )
 from isaaclab_physx.sim.schemas.schemas_cfg import PhysXDeformableBodyPropertiesCfg
 from isaaclab_physx.sim.spawners.materials import (
@@ -33,6 +33,8 @@ from isaaclab.sim.spawners.materials import (
     DeformableBodyMaterialBaseCfg,
     SurfaceDeformableBodyMaterialBaseCfg,
 )
+
+pytestmark = pytest.mark.integration
 
 
 def _field_names(cls) -> set[str]:
@@ -72,6 +74,7 @@ def test_common_deformable_material_cfg_has_no_backend_fields():
     _assert_no_property_prefix_field(SurfaceDeformableBodyMaterialBaseCfg)
 
 
+@pytest.mark.filterwarnings("ignore:PhysxDeformableBodyPropertiesCfg is deprecated:DeprecationWarning")
 def test_physx_deformable_cfgs_use_core_schema_and_material_functions():
     """PhysX deformable cfgs own PhysX fields while schema and material functions stay in core."""
     props = PhysxDeformableBodyPropertiesCfg()
@@ -91,8 +94,8 @@ def test_physx_deformable_cfgs_use_core_schema_and_material_functions():
     assert PhysXDeformableBodyPropertiesCfg._usd_applied_schema == "PhysxBaseDeformableBodyAPI"
     assert OmniPhysicsDeformableBodyPropertiesCfg._usd_namespace == "omniphysics"
     assert OmniPhysicsDeformableBodyPropertiesCfg._usd_applied_schema is None
-    assert PhysxDeformableCollisionPropertiesCfg._usd_namespace == "physxCollision"
-    assert PhysxDeformableCollisionPropertiesCfg._usd_applied_schema == "PhysxCollisionAPI"
+    # collision offsets belong on the collider (the simulation mesh), not the deformable body cfg
+    assert not {"contact_offset", "rest_offset"} & _field_names(type(props))
     assert {"deformable_body_enabled", "kinematic_enabled", "mass"}.issubset(_field_names(type(props)))
     assert {"density", "static_friction", "dynamic_friction", "youngs_modulus", "poissons_ratio"}.issubset(
         _field_names(type(material))
@@ -106,6 +109,7 @@ def test_physx_deformable_cfgs_use_core_schema_and_material_functions():
     assert type(surface_material)._usd_applied_schema == "PhysxSurfaceDeformableMaterialAPI"
 
 
+@pytest.mark.filterwarnings("ignore:NewtonDeformableBodyPropertiesCfg is deprecated:DeprecationWarning")
 def test_newton_deformable_cfgs_use_core_schema_and_material_functions():
     """Newton deformable cfgs own Newton fields while schema and material functions stay in core."""
     props = NewtonDeformableBodyPropertiesCfg()

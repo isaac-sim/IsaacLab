@@ -1,0 +1,139 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+from __future__ import annotations
+
+import warp as wp
+
+from isaaclab.assets.deformable_object.base_deformable_object_data import BaseDeformableObjectData
+from isaaclab.utils.buffers import TimestampedBuffer
+from isaaclab.utils.warp import ProxyArray
+
+from isaaclab_newton.physics import NewtonManager
+
+from .kernels import compute_mean_vec3f_over_particles, compute_particle_state_w, gather_particles_vec3f, vec6f
+
+
+class MPMObjectData(BaseDeformableObjectData):
+    """Data container for a Newton MPM particle object."""
+
+    __backend_name__: str = "newton"
+
+    def __init__(
+        self,
+        particle_offsets: wp.array,
+        particles_per_object: int,
+        num_instances: int,
+        device: str,
+        *,
+        backend_manager: NewtonManager | None = None,
+    ):
+        if backend_manager is None:
+            backend_manager = NewtonManager._deprecated_active("MPMObjectData()")
+        self._backend_manager = backend_manager
+        super().__init__(device)
+        self._particle_offsets = particle_offsets
+        self._particles_per_object = particles_per_object
+        self._num_instances = num_instances
+
+        particle_shape = (num_instances, particles_per_object)
+        self._particle_pos_w = TimestampedBuffer(wp.empty(particle_shape, dtype=wp.vec3f, device=device))
+        self._particle_vel_w = TimestampedBuffer(wp.empty(particle_shape, dtype=wp.vec3f, device=device))
+        self._particle_state_w = TimestampedBuffer(wp.empty(particle_shape, dtype=vec6f, device=device))
+        self._root_pos_w = TimestampedBuffer(wp.empty(num_instances, dtype=wp.vec3f, device=device))
+        self._root_vel_w = TimestampedBuffer(wp.empty(num_instances, dtype=wp.vec3f, device=device))
+        self._particle_pos_w_ta = ProxyArray(self._particle_pos_w.data)
+        self._particle_vel_w_ta = ProxyArray(self._particle_vel_w.data)
+        self._particle_state_w_ta = ProxyArray(self._particle_state_w.data)
+        self._root_pos_w_ta = ProxyArray(self._root_pos_w.data)
+        self._root_vel_w_ta = ProxyArray(self._root_vel_w.data)
+
+        self.default_nodal_state_w: ProxyArray | None = None
+        self.default_particle_state_w: ProxyArray | None = None
+        self.nodal_kinematic_target: ProxyArray | None = None
+
+    @property
+    def particle_pos_w(self) -> ProxyArray:
+        """Particle positions in simulation world frame [m]."""
+        if self._particle_pos_w.timestamp < self._sim_timestamp:
+            state = self._backend_manager.backend.state_0
+            wp.launch(
+                gather_particles_vec3f,
+                dim=(self._num_instances, self._particles_per_object),
+                inputs=[state.particle_q, self._particle_offsets],
+                outputs=[self._particle_pos_w.data],
+                device=self.device,
+            )
+            self._particle_pos_w.timestamp = self._sim_timestamp
+        return self._particle_pos_w_ta
+
+    @property
+    def particle_vel_w(self) -> ProxyArray:
+        """Particle velocities in simulation world frame [m/s]."""
+        if self._particle_vel_w.timestamp < self._sim_timestamp:
+            state = self._backend_manager.backend.state_0
+            wp.launch(
+                gather_particles_vec3f,
+                dim=(self._num_instances, self._particles_per_object),
+                inputs=[state.particle_qd, self._particle_offsets],
+                outputs=[self._particle_vel_w.data],
+                device=self.device,
+            )
+            self._particle_vel_w.timestamp = self._sim_timestamp
+        return self._particle_vel_w_ta
+
+    @property
+    def particle_state_w(self) -> ProxyArray:
+        """Particle state ``[pos, vel]`` in simulation world frame [m, m/s]."""
+        if self._particle_state_w.timestamp < self._sim_timestamp:
+            wp.launch(
+                compute_particle_state_w,
+                dim=(self._num_instances, self._particles_per_object),
+                inputs=[self.particle_pos_w.warp, self.particle_vel_w.warp],
+                outputs=[self._particle_state_w.data],
+                device=self.device,
+            )
+            self._particle_state_w.timestamp = self._sim_timestamp
+        return self._particle_state_w_ta
+
+    @property
+    def nodal_pos_w(self) -> ProxyArray:
+        return self.particle_pos_w
+
+    @property
+    def nodal_vel_w(self) -> ProxyArray:
+        return self.particle_vel_w
+
+    @property
+    def nodal_state_w(self) -> ProxyArray:
+        return self.particle_state_w
+
+    @property
+    def root_pos_w(self) -> ProxyArray:
+        """Mean particle position per instance in simulation world frame [m]."""
+        if self._root_pos_w.timestamp < self._sim_timestamp:
+            wp.launch(
+                compute_mean_vec3f_over_particles,
+                dim=(self._num_instances,),
+                inputs=[self.particle_pos_w.warp, self._particles_per_object],
+                outputs=[self._root_pos_w.data],
+                device=self.device,
+            )
+            self._root_pos_w.timestamp = self._sim_timestamp
+        return self._root_pos_w_ta
+
+    @property
+    def root_vel_w(self) -> ProxyArray:
+        """Mean particle velocity per instance in simulation world frame [m/s]."""
+        if self._root_vel_w.timestamp < self._sim_timestamp:
+            wp.launch(
+                compute_mean_vec3f_over_particles,
+                dim=(self._num_instances,),
+                inputs=[self.particle_vel_w.warp, self._particles_per_object],
+                outputs=[self._root_vel_w.data],
+                device=self.device,
+            )
+            self._root_vel_w.timestamp = self._sim_timestamp
+        return self._root_vel_w_ta

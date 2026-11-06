@@ -15,8 +15,8 @@ on:
       - 'release/**'
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -26,7 +26,7 @@ jobs:
   build-wheel:
     name: Build Wheel
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 40
 
     steps:
       - name: Detect wheel-relevant changes
@@ -44,21 +44,30 @@ jobs:
           # run only when inputs that can affect the wheel have changed.
           patterns=(
             $'^apps/\tStandalone apps packaged in the wheel'
+            $'^examples/\tDemos and examples packaged in the wheel'
+            $'^scripts/\tScripts packaged in the wheel'
+            $'^pyproject\.toml$\tWheel dependency metadata and resolver overrides'
+            $'^uv\.lock$\tWorkspace lock consistency'
             $'^VERSION$\tPackage version'
             $'^source/\tPython packages'
             $'^tools/wheel_builder/\tWheel build tooling'
+            $'^tools/template/\tTemplate packaged in the wheel'
             $'^\.github/workflows/wheel\.yml$\tThis workflow file'
           )
 
           render_table() {
-            local files="$1" entry regex desc count sample
+            local files="$1" entry regex desc matched count sample
             echo "| Pattern | What it covers | Matched files |"
             echo "|---|---|---|"
             for entry in "${patterns[@]}"; do
               IFS=$'\t' read -r regex desc <<< "$entry"
-              count=$(printf '%s\n' "$files" | grep -cE "$regex" || true)
-              if [ "$count" -gt 0 ]; then
-                sample=$(printf '%s\n' "$files" | grep -E "$regex" | head -3 | paste -sd ', ' -)
+              # Feed grep/head from a here-string rather than `printf ... |` so that
+              # an early-closing reader (head) cannot SIGPIPE an upstream printf and
+              # trip `set -o pipefail` when the file list is large.
+              matched=$(grep -E "$regex" <<< "$files" || true)
+              if [ -n "$matched" ]; then
+                count=$(wc -l <<< "$matched")
+                sample=$(head -3 <<< "$matched" | paste -sd ', ' -)
                 [ "$count" -gt 3 ] && sample="$sample (and $((count - 3)) more)"
                 echo "| \`$regex\` | $desc | $sample |"
               else
@@ -71,7 +80,7 @@ jobs:
             local files="$1" entry regex
             for entry in "${patterns[@]}"; do
               IFS=$'\t' read -r regex _ <<< "$entry"
-              if printf '%s\n' "$files" | grep -qE "$regex"; then
+              if grep -qE "$regex" <<< "$files"; then
                 return 0
               fi
             done
@@ -131,6 +140,27 @@ jobs:
           python-version: "3.12"
           architecture: x64
 
+      # Wheel building, resolution, and installation share uv's cache.
+      - name: Set up uv
+        if: steps.changes.outputs.run_build == 'true'
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
+        with:
+          enable-cache: true
+          # Neither this job nor kitless-docker pins python-version, so both land
+          # on the same `-unknown-` cache key and only one can save. This job
+          # caches the wheel's full extras resolution; keep it separate.
+          cache-suffix: wheel-extras
+
+      - name: Check workspace lock consistency
+        if: steps.changes.outputs.run_build == 'true'
+        run: uv lock --check
+
+      - name: Test workspace dependency resolution
+        if: steps.changes.outputs.run_build == 'true'
+        run: >-
+          uv run --no-project --python 3.12 --with pytest python -m pytest -v
+          source/isaaclab/test/install_ci/test_resolution.py
+
       # Compose Docker-image-style metadata for the artifact. The artifact
       # name is what QA sees in `gh run download`, so we make it scannable:
       # isaaclab-<VERSION>-build<RUN_NUMBER>-<SHA7>. The wheel inside follows
@@ -150,6 +180,17 @@ jobs:
           WHEEL_BUILD_NUMBER: ${{ github.run_number }}
           WHEEL_SHA: ${{ github.sha }}
         run: bash tools/wheel_builder/build.sh
+
+      # The development branch may temporarily use Git-pinned dependencies. Release
+      # branches must remain publishable to PyPI and therefore reject direct URLs.
+      - name: Validate PyPI metadata
+        if: >-
+          steps.changes.outputs.run_build == 'true' &&
+          (startsWith(github.ref, 'refs/heads/release/') ||
+           startsWith(github.base_ref, 'release/'))
+        run: >-
+          uv run --no-project --with packaging python tools/wheel_builder/validate_pypi_metadata.py
+          tools/wheel_builder/build/dist/isaaclab-*.whl
 
       - name: Upload wheel artifact
         if: steps.changes.outputs.run_build == 'true'
@@ -172,13 +213,13 @@ jobs:
         run: |
           set -euo pipefail
 
-          python -m pip install --user uv
-          export PATH="$HOME/.local/bin:$PATH"
+          overrides="$GITHUB_WORKSPACE/tools/wheel_builder/uv-overrides.txt"
+
           cd /tmp
 
           uv venv --python 3.12 /tmp/isaaclab-wheel-install
           source /tmp/isaaclab-wheel-install/bin/activate
-          uv pip install --upgrade pip
+          bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" uv pip install --upgrade pip
 
           wheel="$(find /tmp/isaaclab-wheel-artifact -name 'isaaclab-*.whl' -print -quit)"
           if [ -z "$wheel" ]; then
@@ -186,9 +227,55 @@ jobs:
             exit 1
           fi
 
-          uv pip install \
+          bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" uv pip install \
             --dry-run \
+            --torch-backend cu130 \
+            "${wheel}[all]"
+
+          bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" uv pip install \
+            --dry-run \
+            --python-platform windows \
+            --target /tmp/isaaclab-wheel-windows \
+            --torch-backend cu130 \
+            --overrides "$overrides" \
             --extra-index-url https://pypi.nvidia.com \
             --index-strategy unsafe-best-match \
-            --prerelease=allow \
-            "${wheel}[isaacsim,all]"
+            "${wheel}[isaacsim]"
+
+          # Ubuntu 22.04's glibc 2.35 also supports warp-lang's aarch64 wheels (>= 2.34).
+          bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" uv pip install \
+            --dry-run \
+            --python-platform aarch64-manylinux_2_35 \
+            --target /tmp/isaaclab-wheel-aarch64 \
+            --overrides "$overrides" \
+            --extra-index-url https://pypi.nvidia.com \
+            --torch-backend cu130 \
+            --index-strategy unsafe-best-match \
+            "${wheel}[isaacsim]"
+
+          bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" uv pip install \
+            --dry-run \
+            --overrides "$overrides" \
+            --torch-backend cu130 \
+            "${wheel}[importers]"
+
+          bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" uv pip install \
+            --dry-run \
+            --overrides "$overrides" \
+            --extra-index-url https://pypi.nvidia.com \
+            --torch-backend cu130 \
+            --index-strategy unsafe-best-match \
+            "${wheel}[isaacsim]"
+
+      - name: Test installed base wheel
+        if: steps.changes.outputs.run_build == 'true'
+        run: |
+          set -euo pipefail
+          wheels=(/tmp/isaaclab-wheel-artifact/isaaclab-*.whl)
+          if [ "${#wheels[@]}" -ne 1 ] || [ ! -f "${wheels[0]}" ]; then
+            echo "Expected exactly one downloaded wheel" >&2
+            exit 1
+          fi
+          export ISAACLAB_WHEEL="${wheels[0]}"
+          uv run --no-project --python 3.12 --with pytest python -m pytest -v \
+            'source/isaaclab/test/install_ci/test_wheel.py::test_installed_wheel[base]'

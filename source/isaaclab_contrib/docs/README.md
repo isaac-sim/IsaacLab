@@ -142,7 +142,7 @@ multirotor_cfg = MultirotorCfg(
 
 ```python
 from isaaclab.envs import ManagerBasedRLEnvCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 from isaaclab_contrib.mdp.actions import ThrustActionCfg
 
 @configclass
@@ -206,13 +206,13 @@ The `ThrustAction` term provides flexible preprocessing to support all modes thr
 
 </details>
 
-### Demo Script
+### Standalone Example
 
 A complete demonstration of multirotor simulation is available:
 
 ```bash
-# Run multirotor demo
-./isaaclab.sh -p scripts/demos/arl_robot_1.py
+# Run the multirotor example
+uv run --extra isaacsim isaaclab example arl-robot-1
 ```
 
 ## TacSL Tactile Sensor (Detailed)
@@ -302,6 +302,7 @@ tactile_sensor_cfg = VisuoTactileSensorCfg(
 
 ```python
 from isaaclab.assets import ArticulationCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxCollisionCfg, PhysxRigidBodyCfg
 
 robot_cfg = ArticulationCfg(
     prim_path="{ENV_REGEX_NS}/Robot",
@@ -313,16 +314,16 @@ robot_cfg = ArticulationCfg(
         compliant_contact_damping=10.0,       # Elastomer damping
         physics_material_prim_path="elastomer",  # Prim with compliant contact
 
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+        rigid_props=PhysxRigidBodyCfg(
             disable_gravity=True,
             max_depenetration_velocity=5.0,
         ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+        articulation_props=PhysxArticulationCfg(
             enabled_self_collisions=False,
             solver_position_iteration_count=12,
             solver_velocity_iteration_count=1,
         ),
-        collision_props=sim_utils.CollisionPropertiesCfg(
+        collision_props=PhysxCollisionCfg(
             contact_offset=0.001,
             rest_offset=-0.0005,
         ),
@@ -424,9 +425,11 @@ The RGB tactile rendering follows this pipeline:
 For accurate tactile sensing, configure PhysX parameters:
 
 ```python
+from isaaclab_physx.physics import PhysxCfg
+
 sim_cfg = sim_utils.SimulationCfg(
     dt=0.005,  # 5ms timestep for stable contact simulation
-    physx=sim_utils.PhysxCfg(
+    physics=PhysxCfg(
         gpu_collision_stack_size=2**30,  # Increase for contact-rich scenarios
     ),
 )
@@ -448,20 +451,20 @@ solver_velocity_iteration_count=1
 
 </details>
 
-### Demo Script
+### Standalone Example
 
 A complete demonstration of TacSL tactile sensor is available:
 
 ```bash
-# Run TacSL tactile sensor demo with RGB and force field sensing
-./isaaclab.sh -p scripts/demos/sensors/tacsl_sensor.py \
+# Run the TacSL tactile sensor example with RGB and force field sensing
+uv run --extra isaacsim isaaclab example tactile-sensor \
     --use_tactile_rgb \
     --use_tactile_ff \
     --num_envs 16 \
     --contact_object_type nut
 
 # Save visualization data
-./isaaclab.sh -p scripts/demos/sensors/tacsl_sensor.py \
+uv run --extra isaacsim isaaclab example tactile-sensor \
     --use_tactile_rgb \
     --use_tactile_ff \
     --save_viz \

@@ -8,5 +8,5 @@ __all__ = [
     "DeformableObjectData",
 ]
 
-from isaaclab_contrib.deformable.deformable_object import DeformableObject
-from isaaclab_contrib.deformable.deformable_object_data import DeformableObjectData
+from .deformable_object import DeformableObject
+from .deformable_object_data import DeformableObjectData

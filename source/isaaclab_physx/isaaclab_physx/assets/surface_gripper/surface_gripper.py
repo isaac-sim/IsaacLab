@@ -6,17 +6,15 @@
 from __future__ import annotations
 
 import logging
-import warnings
 from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
 import warp as wp
 
-from isaacsim.core.experimental.utils.app import enable_extension
-
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBase
+from isaaclab.utils import clone
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
 
 if TYPE_CHECKING:
@@ -85,7 +83,7 @@ class SurfaceGripper(AssetBase):
             cfg: A configuration instance.
         """
         # copy the configuration
-        self._cfg = cfg.copy()
+        self._cfg = clone(cfg)
 
         # checks for Isaac Sim v5.0 to ensure that the surface gripper is supported
         if has_kit() and get_isaac_sim_version().major < 5:
@@ -450,40 +448,24 @@ class SurfaceGripper(AssetBase):
                 " `--device cpu` to run the simulation on CPU."
             )
 
-        enable_extension("isaacsim.robot.surface_gripper")
+        sim_utils.enable_extension("isaacsim.robot.surface_gripper")
         from isaacsim.robot.surface_gripper import GripperView
 
-        # obtain the first prim in the regex expression (all others are assumed to be a copy of this)
-        template_prim = sim_utils.find_first_matching_prim(self._cfg.prim_path)
-        if template_prim is None:
-            raise RuntimeError(f"Failed to find prim for expression: '{self._cfg.prim_path}'.")
-        template_prim_path = template_prim.GetPath().pathString
+        def is_surface_gripper(prim) -> bool:
+            return prim.GetTypeName() == "IsaacSurfaceGripper"
 
-        # find surface gripper prims
-        gripper_prims = sim_utils.get_all_matching_child_prims(
-            template_prim_path,
-            predicate=lambda prim: prim.GetTypeName() == "IsaacSurfaceGripper",
-            traverse_instance_prims=False,
+        resolve_kwargs = {"raise_if_no_matches": False, "traverse_instance_prims": False}
+        gripper_matches = sim_utils.resolve_matching_prims_from_source(
+            self._cfg.prim_path, is_surface_gripper, **resolve_kwargs
         )
-        if len(gripper_prims) == 0:
+        if len(gripper_matches) != 1:
+            matched = [prim.GetPath().pathString for prim, _ in gripper_matches]
             raise RuntimeError(
-                f"Failed to find a surface gripper when resolving '{self._cfg.prim_path}'."
-                " Please ensure that the prim has type 'IsaacSurfaceGripper'."
+                f"Expected exactly one IsaacSurfaceGripper prim under '{self._cfg.prim_path}', "
+                f"found {len(gripper_matches)}: {matched}."
             )
-        if len(gripper_prims) > 1:
-            raise RuntimeError(
-                f"Failed to find a single surface gripper when resolving '{self._cfg.prim_path}'."
-                f" Found multiple '{gripper_prims}' under '{template_prim_path}'."
-                " Please ensure that there is only one surface gripper in the prim path tree."
-            )
-
-        # resolve gripper prim back into regex expression
-        gripper_prim_path = gripper_prims[0].GetPath().pathString
-        gripper_prim_path_expr = self._cfg.prim_path + gripper_prim_path[len(template_prim_path) :]
-
-        # Count number of environments
-        self._prim_expr = gripper_prim_path_expr
-        env_prim_path_expr = self._prim_expr.rsplit("/", 1)[0]
+        _, self._prim_expr = gripper_matches[0]
+        env_prim_path_expr = "/".join(sim_utils.split_path_expr(self._prim_expr)[:-1])
         self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)
         self._num_envs = len(self._parent_prims)
 
@@ -494,8 +476,11 @@ class SurfaceGripper(AssetBase):
         self._process_cfg()
 
         # Initialize gripper view and set properties.
+        # ``GripperView`` (XformPrim.resolve_paths) matches one regex per path segment, so a
+        # segment wildcard has to be spelled ``.*`` there: ``[^/]`` holds a separator and would
+        # be split across two segments.
         self._gripper_view = GripperView(
-            self._prim_expr,
+            sim_utils.path_expr_to_glob(self._prim_expr).replace("*", ".*"),
         )
         self.update_gripper_properties_index(
             max_grip_distance=wp.clone(self._max_grip_distance),
@@ -505,7 +490,7 @@ class SurfaceGripper(AssetBase):
         )
 
         # log information about the surface gripper
-        logger.info(f"Surface gripper initialized at: {self._cfg.prim_path} with root '{gripper_prim_path_expr}'.")
+        logger.info(f"Surface gripper initialized at: {self._cfg.prim_path} with root '{self._prim_expr}'.")
         logger.info(f"Number of instances: {self._num_envs}")
 
         # Reset grippers
@@ -529,7 +514,7 @@ class SurfaceGripper(AssetBase):
         try:
             max_grip_distance = gripper_prim.GetAttribute("isaac:maxGripDistance").Get()
         except Exception as e:
-            warnings.warn(
+            logger.warning(
                 f"Failed to retrieve max_grip_distance from stage, defaulting to user provided cfg. Exception: {e}"
             )
             max_grip_distance = None
@@ -537,7 +522,7 @@ class SurfaceGripper(AssetBase):
         try:
             coaxial_force_limit = gripper_prim.GetAttribute("isaac:coaxialForceLimit").Get()
         except Exception as e:
-            warnings.warn(
+            logger.warning(
                 f"Failed to retrieve coaxial_force_limit from stage, defaulting to user provided cfg. Exception: {e}"
             )
             coaxial_force_limit = None
@@ -545,7 +530,7 @@ class SurfaceGripper(AssetBase):
         try:
             shear_force_limit = gripper_prim.GetAttribute("isaac:shearForceLimit").Get()
         except Exception as e:
-            warnings.warn(
+            logger.warning(
                 f"Failed to retrieve shear_force_limit from stage, defaulting to user provided cfg. Exception: {e}"
             )
             shear_force_limit = None
@@ -553,7 +538,7 @@ class SurfaceGripper(AssetBase):
         try:
             retry_interval = gripper_prim.GetAttribute("isaac:retryInterval").Get()
         except Exception as e:
-            warnings.warn(
+            logger.warning(
                 f"Failed to retrieve retry_interval from stage defaulting to user provided cfg. Exception: {e}"
             )
             retry_interval = None
@@ -578,6 +563,8 @@ class SurfaceGripper(AssetBase):
         """
         if env_ids is None or env_ids == slice(None):
             return self._ALL_INDICES
+        if isinstance(env_ids, slice):
+            return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids])
         elif isinstance(env_ids, list):
             return wp.array(env_ids, dtype=wp.int32, device=self._device)
         elif isinstance(env_ids, torch.Tensor):

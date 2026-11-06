@@ -36,15 +36,19 @@ import inspect
 import logging
 from collections.abc import Callable
 from contextlib import suppress
+from functools import wraps
 from typing import TYPE_CHECKING, Any
 
 import torch
-from leapp import annotate
+from leapp import ExportManager, annotate
 from leapp.utils.tensor_description import TensorSemantics
 
-from isaaclab.assets.articulation.base_articulation import BaseArticulation
-from isaaclab.managers import ManagerTermBase
-
+from ...actuators import IdealPDActuator, ImplicitActuator
+from ...assets.articulation.base_articulation import BaseArticulation
+from ...envs.mdp.actions import EMAJointPositionToLimitsAction
+from ...managers import ManagerTermBase
+from ..array import convert_to_torch
+from ..images import CameraFrameStack
 from .leapp_semantics import select_element_names
 from .proxy import _ArticulationWriteProxy, _DataProxy, _EnvProxy, _ManagerTermProxy
 from .utils import (
@@ -54,10 +58,153 @@ from .utils import (
 )
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
+    from ...envs import ManagerBasedEnv
 
+
+logger = logging.getLogger(__name__)
 
 VARIABLE_IMPEDANCE_MODES = frozenset({"variable", "variable_kp"})
+
+_GAIN_WRITE_METHODS = {"kp": "write_joint_stiffness_to_sim_index", "kd": "write_joint_damping_to_sim_index"}
+
+
+def _leapp_ema_process_actions(term, task_name: str, state_name: str):
+    """Capture the EMA target as feedback state while retaining the action's processing logic."""
+    original_process = term.process_actions
+
+    @wraps(original_process)
+    def wrapped(actions: torch.Tensor) -> None:
+        if not ExportManager.is_interpret_graph_enabled():
+            original_process(actions)
+            return
+
+        previous = annotate.state_tensors(task_name, {state_name: term._prev_applied_actions})
+        # Processing updates this buffer in place; preserve the registered input state.
+        term._prev_applied_actions = previous.clone()
+        original_process(actions)
+        term._prev_applied_actions = annotate.update_state(task_name, {state_name: term.processed_actions})
+
+    return wrapped
+
+
+def _gain_semantics(
+    term_name: str, scene_key: str, kind: str, ref: torch.Tensor, element_names: list[str] | None
+) -> TensorSemantics:
+    """Build the exported ``kp``/``kd`` gain tensor for an action term."""
+    return TensorSemantics(
+        name=f"{term_name}_{kind}_gains",
+        ref=ref,
+        kind=kind,
+        element_names=element_names,
+        extra=build_write_connection(scene_key, _GAIN_WRITE_METHODS[kind]),
+    )
+
+
+def _effective_joint_gains(real_asset) -> tuple[torch.Tensor | None, torch.Tensor | None]:
+    """Return per-joint ``(kp, kd)`` tensors reflecting each actuator's PD gains.
+
+    ``data.default_joint_stiffness`` / ``data.default_joint_damping`` only hold the gains of
+    *implicit* actuators, which write them to the simulation. *Explicit* actuators (e.g.
+    :class:`~isaaclab.actuators.DCMotor`, :class:`~isaaclab.actuators.IdealPDActuator`) compute
+    their PD term internally and apply it as joint effort, leaving the sim-level gains at zero --
+    so reading the data buffers alone exports zero ``kp``/``kd`` for those joints and the deployed
+    policy graph carries no gains. Aggregating from ``asset.actuators`` recovers the true gains for
+    every actuator model (a no-op for implicit actuators, whose buffers already match).
+
+    Returns ``None`` independently for any joint-gain buffer the asset does not expose.
+    """
+    data = getattr(real_asset, "data", None)
+    stiffness = getattr(data, "default_joint_stiffness", None)
+    damping = getattr(data, "default_joint_damping", None)
+    if stiffness is None and damping is None:
+        return None, None
+    kp = stiffness.torch.clone() if stiffness is not None else None
+    kd = damping.torch.clone() if damping is not None else None
+    for actuator in getattr(real_asset, "actuators", {}).values():
+        if not isinstance(actuator, (ImplicitActuator, IdealPDActuator)):
+            continue
+        if kp is not None:
+            kp[:, actuator.joint_indices] = actuator.stiffness
+        if kd is not None:
+            kd[:, actuator.joint_indices] = actuator.damping
+    return kp, kd
+
+
+def _leapp_history_buffer_append(circular_buffer, task_name: str, state_name: str):
+    """Decorate a buffer's bound append method with LEAPP state capture.
+
+    During capture, a functional shift replaces in-place writes that the tracer
+    cannot see. The push counter is feedback state so first-frame backfill is
+    evaluated at inference time. Outside capture, the original method runs.
+
+    Args:
+        circular_buffer: Circular buffer whose state should be captured.
+        task_name: LEAPP node that owns the buffer state.
+        state_name: LEAPP state tensor name for the buffer contents.
+
+    Returns:
+        Decorator for the buffer's bound append method.
+    """
+
+    def decorate(original_append):
+        @wraps(original_append)
+        def wrapped(data: torch.Tensor) -> None:
+            if not ExportManager.is_interpret_graph_enabled():
+                original_append(data)
+                return
+
+            if data.shape[0] != circular_buffer.batch_size:
+                raise ValueError(
+                    f"The input data has '{data.shape[0]}' batch size while expecting '{circular_buffer.batch_size}'"
+                )
+            data = data.to(circular_buffer._device)
+
+            if circular_buffer._buffer is None:
+                circular_buffer._allocate_buffer(data)
+                circular_buffer._buffer.zero_()
+
+            buffer, num_pushes = annotate.state_tensors(
+                task_name,
+                {state_name: circular_buffer._buffer, f"{state_name}_num_pushes": circular_buffer._num_pushes},
+            )
+            k_pos = 0 if circular_buffer._stack_dim_internal is None else circular_buffer._stack_dim_internal
+            frame = data.unsqueeze(k_pos)
+            buffer = torch.cat((buffer.narrow(k_pos, 1, circular_buffer.max_length - 1), frame), dim=k_pos)
+            mask_shape = [1] * buffer.ndim
+            mask_shape[1 if circular_buffer._stack_dim_internal is None else 0] = circular_buffer.batch_size
+            buffer = torch.where((num_pushes == 0).view(mask_shape), frame, buffer)
+            circular_buffer._buffer, circular_buffer._num_pushes = annotate.update_state(
+                task_name, {state_name: buffer, f"{state_name}_num_pushes": num_pushes + 1}
+            )
+            circular_buffer._need_reset = False
+
+        return wrapped
+
+    return decorate
+
+
+class _ImageRgbExportProxy(_ManagerTermProxy):
+    """Run RGB observation preprocessing through traceable Torch operations during export."""
+
+    def __call__(self, *args, **kwargs):
+        """Compute the wrapped RGB observation without its runtime-only Warp fast path."""
+        out = kwargs.pop("out", None)
+        normalize = kwargs.get("normalize", True)
+        mean = kwargs.get("mean")
+        channel_first = kwargs.get("channel_first", False)
+        kwargs["normalize"] = False
+
+        image = super().__call__(*args, **kwargs)
+        if normalize:
+            channel_dim = 1 if channel_first else image.ndim - 1
+            spatial_dims = tuple(dim for dim in range(1, image.ndim) if dim != channel_dim)
+            image = image.float() / 255.0
+            image = image - (torch.mean(image, dim=spatial_dims, keepdim=True) if mean is None else mean)
+
+        if out is None:
+            return image
+        out.copy_(image)
+        return out
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -107,7 +254,7 @@ class ExportPatcher:
         self._captured_write_term_names: set[str] = set()
         self._fallback_term_names: set[str] = set()
         self._pending_action_output_export: bool = False
-        self._uses_last_action_state: bool = False
+        self._last_action_state_terms: dict[str, str | None] = {}
         self._action_term_scene_keys: dict[str, str] = {}
 
     def setup(self, env):
@@ -156,9 +303,6 @@ class ExportPatcher:
         _zero_reward = torch.zeros(num_envs, device=device)
         _no_termination = torch.zeros(num_envs, dtype=torch.bool, device=device)
 
-        def _noop_curriculum(env_ids=None):
-            return None
-
         def _zero_reward_compute(dt):
             return _zero_reward
 
@@ -169,7 +313,7 @@ class ExportPatcher:
             return None
 
         if hasattr(unwrapped, "curriculum_manager"):
-            unwrapped.curriculum_manager.compute = _noop_curriculum
+            unwrapped.curriculum_manager.compute = _noop
 
         if hasattr(unwrapped, "reward_manager"):
             unwrapped.reward_manager.compute = _zero_reward_compute
@@ -208,7 +352,7 @@ class ExportPatcher:
     # ── Observation manager patches ───────────────────────────────
 
     def _patch_history_buffers(self, obs_manager):
-        """Patch history-enabled observation buffers to export as LEAPP state.
+        """Patch observation history and camera frame buffers to export as LEAPP state.
 
         Args:
             obs_manager: Observation manager whose history buffers should be
@@ -224,23 +368,20 @@ class ExportPatcher:
             group_term_names = term_names_by_group.get(group_name, [])
 
             for index, term_cfg in enumerate(term_cfgs):
-                history_length = getattr(term_cfg, "history_length", 0) or 0
-                if history_length <= 0:
-                    continue
-
                 if index >= len(group_term_names):
                     continue
 
                 term_name = group_term_names[index]
                 circular_buffer = group_buffers.get(term_name)
-                if circular_buffer is None:
-                    continue
+                if circular_buffer is not None:
+                    self._patch_history_buffer_append(circular_buffer, f"h_{group_name}_{term_name}")
 
-                state_name = f"h_{group_name}_{term_name}"
-                self._patch_history_buffer_append(circular_buffer, state_name)
+                frames = getattr(term_cfg.func, "_frames", None)
+                if isinstance(frames, CameraFrameStack) and frames._buffer is not None:
+                    self._patch_history_buffer_append(frames._buffer, f"frames_{group_name}_{term_name}")
 
     def _patch_history_buffer_append(self, circular_buffer, state_name: str):
-        """Wrap ``_append`` so history buffers become explicit LEAPP state.
+        """Install the LEAPP state decorator once on a buffer's append method.
 
         Args:
             circular_buffer: Circular buffer instance to patch.
@@ -249,28 +390,10 @@ class ExportPatcher:
         if hasattr(circular_buffer, "_leapp_original_append"):
             return
 
-        task_name = self.task_name
-        original_append = circular_buffer._append
-
-        def patched_append(data: torch.Tensor):
-            """Annotate history buffer updates as LEAPP state transitions.
-
-            Args:
-                data: New observation slice appended to the buffer.
-
-            Returns:
-                ``None``.
-            """
-            if circular_buffer._buffer is not None:
-                circular_buffer._buffer = annotate.state_tensors(task_name, {state_name: circular_buffer._buffer})
-
-            original_append(data)
-
-            if circular_buffer._buffer is not None:
-                circular_buffer._buffer = annotate.update_state(task_name, {state_name: circular_buffer._buffer})
-
-        circular_buffer._leapp_original_append = original_append
-        circular_buffer._append = patched_append
+        circular_buffer._leapp_original_append = circular_buffer.append
+        circular_buffer.append = _leapp_history_buffer_append(circular_buffer, self.task_name, state_name)(
+            circular_buffer.append
+        )
 
     def _patch_observation_manager(self, obs_manager, proxy_env):
         """Patch observation terms to use annotating proxies and disable noise.
@@ -287,10 +410,13 @@ class ExportPatcher:
                 func_name = getattr(original_func, "__name__", None)
 
                 if func_name == "last_action":
-                    self._uses_last_action_state = True
                     term_cfg.func = self._wrap_last_action(original_func)
                 elif func_name == "generated_commands":
                     term_cfg.func = self._wrap_generated_commands(original_func, term_cfg)
+                elif func_name == "image_rgb":
+                    term_cfg.func = _ImageRgbExportProxy(original_func, proxy_env)
+                elif func_name == "projected_gravity":
+                    term_cfg.func = self._wrap_projected_gravity(original_func, proxy_env)
                 else:
                     term_cfg.func = self._wrap_with_proxy(original_func, proxy_env)
 
@@ -318,6 +444,10 @@ class ExportPatcher:
         assert self.task_name is not None
         scene = action_manager._env.scene
         for term_name, term in action_manager._terms.items():
+            if isinstance(term, EMAJointPositionToLimitsAction):
+                term.process_actions = _leapp_ema_process_actions(
+                    term, self.task_name, f"{term_name}_previous_applied_actions"
+                )
             asset = getattr(term, "_asset", None)
             if isinstance(asset, BaseArticulation):
                 real_asset: BaseArticulation = asset
@@ -391,8 +521,14 @@ class ExportPatcher:
 
             self._action_output_cache.extend(self._collect_action_outputs(action_manager))
             self._action_output_cache.extend(self._collect_processed_action_fallbacks(action_manager))
-            if self._uses_last_action_state:
-                annotate.update_state(task_name, {"last_action": action_manager._action})
+            if self._last_action_state_terms:
+                last_action_updates = {}
+                for state_name, action_name in self._last_action_state_terms.items():
+                    if action_name is None:
+                        last_action_updates[state_name] = action_manager._action
+                    else:
+                        last_action_updates[state_name] = action_manager.get_term(action_name).raw_actions
+                annotate.update_state(task_name, last_action_updates)
             fallback_terms = self._fallback_term_names
             static_values = self._collect_action_static_outputs(action_manager, fallback_terms)
             annotate.output_tensors(
@@ -422,7 +558,6 @@ class ExportPatcher:
         Returns:
             Wrapped callable that substitutes ``proxy_env`` for the real env.
         """
-
         if isinstance(original_func, ManagerTermBase):
             return _ManagerTermProxy(original_func, proxy_env)
 
@@ -445,13 +580,41 @@ class ExportPatcher:
         wrapped.__name__ = getattr(original_func, "__name__", "unknown")
         return wrapped
 
+    @staticmethod
+    def _wrap_projected_gravity(original_func, proxy_env):
+        """Wrap projected gravity as root-quaternion input plus fixed gravity projection.
+
+        Deployment backends generally provide body orientation, not an already
+        projected gravity vector. During export, keep the policy observation as
+        projected gravity while exposing ``root_quat_w`` at the LEAPP graph
+        boundary.
+        """
+
+        def wrapped(*args, **kwargs):
+            """Compute projected gravity from an annotated root quaternion input."""
+            kwargs.pop("inspect", None)
+            asset_cfg = kwargs.get("asset_cfg")
+            if asset_cfg is None and len(args) > 1:
+                asset_cfg = args[1]
+            asset_name = getattr(asset_cfg, "name", "robot")
+            root_quat_w = proxy_env.scene[asset_name].data.root_quat_w.torch
+            gravity_w = torch.zeros((*root_quat_w.shape[:-1], 3), dtype=root_quat_w.dtype, device=root_quat_w.device)
+            gravity_w[..., 2] = -1.0
+            quat_xyz = root_quat_w[..., :3]
+            quat_w = root_quat_w[..., 3:4]
+            t = torch.cross(quat_xyz, gravity_w, dim=-1) * 2.0
+            return gravity_w - quat_w * t + torch.cross(quat_xyz, t, dim=-1)
+
+        wrapped.__name__ = getattr(original_func, "__name__", "unknown")
+        return wrapped
+
     def _wrap_last_action(self, original_func):
         """Wrap ``last_action`` as a LEAPP state tensor.
 
-        ``last_action`` is feedback state, not a regular dangling input.  We
-        therefore register it through ``annotate.state_tensors(...)`` on the
-        observation side and update it through ``annotate.update_state(...)``
-        after the traced action pass.
+        ``last_action`` is feedback state, not a regular dangling input.  Each
+        named action term is registered as its own state so LEAPP does not need
+        to preserve tracing through a slice between task boundaries.  An
+        unnamed observation keeps the full action as a separate state.
 
         Args:
             original_func: Original ``last_action`` observation term.
@@ -473,7 +636,9 @@ class ExportPatcher:
                 Annotated last-action tensor.
             """
             result = original_func(env, action_name, **kwargs)
-            return annotate.state_tensors(task_name, {"last_action": result})
+            state_name = "last_action" if action_name is None else f"last_action_{action_name}"
+            self._last_action_state_terms[state_name] = action_name
+            return annotate.state_tensors(task_name, {state_name: result})
 
         wrapped.__name__ = original_func.__name__
         return wrapped
@@ -543,24 +708,10 @@ class ExportPatcher:
                 joint_ids = getattr(term, "_joint_ids", None)
                 joint_names = getattr(real_asset, "joint_names", None) if real_asset else None
                 scene_key = self._action_term_scene_keys.get(term_name, "ego")
-                tensors.append(
-                    TensorSemantics(
-                        name=f"{term_name}_kp_gains",
-                        ref=torch.diagonal(osc._motion_p_gains_task, dim1=-2, dim2=-1),
-                        kind="kp",
-                        element_names=select_element_names(joint_names, joint_ids),
-                        extra=build_write_connection(scene_key, "write_joint_stiffness_to_sim_index"),
-                    )
-                )
-                tensors.append(
-                    TensorSemantics(
-                        name=f"{term_name}_kd_gains",
-                        ref=torch.diagonal(osc._motion_d_gains_task, dim1=-2, dim2=-1),
-                        kind="kd",
-                        element_names=select_element_names(joint_names, joint_ids),
-                        extra=build_write_connection(scene_key, "write_joint_damping_to_sim_index"),
-                    )
-                )
+                element_names = select_element_names(joint_names, joint_ids)
+                for kind, gains in (("kp", osc._motion_p_gains_task), ("kd", osc._motion_d_gains_task)):
+                    ref = torch.diagonal(gains, dim1=-2, dim2=-1)
+                    tensors.append(_gain_semantics(term_name, scene_key, kind, ref, element_names))
         return tensors
 
     def _collect_processed_action_fallbacks(self, action_manager) -> list[TensorSemantics]:
@@ -576,7 +727,6 @@ class ExportPatcher:
         Returns:
             Fallback tensor semantics built from ``processed_actions``.
         """
-        logger = logging.getLogger(__name__)
         fallback_terms: set[str] = set()
         tensors: list[TensorSemantics] = []
         for term_name, term in action_manager._terms.items():
@@ -631,32 +781,24 @@ class ExportPatcher:
             asset = getattr(term, "_asset", None)
             real_asset = getattr(asset, "_real_asset", asset)
             if real_asset and hasattr(real_asset, "data"):
-                data = real_asset.data
                 joint_ids = getattr(term, "_joint_ids", None)
                 joint_names = getattr(real_asset, "joint_names", None)
                 scene_key = self._action_term_scene_keys.get(term_name, "ego")
-                if hasattr(data, "default_joint_stiffness") and data.default_joint_stiffness is not None:
-                    gains = data.default_joint_stiffness.torch
-                    static_values.append(
-                        TensorSemantics(
-                            name=f"{term_name}_kp_gains",
-                            ref=gains[:, joint_ids] if joint_ids else gains,
-                            kind="kp",
-                            element_names=select_element_names(joint_names, joint_ids),
-                            extra=build_write_connection(scene_key, "write_joint_stiffness_to_sim_index"),
-                        )
-                    )
-                if hasattr(data, "default_joint_damping") and data.default_joint_damping is not None:
-                    gains = data.default_joint_damping.torch
-                    static_values.append(
-                        TensorSemantics(
-                            name=f"{term_name}_kd_gains",
-                            ref=gains[:, joint_ids] if joint_ids else gains,
-                            kind="kd",
-                            element_names=select_element_names(joint_names, joint_ids),
-                            extra=build_write_connection(scene_key, "write_joint_damping_to_sim_index"),
-                        )
-                    )
+                # Source the PD gains from the actuators so they are correct for every actuator
+                # model. Reading ``data.default_joint_stiffness``/``default_joint_damping`` alone
+                # exports zero gains for explicit actuators (DCMotor, IdealPDActuator, ...), which
+                # keep their gains on the actuator rather than in the sim. See _effective_joint_gains.
+                kp_gains, kd_gains = _effective_joint_gains(real_asset)
+                gain_reference = kp_gains if kp_gains is not None else kd_gains
+                if joint_ids is not None and not isinstance(joint_ids, slice) and gain_reference is not None:
+                    joint_ids = convert_to_torch(joint_ids, dtype=torch.long, device=gain_reference.device)
+
+                element_names = select_element_names(joint_names, joint_ids)
+                for kind, gains in (("kp", kp_gains), ("kd", kd_gains)):
+                    if gains is None:
+                        continue
+                    ref = gains if joint_ids is None else gains[:, joint_ids]
+                    static_values.append(_gain_semantics(term_name, scene_key, kind, ref, element_names))
         return static_values
 
 

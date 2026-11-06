@@ -5,6 +5,6 @@
 
 """Haply device interface for teleoperation."""
 
-from isaaclab.utils.module import lazy_export
+from ...utils.module import lazy_export
 
 lazy_export()

@@ -4,7 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "mpm",
     "materials",
 ]
 
-from . import materials
+from . import materials, mpm

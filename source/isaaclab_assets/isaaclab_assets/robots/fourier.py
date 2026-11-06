@@ -15,10 +15,13 @@ Reference: https://www.fftai.com/products-gr1
 """
 
 import torch
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
+from isaaclab.utils import replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 ##
@@ -32,7 +35,7 @@ GR1T2_CFG = ArticulationCfg(
             f"{ISAAC_NUCLEUS_DIR}/Robots/FourierIntelligence/GR-1/GR1T2_fourier_hand_6dof/GR1T2_fourier_hand_6dof.usd"
         ),
         activate_contact_sensors=True,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+        rigid_props=PhysxRigidBodyCfg(
             disable_gravity=True,
             retain_accelerations=False,
             linear_damping=0.0,
@@ -41,9 +44,12 @@ GR1T2_CFG = ArticulationCfg(
             max_angular_velocity=1000.0,
             max_depenetration_velocity=1.0,
         ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=True, solver_position_iteration_count=8, solver_velocity_iteration_count=4
-        ),
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=True, solver_position_iteration_count=8, solver_velocity_iteration_count=4
+            ),
+            NewtonArticulationCfg(self_collision_enabled=True),
+        ],
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.95),
@@ -55,8 +61,6 @@ GR1T2_CFG = ArticulationCfg(
             joint_names_expr=[
                 "head_.*",
             ],
-            effort_limit=None,
-            velocity_limit=None,
             stiffness=None,
             damping=None,
         ),
@@ -64,8 +68,6 @@ GR1T2_CFG = ArticulationCfg(
             joint_names_expr=[
                 "waist_.*",
             ],
-            effort_limit=None,
-            velocity_limit=None,
             stiffness=None,
             damping=None,
         ),
@@ -75,8 +77,6 @@ GR1T2_CFG = ArticulationCfg(
                 ".*_knee_.*",
                 ".*_ankle_.*",
             ],
-            effort_limit=None,
-            velocity_limit=None,
             stiffness=None,
             damping=None,
         ),
@@ -86,8 +86,8 @@ GR1T2_CFG = ArticulationCfg(
                 "right_elbow_.*",
                 "right_wrist_.*",
             ],
-            effort_limit=torch.inf,
-            velocity_limit=torch.inf,
+            joint_effort_limit=torch.inf,
+            joint_velocity_limit=torch.inf,
             stiffness=None,
             damping=None,
             armature=0.0,
@@ -98,8 +98,8 @@ GR1T2_CFG = ArticulationCfg(
                 "left_elbow_.*",
                 "left_wrist_.*",
             ],
-            effort_limit=torch.inf,
-            velocity_limit=torch.inf,
+            joint_effort_limit=torch.inf,
+            joint_velocity_limit=torch.inf,
             stiffness=None,
             damping=None,
             armature=0.0,
@@ -108,8 +108,6 @@ GR1T2_CFG = ArticulationCfg(
             joint_names_expr=[
                 "R_.*",
             ],
-            effort_limit=None,
-            velocity_limit=None,
             stiffness=None,
             damping=None,
         ),
@@ -117,8 +115,6 @@ GR1T2_CFG = ArticulationCfg(
             joint_names_expr=[
                 "L_.*",
             ],
-            effort_limit=None,
-            velocity_limit=None,
             stiffness=None,
             damping=None,
         ),
@@ -127,16 +123,10 @@ GR1T2_CFG = ArticulationCfg(
 """Configuration for the GR1T2 Humanoid robot."""
 
 
-GR1T2_HIGH_PD_CFG = GR1T2_CFG.replace(
+GR1T2_HIGH_PD_CFG = replace(
+    GR1T2_CFG,
     actuators={
-        "trunk": ImplicitActuatorCfg(
-            joint_names_expr=["waist_.*"],
-            effort_limit=None,
-            velocity_limit=None,
-            stiffness=4400,
-            damping=40.0,
-            armature=0.01,
-        ),
+        "trunk": ImplicitActuatorCfg(joint_names_expr=["waist_.*"], stiffness=4400, damping=40.0, armature=0.01),
         "right-arm": ImplicitActuatorCfg(
             joint_names_expr=["right_shoulder_.*", "right_elbow_.*", "right_wrist_.*"],
             stiffness=4400.0,
@@ -149,16 +139,8 @@ GR1T2_HIGH_PD_CFG = GR1T2_CFG.replace(
             damping=40.0,
             armature=0.01,
         ),
-        "right-hand": ImplicitActuatorCfg(
-            joint_names_expr=["R_.*"],
-            stiffness=None,
-            damping=None,
-        ),
-        "left-hand": ImplicitActuatorCfg(
-            joint_names_expr=["L_.*"],
-            stiffness=None,
-            damping=None,
-        ),
+        "right-hand": ImplicitActuatorCfg(joint_names_expr=["R_.*"], stiffness=None, damping=None),
+        "left-hand": ImplicitActuatorCfg(joint_names_expr=["L_.*"], stiffness=None, damping=None),
     },
 )
 """Configuration for the GR1T2 Humanoid robot configured for with high PD gains for pick-place manipulation tasks."""

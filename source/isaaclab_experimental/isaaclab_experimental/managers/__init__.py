@@ -7,18 +7,14 @@
 
 This package is intended for experimental forks of manager implementations while
 keeping stable task configs and the stable `isaaclab.managers` package intact.
+
+Symbols are lazily resolved from the ``__init__.pyi`` stub so that importing this
+package (e.g. to access pure-data cfg types like
+:class:`~isaaclab_experimental.managers.ObservationTermCfg`) does not eagerly
+pull in runtime managers that depend on a running simulator. This mirrors the
+stable :mod:`isaaclab.managers` package.
 """
 
-from isaaclab.managers import *  # noqa: F401,F403
+from isaaclab.utils.module import lazy_export
 
-from .action_manager import ActionManager  # noqa: F401
-from .command_manager import CommandManager  # noqa: F401
-from .event_manager import EventManager  # noqa: F401
-
-# Override the stable implementation with the experimental fork.
-from .manager_base import ManagerTermBase  # noqa: F401
-from .manager_term_cfg import ObservationTermCfg, RewardTermCfg, TerminationTermCfg  # noqa: F401
-from .observation_manager import ObservationManager  # noqa: F401
-from .reward_manager import RewardManager  # noqa: F401
-from .scene_entity_cfg import SceneEntityCfg  # noqa: F401
-from .termination_manager import TerminationManager  # noqa: F401
+lazy_export()

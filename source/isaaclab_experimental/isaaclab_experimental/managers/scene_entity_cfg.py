@@ -11,11 +11,15 @@ with the stable manager stack (which type-checks against the stable SceneEntityC
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import warp as wp
 
-from isaaclab.assets.articulation.base_articulation import BaseArticulation
+from isaaclab.assets import ArticulationCfg
 from isaaclab.managers.scene_entity_cfg import SceneEntityCfg as _SceneEntityCfg
-from isaaclab.scene import InteractiveScene
+
+if TYPE_CHECKING:
+    from isaaclab.scene import InteractiveScene
 
 
 class SceneEntityCfg(_SceneEntityCfg):
@@ -34,6 +38,15 @@ class SceneEntityCfg(_SceneEntityCfg):
     """Integer indices of selected bodies — used for subset-sized body gathers."""
     body_ids_wp: wp.array | None = None
 
+    @classmethod
+    def from_stable(cls, stable: _SceneEntityCfg) -> SceneEntityCfg:
+        """Build a warp scene-entity cfg from a stable one.
+
+        Copies every field declared on the stable cfg; the warp-specific fields
+        stay ``None`` and are filled by :meth:`resolve` at scene build time.
+        """
+        return cls(**{name: getattr(stable, name) for name in _SceneEntityCfg.__dataclass_fields__})
+
     def resolve(self, scene: InteractiveScene):
         # run the stable resolution first (fills joint_ids/body_ids from names/regex)
         super().resolve(scene)
@@ -41,7 +54,7 @@ class SceneEntityCfg(_SceneEntityCfg):
         entity = scene[self.name]
 
         # -- Warp joint mask / ids for articulations
-        if isinstance(entity, BaseArticulation):
+        if isinstance(entity.cfg, ArticulationCfg):
             if self.joint_ids == slice(None):
                 joint_ids_list = list(range(entity.num_joints))
                 mask_list = [True] * entity.num_joints

@@ -3,31 +3,53 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Newton-backed FrameView — Warp-native, GPU-resident pose queries."""
+"""Newton-backed FrameView resolved from Newton body labels."""
 
 from __future__ import annotations
 
+import contextlib
 import logging
+import re
+import sys
 
+import numpy as np
 import warp as wp
 
-from pxr import Gf, Usd, UsdGeom
+from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.physics import PhysicsEvent
+from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim.views.base_frame_view import BaseFrameView
+from isaaclab.sim.views.fabric_xform_selection import FabricXformSelection
+from isaaclab.sim.views.xform_space_writer import FrameViewLocalSpaceWriter, FrameViewWorldSpaceWriter
+from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.warp import ProxyArray
-
-from isaaclab_newton.physics.newton_manager import NewtonManager
+from isaaclab.utils.warp import fabric as fabric_utils
 
 logger = logging.getLogger(__name__)
 
 WORLD_BODY_INDEX = -1
 
+# Regex metacharacters that mark a body pattern as a genuine expression rather than a literal
+# USD path. Patterns free of these can be resolved via an exact dict lookup instead of scanning
+# every body label with a compiled regex.
+_REGEX_TOKENS = frozenset(".*[]()+?|\\^$")
 
-# ------------------------------------------------------------------
-# Warp kernels
-# ------------------------------------------------------------------
+
+# One resolved frame spec: (body_patterns, local transform, xform scale, per_world, env_ids,
+# destination prim paths).  Prim paths follow the spec's expansion order.
+_Strs = tuple[str, ...]
+_SiteSpec = tuple[_Strs | None, wp.transform, tuple[float, float, float], bool, tuple[int, ...] | None, _Strs | None]
+
+
+def _extend_prim_paths(collected: list[str] | None, paths: tuple[str, ...] | None, expected: int) -> list[str] | None:
+    """Append one spec's destination paths, or return ``None`` to give up on mirroring this view."""
+    if collected is None or paths is None or len(paths) != expected:
+        return None
+    collected.extend(paths)
+    return collected
 
 
 @wp.kernel
@@ -35,62 +57,15 @@ def _compute_site_world_transforms(
     body_q: wp.array(dtype=wp.transformf),
     site_body: wp.array(dtype=wp.int32),
     site_local: wp.array(dtype=wp.transformf),
-    out_pos: wp.array(dtype=wp.vec3f),
-    out_quat: wp.array(dtype=wp.vec4f),
-):
-    """Compute world-space transforms for every site in the view.
-
-    For each site *i*, computes ``world = body_q[site_body[i]] * site_local[i]``
-    and splits the result into position and quaternion outputs. When
-    ``site_body[i] == -1`` the site is world-attached and ``site_local[i]`` is
-    returned directly.
-
-    Args:
-        body_q: Rigid-body world transforms from the Newton state, shape ``[num_bodies]``.
-        site_body: Per-site body index (flat model-level), shape ``[num_sites]``.
-            A value of ``-1`` indicates a world-attached site.
-        site_local: Per-site local offset relative to its parent body, shape ``[num_sites]``.
-        out_pos: Output world positions [m], shape ``[num_sites]``.
-        out_quat: Output world orientations as ``(qx, qy, qz, qw)``, shape ``[num_sites]``.
-    """
-    i = wp.tid()
-    bid = site_body[i]
-    if bid == -1:
-        world = site_local[i]
-    else:
-        world = wp.transform_multiply(body_q[bid], site_local[i])
-    out_pos[i] = wp.transform_get_translation(world)
-    q = wp.transform_get_rotation(world)
-    out_quat[i] = wp.vec4f(q[0], q[1], q[2], q[3])
-
-
-@wp.kernel
-def _compute_site_world_transforms_indexed(
-    body_q: wp.array(dtype=wp.transformf),
-    site_body: wp.array(dtype=wp.int32),
-    site_local: wp.array(dtype=wp.transformf),
     indices: wp.array(dtype=wp.int32),
     out_pos: wp.array(dtype=wp.vec3f),
     out_quat: wp.array(dtype=wp.vec4f),
 ):
-    """Indexed variant of :func:`_compute_site_world_transforms`.
-
-    Only computes world transforms for the subset of sites selected by
-    ``indices``. Thread *i* reads ``indices[i]`` to obtain the site index,
-    then writes the result to ``out_pos[i]`` / ``out_quat[i]``.
-
-    Args:
-        body_q: Rigid-body world transforms from the Newton state, shape ``[num_bodies]``.
-        site_body: Per-site body index (flat model-level), shape ``[num_sites]``.
-        site_local: Per-site local offset relative to its parent body, shape ``[num_sites]``.
-        indices: Site indices to query, shape ``[M]``.
-        out_pos: Output world positions [m], shape ``[M]``.
-        out_quat: Output world orientations as ``(qx, qy, qz, qw)``, shape ``[M]``.
-    """
+    """Compute world-space transforms for selected sites."""
     i = wp.tid()
     si = indices[i]
     bid = site_body[si]
-    if bid == -1:
+    if bid == WORLD_BODY_INDEX:
         world = site_local[si]
     else:
         world = wp.transform_multiply(body_q[bid], site_local[si])
@@ -100,186 +75,31 @@ def _compute_site_world_transforms_indexed(
 
 
 @wp.kernel
-def _gather_scales(
-    shape_scale: wp.array(dtype=wp.vec3f),
-    shape_body: wp.array(dtype=wp.int32),
-    site_body: wp.array(dtype=wp.int32),
-    num_shapes: wp.int32,
-    out_scales: wp.array(dtype=wp.vec3f),
-):
-    """Gather per-site scales from collision shapes on the same body.
-
-    For each site *i*, linearly scans all shapes to find the first one whose
-    ``shape_body`` matches ``site_body[i]`` and copies its scale. Falls back
-    to ``(1, 1, 1)`` if no shape is found on that body.
-
-    Args:
-        shape_scale: Per-shape scale vectors from the Newton model, shape ``[num_shapes]``.
-        shape_body: Per-shape parent body index, shape ``[num_shapes]``.
-        site_body: Per-site body index, shape ``[num_sites]``.
-        num_shapes: Total number of shapes in the model.
-        out_scales: Output scale per site, shape ``[num_sites]``.
-    """
-    i = wp.tid()
-    bid = site_body[i]
-    found = int(0)
-    for s in range(num_shapes):
-        if shape_body[s] == bid and found == 0:
-            out_scales[i] = shape_scale[s]
-            found = 1
-    if found == 0:
-        out_scales[i] = wp.vec3f(1.0, 1.0, 1.0)
-
-
-@wp.kernel
-def _gather_scales_indexed(
-    shape_scale: wp.array(dtype=wp.vec3f),
-    shape_body: wp.array(dtype=wp.int32),
-    site_body: wp.array(dtype=wp.int32),
+def _gather_site_local_transforms(
+    site_local: wp.array(dtype=wp.transformf),
     indices: wp.array(dtype=wp.int32),
-    num_shapes: wp.int32,
-    out_scales: wp.array(dtype=wp.vec3f),
+    out_pos: wp.array(dtype=wp.vec3f),
+    out_quat: wp.array(dtype=wp.vec4f),
 ):
-    """Indexed variant of :func:`_gather_scales`.
-
-    Args:
-        shape_scale: Per-shape scale vectors from the Newton model, shape ``[num_shapes]``.
-        shape_body: Per-shape parent body index, shape ``[num_shapes]``.
-        site_body: Per-site body index, shape ``[num_sites]``.
-        indices: Site indices to query, shape ``[M]``.
-        num_shapes: Total number of shapes in the model.
-        out_scales: Output scale per queried site, shape ``[M]``.
-    """
+    """Gather local transforms for selected sites."""
     i = wp.tid()
     si = indices[i]
-    bid = site_body[si]
-    found = int(0)
-    for s in range(num_shapes):
-        if shape_body[s] == bid and found == 0:
-            out_scales[i] = shape_scale[s]
-            found = 1
-    if found == 0:
-        out_scales[i] = wp.vec3f(1.0, 1.0, 1.0)
-
-
-@wp.kernel
-def _scatter_scales(
-    site_body: wp.array(dtype=wp.int32),
-    new_scales: wp.array(dtype=wp.vec3f),
-    shape_body: wp.array(dtype=wp.int32),
-    num_shapes: wp.int32,
-    shape_scale: wp.array(dtype=wp.vec3f),
-):
-    """Scatter per-site scales to all collision shapes on the same body.
-
-    For each site *i*, writes ``new_scales[i]`` to every shape whose
-    ``shape_body`` matches ``site_body[i]``. Multiple shapes on the same
-    body all receive the same scale.
-
-    Args:
-        site_body: Per-site body index, shape ``[num_sites]``.
-        new_scales: New scale to apply per site, shape ``[num_sites]``.
-        shape_body: Per-shape parent body index, shape ``[num_shapes]``.
-        num_shapes: Total number of shapes in the model.
-        shape_scale: Per-shape scale vectors to write into (modified in-place),
-            shape ``[num_shapes]``.
-    """
-    i = wp.tid()
-    bid = site_body[i]
-    for s in range(num_shapes):
-        if shape_body[s] == bid:
-            shape_scale[s] = new_scales[i]
-
-
-@wp.kernel
-def _scatter_scales_indexed(
-    site_body: wp.array(dtype=wp.int32),
-    indices: wp.array(dtype=wp.int32),
-    new_scales: wp.array(dtype=wp.vec3f),
-    shape_body: wp.array(dtype=wp.int32),
-    num_shapes: wp.int32,
-    shape_scale: wp.array(dtype=wp.vec3f),
-):
-    """Indexed variant of :func:`_scatter_scales`.
-
-    Args:
-        site_body: Per-site body index, shape ``[num_sites]``.
-        indices: Site indices to update, shape ``[M]``.
-        new_scales: New scale to apply per selected site, shape ``[M]``.
-        shape_body: Per-shape parent body index, shape ``[num_shapes]``.
-        num_shapes: Total number of shapes in the model.
-        shape_scale: Per-shape scale vectors to write into (modified in-place),
-            shape ``[num_shapes]``.
-    """
-    i = wp.tid()
-    si = indices[i]
-    bid = site_body[si]
-    for s in range(num_shapes):
-        if shape_body[s] == bid:
-            shape_scale[s] = new_scales[i]
-
-
-# ------------------------------------------------------------------
-# World-pose site_local write kernels
-# ------------------------------------------------------------------
+    local_tf = site_local[si]
+    out_pos[i] = wp.transform_get_translation(local_tf)
+    q = wp.transform_get_rotation(local_tf)
+    out_quat[i] = wp.vec4f(q[0], q[1], q[2], q[3])
 
 
 @wp.kernel
 def _write_site_local_from_world_poses(
     body_q: wp.array(dtype=wp.transformf),
     site_body: wp.array(dtype=wp.int32),
-    world_pos: wp.array(dtype=wp.vec3f),
-    world_quat: wp.array(dtype=wp.vec4f),
-    site_local: wp.array(dtype=wp.transformf),
-):
-    """Update site local offsets so that the sites reach desired world poses.
-
-    For each site *i*, computes
-    ``site_local[i] = inv(body_q[site_body[i]]) * desired_world`` so that
-    a subsequent ``body_q[bid] * site_local[i]`` yields the requested world
-    pose. For world-attached sites (``site_body[i] == -1``) the desired world
-    transform is written directly into ``site_local[i]``.
-
-    Does **not** modify ``body_q``.
-
-    Args:
-        body_q: Rigid-body world transforms from the Newton state, shape ``[num_bodies]``.
-        site_body: Per-site body index (flat model-level), shape ``[num_sites]``.
-        world_pos: Desired world positions [m], shape ``[num_sites]``.
-        world_quat: Desired world orientations as ``(qx, qy, qz, qw)``, shape ``[num_sites]``.
-        site_local: Per-site local offset (modified in-place), shape ``[num_sites]``.
-    """
-    i = wp.tid()
-    w_pos = world_pos[i]
-    w_q = world_quat[i]
-    desired_world = wp.transform(w_pos, wp.quatf(w_q[0], w_q[1], w_q[2], w_q[3]))
-
-    bid = site_body[i]
-    if bid == -1:
-        site_local[i] = desired_world
-    else:
-        site_local[i] = wp.transform_multiply(wp.transform_inverse(body_q[bid]), desired_world)
-
-
-@wp.kernel
-def _write_site_local_from_world_poses_indexed(
-    body_q: wp.array(dtype=wp.transformf),
-    site_body: wp.array(dtype=wp.int32),
     indices: wp.array(dtype=wp.int32),
     world_pos: wp.array(dtype=wp.vec3f),
     world_quat: wp.array(dtype=wp.vec4f),
     site_local: wp.array(dtype=wp.transformf),
 ):
-    """Indexed variant of :func:`_write_site_local_from_world_poses`.
-
-    Args:
-        body_q: Rigid-body world transforms from the Newton state, shape ``[num_bodies]``.
-        site_body: Per-site body index (flat model-level), shape ``[num_sites]``.
-        indices: Site indices to update, shape ``[M]``.
-        world_pos: Desired world positions [m], shape ``[M]``.
-        world_quat: Desired world orientations as ``(qx, qy, qz, qw)``, shape ``[M]``.
-        site_local: Per-site local offset (modified in-place), shape ``[num_sites]``.
-    """
+    """Update local offsets so selected sites reach desired world poses."""
     i = wp.tid()
     si = indices[i]
     w_pos = world_pos[i]
@@ -287,665 +107,789 @@ def _write_site_local_from_world_poses_indexed(
     desired_world = wp.transform(w_pos, wp.quatf(w_q[0], w_q[1], w_q[2], w_q[3]))
 
     bid = site_body[si]
-    if bid == -1:
+    if bid == WORLD_BODY_INDEX:
         site_local[si] = desired_world
     else:
         site_local[si] = wp.transform_multiply(wp.transform_inverse(body_q[bid]), desired_world)
-
-
-# ------------------------------------------------------------------
-# Local-pose Warp kernels
-# ------------------------------------------------------------------
-
-
-@wp.kernel
-def _compute_site_local_transforms(
-    body_q: wp.array(dtype=wp.transformf),
-    site_body: wp.array(dtype=wp.int32),
-    site_local: wp.array(dtype=wp.transformf),
-    parent_site_body: wp.array(dtype=wp.int32),
-    parent_site_local: wp.array(dtype=wp.transformf),
-    out_pos: wp.array(dtype=wp.vec3f),
-    out_quat: wp.array(dtype=wp.vec4f),
-):
-    """Compute parent-relative transforms for every site in the view.
-
-    For each site *i*, computes the world pose of both the site and its USD
-    parent, then returns ``inv(parent_world) * prim_world``. When
-    ``site_body[i] == -1`` the site is world-attached and ``site_local[i]``
-    is used as the world transform directly. The same convention applies to
-    the parent arrays.
-
-    Args:
-        body_q: Rigid-body world transforms from the Newton state, shape ``[num_bodies]``.
-        site_body: Per-site body index (flat model-level), shape ``[num_sites]``.
-        site_local: Per-site local offset relative to its parent body, shape ``[num_sites]``.
-        parent_site_body: Per-site USD-parent body index, shape ``[num_sites]``.
-        parent_site_local: Per-site USD-parent local offset, shape ``[num_sites]``.
-        out_pos: Output parent-relative positions [m], shape ``[num_sites]``.
-        out_quat: Output parent-relative orientations as ``(qx, qy, qz, qw)``,
-            shape ``[num_sites]``.
-    """
-    i = wp.tid()
-    prim_bid = site_body[i]
-    if prim_bid == -1:
-        prim_world = site_local[i]
-    else:
-        prim_world = wp.transform_multiply(body_q[prim_bid], site_local[i])
-
-    parent_bid = parent_site_body[i]
-    if parent_bid == -1:
-        parent_world = parent_site_local[i]
-    else:
-        parent_world = wp.transform_multiply(body_q[parent_bid], parent_site_local[i])
-
-    local_tf = wp.transform_multiply(wp.transform_inverse(parent_world), prim_world)
-    out_pos[i] = wp.transform_get_translation(local_tf)
-    q = wp.transform_get_rotation(local_tf)
-    out_quat[i] = wp.vec4f(q[0], q[1], q[2], q[3])
-
-
-@wp.kernel
-def _compute_site_local_transforms_indexed(
-    body_q: wp.array(dtype=wp.transformf),
-    site_body: wp.array(dtype=wp.int32),
-    site_local: wp.array(dtype=wp.transformf),
-    parent_site_body: wp.array(dtype=wp.int32),
-    parent_site_local: wp.array(dtype=wp.transformf),
-    indices: wp.array(dtype=wp.int32),
-    out_pos: wp.array(dtype=wp.vec3f),
-    out_quat: wp.array(dtype=wp.vec4f),
-):
-    """Indexed variant of :func:`_compute_site_local_transforms`.
-
-    Args:
-        body_q: Rigid-body world transforms from the Newton state, shape ``[num_bodies]``.
-        site_body: Per-site body index (flat model-level), shape ``[num_sites]``.
-        site_local: Per-site local offset relative to its parent body, shape ``[num_sites]``.
-        parent_site_body: Per-site USD-parent body index, shape ``[num_sites]``.
-        parent_site_local: Per-site USD-parent local offset, shape ``[num_sites]``.
-        indices: Site indices to query, shape ``[M]``.
-        out_pos: Output parent-relative positions [m], shape ``[M]``.
-        out_quat: Output parent-relative orientations as ``(qx, qy, qz, qw)``,
-            shape ``[M]``.
-    """
-    i = wp.tid()
-    si = indices[i]
-    prim_bid = site_body[si]
-    if prim_bid == -1:
-        prim_world = site_local[si]
-    else:
-        prim_world = wp.transform_multiply(body_q[prim_bid], site_local[si])
-
-    parent_bid = parent_site_body[si]
-    if parent_bid == -1:
-        parent_world = parent_site_local[si]
-    else:
-        parent_world = wp.transform_multiply(body_q[parent_bid], parent_site_local[si])
-
-    local_tf = wp.transform_multiply(wp.transform_inverse(parent_world), prim_world)
-    out_pos[i] = wp.transform_get_translation(local_tf)
-    q = wp.transform_get_rotation(local_tf)
-    out_quat[i] = wp.vec4f(q[0], q[1], q[2], q[3])
 
 
 @wp.kernel
 def _write_site_local_from_local_poses(
-    body_q: wp.array(dtype=wp.transformf),
-    site_body: wp.array(dtype=wp.int32),
-    parent_site_body: wp.array(dtype=wp.int32),
-    parent_site_local: wp.array(dtype=wp.transformf),
-    local_pos: wp.array(dtype=wp.vec3f),
-    local_quat: wp.array(dtype=wp.vec4f),
-    site_local: wp.array(dtype=wp.transformf),
-):
-    """Update site local offsets so that sites reach desired parent-relative poses.
-
-    For each site *i*, reconstructs the desired world pose as
-    ``parent_world * desired_local``, then solves for the body-relative offset:
-    ``site_local[i] = inv(body_q[bid]) * desired_world``. For world-attached
-    sites (``site_body[i] == -1``) the world transform is written directly.
-
-    Does **not** modify ``body_q``.
-
-    Args:
-        body_q: Rigid-body world transforms from the Newton state, shape ``[num_bodies]``.
-        site_body: Per-site body index (flat model-level), shape ``[num_sites]``.
-        parent_site_body: Per-site USD-parent body index, shape ``[num_sites]``.
-        parent_site_local: Per-site USD-parent local offset, shape ``[num_sites]``.
-        local_pos: Desired parent-relative positions [m], shape ``[num_sites]``.
-        local_quat: Desired parent-relative orientations as ``(qx, qy, qz, qw)``,
-            shape ``[num_sites]``.
-        site_local: Per-site local offset (modified in-place), shape ``[num_sites]``.
-    """
-    i = wp.tid()
-    parent_bid = parent_site_body[i]
-    if parent_bid == -1:
-        parent_world = parent_site_local[i]
-    else:
-        parent_world = wp.transform_multiply(body_q[parent_bid], parent_site_local[i])
-
-    l_pos = local_pos[i]
-    l_q = local_quat[i]
-    local_tf = wp.transform(l_pos, wp.quatf(l_q[0], l_q[1], l_q[2], l_q[3]))
-    desired_world = wp.transform_multiply(parent_world, local_tf)
-
-    bid = site_body[i]
-    if bid == -1:
-        site_local[i] = desired_world
-    else:
-        site_local[i] = wp.transform_multiply(wp.transform_inverse(body_q[bid]), desired_world)
-
-
-@wp.kernel
-def _write_site_local_from_local_poses_indexed(
-    body_q: wp.array(dtype=wp.transformf),
-    site_body: wp.array(dtype=wp.int32),
-    parent_site_body: wp.array(dtype=wp.int32),
-    parent_site_local: wp.array(dtype=wp.transformf),
     indices: wp.array(dtype=wp.int32),
     local_pos: wp.array(dtype=wp.vec3f),
     local_quat: wp.array(dtype=wp.vec4f),
     site_local: wp.array(dtype=wp.transformf),
 ):
-    """Indexed variant of :func:`_write_site_local_from_local_poses`.
-
-    Args:
-        body_q: Rigid-body world transforms from the Newton state, shape ``[num_bodies]``.
-        site_body: Per-site body index (flat model-level), shape ``[num_sites]``.
-        parent_site_body: Per-site USD-parent body index, shape ``[num_sites]``.
-        parent_site_local: Per-site USD-parent local offset, shape ``[num_sites]``.
-        indices: Site indices to update, shape ``[M]``.
-        local_pos: Desired parent-relative positions [m], shape ``[M]``.
-        local_quat: Desired parent-relative orientations as ``(qx, qy, qz, qw)``,
-            shape ``[M]``.
-        site_local: Per-site local offset (modified in-place), shape ``[num_sites]``.
-    """
+    """Update local offsets for selected sites."""
     i = wp.tid()
     si = indices[i]
-    parent_bid = parent_site_body[si]
-    if parent_bid == -1:
-        parent_world = parent_site_local[si]
-    else:
-        parent_world = wp.transform_multiply(body_q[parent_bid], parent_site_local[si])
-
     l_pos = local_pos[i]
     l_q = local_quat[i]
-    local_tf = wp.transform(l_pos, wp.quatf(l_q[0], l_q[1], l_q[2], l_q[3]))
-    desired_world = wp.transform_multiply(parent_world, local_tf)
+    site_local[si] = wp.transform(l_pos, wp.quatf(l_q[0], l_q[1], l_q[2], l_q[3]))
 
+
+@wp.kernel(enable_backward=False)
+def _gather_mirrored_site_poses(
+    site_positions: wp.array(dtype=wp.vec3f),
+    site_orientations: wp.array(dtype=wp.vec4f),
+    site_indices: wp.array(dtype=wp.int32),
+    out_positions: wp.array(dtype=wp.float32, ndim=2),
+    out_orientations: wp.array(dtype=wp.float32, ndim=2),
+):
+    """Gather the mirrored sites' world poses into the flat layout the Fabric kernels expect."""
+    i = wp.tid()
+    site = site_indices[i]
+    position = site_positions[site]
+    orientation = site_orientations[site]
+    for axis in range(3):
+        out_positions[i, axis] = position[axis]
+    for component in range(4):
+        out_orientations[i, component] = orientation[component]
+
+
+@wp.kernel
+def _gather_shape_scales(
+    shape_scale: wp.array(dtype=wp.vec3f),
+    shape_body: wp.array(dtype=wp.int32),
+    site_body: wp.array(dtype=wp.int32),
+    indices: wp.array(dtype=wp.int32),
+    num_shapes: wp.int32,
+    out_scales: wp.array(dtype=wp.vec3f),
+):
+    """Gather legacy per-site geometry scales from collision shapes on the same body."""
+    i = wp.tid()
+    si = indices[i]
     bid = site_body[si]
-    if bid == -1:
-        site_local[si] = desired_world
-    else:
-        site_local[si] = wp.transform_multiply(wp.transform_inverse(body_q[bid]), desired_world)
+    found = int(0)
+    for s in range(num_shapes):
+        if shape_body[s] == bid and found == 0:
+            out_scales[i] = shape_scale[s]
+            found = 1
+    if found == 0:
+        out_scales[i] = wp.vec3f(1.0, 1.0, 1.0)
 
 
-# ------------------------------------------------------------------
-# View class
-# ------------------------------------------------------------------
+@wp.kernel
+def _scatter_shape_scales(
+    site_body: wp.array(dtype=wp.int32),
+    indices: wp.array(dtype=wp.int32),
+    new_scales: wp.array(dtype=wp.vec3f),
+    shape_body: wp.array(dtype=wp.int32),
+    num_shapes: wp.int32,
+    shape_scale: wp.array(dtype=wp.vec3f),
+):
+    """Scatter legacy per-site geometry scales to collision shapes on the same body."""
+    i = wp.tid()
+    si = indices[i]
+    bid = site_body[si]
+    for s in range(num_shapes):
+        if shape_body[s] == bid:
+            shape_scale[s] = new_scales[i]
+
+
+@wp.kernel
+def _gather_xform_scales(
+    site_xform_scale: wp.array(dtype=wp.vec3f),
+    indices: wp.array(dtype=wp.int32),
+    out_scales: wp.array(dtype=wp.vec3f),
+):
+    """Gather per-site xform scales."""
+    i = wp.tid()
+    out_scales[i] = site_xform_scale[indices[i]]
+
+
+@wp.kernel
+def _scatter_xform_scales(
+    indices: wp.array(dtype=wp.int32),
+    new_scales: wp.array(dtype=wp.vec3f),
+    site_xform_scale: wp.array(dtype=wp.vec3f),
+):
+    """Scatter per-site xform scales."""
+    i = wp.tid()
+    site_xform_scale[indices[i]] = new_scales[i]
 
 
 class NewtonSiteFrameView(BaseFrameView):
-    """Batched prim view for non-physics prims tracked as sites on Newton bodies.
+    """Batched Newton frame view; physics frames support reads only.
 
-    Each matched USD prim must be a **non-physics** prim (camera, sensor,
-    Xform marker, etc.) that sits as a child of a Newton rigid body in the
-    USD hierarchy.  The prim path must **not** resolve directly to a physics
-    body or collision shape -- those are owned by Newton and should be
-    accessed through :class:`~isaaclab_newton.assets.Articulation` or
-    :class:`~isaaclab_newton.assets.RigidObject` instead.
-
-    At init time each prim is resolved to a ``(body_index, site_local)``
-    pair via ancestor walk: the nearest ancestor that appears in
-    ``model.body_label`` becomes the attachment body, and the relative USD
-    transform becomes the site offset.  If no body ancestor exists the prim
-    is attached to the world frame (``body_index = -1``).
-
-    World poses are computed on GPU as
-    ``body_q[body_index] * site_local`` via a Warp kernel.  Both
-    ``set_world_poses`` and ``set_local_poses`` update ``site_local`` --
-    neither touches ``body_q``.
-
-    Pose getters return :class:`~isaaclab.utils.warp.ProxyArray`.  Setters accept ``wp.array``.
-
-    Raises:
-        ValueError: If any matched prim resolves to a Newton physics body
-            or collision shape.
+    The public construction contract matches the generic :class:`FrameView`:
+    callers provide a prim expression and the backend resolves the source prim
+    into body-local or world-local frames of the Newton model.
     """
 
-    def __init__(self, prim_path: str, device: str = "cpu", stage: Usd.Stage | None = None, **kwargs):
-        """Initialize the Newton site-based frame view.
-
-        Resolves all USD prims matching ``prim_path`` and, for each one, walks
-        the USD ancestor hierarchy to find the nearest Newton rigid body. The
-        relative transform between the prim and its ancestor body becomes the
-        site's local offset.
-
-        If the Newton model is already finalized the view initializes
-        immediately; otherwise initialization is deferred to a
-        :attr:`PhysicsEvent.PHYSICS_READY` callback.
+    def __init__(
+        self,
+        prim_path: str | list[str],
+        device: str = "cpu",
+        validate_xform_ops: bool = True,
+        stage: object | None = None,
+        **kwargs,
+    ):
+        """Initialize the Newton site frame view.
 
         Args:
-            prim_path: USD prim path pattern (may contain regex).
-            device: Warp device for GPU arrays (e.g. ``"cuda:0"``).
-            stage: USD stage to search. Defaults to the current stage.
-            **kwargs: Unused; accepted for interface compatibility with other
-                :class:`~isaaclab.sim.views.BaseFrameView` backends.
+            prim_path: User-facing frame path pattern, or list of patterns. Patterns retain their input
+                order; cloned matches within each pattern follow environment ID, then source-frame order.
+            device: Warp device for GPU arrays.
+            validate_xform_ops: Whether to validate source USD xform ops.
+            stage: USD stage that contains the source prims.
+            **kwargs: Unused.
         """
-        self._prim_path = prim_path
+        del kwargs
+
+        self._prim_paths = [prim_path] if isinstance(prim_path, str) else list(prim_path)
+        self._prim_path = prim_path if isinstance(prim_path, str) else ", ".join(self._prim_paths)
         self._device = device
+        self._prims = []
+        self._backend_manager = sim_utils.SimulationContext.instance().backend_manager
+        self._scene_data_provider = sim_utils.SimulationContext.instance().get_scene_data_provider()
+        self._body_transforms = SceneDataFormat.Transform()
+        self._contains_physics_frames = False
 
         stage = sim_utils.get_current_stage() if stage is None else stage
-        self._prims: list[Usd.Prim] = sim_utils.find_matching_prims(prim_path, stage=stage)
+        self._site_specs = self._resolve_site_specs(stage, validate_xform_ops)
+        self._site_prim_paths: list[str] | None = None
+        # Fabric mirror state, built on the first write (see :meth:`_mirror_to_fabric`).
+        self._fabric_sel: FabricXformSelection | None = None
+        self._mirror_disabled = False
+        # Set only on the pre-model path below; released again by :meth:`close`.
+        self._physics_ready_handle = None
+        self._site_body: wp.array | None = None
+        self._site_local: wp.array | None = None
+        self._site_xform_scale: wp.array | None = None
+        self._site_indices: wp.array | None = None
+        self._pos_buf: wp.array | None = None
+        self._quat_buf: wp.array | None = None
+        self._local_pos_buf: wp.array | None = None
+        self._local_quat_buf: wp.array | None = None
+        self._scale_buf: wp.array | None = None
+        self._pos_ta: ProxyArray | None = None
+        self._quat_ta: ProxyArray | None = None
+        self._local_pos_ta: ProxyArray | None = None
+        self._local_quat_ta: ProxyArray | None = None
+        self._scale_ta: ProxyArray | None = None
+        self._count = 0
 
-        model = NewtonManager.get_model()
+        backend = self._backend_manager.backend
+        model = None if backend is None else backend.model
         if model is not None:
-            self._initialize_impl(model)
+            self._initialize_from_specs(model)
         else:
-            self._physics_ready_handle = NewtonManager.register_callback(
-                self._on_physics_ready, PhysicsEvent.PHYSICS_READY, name=f"site_view_{prim_path}"
+            self._physics_ready_handle = self._backend_manager.register_callback(
+                self._on_physics_ready, PhysicsEvent.PHYSICS_READY, name=f"site_view_{self._prim_path}"
             )
+
+    def _resolve_site_specs(self, stage, validate_xform_ops: bool) -> list[tuple[int, _SiteSpec]]:
+        """Resolve source prims into frame specs paired with their input expression index."""
+        plan = sim_utils.SimulationContext.instance().get_clone_plan()
+        groups = ()
+        if plan is not None:
+            sources = cloner.path.get_asset_prototype_paths(plan)
+            templates, starts, worlds, world_starts = cloner.path.get_world_prototype_asset_templates(
+                plan, include_world_indices=True
+            )
+            groups = np.flatnonzero(np.diff(world_starts[1:])) + 1
+        specs: list[tuple[int, _SiteSpec]] = []
+        for expression_index, path_expr in enumerate(self._prim_paths):
+            # Resolve frame expressions through the closest declared asset, then inspect only its prototype subtree.
+            matches = []
+            for group in groups:
+                for index in range(*starts[group : group + 2]):
+                    if (matched := cloner.path.match(path_expr, templates[index])) is not None:
+                        matches.append((group, index, matched))
+            if matches:
+                suffix = min((matched.suffix for _, _, matched in matches), key=len)
+                for group, index, matched in matches:
+                    if matched.suffix != suffix:
+                        continue
+                    env_ids = worlds[world_starts[group] : world_starts[group + 1]]
+                    env_ids = env_ids[
+                        resolve_matching_names(matched.instance, env_ids.astype(str), raise_when_no_match=False)[0]
+                    ]
+                    if not len(env_ids):
+                        continue
+                    root, template = sources[plan.topology.world_prototypes[index]], templates[index]
+                    pattern = re.compile(root + suffix)
+                    prims = sim_utils.get_all_matching_child_prims(
+                        root, lambda prim: pattern.fullmatch(prim.GetPath().pathString) is not None, stage=stage
+                    )
+                    if not prims:
+                        raise RuntimeError(f"FrameView '{path_expr}' could not resolve source prim '{root + suffix}'.")
+                    ids = tuple(map(int, env_ids))
+                    source_args = validate_xform_ops, root, template, ids, stage
+                    specs.extend((expression_index, self._resolve_source_prim(prim, *source_args)) for prim in prims)
+                continue
+
+            prims = sim_utils.find_matching_prims(path_expr, stage)
+            if not prims:
+                raise RuntimeError(f"FrameView '{path_expr}' could not resolve a source prim.")
+            source_args = validate_xform_ops, None, None, None, stage
+            specs.extend((expression_index, self._resolve_source_prim(prim, *source_args)) for prim in prims)
+
+        return specs
+
+    def _resolve_source_prim(
+        self,
+        prim,
+        validate_xform_ops: bool,
+        source_root: str | None,
+        destination_template: str | None,
+        env_ids: tuple[int, ...] | None,
+        stage,
+    ) -> _SiteSpec:
+        """Resolve one source prim into body patterns, local frame, xform scale, and destination paths."""
+        prim_path = prim.GetPath().pathString
+        dest_paths = (prim_path,)
+        if source_root is not None and destination_template is not None and env_ids is not None:
+            suffix = cloner.path.relative_to(prim_path, source_root)
+            dest_paths = tuple(destination_template.format(env_id) + suffix for env_id in env_ids)
+        physics_frame = prim.HasAPI(UsdPhysics.RigidBodyAPI) or prim.HasAPI(UsdPhysics.CollisionAPI)
+        self._contains_physics_frames |= physics_frame
+        if validate_xform_ops and not physics_frame:
+            sim_utils.standardize_xform_ops(prim)
+            if not sim_utils.validate_standard_xform_ops(prim):
+                raise ValueError(f"FrameView prim '{prim_path}' does not have standard xform ops.")
+
+        scale_attr = prim.GetAttribute("xformOp:scale")
+        scale = (
+            tuple(float(v) for v in scale_attr.Get())
+            if scale_attr and scale_attr.HasAuthoredValue()
+            else (1.0, 1.0, 1.0)
+        )
+
+        # only rigid bodies are simulated; a non-body articulation root is not a parent body
+        body_prim = prim
+        while body_prim and body_prim.IsValid():
+            if body_prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                pos, quat = sim_utils.resolve_prim_pose(prim, body_prim)
+                body_path = body_prim.GetPath().pathString
+                spec_tail = (wp.transform(pos, quat), scale, False, env_ids, dest_paths)
+                if source_root is not None and destination_template is not None:
+                    assert env_ids is not None
+                    suffix = cloner.path.relative_to(body_path, source_root)
+                    # A separately declared frame can be cloned below a body outside its source root.
+                    if suffix is None and source_root.startswith(body_path + "/"):
+                        suffix = source_root[len(body_path) :]
+                        body_patterns = []
+                        for env_id in env_ids:
+                            destination_root = destination_template.format(env_id)
+                            if not destination_root.endswith(suffix):
+                                raise RuntimeError(
+                                    f"FrameView destination root '{destination_root}' does not end with '{suffix}'."
+                                )
+                            body_patterns.append(destination_root[: -len(suffix)])
+                        return (tuple(body_patterns), *spec_tail)
+                    if suffix is None:
+                        raise RuntimeError(f"FrameView source body '{body_path}' is not under '{source_root}'.")
+                    body_patterns = tuple(destination_template.format(env_id) + suffix for env_id in env_ids)
+                else:
+                    body_patterns = (body_path,)
+                return (body_patterns, *spec_tail)
+            body_prim = body_prim.GetParent()
+
+        ref_path = source_root
+        if source_root is not None and destination_template is not None:
+            matched = cloner.path.match(source_root, destination_template.partition("{}")[0] + "{}")
+            if matched is not None:
+                ref_path = source_root.removesuffix(matched.suffix)
+        ref_prim = stage.GetPrimAtPath(ref_path) if ref_path is not None else None
+        pos, quat = sim_utils.resolve_prim_pose(prim, ref_prim if ref_prim and ref_prim.IsValid() else None)
+        return None, wp.transform(pos, quat), scale, source_root is not None, env_ids, dest_paths
 
     def _on_physics_ready(self, _event) -> None:
         """Callback invoked when the Newton model becomes available."""
-        self._initialize_impl(NewtonManager.get_model())
+        self._initialize_from_specs(self._backend_manager.backend.model)
 
-    def _initialize_impl(self, model) -> None:
-        """Resolve USD prims to Newton body indices and allocate GPU buffers."""
+    def _initialize_from_specs(self, model) -> None:
+        """Initialize arrays directly from resolved specs and Newton body labels."""
         body_labels = list(model.body_label)
-        body_label_set = set(body_labels)
-        body_label_to_idx = {path: idx for idx, path in enumerate(body_labels)}
-        shape_label_set = set(model.shape_label)
-
-        xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
-
+        # Exact label -> index map, built once. Replicated frames expand to one concrete
+        # body path per environment, so matching each against every label via regex is
+        # ``O(num_envs * num_bodies)`` (quadratic in ``num_envs``). Fast-pathing literal
+        # paths through this map keeps the common per-environment case linear; genuine
+        # regex patterns still fall back to a full scan.
+        label_to_index = {label: idx for idx, label in enumerate(body_labels)}
         site_bodies: list[int] = []
         site_locals: list[list[float]] = []
-        parent_bodies: list[int] = []
-        parent_locals: list[list[float]] = []
+        site_scales: list[tuple[float, float, float]] = []
+        site_prim_paths: list[str] | None = []
+        site_order: list[tuple[int, int]] = []
 
-        identity_xform = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
-        resolve_cache: dict[str, tuple[int, list[float]]] = {}
-
-        for prim in self._prims:
-            pp = prim.GetPath().pathString
-            if pp in body_label_set:
-                raise ValueError(
-                    f"FrameView prim '{pp}' is a Newton physics body. "
-                    "FrameView should only be used for non-physics prims (cameras, sensors, Xform markers). "
-                    "Use Articulation or RigidObject APIs to control physics bodies."
-                )
-            if pp in shape_label_set:
-                raise ValueError(
-                    f"FrameView prim '{pp}' is a Newton collision shape. "
-                    "FrameView should only be used for non-physics prims (cameras, sensors, Xform markers). "
-                    "Use Articulation or RigidObject APIs to control collision shapes."
-                )
-
-            body_idx, local_xform = self._resolve_ancestor_body(prim, body_label_to_idx, xform_cache)
-            site_bodies.append(body_idx)
-            site_locals.append(local_xform)
-
-            parent = prim.GetParent()
-            if not parent or not parent.IsValid() or parent.GetPath().pathString == "/":
-                parent_bodies.append(WORLD_BODY_INDEX)
-                parent_locals.append(identity_xform)
-            else:
-                parent_path = parent.GetPath().pathString
-                if parent_path in resolve_cache:
-                    pb_idx, pb_local = resolve_cache[parent_path]
-                elif parent_path in body_label_to_idx:
-                    pb_idx = body_label_to_idx[parent_path]
-                    pb_local = identity_xform
-                    resolve_cache[parent_path] = (pb_idx, pb_local)
+        for expression_index, spec in self._site_specs:
+            body_patterns, xform, scale, per_world, env_ids, spec_paths = spec
+            if body_patterns is None:
+                if per_world:
+                    world_xforms = self._backend_manager.get_world_xforms()
+                    if world_xforms is None:
+                        raise RuntimeError(f"FrameView '{self._prim_path}' needs Newton cloned-world transforms.")
+                    world_ids = range(len(world_xforms)) if env_ids is None else env_ids
+                    for world_id in world_ids:
+                        world_xform = world_xforms[world_id]
+                        site_bodies.append(WORLD_BODY_INDEX)
+                        site_locals.append([float(v) for v in wp.transform_multiply(world_xform, xform)])
+                        site_scales.append(scale)
+                        site_order.append((expression_index, world_id))
+                    site_prim_paths = _extend_prim_paths(site_prim_paths, spec_paths, len(world_ids))
                 else:
-                    pb_idx, pb_local = self._resolve_ancestor_body(parent, body_label_to_idx, xform_cache)
-                    resolve_cache[parent_path] = (pb_idx, pb_local)
-                parent_bodies.append(pb_idx)
-                parent_locals.append(pb_local)
+                    site_bodies.append(WORLD_BODY_INDEX)
+                    site_locals.append([float(v) for v in xform])
+                    site_scales.append(scale)
+                    site_order.append((expression_index, 0))
+                    site_prim_paths = _extend_prim_paths(site_prim_paths, spec_paths, 1)
+                continue
 
+            for index, body_pattern in enumerate(body_patterns):
+                exact_index = label_to_index.get(body_pattern) if _REGEX_TOKENS.isdisjoint(body_pattern) else None
+                if exact_index is not None:
+                    matched_indices = [exact_index]
+                else:
+                    matched_indices, _ = resolve_matching_names(body_pattern, body_labels, raise_when_no_match=False)
+                if not matched_indices:
+                    raise ValueError(
+                        f"FrameView '{self._prim_path}' body pattern '{body_pattern}' matched no Newton bodies."
+                    )
+
+                for body_idx in matched_indices:
+                    site_bodies.append(body_idx)
+                    site_locals.append([float(v) for v in xform])
+                    site_scales.append(scale)
+                    site_order.append((expression_index, env_ids[index] if env_ids is not None else 0))
+                spec_path = None if spec_paths is None else (spec_paths[index],)
+                site_prim_paths = _extend_prim_paths(site_prim_paths, spec_path, len(matched_indices))
+
+        # Clone-plan traversal groups worlds by prototype. Restore environment order within each
+        # expression while keeping each frame's body, transform, scale, and renderer destination paired.
+        # Stable sorting retains source-frame order within a world and non-cloned USD traversal order.
+        order = sorted(range(len(site_bodies)), key=site_order.__getitem__)
+        self._create_buffers(
+            [site_bodies[i] for i in order],
+            [site_locals[i] for i in order],
+            [site_scales[i] for i in order],
+            [site_prim_paths[i] for i in order] if site_prim_paths is not None else None,
+        )
+
+    def _create_buffers(
+        self,
+        site_bodies: list[int],
+        site_locals: list[list[float]],
+        site_scales: list[tuple[float, float, float]],
+        site_prim_paths: list[str] | None = None,
+    ) -> None:
+        """Allocate view buffers from body indices, local transforms, and destination prim paths."""
+        self._count = len(site_bodies)
+        paired = site_prim_paths is not None and len(site_prim_paths) == self._count
+        self._site_prim_paths = site_prim_paths if paired else None
+        if not paired and self._count:
+            logger.warning(
+                f"FrameView '{self._prim_path}' could not pair its sites with destination prims; pose writes"
+                " update Newton state but are not visible to the renderer."
+            )
         device = self._device
         self._site_body = wp.array(site_bodies, dtype=wp.int32, device=device)
-        self._site_local = wp.array(
-            [wp.transform(*x) for x in site_locals],
-            dtype=wp.transformf,
-            device=device,
-        )
-        self._parent_site_body = wp.array(parent_bodies, dtype=wp.int32, device=device)
-        self._parent_site_local = wp.array(
-            [wp.transform(*x) for x in parent_locals],
-            dtype=wp.transformf,
-            device=device,
-        )
-
-        self._pos_buf = wp.zeros(self.count, dtype=wp.vec3f, device=device)
-        self._quat_buf = wp.zeros(self.count, dtype=wp.vec4f, device=device)
-        self._local_pos_buf = wp.zeros(self.count, dtype=wp.vec3f, device=device)
-        self._local_quat_buf = wp.zeros(self.count, dtype=wp.vec4f, device=device)
+        self._site_local = wp.array([wp.transform(*x) for x in site_locals], dtype=wp.transformf, device=device)
+        self._site_xform_scale = wp.array([wp.vec3f(*scale) for scale in site_scales], dtype=wp.vec3f, device=device)
+        self._site_indices = wp.array(list(range(self._count)), dtype=wp.int32, device=device)
+        self._pos_buf = wp.zeros(self._count, dtype=wp.vec3f, device=device)
+        self._quat_buf = wp.zeros(self._count, dtype=wp.vec4f, device=device)
+        self._local_pos_buf = wp.zeros(self._count, dtype=wp.vec3f, device=device)
+        self._local_quat_buf = wp.zeros(self._count, dtype=wp.vec4f, device=device)
+        self._scale_buf = wp.zeros(self._count, dtype=wp.vec3f, device=device)
         self._pos_ta = ProxyArray(self._pos_buf)
         self._quat_ta = ProxyArray(self._quat_buf)
         self._local_pos_ta = ProxyArray(self._local_pos_buf)
         self._local_quat_ta = ProxyArray(self._local_quat_buf)
+        self._scale_ta = ProxyArray(self._site_xform_scale)
 
-    @staticmethod
-    def _resolve_ancestor_body(
-        prim: Usd.Prim,
-        body_label_to_idx: dict[str, int],
-        xform_cache: UsdGeom.XformCache,
-    ) -> tuple[int, list[float]]:
-        """Walk USD ancestors to find the nearest Newton body and compute the relative local transform.
+    def _mirror_to_fabric(self) -> None:
+        """Stamp the current site world poses onto the Fabric transforms the renderer reads.
 
-        Args:
-            prim: The USD prim to resolve.
-            body_label_to_idx: Dict mapping body prim paths to their Newton body indices.
-            xform_cache: USD xform cache for efficient transform lookups.
-
-        Returns:
-            A tuple ``(body_index, local_xform_7)`` where *local_xform_7* is
-            ``[tx, ty, tz, qx, qy, qz, qw]``.  If no body ancestor exists,
-            ``body_index`` is :data:`WORLD_BODY_INDEX` and the local transform
-            is the prim's world transform.
+        The local matrix is written too, else Newton's body sync forward-propagates ``parent * local``
+        over the world matrix for frames under a body.
         """
-        prim_world_tf = xform_cache.GetLocalToWorldTransform(prim)
-        prim_world_tf.Orthonormalize()
+        if self._fabric_sel is None and not self._initialize_fabric_mirror():
+            return
 
-        ancestor = prim.GetParent()
-        while ancestor and ancestor.IsValid() and ancestor.GetPath().pathString != "/":
-            ancestor_path = ancestor.GetPath().pathString
-            body_idx = body_label_to_idx.get(ancestor_path)
-            if body_idx is not None:
-                ancestor_world_tf = xform_cache.GetLocalToWorldTransform(ancestor)
-                ancestor_world_tf.Orthonormalize()
-                local_tf = prim_world_tf * ancestor_world_tf.GetInverse()
-                return body_idx, _gf_matrix_to_xform7(local_tf)
-            ancestor = ancestor.GetParent()
+        # Bodies sync at render cadence, so after a ``render=False`` step the local derivation below
+        # would read a stale parent. No-op when clean.
+        sim = sim_utils.SimulationContext.instance()
+        from isaaclab_physx.renderers.fabric import FabricBackendCfg  # noqa: PLC0415 - requires Kit
 
-        return WORLD_BODY_INDEX, _gf_matrix_to_xform7(prim_world_tf)
+        fabric = sim.get_or_create_backend(FabricBackendCfg(stage=sim.stage, device=sim.device))
+        fabric.update_transforms(sim.get_scene_data_provider())
+
+        count = self._fabric_sel.count
+        pos_ta, quat_ta = self._get_world_poses_impl(None)
+
+        def launch(kernel, inputs, outputs=()):
+            wp.launch(kernel, dim=count, inputs=inputs, outputs=outputs, device=self._device)
+
+        world_ifa, local_ifa = self._fabric_sel.child_ifas()
+        parent_ifa = self._fabric_sel.parent_world_ifa()
+        view_indices = self._fabric_sel.view_indices
+        mirrored = [self._mirror_positions, self._mirror_orientations]
+        launch(_gather_mirrored_site_poses, [pos_ta.warp, quat_ta.warp, self._mirror_site_indices], mirrored)
+        # ``False`` x3: no broadcasting, every site has its own pose. The empty scale array keeps each
+        # matrix's accumulated-parent scale, as the body sync does for USD scale.
+        compose = [world_ifa, *mirrored, self._mirror_empty_scales, False, False, False, view_indices]
+        launch(fabric_utils.compose_indexed_fabric_transforms, compose)
+        launch(fabric_utils.update_indexed_local_matrix_from_world, [world_ifa, parent_ifa, local_ifa, view_indices])
+
+    def _initialize_fabric_mirror(self) -> bool:
+        """Build the Fabric selection backing :meth:`_mirror_to_fabric` (a ``False`` result is sticky).
+
+        Seeding from USD is off: Newton never writes poses back, so it would reset the prim to its spawn
+        pose. Coverage can be partial -- Newton clones physics without USD, so a site can outlive its prim.
+        """
+        if self._mirror_disabled or self._site_prim_paths is None or self._count == 0:
+            self._mirror_disabled = True
+            return False
+        try:
+            selection = FabricXformSelection(
+                self._site_prim_paths,
+                self._device,
+                owner=type(self).__name__,
+                skip_missing_prims=True,
+            )
+        except ImportError:
+            # No Fabric runtime (kitless run): the site state is still correct, nothing consumes it.
+            self._mirror_disabled = True
+            logger.info("Fabric runtime unavailable; Newton site poses will not be mirrored to prims.")
+            return False
+
+        count = selection.count
+        if count == 0:
+            self._mirror_disabled = True
+            return False
+        if count != len(self._site_prim_paths):
+            logger.info(
+                f"FrameView '{self._prim_path}' mirrors {count} of {len(self._site_prim_paths)} sites to Fabric;"
+                " the rest have no prim on the stage (physics-only clones) and nothing to render."
+            )
+
+        # Refreshing the read-write selection is what notifies the renderer; the read-only one would
+        # land in Fabric but keep showing the old pose.
+        selection.read_write = True
+        self._fabric_sel = selection
+        self._mirror_site_indices = wp.array(selection.kept_indices, dtype=wp.int32, device=self._device)
+        self._mirror_positions = wp.empty((count, 3), dtype=wp.float32, device=self._device)
+        self._mirror_orientations = wp.empty((count, 4), dtype=wp.float32, device=self._device)
+        self._mirror_empty_scales = wp.zeros((0, 0), dtype=wp.float32, device=self._device)
+        return True
+
+    def close(self) -> None:
+        """Release the Fabric attributes and the model-ready callback authored by this view."""
+        handle = self._physics_ready_handle
+        self._physics_ready_handle = None  # cleared first so a repeat close() cannot deregister twice
+        if handle is not None:
+            handle.deregister()
+        if self._fabric_sel is not None:
+            self._fabric_sel.close()
+            self._fabric_sel = None
+        self._mirror_disabled = True
+
+    def __del__(self, _sys=sys):
+        """Best-effort cleanup when the view is collected without :meth:`close`.
+
+        ``sys`` is a default argument so it survives module teardown; nothing runs during finalization,
+        when the tags die with Fabric anyway.
+        """
+        if _sys.is_finalizing() or _sys.meta_path is None:
+            return
+        with contextlib.suppress(Exception):  # never propagate from __del__
+            self.close()
 
     @property
     def prims(self) -> list:
-        """List of USD prims being managed by this view."""
+        """List of USD prims being managed by this view.
+
+        Newton site views do not retain USD prim handles.
+        """
         return self._prims
 
     @property
     def count(self) -> int:
-        """Number of prims in this view."""
-        return len(self._prims)
+        """Number of frames in this view."""
+        return self._count
 
     @property
     def device(self) -> str:
-        """Device where arrays are allocated (cpu or cuda)."""
+        """Device where arrays are allocated."""
         return self._device
 
     # ------------------------------------------------------------------
-    # World poses
+    # Writer factory hooks (pass-through; Newton has no separate Fabric storage)
     # ------------------------------------------------------------------
 
-    def get_world_poses(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
-        """Get world-space positions and orientations.
+    def _make_world_space_writer(self) -> FrameViewWorldSpaceWriter:
+        if self._contains_physics_frames:
+            raise ValueError("Use the asset API to write physics body or collision shape transforms.")
+        return _NewtonWorldSpaceWriter(self)
 
-        Args:
-            indices: Subset of sites to query. ``None`` means all sites.
+    def _make_local_space_writer(self) -> FrameViewLocalSpaceWriter:
+        if self._contains_physics_frames:
+            raise ValueError("Use the asset API to write physics body or collision shape transforms.")
+        return _NewtonLocalSpaceWriter(self)
 
-        Returns:
-            A tuple ``(positions, orientations)`` of :class:`~isaaclab.utils.warp.ProxyArray`
-            wrappers. Use ``.warp`` for the underlying ``wp.array`` or ``.torch`` for a
-            cached zero-copy ``torch.Tensor`` view.
-        """
-        state = NewtonManager.get_state_0()
+    # ------------------------------------------------------------------
+    # Backend hooks
+    # ------------------------------------------------------------------
 
-        if indices is not None:
-            n = len(indices)
-            pos_buf = wp.zeros(n, dtype=wp.vec3f, device=self._device)
-            quat_buf = wp.zeros(n, dtype=wp.vec4f, device=self._device)
-            wp.launch(
-                _compute_site_world_transforms_indexed,
-                dim=n,
-                inputs=[state.body_q, self._site_body, self._site_local, indices],
-                outputs=[pos_buf, quat_buf],
-                device=self._device,
-            )
-            return ProxyArray(pos_buf), ProxyArray(quat_buf)
+    def _get_world_poses_impl(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
+        """Get world-space positions and orientations."""
+        self._scene_data_provider.get_transforms(self._body_transforms)
+        site_indices = self._site_indices if indices is None else indices
+        n = self.count if indices is None else len(indices)
+        pos_buf = self._pos_buf if indices is None else wp.zeros(n, dtype=wp.vec3f, device=self._device)
+        quat_buf = self._quat_buf if indices is None else wp.zeros(n, dtype=wp.vec4f, device=self._device)
 
         wp.launch(
             _compute_site_world_transforms,
-            dim=self.count,
-            inputs=[state.body_q, self._site_body, self._site_local],
-            outputs=[self._pos_buf, self._quat_buf],
+            dim=n,
+            inputs=[self._body_transforms.transforms, self._site_body, self._site_local, site_indices],
+            outputs=[pos_buf, quat_buf],
             device=self._device,
         )
-        return self._pos_ta, self._quat_ta
+        if indices is None:
+            return self._pos_ta, self._quat_ta
+        return ProxyArray(pos_buf), ProxyArray(quat_buf)
 
-    def set_world_poses(
+    def _apply_world_pose_write(
         self,
         positions: wp.array | None = None,
         orientations: wp.array | None = None,
         indices: wp.array | None = None,
     ) -> None:
-        """Set world-space positions and/or orientations.
-
-        Updates the internal ``site_local`` offsets so that
-        ``body_q[body] * new_site_local`` yields the desired world pose.
-        Does **not** modify ``body_q``.
-
-        Args:
-            positions: Desired world positions ``(M, 3)``. ``None`` leaves
-                positions unchanged.
-            orientations: Desired world quaternions ``(M, 4)`` as
-                ``(qx, qy, qz, qw)``. ``None`` leaves orientations unchanged.
-            indices: Subset of sites to update. ``None`` means all sites.
-        """
+        """Set world-space positions and/or orientations."""
         if positions is None and orientations is None:
             return
 
-        state = NewtonManager.get_state_0()
-
         if positions is None or orientations is None:
-            cur_pos_ta, cur_quat_ta = self.get_world_poses(indices)
+            cur_pos_ta, cur_quat_ta = self._get_world_poses_impl(indices)
             if positions is None:
                 positions = cur_pos_ta.warp
             if orientations is None:
                 orientations = cur_quat_ta.warp
-
-        if indices is not None:
-            wp.launch(
-                _write_site_local_from_world_poses_indexed,
-                dim=len(indices),
-                inputs=[state.body_q, self._site_body, indices, positions, orientations, self._site_local],
-                device=self._device,
-            )
         else:
-            wp.launch(
-                _write_site_local_from_world_poses,
-                dim=self.count,
-                inputs=[state.body_q, self._site_body, positions, orientations, self._site_local],
-                device=self._device,
-            )
+            self._scene_data_provider.get_transforms(self._body_transforms)
 
-    # ------------------------------------------------------------------
-    # Local poses (parent-relative)
-    # ------------------------------------------------------------------
-
-    def get_local_poses(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
-        """Get parent-relative positions and orientations.
-
-        Computes ``inv(parent_world) * prim_world`` for each site.
-
-        Args:
-            indices: Subset of sites to query. ``None`` means all sites.
-
-        Returns:
-            A tuple ``(translations, orientations)`` of :class:`~isaaclab.utils.warp.ProxyArray`
-            wrappers. Use ``.warp`` for the underlying ``wp.array`` or ``.torch`` for a
-            cached zero-copy ``torch.Tensor`` view.
-        """
-        state = NewtonManager.get_state_0()
-
-        if indices is not None:
-            n = len(indices)
-            pos_buf = wp.zeros(n, dtype=wp.vec3f, device=self._device)
-            quat_buf = wp.zeros(n, dtype=wp.vec4f, device=self._device)
-            wp.launch(
-                _compute_site_local_transforms_indexed,
-                dim=n,
-                inputs=[
-                    state.body_q,
-                    self._site_body,
-                    self._site_local,
-                    self._parent_site_body,
-                    self._parent_site_local,
-                    indices,
-                ],
-                outputs=[pos_buf, quat_buf],
-                device=self._device,
-            )
-            return ProxyArray(pos_buf), ProxyArray(quat_buf)
-
+        site_indices = self._site_indices if indices is None else indices
+        n = self.count if indices is None else len(indices)
         wp.launch(
-            _compute_site_local_transforms,
-            dim=self.count,
+            _write_site_local_from_world_poses,
+            dim=n,
             inputs=[
-                state.body_q,
+                self._body_transforms.transforms,
                 self._site_body,
+                site_indices,
+                positions,
+                orientations,
                 self._site_local,
-                self._parent_site_body,
-                self._parent_site_local,
             ],
-            outputs=[self._local_pos_buf, self._local_quat_buf],
             device=self._device,
         )
-        return self._local_pos_ta, self._local_quat_ta
 
-    def set_local_poses(
+    def _get_local_poses_impl(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
+        """Get body-local positions and orientations."""
+        site_indices = self._site_indices if indices is None else indices
+        n = self.count if indices is None else len(indices)
+        pos_buf = self._local_pos_buf if indices is None else wp.zeros(n, dtype=wp.vec3f, device=self._device)
+        quat_buf = self._local_quat_buf if indices is None else wp.zeros(n, dtype=wp.vec4f, device=self._device)
+
+        wp.launch(
+            _gather_site_local_transforms,
+            dim=n,
+            inputs=[self._site_local, site_indices],
+            outputs=[pos_buf, quat_buf],
+            device=self._device,
+        )
+        if indices is None:
+            return self._local_pos_ta, self._local_quat_ta
+        return ProxyArray(pos_buf), ProxyArray(quat_buf)
+
+    def _apply_local_pose_write(
         self,
         translations: wp.array | None = None,
         orientations: wp.array | None = None,
         indices: wp.array | None = None,
     ) -> None:
-        """Set parent-relative translations and/or orientations.
-
-        Updates the internal ``site_local`` offsets so that
-        ``inv(parent_world) * (body_q[bid] * site_local)`` yields the desired
-        local pose. Does **not** modify ``body_q``.
-
-        Args:
-            translations: Desired parent-relative translations ``(M, 3)``.
-                ``None`` leaves translations unchanged.
-            orientations: Desired parent-relative quaternions ``(M, 4)`` as
-                ``(qx, qy, qz, qw)``. ``None`` leaves orientations unchanged.
-            indices: Subset of sites to update. ``None`` means all sites.
-        """
+        """Set body-local translations and/or orientations."""
         if translations is None and orientations is None:
             return
 
-        state = NewtonManager.get_state_0()
-
         if translations is None or orientations is None:
-            cur_pos_ta, cur_quat_ta = self.get_local_poses(indices)
+            cur_pos_ta, cur_quat_ta = self._get_local_poses_impl(indices)
             if translations is None:
                 translations = cur_pos_ta.warp
             if orientations is None:
                 orientations = cur_quat_ta.warp
 
-        if indices is not None:
-            wp.launch(
-                _write_site_local_from_local_poses_indexed,
-                dim=len(indices),
-                inputs=[
-                    state.body_q,
-                    self._site_body,
-                    self._parent_site_body,
-                    self._parent_site_local,
-                    indices,
-                    translations,
-                    orientations,
-                    self._site_local,
-                ],
-                device=self._device,
-            )
-        else:
-            wp.launch(
-                _write_site_local_from_local_poses,
-                dim=self.count,
-                inputs=[
-                    state.body_q,
-                    self._site_body,
-                    self._parent_site_body,
-                    self._parent_site_local,
-                    translations,
-                    orientations,
-                    self._site_local,
-                ],
-                device=self._device,
-            )
+        site_indices = self._site_indices if indices is None else indices
+        n = self.count if indices is None else len(indices)
+        wp.launch(
+            _write_site_local_from_local_poses,
+            dim=n,
+            inputs=[site_indices, translations, orientations, self._site_local],
+            device=self._device,
+        )
 
     # ------------------------------------------------------------------
     # Scales
     # ------------------------------------------------------------------
 
-    def get_scales(self, indices: wp.array | None = None) -> wp.array:
-        """Get per-site scales by reading from the first collision shape on the same body.
+    def _get_world_scales_impl(self, indices: wp.array | None = None) -> ProxyArray:
+        """Get per-site world xform scales.
 
-        Args:
-            indices: Subset of sites to query. ``None`` means all sites.
-
-        Returns:
-            A ``wp.array`` of shape ``(M, 3)``.
+        These are transform scales, matching the USD FrameView scale API.  They
+        are intentionally separate from Newton collision shape geometry sizes.
         """
-        model = NewtonManager.get_model()
-        num_shapes = model.shape_count
+        if indices is None:
+            return self._scale_ta
+        n = len(indices)
+        out = wp.zeros(n, dtype=wp.vec3f, device=self._device)
+        wp.launch(
+            _gather_xform_scales,
+            dim=n,
+            inputs=[self._site_xform_scale, indices],
+            outputs=[out],
+            device=self._device,
+        )
+        return ProxyArray(out)
 
-        if indices is not None:
-            n = len(indices)
-            out = wp.zeros(n, dtype=wp.vec3f, device=self._device)
-            wp.launch(
-                _gather_scales_indexed,
-                dim=n,
-                inputs=[model.shape_scale, model.shape_body, self._site_body, indices, num_shapes],
-                outputs=[out],
-                device=self._device,
-            )
-        else:
-            out = wp.zeros(self.count, dtype=wp.vec3f, device=self._device)
-            wp.launch(
-                _gather_scales,
-                dim=self.count,
-                inputs=[model.shape_scale, model.shape_body, self._site_body, num_shapes],
-                outputs=[out],
-                device=self._device,
-            )
-        return out
+    def _get_local_scales_impl(self, indices: wp.array | None = None) -> ProxyArray:
+        """Get per-site local xform scales.
 
-    def set_scales(self, scales: wp.array, indices: wp.array | None = None) -> None:
-        """Set per-site scales by writing to all collision shapes on the same body.
-
-        Args:
-            scales: New scales ``(M, 3)`` as ``wp.array``.
-            indices: Subset of sites to update. ``None`` means all sites.
+        These are transform scales, matching the USD FrameView scale API.  They
+        are intentionally separate from Newton collision shape geometry sizes.
         """
-        model = NewtonManager.get_model()
+        return self._get_world_scales_impl(indices)
+
+    def _apply_world_scale_write(self, scales: wp.array, indices: wp.array | None = None) -> None:
+        """Set per-site world xform scales.
+
+        These update transform scale state only; use deprecated ``set_scales`` if
+        legacy Newton collision shape geometry-scale behavior is required.
+        """
+        if indices is None:
+            indices = self._site_indices
+        n = self.count if indices is self._site_indices else len(indices)
+        wp.launch(
+            _scatter_xform_scales,
+            dim=n,
+            inputs=[indices, scales, self._site_xform_scale],
+            device=self._device,
+        )
+
+    def _apply_local_scale_write(self, scales: wp.array, indices: wp.array | None = None) -> None:
+        """Set per-site local xform scales.
+
+        These update transform scale state only; use deprecated ``set_scales`` if
+        legacy Newton collision shape geometry-scale behavior is required.
+        """
+        self._apply_world_scale_write(scales, indices)
+
+    def _get_legacy_shape_scales(self, indices: wp.array | None = None) -> ProxyArray:
+        """Get Newton legacy geometry scales from collision shapes."""
+        model = self._backend_manager.backend.model
         num_shapes = model.shape_count
+        site_indices = self._site_indices if indices is None else indices
+        n = self.count if indices is None else len(indices)
+        out = wp.zeros(n, dtype=wp.vec3f, device=self._device)
+        wp.launch(
+            _gather_shape_scales,
+            dim=n,
+            inputs=[model.shape_scale, model.shape_body, self._site_body, site_indices, num_shapes],
+            outputs=[out],
+            device=self._device,
+        )
+        return ProxyArray(out)
 
-        if indices is not None:
-            wp.launch(
-                _scatter_scales_indexed,
-                dim=len(indices),
-                inputs=[self._site_body, indices, scales, model.shape_body, num_shapes, model.shape_scale],
-                device=self._device,
-            )
-        else:
-            wp.launch(
-                _scatter_scales,
-                dim=self.count,
-                inputs=[self._site_body, scales, model.shape_body, num_shapes, model.shape_scale],
-                device=self._device,
-            )
+    def _set_legacy_shape_scales(self, scales: wp.array, indices: wp.array | None = None) -> None:
+        """Set Newton legacy geometry scales on collision shapes."""
+        model = self._backend_manager.backend.model
+        num_shapes = model.shape_count
+        site_indices = self._site_indices if indices is None else indices
+        n = self.count if indices is None else len(indices)
+        wp.launch(
+            _scatter_shape_scales,
+            dim=n,
+            inputs=[self._site_body, site_indices, scales, model.shape_body, num_shapes, model.shape_scale],
+            device=self._device,
+        )
+
+    def _get_scales_impl(self, indices: wp.array | None = None) -> ProxyArray:
+        """Newton legacy: get_scales returns collision shape geometry scales."""
+        return self._get_legacy_shape_scales(indices)
+
+    def _set_scales_impl(self, scales: wp.array, indices: wp.array | None = None) -> None:
+        """Newton legacy: deprecated set_scales writes collision shape geometry scales.
+
+        Newton's legacy ``set_scales`` path is *not* routed through the
+        :class:`FrameViewSpaceWriterBase` API because it targets a different state
+        (collision-shape geometry sizes) than the transform-scale state that
+        the writer's :meth:`~FrameViewSpaceWriterBase.set_scales` operates on.
+        """
+        self._set_legacy_shape_scales(scales, indices)
 
 
-def _gf_matrix_to_xform7(mat: Gf.Matrix4d) -> list[float]:
-    """Convert a ``Gf.Matrix4d`` to ``[tx, ty, tz, qx, qy, qz, qw]``."""
-    t = mat.ExtractTranslation()
-    q = mat.ExtractRotationQuat()
-    imag = q.GetImaginary()
-    return [float(t[0]), float(t[1]), float(t[2]), float(imag[0]), float(imag[1]), float(imag[2]), float(q.GetReal())]
+# ----------------------------------------------------------------------
+# Pass-through writer classes
+# ----------------------------------------------------------------------
+
+
+class _NewtonWriterMixin:
+    """Mirrors the scope's pose writes onto Fabric on exit.
+
+    A full-view sync, so it runs only when a pose changed -- and on the exception path too, since the
+    Newton write is already committed. A mirror failing mid-unwind is logged, never masking the original.
+    """
+
+    def _enter_impl(self) -> None:
+        self._wrote_poses = False
+
+    def _exit_impl(self, exc_type, exc_val, exc_tb) -> None:
+        if not self._wrote_poses:
+            return
+        try:
+            self._view._mirror_to_fabric()  # type: ignore[attr-defined]
+        except Exception as mirror_exc:  # noqa: BLE001 -- see the docstring
+            if exc_type is None:
+                raise
+            logger.error("Fabric mirror failed while a writer scope unwound: %s", mirror_exc)
+
+
+class _NewtonWorldSpaceWriter(_NewtonWriterMixin, FrameViewWorldSpaceWriter):
+    """Newton world-space writer: pass-through to backend ``_apply_*`` hooks."""
+
+    def set_poses(self, positions=None, orientations=None, indices=None) -> None:
+        if positions is None and orientations is None:
+            return
+        self._wrote_poses = True
+        self._view._apply_world_pose_write(positions, orientations, indices)  # type: ignore[attr-defined]
+
+    def set_scales(self, scales, indices=None) -> None:
+        self._view._apply_world_scale_write(scales, indices)  # type: ignore[attr-defined]
+
+    def get_poses(self, indices=None) -> tuple[ProxyArray, ProxyArray]:
+        return self._view._get_world_poses_impl(indices)  # type: ignore[attr-defined]
+
+    def get_scales(self, indices=None) -> ProxyArray:
+        return self._view._get_world_scales_impl(indices)  # type: ignore[attr-defined]
+
+
+class _NewtonLocalSpaceWriter(_NewtonWriterMixin, FrameViewLocalSpaceWriter):
+    """Newton local-space writer: pass-through to backend ``_apply_*`` hooks."""
+
+    def set_poses(self, positions=None, orientations=None, indices=None) -> None:
+        if positions is None and orientations is None:
+            return
+        self._wrote_poses = True
+        self._view._apply_local_pose_write(positions, orientations, indices)  # type: ignore[attr-defined]
+
+    def set_scales(self, scales, indices=None) -> None:
+        self._view._apply_local_scale_write(scales, indices)  # type: ignore[attr-defined]
+
+    def get_poses(self, indices=None) -> tuple[ProxyArray, ProxyArray]:
+        return self._view._get_local_poses_impl(indices)  # type: ignore[attr-defined]
+
+    def get_scales(self, indices=None) -> ProxyArray:
+        return self._view._get_local_scales_impl(indices)  # type: ignore[attr-defined]

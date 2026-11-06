@@ -10,10 +10,13 @@ plots showing base path, base pose, object pose, start/end fixtures, and obstacl
 """
 
 import argparse
+import logging
 import os
 
 import h5py
 import matplotlib.pyplot as plt
+
+logger = logging.getLogger(__name__)
 
 
 def main() -> None:
@@ -58,7 +61,7 @@ def main() -> None:
         filter_demos = [d.strip() for d in args.demo_filter.split(",")]
         demos = [d for d in demos if d in filter_demos]
         if not demos:
-            print(f"Warning: No demos found matching filter '{args.demo_filter}'")
+            logger.warning(f"No demos found matching filter '{args.demo_filter}'")
             return
 
     print(f"Visualizing {len(demos)} demonstrations...")

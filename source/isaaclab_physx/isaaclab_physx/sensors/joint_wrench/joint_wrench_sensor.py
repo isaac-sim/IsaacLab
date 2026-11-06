@@ -11,21 +11,18 @@ import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import numpy as np
 import warp as wp
 
-from pxr import Usd, UsdPhysics
+from pxr import UsdPhysics
 
 from isaaclab.sensors.joint_wrench import BaseJointWrenchSensor
-from isaaclab.sim.utils.queries import find_first_matching_prim, get_all_matching_child_prims
-
-from isaaclab_physx.physics import PhysxManager as SimulationManager
+from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
+from isaaclab.utils.warp import memory as memory_kernels
 
 from .joint_wrench_sensor_data import JointWrenchSensorData
-from .kernels import joint_wrench_reset_kernel, joint_wrench_split_kernel
 
 if TYPE_CHECKING:
-    import omni.physics.tensors.api as physx
+    import omni.physics.tensors as physx
 
     from isaaclab.sensors.joint_wrench import JointWrenchSensorCfg
 
@@ -60,11 +57,11 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         super().__init__(cfg)
 
         self._data = JointWrenchSensorData()
-        self._physics_sim_view = None
         self._root_view: physx.ArticulationView | None = None
-        self._joint_pos_b: wp.array | None = None
-        self._joint_quat_b: wp.array | None = None
         self._num_bodies: int = 0
+        self._raw_incoming_joint_wrench: wp.array | None = None
+        self._update_cmd: wp.Launch | None = None
+        self._use_recorded_launch: bool = False
 
     def __str__(self) -> str:
         """String representation of the sensor instance."""
@@ -107,7 +104,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
         super().reset(None, env_mask)
         wp.launch(
-            joint_wrench_reset_kernel,
+            memory_kernels.make_clear_pair(wp.vec3f, 2),
             dim=(self._num_envs, self._num_bodies),
             inputs=[env_mask, self._data._force, self._data._torque],
             device=self._device,
@@ -121,89 +118,31 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         """PHYSICS_READY callback: builds the articulation view and allocates buffers."""
         super()._initialize_impl()
 
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
-        root_prim_path_expr = self._resolve_articulation_root_prim_path()
-        self._root_view = self._physics_sim_view.create_articulation_view(root_prim_path_expr.replace(".*", "*"))
+        def has_articulation_root_api(prim) -> bool:
+            return bool(prim.HasAPI(UsdPhysics.ArticulationRootAPI))
+
+        resolve_kwargs = {"predicate": has_articulation_root_api, "expected_num_matches": 1}
+        _, root_prim_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
+        self._root_view = self._backend_manager.views.get(root_prim_path_expr)
+        if self._root_view is None:
+            self._root_view = self._backend_manager.views[root_prim_path_expr] = (
+                self._backend_manager.get_physics_sim_view().create_articulation_view(
+                    path_expr_to_glob(root_prim_path_expr)
+                )
+            )
         if self._root_view._backend is None:
             raise RuntimeError(f"Failed to create articulation view at: {root_prim_path_expr}. Check PhysX logs.")
+        self._check_env_count(self._root_view.count, root_prim_path_expr)
 
         self._num_bodies = self._root_view.shared_metatype.link_count
         if self._num_bodies == 0:
             raise RuntimeError(f"Joint wrench sensor matched zero bodies at '{self.cfg.prim_path}'.")
 
         self._data._body_names = list(self._root_view.shared_metatype.link_names)
-        self._create_joint_frame_buffers()
         self._data.create_buffers(num_envs=self._num_envs, num_bodies=self._num_bodies, device=self._device)
+        self._use_recorded_launch = wp.get_device(self._device).is_cuda
 
         logger.info(f"Joint wrench sensor initialized: {self._num_envs} envs, {self._num_bodies} bodies")
-
-    def _resolve_articulation_root_prim_path(self) -> str:
-        """Resolve the articulation root prim path expression from the configured asset prim path."""
-        first_env_matching_prim = find_first_matching_prim(self.cfg.prim_path)
-        if first_env_matching_prim is None:
-            raise RuntimeError(f"Failed to find prim for expression: '{self.cfg.prim_path}'.")
-        first_env_matching_prim_path = first_env_matching_prim.GetPath().pathString
-
-        first_env_root_prims = get_all_matching_child_prims(
-            first_env_matching_prim_path,
-            predicate=lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI)
-            and prim.GetAttribute("physxArticulation:articulationEnabled").Get() is not False,
-            traverse_instance_prims=False,
-        )
-        if len(first_env_root_prims) == 0:
-            raise RuntimeError(
-                f"Failed to find an articulation when resolving '{first_env_matching_prim_path}'."
-                " Please ensure that the prim has 'USD ArticulationRootAPI' applied."
-            )
-        if len(first_env_root_prims) > 1:
-            raise RuntimeError(
-                f"Failed to find a single articulation when resolving '{first_env_matching_prim_path}'."
-                f" Found multiple '{first_env_root_prims}' under '{first_env_matching_prim_path}'."
-                " Please ensure that there is only one articulation in the prim path tree."
-            )
-
-        first_env_root_prim_path = first_env_root_prims[0].GetPath().pathString
-        root_prim_path_relative_to_prim_path = first_env_root_prim_path[len(first_env_matching_prim_path) :]
-        return self.cfg.prim_path + root_prim_path_relative_to_prim_path
-
-    def _create_joint_frame_buffers(self) -> None:
-        """Create child-side joint frame transforms indexed by PhysX link order."""
-        joint_pos_b = np.zeros((self._num_bodies, 3), dtype=np.float32)
-        joint_quat_b = np.zeros((self._num_bodies, 4), dtype=np.float32)
-        joint_quat_b[:, 3] = 1.0
-
-        first_env_matching_prim = find_first_matching_prim(self.cfg.prim_path)
-        if first_env_matching_prim is None:
-            raise RuntimeError(f"Failed to find prim for expression: '{self.cfg.prim_path}'.")
-        link_name_to_index = {name: index for index, name in enumerate(self._data._body_names)}
-
-        for prim in Usd.PrimRange(first_env_matching_prim):
-            joint = UsdPhysics.Joint(prim)
-            if not joint or joint.GetJointEnabledAttr().Get() is False:
-                continue
-            body1_targets = joint.GetBody1Rel().GetTargets()
-            if len(body1_targets) == 0:
-                continue
-            body_index = link_name_to_index.get(body1_targets[0].name)
-            if body_index is None:
-                continue
-
-            local_pos1 = joint.GetLocalPos1Attr().Get()
-            if local_pos1 is not None:
-                joint_pos_b[body_index] = (float(local_pos1[0]), float(local_pos1[1]), float(local_pos1[2]))
-
-            local_rot1 = joint.GetLocalRot1Attr().Get()
-            if local_rot1 is not None:
-                local_rot1_imag = local_rot1.GetImaginary()
-                joint_quat_b[body_index] = (
-                    float(local_rot1_imag[0]),
-                    float(local_rot1_imag[1]),
-                    float(local_rot1_imag[2]),
-                    float(local_rot1.GetReal()),
-                )
-
-        self._joint_pos_b = wp.array(joint_pos_b, dtype=wp.vec3f, device=self._device)
-        self._joint_quat_b = wp.array(joint_quat_b, dtype=wp.quatf, device=self._device)
 
     def _update_buffers_impl(self, env_mask: wp.array) -> None:
         """Read PhysX incoming joint wrenches and split them into force / torque buffers.
@@ -216,23 +155,51 @@ class JointWrenchSensor(BaseJointWrenchSensor):
                 f"Joint wrench sensor '{self.cfg.prim_path}': not initialized."
                 " Access sensor data only after sim.reset() has been called."
             )
-        if self._joint_pos_b is None or self._joint_quat_b is None:
-            raise RuntimeError(f"Joint wrench sensor '{self.cfg.prim_path}': joint frame buffers are not initialized.")
 
-        incoming_joint_wrench = self._root_view.get_link_incoming_joint_force().view(wp.spatial_vectorf)
-        wp.launch(
-            joint_wrench_split_kernel,
+        # Refresh the PhysX buffer every update, but create its typed Warp view only once:
+        # the getter lazily allocates its output buffer and refreshes the same memory in place
+        # on every call, so the cached view (and the recorded launch that consumes it) stays
+        # valid. A re-backed buffer would silently freeze the sensor data, so fail loudly.
+        incoming_joint_wrench = self._root_view.get_link_incoming_joint_force()
+        if self._raw_incoming_joint_wrench is None:
+            self._raw_incoming_joint_wrench = incoming_joint_wrench.view(wp.spatial_vectorf)
+        elif incoming_joint_wrench.ptr != self._raw_incoming_joint_wrench.ptr:
+            raise RuntimeError(
+                f"The PhysX joint wrench buffer of the sensor at '{self.cfg.prim_path}' was"
+                " re-allocated after its warp view was cached. The cached view and the recorded"
+                " launch require a pointer-stable buffer refreshed in place."
+            )
+
+        if self._use_recorded_launch:
+            if self._update_cmd is None:
+                try:
+                    self._update_cmd = self._launch_update(env_mask, record_cmd=True)
+                except Exception as exc:
+                    self._use_recorded_launch = False
+                    logger.warning(
+                        f"Failed to record the update of the joint wrench sensor at '{self.cfg.prim_path}'."
+                        f" Falling back to eager kernel launches. Reason: {exc}"
+                    )
+            if self._update_cmd is not None:
+                self._update_cmd.launch()
+                return
+
+        self._launch_update(env_mask)
+
+    def _launch_update(self, env_mask: wp.array, record_cmd: bool = False) -> wp.Launch | None:
+        """Launch or record the kernel that updates the joint wrench buffers."""
+
+        return wp.launch(
+            memory_kernels.make_split(wp.vec3f, wp.vec3f, 2),
             dim=(self._num_envs, self._num_bodies),
             inputs=[
+                self._raw_incoming_joint_wrench.view(wp.float32),
                 env_mask,
-                incoming_joint_wrench,
-                self._joint_pos_b,
-                self._joint_quat_b,
-                self._timestamp,
                 self._data._force,
                 self._data._torque,
             ],
             device=self._device,
+            record_cmd=record_cmd,
         )
 
     def _invalidate_initialize_callback(self, event) -> None:
@@ -242,11 +209,10 @@ class JointWrenchSensor(BaseJointWrenchSensor):
             event: An invalidate event.
         """
         super()._invalidate_initialize_callback(event)
-        self._physics_sim_view = None
         self._root_view = None
-        self._joint_pos_b = None
-        self._joint_quat_b = None
         self._num_bodies = 0
+        self._raw_incoming_joint_wrench = None
+        self._update_cmd = None
         self._data._force = None
         self._data._torque = None
         self._data._body_names = []

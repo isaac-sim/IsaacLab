@@ -7,17 +7,21 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
+import sys
 
 import torch
 import warp as wp
 
 from pxr import Usd
 
-import isaaclab.sim as sim_utils
-from isaaclab.app.settings_manager import SettingsManager
+from isaaclab.app.settings_manager import get_settings_manager
+from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
 from isaaclab.sim.views.base_frame_view import BaseFrameView
+from isaaclab.sim.views.fabric_xform_selection import FabricXformSelection
 from isaaclab.sim.views.usd_frame_view import UsdFrameView
+from isaaclab.sim.views.xform_space_writer import FrameViewLocalSpaceWriter, FrameViewWorldSpaceWriter
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp import fabric as fabric_utils
 
@@ -44,23 +48,117 @@ class FabricFrameView(BaseFrameView):
     """FrameView with Fabric GPU acceleration for the PhysX backend.
 
     Uses composition: holds a :class:`UsdFrameView` internally for USD
-    fallback and non-accelerated operations (local poses, visibility, scales
-    when Fabric is disabled).
+    fallback and non-accelerated operations (visibility, and all pose/scale
+    operations when Fabric is disabled).
 
-    When Fabric is enabled, world-pose and scale operations use Warp kernels
-    operating on ``omni:fabric:worldMatrix``.  Fabric acceleration runs on
-    the same CUDA device the view was constructed with — ``cuda:0``,
-    ``cuda:1``, or any other available CUDA index — so this view is safe
-    to use from distributed-training workers pinned to non-primary GPUs.
+    When Fabric is enabled, world-pose, local-pose, and scale operations run
+    on the GPU via Warp kernels that read and write
+    ``omni:fabric:worldMatrix`` and ``omni:fabric:localMatrix`` directly.
     All other operations delegate to the internal USD view.
 
-    After every Fabric write (``set_world_poses``, ``set_scales``),
-    :meth:`PrepareForReuse` is called on the ``PrimSelection`` to notify
-    the FSD renderer that Fabric data has changed and to detect topology
-    changes that require rebuilding internal mappings.  Read operations
-    do not call PrepareForReuse to avoid unnecessary renderer invalidation.
+    All writes go through the writer-scope API
+    (:meth:`xform_world_space_writer` / :meth:`xform_local_space_writer`,
+    recommended) or the
+    convenience :meth:`set_world_poses` / :meth:`set_local_poses` / etc. helpers
+    inherited from :class:`BaseFrameView`.
 
-    Pose getters return :class:`~isaaclab.utils.warp.ProxyArray`.  Setters accept ``wp.array``.
+    Behavior (Fabric path):
+
+    * **Leaf-prim assumption.**  This view manages a flat set of sibling prims
+      (e.g. all cameras under ``/World/Env_*/Camera``).  It does NOT propagate
+      transforms to child prims.  If a managed prim has children whose world
+      matrices depend on the parent, those children must be updated via a
+      separate view, a physics step, or ``IFabricHierarchy.update_world_xforms``.
+    * **No write-back to USD.**  Fabric writes update only
+      ``omni:fabric:worldMatrix`` / ``omni:fabric:localMatrix``; the prim's
+      USD ``xformOp:*`` attributes are unchanged.  Downstream consumers that
+      read the prim's USD attributes after a Fabric write will see stale
+      values until the next USD-side sync.
+    * **Eager dual-write inside a writer scope (no dirty tracking).**
+      When a writer scope is open, all writes go to the primary attribute
+      (``worldMatrix`` for the world writer, ``localMatrix`` for the local
+      writer).  On scope exit, a single Warp kernel derives the opposite
+      attribute and a single ``wp.synchronize()`` runs.  After the scope
+      exits, both Fabric matrices are self-consistent.  Getters launch
+      their own decompose kernel and ``wp.synchronize()`` before returning,
+      so a returned :class:`ProxyArray` is always immediately readable from
+      either GPU or host code (no caller-side sync required).
+
+      The opposite-space derive runs even when the scope unwinds via
+      exception (including ``KeyboardInterrupt`` in interactive notebooks),
+      as a best-effort to keep ``worldMatrix`` and ``localMatrix``
+      mutually consistent on whatever partial-write state Fabric holds.
+      The partial write itself is not rolled back -- if you need
+      transactional all-or-nothing semantics, snapshot the matrices
+      yourself before entering the scope.
+    * **Fabric Hierarchy listeners are paused while a writer scope is
+      active when the hierarchy bindings are available.**  On enter, the writer calls
+      :meth:`IFabricHierarchy.track_local_xform_changes(False)` /
+      :meth:`track_world_xform_changes(False)` (saving the prior state).
+      Fabric itself is just a flat attribute store; the plugin that
+      keeps ``omni:fabric:worldMatrix`` and ``omni:fabric:localMatrix``
+      mutually consistent across the prim hierarchy is
+      :class:`usdrt.hierarchy.IFabricHierarchy` (a.k.a. Fabric
+      Hierarchy).  Its change tracking is pull-based: a per-attribute
+      listener records writes into a private changelog, and the plugin
+      drains and processes that changelog on the next call to
+      ``IFabricHierarchy::update_world_xforms()`` (typically from the
+      render path).  "Tracking off" just stops the listener from
+      recording new entries -- writes still land in Fabric storage;
+      they are simply invisible to the next ``update_world_xforms()``
+      call.
+
+      That is exactly what we want.  Inside the scope we write one
+      space (world or local) and, at scope exit, derive the other in a
+      single batched kernel so both matrices are mutually consistent.
+      If tracking were left on, our writes would be queued in the
+      changelog and the next ``update_world_xforms()`` tick would
+      process them -- choosing a canonical direction (e.g. "user
+      authored local, recompute world from it") and potentially
+      overwriting one half of our just-consistent pair.  With tracking
+      paused for the duration of the scope, the changelog stays empty
+      for these prims and the next tick is a no-op for them.
+
+      ``__exit__`` restores the prior tracking state (so we do not
+      re-enable listeners the caller had previously paused).  The
+      Fabric Scene Delegate (FSD) reads ``omni:fabric:worldMatrix``
+      directly from Fabric storage on the render path; it observes our
+      final writes unchanged.
+
+      Headless experiences without FSD do not expose the hierarchy Python
+      bindings and do not run hierarchy update ticks.  In that case the
+      writer skips listener pause/restore while retaining the same direct
+      Fabric matrix writes.
+
+      Note: the scope is synchronous Python code, so no simulation step
+      and no render tick can run while it is open -- callers must not
+      advance the simulation from inside the scope (see
+      :mod:`isaaclab.sim.views.xform_space_writer` for the full contract).
+      The "torn data" concern is what motivates that no-step rule; it
+      is separate from why the tracking pause exists.
+    * **Selections are scoped to the view, not the stage.**  The view tags its
+      own prims (and their parents) with private per-view index attributes and
+      requires those attributes in every prim selection, so a selection resolves
+      to exactly the prims the view manages however large the stage grows.
+      Tag names are unique per view instance, so views never interfere with one
+      another.  The tags are authored on first use and removed again by
+      :meth:`close` -- or, best-effort and with a warning, when the view is
+      garbage collected.  Call :meth:`close` when done with a view;
+      collection timing is up to the interpreter, so relying on it can remove
+      the tags at an arbitrary point in the frame (or, on a leaked reference,
+      not at all).
+    * **Topology changes are absorbed, with no cache to invalidate.**  The
+      view-to-Fabric mapping is re-derived from live Fabric data on every
+      access, so prims moving between Fabric buckets can never leave a stale
+      mapping behind.  If a managed prim disappears (prim or attribute removed)
+      the next access raises :class:`RuntimeError` and the view must be
+      recreated.  See :class:`FabricXformSelection` for how this is done.
+
+    Pose getters return :class:`~isaaclab.utils.warp.ProxyArray`; the
+    convenience :meth:`set_world_poses` / :meth:`set_local_poses` helpers accept
+    :class:`wp.array`.  Inside a writer scope, the writer's
+    :meth:`~FrameViewSpaceWriterBase.set_poses` / :meth:`~FrameViewSpaceWriterBase.set_scales`
+    accept :class:`wp.array`.
     """
 
     def __init__(
@@ -69,6 +167,7 @@ class FabricFrameView(BaseFrameView):
         device: str = "cpu",
         validate_xform_ops: bool = True,
         stage: Usd.Stage | None = None,
+        scene_data_backend: SceneDataBackend | None = None,
         **kwargs,
     ):
         """Initialize the view.
@@ -76,10 +175,11 @@ class FabricFrameView(BaseFrameView):
         Args:
             prim_path: USD prim-path pattern to match.
             device: Device for Warp arrays. Either ``"cpu"`` or any CUDA
-                device string (``"cuda:0"``, ``"cuda:1"``, …); Fabric
+                device string (``"cuda:0"``, ``"cuda:1"``, ...); Fabric
                 acceleration is supported on every CUDA index.
             validate_xform_ops: Whether to validate prim xform-ops.
             stage: USD stage; defaults to the current sim context's stage.
+            scene_data_backend: Native scene publication owner for views attached to a running simulation.
             **kwargs: Additional keyword arguments (ignored). Matches the signature of
                 :class:`~isaaclab.sim.views.UsdFrameView` so that the top-level
                 :class:`~isaaclab.sim.views.FrameView` factory can forward backend-agnostic
@@ -87,21 +187,62 @@ class FabricFrameView(BaseFrameView):
         """
         self._usd_view = UsdFrameView(prim_path, device=device, validate_xform_ops=validate_xform_ops, stage=stage)
         self._device = device
+        self._scene_data_backend = scene_data_backend
 
-        settings = SettingsManager.instance()
+        settings = get_settings_manager()
         self._use_fabric = bool(settings.get("/physics/fabricEnabled", False))
-        # TODO(pv): Misleading abstraction — FabricFrameView can fall back to USD internally;
+
+        # TODO(pv): Misleading abstraction -- FabricFrameView can fall back to USD internally;
         # the concrete class should be determined by the factory instead. (PR #5673 pv/fabric-view-no-fallback)
-        # TODO(pv): Fuse set_world_poses/set_scales into single kernel launch (PR #5674 pv/fabric-fused-compose)
 
         self._fabric_initialized = False
-        self._fabric_usd_sync_done = False
-        self._fabric_selection = None
-        self._fabric_to_view: wp.array | None = None
-        self._view_to_fabric: wp.array | None = None
-        self._default_view_indices: wp.array | None = None
-        self._fabric_hierarchy = None
-        self._view_index_attr = f"isaaclab:view_index:{abs(hash(self))}"
+
+        # Prim tagging, the persistent selections, and the view->fabric slot mapping all live in the
+        # shared selection, initialized once in ``_update_fabric``.
+        self._fabric_sel: FabricXformSelection | None = None
+
+        # Sentinel passed to compose/decompose kernels for unused slots.
+        self._fabric_empty_2d_array_sentinel: wp.array | None = None
+
+        # Keeps ``close()`` idempotent and lets ``__del__`` warn when it had to do the cleanup.
+        self._is_closed: bool = False
+
+    def close(self) -> None:
+        """Remove this view's Fabric index attributes. The view must not be used afterwards.
+
+        Calling :meth:`close` again is a no-op.  If :meth:`close` is never
+        called, the same cleanup runs best-effort from ``__del__`` (with a
+        warning, since collection timing is up to the interpreter) -- except at
+        interpreter exit, where Fabric is being torn down anyway and the
+        attributes die with it.
+        """
+        if self._is_closed:
+            return
+        self._is_closed = True
+        if self._fabric_sel is not None:
+            self._fabric_sel.close()
+
+    def __del__(self, _sys=sys):
+        """Best-effort cleanup when the view is collected without :meth:`close`.
+
+        Follows the repo's shutdown-safe ``__del__`` idiom (see
+        :meth:`~isaaclab.envs.ManagerBasedEnv.__del__`): ``sys`` is bound as a
+        default argument so it survives module teardown, and nothing runs during
+        interpreter finalization, when calling into Kit can crash and the
+        attributes die with Fabric anyway.
+        """
+        # getattr: __init__ may have raised before the flag existed
+        if getattr(self, "_is_closed", True) or _sys.is_finalizing() or _sys.meta_path is None:
+            return
+        if self._fabric_sel is not None:
+            logger.warning(
+                "FabricFrameView(%s) was garbage-collected without close(); its Fabric index "
+                "attributes were removed best-effort at an arbitrary point in the frame. Call "
+                "close() for deterministic cleanup.",
+                self._usd_view._prim_path,
+            )
+        with contextlib.suppress(Exception):  # never propagate from __del__
+            self.close()
 
     # ------------------------------------------------------------------
     # Delegated properties
@@ -135,59 +276,27 @@ class FabricFrameView(BaseFrameView):
         self._usd_view.set_visibility(visibility, indices)
 
     # ------------------------------------------------------------------
-    # World poses — Fabric-accelerated or USD fallback
+    # Writer factory hooks
     # ------------------------------------------------------------------
 
-    def set_world_poses(self, positions=None, orientations=None, indices=None):
+    def _make_world_space_writer(self) -> FrameViewWorldSpaceWriter:
         if not self._use_fabric:
-            self._usd_view.set_world_poses(positions, orientations, indices)
-            return
+            return _FabricFallbackWorldWriter(self)
+        return _FabricWorldSpaceWriter(self)
 
-        if not self._fabric_initialized:
-            self._initialize_fabric()
-
-        self._prepare_for_reuse()
-
-        indices_wp = self._resolve_indices_wp(indices)
-        count = indices_wp.shape[0]
-
-        dummy = wp.zeros((0, 3), dtype=wp.float32, device=self._device)
-        positions_wp = _to_float32_2d(positions) if positions is not None else dummy
-        orientations_wp = (
-            _to_float32_2d(orientations)
-            if orientations is not None
-            else wp.zeros((0, 4), dtype=wp.float32, device=self._device)
-        )
-
-        wp.launch(
-            kernel=fabric_utils.compose_fabric_transformation_matrix_from_warp_arrays,
-            dim=count,
-            inputs=[
-                self._fabric_world_matrices,
-                positions_wp,
-                orientations_wp,
-                dummy,
-                False,
-                False,
-                False,
-                indices_wp,
-                self._view_to_fabric,
-            ],
-            device=self._fabric_device,
-        )
-        wp.synchronize()
-
-        self._fabric_hierarchy.update_world_xforms()
-        self._fabric_usd_sync_done = True
-
-    def get_world_poses(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
+    def _make_local_space_writer(self) -> FrameViewLocalSpaceWriter:
         if not self._use_fabric:
-            return self._usd_view.get_world_poses(indices)
+            return _FabricFallbackLocalWriter(self)
+        return _FabricLocalSpaceWriter(self)
 
-        if not self._fabric_initialized:
-            self._initialize_fabric()
-        if not self._fabric_usd_sync_done:
-            self._sync_fabric_from_usd_once()
+    # ------------------------------------------------------------------
+    # Getter hooks -- read current Fabric transforms
+    # ------------------------------------------------------------------
+    def _get_world_poses_impl(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
+        if not self._use_fabric:
+            return self._usd_view._get_world_poses_impl(indices)
+
+        self._update_fabric()
 
         indices_wp = self._resolve_indices_wp(indices)
         count = indices_wp.shape[0]
@@ -201,85 +310,82 @@ class FabricFrameView(BaseFrameView):
             orientations_wp = wp.zeros((count, 4), dtype=wp.float32, device=self._device)
 
         wp.launch(
-            kernel=fabric_utils.decompose_fabric_transformation_matrix_to_warp_arrays,
+            kernel=fabric_utils.decompose_indexed_fabric_transforms,
             dim=count,
             inputs=[
-                self._fabric_world_matrices,
+                self._fabric_sel.world_ifa(),
                 positions_wp,
                 orientations_wp,
-                self._fabric_dummy_buffer,
+                self._fabric_empty_2d_array_sentinel,
                 indices_wp,
-                self._view_to_fabric,
             ],
-            device=self._fabric_device,
+            device=self._device,
         )
 
+        # Sync before returning regardless of caching path: the cached buffers
+        # are reused (an in-flight kernel from a prior call must finish before
+        # the new write is observable) and the fresh-allocation path must also
+        # complete before the caller can read the returned ProxyArray via any
+        # host-visible accessor without observing zeros.
+        wp.synchronize()
         if use_cached:
-            wp.synchronize()
             return self._fabric_positions_ta, self._fabric_orientations_ta
         return ProxyArray(positions_wp), ProxyArray(orientations_wp)
 
-    # ------------------------------------------------------------------
-    # Local poses — USD fallback (Fabric only accelerates world poses)
-    # ------------------------------------------------------------------
-
-    def set_local_poses(self, translations=None, orientations=None, indices=None):
-        self._usd_view.set_local_poses(translations, orientations, indices)
-
-    def get_local_poses(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
-        return self._usd_view.get_local_poses(indices)
-
-    # ------------------------------------------------------------------
-    # Scales — Fabric-accelerated or USD fallback
-    # ------------------------------------------------------------------
-
-    def set_scales(self, scales, indices=None):
+    def _get_local_poses_impl(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
         if not self._use_fabric:
-            self._usd_view.set_scales(scales, indices)
-            return
+            return self._usd_view._get_local_poses_impl(indices)
 
-        if not self._fabric_initialized:
-            self._initialize_fabric()
-
-        self._prepare_for_reuse()
+        self._update_fabric()
 
         indices_wp = self._resolve_indices_wp(indices)
         count = indices_wp.shape[0]
 
-        dummy3 = wp.zeros((0, 3), dtype=wp.float32, device=self._device)
-        dummy4 = wp.zeros((0, 4), dtype=wp.float32, device=self._device)
-        scales_wp = _to_float32_2d(scales)
+        use_cached = indices is None or indices == slice(None)
+        if use_cached:
+            translations_wp = self._fabric_local_translations_buf
+            orientations_wp = self._fabric_local_orientations_buf
+        else:
+            translations_wp = wp.zeros((count, 3), dtype=wp.float32, device=self._device)
+            orientations_wp = wp.zeros((count, 4), dtype=wp.float32, device=self._device)
 
         wp.launch(
-            kernel=fabric_utils.compose_fabric_transformation_matrix_from_warp_arrays,
+            kernel=fabric_utils.decompose_indexed_fabric_transforms,
             dim=count,
             inputs=[
-                self._fabric_world_matrices,
-                dummy3,
-                dummy4,
-                scales_wp,
-                False,
-                False,
-                False,
+                self._fabric_sel.local_ifa(),
+                translations_wp,
+                orientations_wp,
+                self._fabric_empty_2d_array_sentinel,
                 indices_wp,
-                self._view_to_fabric,
             ],
-            device=self._fabric_device,
+            device=self._device,
         )
+
+        # See note in _get_world_poses_impl: sync regardless of caching path.
         wp.synchronize()
+        if use_cached:
+            return self._fabric_local_translations_ta, self._fabric_local_orientations_ta
+        return ProxyArray(translations_wp), ProxyArray(orientations_wp)
 
-        self._fabric_hierarchy.update_world_xforms()
-        self._fabric_usd_sync_done = True
-
-    def get_scales(self, indices=None):
+    def _get_world_scales_impl(self, indices=None) -> ProxyArray:
         if not self._use_fabric:
-            return self._usd_view.get_scales(indices)
+            return self._usd_view._get_world_scales_impl(indices)
 
-        if not self._fabric_initialized:
-            self._initialize_fabric()
-        if not self._fabric_usd_sync_done:
-            self._sync_fabric_from_usd_once()
+        self._update_fabric()
 
+        return self._decompose_scales(self._fabric_sel.world_ifa(), indices)
+
+    def _get_local_scales_impl(self, indices=None) -> ProxyArray:
+        if not self._use_fabric:
+            return self._usd_view._get_local_scales_impl(indices)
+
+        self._update_fabric()
+
+        return self._decompose_scales(self._fabric_sel.local_ifa(), indices)
+
+    def _decompose_scales(self, ro_array, indices) -> ProxyArray:
+        """Shared scale-decompose path for world / local getters."""
         indices_wp = self._resolve_indices_wp(indices)
         count = indices_wp.shape[0]
 
@@ -290,168 +396,370 @@ class FabricFrameView(BaseFrameView):
             scales_wp = wp.zeros((count, 3), dtype=wp.float32, device=self._device)
 
         wp.launch(
-            kernel=fabric_utils.decompose_fabric_transformation_matrix_to_warp_arrays,
+            kernel=fabric_utils.decompose_indexed_fabric_transforms,
             dim=count,
             inputs=[
-                self._fabric_world_matrices,
-                self._fabric_dummy_buffer,
-                self._fabric_dummy_buffer,
+                ro_array,
+                self._fabric_empty_2d_array_sentinel,
+                self._fabric_empty_2d_array_sentinel,
                 scales_wp,
                 indices_wp,
-                self._view_to_fabric,
             ],
-            device=self._fabric_device,
+            device=self._device,
         )
 
+        # See note in _get_world_poses_impl: sync regardless of caching path.
+        wp.synchronize()
         if use_cached:
-            wp.synchronize()
-        return scales_wp
+            return self._fabric_scales_ta
+        return ProxyArray(scales_wp)
 
     # ------------------------------------------------------------------
-    # Internal — PrepareForReuse (renderer notification + topology tracking)
+    # Deprecated get_scales / set_scales hooks
     # ------------------------------------------------------------------
 
-    def _prepare_for_reuse(self) -> None:
-        """Call PrepareForReuse on the PrimSelection to notify the renderer.
+    def _get_scales_impl(self, indices=None) -> ProxyArray:
+        """Fabric: get_scales returns world-space scales (legacy behavior)."""
+        return self._get_world_scales_impl(indices)
 
-        PrepareForReuse serves two purposes:
+    def _set_scales_impl(self, scales, indices=None) -> None:
+        """Fabric: set_scales writes world-space scales via a one-shot writer scope."""
+        with self.xform_world_space_writer() as writer:
+            writer.set_scales(scales, indices)
 
-        1. **Renderer notification**: Tells FSD/Storm that Fabric data has
-           been (or will be) modified, so the next rendered frame reflects
-           the updated transforms.
-        2. **Topology change detection**: Returns True when Fabric's
-           internal memory layout changed (e.g., prims added/removed).
-           In that case, view-to-fabric index mappings and fabricarrays
-           must be rebuilt.
+    # ------------------------------------------------------------------
+    # Internal -- writer helpers
+    # ------------------------------------------------------------------
+
+    def _to_float32_2d_or_empty(self, data):
+        return self._fabric_empty_2d_array_sentinel if data is None else _to_float32_2d(data)
+
+    def _recompute_local_from_world_all(self) -> None:
+        """Derive ``localMatrix = inv(parent) * worldMatrix`` for every prim in the view.
+
+        Called from :class:`_FabricWorldSpaceWriter` ``__exit__`` to keep the
+        (world, local) pair self-consistent after a world-space write.
+        Storage convention: see
+        :func:`isaaclab.utils.warp.fabric.update_indexed_local_matrix_from_world`.
         """
-        if self._fabric_selection is None:
-            return
-
-        topology_changed = self._fabric_selection.PrepareForReuse()
-        if topology_changed:
-            logger.info("Fabric topology changed — rebuilding view-to-fabric index mapping.")
-            self._rebuild_fabric_arrays()
-
-    def _rebuild_fabric_arrays(self) -> None:
-        """Rebuild fabricarray and view↔fabric mappings after a topology change.
-
-        Note: Only index mappings and fabricarrays are rebuilt.  Position/orientation/scale
-        buffers are *not* resized because ``self.count`` is derived from the USD prim-path
-        pattern (via ``_usd_view.count``) and does not change when Fabric rearranges its
-        internal memory layout.  The assertion below guards this invariant.
-        """
-        assert self.count == self._default_view_indices.shape[0], (
-            f"Prim count changed ({self.count} vs {self._default_view_indices.shape[0]}). "
-            "Fabric topology change added/removed tracked prims — full re-initialization required."
-        )
-        self._view_to_fabric = wp.zeros((self.count,), dtype=wp.uint32, device=self._fabric_device)
-        self._fabric_to_view = wp.fabricarray(self._fabric_selection, self._view_index_attr)
-
+        world_ifa, local_ifa = self._fabric_sel.child_ifas()
         wp.launch(
-            kernel=fabric_utils.set_view_to_fabric_array,
-            dim=self._fabric_to_view.shape[0],
-            inputs=[self._fabric_to_view, self._view_to_fabric],
-            device=self._fabric_device,
-        )
-        wp.synchronize()
-
-        self._fabric_world_matrices = wp.fabricarray(self._fabric_selection, "omni:fabric:worldMatrix")
-
-    # ------------------------------------------------------------------
-    # Internal — Fabric initialization
-    # ------------------------------------------------------------------
-
-    def _initialize_fabric(self) -> None:
-        """Initialize Fabric batch infrastructure for GPU-accelerated pose queries."""
-        import usdrt  # noqa: PLC0415
-        from usdrt import Rt  # noqa: PLC0415
-
-        stage_id = sim_utils.get_current_stage_id()
-        fabric_stage = usdrt.Usd.Stage.Attach(stage_id)
-
-        for i in range(self.count):
-            rt_prim = fabric_stage.GetPrimAtPath(self.prim_paths[i])
-            rt_xformable = Rt.Xformable(rt_prim)
-
-            has_attr = (
-                rt_xformable.HasFabricHierarchyWorldMatrixAttr()
-                if hasattr(rt_xformable, "HasFabricHierarchyWorldMatrixAttr")
-                else False
-            )
-            if not has_attr:
-                rt_xformable.CreateFabricHierarchyWorldMatrixAttr()
-
-            rt_xformable.SetWorldXformFromUsd()
-
-            rt_prim.CreateAttribute(self._view_index_attr, usdrt.Sdf.ValueTypeNames.UInt, custom=True)
-            rt_prim.GetAttribute(self._view_index_attr).Set(i)
-
-        self._fabric_hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
-            fabric_stage.GetFabricId(), fabric_stage.GetStageIdAsStageId()
-        )
-        self._fabric_hierarchy.update_world_xforms()
-
-        self._default_view_indices = wp.zeros((self.count,), dtype=wp.uint32, device=self._device)
-        wp.launch(
-            kernel=fabric_utils.arange_k, dim=self.count, inputs=[self._default_view_indices], device=self._device
-        )
-        wp.synchronize()
-
-        self._fabric_selection = fabric_stage.SelectPrims(
-            require_attrs=[
-                (usdrt.Sdf.ValueTypeNames.UInt, self._view_index_attr, usdrt.Usd.Access.Read),
-                (usdrt.Sdf.ValueTypeNames.Matrix4d, "omni:fabric:worldMatrix", usdrt.Usd.Access.ReadWrite),
+            kernel=fabric_utils.update_indexed_local_matrix_from_world,
+            dim=self.count,
+            inputs=[
+                world_ifa,
+                self._fabric_sel.parent_world_ifa(),
+                local_ifa,
+                self._fabric_sel.view_indices,
             ],
             device=self._device,
         )
 
-        self._view_to_fabric = wp.zeros((self.count,), dtype=wp.uint32, device=self._device)
-        self._fabric_to_view = wp.fabricarray(self._fabric_selection, self._view_index_attr)
+    def _recompute_world_from_local_all(self) -> None:
+        """Derive ``worldMatrix = parent * localMatrix`` for every prim in the view.
 
+        Called from :class:`_FabricLocalSpaceWriter` ``__exit__``.
+        Storage convention: see
+        :func:`isaaclab.utils.warp.fabric.update_indexed_world_matrix_from_local`.
+        """
+        world_ifa, local_ifa = self._fabric_sel.child_ifas()
         wp.launch(
-            kernel=fabric_utils.set_view_to_fabric_array,
-            dim=self._fabric_to_view.shape[0],
-            inputs=[self._fabric_to_view, self._view_to_fabric],
+            kernel=fabric_utils.update_indexed_world_matrix_from_local,
+            dim=self.count,
+            inputs=[
+                local_ifa,
+                self._fabric_sel.parent_world_ifa(),
+                world_ifa,
+                self._fabric_sel.view_indices,
+            ],
             device=self._device,
         )
-        wp.synchronize()
-
-        self._fabric_positions_buf = wp.zeros((self.count, 3), dtype=wp.float32, device=self._device)
-        self._fabric_orientations_buf = wp.zeros((self.count, 4), dtype=wp.float32, device=self._device)
-        self._fabric_positions_ta = ProxyArray(self._fabric_positions_buf)
-        self._fabric_orientations_ta = ProxyArray(self._fabric_orientations_buf)
-        self._fabric_scales_buf = wp.zeros((self.count, 3), dtype=wp.float32, device=self._device)
-        self._fabric_dummy_buffer = wp.zeros((0, 3), dtype=wp.float32, device=self._device)
-        self._fabric_world_matrices = wp.fabricarray(self._fabric_selection, "omni:fabric:worldMatrix")
-        self._fabric_stage = fabric_stage
-        self._fabric_device = self._device
-
-        self._fabric_initialized = True
-        self._fabric_usd_sync_done = False
-
-    def _sync_fabric_from_usd_once(self) -> None:
-        """Sync Fabric world matrices from USD once, on the first read.
-
-        ``set_world_poses`` and ``set_scales`` each set ``_fabric_usd_sync_done``
-        themselves, so no explicit flag assignment is needed here.
-        """
-        if not self._fabric_initialized:
-            self._initialize_fabric()
-
-        positions_usd_ta, orientations_usd_ta = self._usd_view.get_world_poses()
-        positions_usd = positions_usd_ta.warp
-        orientations_usd = orientations_usd_ta.warp
-        scales_usd = self._usd_view.get_scales()
-
-        self.set_world_poses(positions_usd, orientations_usd)
-        self.set_scales(scales_usd)
 
     def _resolve_indices_wp(self, indices: wp.array | None) -> wp.array:
         """Resolve view indices as a Warp uint32 array."""
         if indices is None or indices == slice(None):
-            if self._default_view_indices is None:
-                raise RuntimeError("Fabric indices are not initialized.")
-            return self._default_view_indices
-        if indices.dtype != wp.uint32:
-            return wp.array(indices.numpy().astype("uint32"), dtype=wp.uint32, device=self._device)
-        return indices
+            if self._fabric_sel is None:
+                raise RuntimeError("Fabric view indices are not initialized.")
+            return self._fabric_sel.view_indices
+        if indices.dtype == wp.uint32:
+            return indices
+        if indices.dtype == wp.int32:
+            # Zero-copy reinterpret: callers (e.g. Camera) pass non-negative int32 indices.
+            # Device placement is not checked here; ``wp.launch`` validates it for every input.
+            return indices.view(wp.uint32)
+        return wp.array(indices.numpy().astype("uint32"), dtype=wp.uint32, device=self._device)
+
+    # ------------------------------------------------------------------
+    # Internal -- Fabric initialization
+    # ------------------------------------------------------------------
+    def _update_fabric(self) -> None:
+        """Publish current native poses and initialize this view's selections once."""
+        if self._scene_data_backend is not None:
+            self._scene_data_backend.get_transforms(SceneDataFormat.FabricMatrix44)
+        if self._fabric_initialized:
+            return
+        self._fabric_sel = FabricXformSelection(
+            list(self.prim_paths),
+            self._device,
+            owner=type(self).__name__,
+        )
+        if self._scene_data_backend is not None and self._fabric_sel.fabric_hierarchy is not None:
+            # New mounts need their world matrices derived from the published native parent poses.
+            self._fabric_sel.fabric_hierarchy.update_world_xforms()
+
+        # Pre-allocated reusable output buffers (world + local + scales).
+        self._fabric_positions_buf = wp.zeros((self.count, 3), dtype=wp.float32, device=self._device)
+        self._fabric_orientations_buf = wp.zeros((self.count, 4), dtype=wp.float32, device=self._device)
+        self._fabric_scales_buf = wp.zeros((self.count, 3), dtype=wp.float32, device=self._device)
+        self._fabric_local_translations_buf = wp.zeros((self.count, 3), dtype=wp.float32, device=self._device)
+        self._fabric_local_orientations_buf = wp.zeros((self.count, 4), dtype=wp.float32, device=self._device)
+        self._fabric_empty_2d_array_sentinel = wp.zeros((0, 0), dtype=wp.float32, device=self._device)
+
+        self._fabric_positions_ta = ProxyArray(self._fabric_positions_buf)
+        self._fabric_orientations_ta = ProxyArray(self._fabric_orientations_buf)
+        self._fabric_scales_ta = ProxyArray(self._fabric_scales_buf)
+        self._fabric_local_translations_ta = ProxyArray(self._fabric_local_translations_buf)
+        self._fabric_local_orientations_ta = ProxyArray(self._fabric_local_orientations_buf)
+
+        self._fabric_initialized = True
+
+
+# ----------------------------------------------------------------------
+# Concrete writer classes for FabricFrameView
+# ----------------------------------------------------------------------
+
+
+class _FabricWriterMixin:
+    """Common ``__enter__`` / ``__exit__`` for the Fabric world / local writers.
+
+    On enter: pauses ``track_local_xform_changes`` / ``track_world_xform_changes``
+    on the Fabric hierarchy (saving prior state) and flips the view's
+    ``read_write`` so all get/set helpers resolve to the persistent RW selection
+    (both selections are kept alive for the view's lifetime).
+
+    On exit (normal or via exception): runs a best-effort opposite-space
+    derive + ``wp.synchronize()`` whenever any write happened inside the
+    scope, then flips ``read_write`` back to ``False`` (RO selection for
+    steady-state reads) and restores hierarchy-tracking state.
+
+    **Exception safety.** If the scope unwinds because of an exception
+    (including ``KeyboardInterrupt`` from an interactive notebook), the
+    opposite-space derive still runs so that ``worldMatrix`` and
+    ``localMatrix`` are mutually consistent prim-by-prim on whatever
+    partial-write state Fabric currently holds.  The partial write itself
+    is **not** rolled back -- some prims may carry the new value and the
+    rest the pre-scope value -- so callers needing transactional
+    all-or-nothing semantics should snapshot matrices themselves before
+    entering the scope.  If the recovery launch itself fails (typically
+    because the original exception came from a poisoned CUDA stream), the
+    failure is logged and the original exception propagates; the view
+    should then be recreated.
+    """
+
+    def _enter_impl(self) -> None:
+        view: FabricFrameView = self._view  # type: ignore[assignment]
+        view._update_fabric()
+        self._wrote_anything = False
+        h = view._fabric_sel.fabric_hierarchy
+        self._was_tracking_local = h is not None and h.tracking_local_xform_changes
+        self._was_tracking_world = h is not None and h.tracking_world_xform_changes
+        if h is not None:
+            if self._was_tracking_local:
+                h.track_local_xform_changes(False)
+            if self._was_tracking_world:
+                h.track_world_xform_changes(False)
+        view._fabric_sel.read_write = True
+
+    def _exit_impl(self, exc_type, exc_val, exc_tb) -> None:
+        view: FabricFrameView = self._view  # type: ignore[assignment]
+        try:
+            if self._wrote_anything:
+                try:
+                    self._derive_opposite()
+                    wp.synchronize()
+                except Exception as recovery_exc:
+                    # Recovery itself failed (e.g. original exception came
+                    # from a device error and the CUDA stream is poisoned).
+                    # If we got here on the happy path, re-raise.  If we are
+                    # already unwinding an exception, log and let the original
+                    # propagate -- masking it would hide the actual root cause.
+                    if exc_type is None:
+                        raise
+                    logger.error(
+                        "FabricFrameView writer scope: best-effort opposite-space sync "
+                        "failed during exception handling: %s. World/local matrices may "
+                        "be inconsistent prim-by-prim; recreate the view to recover.",
+                        recovery_exc,
+                    )
+        finally:
+            # Flip back to RO before restoring hierarchy tracking so any
+            # subsequent updateWorldXforms tick sees a fully-RO selection.
+            view._fabric_sel.read_write = False
+            h = view._fabric_sel.fabric_hierarchy
+            if h is not None:
+                if self._was_tracking_world:
+                    h.track_world_xform_changes(True)
+                if self._was_tracking_local:
+                    h.track_local_xform_changes(True)
+
+    def _derive_opposite(self) -> None:
+        raise NotImplementedError
+
+
+class _FabricWorldSpaceWriter(_FabricWriterMixin, FrameViewWorldSpaceWriter):
+    """World-space writer for :class:`FabricFrameView`.
+
+    Writes flow through the RW selection's ``worldMatrix`` indexed array;
+    on exit ``localMatrix`` is derived from the just-written ``worldMatrix``
+    via :func:`update_indexed_local_matrix_from_world`.
+    """
+
+    def _derive_opposite(self) -> None:
+        self._view._recompute_local_from_world_all()  # type: ignore[attr-defined]
+
+    def set_poses(self, positions=None, orientations=None, indices=None) -> None:
+        view: FabricFrameView = self._view  # type: ignore[assignment]
+        indices_wp = view._resolve_indices_wp(indices)
+        positions_wp = view._to_float32_2d_or_empty(positions)
+        orientations_wp = view._to_float32_2d_or_empty(orientations)
+        wp.launch(
+            kernel=fabric_utils.compose_indexed_fabric_transforms,
+            dim=indices_wp.shape[0],
+            inputs=[
+                view._fabric_sel.world_ifa(),
+                positions_wp,
+                orientations_wp,
+                view._fabric_empty_2d_array_sentinel,
+                False,
+                False,
+                False,
+                indices_wp,
+            ],
+            device=view._device,
+        )
+        self._wrote_anything = True
+
+    def set_scales(self, scales, indices=None) -> None:
+        view: FabricFrameView = self._view  # type: ignore[assignment]
+        indices_wp = view._resolve_indices_wp(indices)
+        scales_wp = view._to_float32_2d_or_empty(scales)
+        wp.launch(
+            kernel=fabric_utils.compose_indexed_fabric_transforms,
+            dim=indices_wp.shape[0],
+            inputs=[
+                view._fabric_sel.world_ifa(),
+                view._fabric_empty_2d_array_sentinel,
+                view._fabric_empty_2d_array_sentinel,
+                scales_wp,
+                False,
+                False,
+                False,
+                indices_wp,
+            ],
+            device=view._device,
+        )
+        self._wrote_anything = True
+
+    def get_poses(self, indices=None) -> tuple[ProxyArray, ProxyArray]:
+        return self._view._get_world_poses_impl(indices)  # type: ignore[attr-defined]
+
+    def get_scales(self, indices=None) -> ProxyArray:
+        return self._view._get_world_scales_impl(indices)  # type: ignore[attr-defined]
+
+
+class _FabricLocalSpaceWriter(_FabricWriterMixin, FrameViewLocalSpaceWriter):
+    """Local-space writer for :class:`FabricFrameView`.
+
+    Writes flow through the RW selection's ``localMatrix`` indexed array;
+    on exit ``worldMatrix`` is derived from the just-written ``localMatrix``
+    via :func:`update_indexed_world_matrix_from_local`.
+    """
+
+    def _derive_opposite(self) -> None:
+        self._view._recompute_world_from_local_all()  # type: ignore[attr-defined]
+
+    def set_poses(self, positions=None, orientations=None, indices=None) -> None:
+        view: FabricFrameView = self._view  # type: ignore[assignment]
+        indices_wp = view._resolve_indices_wp(indices)
+        translations_wp = view._to_float32_2d_or_empty(positions)
+        orientations_wp = view._to_float32_2d_or_empty(orientations)
+        wp.launch(
+            kernel=fabric_utils.compose_indexed_fabric_transforms,
+            dim=indices_wp.shape[0],
+            inputs=[
+                view._fabric_sel.local_ifa(),
+                translations_wp,
+                orientations_wp,
+                view._fabric_empty_2d_array_sentinel,
+                False,
+                False,
+                False,
+                indices_wp,
+            ],
+            device=view._device,
+        )
+        self._wrote_anything = True
+
+    def set_scales(self, scales, indices=None) -> None:
+        view: FabricFrameView = self._view  # type: ignore[assignment]
+        indices_wp = view._resolve_indices_wp(indices)
+        scales_wp = view._to_float32_2d_or_empty(scales)
+        wp.launch(
+            kernel=fabric_utils.compose_indexed_fabric_transforms,
+            dim=indices_wp.shape[0],
+            inputs=[
+                view._fabric_sel.local_ifa(),
+                view._fabric_empty_2d_array_sentinel,
+                view._fabric_empty_2d_array_sentinel,
+                scales_wp,
+                False,
+                False,
+                False,
+                indices_wp,
+            ],
+            device=view._device,
+        )
+        self._wrote_anything = True
+
+    def get_poses(self, indices=None) -> tuple[ProxyArray, ProxyArray]:
+        return self._view._get_local_poses_impl(indices)  # type: ignore[attr-defined]
+
+    def get_scales(self, indices=None) -> ProxyArray:
+        return self._view._get_local_scales_impl(indices)  # type: ignore[attr-defined]
+
+
+class _FabricFallbackWorldWriter(FrameViewWorldSpaceWriter):
+    """Fallback world-space writer used when Fabric is disabled.
+
+    Delegates set/get calls to the internal :class:`UsdFrameView`'s backend
+    hooks directly.  No batching, no listener pausing -- there's no Fabric to
+    confuse.
+    """
+
+    def set_poses(self, positions=None, orientations=None, indices=None) -> None:
+        self._view._usd_view._apply_world_pose_write(positions, orientations, indices)  # type: ignore[attr-defined]
+
+    def set_scales(self, scales, indices=None) -> None:
+        self._view._usd_view._apply_world_scale_write(scales, indices)  # type: ignore[attr-defined]
+
+    def get_poses(self, indices=None) -> tuple[ProxyArray, ProxyArray]:
+        return self._view._usd_view._get_world_poses_impl(indices)  # type: ignore[attr-defined]
+
+    def get_scales(self, indices=None) -> ProxyArray:
+        return self._view._usd_view._get_world_scales_impl(indices)  # type: ignore[attr-defined]
+
+
+class _FabricFallbackLocalWriter(FrameViewLocalSpaceWriter):
+    """Fallback local-space writer used when Fabric is disabled."""
+
+    def set_poses(self, positions=None, orientations=None, indices=None) -> None:
+        self._view._usd_view._apply_local_pose_write(positions, orientations, indices)  # type: ignore[attr-defined]
+
+    def set_scales(self, scales, indices=None) -> None:
+        self._view._usd_view._apply_local_scale_write(scales, indices)  # type: ignore[attr-defined]
+
+    def get_poses(self, indices=None) -> tuple[ProxyArray, ProxyArray]:
+        return self._view._usd_view._get_local_poses_impl(indices)  # type: ignore[attr-defined]
+
+    def get_scales(self, indices=None) -> ProxyArray:
+        return self._view._usd_view._get_local_scales_impl(indices)  # type: ignore[attr-defined]

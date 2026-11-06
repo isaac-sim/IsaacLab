@@ -11,17 +11,17 @@ Compares batched transform operation performance across:
 - Isaac Lab FrameView (Newton backend)
 
 Usage:
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_xform_prim_view.py --num_envs 1024 --device cuda:0 --headless
+    uv run python scripts/benchmarks/benchmark_xform_prim_view.py --num_envs 1024 --device cuda:0
 
     # With profiling
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_xform_prim_view.py --num_envs 1024 --profile --headless
+    uv run python scripts/benchmarks/benchmark_xform_prim_view.py --num_envs 1024 --profile
 """
 
 from __future__ import annotations
 
 import argparse
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
 
 parser = argparse.ArgumentParser(description="Benchmark FrameView performance across backends.")
 parser.add_argument("--num_envs", type=int, default=100, help="Number of environments to simulate.")
@@ -29,13 +29,8 @@ parser.add_argument("--num_iterations", type=int, default=50, help="Number of it
 parser.add_argument("--profile", action="store_true", help="Enable cProfile profiling.")
 parser.add_argument("--profile_dir", type=str, default="./profile_results", help="Directory for .prof files.")
 
-AppLauncher.add_app_launcher_args(parser)
+add_launcher_args(parser)
 args_cli = parser.parse_args()
-
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
-
-"""Rest everything follows."""
 
 import cProfile
 import time
@@ -44,17 +39,13 @@ from typing import Literal
 import torch
 import warp as wp
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-from isaaclab_newton.sim.views import NewtonSiteFrameView
-from isaaclab_physx.sim.views import FabricFrameView
-
-from pxr import Gf
+from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
-from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
-from isaaclab.sim.views import UsdFrameView
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass, instantiate
 
 
 @configclass
@@ -63,9 +54,9 @@ class _NewtonSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Object",
         spawn=sim_utils.CuboidCfg(
             size=(0.2, 0.2, 0.2),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=1.0),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
     )
@@ -82,6 +73,14 @@ def benchmark_frame_view(  # noqa: C901
     num_iterations: int,
 ) -> tuple[dict[str, float], dict[str, torch.Tensor]]:
     """Benchmark get/set world/local poses for the given FrameView backend."""
+    # the view runtime classes import USD, which must load after Kit starts
+    from isaaclab_newton.sim.views import NewtonSiteFrameView
+    from isaaclab_physx.sim.views import FabricFrameView
+
+    from pxr import Gf
+
+    from isaaclab.sim.views import UsdFrameView
+
     timing_results: dict[str, float] = {}
     computed_results: dict[str, torch.Tensor] = {}
     device = args_cli.device
@@ -93,15 +92,15 @@ def benchmark_frame_view(  # noqa: C901
     cleanup = None
 
     if api == "isaaclab-newton-site":
-        newton_cfg = SimulationCfg(device=device, physics=NewtonCfg(solver_cfg=MJWarpSolverCfg()))
-        ctx = build_simulation_context(device=device, sim_cfg=newton_cfg, add_ground_plane=True)
+        ctx = build_simulation_context(device=device, sim_cfg=sim_cfgs[api], add_ground_plane=True)
         sim = ctx.__enter__()
         sim._app_control_on_stop_handle = None
-        InteractiveScene(_NewtonSceneCfg(num_envs=num_envs, env_spacing=2.0))
+        scene_cfg = _NewtonSceneCfg(num_envs=num_envs, env_spacing=2.0)
+        scene = instantiate(scene_cfg)
 
         stage = sim_utils.get_current_stage()
-        for i in range(num_envs):
-            prim = stage.DefinePrim(f"/World/envs/env_{i}/Object/Sensor", "Xform")
+        for env_path in scene.env_prim_paths:
+            prim = stage.DefinePrim(f"{env_path}/Object/Sensor", "Xform")
             sim_utils.standardize_xform_ops(prim)
             prim.GetAttribute("xformOp:translate").Set(Gf.Vec3d(0.1, 0.0, 0.05))
             prim.GetAttribute("xformOp:orient").Set(Gf.Quatd(1.0, 0.0, 0.0, 0.0))
@@ -109,7 +108,7 @@ def benchmark_frame_view(  # noqa: C901
         sim.reset()
 
         start_time = time.perf_counter()
-        xform_view = NewtonSiteFrameView("/World/envs/env_.*/Object/Sensor", device=device)
+        xform_view = NewtonSiteFrameView(f"{scene.env_regex_ns}/Object/Sensor", device=device)
         timing_results["init"] = time.perf_counter() - start_time
         cleanup = lambda: ctx.__exit__(None, None, None)  # noqa: E731
 
@@ -117,7 +116,7 @@ def benchmark_frame_view(  # noqa: C901
         sim_utils.create_new_stage()
         start_time = time.perf_counter()
         use_fabric = api == "isaaclab-fabric"
-        sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=use_fabric))
+        sim = sim_utils.SimulationContext(sim_cfgs[api])
         stage = sim_utils.get_current_stage()
 
         for i in range(num_envs):
@@ -138,21 +137,35 @@ def benchmark_frame_view(  # noqa: C901
 
     is_newton = api == "isaaclab-newton-site"
 
+    # Synchronize around timed regions using Warp directly (rather than torch),
+    # since all backend kernels here are Warp launches and ``wp.synchronize()``
+    # covers CPU/CUDA Warp devices consistently.  We only need it for GPU runs,
+    # where kernel launches are asynchronous; guard on device to avoid paying
+    # it needlessly on CPU.
+    _needs_sync = str(device).startswith("cuda")
+
+    def _sync() -> None:
+        if _needs_sync:
+            wp.synchronize()
+
     def to_torch(a):
-        return wp.to_torch(a) if isinstance(a, wp.array) else a
+        if isinstance(a, wp.array):
+            return wp.to_torch(a)
+        if hasattr(a, "torch"):
+            return a.torch
+        return a
 
     try:
         # -- Warmup --------------------------------------------------------
         xform_view.get_world_poses()
+        xform_view.get_world_scales()
 
         # -- get_world_poses -----------------------------------------------
-        if is_newton:
-            torch.cuda.synchronize()
+        _sync()
         start_time = time.perf_counter()
         for _ in range(num_iterations):
             positions, orientations = xform_view.get_world_poses()
-        if is_newton:
-            torch.cuda.synchronize()
+        _sync()
         timing_results["get_world_poses"] = (time.perf_counter() - start_time) / num_iterations
 
         positions_t = to_torch(positions)
@@ -161,20 +174,24 @@ def benchmark_frame_view(  # noqa: C901
         computed_results["initial_world_orientations"] = orientations_t.clone()
 
         # -- set_world_poses -----------------------------------------------
+        # ``.warp`` unwraps the ProxyArray returned by ``get_*_poses`` /
+        # ``get_*_scales`` to the underlying ``wp.array`` that ``wp.clone``
+        # requires.  ProxyArray was introduced in PR #5304 ("ProxyArray and
+        # Asset/Sensor level property caching") which changed the FrameView
+        # getter return type.  Applies to every ``wp.clone`` call below.
         if is_newton:
-            new_positions = wp.clone(positions)
+            new_positions = wp.clone(positions.warp)
             wp.to_torch(new_positions)[:, 2] += 0.1
         else:
             new_positions = positions_t.clone()
             new_positions[:, 2] += 0.1
 
-        if is_newton:
-            torch.cuda.synchronize()
+        _sync()
         start_time = time.perf_counter()
         for _ in range(num_iterations):
-            xform_view.set_world_poses(new_positions, orientations)
-        if is_newton:
-            torch.cuda.synchronize()
+            with xform_view.xform_world_space_writer() as w:
+                w.set_poses(new_positions, orientations)
+        _sync()
         timing_results["set_world_poses"] = (time.perf_counter() - start_time) / num_iterations
 
         pa, oa = xform_view.get_world_poses()
@@ -182,13 +199,11 @@ def benchmark_frame_view(  # noqa: C901
         computed_results["world_orientations_after_set"] = to_torch(oa).clone()
 
         # -- get_local_poses -----------------------------------------------
-        if is_newton:
-            torch.cuda.synchronize()
+        _sync()
         start_time = time.perf_counter()
         for _ in range(num_iterations):
             translations, orientations_local = xform_view.get_local_poses()
-        if is_newton:
-            torch.cuda.synchronize()
+        _sync()
         timing_results["get_local_poses"] = (time.perf_counter() - start_time) / num_iterations
 
         translations_t = to_torch(translations)
@@ -198,45 +213,99 @@ def benchmark_frame_view(  # noqa: C901
 
         # -- set_local_poses -----------------------------------------------
         if is_newton:
-            new_translations = wp.clone(translations)
+            new_translations = wp.clone(translations.warp)
             wp.to_torch(new_translations)[:, 2] += 0.1
         else:
             new_translations = translations_t.clone()
             new_translations[:, 2] += 0.1
 
-        if is_newton:
-            torch.cuda.synchronize()
+        _sync()
         start_time = time.perf_counter()
         for _ in range(num_iterations):
-            xform_view.set_local_poses(new_translations, orientations_local)
-        if is_newton:
-            torch.cuda.synchronize()
+            with xform_view.xform_local_space_writer() as w:
+                w.set_poses(new_translations, orientations_local)
+        _sync()
         timing_results["set_local_poses"] = (time.perf_counter() - start_time) / num_iterations
 
         ta, ola = xform_view.get_local_poses()
         computed_results["local_translations_after_set"] = to_torch(ta).clone()
         computed_results["local_orientations_after_set"] = to_torch(ola).clone()
 
-        # -- get_both (world + local) --------------------------------------
+        # -- get_world_scales ----------------------------------------------
+        _sync()
+        start_time = time.perf_counter()
+        for _ in range(num_iterations):
+            world_scales = xform_view.get_world_scales()
+        _sync()
+        timing_results["get_world_scales"] = (time.perf_counter() - start_time) / num_iterations
+
+        world_scales_t = to_torch(world_scales)
+        computed_results["initial_world_scales"] = world_scales_t.clone()
+
+        # -- set_world_scales ----------------------------------------------
         if is_newton:
-            torch.cuda.synchronize()
+            new_world_scales = wp.clone(world_scales.warp)
+            wp.to_torch(new_world_scales)[:] = 1.1
+        else:
+            new_world_scales = world_scales_t.clone()
+            new_world_scales[:] = 1.1
+
+        _sync()
+        start_time = time.perf_counter()
+        for _ in range(num_iterations):
+            with xform_view.xform_world_space_writer() as w:
+                w.set_scales(new_world_scales)
+        _sync()
+        timing_results["set_world_scales"] = (time.perf_counter() - start_time) / num_iterations
+
+        computed_results["world_scales_after_set"] = to_torch(xform_view.get_world_scales()).clone()
+
+        # -- get_local_scales ----------------------------------------------
+        _sync()
+        start_time = time.perf_counter()
+        for _ in range(num_iterations):
+            local_scales = xform_view.get_local_scales()
+        _sync()
+        timing_results["get_local_scales"] = (time.perf_counter() - start_time) / num_iterations
+
+        local_scales_t = to_torch(local_scales)
+        computed_results["initial_local_scales"] = local_scales_t.clone()
+
+        # -- set_local_scales ----------------------------------------------
+        if is_newton:
+            new_local_scales = wp.clone(local_scales.warp)
+            wp.to_torch(new_local_scales)[:] = 0.9
+        else:
+            new_local_scales = local_scales_t.clone()
+            new_local_scales[:] = 0.9
+
+        _sync()
+        start_time = time.perf_counter()
+        for _ in range(num_iterations):
+            with xform_view.xform_local_space_writer() as w:
+                w.set_scales(new_local_scales)
+        _sync()
+        timing_results["set_local_scales"] = (time.perf_counter() - start_time) / num_iterations
+
+        computed_results["local_scales_after_set"] = to_torch(xform_view.get_local_scales()).clone()
+
+        # -- get_both (world + local) --------------------------------------
+        _sync()
         start_time = time.perf_counter()
         for _ in range(num_iterations):
             xform_view.get_world_poses()
             xform_view.get_local_poses()
-        if is_newton:
-            torch.cuda.synchronize()
+        _sync()
         timing_results["get_both"] = (time.perf_counter() - start_time) / num_iterations
 
         # -- interleaved set -> get ----------------------------------------
-        if is_newton:
-            torch.cuda.synchronize()
+        _sync()
         start_time = time.perf_counter()
         for _ in range(num_iterations):
-            xform_view.set_world_poses(new_positions, orientations)
+            with xform_view.xform_world_space_writer() as w:
+                w.set_poses(new_positions, orientations)
             xform_view.get_world_poses()
-        if is_newton:
-            torch.cuda.synchronize()
+        _sync()
         timing_results["interleaved_world_set_get"] = (time.perf_counter() - start_time) / num_iterations
 
     finally:
@@ -267,15 +336,26 @@ def print_results(results_dict: dict[str, dict[str, float]], num_prims: int, num
     print(header)
     print("-" * 120)
 
-    operations = [
-        ("Initialization", "init"),
+    # ``init`` is the one-time view-construction cost.  We display it in the
+    # per-operation table but EXCLUDE it from the steady-state totals and the
+    # overall speedup -- otherwise a backend whose construction is dominated
+    # by stage population (e.g. Newton, where the first call materializes the
+    # site cache) shows a misleading "0.00x" overall and crushes the rest of
+    # the table.  The overall row is intended to compare per-iteration cost.
+    init_op = ("Initialization (one-time)", "init")
+    per_iter_operations = [
         ("Get World Poses", "get_world_poses"),
         ("Set World Poses", "set_world_poses"),
         ("Get Local Poses", "get_local_poses"),
         ("Set Local Poses", "set_local_poses"),
+        ("Get World Scales", "get_world_scales"),
+        ("Set World Scales", "set_world_scales"),
+        ("Get Local Scales", "get_local_scales"),
+        ("Set Local Scales", "set_local_scales"),
         ("Get Both (World+Local)", "get_both"),
         ("Interleaved World Set->Get", "interleaved_world_set_get"),
     ]
+    operations = [init_op, *per_iter_operations]
 
     for op_name, op_key in operations:
         row = f"{op_name:<28}"
@@ -286,15 +366,16 @@ def print_results(results_dict: dict[str, dict[str, float]], num_prims: int, num
 
     print("=" * 120)
 
-    total_row = f"{'Total':<28}"
+    total_row = f"{'Total (per-iter ops)':<28}"
     for name in api_names:
-        total_row += f" {sum(results_dict[name].values()) * 1000:>{col_width}.4f}"
+        per_iter_total = sum(results_dict[name].get(k, 0) for _, k in per_iter_operations)
+        total_row += f" {per_iter_total * 1000:>{col_width}.4f}"
     print(f"\n{total_row}")
 
     baseline = "isaaclab-usd"
     if baseline in results_dict and len(api_names) > 1:
         print("\n" + "=" * 120)
-        print(f"SPEEDUP vs {baseline.replace('-', ' ').title()}")
+        print(f"SPEEDUP vs {baseline.replace('-', ' ').title()} (per-iter ops; one-time init excluded)")
         print("=" * 120)
         header = f"{'Operation':<28}"
         for name in api_names:
@@ -304,7 +385,7 @@ def print_results(results_dict: dict[str, dict[str, float]], num_prims: int, num
         print("-" * 120)
 
         base = results_dict[baseline]
-        for op_name, op_key in operations:
+        for op_name, op_key in per_iter_operations:
             row = f"{op_name:<28}"
             base_t = base.get(op_key, 0)
             for name in api_names:
@@ -317,11 +398,11 @@ def print_results(results_dict: dict[str, dict[str, float]], num_prims: int, num
             print(row)
 
         print("=" * 120)
-        print(f"{'Overall':>28}", end="")
-        total_base = sum(base.values())
+        print(f"{'Overall (per-iter ops)':>28}", end="")
+        total_base = sum(base.get(k, 0) for _, k in per_iter_operations)
         for name in api_names:
             if name != baseline:
-                total_impl = sum(results_dict[name].values())
+                total_impl = sum(results_dict[name].get(k, 0) for _, k in per_iter_operations)
                 if total_base > 0 and total_impl > 0:
                     print(f" {total_base / total_impl:>{col_width}.2f}x", end="")
                 else:
@@ -391,4 +472,15 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # each backend builds its own simulation context; the USD and Fabric views need Kit
+    sim_cfgs = {
+        name: SimulationCfg(
+            dt=1.0 / 60.0 if name == "isaaclab-newton-site" else 0.01,
+            device=args_cli.device,
+            use_fabric=name == "isaaclab-fabric",
+            physics=NewtonCfg(solver_cfg=MJWarpSolverCfg()) if name == "isaaclab-newton-site" else PhysxCfg(),
+        )
+        for name in ("isaaclab-usd", "isaaclab-fabric", "isaaclab-newton-site")
+    }
+    with launch_simulation(sim_cfgs, args_cli):
+        main()

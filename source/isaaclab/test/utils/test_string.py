@@ -3,12 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import math
 import random
 
 import pytest
 
 import isaaclab.utils.string as string_utils
 from isaaclab.utils.string import _resolve_matching_names_impl
+
+pytestmark = pytest.mark.unit
 
 
 def test_resolvable_string_metadata_is_non_eager():
@@ -39,14 +42,9 @@ def test_resolvable_string_dunder_introspection_stays_lazy():
     # dunder attribute probe should not attempt import/resolve
     assert hasattr(ref, "__dataclass_fields__") is False
     # runtime use should still attempt resolve and fail
-    with pytest.raises(ValueError):
+    with pytest.raises(ModuleNotFoundError) as error:
         ref()
-
-
-def test_resolvable_string_runtime_resolution_still_works():
-    """Test runtime call path still resolves the callable target."""
-    ref = string_utils.ResolvableString("math:sin")
-    assert pytest.approx(ref(0.0), rel=0.0, abs=1e-9) == 0.0
+    assert error.value.name == "not_a_real_module"
 
 
 def test_case_conversion():
@@ -59,6 +57,32 @@ def test_case_conversion():
     assert string_utils.to_camel_case("snake_case", to="CC") == "SnakeCase"
     assert string_utils.to_camel_case("snake_case_string", to="CC") == "SnakeCaseString"
     assert string_utils.to_camel_case("snake_case_string", to="cC") == "snakeCaseString"
+
+
+def test_string_to_callable_allows_safe_lambdas():
+    """Test that simple lambda expressions and module references resolve to callables."""
+    assert string_utils.string_to_callable("lambda x: x + 1")(5) == 6
+    assert string_utils.string_to_callable("lambda x: x**2")(3) == 9
+    assert string_utils.string_to_callable("lambda x: x[0] if x else 0")([7, 8]) == 7
+    assert string_utils.string_to_callable("lambda x: x > 0 and x < 10")(5) is True
+    assert string_utils.string_to_callable("math:sqrt") is math.sqrt
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        'lambda x: __import__("os").system("id")',
+        'lambda x: eval("1")',
+        "lambda x: (lambda: 1)()",
+        "lambda x: x.__class__",
+        "lambda x: __builtins__",
+        "lambda x: (y := 1)",
+    ],
+)
+def test_string_to_callable_blocks_unsafe_lambdas(payload):
+    """Test that lambda strings cannot execute code or traverse Python internals."""
+    with pytest.raises(ValueError, match="Unsafe lambda expression"):
+        string_utils.string_to_callable(payload)
 
 
 def test_resolve_matching_names_with_basic_strings():
@@ -183,6 +207,14 @@ def test_resolve_matching_names_values_with_basic_strings():
     assert index_list == [0, 1, 2, 3, 4]
     assert names_list == ["a", "b", "c", "d", "e"]
     assert values_list == [1, 2, 2, 1, 1]
+
+    class ReverseIterationDict(dict):
+        def __iter__(self):
+            return iter(reversed(list(super().keys())))
+
+    data = ReverseIterationDict({"a": 1, "b": 2})
+    assert string_utils.resolve_matching_names_values(data, ["a", "b"]) == ([0, 1], ["a", "b"], [1, 2])
+
     # test matching names with regex
     data = {"a|d|e|b": 1, "b|c": 2}
     with pytest.raises(ValueError):

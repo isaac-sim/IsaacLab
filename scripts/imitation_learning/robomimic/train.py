@@ -43,16 +43,6 @@ Args:
 This file has been modified from the original robomimic version to integrate with IsaacLab.
 """
 
-"""Launch Isaac Sim Simulator first."""
-
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-app_launcher = AppLauncher(headless=True)
-simulation_app = app_launcher.app
-
-"""Rest everything follows."""
-
 import argparse
 import importlib
 import json
@@ -78,9 +68,11 @@ from robomimic.config import Config, config_factory
 from robomimic.utils.log_utils import DataLogger, PrintLogger
 from torch.utils.data import DataLoader
 
+from isaaclab.app import launch_simulation
+
 import isaaclab_tasks  # noqa: F401
-import isaaclab_tasks.manager_based.locomanipulation.pick_place  # noqa: F401
-import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
+import isaaclab_tasks.contrib.locomanip_pick_place  # noqa: F401
+import isaaclab_tasks.contrib.pick_place  # noqa: F401
 
 
 def normalize_hdf5_actions(config: Config, log_dir: str) -> str:
@@ -451,7 +443,6 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # run training
-    main(args)
-    # close sim app
-    simulation_app.close()
+    # run training inside a headless Isaac Sim runtime, which validation rollouts in Isaac Lab environments need
+    with launch_simulation(None):
+        main(args)

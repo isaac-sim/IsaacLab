@@ -1,0 +1,20 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Deprecated compatibility configuration for absolute DiffIK Franka Reach."""
+
+from isaaclab.utils import configclass
+
+from isaaclab_tasks.core.reach.config.franka import franka_reach_env_cfg
+from isaaclab_tasks.utils import resolve_presets
+
+
+@configclass
+class FrankaReachEnvCfg(franka_reach_env_cfg.FrankaReachEnvCfg):
+    """Compatibility configuration that selects the canonical absolute DiffIK preset."""
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        resolve_presets(self, selected=("diffik_abs", "isaacsim_physx"))

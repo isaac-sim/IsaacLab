@@ -5,6 +5,6 @@
 
 """Sub-module for camera wrapper around USD camera prim."""
 
-from isaaclab.utils.module import lazy_export
+from ...utils.module import lazy_export
 
 lazy_export()

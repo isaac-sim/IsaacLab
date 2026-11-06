@@ -5,17 +5,12 @@
 
 """Wrapping around warp kernels for compatibility with torch tensors."""
 
-# needed to import for allowing type-hinting: torch.Tensor | None
 from __future__ import annotations
 
 import numpy as np
 import torch
 import warp as wp
-
-# disable warp module initialization messages
-wp.config.quiet = True
-# initialize the warp module
-wp.init()
+from typing_extensions import deprecated
 
 from . import kernels
 
@@ -35,12 +30,11 @@ def raycast_mesh(
 ) -> tuple[torch.Tensor, torch.Tensor | None, torch.Tensor | None, torch.Tensor | None]:
     """Performs ray-casting against a mesh.
 
-    Note that the `ray_starts` and `ray_directions`, and `ray_hits` should have compatible shapes
-    and data types to ensure proper execution. Additionally, they all must be in the same frame.
+    Ray starts and directions must have identical shapes and use the same coordinate frame.
 
     Args:
-        ray_starts: The starting position of the rays. Shape (N, 3).
-        ray_directions: The ray directions for each ray. Shape (N, 3).
+        ray_starts: The starting positions of the rays. Shape (..., 3).
+        ray_directions: Unit-length ray directions. Shape (..., 3), matching ``ray_starts``.
         mesh: The warp mesh to ray-cast against.
         max_dist: The maximum distance to ray-cast. Defaults to 1e6.
         return_distance: Whether to return the distance of the ray until it hits the mesh. Defaults to False.
@@ -48,57 +42,60 @@ def raycast_mesh(
         return_face_id: Whether to return the face id of the mesh face the ray hits. Defaults to False.
 
     Returns:
-        The ray hit position. Shape (N, 3).
+        The ray hit positions, with the same shape as ``ray_starts``.
             The returned tensor contains :obj:`float('inf')` for missed hits.
-        The ray hit distance. Shape (N,).
+        The ray hit distances, with the leading dimensions of ``ray_starts``.
             Will only return if :attr:`return_distance` is True, else returns None.
             The returned tensor contains :obj:`float('inf')` for missed hits.
-        The ray hit normal. Shape (N, 3).
+        The ray hit normals, with the same shape as ``ray_starts``.
             Will only return if :attr:`return_normal` is True else returns None.
             The returned tensor contains :obj:`float('inf')` for missed hits.
-        The ray hit face id. Shape (N,).
+        The ray hit face IDs, with the leading dimensions of ``ray_starts``.
             Will only return if :attr:`return_face_id` is True else returns None.
             The returned tensor contains :obj:`int(-1)` for missed hits.
+
+    Raises:
+        ValueError: If starts and directions do not have identical shapes ending in three coordinates.
     """
-    # extract device and shape information
     shape = ray_starts.shape
+    if shape != ray_directions.shape or not shape or shape[-1] != 3:
+        raise ValueError(
+            f"Ray starts and directions must have identical shapes (..., 3); got {shape} and {ray_directions.shape}."
+        )
     device = ray_starts.device
-    # device of the mesh
+    # the kernel runs on the mesh's device
     torch_device = wp.device_to_torch(mesh.device)
-    # reshape the tensors
     ray_starts = ray_starts.to(torch_device).view(-1, 3).contiguous()
     ray_directions = ray_directions.to(torch_device).view(-1, 3).contiguous()
     num_rays = ray_starts.shape[0]
-    # create output tensor for the ray hits
-    ray_hits = torch.full((num_rays, 3), float("inf"), device=torch_device).contiguous()
+    ray_hits = torch.full((num_rays, 3), float("inf"), device=torch_device)
 
-    # map the memory to warp arrays
     ray_starts_wp = wp.from_torch(ray_starts, dtype=wp.vec3)
     ray_directions_wp = wp.from_torch(ray_directions, dtype=wp.vec3)
     ray_hits_wp = wp.from_torch(ray_hits, dtype=wp.vec3)
 
+    # optional outputs fall back to placeholder arrays the kernel never writes
     if return_distance:
-        ray_distance = torch.full((num_rays,), float("inf"), device=torch_device).contiguous()
+        ray_distance = torch.full((num_rays,), float("inf"), device=torch_device)
         ray_distance_wp = wp.from_torch(ray_distance, dtype=wp.float32)
     else:
         ray_distance = None
         ray_distance_wp = wp.empty((1,), dtype=wp.float32, device=torch_device)
 
     if return_normal:
-        ray_normal = torch.full((num_rays, 3), float("inf"), device=torch_device).contiguous()
+        ray_normal = torch.full((num_rays, 3), float("inf"), device=torch_device)
         ray_normal_wp = wp.from_torch(ray_normal, dtype=wp.vec3)
     else:
         ray_normal = None
         ray_normal_wp = wp.empty((1,), dtype=wp.vec3, device=torch_device)
 
     if return_face_id:
-        ray_face_id = torch.ones((num_rays,), dtype=torch.int32, device=torch_device).contiguous() * (-1)
+        ray_face_id = torch.full((num_rays,), -1, dtype=torch.int32, device=torch_device)
         ray_face_id_wp = wp.from_torch(ray_face_id, dtype=wp.int32)
     else:
         ray_face_id = None
         ray_face_id_wp = wp.empty((1,), dtype=wp.int32, device=torch_device)
 
-    # launch the warp kernel
     wp.launch(
         kernel=kernels.raycast_mesh_kernel,
         dim=num_rays,
@@ -121,11 +118,11 @@ def raycast_mesh(
     wp.synchronize()
 
     if return_distance:
-        ray_distance = ray_distance.to(device).view(shape[0], shape[1])
+        ray_distance = ray_distance.to(device).view(shape[:-1])
     if return_normal:
         ray_normal = ray_normal.to(device).view(shape)
     if return_face_id:
-        ray_face_id = ray_face_id.to(device).view(shape[0], shape[1])
+        ray_face_id = ray_face_id.to(device).view(shape[:-1])
 
     return ray_hits.to(device).view(shape), ray_distance, ray_normal, ray_face_id
 
@@ -166,11 +163,10 @@ def raycast_single_mesh(
             Will only return if :attr:`return_face_id` is True else returns None.
             The returned tensor contains :obj:`int(-1)` for missed hits.
     """
-    # cast mesh id into array
-    mesh_ids = wp.array2d(
-        [[mesh_id] for _ in range(ray_starts.shape[0])], dtype=wp.uint64, device=wp.device_from_torch(ray_starts.device)
+    mesh_ids = wp.full(
+        (ray_starts.shape[0], 1), mesh_id, dtype=wp.uint64, device=wp.device_from_torch(ray_starts.device)
     )
-    ray_hits, ray_distance, ray_normal, ray_face_id, ray_mesh_id = raycast_dynamic_meshes(
+    ray_hits, ray_distance, ray_normal, ray_face_id, _ = raycast_dynamic_meshes(
         ray_starts=ray_starts,
         ray_directions=ray_directions,
         mesh_ids_wp=mesh_ids,
@@ -232,62 +228,41 @@ def raycast_dynamic_meshes(
             Will only return if :attr:`return_mesh_id` is True else returns None.
             The returned tensor contains :obj:`-1` for missed hits.
     """
-    # extract device and shape information
     shape = ray_starts.shape
     device = ray_starts.device
-
-    # device of the mesh
+    # the kernels run on the meshes' device
     torch_device = wp.device_to_torch(mesh_ids_wp.device)
     n_meshes = mesh_ids_wp.shape[1]
+    n_envs, n_rays_per_env = shape[0], shape[1]
 
-    n_envs = ray_starts.shape[0]
-    n_rays_per_env = ray_starts.shape[1]
-
-    # reshape the tensors
     ray_starts = ray_starts.to(torch_device).view(n_envs, n_rays_per_env, 3).contiguous()
     ray_directions = ray_directions.to(torch_device).view(n_envs, n_rays_per_env, 3).contiguous()
+    ray_hits = torch.full((n_envs, n_rays_per_env, 3), float("inf"), device=torch_device)
 
-    # create output tensor for the ray hits
-    ray_hits = torch.full((n_envs, n_rays_per_env, 3), float("inf"), device=torch_device).contiguous()
-
-    # map the memory to warp arrays
     ray_starts_wp = wp.from_torch(ray_starts, dtype=wp.vec3)
     ray_directions_wp = wp.from_torch(ray_directions, dtype=wp.vec3)
     ray_hits_wp = wp.from_torch(ray_hits, dtype=wp.vec3)
-    # required to check if a closer hit is reported, returned only if return_distance is true
-    ray_distance = torch.full(
-        (
-            n_envs,
-            n_rays_per_env,
-        ),
-        float("inf"),
-        device=torch_device,
-    ).contiguous()
+    # always allocated: the kernels resolve the closest hit through this buffer
+    ray_distance = torch.full((n_envs, n_rays_per_env), float("inf"), device=torch_device)
     ray_distance_wp = wp.from_torch(ray_distance, dtype=wp.float32)
 
+    # optional outputs fall back to placeholder arrays the kernels never write
     if return_normal:
-        ray_normal = torch.full((n_envs, n_rays_per_env, 3), float("inf"), device=torch_device).contiguous()
+        ray_normal = torch.full((n_envs, n_rays_per_env, 3), float("inf"), device=torch_device)
         ray_normal_wp = wp.from_torch(ray_normal, dtype=wp.vec3)
     else:
         ray_normal = None
         ray_normal_wp = wp.empty((1, 1), dtype=wp.vec3, device=torch_device)
 
     if return_face_id:
-        ray_face_id = torch.ones(
-            (
-                n_envs,
-                n_rays_per_env,
-            ),
-            dtype=torch.int32,
-            device=torch_device,
-        ).contiguous() * (-1)
+        ray_face_id = torch.full((n_envs, n_rays_per_env), -1, dtype=torch.int32, device=torch_device)
         ray_face_id_wp = wp.from_torch(ray_face_id, dtype=wp.int32)
     else:
         ray_face_id = None
         ray_face_id_wp = wp.empty((1, 1), dtype=wp.int32, device=torch_device)
 
     if return_mesh_id:
-        ray_mesh_id = -torch.ones((n_envs, n_rays_per_env), dtype=torch.int16, device=torch_device).contiguous()
+        ray_mesh_id = torch.full((n_envs, n_rays_per_env), -1, dtype=torch.int16, device=torch_device)
         ray_mesh_id_wp = wp.from_torch(ray_mesh_id, dtype=wp.int16)
     else:
         ray_mesh_id = None
@@ -298,7 +273,6 @@ def raycast_dynamic_meshes(
     ###
     if mesh_positions_w is None and mesh_orientations_w is None:
         # Static mesh case, no need to pass in positions and rotations.
-        # launch the warp kernel
         wp.launch(
             kernel=kernels.raycast_static_meshes_kernel,
             dim=[n_meshes, n_envs, n_rays_per_env],
@@ -327,13 +301,7 @@ def raycast_dynamic_meshes(
             mesh_positions_wp_w = wp.from_torch(mesh_positions_w, dtype=wp.vec3)
 
         if mesh_orientations_w is None:
-            # Note (zrene): This is a little bit ugly, since it requires to initialize torch memory first
-            # But I couldn't find a better way to initialize a quaternion identity in warp
-            # wp.zeros(1, dtype=wp.quat, device=torch_device) gives all zero quaternion
-            quat_identity = torch.tensor([0, 0, 0, 1], dtype=torch.float32, device=torch_device).repeat(
-                n_envs, n_meshes, 1
-            )
-            mesh_quat_wp_w = wp.from_torch(quat_identity, dtype=wp.quat)
+            mesh_quat_wp_w = wp.full((n_envs, n_meshes), wp.quat_identity(), dtype=wp.quat, device=torch_device)
         else:
             # mesh orientations are already in xyzw format
             mesh_orientations_w = mesh_orientations_w.to(dtype=torch.float32, device=torch_device).contiguous()
@@ -342,11 +310,10 @@ def raycast_dynamic_meshes(
         # All environments active when called through this public API.
         # Cache the mask by (n_envs, device) to avoid a per-call allocation.
         cache_key = (n_envs, str(torch_device))
-        if cache_key not in _all_env_mask_cache:
-            _all_env_mask_cache[cache_key] = wp.from_torch(torch.ones(n_envs, dtype=torch.bool, device=torch_device))
-        all_env_mask = _all_env_mask_cache[cache_key]
+        all_env_mask = _all_env_mask_cache.get(cache_key)
+        if all_env_mask is None:
+            all_env_mask = _all_env_mask_cache[cache_key] = wp.full(n_envs, True, dtype=wp.bool, device=torch_device)
 
-        # launch the warp kernel
         wp.launch(
             kernel=kernels.raycast_dynamic_meshes_kernel,
             dim=[n_meshes, n_envs, n_rays_per_env],
@@ -369,6 +336,7 @@ def raycast_dynamic_meshes(
             ],
             device=torch_device,
         )
+
     ##
     # Cleanup and convert back to torch tensors
     ##
@@ -404,3 +372,37 @@ def convert_to_warp_mesh(points: np.ndarray, indices: np.ndarray, device: str) -
         points=wp.array(points.astype(np.float32), dtype=wp.vec3, device=device),
         indices=wp.array(indices.astype(np.int32).flatten(), dtype=wp.int32, device=device),
     )
+
+
+@deprecated(
+    "isaaclab.utils.warp.ops.normalize_image_uint8 is deprecated; use isaaclab.utils.images.normalize_rgb instead."
+)
+def normalize_image_uint8(
+    src: torch.Tensor,
+    channel_dim: int = -1,
+    out: torch.Tensor | None = None,
+    output_channel_dim: int | None = None,
+) -> torch.Tensor:
+    """Compute ``(src / 255.0) - mean(src / 255.0, spatial_dims, keepdim=True)`` via a fused Warp kernel.
+
+    .. deprecated::
+        Use :func:`isaaclab.utils.images.normalize_rgb`, which takes the same arguments.
+
+    Args:
+        src: Input uint8 image tensor. Shape is ``(B, H, W, C)`` or ``(B, C, H, W)``.
+        channel_dim: Position of the channel axis. Defaults to ``-1``.
+        out: Optional pre-allocated float32 output. Defaults to None.
+        output_channel_dim: Position of the channel axis in the result. Defaults to None,
+            which keeps the input layout.
+
+    Returns:
+        The normalized float32 tensor.
+
+    Raises:
+        ValueError: If ``src`` is not a 4D uint8 tensor.
+    """
+    from ..images import normalize_rgb
+
+    if src.dtype != torch.uint8 or src.ndim != 4:
+        raise ValueError(f"src must be a 4D uint8 tensor; got dtype={src.dtype}, ndim={src.ndim}")
+    return normalize_rgb(src, channel_dim=channel_dim, output_channel_dim=output_channel_dim, out=out)

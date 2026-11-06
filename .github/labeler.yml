@@ -22,12 +22,9 @@ infrastructure:
       - .dockerignore
       - tools/**
       - .vscode/**
-      - environment.yml
       - setup.py
       - pyproject.toml
       - .pre-commit-config.yaml
-      - isaaclab.sh
-      - isaaclab.bat
       - docs/licenses/**
 
 # Assets (USD, glTF, etc.) related changes.

@@ -5,14 +5,19 @@
 
 from dataclasses import MISSING
 
-from isaaclab.utils.configclass import configclass
-
+from ...utils import configclass
 from ..sub_terrain_cfg import SubTerrainBaseCfg
 
 
 @configclass
 class HfTerrainBaseCfg(SubTerrainBaseCfg):
     """The base configuration for height field terrains."""
+
+    convert_to_heightfield: bool = True
+    """Whether the sub-terrain should be converted to a heightfield. Defaults to True.
+
+    Height field terrains are generated from a height field, so the conversion reproduces them exactly.
+    """
 
     border_width: float = 0.0
     """The width of the border/padding around the terrain (in m). Defaults to 0.0.
@@ -21,15 +26,29 @@ class HfTerrainBaseCfg(SubTerrainBaseCfg):
     greater than or equal to the :obj:`horizontal scale`.
     """
 
-    horizontal_scale: float = 0.1
-    """The discretization of the terrain along the x and y axes (in m). Defaults to 0.1."""
+    horizontal_scale: float | None = 0.1
+    """The discretization of the terrain along the x and y axes (in m). Defaults to 0.1.
 
-    vertical_scale: float = 0.005
-    """The discretization of the terrain along the z axis (in m). Defaults to 0.005."""
+    Set to None to inherit the value from :class:`~isaaclab.terrains.TerrainGeneratorCfg`
+    when using a terrain generator.
+    A numeric value is required when generating this sub-terrain directly.
+    """
+
+    vertical_scale: float | None = 0.005
+    """The discretization of the terrain along the z axis (in m). Defaults to 0.005.
+
+    Set to None to inherit the value from :class:`~isaaclab.terrains.TerrainGeneratorCfg`
+    when using a terrain generator.
+    A numeric value is required when generating this sub-terrain directly.
+    """
 
     slope_threshold: float | None = None
-    """The slope threshold above which surfaces are made vertical. Defaults to None,
-    in which case no correction is applied."""
+    """The slope threshold above which surfaces are made vertical. Defaults to None.
+
+    When using a terrain generator, None inherits :class:`~isaaclab.terrains.TerrainGeneratorCfg`'s ``slope_threshold``.
+    Set the generator's threshold to None to disable correction for children that inherit it.
+    When generating this sub-terrain directly, None disables correction.
+    """
 
 
 """

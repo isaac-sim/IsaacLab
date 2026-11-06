@@ -2,432 +2,308 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-"""Unit tests for VideoRecorder."""
 
-import math
-import sys
+"""Unit tests for VideoRecorder and VideoRecorderCfg.
+
+All tests are pure-Python mocks — no simulation context or Kit app required.
+"""
+
+from __future__ import annotations
+
+import warnings
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import gymnasium as gym
 import numpy as np
 import pytest
 
-from isaaclab.envs.utils import video_recorder as _video_recorder_module
-from isaaclab.envs.utils.video_recorder import VideoRecorder, _resolve_video_backend, _sync_camera_from_visualizer
+from isaaclab.envs.utils.video_recorder import VideoRecorder
+from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg, parse_video_source
+from isaaclab.utils import validate
+from isaaclab.visualizers import VisualizerBackendCfg, VisualizerCfg
 
-pytestmark = pytest.mark.isaacsim_ci
-_BLANK_720p = np.zeros((720, 1280, 3), dtype=np.uint8)
-_DEFAULT_CFG = dict(
-    env_render_mode="rgb_array",
-    eye=(7.5, 7.5, 7.5),
-    lookat=(0.0, 0.0, 0.0),
-    backend_source="visualizer",
-    window_width=1280,
-    window_height=720,
+_FRAME = np.ones((8, 12, 3), dtype=np.uint8) * 128
+
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _patch_moviepy():
+    """Stub out ImageSequenceClip so tests run without moviepy installed.
+
+    Missing-dependency coverage blocks the module import in its own context.
+    """
+    with patch.dict(
+        "sys.modules", {"moviepy.video.io.ImageSequenceClip": SimpleNamespace(ImageSequenceClip=MagicMock())}
+    ):
+        yield
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _cfg(**overrides) -> VideoRecorderCfg:
+    defaults = dict(source="viz", output_dir="/tmp/test_videos", fps=30, video_length=4, video_interval=0)
+    return VideoRecorderCfg(**(defaults | overrides))
+
+
+class _FakeViz:
+    def __init__(self, viz_type: str, frame: np.ndarray | None = None):
+        self.cfg = VisualizerCfg(backend=VisualizerBackendCfg(visualizer_type=viz_type))
+        self._frame = frame if frame is not None else _FRAME.copy()
+        self.render_calls = 0
+
+    def render_rgb_array(self) -> np.ndarray:
+        self.render_calls += 1
+        return self._frame
+
+    def supports_markers(self) -> bool:
+        return True
+
+
+def _make_env(visualizers=(), sensors: dict | None = None):
+    env = SimpleNamespace(sim=MagicMock(), scene=SimpleNamespace(), step_dt=0.02)
+    env.sim.visualizers = list(visualizers)
+    env.scene.sensors = sensors or {}
+    from isaaclab.sim import SimulationContext
+
+    env.sim._backend_registry = []
+    env.sim._scene_data_provider.get_camera_sensors.return_value = env.scene.sensors
+    env.sim.get_or_create_backend.side_effect = lambda cfg, **kwargs: SimulationContext.get_or_create_backend(
+        env.sim, cfg, **kwargs
+    )
+    env.sim.get_physics_step_count.return_value = 0
+    return env
+
+
+# ---------------------------------------------------------------------------
+# parse_video_source
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "source,expected",
+    [
+        ("viz", ("viz", "", "")),
+        ("kit", ("viz", "kit", "")),
+        ("newton_gl", ("viz", "newton_gl", "")),
+        ("newton_rtx", ("viz", "newton_rtx", "")),
+        ("viser", ("viz", "viser", "")),
+        ("rerun", ("viz", "rerun", "")),
+        ("viz:newton_gl:streaming_view", ("viz", "newton_gl", "streaming_view")),
+        ("sensor:tiled_camera", ("sensor", "tiled_camera", "")),
+        ("sensor:tiled_camera:depth", ("sensor", "tiled_camera", "depth")),
+        # ``visualizer`` is the long form of ``viz``
+        ("visualizer:kit", ("viz", "kit", "")),
+        # the deprecated ``newton`` type maps to ``newton_gl``, with a DeprecationWarning
+        ("visualizer:newton:streaming_view", ("viz", "newton_gl", "streaming_view")),
+        ("newton", ("viz", "newton_gl", "")),
+        ("a=b", "Invalid video source"),
+        ("viz:foo", "Invalid video source"),
+        ("viz:kit:bar", "Invalid video source"),
+        ("sensor", "Invalid video source"),
+        ("sensor:", "Invalid video source"),
+        ("sensor:cam:foo", "Invalid video source"),
+        ("newton_gl:streaming_view", "Invalid video source"),
+    ],
 )
+def test_parse_video_source(source, expected):
+    if isinstance(expected, str):  # an invalid source and the error it raises
+        with pytest.raises(ValueError, match=expected):
+            parse_video_source(source)
+        return
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        assert parse_video_source(source) == expected
+    assert [w.category for w in caught] == [DeprecationWarning] * ("newton" in source.split(":"))
+
+
+# ---------------------------------------------------------------------------
+# Construction-time validation
+# ---------------------------------------------------------------------------
+
+
+def test_init_raises_import_error_when_moviepy_missing():
+    with patch.dict("sys.modules", {"moviepy.video.io.ImageSequenceClip": None}):
+        with pytest.raises(ImportError, match="moviepy"):
+            VideoRecorder(_cfg(), _make_env())
+
+
+@pytest.mark.parametrize(
+    "overrides,error",
+    [
+        (dict(video_length=1, frame_stride=1, video_interval=0, step_offset=0), None),
+        (dict(video_length=0), "video_length=0"),
+        (dict(frame_stride=0), "frame_stride=0"),
+        (dict(video_interval=-1), "video_interval=-1"),
+        (dict(step_offset=-1), "step_offset=-1"),
+    ],
+    ids=["valid_boundary", "video_length", "frame_stride", "video_interval", "step_offset"],
+)
+def test_cfg_validate_clip_schedule(overrides, error):
+    cfg = _cfg(**overrides)
+    if error is None:
+        validate(cfg)
+    else:
+        with pytest.raises(ValueError, match=error):
+            validate(cfg)
+
+
+# ---------------------------------------------------------------------------
+# Clip schedule
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "schedule,num_steps,expected_clips",
+    [
+        (dict(video_length=2), 8, [[1, 2]]),
+        (dict(video_length=1, video_interval=3), 9, [[1], [4], [7]]),
+        (dict(video_length=2, step_offset=5), 8, [[6, 7]]),
+        (dict(video_length=4, frame_stride=2), 4, [[2, 4]]),
+        (dict(video_length=6, video_interval=3, frame_stride=2), 8, [[2], [5], [8]]),
+        (dict(video_length=4), 2, [[1, 2]]),
+        (dict(video_length=2, step_offset=5), 3, []),
+        (dict(video_length=4, frame_stride=2, fps=None), 4, [[2, 4]]),
+    ],
+    ids=[
+        "one_shot",
+        "recurring",
+        "step_offset",
+        "frame_stride",
+        "overlapping_clips",
+        "close_flushes_partial",
+        "close_skips_empty",
+        "automatic_fps_without_gym_metadata",
+    ],
+)
+def test_step_schedule_writes_expected_clips(tmp_path, schedule, num_steps, expected_clips):
+    """Each written clip holds the frames of exactly the env steps its schedule captures, then close() flushes."""
+    viz = _FakeViz("kit")
+    step = 0
+    viz.render_rgb_array = lambda: np.full_like(_FRAME, step)
+    written = []
+
+    def write_clip(frames, fps):
+        written.append(([int(frame[0, 0, 0]) for frame in frames], fps))
+        return MagicMock()
+
+    recorder = VideoRecorder(_cfg(source="viz:kit", output_dir=str(tmp_path), **schedule), _make_env(visualizers=[viz]))
+    with patch.object(recorder, "_clip_class", side_effect=write_clip):
+        for step in range(1, num_steps + 1):
+            recorder.step()
+        recorder.close()
+
+    assert [steps for steps, _ in written] == expected_clips
+    expected_fps = recorder.cfg.fps or round(1 / (0.02 * recorder.cfg.frame_stride))
+    assert all(fps == expected_fps for _, fps in written)
+
+    if recorder.cfg.fps is None:
+        # Gym environments may override the playback rate in their metadata.
+        env = gym.Env()
+        env.sim, env.step_dt, env.metadata = _make_env([viz]).sim, 0.02, {"render_fps": 40}
+        recorder = VideoRecorder(recorder.cfg, env)
+        with patch.object(recorder, "_clip_class", side_effect=write_clip):
+            for _ in range(num_steps):
+                recorder.step()
+        assert written[-1][1] == 20
+
 
-
-def _create_recorder(**kw):
-    """Return a VideoRecorder with ``__init__`` bypassed and all deps mocked out."""
-    backend = kw.pop("_backend", None)
-    matched_visualizer = kw.pop("_matched_visualizer", None)
-    live_visualizer = kw.pop("_live_visualizer", None)
-    recorder = object.__new__(VideoRecorder)
-    recorder.cfg = SimpleNamespace(**{**_DEFAULT_CFG, **kw})
-    recorder._scene = MagicMock()
-    recorder._scene.sensors = {}
-    recorder._scene._sensor_renderer_types = MagicMock(return_value=[])
-    recorder._scene.sim.visualizers = []
-    recorder._backend = backend
-    recorder._matched_visualizer = matched_visualizer
-    recorder._live_visualizer = live_visualizer
-    cap = MagicMock()
-    cap.render_rgb_array = MagicMock(return_value=_BLANK_720p)
-    recorder._capture = cap if backend else None
-    return recorder
-
-
-def test_init_perspective_mode_creates_kit_capture():
-    """With kit backend, __init__ builds Isaac Sim Kit perspective capture."""
-    scene = MagicMock()
-    scene.sensors = {}
-    scene.num_envs = 1
-    cfg = SimpleNamespace(**_DEFAULT_CFG)
-    fake_capture = MagicMock()
-    kit_mod = MagicMock()
-    kit_mod.create_isaacsim_kit_perspective_video = MagicMock(return_value=fake_capture)
-    with patch.object(_video_recorder_module, "_resolve_video_backend", return_value=("kit", None)):
-        with patch.object(_video_recorder_module, "_sync_camera_from_visualizer"):
-            with patch.dict(
-                sys.modules,
-                {
-                    "isaaclab_physx.video_recording": MagicMock(),
-                    "isaaclab_physx.video_recording.isaacsim_kit_perspective_video": kit_mod,
-                    "isaaclab_physx.video_recording.isaacsim_kit_perspective_video_cfg": MagicMock(),
-                },
-            ):
-                vr = VideoRecorder(cfg, scene)
-    kit_mod.create_isaacsim_kit_perspective_video.assert_called_once()
-    assert vr._capture is fake_capture
-    assert vr._matched_visualizer is None
-
-
-def test_init_newton_backend_creates_newton_capture():
-    """With newton_gl backend, __init__ builds Newton GL perspective capture."""
-    scene = MagicMock()
-    cfg = SimpleNamespace(**_DEFAULT_CFG)
-    fake_capture = MagicMock()
-    newton_mod = MagicMock()
-    newton_mod.create_newton_gl_perspective_video = MagicMock(return_value=fake_capture)
-    with patch.object(_video_recorder_module, "_resolve_video_backend", return_value=("newton_gl", "newton")):
-        with patch.object(_video_recorder_module, "_sync_camera_from_visualizer"):
-            with patch.dict(
-                sys.modules,
-                {
-                    "pyglet": MagicMock(),
-                    "isaaclab_newton.video_recording": MagicMock(),
-                    "isaaclab_newton.video_recording.newton_gl_perspective_video": newton_mod,
-                    "isaaclab_newton.video_recording.newton_gl_perspective_video_cfg": MagicMock(),
-                },
-            ):
-                vr = VideoRecorder(cfg, scene)
-    newton_mod.create_newton_gl_perspective_video.assert_called_once()
-    assert vr._capture is fake_capture
-    assert vr._matched_visualizer == "newton"
-
-
-def test_init_kit_from_visualizer_syncs_camera():
-    """When backend comes from a visualizer, _sync_camera_from_visualizer is called."""
-    scene = MagicMock()
-    cfg = SimpleNamespace(**_DEFAULT_CFG)
-    with patch.object(_video_recorder_module, "_resolve_video_backend", return_value=("kit", "kit")):
-        with patch.object(_video_recorder_module, "_sync_camera_from_visualizer") as mock_sync:
-            with patch.dict(
-                sys.modules,
-                {
-                    "isaaclab_physx.video_recording": MagicMock(),
-                    "isaaclab_physx.video_recording.isaacsim_kit_perspective_video": MagicMock(),
-                    "isaaclab_physx.video_recording.isaacsim_kit_perspective_video_cfg": MagicMock(),
-                },
-            ):
-                VideoRecorder(cfg, scene)
-    mock_sync.assert_called_once_with(scene, "kit", cfg)
-
-
-def test_init_no_visualizer_skips_camera_sync():
-    """When backend comes from physics/renderer stack, camera sync is skipped."""
-    scene = MagicMock()
-    cfg = SimpleNamespace(**_DEFAULT_CFG)
-    with patch.object(_video_recorder_module, "_resolve_video_backend", return_value=("kit", None)):
-        with patch.object(_video_recorder_module, "_sync_camera_from_visualizer") as mock_sync:
-            with patch.dict(
-                sys.modules,
-                {
-                    "isaaclab_physx.video_recording": MagicMock(),
-                    "isaaclab_physx.video_recording.isaacsim_kit_perspective_video": MagicMock(),
-                    "isaaclab_physx.video_recording.isaacsim_kit_perspective_video_cfg": MagicMock(),
-                },
-            ):
-                VideoRecorder(cfg, scene)
-    mock_sync.assert_not_called()
-
-
-def _make_scene(visualizer_types, physics_name="PhysxPhysicsManager", renderer_types=None):
-    scene = MagicMock()
-    scene.sim.resolve_visualizer_types.return_value = visualizer_types
-    scene.sim.physics_manager.__name__ = physics_name
-    scene._sensor_renderer_types.return_value = renderer_types or []
-    return scene
-
-
-def test_resolve_backend_prefers_kit_visualizer():
-    """When 'kit' visualizer is active, backend is 'kit' with matched type 'kit'."""
-    scene = _make_scene(["kit"])
-    backend, matched = _resolve_video_backend(scene)
-    assert backend == "kit"
-    assert matched == "kit"
-
-
-def test_resolve_backend_prefers_newton_visualizer():
-    """When 'newton' visualizer is active, backend is 'newton_gl' with matched type 'newton'."""
-    scene = _make_scene(["newton"], physics_name="NewtonPhysicsManager")
-    backend, matched = _resolve_video_backend(scene)
-    assert backend == "newton_gl"
-    assert matched == "newton"
-
-
-def test_resolve_backend_renderer_source_ignores_visualizer():
-    """When backend_source is 'renderer', active visualizers do not drive backend selection."""
-    scene = _make_scene(["newton"], physics_name="PhysxPhysicsManager")
-    backend, matched = _resolve_video_backend(scene, backend_source="renderer")
-    assert backend == "kit"
-    assert matched is None
-
-
-def test_resolve_backend_kit_wins_over_newton_visualizer():
-    """When both kit and newton visualizers are active, kit takes priority."""
-    scene = _make_scene(["newton", "kit"])
-    backend, matched = _resolve_video_backend(scene)
-    assert backend == "kit"
-    assert matched == "kit"
-
-
-def test_resolve_backend_unsupported_visualizer_falls_through():
-    """viser/rerun visualizers fall through to physics stack detection."""
-    scene = _make_scene(["viser"], physics_name="PhysxPhysicsManager")
-    backend, matched = _resolve_video_backend(scene)
-    assert backend == "kit"
-    assert matched is None
-
-
-def test_resolve_backend_fallback_physx_returns_none_matched():
-    """Physics/renderer fallback returns None as matched visualizer."""
-    scene = _make_scene([], physics_name="PhysxPhysicsManager")
-    backend, matched = _resolve_video_backend(scene)
-    assert backend == "kit"
-    assert matched is None
-
-
-def test_resolve_backend_fallback_newton_physics_returns_none_matched():
-    """Newton physics fallback returns None as matched visualizer."""
-    scene = _make_scene([], physics_name="NewtonPhysicsManager")
-    backend, matched = _resolve_video_backend(scene)
-    assert backend == "newton_gl"
-    assert matched is None
-
-
-def test_resolve_backend_raises_when_no_supported_backend():
-    """RuntimeError when no supported backend can be detected."""
-    scene = _make_scene([], physics_name="UnknownManager")
-    with pytest.raises(RuntimeError, match="No supported backend detected"):
-        _resolve_video_backend(scene)
-
-
-def test_resolve_backend_raises_for_invalid_backend_source():
-    """Only 'visualizer' and 'renderer' are valid backend source modes."""
-    scene = _make_scene([])
-    with pytest.raises(ValueError, match="backend_source"):
-        _resolve_video_backend(scene, backend_source="invalid")
-
-
-def _make_visualizer_cfg(visualizer_type, eye=None, lookat=None):
-    return SimpleNamespace(visualizer_type=visualizer_type, eye=eye, lookat=lookat)
-
-
-def test_sync_camera_overwrites_cfg_from_visualizer():
-    """Visualizer cfg eye/lookat are written into VideoRecorderCfg."""
-    scene = MagicMock()
-    scene.sim._resolve_visualizer_cfgs.return_value = [
-        _make_visualizer_cfg("newton", eye=(1.0, 2.0, 3.0), lookat=(4.0, 5.0, 6.0)),
-    ]
-    cfg = SimpleNamespace(**_DEFAULT_CFG)
-    _sync_camera_from_visualizer(scene, "newton", cfg)
-    assert cfg.eye == (1.0, 2.0, 3.0)
-    assert cfg.lookat == (4.0, 5.0, 6.0)
-
-
-def test_sync_camera_skips_wrong_visualizer_type():
-    """Only the matching visualizer type updates the cfg."""
-    scene = MagicMock()
-    scene.sim._resolve_visualizer_cfgs.return_value = [
-        _make_visualizer_cfg("kit", eye=(9.0, 9.0, 9.0), lookat=(1.0, 1.0, 1.0)),
-    ]
-    cfg = SimpleNamespace(**_DEFAULT_CFG)
-    original_eye = cfg.eye
-    _sync_camera_from_visualizer(scene, "newton", cfg)
-    assert cfg.eye == original_eye  # unchanged
-
-
-def test_sync_camera_handles_missing_camera_fields():
-    """If visualizer cfg has no camera fields, existing cfg values are kept."""
-    scene = MagicMock()
-    vcfg = _make_visualizer_cfg("newton", eye=None, lookat=None)
-    scene.sim._resolve_visualizer_cfgs.return_value = [vcfg]
-    cfg = SimpleNamespace(**_DEFAULT_CFG)
-    original_eye = cfg.eye
-    _sync_camera_from_visualizer(scene, "newton", cfg)
-    assert cfg.eye == original_eye
-
-
-def test_sync_camera_handles_resolve_exception():
-    """If _resolve_visualizer_cfgs raises, no exception propagates and cfg is unchanged."""
-    scene = MagicMock()
-    scene.sim._resolve_visualizer_cfgs.side_effect = RuntimeError("boom")
-    cfg = SimpleNamespace(**_DEFAULT_CFG)
-    original_eye = cfg.eye
-    _sync_camera_from_visualizer(scene, "newton", cfg)
-    assert cfg.eye == original_eye
-
-
-def test_render_rgb_array_delegates_to_capture():
-    """render_rgb_array returns capture.render_rgb_array()."""
-    recorder = _create_recorder(_backend="kit")
-    result = recorder.render_rgb_array()
-    recorder._capture.render_rgb_array.assert_called_once()
-    assert result.shape == (720, 1280, 3)
-
-
-def test_render_rgb_array_none_when_no_backend():
-    """Without rgb_array env_render_mode, _capture is None and render returns None."""
-    recorder = _create_recorder(env_render_mode=None)
-    recorder._backend = None
-    recorder._capture = None
-    assert recorder.render_rgb_array() is None
-
-
-def test_capture_exception_propagates():
-    """Failures in backend capture propagate."""
-    recorder = _create_recorder(_backend="newton_gl")
-    recorder._capture.render_rgb_array.side_effect = RuntimeError("fail")
-    with pytest.raises(RuntimeError, match="fail"):
-        recorder.render_rgb_array()
-
-
-def test_render_rgb_array_calls_capture_each_step():
-    """Each render_rgb_array call hits the backend capture."""
-    recorder = _create_recorder(_backend="kit")
-    for _ in range(3):
-        recorder.render_rgb_array()
-    assert recorder._capture.render_rgb_array.call_count == 3
-
-
-def test_render_rgb_array_calls_sync_newton_camera_when_newton_visualizer():
-    """render_rgb_array triggers _sync_newton_camera when matched_visualizer is 'newton'."""
-    recorder = _create_recorder(_backend="newton_gl", _matched_visualizer="newton")
-    with patch.object(recorder, "_sync_newton_camera") as mock_sync:
-        recorder.render_rgb_array()
-    mock_sync.assert_called_once()
-
-
-def test_render_rgb_array_skips_sync_for_kit_visualizer():
-    """render_rgb_array does NOT call _sync_newton_camera for kit backend."""
-    recorder = _create_recorder(_backend="kit", _matched_visualizer="kit")
-    with patch.object(recorder, "_sync_newton_camera") as mock_sync:
-        recorder.render_rgb_array()
-    mock_sync.assert_not_called()
-
-
-def test_render_rgb_array_skips_sync_when_no_visualizer():
-    """render_rgb_array does NOT call _sync_newton_camera when using physics/renderer stack."""
-    recorder = _create_recorder(_backend="kit", _matched_visualizer=None)
-    with patch.object(recorder, "_sync_newton_camera") as mock_sync:
-        recorder.render_rgb_array()
-    mock_sync.assert_not_called()
-
-
-def _make_newton_visualizer(pos=(1.0, 2.0, 3.0), yaw_deg=45.0, pitch_deg=30.0):
-    """Return a mock that quacks like a NewtonVisualizer with a live camera."""
-    viz = MagicMock()
-    viz.cfg.visualizer_type = "newton"
-    cam = MagicMock()
-    cam.pos = pos
-    cam.yaw = yaw_deg
-    cam.pitch = pitch_deg
-    viz._viewer = MagicMock()
-    viz._viewer.camera = cam
-    return viz
-
-
-def test_sync_newton_camera_lazy_lookup_finds_visualizer():
-    """_sync_newton_camera resolves the Newton visualizer on the first call."""
-    recorder = _create_recorder(_backend="newton_gl", _matched_visualizer="newton")
-    newton_viz = _make_newton_visualizer()
-    recorder._scene.sim.visualizers = [newton_viz]
-
-    recorder._sync_newton_camera()
-
-    assert recorder._live_visualizer is newton_viz
-    recorder._capture.update_camera.assert_called_once()
-
-
-def test_sync_newton_camera_uses_cached_visualizer():
-    """_sync_newton_camera uses the cached _live_visualizer and skips the list walk."""
-    recorder = _create_recorder(_backend="newton_gl", _matched_visualizer="newton")
-    newton_viz = _make_newton_visualizer()
-    # pre-cache the visualizer
-    recorder._live_visualizer = newton_viz
-
-    other_viz = _make_newton_visualizer(pos=(99.0, 99.0, 99.0))
-    # replace sim.visualizers with a second Newton visualizer
-    # if the cache is bypassed the recorder would use this one instead.
-    recorder._scene.sim.visualizers = [other_viz]
-    recorder._sync_newton_camera()
-    position = recorder._capture.update_camera.call_args[0][0]
-    assert position != (99.0, 99.0, 99.0)
-    recorder._capture.update_camera.assert_called_once()
-
-
-def test_sync_newton_camera_correct_position_forwarded():
-    """_sync_newton_camera reads cam.pos and passes it as position to update_camera."""
-    recorder = _create_recorder(_backend="newton_gl", _matched_visualizer="newton")
-    newton_viz = _make_newton_visualizer(pos=(10.0, 20.0, 30.0), yaw_deg=0.0, pitch_deg=0.0)
-    recorder._live_visualizer = newton_viz
-
-    recorder._sync_newton_camera()
-
-    args = recorder._capture.update_camera.call_args
-    position = args[0][0]
-    assert position == (10.0, 20.0, 30.0)
-
-
-def test_sync_newton_camera_target_derived_from_pitch_yaw():
-    """Target is reconstructed from pitch/yaw and is unit-distance from position."""
-    recorder = _create_recorder(_backend="newton_gl", _matched_visualizer="newton")
-    pos = (0.0, 0.0, 0.0)
-    yaw_deg, pitch_deg = 0.0, 0.0  # looking along +X at horizon
-    newton_viz = _make_newton_visualizer(pos=pos, yaw_deg=yaw_deg, pitch_deg=pitch_deg)
-    recorder._live_visualizer = newton_viz
-
-    recorder._sync_newton_camera()
-
-    args = recorder._capture.update_camera.call_args[0]
-    position, target = args
-    dx = target[0] - position[0]
-    dy = target[1] - position[1]
-    dz = target[2] - position[2]
-    dist = math.sqrt(dx**2 + dy**2 + dz**2)
-    assert abs(dist - 1.0) < 1e-6
-    assert abs(dx - 1.0) < 1e-6
-    assert abs(dy) < 1e-6
-    assert abs(dz) < 1e-6
-
-
-def test_sync_newton_camera_no_visualizer_does_not_raise():
-    """_sync_newton_camera silently skips when no Newton visualizer is registered."""
-    recorder = _create_recorder(_backend="newton_gl", _matched_visualizer="newton")
-    recorder._scene.sim.visualizers = []
-    recorder._sync_newton_camera()  # must not raise
-    recorder._capture.update_camera.assert_not_called()
-
-
-def test_sync_newton_camera_skips_non_newton_visualizers():
-    """_sync_newton_camera ignores visualizers whose type is not 'newton'."""
-    recorder = _create_recorder(_backend="newton_gl", _matched_visualizer="newton")
-    kit_viz = MagicMock()
-    kit_viz.cfg.visualizer_type = "kit"
-    recorder._scene.sim.visualizers = [kit_viz]
-    recorder._sync_newton_camera()
-    recorder._capture.update_camera.assert_not_called()
-
-
-def test_sync_newton_camera_skips_when_viewer_is_none():
-    """_sync_newton_camera skips camera update when _viewer is None (headless fallback)."""
-    recorder = _create_recorder(_backend="newton_gl", _matched_visualizer="newton")
-    viz = MagicMock()
-    viz.cfg.visualizer_type = "newton"
-    viz._viewer = None
-    recorder._live_visualizer = viz
-    recorder._sync_newton_camera()
-    recorder._capture.update_camera.assert_not_called()
-
-
-def test_sync_newton_camera_called_per_frame():
-    """_sync_newton_camera (and thus update_camera) is called on every render step."""
-    recorder = _create_recorder(_backend="newton_gl", _matched_visualizer="newton")
-    newton_viz = _make_newton_visualizer()
-    recorder._live_visualizer = newton_viz
-
-    for _ in range(4):
-        recorder.render_rgb_array()
-
-    assert recorder._capture.update_camera.call_count == 4
+# ---------------------------------------------------------------------------
+# Visualizer frame routing
+# ---------------------------------------------------------------------------
+
+
+def _rgb_sensor():
+    import warp as wp
+
+    from isaaclab.utils.warp import ProxyArray
+
+    sensor = MagicMock()
+    sensor.cfg.data_types = ["rgb"]
+    sensor.data.output = {"rgb": ProxyArray(wp.full((1, *_FRAME.shape), 200, dtype=wp.uint8, device="cpu"))}
+    return sensor
+
+
+@pytest.mark.parametrize(
+    "source,make_env",
+    [
+        ("viz", lambda: _make_env(visualizers=[_FakeViz("kit")])),
+        ("viz:newton_gl", lambda: _make_env(visualizers=[_FakeViz("newton_gl")])),
+        ("sensor:tiled_camera", lambda: _make_env(sensors={"tiled_camera": _rgb_sensor()})),
+    ],
+    ids=["auto_visualizer", "newton_gl", "sensor_rgb"],
+)
+def test_source_resolves_frame(source, make_env, caplog):
+    env = make_env()
+    visualizers = env.sim.visualizers
+    recorder = VideoRecorder(_cfg(source=source), env)
+    # Capture is bound during construction; later frames do not discover producers again.
+    env.sim.visualizers = []
+    if source.startswith("sensor:"):
+        env.sim._scene_data_provider.get_camera_sensors.return_value = {}
+    if source == "viz:newton_gl":
+        visualizers[0]._frame = None
+        assert recorder._capture() is None
+        visualizers[0]._frame = _FRAME.copy()
+    frame = recorder._capture()
+    assert frame is not None
+    assert frame.shape == _FRAME.shape
+    assert not caplog.records
+
+
+@pytest.mark.parametrize(
+    "source,make_env,error,message",
+    [
+        ("badkind:foo", _make_env, ValueError, "Invalid video source"),
+        ("viz", lambda: _make_env(visualizers=[]), RuntimeError, "no recording-capable visualizer"),
+        (
+            "viz:newton_gl:streaming_view",
+            lambda: _make_env(visualizers=[_FakeViz("newton_gl")]),
+            RuntimeError,
+            "Enable streaming_view",
+        ),
+        ("sensor:missing", lambda: _make_env(sensors={"tiled_camera": MagicMock()}), ValueError, "missing"),
+        ("sensor:tiled_camera:depth", lambda: _make_env(sensors={"tiled_camera": _rgb_sensor()}), KeyError, "depth"),
+    ],
+)
+def test_invalid_source_raises(source, make_env, error, message):
+    """Invalid sources fail when the recorder is constructed, before training starts."""
+    with pytest.raises(error, match=message):
+        VideoRecorder(_cfg(source=source), make_env())
+
+
+# ---------------------------------------------------------------------------
+# keep_last_n_clips pruning
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "existing,expected",
+    [
+        ([], ["clip_0000.mp4"]),
+        (
+            ["clip_0001.mp4", "clip_9997.mp4", "clip_9998.mp4", "clip_final.mp4", "other_10000.mp4"],
+            ["clip_9998.mp4", "clip_9999.mp4", "clip_final.mp4", "other_10000.mp4"],
+        ),
+    ],
+    ids=["empty_dir", "resume_and_prune"],
+)
+def test_clip_files_resume_and_prune_only_matching_indices(tmp_path, existing, expected):
+    """Continue the highest clip index and retain only this recorder's last N numbered clips."""
+    for name in existing:
+        (tmp_path / name).touch()
+    recorder = VideoRecorder(
+        _cfg(output_dir=str(tmp_path), keep_last_n_clips=2, video_length=1), _make_env([_FakeViz("newton_gl")])
+    )
+    with patch.object(recorder, "_clip_class") as encoder:
+        encoder.return_value.write_videofile.side_effect = lambda path, **kwargs: (tmp_path / path).touch()
+        recorder.step()
+
+    assert sorted(path.name for path in tmp_path.iterdir()) == expected

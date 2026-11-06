@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
 import numpy as np
 import pytest
 import torch
@@ -24,6 +19,13 @@ from isaaclab_mimic.datagen.selection_strategy import (
 
 # Number of iterations to run the batched tests
 NUM_ITERS = 1000
+
+
+@pytest.fixture(autouse=True)
+def seed_rngs():
+    """Seed the NumPy and torch generators that the poses and the strategies draw from."""
+    np.random.seed(0)
+    torch.manual_seed(0)
 
 
 @pytest.fixture

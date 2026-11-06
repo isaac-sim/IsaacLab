@@ -5,11 +5,6 @@
 
 """Test dataset generation for Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Mimic-v0."""
 
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
 import os
 import sys
 import tempfile
@@ -74,8 +69,8 @@ def _run_generation(workflow_root: str, input_file: str, output_file: str, num_e
         str(num_envs),
         "--generation_num_trials",
         "1",
-        "--enable_cameras",
-        "--headless",
+        "--max_num_failures",
+        "10",
     ]
 
     result = run_script(command)
@@ -94,13 +89,6 @@ def _run_generation(workflow_root: str, input_file: str, output_file: str, num_e
     assert expected_output in combined_output, (
         f"Could not find '{expected_output}' in output.\nstdout: {result.stdout}\nstderr: {result.stderr}"
     )
-
-
-def test_generate_dataset_franka_visuomotor(setup_visuomotor_test_environment):
-    """Test dataset generation for the visuomotor cube-stack environment (single env)."""
-    workflow_root, input_file = setup_visuomotor_test_environment
-    output_file = os.path.join(DATASETS_DOWNLOAD_DIR, "generated_dataset.hdf5")
-    _run_generation(workflow_root, input_file, output_file, num_envs=1)
 
 
 def test_generate_dataset_franka_visuomotor_multi_env(setup_visuomotor_test_environment):

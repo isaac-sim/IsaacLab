@@ -3,27 +3,32 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from collections.abc import Iterable
 from dataclasses import dataclass
+from typing import Any
 
-import torch
+
+def reset_timestamps(buffers: Iterable["TimestampedBuffer | None"]) -> None:
+    """Invalidate cached values, skipping unallocated or unaffected buffers.
+
+    Args:
+        buffers: Timestamped buffers to invalidate. ``None`` entries are ignored.
+    """
+    for buffer in buffers:
+        if buffer is not None:
+            buffer.timestamp = -1.0
 
 
 @dataclass
 class TimestampedBuffer:
-    """A buffer class containing data and its timestamp.
+    """Cached data and its last successful update timestamp.
 
-    This class is a simple data container that stores a tensor and its timestamp. The timestamp is used to
-    track the last update of the buffer. The timestamp is set to -1.0 by default, indicating that the buffer
-    has not been updated yet. The timestamp should be updated whenever the data in the buffer is updated. This
-    way the buffer can be used to check whether the data is outdated and needs to be refreshed.
-
-    The buffer is useful for creating lazy buffers that only update the data when it is outdated. This can be
-    useful when the data is expensive to compute or retrieve. For example usage, refer to the data classes in
-    the :mod:`isaaclab.assets` module.
+    The owner supplies storage and updates the timestamp after computing the value.
+    Array caches accept Torch or Warp arrays directly; no conversion is performed.
     """
 
-    data: torch.Tensor = None  # type: ignore
-    """The data stored in the buffer. Default is None, indicating that the buffer is empty."""
+    data: Any = None
+    """Cached array, native-format struct, or grouped data; None before allocation."""
 
     timestamp: float = -1.0
-    """Timestamp at the last update of the buffer. Default is -1.0, indicating that the buffer has not been updated."""
+    """Source timestamp represented by the data; -1 marks it stale."""

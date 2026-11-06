@@ -12,14 +12,16 @@ from typing import TYPE_CHECKING
 import numpy as np
 import scipy.interpolate as interpolate
 
-from .utils import height_field_to_mesh
+from .utils import height_field_to_mesh, to_discrete_units
 
 if TYPE_CHECKING:
     from . import hf_terrains_cfg
 
 
 @height_field_to_mesh
-def random_uniform_terrain(difficulty: float, cfg: hf_terrains_cfg.HfRandomUniformTerrainCfg) -> np.ndarray:
+def random_uniform_terrain(
+    difficulty: float, cfg: hf_terrains_cfg.HfRandomUniformTerrainCfg
+) -> tuple[np.ndarray, np.ndarray]:
     """Generate a terrain with height sampled uniformly from a specified range.
 
     .. image:: ../../_static/terrains/height_field/random_uniform_terrain.jpg
@@ -34,9 +36,7 @@ def random_uniform_terrain(difficulty: float, cfg: hf_terrains_cfg.HfRandomUnifo
         cfg: The configuration for the terrain.
 
     Returns:
-        The height field of the terrain as a 2D numpy array with discretized heights.
-        The shape of the array is (width, length), where width and length are the number of points
-        along the x and y axis, respectively.
+        The discretized height field with shape (width, length) and its origin [m] with shape (3,).
 
     Raises:
         ValueError: When the downsampled scale is smaller than the horizontal scale.
@@ -53,15 +53,15 @@ def random_uniform_terrain(difficulty: float, cfg: hf_terrains_cfg.HfRandomUnifo
 
     # switch parameters to discrete units
     # -- horizontal scale
-    width_pixels = int(cfg.size[0] / cfg.horizontal_scale)
-    length_pixels = int(cfg.size[1] / cfg.horizontal_scale)
+    width_pixels = to_discrete_units(cfg.size[0], cfg.horizontal_scale)
+    length_pixels = to_discrete_units(cfg.size[1], cfg.horizontal_scale)
     # -- downsampled scale
-    width_downsampled = int(cfg.size[0] / cfg.downsampled_scale)
-    length_downsampled = int(cfg.size[1] / cfg.downsampled_scale)
+    width_downsampled = to_discrete_units(cfg.size[0], cfg.downsampled_scale)
+    length_downsampled = to_discrete_units(cfg.size[1], cfg.downsampled_scale)
     # -- height
-    height_min = int(cfg.noise_range[0] / cfg.vertical_scale)
-    height_max = int(cfg.noise_range[1] / cfg.vertical_scale)
-    height_step = int(cfg.noise_step / cfg.vertical_scale)
+    height_min = to_discrete_units(cfg.noise_range[0], cfg.vertical_scale)
+    height_max = to_discrete_units(cfg.noise_range[1], cfg.vertical_scale)
+    height_step = to_discrete_units(cfg.noise_step, cfg.vertical_scale)
 
     # create range of heights possible
     height_range = np.arange(height_min, height_max + height_step, height_step)
@@ -77,11 +77,14 @@ def random_uniform_terrain(difficulty: float, cfg: hf_terrains_cfg.HfRandomUnifo
     y_upsampled = np.linspace(0, cfg.size[1] * cfg.horizontal_scale, length_pixels)
     z_upsampled = func(x_upsampled, y_upsampled)
     # round off the interpolated heights to the nearest vertical step
-    return np.rint(z_upsampled).astype(np.int16)
+    height_field = np.rint(z_upsampled).astype(np.int16)
+    return height_field, _terrain_origin(height_field, cfg)
 
 
 @height_field_to_mesh
-def pyramid_sloped_terrain(difficulty: float, cfg: hf_terrains_cfg.HfPyramidSlopedTerrainCfg) -> np.ndarray:
+def pyramid_sloped_terrain(
+    difficulty: float, cfg: hf_terrains_cfg.HfPyramidSlopedTerrainCfg
+) -> tuple[np.ndarray, np.ndarray]:
     """Generate a terrain with a truncated pyramid structure.
 
     The terrain is a pyramid-shaped sloped surface with a slope of :obj:`slope` that trims into a flat platform
@@ -102,9 +105,7 @@ def pyramid_sloped_terrain(difficulty: float, cfg: hf_terrains_cfg.HfPyramidSlop
         cfg: The configuration for the terrain.
 
     Returns:
-        The height field of the terrain as a 2D numpy array with discretized heights.
-        The shape of the array is (width, length), where width and length are the number of points
-        along the x and y axis, respectively.
+        The discretized height field with shape (width, length) and its origin [m] with shape (3,).
     """
     # resolve terrain configuration
     if cfg.inverted:
@@ -114,11 +115,11 @@ def pyramid_sloped_terrain(difficulty: float, cfg: hf_terrains_cfg.HfPyramidSlop
 
     # switch parameters to discrete units
     # -- horizontal scale
-    width_pixels = int(cfg.size[0] / cfg.horizontal_scale)
-    length_pixels = int(cfg.size[1] / cfg.horizontal_scale)
+    width_pixels = to_discrete_units(cfg.size[0], cfg.horizontal_scale)
+    length_pixels = to_discrete_units(cfg.size[1], cfg.horizontal_scale)
     # -- height
     # we want the height to be 1/2 of the width since the terrain is a pyramid
-    height_max = int(slope * cfg.size[0] / 2 / cfg.vertical_scale)
+    height_max = to_discrete_units(slope * cfg.size[0] / 2, cfg.vertical_scale)
     # -- center of the terrain
     center_x = int(width_pixels / 2)
     center_y = int(length_pixels / 2)
@@ -138,7 +139,7 @@ def pyramid_sloped_terrain(difficulty: float, cfg: hf_terrains_cfg.HfPyramidSlop
     hf_raw = height_max * xx * yy
 
     # create a flat platform at the center of the terrain
-    platform_width = int(cfg.platform_width / cfg.horizontal_scale / 2)
+    platform_width = to_discrete_units(cfg.platform_width / 2, cfg.horizontal_scale)
     # get the height of the platform at the corner of the platform
     x_pf = width_pixels // 2 - platform_width
     y_pf = length_pixels // 2 - platform_width
@@ -146,11 +147,14 @@ def pyramid_sloped_terrain(difficulty: float, cfg: hf_terrains_cfg.HfPyramidSlop
     hf_raw = np.clip(hf_raw, min(0, z_pf), max(0, z_pf))
 
     # round off the heights to the nearest vertical step
-    return np.rint(hf_raw).astype(np.int16)
+    height_field = np.rint(hf_raw).astype(np.int16)
+    return height_field, _terrain_origin(height_field, cfg, height_field[center_x, center_y])
 
 
 @height_field_to_mesh
-def pyramid_stairs_terrain(difficulty: float, cfg: hf_terrains_cfg.HfPyramidStairsTerrainCfg) -> np.ndarray:
+def pyramid_stairs_terrain(
+    difficulty: float, cfg: hf_terrains_cfg.HfPyramidStairsTerrainCfg
+) -> tuple[np.ndarray, np.ndarray]:
     """Generate a terrain with a pyramid stair pattern.
 
     The terrain is a pyramid stair pattern which trims to a flat platform at the center of the terrain.
@@ -169,9 +173,7 @@ def pyramid_stairs_terrain(difficulty: float, cfg: hf_terrains_cfg.HfPyramidStai
         cfg: The configuration for the terrain.
 
     Returns:
-        The height field of the terrain as a 2D numpy array with discretized heights.
-        The shape of the array is (width, length), where width and length are the number of points
-        along the x and y axis, respectively.
+        The discretized height field with shape (width, length) and its origin [m] with shape (3,).
     """
     # resolve terrain configuration
     step_height = cfg.step_height_range[0] + difficulty * (cfg.step_height_range[1] - cfg.step_height_range[0])
@@ -179,13 +181,13 @@ def pyramid_stairs_terrain(difficulty: float, cfg: hf_terrains_cfg.HfPyramidStai
         step_height *= -1
     # switch parameters to discrete units
     # -- terrain
-    width_pixels = int(cfg.size[0] / cfg.horizontal_scale)
-    length_pixels = int(cfg.size[1] / cfg.horizontal_scale)
+    width_pixels = to_discrete_units(cfg.size[0], cfg.horizontal_scale)
+    length_pixels = to_discrete_units(cfg.size[1], cfg.horizontal_scale)
     # -- stairs
-    step_width = int(cfg.step_width / cfg.horizontal_scale)
-    step_height = int(step_height / cfg.vertical_scale)
+    step_width = to_discrete_units(cfg.step_width, cfg.horizontal_scale)
+    step_height = to_discrete_units(step_height, cfg.vertical_scale)
     # -- platform
-    platform_width = int(cfg.platform_width / cfg.horizontal_scale)
+    platform_width = to_discrete_units(cfg.platform_width, cfg.horizontal_scale)
 
     # create a terrain with a flat platform at the center
     hf_raw = np.zeros((width_pixels, length_pixels))
@@ -207,11 +209,14 @@ def pyramid_stairs_terrain(difficulty: float, cfg: hf_terrains_cfg.HfPyramidStai
         hf_raw[start_x:stop_x, start_y:stop_y] = current_step_height
 
     # round off the heights to the nearest vertical step
-    return np.rint(hf_raw).astype(np.int16)
+    height_field = np.rint(hf_raw).astype(np.int16)
+    return height_field, _terrain_origin(height_field, cfg, height_field[width_pixels // 2, length_pixels // 2])
 
 
 @height_field_to_mesh
-def discrete_obstacles_terrain(difficulty: float, cfg: hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg) -> np.ndarray:
+def discrete_obstacles_terrain(
+    difficulty: float, cfg: hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg
+) -> tuple[np.ndarray, np.ndarray]:
     """Generate a terrain with randomly generated obstacles as pillars with positive and negative heights.
 
     The terrain is a flat platform at the center of the terrain with randomly generated obstacles as pillars
@@ -228,9 +233,7 @@ def discrete_obstacles_terrain(difficulty: float, cfg: hf_terrains_cfg.HfDiscret
         cfg: The configuration for the terrain.
 
     Returns:
-        The height field of the terrain as a 2D numpy array with discretized heights.
-        The shape of the array is (width, length), where width and length are the number of points
-        along the x and y axis, respectively.
+        The discretized height field with shape (width, length) and its origin [m] with shape (3,).
     """
     # resolve terrain configuration
     obs_height = cfg.obstacle_height_range[0] + difficulty * (
@@ -239,14 +242,14 @@ def discrete_obstacles_terrain(difficulty: float, cfg: hf_terrains_cfg.HfDiscret
 
     # switch parameters to discrete units
     # -- terrain
-    width_pixels = int(cfg.size[0] / cfg.horizontal_scale)
-    length_pixels = int(cfg.size[1] / cfg.horizontal_scale)
+    width_pixels = to_discrete_units(cfg.size[0], cfg.horizontal_scale)
+    length_pixels = to_discrete_units(cfg.size[1], cfg.horizontal_scale)
     # -- obstacles
-    obs_height = int(obs_height / cfg.vertical_scale)
-    obs_width_min = int(cfg.obstacle_width_range[0] / cfg.horizontal_scale)
-    obs_width_max = int(cfg.obstacle_width_range[1] / cfg.horizontal_scale)
+    obs_height = to_discrete_units(obs_height, cfg.vertical_scale)
+    obs_width_min = to_discrete_units(cfg.obstacle_width_range[0], cfg.horizontal_scale)
+    obs_width_max = to_discrete_units(cfg.obstacle_width_range[1], cfg.horizontal_scale)
     # -- center of the terrain
-    platform_width = int(cfg.platform_width / cfg.horizontal_scale)
+    platform_width = to_discrete_units(cfg.platform_width, cfg.horizontal_scale)
 
     # create discrete ranges for the obstacles
     # -- shape
@@ -286,11 +289,12 @@ def discrete_obstacles_terrain(difficulty: float, cfg: hf_terrains_cfg.HfDiscret
     y2 = (length_pixels + platform_width) // 2
     hf_raw[x1:x2, y1:y2] = 0
     # round off the heights to the nearest vertical step
-    return np.rint(hf_raw).astype(np.int16)
+    height_field = np.rint(hf_raw).astype(np.int16)
+    return height_field, _terrain_origin(height_field, cfg, 0)
 
 
 @height_field_to_mesh
-def wave_terrain(difficulty: float, cfg: hf_terrains_cfg.HfWaveTerrainCfg) -> np.ndarray:
+def wave_terrain(difficulty: float, cfg: hf_terrains_cfg.HfWaveTerrainCfg) -> tuple[np.ndarray, np.ndarray]:
     r"""Generate a terrain with a wave pattern.
 
     The terrain is a flat platform at the center of the terrain with a wave pattern. The wave pattern
@@ -313,9 +317,7 @@ def wave_terrain(difficulty: float, cfg: hf_terrains_cfg.HfWaveTerrainCfg) -> np
         cfg: The configuration for the terrain.
 
     Returns:
-        The height field of the terrain as a 2D numpy array with discretized heights.
-        The shape of the array is (width, length), where width and length are the number of points
-        along the x and y axis, respectively.
+        The discretized height field with shape (width, length) and its origin [m] with shape (3,).
 
     Raises:
         ValueError: When the number of waves is non-positive.
@@ -328,9 +330,9 @@ def wave_terrain(difficulty: float, cfg: hf_terrains_cfg.HfWaveTerrainCfg) -> np
     amplitude = cfg.amplitude_range[0] + difficulty * (cfg.amplitude_range[1] - cfg.amplitude_range[0])
     # switch parameters to discrete units
     # -- terrain
-    width_pixels = int(cfg.size[0] / cfg.horizontal_scale)
-    length_pixels = int(cfg.size[1] / cfg.horizontal_scale)
-    amplitude_pixels = int(0.5 * amplitude / cfg.vertical_scale)
+    width_pixels = to_discrete_units(cfg.size[0], cfg.horizontal_scale)
+    length_pixels = to_discrete_units(cfg.size[1], cfg.horizontal_scale)
+    amplitude_pixels = to_discrete_units(0.5 * amplitude, cfg.vertical_scale)
 
     # compute the wave number: nu = 2 * pi / lambda
     wave_length = length_pixels / cfg.num_waves
@@ -347,11 +349,14 @@ def wave_terrain(difficulty: float, cfg: hf_terrains_cfg.HfWaveTerrainCfg) -> np
     # add the waves
     hf_raw += amplitude_pixels * (np.cos(yy * wave_number) + np.sin(xx * wave_number))
     # round off the heights to the nearest vertical step
-    return np.rint(hf_raw).astype(np.int16)
+    height_field = np.rint(hf_raw).astype(np.int16)
+    return height_field, _terrain_origin(height_field, cfg)
 
 
 @height_field_to_mesh
-def stepping_stones_terrain(difficulty: float, cfg: hf_terrains_cfg.HfSteppingStonesTerrainCfg) -> np.ndarray:
+def stepping_stones_terrain(
+    difficulty: float, cfg: hf_terrains_cfg.HfSteppingStonesTerrainCfg
+) -> tuple[np.ndarray, np.ndarray]:
     """Generate a terrain with a stepping stones pattern.
 
     The terrain is a stepping stones pattern which trims to a flat platform at the center of the terrain.
@@ -365,9 +370,7 @@ def stepping_stones_terrain(difficulty: float, cfg: hf_terrains_cfg.HfSteppingSt
         cfg: The configuration for the terrain.
 
     Returns:
-        The height field of the terrain as a 2D numpy array with discretized heights.
-        The shape of the array is (width, length), where width and length are the number of points
-        along the x and y axis, respectively.
+        The discretized height field with shape (width, length) and its origin [m] with shape (3,).
     """
     # resolve terrain configuration
     stone_width = cfg.stone_width_range[1] - difficulty * (cfg.stone_width_range[1] - cfg.stone_width_range[0])
@@ -377,16 +380,16 @@ def stepping_stones_terrain(difficulty: float, cfg: hf_terrains_cfg.HfSteppingSt
 
     # switch parameters to discrete units
     # -- terrain
-    width_pixels = int(cfg.size[0] / cfg.horizontal_scale)
-    length_pixels = int(cfg.size[1] / cfg.horizontal_scale)
+    width_pixels = to_discrete_units(cfg.size[0], cfg.horizontal_scale)
+    length_pixels = to_discrete_units(cfg.size[1], cfg.horizontal_scale)
     # -- stones
-    stone_distance = int(stone_distance / cfg.horizontal_scale)
-    stone_width = int(stone_width / cfg.horizontal_scale)
-    stone_height_max = int(cfg.stone_height_max / cfg.vertical_scale)
+    stone_distance = to_discrete_units(stone_distance, cfg.horizontal_scale)
+    stone_width = to_discrete_units(stone_width, cfg.horizontal_scale)
+    stone_height_max = to_discrete_units(cfg.stone_height_max, cfg.vertical_scale)
     # -- holes
-    holes_depth = int(cfg.holes_depth / cfg.vertical_scale)
+    holes_depth = to_discrete_units(cfg.holes_depth, cfg.vertical_scale)
     # -- platform
-    platform_width = int(cfg.platform_width / cfg.horizontal_scale)
+    platform_width = to_discrete_units(cfg.platform_width, cfg.horizontal_scale)
     # create range of heights
     stone_height_range = np.arange(-stone_height_max - 1, stone_height_max, step=1)
 
@@ -434,4 +437,28 @@ def stepping_stones_terrain(difficulty: float, cfg: hf_terrains_cfg.HfSteppingSt
     y2 = (length_pixels + platform_width) // 2
     hf_raw[x1:x2, y1:y2] = 0
     # round off the heights to the nearest vertical step
-    return np.rint(hf_raw).astype(np.int16)
+    height_field = np.rint(hf_raw).astype(np.int16)
+    return height_field, _terrain_origin(height_field, cfg, 0)
+
+
+def _terrain_origin(
+    height_field: np.ndarray, cfg: hf_terrains_cfg.HfTerrainBaseCfg, height: int | None = None
+) -> np.ndarray:
+    """Return the origin [m] in the generated height field's local frame."""
+    center_x = height_field.shape[0] // 2
+    center_y = height_field.shape[1] // 2
+    if height is None:
+        radius = max(1, to_discrete_units(1.0, cfg.horizontal_scale))
+        height = np.max(
+            height_field[
+                max(0, center_x - radius) : center_x + radius,
+                max(0, center_y - radius) : center_y + radius,
+            ]
+        )
+    return np.array(
+        [
+            (height_field.shape[0] - 1) * cfg.horizontal_scale / 2,
+            (height_field.shape[1] - 1) * cfg.horizontal_scale / 2,
+            height * cfg.vertical_scale,
+        ]
+    )

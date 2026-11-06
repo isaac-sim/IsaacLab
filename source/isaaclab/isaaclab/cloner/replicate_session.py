@@ -1,0 +1,278 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Author declared prototypes and dispatch their topology to clone backends."""
+
+from __future__ import annotations
+
+import copy
+import itertools
+import warnings
+from collections.abc import Callable, Iterable, Sequence
+from typing import Any
+
+import numpy as np
+
+from .. import sim as sim_utils
+from ..sensors.camera.camera_cfg import CameraCfg
+from ..sensors.sensor_base_cfg import SensorBaseCfg
+from ..utils.string import string_to_callable
+from ..utils.version import has_kit
+from .clone_plan import ClonePlan, grid_transforms, make_clone_plan
+from .clone_plan import path as cloner_path
+from .cloner_cfg import DEFAULT_ENV_TEMPLATE, CloneCfg, InclusionSet, expand_env_regex_ns
+from .cloner_strategies import sequential
+from .replicate_context import ReplicateContext
+from .usd import UsdReplicateContext
+
+
+def num_spawn_variants(spawn_cfg: Any) -> int:
+    """Return the number of concrete prototypes declared by a spawner configuration."""
+    if isinstance(spawn_cfg, sim_utils.MultiAssetSpawnerCfg):
+        return len(spawn_cfg.assets_cfg)
+    if isinstance(spawn_cfg, sim_utils.MultiUsdFileCfg):
+        return 1 if isinstance(spawn_cfg.usd_path, str) else len(spawn_cfg.usd_path)
+    return 1
+
+
+def make_valid_clone_combinations(
+    asset_names: Sequence[str],
+    variant_counts: Sequence[int],
+    clone_combinations: Sequence[InclusionSet] | None = None,
+    *,
+    all_asset_names: Sequence[str] | None = None,
+) -> tuple[tuple[tuple[int, ...], ...], np.ndarray]:
+    """Expand named combinations into world memberships and relative weights.
+
+    Repeated names create repeated instances. Each combination's weight is divided equally
+    between its variant combinations; neither padding nor duplicate weighted worlds is needed.
+
+    Args:
+        asset_names: Names of the replicated asset declarations.
+        variant_counts: Number of concrete prototypes for each declaration.
+        clone_combinations: Allowed memberships; unnamed assets are present once in every world.
+        all_asset_names: Scene names, including shared assets that do not enter world memberships.
+
+    Returns:
+        World prototypes indexing the flat variant library, and one weight per world prototype.
+    """
+    if len(asset_names) != len(variant_counts) or any(count <= 0 for count in variant_counts):
+        raise ValueError("Each asset requires one positive variant count.")
+    known = set(asset_names if all_asset_names is None else all_asset_names)
+    combinations = clone_combinations or (InclusionSet(assets=list(dict.fromkeys(asset_names))),)
+    claimed = set().union(*(combination.assets for combination in combinations))
+    offsets = np.cumsum([0, *variant_counts])
+    worlds, weights = [], []
+    for combination in combinations:
+        if unknown := set(combination.assets) - known:
+            raise ValueError(f"Unknown assets in clone combination: {sorted(unknown)}.")
+        choices = []
+        for index, name in enumerate(asset_names):
+            count = combination.assets.count(name) if name in claimed else 1
+            choices.extend([range(*offsets[index : index + 2])] * count)
+        variants = tuple(itertools.product(*choices))
+        worlds.extend(variants)
+        weights.extend([combination.weight / len(variants)] * len(variants))
+    return tuple(worlds), np.asarray(weights, dtype=np.float64)
+
+
+def replicate(plan: ClonePlan, *, replicate_physics: bool | None = None) -> None:
+    """Execute one topology through its declared clone contexts.
+
+    Each context implements ``prepare(sim, routing)`` to resolve shared representations and
+    acquire their simulation-owned resources before any context is constructed or dispatched.
+
+    Args:
+        plan: The active simulation's topology.
+        replicate_physics: Deprecated and ignored; clone contexts are selected per asset.
+    """
+    if replicate_physics is not None:
+        warnings.warn("replicate_physics is deprecated and ignored.", DeprecationWarning, stacklevel=2)
+    sim = sim_utils.SimulationContext.instance()
+    if sim.get_clone_plan() is not plan:
+        raise ValueError("replicate() requires the active SimulationContext's ClonePlan.")
+    physics_context = sim.backend_manager.clone_context_type
+    render_contexts = {
+        string_to_callable(context) if isinstance(context, str) else context
+        for context in sim.render_context.clone_contexts
+    }
+    # Spawners need rendering representations, but physics participation remains an asset choice.
+    spawn_contexts = render_contexts - {physics_context}
+    if has_kit():
+        spawn_contexts.add(UsdReplicateContext)
+
+    # Include shared world -1 and sampled compositions, not unused prototype definitions.
+    topology = plan.topology
+    shared = set(topology.world_prototypes[: topology.world_prototype_starts[1]])
+    active = shared.copy()
+    for prototype in np.unique(topology.world_prototype_layout):
+        start, end = topology.world_prototype_starts[prototype + 1 : prototype + 3]
+        active.update(topology.world_prototypes[start:end])
+    # Render contexts must also build valid empty scenes when no assets are routed to them.
+    routing = {context: set() for context in render_contexts}
+    for index in sorted(active):
+        cfg = plan.asset_cfgs[index]
+        references = vars(cfg).get("cloning_contexts", None if index in shared else ())
+        # None inherits active physics; an explicit tuple replaces that default.
+        if references is None:
+            references = () if physics_context is None else (physics_context,)
+        contexts = tuple(string_to_callable(value) if isinstance(value, str) else value for value in references)
+        if isinstance(vars(cfg).get("spawn"), sim_utils.SpawnerCfg):
+            contexts += tuple(spawn_contexts)
+        # Shared assets belong to every rendering representation without overriding their physics policy.
+        if index in shared:
+            contexts += tuple(render_contexts - {physics_context})
+        for context in contexts:
+            routing.setdefault(context, set()).add(index)
+
+    for context in tuple(routing):
+        if not isinstance(context, type) or not issubclass(context, ReplicateContext):
+            raise TypeError("cloning_contexts must contain ReplicateContext subclasses.")
+        if context in routing:
+            context.prepare(sim, routing)
+    for context in routing:
+        if context not in sim.clone_contexts:
+            sim.clone_contexts[context] = context(sim)
+    for context in sorted(routing, key=lambda context: context.replicate_priority):
+        sim.clone_contexts[context].replicate(plan, tuple(sorted(routing[context])))
+
+
+def clone_plan_from_env_0(
+    clone_cfg: CloneCfg,
+    asset_cfgs: Iterable[Any],
+    num_envs: int,
+    env_spacing: float,
+    *,
+    positions: np.ndarray | None = None,
+) -> ClonePlan:
+    """Prepare one homogeneous topology, placement, and its USD authoring inputs.
+
+    The plan retains numeric topology, host declarations, naming, and environment origins.
+    Repeated instances inherit their source configuration's pose.
+
+    Args:
+        clone_cfg: Clone policy and USD environment namespace.
+        asset_cfgs: Flat asset and sensor declarations, including shared assets.
+        num_envs: Number of destination worlds.
+        env_spacing: Grid spacing between world origins [m].
+        positions: Optional world origins [m], shape [num_envs, 3].
+
+    Returns:
+        The simulation's published plan, ready for asset construction and replication.
+    """
+    asset_cfgs = tuple(asset_cfgs)
+    if clone_cfg.clone_combinations or any(num_spawn_variants(getattr(cfg, "spawn", None)) != 1 for cfg in asset_cfgs):
+        raise ValueError("clone_plan_from_env_0 requires homogeneous, single-variant declarations.")
+    return _prepare_cloning(
+        asset_cfgs, num_envs, env_spacing, env_template=clone_cfg.clone_template, positions=positions
+    )
+
+
+class ReplicateSession:
+    """Author prototypes before dispatching one shared world topology."""
+
+    def __init__(
+        self,
+        cfgs: Iterable[Any],
+        num_clones: int,
+        env_spacing: float,
+        *,
+        clone_strategy: Callable[[np.ndarray, int], np.ndarray] = sequential,
+        world_prototypes: Sequence[Sequence[int]] | None = None,
+        weights: Sequence[float] | None = None,
+        replicate_physics: bool | None = None,
+        env_template: str = DEFAULT_ENV_TEMPLATE,
+    ):
+        """Capture prototype declarations, composition choices, and USD authoring inputs."""
+        if replicate_physics is not None:
+            warnings.warn("replicate_physics is deprecated and ignored.", DeprecationWarning, stacklevel=2)
+        self._args = cfgs, num_clones, env_spacing
+        self._kwargs = dict(env_template=env_template, clone_strategy=clone_strategy)
+        self._kwargs.update(world_prototypes=world_prototypes, weights=weights)
+        self.plan: ClonePlan | None = None
+
+    def __enter__(self) -> ReplicateSession:
+        self.plan = _prepare_cloning(*self._args, **self._kwargs)
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        if exc_type is None:
+            replicate(self.plan)
+        else:
+            sim_utils.SimulationContext.instance().set_clone_plan(None)
+
+
+def _prepare_cloning(
+    cfgs: Iterable[Any],
+    num_clones: int,
+    env_spacing: float,
+    *,
+    clone_strategy: Callable[[np.ndarray, int], np.ndarray] = sequential,
+    world_prototypes: Sequence[Sequence[int]] | None = None,
+    weights: Sequence[float] | None = None,
+    env_template: str = DEFAULT_ENV_TEMPLATE,
+    positions: np.ndarray | None = None,
+) -> ClonePlan:
+    """Resolve concrete source definitions and prepare their USD authoring context."""
+    sim = sim_utils.SimulationContext.instance()
+    if sim is None or sim.get_clone_plan() is not None:
+        raise RuntimeError("Clone preparation requires a simulation without an existing clone plan.")
+    cfgs = tuple(cfgs)
+    for cfg in cfgs:
+        cfg.prim_path = expand_env_regex_ns(cfg.prim_path, env_template)
+    spawned = [cfg for cfg in cfgs if getattr(cfg, "spawn", None) is not None]
+    # Expand spawner variants into asset prototypes; per-asset choices form the default world compositions.
+    asset_prototypes, groups, shared, declarations = [], [], [], []
+    for cfg in cfgs:
+        if isinstance(cfg, CameraCfg):
+            sim.get_or_create_backend(cfg.renderer_cfg)
+        spawn = getattr(cfg, "spawn", None)
+        if spawn is not None:
+            # These paths are planning outputs, including on reused configurations.
+            spawn.spawn_path = None
+        count = num_spawn_variants(spawn)
+        indices = tuple(range(len(asset_prototypes), len(asset_prototypes) + count))
+        declarations.append((cfg, indices))
+        for variant in range(count):
+            prototype = cfg
+            if count > 1:
+                prototype = copy.copy(cfg)
+                prototype.spawn = copy.copy(spawn)
+                if isinstance(spawn, sim_utils.MultiAssetSpawnerCfg):
+                    prototype.spawn.assets_cfg = [spawn.assets_cfg[variant]]
+                else:
+                    prototype.spawn.usd_path = spawn.usd_path[variant]
+            asset_prototypes.append(prototype)
+        if spawn is None:
+            # Views of an authored subtree inherit its copies; different context overrides stay explicit.
+            contexts = getattr(cfg, "cloning_contexts", ())
+            covered = any(
+                cfg.prim_path.startswith(parent.prim_path + "/") and getattr(parent, "cloning_contexts", ()) == contexts
+                for parent in spawned
+            )
+            if isinstance(cfg, SensorBaseCfg) or covered:
+                continue
+        if cloner_path.match(cfg.prim_path, env_template) is None:
+            shared.extend(indices)
+        else:
+            groups.append(indices)
+    worlds = tuple(itertools.product(*groups)) if world_prototypes is None else world_prototypes
+    positions = grid_transforms(num_clones, env_spacing)[0] if positions is None else positions
+    options = dict(weights=weights, shared_assets=shared, clone_strategy=clone_strategy, env_template=env_template)
+    plan = make_clone_plan(asset_prototypes, worlds, num_clones, positions=positions, **options)
+    source_paths = cloner_path.get_asset_prototype_paths(plan)
+    for cfg, indices in declarations:
+        spawn = getattr(cfg, "spawn", None)
+        if spawn is None:
+            continue
+        paths = [source_paths[index] for index in indices]
+        if isinstance(spawn, (sim_utils.MultiAssetSpawnerCfg, sim_utils.MultiUsdFileCfg)):
+            spawn.spawn_path, spawn.spawn_paths = None, paths
+            for index, path in zip(indices, paths, strict=True):
+                plan.asset_cfgs[index].spawn.spawn_paths = [path]
+        else:
+            spawn.spawn_path = paths[0]
+    sim.set_clone_plan(plan)
+    return plan

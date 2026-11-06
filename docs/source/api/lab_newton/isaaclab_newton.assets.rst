@@ -9,12 +9,17 @@
 
     Articulation
     ArticulationData
+    CableObject
+    CableObjectData
     RigidObject
     RigidObjectData
     RigidObjectCollection
     RigidObjectCollectionData
     DeformableObject
     DeformableObjectData
+    MPMObject
+    MPMObjectCfg
+    MPMObjectData
 
 .. currentmodule:: isaaclab_newton.assets
 
@@ -27,6 +32,20 @@ Articulation
   :show-inheritance:
 
 .. autoclass:: ArticulationData
+  :members:
+  :inherited-members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+Cable Object
+------------
+
+.. autoclass:: CableObject
+  :members:
+  :inherited-members:
+  :show-inheritance:
+
+.. autoclass:: CableObjectData
   :members:
   :inherited-members:
   :show-inheritance:
@@ -77,6 +96,25 @@ Deformable Object
   :show-inheritance:
 
 .. autoclass:: DeformableObjectData
+  :members:
+  :inherited-members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+MPM Object
+----------
+
+.. autoclass:: MPMObject
+  :members:
+  :inherited-members:
+  :show-inheritance:
+
+.. autoclass:: MPMObjectCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: MPMObjectData
   :members:
   :inherited-members:
   :show-inheritance:

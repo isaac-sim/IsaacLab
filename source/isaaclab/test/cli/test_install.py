@@ -5,6 +5,7 @@
 
 """Tests for CLI utility functions used by the uv installation path."""
 
+import json
 import os
 import subprocess
 import sys
@@ -14,120 +15,138 @@ from unittest import mock
 import pytest
 
 from isaaclab.cli.utils import (
-    determine_python_version,
     extract_isaacsim_path,
-    extract_python_exe,
-    get_pip_command,
+    run_python_command,
 )
 
-
-def _python_in_venv(venv: Path) -> Path:
-    if sys.platform == "win32":
-        return venv / "Scripts" / "python.exe"
-    return venv / "bin" / "python"
+pytestmark = pytest.mark.unit
 
 
-def _python_for_conda(base: Path) -> Path:
-    if sys.platform == "win32":
-        return base / "python.exe"
-    return base / "bin" / "python"
+@pytest.mark.skipif(os.name == "nt", reason="exercises the POSIX source-build launcher")
+def test_source_build_cli_child_loads_kit_once(tmp_path: Path) -> None:
+    """The CLI child loads native paths, keeps uv's Python, and does not recurse."""
+    local_sim = tmp_path / "_isaac_sim"
+    bindings = local_sim / "kit" / "plugins" / "bindings-python"
+    bindings.mkdir(parents=True)
+    (bindings / "kit_bootstrap_probe.py").write_text("VALUE = 'native binding loaded'\n")
+    (local_sim / ".isaaclab_source_build").touch()
+    launches = tmp_path / "launches"
+    launcher = local_sim / "python.sh"
+    launcher.write_text(
+        '#!/bin/sh\necho launch >> "$BOOTSTRAP_LAUNCHES"\nexport ISAAC_PATH="$BOOTSTRAP_SIM"\nexec "$PYTHONEXE" "$@"\n'
+    )
+    launcher.chmod(0o755)
+    # Configure discovery in both interpreters without changing the developer's local link.
+    (tmp_path / "sitecustomize.py").write_text(
+        "import json, os, sys\n"
+        "from pathlib import Path\n"
+        "import isaaclab.cli as cli\n"
+        "from isaaclab.cli import utils\n"
+        "cli.DEFAULT_ISAAC_SIM_PATH = utils.DEFAULT_ISAAC_SIM_PATH = Path(os.environ['BOOTSTRAP_SIM'])\n"
+        "if os.environ.get('ISAAC_PATH') == os.environ['BOOTSTRAP_SIM']:\n"
+        "    import kit_bootstrap_probe\n"
+        "    print(json.dumps({'python': sys.executable, 'binding': kit_bootstrap_probe.VALUE}))\n"
+    )
+    env = dict(os.environ)
+    env.pop("ISAAC_PATH", None)
+    env["BOOTSTRAP_SIM"] = str(local_sim)
+    env["BOOTSTRAP_LAUNCHES"] = str(launches)
+    env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(tmp_path), env.get("PYTHONPATH")]))
+    result = subprocess.run(
+        [sys.executable, "-m", "isaaclab", "demo", "--help"],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    probe = next(json.loads(line) for line in result.stdout.splitlines() if line.startswith('{"python":'))
+    assert Path(probe["python"]).resolve() == Path(sys.executable).resolve()
+    assert probe["binding"] == "native binding loaded"
+    assert "usage:" in result.stdout
+    assert launches.read_text().splitlines() == ["launch"]
 
 
-# ---------------------------------------------------------------------------
-# get_pip_command
-# ---------------------------------------------------------------------------
+def test_run_python_command_preloads_system_libgomp_path_on_aarch64(tmp_path):
+    """isaacsim starts on aarch64 only when the system libgomp path is listed verbatim in LD_PRELOAD."""
+    with (
+        mock.patch("isaaclab.cli.utils.DEFAULT_ISAAC_SIM_PATH", tmp_path / "_isaac_sim"),
+        mock.patch("isaaclab.cli.utils.extract_python_exe", return_value=sys.executable),
+        mock.patch("isaaclab.cli.utils.platform.system", return_value="Linux"),
+        mock.patch("isaaclab.cli.utils.platform.machine", return_value="aarch64"),
+        mock.patch("isaaclab.cli.utils.glob.glob", return_value=["/lib/aarch64-linux-gnu/libgomp.so.1"]),
+        mock.patch("isaaclab.cli.utils.run_command") as run,
+        mock.patch.dict(os.environ, {"LD_PRELOAD": "libcarb.env.shim.so"}, clear=True),
+    ):
+        run_python_command("train.py", [])
+
+    assert run.call_args.kwargs["env"]["LD_PRELOAD"] == "/lib/aarch64-linux-gnu/libgomp.so.1:libcarb.env.shim.so"
 
 
-class TestGetPipCommand:
-    """Tests for :func:`get_pip_command`."""
+def test_run_python_command_accepts_virtual_environment_on_bundled_python(tmp_path):
+    """A virtual environment created on a downloaded package's Python runs that interpreter."""
+    local_sim = tmp_path / "_isaac_sim"
+    local_sim.mkdir()
+    (local_sim / "python.sh").touch()
+    bundled_python = local_sim / "kit" / "python" / "bin" / "python3"
+    bundled_python.parent.mkdir(parents=True)
+    bundled_python.touch()
+    venv = tmp_path / "venv"
+    (venv / "bin").mkdir(parents=True)
+    (venv / "bin" / "python").symlink_to(bundled_python)
+    (venv / "pyvenv.cfg").write_text(f"home = {bundled_python.parent}\n")
 
-    def test_returns_uv_pip_in_venv_without_pip_module(self, tmp_path):
-        """When VIRTUAL_ENV is set, uv is on PATH, and pip module is missing, return uv pip."""
-        fake_python = str(tmp_path / "python")
+    with (
+        mock.patch("isaaclab.cli.utils.DEFAULT_ISAAC_SIM_PATH", local_sim),
+        mock.patch("isaaclab.cli.utils.extract_python_exe", return_value=str(venv / "bin" / "python")),
+        mock.patch("isaaclab.cli.utils.run_command") as run,
+        mock.patch.dict(os.environ, {"VIRTUAL_ENV": str(venv)}, clear=True),
+    ):
+        run_python_command("script.py", [])
 
-        with (
-            mock.patch.dict(os.environ, {"VIRTUAL_ENV": str(tmp_path)}),
-            mock.patch("isaaclab.cli.utils.shutil.which", return_value="/usr/bin/uv"),
-            mock.patch(
-                "isaaclab.cli.utils.subprocess.run",
-                return_value=subprocess.CompletedProcess(args=[], returncode=1),
-            ),
-        ):
-            result = get_pip_command(python_exe=fake_python)
-            assert result == ["uv", "pip"]
-
-    def test_returns_uv_pip_in_venv_with_uv(self, tmp_path):
-        """When VIRTUAL_ENV is set and uv is on PATH, always return uv pip."""
-        fake_python = str(tmp_path / "python")
-
-        with (
-            mock.patch.dict(os.environ, {"VIRTUAL_ENV": str(tmp_path)}),
-            mock.patch("isaaclab.cli.utils.shutil.which", return_value="/usr/bin/uv"),
-        ):
-            result = get_pip_command(python_exe=fake_python)
-            assert result == ["uv", "pip"]
-
-    def test_returns_python_pip_without_uv(self, tmp_path):
-        """When uv is not installed, always return python -m pip."""
-        fake_python = str(tmp_path / "python")
-
-        with (
-            mock.patch.dict(os.environ, {"VIRTUAL_ENV": str(tmp_path)}),
-            mock.patch("isaaclab.cli.utils.shutil.which", return_value=None),
-        ):
-            result = get_pip_command(python_exe=fake_python)
-            assert result == [fake_python, "-m", "pip"]
-
-    def test_returns_python_pip_in_conda_without_uv(self, tmp_path):
-        """When in a conda env and uv is not available, return python -m pip."""
-        fake_python = str(tmp_path / "python")
-
-        env = os.environ.copy()
-        env.pop("VIRTUAL_ENV", None)
-        env["CONDA_PREFIX"] = str(tmp_path)
-        with (
-            mock.patch.dict(os.environ, env, clear=True),
-            mock.patch("isaaclab.cli.utils.shutil.which", return_value=None),
-        ):
-            result = get_pip_command(python_exe=fake_python)
-            assert result == [fake_python, "-m", "pip"]
+    assert run.call_args is not None
 
 
-# ---------------------------------------------------------------------------
-# extract_python_exe
-# ---------------------------------------------------------------------------
+@pytest.mark.parametrize("python_home", [None, "/usr/bin"])
+def test_run_python_command_rejects_virtual_environment_on_foreign_python(tmp_path, python_home):
+    """Reject unrelated interpreters with missing or foreign pyvenv.cfg metadata."""
+    local_sim = tmp_path / "_isaac_sim"
+    local_sim.mkdir()
+    (local_sim / "python.sh").touch()
+    venv = tmp_path / "venv"
+    (venv / "bin").mkdir(parents=True)
+    if python_home is not None:
+        (venv / "pyvenv.cfg").write_text(f"home = {python_home}\n")
+
+    with (
+        mock.patch("isaaclab.cli.utils.DEFAULT_ISAAC_SIM_PATH", local_sim),
+        mock.patch("isaaclab.cli.utils.extract_python_exe", return_value=str(venv / "bin" / "python")),
+        mock.patch("isaaclab.cli.utils.run_command") as run,
+        mock.patch.dict(os.environ, {"VIRTUAL_ENV": str(venv)}, clear=True),
+        pytest.raises(SystemExit, match="1"),
+    ):
+        run_python_command("script.py", [])
+    run.assert_not_called()
 
 
-class TestExtractPythonExe:
-    """Tests for :func:`extract_python_exe`."""
+def test_run_python_command_does_not_wrap_an_active_isaac_sim_environment(tmp_path):
+    """Do not source an active Isaac Sim environment twice."""
+    local_sim = tmp_path / "_isaac_sim"
+    local_sim.mkdir()
+    (local_sim / "python.sh").touch()
+    (local_sim / ".isaaclab_source_build").touch()
+    active_python = str(tmp_path / ".venv" / "bin" / "python")
 
-    def test_uses_virtual_env_when_set(self, tmp_path):
-        """Should return the venv Python when VIRTUAL_ENV is set."""
-        venv_python = _python_in_venv(tmp_path)
-        venv_python.parent.mkdir(parents=True, exist_ok=True)
-        venv_python.touch()
+    with (
+        mock.patch("isaaclab.cli.utils.DEFAULT_ISAAC_SIM_PATH", local_sim),
+        mock.patch("isaaclab.cli.utils.extract_python_exe", return_value=active_python),
+        mock.patch("isaaclab.cli.utils.run_command") as run,
+        mock.patch.dict(os.environ, {"ISAAC_PATH": str(local_sim)}, clear=True),
+    ):
+        run_python_command("script.py", [])
 
-        with mock.patch.dict(os.environ, {"VIRTUAL_ENV": str(tmp_path)}, clear=False):
-            result = extract_python_exe()
-            assert Path(result) == venv_python
-
-    def test_uses_conda_prefix_when_no_venv(self, tmp_path):
-        """Should return conda Python when CONDA_PREFIX is set and no VIRTUAL_ENV."""
-        conda_python = _python_for_conda(tmp_path)
-        conda_python.parent.mkdir(parents=True, exist_ok=True)
-        conda_python.touch()
-
-        env = os.environ.copy()
-        env.pop("VIRTUAL_ENV", None)
-        env["CONDA_PREFIX"] = str(tmp_path)
-        with mock.patch.dict(os.environ, env, clear=True):
-            result = extract_python_exe()
-            assert Path(result) == conda_python
-
-
-# ---------------------------------------------------------------------------
-# extract_isaacsim_path
-# ---------------------------------------------------------------------------
+    assert run.call_args.args[0] == [active_python, "script.py"]
 
 
 class TestExtractIsaacsimPath:
@@ -167,58 +186,45 @@ class TestExtractIsaacsimPath:
             assert result == fake_sim
 
 
-# ---------------------------------------------------------------------------
-# determine_python_version
-# ---------------------------------------------------------------------------
+@pytest.mark.parametrize("option", ["--install", "--conda", "--uv"])
+def test_removed_installer_options_fail(option: str) -> None:
+    result = subprocess.run(
+        [sys.executable, "-m", "isaaclab", option],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 2
+    assert "unrecognized arguments" in result.stderr
 
 
-class TestDeterminePythonVersion:
-    """Tests for :func:`determine_python_version`."""
+@pytest.mark.parametrize(
+    ("installation", "configured", "delegated"),
+    [("source", False, True), ("source", True, False), ("container", False, True), ("stale", False, False)],
+)
+def test_runtime_dispatch_loads_local_kit_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, installation: str, configured: bool, delegated: bool
+) -> None:
+    import isaaclab.cli as cli
 
-    def test_defaults_to_3_12_when_no_sim(self):
-        """Without Isaac Sim, should default to python 3.12 (Isaac Sim 6.x requirement)."""
-        with (
-            mock.patch("isaaclab.cli.utils.extract_isaacsim_path", return_value=None),
-            mock.patch("importlib.metadata.version", side_effect=Exception("not found")),
-        ):
-            result = determine_python_version()
-            assert result == "3.12"
-
-    def test_returns_3_11_for_sim_5(self, tmp_path):
-        """Isaac Sim 5.x should map to Python 3.11."""
-        version_file = tmp_path / "VERSION"
-        version_file.write_text("5.0.0")
-
-        with mock.patch("isaaclab.cli.utils.extract_isaacsim_path", return_value=tmp_path):
-            result = determine_python_version()
-            assert result == "3.11"
-
-    def test_returns_3_12_for_sim_6(self, tmp_path):
-        """Isaac Sim 6.x should map to Python 3.12."""
-        version_file = tmp_path / "VERSION"
-        version_file.write_text("6.0.0")
-
-        with mock.patch("isaaclab.cli.utils.extract_isaacsim_path", return_value=tmp_path):
-            result = determine_python_version()
-            assert result == "3.12"
-
-    def test_raises_for_unknown_version(self, tmp_path):
-        """Unknown Isaac Sim version should raise RuntimeError."""
-        version_file = tmp_path / "VERSION"
-        version_file.write_text("99.0.0")
-
-        with (
-            mock.patch("isaaclab.cli.utils.extract_isaacsim_path", return_value=tmp_path),
-            pytest.raises(RuntimeError, match="Unsupported Isaac Sim version"),
-        ):
-            determine_python_version()
-
-    def test_uses_package_metadata_when_no_version_file(self, tmp_path):
-        """Should fall back to importlib.metadata when VERSION file doesn't exist."""
-        # tmp_path exists but has no VERSION file
-        with (
-            mock.patch("isaaclab.cli.utils.extract_isaacsim_path", return_value=tmp_path),
-            mock.patch("importlib.metadata.version", return_value="5.1.0"),
-        ):
-            result = determine_python_version()
-            assert result == "3.11"
+    local_sim = tmp_path / "_isaac_sim"
+    local_sim.mkdir()
+    (local_sim / ("python.bat" if os.name == "nt" else "python.sh")).touch()
+    if installation == "source":
+        (local_sim / ".isaaclab_source_build").touch()
+    elif installation == "container":
+        monkeypatch.setattr(sys, "executable", str(local_sim / "kit/python/bin/python3"))
+    monkeypatch.setattr(cli, "DEFAULT_ISAAC_SIM_PATH", local_sim)
+    monkeypatch.setattr(sys, "argv", ["isaaclab", "demo", "--help"])
+    if configured:
+        monkeypatch.setenv("ISAAC_PATH", str(local_sim))
+    else:
+        monkeypatch.delenv("ISAAC_PATH", raising=False)
+    with mock.patch.object(cli, "run_python_command") as launch, mock.patch.object(cli, "demo") as demo:
+        cli.cli()
+    if not delegated:
+        launch.assert_not_called()
+        demo.assert_called_once_with(["--help"])
+    else:
+        launch.assert_called_once_with("-m", ["isaaclab", "demo", "--help"], check=True)
+        demo.assert_not_called()

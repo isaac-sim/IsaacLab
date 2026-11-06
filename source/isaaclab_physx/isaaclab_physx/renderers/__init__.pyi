@@ -6,7 +6,8 @@
 __all__ = [
     "IsaacRtxRenderer",
     "IsaacRtxRendererCfg",
+    "IsaacRtxRendererGlobalSettingsCfg",
 ]
 
 from .isaac_rtx_renderer import IsaacRtxRenderer
-from .isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+from .isaac_rtx_renderer_cfg import IsaacRtxRendererCfg, IsaacRtxRendererGlobalSettingsCfg

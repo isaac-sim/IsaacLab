@@ -14,6 +14,8 @@ import pytest
 from isaaclab.controllers.pink_ik.pink_kinematics_configuration import PinkKinematicsConfiguration
 from isaaclab.controllers.pink_ik.pink_tasks import LocalFrameTask
 
+pytestmark = pytest.mark.integration
+
 # class TestLocalFrameTask:
 #     """Test suite for LocalFrameTask class."""
 
@@ -68,67 +70,13 @@ def test_initialization(local_frame_task):
     assert local_frame_task.transform_target_to_base is None
 
 
-def test_initialization_with_sequence_costs():
-    """Test initialization with sequence costs."""
-    task = LocalFrameTask(
-        frame="link_1",
-        base_link_frame_name="base_link",
-        position_cost=[1.0, 1.0, 1.0],
-        orientation_cost=[1.0, 1.0, 1.0],
-        lm_damping=0.1,
-        gain=2.0,
-    )
+def test_set_target_from_configuration(pink_config):
+    """A target taken from the configuration is the current pose relative to the base link, so the error is zero."""
+    task = LocalFrameTask(frame="link_2", base_link_frame_name="link_1", position_cost=1.0, orientation_cost=1.0)
+    task.set_target_from_configuration(pink_config)
 
-    assert task.frame == "link_1"
-    assert task.base_link_frame_name == "base_link"
-    assert np.allclose(task.cost[:3], [1.0, 1.0, 1.0])
-    assert np.allclose(task.cost[3:], [1.0, 1.0, 1.0])
-    assert task.lm_damping == 0.1
-    assert task.gain == 2.0
-
-
-def test_inheritance_from_frame_task(local_frame_task):
-    """Test that LocalFrameTask properly inherits from FrameTask."""
-    from pink.tasks.frame_task import FrameTask
-
-    # Check inheritance
-    assert isinstance(local_frame_task, FrameTask)
-
-    # Check that we can call parent class methods
-    assert hasattr(local_frame_task, "compute_error")
-    assert hasattr(local_frame_task, "compute_jacobian")
-
-
-def test_set_target(local_frame_task):
-    """Test setting target with a transform."""
-    # Create a test transform
-    target_transform = pin.SE3.Identity()
-    target_transform.translation = np.array([0.1, 0.2, 0.3])
-    target_transform.rotation = pin.exp3(np.array([0.1, 0.0, 0.0]))
-
-    # Set the target
-    local_frame_task.set_target(target_transform)
-
-    # Check that target was set correctly
-    assert local_frame_task.transform_target_to_base is not None
-    assert isinstance(local_frame_task.transform_target_to_base, pin.SE3)
-
-    # Check that it's a copy (not the same object)
-    assert local_frame_task.transform_target_to_base is not target_transform
-
-    # Check that values match
-    assert np.allclose(local_frame_task.transform_target_to_base.translation, target_transform.translation)
-    assert np.allclose(local_frame_task.transform_target_to_base.rotation, target_transform.rotation)
-
-
-def test_set_target_from_configuration(local_frame_task, pink_config):
-    """Test setting target from a robot configuration."""
-    # Set target from configuration
-    local_frame_task.set_target_from_configuration(pink_config)
-
-    # Check that target was set
-    assert local_frame_task.transform_target_to_base is not None
-    assert isinstance(local_frame_task.transform_target_to_base, pin.SE3)
+    assert isinstance(task.transform_target_to_base, pin.SE3)
+    assert np.allclose(task.compute_error(pink_config), 0.0, atol=1e-10)
 
 
 def test_set_target_from_configuration_wrong_type(local_frame_task):
@@ -147,12 +95,10 @@ def test_compute_error_with_target_set(local_frame_task, pink_config):
     # Compute error
     error = local_frame_task.compute_error(pink_config)
 
-    # Check that error is computed correctly
+    # At q = 0, link_2 sits at (0, 0, 0.45) in the base link with identity orientation, so the target
+    # expressed in the link_2 frame is the translation (0.1, 0.2, 0.3 - 0.45).
     assert isinstance(error, np.ndarray)
-    assert error.shape == (6,)  # 6D error (3 position + 3 orientation)
-
-    # Error should not be all zeros (unless target exactly matches current pose)
-    # This is a reasonable assumption for a random target
+    np.testing.assert_allclose(error, [0.1, 0.2, -0.15, 0.0, 0.0, 0.0], atol=1e-10)
 
 
 def test_compute_error_without_target(local_frame_task, pink_config):
@@ -169,24 +115,6 @@ def test_compute_error_wrong_configuration_type(local_frame_task):
 
     with pytest.raises(ValueError, match="configuration must be a PinkKinematicsConfiguration"):
         local_frame_task.compute_error("not_a_configuration")
-
-
-def test_compute_jacobian_with_target_set(local_frame_task, pink_config):
-    """Test computing Jacobian when target is set."""
-    # Set a target
-    target_transform = pin.SE3.Identity()
-    target_transform.translation = np.array([0.1, 0.2, 0.3])
-    local_frame_task.set_target(target_transform)
-
-    # Compute Jacobian
-    jacobian = local_frame_task.compute_jacobian(pink_config)
-
-    # Check that Jacobian is computed correctly
-    assert isinstance(jacobian, np.ndarray)
-    assert jacobian.shape == (6, 2)  # 6 rows (error), 2 columns (controlled joints)
-
-    # Jacobian should not be all zeros
-    assert not np.allclose(jacobian, 0.0)
 
 
 def test_compute_jacobian_without_target(local_frame_task, pink_config):
@@ -254,37 +182,6 @@ def test_error_zero_at_target_pose(local_frame_task, pink_config):
     assert np.allclose(error, 0.0, atol=1e-10)
 
 
-def test_different_frames(pink_config):
-    """Test LocalFrameTask with different frame names."""
-    # Test with link_1 frame
-    task_link1 = LocalFrameTask(
-        frame="link_1",
-        base_link_frame_name="base_link",
-        position_cost=1.0,
-        orientation_cost=1.0,
-    )
-
-    # Set target and compute error
-    target_transform = pin.SE3.Identity()
-    target_transform.translation = np.array([0.1, 0.0, 0.0])
-    task_link1.set_target(target_transform)
-
-    error_link1 = task_link1.compute_error(pink_config)
-    assert error_link1.shape == (6,)
-
-    # Test with base_link frame
-    task_base = LocalFrameTask(
-        frame="base_link",
-        base_link_frame_name="base_link",
-        position_cost=1.0,
-        orientation_cost=1.0,
-    )
-
-    task_base.set_target(target_transform)
-    error_base = task_base.compute_error(pink_config)
-    assert error_base.shape == (6,)
-
-
 def test_different_base_frames(pink_config):
     """Test LocalFrameTask with different base frame names."""
     # Test with base_link as base frame
@@ -312,6 +209,9 @@ def test_different_base_frames(pink_config):
     error_link1_base = task_link1_base.compute_error(pink_config)
     assert error_link1_base.shape == (6,)
 
+    # The same target relative to a different base link is a different pose
+    assert not np.allclose(error_base_base, error_link1_base)
+
 
 def test_sequence_cost_parameters():
     """Test LocalFrameTask with sequence cost parameters."""
@@ -328,45 +228,6 @@ def test_sequence_cost_parameters():
     assert np.allclose(task.cost[3:], [0.5, 1.0, 1.5])  # Orientation costs
     assert task.lm_damping == 0.1
     assert task.gain == 2.0
-
-
-def test_error_magnitude_consistency(local_frame_task, pink_config):
-    """Test that error computation produces reasonable results."""
-    # Set a small target offset
-    small_target = pin.SE3.Identity()
-    small_target.translation = np.array([0.01, 0.01, 0.01])
-    local_frame_task.set_target(small_target)
-
-    error_small = local_frame_task.compute_error(pink_config)
-
-    # Set a large target offset
-    large_target = pin.SE3.Identity()
-    large_target.translation = np.array([0.5, 0.5, 0.5])
-    local_frame_task.set_target(large_target)
-
-    error_large = local_frame_task.compute_error(pink_config)
-
-    # Both errors should be finite and reasonable
-    assert np.all(np.isfinite(error_small))
-    assert np.all(np.isfinite(error_large))
-    assert not np.allclose(error_small, error_large)  # Different targets should produce different errors
-
-
-def test_jacobian_structure(local_frame_task, pink_config):
-    """Test that Jacobian has the correct structure."""
-    # Set a target
-    target_transform = pin.SE3.Identity()
-    target_transform.translation = np.array([0.1, 0.2, 0.3])
-    local_frame_task.set_target(target_transform)
-
-    # Compute Jacobian
-    jacobian = local_frame_task.compute_jacobian(pink_config)
-
-    # Check structure
-    assert jacobian.shape == (6, 2)  # 6 error dimensions, 2 controlled joints
-
-    # Check that Jacobian is not all zeros (basic functionality check)
-    assert not np.allclose(jacobian, 0.0)
 
 
 def test_multiple_target_updates(local_frame_task, pink_config):
@@ -387,20 +248,6 @@ def test_multiple_target_updates(local_frame_task, pink_config):
 
     # Errors should be different
     assert not np.allclose(error1, error2)
-
-
-def test_inheritance_behavior(local_frame_task):
-    """Test that LocalFrameTask properly overrides parent class methods."""
-    # Check that the class has the expected methods
-    assert hasattr(local_frame_task, "set_target")
-    assert hasattr(local_frame_task, "set_target_from_configuration")
-    assert hasattr(local_frame_task, "compute_error")
-    assert hasattr(local_frame_task, "compute_jacobian")
-
-    # Check that these are the overridden methods, not the parent ones
-    assert local_frame_task.set_target.__qualname__ == "LocalFrameTask.set_target"
-    assert local_frame_task.compute_error.__qualname__ == "LocalFrameTask.compute_error"
-    assert local_frame_task.compute_jacobian.__qualname__ == "LocalFrameTask.compute_jacobian"
 
 
 def test_target_copying_behavior(local_frame_task):

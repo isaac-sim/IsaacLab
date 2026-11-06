@@ -29,8 +29,9 @@ import torch
 import warp as wp
 from prettytable import PrettyTable
 
+from isaaclab.managers.manager_term_cfg import EventTermCfg
+
 from .manager_base import ManagerBase
-from .manager_term_cfg import EventTermCfg
 
 logger = logging.getLogger(__name__)
 
@@ -259,9 +260,11 @@ class EventManager(ManagerBase):
                 term_cfg.func.reset(env_mask=env_mask)
 
         # reset interval timers for non-global interval events
+        # note: terms with resample_interval_on_reset=False keep their per-environment counter
+        #   across resets, so we do not resample them either
         if "interval" in self._mode_term_cfgs:
             for i, term_cfg in enumerate(self._mode_term_cfgs["interval"]):
-                if term_cfg.is_global_time:
+                if term_cfg.is_global_time or not term_cfg.resample_interval_on_reset:
                     continue
                 lower, upper = self._interval_term_ranges[i]
                 wp.launch(
@@ -417,16 +420,6 @@ class EventManager(ManagerBase):
 
             # resolve common parameters
             self._resolve_common_term_cfg(term_name, term_cfg, min_argc=2)
-
-            # check if mode is pre-startup and scene replication is enabled
-            if term_cfg.mode == "prestartup" and self._env.scene.cfg.replicate_physics:
-                raise RuntimeError(
-                    "Scene replication is enabled, which may affect USD-level randomization."
-                    " When assets are replicated, their properties are shared across instances,"
-                    " potentially leading to unintended behavior."
-                    " For stable USD-level randomization, please disable scene replication"
-                    " by setting 'replicate_physics' to False in 'InteractiveSceneCfg'."
-                )
 
             # for prestartup callable class terms, initialize early (stable behavior)
             if inspect.isclass(term_cfg.func) and term_cfg.mode == "prestartup":

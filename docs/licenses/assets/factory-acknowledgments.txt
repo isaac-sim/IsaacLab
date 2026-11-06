@@ -1,0 +1,3 @@
+The nut, bolt, peg, hole, and gear base plate assets are custom-designed, and distributed under the Isaac Gym Environments LICENSE.txt terms.
+
+The gear and gear shaft assets are courtesy of NIST, with minor modifications to clearances: https://www.nist.gov/el/intelligent-systems-division-73500/robotic-grasping-and-manipulation-assembly/assembly

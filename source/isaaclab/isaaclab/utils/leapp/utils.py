@@ -12,8 +12,7 @@ import torch
 from leapp import annotate
 from leapp.utils.tensor_description import TensorSemantics
 
-from isaaclab.utils.warp.proxy_array import ProxyArray
-
+from ..warp.proxy_array import ProxyArray
 from .leapp_semantics import LeappTensorSemantics, resolve_leapp_element_names
 
 

@@ -9,7 +9,7 @@ from time import time
 
 import numpy as np
 
-from isaacsim.core.experimental.utils.app import enable_extension
+from isaaclab.sim.utils import enable_extension
 
 # For testing purposes, we need to mock the XRCore
 XRCore, XRPoseValidityFlags = None, None
