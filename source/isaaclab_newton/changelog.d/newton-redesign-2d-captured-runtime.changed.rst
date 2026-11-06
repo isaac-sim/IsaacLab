@@ -5,9 +5,6 @@
   FK without resetting the global world.
 * Changed derived asset properties to recompute inside a step or capture instead of raising during capture.
 * Changed fixed-root pose writes to queue their model-property edit instead of notifying the solver immediately.
-* **Breaking:** Renamed ``NewtonManager.register_pre_actuator_callback`` and ``register_post_actuator_callback`` to
-  :meth:`~isaaclab_newton.physics.NewtonManager.register_control_callback` and
-  :meth:`~isaaclab_newton.physics.NewtonManager.register_post_control_callback`, named after MuJoCo's ``mjcb_control``.
 * **Breaking:** Replaced ``NewtonBackend.graph`` with :attr:`~isaaclab_newton.physics.NewtonBackend.graphs`, the
   captured parts of the step keyed by part.
 * Changed :meth:`~isaaclab_newton.physics.NewtonManager.handles_decimation` to fold the decimation loop into one step

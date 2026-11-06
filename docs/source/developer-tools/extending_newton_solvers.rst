@@ -127,9 +127,8 @@ The Step
 
 Each :meth:`~isaaclab_newton.physics.NewtonManager.step` covers the whole decimation loop when the manager handles
 decimation (:meth:`~isaaclab_newton.physics.NewtonManager.handles_decimation`: an articulation runs its Newton
-actuators in the step), and one physics step otherwise. Like MuJoCo's ``mj_step1`` and ``mj_step2``, every physics
-step runs ``collide -> control callbacks``, then the Newton actuators, then ``post-control callbacks -> substeps``;
-post-step callbacks and sensors run once at the end.
+actuators in the step), and one physics step otherwise. Every physics step runs ``collide -> pre-actuator callbacks
+-> Newton actuators -> post-actuator callbacks -> substeps``, and post-step callbacks and sensors run once at the end.
 Every substep runs ``staged body forces -> state-force callbacks -> step``, and ``pre_step`` and ``post_step`` run
 around each physics step's substeps.
 

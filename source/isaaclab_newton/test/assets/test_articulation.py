@@ -739,7 +739,7 @@ def test_hard_reset_recreates_ordered_state_and_actuators(device: str) -> None:
         callback_counts = (
             len(sim.backend_manager._callbacks),
             len(sim.backend_manager.backend.post_step_callbacks),
-            len(sim.backend_manager.backend.post_control_callbacks),
+            len(sim.backend_manager.backend.post_actuator_callbacks),
         )
         for reset_index in range(3):
             if reset_index:
@@ -749,7 +749,7 @@ def test_hard_reset_recreates_ordered_state_and_actuators(device: str) -> None:
                 assert callback_counts == (
                     len(sim.backend_manager._callbacks),
                     len(sim.backend_manager.backend.post_step_callbacks),
-                    len(sim.backend_manager.backend.post_control_callbacks),
+                    len(sim.backend_manager.backend.post_actuator_callbacks),
                 )
 
             positions = []
@@ -2184,7 +2184,7 @@ def test_body_q_consistent_after_root_write(scene: _Scene) -> None:
             captured["bq_root"] = bq[b0, :3].clone()
             captured["jq_root"] = jq[jc0 : jc0 + 3].clone()
 
-    backend_manager.register_control_callback(_record_body_state)
+    backend_manager.register_pre_actuator_callback(_record_body_state)
     scene.sim.step()
     articulation.update(scene.sim.cfg.dt)
 

@@ -292,8 +292,8 @@ def _recording_backend(
         state_version=0,
         model_changes=set(),
         warned_model_changes=set(),
-        control_callbacks=[],
-        post_control_callbacks=[],
+        pre_actuator_callbacks=[],
+        post_actuator_callbacks=[],
         state_force_callbacks=[],
         post_step_callbacks=[],
         solver_init_callbacks=[],
@@ -414,11 +414,11 @@ def test_state_forces_apply_before_every_substep_and_the_step_ends_in_state_0(si
 
 @pytest.mark.parametrize("graphable", [True, False], ids=["captured_actuators", "eager_actuators"])
 def test_decimation_loop_runs_actuator_callbacks_per_physics_step_and_post_step_callbacks_once(graphable):
-    """Capture-safe and eager actuators run the same order: control, actuators, post-control, substeps."""
+    """Capture-safe and eager actuators run the same order: pre-actuator, actuators, post-actuator, substeps."""
     events = []
     backend = _recording_backend(events, single_state=False)
-    backend.control_callbacks.append(lambda: events.append(("control",)))
-    backend.post_control_callbacks.append(lambda: events.append(("post_control",)))
+    backend.pre_actuator_callbacks.append(lambda: events.append(("pre_actuator",)))
+    backend.post_actuator_callbacks.append(lambda: events.append(("post_actuator",)))
     backend.post_step_callbacks.append(lambda: events.append(("post_physics_step",)))
     backend.actuators = SimpleNamespace(
         is_all_graphable=graphable, step=lambda *args, **kwargs: events.append(("act",))
@@ -430,9 +430,9 @@ def test_decimation_loop_runs_actuator_callbacks_per_physics_step_and_post_step_
 
     physics_step = [
         ("pre_step", "state_0"),
-        ("control",),
+        ("pre_actuator",),
         ("act",),
-        ("post_control",),
+        ("post_actuator",),
         ("step", "state_0", "state_1"),
         ("assign", "state_0", "state_1"),
         ("clear", "state_0"),
