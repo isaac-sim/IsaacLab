@@ -904,6 +904,9 @@ def _make_two_box_scene_cfg(num_envs: int) -> ContactSensorTestSceneCfg:
 def test_sensor_metadata(device: str):
     """Verify sensor_names and filter_object_names match the underlying sensing and
     counterpart configuration across body-mode, body-mode-with-filter, and shape-mode.
+
+    Newton does not track the sensor pose, so reading pose data raises when it is requested,
+    and ``pos_w`` and ``quat_w`` are None otherwise.
     """
     num_envs = 4
     sim_cfg = make_sim_cfg(use_mujoco_contacts=False, device=device, gravity=(0.0, 0.0, -9.81))
@@ -916,6 +919,7 @@ def test_sensor_metadata(device: str):
             prim_path="{ENV_REGEX_NS}/Box[^/]*",
             update_period=0.0,
             history_length=1,
+            track_pose=True,
         )
         # Body-mode, with filter: one body matches the sensor pattern, one matches the filter pattern.
         scene_cfg.contact_sensor_b = ContactSensorCfg(
@@ -932,7 +936,8 @@ def test_sensor_metadata(device: str):
             update_period=0.0,
             history_length=1,
         )
-        scene = InteractiveScene(scene_cfg)
+        with pytest.warns(UserWarning, match="'track_pose' is not supported by the Newton backend"):
+            scene = InteractiveScene(scene_cfg)
         sim.reset()
         scene.reset()
 
@@ -940,12 +945,17 @@ def test_sensor_metadata(device: str):
         assert body_sensor.num_sensors == 2
         assert body_sensor.sensor_names == ["BoxA", "BoxB"]
         assert body_sensor.filter_object_names == []
+        for name in ("pos_w", "quat_w", "pose_w"):
+            with pytest.raises(NotImplementedError, match=f"{name} is not supported"):
+                getattr(body_sensor.data, name)
 
         filtered_sensor: ContactSensor = scene["contact_sensor_b"]
         assert filtered_sensor.num_sensors == 1
         assert filtered_sensor.sensor_names == ["BoxA"]
         assert filtered_sensor.num_filter_objects == 1
         assert filtered_sensor.filter_object_names == ["BoxB"]
+        assert filtered_sensor.data.pos_w is None
+        assert filtered_sensor.data.quat_w is None
 
         shape_sensor: ContactSensor = scene["contact_sensor_c"]
         assert shape_sensor.num_sensors == 2
