@@ -54,7 +54,6 @@ def configure_hydroelastic_physics(physics: NewtonCfg) -> None:
     )
     physics.collision_cfg = NewtonCollisionPipelineCfg(
         sdf_hydroelastic_config=HydroelasticSDFCfg(
-            output_contact_surface=True,
             # A 1 mm² speculative patch; penetrating contacts retain their SDF area.
             margin_contact_area=1.0e-6,
         )

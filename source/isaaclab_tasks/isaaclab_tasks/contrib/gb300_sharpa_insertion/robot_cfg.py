@@ -21,7 +21,7 @@ ROBOT_BASE_POSITION_E = (0.40706384, -0.44981234, 1.78624670)
 ROBOT_BASE_ROTATION_XYZW = (0.0, 0.0, 0.7071067811865476, 0.7071067811865476)
 PREGRASP_ARM_RAD = (-0.28426774, -0.68145812, 0.31863682, 2.04760345, 0.40848495, 2.17470681, -2.85753436)
 # Thumb on the housing roof, index and middle underneath; no clip compression.
-CLOSE_HAND_RAD = (
+PREGRASP_HAND_RAD = (
     0.84772129,
     -0.10509452,
     0.67820725,
@@ -45,6 +45,11 @@ CLOSE_HAND_RAD = (
     1.4,
     1.0,
 )
+# Load the middle pad against the housing through the example's closing ramp.
+CLOSE_HAND_RAD = tuple(
+    position - 0.01 if name == "right_middle_MCP_FE" else position
+    for name, position in zip(RIZON_SHARPA_RIGHT_HAND_JOINT_NAMES, PREGRASP_HAND_RAD, strict=True)
+)
 
 
 def rizon_sharpa_articulation_cfg() -> ArticulationCfg:
@@ -60,7 +65,7 @@ def rizon_sharpa_articulation_cfg() -> ArticulationCfg:
             rot=ROBOT_BASE_ROTATION_XYZW,
             joint_pos={
                 **dict(zip(RIZON_SHARPA_ARM_JOINT_NAMES, PREGRASP_ARM_RAD, strict=True)),
-                **dict(zip(RIZON_SHARPA_RIGHT_HAND_JOINT_NAMES, CLOSE_HAND_RAD, strict=True)),
+                **dict(zip(RIZON_SHARPA_RIGHT_HAND_JOINT_NAMES, PREGRASP_HAND_RAD, strict=True)),
             },
         ),
         actuators={

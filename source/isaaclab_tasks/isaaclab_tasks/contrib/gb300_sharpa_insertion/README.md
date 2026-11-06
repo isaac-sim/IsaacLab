@@ -4,15 +4,25 @@ Non-RL manager-based environment with a Rizon 4s / Sharpa hand, two sockets,
 a spring-clip connector and a VBD cable. One end is fixed; the loose end starts
 physically grasped. The example inserts, releases, regrasps, presses the clip and
 extracts in one continuous simulation.
-NewtonGL shows one full-detail GB300 rack. Kit and Newton RTX compose the full
-data-center USD and eight foreground racks through USD-only scene cloning;
-this scenery adds no physics bodies or colliders. Cinematic overlays remain local.
+Newton GL starts with the detailed gold switch front and all RJ45 ports, without
+the rack or surrounding data-center facility.
+Kit and Newton RTX default to the data-center USD and eight foreground racks
+through USD-only scene cloning. Scenery adds no physics bodies or colliders.
+Cinematic overlays remain local.
 
 ```bash
 uv run isaaclab example sharpa-rj45
+uv run isaaclab example sharpa-rj45 --backdrop datacenter
 uv run --extra ovrtx isaaclab example sharpa-rj45 --viz newton_rtx
 uv run --extra isaacsim --extra video isaaclab example sharpa-rj45 --viz kit --video
 ```
+
+The defaults above use `--backdrop auto`. In Newton GL, `--backdrop datacenter`
+loads one full rack without the facility.
+
+The default GL front is a prepared, self-contained USD with three material meshes;
+startup does not crop or rebuild the rack. It uses the same asset root as the rack,
+including alternate visual roots, at `Environments/GB300/switch_front_c0ddcdf9d4ef.usdc`.
 
 The example supplies absolute palm/finger targets through Isaac Lab's Newton IK
 and action manager. Native hydroelastic hand–housing/clip contact is enabled;
@@ -25,9 +35,11 @@ There are no rewards, training presets, policy checkpoints or automatic episode 
 
 - Visuals: `Environments/RizonSharpaRJ45` on the standard Isaac Lab asset server. Set
   `ISAACLAB_SHARPA_RJ45_VISUAL_ROOT` to an alternate bundle root.
-- Robot: `Robots/Rizon4sSharpa` in the same bundle, loaded through the native USD resolver by default.
-  Set `ISAACLAB_FABRICS_SIM_RIZON_SHARPA_ROOT` to a local USD bundle with its complete textures
-  for offline use. Explicit local bundles retain the revision and integrity checks in `assets.py`.
+- Robot: `Robots/Rizon4sSharpa/textures_512_2d4d295061de/rizon4s_sharpa_textures_512.usda`
+  in the same bundle. This small layer references the existing robot USD and supplies prepared
+  512-pixel textures; geometry and physics are reused. Set `ISAACLAB_FABRICS_SIM_RIZON_SHARPA_ROOT`
+  to use a local copy of the original USD bundle and its full-resolution textures for offline use.
+  Explicit local bundles retain the revision and integrity checks in `assets.py`.
 - Connector: Newton's canonical `rj45_plug.usd`; set `ISAACLAB_RJ45_PLUG_USD`
   if it is absent from the installation. The resolver reports its pinned download URL.
 - The prerequisite [Newton dependency update](https://github.com/isaac-sim/IsaacLab/pull/8524) includes the merged
