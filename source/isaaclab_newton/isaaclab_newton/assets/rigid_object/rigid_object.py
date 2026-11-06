@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 
 
 @wp.kernel(enable_backward=False)
-def _catalog_body_selection(
+def _body_variant_selection(
     selections: wp.array(dtype=Any),
     worlds: wp.array(dtype=Any),
     bodies_by_world: wp.array(dtype=wp.int32),
@@ -46,7 +46,7 @@ def _catalog_body_selection(
     variants[index] = wp.int32(selections[index])
 
 
-_CATALOG_BODY_SELECTION = IndexKernelDispatcher(_catalog_body_selection, ("selections", "worlds"))
+_BODY_VARIANT_SELECTION = IndexKernelDispatcher(_body_variant_selection, ("selections", "worlds"))
 
 
 class RigidObject(BaseRigidObject):
@@ -109,7 +109,7 @@ class RigidObject(BaseRigidObject):
             raise RuntimeError("Mesh variant selection requires an initialized rigid object.")
         if self._variant_body_indices is None:
             raise NotImplementedError(
-                "Reset-time mesh variant selection is unavailable for this catalog and Newton backend configuration."
+                "Reset-time mesh variant selection is unavailable for this spawner and Newton backend configuration."
             )
         selected = self.root_view.get_attribute("body_variant", self._backend_manager.backend.model)[:, 0, 0]
         return ProxyArray(selected)
@@ -176,7 +176,7 @@ class RigidObject(BaseRigidObject):
             raise RuntimeError("Mesh variant selection requires an initialized rigid object.")
         if self._variant_body_indices is None:
             raise NotImplementedError(
-                "Reset-time mesh variant selection is unavailable for this catalog and Newton backend configuration."
+                "Reset-time mesh variant selection is unavailable for this spawner and Newton backend configuration."
             )
         env_ids = self._resolve_env_ids(env_ids)
         if not isinstance(env_ids, (torch.Tensor, wp.array)):
@@ -210,7 +210,7 @@ class RigidObject(BaseRigidObject):
             bodies = self._variant_selection_bodies[:selection_count]
             variants = self._variant_selection_ids[:selection_count]
             wp.launch(
-                _CATALOG_BODY_SELECTION.select(variant_ids, env_ids),
+                _BODY_VARIANT_SELECTION.select(variant_ids, env_ids),
                 dim=selection_count,
                 inputs=[variant_ids, env_ids, self._variant_body_indices],
                 outputs=[bodies, variants],
