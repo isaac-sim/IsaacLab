@@ -24,6 +24,8 @@ from isaaclab_contrib.coupling import (
     CouplerProxyMappingCfg,
 )
 
+pytestmark = pytest.mark.kitless
+
 
 def _build_manager(builder, solver_cfg):
     """Build the real backend so runtime edits invalidate its captured step."""
@@ -83,23 +85,23 @@ def test_runtime_resolution_preserves_current_native_state(coupled):
     masses = model.particle_mass.numpy().copy()
     state.mpm.particle_Jp.fill_(0.9)
 
-    manager.backend.graph = object()
+    manager.backend.graphs = {"simulate": object()}
     with pytest.raises(ValueError):
         manager.set_voxel_size(float("nan"), **kwargs)
-    assert manager.backend.graph is not None
+    assert manager.backend.graphs
     assert config.voxel_size == 0.1
 
     manager.set_voxel_size(0.05, **kwargs)
-    assert manager.backend.graph is None
+    assert not manager.backend.graphs
     assert selected.voxel_size == config.voxel_size == 0.05
     grid = selected._scratchpad.grid
     assert np.all(np.asarray(grid.origin) <= position.min(axis=0))
     assert np.all(np.asarray(grid.origin) + np.asarray(grid.res) * np.asarray(grid.cell_size) >= position.max(axis=0))
     np.testing.assert_array_equal(state.mpm.particle_Jp.numpy(), np.full(2, 0.9, dtype=np.float32))
 
-    manager.backend.graph = object()
+    manager.backend.graphs = {"simulate": object()}
     manager.set_particle_radius(0.015, **kwargs)
-    assert manager.backend.graph is None
+    assert not manager.backend.graphs
     particle_models = [model]
     if coupled:
         particle_models.extend(solver.view(name) for name in solver.entry_names())
@@ -146,7 +148,7 @@ def test_runtime_radius_rejects_foreign_particle_proxies_before_mutation():
     radii = [model.particle_radius, solver.view("media").particle_radius, solver.view("other").particle_radius]
     before = [array.numpy().copy() for array in radii]
     volume = selected._mpm_model.particle_volume.numpy().copy()
-    graph = manager.backend.graph = object()
+    graph = manager.backend.graphs = {"simulate": object()}
 
     with pytest.raises(ValueError, match="own.*all|all.*particle|subset"):
         manager.set_particle_radius(0.03, entry_name="media")
@@ -154,4 +156,4 @@ def test_runtime_radius_rejects_foreign_particle_proxies_before_mutation():
     for array, expected in zip(radii, before, strict=True):
         np.testing.assert_array_equal(array.numpy(), expected)
     np.testing.assert_array_equal(selected._mpm_model.particle_volume.numpy(), volume)
-    assert manager.backend.graph is graph
+    assert manager.backend.graphs is graph
