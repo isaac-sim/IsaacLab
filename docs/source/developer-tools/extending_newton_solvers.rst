@@ -31,8 +31,8 @@ solver differs. Write a new one when:
 
 Do not write one when an existing solver can advance the whole model, or when
 the scene can be partitioned into named solver entries. Partitioning is already
-covered by :class:`~isaaclab_contrib.coupling.CouplerProxyCfg` and
-:class:`~isaaclab_contrib.coupling.CouplerAdmmCfg`, which resolve into entry views over a
+covered by :class:`~isaaclab_newton.physics.coupling.CouplerProxyCfg` and
+:class:`~isaaclab_newton.physics.coupling.CouplerAdmmCfg`, which resolve into entry views over a
 shared model. Prefer that path for mixed rigid and deformable scenes. Write a
 custom coupled solver only when contact detection is shared but each solver
 consumes the contacts differently, or when the exchange between solvers is a
@@ -258,13 +258,13 @@ The four architectures differ in what drives the substep loop:
    * - Standalone solver
      - One manager, one solver, one model. The captured step owns the substep loop.
    * - Proxy coupling
-     - :class:`~isaaclab_contrib.coupling.CouplerProxyCfg` partitions the model
+     - :class:`~isaaclab_newton.physics.coupling.CouplerProxyCfg` partitions the model
        into named entries and builds a Newton coupled solver that exposes source
        bodies to the destination solver as proxies and returns lagged feedback.
        Each entry's Newton solver is built through the entry's own
        configuration. No new manager is required.
    * - ADMM coupling
-     - :class:`~isaaclab_contrib.coupling.CouplerAdmmCfg` uses the same manager
+     - :class:`~isaaclab_newton.physics.coupling.CouplerAdmmCfg` uses the same manager
        and entry model, but Newton creates symmetric interface constraints and
        iterates the sub-solvers. No new manager is required.
    * - Custom shared-model solver
