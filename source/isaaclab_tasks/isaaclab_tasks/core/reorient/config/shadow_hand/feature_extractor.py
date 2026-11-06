@@ -281,7 +281,7 @@ class FeatureExtractor:
             save_images_to_file(img, f"shadow_hand_{dt}.png")
 
     def step(
-        self, camera_output: dict[str, torch.Tensor], gt_pose: torch.Tensor
+        self, camera_output: dict[str, torch.Tensor], gt_pose: torch.Tensor, *, preview: bool = False
     ) -> tuple[torch.Tensor | None, torch.Tensor]:
         """Extracts features and optionally trains the CNN.
 
@@ -294,13 +294,14 @@ class FeatureExtractor:
             camera_output: Dictionary mapping data type names to image tensors from the
                 tiled camera sensor.
             gt_pose: Ground truth pose tensor (position and keypoint corners). Shape: (N, 27).
+            preview: Extract features without training the CNN or saving images. Defaults to False.
 
         Returns:
             tuple[torch.Tensor | None, torch.Tensor]: Pose loss (``None`` when not training
                 or when the network is disabled) and the predicted pose embedding of shape
                 (N, 27).
         """
-        if self.cfg.write_image_to_file:
+        if self.cfg.write_image_to_file and not preview:
             self._save_images(camera_output)
 
         if not self.cfg.enabled:
@@ -308,6 +309,9 @@ class FeatureExtractor:
             return None, torch.zeros(batch_size, 27, dtype=torch.float32, device=self.device)
 
         img_input = self._preprocess_images(camera_output)
+        if preview:
+            with torch.no_grad():
+                return None, self.feature_extractor(img_input)
 
         if self.cfg.train:
             with torch.enable_grad():

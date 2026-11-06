@@ -16,6 +16,7 @@ from __future__ import annotations
 import logging
 import math
 import os
+import warnings
 from collections.abc import Sequence
 from typing import Any, ClassVar
 
@@ -103,6 +104,13 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         from isaaclab_experimental.envs.frontend import WarpFrontend
 
         WarpFrontend.adapt_cfg(cfg)
+
+        if cfg.compute_final_obs:
+            warnings.warn(
+                "compute_final_obs is unsupported by Warp environments; final_obs will remain absent.",
+                UserWarning,
+                stacklevel=2,
+            )
 
         # -- counter for curriculum
         self.common_step_counter = 0

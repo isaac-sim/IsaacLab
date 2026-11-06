@@ -185,7 +185,7 @@ class DelayBuffer:
                 device=self.device,
             )
 
-    def compute(self, data: torch.Tensor, *, update_history: bool = True) -> torch.Tensor:
+    def compute(self, data: torch.Tensor, *, update_history: bool = True, preview: bool = False) -> torch.Tensor:
         """Return delayed data, optionally recording the input as a new sample.
 
         If the requested delay exceeds the available history since reset, returns the oldest available
@@ -196,10 +196,16 @@ class DelayBuffer:
            update_history: Whether to record the input as a new sample. Defaults to True. If False,
                return the delayed sample relative to the latest recorded frame without modifying the buffer.
                Batches with no recorded sample since initialization or reset return the input instead.
+           preview: With ``update_history=False``, return the result of a prospective push of ``data``
+               without changing recorded samples, lag state or counters. Automatic lag resampling
+               is independent of the next committed sample, so a stochastic preview need not equal
+               that next sample. Defaults to False.
 
         Returns:
             The delayed version of the data from the stored buffer. Shape is (batch_size, ...).
         """
+        if preview and update_history:
+            raise ValueError("A delay preview cannot also update history")
         if data.shape[0] != self.batch_size:
             raise ValueError(f"The input data has '{data.shape[0]}' batch size while expecting '{self.batch_size}'")
         if self._buffer is None:
@@ -210,12 +216,13 @@ class DelayBuffer:
             raise ValueError(f"Expected data shape {self._buffer.shape[1:]}, received {data.shape}.")
 
         data = data.to(device=self.device, dtype=self._buffer.dtype)
-        if not update_history:
+        if not update_history and not preview:
             lag = torch.minimum(self._time_lags, (self._num_pushes - 1).clamp_min(0))
             read_index = (self._write_index - 1 - lag) % (self.history_length + 1)
             has_history = (self._num_pushes > 0).view(self.batch_size, *([1] * (data.ndim - 1)))
             return torch.where(has_history, self._buffer[read_index, self._ALL_INDICES], data)
 
+        time_lags = self._time_lags
         if self._hold_prob is not None and self._hold_prob < 1.0:
             lags = torch.randint(
                 self._min_lag,
@@ -227,7 +234,15 @@ class DelayBuffer:
             if self._hold_prob > 0.0:
                 resample = torch.rand(self.batch_size, device=self.device) >= self._hold_prob
                 lags = torch.where(resample, lags, self._time_lags)
-            self._time_lags.copy_(lags)
+            time_lags = lags
+            if not preview:
+                self._time_lags.copy_(lags)
+
+        if preview:
+            lag = torch.minimum(time_lags, self._num_pushes)
+            read_index = (self._write_index - lag) % (self.history_length + 1)
+            use_current = (lag == 0).view(self.batch_size, *([1] * (data.ndim - 1)))
+            return torch.where(use_current, data, self._buffer[read_index, self._ALL_INDICES])
 
         self._buffer.index_copy_(0, self._write_index, data.unsqueeze(0))
         lag = torch.minimum(self._time_lags, self._num_pushes)

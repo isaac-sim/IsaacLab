@@ -81,17 +81,19 @@ class DirectMARLEnvCfg:
     """
 
     compute_final_obs: bool = False
-    """Whether to capture the per-agent terminal observation before a Same-Step autoreset and expose it.
+    """Whether to preview terminal observations before Same-Step autoreset. Defaults to False.
 
-    Under Same-Step autoreset (see :attr:`~isaaclab.envs.DirectMARLEnv.metadata`), an agent whose
-    environment terminates is reset within the same :meth:`~isaaclab.envs.DirectMARLEnv.step` call, so
-    the returned observation belongs to the *new* episode. When this flag is True, the observation is
-    computed once more *before* the reset and stored per agent under ``extras[agent]["final_obs"]``
-    (with the same observation noise as the returned observation applied), so wrappers can report it as
-    the true terminal observation for value bootstrapping.
+    When any environment terminates, times out or is manually reset, capture every observation
+    group once before reset, command updates and interval events in ``extras[agent]["final_obs"]``.
+    The tensors live on ``env.device`` and own their storage. Only rows for environments that
+    reset are valid for bootstrapping; they use the command from before this step's command update.
+    The key is absent on steps without resets.
 
-    Defaults to False, which preserves the previous behavior: no terminal observation is captured,
-    ``extras[agent]["final_obs"]`` is not populated, and the extra observation computation is skipped.
+    Preview reads include the current sample in delay and observation history without committing
+    it. Custom stateful observation terms should check ``env.is_observation_preview``; stateful
+    tensor processors should override their ``preview`` method. Observation noise is evaluated as
+    in ordinary observations. Extra reads from active recorder terms remain outside this guarantee.
+    Warp environments do not support terminal capture and warn when this flag is enabled.
     """
 
     episode_length_s: float = MISSING

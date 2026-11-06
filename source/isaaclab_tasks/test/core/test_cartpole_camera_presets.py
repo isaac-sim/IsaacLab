@@ -49,3 +49,53 @@ def test_newton_renderer_accepts_supported_data_types(cfg_cls):
     """The guard must not reject data types the Newton Warp renderer does publish."""
     cfg = resolve_presets(cfg_cls(), {"newton_renderer", "rgb"})
     validate(cfg)  # must not raise
+
+
+def test_direct_terminal_camera_read_preserves_survivor_history():
+    """The direct task forwards the preview flag and keeps terminal image storage owned."""
+    from types import SimpleNamespace
+
+    import torch
+
+    from isaaclab.utils.images import CameraFrameStack
+
+    from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
+
+    env = object.__new__(CartpoleCameraEnv)
+    env._is_closed = True
+    env.cfg = SimpleNamespace(
+        scene=SimpleNamespace(tiled_camera=SimpleNamespace(data_types=["rgb"])),
+        write_image_to_file=False,
+        observation_noise_model=None,
+    )
+    env.scene = SimpleNamespace(num_envs=2)
+    env.extras = {}
+    camera = torch.randint(0, 255, (2, 4, 4, 3), dtype=torch.uint8)
+    env._tiled_camera = SimpleNamespace(data=SimpleNamespace(output={"rgb": SimpleNamespace(torch=camera)}))
+    env._frames = CameraFrameStack(2, "cpu", 2, channel_first=True)
+    env.joint_pos = torch.zeros(2, 2)
+    env.joint_vel = torch.zeros(2, 2)
+    env.cartpole = SimpleNamespace(
+        data=SimpleNamespace(
+            default_joint_pos=SimpleNamespace(torch=env.joint_pos.clone()),
+            default_joint_vel=SimpleNamespace(torch=env.joint_vel.clone()),
+        )
+    )
+    env._cart_dof_idx, env._pole_dof_idx = [0], [1]
+    previous = camera.float() / 255
+    previous = (previous - previous.mean((1, 2), keepdim=True)).permute(0, 3, 1, 2)
+    env._compute_observations()
+    camera.copy_(torch.randint_like(camera, 0, 255))
+    successor = camera.float() / 255
+    successor = (successor - successor.mean((1, 2), keepdim=True)).permute(0, 3, 1, 2)
+    env._capture_final_obs()
+    terminal = env.extras["final_obs"]["policy"]
+    env._frames.reset([0])
+    live = env._compute_observations()["policy"]
+    expected = torch.cat((previous, successor), dim=1)
+    torch.testing.assert_close(terminal, expected)
+    torch.testing.assert_close(live[1], expected[1])
+    torch.testing.assert_close(live[0], successor[0].repeat(2, 1, 1))
+    camera.zero_()
+    env._compute_observations()
+    torch.testing.assert_close(terminal, expected)
