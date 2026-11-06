@@ -55,7 +55,13 @@ class KaminoSolver(NewtonSolver):
             loop_closing = loop_closing and bool((start.numpy()[1:] > end.numpy()).any())
             cfg = cfg.replace(use_fk_solver=loop_closing)
         if cfg.max_contacts_per_world is not None:
-            model.rigid_contact_max = int(cfg.max_contacts_per_world) * model.world_count
+            contact_max = int(cfg.max_contacts_per_world) * model.world_count
+            if model.rigid_contact_max is not None and model.rigid_contact_max != contact_max:
+                raise ValueError(
+                    f"Kamino max_contacts_per_world requests {contact_max} contacts, but the model already"
+                    f" requests {model.rigid_contact_max}. Set one consistent contact capacity."
+                )
+            model.rigid_contact_max = contact_max
             logger.info(
                 "[KAMINO] Capping rigid_contact_max to %d (%d/world * %d worlds)",
                 model.rigid_contact_max,

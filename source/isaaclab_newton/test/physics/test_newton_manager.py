@@ -78,6 +78,38 @@ def test_collision_cfg_leaves_max_triangle_pairs_to_newton():
     assert NewtonCollisionPipelineCfg().to_pipeline_args()["max_triangle_pairs"] is None
 
 
+def test_explicit_collision_capacity_reaches_the_solver_before_construction():
+    """A configured pipeline capacity must also size solver scratch allocated at construction."""
+
+    class CapacitySeen(Exception):
+        pass
+
+    class RecordingSolver(NewtonSolver):
+        @classmethod
+        def build(cls, cfg, model, mode, env_template=None):
+            assert model.rigid_contact_max == 48
+            raise CapacitySeen
+
+    cfg = NewtonCfg(
+        solver_cfg=NewtonSolverCfg(class_type=RecordingSolver),
+        collision_cfg=NewtonCollisionPipelineCfg(rigid_contact_max=48),
+    )
+    backend = backend_stub(
+        cfg=cfg, model=SimpleNamespace(rigid_contact_max=None), deterministic_mode=wp.DeterministicMode.NOT_GUARANTEED
+    )
+
+    with pytest.raises(CapacitySeen):
+        backend.init_solver()
+
+
+def test_kamino_rejects_conflicting_contact_capacities():
+    cfg = KaminoPADMMSolverCfg(max_contacts_per_world=32, use_fk_solver=False)
+    model = SimpleNamespace(rigid_contact_max=128, world_count=2)
+
+    with pytest.raises(ValueError, match="one consistent contact capacity"):
+        cfg.class_type.build(cfg, model, wp.DeterministicMode.NOT_GUARANTEED)
+
+
 def test_reset_lets_consumers_bind_each_new_backend_before_the_solver_exists(monkeypatch):
     """Each hard reset finalizes a new backend, dispatches ``PHYSICS_READY``, then builds the solver.
 
