@@ -124,6 +124,9 @@ class NewtonCollisionPipelineCfg:
     2. Else if ``model.rigid_contact_max > 0``, use the model value.
     3. Else estimate automatically from model shape and pair metadata.
 
+    An explicit value is also set on the model before solver construction, so solvers that
+    size contact scratch at construction use the same capacity as the collision pipeline.
+
     Defaults to ``None`` (auto-estimate, same as Newton's default).
     """
 
