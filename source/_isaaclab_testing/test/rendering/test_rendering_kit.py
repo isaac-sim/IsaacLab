@@ -29,7 +29,7 @@ def test_rendering(case: RenderCase, request: pytest.FixtureRequest) -> None:
 
 
 def test_gaussian_raw_hdr_without_isp() -> None:
-    """Isaac RTX returns finite raw HDR for Gaussian splats on a camera without an ISP (OMPE-119162)."""
+    """Isaac RTX returns finite raw HDR for Gaussian splats on a camera without an ISP."""
     settings = get_settings_manager()
     gaussian_setting = "/rtx/rtpt/gaussian/skipTonemapping/enabled"
     previous_gaussian_setting = settings.get(gaussian_setting)
