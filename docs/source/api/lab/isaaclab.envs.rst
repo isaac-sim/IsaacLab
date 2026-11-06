@@ -8,6 +8,7 @@
   .. autosummary::
 
     mdp
+    reset
     ui
 
   .. rubric:: Classes
