@@ -24,6 +24,7 @@ from newton.solvers import SolverBase
 from newton.solvers.experimental.coupled import SolverCoupled, SolverCoupledADMM, SolverCoupledProxy
 
 from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE, expand_env_regex_ns
+from isaaclab.utils import instantiate
 from isaaclab.utils.string import resolve_matching_names
 
 from .coupler_cfg import (
@@ -381,7 +382,7 @@ def _coupled_entry(
     solver_cfg = entry_cfg.solver_cfg
 
     def build(view: Model) -> SolverBase:
-        driver = drivers[entry_cfg.name] = solver_cfg.class_type(solver_cfg, view, mode, env_template)
+        driver = drivers[entry_cfg.name] = instantiate(solver_cfg, view, mode, env_template)
         return driver.native
 
     return SolverCoupled.Entry(

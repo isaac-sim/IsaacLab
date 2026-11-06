@@ -23,6 +23,7 @@ from newton.sensors import SensorContact, SensorIMU
 from newton.solvers import SolverBase
 
 from isaaclab.sim import SimulationContext
+from isaaclab.utils import instantiate
 from isaaclab.utils.buffers import TimestampedBuffer
 from isaaclab.utils.timer import Timer
 from isaaclab.utils.version import has_kit
@@ -258,7 +259,7 @@ class NewtonBackend:
                 f"Newton deterministic mode {mode.name} is not supported by {type(solver_cfg).__name__}."
                 " Use MJWarp on the GPU, XPBD, or Featherstone, or disable deterministic mode."
             )
-        ops = self.solver_ops = solver_cfg.class_type(solver_cfg, self.model, mode, env_template)
+        ops = self.solver_ops = instantiate(solver_cfg, self.model, mode, env_template)
         solver = self.solver = ops.native
         if not ops.single_state:
             ops.init_state(self.state_1)

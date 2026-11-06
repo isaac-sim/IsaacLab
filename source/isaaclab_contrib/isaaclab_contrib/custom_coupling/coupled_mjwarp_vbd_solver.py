@@ -14,6 +14,8 @@ from isaaclab_newton.physics import NewtonSolver
 from newton import CollisionPipeline, Contacts, Control, Model, ModelBuilder, State
 from newton.solvers import SolverBase, SolverMuJoCo, SolverVBD
 
+from isaaclab.utils import instantiate
+
 from .kernels import _kernel_body_particle_reaction
 
 if TYPE_CHECKING:
@@ -49,9 +51,9 @@ class CoupledMJWarpVBDSolver(NewtonSolver):
         if not cfg.soft_solver_cfg.integrate_with_external_rigid_solver:
             raise ValueError("The custom coupled solver requires VBD external rigid-body integration.")
         rigid, soft = cfg.rigid_solver_cfg, cfg.soft_solver_cfg
-        self.rigid = rigid.class_type(rigid, model, mode, env_template)
+        self.rigid = instantiate(rigid, model, mode, env_template)
         """Driver of the MJWarp rigid-body solver."""
-        self.soft = soft.class_type(soft, model, mode, env_template)
+        self.soft = instantiate(soft, model, mode, env_template)
         """Driver of the VBD deformable solver."""
         return SolverCoupledMJWarpVBD(model, self.rigid.native, self.soft.native, cfg.coupling_mode)
 
