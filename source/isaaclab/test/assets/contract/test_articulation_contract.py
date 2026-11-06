@@ -171,12 +171,13 @@ def test_commanding_a_tendon_target_schedules_the_write(monkeypatch, backend):
 def test_newton_tendon_target_requires_a_tendon_actuator(monkeypatch):
     """Without a MuJoCo tendon actuator Newton cannot command targets, and an untransmitting solver says so."""
     from isaaclab_newton.physics import XPBDSolver, XPBDSolverCfg
+    from isaaclab_newton.test.fixtures.mock_newton import solver_driver
 
     art, _ = _articulation("newton", "cpu", monkeypatch, num_fixed_tendons=2)
     with pytest.raises(RuntimeError, match="no MuJoCo tendon actuator"):
         art.set_fixed_tendon_position_target_index(target=torch.zeros((N, 2)))
     with pytest.raises(NotImplementedError, match="does not drive fixed tendons"):
-        XPBDSolver.fixed_tendon_control(XPBDSolverCfg(), art, None)
+        solver_driver(XPBDSolver, XPBDSolverCfg()).fixed_tendon_control(art, None)
 
 
 # ---------------------------------------------------------------------------

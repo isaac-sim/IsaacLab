@@ -39,11 +39,9 @@ class CoupledMJWarpVBDSolver(NewtonSolver):
         for sub_cfg in (cfg.rigid_solver_cfg, cfg.soft_solver_cfg):
             sub_cfg.class_type.prepare_builder(sub_cfg, builder)
 
-    @classmethod
-    def build(
-        cls, cfg: CoupledMJWarpVBDSolverCfg, model: Model, mode: wp.DeterministicMode, env_template: str | None = None
-    ) -> SolverCoupledMJWarpVBD:
+    def build(self, model: Model, mode: wp.DeterministicMode, env_template: str | None) -> SolverCoupledMJWarpVBD:
         """Construct both sub-solvers through their own configurations."""
+        cfg = self.cfg
         if cfg.coupling_mode not in ("one_way", "two_way"):
             raise ValueError("coupling_mode must be 'one_way' or 'two_way'.")
         if not cfg.rigid_solver_cfg.use_mujoco_contacts:
@@ -51,27 +49,18 @@ class CoupledMJWarpVBDSolver(NewtonSolver):
         if not cfg.soft_solver_cfg.integrate_with_external_rigid_solver:
             raise ValueError("The custom coupled solver requires VBD external rigid-body integration.")
         rigid, soft = cfg.rigid_solver_cfg, cfg.soft_solver_cfg
-        return SolverCoupledMJWarpVBD(
-            model,
-            rigid.class_type.build(rigid, model, mode, env_template),
-            soft.class_type.build(soft, model, mode, env_template),
-            cfg.coupling_mode,
-        )
+        self.rigid = rigid.class_type(rigid, model, mode, env_template)
+        """Driver of the MJWarp rigid-body solver."""
+        self.soft = soft.class_type(soft, model, mode, env_template)
+        """Driver of the VBD deformable solver."""
+        return SolverCoupledMJWarpVBD(model, self.rigid.native, self.soft.native, cfg.coupling_mode)
 
-    @classmethod
-    def prepare_contacts(
-        cls,
-        cfg: CoupledMJWarpVBDSolverCfg,
-        solver: SolverCoupledMJWarpVBD,
-        contacts: Contacts,
-        pipeline: CollisionPipeline | None,
-    ) -> None:
+    def prepare_contacts(self, contacts: Contacts, pipeline: CollisionPipeline | None) -> None:
         """Bind the collision pipeline used inside each coupled substep."""
-        solver.collision_pipeline = pipeline
+        self.native.collision_pipeline = pipeline
 
-    @classmethod
-    def pre_step(cls, cfg: CoupledMJWarpVBDSolverCfg, solver: SolverCoupledMJWarpVBD, state: State) -> None:
-        solver.rebuild_bvh(state)
+    def pre_step(self, state: State) -> None:
+        self.native.rebuild_bvh(state)
 
 
 class SolverCoupledMJWarpVBD(SolverBase):

@@ -3461,10 +3461,13 @@ class Articulation(BaseArticulation):
             )
             if tendon_types.sum() > 0:
                 raise NotImplementedError("Spatial tendons are not supported yet.")
-            # Only the solver knows whether it transmits to tendons.
-            backend = self._backend_manager.backend
-            solver_cfg = backend.cfg.solver_cfg
-            self._fixed_tendon_control = solver_cfg.class_type.fixed_tendon_control(solver_cfg, self, backend.model)
+            # Only the solver knows whether it transmits to tendons, and it does not exist yet.
+            self._backend_manager.register_solver_init_callback(self._bind_fixed_tendon_control)
+
+    def _bind_fixed_tendon_control(self) -> None:
+        """Build the fixed-tendon command adapter from the solver once it exists."""
+        backend = self._backend_manager.backend
+        self._fixed_tendon_control = backend.solver_ops.fixed_tendon_control(self, backend.model)
 
     """
     Internal helpers -- Debugging.
