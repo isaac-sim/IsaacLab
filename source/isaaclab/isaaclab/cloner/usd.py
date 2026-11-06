@@ -119,12 +119,12 @@ class UsdReplicateContext(ReplicateContext):
                         continue
                 copies.setdefault((source, template), []).append(targets)
         env_ids = range(len(plan.topology.world_prototype_layout))
+        layer = self._sim.stage.GetRootLayer()
         with disabled_fabric_change_notifies(self._sim.stage), Sdf.ChangeBlock():
             for source, template in sorted(copies, key=lambda copy: copy[1].count("/")):
                 usd_replicate(self._sim.stage, (source,), (template,), np.concatenate(copies[source, template]))
             if plan.positions is not None:
                 # Environment frames come from the plan, not copies of an undeclared USD subtree.
-                layer = self._sim.stage.GetRootLayer()
                 for env_id, position in zip(env_ids, plan.positions, strict=True):
                     path = plan.env_template.format(env_id)
                     spec = Sdf.CreatePrimInLayer(layer, path)
@@ -140,3 +140,13 @@ class UsdReplicateContext(ReplicateContext):
                     if attr.name not in ops:
                         ops.insert(ops.index("!resetXformStack!") + 1 if "!resetXformStack!" in ops else 0, attr.name)
                     order.default = Vt.TokenArray(ops)
+            # Sources are authored into the first environment of their world prototype, so heterogeneous plans
+            # create the environment roots out of index order; stage queries and native views follow child order.
+            env_paths = [Sdf.Path(plan.env_template.format(env_id)) for env_id in env_ids]
+            parent = layer.GetPrimAtPath(env_paths[0].GetParentPath()) if env_paths else None
+            if parent is not None:
+                names = [path.name for path in env_paths]
+                env_names = set(names)
+                authored = [name for name in parent.nameChildren.keys() if name in env_names]
+                if authored != names:
+                    parent.nameChildrenOrder = names
