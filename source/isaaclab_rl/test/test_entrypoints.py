@@ -46,6 +46,11 @@ from isaaclab_rl.entrypoints.simple_agents import create_random_action_policy, c
         ("import isaaclab_rl.rl_games.pbt", ["isaaclab_rl.rl_games.pbt.pbt", "rl_games", "torch"]),
         ("import isaaclab_rl.rsl_rl", ["isaaclab_rl.rsl_rl.vecenv_wrapper", "rsl_rl", "torch"]),
         ("import isaaclab_rl.utils", ["torch"]),
+        (
+            "import isaaclab_tasks.contrib.g1_tracking",
+            ["isaaclab_rl.supermimic", "physicsnemo_robotics", "wandb", "supermimic"],
+        ),
+        ("import isaaclab_rl.supermimic.networks", ["physicsnemo_robotics", "wandb", "supermimic"]),
         # resolves through isaaclab_rl.entrypoints, so it also covers importing that package directly
         (
             "from isaaclab_rl import run_play_cli",
