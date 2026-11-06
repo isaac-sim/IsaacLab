@@ -5,29 +5,18 @@
 
 """RTX exposure settings authored during camera construction, before scene import."""
 
-from pxr import Sdf, Usd
+from pxr import Usd
+
+from isaaclab.sensors.camera.camera_exposure import apply_neutral_exposure
 
 
 def apply_rtx_exposure_overrides(stage: Usd.Stage, prim_paths: list[str]) -> None:
     """Neutralize RTX exposure when PPISP owns image processing.
 
-    Adding the schema tokens directly preserves other applied APIs without requiring RTX's
-    schema plugin to be registered in the host USD process.
+    Cameras do this themselves with ``CameraCfg.exposure = ExposureCfg(mode="neutral")``.
 
     Args:
         stage: USD stage containing the cameras.
         prim_paths: Resolved camera prim paths (typically one per env).
     """
-    for prim_path in prim_paths:
-        prim = stage.GetPrimAtPath(prim_path)
-        prim.AddAppliedSchema("OmniRtxCameraAutoExposureAPI_1")
-        prim.AddAppliedSchema("OmniRtxCameraExposureAPI_1")
-        for name, value in (
-            ("exposure", 0.0),
-            ("exposure:fStop", 1.0),
-            ("exposure:iso", 0.0),
-            ("exposure:responsivity", 1.0),
-            ("exposure:time", 1.0),
-        ):
-            prim.CreateAttribute(name, Sdf.ValueTypeNames.Float, custom=False).Set(value)
-        prim.CreateAttribute("omni:rtx:autoExposure:enabled", Sdf.ValueTypeNames.Bool, custom=False).Set(False)
+    apply_neutral_exposure(stage, prim_paths)

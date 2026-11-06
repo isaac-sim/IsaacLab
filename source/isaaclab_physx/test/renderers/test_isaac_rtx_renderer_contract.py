@@ -132,7 +132,6 @@ def test_create_render_data_uses_unique_sdf_safe_render_product_name(monkeypatch
             data_types=["rgb"],
             width=64,
             height=64,
-            isp_cfg=None,
             colorize_semantic_segmentation=False,
             colorize_instance_segmentation=False,
             colorize_instance_id_segmentation=False,
@@ -167,6 +166,57 @@ def test_create_render_data_uses_unique_sdf_safe_render_product_name(monkeypatch
         # Replicator builds a USD prim from this name; reject illegal identifiers.
         assert Sdf.Path.IsValidIdentifier(name)
         assert Sdf.Path.IsValidPathString(f"/Render/{name}")
+
+
+@pytest.mark.parametrize("data_type", ["rgb", "rgb_hdr"])
+def test_hdr_output_tonemaps_gaussian_splats(monkeypatch, data_type):
+    """An ``rgb_hdr`` request, which PPISP makes, tonemaps Gaussian splats with the rest of the frame."""
+    replicator_core_module, syntheticdata_module = _install_omni_stubs(monkeypatch)
+    monkeypatch.setattr(syntheticdata_module, "SyntheticData", MagicMock(), raising=False)
+
+    import isaaclab_physx.renderers.isaac_rtx_renderer as rtx_renderer
+    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+    from pxr import UsdGeom
+
+    import isaaclab.sim.utils.stage as stage_utils
+
+    settings = MagicMock()
+    settings.get.return_value = False
+    stage = MagicMock()
+    stage.SelectPrims.return_value.GetCount.return_value = 1
+    stage.GetPrimAtPath.return_value.IsA.side_effect = lambda typ: typ is UsdGeom.Camera
+    rp = MagicMock()
+    rp.path = "/Render/rp_test"
+    replicator_core_module.create = SimpleNamespace(render_product_tiled=MagicMock(return_value=rp))
+    replicator_core_module.AnnotatorRegistry = MagicMock()
+    spec = SimpleNamespace(
+        camera_prim_paths=["/World/envs/env_0/Camera"],
+        device="cpu",
+        cfg=SimpleNamespace(
+            data_types=[data_type],
+            width=64,
+            height=64,
+            colorize_semantic_segmentation=False,
+            colorize_instance_segmentation=False,
+            colorize_instance_id_segmentation=False,
+        ),
+    )
+    renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)
+    renderer.cfg = IsaacRtxRendererCfg()
+
+    with (
+        patch.object(rtx_renderer, "get_settings_manager", return_value=settings),
+        patch.object(rtx_renderer, "get_isaac_sim_version", return_value=version.parse("6.0")),
+        patch.object(stage_utils, "get_current_stage", return_value=stage),
+    ):
+        renderer.create_render_data(spec)
+
+    hdr = data_type == "rgb_hdr"
+    # Isaac Sim 6.2 reads the process setting; newer Kit reads the render-product attribute.
+    assert (call("/rtx/rtpt/gaussian/skipTonemapping/enabled", False) in settings.set.call_args_list) == hdr
+    attribute_names = [created.args[0] for created in stage.GetPrimAtPath.return_value.CreateAttribute.call_args_list]
+    assert ("omni:rtx:gaussian:skipTonemapping:enabled" in attribute_names) == hdr
 
 
 @pytest.mark.parametrize(
@@ -248,7 +298,6 @@ def test_simple_shading_configures_its_render_product(
             data_types=data_types,
             width=64,
             height=64,
-            isp_cfg=None,
             colorize_semantic_segmentation=False,
             colorize_instance_segmentation=False,
             colorize_instance_id_segmentation=False,
@@ -466,8 +515,6 @@ def test_render_treats_empty_annotator_frame_as_not_ready(monkeypatch, data_type
             cfg=SimpleNamespace(width=64, height=64),
         ),
         renderer_info={},
-        ppisp_pipeline=None,
-        _hdr_scratch_wp=None,
     )
     renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)
     renderer.cfg = IsaacRtxRendererCfg()
@@ -507,8 +554,6 @@ def test_render_keeps_leading_channels_of_padded_annotator_tiles(monkeypatch, da
         output_data={data_type: SimpleNamespace(warp=output_buffer)},
         spec=SimpleNamespace(view_count=view_count, device="cpu", cfg=SimpleNamespace(width=width, height=height)),
         renderer_info={},
-        ppisp_pipeline=None,
-        _hdr_scratch_wp=None,
     )
     renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)
     renderer.cfg = IsaacRtxRendererCfg()
@@ -560,8 +605,6 @@ def test_render_batch_updates_once_before_extracting_ready_cameras(monkeypatch, 
                     else SimpleNamespace(view_count=1, device="cpu", cfg=SimpleNamespace(width=1, height=1))
                 ),
                 renderer_info={},
-                ppisp_pipeline=None,
-                _hdr_scratch_wp=None,
             )
         )
         if state == "ready":

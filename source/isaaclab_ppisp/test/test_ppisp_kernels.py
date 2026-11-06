@@ -8,6 +8,7 @@ import warp as wp
 from isaaclab_ppisp import (
     PpispCfg,
     PpispPipeline,
+    PpispProcessorCfg,
     apply_ppisp_to_rgba,
     apply_ppisp_to_rgba_with_controller_params,
     compute_ppisp_controller_params,
@@ -37,6 +38,8 @@ from isaaclab_ppisp.kernels import (
     PPISP_CONTROLLER_OFF_TRUNK2_W,
     PPISP_CONTROLLER_PARAM_COUNT,
 )
+
+from isaaclab.utils.warp import ProxyArray
 
 wp.init()
 
@@ -131,6 +134,21 @@ def test_ppisp_warp_exposure_increases_ldr_output():
     assert (baseline_np[..., 3] == 255).all()
     assert (exposed_np[..., 3] == 255).all()
     assert exposed_np[..., :3].astype(float).mean() > baseline_np[..., :3].astype(float).mean()
+
+
+def test_ppisp_processor_returns_rgb_view_of_persistent_rgba():
+    """The processor applies its coefficients to persistent RGBA storage, viewed as RGB."""
+    hdr = ProxyArray(_hdr(0.25, (2, 3, 4, 3)))
+    cfg = PpispProcessorCfg(isp_cfg=PpispCfg(inputs={"exposureOffset": 1.0}))
+    processor = cfg.func(cfg, {"rgb_hdr": hdr})
+    outputs = processor({"rgb_hdr": hdr})
+
+    expected = _rgba((2, 3, 4, 4))
+    apply_ppisp_to_rgba(hdr.warp, expected, normalize_ppisp_cfg(PpispCfg(inputs={"exposureOffset": 1.0})))
+    assert (outputs["rgba"].warp.numpy() == expected.numpy()).all()
+    assert (outputs["rgb"].warp.numpy() == expected.numpy()[..., :3]).all()
+    assert outputs["rgb"].warp.ptr == outputs["rgba"].warp.ptr
+    assert processor({"rgb_hdr": hdr})["rgba"] is outputs["rgba"]
 
 
 def test_ppisp_warp_responsivity_lifts_dim_input():

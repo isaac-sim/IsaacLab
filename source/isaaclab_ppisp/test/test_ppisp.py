@@ -10,6 +10,8 @@ from __future__ import annotations
 import pytest
 from isaaclab_ppisp import (
     PpispCfg,
+    PpispProcessor,
+    PpispProcessorCfg,
     apply_rtx_exposure_overrides,
     auto_any_ppisp_cfg,
     auto_camera_ppisp_cfg,
@@ -304,3 +306,29 @@ def test_apply_rtx_exposure_overrides_resets_authored_exposure_values():
     assert "ExistingAPI" in applied
     authored_schemas = stage.GetRootLayer().GetPrimAtPath(prim.GetPath()).GetInfo("apiSchemas")
     assert authored_schemas.deletedItems == ["RetiredAPI"]
+
+
+@pytest.mark.parametrize("renderer_type", ["isaac_rtx", "ovrtx", "newton_warp"])
+def test_ppisp_processor_requires_neutral_camera_exposure_on_rtx(renderer_type):
+    """Camera preparation resolves discovery and, on RTX, requires neutral exposure instead of authoring it."""
+    from isaaclab.renderers import RendererCfg
+    from isaaclab.sensors.camera import CameraISPMode
+    from isaaclab.sensors.camera.camera_exposure import apply_neutral_exposure
+
+    stage = Usd.Stage.CreateInMemory()
+    ppisp_camera = _author_ppisp_camera(stage, "/World/Camera", inherits=None, attrs={"exposureOffset": 1.5})
+    _author_camera(stage, "/World/Plain")
+    ppisp_camera.CreateAttribute("exposure:iso", Sdf.ValueTypeNames.Float).Set(800.0)
+    cfg, renderer_cfg = PpispProcessorCfg(isp_cfg=CameraISPMode.AUTO_CAMERA), RendererCfg(renderer_type=renderer_type)
+
+    assert PpispProcessor.prepare_camera(cfg, stage, ["/World/Plain"], renderer_cfg) is None
+    if renderer_type != "newton_warp":
+        with pytest.raises(ValueError, match=r'ExposureCfg\(mode="neutral"\)'):
+            PpispProcessor.prepare_camera(cfg, stage, ["/World/Camera"], renderer_cfg)
+        # The processor reports the camera's exposure but never changes it.
+        assert ppisp_camera.GetAttribute("exposure:iso").Get() == 800.0
+        apply_neutral_exposure(stage, ["/World/Camera"])
+
+    prepared = PpispProcessor.prepare_camera(cfg, stage, ["/World/Camera"], renderer_cfg)
+
+    assert prepared.isp_cfg.inputs["exposureOffset"] == pytest.approx(1.5)
