@@ -20,7 +20,7 @@ import warp as wp
 from isaaclab_newton.physics import MPMSolverCfg, NewtonCollisionPipelineCfg, NewtonSolver, NewtonSolverCfg
 from isaaclab_newton.physics.newton_solver import solver_kwargs
 from newton import CollisionPipeline, Model, ModelBuilder, ShapeFlags, State
-from newton.solvers import SolverBase
+from newton.solvers import SolverBase, SolverImplicitMPM
 from newton.solvers.experimental.coupled import SolverCoupled, SolverCoupledADMM, SolverCoupledProxy
 
 from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE, expand_env_regex_ns
@@ -302,7 +302,15 @@ class CouplerSolver(NewtonSolver):
             active_proxy_destinations = {proxy.destination for proxy in proxies if proxy.bodies or proxy.particles}
         _validate_resolved_entries(model, resolved_entries, cfg, active_proxy_destinations)
         entries = [_coupled_entry(entry, mode, env_template) for entry in resolved_entries]
-        return cls.build_coupled(cfg, model, entries, proxies, mode)
+        solver = cls.build_coupled(cfg, model, entries, proxies, mode)
+        # Keep resolved ownership with this solver instance: local views can also
+        # contain foreign proxy particles, and configurations may change later.
+        solver._isaaclab_mpm_particle_owner_counts = {
+            solver.solver(entry.config.name): len(entry.particles)
+            for entry in resolved_entries
+            if isinstance(solver.solver(entry.config.name), SolverImplicitMPM)
+        }
+        return solver
 
     @classmethod
     def build_coupled(

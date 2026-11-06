@@ -519,10 +519,45 @@ class EventsCfg:
 
 
 @configclass
+class PourMPMResolutionStageCfg:
+    """One optional success-gated change to MPM grid spacing or support radius."""
+
+    success_rate: float = 0.70
+    """Required terminal-success fraction in a completed-episode cohort."""
+
+    voxel_size: float | None = None
+    """New uniform MPM grid spacing [m], or ``None`` to retain it."""
+
+    particle_radius: float | None = None
+    """New uniform support radius [m], preserving masses and particle count."""
+
+    def validate_config(self) -> None:
+        """Reject invalid transitions before physics initialization."""
+        if (
+            isinstance(self.success_rate, bool)
+            or not isinstance(self.success_rate, (int, float))
+            or not math.isfinite(self.success_rate)
+            or not 0.0 <= self.success_rate <= 1.0
+        ):
+            raise ValueError("MPM resolution success_rate must lie in [0, 1].")
+        if self.voxel_size is None and self.particle_radius is None:
+            raise ValueError("An MPM resolution stage must change voxel_size or particle_radius.")
+        for name, value in (("voxel_size", self.voxel_size), ("particle_radius", self.particle_radius)):
+            if value is not None and (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(value)
+                or value <= 0.0
+            ):
+                raise ValueError(f"MPM resolution {name} must be finite and positive or None.")
+
+
+@configclass
 class ResetDatasetCurriculumCfg:
     """Adaptive replay over the validated external reset dataset."""
 
     reset_dataset = CurrTerm(func=mdp.PourResetDatasetCurriculum)
+    mpm_resolution = CurrTerm(func=mdp.PourMPMResolutionCurriculum)
 
 
 @configclass
@@ -590,6 +625,17 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
         uniform_fraction=0.50,
     )
     curriculum_freeze: bool = False
+
+    mpm_resolution_stages: tuple[PourMPMResolutionStageCfg, ...] = ()
+    """Optional MPM resolution transitions; empty disables the curriculum.
+
+    Transitions apply globally at a reset boundary, including running episodes.
+    Observations, actions, rewards, particle count, and masses are unchanged.
+    Each distributed-training rank evaluates its own completed-episode cohort.
+    """
+
+    mpm_resolution_min_episodes: int = 128
+    """Minimum completed episodes per terminal-success cohort and stage."""
 
     def __post_init__(self):
         """Set the canonical control rate, horizon, and coupled Newton solver."""
@@ -676,6 +722,10 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
 
     def _validate_runtime_values(self) -> None:
         """Validate allocation and observation bounds consumed directly at runtime."""
+        if type(self.mpm_resolution_min_episodes) is not int or self.mpm_resolution_min_episodes <= 0:
+            raise ValueError("mpm_resolution_min_episodes must be a positive integer.")
+        for stage in self.mpm_resolution_stages:
+            stage.validate_config()
         for name, value in (
             ("source_fill_level", self.source_fill_level),
             ("pour_target_frac", self.pour_target_frac),
