@@ -32,8 +32,9 @@ import weakref
 from builtins import ExceptionGroup
 from collections import deque
 from collections.abc import Callable, Iterable, Iterator, Sequence
+from dataclasses import replace
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Generic, TypeVar
+from typing import TYPE_CHECKING, Any, ClassVar, Generic, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +99,7 @@ from isaaclab_ov.renderers.ovrtx_usd import (
     _RTX_MINIMAL_MODES,
     build_render_product_as_string,
     render_var_prim_names_by_source,
+    uses_minimal_rendering,
 )
 from isaaclab_ov.renderers.visual_materials import OVRTXVisualMaterialWriter
 from isaaclab_ov.stage import (
@@ -256,6 +258,13 @@ def _resolve_env_light_partitions(
 class OVRTXBackend:
     """Own one native renderer, independently of its camera products and optional OVStage."""
 
+    # Track open Isaac Lab backends so mode changes cannot tear down shared graphics resources still in use.
+    # Weak references keep this registry from extending a backend's lifetime.
+    _instances: ClassVar[weakref.WeakSet[OVRTXBackend]] = weakref.WeakSet()
+    # Remember the configuration of native graphics resources retained by keep_system_alive=True.
+    # This survives the last backend closing, so the next backend can reuse them or release them to change modes.
+    _retained_config: ClassVar[RendererConfig | None] = None
+
     def __init__(self, cfg: OVRTXBackendCfg):
         self.cfg = cfg
         self.attached = False
@@ -275,6 +284,9 @@ class OVRTXBackend:
             keep_system_alive=True,
             suppress_deprecation_warnings=True,
             texture_streaming_mode=TextureStreamingMode.SYNCHRONOUS,
+            enable_minimal=True,
+            enable_realtimepathtracing=not cfg.minimal_only,
+            enable_pathtracing=not cfg.minimal_only,
         )
         # Redirection may initialize the native library and must use the same settings.
         redirect_shader_cache(native_cfg)
@@ -285,7 +297,25 @@ class OVRTXBackend:
             self.clone_env_paths: list[str] = []
             self.population_env_paths: list[str] = []
             self.clone_positions: np.ndarray | None = None
+        retained = OVRTXBackend._retained_config
+        if retained is not None and (
+            retained.enable_minimal != native_cfg.enable_minimal
+            or retained.enable_realtimepathtracing != native_cfg.enable_realtimepathtracing
+            or retained.enable_pathtracing != native_cfg.enable_pathtracing
+        ):
+            if OVRTXBackend._instances:
+                raise ValueError("Close all Isaac Lab OVRTX backends before changing startup render-mode availability.")
+            # OVRTX retains shared graphics resources after the last renderer is destroyed.
+            # Release that retention with an inheriting instance before selecting different modes.
+            release_cfg = replace(
+                retained, keep_system_alive=False,
+                enable_minimal=None, enable_realtimepathtracing=None, enable_pathtracing=None,
+            )  # fmt: skip
+            Renderer(release_cfg).destroy()
+            OVRTXBackend._retained_config = None
         self.renderer = Renderer(native_cfg)
+        OVRTXBackend._retained_config = native_cfg
+        OVRTXBackend._instances.add(self)
 
     def detach(self) -> None:
         """Release the borrowed stage before it is rebuilt or destroyed."""
@@ -300,6 +330,7 @@ class OVRTXBackend:
             self.renderer.destroy()
             self.renderer = None
             self.attached = False
+            OVRTXBackend._instances.discard(self)
 
 
 class OVRTXCameraRenderData:
@@ -608,6 +639,11 @@ class OVRTXRenderer(BaseRenderer):
 
     def create_render_data(self, spec: CameraRenderSpec) -> OVRTXCameraRenderData:
         """Register a camera's product and bindings in the prepared scene."""
+        if self.backend.cfg.minimal_only and not uses_minimal_rendering(spec.cfg):
+            raise ValueError(
+                "This OVRTX backend was initialized for Minimal-only rendering. "
+                "Include every camera and viewer in launch_simulation() configuration before startup."
+            )
         if str(wp.get_device(spec.device)) != self._device:
             raise ValueError("Cameras sharing an OVRTX renderer must use the simulation device.")
         camera_paths = list(spec.camera_prim_paths)

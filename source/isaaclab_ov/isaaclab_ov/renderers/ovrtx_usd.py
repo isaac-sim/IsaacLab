@@ -16,6 +16,7 @@ from pxr import Sdf, Usd
 
 if TYPE_CHECKING:
     from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+    from isaaclab.sensors.camera import CameraCfg
 
     from isaaclab_ov.renderers.ovrtx_renderer import OVRTXCameraRenderData
 
@@ -138,6 +139,23 @@ def render_var_prim_paths_by_source(render_scope_name: str) -> Mapping[str, str]
     return MappingProxyType(
         {source: f"/{render_scope_name}/Vars/{name}" for source, name in _RENDER_VAR_PRIM_NAME_BY_SOURCE.items()}
     )
+
+
+def get_render_mode(cfg: CameraCfg) -> str:
+    """Return the camera's requested RTX render mode.
+
+    Simple-shading outputs default to Minimal; other outputs default to RT2. An explicit
+    ``omni:rtx:rendermode`` override takes precedence, including ``PathTracing`` for PT.
+    """
+    default = (
+        "Minimal" if any(data_type in _RTX_MINIMAL_MODES for data_type in cfg.data_types) else "RealTimePathTracing"
+    )
+    return cfg.render_settings.get("omni:rtx:rendermode", ("Token", default))[1]
+
+
+def uses_minimal_rendering(cfg: CameraCfg) -> bool:
+    """Return whether the camera requests Minimal, accepting both native mode spellings."""
+    return get_render_mode(cfg) in ("Minimal", "MinimalRendering")
 
 
 def build_render_product_as_string(
