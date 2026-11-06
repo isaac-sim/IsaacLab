@@ -10,8 +10,8 @@ __all__ = [
     "CaptureTeleopSource",
     "CaptureTeleopSourceCfg",
     "ControlEvents",
-    "TeleopAction",
-    "TeleopActionCfg",
+    "TeleopInput",
+    "TeleopInputCfg",
     "TeleopObservationCfg",
     "TeleopSample",
     "TeleopSource",
@@ -50,8 +50,8 @@ __all__ = [
     "se3_spacemouse_teleop_cfg",
 ]
 
-from .action import TeleopAction
-from .action_cfg import TeleopActionCfg
+from .input import TeleopInput
+from .input_cfg import TeleopInputCfg
 from .observation_cfg import TeleopObservationCfg
 from .source import TeleopSample, TeleopSource
 from .source_cfg import TeleopSourceCfg

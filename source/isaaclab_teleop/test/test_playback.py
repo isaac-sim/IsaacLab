@@ -14,12 +14,12 @@ import gymnasium as gym
 import pytest
 import torch
 from isaaclab_ov.renderers import OVRTXRendererCfg
-from isaaclab_teleop.action_cfg import TeleopActionCfg
+from isaaclab_teleop.input_cfg import TeleopInputCfg
 from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg
 from isaaclab_teleop.observation_cfg import TeleopObservationCfg
 from isaaclab_teleop.ovxr_cfg import OvLibrariesXrCameraCfg, OvLibrariesXrCfg
 from isaaclab_teleop.play_source_cfg import CaptureTeleopSourceCfg
-from isaaclab_teleop.playback import CapturePlaySession, PlaybackStopped, configured_teleop_actions
+from isaaclab_teleop.playback import CapturePlaySession, PlaybackStopped, configured_teleop_inputs
 from isaaclab_teleop.source import TeleopSample, TeleopSource
 from isaaclab_visualizers.newton import NewtonGLBackendCfg, NewtonRTXBackendCfg
 
@@ -146,9 +146,14 @@ def _config(*, xr=False, num_envs=1):
     cfg = ManagerBasedRLEnvCfg(
         scene=InteractiveSceneCfg(num_envs=num_envs, env_spacing=2),
         actions=SimpleNamespace(
-            robot=TeleopActionCfg(
-                controller=ActionTermCfg(class_type=_Controller, asset_name="robot"),
-                source=CaptureTeleopSourceCfg(class_type=_Source, device=IsaacTeleopCfg(pipeline_builder=lambda: None)),
+            robot=ActionTermCfg(
+                class_type=_Controller,
+                asset_name="robot",
+                input=TeleopInputCfg(
+                    source=CaptureTeleopSourceCfg(
+                        class_type=_Source, device=IsaacTeleopCfg(pipeline_builder=lambda: None)
+                    )
+                ),
             )
         ),
         observations=SimpleNamespace(policy=ObservationGroupCfg()),
@@ -219,13 +224,11 @@ def xr_runtime(monkeypatch):
 def test_shared_input_rejects_multiple_sources_or_rows_before_resource_start(violation, message, monkeypatch):
     """A Capture session must have one source and one environment row across its controllers."""
     cfg = _config(num_envs=2)
-    cfg.actions.gripper = TeleopActionCfg(
-        controller=ActionTermCfg(class_type=_Controller, asset_name="robot"),
-    )
+    cfg.actions.gripper = ActionTermCfg(class_type=_Controller, asset_name="robot", input=TeleopInputCfg())
     if violation == "different_row":
-        cfg.actions.gripper.env_ids = [1]
+        cfg.actions.gripper.input.env_ids = [1]
     else:
-        cfg.actions.gripper.source = cfg.actions.robot.source.copy()
+        cfg.actions.gripper.input.source = cfg.actions.robot.input.source.copy()
     monkeypatch.setattr(_Env, "__init__", lambda *args: pytest.fail("invalid session constructed an environment"))
     monkeypatch.setattr(_Source, "start", lambda *args: pytest.fail("invalid session started Capture"))
 
@@ -238,7 +241,7 @@ def test_shared_input_rejects_multiple_sources_or_rows_before_resource_start(vio
 def test_operator_reset_is_an_interruption_without_a_physics_or_recorder_step():
     """A reset marks the selected episode boundary and preserves its pre-reset observation."""
     cfg, events = _config(num_envs=2), []
-    assert list(configured_teleop_actions(cfg)) == ["robot"]
+    assert list(configured_teleop_inputs(cfg)) == ["robot"]
     session = CapturePlaySession(cfg)
     session.prepare()
     env = _Env(cfg, events)
@@ -290,7 +293,7 @@ def test_failed_input_drain_keeps_xr_and_environment_alive_for_retry(xr_runtime)
     env = _Env(cfg, events)
     wrapped = session.attach(env)
     env.source.fail_close = True
-    with pytest.raises(RuntimeError, match="input still in flight"):
+    with pytest.raises(RuntimeError, match="Failed to close 1 action input"):
         wrapped.close()
     assert not env.closed and "xr_close" not in events
     assert instances[0].shutdown_requested
@@ -302,12 +305,12 @@ def test_failed_input_drain_keeps_xr_and_environment_alive_for_retry(xr_runtime)
 def test_failed_controller_close_can_retry_after_other_action_terms_close(monkeypatch):
     """Partially retired action terms must not block a later environment cleanup attempt."""
     cfg, events = _config(), []
-    cfg.actions.gripper = TeleopActionCfg(controller=ActionTermCfg(class_type=_Controller, asset_name="robot"))
+    cfg.actions.gripper = ActionTermCfg(class_type=_Controller, asset_name="robot", input=TeleopInputCfg())
     session = CapturePlaySession(cfg)
     session.prepare()
     env = _Env(cfg, events)
     wrapped = session.attach(env)
-    controller = env.action_manager.get_term("robot").controller
+    controller = env.action_manager.get_term("robot")
     close_controller = controller.close
     fail_close = True
 
@@ -373,7 +376,7 @@ def test_xr_closes_native_windows_on_host_after_input_drains_and_retries_failure
     monkeypatch.setattr(env, "close", close_environment_on_worker)
     monkeypatch.setattr(instances[0], "close", close_xr)
     env.source.fail_close = True
-    with pytest.raises(RuntimeError, match="input still in flight"):
+    with pytest.raises(RuntimeError, match="Failed to close 1 action input"):
         wrapped.close()
     assert not env.source.closed and not window.closed and not env.closed
     assert not window_threads and not environment_threads and "xr_close" not in events
@@ -436,7 +439,7 @@ def test_failed_input_start_retains_its_handle_until_cleanup_succeeds(xr_runtime
     monkeypatch.setattr(_Source, "start", fail_start)
     with pytest.raises(RuntimeError, match="input startup failed"):
         session.attach(env)
-    with pytest.raises(RuntimeError, match="input still in flight"):
+    with pytest.raises(RuntimeError, match="Failed to close 1 action input"):
         session.close()
     assert not env.closed and "xr_close" not in events
     env.source.fail_close = False

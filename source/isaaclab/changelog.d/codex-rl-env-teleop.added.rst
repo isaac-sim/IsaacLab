@@ -1,4 +1,6 @@
-* Added action-term input resolution before processing so recorded actions, action
-  observations, and rewards reflect the inputs applied by composed controllers.
-  Action terms now have an explicit close lifecycle before simulation teardown.
-* Added interactive action declarations for discovering optional input without importing device packages.
+* Added optional :class:`~isaaclab.managers.ActionInputCfg` declarations on action
+  controllers. Interactive runners activate inputs separately, preserving existing
+  controller types, configuration paths, and custom APIs during training and playback.
+* Added input selection before controller processing so recorded actions, action
+  observations, and rewards reflect the selected raw inputs. Activated inputs drain
+  before controllers and simulation resources close, with retryable cleanup failures.

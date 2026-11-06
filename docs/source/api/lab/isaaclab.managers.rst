@@ -15,10 +15,11 @@
     ObservationGroupCfg
     ObservationPresentationCfg
     ObservationTermCfg
+    ActionInput
+    ActionInputCfg
     ActionManager
     ActionTerm
     ActionTermCfg
-    InteractiveActionTermCfg
     EventManager
     EventTermCfg
     CommandManager
@@ -157,6 +158,15 @@ second full-image copy for normalized uint8 images. Existing observation configu
 Action Manager
 --------------
 
+.. autoclass:: ActionInput
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: ActionInputCfg
+    :members:
+    :exclude-members: __init__
+
 .. autoclass:: ActionManager
     :members:
     :inherited-members:
@@ -166,10 +176,6 @@ Action Manager
     :members:
     :inherited-members:
     :show-inheritance:
-
-.. autoclass:: InteractiveActionTermCfg
-    :members:
-    :exclude-members: __init__
 
 .. autoclass:: ActionTermCfg
     :members:
