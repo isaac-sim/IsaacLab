@@ -21,7 +21,7 @@ from pxr import UsdPhysics
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
 from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
-from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp import ProxyArray, memory
 from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 from isaaclab.utils.wrench_composer import WrenchComposer
 
@@ -69,6 +69,14 @@ class RigidObject(BaseRigidObject):
     __backend_name__: str = "newton"
     """The name of the backend for the rigid object."""
 
+    def __init__(self, cfg: RigidObjectCfg):
+        """Initialize the rigid object.
+
+        Args:
+            cfg: A configuration instance.
+        """
+        super().__init__(cfg)
+
     """
     Properties
     """
@@ -96,14 +104,14 @@ class RigidObject(BaseRigidObject):
 
     @property
     def mesh_variant_ids(self) -> ProxyArray:
-        """Selected mesh variant index for each environment."""
+        """Selected native body-variant index for each environment."""
         if not self.is_initialized:
             raise RuntimeError("Mesh variant selection requires an initialized rigid object.")
         if self._variant_body_indices is None:
             raise NotImplementedError(
                 "Reset-time mesh variant selection is unavailable for this catalog and Newton backend configuration."
             )
-        selected = self.root_view.get_attribute("body_variant", self._backend_manager.get_model())[:, 0, 0]
+        selected = self.root_view.get_attribute("body_variant", self._backend_manager.backend.model)[:, 0, 0]
         return ProxyArray(selected)
 
     @property
@@ -159,16 +167,10 @@ class RigidObject(BaseRigidObject):
         variant_ids: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Select collision geometry and inertial properties for selected environments.
+        """Select native geometry and inertial properties for the requested environments.
 
-        Variant indices follow the order in the configured multi-asset spawner.
-
-        Args:
-            variant_ids: Variant index per selected environment, shape ``(len(env_ids),)``.
-                Every value must be in ``[0, num_mesh_variants)``. Accepts signed 32-bit or 64-bit integers
-                on the asset's device.
-            env_ids: Valid, unique environment indices, as signed 32-bit or 64-bit integers.
-                Tensor and array inputs must be on the asset's device. If ``None``, select every environment.
+        Variant indices follow the order of the configured multi-asset spawner. Selectors must be
+        signed int32/int64 Torch or Warp arrays on the asset device.
         """
         if not self.is_initialized:
             raise RuntimeError("Mesh variant selection requires an initialized rigid object.")
@@ -203,9 +205,8 @@ class RigidObject(BaseRigidObject):
             for indices in (variant_ids, env_ids):
                 if isinstance(indices, torch.Tensor):
                     indices.record_stream(torch_stream)
-        # Order the write with both the caller's Torch operations and subsequent simulation work.
         with wp.ScopedStream(stream, sync_exit=True):
-            model = self._backend_manager.get_model()
+            model = self._backend_manager.backend.model
             bodies = self._variant_selection_bodies[:selection_count]
             variants = self._variant_selection_ids[:selection_count]
             wp.launch(
@@ -217,7 +218,10 @@ class RigidObject(BaseRigidObject):
             )
             flags = model.select_body_variants(variants, bodies=bodies)
             self._backend_manager.add_model_change(flags)
-            self._backend_manager.invalidate_body_state(env_ids=env_ids)
+            env_mask = shared_kernels.mask_from_ids(
+                env_ids, self._ALL_INDICES, self._ALL_ENV_MASK, self._index_env_mask
+            )
+            self._backend_manager.invalidate_body_state(env_mask, consume_mask=env_mask is self._index_env_mask)
             self.data._reset_body_com_pose_b_dependents()
 
     def write_data_to_sim(self) -> None:
@@ -444,25 +448,20 @@ class RigidObject(BaseRigidObject):
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         self.assert_shape_and_dtype(root_pose, (env_ids.shape[0],), wp.transformf, "root_pose")
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
             shared_kernels.set_root_link_pose_to_sim_index_kernel(env_ids),
             dim=env_ids.shape[0],
-            inputs=[
-                root_pose,
-                env_ids,
-            ],
-            outputs=[
-                self.data.root_link_pose_w,
-            ],
+            inputs=[root_pose, env_ids],
+            outputs=[self.data._sim_bind_root_link_pose_w],
             device=self.device,
         )
         # Nonfloating root bindings write model.joint_X_p, not state.joint_q.
-        if (solver := self._backend_manager._solver) is not None and not self.root_view.is_floating_base:
+        if (solver := self._backend_manager.backend.solver) is not None and not self.root_view.is_floating_base:
             solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of pose-dependent properties.
         if not skip_forward:
-            self.data._reset_pose(env_ids=env_ids)
+            self.data._reset_pose()
+            self._invalidate_fk_index(env_ids)
 
     def write_root_link_pose_to_sim_mask(
         self,
@@ -499,20 +498,16 @@ class RigidObject(BaseRigidObject):
         wp.launch(
             shared_kernels.set_root_link_pose_to_sim_mask,
             dim=root_pose.shape[0],
-            inputs=[
-                root_pose,
-                env_mask,
-            ],
-            outputs=[
-                self.data.root_link_pose_w,
-            ],
+            inputs=[root_pose, env_mask],
+            outputs=[self.data._sim_bind_root_link_pose_w],
             device=self.device,
         )
-        if (solver := self._backend_manager._solver) is not None and not self.root_view.is_floating_base:
+        if (solver := self._backend_manager.backend.solver) is not None and not self.root_view.is_floating_base:
             solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of pose-dependent properties.
         if not skip_forward:
-            self.data._reset_pose(env_mask=env_mask)
+            self.data._reset_pose()
+            self._backend_manager.invalidate_fk(articulation_ids=self.root_view.articulation_ids, env_mask=env_mask)
 
     def write_root_com_pose_to_sim_index(
         self,
@@ -546,29 +541,21 @@ class RigidObject(BaseRigidObject):
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         self.assert_shape_and_dtype(root_pose, (env_ids.shape[0],), wp.transformf, "root_pose")
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         # Note: we are doing a single launch for faster performance. Prior versions would call
         # write_root_link_pose_to_sim after this.
         wp.launch(
             shared_kernels.set_root_com_pose_to_sim_index_kernel(env_ids),
             dim=env_ids.shape[0],
-            inputs=[
-                root_pose,
-                self.data.body_com_pos_b,
-                env_ids,
-            ],
-            outputs=[
-                self.data.root_com_pose_w,
-                self.data.root_link_pose_w,
-            ],
+            inputs=[root_pose, self.data.body_com_pos_b, env_ids],
+            outputs=[self.data._sim_bind_root_link_pose_w],
             device=self.device,
         )
-        if (solver := self._backend_manager._solver) is not None and not self.root_view.is_floating_base:
+        if (solver := self._backend_manager.backend.solver) is not None and not self.root_view.is_floating_base:
             solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of pose-dependent properties.
-        # The com pose was just written, so it must not be invalidated.
         if not skip_forward:
-            self.data._reset_pose(env_ids=env_ids, from_link=False)
+            self.data._reset_pose()
+            self._invalidate_fk_index(env_ids)
 
     def write_root_com_pose_to_sim_mask(
         self,
@@ -605,23 +592,16 @@ class RigidObject(BaseRigidObject):
         wp.launch(
             shared_kernels.set_root_com_pose_to_sim_mask,
             dim=root_pose.shape[0],
-            inputs=[
-                root_pose,
-                self.data.body_com_pos_b,
-                env_mask,
-            ],
-            outputs=[
-                self.data.root_com_pose_w,
-                self.data.root_link_pose_w,
-            ],
+            inputs=[root_pose, self.data.body_com_pos_b, env_mask],
+            outputs=[self.data._sim_bind_root_link_pose_w],
             device=self.device,
         )
-        if (solver := self._backend_manager._solver) is not None and not self.root_view.is_floating_base:
+        if (solver := self._backend_manager.backend.solver) is not None and not self.root_view.is_floating_base:
             solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of pose-dependent properties.
-        # The com pose was just written, so it must not be invalidated.
         if not skip_forward:
-            self.data._reset_pose(env_mask=env_mask, from_link=False)
+            self.data._reset_pose()
+            self._backend_manager.invalidate_fk(articulation_ids=self.root_view.articulation_ids, env_mask=env_mask)
 
     def write_root_com_velocity_to_sim_index(
         self,
@@ -658,24 +638,17 @@ class RigidObject(BaseRigidObject):
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         self.assert_shape_and_dtype(root_velocity, (env_ids.shape[0],), wp.spatial_vectorf, "root_velocity")
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
             shared_kernels.set_root_com_velocity_to_sim_index_kernel(env_ids),
             dim=env_ids.shape[0],
-            inputs=[
-                root_velocity,
-                env_ids,
-                1,
-            ],
-            outputs=[
-                self.data.root_com_vel_w,
-                self.data.body_com_acc_w,
-            ],
+            inputs=[root_velocity, env_ids, 1],
+            outputs=[self.data._sim_bind_root_com_vel_w, self.data.body_com_acc_w],
             device=self.device,
         )
         # Let the data class handle the invalidation of velocity-dependent properties.
         if not skip_forward:
-            self.data._reset_velocity(env_ids=env_ids)
+            self.data._reset_velocity()
+            self._invalidate_fk_index(env_ids)
 
     def write_root_com_velocity_to_sim_mask(
         self,
@@ -714,20 +687,14 @@ class RigidObject(BaseRigidObject):
         wp.launch(
             shared_kernels.set_root_com_velocity_to_sim_mask,
             dim=root_velocity.shape[0],
-            inputs=[
-                root_velocity,
-                env_mask,
-                1,
-            ],
-            outputs=[
-                self.data.root_com_vel_w,
-                self.data.body_com_acc_w,
-            ],
+            inputs=[root_velocity, env_mask, 1],
+            outputs=[self.data._sim_bind_root_com_vel_w, self.data.body_com_acc_w],
             device=self.device,
         )
         # Let the data class handle the invalidation of velocity-dependent properties.
         if not skip_forward:
-            self.data._reset_velocity(env_mask=env_mask)
+            self.data._reset_velocity()
+            self._backend_manager.invalidate_fk(articulation_ids=self.root_view.articulation_ids, env_mask=env_mask)
 
     def write_root_link_velocity_to_sim_index(
         self,
@@ -764,29 +731,18 @@ class RigidObject(BaseRigidObject):
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         self.assert_shape_and_dtype(root_velocity, (env_ids.shape[0],), wp.spatial_vectorf, "root_velocity")
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         # Note: we are doing a single launch for faster performance. Prior versions would do multiple launches.
         wp.launch(
             shared_kernels.set_root_link_velocity_to_sim_index_kernel(env_ids),
             dim=env_ids.shape[0],
-            inputs=[
-                root_velocity,
-                self.data.body_com_pos_b,
-                self.data.root_link_pose_w,
-                env_ids,
-                1,
-            ],
-            outputs=[
-                self.data.root_link_vel_w,
-                self.data.root_com_vel_w,
-                self.data.body_com_acc_w,
-            ],
+            inputs=[root_velocity, self.data.body_com_pos_b, self.data._sim_bind_root_link_pose_w, env_ids, 1],
+            outputs=[self.data._sim_bind_root_com_vel_w, self.data.body_com_acc_w],
             device=self.device,
         )
         # Let the data class handle the invalidation of velocity-dependent properties.
-        # The link velocity was just written, so it must not be invalidated.
         if not skip_forward:
-            self.data._reset_velocity(env_ids=env_ids, from_com=False)
+            self.data._reset_velocity()
+            self._invalidate_fk_index(env_ids)
 
     def write_root_link_velocity_to_sim_mask(
         self,
@@ -825,24 +781,14 @@ class RigidObject(BaseRigidObject):
         wp.launch(
             shared_kernels.set_root_link_velocity_to_sim_mask,
             dim=root_velocity.shape[0],
-            inputs=[
-                root_velocity,
-                self.data.body_com_pos_b,
-                self.data.root_link_pose_w,
-                env_mask,
-                1,
-            ],
-            outputs=[
-                self.data.root_link_vel_w,
-                self.data.root_com_vel_w,
-                self.data.body_com_acc_w,
-            ],
+            inputs=[root_velocity, self.data.body_com_pos_b, self.data._sim_bind_root_link_pose_w, env_mask, 1],
+            outputs=[self.data._sim_bind_root_com_vel_w, self.data.body_com_acc_w],
             device=self.device,
         )
         # Let the data class handle the invalidation of velocity-dependent properties.
-        # The link velocity was just written, so it must not be invalidated.
         if not skip_forward:
-            self.data._reset_velocity(env_mask=env_mask, from_com=False)
+            self.data._reset_velocity()
+            self._backend_manager.invalidate_fk(articulation_ids=self.root_view.articulation_ids, env_mask=env_mask)
 
     """
     Operations - Setters.
@@ -873,7 +819,6 @@ class RigidObject(BaseRigidObject):
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         self.assert_shape_and_dtype(masses, (env_ids.shape[0], body_ids.shape[0]), wp.float32, "masses")
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
             shared_kernels.write_body_mass_and_inverse_index_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
@@ -974,24 +919,13 @@ class RigidObject(BaseRigidObject):
             env_ids: The environment indices to set the center of mass pose for. Defaults to None (all environments).
         """
         # resolve all indices
-        env_ids = self._resolve_env_ids(env_ids)
-        body_ids = self._resolve_body_ids(body_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        body_ids = memory.resolve_1d_indices(self._resolve_body_ids(body_ids))
         coms = shared_kernels.com_positions(coms)
         self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.vec3f, "coms")
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        wp.launch(
-            shared_kernels.write_body_com_position_to_buffer_index_kernel(env_ids, body_ids),
-            dim=(env_ids.shape[0], body_ids.shape[0]),
-            inputs=[
-                coms,
-                env_ids,
-                body_ids,
-            ],
-            outputs=[
-                self.data.body_com_pos_b,
-            ],
-            device=self.device,
-        )
+        selected = wp.indexedarray(self.data.body_com_pos_b.warp, [env_ids, body_ids])
+        values = wp.from_torch(coms, dtype=wp.vec3f) if isinstance(coms, torch.Tensor) else coms
+        wp.copy(selected, values)
         self.data._reset_body_com_pose_b_dependents()
         # tell the physics engine that some of the body properties have been updated
         self._backend_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
@@ -1032,16 +966,10 @@ class RigidObject(BaseRigidObject):
         coms = shared_kernels.com_positions(coms)
         self.assert_shape_and_dtype_mask(coms, (env_mask, body_mask), wp.vec3f, "coms")
         wp.launch(
-            shared_kernels.write_body_com_position_to_buffer_mask,
+            memory.make_masked_copy(wp.vec3f, 2),
             dim=(env_mask.shape[0], body_mask.shape[0]),
-            inputs=[
-                coms,
-                env_mask,
-                body_mask,
-            ],
-            outputs=[
-                self.data.body_com_pos_b,
-            ],
+            inputs=[coms, env_mask, body_mask],
+            outputs=[self.data.body_com_pos_b],
             device=self.device,
         )
         self.data._reset_body_com_pose_b_dependents()
@@ -1073,7 +1001,6 @@ class RigidObject(BaseRigidObject):
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         self.assert_shape_and_dtype(inertias, (env_ids.shape[0], body_ids.shape[0], 9), wp.float32, "inertias")
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
             shared_kernels.write_body_inertia_and_inverse_index_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
@@ -1154,12 +1081,11 @@ class RigidObject(BaseRigidObject):
             return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
 
         resolve_matching_prims_from_source(self.cfg.prim_path, predicate=has_rigid_body_api, expected_num_matches=1)
-        model = self._backend_manager.get_model()
+        model = self._backend_manager.backend.model
         root_pattern = re.compile(self.cfg.prim_path)
         roots = {}
         for index, path in enumerate(model.articulation_label):
             root = None
-            # Prefer the outermost matching ancestor; a greedy regex may also match descendants.
             while path:
                 if root_pattern.fullmatch(path):
                     root = path
@@ -1174,7 +1100,7 @@ class RigidObject(BaseRigidObject):
         if self.num_mesh_variants > 1:
             articulation_starts = model.articulation_start.numpy()
             joint_children = model.joint_child.numpy()
-            body_indices = joint_children[articulation_starts[list(roots.values())]]
+            body_indices = joint_children[articulation_starts[self._root_view.articulation_ids.numpy().ravel()]]
             self._variant_body_indices = (
                 wp.array(body_indices, dtype=wp.int32, device=self.device)
                 if all(len(model.body_variant_labels(int(body))) == self.num_mesh_variants for body in body_indices)
@@ -1200,11 +1126,13 @@ class RigidObject(BaseRigidObject):
         # constants
         self._ALL_INDICES = wp.array(np.arange(self.num_instances, dtype=np.int32), device=self.device)
         self._ALL_ENV_MASK = wp.ones((self.num_instances,), dtype=wp.bool, device=self.device)
+        self._index_env_mask = wp.zeros((self.num_instances,), dtype=wp.bool, device=self.device)
         self._ALL_BODY_INDICES = wp.array(np.arange(self.num_bodies, dtype=np.int32), device=self.device)
         self._ALL_BODY_MASK = wp.ones((self.num_bodies,), dtype=wp.bool, device=self.device)
         if self._variant_body_indices is not None:
             self._variant_selection_bodies = wp.empty(self.num_instances, dtype=wp.int32, device=self.device)
             self._variant_selection_ids = wp.empty(self.num_instances, dtype=wp.int32, device=self.device)
+
         # external wrench composer
         self._instantaneous_wrench_composer = WrenchComposer(self)
         self._permanent_wrench_composer = WrenchComposer(self)
@@ -1223,6 +1151,15 @@ class RigidObject(BaseRigidObject):
         default_root_vel = np.tile(np.array(default_root_vel, dtype=np.float32), (self.num_instances, 1))
         self._data.default_root_pose = wp.array(default_root_pose, dtype=wp.transformf, device=self.device)
         self._data.default_root_vel = wp.array(default_root_vel, dtype=wp.spatial_vectorf, device=self.device)
+
+    def _invalidate_fk_index(self, env_ids: wp.array | torch.Tensor) -> None:
+        """Schedule FK for env_ids through a scratch mask that the invalidation clears as it reads it."""
+            env_mask = shared_kernels.mask_from_ids(
+                env_ids, self._ALL_INDICES, self._ALL_ENV_MASK, self._index_env_mask
+            )
+        self._backend_manager.invalidate_fk(
+            env_mask, self.root_view.articulation_ids, consume_mask=env_mask is self._index_env_mask
+        )
 
     def _resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
         """Resolve environment indices to a warp array or tensor.

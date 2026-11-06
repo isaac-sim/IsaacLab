@@ -51,12 +51,12 @@ class PhysicsCfg(PresetCfg):
                         ls_iterations=50,
                         integrator="implicitfast",
                     ),
-                    bodies=[r"/World/envs/env_.*/Robot"],
+                    bodies=[r"{ENV_REGEX_NS}/Robot"],
                 ),
                 CouplerEntryCfg(
                     name="cable",
                     solver_cfg=VBDSolverCfg(iterations=10),
-                    bodies=[r"/World/envs/env_.*/Cable"],
+                    bodies=[r"{ENV_REGEX_NS}/Cable"],
                     include_static_shapes=True,
                 ),
             ],
@@ -65,8 +65,8 @@ class PhysicsCfg(PresetCfg):
                     source="rigid",
                     destination="cable",
                     bodies=[
-                        r"/World/envs/env_.*/Robot/Geometry/.*panda_hand",
-                        r"/World/envs/env_.*/Robot/Geometry/.*panda_(left|right)finger",
+                        r"{ENV_REGEX_NS}/Robot/Geometry/.*panda_hand",
+                        r"{ENV_REGEX_NS}/Robot/Geometry/.*panda_(left|right)finger",
                     ],
                     collide_interval=1,
                 )

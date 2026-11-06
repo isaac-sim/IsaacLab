@@ -180,8 +180,8 @@ class NewtonInverseKinematicsAction(ActionTerm):
         sources = cloner.path.get_asset_prototype_paths(plan)
         self._source_path = next(sources[index] for index in asset_ids if sources[index] is not None)
         backend_manager = env.sim.backend_manager
-        prototype_model = backend_manager._cl_protos[self._source_path].finalize(
-            device=backend_manager.get_model().device
+        prototype_model = backend_manager.get_clone_source_builders()[self._source_path].finalize(
+            device=backend_manager.backend.model.device
         )
         articulation_path = self._source_path + (self._asset.cfg.articulation_root_prim_path or "")
         prototype_view = ArticulationView(

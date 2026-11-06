@@ -14,7 +14,7 @@ from typing import Any
 import numpy as np
 import warp as wp
 
-from pxr import Gf, Usd, UsdGeom, UsdPhysics
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
@@ -264,7 +264,7 @@ def _write_site_local_from_local_poses_indexed(
 
 
 class OvPhysxFrameView(BaseFrameView):
-    """Batched prim view for non-physics prims tracked as sites on OVPhysX bodies.
+    """Batched frame view with read-only access to OVPhysX body frames.
 
     Each matched USD prim is resolved at init to a ``(body_index, site_local)``
     pair via ancestor walk: the nearest ancestor carrying ``UsdPhysics.RigidBodyAPI``
@@ -273,10 +273,8 @@ class OvPhysxFrameView(BaseFrameView):
     frame (``body_index = WORLD_BODY_INDEX``) and ``site_local`` stores the prim's
     USD world transform.
 
-    Body world poses are read each step via an OVPhysX ``RIGID_BODY_POSE`` tensor
-    binding -- the same data path the contact sensor uses -- and **not** via the
-    scene data provider's Newton model. This keeps the view usable in scenes
-    that do not declare the ``NEWTON_MODEL`` scene-data requirement.
+    Body world poses are read through an OVPhysX ``RIGID_BODY_POSE`` tensor binding.
+    A view of the body itself supports reads; writes remain owned by the asset API.
 
     World poses are computed on GPU as ``body_q[body_index] * site_local`` via
     a Warp kernel, with the world-attached branch returning ``site_local``
@@ -289,11 +287,6 @@ class OvPhysxFrameView(BaseFrameView):
     Getters return :class:`~isaaclab.utils.warp.ProxyArray`.  Setters
     accept ``wp.array``.
 
-    Limitations (v1):
-        All resolved rigid-body ancestors (plus their USD parents for local-pose
-        queries) must share a single env-wildcarded path pattern. Mixed
-        body-types per view raise :class:`NotImplementedError`. The common
-        case (one body type, wildcarded across envs) is fully supported.
     """
 
     def __init__(self, prim_path: str, device: str = "cpu", stage: Usd.Stage | None = None, **kwargs):
@@ -382,9 +375,8 @@ class OvPhysxFrameView(BaseFrameView):
     def _initialize_impl(self, physx: Any) -> None:
         """Resolve prims to rigid-body ancestors and create a RIGID_BODY_POSE tensor binding.
 
-        With a ClonePlan, site discovery reads only its authored source prims, whether or not
-        destination USD prims exist. The RIGID_BODY_POSE binding is the source of truth for the
-        site count, and per-env site paths are synthesized from the source prim paths.
+        Site discovery reads authored sources and expands their declared destinations.
+        Native bindings provide the row mapping for those bodies, independent of USD copies.
         """
         from isaaclab_ov import tensor_types as TT  # noqa: PLC0415
         from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView  # noqa: PLC0415
@@ -392,125 +384,89 @@ class OvPhysxFrameView(BaseFrameView):
         xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
         identity_xform7 = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
 
-        # 0. Reject prim_paths that resolve to a rigid body itself: a FrameView
-        #    should track a non-physics child of a body (a sensor frame), not
-        #    the body. Mirrors the Newton guard at
-        #    ``newton_site_frame_view.py:572-584``.
-        for prim in self._prims:
-            if self._prim_or_template_has_rigid_body_api(prim):
-                raise ValueError(
-                    f"OvPhysxFrameView prim '{prim.GetPath().pathString}' resolves to a rigid body. "
-                    "FrameView should only be used for non-physics prims (cameras, sensor mounts, "
-                    "Xform markers). Use OvPhysX's RigidObject or Articulation APIs to control "
-                    "physics bodies directly, or point prim_path at a non-physics child of the body."
-                )
-
-        # 1. Resolve each (template) prim's ancestor body + the prim->ancestor offset.
-        per_prim_ancestor: list[str | None] = []
-        per_prim_site_local: list[list[float]] = []
-        for prim in self._prims:
-            ap, sl = self._resolve_rigid_body_ancestor(prim, xform_cache)
-            per_prim_ancestor.append(ap)
-            per_prim_site_local.append(sl)
-
-        # 2. Same resolution for each prim's USD parent (used by local-pose queries).
-        parent_ancestor: list[str | None] = []
-        parent_site_local: list[list[float]] = []
-        for prim in self._prims:
+        self._contains_physics_frames = any(prim.HasAPI(UsdPhysics.RigidBodyAPI) for prim in self._prims)
+        sources = self._source_sites or [
+            (str(prim.GetPath()), str(prim.GetPath()), prim, (-1,)) for prim in self._prims
+        ]
+        sites = []
+        for source_root, destination_template, prim, env_ids in sources:
+            body, local = self._resolve_rigid_body_ancestor(prim, xform_cache)
             parent = prim.GetParent()
-            if parent and parent.IsValid() and parent.GetPath().pathString != "/":
-                pap, psl = self._resolve_rigid_body_ancestor(parent, xform_cache)
-            else:
-                pap, psl = None, identity_xform7
-            parent_ancestor.append(pap)
-            parent_site_local.append(psl)
-
-        # 3. Dedup discovered ancestor paths into env-wildcarded patterns (one binding per pattern).
-        all_ancestors = [p for p in (per_prim_ancestor + parent_ancestor) if p is not None]
-        patterns = sorted({self._env_wildcardify(p) for p in all_ancestors})
-        if len(patterns) > 1:
-            raise NotImplementedError(
-                f"OvPhysxFrameView v1 supports a single body-type pattern; resolved {len(patterns)}"
-                f" patterns under prim_path={self._prim_path!r}: {patterns}."
+            parent_body, parent_local = (
+                self._resolve_rigid_body_ancestor(parent, xform_cache)
+                if parent and not parent.IsPseudoRoot()
+                else (None, identity_xform7)
             )
-
-        # 4. Create the RIGID_BODY_POSE binding (or operate in world-only mode).
-        if patterns:
-            pattern = patterns[0]
-            self._root_view = OvPhysxView(physx, pattern=pattern, device=self._device)
-            # ``try_binding_for`` returns None for a zero-match binding (the view rejects a
-            # 0-count binding); surface that as the explicit zero-bodies error below.
-            self._pose_binding = self._root_view.try_binding_for(TT.RIGID_BODY_POSE)
-            if self._pose_binding is None:
-                raise RuntimeError(
-                    f"OvPhysxFrameView: RIGID_BODY_POSE binding for pattern {pattern!r} matched zero bodies."
+            source_path = Sdf.Path(source_root)
+            source_inverse = Gf.Matrix4d(1)
+            if self._source_sites:
+                source_match = cloner.path.match(source_root, self._clone_plan.env_template)
+                if source_match is not None:
+                    source_anchor = self._stage.GetPrimAtPath(
+                        self._clone_plan.env_template.format(source_match.instance)
+                    )
+                    source_inverse = xform_cache.GetLocalToWorldTransform(source_anchor).GetInverse()
+            for env_id in env_ids:
+                destination = Sdf.Path(destination_template.format(env_id))
+                site_path = str(destination.AppendPath(prim.GetPath().MakeRelativePath(source_path)))
+                body_path = str(destination.AppendPath(Sdf.Path(body).MakeRelativePath(source_path))) if body else None
+                parent_path = (
+                    str(destination.AppendPath(Sdf.Path(parent_body).MakeRelativePath(source_path)))
+                    if parent_body
+                    else None
                 )
+                site_local, parent_site_local = local, parent_local
+                if self._source_sites and (body is None or parent_body is None):
+                    placement = Gf.Matrix4d(1)
+                    if self._clone_plan.positions is not None:
+                        placement.SetTranslateOnly(Gf.Vec3d(*map(float, self._clone_plan.positions[env_id])))
+                    if body is None:
+                        site_local = _gf_matrix_to_xform7(
+                            xform_cache.GetLocalToWorldTransform(prim) * source_inverse * placement
+                        )
+                    if parent_body is None:
+                        destination_parent = Sdf.Path(site_path).GetParentPath()
+                        parent_match = cloner.path.match(str(destination_parent), self._clone_plan.env_template)
+                        if parent_match is None:
+                            # A shared parent above the cloned world does not inherit its placement.
+                            parent_world = xform_cache.GetLocalToWorldTransform(
+                                self._stage.GetPrimAtPath(destination_parent)
+                            )
+                        elif not parent_match.suffix:
+                            parent_world = placement
+                        else:
+                            parent_world = xform_cache.GetLocalToWorldTransform(parent) * source_inverse * placement
+                        parent_site_local = _gf_matrix_to_xform7(parent_world)
+                sites.append((int(env_id), prim, site_path, body_path, site_local, parent_path, parent_site_local))
+        sites.sort(key=lambda site: site[0])
+        (
+            _,
+            self._prims,
+            self._synthetic_prim_paths,
+            per_prim_ancestor,
+            per_prim_site_local,
+            parent_ancestor,
+            parent_site_local,
+        ) = map(list, zip(*sites, strict=True))
+
+        # Bind the declared destinations; native row order is independent of USD discovery order.
+        body_paths = list(dict.fromkeys(path for path in (*per_prim_ancestor, *parent_ancestor) if path is not None))
+        if body_paths:
+            self._root_view = OvPhysxView(physx, prim_paths=body_paths, device=self._device)
+            self._pose_binding = self._root_view.binding_for(TT.RIGID_BODY_POSE)
             self._pose_buf = wp.zeros(self._pose_binding.shape, dtype=wp.float32, device=self._device)
-            binding_paths: list[str] = list(self._pose_binding.prim_paths)
+            binding_paths = list(self._pose_binding.prim_paths)
         else:
-            # All prims resolved as world-attached: no binding needed; kernels only hit the -1 branch.
-            self._root_view = None
-            self._pose_binding = None
+            self._root_view = self._pose_binding = None
             self._pose_buf = wp.zeros((1, 7), dtype=wp.float32, device=self._device)
             binding_paths = []
 
-        world_sites = self._expand_world_sites_from_clone_plan(xform_cache) if not binding_paths else []
-        # 5. Expand source prim data to one entry per binding row.
-        if binding_paths and len(binding_paths) > len(self._prims):
-            template_ancestor = per_prim_ancestor[0]
-            template_site_local = per_prim_site_local[0]
-            template_parent_ancestor = parent_ancestor[0]
-            template_parent_site_local = parent_site_local[0]
-            template_path = self._prims[0].GetPath().pathString
-
-            per_prim_ancestor = []
-            per_prim_site_local = []
-            parent_ancestor = []
-            parent_site_local = []
-            synthetic_prim_paths: list[str] = []
-            for body_path in binding_paths:
-                env_match = re.search(r"/World/envs/env_(\d+)", body_path)
-                env_token = env_match.group(0) if env_match else None
-                # Re-target the template path's env segment to this row's env_id.
-                if env_token is not None:
-                    synthetic_path = re.sub(r"/World/envs/env_\d+", env_token, template_path)
-                    ap = re.sub(r"/World/envs/env_\d+", env_token, template_ancestor) if template_ancestor else None
-                    pap = (
-                        re.sub(r"/World/envs/env_\d+", env_token, template_parent_ancestor)
-                        if template_parent_ancestor
-                        else None
-                    )
-                else:
-                    synthetic_path = template_path
-                    ap = template_ancestor
-                    pap = template_parent_ancestor
-                per_prim_ancestor.append(ap)
-                per_prim_site_local.append(template_site_local)
-                parent_ancestor.append(pap)
-                parent_site_local.append(template_parent_site_local)
-                synthetic_prim_paths.append(synthetic_path)
-            self._synthetic_prim_paths: list[str] | None = synthetic_prim_paths
-            self._prims = [self._prims[0]] * len(binding_paths)
-        elif world_sites:
-            _, self._prims, per_prim_site_local, parent_site_local, synthetic_paths = map(
-                list, zip(*world_sites, strict=True)
-            )
-            per_prim_ancestor = [None] * len(world_sites)
-            parent_ancestor = [None] * len(world_sites)
-            self._synthetic_prim_paths = synthetic_paths
-        else:
-            self._synthetic_prim_paths = None
-
-        # 6. Build site_body and parent_site_body indices into the binding's row order.
+        # Map each site's body and parent to native binding rows.
         path_to_row = {p: i for i, p in enumerate(binding_paths)}
-        site_bodies = [
-            path_to_row.get(ap, WORLD_BODY_INDEX) if ap is not None else WORLD_BODY_INDEX for ap in per_prim_ancestor
-        ]
-        parent_bodies = [
-            path_to_row.get(pap, WORLD_BODY_INDEX) if pap is not None else WORLD_BODY_INDEX for pap in parent_ancestor
-        ]
+        site_bodies = [path_to_row[ap] if ap is not None else WORLD_BODY_INDEX for ap in per_prim_ancestor]
+        parent_bodies = [path_to_row[pap] if pap is not None else WORLD_BODY_INDEX for pap in parent_ancestor]
 
-        # 7. Allocate Warp arrays.
+        # Allocate Warp arrays.
         device = self._device
         self._site_body = wp.array(site_bodies, dtype=wp.int32, device=device)
         self._site_local = wp.array([wp.transform(*x) for x in per_prim_site_local], dtype=wp.transformf, device=device)
@@ -529,58 +485,12 @@ class OvPhysxFrameView(BaseFrameView):
         self._local_pos_ta = ProxyArray(self._local_pos_buf)
         self._local_quat_ta = ProxyArray(self._local_quat_buf)
 
-    def _expand_world_sites_from_clone_plan(
-        self, xform_cache: UsdGeom.XformCache
-    ) -> list[tuple[int, Usd.Prim, list[float], list[float], str]]:
-        """Return plan-ordered source prims and projected poses for source-only world sites."""
-        if not self._source_sites:
-            return []
-        plan = self._clone_plan
-
-        sites: list[tuple[int, Usd.Prim, list[float], list[float], str]] = []
-        for source_root, destination_template, source_prim, env_ids in self._source_sites:
-            source_prim_path = source_prim.GetPath().pathString
-            suffix = cloner.path.relative_to(source_prim_path, source_root)
-            if suffix is None:
-                raise RuntimeError(f"OvPhysxFrameView source prim {source_prim_path!r} is not under {source_root!r}.")
-            source_world = xform_cache.GetLocalToWorldTransform(source_prim)
-            source_parent_world = xform_cache.GetLocalToWorldTransform(source_prim.GetParent())
-            source_match = cloner.path.match(source_root, plan.env_template)
-            source_anchor_world = Gf.Matrix4d(1.0)
-            if source_match is not None:
-                source_anchor_path = plan.env_template.format(source_match.instance)
-                source_anchor = self._stage.GetPrimAtPath(source_anchor_path)
-                if not source_anchor.IsValid():
-                    raise RuntimeError(f"OvPhysxFrameView source anchor {source_anchor_path!r} is not on the stage.")
-                source_anchor_world = xform_cache.GetLocalToWorldTransform(source_anchor)
-            source_inverse = source_anchor_world.GetInverse()
-
-            for env_id in env_ids:
-                env_id = int(env_id)
-                destination_root = destination_template.format(env_id)
-                destination_world = Gf.Matrix4d(1.0)
-                if plan.positions is not None:
-                    destination_world.SetTranslateOnly(Gf.Vec3d(*map(float, plan.positions[env_id])))
-                site_world = _gf_matrix_to_xform7(source_world * source_inverse * destination_world)
-                parent_world = _gf_matrix_to_xform7(source_parent_world * source_inverse * destination_world)
-                sites.append((env_id, source_prim, site_world, parent_world, destination_root + suffix))
-
-        sites.sort(key=lambda site: site[0])
-        return sites
-
     def _resolve_rigid_body_ancestor(
         self,
         prim: Usd.Prim,
         xform_cache: UsdGeom.XformCache,
     ) -> tuple[str | None, list[float]]:
         """Walk USD ancestors to find the nearest prim with ``UsdPhysics.RigidBodyAPI``.
-
-        Under OVPhysX scenes built with ``clone_usd=False`` (the default for
-        :class:`~isaaclab.scene.InteractiveScene`), only ``env_0`` carries the
-        authored RigidBodyAPI -- ``env_1..N`` exist only as physics-layer clones
-        and the corresponding USD prims (when present) are untyped Xforms.
-        :meth:`_prim_or_template_has_rigid_body_api` handles this by checking
-        the prim's env_0 equivalent when the API is not directly applied.
 
         Returns:
             ``(ancestor_path, [tx, ty, tz, qx, qy, qz, qw])``. ``ancestor_path`` is
@@ -589,45 +499,18 @@ class OvPhysxFrameView(BaseFrameView):
         """
         prim_world_tf = xform_cache.GetLocalToWorldTransform(prim)
         prim_world_tf.Orthonormalize()
-        # If the prim itself is a rigid body (directly or via env_0 template), the site offset is identity.
-        if self._prim_or_template_has_rigid_body_api(prim):
+        # A body frame has no offset from itself.
+        if prim.HasAPI(UsdPhysics.RigidBodyAPI):
             return prim.GetPath().pathString, [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
         ancestor = prim.GetParent()
         while ancestor and ancestor.IsValid() and ancestor.GetPath().pathString != "/":
-            if self._prim_or_template_has_rigid_body_api(ancestor):
+            if ancestor.HasAPI(UsdPhysics.RigidBodyAPI):
                 ancestor_world_tf = xform_cache.GetLocalToWorldTransform(ancestor)
                 ancestor_world_tf.Orthonormalize()
                 local_tf = prim_world_tf * ancestor_world_tf.GetInverse()
                 return ancestor.GetPath().pathString, _gf_matrix_to_xform7(local_tf)
             ancestor = ancestor.GetParent()
         return None, _gf_matrix_to_xform7(prim_world_tf)
-
-    def _prim_or_template_has_rigid_body_api(self, prim: Usd.Prim) -> bool:
-        """Return whether the prim (or its ``env_0`` equivalent) has ``RigidBodyAPI`` applied.
-
-        Falls back to the env_0 template lookup so that ``clone_usd=False`` envs
-        (whose USD prims lack physics schemas) still resolve to the right body.
-        """
-        if prim.HasAPI(UsdPhysics.RigidBodyAPI):
-            return True
-        path = prim.GetPath().pathString
-        env_zero_path = self._env_zero_equivalent(path)
-        if env_zero_path == path:
-            return False
-        template_prim = self._stage.GetPrimAtPath(env_zero_path) if self._stage is not None else None
-        if template_prim is None or not template_prim.IsValid():
-            return False
-        return template_prim.HasAPI(UsdPhysics.RigidBodyAPI)
-
-    @staticmethod
-    def _env_zero_equivalent(path: str) -> str:
-        """Replace ``/World/envs/env_<digits>`` with ``/World/envs/env_0`` for template lookup."""
-        return re.sub(r"/World/envs/env_\d+", "/World/envs/env_0", path)
-
-    @staticmethod
-    def _env_wildcardify(path: str) -> str:
-        """Replace ``/World/envs/env_<digits>`` with ``/World/envs/env_*`` for binding patterns."""
-        return re.sub(r"/World/envs/env_\d+", "/World/envs/env_*", path)
 
     # ------------------------------------------------------------------
     # Properties
@@ -646,9 +529,7 @@ class OvPhysxFrameView(BaseFrameView):
     def prim_paths(self) -> list[str]:
         """List of one prim path per site.
 
-        For ``clone_usd=False`` scenes (where ``env_1..N`` have no USD prim)
-        the paths are synthesized by replacing ``env_0`` in the template prim's
-        path with each binding row's env_id.
+        Native-only clones use the destination paths declared by the clone plan.
         """
         if hasattr(self, "_synthetic_prim_paths") and self._synthetic_prim_paths is not None:
             return self._synthetic_prim_paths
@@ -694,6 +575,7 @@ class OvPhysxFrameView(BaseFrameView):
             buffer ``[num_bodies]``.
         """
         if self._pose_binding is not None:
+            self._backend_manager.update_kinematics()
             self._root_view.read_into("rigid_body_pose", self._pose_buf)
         return self._pose_buf.view(wp.transformf)
 
@@ -710,9 +592,13 @@ class OvPhysxFrameView(BaseFrameView):
     # ------------------------------------------------------------------
 
     def _make_world_space_writer(self) -> FrameViewWorldSpaceWriter:
+        if self._contains_physics_frames:
+            raise ValueError("Use the asset API to write physics body transforms.")
         return _OvPhysxWorldSpaceWriter(self)
 
     def _make_local_space_writer(self) -> FrameViewLocalSpaceWriter:
+        if self._contains_physics_frames:
+            raise ValueError("Use the asset API to write physics body transforms.")
         return _OvPhysxLocalSpaceWriter(self)
 
     # ------------------------------------------------------------------

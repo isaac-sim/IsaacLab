@@ -342,7 +342,7 @@ class ShoelaceEnvCfg(ManagerBasedRLEnvCfg):
                             njmax=2048,
                             nconmax=256,
                         ),
-                        bodies=[r"/World/envs/env_[^/]+/(Robot(Left|Right)|ShoelaceScene/Shoe)"],
+                        bodies=[r"{ENV_REGEX_NS}/(Robot(Left|Right)|ShoelaceScene/Shoe)"],
                     ),
                     CouplerEntryCfg(
                         name="shoelace",
@@ -351,7 +351,7 @@ class ShoelaceEnvCfg(ManagerBasedRLEnvCfg):
                             rigid_compliant_alm=True,
                             rigid_body_contact_buffer_size=physics.VBD_CONTACT_BUFFER,
                         ),
-                        bodies=[r"/World/envs/env_[^/]+/ShoelaceScene/Shoelace(Left|Right)"],
+                        bodies=[r"{ENV_REGEX_NS}/ShoelaceScene/Shoelace(Left|Right)"],
                         include_static_shapes=True,
                     ),
                 ],

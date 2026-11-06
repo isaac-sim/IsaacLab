@@ -15,7 +15,7 @@
 
 
 For workflows that use Isaac Sim, this branch targets Isaac Sim 6.2. For installation instructions, see the
-[Isaac Lab documentation](https://isaac-sim.github.io/IsaacLab/develop/source/setup/installation/index.html).
+[Isaac Lab documentation](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/index.html).
 
 **Isaac Lab** is a GPU-accelerated, open-source framework designed to unify and simplify robotics research workflows,
 such as reinforcement learning, imitation learning, and post-training. It is a multi-backend framework supporting
@@ -44,14 +44,14 @@ Isaac Lab offers a comprehensive set of tools and environments designed to facil
 
 ### Documentation
 
-Our [documentation page](https://isaac-sim.github.io/IsaacLab/develop/) provides everything you need to get started, including
+Our [documentation page](https://isaac-sim.github.io/IsaacLab/main/) provides everything you need to get started, including
 detailed tutorials and step-by-step guides. Follow these links to learn more about:
 
-- [Installation steps](https://isaac-sim.github.io/IsaacLab/develop/source/setup/installation/index.html)
-- [Reinforcement learning](https://isaac-sim.github.io/IsaacLab/develop/source/concepts/reinforcement_learning.html)
-- [Getting started tutorial](https://isaac-sim.github.io/IsaacLab/develop/source/setup/tutorial.html)
-- [How-to guides](https://isaac-sim.github.io/IsaacLab/develop/source/how-to/index.html)
-- [Available environments](https://isaac-sim.github.io/IsaacLab/develop/source/setup/environments.html)
+- [Installation steps](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/index.html)
+- [Reinforcement learning](https://isaac-sim.github.io/IsaacLab/main/source/concepts/reinforcement_learning.html)
+- [Getting started tutorial](https://isaac-sim.github.io/IsaacLab/main/source/setup/tutorial.html)
+- [How-to guides](https://isaac-sim.github.io/IsaacLab/main/source/how-to/index.html)
+- [Available environments](https://isaac-sim.github.io/IsaacLab/main/source/setup/environments.html)
 
 
 ## Isaac Sim Compatibility
@@ -63,8 +63,7 @@ Isaac Sim versions.
 | Isaac Lab Version             | Isaac Sim Version         |
 | ----------------------------- | ------------------------- |
 | `release/3.0.0` branch        | Isaac Sim 6.2             |
-| `develop` branch              | Isaac Sim 6.2             |
-| `main` branch                 | Isaac Sim 4.5 / 5.0 / 5.1 |
+| `main` branch                 | Isaac Sim 6.2             |
 | `v3.0.0-EA` tag               | Isaac Sim 6.1             |
 | `v3.0.0-beta2` tag            | Isaac Sim 6.0             |
 | `v2.3.X`                      | Isaac Sim 4.5 / 5.0 / 5.1 |
@@ -76,7 +75,7 @@ Isaac Sim versions.
 
 We wholeheartedly welcome contributions from the community to make this framework mature and useful for everyone.
 These may happen as bug reports, feature requests, or code contributions. For details, please check our
-[contribution guidelines](https://isaac-sim.github.io/IsaacLab/develop/source/refs/contributing.html).
+[contribution guidelines](https://isaac-sim.github.io/IsaacLab/main/source/refs/contributing.html).
 
 ## Show & Tell: Share Your Inspiration
 
@@ -93,7 +92,7 @@ innovation in robotics and simulation.
 
 ## Troubleshooting
 
-Please see the [troubleshooting](https://isaac-sim.github.io/IsaacLab/develop/source/refs/troubleshooting.html) section for
+Please see the [troubleshooting](https://isaac-sim.github.io/IsaacLab/main/source/refs/troubleshooting.html) section for
 common fixes or [submit an issue](https://github.com/isaac-sim/IsaacLab/issues).
 
 For issues related to Isaac Sim, we recommend checking its [documentation](https://docs.isaacsim.omniverse.nvidia.com/latest/index.html)

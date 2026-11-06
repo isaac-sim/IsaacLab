@@ -339,7 +339,7 @@ def main() -> None:
     check.add_argument(
         "base_ref",
         nargs="?",
-        default=os.environ.get("ISAACLAB_CHANGELOG_BASE_REF", "develop"),
+        default=os.environ.get("ISAACLAB_CHANGELOG_BASE_REF", "main"),
         help="Git ref or commit; branch shorthand prefers origin/<branch>.",
     )
     check.add_argument("--include-worktree", action="store_true", help="Include uncommitted tracked changes.")

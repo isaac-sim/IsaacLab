@@ -19,7 +19,7 @@ import numpy as np
 import warp as wp
 from packaging import version
 
-from pxr import Sdf, Usd, UsdGeom
+from pxr import Sdf, Usd, UsdGeom, UsdLux
 
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
@@ -173,15 +173,17 @@ class IsaacRtxRenderer(BaseRenderer):
 
     def __init__(self, cfg: IsaacRtxRendererCfg, *, sim: SimulationContext):
         super().__init__(cfg, sim=sim)
+        # Camera construction creates this backend before rendering policy is read by the first reset.
+        settings = get_settings_manager()
+        settings.set("/isaaclab/render/rtx_sensors", True)
+        settings.set("/physics/fabricUpdateTransformations", True)
         # Enable Replicator only when the Isaac RTX renderer is selected. Declaring it
         # in a Kit experience would resolve its bundled omni.warp.core dependency at startup.
         enable_extension("omni.replicator.core")
-        settings = get_settings_manager()
         apply_isaac_rtx_global_settings(self.cfg.global_settings, settings)
         if settings.get("/isaaclab/render/deterministic", False):
             apply_isaac_rtx_determinism_settings(settings)
         ensure_rtx_hydra_engine_attached()
-        # ``/isaaclab/render/rtx_sensors`` is owned by ``Camera.__init__`` (must be set pre-``sim.reset()``).
 
     def initialize(self) -> None:
         """Bind shared Fabric destinations after scene creation."""
@@ -219,9 +221,9 @@ class IsaacRtxRenderer(BaseRenderer):
         When disabled, this method is a no-op and writes no
         ``primvars:omni:scenePartition`` or ``omni:scenePartition`` attributes.
 
-        When enabled, for each ``/World/envs/env_{i}`` root, writes the inheriting primvar
+        When enabled, for each environment root declared by the clone plan, writes the inheriting primvar
         ``primvars:omni:scenePartition`` (token ``env_{i}``) on the root and the matching
-        non-primvar ``omni:scenePartition`` token on every :class:`UsdGeom.Camera` descendant.
+        non-primvar ``omni:scenePartition`` token on every camera and light descendant.
         RTX honors primvar inheritance, so the env-root primvar propagates to all descendant
         geometry and isolates each env's render tile.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.prepare_stage`."""
@@ -238,14 +240,14 @@ class IsaacRtxRenderer(BaseRenderer):
         token_type = Sdf.ValueTypeNames.Token
         with Sdf.ChangeBlock():
             for env_idx in range(num_envs):
-                env_prim = stage.GetPrimAtPath(f"/World/envs/env_{env_idx}")
+                env_prim = stage.GetPrimAtPath(self._sim.get_clone_plan().env_template.format(env_idx))
                 if not env_prim.IsValid():
                     continue
                 token = f"env_{env_idx}"
                 for prim in Usd.PrimRange(env_prim):
                     if prim == env_prim:
                         attr_path = prim.GetPath().AppendProperty("primvars:omni:scenePartition")
-                    elif prim.IsA(UsdGeom.Camera):
+                    elif prim.IsA(UsdGeom.Camera) or prim.HasAPI(UsdLux.LightAPI):
                         attr_path = prim.GetPath().AppendProperty("omni:scenePartition")
                     else:
                         continue
@@ -317,6 +319,14 @@ class IsaacRtxRenderer(BaseRenderer):
             if not cam_prim.IsA(UsdGeom.Camera):
                 raise RuntimeError(f"Prim at path '{cam_prim_path}' is not a Camera.")
 
+        needs_hdr_color = str(RenderBufferKind.RGB_HDR) in spec.cfg.data_types or (
+            spec.cfg.isp_cfg is not None and any(data_type in ("rgb", "rgba") for data_type in spec.cfg.data_types)
+        )
+        if spec.cfg.isp_cfg is not None:
+            # Isaac Sim 6.2 reads this legacy setting instead of the render-product attribute authored below.
+            # OMPE-117939 tracks deprecation of the Gaussian skip-tonemapping setting.
+            settings.set("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
+
         # Unique UUID name so concurrent tiled cameras and sequential env create/destroy
         # cycles in one Kit process do not reuse a stale Replicator / SyntheticData activation.
         # ``uuid4().hex`` (no hyphens) prefixed with ``rp_`` is a valid USD identifier.
@@ -357,9 +367,6 @@ class IsaacRtxRenderer(BaseRenderer):
                 aov=SIMPLE_SHADING_AOV, output_data_type=np.uint8, output_channels=4
             )
 
-        needs_hdr_color = str(RenderBufferKind.RGB_HDR) in spec.cfg.data_types or (
-            spec.cfg.isp_cfg is not None and any(data_type in ("rgb", "rgba") for data_type in spec.cfg.data_types)
-        )
         if needs_hdr_color:
             rep.AnnotatorRegistry.register_annotator_from_aov(
                 aov="HdrColor", output_data_type=np.float32, output_channels=4
@@ -431,6 +438,13 @@ class IsaacRtxRenderer(BaseRenderer):
         # Attach annotators to render product
         for annotator in annotators.values():
             annotator.attach([rp.path])
+
+        # Newer Kit reads Gaussian tonemapping policy from the render product, as standalone OVRTX does.
+        # OMPE-117939 tracks deprecation of the Gaussian skip-tonemapping setting.
+        if spec.cfg.isp_cfg is not None:
+            stage.GetPrimAtPath(rp.path).CreateAttribute(
+                "omni:rtx:gaussian:skipTonemapping:enabled", Sdf.ValueTypeNames.Bool
+            ).Set(False)
 
         # Annotator attachment may resynchronize process-wide RTX settings onto the product.
         if simple_shading_mode is not None:

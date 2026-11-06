@@ -9,12 +9,6 @@
 
     DeviceBase
     RetargeterBase
-    Se2Gamepad
-    Se3Gamepad
-    Se2Keyboard
-    Se3Keyboard
-    Se2SpaceMouse
-    Se3SpaceMouse
     HaplyDevice
     OpenXRDevice
     ManusVive
@@ -40,51 +34,6 @@ Retargeter Base
 
 .. autoclass:: RetargeterBase
     :members:
-
-Game Pad
---------
-
-.. autoclass:: Se2Gamepad
-    :members:
-    :inherited-members:
-    :show-inheritance:
-    :noindex:
-
-.. autoclass:: Se3Gamepad
-    :members:
-    :inherited-members:
-    :show-inheritance:
-    :noindex:
-
-Keyboard
---------
-
-.. autoclass:: Se2Keyboard
-    :members:
-    :inherited-members:
-    :show-inheritance:
-    :noindex:
-
-.. autoclass:: Se3Keyboard
-    :members:
-    :inherited-members:
-    :show-inheritance:
-    :noindex:
-
-Space Mouse
------------
-
-.. autoclass:: Se2SpaceMouse
-    :members:
-    :inherited-members:
-    :show-inheritance:
-    :noindex:
-
-.. autoclass:: Se3SpaceMouse
-    :members:
-    :inherited-members:
-    :show-inheritance:
-    :noindex:
 
 Haply
 -----

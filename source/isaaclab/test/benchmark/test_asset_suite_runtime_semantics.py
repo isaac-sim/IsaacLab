@@ -171,6 +171,7 @@ def test_newton_collection_refresh_regenerates_kinematics_and_mass_properties(mo
     assert data._sim_timestamp == 1.0
 
 
+@pytest.mark.ov
 def test_ovphysx_data_targets_are_independent_and_properties_preflight_when_available() -> None:
     """OVPhysX property targets should be independent and expose every declared runtime property."""
     if not torch.cuda.is_available():

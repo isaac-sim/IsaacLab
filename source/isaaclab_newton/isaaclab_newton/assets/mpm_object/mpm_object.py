@@ -251,7 +251,7 @@ class MPMObject(BaseDeformableObject):
         self._ALL_INDICES = wp.array(np.arange(self._num_instances, dtype=np.int32), device=self.device)
         self._ALL_ENV_MASK = wp.ones((self._num_instances,), dtype=wp.bool, device=self.device)
 
-        state = self._backend_manager.get_state_0()
+        state = self._backend_manager.backend.state_0
         if state is None or state.particle_q is None or state.particle_qd is None:
             raise RuntimeError("Cannot initialize MPMObject buffers before Newton particle state exists.")
 
@@ -304,8 +304,8 @@ class MPMObject(BaseDeformableObject):
 
     def _iter_particle_states(self):
         """Yield the Newton states whose particle arrays must receive writes."""
-        state_0 = self._backend_manager.get_state_0()
-        state_1 = self._backend_manager.get_state_1()
+        state_0 = self._backend_manager.backend.state_0
+        state_1 = self._backend_manager.backend.state_1
         yield state_0
         if state_1 is not None and state_1 is not state_0:
             yield state_1

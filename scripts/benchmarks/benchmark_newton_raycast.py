@@ -30,6 +30,7 @@ parser.add_argument("--grid_resolution", type=float, default=0.1, help="Grid pat
 add_launcher_args(parser)
 args_cli = parser.parse_args()
 
+import itertools
 import math
 import time
 
@@ -153,13 +154,15 @@ def main():
         def run_bvh():
             newton_raycast._update_buffers_impl(newton_raycast._ALL_ENV_MASK)
 
+        backend = sim.backend_manager.backend
+        versions = itertools.count(1 << 32)
+
         def run_bvh_with_refit():
-            sim.backend_manager._mark_sensor_state_dirty()
+            backend.refit_bvh(next(versions))
             newton_raycast._update_buffers_impl(newton_raycast._ALL_ENV_MASK)
 
         def run_refit_only():
-            sim.backend_manager._mark_sensor_state_dirty()
-            sim.backend_manager._update_sensor_tasks()
+            backend.refit_bvh(next(versions))
 
         results = {
             "LegacyRayCaster (warp mesh)": run_warp_mesh,
@@ -170,7 +173,7 @@ def main():
 
         print(
             f"\nnum_envs={args_cli.num_envs}, rays/env={num_rays}, total rays={total_rays},"
-            f" shapes in BVH={sim.backend_manager.get_model().bvh_shape_count_enabled},"
+            f" shapes in BVH={backend.model.bvh_shape_count_enabled},"
             f" iterations={args_cli.num_iterations}, device={device}"
         )
         print(f"{'benchmark':<40} {'ms/call':>10} {'Mrays/s':>10}")

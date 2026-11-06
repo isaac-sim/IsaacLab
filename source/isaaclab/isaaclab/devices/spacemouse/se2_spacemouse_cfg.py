@@ -7,20 +7,18 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from ...utils import configclass
 from ..device_base import DeviceCfg
-
-if TYPE_CHECKING:
-    from .se2_spacemouse import Se2SpaceMouse
 
 
 @configclass
 class Se2SpaceMouseCfg(DeviceCfg):
-    """Configuration for SE2 space mouse devices."""
+    """Configuration translated to Isaac Capture before device creation.
+
+    .. deprecated:: 3.2
+        Use :func:`isaaclab_teleop.se2_spacemouse_teleop_cfg` for new configurations.
+    """
 
     v_x_sensitivity: float = 0.8
     v_y_sensitivity: float = 0.4
     omega_z_sensitivity: float = 1.0
-    class_type: type[Se2SpaceMouse] | str = "{DIR}.se2_spacemouse:Se2SpaceMouse"

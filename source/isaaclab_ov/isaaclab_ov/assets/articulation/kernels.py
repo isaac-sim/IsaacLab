@@ -5,41 +5,18 @@
 
 from __future__ import annotations
 
+from functools import cache
 from typing import Any
 
 import torch
 import warp as wp
 
 from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
+from isaaclab.utils.warp.math import scale_interval
 
 """
 Articulation-specific warp functions.
 """
-
-
-@wp.func
-def compute_soft_joint_pos_limits_func(
-    joint_pos_limits: wp.vec2f,
-    soft_limit_factor: wp.float32,
-):
-    """Compute the soft joint position limits.
-
-    Args:
-        joint_pos_limits: Hard joint position limits as ``(lower, upper)`` [m or rad,
-            depending on joint type].
-        soft_limit_factor: Scale factor in [0, 1] shrinking the soft range around
-            the midpoint of the hard range; ``1.0`` makes the soft limits equal the
-            hard limits, smaller values create a tighter window.
-
-    Returns:
-        The soft joint position limits as ``(lower, upper)``.
-    """
-    joint_pos_mean = (joint_pos_limits[0] + joint_pos_limits[1]) / 2.0
-    joint_pos_range = joint_pos_limits[1] - joint_pos_limits[0]
-    return wp.vec2f(
-        joint_pos_mean - 0.5 * joint_pos_range * soft_limit_factor,
-        joint_pos_mean + 0.5 * joint_pos_range * soft_limit_factor,
-    )
 
 
 """
@@ -189,57 +166,6 @@ def _fd_joint_acc(
 
 
 @wp.kernel
-def shift_jacobian_com_to_origin(
-    body_link_pose: wp.array2d(dtype=wp.transformf),
-    body_com_pos_b: wp.array2d(dtype=wp.vec3f),
-    link_offset: wp.int32,
-    src: wp.array4d(dtype=wp.float32),
-    dst: wp.array4d(dtype=wp.float32),
-):
-    """Shift the linear-velocity rows of a Jacobian from COM to link origin.
-
-    OvPhysX computed Jacobians are referenced at each link's center of mass. The public
-    :attr:`~isaaclab.assets.BaseArticulationData.body_link_jacobian_w` contract instead
-    requires the linear rows at the USD link origin. Each column is shifted with
-    ``v_origin = v_com - omega x (R * body_com_pos_b)``.
-
-    Args:
-        body_link_pose: Per-body link poses in world frame [m, -]. Shape is
-            (num_instances, num_bodies).
-        body_com_pos_b: Per-body center-of-mass offsets in link frame [m]. Shape is
-            (num_instances, num_bodies).
-        link_offset: Offset from a Jacobian body row to the full public body index.
-            This is 1 for a fixed base and 0 for a floating base.
-        src: COM-referenced Jacobian. Shape is
-            (num_instances, num_jacobian_bodies, 6, num_joints + num_base_dofs).
-        dst: Link-origin Jacobian output with the same shape and units as :paramref:`src`.
-    """
-    env_id, jacobian_body_id, dof_id = wp.tid()
-    body_id = jacobian_body_id + link_offset
-
-    link_rotation = wp.transform_get_rotation(body_link_pose[env_id, body_id])
-    com_offset_w = wp.quat_rotate(link_rotation, body_com_pos_b[env_id, body_id])
-    com_linear_velocity = wp.vec3(
-        src[env_id, jacobian_body_id, 0, dof_id],
-        src[env_id, jacobian_body_id, 1, dof_id],
-        src[env_id, jacobian_body_id, 2, dof_id],
-    )
-    angular_velocity = wp.vec3(
-        src[env_id, jacobian_body_id, 3, dof_id],
-        src[env_id, jacobian_body_id, 4, dof_id],
-        src[env_id, jacobian_body_id, 5, dof_id],
-    )
-    link_linear_velocity = com_linear_velocity - wp.cross(angular_velocity, com_offset_w)
-
-    dst[env_id, jacobian_body_id, 0, dof_id] = link_linear_velocity[0]
-    dst[env_id, jacobian_body_id, 1, dof_id] = link_linear_velocity[1]
-    dst[env_id, jacobian_body_id, 2, dof_id] = link_linear_velocity[2]
-    dst[env_id, jacobian_body_id, 3, dof_id] = angular_velocity[0]
-    dst[env_id, jacobian_body_id, 4, dof_id] = angular_velocity[1]
-    dst[env_id, jacobian_body_id, 5, dof_id] = angular_velocity[2]
-
-
-@wp.kernel
 def _compose_body_com_poses(
     link_pose: wp.array(dtype=wp.transformf, ndim=2),
     com_pose_b: wp.array(dtype=wp.transformf, ndim=2),
@@ -257,29 +183,6 @@ def _compose_body_com_poses(
     """
     i, j = wp.tid()
     com_pose_w[i, j] = wp.transform_multiply(link_pose[i, j], com_pose_b[i, j])
-
-
-@wp.kernel
-def update_soft_joint_pos_limits(
-    joint_pos_limits: wp.array2d(dtype=wp.vec2f),
-    soft_limit_factor: wp.float32,
-    soft_joint_pos_limits: wp.array2d(dtype=wp.vec2f),
-):
-    """Update soft joint position limits from hard limits and a soft limit factor.
-
-    Soft limits provide a safety margin before reaching the hard joint position
-    limits. See :func:`compute_soft_joint_pos_limits_func` for the per-joint
-    formula.
-
-    Args:
-        joint_pos_limits: Hard joint position limits as vec2f ``(lower, upper)``
-            [m or rad, depending on joint type]. Shape is (num_envs, num_joints).
-        soft_limit_factor: Scale factor in [0, 1]. ``1.0`` makes the soft limits
-            equal the hard limits; smaller values create a tighter window.
-        soft_joint_pos_limits: Output array. Shape is (num_envs, num_joints).
-    """
-    i, j = wp.tid()
-    soft_joint_pos_limits[i, j] = compute_soft_joint_pos_limits_func(joint_pos_limits[i, j], soft_limit_factor)
 
 
 @wp.kernel
@@ -326,7 +229,7 @@ def clamp_default_joint_pos_and_update_soft_limits_index(
     if (default_joint_pos[e, k] < lo) or (default_joint_pos[e, k] > hi):
         wp.atomic_add(clamped_count, 0, 1)
         default_joint_pos[e, k] = wp.clamp(default_joint_pos[e, k], lo, hi)
-    soft_joint_pos_limits[e, k] = compute_soft_joint_pos_limits_func(joint_pos_limits[e, k], soft_limit_factor)
+    soft_joint_pos_limits[e, k] = scale_interval(joint_pos_limits[e, k], soft_limit_factor)
 
 
 _CLAMP_DEFAULT_JOINT_POS_AND_UPDATE_SOFT_LIMITS_INDEX_DISPATCHER = IndexKernelDispatcher(
@@ -378,14 +281,41 @@ def clamp_default_joint_pos_and_update_soft_limits_mask(
     if (default_joint_pos[i, j] < lo) or (default_joint_pos[i, j] > hi):
         wp.atomic_add(clamped_count, 0, 1)
         default_joint_pos[i, j] = wp.clamp(default_joint_pos[i, j], lo, hi)
-    soft_joint_pos_limits[i, j] = compute_soft_joint_pos_limits_func(joint_pos_limits[i, j], soft_limit_factor)
+    soft_joint_pos_limits[i, j] = scale_interval(joint_pos_limits[i, j], soft_limit_factor)
+
+
+@wp.func
+def _write_joint_friction_component(
+    in_data: wp.float32,
+    data_i: wp.int32,
+    data_j: wp.int32,
+    env_id: wp.int32,
+    joint_id: wp.int32,
+    component: wp.int32,
+    out_buffer: wp.array3d(dtype=wp.float32),
+):
+    out_buffer[env_id, joint_id, component] = in_data
+
+
+@wp.func
+def _write_joint_friction_component(
+    in_data: wp.array2d(dtype=wp.float32),
+    data_i: wp.int32,
+    data_j: wp.int32,
+    env_id: wp.int32,
+    joint_id: wp.int32,
+    component: wp.int32,
+    out_buffer: wp.array3d(dtype=wp.float32),
+):
+    if in_data:
+        out_buffer[env_id, joint_id, component] = in_data[data_i, data_j]
 
 
 @wp.kernel
 def write_joint_friction_data_to_buffer_index(
-    in_static: wp.array2d(dtype=wp.float32),
-    in_dynamic: wp.array2d(dtype=wp.float32),
-    in_viscous: wp.array2d(dtype=wp.float32),
+    in_static: Any,
+    in_dynamic: Any,
+    in_viscous: Any,
     env_ids: wp.array(dtype=Any),
     joint_ids: wp.array(dtype=Any),
     out_buffer: wp.array3d(dtype=wp.float32),
@@ -394,16 +324,16 @@ def write_joint_friction_data_to_buffer_index(
     """Conditionally update the static / dynamic / viscous slots of the friction buffer.
 
     Mirrors :func:`isaaclab_physx.assets.articulation.kernels.write_joint_friction_data_to_buffer`:
-    each of the three input arrays is optional (``None`` translates to a null pointer
-    which evaluates ``False`` inside the kernel), so callers can update any subset
+    each input accepts a scalar, an array, or ``None`` (a null array).
+    Scalars are broadcast directly, including zero, so callers can update any subset
     of the friction components without disturbing the others.
 
     Args:
-        in_static: Static friction coefficients, or ``None`` to leave that component
+        in_static: Scalar or array of static friction coefficients, or ``None`` to leave that component
             unchanged. Shape is (num_selected_envs, num_selected_joints).
-        in_dynamic: Dynamic friction coefficients, or ``None``. Same shape as
+        in_dynamic: Scalar or array of dynamic friction coefficients, or ``None``. Same shape as
             :paramref:`in_static`.
-        in_viscous: Viscous friction coefficients [N·s/m or N·m·s/rad, depending on
+        in_viscous: Scalar or array of viscous friction coefficients [N·s/m or N·m·s/rad, depending on
             joint type], or ``None``. Same shape as :paramref:`in_static`.
         env_ids: Environment indices to write. Shape is (num_selected_envs,).
         joint_ids: Joint indices to write. Shape is (num_selected_joints,).
@@ -415,31 +345,44 @@ def write_joint_friction_data_to_buffer_index(
     joint_id = wp.int32(joint_ids[j])
     if j == 0:
         sim_env_ids[i] = env_id
-    if in_static:
-        out_buffer[env_id, joint_id, 0] = in_static[i, j]
-    if in_dynamic:
-        out_buffer[env_id, joint_id, 1] = in_dynamic[i, j]
-    if in_viscous:
-        out_buffer[env_id, joint_id, 2] = in_viscous[i, j]
+    _write_joint_friction_component(in_static, i, j, env_id, joint_id, 0, out_buffer)
+    _write_joint_friction_component(in_dynamic, i, j, env_id, joint_id, 1, out_buffer)
+    _write_joint_friction_component(in_viscous, i, j, env_id, joint_id, 2, out_buffer)
 
 
-_WRITE_JOINT_FRICTION_DATA_TO_BUFFER_INDEX_DISPATCHER = IndexKernelDispatcher(
-    write_joint_friction_data_to_buffer_index, ("env_ids", "joint_ids")
-)
+@cache
+def _joint_friction_index_dispatcher(scalar_inputs: tuple[bool, bool, bool]) -> IndexKernelDispatcher:
+    return IndexKernelDispatcher(
+        write_joint_friction_data_to_buffer_index,
+        ("env_ids", "joint_ids"),
+        _friction_argument_types(scalar_inputs),
+    )
+
+
+def _friction_argument_types(scalar_inputs: tuple[bool, bool, bool]) -> dict[str, Any]:
+    return {
+        name: wp.float32 if scalar else wp.array2d(dtype=wp.float32)
+        for name, scalar in zip(("in_static", "in_dynamic", "in_viscous"), scalar_inputs, strict=True)
+    }
 
 
 def write_joint_friction_data_to_buffer_index_kernel(
-    env_ids: wp.array | torch.Tensor, joint_ids: wp.array | torch.Tensor
+    env_ids: wp.array | torch.Tensor,
+    joint_ids: wp.array | torch.Tensor,
+    in_static: float | torch.Tensor | wp.array | None = None,
+    in_dynamic: float | torch.Tensor | wp.array | None = None,
+    in_viscous: float | torch.Tensor | wp.array | None = None,
 ) -> wp.Kernel:
-    """Select an articulation worker for the selector dtypes."""
-    return _WRITE_JOINT_FRICTION_DATA_TO_BUFFER_INDEX_DISPATCHER.select(env_ids, joint_ids)
+    """Select the friction writer for scalar inputs and selector dtypes."""
+    scalar_inputs = tuple(isinstance(value, (int, float)) for value in (in_static, in_dynamic, in_viscous))
+    return _joint_friction_index_dispatcher(scalar_inputs).select(env_ids, joint_ids)
 
 
 @wp.kernel
 def write_joint_friction_data_to_buffer_mask(
-    in_static: wp.array2d(dtype=wp.float32),
-    in_dynamic: wp.array2d(dtype=wp.float32),
-    in_viscous: wp.array2d(dtype=wp.float32),
+    in_static: Any,
+    in_dynamic: Any,
+    in_viscous: Any,
     env_mask: wp.array(dtype=wp.bool),
     joint_mask: wp.array(dtype=wp.bool),
     out_buffer: wp.array3d(dtype=wp.float32),
@@ -447,11 +390,11 @@ def write_joint_friction_data_to_buffer_mask(
     """Mask variant of :func:`write_joint_friction_data_to_buffer_index`.
 
     Args:
-        in_static: Static friction coefficients, or ``None`` to leave that component
+        in_static: Scalar or array of static friction coefficients, or ``None`` to leave that component
             unchanged. Shape is (num_envs, num_joints).
-        in_dynamic: Dynamic friction coefficients, or ``None``. Same shape as
+        in_dynamic: Scalar or array of dynamic friction coefficients, or ``None``. Same shape as
             :paramref:`in_static`.
-        in_viscous: Viscous friction coefficients [N·s/m or N·m·s/rad, depending on
+        in_viscous: Scalar or array of viscous friction coefficients [N·s/m or N·m·s/rad, depending on
             joint type], or ``None``. Same shape as :paramref:`in_static`.
         env_mask: Boolean mask over environments. Shape is (num_envs,).
         joint_mask: Boolean mask over joints. Shape is (num_joints,).
@@ -461,9 +404,21 @@ def write_joint_friction_data_to_buffer_mask(
     i, j = wp.tid()
     if not env_mask[i] or not joint_mask[j]:
         return
-    if in_static:
-        out_buffer[i, j, 0] = in_static[i, j]
-    if in_dynamic:
-        out_buffer[i, j, 1] = in_dynamic[i, j]
-    if in_viscous:
-        out_buffer[i, j, 2] = in_viscous[i, j]
+    _write_joint_friction_component(in_static, i, j, i, j, 0, out_buffer)
+    _write_joint_friction_component(in_dynamic, i, j, i, j, 1, out_buffer)
+    _write_joint_friction_component(in_viscous, i, j, i, j, 2, out_buffer)
+
+
+@cache
+def _joint_friction_mask_kernel(scalar_inputs: tuple[bool, bool, bool]) -> wp.Kernel:
+    return wp.overload(write_joint_friction_data_to_buffer_mask, _friction_argument_types(scalar_inputs))
+
+
+def write_joint_friction_data_to_buffer_mask_kernel(
+    in_static: float | torch.Tensor | wp.array | None,
+    in_dynamic: float | torch.Tensor | wp.array | None,
+    in_viscous: float | torch.Tensor | wp.array | None,
+) -> wp.Kernel:
+    """Select the masked friction writer for scalar inputs."""
+    scalar_inputs = tuple(isinstance(value, (int, float)) for value in (in_static, in_dynamic, in_viscous))
+    return _joint_friction_mask_kernel(scalar_inputs)

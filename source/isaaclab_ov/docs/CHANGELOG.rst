@@ -3,6 +3,156 @@ Changelog
 
 .. towncrier release notes start
 
+9.0.0 (2026-11-05)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Adopted shared PVA output storage and optional output groups; skip unused native bindings and clear measurements on STOP.
+* Reused shared sensor math, packing, and reset operations while retaining native gathering and solver-specific policies.
+* Used tiled concatenation for packed contact and frame-transformer poses, reusing recorded CUDA commands until sensor buffers are recreated.
+* Initialized frame-transformer orientations directly in Warp without Torch mutation.
+
+Deprecated
+^^^^^^^^^^
+
+* Marked direct use of OVPhysX PvaData as deprecated in its API documentation. Imports remain available without warnings; use isaaclab.sensors.PvaData or sensor.data.
+
+Fixed
+^^^^^
+
+* Fixed environment-owned lights affecting cameras in other OVRTX scene partitions.
+* Added CPU hierarchy preparation before cloning on the OVStage 0.4 release line, including
+  development builds, to reduce clone time while preserving the GPU hierarchy default at runtime.
+
+
+8.0.4 (2026-11-03)
+~~~~~~~~~~~~~~~~~~
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated ``Articulation.write_joint_state_to_sim_index``. Use ``write_joint_state_to_sim_mask``, or
+  ``write_joint_position_to_sim_index`` and ``write_joint_velocity_to_sim_index``.
+
+Fixed
+^^^^^
+
+* Fixed OVRTX stage preparation, camera relationships, and mesh and marker visibility writes with typed OVStage
+  token and path handles (new in OVStage 0.4.0) while preserving compatibility with integer IDs from older builds.
+
+
+8.0.3 (2026-10-31)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVRTX cameras selecting an intermediate DLSS image instead of the latest capture when
+  frame generation returned multiple frames.
+
+
+8.0.2 (2026-10-30)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated the public runtime compatibility set to ``ovrtx==0.6.0.1791947691``,
+  ``ovphysx==0.7.0.74035321``, and ``ovstage==0.3.0.1791986420``. The ``ov`` and
+  ``ovphysx`` extras installed the external PhysX USD schemas required by OvPhysX 0.7.
+  Upgrade the runtimes together with ``uv sync --inexact --extra ov``.
+
+Fixed
+^^^^^
+
+* Fixed joint friction writers to broadcast scalar coefficients directly in the fused Warp kernels,
+  including integer zero, without allocating expanded input tensors.
+* Fixed stale camera poses in the first legacy OVRTX render with GPU transform propagation
+  by initializing native world transforms without advancing sensor simulation time.
+* Added compatibility with OVRTX 0.7 named segmentation tensors while preserving
+  decoding of the packed label maps returned by the pinned OVRTX 0.6 runtime.
+* Disabled GPU camera transform reads for OVRTX 0.7 only to preserve independent tiled
+  captures and pose updates while retaining GPU scene transforms; pinned OVRTX
+  0.6 behavior was preserved.
+* Preserved renderer API documentation builds when the optional OVRTX distribution is not installed.
+* Fixed runtime meshes disappearing after material or texture changes with OVRTX 0.6 by
+  using a fresh USD reference path for each replacement.
+
+
+8.0.1 (2026-10-29)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Reused native Warp indexed views and copy/fill for selected asset writes and root-column reads; shared kernels handle boolean masks and fused state layouts.
+
+
+8.0.0 (2026-10-27)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Replaced duplicated heading, quaternion rotation, interval, and Jacobian math with core Warp operations.
+* **Breaking:** :class:`~isaaclab_ov.physics.OvPhysxManager` takes its :class:`~isaaclab_ov.physics.OvPhysxCfg` at construction.
+
+
+7.1.2 (2026-10-25)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVRTX camera bindings and partition assignments for custom clone namespaces,
+  nonzero source environments, and explicitly ordered camera paths.
+* Fixed native scene export and OVPhysX frame transforms to follow declared clone destinations
+  instead of assuming the default environment namespace.
+
+
+7.1.1 (2026-10-24)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Reduced OVRTX scene-export overhead and preserved nested material bindings by retaining clean file-backed USD references and instances during rendering initialization.
+* Refreshed sensor and frame-view kinematics after articulation state writes.
+* Rejected incomplete native sensor bindings instead of shrinking the scene's
+  environment rows and shared scheduling buffers.
+
+
+7.1.0 (2026-10-23)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Allowed OVPhysX frame views to read physics-body poses while keeping writes in the asset APIs.
+
+Fixed
+^^^^^
+
+* Fixed multi-mesh ray-cast targets spanning several rigid bodies and binding to bodies
+  in other environments. Sensors and targets now read shared body poses by exact path,
+  preserving environment order across native clone batches and articulation links.
+* Reported a sensor instance-count error when a ray-caster mount existed in only some
+  cloned environments, instead of failing with an unmapped native-body path.
+
+
+7.0.1 (2026-10-20)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Restored native OVRTX cloning as the default with OVPhysX, avoiding camera-task throughput regressions
+  when ``ISAAC_LAB_OVRTX_USE_OVSTAGE`` was unset. Independent OVStage rendering remained available through
+  ``ISAAC_LAB_OVRTX_USE_OVSTAGE=1``, and shared physics/rendering stages through ``ISAAC_LAB_SHARE_OVSTAGE=1``.
+
+
 7.0.0 (2026-10-19)
 ~~~~~~~~~~~~~~~~~~
 

@@ -19,6 +19,8 @@ from isaaclab.assets.cable_object.base_cable_object import BaseCableObject
 from isaaclab.sim.utils.queries import has_deformable_curve_api, path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.warp import ProxyArray
 
+from isaaclab_newton.assets.kernels import mask_from_ids
+
 from .cable_object_data import CableObjectData
 from .kernels import (
     set_segment_pose_to_sim_index,
@@ -95,7 +97,13 @@ class CableObject(BaseCableObject):
             segment_pose = segment_pose.warp
         env_ids = self._resolve_env_ids(env_ids)
         self.assert_shape_and_dtype(segment_pose, (env_ids.shape[0], self.num_segments), wp.transformf, "segment_pose")
-        self._write_segment_state_to_sim(segment_pose, env_ids, set_segment_pose_to_sim_index, "body_q", use_mask=False)
+        self._write_segment_state_to_sim(
+            segment_pose,
+            env_ids,
+            set_segment_pose_to_sim_index,
+            "body_q",
+            mask_from_ids(env_ids, self._ALL_INDICES, self._ALL_ENV_MASK, self._index_env_mask),
+        )
 
     def write_segment_pose_to_sim_mask(
         self,
@@ -118,7 +126,7 @@ class CableObject(BaseCableObject):
         self.assert_shape_and_dtype_mask(
             segment_pose, (env_mask,), wp.transformf, "segment_pose", trailing_dims=(self.num_segments,)
         )
-        self._write_segment_state_to_sim(segment_pose, env_mask, set_segment_pose_to_sim_mask, "body_q", use_mask=True)
+        self._write_segment_state_to_sim(segment_pose, env_mask, set_segment_pose_to_sim_mask, "body_q", env_mask)
 
     def write_segment_velocity_to_sim_index(
         self,
@@ -142,7 +150,11 @@ class CableObject(BaseCableObject):
             segment_velocity, (env_ids.shape[0], self.num_segments), wp.spatial_vectorf, "segment_velocity"
         )
         self._write_segment_state_to_sim(
-            segment_velocity, env_ids, set_segment_velocity_to_sim_index, "body_qd", use_mask=False
+            segment_velocity,
+            env_ids,
+            set_segment_velocity_to_sim_index,
+            "body_qd",
+            mask_from_ids(env_ids, self._ALL_INDICES, self._ALL_ENV_MASK, self._index_env_mask),
         )
 
     def write_segment_velocity_to_sim_mask(
@@ -168,7 +180,7 @@ class CableObject(BaseCableObject):
             segment_velocity, (env_mask,), wp.spatial_vectorf, "segment_velocity", trailing_dims=(self.num_segments,)
         )
         self._write_segment_state_to_sim(
-            segment_velocity, env_mask, set_segment_velocity_to_sim_mask, "body_qd", use_mask=True
+            segment_velocity, env_mask, set_segment_velocity_to_sim_mask, "body_qd", env_mask
         )
 
     def _initialize_impl(self) -> None:
@@ -179,7 +191,7 @@ class CableObject(BaseCableObject):
         curve_prim, curve_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
         num_segments = int(UsdGeom.BasisCurves(curve_prim).GetCurveVertexCountsAttr().Get()[0]) - 1
 
-        model = self._backend_manager.get_model()
+        model = self._backend_manager.backend.model
         articulation_path_expr = f"{curve_path_expr}_articulation"
         self._root_view = ArticulationView(
             model,
@@ -200,6 +212,7 @@ class CableObject(BaseCableObject):
 
         self._ALL_INDICES = wp.array(list(range(self.num_instances)), dtype=wp.int32, device=self.device)
         self._ALL_ENV_MASK = wp.ones((self.num_instances,), dtype=wp.bool, device=self.device)
+        self._index_env_mask = wp.zeros((self.num_instances,), dtype=wp.bool, device=self.device)
 
         self._data = CableObjectData(self.root_view, self.device, backend_manager=self._backend_manager)
 
@@ -223,10 +236,9 @@ class CableObject(BaseCableObject):
         selector: wp.array(dtype=wp.int32) | wp.array(dtype=wp.bool),
         kernel: wp.Kernel,
         state_attribute: str,
-        *,
-        use_mask: bool,
+        env_mask: wp.array,
     ) -> None:
-        """Write a validated segment state into the active Newton states."""
+        """Write a validated segment state into the active Newton states and flag env_mask for a solver reset."""
         if isinstance(value, torch.Tensor):
             value = value.contiguous()
 
@@ -238,16 +250,13 @@ class CableObject(BaseCableObject):
                 outputs=[getattr(state, state_attribute)],
                 device=self.device,
             )
-        if use_mask:
-            self._backend_manager.invalidate_body_state(env_mask=selector)
-        else:
-            self._backend_manager.invalidate_body_state(selector)
+        self._backend_manager.invalidate_body_state(env_mask, consume_mask=env_mask is self._index_env_mask)
         self.update(0.0)
 
     def _iter_states(self):
         """Yield active Newton states."""
-        state_0 = self._backend_manager.get_state_0()
-        state_1 = self._backend_manager.get_state_1()
+        state_0 = self._backend_manager.backend.state_0
+        state_1 = self._backend_manager.backend.state_1
         yield state_0
         if state_1 is not None and state_1 is not state_0:
             yield state_1

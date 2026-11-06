@@ -19,9 +19,10 @@ from pxr import UsdPhysics
 
 from isaaclab.sensors.joint_wrench import BaseJointWrenchSensor
 from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
+from isaaclab.utils.warp import memory as memory_kernels
 
 from .joint_wrench_sensor_data import JointWrenchSensorData
-from .kernels import joint_wrench_reset_kernel, joint_wrench_to_incoming_joint_frame_kernel
+from .kernels import joint_wrench_to_incoming_joint_frame_kernel
 
 if TYPE_CHECKING:
     from isaaclab.sensors.joint_wrench import JointWrenchSensorCfg
@@ -111,7 +112,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
         super().reset(None, env_mask)
         wp.launch(
-            joint_wrench_reset_kernel,
+            memory_kernels.make_clear_pair(wp.vec3f, 2),
             dim=(self._num_envs, self._num_joints),
             inputs=[env_mask, self._data._force, self._data._torque],
             device=self._device,
@@ -125,7 +126,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         """PHYSICS_READY callback: builds the articulation view and binds model / state arrays."""
         super()._initialize_impl()
 
-        model, state_0 = self._backend_manager.get_model(), self._backend_manager.get_state_0()
+        model, state_0 = self._backend_manager.backend.model, self._backend_manager.backend.state_0
 
         def has_articulation_root_api(prim) -> bool:
             return bool(prim.HasAPI(UsdPhysics.ArticulationRootAPI))
@@ -207,7 +208,6 @@ class JointWrenchSensor(BaseJointWrenchSensor):
                 self._sim_bind_body_com,
                 self._sim_bind_joint_X_c,
                 self._joint_child,
-                self._timestamp,
             ],
             outputs=[self._data._force, self._data._torque],
             device=self._device,

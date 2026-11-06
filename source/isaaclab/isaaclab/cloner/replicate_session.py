@@ -114,16 +114,16 @@ def replicate(plan: ClonePlan, *, replicate_physics: bool | None = None) -> None
     routing = {context: set() for context in render_contexts}
     for index in sorted(active):
         cfg = plan.asset_cfgs[index]
-        references = vars(cfg).get("cloning_contexts", ())
+        references = vars(cfg).get("cloning_contexts", None if index in shared else ())
         # None inherits active physics; an explicit tuple replaces that default.
         if references is None:
             references = () if physics_context is None else (physics_context,)
         contexts = tuple(string_to_callable(value) if isinstance(value, str) else value for value in references)
         if isinstance(vars(cfg).get("spawn"), sim_utils.SpawnerCfg):
             contexts += tuple(spawn_contexts)
-        # Shared assets, such as ground, belong to physics and every rendering representation.
+        # Shared assets belong to every rendering representation without overriding their physics policy.
         if index in shared:
-            contexts += tuple(context for context in (physics_context, *render_contexts) if context is not None)
+            contexts += tuple(render_contexts - {physics_context})
         for context in contexts:
             routing.setdefault(context, set()).add(index)
 

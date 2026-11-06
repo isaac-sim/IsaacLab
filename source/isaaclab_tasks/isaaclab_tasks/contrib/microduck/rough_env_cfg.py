@@ -14,9 +14,9 @@ from isaaclab.managers import CurriculumTermCfg
 from isaaclab.sensors import RayCasterCfg, patterns
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.core.velocity.mdp.curriculums import terrain_levels_vel
-
-from .flat_env_cfg import CurriculumCfg, MicroDuckSceneCfg, MicroDuckVelocityFlatEnvCfg
+from .flat_env_cfg import CurriculumCfg, MicroDuckSceneCfg, MicroDuckVelocityFlatEnvCfg, _schedule
+from .mdp.commands import MicroDuckRoughVelocityCommand, MicroDuckVelocityCommand
+from .mdp.curriculums import microduck_terrain_levels
 
 
 class MicroDuckTerrainImporter(terrain_gen.TerrainImporter):
@@ -50,20 +50,48 @@ class MicroDuckRoughSceneCfg(MicroDuckSceneCfg):
 
 @configclass
 class MicroDuckRoughCurriculumCfg(CurriculumCfg):
-    """Progress through terrain difficulty according to distance walked."""
+    """Introduce action smoothing before harder standing, head and COM objectives."""
 
-    terrain_levels = CurriculumTermCfg(func=terrain_levels_vel)
+    terrain_levels = CurriculumTermCfg(func=microduck_terrain_levels)
+
+    action_rate_weight = _schedule(
+        "rewards.action_rate_l2.weight", (750, -0.2), (1000, -0.4), (1250, -0.6), (1500, -0.8), (1750, -1.0)
+    )
+    head_pose_bias_weight = _schedule("rewards.head_pose_bias.weight", (1100, -1.0), (1500, -2.0), (2000, -3.0))
+    standing_envs = _schedule(
+        "commands.base_velocity.rel_standing_envs", (1000, 0.05), (1250, 0.1), (1500, 0.15), (2000, 0.2), (2500, 0.25)
+    )
+    head_pose_range = _schedule(
+        "commands.head_pose.ranges",
+        (1000, ((-0.17, 0.17), (-0.17, 0.17), (-0.21, 0.21), (-0.047, 0.047))),
+        (1500, ((-0.39, 0.39), (-0.39, 0.39), (-0.49, 0.49), (-0.11, 0.11))),
+        (2000, ((-0.72, 0.72), (-0.72, 0.72), (-0.91, 0.91), (-0.2, 0.2))),
+        (2500, ((-1.1, 1.1), (-1.1, 1.1), (-1.4, 1.4), (-0.31, 0.31))),
+    )
+    com_range = _schedule(
+        "events.randomize_com.params.com_range",
+        (1000, {axis: (-0.005, 0.005) for axis in "xyz"}),
+        (1500, {axis: (-0.01, 0.01) for axis in "xyz"}),
+        (2000, {axis: (-0.015, 0.015) for axis in "xyz"}),
+    )
+    head_com_range = _schedule(
+        "events.randomize_head_com.params.com_range",
+        (1000, {axis: (-0.005, 0.005) for axis in "xyz"}),
+        (1500, {axis: (-0.01, 0.01) for axis in "xyz"}),
+    )
 
 
 @configclass
 class MicroDuckVelocityRoughEnvCfg(MicroDuckVelocityFlatEnvCfg):
     """MicroDuck rough velocity walking with the flat task's policy interface and BAM servos."""
 
-    scene: MicroDuckRoughSceneCfg = MicroDuckRoughSceneCfg(num_envs=4096, env_spacing=2.0)
+    scene: MicroDuckRoughSceneCfg = MicroDuckRoughSceneCfg(num_envs=16384, env_spacing=2.0)
     curriculum: MicroDuckRoughCurriculumCfg = MicroDuckRoughCurriculumCfg()
 
     def __post_init__(self):
         super().__post_init__()
+        self.commands.base_velocity.class_type = MicroDuckRoughVelocityCommand
+        self.rewards.track_ang_vel.params["std"] = 0.5
         self.scene.terrain.terrain_type = "generator"
         self.scene.terrain.class_type = MicroDuckTerrainImporter
         self.scene.terrain.max_init_terrain_level = 5
@@ -102,6 +130,7 @@ class MicroDuckVelocityRoughEnvCfg(MicroDuckVelocityFlatEnvCfg):
     def play_mode(self):
         """Use a smaller terrain map with randomly sampled difficulty for playback."""
         super().play_mode()
+        self.commands.base_velocity.class_type = MicroDuckVelocityCommand
         self.scene.terrain.terrain_generator.curriculum = False
         self.scene.terrain.terrain_generator.num_rows = 5
         self.scene.terrain.terrain_generator.num_cols = 5

@@ -16,7 +16,6 @@ def joint_wrench_to_incoming_joint_frame_kernel(
     body_com: wp.array(dtype=wp.vec3f, ndim=2),
     joint_X_c: wp.array(dtype=wp.transformf, ndim=2),
     joint_child: wp.array(dtype=wp.int32),
-    timestamp: wp.array(dtype=wp.float32),
     out_force: wp.array(dtype=wp.vec3f, ndim=2),
     out_torque: wp.array(dtype=wp.vec3f, ndim=2),
 ):
@@ -41,11 +40,6 @@ def joint_wrench_to_incoming_joint_frame_kernel(
     if not env_mask[env]:
         return
 
-    # Skip envs that have not been stepped since their last reset: Newton's body_parent_f
-    # still holds pre-reset values, so reading it now would inject stale data (#4970).
-    if timestamp[env] == 0.0:
-        return
-
     body_idx = joint_child[j]
 
     wrench = incoming_joint_wrench(
@@ -53,17 +47,3 @@ def joint_wrench_to_incoming_joint_frame_kernel(
     )
     out_force[env, j] = wp.spatial_top(wrench)
     out_torque[env, j] = wp.spatial_bottom(wrench)
-
-
-@wp.kernel
-def joint_wrench_reset_kernel(
-    env_mask: wp.array(dtype=wp.bool),
-    out_force: wp.array(dtype=wp.vec3f, ndim=2),
-    out_torque: wp.array(dtype=wp.vec3f, ndim=2),
-):
-    """Zero force / torque entries for the environments selected by ``env_mask``."""
-    env, joint = wp.tid()
-    if not env_mask[env]:
-        return
-    out_force[env, joint] = wp.vec3f(0.0, 0.0, 0.0)
-    out_torque[env, joint] = wp.vec3f(0.0, 0.0, 0.0)

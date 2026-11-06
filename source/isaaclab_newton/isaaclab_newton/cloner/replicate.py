@@ -20,6 +20,7 @@ from pxr import Sdf, Usd, UsdGeom
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.cloner import ClonePlan, PrototypeWorldTopology, ReplicateContext
 from isaaclab.cloner import path as cloner_path
+from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.scene_data.deformable_discovery import (
     deformable_geometry_batches,
@@ -35,7 +36,8 @@ from isaaclab_newton.cloner.newton_clone_utils import (
     build_source_builders,
     replicate_builder_mapping,
 )
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonBuilderCfg, NewtonCfg, NewtonManager
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonBuilderCfg, NewtonCfg, NewtonCloneRecord
+from isaaclab_newton.physics.newton_builder import create_builder, inject_terrain_heightfields, usd_schema_resolvers
 from isaaclab_newton.sim.spawners.mpm.mpm import _SIMULATION_POINTS_SUFFIX
 
 _PER_WORLD_BUILDER_HOOKS: list[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]] = []
@@ -55,7 +57,7 @@ def copy_newton_clone_source(source_path: str, xform: wp.transform | None = None
     Raises:
         RuntimeError: If Newton replication did not retain the requested source.
     """
-    source = SimulationContext.instance().backend_manager._cl_protos.get(source_path)
+    source = SimulationContext.instance().backend_manager.get_clone_source_builders().get(source_path)
     if source is None:
         raise RuntimeError(f"No retained Newton clone source for {source_path!r}.")
     builder = ModelBuilder(up_axis=source.up_axis)
@@ -116,7 +118,6 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
         root for root, parent in zip(shared, cloner_path.get_parent_indices(shared), strict=True) if parent == -1
     )
     simulation = isinstance(cfg, NewtonCfg)
-    manager = sim.backend_manager if simulation else NewtonManager
     catalog_rows = {}
     if simulation and isinstance(cfg.solver_cfg, MJWarpSolverCfg) and not cfg.solver_cfg.use_mujoco_contacts:
         rigid_prototypes = {}
@@ -164,8 +165,9 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
         quaternions = np.zeros((len(env_ids), 4), dtype=np.float32)
         quaternions[:, 3] = 1.0
 
-    schema_resolvers = manager._get_usd_import_schema_resolvers()
-    create_builder = partial(manager.create_builder if simulation else ModelBuilder, up_axis=up_axis)
+    schema_resolvers = usd_schema_resolvers(cfg.solver_cfg if simulation else None)
+    builder_factory = partial(create_builder, cfg) if simulation else ModelBuilder
+    builder_factory = partial(builder_factory, up_axis=up_axis)
     load_visual_shapes = cfg.load_visual_shapes if simulation else True
     if load_visual_shapes is None:
         load_visual_shapes = sim.is_rendering or sim.can_render_rgb_array() or sim.visual_shapes_required
@@ -204,15 +206,20 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
     ignore_paths = [*exclude_paths, *(entry.root_path for entry in entries)]
     stage_info = None
     if simulation:
-        ignore_paths.extend(manager._inject_terrain_heightfields(stage, builder, root_paths=import_paths))
-        stage_info = builder.add_usd(stage, root_path=sim.cfg.physics_prim_path, schema_resolvers=schema_resolvers)
+        ignore_paths.extend(inject_terrain_heightfields(stage, builder, root_paths=import_paths, device=sim.device))
+        stage_info = builder.add_usd(
+            stage,
+            root_path=sim.cfg.physics_prim_path,
+            schema_resolvers=schema_resolvers,
+            allow_unsafe_torch_checkpoints=True,
+        )
 
     ignore_paths = [path for path in ignore_paths if path not in variant_sources]
 
     import_results: dict[str, dict[str, Any]] = {}
     options = dict(ignore_paths=ignore_paths, load_visual_shapes=load_visual_shapes)
     options.update(skip_mesh_approximation=not simulation, import_results_out=import_results)
-    source_builders = build_source_builders(stage, source_paths, create_builder, schema_resolvers, **options)
+    source_builders = build_source_builders(stage, source_paths, builder_factory, schema_resolvers, **options)
     catalogs = {}
     target_owners = {}
     for rows, members in catalog_rows.items():
@@ -265,7 +272,7 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
                 )
 
         imported = variants[0]
-        template = create_builder()
+        template = builder_factory()
         body = template.add_link(
             xform=imported.body_q[0],
             label=imported.body_label[0],
@@ -287,7 +294,7 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
         template.add_articulation([joint], label=imported.articulation_label[0])
         template.add_body_variants(body, variants, labels=[source.body_label[0] for source in variants])
         for row, imported in zip(rows, variants, strict=True):
-            clone_source = create_builder()
+            clone_source = builder_factory()
             clone_source.add_builder(template)
             clone_source.body_q[0] = imported.body_q[0]
             clone_source.joint_X_p[0] = imported.joint_X_p[0]
@@ -337,7 +344,7 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
                 raise RuntimeError(f"No imported source owns deformable {entry.root_path!r}.")
             for source in owners:
                 add_deformable_from_usd(source, stage, entry)
-        global_sites, source_sites, root_sites = sim.backend_manager._cl_inject_sites(builder, source_builders)
+        global_sites, source_sites, root_sites = sim.backend_manager.inject_sites(builder, source_builders)
     else:
         add_visual_deformables_to_sources(source_builders, entries)
         # Clear imported filters before merging into a fresh, compact final filter store.
@@ -375,7 +382,6 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
     site_index_map = {label: (idx, None) for label, idx in global_sites.items()}
     site_index_map.update((label, (None, per_world)) for label, per_world in local_site_map.items())
     if simulation:
-        manager._cable_bindings = cable_bindings
         geometry = expand_deformable_entries(entries, plan, env_ids, positions, imported_sources=source_builders)
         ranges = dict(zip(builder.surface_label, builder._surface_particle_start, strict=True))
         ranges.update(zip(builder.volume_label, builder._volume_particle_start, strict=True))
@@ -383,18 +389,21 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
         batches = deformable_geometry_batches(geometry, offsets, device=sim.device)
         if visual_ranges:
             batches.append((SceneDataFormat.Points(), visual_ranges))
-        manager._scene_data_backend._geometry_batches = batches
-        manager._cl_site_index_map = site_index_map
-        manager._world_xforms = world_xforms
-        manager._cl_protos = retained_sources
-        manager._particle_ranges = particle_ranges
-        manager._num_envs = len(env_ids)
         bodies = {label: index for index, label in enumerate(builder.body_label)}
-        builder._isaaclab_initial_body_variants = tuple(
+        initial_body_variants = tuple(
             (bodies[target], int(variant))
             for _rows, (_variants, initial_ids, targets) in catalogs.items()
             for target, variant in zip(targets, initial_ids, strict=True)
         )
+        record = NewtonCloneRecord(
+            world_xforms=world_xforms,
+            source_builders=retained_sources,
+            particle_ranges=particle_ranges,
+            cable_bindings=cable_bindings,
+            geometry_batches=batches,
+            initial_body_variants=initial_body_variants,
+        )
+        sim.backend_manager.record_clone(record, site_index_map)
     return builder, stage_info, site_index_map
 
 
@@ -444,7 +453,7 @@ def newton_physics_replicate(
     order = np.argsort(first)
     members = [np.flatnonzero(mask) for mask in world_masks[order]]
     shared = np.arange(len(sources), len(sources) + len(global_paths))
-    prefix, suffix = destinations[0].split("{}", 1) if destinations else ("/World/envs/env_", "")
+    prefix, suffix = (destinations[0] if destinations else DEFAULT_ENV_TEMPLATE).split("{}", 1)
     topology = PrototypeWorldTopology(
         len(sources) + len(global_paths),
         np.concatenate((shared, *members)).astype(np.int32),

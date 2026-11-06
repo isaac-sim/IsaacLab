@@ -45,14 +45,14 @@ def test_published_wheel_docs_cover_one_off_and_managed_uv_workflows(source_chec
     windows_docs = published_docs.split("Windows (x86_64)", maxsplit=1)[1].split("Linux (aarch64)", maxsplit=1)[0]
 
     assert "uvx --index https://pypi.nvidia.com" in published_docs
-    assert '--from "isaaclab==3.0.0rc1"' in published_docs
+    assert '--from "isaaclab==3.0.0"' in published_docs
     assert "--torch-backend cu130" in published_docs
     assert "uv init --python 3.12 my_isaaclab_project" in project_docs
     assert project_docs.count("--index-strategy unsafe-best-match") == 2
     assert "--index pytorch-cu130=https://download.pytorch.org/whl/cu130" in project_docs
     assert "torch==2.11.0 torchvision==0.26.0" in project_docs
     assert "--index nvidia=https://pypi.nvidia.com" in project_docs
-    assert "isaaclab==3.0.0rc1" in project_docs
+    assert "isaaclab==3.0.0" in {line.strip() for line in project_docs.splitlines()}
     assert "git+" not in published_docs
     assert "[tool.uv.sources]" not in published_docs
     assert "--torch-backend cu130" in windows_docs

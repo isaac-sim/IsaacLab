@@ -89,7 +89,7 @@ def test_initially_unused_catalog_members_use_native_rows(device: str, use_mujoc
         scene = InteractiveScene(scene_cfg)
         sim.register_interactive_scene(scene)
         sim.reset()
-        asset, model = scene["object"], sim.backend_manager.get_model()
+        asset, model = scene["object"], sim.backend_manager.backend.model
         assert model.body_count == 1
         paths = cloner_path.get_asset_prototype_paths(sim.get_clone_plan())
         if use_mujoco_contacts:
@@ -106,7 +106,7 @@ def test_initially_unused_catalog_members_use_native_rows(device: str, use_mujoc
         for variant, mass in enumerate((1.0, 8.0, 27.0)):
             asset.write_mesh_variant_to_sim(wp.array([variant], dtype=wp.int32, device=device))
             viewer.notify_model_changed(ModelFlags.SHAPE_TYPE_AND_SOURCE)
-            viewer.log_state(sim.backend_manager.get_state_0())
+            viewer.log_state(sim.backend_manager.backend.state_0)
             assert asset.mesh_variant_ids.torch.item() == variant
             assert asset.data.body_mass.torch.item() == pytest.approx(mass)
             assert model.shape_count == shape_count
@@ -120,7 +120,7 @@ def test_initially_unused_catalog_members_use_native_rows(device: str, use_mujoc
         assert len(set(rendered)) == 3
         viewer.close()
         sim.reset()
-        assert sim.backend_manager.get_model().shape_count == shape_count
+        assert sim.backend_manager.backend.model.shape_count == shape_count
         scene["object"].write_mesh_variant_to_sim(wp.array([2], dtype=wp.int32, device=device))
         assert scene["object"].data.body_mass.torch.item() == pytest.approx(27.0)
 
@@ -153,7 +153,7 @@ def test_select_catalog_member_updates_only_requested_world(device: str, solver_
                 _ = asset.mesh_variant_ids
             return
 
-        model = sim.backend_manager.get_model()
+        model = sim.backend_manager.backend.model
         shape_count = model.shape_count
         torch.testing.assert_close(asset.mesh_variant_ids.torch.cpu(), torch.tensor([0, 1], dtype=torch.int32))
         asset.write_mesh_variant_to_sim(
@@ -175,7 +175,7 @@ def test_select_catalog_member_updates_only_requested_world(device: str, solver_
         torch.testing.assert_close(asset.data.body_mass.torch[:, 0].cpu(), torch.tensor([8.0, 1.0]))
 
         sim.reset()
-        assert sim.backend_manager.get_model().shape_count == shape_count
+        assert sim.backend_manager.backend.model.shape_count == shape_count
         asset.write_mesh_variant_to_sim(torch.tensor([1], dtype=torch.int64, device=device), (0,))
         torch.testing.assert_close(asset.mesh_variant_ids.torch.cpu(), torch.tensor([1, 1], dtype=torch.int32))
 

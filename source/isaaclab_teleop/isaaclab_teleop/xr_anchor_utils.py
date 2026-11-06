@@ -49,14 +49,16 @@ class XrAnchorSynchronizer:
         self.__cached_world_pos: np.ndarray | None = None
         self.__cached_world_quat_xyzw: np.ndarray | None = None
 
-        # Resolve USD layer identifier of the anchor for updates
-        try:
-            stage = get_current_stage()
-            xr_anchor_headset_prim = stage.GetPrimAtPath(self._xr_anchor_headset_path)
-            prim_stack = xr_anchor_headset_prim.GetPrimStack() if xr_anchor_headset_prim is not None else None
-            self.__anchor_headset_layer_identifier = prim_stack[0].layer.identifier if prim_stack else None
-        except Exception:
-            self.__anchor_headset_layer_identifier = None
+        stage = get_current_stage()
+        anchor = stage.GetPrimAtPath(xr_anchor_headset_path)
+        self.__anchor_headset_layer_identifier = anchor.GetPrimStack()[0].layer.identifier
+        self._reference_world_matrix = None
+        if xr_cfg.anchor_prim_path is not None:
+            rt_stage = usdrt.Usd.Stage.Attach(get_current_stage_id())
+            reference = rt_stage.GetPrimAtPath(xr_cfg.anchor_prim_path)
+            if not reference.IsValid():
+                raise ValueError(f"No XR reference frame at {xr_cfg.anchor_prim_path!r}.")
+            self._reference_world_matrix = Rt.Xformable(reference).GetFabricHierarchyWorldMatrixAttr()
 
     def reset(self):
         self.__anchor_prim_initial_quat = None
@@ -106,33 +108,14 @@ class XrAnchorSynchronizer:
         world transform for :meth:`get_world_transform`.
         """
         try:
-            if self._xr_cfg.anchor_prim_path is not None:
-                stage_id = get_current_stage_id()
-                rt_stage = usdrt.Usd.Stage.Attach(stage_id)
-                if rt_stage is None:
-                    return
-
-                rt_prim = rt_stage.GetPrimAtPath(self._xr_cfg.anchor_prim_path)
-                if rt_prim is None:
-                    return
-
-                rt_xformable = Rt.Xformable(rt_prim)
-                if rt_xformable is None:
-                    return
-
-                world_matrix_attr = rt_xformable.GetFabricHierarchyWorldMatrixAttr()
-                if world_matrix_attr is None:
-                    return
-
-                rt_matrix = world_matrix_attr.Get()
-                if rt_matrix is None:
-                    return
+            if self._reference_world_matrix is not None:
+                rt_matrix = self._reference_world_matrix.Get()
                 rt_pos = rt_matrix.ExtractTranslation()
 
                 if self.__anchor_prim_initial_quat is None:
                     self.__anchor_prim_initial_quat = rt_matrix.ExtractRotationQuat()
 
-                if getattr(self._xr_cfg, "fixed_anchor_height", False):
+                if self._xr_cfg.fixed_anchor_height:
                     if self.__anchor_prim_initial_height is None:
                         self.__anchor_prim_initial_height = rt_pos[2]
                     rt_pos[2] = self.__anchor_prim_initial_height

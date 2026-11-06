@@ -240,7 +240,7 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
         # MDP settings
 
         # visualizer camera settings
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(1.8, 0.0, 1.8), lookat=(0.3, 0.0, 0.8))
+        self.sim.visualizer_cfgs = VisualizerCfg(eye=(1.8, 0.0, 1.8), lookat=(0.3, 0.0, 0.8))
 
         # Set events
         self.events = EventCfg()

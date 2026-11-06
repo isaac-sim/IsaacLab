@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import warp as wp
@@ -67,11 +68,24 @@ def create_mock_newton_manager(
     mock_state = MagicMock()
     mock_control = MagicMock()
 
-    return MagicMock(
-        **{
-            "get_model.return_value": mock_model,
-            "get_state_0.return_value": mock_state,
-            "get_control.return_value": mock_control,
-            "get_dt.return_value": 0.01,
-        },
+    manager = MagicMock()
+    manager.backend = SimpleNamespace(
+        model=mock_model,
+        state_0=mock_state,
+        state_1=mock_state,
+        control=mock_control,
+        solver=None,
+        actuators=None,
+        dt=0.01,
+        transforms_may_change_on_graph_replay=False,
     )
+    return manager
+
+
+def backend_stub(**fields):
+    """Return a :class:`~isaaclab_newton.physics.NewtonBackend` holding only ``fields``, without a finalized model."""
+    from isaaclab_newton.physics import NewtonBackend  # noqa: PLC0415
+
+    backend = object.__new__(NewtonBackend)
+    backend.__dict__.update(fields)
+    return backend

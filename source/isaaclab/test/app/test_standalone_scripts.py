@@ -117,14 +117,13 @@ assert scene_cfg.robot.spawn.variants['Physics'] == 'mujoco'
         "scripts/tutorials/08_mpm/rigid_body_equivalence.py",
         "scripts/tutorials/08_mpm/surface_reconstruction.py",
         "examples/demos/snowball_smash.py",
-        "examples/demos/teapot_fill.py",
         "examples/mpm/newton_mpm_granular.py",
         "examples/mpm/newton_mpm_twoway_coupling.py",
         "examples/mpm/g1_coupling.py",
     ],
 )
 def test_mpm_programs_preserve_concurrent_visualizer_selection(script_path):
-    """Selecting both Newton viewers preserves their settings before launching the runtime."""
+    """One shared declaration selects both Newton viewers before launching the runtime."""
     pytest.importorskip("isaaclab_newton")
     pytest.importorskip("isaaclab_visualizers")
     pytest.importorskip("isaaclab_tasks")
@@ -138,15 +137,23 @@ import sys
 import isaaclab.app
 from isaaclab.sim import SimulationCfg
 from isaaclab.visualizers import VisualizerCfg
+from isaaclab_tasks.utils.hydra import collect_presets
 
 def check_launch(cfg, args):
+    assert not collect_presets(cfg), "Preset composition must finish before core launch"
     simulation = cfg if isinstance(cfg, SimulationCfg) else cfg.sim
+    shared = simulation.visualizer_cfgs
+    if isinstance(shared, list):
+        shared, = shared
+    assert isinstance(shared, VisualizerCfg)
+    assert [backend.visualizer_type for backend in shared.backend] == ['newton_gl', 'newton_rtx']
     configs, _ = isaaclab.app.validate_launch(cfg, args)
     viewers = [cfg for cfg in configs if isinstance(cfg, VisualizerCfg)]
-    assert [cfg.visualizer_type for cfg in viewers] == ['newton_gl', 'newton_rtx']
-    assert viewers[0].show_particles
+    assert [cfg.backend.visualizer_type for cfg in viewers] == ['newton_gl', 'newton_rtx']
+    assert all(viewer.eye == shared.eye and viewer.focal_length == shared.focal_length for viewer in viewers)
+    assert viewers[0].backend.show_particles
     if script.endswith('surface_reconstruction.py'):
-        assert viewers[1].render_settings['omni:rtx:quality'] == ('Int', 2)
+        assert viewers[1].backend.render_settings['omni:rtx:quality'] == ('Int', 2)
     raise SystemExit(0)
 
 isaaclab.app.launch_simulation = check_launch
@@ -156,10 +163,51 @@ if script.endswith('surface_reconstruction.py'):
     sys.argv.extend(['--fluid_render_mode', 'both', '--rtx_quality', '2'])
 else:
     sys.argv.extend(['--voxel_size', '0.1'])
-    if script.endswith('teapot_fill.py'):
-        sys.argv.extend(['--fluid_render_mode', 'both'])
 runpy.run_path(script, run_name='__main__')
 raise AssertionError('The program did not reach launch_simulation')
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code, str(script)], capture_output=True, text=True, timeout=60, check=False
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_teapot_uses_only_newton_gl():
+    """The GL-only demo rejects other backends before launch and needs no task presets."""
+    script = script_cases.ROOT / "examples/demos/teapot_fill.py"
+    code = """
+import runpy
+import sys
+
+import isaaclab.app
+from isaaclab_visualizers.newton import NewtonGLBackendCfg
+
+def check_launch(cfg, args):
+    assert isinstance(cfg.visualizer_cfgs.backend, NewtonGLBackendCfg)
+    assert cfg.visualizer_cfgs.backend.show_particles
+    assert 'isaaclab_tasks' not in sys.modules
+    isaaclab.app.validate_launch(cfg, args)
+    assert [view.backend.visualizer_type for view in cfg.visualizer_cfgs] == ['newton_gl']
+    raise SystemExit(0)
+
+isaaclab.app.launch_simulation = check_launch
+script = sys.argv[1]
+sys.argv = [script, '--visualizer', 'newton_gl', '--fluid_render_mode', 'both']
+namespace = runpy.run_path(script)
+parser = namespace['parser']
+for option, value in (
+    ('--visualizer', 'newton_rtx'), ('--viz', 'kit'), ('--viz', 'newton_gl,rerun'), ('--viz', 'none')
+):
+    try:
+        parser.parse_args([option, value])
+    except SystemExit as error:
+        assert error.code == 2
+    else:
+        raise AssertionError(f'Teapot accepted unsupported visualizer: {value}')
+assert parser.parse_args([]).visualizer == 'newton_gl'
+assert parser.parse_args(['--viz', 'newton_gl']).visualizer == 'newton_gl'
+namespace['main']()
+raise AssertionError('The demo did not reach launch_simulation')
 """
     result = subprocess.run(
         [sys.executable, "-c", code, str(script)], capture_output=True, text=True, timeout=60, check=False
@@ -269,10 +317,9 @@ def test_g1_terrain_forwards_visualizer_selection(monkeypatch, extra_args, expec
     @contextmanager
     def launch_simulation(_cfg, launcher_args):
         captured["visualizers"] = [
-            viewer.visualizer_type
-            for viewer in (
-                _cfg.sim.visualizer_cfgs if isinstance(_cfg.sim.visualizer_cfgs, list) else [_cfg.sim.visualizer_cfgs]
-            )
+            backend.visualizer_type
+            for viewer in _cfg.sim.visualizer_cfgs
+            for backend in (viewer.backend if isinstance(viewer.backend, list) else [viewer.backend])
         ]
         raise LaunchReached
         yield
@@ -332,10 +379,9 @@ def test_sonic_defaults_to_offscreen_recording_and_preserves_explicit_visualizer
     @contextmanager
     def launch_simulation(_cfg, launcher_args):
         captured["visualizers"] = [
-            viewer.visualizer_type
-            for viewer in (
-                _cfg.sim.visualizer_cfgs if isinstance(_cfg.sim.visualizer_cfgs, list) else [_cfg.sim.visualizer_cfgs]
-            )
+            backend.visualizer_type
+            for viewer in _cfg.sim.visualizer_cfgs
+            for backend in (viewer.backend if isinstance(viewer.backend, list) else [viewer.backend])
         ]
         captured["launch_physics"] = getattr(launcher_args, "physics", None)
         captured["video_sources"] = [recorder.source for recorder in _cfg.video_recorders]

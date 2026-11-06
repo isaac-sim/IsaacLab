@@ -84,7 +84,7 @@ class G1LocomanipulationSDGSceneCfg(LocomanipulationG1SceneCfg):
     def add_forklifts(self, num_forklifts: int):
         for i in range(num_forklifts):
             forklift = AssetBaseCfg(
-                prim_path=f"/World/envs/env_[^/]+/Forklift{i}",
+                prim_path=f"{{ENV_REGEX_NS}}/Forklift{i}",
                 init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[0.0, 0.0, 0.0, 1.0]),
                 spawn=UsdFileCfg(
                     usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Forklift/forklift.usd",
@@ -96,7 +96,7 @@ class G1LocomanipulationSDGSceneCfg(LocomanipulationG1SceneCfg):
     def add_boxes(self, num_boxes: int):
         for i in range(num_boxes):
             box = AssetBaseCfg(
-                prim_path=f"/World/envs/env_[^/]+/Box{i}",
+                prim_path=f"{{ENV_REGEX_NS}}/Box{i}",
                 init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[0.0, 0.0, 0.0, 1.0]),
                 spawn=UsdFileCfg(
                     usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
@@ -146,7 +146,7 @@ class G1LocomanipulationSDGEnvCfg(LocomanipulationG1EnvCfg, LocomanipulationSDGE
         # simulation settings
         self.sim.dt = 1 / 200  # 200Hz
         self.sim.render_interval = 6
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(0.0, 3.0, 1.25), lookat=(0.0, 0.0, 0.5))
+        self.sim.visualizer_cfgs = VisualizerCfg(eye=(0.0, 3.0, 1.25), lookat=(0.0, 0.0, 0.5))
 
         # The IK controller retrieves the URDF when it initializes.
         self.actions.upper_body_ik.controller.urdf_path = (

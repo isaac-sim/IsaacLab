@@ -408,4 +408,4 @@ class SpotFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
 
         # no height scan
         self.scene.height_scanner = None
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(10.5, 10.5, 0.3))
+        self.sim.visualizer_cfgs = VisualizerCfg(eye=(10.5, 10.5, 0.3))
