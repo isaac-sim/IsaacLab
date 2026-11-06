@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "CAPTURE_ENV_MASK_NAME",
     "Camera",
     "CameraCfg",
     "CameraData",
@@ -19,7 +20,7 @@ __all__ = [
 ]
 
 from .camera import Camera
-from .camera_cfg import CameraCfg
+from .camera_cfg import CAPTURE_ENV_MASK_NAME, CameraCfg
 from .camera_data import CameraData, RenderBufferKind, RenderBufferSpec
 from .camera_isp import CameraISPMode
 from .tiled_camera import TiledCamera
