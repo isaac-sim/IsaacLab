@@ -57,7 +57,7 @@ class NewtonMJWarpManager(NewtonManager):
         ``True`` only when ``use_mujoco_contacts=False``.
         """
         self._solver = self._create_solver(
-            model, solver_cfg, self._deterministic_mode, separate_worlds=True if self.backend.mesh_variants else None
+            model, solver_cfg, self._deterministic_mode, separate_worlds=True if model._has_body_variants else None
         )
         self._use_single_state = True
         self._needs_collision_pipeline = not solver_cfg.use_mujoco_contacts

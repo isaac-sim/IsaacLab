@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+from pathlib import Path
 from types import SimpleNamespace
 
 import isaaclab_newton.physics.newton_manager as newton_manager_module
@@ -585,6 +586,15 @@ def test_clone_source_builder_has_no_solver_dependency():
     source = NewtonMJWarpManager.create_builder(physics_cfg=NewtonCfg(solver_cfg=MJWarpSolverCfg()))
     assert type(source) is ModelBuilder
     assert "mesh_variant_definitions" not in vars(source)
+    physics_dir = Path(newton_manager_module.__file__).parent
+    assert not (physics_dir / "mesh_variants.py").exists()
+    cloner_source = Path(__file__).parents[2] / "isaaclab_newton/cloner/replicate.py"
+    assert "add_body_variants(" in cloner_source.read_text()
+    assert "select_body_variants(" in Path(rigid_object_module.__file__).read_text()
+    forbidden = ("MeshVariants", "_SELECT_MESH_VARIANTS", "mesh_variant_definitions")
+    for path in (cloner_source, physics_dir / "newton_manager.py", Path(rigid_object_module.__file__)):
+        text = path.read_text()
+        assert all(symbol not in text for symbol in forbidden)
 
 
 def test_mpm_prepare_builder_makes_kinematic_bodies_massless():

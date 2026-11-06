@@ -18,9 +18,9 @@ prerelease-mode = "allow"
 [manifest]
 overrides = [
     { name = "fsspec", specifier = ">=2026.6.0" },
-    { name = "mujoco", specifier = "~=3.15.0" },
-    { name = "mujoco-warp", specifier = "~=3.15.0" },
-    { name = "newton", extras = ["sim"], git = "https://github.com/newton-physics/newton.git?rev=71eeba16a717d4dcf0b9dd7056a7b6f863054dc3" },
+    { name = "mujoco", specifier = "~=3.17.0" },
+    { name = "mujoco-warp", specifier = "~=3.17.0" },
+    { name = "newton", extras = ["sim"], git = "https://github.com/newton-physics/newton.git?rev=531c14801d41396cd344c92e25b35e53feb4a5ad" },
     { name = "newton-usd-schemas", specifier = ">=0.5.0" },
     { name = "numpy", specifier = ">=2" },
     { name = "packaging", specifier = ">=20,<27" },
@@ -2045,7 +2045,7 @@ requires-dist = [
     { name = "meshio", specifier = ">=5.3.5" },
     { name = "moviepy", marker = "extra == 'video'", specifier = ">=1.0.3,<2.0.0.dev0" },
     { name = "myst-parser", marker = "extra == 'dev'" },
-    { name = "newton", extras = ["sim"], git = "https://github.com/newton-physics/newton.git?rev=71eeba16a717d4dcf0b9dd7056a7b6f863054dc3" },
+    { name = "newton", extras = ["sim"], git = "https://github.com/newton-physics/newton.git?rev=531c14801d41396cd344c92e25b35e53feb4a5ad" },
     { name = "newton-usd-schemas", specifier = ">=0.5.0" },
     { name = "numba", specifier = ">=0.63.1" },
     { name = "numpy", specifier = ">=2" },
@@ -3330,7 +3330,7 @@ wheels = [
 
 [[package]]
 name = "mujoco"
-version = "3.15.0"
+version = "3.17.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "absl-py" },
@@ -3340,11 +3340,11 @@ dependencies = [
     { name = "pyopengl" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/1e/f6/879886878bf01d4c26f1c189311f94fbd0b898b7fa6d273ae43cc85478e2/mujoco-3.15.0.tar.gz", hash = "sha256:26a80bf26c31cc59221ab2074f93649a7bee0db87f8646202995dc2065a21e7e", size = 6979770, upload-time = "2026-10-05T17:08:13.509Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/40/10/dde0a84f2c4552729540c3e19431177e6e1b4c20dc536e19169e575d0e94/mujoco-3.17.0.tar.gz", hash = "sha256:5e49c15905e7a39eaa1efb1cae809a81c5f5c2439467f23e7e6e383624d957be", size = 7145175, upload-time = "2026-10-22T23:58:49.331Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1a/b9/6f239e31c6c2a1d9a7f27c329238039dea057efd272ee097cc7eeb402aa1/mujoco-3.15.0-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:8fe19489082c65ef3d14562b86cc19a096d12f3903fb9727c413d9a2e57e71b5", size = 28475429, upload-time = "2026-10-05T17:06:03.268Z" },
-    { url = "https://files.pythonhosted.org/packages/d6/85/b8d427579e098c863875e2bae305c6d22ae13bc4582586ff2a8e04fb3ff2/mujoco-3.15.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:7d88a16eeabdd6f24a48d50f3154b9cacd790248c29a362543b952a8e07b7df4", size = 30193547, upload-time = "2026-10-05T17:06:16.056Z" },
-    { url = "https://files.pythonhosted.org/packages/b2/42/0b2e5719d2860c862a0d131aee0ded3f436f0ff839df85cb88692c76612f/mujoco-3.15.0-cp312-cp312-win_amd64.whl", hash = "sha256:9ff1a8b23ca567bf7ff074d920f178047c1a6f0b498eecb24ce078ff6e893626", size = 18588666, upload-time = "2026-10-05T17:06:24.16Z" },
+    { url = "https://files.pythonhosted.org/packages/a9/a5/d83393779c81fe1807442844254fe71b9182f1f2b64e865dfe8534db1620/mujoco-3.17.0-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:525e09a00ecd964f06582773d9eeb03bb0e5a1675edf296a6868024759b3b235", size = 25231702, upload-time = "2026-10-22T23:34:54.582Z" },
+    { url = "https://files.pythonhosted.org/packages/66/33/9e329714eefc47dfbedefe6ea3809f055acbf58279799d635b1a18510924/mujoco-3.17.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:42371356efe53a5f5f73ed03fcb967bdf04048017f80e2fca01e71a360e42da2", size = 26654565, upload-time = "2026-10-22T23:34:57.762Z" },
+    { url = "https://files.pythonhosted.org/packages/c1/16/609b306f340fbc58fb0a75a5aac7cb4bc8f9d60155ebebc22043a4526069/mujoco-3.17.0-cp312-cp312-win_amd64.whl", hash = "sha256:17ab707e86b0a5da13582a5335d3ea585a5ac4cce2e814e15b203530d1bf16e3", size = 16311296, upload-time = "2026-10-22T23:57:32.433Z" },
 ]
 
 [[package]]
@@ -3365,7 +3365,7 @@ wheels = [
 
 [[package]]
 name = "mujoco-warp"
-version = "3.15.0"
+version = "3.17.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "absl-py" },
@@ -3374,9 +3374,9 @@ dependencies = [
     { name = "numpy" },
     { name = "warp-lang" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/53/e1/409fb2d422e36496fd01d76f432b9f32969bfadd00ad0a5478735ed6f029/mujoco_warp-3.15.0.tar.gz", hash = "sha256:e87442ab4594d8132b7cf6e38b32aaa6130467b654bee260616e5817041e7045", size = 2204170, upload-time = "2026-10-05T17:03:51.304Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c3/82/846dc011598bcb3e6ea8949c1fc7519584a86241b50c62fab4e631519200/mujoco_warp-3.17.0.tar.gz", hash = "sha256:2a5391f9d4d7a4d0e2908e0be80ee77ad12dbf27c76a2b9724099441360b5de7", size = 2266308, upload-time = "2026-10-22T23:39:12.206Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/32/eb/9bf3609d48d4fb61f8e36b4e3009678faae41bf3bec0e37e57cb7d175fdf/mujoco_warp-3.15.0-py3-none-any.whl", hash = "sha256:cbf740c0e61b90e6c90ae7ca32e350df016ccb3993309062c2662cfb79b7efae", size = 2284378, upload-time = "2026-10-05T17:03:49.941Z" },
+    { url = "https://files.pythonhosted.org/packages/df/81/f651b9f3ee97786f375c879c2386734da1d0aba257b654c6c181edb824fd/mujoco_warp-3.17.0-py3-none-any.whl", hash = "sha256:3c7d4a6c27e60c61679d3746c6fa32e55803d22dd2f3faf79bcc3b643d61ae0a", size = 2348047, upload-time = "2026-10-22T23:39:10.383Z" },
 ]
 
 [[package]]
@@ -3455,7 +3455,7 @@ wheels = [
 [[package]]
 name = "newton"
 version = "1.8.0.dev0"
-source = { git = "https://github.com/newton-physics/newton.git?rev=71eeba16a717d4dcf0b9dd7056a7b6f863054dc3#71eeba16a717d4dcf0b9dd7056a7b6f863054dc3" }
+source = { git = "https://github.com/newton-physics/newton.git?rev=531c14801d41396cd344c92e25b35e53feb4a5ad#531c14801d41396cd344c92e25b35e53feb4a5ad" }
 dependencies = [
     { name = "warp-lang" },
 ]

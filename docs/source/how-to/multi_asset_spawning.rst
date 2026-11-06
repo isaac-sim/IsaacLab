@@ -135,8 +135,9 @@ another one. For example, a rigid object's spawn configuration can list two USD 
        spawn=sim_utils.MultiUsdFileCfg(usd_path=["small_part.usd", "large_part.usd"]),
    )
 
-On a supported backend, clone construction prepares compatible catalog resources and native shape indices once;
-model finalization binds those definitions without rediscovering the scene. A reset event calls
+On a supported backend, clone construction declares one native Newton body-variant set for each catalog. Newton
+shares the alternatives between worlds, adds enough shape rows for the largest alternative, and owns the selected
+IDs. A reset event calls
 ``scene["part"].write_mesh_variant_to_sim(variant_ids, env_ids)`` before writing the episode's initial pose and
 velocity. Indices follow the spawner's list order. Sampling decisions remain with the reset event, not the spawner.
 
@@ -144,12 +145,14 @@ For matching fixed/movable catalogs, the task's startup and reset events select 
 This relationship belongs to task reset logic, not an additional clone-composition API.
 
 Reset-time selection currently requires Newton MJWarp with external contacts and sleeping disabled. Every
-alternative must have one rigid body, the same fixed/free root-joint type and kinematic flags, and compatible
-ordered mesh colliders and collision filtering. Visual mesh counts may differ. Collision geometry and its
-margin/gap, mass, and inertia follow the selected variant; per-environment contact-material settings are retained.
-Newton GL and Viser display the selection; RTX and MuJoCo's internal collision geometry do not support switching.
-Each switchable binding must own its target bodies independently. When rendering, source geometry shared with
-a non-switchable binding retains its initial assignment rather than enabling selection.
+alternative must have one rigid body and the same fixed/free root-joint type and kinematic flags. Native Newton
+allows different shape types and counts, including colliders and visuals, while requiring compatible collision
+groups for shapes sharing a row. Collision geometry, materials, mass, and inertia follow the selected alternative;
+apply per-environment material randomization after selection. Newton GL and Viser follow the native model-change
+notification. RTX and MuJoCo's internal contacts do not support switching. Native shape-row storage scales with
+the largest alternative per body, rather than the catalog size multiplied by the number of worlds.
+Each switchable binding must own its target bodies independently. A source shared with an ordinary binding keeps
+its initial assignment instead of enabling selection.
 
 Other backends and catalogs can still use their initial clone assignments without switching. Calling
 ``write_mesh_variant_to_sim`` raises ``NotImplementedError`` when the backend or catalog does not support selection;

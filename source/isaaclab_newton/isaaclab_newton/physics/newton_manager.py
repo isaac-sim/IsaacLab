@@ -54,7 +54,6 @@ from isaaclab.utils.version import has_kit
 from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 
 from isaaclab_newton.physics.featherstone_manager_cfg import FeatherstoneSolverCfg
-from isaaclab_newton.physics.mesh_variants import MeshVariants, _MeshVariantDefinition
 from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
 from isaaclab_newton.physics.newton_manager_cfg import (
     NewtonBackendCfg,
@@ -170,7 +169,7 @@ def create_newton_builder(cfg: NewtonBuilderCfg) -> ModelBuilder:
         if isinstance(cfg.physics_cfg, NewtonCfg)
         else ModelBuilder()
     )
-    builder.mesh_variant_definitions: dict[str, _MeshVariantDefinition] = {}
+    builder._isaaclab_initial_body_variants: tuple[tuple[int, int], ...] = ()
     return builder
 
 
@@ -180,6 +179,14 @@ class NewtonBackend:
     def __init__(self, cfg: NewtonBackendCfg):
         builder = SimulationContext.instance().get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg.physics_cfg))
         self.model = builder.finalize(device=cfg.device)
+        initial = builder._isaaclab_initial_body_variants
+        if initial:
+            bodies, variants = zip(*initial, strict=True)
+            self.model.select_body_variants(
+                wp.array(variants, dtype=wp.int32, device=cfg.device),
+                bodies=wp.array(bodies, dtype=wp.int32, device=cfg.device),
+            )
+        self.geometry_change_version = 0
         self.particle_ranges: dict[str, tuple[int, int]] = {}
         self.deformable_ranges = {
             label: (start, end - start, kind)
@@ -204,17 +211,12 @@ class NewtonBackend:
         )
         self.bvh_refit = TimestampedBuffer()
 
-        self.mesh_variants = {
-            name: MeshVariants(self.model, definition) for name, definition in builder.mesh_variant_definitions.items()
-        }
-
     def create_visual_material_writer(self, batches: tuple[VisualMaterialBatch, ...]) -> VisualMaterialWriter:
         """Bind material writes to this resource's native shape-color buffer."""
         return VisualMaterialWriter(self.model, batches)
 
     def close(self) -> None:
         """Drop native handles after consumers release their bindings."""
-        self.mesh_variants.clear()
         self.control = self.state_1 = self.state_0 = self.model = None
         self.deformable_ranges.clear()
         self.particle_ranges = {}
@@ -1070,6 +1072,8 @@ class NewtonManager(PhysicsManager):
     def add_model_change(self, change: ModelFlags) -> None:
         """Register a model change to notify the solver."""
         self._model_changes.add(change)
+        if change & ModelFlags.SHAPE_TYPE_AND_SOURCE:
+            self.backend.geometry_change_version += 1
 
     def invalidate_fk(
         self,
