@@ -260,7 +260,9 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
             raise ValueError("mesh_variant_inertia_diagonal_offset must be finite and non-negative.")
         if inertia_offset:
             for source in variants:
-                source.body_inertia[0] = wp.mat33(np.asarray(source.body_inertia[0]) + np.eye(3) * inertia_offset)
+                source.body_inertia[0] = wp.mat33(
+                    np.asarray(source.body_inertia[0]).reshape(3, 3) + np.eye(3) * inertia_offset
+                )
 
         imported = variants[0]
         template = create_builder()
