@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonShapeCfg, VBDSolverCfg
+from isaaclab_newton.physics.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, CableObjectCfg
@@ -20,8 +21,6 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils import configclass, replace
-
-from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
