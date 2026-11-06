@@ -1373,7 +1373,7 @@ def main() -> None:
             substeps=substeps,
         )
         sim.backend_manager.activate_newton_actuator_path()
-        sim.backend_manager.register_post_control_callback(controller.interpolate_arm_targets)
+        sim.backend_manager.register_post_actuator_callback(controller.interpolate_arm_targets)
         sim.backend_manager.set_decimation(substeps)
         sim.backend_manager.register_post_step_callback(controller.compute)
         grasp = _GraspMonitor(sim.backend_manager.backend.model, sim.backend_manager.backend.state_0, controller)
