@@ -27,7 +27,6 @@ from isaaclab_tasks.utils import PresetCfg
 from isaaclab_assets.robots.shadow_hand import (
     FINGERTIP_NAMES,
     JOINT_NAMES,
-    SHADOW_HAND_FRICTION_REPLACEMENTS,
     SHADOW_HAND_NEWTON_CFG,
     SHADOW_HAND_PHYSX_CFG,
     TENDON_NAMES,
@@ -153,9 +152,7 @@ class PhysicsCfg(PresetCfg):
         num_substeps=4,
         debug_mode=False,
     )
-    ovphysx = OvPhysxCfg(
-        legacy_joint_friction_replacements=SHADOW_HAND_FRICTION_REPLACEMENTS,
-    )
+    ovphysx = OvPhysxCfg()
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
     default = newton_mjwarp
 

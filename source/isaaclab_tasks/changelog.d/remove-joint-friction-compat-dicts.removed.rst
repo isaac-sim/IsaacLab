@@ -1,0 +1,1 @@
+* Removed ``legacy_joint_friction_replacements`` usage from Allegro Hand, Shadow Hand, Kuka Allegro, and handover task configurations. Removed ``KukaAllegroPhysicsCfg``, which existed solely to carry the kuka friction replacement dict; replaced with plain ``lift.PhysicsCfg()``.
