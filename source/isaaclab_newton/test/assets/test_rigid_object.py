@@ -53,6 +53,7 @@ from isaaclab.utils.math import (
     random_orientation,
     subtract_frame_transforms,
 )
+from isaaclab.utils.warp import ProxyArray
 
 pytestmark = [pytest.mark.integration, pytest.mark.kitless]
 
@@ -447,7 +448,9 @@ def test_rigid_body_set_material_properties(scene: _Scene) -> None:
     term = randomize_rigid_body_material(
         EventTermCfg(func=randomize_rigid_body_material, mode="startup", params=params), env
     )
-    term(env, torch.tensor([num_cubes - 1], device=device), **params)
+    env_mask = torch.zeros(num_cubes, dtype=torch.bool, device=device)
+    env_mask[-1] = True
+    term(env, ProxyArray(wp.from_torch(env_mask)), **params)
 
     # Simulate physics
     scene.step()
@@ -567,7 +570,9 @@ def test_gravity_vec_w_tracks_model_gravity(scene: _Scene) -> None:
         params = {"gravity_distribution_params": ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0)), "operation": "abs"}
         event = randomize_physics_scene_gravity(EventTermCfg(func=randomize_physics_scene_gravity, params=params), env)
         for row, values in enumerate(new_gravity.tolist()):
-            event(env, torch.tensor([row], device=device), (values, values), operation="abs")
+            env_mask = torch.zeros(num_cubes, dtype=torch.bool, device=device)
+            env_mask[row] = True
+            event(env, ProxyArray(wp.from_torch(env_mask)), (values, values), operation="abs")
 
         # Live view: new per-env values are visible immediately, no invalidation step.
         torch.testing.assert_close(cube_object.data.GRAVITY_VEC_W.torch, new_gravity)
