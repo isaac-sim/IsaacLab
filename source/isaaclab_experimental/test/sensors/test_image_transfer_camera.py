@@ -12,7 +12,7 @@ from isaaclab_experimental.image_transfer import FunctionProcessorCfg, ImageTran
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.sensors.camera import CameraCfg
+from isaaclab.sensors.camera import CAPTURE_ENV_MASK_NAME, CameraCfg
 from isaaclab.sim import BackendCfg, PinholeCameraCfg
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import configclass
@@ -113,7 +113,7 @@ def test_camera_publishes_generated_rgb_from_rendered_depth(device):
         # The cube top at 1.7 m is a gray control, the floor beyond far a black one; the model inverts them.
         assert rgb.shape == (2, 32, 32, 3) and rgb.dtype == torch.uint8
         assert 0 < int(rgb[0, 16, 16, 0]) < 255 and int(rgb[0, 0, 0, 0]) == 255
-        assert "control" in camera.data.output and "env_mask" not in camera.data.output
+        assert "control" in camera.data.output and CAPTURE_ENV_MASK_NAME not in camera.data.output
         capture()
         assert len(model.steps) == 1  # the update chunk needs two captures
         camera.reset(env_ids=[1])

@@ -11,6 +11,7 @@ from collections.abc import Callable
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
+from isaaclab.sensors.camera import CAPTURE_ENV_MASK_NAME
 from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.tensor_processors import TensorProcessorCfg
@@ -77,7 +78,7 @@ class ImageTransferProcessorCfg(TensorProcessorCfg):
     func: type[ImageTransferProcessor] | str = "{DIR}.processor:ImageTransferProcessor"
     """Image transfer processor class."""
 
-    inputs: list[str] = ["control", "env_mask"]
+    inputs: list[str] = ["control", CAPTURE_ENV_MASK_NAME]
     """The control buffer, then the camera's capture mask."""
 
     outputs: list[str] = ["rgb"]

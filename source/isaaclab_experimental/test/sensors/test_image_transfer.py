@@ -17,6 +17,7 @@ from isaaclab_experimental.image_transfer import (
 )
 from isaaclab_experimental.image_transfer import processor as processor_module
 
+from isaaclab.sensors.camera import CAPTURE_ENV_MASK_NAME
 from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.warp import ProxyArray
@@ -76,7 +77,7 @@ def _buffers(controls, mask=None):
     """Camera buffers holding ``controls`` and, when given, the capture mask."""
     buffers = {"control": ProxyArray(wp.from_torch(controls))}
     if mask is not None:
-        buffers["env_mask"] = ProxyArray(wp.array(mask, dtype=wp.bool, device="cpu"))
+        buffers[CAPTURE_ENV_MASK_NAME] = ProxyArray(wp.array(mask, dtype=wp.bool, device="cpu"))
     return buffers
 
 
