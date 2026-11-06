@@ -7,10 +7,13 @@
 
 from __future__ import annotations
 
-from contextlib import ExitStack, nullcontext
+import sys
+from contextlib import ExitStack, closing, nullcontext
 from types import ModuleType, SimpleNamespace
 
 import pytest
+
+pytestmark = pytest.mark.ov
 
 # The OVPhysX runtime wheel is optional. Skip gracefully when it is not installed;
 # CI jobs that need OVPhysX coverage install it explicitly.
@@ -22,7 +25,7 @@ _CURRENT_LIFECYCLE_ENTRY_POINTS = {"warmup": "warmup", "destroy": "destroy"}
 
 @pytest.fixture(autouse=True)
 def manager(monkeypatch):
-    from isaaclab_ov.physics import ovphysx_compat
+    from isaaclab_ov.physics import OvPhysxCfg, ovphysx_compat
     from isaaclab_ov.physics.ovphysx_manager import OvPhysxBackend, OvPhysxManager, OvPhysxSceneDataBackend
 
     # These fixtures model the legacy API, regardless of the locally installed wheel.
@@ -32,7 +35,7 @@ def manager(monkeypatch):
     backend.stage = backend.scene = None
     backend.owns_scene = True
     backend.rigid_body_view = None
-    manager = OvPhysxManager()
+    manager = OvPhysxManager(OvPhysxCfg())
     manager.backend = backend
     manager._scene_data_backend = OvPhysxSceneDataBackend(manager)
     return manager
@@ -231,13 +234,15 @@ def test_manager_attaches_and_releases_owned_ovstage(manager, monkeypatch, moder
             events.append(("release",))
 
     fake_ovstage = ModuleType("ovstage")
-    fake_ovstage.population = SimpleNamespace(
-        open_usd_from_string=lambda stage, usda, ordinal, domains: events.append(
-            ("populate", stage, usda, ordinal, domains)
-        )
-    )
     from isaaclab_ov import stage as stage_module
 
+    monkeypatch.setattr(
+        stage_module,
+        "populate_stage",
+        lambda stage, usda, *, ordinal, domains, physics: events.append(
+            ("populate", stage, usda, ordinal, domains, physics)
+        ),
+    )
     fake_ovstage.PathDictionary = lambda stage: nullcontext(object())
     monkeypatch.setattr(stage_module, "ovstage", fake_ovstage)
     monkeypatch.setattr(stage_module, "create_ovstage", FakeStage)
@@ -264,7 +269,7 @@ def test_manager_attaches_and_releases_owned_ovstage(manager, monkeypatch, moder
     # only, so attaching at an unsealed ordinal silently yields an empty scene.
     assert events == [
         ("stage", "isaaclab.scene"),
-        ("populate", stage, "#usda 1.0", 1, om_mod.ovstage.PopulationDomain.ALL),
+        ("populate", stage, "#usda 1.0", 1, om_mod.ovstage.PopulationDomain.RENDERING, True),
         ("seal", 1),
         ("attach", stage, 1),
     ] + ([("wait_task", attach_task)] if modern else []) + [
@@ -400,7 +405,7 @@ def test_manager_destroys_ovstage_when_population_fails(manager, monkeypatch):
         raise RuntimeError("population failed")
 
     fake_ovstage = ModuleType("ovstage")
-    fake_ovstage.population = SimpleNamespace(open_usd_from_string=fail_population)
+    monkeypatch.setattr(stage_module, "populate_stage", fail_population)
     fake_ovstage.PathDictionary = lambda stage: nullcontext(object())
     monkeypatch.setattr(stage_module, "ovstage", fake_ovstage)
     monkeypatch.setattr(stage_module, "create_ovstage", FakeStage)
@@ -410,6 +415,148 @@ def test_manager_destroys_ovstage_when_population_fails(manager, monkeypatch):
     assert manager.backend.stage is None
 
     assert destroyed == ["isaaclab.scene"]
+
+
+@pytest.mark.parametrize(
+    "population_api, physics",
+    [("domains", True), ("selectors", True), ("selectors", False)],
+    ids=["legacy-physics", "selector-physics", "rendering-only"],
+)
+def test_population_dispatch_preserves_requested_data_and_write_ordinal(monkeypatch, population_api, physics):
+    """Route physics intent, rendering domains, and the write ordinal through either native API."""
+    from isaaclab_ov import ovstage_compat
+
+    native_stage, physics_desc = object(), object()
+    calls = []
+    descriptions = []
+
+    class DomainPopulation:
+        @staticmethod
+        def open_usd_from_string(stage, usda, ordinal, domains):
+            calls.append((stage, usda, ordinal, domains))
+
+    class SelectorPopulation(DomainPopulation):
+        DEFAULT_TIME = 17.0
+
+        class Desc:
+            def __init__(self, *, domains):
+                self.domains = domains
+
+        @staticmethod
+        def open_usd_from_string_with_desc(stage, usda, ordinal, time, descs):
+            calls.append((stage, usda, ordinal, time, tuple(descs)))
+
+    def describe_physics():
+        descriptions.append(physics_desc)
+        return physics_desc
+
+    runtime = ModuleType("ovstage")
+    runtime.PopulationDomain = SimpleNamespace(NONE=0, RENDERING=1)
+    if population_api == "domains":
+        runtime.PopulationDomain.PHYSICS = 2
+        runtime.population = DomainPopulation
+    else:
+        runtime.population = SelectorPopulation
+    monkeypatch.setitem(sys.modules, "ovstage", runtime)
+    monkeypatch.setattr(ovstage_compat, "_physics_population_desc", describe_physics)
+
+    ovstage_compat.populate_stage(native_stage, "#usda 1.0", ordinal=7, domains=1, physics=physics)
+
+    if population_api == "selectors" and physics:
+        assert descriptions == [physics_desc]
+        assert len(calls) == 1
+        stage, usda, ordinal, time, descs = calls[0]
+        assert (stage, usda, ordinal, time) == (native_stage, "#usda 1.0", 7, SelectorPopulation.DEFAULT_TIME)
+        assert len(descs) == 2 and descs[0].domains == 1 and descs[1] is physics_desc
+    else:
+        assert descriptions == []
+        assert calls == [(native_stage, "#usda 1.0", 7, 3 if physics else 1)]
+
+
+def test_physics_population_preserves_resolved_values_and_clone_relationships():
+    """Population retains units-aware defaults, overrides, material bindings, and cloned joint targets."""
+    import numpy as np
+    import ovstage
+    from isaaclab_ov.stage import OvstageBackend, OvstageBackendCfg, _handle_raw_id
+
+    from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
+
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.SetStageMetersPerUnit(stage, 0.01)
+    UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.y)
+    UsdPhysics.SetStageKilogramsPerUnit(stage, 0.001)
+    scene = UsdPhysics.Scene.Define(stage, "/World/Scene")
+    scene.GetPrim().AddAppliedSchema("PhysxSceneAPI")
+    override = UsdPhysics.Scene.Define(stage, "/World/Override")
+    override.CreateGravityMagnitudeAttr(12.0)
+    override.CreateGravityDirectionAttr((1.0, 0.0, 0.0))
+    root = UsdGeom.Xform.Define(stage, "/World/Prototype").GetPrim()
+    for name in ("Body", "Other"):
+        body = UsdGeom.Cube.Define(stage, f"/World/Prototype/{name}").GetPrim()
+        UsdPhysics.RigidBodyAPI.Apply(body)
+        UsdPhysics.CollisionAPI.Apply(body)
+        body.AddAppliedSchema("PhysxRigidBodyAPI")
+    stage.GetPrimAtPath("/World/Prototype/Other").CreateAttribute(
+        "physxRigidBody:sleepThreshold", Sdf.ValueTypeNames.Float
+    ).Set(0.123)
+    material = UsdShade.Material.Define(stage, "/World/Material")
+    UsdPhysics.MaterialAPI.Apply(material.GetPrim()).CreateStaticFrictionAttr(0.6)
+    UsdShade.MaterialBindingAPI.Apply(root).Bind(material, materialPurpose="physics")
+    joint = UsdPhysics.RevoluteJoint.Define(stage, "/World/Prototype/Joint")
+    joint.CreateBody0Rel().SetTargets(["/World/Prototype/Body"])
+    joint.CreateBody1Rel().SetTargets(["/World/Prototype/Other"])
+    UsdPhysics.DriveAPI.Apply(joint.GetPrim(), "angular").CreateStiffnessAttr(42.0)
+    joint.GetPrim().AddAppliedSchema("PhysxJointAxisAPI:angular")
+    joint.GetPrim().AddAppliedSchema("PhysxDrivePerformanceEnvelopeAPI:angular")
+    UsdPhysics.CollisionAPI.Apply(UsdGeom.Plane.Define(stage, "/World/Plane").GetPrim())
+    UsdPhysics.CollisionAPI.Apply(UsdGeom.Cylinder.Define(stage, "/World/Cylinder").GetPrim())
+
+    with closing(OvstageBackend(OvstageBackendCfg(populate_physics=True))) as backend:
+        backend.clone_copies = [("/World/Prototype", ["/World/Copy"])]
+        backend.populate(stage.ExportToString())
+
+        def read(path, attribute):
+            with backend.query([path]) as query:
+                with backend.stage.read_attributes(
+                    query, [backend.paths.intern_token(attribute)], ovstage.OrdinalRange.latest(backend.ordinal - 1)
+                ) as result:
+                    result.wait()
+                    group = result.fetch_next()
+                    assert group is not None, (path, attribute)
+                    with group:
+                        # OVStage 0.4 also changed reads from one group per column to grouped columns.
+                        column = group.columns[0] if hasattr(group, "columns") else group
+                        assert column.tensor_count == 1, (path, attribute)
+                        return np.array(column.array(0)).reshape(-1)
+
+        np.testing.assert_allclose(read("/", "usd-metadata:metersPerUnit"), [0.01])
+        np.testing.assert_allclose(read("/", "usd-metadata:kilogramsPerUnit"), [0.001])
+        np.testing.assert_allclose(read("/World/Scene", "physics:gravityMagnitude"), [981.0])
+        np.testing.assert_allclose(read("/World/Scene", "physics:gravityDirection"), [0.0, -1.0, 0.0])
+        np.testing.assert_allclose(read("/World/Scene", "physxScene:frictionOffsetThreshold"), [4.0])
+        np.testing.assert_allclose(read("/World/Override", "physics:gravityMagnitude"), [12.0])
+        np.testing.assert_allclose(read("/World/Override", "physics:gravityDirection"), [1.0, 0.0, 0.0])
+        np.testing.assert_allclose(read("/World/Copy/Body", "physxRigidBody:sleepThreshold"), [50.0])
+        np.testing.assert_allclose(read("/World/Copy/Other", "physxRigidBody:sleepThreshold"), [0.123])
+        np.testing.assert_allclose(read("/World/Copy/Joint", "drive:angular:physics:stiffness"), [42.0])
+        np.testing.assert_allclose(
+            read("/World/Copy/Joint", "physxJointAxis:angular:maxJointVelocity"), [np.finfo(np.float32).max]
+        )
+        np.testing.assert_allclose(
+            read("/World/Copy/Joint", "physxDrivePerformanceEnvelope:angular:maxActuatorVelocity"),
+            [np.finfo(np.float32).max],
+        )
+        np.testing.assert_allclose(read("/World/Plane", "physxCollision:contactOffset"), [2.0])
+        np.testing.assert_allclose(read("/World/Cylinder", "physxConvexGeometry:margin"), [0.0])
+        np.testing.assert_allclose(read("/World/Material", "physics:staticFriction"), [0.6])
+        np.testing.assert_array_equal(
+            read("/World/Copy/Body", "material:binding:physics"),
+            [_handle_raw_id(backend.paths.intern_path("/World/Material"))],
+        )
+        np.testing.assert_array_equal(
+            read("/World/Copy/Joint", "physics:body1"),
+            [_handle_raw_id(backend.paths.intern_path("/World/Copy/Other"))],
+        )
 
 
 def test_ovphysx_cfg_does_not_register_unselected_backend_schemas(monkeypatch):

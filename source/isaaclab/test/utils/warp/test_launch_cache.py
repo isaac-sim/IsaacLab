@@ -32,32 +32,32 @@ def test_warp_launch_cache(monkeypatch):
     cache = _WarpLaunchCache("cuda:0")
     kernel = object()
 
-    cache.launch("read", kernel, dim=1, inputs=[], outputs=[])
-    cache.launch("read", kernel, dim=1, inputs=[], outputs=[])
+    cache.launch("read", launch, kernel, dim=1, inputs=[], outputs=[])
+    cache.launch("read", launch, kernel, dim=1, inputs=[], outputs=[])
     assert len(calls) == 1
     assert calls[0]["record_cmd"] is True
     assert command.launches == 2
 
-    cache.launch("other", kernel, dim=1, inputs=[], outputs=[])
+    cache.launch("other", launch, kernel, dim=1, inputs=[], outputs=[])
     cache.clear("read")
-    cache.launch("read", kernel, dim=1, inputs=[], outputs=[])
-    cache.launch("other", kernel, dim=1, inputs=[], outputs=[])
+    cache.launch("read", launch, kernel, dim=1, inputs=[], outputs=[])
+    cache.launch("other", launch, kernel, dim=1, inputs=[], outputs=[])
     assert len(calls) == 3
 
     cache.clear()
-    cache.launch("read", kernel, dim=1, inputs=[], outputs=[])
+    cache.launch("read", launch, kernel, dim=1, inputs=[], outputs=[])
     assert len(calls) == 4
 
     device.is_capturing = True
-    cache.launch("capture", kernel, dim=1, inputs=[], outputs=[])
+    cache.launch("capture", launch, kernel, dim=1, inputs=[], outputs=[])
     device.is_capturing = False
     device.is_cuda = False
-    cache.launch("cpu", kernel, dim=1, inputs=[], outputs=[])
+    cache.launch("cpu", launch, kernel, dim=1, inputs=[], outputs=[])
     assert all("record_cmd" not in call for call in calls[-2:])
 
     device.is_cuda = True
     cache.clear()
     result[0] = None
-    cache.launch("empty", kernel, dim=0, inputs=[], outputs=[])
-    cache.launch("empty", kernel, dim=0, inputs=[], outputs=[])
+    cache.launch("empty", launch, kernel, dim=0, inputs=[], outputs=[])
+    cache.launch("empty", launch, kernel, dim=0, inputs=[], outputs=[])
     assert len(calls) == 8

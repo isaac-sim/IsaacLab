@@ -11,9 +11,10 @@ reads them back to verify that they are non-black and, for synchronous render so
 
 # Check for moviepy before launching Kit so a missing dependency produces a
 # clean collection-time skip rather than an orphaned SimulationApp.
+
 import pytest
 
-from isaaclab.visualizers import WindowCfg
+from isaaclab.visualizers import VisualizerCfg, WindowCfg
 
 try:
     from moviepy.editor import VideoFileClip
@@ -161,11 +162,13 @@ def _assert_clip_has_content(clip_path: str, label: str) -> None:
 
 def test_headless_kit_physx_recorders_share_visualizer():
     """Two source='viz:kit' recorders share one headless Kit visualizer on PhysX; both clips move."""
-    from isaaclab_visualizers.kit import KitVisualizerCfg
+    from isaaclab_visualizers.kit import KitBackendCfg
 
     with tempfile.TemporaryDirectory() as output_dir:
         env_cfg = _cartpole_cfg(num_envs=1)
-        env_cfg.sim.visualizer_cfgs = [KitVisualizerCfg(headless=True, window=WindowCfg(size=(320, 240)))]
+        env_cfg.sim.visualizer_cfgs = [
+            VisualizerCfg(headless=True, window=WindowCfg(size=(320, 240)), backend=KitBackendCfg())
+        ]
         env_cfg.video_recorders = [
             _recorder_cfg(output_dir, "viz:kit", prefix="first"),
             _recorder_cfg(output_dir, "viz:kit", prefix="second"),
@@ -182,14 +185,14 @@ def test_newton_records_clip_and_warns_for_kit_capture(caplog):
     return the same framebuffer. Kit capture needs cubric to see Newton transforms, so the recorder warns and
     points to 'viz:newton_gl' instead of failing.
     """
-    from isaaclab_visualizers.kit import KitVisualizerCfg
-    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+    from isaaclab_visualizers.kit import KitBackendCfg
+    from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
     with tempfile.TemporaryDirectory() as output_dir:
         env_cfg = _cartpole_cfg_newton(num_envs=1)
         env_cfg.sim.visualizer_cfgs = [
-            KitVisualizerCfg(window=WindowCfg(size=(320, 240))),
-            NewtonGLVisualizerCfg(window=WindowCfg(size=(320, 240))),
+            VisualizerCfg(window=WindowCfg(size=(320, 240)), backend=KitBackendCfg()),
+            VisualizerCfg(window=WindowCfg(size=(320, 240)), backend=NewtonGLBackendCfg()),
         ]
         env_cfg.video_recorders = [
             _recorder_cfg(output_dir, "viz:kit", prefix="kit"),
@@ -212,11 +215,11 @@ def test_multiple_recorders_simultaneous():
     in this multi-recorder context; Kit content is verified in
     test_headless_kit_physx_recorders_share_visualizer.
     """
-    from isaaclab_visualizers.kit import KitVisualizerCfg
+    from isaaclab_visualizers.kit import KitBackendCfg
 
     with tempfile.TemporaryDirectory() as output_dir:
         env_cfg = _cartpole_camera_cfg_physx(num_envs=1)
-        env_cfg.sim.visualizer_cfgs = [KitVisualizerCfg(window=WindowCfg(size=(320, 240)))]
+        env_cfg.sim.visualizer_cfgs = [VisualizerCfg(window=WindowCfg(size=(320, 240)), backend=KitBackendCfg())]
         env_cfg.video_recorders = [
             _recorder_cfg(output_dir, "viz:kit", prefix="viewport"),
             _recorder_cfg(output_dir, "sensor:tiled_camera", prefix="sensor"),

@@ -278,18 +278,18 @@ class VisualizationMarkers:
             )
         )
         if needs_kit_backend:
-            self._ensure_kit_backend()
+            self._ensure_kit_backend(sim)
         if any(
             viz.supports_markers() and not viz.pumps_app_update() and viz.cfg.enable_markers for viz in sim.visualizers
         ):
             self._ensure_newton_backend()
 
-    def _ensure_kit_backend(self) -> None:
+    def _ensure_kit_backend(self, sim: sim_utils.SimulationContext | None = None) -> None:
         """Create the Kit marker backend if it is not already active."""
         from isaaclab_visualizers.kit.kit_visualization_markers import KitVisualizationMarkers
 
         if not any(isinstance(backend, KitVisualizationMarkers) for backend in self._backends):
-            self._backends.append(KitVisualizationMarkers(self.cfg, visible=self._is_visible))
+            self._backends.append(KitVisualizationMarkers(self.cfg, visible=self._is_visible, sim=sim))
 
     def _ensure_newton_backend(self) -> None:
         """Create the Newton-family marker backend if it is not already active."""

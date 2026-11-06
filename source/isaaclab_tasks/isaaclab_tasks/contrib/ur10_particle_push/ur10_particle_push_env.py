@@ -21,7 +21,7 @@ from isaaclab_newton.controllers.ik import (
     NewtonIKSolver,
     NewtonIKSolverCfg,
 )
-from isaaclab_newton.physics import NewtonMPMManager
+from isaaclab_newton.physics import reset_mpm_solver_state
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
@@ -138,7 +138,7 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
 
     def _setup_task_state(self) -> None:
         """Resolve scene assets and allocate state shared by the MDP terms."""
-        self.sim.backend_manager.get_model().particle_max_velocity = self._particle_max_velocity
+        self.sim.backend_manager.backend.model.particle_max_velocity = self._particle_max_velocity
 
         self._robot = self.scene["robot"]
         self._media = self.scene["media"]
@@ -733,11 +733,11 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
 
         self._robot.write_root_pose_to_sim_index(root_pose=default_root_pose, env_ids=env_ids)
         self._robot.write_root_velocity_to_sim_index(root_velocity=default_root_velocity, env_ids=env_ids)
-        self._robot.write_joint_state_to_sim_index(
-            position=joint_position,
-            velocity=joint_velocity,
-            joint_ids=self._joint_ids,
-            env_ids=env_ids,
+        self._robot.write_joint_position_to_sim_index(
+            position=joint_position, joint_ids=self._joint_ids, env_ids=env_ids
+        )
+        self._robot.write_joint_velocity_to_sim_index(
+            velocity=joint_velocity, joint_ids=self._joint_ids, env_ids=env_ids
         )
         self._robot.set_joint_position_target_index(
             target=joint_position,
@@ -789,8 +789,8 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
         # Newton reset masks include one trailing slot for global (world -1) entities.
         world_mask = torch.zeros(self.num_envs + 1, dtype=torch.bool, device=self.device)
         index_fill_(world_mask[: self.num_envs], env_ids, True)
-        NewtonMPMManager.reset_solver_state(
-            self.sim.backend_manager,
+        reset_mpm_solver_state(
+            self.sim.backend_manager.backend,
             world_mask=wp.from_torch(world_mask, dtype=wp.bool),
             flags=newton.StateFlags.BODY | newton.StateFlags.PARTICLE,
         )

@@ -266,7 +266,7 @@ class PlaceToy2BoxEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.physics = PhysicsCfg()
 
         # visualizer camera settings
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(1.5, -1.0, 1.5), lookat=(0.5, 0.0, 0.0))
+        self.sim.visualizer_cfgs = VisualizerCfg(eye=(1.5, -1.0, 1.5), lookat=(0.5, 0.0, 0.0))
 
     def validate_config(self):
         """Reject backend combinations that the configured robot cannot run on."""

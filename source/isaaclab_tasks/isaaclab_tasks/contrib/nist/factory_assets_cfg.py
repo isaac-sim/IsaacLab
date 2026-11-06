@@ -165,7 +165,7 @@ FRANKA_DEFAULT_STATE_CFG = ArticulationCfg.InitialStateCfg(
 )
 
 FRANKA_PANDA_PHYSX_CFG = ArticulationCfg(
-    prim_path="/World/envs/env_.*/Robot",
+    prim_path="{ENV_REGEX_NS}/Robot",
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/franka_panda.usda",
         activate_contact_sensors=True,
@@ -186,7 +186,7 @@ FRANKA_PANDA_PHYSX_CFG = ArticulationCfg(
 
 
 FRANKA_PANDA_NEWTON_CFG = ArticulationCfg(
-    prim_path="/World/envs/env_.*/Robot",
+    prim_path="{ENV_REGEX_NS}/Robot",
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/franka_panda.usda",
         activate_contact_sensors=True,
@@ -244,7 +244,7 @@ NISTBOARD_NEWTON_CFG = NISTBOARD_CFG.replace(
 def _assembly_asset_cfg(name: str, usd_file: str, mass: float, *, is_socket: bool) -> RigidObjectCfg:
     """Create one assembly asset from the shared socket or plug physics policy."""
     return RigidObjectCfg(
-        prim_path=f"/World/envs/env_.*/{name}",
+        prim_path=f"{{ENV_REGEX_NS}}/{name}",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ASSET_DIR}/NIST/{usd_file}",
             rigid_props=ASSEMBLY_SOCKET_RIGID_BODY_PROPS_CFG if is_socket else ASSEMBLY_PLUG_RIGID_BODY_PROPS_CFG,

@@ -89,7 +89,7 @@ def create_test_articulation(
 
     from isaaclab_newton.assets.articulation import articulation_data as data_module
 
-    mock_view.model = backend_manager.get_model()
+    mock_view.model = backend_manager.backend.model
     _configure_articulation_model(mock_view.model, num_instances, num_bodies, num_joints)
     data = data_module.ArticulationData(mock_view, device, backend_manager=backend_manager)
     object.__setattr__(articulation, "_data", data)
@@ -346,7 +346,7 @@ def _create_articulation_data_target(config, backend_manager):
     from isaaclab_newton.assets.articulation import articulation_data as data_module
 
     data_type = globals().get("NewtonArticulationData", data_module.ArticulationData)
-    model = backend_manager.get_model()
+    model = backend_manager.backend.model
     _configure_articulation_model(model, config.num_instances, config.num_bodies, config.num_joints)
     mock_view = MockNewtonArticulationView(
         num_instances=config.num_instances,

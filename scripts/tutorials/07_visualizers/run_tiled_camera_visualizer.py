@@ -28,8 +28,8 @@ import gymnasium as gym
 import torch
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
-from isaaclab_visualizers.kit import KitVisualizerCfg
-from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+from isaaclab_visualizers.kit import KitBackendCfg
+from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
 import isaaclab_tasks  # noqa: F401
 
@@ -67,8 +67,11 @@ def main():
     env_cfg, _ = resolve_task_config(args_cli.task, "")
     # Declare the shared scene camera before launching either viewer.
     visualizers = env_cfg.sim.visualizer_cfgs
-    visualizers = visualizers if isinstance(visualizers, list) else [visualizers] if visualizers else []
-    if not visualizers or any(not isinstance(cfg, (KitVisualizerCfg, NewtonGLVisualizerCfg)) for cfg in visualizers):
+    visualizers = visualizers if isinstance(visualizers, list) else [visualizers]
+    backends = [
+        backend for cfg in visualizers for backend in (cfg.backend if isinstance(cfg.backend, list) else [cfg.backend])
+    ]
+    if not backends or any(not isinstance(backend, (KitBackendCfg, NewtonGLBackendCfg)) for backend in backends):
         raise ValueError("This tutorial supports --viz kit or --viz newton_gl.")
     camera_cfg = next((cfg for cfg in vars(env_cfg.scene).values() if isinstance(cfg, CameraCfg)), None)
     if camera_cfg is None:
@@ -84,14 +87,14 @@ def main():
             offset=CameraCfg.OffsetCfg(pos=(3.0, 3.0, 3.0), rot=tuple(rotation.tolist()), convention="opengl"),
             renderer_cfg=(
                 IsaacRtxRendererCfg()
-                if any(isinstance(cfg, KitVisualizerCfg) for cfg in visualizers)
+                if any(isinstance(backend, KitBackendCfg) for backend in backends)
                 else NewtonWarpRendererCfg()
             ),
         )
         env_cfg.scene.streaming_camera = camera_cfg
     for cfg in visualizers:
         cfg.streaming_view = True
-        cfg.streaming_envs = 36 if isinstance(cfg, KitVisualizerCfg) else 12
+        cfg.streaming_envs = 12
         cfg.cameras = [SceneCameraCfg(prim_path=camera_cfg.prim_path)]
 
     with launch_simulation(env_cfg, args_cli):

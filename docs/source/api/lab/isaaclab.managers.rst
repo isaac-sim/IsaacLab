@@ -103,7 +103,7 @@ On each recorded sample, each environment retains its lag with probability 0.8 a
 one. Zero redraws on every sample. Holding the lag keeps the latency constant while frames continue to
 advance; it does not freeze the returned frame. Reset always redraws the selected environments' lags.
 
-The processing order is observation function, modifiers, noise, clipping, scaling, delay, then history.
+The processing order is observation function, tensor processors, noise, clipping, scaling, delay, then history.
 The ``delay_min_lag`` and ``delay_max_lag`` field names and delay placement follow
 `mjlab's observation configuration <https://mujocolab.github.io/mjlab/main/source/observations.html>`_.
 ``delay_hold_prob`` follows mjlab's lag-retention semantics, with a default of 1.0 to preserve Isaac Lab's
@@ -115,7 +115,7 @@ For a delay buffer with no recorded sample after initialization or reset, the cu
 without recording it. Once recording starts, delays exceeding the available history return the oldest
 sample. Partial resets invalidate only the selected environments' histories.
 
-Observation outputs are independent snapshots: later simulation steps, modifier updates, and resets
+Observation outputs are independent snapshots: later simulation steps, processor updates, and resets
 do not overwrite previously returned tensors. The manager automatically copies borrowed storage before
 mutation or retention. Term and custom callback outputs are treated conservatively, without decorators
 or task-level copy settings. Clipping and scaling create independent storage when needed, which later
@@ -131,7 +131,7 @@ The manager checks the signature once during initialization. Only an explicitly 
 ``out=None`` enables destination writes; accepting arbitrary ``**kwargs`` does not. The manager probes
 the ordinary call to infer shape, dtype and device, which must remain constant, then allocates a fresh
 contiguous destination for each computation. ``out`` is reserved and must not appear in term ``params``.
-Custom modifiers, noise and history retain their usual snapshot protections. Built-in
+Custom tensor processors, noise and history retain their usual snapshot protections. Built-in
 :class:`~isaaclab.envs.mdp.observations.image_rgb` terms use this interface automatically to avoid a
 second full-image copy for normalized uint8 images. Existing observation configurations require no changes.
 
@@ -228,8 +228,39 @@ Curriculum Manager
     :members:
     :exclude-members: __init__
 
+.. _recorder-capture:
+
 Recorder Manager
 ----------------
+
+Tasks configure recorder terms to capture the state, controls and other fields their consumers need.
+Terms run at pre/post step and reset callbacks; reset callbacks receive slices or indices directly.
+Consumers own subsequent processing, replay and learning.
+
+Returning a field path and a batched tensor (or nested dictionary of tensors) retains samples.
+For online use without retention, publish the batch on the term and return ``(None, None)``.
+Consumers access it through ``env.recorder_manager.get_term(name)`` and copy data before the next capture.
+``EXPORT_NONE`` disables file export only; disabling the term removes capture itself.
+
+Fields may have different sample rates. ``buffer_initial_capacity`` sets the initial samples per world
+and field; choose it with payload size and episode length in mind. Storage grows without dropping
+samples and is reused across resets.
+
+**Observation migration:** RL post-step callbacks run after rewards and terminations, before reset
+and observation updates. ``env.obs_buf`` still contains the preceding policy input. Read physical
+state from the scene or call ``env.observation_manager.compute_group("recording", update_history=False)``
+for current observations. Use a separate noiseless group without history or delay to avoid stale
+measurements and additional policy noise draws. History is not advanced, but noise and modifiers still
+run. Non-RL environments update their normal observations before post-step capture.
+
+**Storage migration:** ``get_episode(env_id)`` returns an owned tensor snapshot with a leading sample
+dimension; reading copies data and may synchronize the device. Modify live recording through
+``add_to_episodes`` and ``set_success_to_episodes``, not the snapshot. ``EpisodeData.add()`` and
+``pre_export()`` are removed: collect through the manager, or assign completed tensors to
+``episode.data``. HDF5 loading and playback keep the same tensor format.
+
+The unused ``RecorderTerm.close(file_path)`` hook is removed. Dataset handlers finalize files;
+applications explicitly close any additional resources they own.
 
 .. autoclass:: RecorderManager
     :members:

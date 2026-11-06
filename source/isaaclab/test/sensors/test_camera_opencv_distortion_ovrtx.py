@@ -27,7 +27,7 @@ import importlib.util
 import numpy as np
 import pytest
 
-pytestmark = [pytest.mark.integration, pytest.mark.rendering]
+pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.ov]
 
 _REQUIRED_MODULES = ("isaaclab_ov", "ovrtx", "isaaclab_newton")
 _MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
@@ -38,7 +38,7 @@ _SKIP_MISSING_OVRTX = pytest.mark.skipif(
 
 if not _MISSING_MODULES:
     import torch
-    from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
+    from isaaclab_newton.physics.mjwarp_solver_cfg import MJWarpSolverCfg
     from isaaclab_newton.physics.newton_manager_cfg import NewtonCfg
     from isaaclab_ov.renderers import OVRTXRendererCfg
 

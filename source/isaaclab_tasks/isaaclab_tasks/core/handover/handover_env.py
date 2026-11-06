@@ -105,16 +105,27 @@ class HandoverEnv(DirectMARLEnv):
 
         self._goal = HandoverGoal(
             torch.stack((self.right_hand.data.default_root_pose.torch, self.left_hand.data.default_root_pose.torch)),
-            self.cfg.goal_position_offset,
+            self.cfg.hold_position_offset,
+            randomize_start=self.cfg.randomize_start_hand,
         )
         self.goal_pos = self._goal.position
         self._goal_distance = EpisodeErrorRecorder(self.num_envs, self.device)
+        self._action_rate = {agent: torch.zeros(self.num_envs, device=self.device) for agent in self.actions}
+        self._prev_actions = {agent: act.clone() for agent, act in self.actions.items()}
+        self._episode_start = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
 
         # unit tensors for sampling goal/object rotations about the x and y axes
         self.x_unit_tensor = torch.tensor([1, 0, 0], dtype=torch.float, device=self.device).repeat((self.num_envs, 1))
         self.y_unit_tensor = torch.tensor([0, 1, 0], dtype=torch.float, device=self.device).repeat((self.num_envs, 1))
 
     def _pre_physics_step(self, actions: dict[str, torch.Tensor]) -> None:
+        if self.cfg.action_rate_penalty_scale:
+            for agent, act in actions.items():
+                # an episode's first action has no predecessor in that episode, so it is not penalized
+                torch.sum(torch.square(act - self._prev_actions[agent]), dim=-1, out=self._action_rate[agent])
+                self._action_rate[agent].masked_fill_(self._episode_start, 0.0)
+                self._prev_actions[agent].copy_(act)
+            self._episode_start.fill_(False)
         self.actions = actions
 
     def _apply_action(self) -> None:
@@ -235,7 +246,8 @@ class HandoverEnv(DirectMARLEnv):
         self._visualize_goal()
         self.extras["log"]["Diagnostics/success_steps"] = self._goal.success_steps.float().mean()
 
-        return {"right_hand": rew_dist, "left_hand": rew_dist}
+        scale = self.cfg.action_rate_penalty_scale
+        return {agent: rew_dist - scale * self._action_rate[agent] for agent in ("right_hand", "left_hand")}
 
     def _visualize_goal(self) -> None:
         """Draw the current goals."""
@@ -267,8 +279,9 @@ class HandoverEnv(DirectMARLEnv):
             self.extras["log"][f"Diagnostics/episode_min_goal_distance_{statistic}"] = value
         # reset articulation and rigid body attributes
         super()._reset_idx(env_ids)
+        self._episode_start[env_ids] = True
 
-        # reset goals
+        # reset goals; the ball starts in the hand opposite the first goal
         self._reset_target_pose(env_ids)
 
         # reset object
@@ -276,6 +289,7 @@ class HandoverEnv(DirectMARLEnv):
         object_default_vel = self.object.data.default_root_vel.torch.clone()[env_ids]
         pos_noise = sample_uniform(-1.0, 1.0, (len(env_ids), 3), device=self.device)
 
+        object_default_pose[:, :3] = self._goal.start_position(env_ids)
         object_default_pose[:, 0:3] = (
             object_default_pose[:, 0:3] + self.cfg.reset_position_noise * pos_noise + self.scene.env_origins[env_ids]
         )

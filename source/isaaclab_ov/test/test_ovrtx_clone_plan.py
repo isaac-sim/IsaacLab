@@ -32,6 +32,7 @@ pytestmark = [
         bool(_MISSING_MODULES),
         reason=f"requires optional modules: {', '.join(_MISSING_MODULES)}",
     ),
+    pytest.mark.ov,
 ]
 
 if not _MISSING_MODULES:
@@ -43,9 +44,9 @@ if not _MISSING_MODULES:
     )
     from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
     from isaaclab_ov.renderers import ovrtx_renderer as ovrtx_renderer_module  # noqa: E402
-    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer  # noqa: E402
+    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer, _resolve_env_light_partitions  # noqa: E402
 
-    from pxr import Gf, Sdf, Usd, UsdGeom, UsdShade  # noqa: E402
+    from pxr import Gf, Sdf, Usd, UsdGeom, UsdLux, UsdShade  # noqa: E402
 else:
     OVRTXRenderer = None
     ovrtx_renderer_module = None
@@ -54,6 +55,7 @@ else:
     Sdf = None
     Usd = None
     UsdGeom = None
+    UsdLux = None
     UsdShade = None
 
 
@@ -61,14 +63,14 @@ _PRE_OVRTX_STAGE_FILE = "pre_ovrtx_renderer_stage.usda"
 _OVRTX_STAGE_FILE = "ovrtx_renderer_stage.usda"
 
 
-def _make_multi_env_stage(num_envs: int) -> Usd.Stage:
+def _make_multi_env_stage(num_envs: int, env_template: str = "/World/envs/env_{}") -> Usd.Stage:
     """Build an in-memory stage with distinguishable content per environment."""
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.Xform.Define(stage, "/World")
     UsdGeom.Xform.Define(stage, "/World/envs")
 
     for env_idx in range(num_envs):
-        env_path = f"/World/envs/env_{env_idx}"
+        env_path = env_template.format(env_idx)
         UsdGeom.Xform.Define(stage, env_path)
         UsdGeom.Xform.Define(stage, f"{env_path}/Robot")
         UsdGeom.Xform.Define(stage, f"{env_path}/Object_env{env_idx}_only")
@@ -88,7 +90,12 @@ def _simulation(monkeypatch):
 def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer = OVRTXRenderer(OVRTXRendererCfg(), sim=SimulationContext.instance())
     renderer.backend = SimpleNamespace(
-        clone_copies=[], clone_env_paths=[], population_env_paths=[], clone_positions=None, render_products=set()
+        clone_copies=[],
+        clone_env_paths=[],
+        population_env_paths=[],
+        clone_positions=None,
+        render_products=set(),
+        cfg=SimpleNamespace(read_gpu_transforms=False),
     )
     renderer.scene = renderer.backend
     renderer.backend.renderer = SimpleNamespace(
@@ -141,23 +148,27 @@ def _prepare_clones(renderer, plan, routed=None):
 
 
 @pytest.mark.parametrize(
-    "use_ovstage, names, worlds, weights, copies",
+    "use_ovstage, prepare_hierarchy, names, worlds, weights, copies",
     [
-        (False, ("",), ((0,),), (1,), [(0, "", [1, 2, 3])]),
-        (
-            True,
-            ("/Robot", "/Object", "/Light", "/Robot/Camera"),
-            ((3, 0, 2), (3, 0, 1)),
-            (1, 3),
-            [(0, "/Robot", [1, 2, 3]), (1, "/Object", [2, 3])],
+        pytest.param(False, False, ("",), ((0,),), (1,), [(0, "", [1, 2, 3])], id="environment-roots"),
+        *(
+            pytest.param(
+                True,
+                prepare_hierarchy,
+                ("/Robot", "/Object", "/Light", "/Robot/Camera"),
+                ((3, 0, 2), (3, 0, 1)),
+                (1, 3),
+                [(0, "/Robot", [1, 2, 3]), (1, "/Object", [2, 3])],
+                id=f"nested-assets-prepare-{prepare_hierarchy}",
+            )
+            for prepare_hierarchy in (False, True)
         ),
     ],
-    ids=["environment-roots", "nested-assets"],
 )
 def test_native_replication_applies_compositions_then_positions(
-    monkeypatch, use_ovstage, names, worlds, weights, copies
+    monkeypatch, use_ovstage, prepare_hierarchy, names, worlds, weights, copies
 ):
-    """Both native APIs consume the same prepared copies without consulting the clone plan."""
+    """Native replication gates hierarchy preparation before copies and placement."""
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._use_ovstage = use_ovstage
     positions = np.array([[0, 0, 0], [2, -1, 0.5], [-3, 4, 1.5], [5, 2, 0]], dtype=np.float32)
@@ -167,6 +178,12 @@ def test_native_replication_applies_compositions_then_positions(
     native = Mock()
     backend = renderer.backend
     if use_ovstage:
+        import ovstage
+
+        monkeypatch.setattr(
+            "isaaclab_ov.stage.OVSTAGE_REQUIRES_CPU_HIERARCHY_BEFORE_CLONE",
+            prepare_hierarchy,
+        )
         paths = Mock()
         paths.create_path_list_from_strings.return_value = "env_paths"
         native.query_from_path_list.return_value = contextlib.nullcontext("env_query")
@@ -174,6 +191,12 @@ def test_native_replication_applies_compositions_then_positions(
         ovstage_replicate(
             native, paths, backend.clone_copies, backend.clone_env_paths, backend.clone_positions, ordinal=3
         )
+        if prepare_hierarchy:
+            native.compute_hierarchy.assert_called_once_with(
+                input_ordinal=3, output_ordinal=3, model=ovstage.HierarchyComputationModel.CPU_INCREMENTAL
+            )
+        else:
+            native.compute_hierarchy.assert_not_called()
         paths.create_path_list_from_strings.assert_called_once_with(backend.clone_env_paths)
         paths.destroy_path_list.assert_called_once_with("env_paths")
         actual = native.write_attribute.call_args.kwargs["tensors"]
@@ -194,12 +217,27 @@ def test_native_replication_applies_compositions_then_positions(
         )
         for world, suffix, targets in copies
     ]
-    calls = [method[0] for method in native.method_calls if method[0] in {"clone", "clone_usd", "write_attribute"}]
-    assert calls == ["clone" if use_ovstage else "clone_usd"] * len(copies) + ["write_attribute"]
+    calls = [
+        method[0]
+        for method in native.method_calls
+        if method[0] in {"compute_hierarchy", "clone", "clone_usd", "write_attribute"}
+    ]
+    preparation = ["compute_hierarchy"] if prepare_hierarchy else []
+    assert calls == preparation + ["clone" if use_ovstage else "clone_usd"] * len(copies) + ["write_attribute"]
     assert backend.clone_env_paths == [f"/World/envs/env_{world}" for world in range(4)]
     expected = np.tile(np.eye(4, dtype=np.float64), (4, 1, 1))
     expected[:, 3, :3] = positions
     np.testing.assert_array_equal(actual, expected)
+
+
+@pytest.mark.parametrize("copies", [[], [("/World/Source", [])]], ids=["no-copies", "no-targets"])
+def test_ovstage_replication_skips_hierarchy_without_clones(monkeypatch, copies):
+    """OVStage 0.4 does no hierarchy work when there are no clone destinations."""
+    monkeypatch.setattr("isaaclab_ov.stage.OVSTAGE_REQUIRES_CPU_HIERARCHY_BEFORE_CLONE", True)
+    native, paths = Mock(), Mock()
+    ovstage_replicate(native, paths, copies, [], ordinal=3)
+    native.compute_hierarchy.assert_not_called()
+    native.clone.assert_not_called()
 
 
 @pytest.mark.parametrize("env_template", ["/World/envs/env_{}", "/World/Instances/World_{}"])
@@ -260,6 +298,46 @@ def test_prepare_stage_writes_debug_dump_only_when_requested(tmp_path, monkeypat
     if dump_enabled:
         assert (output_dir / _PRE_OVRTX_STAGE_FILE).read_text(encoding="utf-8") == expected_pre_export
     assert (output_dir / _OVRTX_STAGE_FILE).exists() is dump_enabled
+
+
+def test_resolve_env_light_partitions_maps_clones_and_skips_unsupported_sources(caplog):
+    """Resolve clone destinations while leaving shared, instanced, and missing sources alone."""
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(stage, "/World")
+    UsdGeom.Xform.Define(stage, "/World/envs")
+    UsdGeom.Xform.Define(stage, "/World/envs/env_0")
+    UsdLux.DomeLight.Define(stage, "/World/envs/env_0/Dome")
+    UsdLux.SphereLight.Define(stage, "/World/envs/env_0/Robot/Lamp")
+    UsdLux.DomeLight.Define(stage, "/World/SharedLight")
+    UsdGeom.Xform.Define(stage, "/LightPrototype")
+    UsdLux.RectLight.Define(stage, "/LightPrototype/Light")
+    fixture = UsdGeom.Xform.Define(stage, "/World/envs/env_0/Fixture").GetPrim()
+    fixture.GetReferences().AddInternalReference("/LightPrototype")
+    fixture.SetInstanceable(True)
+    assert stage.GetPrimAtPath("/World/envs/env_0/Fixture/Light").IsInstanceProxy()
+
+    env_paths = [f"/World/envs/env_{env_id}" for env_id in range(3)]
+    actual = _resolve_env_light_partitions(
+        stage,
+        env_paths,
+        copies=(
+            (env_paths[0], env_paths[1:]),
+            ("/Visuals/ContactSensor", ["/Visuals/ContactSensor_1"]),
+        ),
+    )
+
+    expected = {
+        f"/World/envs/env_{env_id}/{light_path}": f"env_{env_id}"
+        for light_path in ("Dome", "Robot/Lamp")
+        for env_id in range(3)
+    }
+    assert actual == expected
+    assert "/World/SharedLight" not in actual
+    assert "/World/envs/env_0/Fixture/Light" not in actual
+    assert caplog.messages == [
+        "Lights inside USD instances cannot be assigned to environment scene partitions and may affect other"
+        " environments."
+    ]
 
 
 def test_create_render_data_writes_combined_stage_on_the_simulation_device(tmp_path: Path, monkeypatch):
@@ -364,23 +442,29 @@ def test_create_render_data_binds_camera_after_cloning(monkeypatch, global_camer
 @pytest.mark.parametrize("suffix", ["", "/Robot"])
 def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatch, suffix):
     """Export routed prototypes and materials, excluding unrouted sources and cloned descendants."""
-    stage = _make_multi_env_stage(3)
+    env_template = "/Lab/Cells/Cell{}" if suffix else "/World/envs/env_{}"
+    stage = _make_multi_env_stage(3, env_template)
+    UsdGeom.Cube.Define(stage, "/Lab/Unrelated")
     for env_id in range(3):
-        root = UsdGeom.Xform(stage.GetPrimAtPath(f"/World/envs/env_{env_id}"))
+        root = UsdGeom.Xform(stage.GetPrimAtPath(env_template.format(env_id)))
         root.AddTranslateOp().Set(Gf.Vec3d(3 * env_id, 0, 0))
         root.GetPrim().CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set(f"env_{env_id}")
-    stage.GetPrimAtPath("/World/envs/env_0").ClearTypeName()
-    stage.RemovePrim("/World/envs/env_2")
-    source = f"/World/envs/env_0{suffix}"
+    stage.GetPrimAtPath(env_template.format(0)).ClearTypeName()
+    stage.RemovePrim(env_template.format(2))
+    source = env_template.format(0) + suffix
     material = UsdShade.Material.Define(stage, f"{source}/warm")
     body = UsdGeom.Xform.Define(stage, f"{source}/Body").GetPrim()
     UsdShade.MaterialBindingAPI.Apply(body)
     UsdShade.MaterialBindingAPI(body).Bind(material)
-    asset = AssetBaseCfg(prim_path=f"/World/envs/env_[^/]+{suffix}", spawn=SpawnerCfg(spawn_path=source))
-    excluded_path = "/World/envs/env_1/Excluded"
+    asset = AssetBaseCfg(prim_path=env_template.format("[^/]+") + suffix, spawn=SpawnerCfg(spawn_path=source))
+    excluded_path = env_template.format(1) + "/Excluded"
     UsdGeom.Xform.Define(stage, excluded_path)
-    excluded = AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Excluded", spawn=SpawnerCfg(spawn_path=excluded_path))
-    plan = make_clone_plan((asset, excluded), ((0, 1),), 3, positions=np.zeros((3, 3), dtype=np.float32))
+    excluded = AssetBaseCfg(
+        prim_path=env_template.format("[^/]+") + "/Excluded", spawn=SpawnerCfg(spawn_path=excluded_path)
+    )
+    plan = make_clone_plan(
+        (asset, excluded), ((0, 1),), 3, env_template=env_template, positions=np.zeros((3, 3), dtype=np.float32)
+    )
     renderer = _make_ovrtx_renderer_without_backend()
     _prepare_clones(renderer, plan, routed=(0,))
     authored_stage = stage.ExportToString()
@@ -396,7 +480,7 @@ def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatc
         monkeypatch.setattr(ovstage, "PathDictionary", lambda _: contextlib.nullcontext(paths))
         imported = Mock()
         monkeypatch.setattr(ovstage.population, "open_usd_from_string", imported)
-        cfg = OvstageBackendCfg(scene_key=renderer.cfg, population_domains=ovstage.PopulationDomain.ALL)
+        cfg = OvstageBackendCfg(scene_key=renderer.cfg, population_domains=ovstage.PopulationDomain.RENDERING)
         backend = OvstageBackend(cfg)
         sim = SimpleNamespace(_backend_registry=[(cfg, backend)])
         sim.get_backends = SimulationContext.get_backends.__get__(sim)
@@ -404,8 +488,8 @@ def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatc
         exported_usd = renderer.backend.renderer.open_usd_from_string.call_args.args[0]
         backend.populate(exported_usd)
         assert imported.call_args.args == (native, exported_usd)
-        assert imported.call_args.kwargs["domains"] == ovstage.PopulationDomain.ALL
-        native.clone.assert_called_once_with(source, [f"/World/envs/env_{i}{suffix}" for i in (1, 2)], ordinal=1)
+        assert imported.call_args.kwargs["domains"] == ovstage.PopulationDomain.RENDERING
+        native.clone.assert_called_once_with(source, [env_template.format(i) + suffix for i in (1, 2)], ordinal=1)
         native.advance_write_floor.assert_called_once_with(ordinal=1)
         backend.close()
     exported = Usd.Stage.CreateInMemory()
@@ -415,12 +499,13 @@ def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatc
     binding = UsdShade.MaterialBindingAPI(exported.GetPrimAtPath(f"{source}/Body")).GetDirectBindingRel()
     assert binding.GetTargets() == [Sdf.Path(f"{source}/warm")]
     assert exported.GetPrimAtPath(f"{source}/warm")
-    assert exported.GetPrimAtPath("/World/envs/env_0").IsA(UsdGeom.Xform)
+    assert exported.GetPrimAtPath(env_template.format(0)).IsA(UsdGeom.Xform)
+    assert exported.GetPrimAtPath("/Lab/Unrelated").IsA(UsdGeom.Cube)
     assert not exported.GetPrimAtPath(excluded_path)
-    assert exported.GetPrimAtPath("/World/envs/env_0/Robot")
-    assert bool(exported.GetPrimAtPath("/World/envs/env_0/Camera")) is (not suffix)
+    assert exported.GetPrimAtPath(env_template.format(0) + "/Robot")
+    assert bool(exported.GetPrimAtPath(env_template.format(0) + "/Camera")) is (not suffix)
     for env_id in (1, 2):
-        root = f"/World/envs/env_{env_id}"
+        root = env_template.format(env_id)
         assert bool(exported.GetPrimAtPath(root)) is bool(suffix)
         if suffix:
             root_prim = exported.GetPrimAtPath(root)

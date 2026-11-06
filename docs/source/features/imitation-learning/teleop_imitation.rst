@@ -88,7 +88,8 @@ Teleoperation
 
 Isaac Lab supports teleoperation of robots through a variety of input devices including keyboard, SpaceMouse, and XR headsets.
 
-Run the following command to spin up the environment and teleoperate the robot using the keyboard. Familiarize yourself
+Run the following command to spin up the environment and teleoperate the robot using the keyboard: click the
+visualizer window and type (see :ref:`isaac-teleop-keyboard`). Familiarize yourself
 with the controls and perform the stacking task. The order of the stacked cubes should be blue (bottom), red (middle), green (top).
 Once you feel sufficiently comfortable with the controls, you may shutdown
 the environment by quitting the script with Ctrl+C.
@@ -103,12 +104,11 @@ the environment by quitting the script with Ctrl+C.
    --teleop_device keyboard
 
 
-The script will print a helper message with key bindings. For keyboard,
-the key bindings are:
+The Isaac Capture keyboard pipeline uses these bindings:
 
 .. code:: text
 
-   Keyboard Controller for SE(3): Se3Keyboard
+   Keyboard control for SE(3)
       Reset all commands: R
       Toggle gripper (open/close): K
       Move arm along x-axis: W/S
@@ -133,24 +133,23 @@ To use a SpaceMouse, simply change ``--teleop_device`` accordingly:
    --sensitivity 4 \
    --teleop_device spacemouse
 
-The script will print a helper message with key bindings. For SpaceMouse,
-the key bindings are:
+The Isaac Capture SpaceMouse pipeline uses these bindings:
 
 .. code:: text
 
-   SpaceMouse Controller for SE(3): Se3SpaceMouse
+   SpaceMouse control for SE(3)
       Reset all commands: Right click
       Toggle gripper (open/close): Click the left button on the SpaceMouse
       Move arm along x/y-axis: Tilt the SpaceMouse
       Move arm along z-axis: Push or pull the SpaceMouse
       Rotate arm: Twist the SpaceMouse
 
+.. _isaac-teleop-spacemouse-permissions:
+
 .. tip::
 
-   If the SpaceMouse is not detected, you most likely need additional user permissions. The ``hidapi``
-   wheel installed by Isaac Lab bundles a backend that talks to the device over ``libusb``, so it needs
-   read and write access to the USB node under ``/dev/bus/usb`` -- granting access to ``/dev/hidraw*``
-   alone is **not** sufficient, and without USB access the device is enumerated without a product name.
+   If the SpaceMouse is not detected, you most likely need additional user permissions. Isaac Capture
+   reads the SpaceMouse from its HID node (``/dev/hidraw*``), which needs read and write access.
 
    Grant the permission by installing a udev rule for the 3Dconnexion vendor id:
 
@@ -158,7 +157,6 @@ the key bindings are:
 
       sudo groupadd -f plugdev && sudo usermod -aG plugdev "$USER"
       sudo tee /etc/udev/rules.d/99-spacemouse.rules <<'EOF'
-      SUBSYSTEM=="usb", ATTR{idVendor}=="256f", TAG+="uaccess", GROUP="plugdev", MODE="0660"
       KERNEL=="hidraw*", ATTRS{idVendor}=="256f", TAG+="uaccess", GROUP="plugdev", MODE="0660"
       EOF
       sudo udevadm control --reload-rules && sudo udevadm trigger
@@ -540,7 +538,7 @@ If you don't see the expected performance, **always test policies from various e
 to find the best-performing model. Model performance can vary substantially across training, and the final epoch
 is not always optimal.
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/franka_cube_stack_robomimic_mimic_bcrnn.gif
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/imitation_learning/teleop/franka_cube_stack_robomimic_mimic_bcrnn.gif
    :width: 100%
    :align: center
    :alt: Robomimic BCRNN policy performing the cube stacking task
@@ -662,7 +660,7 @@ The comparison below places a boundary just after grasping (left) or after lifti
 the object (right). The first choice makes the interpolated path collide with the
 table; the second leaves room for a smooth transition.
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/lagging_subtask.gif
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/imitation_learning/teleop/lagging_subtask.gif
    :width: 99%
    :align: center
    :alt: Subtask splitting example
@@ -686,15 +684,15 @@ Below, the right arm interpolates between the left-hand grasp and right-hand
 placement. Zero steps produces a jump, 20 steps adds lag, and 5 steps gives a
 smooth transition in this example.
 
-.. |0_interp_steps| image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/0_interpolation_steps.gif
+.. |0_interp_steps| image:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/imitation_learning/teleop/0_interpolation_steps.gif
    :width: 32%
    :alt: GR-1 robot with 0 interpolation steps
 
-.. |5_interp_steps| image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/5_interpolation_steps.gif
+.. |5_interp_steps| image:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/imitation_learning/teleop/5_interpolation_steps.gif
    :width: 32%
    :alt: GR-1 robot with 5 interpolation steps
 
-.. |20_interp_steps| image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/20_interpolation_steps.gif
+.. |20_interp_steps| image:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/imitation_learning/teleop/20_interpolation_steps.gif
    :width: 32%
    :alt: GR-1 robot with 20 interpolation steps
 

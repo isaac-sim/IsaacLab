@@ -75,9 +75,9 @@ The system has three layers:
      calls return the supplied destination. Destination caches retain indexing metadata, not the
      consumer's buffers, and expire with the destination.
    - :meth:`SceneDataProvider.get_camera_transforms`: discovers per-camera, per-env world
-     transforms from the USD stage.
-   - :attr:`SceneDataProvider.num_envs`: environment count inferred from
-     ``/World/envs/env_<id>`` prims.
+     transforms from the USD stage. Runtime visualizers use bound scene cameras instead.
+   - :attr:`SceneDataProvider.num_envs`: world count from :class:`~isaaclab.cloner.ClonePlan`,
+     or ``0`` before a plan is published. Native-only clones need no corresponding USD prims.
 
 3. Backend implementations:
 

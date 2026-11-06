@@ -16,9 +16,10 @@ import warp as wp
 _REQUIRED_MODULES = ("isaaclab_ov", "ovrtx")
 _MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
 
-pytestmark = pytest.mark.skipif(
-    bool(_MISSING_MODULES), reason=f"requires optional modules: {', '.join(_MISSING_MODULES)}"
-)
+pytestmark = [
+    pytest.mark.skipif(bool(_MISSING_MODULES), reason=f"requires optional modules: {', '.join(_MISSING_MODULES)}"),
+    pytest.mark.ov,
+]
 
 if not _MISSING_MODULES:
     from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer
@@ -124,6 +125,7 @@ def _renderer(*, use_ovstage: bool = False):
     renderer.backend = SimpleNamespace(render_products=set())
     renderer.scene = renderer.backend
     renderer._initialized_scene = True
+    renderer._needs_transform_initialization = False
     renderer._use_ovstage = use_ovstage
     renderer.backend.renderer = _NativeRecorder(events)
     renderer._visual_material_writer_ref = None

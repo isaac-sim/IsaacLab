@@ -27,7 +27,7 @@ default. Pass ``--device cuda:N`` to select a different GPU.
       .. raw:: html
 
          <video autoplay loop muted playsinline controls preload="metadata" style="width:100%;">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_granular.mp4" type="video/mp4">
+           <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/mpm/mpm_granular.mp4" type="video/mp4">
          </video>
 
       .. code-block:: bash
@@ -39,7 +39,7 @@ default. Pass ``--device cuda:N`` to select a different GPU.
       .. raw:: html
 
          <video autoplay loop muted playsinline controls preload="metadata" style="width:100%;">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_two_way.mp4" type="video/mp4">
+           <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/mpm/mpm_two_way.mp4" type="video/mp4">
          </video>
 
       .. code-block:: bash
@@ -51,7 +51,7 @@ default. Pass ``--device cuda:N`` to select a different GPU.
       .. raw:: html
 
          <video autoplay loop muted playsinline controls preload="metadata" style="width:100%;">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_snowball.mp4" type="video/mp4">
+           <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/mpm/mpm_snowball.mp4" type="video/mp4">
          </video>
 
       .. code-block:: bash
@@ -63,7 +63,7 @@ default. Pass ``--device cuda:N`` to select a different GPU.
       .. raw:: html
 
          <video autoplay loop muted playsinline controls preload="metadata" style="width:100%;">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_teapot_particles.mp4" type="video/mp4">
+           <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/mpm/mpm_teapot_particles.mp4" type="video/mp4">
          </video>
 
       .. code-block:: bash
@@ -290,8 +290,8 @@ individually. Under a coupler, automatic resets go through the coupled
 solver's reset, which passes the per-world reset mask to every entry, including
 the MPM entry. Tasks that need an exact history reset, such as Franka Pour, use
 independent MPM worlds (``separate_worlds=True``) and call
-:meth:`~isaaclab_newton.physics.NewtonMPMManager.reset_solver_state` after
-writing their complete state. In a coupled run, this also resets the coupled
+:func:`~isaaclab_newton.physics.reset_mpm_solver_state` on the physics
+manager's backend after writing their complete state. In a coupled run, this also resets the coupled
 solver's history.
 
 Try the :ref:`interactive MPM demo <interactive-demo-mpm>` to compare material
@@ -314,22 +314,24 @@ material behavior. Run the teapot demo to compare the available modes:
    # Surface and source particles together
    uv run isaaclab demo teapot-fill \
      --visualizer newton_gl --fluid_render_mode both
-   # Path-traced translucent surface
-   uv run --extra ovrtx isaaclab demo teapot-fill \
-     --visualizer newton_rtx --fluid_render_mode surface
-   # Isaac Sim Kit surface
-   uv run --extra isaacsim isaaclab demo teapot-fill \
-     --visualizer kit --fluid_render_mode surface
 
-The teapot demo defaults to the reconstructed surface. Select ``particles`` or
-``both`` to inspect the source MPM state in Kit, Newton GL, or Newton RTX.
+The teapot demo uses Newton GL and defaults to the reconstructed surface. Select
+``particles`` or ``both`` to inspect the source MPM state. Its ``--visualizer`` / ``--viz``
+option accepts only ``newton_gl``; omit the option to use that default.
+
+For a path-traced surface, use the surface-reconstruction tutorial:
+
+.. code-block:: bash
+
+   uv run --extra ovrtx python scripts/tutorials/08_mpm/surface_reconstruction.py \
+     --visualizer newton_rtx --fluid_render_mode surface
 
 Surface rendering is available in the Kit, Newton GL, and Newton RTX visualizers.
 
 .. raw:: html
 
    <video autoplay loop muted playsinline controls preload="metadata" style="width:100%; max-width:960px;">
-     <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_surface_reconstruction.mp4" type="video/mp4">
+     <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/mpm/mpm_surface_reconstruction.mp4" type="video/mp4">
    </video>
 
 This recording demonstrates rendering appearance, not a different
@@ -369,11 +371,9 @@ How MPM fits into the Newton backend
 ------------------------------------
 
 Selecting :class:`~isaaclab_newton.physics.MPMSolverCfg` as the ``solver_cfg`` of
-:class:`~isaaclab_newton.physics.NewtonCfg` installs
-:class:`~isaaclab_newton.physics.NewtonMPMManager`, a specialization of the
-Newton manager that constructs Newton's ``SolverImplicitMPM``. The solver
+:class:`~isaaclab_newton.physics.NewtonCfg` constructs Newton's ``SolverImplicitMPM``. The solver
 represents material as particles and solves its rheology implicitly on a
-background voxel grid. The MPM manager configures the Newton manager as
+background voxel grid. The MPM configuration sets up the Newton backend as
 follows:
 
 * It advances particles in place on a single Newton state rather than double

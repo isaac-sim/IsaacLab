@@ -244,7 +244,9 @@ OVERRIDES = {
     "examples/demos/teapot_fill.py": ScriptOverride(args=("--voxel_size", "0.006"), fixed_physics_backend="newton_mpm"),
     "examples/rizon_sharpa_teapot.py": ScriptOverride(
         args=("--max_steps", "10"),
-        skip_reason="requires a licensed Rizon--Sharpa bundle",
+        fixed_physics_backend="newton_coupler",
+        visualizers=(None, "newton_gl"),
+        required_modules=("isaaclab_contrib",),
     ),
     "examples/demos/rizon_sharpa_coffee.py": ScriptOverride(
         fixed_physics_backend="newton_coupler",
@@ -284,9 +286,9 @@ OVERRIDES = {
         visualizers=("newton_gl",),
     ),
     "examples/tablecloth.py": ScriptOverride(
-        args=("--speeds", "4.0", "0.5", "--max_steps", "2", "--viz", "none"),
+        args=("--speeds", "4.0", "0.5", "--max_steps", "2"),
         fixed_physics_backend="newton_vbd",
-        visualizers=(None,),
+        visualizers=("newton_gl", "kit", "newton_rtx"),
     ),
     "examples/sensors/cameras.py": ScriptOverride(args=("--num_envs", "1"), startup_timeout=900.0),
     "examples/sensors/multi_mesh_raycaster.py": ScriptOverride(
@@ -300,6 +302,7 @@ OVERRIDES = {
         fixed_physics_backend="newton_mjwarp",
         visualizers=(None, "newton_gl", "rerun", "viser"),
     ),
+    "examples/demos/microduck_warehouse.py": ScriptOverride(fixed_physics_backend="newton_xpbd"),
     "examples/demos/pick_and_place.py": ScriptOverride(visualizers=("kit",)),
     "examples/sensors/ppisp_camera.py": ScriptOverride(
         args=("--max_steps", "3", "--warmup_steps", "1", "--image_width", "64", "--image_height", "64"),

@@ -24,11 +24,15 @@ from collections.abc import Callable
 from functools import partial
 from typing import TYPE_CHECKING
 
-from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.utils import configclass
+from isaaclab.visualizers import VisualizerCfg
+
+from isaaclab_tasks.utils import resolve_presets
+from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
 
 if TYPE_CHECKING:
     from pxr import Usd
@@ -140,9 +144,9 @@ def create_sim_cfg():
         dt=1.0 / FPS,
         device=args_cli.device,
         gravity=GRAVITY,
-        visualizer_cfgs=[
-            NewtonGLVisualizerCfg(streaming_view=False, show_particles=True, particle_color=PARTICLE_COLOR)
-        ],
+        visualizer_cfgs=VisualizerCfg(
+            backend=MultiBackendVisualizerCfg(newton_gl=NewtonGLBackendCfg(particle_color=PARTICLE_COLOR)),
+        ),
         physics=NewtonCfg(solver_cfg=solver_cfg),
     )
 
@@ -304,7 +308,7 @@ def run_simulator(sim, scene) -> None:
 
 def main() -> None:
     """Launch the two-way rigid-MPM coupling example."""
-    sim_cfg = create_sim_cfg()
+    sim_cfg = resolve_presets(create_sim_cfg(), overrides={"visualizer_cfgs.backend": args_cli.visualizer})
     with launch_simulation(sim_cfg, args_cli):
         from isaaclab.scene import InteractiveScene
 

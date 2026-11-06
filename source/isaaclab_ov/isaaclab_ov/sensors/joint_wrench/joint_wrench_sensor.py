@@ -18,12 +18,12 @@ from pxr import UsdPhysics
 
 from isaaclab.sensors.joint_wrench import BaseJointWrenchSensor
 from isaaclab.sim.utils.queries import find_first_matching_prim, get_all_matching_child_prims, path_expr_to_glob
+from isaaclab.utils.warp import memory as memory_kernels
 
 import isaaclab_ov.tensor_types as TT
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 
 from .joint_wrench_sensor_data import JointWrenchSensorData
-from .kernels import joint_wrench_reset_kernel, joint_wrench_split_kernel
 
 if TYPE_CHECKING:
     from isaaclab.sensors.joint_wrench import JointWrenchSensorCfg
@@ -108,7 +108,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
         super().reset(None, env_mask)
         wp.launch(
-            joint_wrench_reset_kernel,
+            memory_kernels.make_clear_pair(wp.vec3f, 2),
             dim=(self._num_envs, self._num_bodies),
             inputs=[env_mask, self._data._force, self._data._torque],
             device=self._device,
@@ -140,17 +140,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         self._num_bodies = self._wrench_binding.body_count
         self._data._body_names = list(self._wrench_binding.body_names)
 
-        # OVPhysX clone_usd=False means SensorBase's USD-glob count only saw env_0;
-        # the binding's ``count`` reports the true number of articulation instances
-        # (one per env).  Mirrors how OVPhysX Articulation reads ``sample.count``
-        # directly as ``num_instances``.
-        binding_num_envs = self._wrench_binding.count
-        if binding_num_envs != self._num_envs:
-            self._num_envs = binding_num_envs
-            self._ALL_ENV_MASK = wp.ones((self._num_envs,), dtype=wp.bool, device=self._device)
-            self._reset_mask = wp.zeros((self._num_envs,), dtype=wp.bool, device=self._device)
-            self._reset_mask_torch = wp.to_torch(self._reset_mask)
-            self._create_timing_buffers()
+        self._check_env_count(self._wrench_binding.count, self.cfg.prim_path)
 
         # Wrench storage as (N, L) spatial_vectorf, read each step via the view. The view
         # reinterprets this structured buffer off the binding's flat float32 shape and caches
@@ -204,12 +194,11 @@ class JointWrenchSensor(BaseJointWrenchSensor):
 
         self._root_view.read_into(TT.LINK_INCOMING_JOINT_FORCE, self._wrench_buf)
         wp.launch(
-            joint_wrench_split_kernel,
+            memory_kernels.make_split(wp.vec3f, wp.vec3f, 2),
             dim=(self._num_envs, self._num_bodies),
             inputs=[
+                self._wrench_buf.view(wp.float32),
                 env_mask,
-                self._wrench_buf,
-                self._timestamp,
                 self._data._force,
                 self._data._torque,
             ],

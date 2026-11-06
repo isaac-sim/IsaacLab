@@ -14,10 +14,11 @@ import warp as wp
 
 import isaaclab.utils.math as math_utils
 from isaaclab.sensors.imu import BaseImu
+from isaaclab.sensors.imu.kernels import imu_update_kernel
 from isaaclab.sim.utils.queries import path_expr_to_glob
+from isaaclab.utils.warp import memory as memory_kernels
 
 from .imu_data import ImuData
-from .kernels import imu_reset_kernel, imu_update_kernel
 
 if TYPE_CHECKING:
     from isaaclab.sensors.imu import ImuCfg
@@ -103,7 +104,7 @@ class Imu(BaseImu):
         super().reset(None, env_mask)
 
         wp.launch(
-            imu_reset_kernel,
+            memory_kernels.make_clear_pair(wp.vec3f, 1),
             dim=self._num_envs,
             inputs=[
                 env_mask,
@@ -129,6 +130,7 @@ class Imu(BaseImu):
 
         self._rigid_parent_expr, fixed_pos_b, fixed_quat_b = self._resolve_rigid_body_ancestor_expr()
         self._view = self._physics_sim_view.create_rigid_body_view(path_expr_to_glob(self._rigid_parent_expr))
+        self._check_env_count(self._view.count, self._rigid_parent_expr)
 
         # Real IMUs always measure gravity, so the accelerometer is biased by -g. The scene value
         # can change at runtime, so it is refreshed on every update instead of snapshotted here.
@@ -179,6 +181,7 @@ class Imu(BaseImu):
         # the getters lazily allocate their output buffers and refresh the same memory in place
         # on every call, so the cached views (and the recorded launch that consumes them) stay
         # valid. A re-backed buffer would silently freeze the sensor data, so fail loudly.
+        self._backend_manager.update_kinematics()
         transforms = self._view.get_transforms()
         velocities = self._view.get_velocities()
         accelerations = self._view.get_accelerations()
@@ -240,7 +243,6 @@ class Imu(BaseImu):
                 self._offset_pos_b,
                 self._offset_quat_b,
                 self._gravity_bias_w,
-                self._timestamp,
                 self._data._ang_vel_b,
                 self._data._lin_acc_b,
             ],

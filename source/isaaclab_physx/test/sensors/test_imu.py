@@ -5,7 +5,7 @@
 
 from isaaclab.test.utils import launch_test_simulation
 
-launch_test_simulation(enable_cameras=True)
+launch_test_simulation()
 
 import pathlib
 
@@ -373,12 +373,18 @@ def test_no_stale_data_after_scene_reset():
         )
 
         # Reset env 0 without a physics step: it reads zeros while env 1 keeps its measurement.
+        sensor.cfg.update_period = 4 * sim.get_physics_dt()
         scene.reset(env_ids=torch.tensor([0], device=sensor.device))
         lin_acc = sensor.data.lin_acc_b.torch
         ang_vel = sensor.data.ang_vel_b.torch
         torch.testing.assert_close(lin_acc[0], torch.zeros_like(lin_acc[0]))
         torch.testing.assert_close(ang_vel[0], torch.zeros_like(ang_vel[0]))
         torch.testing.assert_close(lin_acc[1], pre_reset_lin_acc[1])
+
+        # Reading reset values must not defer the first real measurement by a full sensor period.
+        sim.step(render=False)
+        scene.update(dt=sim.get_physics_dt())
+        assert (torch.linalg.norm(sensor.data.lin_acc_b.torch, dim=-1) > 5.0).all()
 
 
 @pytest.mark.parametrize("access_mode", ("lazy_read", "update_period"))

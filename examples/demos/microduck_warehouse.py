@@ -113,7 +113,7 @@ class WarehouseDemoCfg(ManagerBasedEnvCfg):
             default=NewtonCfg(solver_cfg=XPBDSolverCfg(), use_cuda_graph=False, load_visual_shapes=True),
             isaacsim_rtx=PhysxCfg(),
         ),
-        default_visualizer_cfg=VisualizerCfg(cameras=[SceneCameraCfg(prim_path="{ENV_REGEX_NS}/Camera")]),
+        visualizer_cfgs=VisualizerCfg(cameras=[SceneCameraCfg(prim_path="{ENV_REGEX_NS}/Camera")]),
     )
     camera_exposure_iso = preset(default=3200.0, isaacsim_rtx=None, newton_renderer=None)
     camera_path = preset(
@@ -138,7 +138,8 @@ def main() -> None:
         "semantic_segmentation": "segmentation",
         "instance_segmentation": "segmentation",
     }.get(output, output)
-    cfg.sim.default_visualizer_cfg.streaming_gt_types = (channel,)
+    for viewer in cfg.sim.visualizer_cfgs:
+        viewer.streaming_gt_types = (channel,)
     with launch_simulation(cfg, args_cli):
         from pxr import UsdGeom
 

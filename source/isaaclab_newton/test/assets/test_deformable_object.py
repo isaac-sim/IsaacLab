@@ -179,7 +179,7 @@ def test_initialization(sim):
     assert cube_object.is_initialized
     assert cube_object.num_instances == num_cubes
     assert cube_object.max_sim_vertices_per_body > 0
-    assert len(sim.backend_manager.get_model().particle_color_groups) > 0
+    assert len(sim.backend_manager.backend.model.particle_color_groups) > 0
 
     particles_per_body = cube_object.max_sim_vertices_per_body
 
@@ -233,7 +233,7 @@ def test_surface_initialization_and_freefall(sim):
     assert np.any(np.abs(rest_angles) > 0.1)
 
     sim.reset()
-    np.testing.assert_array_equal(sim.backend_manager.get_model().edge_rest_angle.numpy(), rest_angles)
+    np.testing.assert_array_equal(sim.backend_manager.backend.model.edge_rest_angle.numpy(), rest_angles)
 
     assert cloth_object.is_initialized
     assert cloth_object.num_instances == num_cloths
@@ -573,7 +573,7 @@ def test_multiple_deformable_assets_do_not_alias(sim):
 
     torch.testing.assert_close(cuboid.data.nodal_pos_w.torch, cuboid_pos, rtol=1e-5, atol=1e-5)
     torch.testing.assert_close(cylinder.data.nodal_pos_w.torch, cylinder_default, rtol=1e-5, atol=1e-5)
-    model = sim.backend_manager.get_model()
+    model = sim.backend_manager.backend.model
     default_inv_mass, default_flags = model.particle_inv_mass.numpy(), model.particle_flags.numpy()
     for asset in (cuboid, cylinder):
         shape = (asset.num_instances, asset.max_sim_vertices_per_body)

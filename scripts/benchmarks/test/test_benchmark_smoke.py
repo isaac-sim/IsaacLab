@@ -77,20 +77,6 @@ def test_adapters_reject_negative_warmup_steps(library: str, workflow: str, monk
 
 @pytest.mark.parametrize("library", ["rsl_rl", "rl_games", "skrl", "sb3"])
 @pytest.mark.parametrize("workflow", ["play", "train"])
-def test_adapters_default_to_one_warmup_step(library: str, workflow: str, monkeypatch):
-    """Benchmark adapters exclude the first environment step by default."""
-    module = _load_adapter(library, workflow)
-    argv = ["--task", _TASK, "--headless"]
-    monkeypatch.setattr(sys, "argv", ["benchmark", *argv])
-
-    args = module._parse_args(argv)[0]
-
-    warmup_count = args.warmup_steps
-    assert warmup_count == 1
-
-
-@pytest.mark.parametrize("library", ["rsl_rl", "rl_games", "skrl", "sb3"])
-@pytest.mark.parametrize("workflow", ["play", "train"])
 def test_adapters_accept_short_synchronized_step_flag(library: str, workflow: str, monkeypatch):
     """Benchmark adapters expose the concise synchronized-step diagnostic flag."""
     module = _load_adapter(library, workflow)

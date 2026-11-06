@@ -135,6 +135,7 @@ def build_source_builders(
             schema_resolvers=schema_resolvers,
             ignore_paths=ignore_paths or (),
             return_deformable_results=True,
+            allow_unsafe_torch_checkpoints=True,
         )
         # Stock USD import can leave a standalone world-fixed root without its authored articulation.
         for joint, joint_type in enumerate(builder.joint_type):
