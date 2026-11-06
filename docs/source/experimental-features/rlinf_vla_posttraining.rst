@@ -76,8 +76,9 @@ the alternative model dependencies below.
    uv pip install -e ".[base]" --no-deps
    cd ../
 
-   # Step 4: Install flash-attn (see "Skipping flash-attn" below if this fails)
-   pip install flash-attn==2.8.3 --no-build-isolation --no-deps
+   # Step 4: Install flash-attn from source (requires CUDA 13 nvcc)
+   uv pip install ninja packaging psutil wheel
+   uv pip install flash-attn==2.8.3 --no-build-isolation --no-deps
 
 Existing RLinf 0.2 installations must rerun Step 1 to use the shared RLinf revision above.
 Both GR00T generations use its per-generation model packages and action registries.
@@ -207,6 +208,28 @@ RLinf requires Ray for worker scheduling in both training and evaluation, includ
 
    The ``--config_path`` flag is optional. When omitted, the scripts automatically
    search the ``isaaclab_tasks`` package for the matching YAML configuration file.
+
+Physics Backend
+~~~~~~~~~~~~~~~
+
+The ``assemble_trocar`` task runs on PhysX by default. To use Newton (MuJoCo-Warp) instead,
+append ``physics=newton_mjwarp`` to the training or evaluation command:
+
+.. code-block:: bash
+
+   uv run --no-sync isaaclab train --rl_library rlinf \
+       --config_name isaaclab_ppo_gr00t_assemble_trocar \
+       --model_path /path/to/base_model \
+       physics=newton_mjwarp
+
+Trailing ``KEY=VALUE`` arguments are environment config overrides that RLinf forwards to every
+environment worker, for training and evaluation alike. For example,
+``env.terminations.task_success.params.success_stage=3`` ends episodes after the insertion stage.
+
+.. note::
+
+   Contact dynamics differ between the backends, so the published ``Assemble_Trocar`` checkpoint
+   succeeds less often on Newton than on PhysX until it is RL fine-tuned on Newton.
 
 Checkpoints
 -----------

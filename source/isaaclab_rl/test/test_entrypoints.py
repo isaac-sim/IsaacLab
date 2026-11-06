@@ -486,6 +486,28 @@ def test_rlinf_parser_uses_unified_checkpoint_and_iteration_flags() -> None:
     assert args.max_iterations == 10
 
 
+@pytest.mark.parametrize("backend", [train_rlinf, play_rlinf], ids=["train", "play"])
+def test_rlinf_parser_accepts_env_overrides_between_flags(backend) -> None:
+    """Trailing KEY=VALUE env overrides may be mixed with the RLinf options."""
+    args = backend._parse_args(["--config_name", "ppo", "physics=newton_mjwarp", "--seed", "1", "a.b=2"])
+
+    assert args.env_overrides == ["physics=newton_mjwarp", "a.b=2"]
+    assert args.seed == 1
+
+
+def test_rlinf_env_overrides_reach_train_and_eval_workers() -> None:
+    """Env overrides are written to both RLinf env splits and must be KEY=VALUE."""
+    from isaaclab_rl.entrypoints.backends.cli_args_rlinf import set_env_overrides
+
+    cfg = OmegaConf.create({"env": {"train": {"init_params": {}}, "eval": {"init_params": {}}}})
+    set_env_overrides(cfg, ["physics=newton_mjwarp"])
+
+    assert list(cfg.env.train.init_params.env_overrides) == ["physics=newton_mjwarp"]
+    assert list(cfg.env.eval.init_params.env_overrides) == ["physics=newton_mjwarp"]
+    with pytest.raises(ValueError, match="expected KEY=VALUE"):
+        set_env_overrides(cfg, ["physics"])
+
+
 def test_torchrl_parser_accepts_run_name(monkeypatch) -> None:
     """TorchRL accepts the same run-name option exposed by the other training frontends."""
     from isaaclab_rl.entrypoints.backends import train_torchrl

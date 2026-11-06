@@ -46,7 +46,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         default=False,
         help="Save the evaluation videos RLinf records (its env.eval.video_cfg); takes no source.",
     )
-    args_cli = parser.parse_args(argv)
+    args_cli = parser.parse_intermixed_args(argv)
     if not args_cli.config_name:
         parser.error("--config_name is required (e.g. --config_name isaaclab_ppo_gr00t_assemble_trocar)")
     return args_cli
@@ -111,6 +111,8 @@ def run(argv: list[str]) -> None:
             cfg.actor.seed = args_cli.seed
         if args_cli.num_episodes is not None:
             cfg.algorithm.eval_rollout_epoch = args_cli.num_episodes
+        if args_cli.env_overrides:
+            cli_args.set_env_overrides(cfg, args_cli.env_overrides)
         cfg.rollout.model = OmegaConf.merge(cfg.actor.model, cfg.rollout.model)
         # Ray workers may launch from a different working directory.
         for model in (cfg.actor.model, cfg.rollout.model):
@@ -123,6 +125,7 @@ def run(argv: list[str]) -> None:
         "Model": cfg.rollout.model.model_path,
         "Checkpoint": cfg.runner.get("ckpt_path"),
         "Videos": cfg.env.eval.video_cfg.save_video,
+        "Env overrides": list(args_cli.env_overrides),
     }
     if cfg.env.eval.video_cfg.save_video:
         fields["Video dir"] = cfg.env.eval.video_cfg.video_base_dir

@@ -12,6 +12,7 @@ __all__ = [
     "get_trocar_tip_position",
     "lift_trocars_reward",
     "object_drop_termination",
+    "remap_newton_shape_friction",
     "reset_robot_to_default_joint_positions",
     "reset_task_stage",
     "reset_tray_with_random_rotation",
@@ -23,7 +24,12 @@ __all__ = [
     "update_task_stage",
 ]
 
-from .events import reset_robot_to_default_joint_positions, reset_task_stage, reset_tray_with_random_rotation
+from .events import (
+    remap_newton_shape_friction,
+    reset_robot_to_default_joint_positions,
+    reset_task_stage,
+    reset_tray_with_random_rotation,
+)
 from .observations import get_robot_body_joint_states, get_robot_dex3_joint_states
 from .rewards import (
     AssembleTrocarState,
