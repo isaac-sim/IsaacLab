@@ -466,6 +466,7 @@ class NewtonWarpRenderer(BaseRenderer):
                 tile_width=self.cfg.tile_rendering_width,
                 tile_height=self.cfg.tile_rendering_height,
             ),
+            load_textures=self.cfg.enable_textures,
         )
 
         if self.cfg.render_order == "pixel_priority":
