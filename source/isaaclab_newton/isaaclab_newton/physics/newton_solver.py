@@ -159,7 +159,10 @@ class NewtonSolver:
         observables: SolverBase.Observables | None = None,
     ) -> None:
         """Advance one substep of ``dt`` [s]."""
-        self.native.step(state_in, state_out, control, contacts, dt, observables=observables)
+        if observables is None:
+            self.native.step(state_in, state_out, control, contacts, dt)
+        else:
+            self.native.step(state_in, state_out, control, contacts, dt, observables=observables)
 
     def post_step(self, state: State) -> None:
         """Publish derived state once per physics step, after the substeps."""
