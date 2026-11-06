@@ -23,6 +23,7 @@ from isaaclab.renderers.render_context import RenderContext
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.scene import InteractiveScene
 from isaaclab.sensors import Camera, SensorBase
+from isaaclab.sensors.camera import CAPTURE_ENV_MASK_NAME
 from isaaclab.sensors.camera.camera_data import CameraData
 from isaaclab.sim import BackendCfg, SimulationContext
 from isaaclab.utils import replace
@@ -627,7 +628,9 @@ def test_camera_processors_receive_the_due_environments(camera_batch_context, la
     """Processors run once per capture with the mask of the environments due for it."""
     _, renderer, _ = camera_batch_context
     masks = []
-    processor = Mock(side_effect=lambda buffers: masks.append(buffers["env_mask"].warp.numpy().tolist()) or {})
+    processor = Mock(
+        side_effect=lambda buffers: masks.append(buffers[CAPTURE_ENV_MASK_NAME].warp.numpy().tolist()) or {}
+    )
     camera = _CpuCamera(renderer, "camera", update_period=1.0, processors=[processor])
     scene = _camera_scene([camera], lazy=lazy)
 

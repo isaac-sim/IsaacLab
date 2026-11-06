@@ -333,8 +333,9 @@ processor's result. Processor outputs appear in :attr:`~sensors.CameraData.outpu
 
 With ``update_period > 0``, environments that reset at different times become due on different steps, but each
 capture renders every environment. Stateful processors (frame stacking, temporal filters, video generation) can
-list ``"env_mask"`` in their ``inputs`` to receive a boolean mask of the environments due for the capture, whose
-frame and timestamp advance. The name is reserved, and the mask is not published as an output. The mask describes
+list ``isaaclab.sensors.camera.CAPTURE_ENV_MASK_NAME`` in their ``inputs`` to receive a boolean mask of the
+environments due for the capture, whose frame and timestamp advance. The name is reserved, and the mask is not
+published as an output. The mask describes
 the current capture request, so processors that read it need synchronous rendering; with ``async_rendering=True``
 the camera raises an error.
 

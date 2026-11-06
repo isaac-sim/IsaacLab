@@ -29,7 +29,7 @@ from ...utils.math import (
 )
 from ...utils.warp import ProxyArray
 from ..sensor_base import SensorBase
-from .camera_cfg import CAPTURE_MASK_NAME, _render_data_types
+from .camera_cfg import CAPTURE_ENV_MASK_NAME, _render_data_types
 from .camera_data import CameraData, RenderBufferKind
 from .camera_exposure import ExposureCfg, apply_neutral_exposure
 from .camera_isp import CameraISPMode
@@ -818,14 +818,14 @@ class Camera(SensorBase):
         """Run the processors in order on the capture and publish their outputs."""
         if not self.cfg.tensor_processors:
             return
-        buffers = {**self._render_outputs, CAPTURE_MASK_NAME: ProxyArray(env_mask)}
+        buffers = {**self._render_outputs, CAPTURE_ENV_MASK_NAME: ProxyArray(env_mask)}
         for index, processor_cfg in enumerate(self.cfg.tensor_processors):
             # Construction needs the outputs of earlier processors, which exist after their first call.
             if index == len(self._tensor_processors):
                 self._tensor_processors.append(processor_cfg.func(processor_cfg, buffers))
             buffers.update(self._tensor_processors[index](buffers))
         # The capture mask is an input for processors, not a camera output.
-        del buffers[CAPTURE_MASK_NAME]
+        del buffers[CAPTURE_ENV_MASK_NAME]
         self._data.output.update(buffers)
         # Processor outputs enter info at their first publication. Renderers fill only existing info keys, so a new
         # output takes the capture metadata of the render outputs it was computed from; later captures fill it.

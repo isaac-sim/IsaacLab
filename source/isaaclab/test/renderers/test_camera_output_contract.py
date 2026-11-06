@@ -21,7 +21,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.renderers import BaseRenderer
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.sensors.camera import CameraCfg, CameraISPMode, TiledCameraCfg
+from isaaclab.sensors.camera import CAPTURE_ENV_MASK_NAME, CameraCfg, CameraISPMode, TiledCameraCfg
 from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import PinholeCameraCfg
 from isaaclab.test.utils import DeviceScope, test_devices
@@ -50,7 +50,7 @@ class _ScaleProcessor(TensorProcessor):
         self._output = ProxyArray(wp.zeros_like(data[cfg.inputs[0]].warp))
 
     def __call__(self, data: dict[str, ProxyArray]) -> dict[str, ProxyArray]:
-        _ScaleProcessor.masks.append(data["env_mask"].warp.numpy().tolist())
+        _ScaleProcessor.masks.append(data[CAPTURE_ENV_MASK_NAME].warp.numpy().tolist())
         torch.mul(data[self._cfg.inputs[0]].torch, self._cfg.params["scale"], out=self._output.torch)
         return {self._cfg.outputs[0]: self._output}
 
@@ -169,10 +169,10 @@ def test_camera_tensor_processors_chain_and_replace_render_outputs(device):
     # The second processor is constructed from the first one's output and replaces the render input.
     processors = [
         TensorProcessorCfg(
-            func=_ScaleProcessor, inputs=["rgb_hdr", "env_mask"], outputs=["half"], params={"scale": 0.5}
+            func=_ScaleProcessor, inputs=["rgb_hdr", CAPTURE_ENV_MASK_NAME], outputs=["half"], params={"scale": 0.5}
         ),
         TensorProcessorCfg(
-            func=_ScaleProcessor, inputs=["half", "env_mask"], outputs=["rgb_hdr"], params={"scale": 4.0}
+            func=_ScaleProcessor, inputs=["half", CAPTURE_ENV_MASK_NAME], outputs=["rgb_hdr"], params={"scale": 4.0}
         ),
     ]
     camera_kwargs = dict(data_types=["rgb_hdr"], background_color=(0.25, 0.5, 0.75), tensor_processors=processors)
@@ -337,7 +337,7 @@ def test_camera_cfg_rejects_outputs_unsupported_by_renderer():
         )
 
     def processor(source: str, output: str) -> TensorProcessorCfg:
-        return TensorProcessorCfg(func=_ScaleProcessor, inputs=[source, "env_mask"], outputs=[output])
+        return TensorProcessorCfg(func=_ScaleProcessor, inputs=[source, CAPTURE_ENV_MASK_NAME], outputs=[output])
 
     validate(make_cfg("rgb_hdr"))
     with pytest.raises(ValueError, match="simple_shading_full_mdl"):
@@ -347,7 +347,7 @@ def test_camera_cfg_rejects_outputs_unsupported_by_renderer():
     with pytest.raises(ValueError, match="simple_shading_full_mdl"):
         validate(make_cfg("half", processor("simple_shading_full_mdl", "half")))
     with pytest.raises(ValueError, match="reserved"):
-        validate(make_cfg("rgb_hdr", processor("rgb_hdr", "env_mask")))
+        validate(make_cfg("rgb_hdr", processor("rgb_hdr", CAPTURE_ENV_MASK_NAME)))
     # Asynchronous rendering publishes the previous request's image, which the current mask does not describe.
     async_cfg = make_cfg("half", processor("rgb_hdr", "half"))
     async_cfg.renderer_cfg.async_rendering = True
