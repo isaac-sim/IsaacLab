@@ -85,8 +85,22 @@ class ContactSensorCfg(SensorBaseCfg):
     meaning contacts with all bodies are aggregated into the net force.
 
     If provided, a per-partner force matrix (:attr:`ContactSensorData.normal_force_matrix_w`) is
-    reported in addition to the net force. Each expression is matched against body prim paths
-    in the scene.
+    reported in addition to the net force, with one entry per filter body for every sensor body.
+    Each expression is matched against body prim paths in the scene.
+
+    On PhysX and OVPhysX, an expression whose last segment is a regular expression and which has no
+    glob ``*`` (a ``*`` that does not follow ``.``, ``]`` or ``)``) is resolved into one filter body
+    for each body whose name matches that segment, at any depth below the prims matched by the rest
+    of the expression. For example, ``{ENV_REGEX_NS}/Robot/.*_foot`` gives one filter body per foot
+    of a robot whose links are nested. Rigid bodies and static colliders count as bodies; the prims
+    matched by the rest of the expression are not candidates themselves. The bodies of one
+    expression are ordered breadth-first, and a body that an earlier expression already resolved to
+    is not repeated. In a heterogeneous scene the bodies are resolved from one prototype, as for
+    :attr:`SensorBaseCfg.prim_path`: a resolved body that another variant lacks fails
+    initialization, and a body that only another variant has gets no entry. Every other expression,
+    such as ``{ENV_REGEX_NS}/Drawer_.*/handle`` with its regular expression in another segment, and
+    an expression that matches no body are passed to the physics view unchanged and must match one
+    prim per environment, or one prim for all environments.
 
     For shape-level filtering, see ``NewtonContactSensorCfg`` in ``isaaclab_newton``.
 
@@ -95,11 +109,6 @@ class ContactSensorCfg(SensorBaseCfg):
         is replaced with the environment namespace.
 
         Example: ``{ENV_REGEX_NS}/Object`` becomes ``/World/envs/env_[^/]+/Object``.
-
-    .. attention::
-        Filtered contact reporting only works when :attr:`SensorBaseCfg.prim_path` matches a
-        single primitive per environment. For many-to-many filtering, see
-        ``NewtonContactSensorCfg`` in ``isaaclab_newton``.
     """
 
     sensor_shape_prim_expr: list[str] = []

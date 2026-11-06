@@ -548,21 +548,26 @@ def test_cube_stack_contact_filtering(setup_simulation, device):
         assert contact_sensor.data.net_normal_forces_w.torch.sum().item() > 0.0
 
 
-def _author_nested_chain(prim_path: str):
+def _author_nested_chain(
+    prim_path: str, link_specs: list[tuple[str, tuple[float, float, float]]] | None = None
+) -> None:
     """Author a chain of kinematic rigid bodies whose link prims are nested under each other.
 
     Mirrors the layout produced by the URDF importer in Isaac Sim 6.0+, where each child
     link prim is authored under its parent link prim instead of as a flat sibling. The
     bodies are kinematic so their poses stay at the authored values without joints.
+    ``link_specs`` holds each link's path below ``prim_path`` and its offset [m] from its
+    parent prim; it defaults to a pelvis, hip, and knee chain.
     """
     stage = get_current_stage()
     UsdGeom.Xform.Define(stage, prim_path)
     # each link: an Xform with the rigid-body schema and a cube collision geometry below it
-    link_specs = [
-        ("pelvis", (0.0, 0.0, 1.25)),
-        ("pelvis/left_hip", (0.0, 0.0, -0.5)),
-        ("pelvis/left_hip/left_knee", (0.0, 0.0, -0.5)),
-    ]
+    if link_specs is None:
+        link_specs = [
+            ("pelvis", (0.0, 0.0, 1.25)),
+            ("pelvis/left_hip", (0.0, 0.0, -0.5)),
+            ("pelvis/left_hip/left_knee", (0.0, 0.0, -0.5)),
+        ]
     for rel_path, offset in link_specs:
         link_path = f"{prim_path}/{rel_path}"
         link = UsdGeom.Xform.Define(stage, link_path)
@@ -627,6 +632,76 @@ def test_nested_rigid_body_hierarchy(setup_simulation, device):
             for body_id, body_name in enumerate(contact_sensor.body_names):
                 expected = torch.tensor([origin[0], origin[1], expected_body_z[body_name]], device=pos_w.device)
                 torch.testing.assert_close(pos_w[env_id, body_id], expected, atol=1e-4, rtol=0.0)
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+def test_filter_expression_matching_nested_bodies(setup_simulation, device):
+    """Checks that a filter expression matching several nested bodies reports one column per body.
+
+    Regression test: each filter expression became one filter pattern of the contact view, which
+    must match one prim per environment, so an expression matching feet at two depths of a nested
+    rigid-body hierarchy failed sensor initialization. A body matched by two expressions keeps one
+    column and the colliders inside the bodies get none. Expressions matching one body, a concrete
+    environment, and globs that are not regular expressions keep their column and order.
+    """
+    sim_dt = setup_simulation[0]
+    num_envs = 4
+    # feet at two depths with their tops 0.5 m above the environment origin
+    feet_chain = [
+        ("pelvis", (0.0, 0.0, 1.5)),
+        ("pelvis/left_hip", (-0.5, 0.0, -0.5)),
+        ("pelvis/left_hip/left_foot", (0.0, -1.0, -0.75)),
+        ("pelvis/right_foot", (0.5, -1.0, -1.25)),
+    ]
+    with build_simulation_context(device=device, dt=sim_dt, add_lighting=False) as sim:
+        sim._app_control_on_stop_handle = None
+        stage = get_current_stage()
+        cube_cfg = replace(CUBE_CFG.spawn, size=(0.2, 0.2, 0.2))
+        for env_id in range(num_envs):
+            env_xform = UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_id}")
+            env_xform.AddTranslateOp().Set(Gf.Vec3d(3.0 * env_id, 0.0, 0.0))
+            _author_nested_chain(f"/World/envs/env_{env_id}/Robot", feet_chain)
+            # a cube resting on each foot
+            cube_cfg.func(f"/World/envs/env_{env_id}/Cube_left", cube_cfg, translation=(-0.5, -1.0, 0.6))
+            cube_cfg.func(f"/World/envs/env_{env_id}/Cube_right", cube_cfg, translation=(0.5, -1.0, 0.6))
+        robot = "{ENV_REGEX_NS}/Robot"
+        left_sensor = ContactSensor(
+            ContactSensorCfg(
+                prim_path="{ENV_REGEX_NS}/Cube_left", filter_prim_paths_expr=[f"{robot}/.*_foot", f"{robot}/pelvis/.*"]
+            )
+        )
+        right_sensor = ContactSensor(
+            ContactSensorCfg(
+                prim_path="{ENV_REGEX_NS}/Cube_right",
+                filter_prim_paths_expr=[
+                    f"{robot}/pelvis/left_hip/?eft_foot",
+                    f"{robot}/pelvis/right_.*",
+                    "/World/envs/env_0/Robot/pelvis/left_hip/.*_foot",
+                ],
+            )
+        )
+        sim.reset()
+
+        # one column per matched body, in breadth-first order and once; expressions in configured order
+        right, left, hip = "Robot/pelvis/right_foot", "Robot/pelvis/left_hip/left_foot", "Robot/pelvis/left_hip"
+        left_columns = [[f"env_{i}/{right}", f"env_{i}/{left}", f"env_{i}/{hip}"] for i in range(num_envs)]
+        right_columns = [[f"env_{i}/{left}", f"env_{i}/{right}", f"env_0/{left}"] for i in range(num_envs)]
+        for sensor, columns in ((left_sensor, left_columns), (right_sensor, right_columns)):
+            assert sensor.contact_view.filter_paths == [[f"/World/envs/{path}" for path in row] for row in columns]
+
+        for _ in range(100):
+            sim.step()
+            left_sensor.update(sim_dt, force_recompute=True)
+            right_sensor.update(sim_dt, force_recompute=True)
+
+        # each cube rests on the foot in the second column, which carries its whole normal force
+        for sensor in (left_sensor, right_sensor):
+            net_forces = sensor.data.net_normal_forces_w.torch[:, 0]
+            force_matrix = sensor.data.normal_force_matrix_w.torch[:, 0]
+            assert (net_forces[:, 2] > 0.0).all()
+            torch.testing.assert_close(force_matrix[:, 1], net_forces)
+            assert torch.count_nonzero(force_matrix[:, [0, 2]]) == 0
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
