@@ -17,7 +17,7 @@ from collections.abc import Generator, Mapping
 from contextlib import contextmanager
 from dataclasses import is_dataclass
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, ClassVar
 
 import torch
 from isaaclab_newton.physics import NewtonCfg, VBDSolverCfg
@@ -58,8 +58,10 @@ class SimulationLauncher:
 
     A backend package subclasses this and names the subclass in its config's ``launcher_type``.
     :func:`launch_simulation` constructs it, which starts the runtime, and calls :meth:`close` when the
-    simulation ends.
+    simulation ends. A :meth:`session` can retain those runtimes across successive simulations.
     """
+
+    _session_launchers: ClassVar[dict[str, SimulationLauncher] | None] = None
 
     device: str | None = None
     """Simulation device chosen by the runtime, or None to keep the config's device."""
@@ -77,6 +79,39 @@ class SimulationLauncher:
         Args:
             exit_code: Exit status of the simulation, for runtimes that end the process.
         """
+
+    @classmethod
+    @contextmanager
+    def session(cls) -> Generator[None, None, None]:
+        """Reuse process runtimes across simulations until the surrounding scope exits.
+
+        Each launcher type starts once using its first launch arguments. Kit runtimes started for a
+        Newton GL window enable camera support so later programs can add camera consumers. Nested
+        sessions join the surrounding scope. Runtimes close in reverse startup order with the scope's
+        exit status after all simulation consumers have been released.
+        """
+        if SimulationLauncher._session_launchers is not None:
+            yield
+            return
+
+        SimulationLauncher._session_launchers = {}
+        exit_code = 0
+        try:
+            yield
+        except KeyboardInterrupt:
+            exit_code = 130
+            raise
+        except SystemExit as exc:
+            exit_code = exc.code if isinstance(exc.code, int) else int(exc.code is not None)
+            raise
+        except BaseException:
+            exit_code = 1
+            raise
+        finally:
+            launchers = SimulationLauncher._session_launchers
+            SimulationLauncher._session_launchers = None
+            for launcher in reversed(launchers.values()):
+                launcher.close(exit_code)
 
 
 def add_launcher_args(parser: argparse.ArgumentParser) -> None:
@@ -308,6 +343,10 @@ def validate_launch(  # noqa: C901
             simulations[0].visualizer_cfgs.append(producer)
             viewers.append(producer)
 
+    for viewer in viewers:
+        if isinstance(viewer.backend, NewtonGLBackendCfg) and viewer.backend.record_history is None:
+            viewer.backend.record_history = launcher_args.get("record_history", True)
+
     # Declare RTX perspective cameras before scene construction; runtime viewers only borrow their output.
     scene_cfg = next((node for node in configs if isinstance(node, InteractiveSceneCfg)), None)
     for viewer_index, visualizer in enumerate(viewers):
@@ -416,7 +455,8 @@ def launch_simulation(
     """Context manager that launches the appropriate simulation runtime for *cfg*.
 
     Resolves configured consumers before starting their required runtimes. Each runtime starts
-    once and closes on exit. Cameras are auto-enabled for Kit-renderer sensors.
+    once and closes on exit, or at the end of an active :meth:`SimulationLauncher.session`.
+    Cameras are auto-enabled for Kit-renderer sensors.
 
     Resolve viewer and physics choices on the same config used to construct the simulation::
 
@@ -437,6 +477,9 @@ def launch_simulation(
               a tool that reaches a Kit-only extension API. This is additive -- it can only turn a
               kitless launch into a Kit one, never the reverse, so a config that already needs Kit
               still launches it when the key is absent or ``False``.
+            * ``record_history``: Default for Newton workspace history when its backend config
+              leaves the choice unset. Training entrypoints supply ``False`` to avoid automatic
+              host snapshots; other workflows default to ``True``.
     """
     launcher_args = {} if launcher_args is None else launcher_args
     launcher_args = vars(launcher_args) if isinstance(launcher_args, argparse.Namespace) else launcher_args
@@ -472,7 +515,29 @@ def launch_simulation(
         for node in configs
         if isinstance(node, (PhysicsCfg, RendererCfg, VisualizerBackendCfg)) and node.launcher_type
     ]
-    launchers = [string_to_callable(launcher_type)(launcher_args) for launcher_type in dict.fromkeys(launcher_types)]
+    launcher_types = list(dict.fromkeys(launcher_types))
+    retained_launchers = SimulationLauncher._session_launchers
+    launchers = []
+    for launcher_type in launcher_types:
+        if retained_launchers is not None and launcher_type in retained_launchers:
+            launcher = retained_launchers[launcher_type]
+        else:
+            runtime_args = (
+                {**launcher_args, "enable_cameras": True}
+                if retained_launchers is not None
+                and launcher_type == _KIT_LAUNCHER
+                and any(
+                    isinstance(node, VisualizerCfg)
+                    and node.backend.visualizer_type == "newton_gl"
+                    and not node.headless
+                    for node in configs
+                )
+                else launcher_args
+            )
+            launcher = string_to_callable(launcher_type)(runtime_args)
+            if retained_launchers is not None:
+                retained_launchers[launcher_type] = launcher
+        launchers.append(launcher)
     # after the launchers, so a started Kit already backs the settings
     device = launcher_args.get("device")
     for launcher in launchers:
@@ -514,5 +579,6 @@ def launch_simulation(
         traceback.print_exc()
         raise
     finally:
-        for launcher in reversed(launchers):
-            launcher.close(exit_code)
+        if retained_launchers is None:
+            for launcher in reversed(launchers):
+                launcher.close(exit_code)

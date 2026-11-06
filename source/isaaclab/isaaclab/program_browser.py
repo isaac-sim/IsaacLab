@@ -19,8 +19,8 @@ if TYPE_CHECKING:
 class ProgramBrowser:
     """List packaged programs in Newton GL windows and remember the one the user picks.
 
-    Picking a program closes the window, which ends the running program; the launcher then reads
-    :attr:`selected` to start the next one.
+    Picking a program or requesting a reset stops the current simulation. After the program
+    cleans up, the launcher runs the selection or restarts the current program in the same window.
     """
 
     def __init__(self, catalogs: dict[str, tuple[ProgramSpec, ...]]) -> None:
@@ -32,6 +32,8 @@ class ProgramBrowser:
         """
         self.selected: tuple[str, ProgramSpec] | None = None
         """CLI command and program picked by the user, or None."""
+        self.restart_requested = False
+        """Whether the current program should restart after its simulation closes."""
         self._catalogs = {
             command: tuple(
                 program for program in catalog if program.newton_gl_args is not None and not program.missing_modules()
@@ -49,9 +51,10 @@ class ProgramBrowser:
         for visualizer in sim.visualizers:
             if visualizer.cfg.backend.visualizer_type == "newton_gl" and id(visualizer) not in self._attached:
                 self._attached.add(id(visualizer))
-                visualizer.register_ui_callback(self._render_callback(visualizer), position="panel")
+                visualizer.register_ui_callback(self._render_callback(sim), position="panel")
+                visualizer.register_ui_callback(self._restart_callback(sim, visualizer), position="free")
 
-    def _render_callback(self, visualizer: BaseVisualizer) -> Callable[[Any], None]:
+    def _render_callback(self, sim: SimulationContext) -> Callable[[Any], None]:
         """Return the ImGui callback that draws the program list in one window."""
 
         def render(imgui: Any) -> None:
@@ -66,11 +69,22 @@ class ProgramBrowser:
                         clicked, _ = imgui.selectable(
                             f"{program.name.replace('-', ' ').title()}##{command}:{program.name}", False
                         )
-                        if clicked and self.selected is None:
+                        if clicked and self.selected is None and not self.restart_requested:
                             self.selected = command, program
-                            visualizer.request_close()
+                            sim.stop()
                         if imgui.is_item_hovered():
                             imgui.set_tooltip(program.summary)
                     imgui.tree_pop()
+
+        return render
+
+    def _restart_callback(self, sim: SimulationContext, visualizer: BaseVisualizer) -> Callable[[Any], None]:
+        """Observe toolbar reset even when the program panel is hidden."""
+
+        def render(_imgui: Any) -> None:
+            if self.selected is None and not self.restart_requested and visualizer.is_reset_requested():
+                self.restart_requested = True
+                sim.consume_reset_request()
+                sim.stop()
 
         return render

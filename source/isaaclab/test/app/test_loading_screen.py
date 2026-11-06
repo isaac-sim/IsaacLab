@@ -69,6 +69,22 @@ def test_live_updates_refresh_after_releasing_state_lock():
     assert lock_states == [False, False, False]
 
 
+def test_activity_callback_restores_after_failed_loading_without_console():
+    """GUI progress receives reports independently of console output and restores its scoped owner."""
+    outer, inner = [], []
+    with loading_screen.LoadingScreen(1, enabled=False), loading_screen.activity_callback(outer.append):
+        loading_screen.report_activity("Loading assets")
+        with pytest.raises(RuntimeError, match="Loading failed"):
+            with loading_screen.activity_callback(inner.append):
+                loading_screen.report_activity("Initializing solver")
+                raise RuntimeError("Loading failed")
+        loading_screen.report_activity(None)
+    loading_screen.report_activity("After loading")
+
+    assert outer == ["Loading assets", None]
+    assert inner == ["Initializing solver"]
+
+
 class _OpenStringIO(StringIO):
     def close(self) -> None:
         pass

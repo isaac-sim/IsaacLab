@@ -196,6 +196,14 @@ class BaseVisualizer(ABC):
         """
         return False
 
+    def consume_step_request(self) -> bool:
+        """Consume a request to advance one physics step while simulation is paused.
+
+        Returns:
+            ``True`` once per requested step. Visualizers without stepping controls return ``False``.
+        """
+        return False
+
     def is_reset_requested(self) -> bool:
         """Check if an episode reset was requested from visualizer controls.
 
