@@ -207,6 +207,7 @@ class MPMSolver(NewtonSolver):
 
     solver_class = SolverImplicitMPM
     single_state = True
+    contact_sensors = False
 
     @classmethod
     def prepare_builder(cls, cfg: MPMSolverCfg, builder: ModelBuilder) -> None:
