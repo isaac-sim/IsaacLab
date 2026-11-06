@@ -15,7 +15,6 @@ from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING
 
 import numpy as np
-import ovstage
 
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
@@ -223,9 +222,8 @@ class OvrtxReplicateContext(cloner.ReplicateContext):
                 )
             scene = None
             if use_ovstage:
-                domains = ovstage.PopulationDomain.ALL if share_ovstage else ovstage.PopulationDomain.RENDERING
                 scene = sim.get_or_create_backend(
-                    OvstageBackendCfg(scene_key=None if share_ovstage else backend_cfg, population_domains=domains)
+                    OvstageBackendCfg(scene_key=None if share_ovstage else backend_cfg, populate_physics=share_ovstage)
                 )
             renderer.backend = sim.get_or_create_backend(backend_cfg)
             renderer.scene = scene if use_ovstage else renderer.backend

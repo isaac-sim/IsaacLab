@@ -556,43 +556,43 @@ class NewtonManager(PhysicsManager):
                 self.backend.solver_init_callbacks.remove(callback)
 
     def register_pre_actuator_callback(self, callback: Callable[[], None]) -> None:
-        """Append a hook invoked before the actuator step.
+        """Append a hook invoked before the Newton actuators of every physics step.
 
-        Each callback runs inside the captured CUDA graph once per decimation iteration when
-        :meth:`handles_decimation` is ``True``, and eagerly once per step otherwise.
-        Hard resets discard these hooks; register them again when the new model is ready.
+        Each callback is recorded into the captured step, so it must be graph-safe. Hard resets discard these hooks;
+        register them again when the new model is ready.
         """
         self.backend.pre_actuator_callbacks.append(callback)
+        self.backend.invalidate_graph()
 
     def register_post_actuator_callback(self, callback: Callable[[], None]) -> None:
-        """Append a hook invoked after the actuator step on every iteration.
+        """Append a hook invoked after the Newton actuators of every physics step.
 
-        Each callback runs inside the captured CUDA graph (when :meth:`handles_decimation` is ``True``) right after the
-        Newton actuators and before the solver substeps, so its writes to ``state``/``control`` are visible to the
-        integrator on the same iteration. Callbacks fire in registration order.
-        Hard resets discard these hooks; register them again when the new model is ready.
+        Each callback is recorded into the captured step right after the Newton actuators and before the solver
+        substeps, so its writes to ``state``/``control`` are visible to the integrator on the same iteration.
+        Callbacks fire in registration order. Hard resets discard these hooks; register them again when the new model
+        is ready.
         """
         self.backend.post_actuator_callbacks.append(callback)
+        self.backend.invalidate_graph()
 
     def register_state_force_callback(self, callback: Callable[[State], None]) -> None:
         """Register a graph-safe callback that applies forces before every solver substep.
 
-        Callbacks must be registered before the step is captured. Hard resets discard these hooks; register them again
-        when the new model is ready.
+        Hard resets discard these hooks; register them again when the new model is ready.
 
         Args:
             callback: Function that adds forces [N, N·m] to the provided state.
         """
         if callback not in self.backend.state_force_callbacks:
             self.backend.state_force_callbacks.append(callback)
+            self.backend.invalidate_graph()
 
     def unregister_state_force_callback(self, callback: Callable[[State], None]) -> None:
         """Detach a force callback and recapture an active graph without it."""
         backend = self.backend
         if backend is not None and callback in backend.state_force_callbacks:
             backend.state_force_callbacks.remove(callback)
-            if backend.graph is not None:
-                backend.invalidate_graph()
+            backend.invalidate_graph()
 
     def register_post_solver_substep_callback(
         self, callback: Callable[[Contacts | None, SolverBase.Observables | None, State, float], None]
@@ -606,6 +606,7 @@ class NewtonManager(PhysicsManager):
         """
         if callback not in self.backend.post_solver_substep_callbacks:
             self.backend.post_solver_substep_callbacks.append(callback)
+            self.backend.invalidate_graph()
 
     def unregister_post_solver_substep_callback(
         self, callback: Callable[[Contacts | None, SolverBase.Observables | None, State, float], None]
@@ -614,8 +615,7 @@ class NewtonManager(PhysicsManager):
         backend = self.backend
         if backend is not None and callback in backend.post_solver_substep_callbacks:
             backend.post_solver_substep_callbacks.remove(callback)
-            if backend.graph is not None:
-                backend.invalidate_graph()
+            backend.invalidate_graph()
 
     def register_post_step_callback(self, callback: Callable[[], None]) -> None:
         """Append a hook invoked once per :meth:`step`, after the last solver substep and before sensors update.
@@ -625,18 +625,18 @@ class NewtonManager(PhysicsManager):
         Hard resets discard these hooks; register them again when the new model is ready.
         """
         self.backend.post_step_callbacks.append(callback)
+        self.backend.invalidate_graph()
 
     def unregister_post_step_callback(self, callback: Callable[[], None]) -> None:
         """Remove a post-step callback; removing an absent callback is a no-op."""
-        if self.backend is not None:
-            with contextlib.suppress(ValueError):
-                self.backend.post_step_callbacks.remove(callback)
+        if self.backend is not None and callback in self.backend.post_step_callbacks:
+            self.backend.post_step_callbacks.remove(callback)
+            self.backend.invalidate_graph()
 
     def set_decimation(self, decimation: int) -> None:
         """Set the decimation count; see :meth:`NewtonBackend.set_decimation`.
 
-        When all actuators are graphable the entire decimation loop is captured as a single CUDA graph, right after
-        the next requested step runs eagerly.
+        Once Newton actuators run in the step, one :meth:`step` advances the whole decimation loop.
         """
         self._decimation = max(1, decimation)
         if self.backend is not None:
