@@ -11,7 +11,7 @@ import gymnasium as gym
 import h5py
 import pytest
 import torch
-from isaaclab_teleop.action_cfg import TeleopActionCfg
+from isaaclab_teleop.input_cfg import TeleopInputCfg
 from isaaclab_teleop.recording import DemoRecording, DemoRecordingCfg, prepare_demo_recording
 from isaaclab_teleop.source import TeleopSample
 from isaaclab_teleop.source_cfg import TeleopSourceCfg
@@ -52,9 +52,7 @@ def task_registration():
 def _env_cfg():
     return SimpleNamespace(
         actions={
-            "robot": TeleopActionCfg(
-                controller=ActionTermCfg(asset_name="robot"), source=TeleopSourceCfg(class_type=object)
-            )
+            "robot": ActionTermCfg(asset_name="robot", input=TeleopInputCfg(source=TeleopSourceCfg(class_type=object)))
         },
         scene=SimpleNamespace(num_envs=1),
         sim=SimpleNamespace(dt=0.01, render_interval=1),
@@ -112,7 +110,7 @@ def test_invalid_recording_fails_before_creating_dataset(tmp_path, task_registra
     elif invalid == "extension":
         cfg = DemoRecordingCfg(str(tmp_path / "demos.csv"))
     else:
-        env_cfg.actions["robot"].source = None
+        env_cfg.actions["robot"].input.source = None
     with pytest.raises(FileExistsError if invalid == "existing" else ValueError):
         prepare_demo_recording(env_cfg, cfg, task_registration, [0])
     if invalid == "existing":
@@ -135,7 +133,7 @@ def test_reset_boundaries_export_only_physical_episodes_and_drop_partial_close(t
         device="cpu",
         sim=SimpleNamespace(is_playing=lambda: True),
         termination_manager=SimpleNamespace(active_terms=["success"], get_term=lambda name: success),
-        action_manager=SimpleNamespace(get_term=lambda name: source_term),
+        action_manager=SimpleNamespace(get_input=lambda name: source_term),
         action=torch.tensor([[0.0]]),
     )
     env.recorder_manager = RecorderManager(env_cfg.recorders, env)

@@ -20,7 +20,7 @@ from prettytable import PrettyTable
 from ..envs.utils.io_descriptors import GenericActionIODescriptor, _warn_io_descriptors_deprecated
 from ..utils import index_fill_, instantiate
 from .manager_base import ManagerBase, ManagerTermBase
-from .manager_term_cfg import ActionTermCfg
+from .manager_term_cfg import ActionInputCfg, ActionTermCfg
 
 if TYPE_CHECKING:
     from ..assets import AssetBase
@@ -28,6 +28,44 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger(__name__)
+
+
+class ActionInput(ManagerTermBase):
+    """Select raw input for an existing action controller during interactive playback.
+
+    The action manager owns activated inputs separately from controllers. Input
+    construction must not start external resources: the runner retains the input
+    before starting its device or session. Inputs never step or reset the scene.
+    """
+
+    cfg: ActionInputCfg
+
+    def __init__(self, cfg: ActionInputCfg, env: ManagerBasedEnv, *, action_dim: int) -> None:
+        super().__init__(cfg, env)
+        self._action_dim = action_dim
+
+    @property
+    def action_dim(self) -> int:
+        """Dimension of the original controller's raw actions."""
+        return self._action_dim
+
+    @abstractmethod
+    def resolve_actions(self, actions: torch.Tensor) -> torch.Tensor:
+        """Select raw actions without modifying the supplied policy tensor.
+
+        The result must have the same shape, device, and dtype as ``actions``.
+        Returning ``actions`` unchanged releases control to the policy. The
+        manager records the selected actions before any controller processes them.
+        """
+        raise NotImplementedError
+
+    def close(self) -> None:
+        """Release input resources before controller or simulation teardown.
+
+        Repeated calls must be harmless. If cleanup fails, retain ownership of
+        outstanding resources so a later call can retry safely.
+        """
+        pass
 
 
 class ActionTerm(ManagerTermBase):
@@ -170,17 +208,6 @@ class ActionTerm(ManagerTermBase):
         """
         raise NotImplementedError
 
-    def resolve_actions(self, actions: torch.Tensor) -> torch.Tensor:
-        """Select raw actions before processing and recording.
-
-        Called once per environment step. The default preserves policy input.
-        Terms that arbitrate another input source may return a replacement with
-        the same shape, device, and dtype, without mutating ``actions``. The
-        manager records this result in :attr:`ActionManager.action` before any
-        term processes its actions.
-        """
-        return actions
-
     @abstractmethod
     def apply_actions(self):
         """Applies the actions to the asset managed by the term.
@@ -236,6 +263,7 @@ class ActionManager(ManagerBase):
 
         # call the base class constructor (this prepares the terms)
         self._closed = False
+        self._inputs: dict[str, ActionInput] = {}
         try:
             super().__init__(cfg, env)
         except BaseException:
@@ -405,6 +433,9 @@ class ActionManager(ManagerBase):
         # reset all action terms
         for term in self._terms.values():
             term.reset(env_ids=env_ids)
+        # Input reset notifications follow every controller's reset.
+        for action_input in self._inputs.values():
+            action_input.reset(env_ids=env_ids)
         # nothing to log here
         return {}
 
@@ -425,17 +456,35 @@ class ActionManager(ManagerBase):
         action = action.to(self.device)
         self._action[:] = action
 
+        if not self._inputs:
+            # Ordinary training and playback retain the original controller path.
+            idx = 0
+            for term in self._terms.values():
+                term.process_actions(action[:, idx : idx + term.action_dim])
+                idx += term.action_dim
+            return
+
         # Resolve all inputs before processing so observations, rewards, and
         # recorders see the same raw actions that the controllers consume.
         idx = 0
         resolved_actions = []
-        for term in self._terms.values():
+        for name, term in self._terms.items():
             term_actions = action[:, idx : idx + term.action_dim]
-            resolved = term.resolve_actions(term_actions)
-            if resolved is not term_actions:
+            action_input = self._inputs.get(name)
+            resolved = term_actions if action_input is None else action_input.resolve_actions(term_actions)
+            if action_input is not None:
+                if not isinstance(resolved, torch.Tensor):
+                    raise TypeError(f"Action input {name!r} must return a torch.Tensor.")
                 if resolved.shape != term_actions.shape:
                     raise ValueError(
-                        f"Resolved action shape {tuple(resolved.shape)} does not match {tuple(term_actions.shape)}."
+                        f"Action input {name!r} returned shape {tuple(resolved.shape)};"
+                        f" expected {tuple(term_actions.shape)}."
+                    )
+                if resolved.device != term_actions.device or resolved.dtype != term_actions.dtype:
+                    raise ValueError(
+                        f"Action input {name!r} must preserve device {term_actions.device}"
+                        f" and dtype {term_actions.dtype};"
+                        f" received {resolved.device} and {resolved.dtype}."
                     )
                 self._action[:, idx : idx + term.action_dim].copy_(resolved)
             resolved_actions.append(resolved)
@@ -446,9 +495,10 @@ class ActionManager(ManagerBase):
             term.process_actions(term_actions)
 
     def close(self) -> None:
-        """Close every action term, including when another term fails to close."""
+        """Drain all inputs, then close controllers before simulation teardown."""
         if self._closed:
             return
+        self.close_inputs()
         errors = []
         for term in getattr(self, "_terms", {}).values():
             try:
@@ -459,6 +509,49 @@ class ActionManager(ManagerBase):
         if errors:
             raise RuntimeError(f"Failed to close {len(errors)} action term(s)") from errors[0]
         self._closed = True
+
+    def activate_input(self, name: str) -> ActionInput:
+        """Construct a configured input after the environment is ready.
+
+        Activation leaves the original controller and its configuration intact.
+        The caller starts any external device only after this method returns.
+        Inputs are owned by this manager until :meth:`close_inputs` succeeds.
+        """
+        if self._closed:
+            raise RuntimeError("Cannot activate input on a closed action manager.")
+        term = self._terms[name]
+        if name in self._inputs:
+            raise RuntimeError(f"Action input {name!r} is already active.")
+        if not isinstance(term.cfg.input, ActionInputCfg):
+            raise ValueError(f"Action term {name!r} has no ActionInputCfg configured.")
+        action_input = instantiate(term.cfg.input, self._env, action_dim=term.action_dim)
+        if not isinstance(action_input, ActionInput):
+            raise TypeError(f"Configured input for action term {name!r} did not construct an ActionInput.")
+        self._inputs[name] = action_input
+        return action_input
+
+    def get_input(self, name: str) -> ActionInput | None:
+        """Return a term's activated input, or None if none has been activated."""
+        if name not in self._terms:
+            raise KeyError(name)
+        return self._inputs.get(name)
+
+    def close_inputs(self) -> None:
+        """Drain activated inputs while their controllers and scene remain alive.
+
+        Every input gets a cleanup attempt. On failure, retain the inputs for a
+        retry and leave controller teardown to the caller after a successful drain.
+        """
+        errors = []
+        for name, action_input in self._inputs.items():
+            try:
+                action_input.close()
+            except Exception as exc:
+                logger.error("Failed to close action input %s: %s", name, exc)
+                errors.append(exc)
+        if errors:
+            raise RuntimeError(f"Failed to close {len(errors)} action input(s)") from errors[0]
+        self._inputs.clear()
 
     def apply_action(self) -> None:
         """Applies the actions to the environment/simulation.

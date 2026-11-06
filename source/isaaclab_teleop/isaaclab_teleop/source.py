@@ -20,7 +20,7 @@ class TeleopSample:
 
     ``active=False`` or ``actions=None`` yields control to the policy.
     ``reset=True`` requests an episode reset through the playback owner;
-    the action term discards that sample's actions.
+    the action input discards that sample's actions.
     """
 
     actions: torch.Tensor | None = None
@@ -32,7 +32,7 @@ class TeleopSource(ABC):
     """An input resource whose lifecycle is independent of simulation.
 
     Playback constructs sources after the environment and activates the task's
-    action terms. Sources may borrow scene and visualizer resources but release
+    action inputs. Sources may borrow scene and visualizer resources but release
     those resources on :meth:`close`, including after partially failed startup.
     Polling must not step, render, or reset the environment.
     """

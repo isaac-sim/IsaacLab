@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import gymnasium as gym
-from isaaclab_teleop import CaptureTeleopSourceCfg, TeleopActionCfg, se3_keyboard_teleop_cfg
+from isaaclab_teleop import CaptureTeleopSourceCfg, TeleopInputCfg, se3_keyboard_teleop_cfg
 
 from isaaclab.utils import configclass
 
@@ -36,11 +36,10 @@ class CartpoleInteractiveEnvCfg(CartpoleEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        if isinstance(self.actions.joint_effort, TeleopActionCfg):
+        if isinstance(self.actions.joint_effort.input, TeleopInputCfg):
             return
-        # Wrap after parent initialization, which may tune the original controller.
-        self.actions.joint_effort = TeleopActionCfg(
-            controller=self.actions.joint_effort,
+        # Keep the original controller and attach optional playback input.
+        self.actions.joint_effort.input = TeleopInputCfg(
             source=CaptureTeleopSourceCfg(
                 device=se3_keyboard_teleop_cfg(pos_sensitivity=KEYBOARD_STEP, gripper_term=False),
             ),

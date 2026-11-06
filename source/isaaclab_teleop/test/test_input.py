@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 import torch
-from isaaclab_teleop.action_cfg import TeleopActionCfg
+from isaaclab_teleop.input_cfg import TeleopInputCfg
 from isaaclab_teleop.source import TeleopSample, TeleopSource
 from isaaclab_teleop.source_cfg import TeleopSourceCfg
 
@@ -79,7 +79,7 @@ class _GripperController(_Controller):
     dimension = 1
 
 
-def _build(*, terms=None, **kwargs):
+def _build(*, terms=None, activate=True, **kwargs):
     env = SimpleNamespace(
         num_envs=3,
         device="cpu",
@@ -93,25 +93,29 @@ def _build(*, terms=None, **kwargs):
     )
     if terms is None:
         terms = {
-            "robot": TeleopActionCfg(
-                controller=ActionTermCfg(class_type=_Controller, asset_name="robot"),
-                # The source constructor intentionally cannot accept runtime arguments:
-                # ordinary task construction must never instantiate it.
-                source=TeleopSourceCfg(class_type=object),
-                **kwargs,
+            "robot": ActionTermCfg(
+                class_type=_Controller,
+                asset_name="robot",
+                input=TeleopInputCfg(source=TeleopSourceCfg(class_type=object), **kwargs),
             )
         }
     env.action_manager = ActionManager(SimpleNamespace(**terms), env)
-    return env, env.action_manager.get_term(next(iter(terms)))
+    return env, env.action_manager.activate_input(next(iter(terms))) if activate else None
 
 
-def test_task_term_preserves_controller_and_policy_until_capture_takes_control():
-    env, term = _build(env_ids=[2, 0])
+def test_optional_input_preserves_controller_and_policy_until_capture_takes_control():
+    env, _ = _build(env_ids=[2, 0], activate=False)
     manager = env.action_manager
     policy = torch.tensor([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
     manager.process_action(policy)
     manager.apply_action()
     torch.testing.assert_close(env.applied, torch.tensor([[2.0, 4.0], [6.0, 8.0], [10.0, 10.0]]))
+
+    controller = manager.get_term("robot")
+    assert isinstance(controller, _Controller) and isinstance(controller.cfg, ActionTermCfg)
+    assert manager.get_input("robot") is None
+    term = manager.activate_input("robot")
+    assert manager.get_term("robot") is controller
 
     source = _Source(env)
     term.activate(source)
@@ -171,21 +175,22 @@ def test_one_sample_drives_arm_and_gripper_without_duplicate_source_lifecycle():
 
     env, arm = _build(
         terms={
-            "arm": TeleopActionCfg(
-                controller=ActionTermCfg(class_type=_Controller, asset_name="robot"),
-                source=TeleopSourceCfg(class_type=object),
-                env_ids=[1],
-                action_adapter=arm_actions,
+            "arm": ActionTermCfg(
+                class_type=_Controller,
+                asset_name="robot",
+                input=TeleopInputCfg(
+                    source=TeleopSourceCfg(class_type=object), env_ids=[1], action_adapter=arm_actions
+                ),
             ),
-            "gripper": TeleopActionCfg(
-                controller=ActionTermCfg(class_type=_GripperController, asset_name="robot"),
-                env_ids=[1],
-                action_adapter=lambda values, env, env_ids: values[2:],
+            "gripper": ActionTermCfg(
+                class_type=_GripperController,
+                asset_name="robot",
+                input=TeleopInputCfg(env_ids=[1], action_adapter=lambda values, env, env_ids: values[2:]),
             ),
         }
     )
     manager = env.action_manager
-    gripper = manager.get_term("gripper")
+    gripper = manager.activate_input("gripper")
     source = _Source(env)
     source.sample = TeleopSample(torch.tensor([1.0, 2.0, 0.25]))
     arm.activate(source)
@@ -195,8 +200,8 @@ def test_one_sample_drives_arm_and_gripper_without_duplicate_source_lifecycle():
     manager.process_action(policy)
 
     torch.testing.assert_close(manager.action, torch.tensor([[1.0, 1.0, 1.0], [-1.0, -2.0, 0.25], [1.0, 1.0, 1.0]]))
-    torch.testing.assert_close(arm.processed_actions[1], torch.tensor([-2.0, -4.0]))
-    torch.testing.assert_close(gripper.processed_actions[1], torch.tensor([0.5]))
+    torch.testing.assert_close(manager.get_term("arm").processed_actions[1], torch.tensor([-2.0, -4.0]))
+    torch.testing.assert_close(manager.get_term("gripper").processed_actions[1], torch.tensor([0.5]))
     torch.testing.assert_close(source.sample.actions, torch.tensor([1.0, 2.0, 0.25]))
     assert source.polls == 1
 
@@ -234,7 +239,7 @@ def test_invalid_capture_actions_do_not_reach_controller(values, error, message)
     term.poll_source()
     with pytest.raises(error, match=message):
         env.action_manager.process_action(torch.ones(3, 2))
-    torch.testing.assert_close(term.processed_actions, torch.zeros(3, 2))
+    torch.testing.assert_close(env.action_manager.get_term("robot").processed_actions, torch.zeros(3, 2))
     env.action_manager.close()
 
 
@@ -257,7 +262,7 @@ def test_source_failure_preserves_ownership_for_retry_and_deactivation_yields_to
     source = _Source(env)
     source.fail_close = True
     term.activate(source)
-    with pytest.raises(RuntimeError, match="Failed to close 1 action term"):
+    with pytest.raises(RuntimeError, match="Failed to close 1 action input"):
         env.action_manager.close()
     assert env.events == ["source_closed", "source_closed"]
     source.fail_close = False

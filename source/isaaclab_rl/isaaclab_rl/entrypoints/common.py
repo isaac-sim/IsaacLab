@@ -20,6 +20,7 @@ import time
 from collections.abc import Callable, Iterator
 from contextlib import ExitStack, contextmanager
 from datetime import datetime, timezone
+from importlib.util import find_spec
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -31,7 +32,7 @@ from PIL import Image
 from isaaclab.app import LoadingScreen, launch_simulation
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg, parse_video_source
-from isaaclab.managers import InteractiveActionTermCfg
+from isaaclab.managers import ActionInputCfg, ActionTermCfg
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
@@ -302,7 +303,7 @@ def add_common_play_args(parser: argparse.ArgumentParser, *, agent_default: str 
         "--teleop",
         action=argparse.BooleanOptionalAction,
         default=None,
-        help="Activate the task's TeleopActionCfg terms (enabled when configured).",
+        help="Activate the task's TeleopInputCfg declarations (enabled when configured).",
     )
     parser.add_argument(
         "--max_steps", type=parse_step_limit, default=None, help="Stop playback after this many environment steps."
@@ -547,11 +548,20 @@ Environment creation.
 
 
 def has_play_teleop(env_cfg: Any) -> bool:
-    """Whether the task declares Capture action terms for interactive playback."""
+    """Whether task actions declare Capture input, without loading absent optional packages."""
     if not isinstance(env_cfg, ManagerBasedRLEnvCfg):
         return False
     actions = env_cfg.actions if isinstance(env_cfg.actions, dict) else vars(env_cfg.actions)
-    return any(isinstance(cfg, InteractiveActionTermCfg) for cfg in actions.values())
+    inputs = [
+        cfg.input
+        for cfg in actions.values()
+        if isinstance(cfg, ActionTermCfg) and isinstance(cfg.input, ActionInputCfg)
+    ]
+    if not inputs or find_spec("isaaclab_teleop") is None:
+        return False
+    from isaaclab_teleop import TeleopInputCfg
+
+    return any(isinstance(cfg, TeleopInputCfg) for cfg in inputs)
 
 
 @contextmanager
@@ -560,8 +570,8 @@ def launch_playback(
 ) -> Iterator[CapturePlaySession | None]:
     """Launch playback and own Capture/XR resources across environment construction.
 
-    Training uses :func:`launch_simulation` directly. Action terms remain ordinary
-    controllers until this interactive scope attaches their input source.
+    Training uses :func:`launch_simulation` directly. Action terms retain their
+    concrete controllers; this interactive scope activates their optional input.
     """
     session = None
     dataset_file = getattr(args_cli, "dataset_file", None)
@@ -573,10 +583,10 @@ def launch_playback(
         raise ValueError("Demonstration collection options require --dataset_file.")
     if dataset_file is not None and (not enable_teleop or args_cli.teleop is False or not has_play_teleop(env_cfg)):
         raise ValueError("--dataset_file requires playback with task-configured Capture input enabled.")
-    if has_play_teleop(env_cfg) and args_cli.frontend != "torch":
-        raise ValueError("TeleopActionCfg requires --frontend torch, including policy-only playback.")
     if enable_teleop and args_cli.teleop is not False:
         if has_play_teleop(env_cfg):
+            if args_cli.frontend != "torch":
+                raise ValueError("Active TeleopInputCfg requires --frontend torch; use --no-teleop for Warp playback.")
             from isaaclab_teleop.playback import CapturePlaySession, PlaybackStopped
 
             session = CapturePlaySession(env_cfg)
@@ -603,7 +613,7 @@ def launch_playback(
                 )
             session.validate()
         elif args_cli.teleop is True:
-            raise ValueError("--teleop requires a TeleopActionCfg in the task's actions.")
+            raise ValueError("--teleop requires a TeleopInputCfg on a task action's input field.")
     launch_cfg = env_cfg if session is None else session.launch_config
     with launch_simulation(launch_cfg, args_cli, cleanup_context=session is None):
         if session is None:
@@ -644,8 +654,6 @@ def create_isaaclab_env(
     Returns:
         The created Gymnasium environment.
     """
-    if args_cli.frontend != "torch" and has_play_teleop(env_cfg):
-        raise ValueError("TeleopActionCfg requires the Torch frontend; retain the original controller for Warp tasks.")
     if args_cli.frontend == "torch":
         env = gym.make(task, cfg=env_cfg)
     else:

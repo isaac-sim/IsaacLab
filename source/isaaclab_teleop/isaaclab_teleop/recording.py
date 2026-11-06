@@ -17,10 +17,10 @@ import gymnasium as gym
 import torch
 
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
-from isaaclab.managers import DatasetExportMode, RecorderManagerBaseCfg, RecorderTerm, RecorderTermCfg
+from isaaclab.managers import ActionTermCfg, DatasetExportMode, RecorderManagerBaseCfg, RecorderTerm, RecorderTermCfg
 from isaaclab.utils import clone, configclass
 
-from .action_cfg import TeleopActionCfg
+from .input_cfg import TeleopInputCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg
@@ -51,7 +51,10 @@ class _TeleopActiveRecorder(RecorderTerm):
     cfg: _TeleopActiveRecorderCfg
 
     def record_pre_step(self) -> tuple[str, torch.Tensor]:
-        sample = self._env.action_manager.get_term(self.cfg.action_term_name).sample
+        action_input = self._env.action_manager.get_input(self.cfg.action_term_name)
+        if action_input is None:
+            raise RuntimeError("Capture provenance requires an activated task action input.")
+        sample = action_input.sample
         active = sample is not None and sample.active and not sample.reset and sample.actions is not None
         return "metadata/teleop_active", torch.full((self.num_envs, 1), active, dtype=torch.bool, device=self.device)
 
@@ -101,9 +104,13 @@ def prepare_demo_recording(
         raise ValueError("Successful-demo export requires a task 'success' termination; select export_mode='all'.")
 
     actions = env_cfg.actions if isinstance(env_cfg.actions, dict) else vars(env_cfg.actions)
-    owners = [name for name, term in actions.items() if isinstance(term, TeleopActionCfg) and term.source is not None]
+    owners = [
+        name
+        for name, term in actions.items()
+        if isinstance(term, ActionTermCfg) and isinstance(term.input, TeleopInputCfg) and term.input.source is not None
+    ]
     if len(owners) != 1:
-        raise ValueError("Demonstration recording requires exactly one Capture source-owning action term.")
+        raise ValueError("Demonstration recording requires exactly one Capture source-owning action input.")
 
     recorder_cfg = env_cfg.recorders
     recorder_terms = recorder_cfg if isinstance(recorder_cfg, dict) else vars(recorder_cfg) if recorder_cfg else {}

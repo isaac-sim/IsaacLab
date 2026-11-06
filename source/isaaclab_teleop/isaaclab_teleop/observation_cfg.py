@@ -22,7 +22,7 @@ class TeleopObservationCfg(ObservationPresentationCfg):
     """An operator-only XR view declared alongside a task's observation groups.
 
     ``isaaclab play`` activates this declaration when it activates the task's
-    :class:`~isaaclab_teleop.TeleopActionCfg`. Ordinary environment construction
+    :class:`~isaaclab_teleop.TeleopInputCfg`. Ordinary environment construction
     and training ignore it. The observation manager never computes this view,
     adds it to the observation space, or exposes its images to recorders.
 

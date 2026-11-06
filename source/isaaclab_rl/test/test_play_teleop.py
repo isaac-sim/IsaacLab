@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import argparse
+import builtins
 import contextlib
 import sys
 from types import SimpleNamespace
@@ -18,10 +19,11 @@ import pytest
 import torch
 from isaaclab_newton.physics import NewtonCfg
 from isaaclab_physx.physics import PhysxCfg
-from isaaclab_teleop import CaptureTeleopSourceCfg, TeleopActionCfg, TeleopSample, TeleopSource, se3_keyboard_teleop_cfg
+from isaaclab_teleop import CaptureTeleopSourceCfg, TeleopInputCfg, TeleopSample, TeleopSource, se3_keyboard_teleop_cfg
 
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import (
+    ActionInputCfg,
     ActionManager,
     ActionTerm,
     ActionTermCfg,
@@ -67,11 +69,14 @@ class _InputSource(TeleopSource):
 
 
 class _EffortTerm(ActionTerm):
-    """Minimal controller retaining the real ActionManager arbitration path."""
+    """Concrete task controller with calibration state consumed by task events."""
 
     def __init__(self, cfg, env):
         super().__init__(cfg, env)
         self._actions = torch.zeros(env.num_envs, 1)
+        self._processed = torch.zeros_like(self._actions)
+        self.encoder_bias = torch.zeros_like(self._actions)
+        self.gain = 1.0
 
     @property
     def action_dim(self):
@@ -83,33 +88,34 @@ class _EffortTerm(ActionTerm):
 
     @property
     def processed_actions(self):
-        return self._actions
+        return self._processed
+
+    def calibrate(self, value):
+        self.encoder_bias.fill_(value)
 
     def process_actions(self, actions):
         self._actions[:] = actions
+        self._processed[:] = actions * self.cfg.scale * self.gain - self.encoder_bias
 
     def apply_actions(self):
-        self._asset.applied.append(self._actions.clone())
+        self._asset.applied.append(self._processed.clone())
+
+
+@configclass
+class _EffortCfg(ActionTermCfg):
+    class_type: type[ActionTerm] = _EffortTerm
+    scale: float = 1.0
 
 
 @configclass
 class _ActionsCfg:
-    gripper = TeleopActionCfg(
-        controller=ActionTermCfg(class_type=_EffortTerm, asset_name="other_robot"),
-        env_ids=[1],
-        action_adapter=lambda values, env, env_ids: values[1:],
-    )
-    controlled = TeleopActionCfg(
-        controller=ActionTermCfg(class_type=_EffortTerm, asset_name="robot"),
-        source=CaptureTeleopSourceCfg(class_type=_InputSource, device=se3_keyboard_teleop_cfg()),
-        env_ids=[1],
-        action_adapter=lambda values, env, env_ids: values[:1],
-    )
-    policy = ActionTermCfg(class_type=_EffortTerm, asset_name="robot")
+    gripper = _EffortCfg(asset_name="other_robot")
+    controlled = _EffortCfg(asset_name="robot")
+    policy = _EffortCfg(asset_name="robot")
 
 
 @configclass
-class _PlaybackCfg(ManagerBasedRLEnvCfg):
+class _TaskCfg(ManagerBasedRLEnvCfg):
     sim: SimulationCfg = SimulationCfg(device="cpu", physics=NewtonCfg())
     scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=3, env_spacing=2.0)
     actions: _ActionsCfg = _ActionsCfg()
@@ -119,8 +125,24 @@ class _PlaybackCfg(ManagerBasedRLEnvCfg):
     decimation: int = 1
     episode_length_s: float = 1.0
 
+    def __post_init__(self):
+        self.actions.controlled.scale = 2.0
+
     def play_mode(self):
         pass
+
+
+@configclass
+class _PlaybackCfg(_TaskCfg):
+    def __post_init__(self):
+        self.actions.gripper.input = TeleopInputCfg(env_ids=[1], action_adapter=lambda values, env, env_ids: values[1:])
+        self.actions.controlled.input = TeleopInputCfg(
+            source=CaptureTeleopSourceCfg(class_type=_InputSource, device=se3_keyboard_teleop_cfg()),
+            env_ids=[1],
+            action_adapter=lambda values, env, env_ids: values[:1],
+        )
+        # Existing parent configuration continues to modify the original controller.
+        super().__post_init__()
 
 
 class _SinkScene(dict):
@@ -186,7 +208,9 @@ class _ActionSink(gym.Env):
         self.applied.append(self.action_manager.action.clone())
         self.recorder_manager.record_pre_step()
         self.action_manager.apply_action()
-        self.scene.position += self.action_manager.action
+        self.scene.position += torch.cat(
+            [self.action_manager.get_term(name).processed_actions for name in self.action_manager.active_terms], dim=-1
+        )
         self.episode_length_buf += 1
         self.reset_buf = self.termination_manager.compute()
         self.obs_buf = {"policy": self.scene.position.clone()}
@@ -243,15 +267,30 @@ def test_play_uses_configured_input_without_loading_a_policy(playback_task, monk
     original_argv = sys.argv
     monkeypatch.setattr(dispatch, "_run_backend", lambda *args: pytest.fail("attempted to load a policy checkpoint"))
 
-    assert dispatch.run_play_cli(["--task", task, "--max_steps", "2", "--seed", "7", "env.scene.num_envs=2"]) == 0
+    assert (
+        dispatch.run_play_cli(
+            [
+                "--task",
+                task,
+                "--max_steps",
+                "2",
+                "--seed",
+                "7",
+                "env.scene.num_envs=2",
+                "env.actions.controlled.scale=3.0",
+            ]
+        )
+        == 0
+    )
 
     env = created[0]
     assert env.num_envs == 2
     assert env.cfg.seed == 7
+    assert env.cfg.actions.controlled.scale == 3.0
     assert torch.equal(env.applied[0], torch.tensor([[0.0, 0.0, 0.0], [-0.5, 4.0, 0.0]]))
     assert torch.equal(env.applied[1], torch.zeros(2, 3))
     torch.testing.assert_close(env.scene["other_robot"].applied[0], torch.tensor([[0.0], [-0.5]]))
-    torch.testing.assert_close(env.scene["robot"].applied[0], torch.tensor([[0.0], [4.0]]))
+    torch.testing.assert_close(env.scene["robot"].applied[0], torch.tensor([[0.0], [12.0]]))
     torch.testing.assert_close(env.scene["other_robot"].applied[1], torch.zeros(2, 1))
     torch.testing.assert_close(torch.stack(env.scene["robot"].applied[1:]), torch.zeros(3, 2, 1))
     assert env.input_source.polls == 2
@@ -268,8 +307,8 @@ def test_play_cli_exports_requested_demos_with_applied_actions_and_provenance(pl
     """Collection flags reach the real recorder and stop after completed demos, without a policy backend."""
     task, created = playback_task
     cfg = _PlaybackCfg()
-    cfg.actions.controlled.env_ids = [0]
-    cfg.actions.gripper.env_ids = [0]
+    cfg.actions.controlled.input.env_ids = [0]
+    cfg.actions.gripper.input.env_ids = [0]
     cfg.terminations = {"success": TerminationTermCfg(func=_success_after_two_steps)}
     gym.spec(task).kwargs["env_cfg_entry_point"] = lambda: cfg
     monkeypatch.setattr(dispatch, "_run_backend", lambda *args: pytest.fail("collection loaded a policy backend"))
@@ -295,13 +334,16 @@ def test_play_cli_exports_requested_demos_with_applied_actions_and_provenance(pl
             torch.from_numpy(first["actions"][:]), torch.tensor([[-0.5, 4.0, 0.0], [0.0, 0.0, 0.0]])
         )
         torch.testing.assert_close(torch.from_numpy(second["actions"][:]), torch.zeros(2, 3))
+        torch.testing.assert_close(
+            torch.from_numpy(first["processed_actions"][:]), torch.tensor([[-0.5, 8.0, 0.0], [0.0, 0.0, 0.0]])
+        )
         assert first["metadata/teleop_active"][:].tolist() == [[True], [False]]
         assert second["metadata/teleop_active"][:].tolist() == [[False], [False]]
         assert bool(first.attrs["success"]) and bool(second.attrs["success"])
         torch.testing.assert_close(torch.from_numpy(first["obs/policy"][0]), torch.zeros(3))
         torch.testing.assert_close(
             torch.from_numpy(first["states/articulation/robot/joint_position"][:]),
-            torch.tensor([[4.0, 0.0], [4.0, 0.0]]),
+            torch.tensor([[8.0, 0.0], [8.0, 0.0]]),
         )
         torch.testing.assert_close(
             torch.from_numpy(first["states/articulation/other_robot/joint_position"][:]),
@@ -399,6 +441,31 @@ def test_policy_selection_preserves_backend_dispatch(playback_task, monkeypatch,
     assert not created
 
 
+@pytest.mark.parametrize("capture_installed", [True, False])
+def test_other_action_input_preserves_policy_dispatch(playback_task, monkeypatch, capture_installed):
+    """A generic input declaration must not opt a task into Capture or require its package."""
+    task, created = playback_task
+    cfg = _TaskCfg()
+    cfg.actions.controlled.input = ActionInputCfg(class_type=object)
+    gym.spec(task).kwargs["env_cfg_entry_point"] = lambda: cfg
+    dispatched = []
+    monkeypatch.setattr(dispatch, "_run_backend", lambda *args: dispatched.append(args))
+    if not capture_installed:
+        monkeypatch.setattr(common, "find_spec", lambda name: None)
+        original_import = builtins.__import__
+
+        def without_capture(name, *args, **kwargs):
+            if name == "isaaclab_teleop" or name.startswith("isaaclab_teleop."):
+                pytest.fail("A non-Capture input imported the unavailable Capture package")
+            return original_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", without_capture)
+
+    assert dispatch.run_play_cli(["--task", task, "--max_steps", "0"]) == 0
+    assert len(dispatched) == 1
+    assert not created
+
+
 @pytest.mark.parametrize(
     ("override", "teleop_enabled", "expected"),
     [
@@ -411,9 +478,7 @@ def test_implicit_policy_playback_preserves_agent_configuration(
 ):
     """Teleop discovery must not reject agent presets or consume Hydra agent additions."""
     task, created = playback_task
-    gym.spec(task).kwargs["env_cfg_entry_point"] = lambda: (
-        _PlaybackCfg() if teleop_enabled else _PlaybackCfg(actions={"policy": _ActionsCfg().policy})
-    )
+    gym.spec(task).kwargs["env_cfg_entry_point"] = lambda: (_PlaybackCfg() if teleop_enabled else _TaskCfg())
     gym.spec(task).kwargs["rsl_rl_cfg_entry_point"] = lambda: {
         "network": preset(default={"width": 64}, small={"width": 32})
     }
@@ -431,7 +496,9 @@ def test_implicit_policy_playback_preserves_agent_configuration(
 
 @pytest.mark.parametrize("activation", ["training", "disabled", "policy"])
 def test_env_factory_activates_input_only_for_enabled_playback(playback_task, activation):
-    """Training and --no-teleop retain policy actions; interactive playback activates task arbitration."""
+    """Original controller APIs and task events work identically with active or dormant input."""
+    from isaaclab_tasks.contrib.microduck.mdp.events import randomize_encoder_bias
+
     task, created = playback_task
     args = argparse.Namespace(frontend="torch", teleop=False if activation == "disabled" else None)
     cfg = _PlaybackCfg()
@@ -439,6 +506,14 @@ def test_env_factory_activates_input_only_for_enabled_playback(playback_task, ac
         env = create_isaaclab_env(task, cfg, args, convert_marl_to_single_agent=False, playback_session=session)
         try:
             env.reset()
+            assert (env.unwrapped.action_manager.get_input("controlled") is not None) == (activation == "policy")
+            controller = env.unwrapped.action_manager.get_term("controlled")
+            assert type(controller) is _EffortTerm
+            assert type(controller.cfg) is _EffortCfg
+            assert controller.cfg.scale == 2.0
+            controller.gain = 2.0
+            controller.calibrate(0.125)
+            randomize_encoder_bias(env.unwrapped, torch.tensor([1]), (0.25, 0.25), action_name="controlled")
             policy_action = torch.ones(3, 3)
             env.step(policy_action)
         finally:
@@ -453,6 +528,9 @@ def test_env_factory_activates_input_only_for_enabled_playback(playback_task, ac
     else:
         assert not hasattr(sink, "input_source")
     assert torch.equal(sink.applied[0], expected)
+    processed = torch.full((3, 1), 3.875)
+    processed[1] = 15.75 if activation == "policy" else 3.75
+    torch.testing.assert_close(sink.scene["robot"].applied[0], processed)
     assert torch.equal(policy_action, torch.ones(3, 3))
     assert sink.closed
 

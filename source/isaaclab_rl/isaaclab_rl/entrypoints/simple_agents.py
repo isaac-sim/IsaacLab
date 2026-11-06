@@ -114,7 +114,7 @@ def run_teleop_if_configured(argv: list[str]) -> bool:
         return False
     if not has_play_teleop(env_cfg):
         if args_cli.teleop is True:
-            raise ValueError("--teleop requires a TeleopActionCfg in the task's actions.")
+            raise ValueError("--teleop requires a TeleopInputCfg on a task action's input field.")
         return False
     args_cli.seed = resolve_seed(args_cli.seed)
     torch.manual_seed(_SEED if args_cli.seed is None else args_cli.seed)
@@ -235,13 +235,6 @@ def _create_manager_zero_action_policy(action_manager: Any, env: Any) -> Callabl
 
 def _create_action_term_zero_policy(term: Any, env: Any) -> Callable[[], torch.Tensor] | None:
     """Create the specialized zero-action policy required by an action term."""
-    from isaaclab.managers import ActionTerm, InteractiveActionTermCfg
-
-    if isinstance(term, ActionTerm) and isinstance(term.cfg, InteractiveActionTermCfg):
-        from isaaclab_teleop.action import TeleopAction
-
-        if isinstance(term, TeleopAction):
-            return _create_action_term_zero_policy(term.controller, env)
     term_types = {cls.__name__ for cls in type(term).__mro__}
 
     if "PinkInverseKinematicsAction" in term_types:

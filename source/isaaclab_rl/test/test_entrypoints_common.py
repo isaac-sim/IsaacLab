@@ -21,6 +21,7 @@ from isaaclab_newton.physics import NewtonCfg
 from PIL import Image
 
 from isaaclab.envs import ManagerBasedRLEnvCfg
+from isaaclab.managers import ActionInputCfg, ActionTermCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.sim import SimulationCfg
 
@@ -250,11 +251,11 @@ def test_create_isaaclab_env_uses_registered_torch_env_by_default(monkeypatch: p
 
 
 def test_create_isaaclab_env_uses_selected_warp_frontend(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The shared factory delegates Warp selection to the experimental frontend."""
+    """The factory delegates Warp selection without activating declared action input."""
     import isaaclab_experimental.envs.frontend as frontend_module
 
     expected_env = object()
-    env_cfg = object()
+    env_cfg = ManagerBasedRLEnvCfg(actions={"robot": ActionTermCfg(input=ActionInputCfg(class_type=object))})
     calls: list[tuple[Any, ...]] = []
 
     def fake_build_env(cfg: Any, task: str, **kwargs: Any) -> Any:
