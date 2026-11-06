@@ -140,9 +140,8 @@ class NewtonCfg(PhysicsCfg):
     setup. Capture does not advance physics. Kit/RTX uses a nonblocking stream with relaxed
     capture mode; kitless simulation uses Warp's standard capture mode.
 
-    On the CPU, solvers that set :attr:`~isaaclab_newton.physics.NewtonSolver.cpu_capture` (MJWarp
-    without ``use_mujoco_cpu``, XPBD and Featherstone) are captured with Warp's CPU graph capture,
-    which removes Python launch overhead; the other solvers step eagerly.
+    On the CPU, Warp's CPU graph capture records the step and removes Python launch overhead. A solver
+    whose :meth:`~isaaclab_newton.physics.NewtonSolver.supports_capture` returns False steps eagerly.
 
     Step callbacks registered on the manager are recorded into the captured step, so they must be
     graph-safe: fixed array shapes and no host branching on device data. On the CPU they must also

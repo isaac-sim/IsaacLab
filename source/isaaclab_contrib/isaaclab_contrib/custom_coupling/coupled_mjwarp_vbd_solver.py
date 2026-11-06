@@ -59,6 +59,14 @@ class CoupledMJWarpVBDSolver(NewtonSolver):
         )
 
     @classmethod
+    def supports_capture(cls, cfg: CoupledMJWarpVBDSolverCfg, solver: SolverCoupledMJWarpVBD) -> bool:
+        """Capture only when both sub-solvers can be recorded, e.g. not with MuJoCo on the CPU."""
+        rigid, soft = cfg.rigid_solver_cfg, cfg.soft_solver_cfg
+        return rigid.class_type.supports_capture(rigid, solver.rigid_solver) and soft.class_type.supports_capture(
+            soft, solver.soft_solver
+        )
+
+    @classmethod
     def prepare_contacts(
         cls,
         cfg: CoupledMJWarpVBDSolverCfg,

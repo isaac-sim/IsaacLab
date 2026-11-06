@@ -16,7 +16,6 @@ class FeatherstoneSolver(NewtonSolver):
 
     solver_class = SolverFeatherstone
     deterministic = True
-    cpu_capture = True
     # SolverFeatherstone derives its inertia data from the model only when it is constructed.
     ignored_model_changes = {
         ModelFlags.BODY_INERTIAL_PROPERTIES: (

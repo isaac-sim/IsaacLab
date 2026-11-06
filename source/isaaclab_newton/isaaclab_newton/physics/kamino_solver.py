@@ -76,6 +76,18 @@ class KaminoSolver(NewtonSolver):
         solver.reset(state, config=solver.ResetConfig.preserve())
 
     @classmethod
+    def supports_capture(cls, cfg: _KaminoSolverCfgBase, solver: SolverKamino) -> bool:
+        """On the CPU, P-ADMM captures only with a direct linear solver.
+
+        Kamino's iterative linear solvers (selected explicitly or by sparse dynamics) copy strided views on the CPU,
+        which Warp's CPU graph capture rejects.
+        """
+        config = solver._config
+        if solver.model.device.is_cuda or config.dynamics_solver != "padmm":
+            return True
+        return not config.sparse_dynamics and config.dynamics.linear_solver_type in ("LLTB", "LLTBRCM", "LLTS")
+
+    @classmethod
     def uses_collision_pipeline(cls, cfg: _KaminoSolverCfgBase, solver: SolverKamino) -> bool:
         return not cfg.use_collision_detector
 

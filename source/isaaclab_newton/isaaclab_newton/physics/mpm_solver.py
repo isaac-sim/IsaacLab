@@ -250,7 +250,9 @@ class MPMSolver(NewtonSolver):
 
     @classmethod
     def supports_capture(cls, cfg: MPMSolverCfg, solver: SolverImplicitMPM) -> bool:
-        return mpm_supports_graph_capture(solver)
+        """CUDA only: on the CPU, the solver reads its rheology residual on the host and rebuilds sparse grids through
+        :meth:`warp.Volume.rebuild`, neither of which Warp's CPU capture replays."""
+        return solver.model.device.is_cuda and mpm_supports_graph_capture(solver)
 
     @classmethod
     def uses_collision_pipeline(cls, cfg: MPMSolverCfg, solver: SolverImplicitMPM) -> bool:

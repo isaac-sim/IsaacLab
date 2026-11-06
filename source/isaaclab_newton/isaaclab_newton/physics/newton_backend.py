@@ -267,8 +267,7 @@ class NewtonBackend:
             callback()
         solver_cls.eval_fk(solver_cfg, solver, state_0, None, None)
         self.capture = None
-        # On the CPU, only solvers whose step replays correctly from a Warp CPU graph are captured.
-        if self.cfg.use_cuda_graph and (self.device.is_cuda or solver_cls.cpu_capture):
+        if self.cfg.use_cuda_graph:
             if solver_cls.supports_capture(solver_cfg, solver):
                 self.capture = lambda fn: capture_graph(
                     self.device, fn, relaxed=relaxed_capture is not None and relaxed_capture()
