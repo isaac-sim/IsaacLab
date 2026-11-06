@@ -129,9 +129,14 @@ class OpenXRDevice(DeviceBase):
             )
 
         if hasattr(carb, "settings"):
-            carb.settings.get_settings().set_float("/persistent/xr/render/nearPlane", self._xr_cfg.near_plane)
-            carb.settings.get_settings().set_string("/persistent/xr/anchorMode", "custom anchor")
-            carb.settings.get_settings().set_string("/xrstage/customAnchor", self._xr_anchor_headset_path)
+            settings = carb.settings.get_settings()
+            settings.set_float("/persistent/xr/render/nearPlane", self._xr_cfg.near_plane)
+            # Also write the ar/vr profile-specific settings: they default to 0.15 and
+            # take precedence over the generic path (see XrAnchorManager for details).
+            settings.set_float("/persistent/xr/profile/ar/render/nearPlane", self._xr_cfg.near_plane)
+            settings.set_float("/persistent/xr/profile/vr/render/nearPlane", self._xr_cfg.near_plane)
+            settings.set_string("/persistent/xr/anchorMode", "custom anchor")
+            settings.set_string("/xrstage/customAnchor", self._xr_anchor_headset_path)
 
         # Button binding support
         self.__button_subscriptions: dict[str, dict] = {}
