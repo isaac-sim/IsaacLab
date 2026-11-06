@@ -244,7 +244,7 @@ class scene_point_cloud_b(ManagerTermBase):
     """Fixed-asset, held-asset, and robot surface points in the robot root frame.
 
     ``sampling_variant_order`` is an optional full permutation of the assembly names. It
-    preserves sampling streams when a scene's catalog order changes; output rows still follow
+    preserves sampling streams when a scene's variant order changes; output rows still follow
     scene variant IDs. ``sampling_seed`` defaults to 42. ``robot_geometry_usd_path`` optionally
     pins the robot's observation geometry independently of its physical asset. It must retain
     the selected rigid-body names and local frames. No reference points are loaded from disk.

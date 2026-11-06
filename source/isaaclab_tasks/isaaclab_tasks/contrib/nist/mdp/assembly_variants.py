@@ -46,7 +46,9 @@ class AssemblyVariantContext(ManagerTermBase):
         self.num_variants = len(ASSEMBLY_VARIANTS)
         for name, asset in (("fixed", self.fixed_asset), ("held", self.held_asset)):
             if asset.num_mesh_variants != self.num_variants:
-                raise ValueError(f"{name!s} mesh bank does not match the assembly catalog.")
+                raise ValueError(
+                    f"{name!s} asset has {asset.num_mesh_variants} mesh variants; expected {self.num_variants}."
+                )
 
         offsets = []
         for variant in ASSEMBLY_VARIANTS:

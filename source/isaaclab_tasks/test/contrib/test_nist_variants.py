@@ -95,7 +95,7 @@ def test_simba_point_cloud_encoder_trains_and_exports():
 
 
 def test_point_cloud_sampling_preserves_checkpoint_order_and_observation_geometry(tmp_path, monkeypatch):
-    """Catalog insertions preserve prior samples, and observation meshes do not modify physics."""
+    """Variant insertions preserve prior samples, and observation meshes do not modify physics."""
     stage = Usd.Stage.CreateInMemory()
     geometry = Usd.Stage.CreateInMemory()
     for target, root, size, collider_count in (
@@ -195,7 +195,7 @@ def test_point_cloud_sampling_preserves_checkpoint_order_and_observation_geometr
 
 @pytest.mark.parametrize("num_variants, state_width", [(1, 13), (20, 14)])
 def test_cached_reset_restores_variant_before_pose_and_preserves_input(num_variants, state_width):
-    """Ordinary objects save only pose/velocity; catalog identity is restored before those fields."""
+    """Ordinary objects save only pose/velocity; variant ID is restored before those fields."""
     calls = []
 
     class Asset:

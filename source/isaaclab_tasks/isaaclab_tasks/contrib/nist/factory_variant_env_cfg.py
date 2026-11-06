@@ -103,7 +103,7 @@ class FactoryVariantEventCfg:
     )
     robot_material = ROBOT_MATERIAL_EVENT
     reset_strategies = VARIANT_ACCUMULATOR_RESET
-    # Native selection restores the catalog member's shape materials; randomize selected rows afterward.
+    # Native selection restores the variant's shape materials; randomize selected rows afterward.
     held_asset_material = HELD_ASSET_MATERIAL_EVENT.replace(mode="reset")
     fixed_asset_material = FIXED_ASSET_MATERIAL_EVENT.replace(mode="reset")
 
