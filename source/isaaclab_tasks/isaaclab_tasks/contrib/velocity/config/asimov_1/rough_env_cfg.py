@@ -87,20 +87,15 @@ SLOT_4_5 = (
 FEET_BODIES = ["left_ankle_roll_link", "right_ankle_roll_link"]
 TORSO_BODY = "waist_yaw_link"
 
-# The URDF importer nests each link under its parent, and each contact filter must match exactly one
-# body per environment, so the filter paths spell out the kinematic chain for both sides.
-_PELVIS_PATH = "{ENV_REGEX_NS}/Robot/Geometry/pelvis_link"
+# Each contact filter must match exactly one body per environment, so both sides are listed. Only links
+# with collision shapes in the asset are included.
 SELF_COLLISION_FILTER_PATHS = [
-    _PELVIS_PATH,
-    f"{_PELVIS_PATH}/waist_yaw_link",
+    "{ENV_REGEX_NS}/Robot/pelvis_link",
+    "{ENV_REGEX_NS}/Robot/waist_yaw_link",
     *(
-        f"{_PELVIS_PATH}/{side}_hip_pitch_link{suffix}"
+        f"{{ENV_REGEX_NS}}/Robot/{side}_{link}_link"
         for side in ("left", "right")
-        for suffix in ("", f"/{side}_hip_roll_link", f"/{side}_hip_roll_link/{side}_hip_yaw_link")
-    ),
-    *(
-        f"{_PELVIS_PATH}/waist_yaw_link/{side}_shoulder_pitch_link/{side}_shoulder_roll_link"
-        for side in ("left", "right")
+        for link in ("hip_pitch", "hip_yaw", "shoulder_roll")
     ),
 ]
 
@@ -153,7 +148,7 @@ class Asimov1SceneCfg(InteractiveSceneCfg):
         track_air_time=True,
     )
     self_collision = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/.*_(wrist_yaw|elbow|knee|ankle_roll)_link",
+        prim_path="{ENV_REGEX_NS}/Robot/.*_(elbow|knee|ankle_roll)_link",
         filter_prim_paths_expr=SELF_COLLISION_FILTER_PATHS,
     )
 

@@ -4,12 +4,15 @@
 # SPDX-License-Identifier: BSD-3-Clause
 """Configuration for the Asimov-1 humanoid robot.
 
-Asimov-1 is a 23-DoF full-body humanoid:
+Asimov-1 is a full-body humanoid with 25 revolute joints:
 
 * 12 leg joints (6 per leg): hip pitch/roll/yaw, knee, ankle pitch/roll
 * 1 waist joint: waist yaw
 * 10 arm joints (5 per arm): shoulder pitch/roll/yaw, elbow, wrist yaw
-* head links are welded (not actuated)
+* 2 neck joints: neck yaw and pitch
+
+The 23 body joints are driven by explicit actuators. The neck is held at its default pose.
+The robot is loaded from the SimReady Asimov-1 USD.
 
 One articulation profile is provided:
 
@@ -19,9 +22,9 @@ One articulation profile is provided:
 """
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import DelayedPDActuatorCfg
+from isaaclab.actuators import DelayedPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 # Actuator command delay in physics substeps (0-25 ms at 200 Hz physics).
 DELAY_MIN_LAG = 0
@@ -34,6 +37,7 @@ ASIMOV_1_ACTION_SCALE = 0.25
 # Joint ordering
 ##
 
+# Body joints in policy order. The neck joints are not part of the action space.
 ASIMOV_1_JOINT_NAMES = [
     "left_hip_pitch_joint",
     "left_hip_roll_joint",
@@ -175,6 +179,12 @@ ASIMOV_1_ACTUATORS = {
         min_delay=DELAY_MIN_LAG,
         max_delay=DELAY_MAX_LAG,
     ),
+    # The policy does not command the neck, so a stiff PD holds the head at its default pose.
+    "neck": ImplicitActuatorCfg(
+        joint_names_expr=["neck_yaw_joint", "neck_pitch_joint"],
+        stiffness=40.0,
+        damping=2.0,
+    ),
 }
 
 
@@ -203,6 +213,7 @@ ASIMOV_1_STANDING_INIT_STATE = ArticulationCfg.InitialStateCfg(
         "left_elbow_joint": 0.40,
         "right_elbow_joint": -0.40,
         ".*_wrist_yaw_joint": 0.0,
+        "neck_.*_joint": 0.0,
     },
     joint_vel={".*": 0.0},
 )
@@ -213,14 +224,8 @@ ASIMOV_1_STANDING_INIT_STATE = ArticulationCfg.InitialStateCfg(
 
 
 ASIMOV_1_DELAYED_CFG = ArticulationCfg(
-    spawn=sim_utils.UrdfFileCfg(
-        asset_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Asimov/asimov_1/asimov_1.urdf",
-        fix_base=False,
-        merge_fixed_joints=True,
-        joint_drive=sim_utils.UrdfFileCfg.JointDriveCfg(
-            target_type="position",
-            gains=sim_utils.UrdfFileCfg.JointDriveCfg.PDGainsCfg(stiffness=0.0, damping=0.0),
-        ),
+    spawn=sim_utils.UsdFileCfg(
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/SimReady/OEMs/Menlo/Asimov_1/asimov_1.usd",
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
