@@ -59,6 +59,10 @@ class CoupledMJWarpVBDSolver(NewtonSolver):
         """Driver of the VBD deformable solver."""
         return SolverCoupledMJWarpVBD(model, self.rigid.native, self.soft.native, cfg.coupling_mode)
 
+    def supports_capture(self) -> bool:
+        """Capture only when both sub-solvers can be recorded, e.g. not with MuJoCo on the CPU."""
+        return self.rigid.supports_capture() and self.soft.supports_capture()
+
     def prepare_contacts(self, contacts: Contacts, pipeline: CollisionPipeline | None) -> None:
         """Bind the collision pipeline used inside each coupled substep."""
         self.native.collision_pipeline = pipeline
