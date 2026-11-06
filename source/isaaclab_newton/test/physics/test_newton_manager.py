@@ -238,36 +238,28 @@ def _recording_backend(
     """A backend whose solver hooks and states record every operation of a step."""
 
     class RecordingSolver(NewtonSolver):
-        @classmethod
-        def build(cls, cfg, model, mode, env_template=None):
+        def build(self, model, mode, env_template):
             return SimpleNamespace(notify_model_changed=lambda flags: events.append(("notify", flags)))
 
-        @classmethod
-        def supports_capture(cls, cfg, solver):
+        def supports_capture(self):
             return captures
 
-        @classmethod
-        def uses_collision_pipeline(cls, cfg, solver):
+        def uses_collision_pipeline(self):
             return False
 
-        @classmethod
-        def pre_step(cls, cfg, solver, state):
+        def pre_step(self, state):
             events.append(("pre_step", state.name))
 
-        @classmethod
-        def step(cls, cfg, solver, state_in, state_out, *_args):
+        def step(self, state_in, state_out, *_args):
             events.append(("step", state_in.name, state_out.name))
 
-        @classmethod
-        def post_step(cls, cfg, solver, state):
+        def post_step(self, state):
             events.append(("post_step", state.name))
 
-        @classmethod
-        def eval_fk(cls, cfg, solver, state, worlds, articulations):
+        def eval_fk(self, state, worlds, articulations):
             events.append(("fk",))
 
-        @classmethod
-        def check_step(cls, cfg, solver, captured, debug):
+        def check_step(self, captured, debug):
             events.append(("check", captured))
 
     RecordingSolver.single_state = single_state
@@ -356,18 +348,22 @@ def test_deterministic_collision_pipeline_grows_with_the_solver_contact_capacity
             return SimpleNamespace(rigid_contact_max=self.rigid_contact_max)
 
     class RecordingSolver(NewtonSolver):
-        @classmethod
-        def create_collision_pipeline(cls, cfg, solver, **kwargs):
+        def build(self, model, mode, env_template):
+            return SimpleNamespace(get_max_contact_count=lambda: 2)
+
+        def create_collision_pipeline(self, **kwargs):
             return FakePipeline(**kwargs)
 
-        @classmethod
-        def prepare_contacts(cls, cfg, solver, contacts, pipeline):
+        def prepare_contacts(self, contacts, pipeline):
             prepared.append(contacts)
 
+    solver_cfg = NewtonSolverCfg(class_type=RecordingSolver)
+    ops = RecordingSolver(solver_cfg, None, wp.DeterministicMode.GPU_TO_GPU)
     backend = backend_stub(
-        cfg=NewtonCfg(collision_cfg=collision_cfg, solver_cfg=NewtonSolverCfg(class_type=RecordingSolver)),
+        cfg=NewtonCfg(collision_cfg=collision_cfg, solver_cfg=solver_cfg),
         model=None,
-        solver=SimpleNamespace(get_max_contact_count=lambda: 2),
+        solver=ops.native,
+        solver_ops=ops,
         collision_pipeline=None,
         device="cpu",
         deterministic_mode=wp.DeterministicMode.GPU_TO_GPU,
@@ -386,6 +382,7 @@ def test_collision_cfg_is_rejected_when_the_solver_does_not_use_the_collision_pi
         cfg=NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=True), collision_cfg=NewtonCollisionPipelineCfg()),
         model=None,
         solver=None,
+        solver_ops=SimpleNamespace(uses_collision_pipeline=lambda: False),
     )
 
     with pytest.raises(ValueError, match="collision_cfg cannot be set"):
@@ -505,12 +502,13 @@ def test_forward_resolves_flagged_worlds_once_and_not_while_an_outer_graph_recor
     resets, fks = [], []
 
     class RecordingSolver(NewtonSolver):
-        @classmethod
-        def reset(cls, cfg, solver, state, worlds):
+        def build(self, model, mode, env_template):
+            return object()
+
+        def reset(self, state, worlds):
             resets.append(worlds.numpy().tolist())
 
-        @classmethod
-        def eval_fk(cls, cfg, solver, state, worlds, articulations):
+        def eval_fk(self, state, worlds, articulations):
             fks.append((worlds.numpy().tolist(), articulations.numpy().tolist()))
 
     manager = NewtonManager(NewtonCfg(solver_cfg=NewtonSolverCfg(class_type=RecordingSolver)))
@@ -521,6 +519,7 @@ def test_forward_resolves_flagged_worlds_once_and_not_while_an_outer_graph_recor
         cfg=manager._cfg,
         state_0=object(),
         solver=object(),
+        solver_ops=RecordingSolver(manager._cfg.solver_cfg, None, wp.DeterministicMode.NOT_GUARANTEED),
         device=wp.get_device("cpu"),
         world_mask=world_mask,
         fk_mask=fk_mask,

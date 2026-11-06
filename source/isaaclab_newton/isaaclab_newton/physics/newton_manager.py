@@ -499,8 +499,7 @@ class NewtonManager(PhysicsManager):
 
     def _prepare_visualizer_for_capture(self) -> None:
         """Let the Newton visualizer register picking forces before the step is captured."""
-        solver_cfg = self._cfg.solver_cfg
-        if solver_cfg.class_type.applies_body_forces(solver_cfg, self.backend.solver):
+        if self.backend.solver_ops.applies_body_forces():
             self._sim._prepare_newton_visualizer_for_capture()
 
     def create_visual_material_writer(self, batches: tuple[VisualMaterialBatch, ...]) -> VisualMaterialWriter:

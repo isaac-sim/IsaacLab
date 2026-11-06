@@ -159,6 +159,5 @@ class TeapotSolver(CouplerSolver):
         repair_teapot_hulls(builder)
         super().prepare_builder(cfg, builder)
 
-    @classmethod
-    def build_coupled(cls, cfg, model, entries, proxies, mode):
+    def build_coupled(self, model, entries, proxies, mode):
         return TeapotColliderSyncSolver(model=model, entries=entries)

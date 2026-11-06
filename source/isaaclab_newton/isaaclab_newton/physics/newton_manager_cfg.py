@@ -33,7 +33,7 @@ class NewtonSolverCfg:
     """
 
     class_type: type[NewtonSolver] | str = "{DIR}.newton_solver:NewtonSolver"
-    """Solver class whose class methods build and drive Newton's solver, e.g. ``class_type.build(cfg, model, mode)``."""
+    """Solver class that builds and drives Newton's solver, e.g. ``instantiate(cfg, model, mode).step(...)``."""
 
     solver_type: str = "None"
     """Solver type metadata (deprecated).
