@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import logging
 import warnings
 from dataclasses import MISSING, fields
 from typing import Dict, Literal, TypeVar  # noqa: UP035
@@ -82,7 +83,18 @@ class ViewerCfg:
 def _apply_deprecated_viewer_cfg(env_cfg: object) -> None:
     """Forward the deprecated viewport declaration to configured visualizers before scene creation."""
     viewer = env_cfg.viewer
-    if viewer == ViewerCfg():
+    viewer_defaults = ViewerCfg()
+    if viewer.cam_prim_path != viewer_defaults.cam_prim_path:
+        logging.getLogger(__name__).warning(
+            "env_cfg.viewer.cam_prim_path=%r cannot be automatically forwarded to VisualizerCfg. "
+            "Configure the visualizer camera explicitly instead.",
+            viewer.cam_prim_path,
+        )
+    if all(
+        getattr(viewer, field.name) == getattr(viewer_defaults, field.name)
+        for field in fields(viewer_defaults)
+        if field.name != "cam_prim_path"
+    ):
         return
     configs = env_cfg.sim.visualizer_cfgs
     configs = configs if isinstance(configs, list) else [configs]
