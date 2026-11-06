@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
+from isaaclab.sensors.camera import CAPTURE_ENV_MASK_NAME
 from isaaclab.sim import SimulationContext
 from isaaclab.utils import instantiate, string_to_callable
 from isaaclab.utils.tensor_processors import TensorProcessor
@@ -24,9 +25,6 @@ if TYPE_CHECKING:
     from .processor_cfg import FunctionProcessorCfg, ImageTransferProcessorCfg
 
 _SEED_MODULUS = 2**31
-
-ENV_MASK = "env_mask"
-"""Camera processor input holding the environments captured in each call."""
 
 
 class ImageTransferProcessor(TensorProcessor):
@@ -102,7 +100,7 @@ class ImageTransferProcessor(TensorProcessor):
         frames = data[cfg.inputs[0]].torch
         if tuple(frames.shape) != self._data_dim or frames.dtype != torch.uint8:
             raise ValueError(f"Image transfer controls must be uint8 with shape {self._data_dim}.")
-        mask = data.get(ENV_MASK)
+        mask = data.get(CAPTURE_ENV_MASK_NAME)
         captured = mask.torch.tolist() if mask is not None else [True] * len(self._pending)
         # Only views that capture now add a control; a full view that skips this capture does not block the others.
         if any(captured[row] and len(queue) >= cfg.max_pending_frames for row, queue in enumerate(self._pending)):
