@@ -31,14 +31,31 @@ appear directly in ``ActionsCfg``. Wrapping after the parent's ``__post_init__``
 when an inherited task adjusts controller fields during initialization. Subsequent controller
 customization uses ``actions.<name>.controller``.
 
-One robot with several action terms
------------------------------------
+Task code that accesses a controller-specific runtime API must also use the wrapped
+controller. For example, ``env.action_manager.get_term("arm").controller`` exposes
+the original controller's methods, state, and configuration. The teleop term preserves
+the standard ``ActionTerm`` interface; it does not forward arbitrary controller attributes
+or retain the controller's concrete type. Review task observations, events, rewards, and
+symmetry functions that inspect action terms before wrapping them. Shared task code that
+supports both configurations can unwrap explicitly:
 
-A single Capture session can drive separate arm, end-effector, and gripper controllers
-on the same robot. Exactly one ``TeleopActionCfg`` declares ``source``; the other terms
-leave it unset and receive the same input sample. Each adapter selects its own inputs
-from the complete Capture vector. All participating controllers must name the same
-``asset_name`` and ``env_ids``. Other action terms retain policy control.
+.. code-block:: python
+
+   from isaaclab_teleop import TeleopAction
+
+   term = env.action_manager.get_term("arm")
+   controller = term.controller if isinstance(term, TeleopAction) else term
+   # Use controller.cfg and any controller-specific methods from here.
+
+Sharing input across action terms
+---------------------------------
+
+A single Capture session can drive separate arm, end-effector, and gripper controllers,
+including controllers for different assets. Exactly one ``TeleopActionCfg`` declares
+``source``; the other terms leave it unset and receive the same input sample. Each adapter
+selects its own inputs from the complete Capture vector. All participating controllers
+must select the same ``env_ids``; each controller retains its own ``asset_name``.
+Other action terms retain policy control.
 
 For example, a task whose existing arm controller accepts six relative pose coordinates
 and whose gripper controller accepts one scalar can wrap those controllers as follows:
@@ -64,7 +81,9 @@ and whose gripper controller accepts one scalar can wrap those controllers as fo
 
 Capture is polled once per environment step. The arm and gripper adapters receive
 independent copies of that sample, and the source is reset and closed once. The task
-remains responsible for matching units, frames, and controller scaling.
+remains responsible for matching units, frames, and controller scaling. The same
+declarations work when the original controllers name different assets; asset selection
+does not belong to the Capture source.
 
 Install the external task
 -------------------------
@@ -201,7 +220,7 @@ to match the dataset. Custom recorder schemas remain unchanged.
 
 Recordings contain the actions actually applied, including policy-controlled segments when
 Capture is disengaged. ``metadata/teleop_active`` labels each physical step with whether
-Capture supplied input for the configured robot terms. ``P`` releases input to the policy;
+Capture supplied input for the configured action terms. ``P`` releases input to the policy;
 it does not pause recording or physics. Capture's operator view is never a recorded
 learning observation. Independent learning cameras and task recorder terms remain available.
 
@@ -216,6 +235,9 @@ An operator reset interrupts the controlled row, resets it, and returns a zero-r
 truncation boundary without advancing physics. Other rows pause for that one call. Normal
 task terminations continue to reset their own rows and notify the source when its row resets.
 ``R`` resets and disengages Capture; ``B`` resumes. This does not rewind a demonstration.
+After a host reset, pipelined Capture actions are withheld until a result from a request
+submitted after the notification is available. Playback uses policy input in the meantime;
+operator control events continue to be processed.
 
 The action manager stores the selected raw action before controller processing, so
 ``last_action`` and configured action recorders see Capture's command during takeover.
@@ -233,7 +255,7 @@ Current boundaries
 ------------------
 
 This path supports the Torch frontend, a non-Kit runtime, and one Capture session controlling
-one robot in one environment row, across any number of its action terms. Desktop playback
+task-selected assets in one environment row, across any number of action terms. Desktop playback
 can retain a larger policy-controlled batch; XR and dataset collection currently use one
 environment.
 Direct RL and multi-agent environments do not have action managers and need a separate task

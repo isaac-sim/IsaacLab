@@ -250,13 +250,9 @@ class CapturePlaySession:
             raise ValueError("Task-owned Capture playback requires a ManagerBasedRLEnvCfg.")
         for name, term in self._actions.items():
             validate(term)
-            if (
-                term.env_ids != self._term_cfg.env_ids
-                or term.controller.asset_name != self._term_cfg.controller.asset_name
-            ):
+            if term.env_ids != self._term_cfg.env_ids:
                 raise ValueError(
-                    f"Teleop action {name!r} must control the same robot asset and environment row"
-                    f" as {self._term_name!r}."
+                    f"Teleop action {name!r} must control the same environment row as {self._term_name!r}."
                 )
         if not isinstance(self._term_cfg.source, CaptureTeleopSourceCfg):
             raise TypeError("Capture playback requires a CaptureTeleopSourceCfg action source.")
@@ -296,7 +292,7 @@ class CapturePlaySession:
         self._prepared = True
 
     def attach(self, env: gym.Env) -> gym.Wrapper:
-        """Activate one input owner and its robot's action terms, then wrap playback lifecycle."""
+        """Activate one input owner and the task's teleop terms, then wrap playback lifecycle."""
         if not self._prepared or self._closed or self._env is not None:
             raise RuntimeError("Capture playback must be prepared and attached exactly once.")
         self._env = env
@@ -344,7 +340,7 @@ class CapturePlaySession:
             elif self._source is not None:
                 self._source.close()
             for term in self._followers:
-                term.set_sample(None)
+                term.deactivate()
             if self._source is not None and self._source.session_cleanup_failed:
                 raise RuntimeError("Capture input did not drain; retaining its XR session and environment.")
         except BaseException as input_error:

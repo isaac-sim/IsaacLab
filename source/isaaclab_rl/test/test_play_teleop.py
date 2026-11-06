@@ -89,13 +89,13 @@ class _EffortTerm(ActionTerm):
         self._actions[:] = actions
 
     def apply_actions(self):
-        pass
+        self._asset.applied.append(self._actions.clone())
 
 
 @configclass
 class _ActionsCfg:
     gripper = TeleopActionCfg(
-        controller=ActionTermCfg(class_type=_EffortTerm, asset_name="robot"),
+        controller=ActionTermCfg(class_type=_EffortTerm, asset_name="other_robot"),
         env_ids=[1],
         action_adapter=lambda values, env, env_ids: values[1:],
     )
@@ -127,11 +127,16 @@ class _SinkScene(dict):
     """Small physical-state boundary used by the real action/state recorders."""
 
     def __init__(self, num_envs, action_dim):
-        super().__init__(robot=object())
+        super().__init__(robot=SimpleNamespace(applied=[]), other_robot=SimpleNamespace(applied=[]))
         self.position = torch.zeros(num_envs, action_dim)
 
     def get_state(self, *, is_relative=False):
-        return {"articulation": {"robot": {"joint_position": self.position}}}
+        return {
+            "articulation": {
+                "other_robot": {"joint_position": self.position[:, :1]},
+                "robot": {"joint_position": self.position[:, 1:]},
+            }
+        }
 
 
 class _ActionSink(gym.Env):
@@ -146,10 +151,10 @@ class _ActionSink(gym.Env):
             is_playing=lambda: True,
             vis_marker_registry=SimpleNamespace(clear_debug_vis_callback=lambda term: None),
         )
-        self.scene = {"robot": object()}
+        self.scene = _SinkScene(self.num_envs, 0)
         self.action_manager = ActionManager(cfg.actions, self)
         action_dim = self.action_manager.total_action_dim
-        self.scene = _SinkScene(self.num_envs, action_dim)
+        self.scene.position = torch.zeros(self.num_envs, action_dim)
         self.episode_length_buf = torch.zeros(self.num_envs, dtype=torch.long)
         self.termination_manager = TerminationManager(cfg.terminations, self)
         self.recorder_manager = RecorderManager(cfg.recorders, self)
@@ -180,6 +185,7 @@ class _ActionSink(gym.Env):
         self.action_manager.process_action(action)
         self.applied.append(self.action_manager.action.clone())
         self.recorder_manager.record_pre_step()
+        self.action_manager.apply_action()
         self.scene.position += self.action_manager.action
         self.episode_length_buf += 1
         self.reset_buf = self.termination_manager.compute()
@@ -232,7 +238,7 @@ def playback_task(monkeypatch):
 
 
 def test_play_uses_configured_input_without_loading_a_policy(playback_task, monkeypatch):
-    """Implicit playback resolves Hydra overrides and applies input without loading the default RL backend."""
+    """Implicit playback routes shared input to distinct assets, then yields both to the baseline policy."""
     task, created = playback_task
     original_argv = sys.argv
     monkeypatch.setattr(dispatch, "_run_backend", lambda *args: pytest.fail("attempted to load a policy checkpoint"))
@@ -244,6 +250,10 @@ def test_play_uses_configured_input_without_loading_a_policy(playback_task, monk
     assert env.cfg.seed == 7
     assert torch.equal(env.applied[0], torch.tensor([[0.0, 0.0, 0.0], [-0.5, 4.0, 0.0]]))
     assert torch.equal(env.applied[1], torch.zeros(2, 3))
+    torch.testing.assert_close(env.scene["other_robot"].applied[0], torch.tensor([[0.0], [-0.5]]))
+    torch.testing.assert_close(env.scene["robot"].applied[0], torch.tensor([[0.0], [4.0]]))
+    torch.testing.assert_close(env.scene["other_robot"].applied[1], torch.zeros(2, 1))
+    torch.testing.assert_close(torch.stack(env.scene["robot"].applied[1:]), torch.zeros(3, 2, 1))
     assert env.input_source.polls == 2
     assert env.input_source.close_calls == 1
     assert env.input_source.closed and env.closed
@@ -291,7 +301,11 @@ def test_play_cli_exports_requested_demos_with_applied_actions_and_provenance(pl
         torch.testing.assert_close(torch.from_numpy(first["obs/policy"][0]), torch.zeros(3))
         torch.testing.assert_close(
             torch.from_numpy(first["states/articulation/robot/joint_position"][:]),
-            torch.tensor([[-0.5, 4.0, 0.0], [-0.5, 4.0, 0.0]]),
+            torch.tensor([[4.0, 0.0], [4.0, 0.0]]),
+        )
+        torch.testing.assert_close(
+            torch.from_numpy(first["states/articulation/other_robot/joint_position"][:]),
+            torch.tensor([[-0.5], [-0.5]]),
         )
 
 
