@@ -214,6 +214,12 @@ class NewtonBackend:
         """Run after the Newton actuators of every physics step, before its solver substeps."""
         self.state_force_callbacks: list[Callable[[State], None]] = []
         """Add forces [N, N·m] to the input state of every solver substep."""
+        self.post_solver_substep_callbacks: list[
+            Callable[[Contacts | None, SolverBase.Observables | None, State, float], None]
+        ] = []
+        """Run after each solve, before output-state swapping and force clearing."""
+        self.solver_observables: SolverBase.Observables | None = None
+        """Requested solver outputs populated by every substep, or ``None``."""
         self.post_step_callbacks: list[Callable[[], None]] = []
         """Run once after the last solver substep of a :meth:`step`."""
         self.solver_init_callbacks: list[Callable[[], None]] = []
@@ -236,7 +242,8 @@ class NewtonBackend:
         self.bvh_refit = TimestampedBuffer()
         if self.cfg is not None:
             self.solver = self.solver_ops = self.collision_pipeline = self.contacts = self.actuators = None
-            self.staged_body_f = self.capture = None
+            self.staged_body_f = self.capture = self.solver_observables = None
+            self.post_solver_substep_callbacks = []
             self.graphs = {}
             self.contact_sensors, self.imu_sensors = {}, []
             self.pre_actuator_callbacks, self.post_actuator_callbacks = [], []
@@ -244,7 +251,11 @@ class NewtonBackend:
             self.world_mask = self.fk_mask = None
 
     def init_solver(
-        self, env_template: str | None = None, *, relaxed_capture: Callable[[], bool] | None = None
+        self,
+        env_template: str | None = None,
+        *,
+        relaxed_capture: Callable[[], bool] | None = None,
+        observable_kinds: set[str] | None = None,
     ) -> None:
         """Build the solver and its contacts, run the solver-init callbacks, and evaluate the initial FK.
 
@@ -252,6 +263,7 @@ class NewtonBackend:
             env_template: Environment prim path template that expands ``{ENV_REGEX_NS}`` in solver selectors.
             relaxed_capture: Returns, when the step is captured, whether to capture in relaxed mode; see
                 :func:`capture_graph`. Defaults to strict capture.
+            observable_kinds: Solver output kinds to allocate before solver-init callbacks bind their consumers.
         """
         solver_cfg, mode = self.cfg.solver_cfg, self.deterministic_mode
         if mode != wp.DeterministicMode.NOT_GUARANTEED and not solver_cfg.class_type.deterministic:
@@ -264,6 +276,9 @@ class NewtonBackend:
         if not ops.single_state:
             ops.init_state(self.state_1)
         self._allocate_contacts()
+        self.solver_observables = (
+            solver.observables(observable_kinds, contacts=self.contacts) if observable_kinds else None
+        )
         state_0 = self.state_0
         self.staged_body_f = wp.zeros_like(state_0.body_f) if state_0.body_count else None
         callbacks, self.solver_init_callbacks = self.solver_init_callbacks, []
@@ -623,6 +638,9 @@ class NewtonBackend:
         Each substep restores the staged body forces, then state-force callbacks add to them.
         """
         ops = self.solver_ops
+        step = ops.step
+        if self.solver_observables is not None:
+            step = partial(step, observables=self.solver_observables)
         num_substeps, control, dt = self.num_substeps, self.control, self.solver_dt
         collide_every = self.cfg.collision_decimation
         # The last substep is skipped: its contacts would only feed the next physics step's collision.
@@ -633,10 +651,11 @@ class NewtonBackend:
                 wp.copy(state.body_f, self.staged_body_f)
             for callback in self.state_force_callbacks:
                 callback(state)
-            if ops.single_state:
-                ops.step(state, state, control, contacts, dt)
-            else:
-                ops.step(state, self.state_1, control, contacts, dt)
+            state_out = state if ops.single_state else self.state_1
+            step(state, state_out, control, contacts, dt)
+            for callback in self.post_solver_substep_callbacks:
+                callback(contacts, self.solver_observables, state_out, dt)
+            if not ops.single_state:
                 if num_substeps % 2 == 1 and i == num_substeps - 1:
                     state.assign(self.state_1)
                 else:

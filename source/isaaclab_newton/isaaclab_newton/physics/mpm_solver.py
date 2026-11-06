@@ -252,9 +252,18 @@ class MPMSolver(NewtonSolver):
     def uses_collision_pipeline(self) -> bool:
         return False
 
-    def step(self, state_in: State, state_out: State, control: Control, contacts: Contacts | None, dt: float) -> None:
+    def step(
+        self,
+        state_in: State,
+        state_out: State,
+        control: Control,
+        contacts: Contacts | None,
+        dt: float,
+        *,
+        observables: SolverBase.Observables | None = None,
+    ) -> None:
         """Run one implicit MPM substep, optionally projecting particles out of collider interiors."""
-        self.native.step(state_in, state_out, control, contacts, dt)
+        super().step(state_in, state_out, control, contacts, dt, observables=observables)
         if self.cfg.project_outside_colliders:
             self.native.project_outside(state_out, state_out, dt)
 

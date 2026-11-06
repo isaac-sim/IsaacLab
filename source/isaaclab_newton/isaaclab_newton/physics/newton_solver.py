@@ -148,9 +148,21 @@ class NewtonSolver:
     def pre_step(self, state: State) -> None:
         """Refresh solver structures once per physics step, before collision."""
 
-    def step(self, state_in: State, state_out: State, control: Control, contacts: Contacts | None, dt: float) -> None:
-        """Advance one substep of ``dt`` [s]."""
-        self.native.step(state_in, state_out, control, contacts, dt)
+    def step(
+        self,
+        state_in: State,
+        state_out: State,
+        control: Control,
+        contacts: Contacts | None,
+        dt: float,
+        *,
+        observables: SolverBase.Observables | None = None,
+    ) -> None:
+        """Advance one substep of ``dt`` [s], filling any requested solver observables."""
+        if observables is None:
+            self.native.step(state_in, state_out, control, contacts, dt)
+        else:
+            self.native.step(state_in, state_out, control, contacts, dt, observables=observables)
 
     def post_step(self, state: State) -> None:
         """Publish derived state once per physics step, after the substeps."""

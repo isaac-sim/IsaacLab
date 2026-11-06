@@ -292,6 +292,8 @@ def _recording_backend(
         pre_actuator_callbacks=[],
         post_actuator_callbacks=[],
         state_force_callbacks=[],
+        post_solver_substep_callbacks=[],
+        solver_observables=None,
         post_step_callbacks=[],
         solver_init_callbacks=[],
         decimation=1,
