@@ -19,6 +19,7 @@ from isaaclab_newton.physics import (
     NewtonBackendCfg,
     NewtonCfg,
     NewtonManager,
+    VBDSolverCfg,
     XPBDSolverCfg,
 )
 from newton import CollisionPipeline, Mesh, ModelBuilder
@@ -52,12 +53,13 @@ def _bind_coupler(builder: ModelBuilder, solver_cfg: CouplerProxyCfg | CouplerAd
     return manager
 
 
-def _build_overlapping_bodies(*, mesh_contact: bool = False) -> ModelBuilder:
+def _build_overlapping_bodies(*, mesh_contact: bool = False, particle: bool = False) -> ModelBuilder:
     """Build two labeled free bodies with one rigid contact on the CPU.
 
     Args:
         mesh_contact: Replace the source sphere with a triangle mesh to exercise
             triangle-pair allocation and contact reduction in the capacity test.
+        particle: Add a free particle above the rigid bodies.
     """
     builder = ModelBuilder(gravity=(0.0, 0.0, -9.81))
     for x, label in ((-0.09, "/Lab/Cells/Cell0/Source/body"), (0.09, "/World/Destination/body")):
@@ -76,6 +78,8 @@ def _build_overlapping_bodies(*, mesh_contact: bool = False) -> ModelBuilder:
             builder.add_shape_mesh(body=body, mesh=mesh, label=f"{label}/shape")
         else:
             builder.add_shape_sphere(body=body, radius=0.1, label=f"{label}/shape")
+    if particle:
+        builder.add_particle(pos=(0.0, 0.0, 2.0), vel=(0.0, 0.0, 0.0), mass=1.0)
     builder.color()
     return builder
 
@@ -96,7 +100,17 @@ def _entry_configs() -> list[CouplerEntryCfg]:
     ]
 
 
-def test_proxy_destination_can_receive_only_proxy_bodies():
+@pytest.mark.parametrize(
+    "destination_solver_cfg",
+    [
+        pytest.param(XPBDSolverCfg(iterations=2), id="xpbd"),
+        pytest.param(
+            VBDSolverCfg(rigid_contact_history=True, integrate_with_external_rigid_solver=True),
+            id="vbd-external-rigid",
+        ),
+    ],
+)
+def test_proxy_destination_can_receive_only_proxy_bodies(destination_solver_cfg):
     builder = _build_overlapping_bodies()
     solver_cfg = CouplerProxyCfg(
         entries=[
@@ -105,7 +119,7 @@ def test_proxy_destination_can_receive_only_proxy_bodies():
                 solver_cfg=XPBDSolverCfg(iterations=2),
                 bodies=["{ENV_REGEX_NS}/Source/body"],
             ),
-            CouplerEntryCfg(name="destination", solver_cfg=XPBDSolverCfg(iterations=2)),
+            CouplerEntryCfg(name="destination", solver_cfg=destination_solver_cfg),
         ],
         proxies=[
             CouplerProxyMappingCfg(
@@ -119,6 +133,58 @@ def test_proxy_destination_can_receive_only_proxy_bodies():
     backend = _bind_coupler(builder, solver_cfg).backend
 
     assert backend.solver._entries["destination"].proxy_body_local_indices.numpy().tolist() == [0]
+
+
+def test_particle_only_vbd_entry_ignores_rigid_contact_history():
+    """History is inactive for a particle-only view even when the parent model has bodies."""
+    builder = _build_overlapping_bodies(particle=True)
+    solver_cfg = CouplerAdmmCfg(
+        entries=[
+            CouplerEntryCfg(name="rigid", solver_cfg=XPBDSolverCfg(), bodies=[r"/World/.*"]),
+            CouplerEntryCfg(name="particles", solver_cfg=VBDSolverCfg(rigid_contact_history=True), all_particles=True),
+        ],
+        contact_pairs=[],
+        iterations=1,
+    )
+    manager = _bind_coupler(builder, solver_cfg)
+    model = manager.backend.model
+    solver = manager.backend.solver
+    assert solver.view("particles").body_count == 0
+
+    state_0, state_1 = model.state(), model.state()
+    manager.backend.collision_pipeline.collide(state_0, manager.backend.contacts)
+    dt = 1.0 / 60.0
+    solver.step(state_0, state_1, model.control(), manager.backend.contacts, dt)
+
+    # A free particle starting at rest follows semi-implicit Euler under gravity.
+    assert state_1.particle_q.numpy()[0, 2] == pytest.approx(2.0 - 9.81 * dt**2)
+
+
+@pytest.mark.parametrize(
+    ("destination_bodies", "proxies"),
+    [
+        pytest.param([r"/World/Destination/body"], [], id="owned-rigid"),
+        pytest.param(
+            [],
+            [CouplerProxyMappingCfg(source="source", destination="destination", bodies=["{ENV_REGEX_NS}/Source/body"])],
+            id="received-rigid",
+        ),
+    ],
+)
+def test_coupled_vbd_rigid_contact_history_is_rejected(destination_bodies, proxies):
+    """Both owned and received bodies make coupled VBD history unsupported."""
+    builder = _build_overlapping_bodies()
+    solver_cfg = CouplerProxyCfg(
+        entries=[
+            CouplerEntryCfg(name="source", solver_cfg=XPBDSolverCfg(), bodies=["{ENV_REGEX_NS}/Source/body"]),
+            CouplerEntryCfg(
+                name="destination", solver_cfg=VBDSolverCfg(rigid_contact_history=True), bodies=destination_bodies
+            ),
+        ],
+        proxies=proxies,
+    )
+    with pytest.raises(NotImplementedError, match=r"destination.*rigid_contact_history"):
+        _bind_coupler(builder, solver_cfg)
 
 
 @pytest.mark.parametrize(

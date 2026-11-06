@@ -17,7 +17,13 @@ from dataclasses import dataclass, replace
 from functools import partial
 
 import warp as wp
-from isaaclab_newton.physics import MPMSolverCfg, NewtonCollisionPipelineCfg, NewtonSolver, NewtonSolverCfg
+from isaaclab_newton.physics import (
+    MPMSolverCfg,
+    NewtonCollisionPipelineCfg,
+    NewtonSolver,
+    NewtonSolverCfg,
+    VBDSolverCfg,
+)
 from isaaclab_newton.physics.newton_solver import solver_kwargs
 from newton import CollisionPipeline, Model, ModelBuilder, ShapeFlags, State
 from newton.solvers import SolverBase
@@ -381,9 +387,24 @@ def _coupled_entry(entry: _ResolvedEntry, mode: wp.DeterministicMode, env_templa
     """Describe a resolved entry to Newton; its solver is built on the entry's model view."""
     entry_cfg = entry.config
     solver_cfg = entry_cfg.solver_cfg
+
+    def build_solver(view: Model) -> SolverBase:
+        if (
+            isinstance(solver_cfg, VBDSolverCfg)
+            and solver_cfg.rigid_contact_history
+            and view.body_count > 0
+            and not solver_cfg.integrate_with_external_rigid_solver
+        ):
+            raise NotImplementedError(
+                f"CouplerEntryCfg {entry_cfg.name!r} enables VBDSolverCfg.rigid_contact_history, whose "
+                "matching and history allocation are not yet supported for coupled entry contacts. "
+                "Set rigid_contact_history=False or use standalone VBD."
+            )
+        return solver_cfg.class_type.build(solver_cfg, view, mode, env_template)
+
     return SolverCoupled.Entry(
         name=entry_cfg.name,
-        solver=lambda view: solver_cfg.class_type.build(solver_cfg, view, mode, env_template),
+        solver=build_solver,
         bodies=entry.bodies,
         particles=entry.particles,
         joints=entry.joints,

@@ -256,6 +256,7 @@ class NewtonBackend:
                 f"Newton deterministic mode {mode.name} is not supported by {type(solver_cfg).__name__}."
                 " Use MJWarp on the GPU, XPBD, or Featherstone, or disable deterministic mode."
             )
+        self.collision_pipeline = solver_cls.prepare_model(solver_cfg, self.model, self.cfg.collision_cfg, mode)
         solver = self.solver = solver_cls.build(solver_cfg, self.model, mode, env_template)
         if not solver_cls.single_state:
             solver_cls.init_state(solver_cfg, solver, self.state_1)
@@ -337,6 +338,8 @@ class NewtonBackend:
             raise RuntimeError("Newton state was authored before the solver was initialized (init_solver).")
         solver_cfg, solver, state = self.cfg.solver_cfg, self.solver, self.state_0
         solver_cfg.class_type.reset(solver_cfg, solver, state, self.world_mask)
+        if self.collision_pipeline is not None:
+            self.collision_pipeline.reset_contact_matching(self.world_mask)
         solver_cfg.class_type.eval_fk(solver_cfg, solver, state, self.world_mask, self.fk_mask)
         self.fk_mask.zero_()
         self.world_mask.zero_()
@@ -548,8 +551,8 @@ class NewtonBackend:
             self.contacts = self.collision_pipeline.contacts()
             # MuJoCo Warp can require more contacts than the pipeline estimates.
             if required > self.contacts.rigid_contact_max:
-                if args["deterministic"]:
-                    # The deterministic sort buffer is sized at construction, so rebuild the pipeline to match.
+                if args["deterministic"] or self.collision_pipeline.contact_matching != "disabled":
+                    # Sorting and matching buffers are sized at construction, so rebuild the pipeline to match.
                     args["rigid_contact_max"] = required
                     self.collision_pipeline = solver_cls.create_collision_pipeline(solver_cfg, solver, **args)
                     self.contacts = self.collision_pipeline.contacts()
