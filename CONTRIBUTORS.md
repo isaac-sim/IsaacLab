@@ -87,6 +87,7 @@ Guidelines for modifications:
 * David Leon
 * David Yang
 * Daniela Hasenbring
+* devteamaegis
 * Dhananjay Shendre
 * Dhyan Thakkar
 * Diego Ferigo
