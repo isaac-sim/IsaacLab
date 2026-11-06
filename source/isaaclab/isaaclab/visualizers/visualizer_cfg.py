@@ -27,6 +27,26 @@ VISUALIZER_ALIASES = {"newton": "newton_gl"}
 """Deprecated ``--visualizer`` names and their replacements."""
 
 
+def with_free_view(
+    cameras: list[PerspectiveCameraCfg | SceneCameraCfg],
+    eye: tuple[float, float, float],
+    lookat: tuple[float, float, float],
+    focal_length: float,
+) -> list[PerspectiveCameraCfg | SceneCameraCfg]:
+    """Return *cameras* with a free perspective view added when it has tracking cameras but no free view of its own.
+
+    A tracking camera follows a robot or frames an environment, so the interactive view that a user moves stays
+    available beside it, at the visualizer's own ``eye``, ``lookat`` and ``focal_length``. The free view goes
+    right before the first tracking camera, so scene cameras declared ahead of it stay first.
+    """
+    perspective = [camera for camera in cameras if isinstance(camera, PerspectiveCameraCfg)]
+    if perspective and all(isinstance(camera, TrackingCameraCfg) for camera in perspective):
+        free = PerspectiveCameraCfg(eye=eye, lookat=lookat, focal_length=focal_length)
+        first_tracking = next(i for i, camera in enumerate(cameras) if isinstance(camera, PerspectiveCameraCfg))
+        return [*cameras[:first_tracking], free, *cameras[first_tracking:]]
+    return cameras
+
+
 @configclass
 class PerspectiveCameraCfg:
     """Initial pose and optics for an interactive perspective camera.
@@ -42,6 +62,49 @@ class PerspectiveCameraCfg:
 
     focal_length: float = 12.0
     """Perspective camera focal length [mm]."""
+
+
+@configclass
+class TrackingCameraCfg(PerspectiveCameraCfg):
+    """A camera that frames an environment or follows an asset in it, however the scene is laid out.
+
+    The visualizer renders it from the viewer camera, so nothing is created in the scene. Only Newton GL
+    supports it; other visualizers ignore it.
+    """
+
+    eye: tuple[float, float, float] = (4.0, -4.0, 3.0)
+    """Eye position [m], as an offset from the tracked asset, or from the origin of :attr:`env_index`."""
+
+    lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    """Look-at target [m], in the same frame as :attr:`eye`."""
+
+    env_index: int | None = None
+    """Environment to frame, or the one holding the tracked asset; None picks the middle one of the visible
+    environments, which has neighbors on every side."""
+
+    track_path: str | None = None
+    """Scene asset to follow, or None for a view fixed relative to the environment origin.
+
+    Use ``"robot"`` for an asset root or ``"robot/base"`` for a named body, which must match exactly one body.
+    """
+
+    follow_heading: bool = False
+    """Rotate :attr:`eye` and :attr:`lookat` with the tracked asset's yaw, keeping the horizon level.
+
+    Without it the offsets stay aligned with the world axes. Only used with :attr:`track_path`.
+    """
+
+    heading_smoothing_time_constant: float = 0.0
+    """Exponential heading-filter time constant [s]; zero follows the heading immediately.
+
+    Larger values damp rapid turns more, with more lag. Only used with :attr:`follow_heading`.
+    """
+
+    def __post_init__(self) -> None:
+        if self.env_index is not None and self.env_index < 0:
+            raise ValueError("env_index must be non-negative.")
+        if not math.isfinite(self.heading_smoothing_time_constant) or self.heading_smoothing_time_constant < 0.0:
+            raise ValueError("heading_smoothing_time_constant must be finite and non-negative.")
 
 
 @configclass
@@ -161,11 +224,12 @@ class VisualizerCfg:
     """Render on demand without opening a native viewer window."""
 
     # Primary interactive camera settings
-    cameras: list[PerspectiveCameraCfg | SceneCameraCfg] | None = None
+    cameras: list[PerspectiveCameraCfg | TrackingCameraCfg | SceneCameraCfg] | None = None
     """Camera sources available to the visualizer.
 
-    PerspectiveCameraCfg configures the interactive view; SceneCameraCfg refers to an existing scene
-    sensor. Newton GL and RTX display the first source and offer a dropdown for switching sources.
+    PerspectiveCameraCfg configures the interactive view, TrackingCameraCfg a view that frames an environment
+    or follows an asset, and SceneCameraCfg refers to an existing scene sensor.
+    Newton GL and RTX display the first source and offer a dropdown for switching sources.
     Kit, Rerun, and Viser display the first scene source in their camera panel.
     None uses eye/lookat/focal_length and the streaming settings below.
     Every explicit scene source must provide all requested streaming_gt_types channels.
@@ -279,8 +343,12 @@ class VisualizerCfg:
         if self.cameras is not None:
             if not self.cameras:
                 raise ValueError("cameras must contain at least one display source.")
-            self.streaming_view = any(isinstance(camera, SceneCameraCfg) for camera in self.cameras)
-            if isinstance(camera := self.cameras[0], PerspectiveCameraCfg):
+            # tracking cameras only add to the cameras the visualizer finds, so they leave the streaming choice alone
+            if not all(isinstance(camera, TrackingCameraCfg) for camera in self.cameras):
+                self.streaming_view = any(isinstance(camera, SceneCameraCfg) for camera in self.cameras)
+            if isinstance(camera := self.cameras[0], PerspectiveCameraCfg) and not isinstance(
+                camera, TrackingCameraCfg
+            ):
                 self.eye, self.lookat, self.focal_length = camera.eye, camera.lookat, camera.focal_length
 
 

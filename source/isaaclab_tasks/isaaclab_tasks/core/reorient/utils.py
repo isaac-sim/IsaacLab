@@ -19,7 +19,7 @@ import torch
 import isaaclab.utils.math as math_utils
 from isaaclab.utils import index_fill_
 from isaaclab.utils.math import quat_from_angle_axis, quat_mul
-from isaaclab.visualizers import VisualizerCfg
+from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
@@ -28,10 +28,20 @@ if TYPE_CHECKING:
 GOAL_MARKER_OFFSET = (-0.08, -0.09, 0.06)
 """Goal-cube display offset from the in-hand position [m], beside the hand in the recording view."""
 
-VISUALIZER_CFG = VisualizerCfg(eye=(0.995, -0.80, 0.85), lookat=(0.375, -0.28, 0.53), focal_length=35.0)
+VISUALIZER_CFG = VisualizerCfg(
+    eye=(0.995, -0.80, 0.85),
+    lookat=(0.375, -0.28, 0.53),
+    focal_length=35.0,
+    cameras=[TrackingCameraCfg(eye=(0.62, -0.80, 0.85), lookat=(0.0, -0.28, 0.53), focal_length=35.0)],
+)
 """Recording view of an environment in the 50-environment play grid."""
 
-CAMERA_VISUALIZER_CFG = VisualizerCfg(eye=(1.62, -1.80, 0.85), lookat=(1.0, -1.28, 0.53), focal_length=35.0)
+CAMERA_VISUALIZER_CFG = VisualizerCfg(
+    eye=(1.62, -1.80, 0.85),
+    lookat=(1.0, -1.28, 0.53),
+    focal_length=35.0,
+    cameras=[TrackingCameraCfg(eye=(0.62, -0.80, 0.85), lookat=(0.0, -0.28, 0.53), focal_length=35.0)],
+)
 """Recording view of an environment in the camera tasks' 64-environment play grid."""
 
 

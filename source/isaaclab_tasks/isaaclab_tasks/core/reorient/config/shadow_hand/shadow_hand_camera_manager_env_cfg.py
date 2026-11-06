@@ -131,6 +131,7 @@ class ShadowHandCameraManagerEnvCfg(ShadowHandManagerEnvCfg):
             viewer.eye = CAMERA_VISUALIZER_CFG.eye
             viewer.lookat = CAMERA_VISUALIZER_CFG.lookat
             viewer.focal_length = CAMERA_VISUALIZER_CFG.focal_length
+            viewer.cameras = [camera.replace() for camera in CAMERA_VISUALIZER_CFG.cameras]
         # mutate rather than replace: subclasses may have disabled the CNN
         self.feature_extractor.train = False
         self.feature_extractor.load_checkpoint = True
