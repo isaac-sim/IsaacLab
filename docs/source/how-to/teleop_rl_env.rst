@@ -31,6 +31,44 @@ appear directly in ``ActionsCfg``. Wrapping after the parent's ``__post_init__``
 when an inherited task adjusts controller fields during initialization. Subsequent controller
 customization uses ``actions.<name>.controller``.
 
+One robot with several action terms
+-----------------------------------
+
+A single Capture session can drive separate arm, end-effector, and gripper controllers
+on the same robot. Exactly one ``TeleopActionCfg`` declares ``source``; the other terms
+leave it unset and receive the same input sample. Each adapter selects its own inputs
+from the complete Capture vector. All participating controllers must name the same
+``asset_name`` and ``env_ids``. Other action terms retain policy control.
+
+For example, a task whose existing arm controller accepts six relative pose coordinates
+and whose gripper controller accepts one scalar can wrap those controllers as follows:
+
+.. code-block:: python
+
+   def arm_input(actions, env, env_ids):
+       return actions[..., :6]
+
+   def gripper_input(actions, env, env_ids):
+       return actions[..., 6:7]
+
+   # Inside the task's __post_init__, after configuring its original controllers:
+   self.actions.arm = TeleopActionCfg(
+       controller=self.actions.arm,
+       source=CaptureTeleopSourceCfg(device=se3_keyboard_teleop_cfg()),
+       action_adapter=arm_input,
+   )
+   self.actions.gripper = TeleopActionCfg(
+       controller=self.actions.gripper,
+       action_adapter=gripper_input,
+   )
+
+Capture is polled once per environment step. The arm and gripper adapters receive
+independent copies of that sample, and the source is reset and closed once. The task
+remains responsible for matching units, frames, and controller scaling.
+
+Install the external task
+-------------------------
+
 Register the external package in its ``pyproject.toml`` and install it into your Lab environment:
 
 .. code-block:: toml
@@ -69,8 +107,8 @@ Select a policy explicitly to combine it with Capture:
        --rl_library rsl_rl --task Isaac-Cartpole-Interactive \
        --checkpoint /path/to/model.pt --num_envs 4 --viz newton_gl --real-time
 
-Capture controls row 0 of the wrapped action term. The policy controls the other rows and
-other action terms. ``P`` disengages Capture, and ``B`` resumes input. Releasing motion keys
+Capture controls row 0 of the wrapped action terms. The policy controls the other rows and
+unwrapped action terms. ``P`` disengages Capture, and ``B`` resumes input. Releasing motion keys
 sends zero input while Capture stays active; inactive or unavailable input yields to the
 policy. Disengaging input does not pause physics. ``--no-teleop`` leaves all actions under
 policy control. ``--max_steps`` bounds a playback run.
@@ -117,8 +155,12 @@ Use the Capture 1.7.93a1 installation described in :doc:`kitless_xr_source` and 
 ``ovxr`` dependency selection. The repository's default ``teleop`` extra still selects the
 older desktop/Kit Capture version; do not combine those dependency selections. With an
 XR-capable source declared in the task, use the same ``isaaclab play`` command under
-``uv run --extra ovxr`` with ``--viz none --num_envs 1``. Use Capture's desktop mirror
-for a local preview; other local visualizers cannot share this XR lifecycle. No legacy ``--xr`` or ``--ovxr`` flag is needed on this path.
+``uv run --extra ovxr`` with ``--num_envs 1``. Capture's desktop mirror is optional and
+disabled by default. A Lab visualizer may show a separate view, for example with
+``--viz newton_gl``; it does not have to match the headset camera. Use ``--viz none``
+when no Lab viewer is wanted. Lab views cannot consume XR-owned cameras or the renderer
+leased by XR. Native Lab windows close on their host thread after input drains and before
+XR releases the environment. No legacy ``--xr`` or ``--ovxr`` flag is needed on this path.
 
 Learning cameras remain configured. A camera that resolves to the renderer leased by XR
 is rejected before startup unless it is an explicitly configured operator panel. Cameras
@@ -127,7 +169,47 @@ policy/critic observation terms or video recorders. Custom observation functions
 respect this boundary; the validator checks explicit scene-entity references and cannot
 inspect arbitrary function bodies.
 
-Reset and recording semantics
+Collect demonstrations
+----------------------
+
+Add ``--dataset_file`` to the same playback command to record HDF5 demonstrations.
+Collection currently uses one environment, matching the legacy collection workflow:
+
+.. code-block:: bash
+
+   uv run --extra teleop isaaclab play \
+       --task Isaac-Cartpole-Interactive --num_envs 1 --viz newton_gl --real-time \
+       --dataset_file ./datasets/cartpole.hdf5 --demo_export_mode all --num_demos 3
+
+Cartpole has no success termination, so this example explicitly exports every completed
+episode. For a manipulation task with a ``success`` termination, omit
+``--demo_export_mode all`` to keep only successful episodes. A request for successful-only
+export on a task without a success term fails before launch. ``--num_demos 0`` collects
+until the operator exits; a positive value stops after that many exported episodes.
+
+The task's success and timeout terms determine episode boundaries. Configure any required
+success hold duration in the task. Collection preserves command sampling and policy
+observation layout, so the same checkpoint can keep running during collection. A configured
+recorder manager is retained; otherwise the task's ``demo_recorder_cfg_entry_point`` is used,
+falling back to Lab's action/state recorders. Custom recorder terms remain available for
+task-specific observations and Mimic metadata.
+
+The default recorder keeps named policy observations under their original keys. For a
+concatenated policy tensor, it writes ``obs/policy`` instead, so the dataset still has a
+named observation group without changing the policy input. Configure IL observation keys
+to match the dataset. Custom recorder schemas remain unchanged.
+
+Recordings contain the actions actually applied, including policy-controlled segments when
+Capture is disengaged. ``metadata/teleop_active`` labels each physical step with whether
+Capture supplied input for the configured robot terms. ``P`` releases input to the policy;
+it does not pause recording or physics. Capture's operator view is never a recorded
+learning observation. Independent learning cameras and task recorder terms remain available.
+
+The output must be a new dataset: existing files are rejected before launch. Completed
+episodes are flushed as they export. An unfinished episode is discarded on exit, and resets
+without any physical steps do not create empty demonstrations.
+
+Reset semantics and migration
 -----------------------------
 
 An operator reset interrupts the controlled row, resets it, and returns a zero-reward
@@ -138,18 +220,28 @@ task terminations continue to reset their own rows and notify the source when it
 The action manager stores the selected raw action before controller processing, so
 ``last_action`` and configured action recorders see Capture's command during takeover.
 The operator-reset boundary does not create an artificial recorded physics transition.
-Adding an action term does not configure dataset recording, success selection, or export.
-Existing teleop environments, ``isaaclab teleop`` commands, and ``record_demos.py`` remain
-available with their existing configurations.
+An operator reset exports the preceding nonempty episode only when it passes the selected
+export mode; in successful-only mode, an unsuccessful attempt is discarded. Adding an
+action term alone does not open a dataset: collection requires ``--dataset_file``.
+
+Use ``isaaclab play --dataset_file ...`` for tasks declaring ``TeleopActionCfg``. Existing
+teleop environments, ``isaaclab teleop`` commands, and ``record_demos.py`` remain available
+with their existing configurations. They do not need to migrate to use this new path in
+other tasks.
 
 Current boundaries
 ------------------
 
-This path supports the Torch frontend, a non-Kit runtime, and one Capture-owned action term
-controlling one row. Desktop playback can retain a larger policy-controlled batch. XR
-currently requires exactly one environment. A single term may wrap a composite controller,
-but sharing one Capture session across multiple action terms needs a separate ownership API.
+This path supports the Torch frontend, a non-Kit runtime, and one Capture session controlling
+one robot in one environment row, across any number of its action terms. Desktop playback
+can retain a larger policy-controlled batch; XR and dataset collection currently use one
+environment.
 Direct RL and multi-agent environments do not have action managers and need a separate task
 integration. Keyboard, gamepad, and SpaceMouse pipelines are supported on the desktop;
 XR input uses the task's compatible Capture pipeline and the operator presentation session.
 Physical-headset qualification is required before treating the combined XR path as supported.
+
+The experimental ``--frontend warp`` uses a separate action manager and captured stepping
+path. It needs native input staging, action selection, reset/cleanup, and presentation
+exclusion support. This restriction does not exclude Newton or other Warp-based physics
+running through the supported Torch frontend.

@@ -288,6 +288,7 @@ def add_common_play_args(parser: argparse.ArgumentParser, *, agent_default: str 
         agent_help: Help text for the ``--agent`` argument.
     """
     add_video_args(parser, action="play")
+    add_demo_recording_args(parser)
     parser.add_argument(
         "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
     )
@@ -311,6 +312,21 @@ def add_common_play_args(parser: argparse.ArgumentParser, *, agent_default: str 
         action="store_true",
         default=False,
         help="Play with the training environment configuration as-is, skipping play-mode overrides.",
+    )
+
+
+def add_demo_recording_args(parser: argparse.ArgumentParser) -> None:
+    """Add demonstration collection options without importing the optional Capture package."""
+    group = parser.add_argument_group("demonstration collection")
+    group.add_argument("--dataset_file", default=None, help="Export playback episodes to a new HDF5 dataset.")
+    group.add_argument(
+        "--num_demos", type=parse_step_limit, default=0, help="Stop after this many exported demos; 0 is unlimited."
+    )
+    group.add_argument(
+        "--demo_export_mode",
+        choices=("succeeded", "all"),
+        default="succeeded",
+        help="Export successful task episodes, or every completed episode. Requires --dataset_file.",
     )
 
 
@@ -548,6 +564,13 @@ def launch_playback(
     controllers until this interactive scope attaches their input source.
     """
     session = None
+    dataset_file = getattr(args_cli, "dataset_file", None)
+    if not dataset_file and (
+        getattr(args_cli, "num_demos", 0) or getattr(args_cli, "demo_export_mode", "succeeded") != "succeeded"
+    ):
+        raise ValueError("Demonstration collection options require --dataset_file.")
+    if dataset_file and (not enable_teleop or args_cli.teleop is False or not has_play_teleop(env_cfg)):
+        raise ValueError("--dataset_file requires playback with task-configured Capture input enabled.")
     if has_play_teleop(env_cfg) and args_cli.frontend != "torch":
         raise ValueError("TeleopActionCfg requires --frontend torch, including policy-only playback.")
     if enable_teleop and args_cli.teleop is not False:
@@ -556,6 +579,17 @@ def launch_playback(
 
             session = CapturePlaySession(env_cfg)
             session.prepare_environment()
+            if dataset_file:
+                from isaaclab_teleop.recording import DemoRecordingCfg
+
+                session.configure_recording(
+                    DemoRecordingCfg(
+                        dataset_file=dataset_file,
+                        num_demos=getattr(args_cli, "num_demos", 0),
+                        export_mode=getattr(args_cli, "demo_export_mode", "succeeded"),
+                    ),
+                    task_name=args_cli.task,
+                )
             from isaaclab.app.sim_launcher import validate_launch
 
             _, kit_sources = validate_launch(session.launch_config, args_cli)

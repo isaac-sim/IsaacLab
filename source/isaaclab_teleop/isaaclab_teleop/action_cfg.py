@@ -37,8 +37,14 @@ class TeleopActionCfg(InteractiveActionTermCfg):
     controller: ActionTermCfg = MISSING
     """Controller owning asset selection, scaling, clipping, and visualization."""
 
-    source: TeleopSourceCfg = MISSING
-    """Input resource created by the playback lifecycle after environment construction."""
+    source: TeleopSourceCfg | None = None
+    """Input resource declared by exactly one of the robot's teleop action terms.
+
+    Playback constructs this source once after the environment is ready. Other
+    ``TeleopActionCfg`` terms for the same robot and environment row leave this
+    unset and consume the same input sample. The declaring term need not be the
+    first action term or represent a particular part of the robot.
+    """
 
     env_ids: list[int] = [0]
     """Controlled environment rows, in source-output order."""
@@ -46,6 +52,9 @@ class TeleopActionCfg(InteractiveActionTermCfg):
     action_adapter: Callable[[torch.Tensor, Any, torch.Tensor], torch.Tensor] | None = None
     """Optional conversion called with ``(source_actions, env, env_ids)``.
 
+    Every term receives the full Capture action vector, so its adapter selects
+    and converts the inputs needed by that controller. Adapters receive their
+    own copy and cannot change the sample consumed by another term.
     Return controller input with shape ``(selected rows, controller.action_dim)``.
     A vector is also accepted for one selected row. Units, scale, and frames must
     match the controller's raw input. Conversion must not step or reset the scene.
