@@ -44,7 +44,8 @@ The loading screen includes bundled default greetings that work offline. Seasona
 selected by ``{ISAACLAB_NUCLEUS_DIR}/Greetings/manifest.json`` on the asset server. Greetings use
 the same asset root and region profile as robot assets, including ``ISAACSIM_ASSET_ROOT`` and
 ``ISAACSIM_ASSET_REGION_PROFILE``. Each greeting pairs 24 by 12 and 74 by 12 terminal cell variants;
-resizing keeps the selected artwork family. The loading screen displays the first frame of each variant.
+resizing keeps the selected artwork family. Each variant contains one static ANSI ``frame`` string,
+with ``cols`` and ``rows`` specifying its dimensions.
 
 Startup reuses validated cached greetings immediately and refreshes them in the background. The cache
 lives under ``isaaclab/greetings/`` in ``XDG_CACHE_HOME``, then ``LOCALAPPDATA`` if the former is unset,

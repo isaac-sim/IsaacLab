@@ -115,10 +115,10 @@ def select_assets(manifest: object, on_date: datetime.date) -> tuple[AssetRefere
 
 
 def decode_greeting(blob: bytes, reference: AssetReference) -> tuple[str, str]:
-    """Check an immutable greeting payload and return the first frame of each slot.
+    """Check an immutable greeting payload and return its narrow and wide logos.
 
-    All frames are validated, including unused animation frames. Only terminal-safe
-    reset and truecolor SGR sequences are accepted within the fixed cell dimensions.
+    Each slot contains one static frame. Only terminal-safe reset and truecolor SGR
+    sequences are accepted within the fixed cell dimensions.
 
     Raises:
         ValueError: If integrity, schema, dimensions, or terminal safety checks fail.
@@ -146,26 +146,21 @@ def decode_greeting(blob: bytes, reference: AssetReference) -> tuple[str, str]:
     slots = greeting.get("slots")
     if not isinstance(slots, list) or len(slots) != 2:
         raise ValueError("A greeting must contain its narrow and wide slots in order.")
-    first_frames = []
+    logos = []
     for slot, cols in zip(slots, (24, 74)):
         if (
             not isinstance(slot, dict)
+            or slot.keys() != {"cols", "rows", "frame"}
             or type(slot.get("cols")) is not int
             or slot["cols"] != cols
             or type(slot.get("rows")) is not int
             or slot["rows"] != 12
         ):
-            raise ValueError("Greeting slots must be ordered 24 by 12 and 74 by 12 cells.")
-        duration = slot.get("frame_duration_ms")
-        frames = slot.get("frames")
-        if type(duration) is not int or not 50 <= duration <= 5000:
-            raise ValueError("Greeting frame durations must be between 50 and 5000 milliseconds.")
-        if not isinstance(frames, list) or not 1 <= len(frames) <= 24:
-            raise ValueError("A greeting slot must contain between 1 and 24 frames.")
-        for frame in frames:
-            _validate_frame(frame, cols)
-        first_frames.append(frames[0])
-    return first_frames[0], first_frames[1]
+            raise ValueError("Greeting slots must contain one frame, ordered 24 by 12 and 74 by 12 cells.")
+        frame = slot["frame"]
+        _validate_frame(frame, cols)
+        logos.append(frame)
+    return logos[0], logos[1]
 
 
 class AssetReference(NamedTuple):

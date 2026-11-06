@@ -42,10 +42,7 @@ def _add_asset(source, identifier, label="Season"):
         "schema_version": 1,
         "id": identifier,
         "collection": "holiday",
-        "slots": [
-            {"cols": cols, "rows": 12, "frame_duration_ms": duration, "frames": [logo, "\n".join([" " * cols] * 12)]}
-            for cols, duration, logo in zip((24, 74), (50, 5000), logos)
-        ],
+        "slots": [{"cols": cols, "rows": 12, "frame": logo} for cols, logo in zip((24, 74), logos)],
     }
     blob, reference = _encode(payload, identifier)
     (source.directory / reference.path).write_bytes(blob)
@@ -161,8 +158,9 @@ def test_invalid_catalogs(source):
             select_assets({**source.manifest, **change}, source.now.date())
 
 
-def test_invalid_payloads(source):
+def test_payload_integrity_and_static_slots(source):
     blob, reference = _encode(source.first.payload)
+    assert decode_greeting(blob, reference) == source.first.logos
     for invalid in (reference._replace(size=len(blob) + 1), reference._replace(sha256="0" * 64)):
         with pytest.raises(ValueError):
             decode_greeting(blob, invalid)
@@ -176,9 +174,9 @@ def test_invalid_payloads(source):
         with pytest.raises(ValueError):
             decode_greeting(*_encode({**source.first.payload, **change}))
     for change in (
-        {"frames": ["\n".join(["新" * 24] * 12)]},
-        {"frames": [source.first.logos[0]] * 25},
-        {"frame_duration_ms": 49},
+        {"frame": "\n".join(["新" * 24] * 12)},
+        {"frame": [source.first.logos[0]]},
+        {"frame_duration_ms": 100, "frames": [source.first.logos[0]]},
     ):
         payload = deepcopy(source.first.payload)
         payload["slots"][0].update(change)
@@ -191,8 +189,8 @@ def test_invalid_payloads(source):
 @pytest.mark.parametrize(
     "control", ["\x1b[2J", "\x1b]8;;x\x07", "\x1b[1m", "\x1b[38;2;256;0;0m", "\r", "\x9b", "\u2028", "\u2029"]
 )
-def test_terminal_controls_in_unused_frames(source, control):
-    source.first.payload["slots"][1]["frames"][1] = "\n".join([" " * 37 + control + " " * 37] * 12)
+def test_terminal_controls(source, control):
+    source.first.payload["slots"][1]["frame"] = "\n".join([" " * 37 + control + " " * 37] * 12)
     with pytest.raises(ValueError):
         decode_greeting(*_encode(source.first.payload))
 
