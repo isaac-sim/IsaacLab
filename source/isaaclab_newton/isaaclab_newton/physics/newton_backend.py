@@ -659,11 +659,9 @@ class NewtonBackend:
             for callback in self.state_force_callbacks:
                 callback(state)
             state_out = state if ops.single_state else self.state_1
-            # Intermediate substep forces are never read; skip their observable work.
-            if observables is not None and i == num_substeps - 1:
-                ops.step(state, state_out, control, contacts, dt, observables=observables)
-            else:
-                ops.step(state, state_out, control, contacts, dt)
+            # Only final-substep contact forces are read by sensors.
+            step_observables = observables if i == num_substeps - 1 else None
+            ops.step(state, state_out, control, contacts, dt, observables=step_observables)
             if not ops.single_state:
                 if num_substeps % 2 == 1 and i == num_substeps - 1:
                     state.assign(self.state_1)

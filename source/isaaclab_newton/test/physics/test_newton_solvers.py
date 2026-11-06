@@ -424,7 +424,7 @@ def test_mpm_step_projects_particles_out_of_colliders_only_when_configured(proje
     )
 
     solver_driver(MPMSolver, MPMSolverCfg(project_outside_colliders=project_outside), solver).step(
-        None, None, None, None, 0.01
+        None, None, None, None, 0.01, observables=None
     )
 
     assert calls == (["step", "project"] if project_outside else ["step"])
