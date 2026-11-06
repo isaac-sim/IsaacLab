@@ -39,6 +39,9 @@ class ActionTerm(ManagerTermBase):
       responsible for applying the processed actions to the asset managed by the term.
     """
 
+    supports_graph_capture: ClassVar[bool] = False
+    """Whether :meth:`apply_actions` can be recorded into a CUDA graph, i.e. it writes from fixed buffers."""
+
     apply_every_physics_step: ClassVar[bool] = True
     """Whether :meth:`apply_actions` must run before every physics step because its command depends on asset state."""
 
