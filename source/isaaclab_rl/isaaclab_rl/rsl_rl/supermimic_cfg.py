@@ -121,6 +121,12 @@ class RslRlSuperMimicAlgorithmCfg:
     action_noise: float = 0.1
     """Standard deviation of additive collection noise."""
 
+    actor_ema_halflife: int | None = None
+    """Deployment-only actor exponential moving average (EMA) half-life in actor optimizer steps, e.g. 500.
+
+    None disables it. Use the same setting for training and play/export via ``agent.algorithm.actor_ema_halflife=500``.
+    """
+
     max_step_reward: float | None = None
     """Optional per-step reward bound used to cap values at the maximum discounted return."""
 
