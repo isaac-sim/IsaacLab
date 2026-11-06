@@ -9,15 +9,11 @@ import hashlib
 import io
 import json
 import os
-import random
-import shutil
 import threading
+import time
 import urllib.request
-from contextlib import contextmanager
-from copy import deepcopy
 from datetime import date, datetime, timezone
 from types import SimpleNamespace
-from urllib.parse import urlsplit
 
 import pytest
 
@@ -45,26 +41,17 @@ def _add_asset(source, identifier, label="Season"):
         "slots": [{"cols": cols, "rows": 12, "frame": logo} for cols, logo in zip((24, 74), logos)],
     }
     blob, reference = _encode(payload, identifier)
-    (source.directory / reference.path).write_bytes(blob)
+    source.blobs[reference.path] = blob
     source.manifest["assets"][identifier] = {"path": reference.path, "sha256": reference.sha256, "bytes": len(blob)}
     source.manifest["collections"]["holiday"]["asset_ids"].append(identifier)
-    source.catalog.write_text(json.dumps(source.manifest), encoding="utf-8")
     return SimpleNamespace(logos=logos, payload=payload, blob=blob, reference=reference)
 
 
 @pytest.fixture
 def source(tmp_path, monkeypatch):
-    source = SimpleNamespace(
-        directory=tmp_path / "remote" / "Greetings",
-        cache=tmp_path / "cache",
-        now=datetime(2026, 12, 24, tzinfo=timezone.utc),
-        requests=[],
-        entered=threading.Event(),
-        release=threading.Event(),
-        done=threading.Event(),
-    )
-    (source.directory / "assets").mkdir(parents=True)
-    source.catalog = source.directory / "manifest.json"
+    source = SimpleNamespace(cache=tmp_path / "cache", requests=[], blobs={}, online=True)
+    source.now = datetime(2026, 12, 24, tzinfo=timezone.utc)
+    source.entered, source.release, source.done = (threading.Event() for _ in range(3))
     source.manifest = {
         "schema_version": 1,
         "active_collection": "default",
@@ -88,15 +75,15 @@ def source(tmp_path, monkeypatch):
         finally:
             source.done.set()
 
-    @contextmanager
     def open_url(opener, request, *args, **kwargs):
-        path = urlsplit(request.full_url).path.removeprefix("/IsaacLab/Greetings/")
+        path = request.full_url.removeprefix("https://greetings.example/IsaacLab/Greetings/")
         source.requests.append(path)
         source.entered.set()
         if not source.release.wait(2):
             raise TimeoutError("Test did not release its HTTP response.")
-        with io.BytesIO((source.directory / path).read_bytes()) as response:
-            yield response
+        if not source.online:
+            raise OSError("Offline")
+        return io.BytesIO(json.dumps(source.manifest).encode() if path == "manifest.json" else source.blobs[path])
 
     monkeypatch.setenv("XDG_CACHE_HOME", str(source.cache))
     monkeypatch.setattr(remote, "ISAACLAB_NUCLEUS_DIR", "https://greetings.example/IsaacLab")
@@ -113,110 +100,96 @@ def _load(source, **kwargs):
     return loader
 
 
-def test_utc_calendar_boundaries_order_and_fallback(source):
+def test_catalog_validation_and_utc_calendar(source, monkeypatch):
+    catalog = source.manifest
+    asset = catalog["assets"]["first"]
+    event = catalog["schedule"]["events"][1]
+    for entry, key, value in (
+        (asset, "path", "assets/../first." + source.first.reference.sha256[:16] + ".json"),
+        (asset, "path", "https://example.com/" + source.first.reference.path),
+        (asset, "sha256", "0" * 64),
+        (asset, "bytes", 262145),
+        (event, "start", "20261220"),
+        (event, "end", "2026-12-19"),
+        (event, "id", "later"),
+        (event, "collection", "missing"),
+        (event, "end", "2027-01-01"),
+        (catalog, "schema_version", 2),
+        (catalog["schedule"], "timezone", "local"),
+        (catalog["collections"]["holiday"], "asset_ids", ["first", "first"]),
+        (catalog["collections"]["holiday"], "asset_ids", ["missing"]),
+    ):
+        with monkeypatch.context() as patch, pytest.raises(ValueError):
+            patch.setitem(entry, key, value)
+            select_assets(catalog, date(2026, 12, 19))
     _add_asset(source, "second")
-    source.manifest["assets"] = dict(reversed(source.manifest["assets"].items()))
+    catalog["assets"] = dict(reversed(catalog["assets"].items()))
     for day, identifiers in ((19, ()), (20, ("first", "second")), (27, ("first", "second")), (28, ())):
-        assert tuple(ref.identifier for ref in select_assets(source.manifest, date(2026, 12, day))) == identifiers, day
-    source.manifest["active_collection"] = "holiday"
-    source.manifest["schedule"]["events"][1]["collection"] = "default"
-    assert select_assets(source.manifest, source.now.date()) == ()
-    assert len(select_assets(source.manifest, date(2026, 1, 1))) == 2
-    del source.manifest["schedule"]
-    assert len(select_assets(source.manifest, source.now.date())) == 2
+        assert tuple(ref.identifier for ref in select_assets(catalog, date(2026, 12, day))) == identifiers, day
+    catalog["active_collection"] = "holiday"
+    event["collection"] = "default"
+    assert select_assets(catalog, source.now.date()) == ()
+    assert len(select_assets(catalog, date(2026, 1, 1))) == 2
+    del catalog["schedule"]
+    assert len(select_assets(catalog, source.now.date())) == 2
 
 
-def test_invalid_catalogs(source):
-    for field, value in (
-        ("path", "assets/../first." + source.first.reference.sha256[:16] + ".json"),
-        ("path", "https://example.com/" + source.first.reference.path),
-        ("sha256", "0" * 64),
-        ("bytes", 262145),
-    ):
-        manifest = deepcopy(source.manifest)
-        manifest["assets"]["first"][field] = value
-        with pytest.raises(ValueError):
-            select_assets(manifest, date(2026, 12, 19))
-    for field, value in (
-        ("start", "20261220"),
-        ("end", "2026-12-19"),
-        ("id", "later"),
-        ("collection", "missing"),
-        ("end", "2027-01-01"),
-    ):
-        manifest = deepcopy(source.manifest)
-        manifest["schedule"]["events"][1][field] = value
-        with pytest.raises(ValueError):
-            select_assets(manifest, source.now.date())
-    for change in (
-        {"schema_version": 2},
-        {"schedule": {"timezone": "local", "events": []}},
-        {"collections": {"default": {"asset_ids": []}, "holiday": {"asset_ids": ["first", "first"]}}},
-        {"collections": {"default": {"asset_ids": []}, "holiday": {"asset_ids": ["missing"]}}},
-    ):
-        with pytest.raises(ValueError):
-            select_assets({**source.manifest, **change}, source.now.date())
-
-
-def test_payload_integrity_and_static_slots(source):
-    blob, reference = _encode(source.first.payload)
+def test_payload_integrity_and_static_slots(source, monkeypatch):
+    blob, reference = source.first.blob, source.first.reference
     assert decode_greeting(blob, reference) == source.first.logos
     for invalid in (reference._replace(size=len(blob) + 1), reference._replace(sha256="0" * 64)):
         with pytest.raises(ValueError):
             decode_greeting(blob, invalid)
-    for change in (
-        {"schema_version": 2},
-        {"id": "wrong"},
-        {"collection": "default"},
-        {"padding": " " * 262144},
-        {"slots": source.first.payload["slots"][::-1]},
+    payload = source.first.payload
+    slot = payload["slots"][0]
+    for entry, key, value in (
+        (payload, "schema_version", 2),
+        (payload, "id", "wrong"),
+        (payload, "collection", "default"),
+        (payload, "padding", " " * 262144),
+        (payload, "slots", payload["slots"][::-1]),
+        (slot, "frame", "\n".join(["新" * 24] * 12)),
+        (slot, "frame", [source.first.logos[0]]),
+        (slot, "frames", [source.first.logos[0]]),
     ):
-        with pytest.raises(ValueError):
-            decode_greeting(*_encode({**source.first.payload, **change}))
-    for change in (
-        {"frame": "\n".join(["新" * 24] * 12)},
-        {"frame": [source.first.logos[0]]},
-        {"frame_duration_ms": 100, "frames": [source.first.logos[0]]},
-    ):
-        payload = deepcopy(source.first.payload)
-        payload["slots"][0].update(change)
-        with pytest.raises(ValueError):
+        with monkeypatch.context() as patch, pytest.raises(ValueError):
+            patch.setitem(entry, key, value)
             decode_greeting(*_encode(payload))
     with pytest.raises(ValueError):
         decode_greeting(*_encode([]))
+    controls = ["\x1b[2J", "\x1b]8;;x\x07", "\x1b[1m", "\x1b[38;2;256;0;0m", "\r", "\x9b", "\u2028", "\u2029"]
+    for control in controls:
+        payload["slots"][1]["frame"] = "\n".join([control + " " * 74] * 12)
+        with pytest.raises(ValueError):
+            decode_greeting(*_encode(payload))
 
 
-@pytest.mark.parametrize(
-    "control", ["\x1b[2J", "\x1b]8;;x\x07", "\x1b[1m", "\x1b[38;2;256;0;0m", "\r", "\x9b", "\u2028", "\u2029"]
-)
-def test_terminal_controls(source, control):
-    source.first.payload["slots"][1]["frame"] = "\n".join([" " * 37 + control + " " * 37] * 12)
-    with pytest.raises(ValueError):
-        decode_greeting(*_encode(source.first.payload))
-
-
-def test_startup_cache_variety_and_utc_expiry(source, monkeypatch):
+def test_nonblocking_refresh_cache_variety_and_offline_fallback(source, monkeypatch):
+    corrupt = source.first.blob.replace(b"Season", b"Tamper")
+    source.blobs[source.first.reference.path] = corrupt
+    assert _load(source).logos is None
+    assert all(path.read_bytes() != corrupt for path in source.cache.rglob("*") if path.is_file())
+    source.blobs[source.first.reference.path] = source.first.blob
     second = _add_asset(source, "second", "Spring")
-    _add_asset(source, "third", "Winter")
-    monkeypatch.setattr(remote, "random", random.Random(1))
+    monkeypatch.setattr(
+        remote, "random", SimpleNamespace(choice=lambda items: items[0], shuffle=lambda items: items.reverse())
+    )
+    source.done.clear()
+    source.entered.clear()
     source.release.clear()
-    result = []
-    startup = threading.Thread(target=lambda: result.append(remote.RemoteGreetings()), daemon=True)
-    startup.start()
+    started = time.monotonic()
+    loader = remote.RemoteGreetings()
     try:
+        assert time.monotonic() - started < 0.25
         assert source.entered.wait(1)
-        startup.join(0.25)
-        assert result and result[0].logos is None
+        assert loader.logos is None and not source.done.is_set()
     finally:
         source.release.set()
     assert source.done.wait(2)
-    assert result[0].logos == source.first.logos
-    offline = source.directory.with_name("offline")
-    source.directory.rename(offline)
-    monkeypatch.setattr(remote, "random", random.Random(6))
+    assert loader.logos == source.first.logos
+    source.online = False
     assert _load(source).logos == source.first.logos
-    offline.rename(source.directory)
-    monkeypatch.setattr(remote, "random", random.Random(6))
+    source.online = True
     source.entered.clear()
     source.done.clear()
     source.release.clear()
@@ -229,24 +202,14 @@ def test_startup_cache_variety_and_utc_expiry(source, monkeypatch):
     assert source.done.wait(2)
     assert loader.logos == second.logos
     assert any(path.read_bytes() == second.blob for path in source.cache.rglob(f"{second.reference.sha256}.json"))
-    source.now = datetime(2026, 12, 28, tzinfo=timezone.utc)
-    assert remote.RemoteGreetings().logos is None
-
-
-def test_corrupt_refresh_preserves_valid_offline_cache(source):
-    corrupt = source.first.blob.replace(b"Season", b"Tamper")
-    asset = source.directory / source.first.reference.path
-    asset.write_bytes(corrupt)
-    assert _load(source).logos is None
-    assert all(path.read_bytes() != corrupt for path in source.cache.rglob("*") if path.is_file())
-    asset.write_bytes(source.first.blob)
-    assert _load(source).logos == source.first.logos
-    source.catalog.write_text('{"schema_version": 99}', encoding="utf-8")
+    source.manifest["schema_version"] = 99
     for path in source.cache.rglob("manifest.json"):
         os.utime(path, (0, 0))
-    assert _load(source).logos == source.first.logos
-    shutil.rmtree(source.directory)
-    assert _load(source).logos == source.first.logos
+    assert _load(source).logos == second.logos
+    source.online = False
+    assert _load(source).logos == second.logos
+    source.now = datetime(2026, 12, 28, tzinfo=timezone.utc)
+    assert _load(source).logos is None
 
 
 def test_encoding_cache_permissions_and_default_fallback(source):
@@ -255,7 +218,6 @@ def test_encoding_cache_permissions_and_default_fallback(source):
     assert _load(source).logos == source.first.logos
     source.manifest["collections"] = {"default": {"asset_ids": ["first"]}}
     del source.manifest["schedule"]
-    source.catalog.write_text(json.dumps(source.manifest), encoding="utf-8")
     source.requests.clear()
     assert _load(source).logos is None
     assert source.requests == ["manifest.json"]
