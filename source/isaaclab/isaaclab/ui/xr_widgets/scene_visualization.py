@@ -19,8 +19,8 @@ import torch
 
 from pxr import Gf
 
-from isaaclab.sim import SimulationContext
-from isaaclab.ui.xr_widgets import show_instruction
+from ...sim import SimulationContext
+from . import show_instruction
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -525,7 +525,6 @@ class XRVisualization:
 
     def _initialize(self, manager: type[VisualizationManager]) -> None:
         """Initialize the singleton instance with data collector and visualization manager."""
-
         self._data_collector = DataCollector()
         self._visualization_manager = manager(self._data_collector)
 
@@ -576,7 +575,6 @@ class XRVisualization:
         Args:
             attributes: Dictionary containing configuration keys and values
         """
-
         instance = cls.__get_instance()
         for name, data in attributes.items():
             instance._visualization_manager.set_attr(name, data)

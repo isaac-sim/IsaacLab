@@ -9,7 +9,8 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 
-from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
+from isaaclab.assets.deformable_object.base_deformable_object_data import BaseDeformableObjectData
+from isaaclab.utils.buffers import TimestampedBuffer
 from isaaclab.utils.warp import ProxyArray
 
 from .kernels import compute_mean_vec3f_over_vertices, compute_nodal_state_w, vec6f
@@ -18,7 +19,7 @@ if TYPE_CHECKING:
     import omni.physics.tensors as physx
 
 
-class DeformableObjectData:
+class DeformableObjectData(BaseDeformableObjectData):
     """Data container for a deformable object.
 
     This class contains the data for a deformable object in the simulation. The data includes the nodal states of
@@ -45,8 +46,7 @@ class DeformableObjectData:
             root_view: The root deformable body view of the object.
             device: The device used for processing.
         """
-        # Set the parameters
-        self.device = device
+        super().__init__(device)
         # Set the root deformable body view
         # note: this is stored as a weak reference to avoid circular references between the asset class
         #  and the data container. This is important to avoid memory leaks.
@@ -58,17 +58,15 @@ class DeformableObjectData:
         self._max_sim_elements = root_view.max_simulation_elements_per_body
         self._max_collision_elements = root_view.max_collision_elements_per_body
 
-        # Set initial time stamp
-        self._sim_timestamp = 0.0
-
         # Initialize the lazy buffers.
         # -- node state in simulation world frame
-        self._nodal_pos_w = TimestampedBuffer((self._num_instances, self._max_sim_vertices), device, wp.vec3f)
-        self._nodal_vel_w = TimestampedBuffer((self._num_instances, self._max_sim_vertices), device, wp.vec3f)
-        self._nodal_state_w = TimestampedBuffer((self._num_instances, self._max_sim_vertices), device, vec6f)
+        nodal_shape = (self._num_instances, self._max_sim_vertices)
+        self._nodal_pos_w = TimestampedBuffer(wp.zeros(nodal_shape, dtype=wp.vec3f, device=device))
+        self._nodal_vel_w = TimestampedBuffer(wp.zeros(nodal_shape, dtype=wp.vec3f, device=device))
+        self._nodal_state_w = TimestampedBuffer(wp.empty(nodal_shape, dtype=vec6f, device=device))
         # -- derived: root pos/vel
-        self._root_pos_w = TimestampedBuffer((self._num_instances,), device, wp.vec3f)
-        self._root_vel_w = TimestampedBuffer((self._num_instances,), device, wp.vec3f)
+        self._root_pos_w = TimestampedBuffer(wp.empty(self._num_instances, dtype=wp.vec3f, device=device))
+        self._root_vel_w = TimestampedBuffer(wp.empty(self._num_instances, dtype=wp.vec3f, device=device))
 
         # -- Pinned ProxyArray cache (one per read property, lazily created on first access)
         self._nodal_pos_w_ta: ProxyArray | None = None
@@ -76,15 +74,6 @@ class DeformableObjectData:
         self._nodal_state_w_ta: ProxyArray | None = None
         self._root_pos_w_ta: ProxyArray | None = None
         self._root_vel_w_ta: ProxyArray | None = None
-
-    def update(self, dt: float):
-        """Updates the data for the deformable object.
-
-        Args:
-            dt: The time step for the update. This must be a positive value.
-        """
-        # update the simulation timestamp
-        self._sim_timestamp += dt
 
     ##
     # Defaults.

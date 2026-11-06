@@ -4,24 +4,24 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-This script demonstrates how to run IsaacSim via the AppLauncher
+This script demonstrates how to configure the simulator launch through command-line arguments.
 
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py
+    uv run python scripts/tutorials/00_sim/launch_app.py
 
 """
 
-"""Launch Isaac Sim Simulator first."""
+"""Parse the command-line arguments first."""
 
 
 import argparse
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
 
 # create argparser
-parser = argparse.ArgumentParser(description="Tutorial on running IsaacSim via the AppLauncher.")
+parser = argparse.ArgumentParser(description="Tutorial on configuring the simulator launch.")
 parser.add_argument("--size", type=float, default=1.0, help="Side-length of cuboid")
 # SimulationApp arguments https://docs.omniverse.nvidia.com/py/isaacsim/source/isaacsim.simulation_app/docs/index.html?highlight=simulationapp#isaacsim.simulation_app.SimulationApp
 parser.add_argument(
@@ -31,13 +31,10 @@ parser.add_argument(
     "--height", type=int, default=720, help="Height of the viewport and generated images. Defaults to 720"
 )
 
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
+# append simulation launcher cli args
+add_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
@@ -69,28 +66,30 @@ def design_scene():
 def main():
     """Main function."""
 
-    # Initialize the simulation context
+    # Configure the simulation
     sim_cfg = sim_utils.SimulationCfg(device=args_cli.device, dt=0.01)
-    sim = sim_utils.SimulationContext(sim_cfg)
-    # Set main camera
-    sim.set_camera_view([2.0, 0.0, 2.5], [-0.5, 0.0, 0.5])
+    # Launch the simulator runtime that the configuration needs; the launcher arguments
+    # (including --width and --height) configure it, and it is closed when the block exits
+    with launch_simulation(sim_cfg, args_cli):
+        # Initialize the simulation context
+        sim = sim_utils.SimulationContext(sim_cfg)
+        # Set main camera
+        sim.set_camera_view([2.0, 0.0, 2.5], [-0.5, 0.0, 0.5])
 
-    # Design scene by adding assets to it
-    design_scene()
+        # Design scene by adding assets to it
+        design_scene()
 
-    # Play the simulator
-    sim.reset()
-    # Now we are ready!
-    print("[INFO]: Setup complete...")
+        # Play the simulator
+        sim.reset()
+        # Now we are ready!
+        print("[INFO]: Setup complete...")
 
-    # Simulate physics
-    while simulation_app.is_running():
-        # perform step
-        sim.step()
+        # Simulate physics
+        while sim.is_running():
+            # perform step
+            sim.step()
 
 
 if __name__ == "__main__":
     # run the main function
     main()
-    # close sim app
-    simulation_app.close()

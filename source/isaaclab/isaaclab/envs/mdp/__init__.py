@@ -15,6 +15,6 @@ are used to define the environment through their managers.
 
 """
 
-from isaaclab.utils.module import lazy_export
+from ...utils.module import lazy_export
 
 lazy_export()

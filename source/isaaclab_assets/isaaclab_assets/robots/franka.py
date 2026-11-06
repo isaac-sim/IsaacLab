@@ -7,33 +7,46 @@
 
 The following configurations are available:
 
-* :obj:`FRANKA_PANDA_CFG`: Franka Emika Panda robot with Panda hand
-* :obj:`FRANKA_PANDA_HIGH_PD_CFG`: Franka Emika Panda robot with Panda hand with stiffer PD control
+* :obj:`FRANKA_PANDA_CFG`: Shared flat asset for maintained Franka tasks
+* :obj:`FRANKA_MINIMAL_CFG`: Shared asset with gripper-only colliders
+* :obj:`FRANKA_PANDA_HIGH_PD_CFG`: Flat asset with stiffer PD control
+* :obj:`FRANKA_PANDA_LEGACY_CFG`: Legacy asset and actuators
+* :obj:`FRANKA_PANDA_LEGACY_HIGH_PD_CFG`: Legacy high-PD configuration
+* :obj:`FRANKA_PANDA_MENAGERIE_CFG`: Menagerie actuator configuration
 * :obj:`FRANKA_ROBOTIQ_GRIPPER_CFG`: Franka robot with Robotiq_2f_85 gripper
+
+Use ``FRANKA_PANDA_CFG`` for new code and select its ``Physics`` variant for the chosen backend.
+Use the explicit ``LEGACY`` configurations to retain the original USD path and actuator groups.
+The published ``franka_panda.usda`` is now the flat asset; the former nested-instance file remains
+available as an explicit USD-path override.
 
 Reference: https://github.com/frankaemika/franka_ros
 """
 
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
+from isaaclab.utils import clone
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 ##
 # Configuration
 ##
 
-FRANKA_PANDA_CFG = ArticulationCfg(
+FRANKA_PANDA_LEGACY_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/Legacy/panda_instanceable.usd",
         activate_contact_sensors=False,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=False,
-            max_depenetration_velocity=5.0,
-        ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=True, solver_position_iteration_count=8, solver_velocity_iteration_count=0
-        ),
+        rigid_props=PhysxRigidBodyCfg(disable_gravity=False, max_depenetration_velocity=5.0),
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=True, solver_position_iteration_count=8, solver_velocity_iteration_count=0
+            ),
+            NewtonArticulationCfg(self_collision_enabled=True),
+        ],
         # collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.005, rest_offset=0.0),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
@@ -51,43 +64,127 @@ FRANKA_PANDA_CFG = ArticulationCfg(
     actuators={
         "panda_shoulder": ImplicitActuatorCfg(
             joint_names_expr=["panda_joint[1-4]"],
-            effort_limit_sim=87.0,
+            joint_effort_limit=87.0,
             stiffness=80.0,
             damping=4.0,
             armature=1e-3,
         ),
         "panda_forearm": ImplicitActuatorCfg(
             joint_names_expr=["panda_joint[5-7]"],
-            effort_limit_sim=12.0,
+            joint_effort_limit=12.0,
             stiffness=80.0,
             damping=4.0,
             armature=1e-3,
         ),
         "panda_hand": ImplicitActuatorCfg(
             joint_names_expr=["panda_finger_joint.*"],
-            effort_limit_sim=200.0,
+            joint_effort_limit=200.0,
             stiffness=2e3,
             damping=1e2,
         ),
     },
     soft_joint_pos_limit_factor=1.0,
 )
-"""Configuration of Franka Emika Panda robot."""
+"""Configuration of the legacy Franka Emika Panda robot asset."""
 
 
-FRANKA_PANDA_HIGH_PD_CFG = FRANKA_PANDA_CFG.copy()
+FRANKA_PANDA_LEGACY_HIGH_PD_CFG = clone(FRANKA_PANDA_LEGACY_CFG)
+FRANKA_PANDA_LEGACY_HIGH_PD_CFG.spawn.rigid_props.disable_gravity = True
+for actuator in ("panda_shoulder", "panda_forearm"):
+    FRANKA_PANDA_LEGACY_HIGH_PD_CFG.actuators[actuator].stiffness = 400.0
+    FRANKA_PANDA_LEGACY_HIGH_PD_CFG.actuators[actuator].damping = 80.0
+"""Configuration of the legacy Franka Emika Panda robot with stiffer PD control."""
+
+
+FRANKA_PANDA_CFG = ArticulationCfg(
+    spawn=sim_utils.UsdFileCfg(
+        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/franka_panda.usda",
+        variants={"Physics": "physx", "Colliders": "primitives"},
+        activate_contact_sensors=False,
+        rigid_props=PhysxRigidBodyCfg(disable_gravity=False, max_depenetration_velocity=5.0),
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=False, solver_position_iteration_count=8, solver_velocity_iteration_count=0
+            ),
+            NewtonArticulationCfg(self_collision_enabled=False),
+        ],
+    ),
+    init_state=clone(FRANKA_PANDA_LEGACY_CFG.init_state),
+    actuators={
+        "panda_arm": ImplicitActuatorCfg(
+            joint_names_expr=["panda_joint[1-7]"],
+            joint_effort_limit={"panda_joint[1-4]": 87.0, "panda_joint[5-7]": 12.0},
+            joint_velocity_limit={"panda_joint[1-4]": 20.0, "panda_joint[5-7]": 25.0},
+            stiffness=None,
+            damping=None,
+            viscous_friction=0.0,
+        ),
+        "panda_hand": ImplicitActuatorCfg(
+            joint_names_expr=["panda_finger_joint1"],
+            joint_effort_limit=200.0,
+            stiffness=None,
+            damping=None,
+            viscous_friction=0.0,
+        ),
+        "panda_finger2_passive": ImplicitActuatorCfg(
+            joint_names_expr=["panda_finger_joint2"],
+            joint_effort_limit=200.0,
+            stiffness=0.0,
+            damping=0.0,
+            viscous_friction=0.0,
+        ),
+    },
+    soft_joint_pos_limit_factor=1.0,
+)
+"""Configuration of the Franka Emika Panda robot.
+
+The flat asset contains PhysX and MuJoCo physics variants and gripper-only, primitive, and convex-hull
+collider variants. Full primitive arm and gripper collisions are enabled by default. Explicit solver properties keep
+the actuator contract consistent across physics payloads. Only the leading finger has an active drive;
+the authored mimic constraint moves the passive follower. The standalone configuration selects the PhysX
+payload by default; direct Newton consumers must select the ``mujoco`` physics variant explicitly.
+"""
+
+
+FRANKA_MINIMAL_CFG = clone(FRANKA_PANDA_CFG)
+FRANKA_MINIMAL_CFG.spawn.variants["Colliders"] = "gripper_only"
+"""Configuration of Franka with only hand and fingertip collision geometry.
+
+This configuration shares the main USD, inertial properties, actuators, and backend payloads.
+Use it when arm contacts are not required to reduce collision-processing cost. Policies must be
+qualified for the selected collision scope.
+"""
+
+
+FRANKA_PANDA_HIGH_PD_CFG = clone(FRANKA_PANDA_CFG)
 FRANKA_PANDA_HIGH_PD_CFG.spawn.rigid_props.disable_gravity = True
-FRANKA_PANDA_HIGH_PD_CFG.actuators["panda_shoulder"].stiffness = 400.0
-FRANKA_PANDA_HIGH_PD_CFG.actuators["panda_shoulder"].damping = 80.0
-FRANKA_PANDA_HIGH_PD_CFG.actuators["panda_forearm"].stiffness = 400.0
-FRANKA_PANDA_HIGH_PD_CFG.actuators["panda_forearm"].damping = 80.0
+FRANKA_PANDA_HIGH_PD_CFG.actuators["panda_arm"].stiffness = 400.0
+FRANKA_PANDA_HIGH_PD_CFG.actuators["panda_arm"].damping = 80.0
 """Configuration of Franka Emika Panda robot with stiffer PD control.
 
 This configuration is useful for task-space control using differential IK.
 """
 
 
-FRANKA_ROBOTIQ_GRIPPER_CFG = FRANKA_PANDA_CFG.copy()
+FRANKA_PANDA_MENAGERIE_CFG = clone(FRANKA_PANDA_LEGACY_CFG)
+FRANKA_PANDA_MENAGERIE_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/franka_panda.usda"
+FRANKA_PANDA_MENAGERIE_CFG.actuators = {
+    "panda_arm": ImplicitActuatorCfg(
+        joint_names_expr=["panda_joint[1-7]"],
+        joint_velocity_limit={"panda_joint[1-4]": 20.0, "panda_joint[5-7]": 25.0},
+        stiffness=None,
+        damping=None,
+    ),
+    "panda_hand": ImplicitActuatorCfg(
+        joint_names_expr=["panda_finger_joint.*"],
+        stiffness=None,
+        damping=None,
+    ),
+}
+"""Configuration of the Franka Emika Panda robot with Menagerie actuator settings."""
+
+
+FRANKA_ROBOTIQ_GRIPPER_CFG = clone(FRANKA_PANDA_LEGACY_CFG)
 FRANKA_ROBOTIQ_GRIPPER_CFG.spawn.usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaPanda/franka.usd"
 FRANKA_ROBOTIQ_GRIPPER_CFG.spawn.variants = {"Gripper": "Robotiq_2F_85"}
 FRANKA_ROBOTIQ_GRIPPER_CFG.spawn.rigid_props.disable_gravity = True
@@ -108,42 +205,40 @@ FRANKA_ROBOTIQ_GRIPPER_CFG.init_state.pos = (-0.85, 0, 0.76)
 FRANKA_ROBOTIQ_GRIPPER_CFG.actuators = {
     "panda_shoulder": ImplicitActuatorCfg(
         joint_names_expr=["panda_joint[1-4]"],
-        effort_limit_sim=5200.0,
-        velocity_limit_sim=2.175,
+        joint_effort_limit=5200.0,
+        joint_velocity_limit=2.175,
         stiffness=1100.0,
         damping=80.0,
     ),
     "panda_forearm": ImplicitActuatorCfg(
         joint_names_expr=["panda_joint[5-7]"],
-        effort_limit_sim=720.0,
-        velocity_limit_sim=2.61,
+        joint_effort_limit=720.0,
+        joint_velocity_limit=2.61,
         stiffness=1000.0,
         damping=80.0,
     ),
     "gripper_drive": ImplicitActuatorCfg(
         joint_names_expr=["finger_joint"],  # "right_outer_knuckle_joint" is its mimic joint
-        effort_limit_sim=1650,
-        velocity_limit_sim=10.0,
+        joint_effort_limit=1650,
+        joint_velocity_limit=10.0,
         stiffness=17,
         damping=0.02,
     ),
     # enable the gripper to grasp in a parallel manner
     "gripper_finger": ImplicitActuatorCfg(
         joint_names_expr=[".*_inner_finger_joint"],
-        effort_limit_sim=50,
-        velocity_limit_sim=10.0,
+        joint_effort_limit=50,
+        joint_velocity_limit=10.0,
         stiffness=0.2,
         damping=0.001,
     ),
     # set PD to zero for passive joints in close-loop gripper
     "gripper_passive": ImplicitActuatorCfg(
         joint_names_expr=[".*_inner_finger_knuckle_joint", "right_outer_knuckle_joint"],
-        effort_limit_sim=1.0,
-        velocity_limit_sim=10.0,
+        joint_effort_limit=1.0,
+        joint_velocity_limit=10.0,
         stiffness=0.0,
         damping=0.0,
     ),
 }
-
-
 """Configuration of Franka Emika Panda robot with Robotiq_2f_85 gripper."""

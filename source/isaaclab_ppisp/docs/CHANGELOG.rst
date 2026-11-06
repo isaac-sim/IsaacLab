@@ -1,6 +1,31 @@
 Changelog
 ---------
 
+.. towncrier release notes start
+
+0.3.2 (2026-10-18)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Applied PPISP camera configuration during sensor construction. RTX exposure overrides were authored
+  before scene cloning or native import, and rendering consumed the prepared configuration.
+* Removed repeated normalization after USD discovery and reused controller scratch buffers across
+  image resolutions with the same batch size. Exposure overrides preserved existing schema list edits.
+
+
+0.3.1 (2026-07-24)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed ``config/extension.toml`` Kit extension manifest. Inter-package dependencies are now
+  declared via PEP 508 ``file:`` references in ``[project.dependencies]`` of ``pyproject.toml``,
+  ensuring standalone pip installs resolve local checkouts without a package index.
+
+
 0.3.0 (2026-06-16)
 ~~~~~~~~~~~~~~~~~~
 

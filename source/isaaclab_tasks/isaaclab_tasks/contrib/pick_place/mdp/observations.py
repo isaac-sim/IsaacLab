@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Observation terms for the pick-and-place environments."""
+
 from __future__ import annotations
 
 import warnings

@@ -1,23 +1,15 @@
 Welcome to the bleeding edge!
 =============================
 
-Isaac Lab is open source because our intention is to grow a community of open collaboration for robotic simulation.
-We believe that robust tools are crucial for the future of robotics.
-
-Sometimes new features may require extensive changes to the internal structure of Isaac Lab.
-Directly integrating such features before they are complete and without feedback from the full community could cause
-serious issues for users caught unaware.
-
-To address this, major and experimental features are developed in the ``isaaclab_contrib`` package and released as
-experimental features. This way, the community can experiment with and contribute to a feature before it is
-fully integrated, reducing the likelihood of being derailed by unexpected errors.
+Experimental features let the community try new capabilities and provide feedback
+before they become part of the core packages. Expect APIs and behavior to change
+as these features develop.
 
 The ``isaaclab_contrib`` Package
 ---------------------------------
 
-The ``source/isaaclab_contrib`` folder is the **community incubator** for Isaac Lab. It provides a collection of
-specialized robot types, actuator models, sensors, controllers, and other components that extend the core framework
-for specific use cases. Contributions here are:
+``source/isaaclab_contrib`` contains community-developed robots, actuators, sensors,
+and controllers for specialized tasks. Contributions here are:
 
 - Actively maintained and supported by the community
 - Developed openly so the broader community can provide feedback before a wider release
@@ -62,15 +54,16 @@ The following features are currently available in ``isaaclab_contrib``:
      - Geometric controllers for multirotor attitude, velocity, acceleration, and position tracking
        on SO(3) (Lee et al.). Suitable for both trajectory following and RL baselines.
      - API reference: :mod:`~isaaclab_contrib.controllers`
-   * - **Newton VBD Deformable Objects**
-     - Extended deformable object support using the Newton physics backend with Vertex Block Descent (VBD),
-       including Featherstone and MjWarp coupling managers.
-     - API reference: :mod:`~isaaclab_contrib.deformable`
+   * - **Newton Solver Coupling**
+     - Proxy coupling between MJWarp and VBD. Deformable assets are implemented in
+       :mod:`isaaclab_newton.assets`.
+     - API reference: :mod:`~isaaclab_contrib.coupling`
 
 Contributing
 ------------
 
-We welcome contributions to ``isaaclab_contrib``! If you have developed specialized robot assets, novel actuator
-models, custom MDP components, or domain-specific utilities, please follow the Isaac Lab contribution guidelines
-and open a pull request. See the `contributing guide <https://isaac-sim.github.io/IsaacLab/main/source/refs/contributing.html>`_
-for more information.
+We welcome contributions to ``isaaclab_contrib`` that demonstrate a framework capability missing from current
+examples and have a support owner and an exit plan. Follow the
+:ref:`asset and environment contribution guidelines <contributing-assets-and-environments>` before opening a pull
+request. Robot ports, task variants, and application-specific workflows that reuse existing framework capabilities
+are usually best maintained in a community-owned external project.

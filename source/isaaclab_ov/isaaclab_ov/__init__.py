@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Package containing Omniverse renderers for IsaacLab (OVRTX, ovphysx, etc.)."""
+"""Package containing Isaac Lab's Omniverse rendering and OVPhysX integrations."""
 
 import importlib.metadata
 

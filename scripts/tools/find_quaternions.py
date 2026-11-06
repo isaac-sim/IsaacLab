@@ -15,10 +15,13 @@ Usage:
 
 import argparse
 import ast
+import logging
 import re
 import subprocess
 import sys
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 def get_changed_files_from_base(base_ref="main"):
@@ -32,7 +35,7 @@ def get_changed_files_from_base(base_ref="main"):
         )
         return set(result.stdout.strip().split("\n"))
     except subprocess.CalledProcessError:
-        print(f"Warning: Could not get git diff from {base_ref}. Showing all potential quaternions.")
+        logger.warning(f"Could not get git diff from {base_ref}. Showing all potential quaternions.")
         return set()
 
 

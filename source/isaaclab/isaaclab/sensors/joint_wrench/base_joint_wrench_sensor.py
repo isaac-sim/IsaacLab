@@ -11,8 +11,7 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 
-import isaaclab.utils.string as string_utils
-
+from ...utils import string as string_utils
 from ..sensor_base import SensorBase
 from .base_joint_wrench_sensor_data import BaseJointWrenchSensorData
 
@@ -36,14 +35,6 @@ class BaseJointWrenchSensor(SensorBase):
 
     __backend_name__: str = "base"
     """The name of the backend for the joint wrench sensor."""
-
-    def __init__(self, cfg: JointWrenchSensorCfg):
-        """Initialize the joint wrench sensor.
-
-        Args:
-            cfg: The configuration parameters.
-        """
-        super().__init__(cfg)
 
     """
     Properties

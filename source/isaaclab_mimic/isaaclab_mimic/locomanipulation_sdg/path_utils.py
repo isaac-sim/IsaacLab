@@ -4,12 +4,25 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
-import torch
+import logging
 
-from isaacsim.replicator.experimental.mobility_gen.impl.path_planner import compress_path, generate_paths
+import torch
 
 from .occupancy_map_utils import OccupancyMap
 from .scene_utils import HasPose2d
+
+logger = logging.getLogger(__name__)
+
+
+def _get_mobility_path_planner():
+    """Return MobilityGen path-planning helpers after enabling their extension."""
+    from isaaclab.sim.utils import enable_extension
+
+    enable_extension("isaacsim.replicator.experimental.mobility_gen")
+
+    from isaacsim.replicator.experimental.mobility_gen.impl.path_planner import compress_path, generate_paths
+
+    return compress_path, generate_paths
 
 
 def nearest_point_on_segment(a: torch.Tensor, b: torch.Tensor, c: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
@@ -202,18 +215,19 @@ def plan_path(start: HasPose2d, end: HasPose2d, occupancy_map: OccupancyMap) -> 
     end_y, end_x = int(end_yx_pixels[0]), int(end_yx_pixels[1])
 
     if not occupancy_map.check_pixel_in_bounds(start_x, start_y):
-        print(
-            f"Warning: start_yx_pixels ({start_y}, {start_x}) is outside occupancy map bounds "
+        logger.warning(
+            f"start_yx_pixels ({start_y}, {start_x}) is outside occupancy map bounds "
             f"(height={map_height}, width={map_width})"
         )
         return None
 
     if not occupancy_map.check_pixel_in_bounds(end_x, end_y):
-        print(
-            f"Warning: end_yx_pixels ({end_y}, {end_x}) is outside occupancy map bounds "
-            f"(height={map_height}, width={map_width})"
+        logger.warning(
+            f"end_yx_pixels ({end_y}, {end_x}) is outside occupancy map bounds (height={map_height}, width={map_width})"
         )
         return None
+
+    compress_path, generate_paths = _get_mobility_path_planner()
 
     # Generate path using the mobility path planner
     path_planner_output = generate_paths(start=start_yx_pixels, freespace=occupancy_map.freespace_mask())

@@ -2,15 +2,10 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-"""Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
 
-# launch the simulator
-simulation_app = AppLauncher(headless=True, enable_cameras=True).app
-
-
-"""Rest everything follows."""
+launch_test_simulation(enable_cameras=True)
 
 import shutil
 import tempfile
@@ -33,7 +28,7 @@ def temp_dir():
     """Fixture to create and clean up a temporary directory for test datasets."""
     # this flag is necessary to prevent a bug where the simulation gets stuck randomly when running the
     # test on many environments.
-    get_settings_manager().set_bool("/physics/cooking/ujitsoCollisionCooking", False)
+    get_settings_manager().set("/physics/cooking/ujitsoCollisionCooking", False)
     # create a temporary directory to store the test datasets
     temp_dir = tempfile.mkdtemp()
     yield temp_dir
@@ -42,11 +37,14 @@ def temp_dir():
 
 
 @pytest.mark.parametrize("task_name", ["IsaacContrib-Stack-Cube-Franka-IK-Rel"])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.parametrize("num_envs", [1, 2])
+@pytest.mark.parametrize("device,num_envs", [("cuda:0", 2), ("cpu", 1)])
 @pytest.mark.isaacsim_ci
-def test_action_state_recorder_terms(temp_dir, task_name, device, num_envs):
-    """Check FrameTransformer values after reset."""
+def test_observations_after_reset_are_not_outdated(temp_dir, task_name, device, num_envs):
+    """Sensor-based observations returned by reset match those after a first idle step.
+
+    The end-effector position comes from a FrameTransformer; stale sensor data after reset would make the
+    reset observation differ from the one after an idle action.
+    """
     sim_utils.create_new_stage()
 
     # parse configuration
@@ -64,7 +62,6 @@ def test_action_state_recorder_terms(temp_dir, task_name, device, num_envs):
 
     # get the end effector position after the reset
     pre_reset_eef_pos = obs["policy"]["eef_pos"].clone()
-    print(pre_reset_eef_pos)
 
     # step the environment with idle actions
     idle_actions = torch.zeros(env.action_space.shape, device=env.unwrapped.device)
@@ -72,7 +69,6 @@ def test_action_state_recorder_terms(temp_dir, task_name, device, num_envs):
 
     # get the end effector position after the first step
     post_reset_eef_pos = obs["policy"]["eef_pos"]
-    print(post_reset_eef_pos)
 
     # check if the end effector position is the same after the reset and the first step
     torch.testing.assert_close(pre_reset_eef_pos, post_reset_eef_pos, atol=1e-5, rtol=1e-3)

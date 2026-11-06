@@ -5,8 +5,7 @@
 
 from __future__ import annotations
 
-from isaaclab.utils.backend_utils import FactoryBase
-
+from ...utils.backend_utils import FactoryBase
 from .base_multi_mesh_ray_caster import BaseMultiMeshRayCaster
 
 
@@ -15,6 +14,6 @@ class MultiMeshRayCaster(FactoryBase, BaseMultiMeshRayCaster):
 
     _backend_class_names = {
         "physx": "MultiMeshRayCaster",
-        "newton": "MultiMeshRayCaster",
+        "newton": "LegacyMultiMeshRayCaster",
         "ovphysx": "MultiMeshRayCaster",
     }

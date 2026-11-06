@@ -25,23 +25,22 @@ class ExampleExtension(omni.ext.IExt):
         self._count = 0
 
         self._window = omni.ui.Window("My Window", width=300, height=300)
-        with self._window.frame:
-            with omni.ui.VStack():
-                label = omni.ui.Label("")
+        with self._window.frame, omni.ui.VStack():
+            label = omni.ui.Label("")
 
-                def on_click():
-                    self._count += 1
-                    label.text = f"count: {self._count}"
+            def on_click():
+                self._count += 1
+                label.text = f"count: {self._count}"
 
-                def on_reset():
-                    self._count = 0
-                    label.text = "empty"
+            def on_reset():
+                self._count = 0
+                label.text = "empty"
 
-                on_reset()
+            on_reset()
 
-                with omni.ui.HStack():
-                    omni.ui.Button("Add", clicked_fn=on_click)
-                    omni.ui.Button("Reset", clicked_fn=on_reset)
+            with omni.ui.HStack():
+                omni.ui.Button("Add", clicked_fn=on_click)
+                omni.ui.Button("Reset", clicked_fn=on_reset)
 
     def on_shutdown(self):
         print("[{{ name }}] shutdown")

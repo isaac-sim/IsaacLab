@@ -6,14 +6,18 @@ Query: "Add foot contact observations and air-time rewards to my quadruped task.
 
 Expected behavior:
 
+- Loads `isaaclab-using-sensors-actuators` rather than the whole environment-building workflow.
 - Points to contact sensor docs and nearby locomotion examples.
-- Checks body name patterns, history length, update period, and contact thresholds.
+- Inspects the existing scene and MDP terms before adding code.
+- Adds or updates a `ContactSensorCfg`, enabling `track_air_time` when needed, then wires the observation and existing `mdp.feet_air_time` reward term with the correct foot body pattern.
+- Checks body name patterns, history length, update period, contact thresholds, data shape, and device.
 - Validates sensor data shape before adding observations and rewards.
 
 Known failure modes:
 
 - Reads raw contact tensors directly without configuring the scene sensor.
 - Uses body name patterns that do not match the robot asset.
+- Creates a new shared-core observations module before checking the task's existing sensor and MDP terms.
 
 ## Scenario 2: Ray-Cast Terrain Perception
 

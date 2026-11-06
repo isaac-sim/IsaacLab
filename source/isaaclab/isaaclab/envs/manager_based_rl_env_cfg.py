@@ -7,8 +7,7 @@ from __future__ import annotations
 
 from dataclasses import MISSING
 
-from isaaclab.utils.configclass import configclass
-
+from ..utils import configclass
 from .manager_based_env_cfg import ManagerBasedEnvCfg
 
 
@@ -17,6 +16,9 @@ class ManagerBasedRLEnvCfg(ManagerBasedEnvCfg):
     """Configuration for a reinforcement learning environment with the manager-based workflow."""
 
     # ui settings
+    class_type: type | str = "{DIR}.manager_based_rl_env:ManagerBasedRLEnv"
+    """The environment class constructed from this configuration."""
+
     ui_window_class_type: type | str | None = "isaaclab.envs.ui.manager_based_rl_env_window:ManagerBasedRLEnvWindow"
 
     # general settings
@@ -95,3 +97,24 @@ class ManagerBasedRLEnvCfg(ManagerBasedEnvCfg):
 
     Please refer to the :class:`isaaclab.managers.CommandManager` class for more details.
     """
+
+    def play_mode(self):
+        """Adjust the configuration for interactive playback and policy inference.
+
+        Play scripts call this method after the configuration is fully initialized (i.e. after
+        :meth:`__post_init__`) unless the user requests the training configuration as-is.
+        The base implementation applies defaults that are useful for most tasks:
+
+        * caps the number of environments at 50 to keep the scene lightweight, and
+        * disables observation corruption for all observation groups.
+
+        Override this method in a task configuration to customize playback behavior. Call
+        ``super().play_mode()`` to keep the shared defaults.
+        """
+        # make a smaller scene for play
+        self.scene.num_envs = min(self.scene.num_envs, 50)
+        # disable observation corruption for all observation groups
+        for group_name in getattr(self.observations, "__dataclass_fields__", {}):
+            group = getattr(self.observations, group_name)
+            if hasattr(group, "enable_corruption"):
+                group.enable_corruption = False

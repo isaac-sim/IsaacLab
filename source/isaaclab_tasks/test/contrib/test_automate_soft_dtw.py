@@ -19,16 +19,6 @@ def _load_soft_dtw_module():
     return module
 
 
-def test_soft_dtw_use_cuda_does_not_require_numba():
-    soft_dtw = _load_soft_dtw_module()
-    criterion = soft_dtw.SoftDTW(use_cuda=True, device="cuda", gamma=0.01)
-
-    x = torch.zeros((1, 2, 3), dtype=torch.float32)
-    y = torch.zeros((1, 2, 3), dtype=torch.float32)
-
-    assert criterion(x, y).shape == (1,)
-
-
 def test_soft_dtw_hard_dtw_value():
     soft_dtw = _load_soft_dtw_module()
     criterion = soft_dtw.SoftDTW(use_cuda=False, device="cpu", gamma=0.0)

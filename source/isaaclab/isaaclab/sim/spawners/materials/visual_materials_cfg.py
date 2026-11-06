@@ -8,15 +8,14 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import MISSING
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
+
+from ..spawner_cfg import SpawnerCfg
 
 
 @configclass
-class VisualMaterialCfg:
+class VisualMaterialCfg(SpawnerCfg):
     """Configuration parameters for creating a visual material."""
-
-    func: Callable = MISSING
-    """The function to use for creating the material."""
 
 
 @configclass
@@ -79,6 +78,30 @@ class MdlFileCfg(VisualMaterialCfg):
     """The scale of the texture. Defaults to None.
 
     If None, then the default setting in the MDL material will be used.
+    """
+
+
+@configclass
+class PbrMdlCfg(MdlFileCfg):
+    """Configuration parameters for the OmniPBR MDL material."""
+
+    mdl_path: str = "OmniPBR.mdl"
+    """Path to the OmniPBR material definition."""
+    diffuse_color_constant: tuple[float, float, float] | None = (0.18, 0.18, 0.18)
+    """Constant linear RGB albedo. None leaves the authored value unchanged."""
+    reflection_roughness_constant: float | None = None
+    """Constant surface roughness. The material default is used when None."""
+    metallic_constant: float | None = None
+    """Constant metallic weight in [0, 1]. None leaves the authored value unchanged."""
+    metallic_texture_influence: float | None = None
+    """Metallic texture weight in [0, 1]. Zero uses only the constant channel.
+
+    None leaves the authored value unchanged.
+    """
+    reflection_roughness_texture_influence: float | None = None
+    """Roughness texture weight in [0, 1]. Zero uses only the constant channel.
+
+    None leaves the authored value unchanged.
     """
 
 

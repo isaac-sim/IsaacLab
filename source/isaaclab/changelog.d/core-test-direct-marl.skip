@@ -1,2 +1,0 @@
-Test-only: split Direct MARL Gym-space construction from simulator lifecycle coverage.
-Reused the shared config-only environment factory in both test paths.

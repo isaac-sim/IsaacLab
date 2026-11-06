@@ -7,10 +7,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from isaaclab.markers import VisualizationMarkersCfg
-from isaaclab.markers.config import RED_ARROW_X_MARKER_CFG
-from isaaclab.utils.configclass import configclass
-
+from ...markers import VisualizationMarkersCfg
+from ...markers.config import RED_ARROW_X_MARKER_CFG
+from ...utils import configclass, replace
 from ..sensor_base_cfg import SensorBaseCfg
 
 if TYPE_CHECKING:
@@ -33,10 +32,21 @@ class PvaCfg(SensorBaseCfg):
         rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
         """Quaternion rotation (x, y, z, w) w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0, 1.0)."""
 
+    data_types: list[str] = ["pose", "velocity", "acceleration", "projected_gravity"]
+    """Requested output groups, validated against the concrete backend at construction.
+
+    Pose is required. Velocity and acceleration each contain linear and angular components.
+    Disabled groups allocate no output buffers and raise ``NotImplementedError`` on access.
+    Backends may support a subset or expose additional groups through their own data class.
+    Debug visualization requires acceleration. Changing groups requires a new sensor.
+    """
+
     offset: OffsetCfg = OffsetCfg()
     """The offset pose of the sensor's frame from the sensor's parent frame. Defaults to identity."""
 
-    visualizer_cfg: VisualizationMarkersCfg = RED_ARROW_X_MARKER_CFG.replace(prim_path="/Visuals/Command/velocity_goal")
+    visualizer_cfg: VisualizationMarkersCfg = replace(
+        RED_ARROW_X_MARKER_CFG, prim_path="/Visuals/Command/velocity_goal"
+    )
     """The configuration object for the visualization markers. Defaults to RED_ARROW_X_MARKER_CFG.
 
     This attribute is only used when debug visualization is enabled.

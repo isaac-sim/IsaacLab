@@ -22,16 +22,6 @@ gym.register(
 )
 
 gym.register(
-    id="IsaacContrib-Deploy-Reach-Rizon4s-Play",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
-    disable_env_checker=True,
-    kwargs={
-        "env_cfg_entry_point": f"{__name__}.joint_pos_env_cfg:Rizon4sReachEnvCfg_PLAY",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:Rizon4sReachPPORunnerCfg",
-    },
-)
-
-gym.register(
     id="IsaacContrib-Deploy-Reach-Rizon4s-ROS-Inference",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,

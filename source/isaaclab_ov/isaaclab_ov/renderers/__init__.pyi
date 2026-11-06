@@ -6,9 +6,10 @@
 __all__ = [
     "OVRTXRenderer",
     "OVRTXRendererCfg",
+    "OVRTXBackendCfg",
     "Renderer",
 ]
 
 from .ovrtx_renderer import OVRTXRenderer
 from .ovrtx_renderer import OVRTXRenderer as Renderer
-from .ovrtx_renderer_cfg import OVRTXRendererCfg
+from .ovrtx_renderer_cfg import OVRTXBackendCfg, OVRTXRendererCfg

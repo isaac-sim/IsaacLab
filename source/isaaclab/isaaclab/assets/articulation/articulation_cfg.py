@@ -8,9 +8,8 @@ from __future__ import annotations
 from dataclasses import MISSING
 from typing import TYPE_CHECKING, Any
 
-from isaaclab.actuators import ActuatorBaseCfg
-from isaaclab.utils.configclass import configclass
-
+from ...actuators import ActuatorBaseCfg
+from ...utils import configclass
 from ..asset_base_cfg import AssetBaseCfg
 from .ordering import ArticulationOrderingConvention
 
@@ -59,6 +58,14 @@ class ArticulationCfg(AssetBaseCfg):
     init_state: InitialStateCfg = InitialStateCfg()
     """Initial state of the articulated object. Defaults to identity pose with zero velocity and zero joint state."""
 
+    enable_joint_wrench: bool = False
+    """Request incoming joint reaction wrenches before simulation startup.
+
+    Newton uses this to allocate extended state and enable the solver's wrench computation.
+    It is unnecessary for PhysX and OVPhysX, which provide these values on demand.
+    Read them through :attr:`ArticulationData.body_joint_wrench`.
+    """
+
     soft_joint_pos_limit_factor: float = 1.0
     """Fraction specifying the range of joint position limits (parsed from the asset) to use. Defaults to 1.0.
 
@@ -102,7 +109,10 @@ class ArticulationCfg(AssetBaseCfg):
     """
 
     actuators: dict[str, ActuatorBaseCfg] = MISSING
-    """Actuators for the robot with corresponding joint names."""
+    """Actuators for the robot with corresponding joint names.
+
+    Each joint can belong to at most one actuator group.
+    """
 
     actuator_value_resolution_debug_print = False
     """Print the resolution of actuator final value when input cfg is different from USD value, Defaults to False
@@ -111,15 +121,15 @@ class ArticulationCfg(AssetBaseCfg):
     def _post_spawn(self, stage: Any) -> None:
         """Author ``NewtonActuator`` USD prims from :attr:`actuators` after spawn.
 
-        Invoked by :class:`~isaaclab.assets.AssetBase` once the articulation's prims
+        Invoked by :class:`~isaaclab.assets.Asset` once the articulation's prims
         exist on the stage. Delegates to
         :func:`~isaaclab.sim.schemas.define_actuator_properties`, which gates itself
-        on ``sim_cfg.use_newton_actuators`` and silently no-ops when the simulation
-        is not configured for Newton-native actuators.
+        on ``sim_cfg.use_newton_actuators``. BAM requires native Newton execution;
+        other actuator configurations no-op when native execution is disabled.
         """
         if self.actuators is MISSING:
             return
-        from isaaclab.sim.schemas.schemas_actuators import define_actuator_properties  # noqa: PLC0415
+        from ...sim.schemas.schemas_actuators import define_actuator_properties  # noqa: PLC0415
 
         # In InteractiveScene, articulated assets are often spawned first under
         # a template path (for example ``/World/template/Robot``) and cloned

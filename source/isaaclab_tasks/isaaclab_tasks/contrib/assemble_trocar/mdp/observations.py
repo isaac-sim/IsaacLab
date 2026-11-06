@@ -41,10 +41,11 @@ _body_obs_cache = {
 
 def get_robot_body_joint_states(env: ManagerBasedRLEnv) -> torch.Tensor:
     """Return body joint states as a single tensor: [pos(29) | vel(29) | torque(29)]."""
-    robot_data = env.scene["robot"].data
+    robot = env.scene["robot"]
+    robot_data = robot.data
     joint_pos = robot_data.joint_pos.torch
     joint_vel = robot_data.joint_vel.torch
-    joint_torque = robot_data.applied_torque.torch
+    joint_torque = robot.actuators.applied_effort.torch
     device = joint_pos.device
     batch = joint_pos.shape[0]
 

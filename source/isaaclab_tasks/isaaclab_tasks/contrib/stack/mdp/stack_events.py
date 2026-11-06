@@ -3,12 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Robot-neutral event functions shared by the cube-stacking tasks.
-
-These were previously defined in ``franka_stack_events.py``; they are robot-agnostic and are used
-by every stack robot config, so they live here and ``franka_stack_events`` re-exports them for
-backward compatibility.
-"""
+"""Robot-neutral event terms shared by the cube-stacking tasks."""
 
 from __future__ import annotations
 
@@ -23,7 +18,7 @@ import isaaclab.utils.math as math_utils
 from isaaclab.managers import SceneEntityCfg
 
 if TYPE_CHECKING:
-    from isaaclab.assets import Articulation, AssetBase
+    from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedEnv
 
 
@@ -138,8 +133,7 @@ def randomize_scene_lighting_domelight(
     default_texture: str = "",
     asset_cfg: SceneEntityCfg = SceneEntityCfg("light"),
 ):
-    asset: AssetBase = env.scene[asset_cfg.name]
-    light_prim = asset.prims[0]
+    light_prim = env.scene[asset_cfg.name].prim
 
     intensity_attr = light_prim.GetAttribute("inputs:intensity")
     intensity_attr.Set(default_intensity)
@@ -211,7 +205,7 @@ def randomize_object_pose(
         return
 
     # Randomize poses in each environment independently
-    for cur_env in env_ids.tolist():
+    for cur_env in range(env.num_envs)[env_ids] if isinstance(env_ids, slice) else env_ids.tolist():
         pose_list = sample_object_poses(
             num_objects=len(asset_cfgs),
             min_separation=min_separation,
@@ -252,7 +246,7 @@ def randomize_rigid_objects_in_focus(
     # List of rigid objects in focus for each env (dim = [num_envs, num_rigid_objects])
     env.rigid_objects_in_focus = []
 
-    for cur_env in env_ids.tolist():
+    for cur_env in range(env.num_envs)[env_ids] if isinstance(env_ids, slice) else env_ids.tolist():
         # Sample in focus object poses
         pose_list = sample_object_poses(
             num_objects=len(asset_cfgs),
@@ -309,33 +303,21 @@ def randomize_visual_texture_material(
         which the texture is applied. This is the default prim ordering when importing assets
         from the asset converters in Isaac Lab.
 
-    .. note::
-        When randomizing the texture of individual assets, please make sure to set
-        :attr:`isaaclab.scene.InteractiveSceneCfg.replicate_physics` to False. This ensures that physics
-        parser will parse the individual asset properties separately.
     """
     if hasattr(env.cfg, "eval_mode") and (
         not env.cfg.eval_mode or env.cfg.eval_type not in [f"{asset_cfg.name}_texture", "all"]
     ):
         return
-        # textures = [default_texture]
 
     # enable replicator extension if not already enabled
-    from isaacsim.core.experimental.utils.app import enable_extension
+    from isaaclab.sim.utils import enable_extension
 
     enable_extension("omni.replicator.core")
     # we import the module here since we may not always need the replicator
     import omni.replicator.core as rep
 
-    # check to make sure replicate_physics is set to False, else raise error
-    # note: We add an explicit check here since texture randomization can happen outside of 'prestartup' mode
-    #   and the event manager doesn't check in that case.
-    if env.cfg.scene.replicate_physics:
-        raise RuntimeError(
-            "Unable to randomize visual texture material with scene replication enabled."
-            " For stable USD-level randomization, please disable scene replication"
-            " by setting 'replicate_physics' to False in 'InteractiveSceneCfg'."
-        )
+    if env.cfg.seed is not None:
+        rep.set_global_seed(env.cfg.seed)
 
     # convert from radians to degrees
     texture_rotation = tuple(math.degrees(angle) for angle in texture_rotation)
@@ -353,7 +335,12 @@ def randomize_visual_texture_material(
         body_names_regex = ".*"
 
     if not hasattr(asset, "cfg"):
-        prims_group = rep.get.prims(path_pattern=f"{asset.prim_paths[0]}/visuals")
+        # Static assets carry no runtime view; 'asset' is the spawned cfg. Resolve the prim from
+        # the stage by its spawned path. Local import: keep USD out of module load for pure cfg loading.
+        from isaaclab.sim.utils import find_matching_prims
+
+        asset_prim_path = find_matching_prims(asset.prim_path)[0].GetPath().pathString
+        prims_group = rep.get.prims(path_pattern=f"{asset_prim_path}/visuals")
     else:
         prims_group = rep.get.prims(path_pattern=f"{asset.cfg.prim_path}/{body_names_regex}/visuals")
 

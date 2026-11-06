@@ -12,6 +12,8 @@ The following configuration parameters are available:
 
 """
 
+from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxRigidBodyCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
@@ -26,11 +28,8 @@ GALBOT_ONE_CHARLIE_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Galbot/galbot_one_charlie/galbot_one_charlie.usd",
         variants={"Physics": "PhysX"},
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=True,
-            max_depenetration_velocity=5.0,
-        ),
-        collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.005, rest_offset=0.0),
+        rigid_props=PhysxRigidBodyCfg(disable_gravity=True, max_depenetration_velocity=5.0),
+        collision_props=PhysxCollisionCfg(contact_offset=0.005, rest_offset=0.0),
         activate_contact_sensors=True,
     ),
     init_state=ArticulationCfg.InitialStateCfg(
@@ -65,36 +64,36 @@ GALBOT_ONE_CHARLIE_CFG = ArticulationCfg(
     actuators={
         "head": ImplicitActuatorCfg(
             joint_names_expr=["head_joint.*"],
-            velocity_limit_sim=None,
-            effort_limit_sim=None,
+            joint_velocity_limit=None,
+            joint_effort_limit=None,
             stiffness=None,
             damping=None,
         ),
         "leg": ImplicitActuatorCfg(
             joint_names_expr=["leg_joint.*"],
-            velocity_limit_sim=None,
-            effort_limit_sim=None,
+            joint_velocity_limit=None,
+            joint_effort_limit=None,
             stiffness=None,
             damping=None,
         ),
         "left_arm": ImplicitActuatorCfg(
             joint_names_expr=["left_arm_joint.*"],
-            velocity_limit_sim=None,
-            effort_limit_sim=None,
+            joint_velocity_limit=None,
+            joint_effort_limit=None,
             stiffness=None,
             damping=None,
         ),
         "right_arm": ImplicitActuatorCfg(
             joint_names_expr=["right_arm_joint.*", "right_suction_cup_joint1"],
-            velocity_limit_sim=None,
-            effort_limit_sim=None,
+            joint_velocity_limit=None,
+            joint_effort_limit=None,
             stiffness=None,
             damping=None,
         ),
         "left_gripper": ImplicitActuatorCfg(
             joint_names_expr=["left_gripper_.*_joint"],
-            velocity_limit_sim=1.0,
-            effort_limit_sim=None,
+            joint_velocity_limit=1.0,
+            joint_effort_limit=None,
             stiffness=None,
             damping=None,
         ),

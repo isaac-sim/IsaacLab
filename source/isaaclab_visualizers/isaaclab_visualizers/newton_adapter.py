@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Shared helpers for viewer env selection (Newton viewers and Kit partial USD visibility)."""
+"""Shared Newton viewer geometry handling."""
 
 from __future__ import annotations
 
@@ -54,56 +54,10 @@ def log_geo_with_expanded_plane_scale(
     return super_log_geo(name, geo_type, geo_scale, geo_thickness, geo_is_solid, geo_src, hidden)
 
 
-def resolve_visible_env_indices(
-    env_ids: list[int] | None,
-    max_visible_envs: int | None,
-    num_envs: int,
-) -> list[int] | None:
-    """Resolve which env indices stay visible (same rules as :func:`apply_viewer_visible_worlds`).
-
-    * Cap-only path (``env_ids`` is ``None``): contiguous ``0 .. min(cap, num_envs) - 1`` when ``max_visible_envs``
-      is set; otherwise ``None`` (viewer shows all worlds). (Random cap-only selection is applied earlier by
-      turning it into explicit ``env_ids``.)
-    * Explicit path (``env_ids`` is a list): remove duplicate indices while preserving order, then keep only the
-      first *cap* indices when ``max_visible_envs`` is set.
-
-    Returns:
-        Selected indices, or ``None`` when all environments should be visible (cap-only, no limit).
-    """
-    if env_ids is not None:
-        out = list(dict.fromkeys(env_ids))
-        if max_visible_envs is not None:
-            out = out[: max(0, int(max_visible_envs))]
-        return out
-    if max_visible_envs is not None and num_envs > 0:
-        n = min(int(max_visible_envs), num_envs)
-        return list(range(n))
-    return None
-
-
-def apply_viewer_visible_worlds(
-    viewer,
-    *,
-    env_ids: list[int] | None,
-    max_visible_envs: int | None,
-    num_envs: int,
-) -> None:
-    """Select which simulation worlds are visualized; no-op if the viewer does not support it.
-
-    Prefer this over ``set_model(..., max_worlds=...)`` (deprecated in Newton).
-
-    Args:
-        viewer: Newton viewer (ViewerGL, ViewerRerun, ViewerViser, etc.).
-        env_ids: Env indices from ``visible_env_indices`` (after validation), or ``None`` for the cap-only
-            contiguous path (see ``VisualizerCfg``).
-        max_visible_envs: When ``env_ids`` is ``None``, caps the contiguous count; otherwise truncates the list to
-            the first *N* indices.
-        num_envs: Total environment count from scene metadata.
-    """
-    if not hasattr(viewer, "set_visible_worlds"):
-        return
-    resolved = resolve_visible_env_indices(env_ids, max_visible_envs, num_envs)
-    if resolved is None:
-        viewer.set_visible_worlds(None)
-    else:
-        viewer.set_visible_worlds(resolved)
+# TODO: Newton GL's checker floor (GeoType.PLANE, material.z=1.0) renders in the Newton GL
+# OpenGL viewport but the streaming view seen in the browser shows composited Isaac Sim
+# camera-sensor frames (RTX-rendered).  Patching Newton's GLSL checker_scale only affects
+# the OpenGL window, not the camera images, so it has no visible effect from the user's
+# perspective.  To fix the floor appearance in the streaming view, the Isaac Sim USD scene
+# for each task needs an updated floor material/texture (see the Kuka Allegro env for a
+# reference with a blue-grid floor).

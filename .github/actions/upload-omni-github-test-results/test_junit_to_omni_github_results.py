@@ -84,6 +84,43 @@ def test_convert_junit_populates_github_metadata_and_failure_details(tmp_path: P
     assert "message" not in passed
 
 
+def test_convert_junit_marks_xfail_as_unreliable(tmp_path: Path) -> None:
+    """Expected failures should remain distinguishable from ordinary skips."""
+    converter = _load_converter_module()
+    junit_file = tmp_path / "report.xml"
+    output_dir = tmp_path / "out"
+    junit_file.write_text(
+        """<?xml version="1.0" encoding="utf-8"?>
+<testsuite name="pytest" tests="1" failures="0" errors="0" skipped="1" time="0.5">
+  <testcase classname="test_rendering" name="test_known_failure" time="0.5">
+    <skipped type="pytest.xfail" message="Known rendering regression (NVBUG#1234567)."/>
+  </testcase>
+</testsuite>
+""",
+        encoding="utf-8",
+    )
+
+    converter.convert_junit(
+        junit_file=junit_file,
+        output_dir=output_dir,
+        test_tool_id="pytest",
+        test_type="rendering-correctness-kitless",
+        app_platform="linux-x86_64",
+        app_config="test-job",
+        group_name="Docker + Tests / rendering-correctness-kitless",
+        junit_log_url="",
+        comparison_images_url="",
+        retries=0,
+    )
+
+    row = _load_rows(output_dir)[0]
+    assert row["passed"] is False
+    assert row["unreliable"] is True
+    assert row["message"] == "Known rendering regression (NVBUG#1234567)."
+    assert "skipped" not in row
+    assert "skip_reason" not in row
+
+
 def test_convert_junit_marks_crashes_and_timeouts(tmp_path: Path) -> None:
     """Converted rows should surface crash and timeout messages."""
     converter = _load_converter_module()

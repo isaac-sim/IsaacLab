@@ -12,6 +12,6 @@ tri-mesh primitive. Thus, this representation is more computationally and memory
 efficient than the height-field representation, but it is not as flexible.
 """
 
-from isaaclab.utils.module import lazy_export
+from ...utils.module import lazy_export
 
 lazy_export()

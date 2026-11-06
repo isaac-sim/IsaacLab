@@ -9,10 +9,12 @@ __all__ = [
     "TENSOR_TYPES",
     "TENSOR_TYPE_CONVERSIONS",
     "convert_to_torch",
+    "index_fill_",
     "CircularBuffer",
     "DelayBuffer",
     "TimestampedBuffer",
-    "TimestampedBufferWarp",
+    "to_dict",
+    "update_from_dict",
     "class_to_dict",
     "update_class_from_dict",
     "dict_to_md5_hash",
@@ -31,6 +33,8 @@ __all__ = [
     "PRIMITIVE_MESH_TYPES",
     "ModifierCfg",
     "ModifierBase",
+    "TensorProcessorCfg",
+    "TensorProcessor",
     "DigitalFilter",
     "DigitalFilterCfg",
     "Integrator",
@@ -55,14 +59,19 @@ __all__ = [
     "get_isaac_sim_version",
     "compare_versions",
     "configclass",
-    "resolve_cfg_presets",
+    "instantiate",
+    "clone",
+    "replace",
+    "validate",
     "checked_apply",
 ]
 
 from .timer import Timer
-from .array import TensorData, TENSOR_TYPES, TENSOR_TYPE_CONVERSIONS, convert_to_torch
-from .buffers import CircularBuffer, DelayBuffer, TimestampedBuffer, TimestampedBufferWarp
+from .array import TensorData, TENSOR_TYPES, TENSOR_TYPE_CONVERSIONS, convert_to_torch, index_fill_
+from .buffers import CircularBuffer, DelayBuffer, TimestampedBuffer
 from .dict import (
+    to_dict,
+    update_from_dict,
     class_to_dict,
     update_class_from_dict,
     dict_to_md5_hash,
@@ -80,9 +89,10 @@ from .mesh import (
     convert_faces_to_triangles,
     PRIMITIVE_MESH_TYPES,
 )
-from .modifiers import (
-    ModifierCfg,
-    ModifierBase,
+from .modifiers import ModifierCfg, ModifierBase
+from .tensor_processors import (
+    TensorProcessorCfg,
+    TensorProcessor,
     DigitalFilter,
     DigitalFilterCfg,
     Integrator,
@@ -107,4 +117,4 @@ from .string import (
 )
 from .types import ArticulationActions
 from .version import has_kit, get_isaac_sim_version, compare_versions
-from .configclass import checked_apply, configclass, resolve_cfg_presets
+from .configclass import checked_apply, clone, configclass, instantiate, replace, validate

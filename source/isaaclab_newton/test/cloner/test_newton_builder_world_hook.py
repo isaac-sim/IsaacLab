@@ -1,0 +1,248 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Tests for Newton replication builder ownership."""
+
+import importlib
+from types import SimpleNamespace
+from unittest import mock
+
+import newton
+import numpy as np
+import pytest
+import warp as wp
+from isaaclab_newton.cloner import copy_newton_clone_source, newton_builder_world_hook
+from isaaclab_newton.physics import NewtonCfg, VBDSolverCfg
+
+from pxr import Sdf, Usd, UsdGeom, UsdLux, UsdPhysics, UsdShade
+
+from isaaclab.assets import AssetBaseCfg
+from isaaclab.cloner import make_clone_plan
+from isaaclab.sim import SimulationCfg, SimulationContext, SpawnerCfg, build_simulation_context
+
+replicate_module = importlib.import_module("isaaclab_newton.cloner.replicate")
+
+
+def test_newton_builder_world_hook_owns_one_registration(monkeypatch):
+    """The scope rejects duplicates and preserves unrelated hooks during cleanup."""
+
+    def existing(*_args):
+        pass
+
+    def temporary(*_args):
+        pass
+
+    def added_later(*_args):
+        pass
+
+    hooks = [existing]
+    monkeypatch.setattr(replicate_module, "_PER_WORLD_BUILDER_HOOKS", hooks)
+
+    with pytest.raises(ValueError, match="stop"):
+        with newton_builder_world_hook(temporary):
+            assert hooks == [existing, temporary]
+            with pytest.raises(RuntimeError, match="already registered"):
+                with newton_builder_world_hook(temporary):
+                    pass
+            assert hooks == [existing, temporary]
+            hooks.append(added_later)
+            raise ValueError("stop")
+
+    assert hooks == [existing, added_later]
+
+    with pytest.raises(RuntimeError, match="already registered"):
+        with newton_builder_world_hook(existing):
+            pass
+    assert hooks == [existing, added_later]
+
+
+def test_copy_newton_clone_source_owns_mutable_geometry(monkeypatch):
+    """Finalizing a copied prototype must not mutate cloner-retained shape sources."""
+    source = newton.ModelBuilder()
+    body = source.add_body()
+    mesh = newton.Mesh(vertices=[(0, 0, 0), (1, 0, 0), (0, 1, 0)], indices=[0, 1, 2])
+    source.add_shape_mesh(body, mesh=mesh)
+    sim = SimpleNamespace(backend_manager=SimpleNamespace(get_clone_source_builders=lambda: {"/World/Source": source}))
+    monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
+
+    copied = copy_newton_clone_source("/World/Source")
+
+    assert copied.shape_source[0] is not source.shape_source[0]
+
+
+@pytest.mark.parametrize(
+    "load_visual_shapes,is_rendering,rgb_array,visual_shapes_required,expected",
+    [
+        pytest.param(None, False, False, False, False, id="headless"),
+        pytest.param(None, True, False, False, True, id="viewer"),
+        pytest.param(None, False, True, False, True, id="offscreen"),
+        pytest.param(None, False, False, True, True, id="camera"),
+        pytest.param(True, False, False, False, True, id="force-visuals"),
+        pytest.param(False, True, True, True, False, id="skip-visuals"),
+    ],
+)
+def test_explicit_global_import_uses_global_world(
+    monkeypatch, load_visual_shapes, is_rendering, rgb_array, visual_shapes_required, expected
+):
+    """Global imports honor visual requirements and import shared deformables exactly once."""
+    stage = Usd.Stage.CreateInMemory()
+    UsdPhysics.Scene.Define(stage, "/physicsScene")
+    UsdGeom.Xform.Define(stage, "/World")
+    ground = UsdGeom.Cube.Define(stage, "/World/Ground")
+    UsdPhysics.CollisionAPI.Apply(ground.GetPrim())
+    UsdLux.DistantLight.Define(stage, "/World/Light")
+    points = [(0.0, 0.0, 0.0), (0.1, 0.0, 0.0), (0.0, 0.1, 0.0), (0.0, 0.0, 0.1)]
+    native_mesh = UsdGeom.TetMesh.Define(stage, "/World/Native/sim")
+    native_mesh.CreatePointsAttr(points)
+    native_mesh.CreateTetVertexIndicesAttr([(0, 1, 2, 3)])
+    root = stage.GetPrimAtPath("/World/Native")
+    root.SetMetadata("apiSchemas", Sdf.TokenListOp.CreateExplicit(["OmniPhysicsDeformableBodyAPI"]))
+    material = UsdShade.Material.Define(stage, "/World/Native/Material")
+    material.GetPrim().CreateAttribute("newton:density", Sdf.ValueTypeNames.Float).Set(1000.0)
+    UsdShade.MaterialBindingAPI.Apply(root).Bind(material, materialPurpose="physics")
+    global_paths = ("/World/Ground", "/World/Light", "/World/Native")
+
+    imports = []
+    add_usd = newton.ModelBuilder.add_usd
+
+    def import_usd(builder, *args, **kwargs):
+        imports.append(kwargs)
+        return add_usd(builder, *args, **kwargs)
+
+    monkeypatch.setattr(newton.ModelBuilder, "add_usd", import_usd)
+    terrain_import = mock.Mock(return_value=[])
+    monkeypatch.setattr(replicate_module, "inject_terrain_heightfields", terrain_import)
+    manager = SimpleNamespace(inject_sites=mock.Mock(return_value=({}, {}, {})), record_clone=mock.Mock())
+    sim = SimpleNamespace(
+        backend_manager=manager,
+        device="cpu",
+        cfg=SimpleNamespace(
+            physics=NewtonCfg(load_visual_shapes=load_visual_shapes), physics_prim_path="/physicsScene", device="cpu"
+        ),
+        is_rendering=is_rendering,
+        can_render_rgb_array=lambda: rgb_array,
+        visual_shapes_required=visual_shapes_required,
+        _backend_registry=[],
+    )
+    sim.get_or_create_backend = lambda cfg: SimulationContext.get_or_create_backend(sim, cfg)
+    monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
+    monkeypatch.setattr(replicate_module, "_PER_WORLD_BUILDER_HOOKS", ())
+
+    env_ids, mapping = np.arange(2, dtype=np.int64), np.empty((0, 2), dtype=np.bool_)
+    builder, _ = replicate_module.newton_physics_replicate(stage, (), (), env_ids, mapping, global_paths=global_paths)
+
+    assert [kwargs["root_path"] for kwargs in imports] == ["/physicsScene", *global_paths]
+    assert all(kwargs["load_visual_shapes"] is expected for kwargs in imports[1:])
+    terrain_import.assert_called_once_with(stage, builder, root_paths=("/physicsScene", *global_paths), device="cpu")
+    model = builder.finalize("cpu")
+    ground_index = model.shape_label.index("/World/Ground")
+    assert model.shape_world.numpy()[ground_index] == -1
+    assert model.world_count == 2
+    assert model.particle_count == len(points)
+    np.testing.assert_array_equal(model.particle_world.numpy(), -1)
+    assert "/World/Light" not in model.shape_label  # USD lights are not Newton physics entities.
+
+
+def _author_deformable(stage, path, kind):
+    root = UsdGeom.Xform.Define(stage, path).GetPrim()
+    root.SetMetadata("apiSchemas", Sdf.TokenListOp.CreateExplicit(["OmniPhysicsDeformableBodyAPI"]))
+    points = [(0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)]
+    if kind == "volume":
+        mesh = UsdGeom.TetMesh.Define(stage, path + "/sim")
+        mesh.CreatePointsAttr(points)
+        mesh.CreateTetVertexIndicesAttr([(0, 1, 2, 3)])
+        visual = UsdGeom.Mesh.Define(stage, path + "/vis")
+        visual.CreatePointsAttr([(0.5, 0, 0), (0, 0.5, 0), (0, 0, 0.5)])
+        visual.CreateFaceVertexCountsAttr([3])
+        visual.CreateFaceVertexIndicesAttr([0, 1, 2])
+        schema = "OmniPhysicsVolumeDeformableSimAPI"
+    else:
+        mesh = UsdGeom.Mesh.Define(stage, path + "/sim")
+        mesh.CreatePointsAttr(points[:3])
+        mesh.CreateFaceVertexCountsAttr([3])
+        mesh.CreateFaceVertexIndicesAttr([0, 1, 2])
+        schema = "OmniPhysicsSurfaceDeformableSimAPI"
+    mesh.GetPrim().SetMetadata("apiSchemas", Sdf.TokenListOp.CreateExplicit([schema]))
+    material = UsdShade.Material.Define(stage, path + "/material")
+    for name, value in (("density", 6.0), ("triKe", 123.0), ("kMu", 456.0)):
+        material.GetPrim().CreateAttribute("newton:" + name, Sdf.ValueTypeNames.Float).Set(value)
+    UsdShade.MaterialBindingAPI.Apply(root).Bind(material, materialPurpose="physics")
+
+
+@pytest.mark.parametrize("heterogeneous", [False, True], ids=["batched", "heterogeneous"])
+def test_imported_deformables_follow_plan_and_publish_geometry(heterogeneous):
+    """Import each prototype once and bind native/embedded visuals without inspecting generated clones."""
+    sim_cfg = SimulationCfg(device="cpu", physics=NewtonCfg(solver_cfg=VBDSolverCfg(), load_visual_shapes=False))
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        stage = sim.stage
+        UsdGeom.SetStageUpAxis(stage, "Z")
+        UsdGeom.SetStageMetersPerUnit(stage, 1.0)
+        UsdPhysics.Scene.Define(stage, "/physicsScene")
+        volume_world = int(heterogeneous)
+        volume_path = f"/World/env_{volume_world}/Volume"
+        cloth_name = "Robot/Cloth"
+        _author_deformable(stage, f"/World/env_0/{cloth_name}", "surface")
+        _author_deformable(stage, volume_path, "volume")
+        _author_deformable(stage, "/Shared/Cloth", "surface")
+        positions = np.asarray([[0, 0, 0], [2, 0, 0], [4, 0, 0]], dtype=np.float32)
+        if heterogeneous:
+            UsdGeom.Xform.Define(stage, "/World/env_1").AddTranslateOp().Set(tuple(positions[1].astype(float)))
+        rotations = np.asarray([[0, 0, 0, 1], [0, 0, 0, 1], [0, 0, 2**-0.5, 2**-0.5]], dtype=np.float32)
+        assets = (
+            AssetBaseCfg(
+                prim_path=f"/World/env_[^/]+/{cloth_name}",
+                spawn=SpawnerCfg(spawn_path=f"/World/env_0/{cloth_name}"),
+            ),
+            AssetBaseCfg(prim_path="/World/env_[^/]+/Volume", spawn=SpawnerCfg(spawn_path=volume_path)),
+            AssetBaseCfg(prim_path="/Shared/Cloth"),
+        )
+        assets += (AssetBaseCfg(prim_path="/World/env_[^/]+/Robot", spawn=SpawnerCfg(spawn_path="/World/env_0/Robot")),)
+        prototypes = ((3,), (0, 1)) if heterogeneous else ((0, 1, 3),)
+        layout = np.array([0, int(heterogeneous), 0])
+        placement = dict(env_template="/World/env_{}", positions=positions)
+        plan = make_clone_plan(
+            assets, prototypes, 3, shared_assets=(2,), clone_strategy=lambda _weights, _count: layout, **placement
+        )
+        sim.set_clone_plan(plan)
+        options = dict(
+            plan=plan, asset_prototype_ids=tuple(range(len(assets))), positions=positions, quaternions=rotations
+        )
+        builder, _, _ = replicate_module._replicate_newton(stage, np.arange(3), sim, **options)
+        sim.reset()
+        native = sim.backend_manager.backend
+        stage.RemovePrim("/World")
+        stage.RemovePrim("/Shared")
+
+        expected_counts = [3, 7, 3] if heterogeneous else [7, 7, 7]
+        assert builder.particle_count == sum(expected_counts) + 3
+        np.testing.assert_array_equal(np.bincount(np.asarray(builder.particle_world) + 1), [3, *expected_counts])
+        assert native.deformable_ranges["/Shared/Cloth"] == (0, 3, "surface")
+        points = sim.get_scene_data_provider().get_geometry_points()
+        expected_paths = {"/Shared/Cloth/sim"}
+        local_vertices = np.asarray([(0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)], dtype=np.float32)
+        for world in range(3):
+            kinds = ("Cloth",) if heterogeneous and world != 1 else ("Cloth", "Volume")
+            for name in kinds:
+                path = f"/World/env_{world}/{cloth_name if name == 'Cloth' else name}"
+                start, count, _ = native.deformable_ranges[path]
+                xform = wp.transform(positions[world], rotations[world])
+                expected = np.asarray([wp.transform_point(xform, wp.vec3(p)) for p in local_vertices[:count]])
+                np.testing.assert_allclose(
+                    native.state_0.particle_q.numpy()[start : start + count], expected, atol=1e-6
+                )
+                visual_path = path + ("/sim" if name == "Cloth" else "/vis")
+                expected_paths.add(visual_path)
+                if name == "Cloth":
+                    assert points[visual_path].ptr == native.state_0.particle_q.ptr + start * 12
+                    np.testing.assert_allclose(points[visual_path].numpy(), expected, atol=1e-6)
+                else:
+                    np.testing.assert_allclose(points[visual_path].numpy(), (expected[1:] + expected[0]) / 2, atol=1e-6)
+        assert set(points) == expected_paths
+        np.testing.assert_allclose(np.asarray(builder.tri_materials)[builder._surface_tri_start, 0], 123.0)
+        np.testing.assert_allclose(np.asarray(builder.tet_materials)[:, 0], 456.0)
+        for tet, pose in zip(builder.tet_indices, builder.tet_poses, strict=True):
+            vertices = np.asarray(builder.particle_q)[tet]
+            np.testing.assert_allclose((vertices[1:] - vertices[0]).T @ pose, np.eye(3), atol=1e-6)
+        np.testing.assert_allclose(builder.particle_radius, 0.008)

@@ -1,0 +1,261 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+from argparse import Namespace
+from collections.abc import Callable
+from pathlib import Path
+from unittest.mock import MagicMock
+
+import pytest
+import yaml
+
+from docker import container as container_cli
+from docker.utils import ContainerInterface, volume_mounts
+
+DOCKER_DIR = Path(__file__).resolve().parents[1]
+REPO_ROOT = DOCKER_DIR.parent
+
+
+@pytest.fixture
+def container_context(tmp_path: Path) -> Path:
+    """Create the profile environment files needed by the container interface."""
+    (tmp_path / ".env.base").write_text(
+        "\n".join(
+            (
+                "ISAACSIM_BASE_IMAGE=nvcr.io/nvidia/isaac-sim",
+                "ISAACSIM_VERSION=6.2.0",
+                "DOCKER_ISAACSIM_ROOT_PATH=/isaac-sim",
+                "DOCKER_ISAACLAB_PATH=/workspace/isaaclab",
+                "DOCKER_USER_HOME=/root",
+            )
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / ".env.kitless").write_text(
+        "\n".join(
+            (
+                "KITLESS_BASE_IMAGE=ubuntu:24.04",
+                "DOCKER_ISAACLAB_PATH=/workspace/isaaclab",
+                "DOCKER_USER_HOME=/home/isaaclab",
+            )
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / ".isaac-lab-docker-history").touch()
+    return tmp_path
+
+
+@pytest.fixture
+def make_interface(container_context: Path) -> Callable[[str], ContainerInterface]:
+    """Create container interfaces without persisting a state file."""
+
+    def _make(profile: str) -> ContainerInterface:
+        return ContainerInterface(context_dir=container_context, profile=profile, statefile=MagicMock())
+
+    return _make
+
+
+@pytest.mark.parametrize(("profile", "pull"), [("base", False), ("kitless", True)])
+def test_build_uses_profile_dependency_chain(
+    make_interface: Callable[[str], ContainerInterface],
+    monkeypatch: pytest.MonkeyPatch,
+    profile: str,
+    pull: bool,
+):
+    """Build the selected profile with its environment and optional parent refresh."""
+    run = MagicMock(return_value=Namespace(returncode=0))
+    monkeypatch.setattr("docker.utils.container_interface.subprocess.run", run)
+    interface = make_interface(profile)
+
+    interface.build(pull=pull)
+
+    expected_env_files = ["--env-file", f".env.{profile}"]
+    assert interface.add_env_files == expected_env_files
+    assert [call.args[0] for call in run.call_args_list] == [
+        ["docker", "compose", "--file", "docker-compose.yaml", "--profile", profile]
+        + expected_env_files
+        + ["build"]
+        + (["--pull"] if pull else [])
+        + [f"isaac-lab-{profile}"]
+    ]
+    if profile == "kitless":
+        assert "ISAACSIM_BASE_IMAGE" not in interface.dot_vars
+        assert interface.dot_vars["DOCKER_USER_HOME"] == "/home/isaaclab"
+
+
+def test_kitless_start_does_not_build_base(
+    make_interface: Callable[[str], ContainerInterface], monkeypatch: pytest.MonkeyPatch
+):
+    """Starting kit-less invokes only its standalone Compose profile."""
+    run = MagicMock()
+    run.return_value.returncode = 0
+    monkeypatch.setattr("docker.utils.container_interface.subprocess.run", run)
+
+    make_interface("kitless").start()
+
+    assert [call.args[0] for call in run.call_args_list] == [
+        [
+            "docker",
+            "compose",
+            "--file",
+            "docker-compose.yaml",
+            "--profile",
+            "kitless",
+            "--env-file",
+            ".env.kitless",
+            "up",
+            "--detach",
+            "--build",
+            "--remove-orphans",
+        ]
+    ]
+
+
+def test_kitless_enter_and_stop_target_profile_container(
+    make_interface: Callable[[str], ContainerInterface], monkeypatch: pytest.MonkeyPatch
+):
+    """Enter and stop use the kit-less service name, environment, and display."""
+    interface = make_interface("kitless")
+    run = MagicMock()
+    run.return_value.returncode = 0
+    monkeypatch.setenv("DISPLAY", ":99")
+    monkeypatch.setattr("docker.utils.container_interface.subprocess.run", run)
+    monkeypatch.setattr(interface, "is_container_running", MagicMock(return_value=True))
+
+    interface.enter()
+    interface.stop()
+
+    stop_command = [
+        "docker",
+        "compose",
+        "--file",
+        "docker-compose.yaml",
+        "--profile",
+        "kitless",
+        "--env-file",
+        ".env.kitless",
+        "down",
+    ]
+    assert [call.args[0] for call in run.call_args_list] == [
+        ["docker", "exec", "--interactive", "--tty", "-e", "DISPLAY=:99", "isaac-lab-kitless", "bash"],
+        stop_command,
+    ]
+
+
+@pytest.mark.parametrize(
+    "containers",
+    [[], ["isaac-lab-kitless"], ["isaac-lab-kitless", "isaac-lab-base"], ["isaac-lab-base"]],
+)
+def test_volume_cleanup_requires_exclusive_project_container(make_interface, monkeypatch, containers):
+    """An absent profile cannot delete another profile's stopped data; shared containers block cleanup."""
+    run = MagicMock(return_value=Namespace(returncode=0, stdout="\n".join(containers)))
+    monkeypatch.setattr("docker.utils.container_interface.subprocess.run", run)
+    interface = make_interface("kitless")
+
+    if len(containers) > 1:
+        with pytest.raises(RuntimeError, match="Refusing project-wide volume cleanup"):
+            interface.stop(remove_volumes=True)
+    else:
+        interface.stop(remove_volumes=True)
+
+    commands = [call.args[0] for call in run.call_args_list]
+    cleanup = [command for command in commands if "--volumes" in command]
+    assert len(cleanup) == (1 if containers == ["isaac-lab-kitless"] else 0)
+
+
+def test_x11_overlay_covers_every_profile():
+    """Compose merges the X11 override by service name, so each profile needs an entry."""
+    overlay = yaml.safe_load((DOCKER_DIR / "x11.yaml").read_text(encoding="utf-8"))
+
+    assert set(overlay["services"]) == {"isaac-lab-base", "isaac-lab-kitless"}
+    for name, service in overlay["services"].items():
+        assert "DISPLAY" in service["environment"], name
+        assert any("X11-unix" in mount["source"] for mount in service["volumes"]), name
+
+
+def test_cli_merges_x11_overlay_before_start(monkeypatch: pytest.MonkeyPatch):
+    """The CLI merges the X11 overlay before starting a container."""
+    interface = MagicMock()
+    interface.profile = "base"
+    interface.add_yamls = ["--file", "docker-compose.yaml"]
+    interface.environ = {}
+    monkeypatch.setattr(container_cli, "ContainerInterface", MagicMock(return_value=interface))
+    monkeypatch.setattr(container_cli.shutil, "which", MagicMock(return_value="/usr/bin/docker"))
+    monkeypatch.setattr(
+        container_cli.x11_utils,
+        "x11_check",
+        MagicMock(return_value=(["--file", "x11.yaml"], {"DISPLAY": ":0"})),
+    )
+    args = Namespace(
+        command="start",
+        profile="base",
+        files=None,
+        env_files=None,
+        suffix=None,
+        info=False,
+    )
+
+    container_cli.main(args)
+
+    assert interface.add_yamls == ["--file", "docker-compose.yaml", "--file", "x11.yaml"]
+    assert interface.environ["DISPLAY"] == ":0"
+    interface.start.assert_called_once_with()
+
+
+def test_kitless_compose_service_has_no_isaac_sim_mounts():
+    """The kit-less Compose service uses only standalone paths and settings."""
+    compose = yaml.safe_load((DOCKER_DIR / "docker-compose.yaml").read_text(encoding="utf-8"))
+    service = compose["services"]["isaac-lab-kitless"]
+    mounts = compose["x-kitless-isaac-lab-volumes"]
+
+    assert service["profiles"] == ["kitless"]
+    assert service["env_file"] == ".env.kitless"
+    assert service["build"]["dockerfile"] == "docker/Dockerfile.kitless"
+    assert service["image"] == "isaac-lab-kitless${DOCKER_NAME_SUFFIX-}"
+    assert service["container_name"] == "isaac-lab-kitless${DOCKER_NAME_SUFFIX-}"
+    assert "environment" not in service
+    assert service["volumes"] == mounts
+
+    forbidden_sources = {"isaac-cache-kit", "isaac-data-kit", "isaac-carb-logs"}
+    assert forbidden_sources.isdisjoint(mount.get("source") for mount in mounts)
+    assert all("DOCKER_ISAACSIM" not in mount["target"] for mount in mounts)
+    assert all("/kit/" not in mount["target"].lower() for mount in mounts)
+
+
+def test_image_is_verified_before_it_is_published():
+    """A published image must be a verified one.
+
+    The push steps publish under both the commit tag and the deps tag, and a later deps-cache hit
+    serves that image without rebuilding it, so anything published unverified stays unverified.
+    """
+    action = yaml.safe_load(
+        (REPO_ROOT / ".github" / "actions" / "ecr-build-push-pull" / "action.yml").read_text(encoding="utf-8")
+    )
+    names = [step["name"] for step in action["runs"]["steps"] if "name" in step]
+
+    assert names.index("Verify freshly built image") < names.index("Push to ECR") < names.index("Push deps tag")
+
+    build = yaml.safe_load((REPO_ROOT / ".github" / "workflows" / "build.yaml").read_text(encoding="utf-8"))
+    (base_build,) = [
+        step for step in build["jobs"]["build"]["steps"] if step.get("uses") == "./.github/actions/ecr-build-push-pull"
+    ]
+
+    assert base_build["with"]["verify-test-path"] == "docker/test/test_image_invariants.py"
+
+
+def test_kitless_volume_key_resolves_owned_image_paths(monkeypatch: pytest.MonkeyPatch):
+    """The explicit kit-less volume key resolves the paths prepared by its Dockerfile."""
+    monkeypatch.setenv("DOCKER_ISAACLAB_PATH", "/workspace/isaaclab")
+    monkeypatch.setenv("DOCKER_USER_HOME", "/home/isaaclab")
+
+    targets = volume_mounts.resolved_targets(DOCKER_DIR / "docker-compose.yaml", "x-kitless-isaac-lab-volumes")
+
+    assert targets == [
+        "/home/isaaclab/.cache/uv",
+        "/home/isaaclab/.cache/warp",
+        "/workspace/isaaclab/docs/_build",
+        "/workspace/isaaclab/logs",
+        "/workspace/isaaclab/data_storage",
+    ]

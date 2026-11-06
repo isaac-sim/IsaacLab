@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Action terms for the loco-manipulation pick-and-place environment."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -42,7 +44,8 @@ class AgileBasedLowerBodyAction(ActionTerm):
         self._env = env
 
         # Find joint ids for the lower body joints
-        self._joint_ids, self._joint_names = self._asset.find_joints(self.cfg.joint_names)
+        joint_ids, self._joint_names = self._asset.find_joints(self.cfg.joint_names, as_proxy=True)
+        self._joint_ids = joint_ids.torch
 
         # Get the scale and offset from the configuration
         self._policy_output_scale = torch.tensor(cfg.policy_output_scale, device=env.device)

@@ -3,12 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-__all__ = [
-    "CameraImageStack",
-    "joint_pos_target_l2",
-    "survival_success_rate",
-]
+__all__ = ["CameraImageStack"]
 
-from isaaclab_tasks.core.cartpole.mdp.observations import CameraImageStack
-from isaaclab_tasks.core.cartpole.mdp.rewards import joint_pos_target_l2, survival_success_rate
+from .observations import CameraImageStack
+
+# shared terms that used to live in this package, re-exported for backwards compatibility
+from isaaclab.envs.mdp import joint_pos_target_l2, survival_success_rate
 from isaaclab.envs.mdp import *

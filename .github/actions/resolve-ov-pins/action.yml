@@ -16,7 +16,7 @@ outputs:
     description: 'OVRTX pip requirement specifier (e.g. ovrtx>=0.3.0,<0.4.0)'
     value: ${{ steps.resolve.outputs.ovrtx }}
   ovphysx:
-    description: 'OVPhysX pip requirement specifier (e.g. ovphysx>=0.4.13)'
+    description: 'OVPhysX pip requirement specifier (e.g. ovphysx==0.5.9)'
     value: ${{ steps.resolve.outputs.ovphysx }}
 
 runs:

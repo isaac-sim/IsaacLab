@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal
 
 import numpy as np
@@ -19,7 +19,6 @@ from newton.viewer import ViewerBase
 
 import isaaclab.sim as sim_utils
 from isaaclab.markers.visualization_markers_cfg import VisualizationMarkersCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.math import quat_apply
 
 logger = logging.getLogger(__name__)
@@ -29,36 +28,36 @@ _OMNIPBR_DEFAULTS = {
     "diffuse_tint": (1.0, 1.0, 1.0),
 }
 _UNBOUND_DEFAULT_FALLBACK_GRAY = (0.18, 0.18, 0.18)
-_DEX_CUBE_TEXTURE_URL = f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/Materials/dex_cube_mod.png"
 
 
 @dataclass(frozen=True)
 class _NewtonMarkerSpec:
     renderer: Literal["mesh", "frame", "none"]
-    mesh_type: Literal["arrow", "box", "textured_box", "sphere", "cylinder", "capsule", "cone"] | None = None
+    mesh_type: Literal["arrow", "box", "sphere", "cylinder", "capsule", "cone", "usd"] | None = None
     mesh_params: dict[str, float | tuple[float, float, float]] | None = None
     scale: tuple[float, float, float] | None = None
     color: tuple[float, float, float] | None = None
     texture: Any | None = None
+    # Pre-loaded newton.Mesh for "usd" mesh_type; excluded from hash/compare since Mesh is unhashable.
+    preloaded_mesh: Any | None = field(default=None, hash=False, compare=False)
 
 
-@dataclass(frozen=True)
-class _MeshData:
-    vertices: np.ndarray
-    indices: np.ndarray
-    normals: np.ndarray
-    uvs: np.ndarray
+def render_newton_visualization_markers(
+    viewer: ViewerBase,
+    visible_env_ids: list[int] | None,
+    num_envs: int,
+) -> None:
+    """Render all active Newton visualization marker groups into a Newton-family viewer.
 
-
-def render_newton_visualization_markers(viewer: ViewerBase, visible_env_ids: list[int] | None, num_envs: int) -> None:
-    """Render all active Newton visualization marker groups into a Newton-family viewer."""
-    sim = sim_utils.SimulationContext.instance()
-    if sim is None:
-        return
-
-    for marker in sim.vis_marker_registry.get_groups().values():
-        if isinstance(marker, NewtonVisualizationMarkers):
-            marker.render(viewer, visible_env_ids=visible_env_ids, num_envs=num_envs)
+    Args:
+        viewer: The Newton-family viewer the marker groups are logged into.
+        visible_env_ids: The env ids to draw markers for, or None for all envs.
+        num_envs: The number of environments the marker state is batched over.
+    """
+    for marker in viewer.marker_groups:
+        if not isinstance(marker, NewtonVisualizationMarkers):
+            continue
+        marker.render(viewer, visible_env_ids=visible_env_ids, num_envs=num_envs)
 
 
 class NewtonVisualizationMarkers:
@@ -66,7 +65,7 @@ class NewtonVisualizationMarkers:
 
     def __init__(self, cfg: VisualizationMarkersCfg, visible: bool = True):
         self.cfg = cfg
-        self.group_id = f"{cfg.prim_path}::{id(self)}"
+        self.group_id = f"{cfg.prim_path}_{id(self)}"
         self.visible = visible
         self.translations: torch.Tensor | None = None
         self.orientations: torch.Tensor | None = None
@@ -80,24 +79,21 @@ class NewtonVisualizationMarkers:
         }
 
         sim = sim_utils.SimulationContext.instance()
-        if sim is not None:
-            sim.vis_marker_registry.set_group(self.group_id, self)
+        self._registry = sim.vis_marker_registry if sim is not None else None
+        if self._registry is not None:
+            self._registry.set_group(self.group_id, self)
 
     def close(self) -> None:
         """Remove marker backend from the simulation marker registry."""
-        sim = sim_utils.SimulationContext.instance()
-        if sim is not None:
-            sim.vis_marker_registry.remove_group(self.group_id)
-
-    def infer_device(self) -> torch.device:
-        """Infer the device from current marker state."""
-        for value in (self.translations, self.orientations, self.scales, self.marker_indices):
-            if value is not None:
-                return value.device
-        return torch.device("cpu")
+        registry = getattr(self, "_registry", None)
+        self._registry = None
+        if registry is not None:
+            registry.remove_group(self.group_id)
 
     def set_visibility(self, visible: bool) -> None:
         """Set marker visibility."""
+        if visible != self.visible and self._registry is not None:
+            self._registry.set_group(self.group_id, self)
         self.visible = visible
 
     def is_visible(self) -> bool:
@@ -110,8 +106,10 @@ class NewtonVisualizationMarkers:
         orientations: torch.Tensor | None,
         scales: torch.Tensor | None,
         marker_indices: torch.Tensor | None,
+        environment_ids: torch.Tensor | None = None,
     ) -> None:
         """Update marker state consumed by Newton-family visualizers."""
+        del environment_ids
         if translations is not None:
             self.translations = translations.detach()
             self.count = translations.shape[0]
@@ -124,12 +122,24 @@ class NewtonVisualizationMarkers:
         if marker_indices is not None:
             self.marker_indices = marker_indices.detach().to(dtype=torch.int32)
             self.count = marker_indices.shape[0]
+        if self._registry is not None:
+            self._registry.set_group(self.group_id, self)
 
-    def render(self, viewer: ViewerBase, visible_env_ids: list[int] | None, num_envs: int) -> None:
+    def render(
+        self,
+        viewer: ViewerBase,
+        visible_env_ids: list[int] | None,
+        num_envs: int,
+    ) -> None:
         """Render marker state to a Newton viewer.
 
         Marker batches divisible by ``num_envs`` are interpreted as dense environment-major arrays
         with shape ``(num_envs, markers_per_env, ...)``. Other batches are rendered as global markers.
+
+        Args:
+            viewer: The Newton-family viewer the marker batches are logged into.
+            visible_env_ids: The env ids to draw markers for, or None for all envs.
+            num_envs: The number of environments the marker state is batched over.
         """
         translations = self.translations
         orientations = self.orientations
@@ -156,8 +166,10 @@ class NewtonVisualizationMarkers:
                 marker_indices = marker_indices.reshape(num_envs, markers_per_env)[env_selection].flatten(0, 1)
             count = selected_env_count * markers_per_env
             if translations is not None:
-                offsets = wp.to_torch(viewer.world_offsets)[env_selection].to(translations)
-                translations = (translations + offsets[:, None, :]).flatten(0, 1)
+                if viewer.world_offsets is not None:
+                    offsets = wp.to_torch(viewer.world_offsets)[env_selection].to(translations)
+                    translations = translations + offsets[:, None, :]
+                translations = translations.flatten(0, 1)
 
         if count == 0:
             for name, newton_cfg in self._marker_specs.items():
@@ -167,20 +179,14 @@ class NewtonVisualizationMarkers:
         if translations is None:
             return
 
+        device = viewer.device
+        num_markers = translations.shape[0]
+        if orientations is None:
+            orientations = translations.new_tensor((0.0, 0.0, 0.0, 1.0)).expand(num_markers, -1)
+
         for proto_index, (name, marker_cfg) in enumerate(self.cfg.markers.items()):
             newton_cfg = self._marker_specs[name]
             batch_name = f"{self.group_id}/{name}"
-            if marker_indices is None:
-                if proto_index != 0:
-                    self._hide_batch(viewer, name, newton_cfg)
-                    continue
-                selected = slice(None)
-            else:
-                selected = marker_indices == proto_index
-                if not torch.any(selected):
-                    self._hide_batch(viewer, name, newton_cfg)
-                    continue
-
             if newton_cfg.renderer == "none":
                 unsupported_key = f"{self.group_id}:{name}"
                 if unsupported_key not in self._warned_unsupported:
@@ -192,47 +198,43 @@ class NewtonVisualizationMarkers:
                     self._warned_unsupported.add(unsupported_key)
                 continue
 
-            selected_translations = translations[selected]
-            selected_count = selected_translations.shape[0]
-            if orientations is None:
-                selected_orientations = selected_translations.new_tensor((0.0, 0.0, 0.0, 1.0)).expand(
-                    selected_count, -1
-                )
+            # Keep instance batches stable as prototype selections change.
+            if marker_indices is None:
+                shown = torch.full((num_markers,), proto_index == 0, dtype=torch.bool, device=translations.device)
             else:
-                selected_orientations = orientations[selected]
-            default_scale = newton_cfg.scale or _extract_scale_hint(marker_cfg)
-            default_scale_tensor = selected_translations.new_tensor(default_scale)
-            if scales is None:
-                selected_scales = default_scale_tensor.expand(selected_count, -1)
-            else:
-                selected_scales = scales[selected] * default_scale_tensor
+                shown = marker_indices == proto_index
+            marker_scales = translations.new_tensor(newton_cfg.scale or _extract_scale_hint(marker_cfg))
+            marker_scales = marker_scales * shown.unsqueeze(-1)
+            if scales is not None:
+                marker_scales = scales * marker_scales
 
             if newton_cfg.renderer == "mesh":
                 mesh_name = f"{self.group_id}/meshes/{name}"
                 self._ensure_mesh_registered(viewer, mesh_name, newton_cfg)
                 color = newton_cfg.color or _extract_color(marker_cfg)
-                colors = selected_translations.new_tensor(color).expand(selected_count, -1)
+                colors = translations.new_tensor(color).expand(num_markers, -1)
                 # ViewerGL gates texture sampling with material.w. Rerun and Viser ignore this flag.
                 texture_flag = float(newton_cfg.texture is not None)
-                materials = selected_translations.new_tensor((0.0, 0.0, 0.0, texture_flag)).expand(selected_count, -1)
-                xforms = torch.cat((selected_translations, selected_orientations), dim=1).detach().cpu().numpy()
+                materials = translations.new_tensor((0.0, 0.0, 0.0, texture_flag)).expand(num_markers, -1)
+                xforms = torch.cat((translations, orientations), dim=1).detach().cpu().numpy()
                 viewer.log_instances(
                     batch_name,
                     mesh_name,
-                    wp.array(xforms.astype(np.float32), dtype=wp.transform),
-                    wp.array(selected_scales.detach().cpu().numpy().astype(np.float32), dtype=wp.vec3),
-                    wp.array(colors.detach().cpu().numpy().astype(np.float32), dtype=wp.vec3),
-                    wp.array(materials.detach().cpu().numpy().astype(np.float32), dtype=wp.vec4),
+                    wp.array(xforms.astype(np.float32), dtype=wp.transform, device=device),
+                    wp.array(marker_scales.detach().cpu().numpy().astype(np.float32), dtype=wp.vec3, device=device),
+                    wp.array(colors.detach().cpu().numpy().astype(np.float32), dtype=wp.vec3, device=device),
+                    wp.array(materials.detach().cpu().numpy().astype(np.float32), dtype=wp.vec4, device=device),
                     hidden=False,
                 )
             elif newton_cfg.renderer == "frame":
-                starts, ends, colors = _build_frame_lines(selected_translations, selected_orientations, selected_scales)
-                width = max(float(selected_scales.mean().item()) * 0.05, 0.0025)
+                starts, ends, colors = _build_frame_lines(translations, orientations, marker_scales)
+                shown_scales = marker_scales[shown]
+                width = max(float(shown_scales.mean().item()) * 0.05, 0.0025) if shown_scales.numel() else 0.0025
                 viewer.log_lines(
                     batch_name,
-                    wp.array(starts.detach().cpu().numpy().astype(np.float32), dtype=wp.vec3),
-                    wp.array(ends.detach().cpu().numpy().astype(np.float32), dtype=wp.vec3),
-                    wp.array(colors.detach().cpu().numpy().astype(np.float32), dtype=wp.vec3),
+                    wp.array(starts.detach().cpu().numpy().astype(np.float32), dtype=wp.vec3, device=device),
+                    wp.array(ends.detach().cpu().numpy().astype(np.float32), dtype=wp.vec3, device=device),
+                    wp.array(colors.detach().cpu().numpy().astype(np.float32), dtype=wp.vec3, device=device),
                     width=width,
                     hidden=False,
                 )
@@ -254,12 +256,19 @@ class NewtonVisualizationMarkers:
         if registered_key in self._registered_meshes or newton_cfg.mesh_type is None:
             return
         mesh = _create_mesh(newton_cfg)
+        normals_arr = mesh.normals
+        uvs_arr = mesh.uvs
+        device = viewer.device
         viewer.log_mesh(
             mesh_name,
-            wp.array(mesh.vertices.astype(np.float32), dtype=wp.vec3),
-            wp.array(mesh.indices.astype(np.int32), dtype=wp.int32),
-            normals=wp.array(mesh.normals.astype(np.float32), dtype=wp.vec3) if mesh.normals.size else None,
-            uvs=wp.array(mesh.uvs.astype(np.float32), dtype=wp.vec2) if mesh.uvs.size else None,
+            wp.array(mesh.vertices.astype(np.float32), dtype=wp.vec3, device=device),
+            wp.array(mesh.indices.astype(np.int32), dtype=wp.int32, device=device),
+            normals=wp.array(normals_arr.astype(np.float32), dtype=wp.vec3, device=device)
+            if normals_arr is not None and normals_arr.size
+            else None,
+            uvs=wp.array(uvs_arr.astype(np.float32), dtype=wp.vec2, device=device)
+            if uvs_arr is not None and uvs_arr.size
+            else None,
             texture=newton_cfg.texture,
             hidden=True,
         )
@@ -295,32 +304,32 @@ def _infer_newton_marker_cfg(marker_cfg: object) -> _NewtonMarkerSpec:
         )
 
     if cfg_type == "UsdFileCfg":
-        usd_path = str(marker_cfg.usd_path).lower()
+        usd_path = str(marker_cfg.usd_path)
+        usd_path_lower = usd_path.lower()
         default_scale = _extract_scale_hint(marker_cfg)
-        if usd_path.endswith("arrow_x.usd"):
+        if usd_path_lower.endswith("arrow_x.usd"):
             return _NewtonMarkerSpec(
                 renderer="mesh",
                 mesh_type="arrow",
                 mesh_params={"base_radius": 0.08, "base_height": 0.7, "cap_radius": 0.16, "cap_height": 0.3},
                 scale=(default_scale[0], default_scale[1] * 2.5, default_scale[2] * 2.5),
             )
-        if usd_path.endswith("frame_prim.usd"):
+        if usd_path_lower.endswith("frame_prim.usd"):
             return _NewtonMarkerSpec(renderer="frame", scale=default_scale)
-        if "dexcube" in usd_path or "dex_cube" in usd_path:
-            # TODO: Remove this specialized DexCube mesh code when general
-            # UsdFileCfg-to-Newton mesh conversion is supported.
-            # DexCube USDs are roughly 6 cm wide. Keep scale separate so task
-            # configs such as scale=(1.2, 1.2, 1.2) still apply naturally.
+        newton_mesh = _load_usd_mesh(usd_path)
+        if newton_mesh is not None:
+            mesh_color = newton_mesh.color
+            color = (
+                (float(mesh_color[0]), float(mesh_color[1]), float(mesh_color[2])) if mesh_color is not None else None
+            )
             return _NewtonMarkerSpec(
                 renderer="mesh",
-                mesh_type="textured_box",
-                mesh_params={"size": (0.06, 0.06, 0.06)},
-                color=(1.0, 1.0, 1.0),
-                texture=_DEX_CUBE_TEXTURE_URL,
+                mesh_type="usd",
+                scale=default_scale,
+                color=color,
+                texture=newton_mesh.texture,
+                preloaded_mesh=newton_mesh,
             )
-
-        # TODO: Add generic UsdFileCfg -> Newton mesh extraction for mesh-backed USD marker assets.
-        # For now, only common marker USDs are mapped to lightweight Newton-native fallbacks.
 
     return _NewtonMarkerSpec(renderer="none")
 
@@ -338,8 +347,6 @@ def _create_mesh(newton_cfg: _NewtonMarkerSpec):
     if newton_cfg.mesh_type == "box":
         size = mesh_params["size"]
         return Mesh.create_box(float(size[0]) * 0.5, float(size[1]) * 0.5, float(size[2]) * 0.5)
-    if newton_cfg.mesh_type == "textured_box":
-        return _create_textured_box_mesh(mesh_params["size"])
     if newton_cfg.mesh_type == "sphere":
         return Mesh.create_sphere(radius=float(mesh_params["radius"]))
     if newton_cfg.mesh_type == "cylinder":
@@ -360,80 +367,85 @@ def _create_mesh(newton_cfg: _NewtonMarkerSpec):
             float(mesh_params["height"]) * 0.5,
             up_axis=Axis.Z,
         )
+    if newton_cfg.mesh_type == "usd":
+        if newton_cfg.preloaded_mesh is None:
+            raise ValueError("USD marker spec missing preloaded_mesh — USD loading must have failed at init time.")
+        return newton_cfg.preloaded_mesh
     raise ValueError(f"Unsupported Newton mesh type: {newton_cfg.mesh_type}")
 
 
-def _create_textured_box_mesh(size: tuple[float, float, float]) -> _MeshData:
-    # TODO: Remove this specialized DexCube mesh code when general
-    # UsdFileCfg-to-Newton mesh conversion is supported.
-    half = np.asarray(size, dtype=np.float32) * 0.5
-    usd_vertices = np.asarray(
-        [
-            (-1.0, -1.0, 1.0),
-            (-1.0, 1.0, 1.0),
-            (-1.0, 1.0, -1.0),
-            (-1.0, -1.0, -1.0),
-            (-1.0, -1.0, -1.0),
-            (-1.0, 1.0, -1.0),
-            (1.0, 1.0, -1.0),
-            (1.0, -1.0, -1.0),
-            (1.0, -1.0, -1.0),
-            (1.0, 1.0, -1.0),
-            (1.0, 1.0, 1.0),
-            (1.0, -1.0, 1.0),
-            (1.0, -1.0, 1.0),
-            (1.0, 1.0, 1.0),
-            (-1.0, 1.0, 1.0),
-            (-1.0, -1.0, 1.0),
-            (-1.0, -1.0, -1.0),
-            (1.0, -1.0, -1.0),
-            (1.0, -1.0, 1.0),
-            (-1.0, -1.0, 1.0),
-            (1.0, 1.0, -1.0),
-            (-1.0, 1.0, -1.0),
-            (-1.0, 1.0, 1.0),
-            (1.0, 1.0, 1.0),
-        ],
-        dtype=np.float32,
-    )
-    uvs = np.asarray(
-        [
-            (1.0, 0.333333),
-            (1.0, 0.666667),
-            (0.5, 0.666667),
-            (0.5, 0.333333),
-            (0.5, 0.666667),
-            (0.5, 1.0),
-            (0.0, 1.0),
-            (0.0, 0.666667),
-            (0.5, 0.333333),
-            (0.5, 0.666667),
-            (0.0, 0.666667),
-            (0.0, 0.333333),
-            (1.0, 0.0),
-            (1.0, 0.333333),
-            (0.5, 0.333333),
-            (0.5, 0.0),
-            (0.5, 0.0),
-            (0.5, 0.333333),
-            (0.0, 0.333333),
-            (0.0, 0.0),
-            (1.0, 0.666667),
-            (1.0, 1.0),
-            (0.5, 1.0),
-            (0.5, 0.666667),
-        ],
-        dtype=np.float32,
-    )
-    indices: list[int] = []
-    for base in range(0, 24, 4):
-        indices.extend([base, base + 1, base + 2, base, base + 2, base + 3])
-    return _MeshData(
-        vertices=usd_vertices * half,
-        indices=np.asarray(indices, dtype=np.int32),
-        normals=np.zeros((0, 3), dtype=np.float32),
-        uvs=uvs,
-    )
+def _load_usd_mesh(usd_path: str) -> Mesh | None:
+    """Open a USD file and return a Newton :class:`~newton.Mesh` from the first :class:`UsdGeom.Mesh` prim found.
+
+    Material properties (color, texture) are resolved from the prim's bound USD material and stored
+    on the returned :class:`~newton.Mesh`.
+
+    Args:
+        usd_path: Absolute path or URL to a USD asset.
+
+    Returns:
+        A :class:`~newton.Mesh` with vertices, indices, normals, UVs, and material properties, or
+        ``None`` if the USD could not be opened or contains no mesh geometry.
+    """
+    try:
+        from pxr import Usd, UsdGeom  # noqa: PLC0415
+
+        from isaaclab.utils.assets import retrieve_file_path  # noqa: PLC0415
+
+        local_path = retrieve_file_path(usd_path)
+        stage = Usd.Stage.Open(local_path)
+        if stage is None:
+            logger.warning("[NewtonVisualizationMarkers] Failed to open USD stage: %s", usd_path)
+            return None
+        mesh_prims = [p for p in stage.Traverse() if p.IsA(UsdGeom.Mesh)]
+        from_prototype = False
+        if not mesh_prims:
+            # Instanceable USDs store geometry in prototypes rather than the main prim tree.
+            for proto in stage.GetPrototypes():
+                mesh_prims = [
+                    p for p in proto.GetFilteredChildren(Usd.TraverseInstanceProxies()) if p.IsA(UsdGeom.Mesh)
+                ]
+                if mesh_prims:
+                    from_prototype = True
+                    break
+        if not mesh_prims:
+            logger.warning("[NewtonVisualizationMarkers] No UsdGeom.Mesh prims found in USD: %s", usd_path)
+            return None
+        if len(mesh_prims) > 1:
+            logger.debug(
+                "[NewtonVisualizationMarkers] Multiple mesh prims in '%s'; using first: %s",
+                usd_path,
+                mesh_prims[0].GetPath(),
+            )
+        mesh = Mesh.create_from_usd(mesh_prims[0], load_normals=True, load_uvs=True)
+        if mesh is not None and from_prototype:
+            # Prototype prims carry a local transform (e.g. unit-cube → metres scale) that
+            # Mesh.create_from_usd does not apply. Bake it into vertex positions now.
+            from pxr import Gf  # noqa: PLC0415
+
+            xf = UsdGeom.Xformable(mesh_prims[0])
+            mat = xf.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
+            if mat != Gf.Matrix4d(1):
+                # mesh.vertices may be a numpy array or a Warp array depending on Newton version.
+                verts = mesh.vertices
+                pts = verts.numpy() if hasattr(verts, "numpy") else np.asarray(verts)
+                ones = np.ones((len(pts), 1), dtype=np.float32)
+                mat_np = np.array(mat, dtype=np.float32).T
+                pts_world = (np.hstack([pts.astype(np.float32), ones]) @ mat_np)[:, :3]
+                if hasattr(verts, "numpy"):
+                    import warp as _wp  # noqa: PLC0415
+
+                    mesh.vertices = _wp.array(pts_world, dtype=_wp.vec3, device=verts.device)
+                else:
+                    mesh.vertices = pts_world
+        return mesh
+    except Exception:
+        logger.warning(
+            "[NewtonVisualizationMarkers] Failed to load USD mesh from '%s'; marker will not be rendered.",
+            usd_path,
+            exc_info=True,
+        )
+        return None
 
 
 def _extract_scale_hint(marker_cfg: object) -> tuple[float, float, float]:

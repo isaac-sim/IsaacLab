@@ -29,3 +29,7 @@ class Policy:
             modality_transform=self.modality_transform,
             device=self.device,
         )
+
+    def get_action(self, observations: dict) -> dict:
+        """Return actions for the supplied observations."""
+        return self.policy.get_action(observations)

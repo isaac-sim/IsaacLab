@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 
 import warp as wp
 
-from isaaclab.utils.leapp import (
+from ...utils.leapp import (
     InputKindEnum,
     body_pose6_resolver,
     body_pose_resolver,
@@ -16,7 +16,8 @@ from isaaclab.utils.leapp import (
     body_xyz_resolver,
     leapp_tensor_semantics,
 )
-from isaaclab.utils.warp import ProxyArray
+from ...utils.warp import ProxyArray
+from ...utils.warp.launch_cache import _WarpLaunchCache
 
 
 class BaseRigidObjectCollectionData(ABC):
@@ -50,6 +51,7 @@ class BaseRigidObjectCollectionData(ABC):
         """
         # Set the parameters
         self.device = device
+        self._read_launch_cache = _WarpLaunchCache(device)
 
     @abstractmethod
     def update(self, dt: float) -> None:
@@ -577,6 +579,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_quat_b
 
     def _create_buffers(self):
+        self._read_launch_cache.clear()
         # -- Default mass and inertia (Lazy allocation of default values)
         self._default_mass = None
         self._default_inertia = None

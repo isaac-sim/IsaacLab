@@ -5,6 +5,6 @@
 
 """Sub-module for LEAPP export annotation and proxy-based policy tracing."""
 
-from isaaclab.utils.module import lazy_export
+from ..module import lazy_export
 
 lazy_export()

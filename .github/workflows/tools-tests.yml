@@ -1,0 +1,66 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: Tools Tests
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      # The repo-root conftest.py writes the crash journal these tests read back.
+      - "conftest.py"
+      # Tools subpackages run their own checks.
+      - "tools/*.py"
+      - "tools/performance_regression/**"
+      - "tools/perf_smoke_thresholds.json"
+      # Shared CI action helpers and their co-located tests.
+      - ".github/actions/_lib/**"
+      - ".github/workflows/build.yaml"
+      - ".github/workflows/tools-tests.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: tools-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  tools-tests:
+    name: Tools tests
+    runs-on: ubuntu-latest
+    # Bound stalled crash-test subprocesses.
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          # Separate this job's pip cache by its dependency list.
+          cache-dependency-path: .github/workflows/tools-tests.yml
+
+      # These tests run without Isaac Sim; flaky and pytest-xdist enable retry and parallel crash tests.
+      - name: Install test dependencies
+        run: bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" python3 -m pip install pytest pytest-xdist junitparser flaky pyyaml
+
+      - name: Run tools tests
+        env:
+          # The tests import the modules under test (crash_journal) directly.
+          PYTHONPATH: tools
+        # Explicit files avoid tests that need Isaac Sim; --noconftest prevents the full-suite orchestrator from running.
+        run: python3 -m pytest tools/test_crash_journal.py tools/test_file_scheduler.py
+          .github/actions/_lib/test_registry_credential_fallback.py
+          .github/actions/_lib/test_performance_workflow.py -v --noconftest
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: false
+
+      - name: Test ASV performance comparisons
+        run: uv run --no-project --with-requirements tools/performance_regression/requirements.txt python -m unittest tools.performance_regression.test_compare tools.performance_regression.test_source_revision

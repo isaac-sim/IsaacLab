@@ -14,8 +14,14 @@ __all__ = [
     "apply_articulation_ordering_preset",
     "parse_articulation_ordering_convention",
     "get_articulation_name_ordering",
+    "Asset",
     "AssetBase",
     "AssetBaseCfg",
+    "BaseCableObject",
+    "BaseCableObjectData",
+    "CableObject",
+    "CableObjectCfg",
+    "CableObjectData",
     "BaseRigidObject",
     "BaseRigidObjectData",
     "RigidObject",
@@ -31,6 +37,8 @@ __all__ = [
     "DeformableObject",
     "DeformableObjectCfg",
     "DeformableObjectData",
+    "VisualMaterial",
+    "VisualMaterialCfg",
 ]
 
 from .articulation import (
@@ -45,8 +53,16 @@ from .articulation import (
     parse_articulation_ordering_convention,
     get_articulation_name_ordering,
 )
+from .asset import Asset
 from .asset_base import AssetBase
 from .asset_base_cfg import AssetBaseCfg
+from .cable_object import (
+    BaseCableObject,
+    BaseCableObjectData,
+    CableObject,
+    CableObjectCfg,
+    CableObjectData,
+)
 from .rigid_object import (
     BaseRigidObject,
     BaseRigidObjectData,
@@ -68,3 +84,4 @@ from .deformable_object import (
     DeformableObjectCfg,
     DeformableObjectData,
 )
+from .visual_material import VisualMaterial, VisualMaterialCfg

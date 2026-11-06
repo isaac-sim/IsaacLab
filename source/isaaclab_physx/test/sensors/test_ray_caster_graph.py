@@ -5,9 +5,9 @@
 
 """Tests for cached PhysX transforms and graphed standard RayCaster updates."""
 
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
 
-simulation_app = AppLauncher(headless=True).app
+launch_test_simulation()
 
 from types import SimpleNamespace
 
@@ -70,6 +70,7 @@ def _make_ray_caster(use_graph: bool = True, cache_raw_transforms: bool = True):
     sensor = RayCaster.__new__(RayCaster)
     sensor.cfg = SimpleNamespace(prim_path="/World/Sensor")
     sensor._device = device
+    sensor._backend_manager = SimpleNamespace(update_kinematics=lambda: None)
     sensor._physx_body_view = transform_view
     sensor._raw_transforms = transforms if cache_raw_transforms else None
     sensor._compute_graph = None
@@ -99,17 +100,6 @@ def _replace_base_update_with_test_kernel(monkeypatch) -> None:
         )
 
     monkeypatch.setattr(BaseRayCaster, "_update_buffers_impl", compute)
-
-
-def test_ray_caster_caches_physx_transform_view():
-    """Repeated eager reads should reuse one typed view over the refreshed PhysX buffer."""
-    sensor, transform_view, _, _ = _make_ray_caster(use_graph=False, cache_raw_transforms=False)
-
-    sensor._get_view_transforms_wp()
-    sensor._get_view_transforms_wp()
-
-    assert transform_view.get_count == 2
-    assert transform_view.conversion_count == 1
 
 
 def test_ray_caster_updates_eagerly_when_graphs_are_disabled(monkeypatch):

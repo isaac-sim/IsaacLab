@@ -22,6 +22,7 @@ __all__ = [
     "HfTerrainBaseCfg",
     "HfWaveTerrainCfg",
     "MeshBoxTerrainCfg",
+    "MeshFileTerrainCfg",
     "MeshFloatingRingTerrainCfg",
     "MeshGapTerrainCfg",
     "MeshInvertedPyramidStairsTerrainCfg",
@@ -55,6 +56,7 @@ from .height_field import (
 )
 from .trimesh import (
     MeshBoxTerrainCfg,
+    MeshFileTerrainCfg,
     MeshFloatingRingTerrainCfg,
     MeshGapTerrainCfg,
     MeshInvertedPyramidStairsTerrainCfg,

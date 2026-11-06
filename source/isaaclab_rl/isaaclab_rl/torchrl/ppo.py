@@ -1,0 +1,191 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""PPO for Isaac Lab environments built from TorchRL's collector, GAE, and clipped PPO loss."""
+
+from __future__ import annotations
+
+import os
+import time
+
+import torch
+from tensordict.nn import NormalParamExtractor, TensorDictModule
+from torch import nn
+from torch.utils.tensorboard import SummaryWriter
+from torchrl.collectors import Collector
+from torchrl.data import Bounded, Composite, Unbounded
+from torchrl.envs import ExplorationType
+from torchrl.modules import MLP, IndependentNormal, ProbabilisticActor, TanhNormal, ValueOperator
+from torchrl.objectives import ClipPPOLoss, KLAdaptiveLR
+from torchrl.objectives.value import GAE
+
+from .ppo_cfg import TorchRlPpoCfg
+from .vecenv_wrapper import IsaacLabTorchRLWrapper
+
+
+def make_actor(env: IsaacLabTorchRLWrapper, cfg: TorchRlPpoCfg) -> ProbabilisticActor:
+    """Gaussian MLP policy over the ``"policy"`` observation group.
+
+    Raises:
+        NotImplementedError: When the action spec is not a flat continuous vector or the ``"policy"``
+            observation group is not a flat tensor.
+    """
+    action_spec = env.action_spec
+    if (
+        not isinstance(action_spec, (Bounded, Unbounded))
+        or not action_spec.dtype.is_floating_point
+        or len(action_spec.shape) != len(env.batch_size) + 1
+    ):
+        raise NotImplementedError(
+            f"{type(action_spec).__name__} action spec of shape {tuple(action_spec.shape)} is not supported: the PPO"
+            " example expects a flat continuous action vector (one-dimensional gymnasium.spaces.Box)."
+        )
+    net = nn.Sequential(
+        _mlp(env, "policy", 2 * action_spec.shape[-1], cfg.actor_hidden_dims, cfg.activation),
+        NormalParamExtractor(scale_mapping=f"biased_softplus_{cfg.init_noise_std}"),
+    )
+    distribution_class = TanhNormal if isinstance(action_spec, Bounded) else IndependentNormal
+    if isinstance(action_spec, Bounded):
+        action_space = env.action_spec_unbatched.space
+        distribution_kwargs = {"low": action_space.low, "high": action_space.high}
+    else:
+        distribution_kwargs = {}
+    return ProbabilisticActor(
+        TensorDictModule(net, in_keys=["policy"], out_keys=["loc", "scale"]),
+        spec=action_spec,
+        in_keys=["loc", "scale"],
+        out_keys=["action"],
+        distribution_class=distribution_class,
+        distribution_kwargs=distribution_kwargs,
+        return_log_prob=True,
+        default_interaction_type=ExplorationType.RANDOM,
+    )
+
+
+def make_critic(env: IsaacLabTorchRLWrapper, cfg: TorchRlPpoCfg) -> ValueOperator:
+    """MLP value function over the ``"critic"`` observation group when the task defines one, else ``"policy"``.
+
+    Raises:
+        NotImplementedError: When the selected observation group is not a flat tensor.
+    """
+    key = "critic" if env.observation_spec.get("critic", None) is not None else "policy"
+    return ValueOperator(_mlp(env, key, 1, cfg.critic_hidden_dims, cfg.activation), in_keys=[key])
+
+
+def train_ppo(env: IsaacLabTorchRLWrapper, cfg: TorchRlPpoCfg, log_dir: str) -> ProbabilisticActor:
+    """Trains a PPO agent for ``cfg.max_iterations`` iterations and returns the actor.
+
+    Actor checkpoints (``model_<iteration>.pt``, loadable with :meth:`torch.nn.Module.load_state_dict` on
+    :func:`make_actor`) and TensorBoard scalars, including the episode statistics Isaac Lab reports under
+    ``extras["log"]``, are written to ``log_dir``.
+    """
+    torch.manual_seed(cfg.seed)
+    actor = make_actor(env, cfg).to(cfg.device).eval()
+    critic = make_critic(env, cfg).to(cfg.device).eval()
+    advantage = GAE(gamma=cfg.gamma, lmbda=cfg.lam, value_network=critic, average_gae=True)
+    loss_module = ClipPPOLoss(
+        actor,
+        critic,
+        clip_epsilon=cfg.clip_param,
+        entropy_bonus=cfg.entropy_coef > 0,
+        entropy_coeff=cfg.entropy_coef,
+        critic_coeff=cfg.value_loss_coef,
+        clip_value=cfg.use_clipped_value_loss,
+    )
+    optimizer = torch.optim.Adam(loss_module.parameters(), lr=cfg.learning_rate)
+    scheduler = KLAdaptiveLR(optimizer, target_kl=cfg.desired_kl) if cfg.desired_kl is not None else None
+    frames_per_batch = env.batch_size[0] * cfg.num_steps_per_env
+    collector = Collector(
+        env,
+        actor,
+        frames_per_batch=frames_per_batch,
+        total_frames=frames_per_batch * cfg.max_iterations,
+        device=cfg.device,
+        split_trajs=False,
+        auto_register_policy_transforms=True,
+        no_cuda_sync=env.device.type == "cuda",
+    )
+    writer = SummaryWriter(log_dir)
+
+    try:
+        collection_start = time.perf_counter()
+        for iteration, batch in enumerate(collector, start=1):
+            collection_time = time.perf_counter() - collection_start
+            learning_start = time.perf_counter()
+            term_sums: dict[str, torch.Tensor] = {}
+            num_updates = 0
+            for _ in range(cfg.num_learning_epochs):
+                with torch.no_grad():
+                    advantage(batch)
+                samples = batch.reshape(-1)
+                for indices in torch.randperm(samples.shape[0], device=samples.device).chunk(cfg.num_mini_batches):
+                    optimizer.zero_grad(set_to_none=True)
+                    terms = loss_module(samples[indices])
+                    sum(value for key, value in terms.items() if key.startswith("loss_")).backward()
+                    nn.utils.clip_grad_norm_(loss_module.parameters(), cfg.max_grad_norm)
+                    optimizer.step()
+                    for key, value in terms.items():
+                        if key.startswith("loss_") or key in {
+                            "ESS",
+                            "clip_fraction",
+                            "entropy",
+                            "kl_approx",
+                            "value_clip_fraction",
+                        }:
+                            if key in term_sums:
+                                term_sums[key].add_(value.detach())
+                            else:
+                                term_sums[key] = value.detach().clone()
+                    num_updates += 1
+                if scheduler is not None:
+                    with torch.no_grad():
+                        scheduler.step(loss_module(samples)["kl_approx"])
+            collector.update_policy_weights_()
+            learning_time = time.perf_counter() - learning_start
+
+            mean_terms = {key: (value / num_updates).item() for key, value in term_sums.items()}
+            stats = {f"Loss/{key}": value for key, value in mean_terms.items() if key.startswith("loss_")}
+            term_tags = {
+                "ESS": "Policy/ESS",
+                "clip_fraction": "Policy/clip_fraction",
+                "entropy": "Policy/entropy",
+                "kl_approx": "Policy/kl",
+                "value_clip_fraction": "Value/clip_fraction",
+            }
+            stats.update({tag: mean_terms[key] for key, tag in term_tags.items() if key in mean_terms})
+            stats["Policy/learning_rate"] = optimizer.param_groups[0]["lr"]
+            stats["Perf/collection_time"] = collection_time
+            stats["Perf/learning_time"] = learning_time
+            stats["Perf/total_fps"] = frames_per_batch / (collection_time + learning_time)
+            stats["Train/mean_step_reward"] = batch["next", "reward"].mean().item()
+            stats.update({key: float(value) for key, value in env.unwrapped.extras.get("log", {}).items()})
+            for key, value in stats.items():
+                writer.add_scalar(key, value, iteration)
+            print(f"[TorchRL] iteration {iteration}/{cfg.max_iterations}: reward {stats['Train/mean_step_reward']:.4f}")
+            if iteration % cfg.save_interval == 0 or iteration == cfg.max_iterations:
+                torch.save(actor.state_dict(), os.path.join(log_dir, f"model_{iteration}.pt"))
+            collection_start = time.perf_counter()
+    finally:
+        # release the collector and flush the logs also when training is interrupted
+        collector.shutdown()
+        writer.close()
+    return actor
+
+
+def _mlp(env: IsaacLabTorchRLWrapper, key: str, out_features: int, hidden_dims: list[int], activation: str) -> MLP:
+    """MLP reading the flat observation group ``key``.
+
+    Raises:
+        NotImplementedError: When the observation group is a dictionary of terms or not a flat tensor.
+    """
+    spec = env.observation_spec[key]
+    if isinstance(spec, Composite) or len(spec.shape) != len(env.batch_size) + 1:
+        shape = f"terms {sorted(spec.keys())}" if isinstance(spec, Composite) else f"shape {tuple(spec.shape)}"
+        raise NotImplementedError(
+            f'The "{key}" observation group ({shape}) is not supported: the PPO example expects a flat tensor per'
+            " observation group (e.g. concatenate_terms=True in manager-based tasks)."
+        )
+    in_features = spec.shape[-1]
+    return MLP(in_features, out_features, num_cells=hidden_dims, activation_class=getattr(nn, activation))

@@ -36,8 +36,8 @@ from parity_helpers import (
     MockSceneEntityCfg,
     assert_close,
     mutate_art_data,
+    run_warp_captured_mutated,
     run_warp_obs,
-    run_warp_obs_captured,
 )
 
 import isaaclab.envs.mdp.observations as stable_obs
@@ -209,148 +209,24 @@ def subset_cfg():
 
 
 class TestObservationParity:
-    """Verify experimental observation Warp kernels match stable torch implementations."""
+    """Verify experimental observation Warp kernels match stable torch implementations.
+
+    Each term is checked eagerly, then captured, has its inputs overwritten in place, and is
+    replayed: the replay must match stable on the *new* data, which proves it is capture-safe.
+    """
+
+    @staticmethod
+    def _check(warp_fn, stable_fn, warp_env, stable_env, art_data, shape, **kwargs):
+        assert_close(run_warp_obs(warp_fn, warp_env, shape, **kwargs), stable_fn(stable_env, **kwargs))
+        actual_cap = run_warp_captured_mutated(
+            warp_fn, warp_env, lambda: mutate_art_data(art_data, warp_env), shape=shape, **kwargs
+        )
+        assert_close(actual_cap, stable_fn(stable_env, **kwargs))
 
     # -- Root state observations ------------------------------------------------
 
-    def test_base_pos_z(self, warp_env, stable_env, all_joints_cfg):
-        cfg = all_joints_cfg
-        expected = stable_obs.base_pos_z(stable_env, asset_cfg=cfg)
-        actual = run_warp_obs(warp_obs.base_pos_z, warp_env, (NUM_ENVS, 1), asset_cfg=cfg)
-        actual_cap = run_warp_obs_captured(warp_obs.base_pos_z, warp_env, (NUM_ENVS, 1), asset_cfg=cfg)
-        assert_close(actual, expected)
-        assert_close(actual_cap, expected)
-
-    def test_base_lin_vel(self, warp_env, stable_env, all_joints_cfg):
-        cfg = all_joints_cfg
-        expected = stable_obs.base_lin_vel(stable_env, asset_cfg=cfg)
-        actual = run_warp_obs(warp_obs.base_lin_vel, warp_env, (NUM_ENVS, 3), asset_cfg=cfg)
-        actual_cap = run_warp_obs_captured(warp_obs.base_lin_vel, warp_env, (NUM_ENVS, 3), asset_cfg=cfg)
-        assert_close(actual, expected)
-        assert_close(actual_cap, expected)
-
-    def test_base_ang_vel(self, warp_env, stable_env, all_joints_cfg):
-        cfg = all_joints_cfg
-        expected = stable_obs.base_ang_vel(stable_env, asset_cfg=cfg)
-        actual = run_warp_obs(warp_obs.base_ang_vel, warp_env, (NUM_ENVS, 3), asset_cfg=cfg)
-        actual_cap = run_warp_obs_captured(warp_obs.base_ang_vel, warp_env, (NUM_ENVS, 3), asset_cfg=cfg)
-        assert_close(actual, expected)
-        assert_close(actual_cap, expected)
-
-    def test_projected_gravity(self, warp_env, stable_env, all_joints_cfg):
-        cfg = all_joints_cfg
-        expected = stable_obs.projected_gravity(stable_env, asset_cfg=cfg)
-        actual = run_warp_obs(warp_obs.projected_gravity, warp_env, (NUM_ENVS, 3), asset_cfg=cfg)
-        actual_cap = run_warp_obs_captured(warp_obs.projected_gravity, warp_env, (NUM_ENVS, 3), asset_cfg=cfg)
-        assert_close(actual, expected)
-        assert_close(actual_cap, expected)
-
-    # -- Joint observations (all joints) ----------------------------------------
-
-    def test_joint_pos_all(self, warp_env, stable_env, all_joints_cfg):
-        cfg = all_joints_cfg
-        expected = stable_obs.joint_pos(stable_env, asset_cfg=cfg)
-        actual = run_warp_obs(warp_obs.joint_pos, warp_env, (NUM_ENVS, NUM_JOINTS), asset_cfg=cfg)
-        actual_cap = run_warp_obs_captured(warp_obs.joint_pos, warp_env, (NUM_ENVS, NUM_JOINTS), asset_cfg=cfg)
-        assert_close(actual, expected)
-        assert_close(actual_cap, expected)
-
-    def test_joint_vel_all(self, warp_env, stable_env, all_joints_cfg):
-        cfg = all_joints_cfg
-        expected = stable_obs.joint_vel(stable_env, asset_cfg=cfg)
-        actual = run_warp_obs(warp_obs.joint_vel, warp_env, (NUM_ENVS, NUM_JOINTS), asset_cfg=cfg)
-        actual_cap = run_warp_obs_captured(warp_obs.joint_vel, warp_env, (NUM_ENVS, NUM_JOINTS), asset_cfg=cfg)
-        assert_close(actual, expected)
-        assert_close(actual_cap, expected)
-
-    # -- Joint observations (subset) -------------------------------------------
-
-    def test_joint_pos_subset(self, warp_env, stable_env, subset_cfg):
-        cfg = subset_cfg
-        n_selected = len(cfg.joint_ids)
-        expected = stable_obs.joint_pos(stable_env, asset_cfg=cfg)
-        actual = run_warp_obs(warp_obs.joint_pos, warp_env, (NUM_ENVS, n_selected), asset_cfg=cfg)
-        actual_cap = run_warp_obs_captured(warp_obs.joint_pos, warp_env, (NUM_ENVS, n_selected), asset_cfg=cfg)
-        assert_close(actual, expected)
-        assert_close(actual_cap, expected)
-
-    def test_joint_vel_subset(self, warp_env, stable_env, subset_cfg):
-        cfg = subset_cfg
-        n_selected = len(cfg.joint_ids)
-        expected = stable_obs.joint_vel(stable_env, asset_cfg=cfg)
-        actual = run_warp_obs(warp_obs.joint_vel, warp_env, (NUM_ENVS, n_selected), asset_cfg=cfg)
-        actual_cap = run_warp_obs_captured(warp_obs.joint_vel, warp_env, (NUM_ENVS, n_selected), asset_cfg=cfg)
-        assert_close(actual, expected)
-        assert_close(actual_cap, expected)
-
-    # -- Normalized joint position ----------------------------------------------
-
-    def test_joint_pos_limit_normalized(self, warp_env, stable_env, all_joints_cfg):
-        cfg = all_joints_cfg
-        expected = stable_obs.joint_pos_limit_normalized(stable_env, asset_cfg=cfg)
-        actual = run_warp_obs(warp_obs.joint_pos_limit_normalized, warp_env, (NUM_ENVS, NUM_JOINTS), asset_cfg=cfg)
-        actual_cap = run_warp_obs_captured(
-            warp_obs.joint_pos_limit_normalized, warp_env, (NUM_ENVS, NUM_JOINTS), asset_cfg=cfg
-        )
-        assert_close(actual, expected)
-        assert_close(actual_cap, expected)
-
-    # -- Action observation -----------------------------------------------------
-
-    def test_last_action(self, warp_env, stable_env, action_wp):
-        # Stable last_action returns env.action_manager.action (torch tensor)
-        expected = stable_obs.last_action(stable_env)
-        actual = run_warp_obs(warp_obs.last_action, warp_env, (NUM_ENVS, NUM_ACTIONS))
-        actual_cap = run_warp_obs_captured(warp_obs.last_action, warp_env, (NUM_ENVS, NUM_ACTIONS))
-        assert_close(actual, expected)
-        assert_close(actual_cap, expected)
-
-
-# ============================================================================
-# Observation parity tests (from test_mdp_warp_parity_new_terms.py)
-# ============================================================================
-
-
-class TestObservationParityNewTerms:
-    """Verify observation Warp kernels for newly migrated terms match stable torch implementations."""
-
-    def test_generated_commands(self, warp_env_bodies, stable_env_bodies):
-        expected = stable_obs.generated_commands(stable_env_bodies, command_name="vel")
-        actual = run_warp_obs(warp_obs.generated_commands, warp_env_bodies, (NUM_ENVS, CMD_DIM), command_name="vel")
-        actual_cap = run_warp_obs_captured(
-            warp_obs.generated_commands, warp_env_bodies, (NUM_ENVS, CMD_DIM), command_name="vel"
-        )
-        assert_close(actual, expected)
-        assert_close(actual_cap, expected)
-
-
-# ============================================================================
-# Capture-then-mutate-then-replay observation tests (from test_mdp_warp_parity.py)
-# ============================================================================
-
-
-def _mutate_art_data(art_data: MockArticulationData, warp_env, rng_seed: int = 200):
-    """Mutate every data array in-place so captured graphs see fresh values."""
-    mutate_art_data(art_data, warp_env, rng_seed=rng_seed)
-
-
-class TestCapturedDataMutationObservations:
-    """Capture a graph, mutate buffer data in-place, replay -- results must match stable on the *new* data.
-
-    This verifies observation MDP functions are truly capture-safe.
-    """
-
-    def _capture_mutate_check_obs(self, warp_fn, stable_fn, warp_env, stable_env, art_data, shape, **kwargs):
-        out = wp.zeros(shape, dtype=wp.float32, device=DEVICE)
-        warp_fn(warp_env, out, **kwargs)  # warm-up
-        with wp.ScopedCapture() as cap:
-            warp_fn(warp_env, out, **kwargs)
-        _mutate_art_data(art_data, warp_env)
-        wp.capture_launch(cap.graph)
-        assert_close(wp.to_torch(out).clone(), stable_fn(stable_env, **kwargs))
-
     def test_base_pos_z(self, warp_env, stable_env, art_data, all_joints_cfg):
-        self._capture_mutate_check_obs(
+        self._check(
             warp_obs.base_pos_z,
             stable_obs.base_pos_z,
             warp_env,
@@ -361,7 +237,7 @@ class TestCapturedDataMutationObservations:
         )
 
     def test_base_lin_vel(self, warp_env, stable_env, art_data, all_joints_cfg):
-        self._capture_mutate_check_obs(
+        self._check(
             warp_obs.base_lin_vel,
             stable_obs.base_lin_vel,
             warp_env,
@@ -372,7 +248,7 @@ class TestCapturedDataMutationObservations:
         )
 
     def test_base_ang_vel(self, warp_env, stable_env, art_data, all_joints_cfg):
-        self._capture_mutate_check_obs(
+        self._check(
             warp_obs.base_ang_vel,
             stable_obs.base_ang_vel,
             warp_env,
@@ -383,7 +259,7 @@ class TestCapturedDataMutationObservations:
         )
 
     def test_projected_gravity(self, warp_env, stable_env, art_data, all_joints_cfg):
-        self._capture_mutate_check_obs(
+        self._check(
             warp_obs.projected_gravity,
             stable_obs.projected_gravity,
             warp_env,
@@ -393,30 +269,24 @@ class TestCapturedDataMutationObservations:
             asset_cfg=all_joints_cfg,
         )
 
-    def test_joint_pos(self, warp_env, stable_env, art_data, all_joints_cfg):
-        self._capture_mutate_check_obs(
-            warp_obs.joint_pos,
-            stable_obs.joint_pos,
-            warp_env,
-            stable_env,
-            art_data,
-            (NUM_ENVS, NUM_JOINTS),
-            asset_cfg=all_joints_cfg,
+    # -- Joint observations (non-identity subset, so the id gather is exercised) ----
+
+    def test_joint_pos_subset(self, warp_env, stable_env, art_data, subset_cfg):
+        shape = (NUM_ENVS, len(subset_cfg.joint_ids))
+        self._check(
+            warp_obs.joint_pos, stable_obs.joint_pos, warp_env, stable_env, art_data, shape, asset_cfg=subset_cfg
         )
 
-    def test_joint_vel(self, warp_env, stable_env, art_data, all_joints_cfg):
-        self._capture_mutate_check_obs(
-            warp_obs.joint_vel,
-            stable_obs.joint_vel,
-            warp_env,
-            stable_env,
-            art_data,
-            (NUM_ENVS, NUM_JOINTS),
-            asset_cfg=all_joints_cfg,
+    def test_joint_vel_subset(self, warp_env, stable_env, art_data, subset_cfg):
+        shape = (NUM_ENVS, len(subset_cfg.joint_ids))
+        self._check(
+            warp_obs.joint_vel, stable_obs.joint_vel, warp_env, stable_env, art_data, shape, asset_cfg=subset_cfg
         )
+
+    # -- Normalized joint position ----------------------------------------------
 
     def test_joint_pos_limit_normalized(self, warp_env, stable_env, art_data, all_joints_cfg):
-        self._capture_mutate_check_obs(
+        self._check(
             warp_obs.joint_pos_limit_normalized,
             stable_obs.joint_pos_limit_normalized,
             warp_env,
@@ -426,33 +296,28 @@ class TestCapturedDataMutationObservations:
             asset_cfg=all_joints_cfg,
         )
 
+    # -- Action observation -----------------------------------------------------
+
     def test_last_action(self, warp_env, stable_env, art_data):
-        self._capture_mutate_check_obs(
-            warp_obs.last_action,
-            stable_obs.last_action,
-            warp_env,
-            stable_env,
-            art_data,
-            (NUM_ENVS, NUM_ACTIONS),
+        # Stable last_action returns env.action_manager.action (torch tensor)
+        self._check(
+            warp_obs.last_action, stable_obs.last_action, warp_env, stable_env, art_data, (NUM_ENVS, NUM_ACTIONS)
         )
 
 
-# ============================================================================
-# Capture-mutate-replay observation tests (from test_mdp_warp_parity_new_terms.py)
-# ============================================================================
+class TestObservationParityNewTerms:
+    """Verify observation Warp kernels for newly migrated terms match stable torch implementations."""
 
-
-class TestCapturedDataMutationObservationsNewTerms:
-    """Capture graph, mutate buffer data, replay -- verify new-terms observation results match stable."""
-
-    def test_generated_commands(self, warp_env_bodies, stable_env_bodies, art_data_bodies, cmd_tensor):
-        """Mutate command tensor, replay captured graph, verify new commands are read."""
-        out = wp.zeros((NUM_ENVS, CMD_DIM), dtype=wp.float32, device=DEVICE)
-        warp_obs.generated_commands(warp_env_bodies, out, command_name="vel")
-        with wp.ScopedCapture() as cap:
-            warp_obs.generated_commands(warp_env_bodies, out, command_name="vel")
-        # Mutate the command tensor in-place (zero-copy view picks it up)
-        cmd_tensor[:] = torch.randn_like(cmd_tensor)
-        wp.capture_launch(cap.graph)
+    def test_generated_commands(self, warp_env_bodies, stable_env_bodies, cmd_tensor):
         expected = stable_obs.generated_commands(stable_env_bodies, command_name="vel")
-        assert_close(wp.to_torch(out).clone(), expected)
+        actual = run_warp_obs(warp_obs.generated_commands, warp_env_bodies, (NUM_ENVS, CMD_DIM), command_name="vel")
+        assert_close(actual, expected)
+
+        # Mutate the command tensor in-place: the cached zero-copy view must pick it up on replay.
+        def mutate():
+            cmd_tensor[:] = torch.randn_like(cmd_tensor)
+
+        actual_cap = run_warp_captured_mutated(
+            warp_obs.generated_commands, warp_env_bodies, mutate, shape=(NUM_ENVS, CMD_DIM), command_name="vel"
+        )
+        assert_close(actual_cap, stable_obs.generated_commands(stable_env_bodies, command_name="vel"))

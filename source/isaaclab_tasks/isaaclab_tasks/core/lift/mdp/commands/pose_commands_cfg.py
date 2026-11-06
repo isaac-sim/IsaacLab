@@ -1,0 +1,130 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Configuration for the object pose commands of the lift environments."""
+
+from __future__ import annotations
+
+from dataclasses import MISSING
+from typing import TYPE_CHECKING
+
+import isaaclab.sim as sim_utils
+from isaaclab.managers import CommandTermCfg
+from isaaclab.markers import VisualizationMarkersCfg
+from isaaclab.utils import configclass, replace
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+
+if TYPE_CHECKING:
+    from .pose_commands import CableUniformPoseCommand, DeformableUniformPoseCommand, ObjectUniformPoseCommand
+
+ALIGN_MARKER_CFG = VisualizationMarkersCfg(
+    markers={
+        "frame": sim_utils.UsdFileCfg(
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/UIElements/frame_prim.usd",
+            scale=(0.1, 0.1, 0.1),
+        ),
+        "position_far": sim_utils.SphereCfg(
+            radius=0.01,
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0)),
+        ),
+        "position_near": sim_utils.SphereCfg(
+            radius=0.01,
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0)),
+        ),
+    }
+)
+
+
+@configclass
+class ObjectUniformPoseCommandCfg(CommandTermCfg):
+    """Configuration for uniform pose command generator."""
+
+    class_type: type[ObjectUniformPoseCommand] | str = "{DIR}.pose_commands:ObjectUniformPoseCommand"
+
+    asset_name: str = MISSING
+    """Name of the coordinate referencing asset in the environment for which the commands are generated respect to."""
+
+    object_name: str = MISSING
+    """Name of the object in the environment for which the commands are generated."""
+
+    make_quat_unique: bool = False
+    """Whether to make the quaternion unique or not. Defaults to False.
+
+    If True, the quaternion is made unique by ensuring the real part is positive.
+    """
+
+    @configclass
+    class Ranges:
+        """Uniform distribution ranges for the pose commands."""
+
+        pos_x: tuple[float, float] = MISSING
+        """Range for the x position (in m)."""
+
+        pos_y: tuple[float, float] = MISSING
+        """Range for the y position (in m)."""
+
+        pos_z: tuple[float, float] = MISSING
+        """Range for the z position (in m)."""
+
+        roll: tuple[float, float] = MISSING
+        """Range for the roll angle (in rad)."""
+
+        pitch: tuple[float, float] = MISSING
+        """Range for the pitch angle (in rad)."""
+
+        yaw: tuple[float, float] = MISSING
+        """Range for the yaw angle (in rad)."""
+
+    ranges: Ranges = MISSING
+    """Ranges for the commands."""
+
+    position_only: bool = True
+    """Command goal position only. Command includes goal quat if False"""
+
+    # Pose Markers
+    goal_pose_visualizer_cfg: VisualizationMarkersCfg = replace(
+        ALIGN_MARKER_CFG, prim_path="/Visuals/Command/goal_pose"
+    )
+    """The configuration for the goal pose visualization marker. Defaults to FRAME_MARKER_CFG."""
+
+    curr_pose_visualizer_cfg: VisualizationMarkersCfg = replace(
+        ALIGN_MARKER_CFG, prim_path="/Visuals/Command/body_pose"
+    )
+    """The configuration for the current pose visualization marker. Defaults to FRAME_MARKER_CFG."""
+
+    success_vis_asset_name: str | None = None
+    """Name of the asset at which the success markers are drawn, or None for no markers."""
+
+    # success markers
+    success_visualizer_cfg: VisualizationMarkersCfg = VisualizationMarkersCfg(
+        prim_path="/Visuals/SuccessMarkers", markers={}
+    )
+    """The configuration for the success visualization marker. User needs to add the markers"""
+
+    success_vis_material_name: str | None = None
+    """Name of the per-environment :class:`~isaaclab.assets.VisualMaterial` tinted by success, or None."""
+
+    success_vis_colors: tuple[tuple[float, float, float], tuple[float, float, float]] = (
+        (0.25, 0.15, 0.15),
+        (0.15, 0.25, 0.15),
+    )
+    """Failure and success RGB colors written to the success material."""
+
+
+@configclass
+class DeformableUniformPoseCommandCfg(ObjectUniformPoseCommandCfg):
+    """Configuration for the deformable uniform pose command generator."""
+
+    class_type: type[DeformableUniformPoseCommand] | str = "{DIR}.pose_commands:DeformableUniformPoseCommand"
+
+
+@configclass
+class CableUniformPoseCommandCfg(ObjectUniformPoseCommandCfg):
+    """Configuration for a cable segment uniform pose command generator."""
+
+    class_type: type[CableUniformPoseCommand] | str = "{DIR}.pose_commands:CableUniformPoseCommand"
+
+    segment_index: int = MISSING
+    """Zero-based cable segment index tracked by the command."""

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass, to_dict
 
 
 @configclass
@@ -127,13 +127,14 @@ class NewtonCollisionPipelineCfg:
     Defaults to ``None`` (auto-estimate, same as Newton's default).
     """
 
-    max_triangle_pairs: int = 1_000_000
+    max_triangle_pairs: int | None = None
     """Maximum number of triangle pairs allocated by narrow phase for mesh and heightfield collisions.
 
-    Increase this when scenes with large/complex meshes or heightfields report
-    triangle-pair overflow warnings.
+    Also sizes the global contact-reduction buffer and hashtable, which all worlds share.
+    If ``None``, Newton estimates it from the model, so it grows with the number of worlds.
+    Set it explicitly to choose the memory budget, or when overflow warnings appear.
 
-    Defaults to ``1_000_000`` (same as Newton's default).
+    Defaults to ``None`` (auto-estimate, same as Newton's default).
     """
 
     soft_contact_max: int | None = None
@@ -148,6 +149,17 @@ class NewtonCollisionPipelineCfg:
     """Margin [m] for soft contact generation.
 
     Defaults to ``0.01`` (same as Newton's default).
+    """
+
+    enable_rigid_soft_full_surface_contact: bool = False
+    """Whether to generate soft contacts against full-surface-capable rigid colliders.
+
+    When ``True``, Newton adds edge and triangle-interior soft contacts (in addition to the
+    per-vertex particle contacts) so rigid features that pass between soft vertices are caught.
+    Analytic shapes (boxes, capsules, spheres) are full-surface-capable without an SDF; any
+    participating mesh/convex collider must carry a volume SDF.
+
+    Defaults to ``False`` (same as Newton's default).
     """
 
     requires_grad: bool | None = None
@@ -179,7 +191,7 @@ class NewtonCollisionPipelineCfg:
         """
         from newton.geometry import HydroelasticSDF
 
-        cfg_dict = self.to_dict()
+        cfg_dict = to_dict(self)
         hydro_cfg = cfg_dict.pop("sdf_hydroelastic_config", None)
         if hydro_cfg is not None:
             cfg_dict["sdf_hydroelastic_config"] = HydroelasticSDF.Config(**hydro_cfg)

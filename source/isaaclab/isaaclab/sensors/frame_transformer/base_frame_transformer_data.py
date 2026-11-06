@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from isaaclab.utils.leapp import (
+from ...utils.leapp import (
     POSE7_ELEMENT_NAMES,
     QUAT_XYZW_ELEMENT_NAMES,
     XYZ_ELEMENT_NAMES,
@@ -19,7 +19,7 @@ from isaaclab.utils.leapp import (
     target_frame_quat_resolver,
     target_frame_xyz_resolver,
 )
-from isaaclab.utils.warp import ProxyArray
+from ...utils.warp import ProxyArray
 
 
 class BaseFrameTransformerData(ABC):

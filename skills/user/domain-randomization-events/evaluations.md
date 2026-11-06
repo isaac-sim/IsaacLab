@@ -7,6 +7,7 @@
 - Scenario 3: interval disturbance
 - Scenario 4: PhysX and Newton material randomization
 - Scenario 5: direct workflow events
+- Scenario 6: success-driven ADR
 
 ## Scenario 1: Reset Randomization
 
@@ -84,3 +85,17 @@ Known failure modes:
 
 - Claims event terms are only for manager-based environments.
 - Converts the task to manager-based solely to use randomization events.
+
+## Scenario 6: Success-Driven ADR
+
+Query: "Start gravity at zero and automatically ramp it to -9.81 as my lift policy succeeds."
+
+Expected behavior:
+
+- Keeps gravity application in a reset event.
+- Uses a manager-based curriculum to interpolate from zero to full gravity as policy success changes.
+- Uses a task-owned scheduler and validates both endpoint values.
+
+Pass/fail criteria:
+
+- Links the curriculum guide and Core Lift ADR example.

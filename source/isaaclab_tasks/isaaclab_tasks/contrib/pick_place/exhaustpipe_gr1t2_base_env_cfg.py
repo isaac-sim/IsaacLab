@@ -6,12 +6,6 @@
 import tempfile
 from dataclasses import MISSING
 
-from isaaclab_teleop import XrCfg
-
-# Marker consumed by ``env_test_utils._is_teleop_env`` to bucket teleop
-# environments in the test suite.
-_TELEOP_AVAILABLE = True
-
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
@@ -26,9 +20,10 @@ from isaaclab.sensors import CameraCfg
 
 # from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
+from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 
+from isaaclab_tasks.contrib import ISAACLAB_TELEOP_AVAILABLE
 from isaaclab_tasks.utils.presets import set_isaac_rtx_global_settings
 
 from . import mdp
@@ -50,7 +45,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/exhaust_pipe_task/exhaust_pipe_assets/table.usd",
             scale=(1.0, 1.0, 1.3),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
         ),
     )
 
@@ -60,7 +55,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/exhaust_pipe_task/exhaust_pipe_assets/blue_exhaust_pipe.usd",
             scale=(0.5, 0.5, 1.5),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
         ),
     )
 
@@ -70,7 +65,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/exhaust_pipe_task/exhaust_pipe_assets/blue_sorting_bin.usd",
             scale=(1.0, 1.7, 1.0),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
         ),
     )
 
@@ -80,12 +75,13 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/exhaust_pipe_task/exhaust_pipe_assets/black_sorting_bin.usd",
             scale=(1.0, 1.7, 1.0),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
         ),
     )
 
     # Humanoid robot w/ arms higher
-    robot: ArticulationCfg = GR1T2_CFG.replace(
+    robot: ArticulationCfg = replace(
+        GR1T2_CFG,
         prim_path="{ENV_REGEX_NS}/Robot",
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0, 0, 0.93),
@@ -150,7 +146,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         width=256,
         data_types=["rgb"],
         spawn=sim_utils.PinholeCameraCfg(focal_length=18.15, clipping_range=(0.1, 2)),
-        offset=CameraCfg.OffsetCfg(pos=(0.0, 0.12, 1.85418), rot=(0.0, 0.98502, 0.0, -0.17246), convention="ros"),
+        offset=CameraCfg.OffsetCfg(pos=(0.0, 0.12, 1.85418), rot=(0.98502, 0.0, 0.0, -0.17246), convention="ros"),
     )
 
     # Ground plane
@@ -202,8 +198,8 @@ class ObservationsCfg:
         )
 
         robot_pov_cam = ObsTerm(
-            func=mdp.image,
-            params={"sensor_cfg": SceneEntityCfg("robot_pov_cam"), "data_type": "rgb", "normalize": False},
+            func=mdp.image_rgb,
+            params={"sensor_cfg": SceneEntityCfg("robot_pov_cam"), "normalize": False},
         )
 
         def __post_init__(self):
@@ -253,7 +249,7 @@ class ExhaustPipeGR1T2BaseEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the GR1T2 environment."""
 
     # Scene settings
-    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=True)
+    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=1, env_spacing=2.5)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -327,7 +323,10 @@ class ExhaustPipeGR1T2BaseEnvCfg(ManagerBasedRLEnvCfg):
         # List of image observations in policy observations
         self.image_obs_list = ["robot_pov_cam"]
 
-        self.xr = XrCfg(
-            anchor_pos=(0.0, 0.0, 0.0),
-            anchor_rot=(0.0, 0.0, 0.0, 1.0),
-        )
+        if ISAACLAB_TELEOP_AVAILABLE:
+            from isaaclab_teleop import XrCfg
+
+            self.xr = XrCfg(
+                anchor_pos=(0.0, 0.0, 0.0),
+                anchor_rot=(0.0, 0.0, 0.0, 1.0),
+            )

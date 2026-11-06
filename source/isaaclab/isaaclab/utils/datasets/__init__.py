@@ -12,6 +12,6 @@
 Submodule for datasets classes and methods.
 """
 
-from isaaclab.utils.module import lazy_export
+from ..module import lazy_export
 
 lazy_export()

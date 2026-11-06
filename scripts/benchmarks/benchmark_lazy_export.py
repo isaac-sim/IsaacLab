@@ -21,9 +21,9 @@ This script does NOT require Isaac Sim or a GPU.
 
 Usage::
 
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_lazy_export.py
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_lazy_export.py --iterations 20
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_lazy_export.py --tasks Isaac-Velocity-Flat-AnymalD
+    uv run python scripts/benchmarks/benchmark_lazy_export.py
+    uv run python scripts/benchmarks/benchmark_lazy_export.py --iterations 20
+    uv run python scripts/benchmarks/benchmark_lazy_export.py --tasks Isaac-Velocity-Flat-AnymalD
 """
 
 from __future__ import annotations
@@ -32,6 +32,7 @@ import argparse
 import builtins
 import importlib
 import io
+import logging
 import statistics
 import sys
 import time
@@ -45,12 +46,14 @@ with warnings.catch_warnings():
 
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
+logger = logging.getLogger(__name__)
+
 _REPRESENTATIVE_TASKS = [
     "Isaac-Cartpole",
     "Isaac-Humanoid",
     "Isaac-Velocity-Flat-AnymalD",
     "Isaac-Reach-Franka",
-    "Isaac-Lift-Cube-Franka",
+    "IsaacContrib-Lift-Cube-Franka",
     "Isaac-Reorient-KukaAllegro",
     "IsaacContrib-Navigation-Flat-AnymalC",
     "IsaacContrib-Stack-Cube-Franka",
@@ -156,7 +159,7 @@ def main():
     valid = [t for t in tasks if t in gymnasium.registry]
     skipped = [t for t in tasks if t not in gymnasium.registry]
     if skipped:
-        print(f"[WARN] Skipping unregistered tasks: {skipped}")
+        logger.warning(f"Skipping unregistered tasks: {skipped}")
     tasks = valid
 
     if not tasks:

@@ -1,1 +1,0 @@
-CI-only: constrained OVRTX installs in Docker test jobs to the centrally maintained compatible version range.

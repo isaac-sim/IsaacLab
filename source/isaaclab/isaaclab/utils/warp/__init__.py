@@ -12,7 +12,7 @@ import warp as wp
 wp.config.quiet = True
 wp.init()
 
-from isaaclab.utils.module import lazy_export
+from ..module import lazy_export
 
 lazy_export()
 

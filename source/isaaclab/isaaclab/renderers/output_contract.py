@@ -33,7 +33,7 @@ class RenderBufferKind(StrEnum):
     NORMALS = "normals"
     MOTION_VECTORS = "motion_vectors"
     SEMANTIC_SEGMENTATION = "semantic_segmentation"
-    INSTANCE_SEGMENTATION_FAST = "instance_segmentation_fast"
+    INSTANCE_SEGMENTATION = "instance_segmentation"
     INSTANCE_ID_SEGMENTATION_FAST = "instance_id_segmentation_fast"
     SIMPLE_SHADING_CONSTANT_DIFFUSE = "simple_shading_constant_diffuse"
     SIMPLE_SHADING_DIFFUSE_MDL = "simple_shading_diffuse_mdl"
