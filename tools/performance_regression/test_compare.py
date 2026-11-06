@@ -15,7 +15,7 @@ from unittest.mock import patch
 
 from . import cli, compare
 from .contract import Contract, build
-from .metrics import METRICS, PerfSmokeError
+from .metrics import METRICS, PerformanceRegressionError
 from .store import BaselineRow
 
 
@@ -43,8 +43,7 @@ class TestAsvComparison(unittest.TestCase):
         )
 
     def test_relative_regressions_and_improvement(self):
-        # Three baseline samples exercise the CI fallback; twenty permit ASV's
-        # Mann–Whitney test. FPS equality also checks the threshold factor.
+        # Three baseline samples exercise the CI fallback; twenty permit Mann–Whitney testing.
         for count in (3, 20):
             for fps, expected in (
                 (100, compare.PASS),
@@ -158,7 +157,7 @@ class TestAsvComparison(unittest.TestCase):
                     patch.object(cli.contract_mod, "build", return_value=self.contract),
                     patch.object(cli.metrics_mod, "extract", return_value=_measurement(80)),
                     patch.object(cli.store_mod, "is_configured", return_value=configured),
-                    patch.object(cli.store_mod, "read", side_effect=PerfSmokeError("unavailable")),
+                    patch.object(cli.store_mod, "read", side_effect=PerformanceRegressionError("unavailable")),
                 ):
                     status = cli.main(
                         [
@@ -192,11 +191,13 @@ class TestContracts(unittest.TestCase):
         }
         config = bundle["run"]["config"]
         legacy = build(bundle)
+        self.assertEqual(legacy.hash, "9138656bb16b2861")
         config["physics_solvers"] = ["newton_mjwarp"]
         config["physics_coupling"] = None
         self.assertEqual(build(bundle), legacy)
         config.update(physics_solvers=["newton_vbd", "newton_mjwarp", "newton_vbd"], physics_coupling="proxy")
         proxy = build(bundle)
+        self.assertEqual(proxy.hash, "74606f4967b8b0ba")
         self.assertNotEqual(proxy, legacy)
         config["physics_solvers"] = ["newton_mjwarp", "newton_vbd"]
         self.assertEqual(build(bundle), proxy)
@@ -205,7 +206,7 @@ class TestContracts(unittest.TestCase):
         config["physics_backend"] = "newton_kamino"
         config["physics_solvers"] = ["newton_kamino", "newton_mjwarp"]
         del bundle["versions"]["mjwarp"]
-        with self.assertRaisesRegex(compare.PerfSmokeError, "versions.mjwarp"):
+        with self.assertRaisesRegex(compare.PerformanceRegressionError, "versions.mjwarp"):
             build(bundle)
 
 
