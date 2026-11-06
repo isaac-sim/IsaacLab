@@ -16,6 +16,8 @@ from isaaclab.test.utils import DeviceScope, test_devices
 
 from isaaclab_contrib.surface_gripper.newton import SurfaceGripper
 
+pytestmark = pytest.mark.kitless
+
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_box_acquisition_lift_release_and_rebind(device):
@@ -86,7 +88,7 @@ def test_box_acquisition_lift_release_and_rebind(device):
             assert gripper.engaged.all()
             assert gripper.seal_error.max() < 0.006
             assert np.all(manager.backend.state_0.body_q.numpy()[parcels, 2] > half_sizes[:, 2] + 0.12)
-            assert manager.backend.graph is not None
+            assert manager.backend.graphs
 
             gripper.reset(torch.tensor([0], device=device))
             assert gripper.engaged.tolist() == [False, True]
