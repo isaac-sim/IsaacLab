@@ -201,6 +201,7 @@ class OvstageBackend:
         self.clone_env_paths: list[str] = []
         self.population_env_paths: list[str] = []
         self.clone_positions: np.ndarray | None = None
+        self._render_lease_owner = None
         self.resources = contextlib.ExitStack()
         """Release borrowers before paths and stage, in reverse registration order."""
         self.reset()
@@ -252,12 +253,22 @@ class OvstageBackend:
         return ordinal
 
     def close(self) -> None:
-        """Release borrowers, then the path dictionary and stage."""
+        """Release borrowers, then the path dictionary and stage.
+
+        Raises:
+            RuntimeError: If an :class:`~isaaclab_ov.renderers.OvLibrariesRenderLease` is active.
+        """
+        if self._render_lease_owner is not None:
+            raise RuntimeError("Cannot destroy or reset a stage with an active render lease")
         self.resources.close()
         self.stage = self.paths = None
 
     def reset(self) -> None:
-        """Recreate the native stage after all consumers detach, retaining the prepared clone operations."""
+        """Recreate the native stage after all consumers detach, retaining the prepared clone operations.
+
+        Raises:
+            RuntimeError: If an :class:`~isaaclab_ov.renderers.OvLibrariesRenderLease` is active.
+        """
         self.close()
         self.ordinal = self.next_camera_id = 0
         with contextlib.ExitStack() as resources:
