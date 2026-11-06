@@ -21,6 +21,12 @@ dependencies = [
     "isaaclab",
 ]
 
+# AgiBot's redundant-arm IK solver (Ik7dController / Ik7dAction). Not on PyPI: install the shipped cp312/x86_64 wheel first, and put a GCC 13 libstdc++ (GLIBCXX_3.4.31) on LD_LIBRARY_PATH at runtime -- a constraint pip cannot express.
+[project.optional-dependencies]
+ik-7d = [
+    "ik_7d==0.3.5",
+]
+
 [tool.uv.sources]
 isaaclab = { path = "../isaaclab", editable = true }
 
