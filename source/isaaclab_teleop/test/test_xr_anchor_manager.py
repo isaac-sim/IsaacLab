@@ -27,6 +27,7 @@ def test_near_plane_reaches_xr_profiles(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
         xr_anchor_manager, "carb", SimpleNamespace(settings=SimpleNamespace(get_settings=lambda: settings))
     )
+    monkeypatch.setattr(xr_anchor_manager, "has_kit", lambda: True)
     monkeypatch.setattr(xr_anchor_manager, "XRCore", None)
     monkeypatch.setattr(xr_anchor_manager, "_xr_anchor_prim_exists", lambda _: True)
 
