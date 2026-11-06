@@ -199,7 +199,7 @@ you can import from ``isaaclab_physx.sensors``:
    # Direct PhysX implementation imports
    from isaaclab_physx.sensors import ContactSensor, ContactSensorData
    from isaaclab_physx.sensors import Imu, ImuData
-   from isaaclab_physx.sensors import Pva, PvaData
+   from isaaclab_physx.sensors import Pva, PvaData  # Direct PvaData use is deprecated; prefer sensor.data
    from isaaclab_physx.sensors import FrameTransformer, FrameTransformerData
    from isaaclab_physx.sensors import JointWrenchSensor, JointWrenchSensorData
 
@@ -1080,20 +1080,22 @@ removed in a future release.
 
 .. rubric:: Actuator effort and joint-limit names
 
-Actuator configurations now use joint-qualified names for solver limits. Update active
-configurations to the canonical fields below. The former names remain accepted with a
-``DeprecationWarning`` and will be removed in 3.1.
+Actuator configurations use joint-qualified names for solver limits. The aliases deprecated
+in 3.0 were removed in 3.1. Update configurations to the canonical fields below.
 
 .. list-table:: Actuator limit migration
    :header-rows: 1
    :widths: 38 38 24
 
-   * - Deprecated configuration field
+   * - Removed configuration field
      - Canonical configuration field
      - Runtime owner
    * - ``effort_limit``
      - ``actuator_effort_limit``
      - Actuator model (rated limit)
+   * - ``velocity_limit``
+     - ``actuator_velocity_limit``
+     - Actuator model (rated speed)
    * - ``effort_limit_sim``
      - ``joint_effort_limit``
      - :attr:`~isaaclab.assets.ArticulationData.joint_effort_limits`
@@ -1103,13 +1105,16 @@ configurations to the canonical fields below. The former names remain accepted w
 
 ``actuator_effort_limit`` clips explicit actuator-model output. ``joint_effort_limit`` and
 ``joint_velocity_limit`` are construction-time joint-property overrides selected by an actuator
-group's joint expression. The deprecated aliases ``effort_limit``, ``velocity_limit``,
-``effort_limit_sim``, and ``velocity_limit_sim`` remain accepted until 3.1. ``effort_limit``
-resolves to the rated ``actuator_effort_limit`` for every actuator type. For an implicit group
-without a separately configured solver clamp, the rated value also populates
-``joint_effort_limit`` for backward compatibility; configure both fields to author distinct
-rated and solver limits. The runtime ``effort_limit`` and ``velocity_limit`` group properties
-follow the same mapping and are also deprecated.
+group's joint expression. Replace the runtime ``effort_limit`` and ``velocity_limit`` group
+properties with ``actuator_effort_limit`` and ``actuator_velocity_limit`` as well.
+For an implicit group that previously set only ``effort_limit``, set both
+``actuator_effort_limit`` and ``joint_effort_limit`` to preserve the rated and solver limits.
+If it previously set only ``velocity_limit_sim``, set both ``joint_velocity_limit`` and
+``actuator_velocity_limit`` to preserve the solver clamp and soft velocity limit.
+
+Direct actuator constructors also require the canonical argument names. Replace ``effort_limit``
+with ``actuator_effort_limit`` for explicit actuators or ``joint_effort_limit`` for implicit
+actuators, and replace ``velocity_limit`` with ``actuator_velocity_limit``.
 ``actuator_velocity_limit`` describes rated speed or an implicit soft-limit snapshot.
 ``joint_velocity_limit`` only requests solver enforcement, which is backend-dependent. See
 :ref:`actuators-joint-property-ownership` for the full ownership model.
@@ -1171,7 +1176,7 @@ same resolution semantics as a standalone function:
            self.my_gain = resolve_joint_parameter(cfg.my_gain, 0.0, joint_names, num_envs, device)
 
 The backend articulation methods ``write_actuator_stiffness_to_sim`` and
-``write_actuator_damping_to_sim`` are deprecated. Use
+``write_actuator_damping_to_sim`` were removed in 3.1. Use
 :func:`~isaaclab.envs.mdp.events.randomize_actuator_gains` for managed gain randomization; it
 updates actuator-owned gains, implicit solver drives, or native drive parameters as
 appropriate. For direct writes to a Newton-executed group's drive, use
@@ -1179,9 +1184,8 @@ appropriate. For direct writes to a Newton-executed group's drive, use
 from ``"controller"`` to follow the Newton 1.6 drive API. ``"controller"`` remains a deprecated alias that
 warns and will be removed in 3.2.
 
-Named regular-expression groups retain their configuration behavior. If both a deprecated name and
-its canonical replacement are present in the same group, use only the canonical name; equivalent
-values warn and select the canonical value, whereas conflicting values raise :class:`ValueError`.
+Named regular-expression groups retain their configuration behavior; use the canonical field
+names in each group.
 
 
 .. rubric:: Actuator API Moves to ``ActuatorCollection``
@@ -1546,6 +1550,42 @@ The ``gravity_bias`` configuration parameter has been removed from both sensors:
 The new ``ImuData`` only provides ``ang_vel_b`` and ``lin_acc_b``. If you were accessing other
 properties (``pos_w``, ``quat_w``, ``lin_vel_b``, ``ang_acc_b``, ``projected_gravity_b``), switch
 to :class:`~isaaclab.sensors.PvaData` which provides all of them.
+
+
+.. rubric:: Shared PVA data and backend capabilities
+
+Import ``PvaData`` from ``isaaclab.sensors`` for direct construction, or read
+measurements through ``sensor.data``. Backend-specific ``PvaData`` classes and
+``BasePvaData`` remain importable without warnings. Direct use of the legacy
+classes is deprecated in their API documentation; no removal release is scheduled.
+``PvaCfg.data_types`` defaults to ``["pose", "velocity", "acceleration", "projected_gravity"]``.
+Pose is required, while each remaining group can be omitted:
+
+.. code-block:: python
+
+   pva_cfg = PvaCfg(prim_path="{ENV_REGEX_NS}/Robot/base", data_types=["pose", "velocity"])
+
+The backend's ``supported_data_types`` declares what it can produce. Unsupported requests
+fail before callback registration or native resource creation. Reading a disabled output
+raises ``NotImplementedError``; enabled properties return ``None`` before data allocation.
+Acceleration includes linear and angular coordinate acceleration and still requires native
+angular velocity for transport, even with velocity output disabled. Debug visualization
+requires the acceleration output. A Newton pose-only sensor does not request ``body_qdd``.
+
+Pose, position and quaternion now share one allocation, as do each linear/angular pair.
+Their Warp/Torch views may be noncontiguous, mutations are shared, and reading a property
+launches no packing kernel. Copy explicitly when independent or contiguous storage is needed.
+Reinitialization creates new allocations and proxies; cached old views retain their old storage.
+Initialization, reset and STOP now establish identity pose, zero velocity/acceleration and
+projected gravity along -Z until the next sample. This deliberately standardizes the previous
+Newton zero-gravity initialization and zero-quaternion STOP state, and clears stale OV/PhysX
+measurements on STOP.
+
+A new backend can advertise fewer groups and select the corresponding generated kernel
+once during construction. Extensions advertise additional groups on their sensor class;
+their backend data subclass may own additional storage, getters, updates and resets.
+The shared storage's ``data_types`` describes its standard groups. Native gathering
+and input layouts remain backend-owned.
 
 
 .. rubric:: Sensor Pose Properties Deprecation

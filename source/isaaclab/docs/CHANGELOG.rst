@@ -3,6 +3,62 @@ Changelog
 
 .. towncrier release notes start
 
+44.0.1 (2026-11-06)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removed the no-op process-wide Gaussian skip-tonemapping setting and warning for OVRTX in
+  :class:`~isaaclab.sensors.Camera`; the OVRTX renderer now authors the setting on its render product.
+* Delegated Isaac RTX rendering policy from camera construction to the renderer.
+
+
+44.0.0 (2026-11-05)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added capability-aware shared PVA output storage and generated optional-output kernels.
+* Construct and compile optional PVA updates on demand through cached factories. Using one feature subset or resetting a sensor does not construct or compile unused update variants.
+* Shared PVA output storage across backend data classes. Pose and spatial components now share storage; initialize/reset/STOP use common valid defaults.
+* Reused core IMU, frame-transformer, and sensor-reset operations while retaining backend-native acquisition.
+
+Deprecated
+^^^^^^^^^^
+
+* Marked direct use of BasePvaData as deprecated in its API documentation. Imports remain available without warnings; read measurements through the sensor's data property.
+
+Fixed
+^^^^^
+
+* Fixed :func:`~isaaclab.sensors.camera.utils.create_pointcloud_from_depth` and
+  :func:`~isaaclab.sensors.camera.utils.create_pointcloud_from_rgbd` keeping pixels with zero depth as points at
+  the camera position when invalid points are removed. Zero depth now counts as invalid, as documented, and the
+  colors from :func:`~isaaclab.sensors.camera.utils.create_pointcloud_from_rgbd` stay aligned with the kept points.
+* Fixed :class:`~isaaclab.utils.datasets.HDF5DatasetFileHandler` dataset files staying locked after closing when a
+  child process was started while they were open, which made reopening them fail with ``BlockingIOError``.
+
+
+43.0.1 (2026-11-04)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Reduced ray-caster memory use and ray-transform bandwidth by sharing the fixed local ray pattern
+  across sensor instances. The local ``ray_starts`` and ``ray_directions`` arrays became read-only
+  broadcast views; patterns should be configured through ``pattern_cfg`` before initialization.
+
+Fixed
+^^^^^
+
+* Fixed the first reset with PhysX physics taking many minutes on a machine without cached GPU kernels. Capturing the
+  Newton actuator graphs forced Warp to load and compile every imported module; it now loads only the kernels it
+  records.
+
+
 43.0.0 (2026-11-03)
 ~~~~~~~~~~~~~~~~~~~
 

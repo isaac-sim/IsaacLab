@@ -127,19 +127,38 @@ The Step
 
 Each :meth:`~isaaclab_newton.physics.NewtonManager.step` covers the whole decimation loop when the manager handles
 decimation (:meth:`~isaaclab_newton.physics.NewtonManager.handles_decimation`: an articulation runs its Newton
-actuators in the step and all of them are CUDA-graph-safe), and one physics step otherwise. In the first case every
-physics step runs ``collide -> pre-actuator callbacks -> Newton actuators -> post-actuator callbacks -> substeps``,
-and post-step callbacks and sensors run once at the end. Otherwise the actuators and their callbacks run eagerly once,
-followed by ``collide -> substeps -> post-step callbacks -> sensors``. Every substep runs ``staged body forces ->
-state-force callbacks -> step``, and ``pre_step`` and ``post_step`` run around each physics step's substeps.
+actuators in the step), and one physics step otherwise. Every physics step runs ``collide -> pre-actuator callbacks
+-> Newton actuators -> post-actuator callbacks -> substeps``, and post-step callbacks and sensors run once at the end.
+Every substep runs ``staged body forces -> state-force callbacks -> step``, and ``pre_step`` and ``post_step`` run
+around each physics step's substeps.
 
 Every physics step ends in ``state_0``, so ``manager.backend.state_0`` is always the same object. The captured step
 records the callbacks, so they must be graph-safe. Consumers register them with
 :meth:`~isaaclab_newton.physics.NewtonManager.register_post_step_callback` and its siblings while ``PHYSICS_READY``
 dispatches.
 
-Property writers call :meth:`~isaaclab_newton.physics.NewtonManager.add_model_change`; the manager commits the queued
-categories once at the next step.
+Property writers call :meth:`~isaaclab_newton.physics.NewtonManager.add_model_change`. The backend combines the
+queued categories and refreshes solver constants once before the next ``forward()``, scene-data state read, or step.
+
+:meth:`~isaaclab_newton.physics.NewtonBackend.invalidate_fk` takes selections in the articulation view's row space
+and uses ``model.articulation_world`` to flag the containing worlds. A view over a subset of worlds therefore resets
+the selected worlds, while a global articulation requests FK without resetting the global world.
+
+
+Captured Work
+-------------
+
+:meth:`~isaaclab_newton.physics.NewtonBackend.step` runs its parts eagerly the first time and, when the solver
+supports capture, captures them with ``wp.ScopedCapture`` and replays them with ``wp.capture_launch``. With
+capture-safe actuators the whole decimation loop is one graph. Newton actuators that cannot be captured, such as Torch
+networks, run eagerly between a captured graph before them and one after them in every physics step. Registering a
+step callback or reallocating contacts captures the step again at the next call. When a step, BVH refit or sensor
+query runs inside an enclosing Warp capture, it records its work into that capture instead of starting its own;
+recorded BVH refits run on every replay.
+
+``backend.live`` is true during a step and while a CUDA graph is being recorded. Derived asset properties then
+recompute on every read, so callbacks see the current substep state and graph replays update their outputs. Outside
+these intervals, the usual timestamp caches avoid repeated work.
 
 
 Extension Contract
