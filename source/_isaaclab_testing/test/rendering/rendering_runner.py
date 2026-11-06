@@ -220,6 +220,13 @@ def run_rendering_case(
         assert not failures, "\n".join([f"{case.id} failed:", *failures])
 
 
+def run_kitless_rendering_case(stage_variant: str, case: RenderCase, request: Any, monkeypatch: Any) -> None:
+    """Apply the ``stage_variant`` setting and run one kitless rendering case."""
+    monkeypatch.delenv("ISAAC_LAB_SHARE_OVSTAGE", raising=False)
+    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", str(int(stage_variant == "ovstage")))
+    run_rendering_case(case, request, golden_namespace=None, artifact_namespace=stage_variant)
+
+
 def validate_segmentation(
     outputs: dict[str, torch.Tensor],
     info: dict[str, Any] | None,
