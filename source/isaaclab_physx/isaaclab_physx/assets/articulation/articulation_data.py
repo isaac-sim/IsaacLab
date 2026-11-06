@@ -1057,9 +1057,9 @@ class ArticulationData(BaseArticulationData):
         """See :attr:`isaaclab.assets.BaseArticulationData.mass_matrix`."""
         if self._mass_matrix.timestamp < self._sim_timestamp:
             source = self._root_view.get_generalized_mass_matrices()
+            if self._mass_matrix.data is None:
+                self._mass_matrix.data = ProxyArray(wp.empty_like(source))
             if self.has_joint_ordering or self._has_reversed_joints:
-                if self._mass_matrix.data is None:
-                    self._mass_matrix.data = ProxyArray(wp.empty_like(source))
                 self._read_launch_cache.launch(
                     "mass_matrix",
                     wp.launch,
@@ -1074,8 +1074,12 @@ class ArticulationData(BaseArticulationData):
                     ],
                     outputs=[self._mass_matrix.data],
                 )
-            elif self._mass_matrix.data is None:
-                self._mass_matrix.data = ProxyArray(source)
+            else:
+                wp.copy(self._mass_matrix.data.warp, source)
+            # PhysX mass-matrix queries omit the joint armature used by the solver (PhysX#575).
+            self._mass_matrix.data.torch.diagonal(dim1=-2, dim2=-1)[:, self._num_base_dofs :].add_(
+                self.joint_armature.torch
+            )
             self._mass_matrix.timestamp = self._sim_timestamp
         return self._mass_matrix.data
 

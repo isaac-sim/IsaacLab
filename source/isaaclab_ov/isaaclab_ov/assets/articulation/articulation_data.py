@@ -1148,6 +1148,10 @@ class ArticulationData(BaseArticulationData):
                 )
             else:
                 self._binding_read(TT.MASS_MATRIX, self._mass_matrix.data.warp)
+            # PhysX mass-matrix queries omit the joint armature used by the solver (PhysX#575).
+            self._mass_matrix.data.torch.diagonal(dim1=-2, dim2=-1)[:, self._num_base_dofs :].add_(
+                self.joint_armature.torch
+            )
             self._mass_matrix.timestamp = self._sim_timestamp
         return self._mass_matrix.data
 
