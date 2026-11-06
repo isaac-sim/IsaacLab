@@ -388,7 +388,7 @@ class Articulation(BaseArticulation):
 
     @property
     def supports_graph_capture(self) -> bool:
-        """Whether :meth:`write_data_to_sim` can be recorded: no actuator model runs in Torch and no fixed tendon."""
+        """Whether :meth:`write_data_to_sim` can be recorded: no Torch actuators and no fixed tendons."""
         return self.actuators.supports_graph_capture and self._fixed_tendon_control is None
 
     def write_data_to_sim(self):
@@ -3303,11 +3303,10 @@ class Articulation(BaseArticulation):
         self._num_shapes_per_body_backend: list[int] | None = None
 
         # external wrench composer
-        self._instantaneous_wrench_composer = WrenchComposer(self)
-        self._permanent_wrench_composer = WrenchComposer(self)
-        for composer in (self._instantaneous_wrench_composer, self._permanent_wrench_composer):
-            # a captured step records wrench work only once forces are written, so it is captured again then
-            composer.on_first_use = self._backend_manager.backend.invalidate_graph
+        # a captured step records wrench work only once forces are written, so it is captured again then
+        invalidate_graph = self._backend_manager.backend.invalidate_graph
+        self._instantaneous_wrench_composer = WrenchComposer(self, on_first_use=invalidate_graph)
+        self._permanent_wrench_composer = WrenchComposer(self, on_first_use=invalidate_graph)
 
         # asset named data
         self._resolve_and_install_ordering_maps()

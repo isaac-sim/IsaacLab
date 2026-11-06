@@ -32,6 +32,7 @@ class WrenchComposer:
         asset: BaseArticulation | BaseRigidObject | BaseRigidObjectCollection,
         *,
         supports_world_at_com: bool = False,
+        on_first_use: Callable[[], None] | None = None,
     ) -> None:
         """Wrench composer with dual-buffer architecture.
 
@@ -60,6 +61,8 @@ class WrenchComposer:
             supports_world_at_com: Whether the consumer can apply a world-frame wrench at the body's
                 center of mass. When False, :meth:`get_forces_and_torques` always returns a body-frame
                 wrench. Defaults to False.
+            on_first_use: Called at the first write of forces or torques, e.g. to capture the step again with the
+                wrench work. Defaults to None.
         """
         self.num_envs = asset.num_instances
         self.num_bodies = asset.num_bodies
@@ -68,8 +71,7 @@ class WrenchComposer:
         self._active = False
         self._dirty = False
         self._used = False
-        self.on_first_use: Callable[[], None] | None = None
-        """Called at the first write of forces or torques, e.g. to record the wrench work into a captured step."""
+        self._on_first_use = on_first_use
         self._supports_world_at_com = supports_world_at_com
         # Conservative until a full reset; partial resets do not scan the remaining buffers.
         self._has_local_wrench = False
@@ -120,17 +122,15 @@ class WrenchComposer:
 
     @property
     def pending(self) -> bool:
-        """Whether a writer must apply the buffered wrench now.
+        """Whether a writer must apply the wrench now: :attr:`active`, or always while recording after first use.
 
-        Outside graph capture this is :attr:`active`. While a CUDA graph is recorded on the composer's device, it is
-        whether forces or torques were ever written, and the recorded work no longer depends on host flags: every
-        replay adds, composes and clears the buffers whatever they hold.
+        Recorded wrench work does not depend on host flags; every replay adds, composes and clears the buffers.
         """
         return self._recording or self._active
 
     @property
     def _recording(self) -> bool:
-        """Whether a CUDA graph records this composer's work after its first write."""
+        """Whether a CUDA graph is recording this composer's work after its first write."""
         return self._used and wp.get_device(self.device).is_capturing
 
     @property
@@ -677,8 +677,8 @@ class WrenchComposer:
         self._dirty = True
         if not self._used:
             self._used = True
-            if self.on_first_use is not None:
-                self.on_first_use()
+            if self._on_first_use is not None:
+                self._on_first_use()
         if is_global:
             self._has_global_wrench = True
             self._has_global_positions = self._has_global_positions or (forces is not None and positions is not None)
