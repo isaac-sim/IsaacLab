@@ -25,6 +25,8 @@ logger = logging.getLogger(__name__)
 class KaminoSolver(NewtonSolver):
     """Newton's Kamino solver, which resets its internals through forward kinematics."""
 
+    cfg: _KaminoSolverCfgBase
+
     solver_class = SolverKamino
 
     @classmethod

@@ -203,6 +203,8 @@ def mpm_solver_config(cfg: MPMSolverCfg) -> SolverImplicitMPM.Config:
 class MPMSolver(NewtonSolver):
     """Newton's implicit MPM solver, which steps particle materials in place on one state."""
 
+    cfg: MPMSolverCfg
+
     solver_class = SolverImplicitMPM
     single_state = True
 

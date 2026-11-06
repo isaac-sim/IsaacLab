@@ -25,6 +25,8 @@ if TYPE_CHECKING:
 class CoupledMJWarpVBDSolver(NewtonSolver):
     """Couple MJWarp rigid bodies with VBD deformables, each built from its own configuration."""
 
+    cfg: CoupledMJWarpVBDSolverCfg
+
     contact_sensors = False
 
     @classmethod

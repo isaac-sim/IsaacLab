@@ -29,6 +29,8 @@ _SENSORS_BY_STATE_ATTRIBUTE = {"body_qdd": "the IMU or PVA sensor", "body_parent
 class MJWarpSolver(NewtonSolver):
     """Newton's MuJoCo Warp solver, which steps in place on one state."""
 
+    cfg: MJWarpSolverCfg
+
     solver_class = SolverMuJoCo
     single_state = True
     deterministic = True
@@ -119,7 +121,8 @@ class MJWarpSolver(NewtonSolver):
         if np.max(niter) == solver.mjw_model.opt.iterations:
             logger.warning(f"Solver didn't converge! max_iter={np.max(niter)}")
 
-    def fixed_tendon_control(self, articulation, model: Model) -> MjWarpTendonControl | None:
+    @classmethod
+    def fixed_tendon_control(cls, cfg: MJWarpSolverCfg, articulation, model: Model) -> MjWarpTendonControl | None:
         """Build the MuJoCo tendon adapter, or ``None`` when no MuJoCo actuator drives the articulation's tendons."""
         from .mjwarp_tendon_control import create_mjwarp_tendon_control
 

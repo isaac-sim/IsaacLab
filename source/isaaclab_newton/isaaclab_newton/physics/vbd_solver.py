@@ -22,6 +22,8 @@ if TYPE_CHECKING:
 class VBDSolver(NewtonSolver):
     """Newton's Vertex Block Descent solver."""
 
+    cfg: VBDSolverCfg
+
     solver_class = SolverVBD
 
     @classmethod

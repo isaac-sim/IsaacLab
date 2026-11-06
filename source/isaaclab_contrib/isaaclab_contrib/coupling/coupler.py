@@ -268,6 +268,8 @@ def _validate_no_cross_entry_proxy_joints(model: Model, entries: dict[str, _Reso
 class CouplerSolver(NewtonSolver):
     """Couple named entries, each built from its own solver configuration on its model view."""
 
+    cfg: CouplerCfg
+
     contact_sensors = False
 
     @classmethod

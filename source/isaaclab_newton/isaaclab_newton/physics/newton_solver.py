@@ -169,7 +169,8 @@ class NewtonSolver:
 
     # ----- Consumers -----
 
-    def fixed_tendon_control(self, articulation: Any, model: Model) -> Any:
+    @classmethod
+    def fixed_tendon_control(cls, cfg: NewtonSolverCfg, articulation: Any, model: Model) -> Any:
         """Build the fixed-tendon command adapter of an articulation, or ``None`` when no tendon is driven."""
         raise NotImplementedError(
             "The configured solver does not drive fixed tendons. Fixed-tendon targets require a solver that transmits"
