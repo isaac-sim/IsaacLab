@@ -10,13 +10,14 @@ from __future__ import annotations
 import glob
 import logging
 import os
+from collections.abc import Sequence
 
 import torch
 import torch.nn as nn
 import torchvision
 
 from isaaclab.sensors import save_images_to_file
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, index_fill_
 from isaaclab.utils.assets import retrieve_file_path
 
 logger = logging.getLogger(__name__)
@@ -128,6 +129,15 @@ class FeatureExtractorCfg:
     train: bool = True
     """If True, the feature extractor model is trained during the rollout process. Default is True."""
 
+    image_update_frames: int = 1
+    """Camera captures per generated RGB update after the initial image, as the image transfer is configured.
+
+    Training only distinguishes one from more than one. Values greater than one hold each view's pose target
+    from the step its image appears until that image changes, and skip views whose image is black, such as a
+    view waiting for its first generated image after a reset. Views may update at different captures. The
+    Cosmos presets require it to equal the Cosmos ``update_frames``. Default is 1.
+    """
+
     load_checkpoint: bool = False
     """If True, the feature extractor model is loaded from a checkpoint. Default is False."""
 
@@ -192,6 +202,10 @@ class FeatureExtractor:
         self.cfg = cfg
         self.device = device
         self.data_types = data_types
+        if type(cfg.image_update_frames) is not int or cfg.image_update_frames < 1:
+            raise ValueError("Feature extractor image_update_frames must be a positive integer.")
+        self._image_target_pose: torch.Tensor | None = None
+        self._held_images: torch.Tensor | None = None
 
         # Compute total input channels from the camera data types.
         num_channel = sum(_DATA_TYPE_CHANNELS.get(dt, 3) for dt in data_types)
@@ -221,6 +235,17 @@ class FeatureExtractor:
             self.feature_extractor.train()
         else:
             self.feature_extractor.eval()
+
+    def reset(self, env_ids: torch.Tensor | Sequence[int] | None = None) -> None:
+        """Forget the held images of camera views beginning a new episode.
+
+        The next image these views show takes a new pose target, even if it matches the previous one.
+
+        Args:
+            env_ids: Rows to reset. None resets all rows.
+        """
+        if self._held_images is not None:
+            index_fill_(self._held_images, env_ids, 0)
 
     def _preprocess_images(self, camera_output: dict[str, torch.Tensor]) -> torch.Tensor:
         """Preprocesses and concatenates camera images into a single tensor.
@@ -281,7 +306,9 @@ class FeatureExtractor:
             save_images_to_file(img, f"shadow_hand_{dt}.png")
 
     def step(
-        self, camera_output: dict[str, torch.Tensor], gt_pose: torch.Tensor
+        self,
+        camera_output: dict[str, torch.Tensor],
+        gt_pose: torch.Tensor,
     ) -> tuple[torch.Tensor | None, torch.Tensor]:
         """Extracts features and optionally trains the CNN.
 
@@ -296,9 +323,9 @@ class FeatureExtractor:
             gt_pose: Ground truth pose tensor (position and keypoint corners). Shape: (N, 27).
 
         Returns:
-            tuple[torch.Tensor | None, torch.Tensor]: Pose loss (``None`` when not training
-                or when the network is disabled) and the predicted pose embedding of shape
-                (N, 27).
+            tuple[torch.Tensor | None, torch.Tensor]: Pose loss (``None`` when not training,
+                when the network is disabled, or when every view's held image is black) and the
+                predicted pose embedding of shape (N, 27).
         """
         if self.cfg.write_image_to_file:
             self._save_images(camera_output)
@@ -312,11 +339,32 @@ class FeatureExtractor:
         if self.cfg.train:
             with torch.enable_grad():
                 with torch.inference_mode(False):
-                    self.optimizer.zero_grad()
+                    trained = None
+                    if self.cfg.image_update_frames > 1:
+                        # A generated image is held across captures, and views update at different
+                        # captures after independent resets. Pair each image with the pose of the step
+                        # it appeared, and skip views that are still black.
+                        images = img_input.detach()
+                        if self._held_images is None:
+                            self._held_images = torch.zeros_like(images)
+                            self._image_target_pose = gt_pose.detach().clone()
+                        changed = (images != self._held_images).flatten(start_dim=1).any(dim=1)
+                        self._image_target_pose = torch.where(
+                            changed[:, None], gt_pose.detach(), self._image_target_pose
+                        )
+                        self._held_images.copy_(images)
+                        gt_pose = self._image_target_pose
+                        trained = images.flatten(start_dim=1).any(dim=1)
 
                     predicted_pose = self.feature_extractor(img_input)
-                    pose_loss = self.l2_loss(predicted_pose, gt_pose.clone()) * 100
+                    if trained is None:
+                        pose_loss = self.l2_loss(predicted_pose, gt_pose.clone()) * 100
+                    elif trained.any():
+                        pose_loss = self.l2_loss(predicted_pose[trained], gt_pose[trained]) * 100
+                    else:
+                        return None, predicted_pose
 
+                    self.optimizer.zero_grad()
                     pose_loss.backward()
                     self.optimizer.step()
 
