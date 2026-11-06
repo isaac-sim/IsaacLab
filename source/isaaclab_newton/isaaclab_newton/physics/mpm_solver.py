@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import re
 import warnings
 from typing import TYPE_CHECKING
 
@@ -22,141 +21,7 @@ from .mpm_solver_cfg import MPMSolverCfg
 from .newton_solver import NewtonSolver
 
 if TYPE_CHECKING:
-    from pxr import Usd
-
     from .newton_backend import NewtonBackend
-
-
-def _canonical_collider_velocity_mode(solver_cfg: MPMSolverCfg) -> str:
-    """Resolve deprecated collider-velocity aliases used by older configurations."""
-    collider_velocity_mode = solver_cfg.collider_velocity_mode
-    deprecated_velocity_modes = {
-        "instantaneous": "forward",
-        "finite_difference": "backward",
-    }
-    if replacement := deprecated_velocity_modes.get(collider_velocity_mode):
-        warnings.warn(
-            f"collider_velocity_mode={collider_velocity_mode!r} is deprecated; use {replacement!r} instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        collider_velocity_mode = replacement
-    return collider_velocity_mode
-
-
-def _make_solver_config(solver_cfg: MPMSolverCfg, scene_prim: Usd.Prim | None = None) -> SolverImplicitMPM.Config:
-    """Build Newton's implicit MPM config, consuming authored USD when available."""
-    collider_velocity_mode = _canonical_collider_velocity_mode(solver_cfg)
-    values = {
-        "max_iterations": solver_cfg.max_iterations,
-        "tolerance": solver_cfg.tolerance,
-        "solver": solver_cfg.solver,
-        "warmstart_mode": solver_cfg.warmstart_mode,
-        "collider_velocity_mode": collider_velocity_mode,
-        "voxel_size": solver_cfg.voxel_size,
-        "grid_type": solver_cfg.grid_type,
-        "grid_padding": solver_cfg.grid_padding,
-        "max_active_cell_count": solver_cfg.max_active_cell_count,
-        "max_leaf_node_count": solver_cfg.max_leaf_node_count,
-        "max_lower_node_count": solver_cfg.max_lower_node_count,
-        "max_upper_node_count": solver_cfg.max_upper_node_count,
-        "separate_worlds": solver_cfg.separate_worlds,
-        "transfer_scheme": solver_cfg.transfer_scheme,
-        "integration_scheme": solver_cfg.integration_scheme,
-        "critical_fraction": solver_cfg.critical_fraction,
-        "air_drag": solver_cfg.air_drag,
-        "collider_normal_from_sdf_gradient": solver_cfg.collider_normal_from_sdf_gradient,
-        "collider_basis": solver_cfg.collider_basis,
-        "strain_basis": solver_cfg.strain_basis,
-        "velocity_basis": solver_cfg.velocity_basis,
-    }
-    if scene_prim is None:
-        return SolverImplicitMPM.Config(**values)
-
-    config = SolverImplicitMPM.Config.create_from_usd(scene_prim)
-    # Retain the cfg's Python values after validating the authored schema. USD
-    # float attributes otherwise quantize grid-sensitive values to float32.
-    for name, value in values.items():
-        setattr(config, name, value)
-    return config
-
-
-def _author_mpm_scene_config(scene_prim: Usd.Prim, solver_cfg: MPMSolverCfg) -> None:
-    """Author schema-representable MPM solver settings on a physics scene."""
-    from pxr import Sdf, Vt  # noqa: PLC0415
-
-    # Preserve the raw API metadata when Kit's registry predates the installed codeless schemas.
-    if not scene_prim.AddAppliedSchema("NewtonMPMSceneAPI"):
-        raise RuntimeError(f"Failed to apply NewtonMPMSceneAPI to '{scene_prim.GetPath()}'.")
-
-    rheology_solvers = (solver_cfg.solver,) if isinstance(solver_cfg.solver, str) else solver_cfg.solver
-
-    attributes = {
-        "newton:maxSolverIterations": solver_cfg.max_iterations,
-        "newton:mpm:tolerance": solver_cfg.tolerance,
-        "newton:mpm:rheologySolvers": Vt.TokenArray(rheology_solvers),
-        "newton:mpm:voxelSize": solver_cfg.voxel_size,
-        "newton:mpm:gridType": solver_cfg.grid_type,
-        "newton:mpm:gridPadding": solver_cfg.grid_padding,
-        "newton:mpm:maxActiveCellCount": solver_cfg.max_active_cell_count,
-        "newton:mpm:transferScheme": solver_cfg.transfer_scheme,
-        "newton:mpm:integrationScheme": solver_cfg.integration_scheme,
-        "newton:mpm:criticalFraction": solver_cfg.critical_fraction,
-        "newton:mpm:airDrag": solver_cfg.air_drag,
-    }
-    attributes.update(_basis_attributes("collider", solver_cfg.collider_basis))
-    attributes.update(_basis_attributes("strain", solver_cfg.strain_basis))
-    attributes.update(_basis_attributes("velocity", solver_cfg.velocity_basis))
-    for name, value in attributes.items():
-        if name == "newton:mpm:rheologySolvers":
-            type_name = Sdf.ValueTypeNames.TokenArray
-        elif isinstance(value, bool):
-            type_name = Sdf.ValueTypeNames.Bool
-        elif isinstance(value, int):
-            type_name = Sdf.ValueTypeNames.Int
-        elif isinstance(value, str):
-            type_name = Sdf.ValueTypeNames.Token
-        else:
-            type_name = Sdf.ValueTypeNames.Float
-        scene_prim.CreateAttribute(name, type_name, custom=False, variability=Sdf.VariabilityUniform).Set(value)
-
-
-def _basis_attributes(prefix: str, basis: str) -> dict[str, object]:
-    """Expand a compact Newton basis name into newton-usd-schemas attributes."""
-    if basis.startswith("pic"):
-        if prefix == "velocity":
-            raise ValueError("The MPM velocity basis cannot use a particle basis.")
-        basis_type, order, discontinuous = "particle", 0, False
-    else:
-        matched = re.fullmatch(r"([PQBS])([0-9]+)(d?)", basis)
-        if matched is None:
-            raise ValueError(f"Unsupported MPM {prefix} basis {basis!r}.")
-        basis_prefix = matched.group(1)
-        order = int(matched.group(2))
-        discontinuous = order == 0 or bool(matched.group(3))
-        if basis_prefix == "P" and order > 0 and not discontinuous:
-            raise ValueError(f"Unsupported MPM {prefix} basis {basis!r}: positive-order P bases must be discontinuous.")
-        if (prefix == "strain" and basis_prefix in "BS") or (
-            prefix == "velocity" and (basis_prefix not in "QB" or not 1 <= order <= 3)
-        ):
-            return {}
-        if basis_prefix in "BS" and not 1 <= order <= 3:
-            return {}
-        basis_type = {
-            "P": "linear",
-            "Q": "trilinear",
-            "B": "bspline",
-            "S": "serendipity",
-        }[basis_prefix]
-
-    namespace = f"newton:mpm:{prefix}"
-    attributes: dict[str, object] = {
-        f"{namespace}BasisType": basis_type,
-        f"{namespace}BasisOrder": order,
-    }
-    if prefix != "velocity":
-        attributes[f"{namespace}DiscontinuousBasis"] = discontinuous
-    return attributes
 
 
 def implicit_mpm_solvers(solver: SolverBase | None) -> tuple[SolverImplicitMPM, ...]:
@@ -173,31 +38,42 @@ def implicit_mpm_solvers(solver: SolverBase | None) -> tuple[SolverImplicitMPM, 
 
 
 def mpm_supports_graph_capture(solver: SolverImplicitMPM) -> bool:
-    """Return whether an implicit-MPM solver satisfies Newton's capture contract."""
-    if solver.grid_type == "fixed":
-        # An unbounded active partition reads its cell count back to the CPU on every step.
-        return solver.max_active_cell_count > 0
-    if solver.grid_type != "sparse":
+    """Return whether the configured grid and bases support native graph capture."""
+    if solver.enable_timers or solver.max_active_cell_count <= 0:
         return False
-    strain_rebuild_safe = solver.strain_basis.startswith("pic") or solver.strain_basis in ("P0", "P1d", "Q1d", "Q1")
-    collider_rebuild_safe = solver.collider_basis.startswith("pic") or solver.collider_basis in ("Q1", "S2", "S3")
+    for basis in (solver.strain_basis, solver.collider_basis):
+        if basis.startswith("pic") and not basis[3:].isdigit():
+            return False
+    if solver.grid_type == "fixed":
+        return True
     return (
-        solver.max_active_cell_count > 0
+        solver.grid_type == "sparse"
         and solver.grid_padding == 0
-        and solver.velocity_basis in ("Q1", "B2")
-        and strain_rebuild_safe
-        and collider_rebuild_safe
+        and (solver.strain_basis.startswith("pic") or solver.strain_basis in ("P0", "P1d", "Q1d", "Q1"))
+        and (solver.collider_basis.startswith("pic") or solver.collider_basis in ("Q1", "S2", "S3"))
     )
 
 
 def mpm_solver_config(cfg: MPMSolverCfg) -> SolverImplicitMPM.Config:
-    """Return Newton's implicit MPM configuration, authored on the active physics scene first."""
-    scene_prim = None
+    """Return the native configuration and retain legacy active-scene authoring.
+
+    .. deprecated::
+        Use :meth:`MPMSolverCfg.to_solver_config` for construction and
+        :meth:`MPMSolverCfg.author_usd` when exporting solver settings to USD.
+
+    Args:
+        cfg: MPM solver configuration.
+    """
+    warnings.warn(
+        "mpm_solver_config() is deprecated; use cfg.to_solver_config() and explicitly call cfg.author_usd(scene_prim)"
+        " when exporting solver settings.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     sim = SimulationContext.instance()
     if sim is not None:
-        scene_prim = sim.stage.GetPrimAtPath(sim.cfg.physics_prim_path)
-        _author_mpm_scene_config(scene_prim, cfg)
-    return _make_solver_config(cfg, scene_prim)
+        cfg.author_usd(sim.stage.GetPrimAtPath(sim.cfg.physics_prim_path))
+    return cfg.to_solver_config()
 
 
 class MPMSolver(NewtonSolver):
@@ -233,8 +109,8 @@ class MPMSolver(NewtonSolver):
     def build(
         cls, cfg: MPMSolverCfg, model: Model, mode: wp.DeterministicMode, env_template: str | None = None
     ) -> SolverImplicitMPM:
-        """Construct implicit MPM from the configuration authored on the active physics scene."""
-        return cls.solver_class(model, mpm_solver_config(cfg), temporary_store=TemporaryStore())
+        """Construct implicit MPM from the configured Python values."""
+        return cls.solver_class(model, cfg.to_solver_config(), temporary_store=TemporaryStore())
 
     @classmethod
     def applies_body_forces(cls, cfg: MPMSolverCfg, solver: SolverImplicitMPM) -> bool:

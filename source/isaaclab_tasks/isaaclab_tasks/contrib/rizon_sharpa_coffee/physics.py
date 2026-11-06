@@ -14,7 +14,6 @@ import newton
 import numpy as np
 import warp as wp
 from isaaclab_newton.physics import MPMSolver
-from isaaclab_newton.physics.mpm_solver import mpm_solver_config
 from newton import StateFlags
 from newton.solvers import SolverImplicitMPM
 from warp.fem import TemporaryStore
@@ -87,7 +86,7 @@ class CoffeeMPMSolver(MPMSolver):
         grains = cfg.grains_per_particle
         if type(grains) is not int or grains < 0:
             raise ValueError("grains_per_particle must be a nonnegative integer.")
-        return cls.solver_class(model, mpm_solver_config(cfg), grains_per_particle=grains)
+        return cls.solver_class(model, cfg.to_solver_config(), grains_per_particle=grains)
 
 
 def configure_spoon_rim_margin(solver: SolverCoffeeMPM, scale: float) -> None:

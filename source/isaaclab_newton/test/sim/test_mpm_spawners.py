@@ -9,10 +9,10 @@ import subprocess
 import sys
 import textwrap
 
+import newton
 import numpy as np
 import pytest
-
-newton = pytest.importorskip("newton")
+from isaaclab_newton.physics import MPMSolverCfg
 from isaaclab_newton.sim.spawners.mpm import MPMGridCfg, MPMParticleMaterialCfg, MPMPointsCfg
 from newton.solvers import SolverImplicitMPM
 
@@ -20,7 +20,7 @@ from pxr import UsdGeom, UsdPhysics, UsdShade
 
 import isaaclab.sim as sim_utils
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
 
 @pytest.fixture
@@ -33,7 +33,7 @@ def stage():
     return stage
 
 
-def test_mpm_points_author_and_import_through_usd(stage, monkeypatch):
+def test_mpm_points_author_and_import_through_usd(stage):
     material = MPMParticleMaterialCfg(
         young_modulus=2500.0,
         damping=0.125,
@@ -168,3 +168,24 @@ def test_mpm_program_configs_do_not_load_pxr_before_simulation_launch(module):
     result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=False)
 
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_mpm_solver_settings_export_through_usd_without_rounding_runtime_config(stage):
+    """Explicit USD export preserves schema settings while Python grid resolution keeps its precision."""
+    cfg = MPMSolverCfg(
+        voxel_size=0.051234567890123,
+        max_iterations=7,
+        velocity_basis="B3",
+        solver=("conjugate-residual", "gauss-seidel"),
+    )
+    scene_prim = stage.GetPrimAtPath("/physicsScene")
+    cfg.author_usd(scene_prim)
+
+    exported = SolverImplicitMPM.Config.create_from_usd(scene_prim)
+    runtime = cfg.to_solver_config()
+
+    assert exported.max_iterations == 7
+    assert exported.velocity_basis == "B3"
+    assert tuple(exported.solver) == ("cr", "gauss-seidel")
+    assert exported.voxel_size == pytest.approx(cfg.voxel_size)
+    assert runtime.voxel_size == cfg.voxel_size

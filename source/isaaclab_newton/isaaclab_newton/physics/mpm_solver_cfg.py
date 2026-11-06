@@ -7,11 +7,18 @@
 
 from __future__ import annotations
 
-from typing import Literal
+import re
+import warnings
+from typing import TYPE_CHECKING, Literal
 
 from isaaclab.utils import configclass
 
 from .newton_manager_cfg import NewtonSolverCfg
+
+if TYPE_CHECKING:
+    from newton.solvers import SolverImplicitMPM
+
+    from pxr import Usd
 
 
 @configclass
@@ -117,19 +124,108 @@ class MPMSolverCfg(NewtonSolverCfg):
     velocity_basis: str = "Q1"
     """Velocity basis function, such as ``"Q1"``, ``"B2"``, or ``"B3"``."""
 
-    # collision handling (applied by the Isaac Lab manager, not the Newton solver config)
     project_outside_colliders: bool = False
-    """Whether to hard-project particles out of collider interiors after each substep.
+    """Project particles out of collider interiors after each solver substep.
 
-    When ``True``, :meth:`step` calls
-    :meth:`SolverImplicitMPM.project_outside` immediately after every solver
-    substep: it applies a Coulomb response and pushes particles that drifted into
-    a collider back onto its surface. The implicit solve already resolves
-    colliders at the grid level; this is the particle-level correction that stops
-    material from slowly settling inside colliders, mirroring Newton's MPM
-    examples. Leave it ``False`` for collider-free scenes to skip a per-substep
-    projection pass over every particle.
-
-    This is a manager-level stepping option and is intentionally **not** part of
-    ``SolverImplicitMPM.Config``.
+    Calls :meth:`SolverImplicitMPM.project_outside` after the implicit solve. This is an Isaac Lab stepping option,
+    separate from ``SolverImplicitMPM.Config``.
     """
+
+    def to_solver_config(self) -> SolverImplicitMPM.Config:
+        """Return Newton's configuration without accessing or modifying a USD stage."""
+        import warp as wp
+        from newton.solvers import SolverImplicitMPM
+
+        from .newton_solver import solver_kwargs
+
+        values = solver_kwargs(SolverImplicitMPM.Config, self, wp.DeterministicMode.NOT_GUARANTEED)
+        mode = self.collider_velocity_mode
+        replacement = {"instantaneous": "forward", "finite_difference": "backward"}.get(mode)
+        if replacement is not None:
+            warnings.warn(
+                f"collider_velocity_mode={mode!r} is deprecated; use {replacement!r} instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            values["collider_velocity_mode"] = replacement
+        return SolverImplicitMPM.Config(**values)
+
+    def author_usd(self, scene_prim: Usd.Prim) -> None:
+        """Author schema-representable solver settings on an explicit physics scene.
+
+        Args:
+            scene_prim: Physics scene prim receiving ``NewtonMPMSceneAPI`` and its settings.
+        """
+        from pxr import Sdf, Vt  # noqa: PLC0415
+
+        if not scene_prim.AddAppliedSchema("NewtonMPMSceneAPI"):
+            raise RuntimeError(f"Failed to apply NewtonMPMSceneAPI to '{scene_prim.GetPath()}'.")
+
+        rheology_solvers = (self.solver,) if isinstance(self.solver, str) else self.solver
+
+        attributes = {
+            "newton:maxSolverIterations": self.max_iterations,
+            "newton:mpm:tolerance": self.tolerance,
+            "newton:mpm:rheologySolvers": Vt.TokenArray(rheology_solvers),
+            "newton:mpm:voxelSize": self.voxel_size,
+            "newton:mpm:gridType": self.grid_type,
+            "newton:mpm:gridPadding": self.grid_padding,
+            "newton:mpm:maxActiveCellCount": self.max_active_cell_count,
+            "newton:mpm:transferScheme": self.transfer_scheme,
+            "newton:mpm:integrationScheme": self.integration_scheme,
+            "newton:mpm:criticalFraction": self.critical_fraction,
+            "newton:mpm:airDrag": self.air_drag,
+        }
+        attributes.update(_basis_attributes("collider", self.collider_basis))
+        attributes.update(_basis_attributes("strain", self.strain_basis))
+        attributes.update(_basis_attributes("velocity", self.velocity_basis))
+        for name, value in attributes.items():
+            if name == "newton:mpm:rheologySolvers":
+                type_name = Sdf.ValueTypeNames.TokenArray
+            elif isinstance(value, bool):
+                type_name = Sdf.ValueTypeNames.Bool
+            elif isinstance(value, int):
+                type_name = Sdf.ValueTypeNames.Int
+            elif isinstance(value, str):
+                type_name = Sdf.ValueTypeNames.Token
+            else:
+                type_name = Sdf.ValueTypeNames.Float
+            scene_prim.CreateAttribute(name, type_name, custom=False, variability=Sdf.VariabilityUniform).Set(value)
+
+
+def _basis_attributes(prefix: str, basis: str) -> dict[str, object]:
+    """Expand a compact Newton basis name into newton-usd-schemas attributes."""
+    if basis.startswith("pic"):
+        if prefix == "velocity":
+            raise ValueError("The MPM velocity basis cannot use a particle basis.")
+        basis_type, order, discontinuous = "particle", 0, False
+    else:
+        matched = re.fullmatch(r"([PQBS])([0-9]+)(d?)", basis)
+        if matched is None:
+            raise ValueError(f"Unsupported MPM {prefix} basis {basis!r}.")
+        basis_prefix = matched.group(1)
+        order = int(matched.group(2))
+        discontinuous = order == 0 or bool(matched.group(3))
+        if basis_prefix == "P" and order > 0 and not discontinuous:
+            raise ValueError(f"Unsupported MPM {prefix} basis {basis!r}: positive-order P bases must be discontinuous.")
+        if (prefix == "strain" and basis_prefix in "BS") or (
+            prefix == "velocity" and (basis_prefix not in "QB" or not 1 <= order <= 3)
+        ):
+            return {}
+        if basis_prefix in "BS" and not 1 <= order <= 3:
+            return {}
+        basis_type = {
+            "P": "linear",
+            "Q": "trilinear",
+            "B": "bspline",
+            "S": "serendipity",
+        }[basis_prefix]
+
+    namespace = f"newton:mpm:{prefix}"
+    attributes: dict[str, object] = {
+        f"{namespace}BasisType": basis_type,
+        f"{namespace}BasisOrder": order,
+    }
+    if prefix != "velocity":
+        attributes[f"{namespace}DiscontinuousBasis"] = discontinuous
+    return attributes

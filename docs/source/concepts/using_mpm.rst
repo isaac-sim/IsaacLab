@@ -161,7 +161,10 @@ come from :class:`~isaaclab_newton.sim.spawners.mpm.MPMParticleMaterialCfg` and 
 with ``NewtonMPMMaterialAPI``. Damping [s] is authored as
 ``damping * young_modulus`` [Pa·s]. Solver-wide settings, including
 ``critical_fraction``, live on ``MPMSolverCfg``; the schema-representable ones
-are authored with ``NewtonMPMSceneAPI`` on the physics scene prim.
+can be exported with :meth:`~isaaclab_newton.physics.MPMSolverCfg.author_usd` on an explicit physics scene prim.
+Runtime construction uses :meth:`~isaaclab_newton.physics.MPMSolverCfg.to_solver_config` directly, preserving Python
+precision without reading or modifying the USD stage. To include solver settings in a scene export, call
+``solver_cfg.author_usd(sim.stage.GetPrimAtPath(sim.cfg.physics_prim_path))`` during scene preparation.
 
 MPM objects are cloned through Newton replication. Grid jitter is generated
 once in asset-local coordinates with a fixed seed, so USD clones share the same

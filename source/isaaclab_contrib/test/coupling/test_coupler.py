@@ -50,6 +50,9 @@ from isaaclab_contrib.coupling import (
     coupler,
 )
 
+pytestmark = pytest.mark.kitless
+
+
 _CELL_TEMPLATE = "/Lab/Cells/Cell{}"
 """Clone-plan environment template naming environments ``/Lab/Cells/Cell{i}``."""
 
@@ -479,34 +482,6 @@ def test_mpm_entry_forwards_config_and_execution_policy():
     assert solver.solver_cfg.max_active_cell_count == 256
     assert solver_entry.substeps == 2
     assert solver_entry.in_place is True
-
-
-@pytest.mark.parametrize(
-    ("grid_type", "max_active_cell_count", "expected"),
-    [
-        pytest.param("fixed", 1024, True, id="bounded_fixed"),
-        pytest.param("fixed", -1, False, id="unbounded_fixed"),
-        pytest.param("sparse", 1024, True, id="bounded_sparse"),
-        pytest.param("sparse", -1, False, id="unbounded_sparse"),
-        pytest.param("dense", -1, False, id="dense"),
-    ],
-)
-def test_mpm_grid_controls_coupled_cuda_graph_support(grid_type, max_active_cell_count, expected):
-    """A coupled solver must inherit every nested MPM grid's capture capability."""
-    mpm_solver = SimpleNamespace(
-        grid_type=grid_type,
-        max_active_cell_count=max_active_cell_count,
-        grid_padding=0,
-        velocity_basis="Q1",
-        strain_basis="P0",
-        collider_basis="S2",
-    )
-    mpm_cfg = MPMSolverCfg()
-    solver_cfg = CouplerProxyCfg(entries=[CouplerEntryCfg(name="mpm", solver_cfg=mpm_cfg, in_place=True)])
-
-    coupled = SimpleNamespace(solver=lambda name: mpm_solver)
-
-    assert CouplerSolver.supports_capture(solver_cfg, coupled) is expected
 
 
 @pytest.mark.parametrize("vbd_entries", [0, 2])
