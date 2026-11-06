@@ -7,6 +7,7 @@ import pytest
 import warp as wp
 from isaaclab_ppisp import (
     PpispCfg,
+    PpispPipeline,
     apply_ppisp_to_rgba,
     apply_ppisp_to_rgba_with_controller_params,
     compute_ppisp_controller_params,
@@ -235,6 +236,21 @@ def test_ppisp_controller_network_matches_numpy_reference(num_cameras, image_sha
             rtol=2.0e-4,
             atol=2.0e-5,
         )
+
+        pipeline = PpispPipeline(PpispCfg(
+            controller_weights=tuple(weights_np), controller_prior_exposure=prior_exposure,
+            controller_responsivity=responsivity,
+        ))  # fmt: skip
+        # Reuse one pipeline across resolutions; scratch storage depends only on the camera count.
+        for image in (hdr_np, np.ascontiguousarray(hdr_np[:, : height // 2, : width // 2])):
+            hdr_color = wp.from_numpy(image, dtype=wp.float32)
+            reference_params = wp.from_numpy(
+                _controller_reference_params(image, weights_np, prior_exposure, responsivity), dtype=wp.float32
+            )
+            expected, actual = _rgba((*image.shape[:3], 4)), _rgba((*image.shape[:3], 4))
+            apply_ppisp_to_rgba_with_controller_params(hdr_color, expected, pipeline.cfg, reference_params)
+            pipeline.apply(hdr_color, actual)
+            np.testing.assert_allclose(actual.numpy(), expected.numpy(), rtol=0, atol=1)
 
 
 def test_ppisp_warp_vignetting_uses_detiled_camera_coordinates():

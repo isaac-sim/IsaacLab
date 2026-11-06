@@ -59,7 +59,7 @@ def test_reset_without_rigid_bodies_skips_rigid_body_view(monkeypatch):
     sim.reset()
 
     assert requested_patterns == []
-    assert sim.physics_manager.get_scene_data_backend().get_rigid_body_view() is None
+    assert sim.backend_manager.get_scene_data_backend().get_rigid_body_view() is None
 
 
 @pytest.mark.isaacsim_ci
@@ -68,7 +68,7 @@ def test_timeline_play_stop(monkeypatch):
     create_view = Mock(wraps=omni.physics.tensors.create_simulation_view)
     monkeypatch.setattr(omni.physics.tensors, "create_simulation_view", create_view)
     sim = SimulationContext()
-    scene_data = sim.physics_manager.get_scene_data_backend()
+    scene_data = sim.backend_manager.get_scene_data_backend()
     publication = scene_data.transforms
     cube_cfg = AssetBaseCfg(
         prim_path="/World/Cube",
@@ -91,7 +91,7 @@ def test_timeline_play_stop(monkeypatch):
     assert sim.is_playing()
     assert not sim.is_stopped()
     resource = scene_data.backend
-    assert resource is sim.physics_manager.backend
+    assert resource is sim.backend_manager.backend
     view = sim.physics_sim_view
     assert resource.simulation_view is view
     assert scene_data.transforms.transforms is not None

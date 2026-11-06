@@ -5,11 +5,10 @@ Using an operational space controller
 
 .. currentmodule:: isaaclab
 
-Sometimes, controlling the end-effector pose of the robot using a differential IK controller is not sufficient.
-For example, we might want to enforce a very specific pose tracking error dynamics in the task space, actuate the robot
-with joint effort/torque commands, or apply a contact force at a specific direction while controlling the motion of
-the other directions (e.g., washing the surface of the table with a cloth). In such tasks, we can use an
-operational space controller (OSC).
+Use :class:`controllers.OperationalSpaceController` to control end-effector motion
+and contact force through joint efforts. This example presses against a tilted wall
+while tracking a pose along the unconstrained directions. See
+:doc:`../concepts/motion_generators` for the control methods and their requirements.
 
 .. rubric:: References for the operational space control:
 
@@ -17,10 +16,6 @@ operational space controller (OSC).
    The operational space formulation. IEEE Journal of Robotics and Automation, 3(1):43–53, 1987. URL http://dx.doi.org/10.1109/JRA.1987.1087068.
 
 2. Robot Dynamics Lecture Notes by Marco Hutter (ETH Zurich). URL https://ethz.ch/content/dam/ethz/special-interest/mavt/robotics-n-intelligent-systems/rsl-dam/documents/RobotDynamics2017/RD_HS2017script.pdf
-
-In this tutorial, we will learn how to use an OSC to control the robot.
-We will use the :class:`controllers.OperationalSpaceController` class to apply a constant force perpendicular to a
-tilted wall surface while tracking a desired end-effector pose in all the other directions.
 
 This tutorial uses Isaac Sim PhysX and requires an Isaac Sim installation.
 The target quaternions use ``(x, y, z, w)`` order and orient the end-effector toward the tilted wall.

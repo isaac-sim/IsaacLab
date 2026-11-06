@@ -29,18 +29,24 @@ asset configurations and an active simulation context ``sim``:
 
 .. code-block:: python
 
-    from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-    from isaaclab.utils import configclass, replace
+    from isaaclab.cloner import CloneCfg
+    from isaaclab.scene import InteractiveSceneCfg
+    from isaaclab.utils import configclass, instantiate, replace
 
     @configclass
     class BananaFrankaSceneCfg(InteractiveSceneCfg):
         banana = replace(banana_cfg, prim_path="{ENV_REGEX_NS}/Banana")
         franka = replace(franka_cfg, prim_path="{ENV_REGEX_NS}/Franka")
 
-    scene = InteractiveScene(BananaFrankaSceneCfg(num_envs=16, env_spacing=2.0))
+    scene = instantiate(BananaFrankaSceneCfg(
+        num_envs=16, env_spacing=2.0, clone_cfg=CloneCfg(clone_template="/Lab/Cell{}")
+    ))
     sim.reset()
 
-This creates sixteen environments, each with one banana and one Franka.
+This creates sixteen environments at ``/Lab/Cell0`` through ``/Lab/Cell15``, each
+with one banana and one Franka. ``{ENV_REGEX_NS}`` follows the declared template;
+omitting ``clone_cfg`` keeps the default ``/World/envs/env_{}`` layout. Shared
+assets such as a ground plane keep their explicitly declared paths.
 Declare cameras alongside the assets so they participate in the same lifecycle.
 For varying assets across environments, see :doc:`multi_asset_spawning`.
 

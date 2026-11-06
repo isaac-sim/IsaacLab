@@ -15,19 +15,21 @@ from isaaclab.utils.backend_utils import FactoryBase
 
 
 @pytest.mark.parametrize(
-    "manager, backend, package",
+    "backend, package",
     [
-        ("OvPhysxManager", "ovphysx", "isaaclab_ov"),
-        ("PhysxManager", "physx", "isaaclab_physx"),
-        ("NewtonMuJoCoManager", "newton", "isaaclab_newton"),
+        ("ovphysx", "isaaclab_ov"),
+        ("physx", "isaaclab_physx"),
+        ("newton", "isaaclab_newton"),
     ],
 )
-def test_get_module_name_routes_backend_to_package(monkeypatch, manager, backend, package):
+def test_get_module_name_routes_backend_to_package(monkeypatch, backend, package):
     """OVPhysX backend modules resolve from the consolidated package; others use their backend-named packages."""
     monkeypatch.setattr(FactoryBase, "_module_subpath", "assets.articulation", raising=False)
     monkeypatch.setattr(SimulationContext, "instance", Mock(side_effect=AssertionError("Use the supplied simulation")))
 
-    assert FactoryBase._get_backend(sim=SimpleNamespace(physics_manager=type(manager, (), {}))) == backend
+    assert (
+        FactoryBase._get_backend(sim=SimpleNamespace(backend_manager=SimpleNamespace(backend_name=backend))) == backend
+    )
     assert FactoryBase._get_package_name(backend) == package
     assert FactoryBase._get_module_name(backend) == f"{package}.assets.articulation"
 

@@ -12,7 +12,7 @@ This guide shows how to record ``mp4`` clips from a visualizer or a scene sensor
 .. raw:: html
 
    <video autoplay loop muted playsinline controls preload="auto" style="width:100%;">
-     <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/record_video_shadow_hand_tiled_gt.mp4" type="video/mp4">
+     <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/how_to/record_video_shadow_hand_tiled_gt.mp4" type="video/mp4">
    </video>
    <p class="viz-cap" style="text-align:center; font-style:italic;">Recorded clip of the
    Shadow Hand cube-reorientation task, recording the streaming view of the Rerun
@@ -108,7 +108,7 @@ Example 1: Kit viewport
 
    <div class="viz-clip-crop viz-clip-crop-lg">
      <video autoplay loop muted playsinline controls preload="auto">
-       <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/record_video_kit_viewport.mp4" type="video/mp4">
+       <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/how_to/record_video_kit_viewport.mp4" type="video/mp4">
      </video>
    </div>
    <p class="viz-cap">Kit visualizer</p>
@@ -128,7 +128,7 @@ Example 2: Scene sensor, headless
      <div>
        <div class="viz-clip-sensor">
          <video autoplay loop muted playsinline controls preload="auto">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/record_video_sensor.mp4" type="video/mp4">
+           <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/how_to/record_video_sensor.mp4" type="video/mp4">
          </video>
        </div>
        <p class="viz-cap">Scene sensor</p>
@@ -169,7 +169,7 @@ Four independent clips are written to ``videos/recording_tutorial/example_3/``:
      <div>
        <div class="viz-clip-crop">
          <video autoplay loop muted playsinline controls preload="auto">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/record_video_newton_viewport.mp4" type="video/mp4">
+           <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/how_to/record_video_newton_viewport.mp4" type="video/mp4">
          </video>
        </div>
        <p class="viz-cap">Newton GL visualizer</p>
@@ -177,7 +177,7 @@ Four independent clips are written to ``videos/recording_tutorial/example_3/``:
      <div>
        <div class="viz-clip-square">
          <video autoplay loop muted playsinline controls preload="auto">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/record_video_tiled_kit_viewport.mp4" type="video/mp4">
+           <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/how_to/record_video_tiled_kit_viewport.mp4" type="video/mp4">
          </video>
        </div>
        <p class="viz-cap">Kit visualizer tiled streaming</p>
@@ -247,12 +247,14 @@ configure both; the recorder adds the Newton visualizer, headless:
 
 .. code-block:: python
 
-    from isaaclab_visualizers.kit import KitVisualizerCfg
-    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+    from isaaclab_visualizers.kit import KitBackendCfg
+    from isaaclab_visualizers.newton import NewtonGLBackendCfg
+
+    from isaaclab.visualizers import VisualizerCfg
 
     env_cfg.sim.visualizer_cfgs = [
-        KitVisualizerCfg(eye=(4.0, 4.0, 2.0)),
-        NewtonGLVisualizerCfg(eye=(12.0, 0.0, 6.0)),
+        VisualizerCfg(eye=(4.0, 4.0, 2.0), backend=KitBackendCfg()),
+        VisualizerCfg(eye=(12.0, 0.0, 6.0), backend=NewtonGLBackendCfg()),
     ]
     env_cfg.video_recorders = [
         VideoRecorderCfg(source="viz:newton_gl", output_dir="videos/"),
@@ -363,11 +365,6 @@ Clip control
 
 Limitations
 -----------
-
-* ``source="viz:kit"`` and ``source="viz:kit:streaming_view"`` require cubric
-  to propagate Newton Fabric scene transforms to the RTX renderer.  Without cubric, a warning
-  is logged and a black-frame warning is emitted at clip write time.  Use
-  ``source="viz:newton_gl"`` for guaranteed capture with Newton physics.
 
 * ``source="viz:newton_gl:streaming_view"`` and ``source="viz:kit:streaming_view"``
   require ``streaming_view=True`` on the corresponding visualizer cfg.  A

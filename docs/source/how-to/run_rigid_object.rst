@@ -12,9 +12,16 @@ This is the first runtime example in :ref:`asset-authoring`: spawn a rigid body,
 state, step the simulation, and read the updated state. Use the authoring guides for
 configuration details and :ref:`tutorial-interact-articulation` for bodies connected by joints.
 
-In the previous tutorials, we learned the essential workings of the standalone script and how to
-spawn different objects (or *prims*) into the simulation. This tutorial shows how to create and interact
-with a rigid object. For this, we will use the :class:`assets.RigidObject` class provided in Isaac Lab.
+Use :class:`assets.RigidObject` to read and write the spawned object's state.
+
+Explore rigid-body contacts by toppling a compact domino scene. Change friction
+and reset to replay the cascade, then follow the tutorial below to spawn and
+control your own rigid objects.
+
+.. isaaclab-demos:: dominoes
+   :title: Explore rigid-body contacts
+   :physics: rigid
+   :activity: tuning
 
 The Code
 ~~~~~~~~

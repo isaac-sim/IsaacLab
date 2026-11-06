@@ -26,6 +26,7 @@ from isaaclab.utils.warp import ProxyArray
 
 from .rigid_object_factory import get_rigid_object, get_rigid_object_collection
 
+# The ovphysx cases carry pytest.mark.ov from backends(); CI selects test files by that text.
 pytestmark = pytest.mark.integration
 
 # Distinct instance and body counts make swapped axes visible.
@@ -233,10 +234,6 @@ def test_writes_invalidate_dependent_caches(monkeypatch, backend, asset, trigger
     else:
         layout = (3,) if backend == "newton" else (7,)
         coms = _payload((_NUM_INSTANCES, num_bodies), layout)
-        if backend == "newton":
-            from isaaclab_newton.physics import NewtonManager
-
-            monkeypatch.setattr(NewtonManager, "add_model_change", MagicMock())
         getattr(obj, f"set_{trigger}")(coms=coms)
 
     for name, buffer in buffers.items():

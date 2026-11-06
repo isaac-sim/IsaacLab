@@ -256,20 +256,17 @@
         "functions": [
             "OVRTXRenderer.prepare_stage",
             "OVRTXRenderer.create_render_data",
-            "OVRTXRenderer._clone_sources",
-            "OVRTXRenderer._update_scene_partitions_after_clone",
-            "OVRTXRenderer._setup_xform_bindings_legacy",
-            "OVRTXRenderer._setup_xform_bindings_ovstage",
-            "OVRTXRenderer._setup_geometry_bindings_legacy",
-            "OVRTXRenderer._setup_geometry_bindings_ovstage",
+            "OVRTXRenderer._setup_xform_bindings",
+            "OVRTXRenderer._setup_geometry_bindings",
             "OVRTXRenderer.update_transforms",
             "OVRTXRenderer.update_geometries",
             "OVRTXRenderer.update_camera",
             "OVRTXRenderer.render",
             "OVRTXRenderer.render_batch",
             "OVRTXRenderer.read_output",
-            {"module": "isaaclab_ov.renderers.ovrtx_usd", "function": "create_scene_partition_attributes"},
-            {"module": "isaaclab_ov.renderers.ovrtx_usd", "function": "export_stage_to_string"}
+            {"module": "isaaclab_ov.cloner.replicate", "function": "ovrtx_replicate"},
+            {"module": "isaaclab_ov.stage", "function": "ovstage_replicate"},
+            {"module": "isaaclab_ov.stage", "function": "export_stage_to_string"}
         ]
     },
     {

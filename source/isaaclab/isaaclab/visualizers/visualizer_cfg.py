@@ -7,60 +7,32 @@
 
 from __future__ import annotations
 
-import argparse
 import math
 import warnings
-from dataclasses import MISSING
-from typing import TYPE_CHECKING
+from copy import deepcopy
+from dataclasses import MISSING, fields
+from typing import TYPE_CHECKING, ClassVar
 
 from ..utils import configclass
 
 if TYPE_CHECKING:
+    from ..cloner import ReplicateContext
     from .base_visualizer import BaseVisualizer
 
 
-VISUALIZER_TYPES = {
-    "kit": "kit:KitVisualizerCfg",
-    "newton_gl": "newton:NewtonGLVisualizerCfg",
-    "newton_rtx": "newton:NewtonRTXVisualizerCfg",
-    "rerun": "rerun:RerunVisualizerCfg",
-    "viser": "viser:ViserVisualizerCfg",
-}
-"""Canonical visualizer type names, for ``--visualizer`` and :attr:`VisualizerCfg.visualizer_type`, mapped to
-the ``<isaaclab_visualizers subpackage>:<class>`` of their default config, imported only when needed."""
+VISUALIZER_TYPES = ("kit", "newton_gl", "newton_rtx", "rerun", "viser")
+"""Built-in visualizer identifiers accepted by legacy recording sources."""
 
 VISUALIZER_ALIASES = {"newton": "newton_gl"}
 """Deprecated ``--visualizer`` names and their replacements."""
 
 
-def parse_visualizer_csv(value: str | list[str]) -> list[str]:
-    """Parse a ``--visualizer`` comma-separated list, or a list of names, into canonical names.
-
-    Parsing canonical names again returns them unchanged.
-    """
-    names = value.split(",") if isinstance(value, str) else list(value)
-    # an undocumented alias of omitting --visualizer, kept so older commands keep running
-    if names == ["none"]:
-        return []
-    for index, name in enumerate(names):
-        if name in VISUALIZER_ALIASES:
-            warnings.warn(
-                f"--viz '{name}' is deprecated. Use '--viz {VISUALIZER_ALIASES[name]}' instead.",
-                DeprecationWarning,
-                stacklevel=3,
-            )
-            names[index] = VISUALIZER_ALIASES[name]
-        elif name not in VISUALIZER_TYPES:
-            raise argparse.ArgumentTypeError(
-                f"Invalid --visualizer value {value!r}: use a comma-separated list, without spaces, of "
-                f"{', '.join(VISUALIZER_TYPES)}."
-            )
-    return list(dict.fromkeys(names))
-
-
 @configclass
 class PerspectiveCameraCfg:
-    """Initial pose and optics for a visualizer-owned interactive perspective camera."""
+    """Initial pose and optics for an interactive perspective camera.
+
+    Newton RTX launch preparation expands this declaration into a scene CameraCfg. Newton GL
+    uses its native viewer camera."""
 
     eye: tuple[float, float, float] = (4.0, -4.0, 3.0)
     """Eye position in world coordinates [m]."""
@@ -95,7 +67,7 @@ class ImageViewCfg:
     """Runtime image selection and composition."""
 
     source: str | PerspectiveCameraCfg = MISSING
-    """Scene sensor name, or the initial camera for a visualizer-owned perspective render product."""
+    """Scene sensor name, or an interactive perspective camera declaration."""
 
     envs: tuple[int, ...] = (0,)
     """Sensor rows to display, in the requested order."""
@@ -153,21 +125,31 @@ class WindowCfg:
 
 
 @configclass
-class VisualizerCfg:
-    """Base configuration for all visualizer backends.
-
-    Note:
-        This configuration can be used directly as
-        :attr:`~isaaclab.sim.SimulationCfg.default_visualizer_cfg` to provide shared defaults.
-        To create a visualizer, use a concrete config from ``isaaclab_visualizers``, such as
-        ``KitVisualizerCfg`` or ``NewtonGLVisualizerCfg``.
-    """
+class VisualizerBackendCfg:
+    """Implementation and backend-specific options for a visualizer."""
 
     class_type: type[BaseVisualizer] | str | None = None
     """Visualizer implementation class. Concrete configs must set this field."""
 
-    cloning_contexts: tuple[type | str, ...] = ()
+    cloning_contexts: ClassVar[tuple[type[ReplicateContext] | str, ...]] = ()
     """Clone contexts that build this visualizer's scene representation from the asset plan."""
+
+    launcher_type: ClassVar[str | None] = None
+    """Process runtime required by this visualizer, if any."""
+
+    visualizer_type: str | None = None
+    """Backend selector identifier, supplied by concrete backend configurations."""
+
+
+@configclass
+class VisualizerCfg:
+    """View, window, and scene settings independent of the selected visualizer backend."""
+
+    backend: VisualizerBackendCfg | list[VisualizerBackendCfg] = []
+    """Selected implementation(s); an empty list keeps the settings without opening a viewer.
+
+    Each declaration expands independently: two views with two selected backends create four viewers.
+    """
 
     view: ImageViewCfg | None = None
     """Shared image view, or None to use the visualizer's camera selection."""
@@ -278,15 +260,13 @@ class VisualizerCfg:
     live_plots_update_interval: int = 5
     """Collect and push live plot data every ``N`` simulation steps (default: every 5 steps)."""
 
-    # Internal
-    visualizer_type: str | None = None
-    """Type identifier (e.g., 'newton', 'rerun', 'viser', 'kit'). Must be overridden by subclasses."""
-
     def validate_config(self) -> None:
         """Reject ambiguous sources and unsupported native-window configurations."""
         if self.view is not None:
-            if self.visualizer_type not in ("newton_gl", "newton_rtx"):
-                raise ValueError("VisualizerCfg.view requires a Newton GL or RTX visualizer.")
+            backends = self.backend if isinstance(self.backend, list) else [self.backend]
+            for backend in backends:
+                if backend.visualizer_type not in ("newton_gl", "newton_rtx"):
+                    raise ValueError("VisualizerCfg.view requires a Newton GL or RTX visualizer.")
             if self.cameras is not None or self.streaming_sensor_prim_path is not None:
                 raise ValueError("Choose view or legacy cameras/streaming_sensor_prim_path, not both.")
 
@@ -302,3 +282,53 @@ class VisualizerCfg:
             self.streaming_view = any(isinstance(camera, SceneCameraCfg) for camera in self.cameras)
             if isinstance(camera := self.cameras[0], PerspectiveCameraCfg):
                 self.eye, self.lookat, self.focal_length = camera.eye, camera.lookat, camera.focal_length
+
+
+def migrate_visualizer_cfgs(
+    declarations: VisualizerCfg | list[VisualizerCfg] | None, defaults: VisualizerCfg | None = None
+) -> list[VisualizerCfg]:
+    """Translate deprecated combined declarations and shared defaults before launch.
+
+    Args:
+        declarations: Shared visualizer declarations or deprecated combined configurations.
+        defaults: Deprecated simulation-wide defaults; explicit per-view settings take precedence.
+
+    Returns:
+        Shared configurations with backend-only options; current declarations retain their identity.
+    """
+    declarations = declarations if isinstance(declarations, list) else [declarations]
+    if defaults is not None:
+        warnings.warn(
+            "default_visualizer_cfg is deprecated in Isaac Lab 3.2. Put shared settings on each VisualizerCfg instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+    viewers = []
+    for cfg in declarations:
+        if cfg is None:
+            cfg = VisualizerCfg()
+        if defaults is not None:
+            for source, target in ((defaults, cfg), (defaults.window, cfg.window)):
+                source_defaults, target_defaults = type(source)(), type(target)()
+                for field in fields(source):
+                    if field.name in ("backend", "window"):
+                        continue
+                    value = getattr(source, field.name)
+                    target_is_default = getattr(target, field.name) == getattr(target_defaults, field.name)
+                    if value != getattr(source_defaults, field.name) and target_is_default:
+                        setattr(target, field.name, deepcopy(value))
+        if isinstance(cfg, VisualizerBackendCfg):
+            warnings.warn(
+                f"{type(cfg).__name__} is deprecated in Isaac Lab 3.2. "
+                f"Use VisualizerCfg(backend={type(cfg.backend).__name__}(), ...) "
+                "with shared camera and window settings on VisualizerCfg.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            backend = type(cfg.backend)(**{field.name: getattr(cfg, field.name) for field in fields(cfg.backend)})
+            cfg = VisualizerCfg(
+                backend=backend,
+                **{field.name: getattr(cfg, field.name) for field in fields(VisualizerCfg) if field.name != "backend"},
+            )
+        viewers.append(cfg)
+    return viewers

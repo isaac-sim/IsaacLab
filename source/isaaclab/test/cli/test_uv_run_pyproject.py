@@ -27,7 +27,7 @@ def _root_pyproject(source_checkout_root: Path) -> dict:
 def test_uv_run_extra_names_match_documented_workflow(source_checkout_root: Path):
     """Docs must only reference ``uv run --extra`` names that pyproject defines."""
     repo_root = source_checkout_root
-    docs = (repo_root / "docs/source/setup/installation/index.rst").read_text(encoding="utf-8")
+    docs = (repo_root / "docs/source/isaaclab/installation.rst").read_text(encoding="utf-8")
     documented_extras = set(re.findall(r"--extra\s+([A-Za-z0-9_-]+)", docs))
     optional_dependencies = _root_pyproject(source_checkout_root)["project"]["optional-dependencies"]
 
@@ -37,7 +37,7 @@ def test_uv_run_extra_names_match_documented_workflow(source_checkout_root: Path
 
 def test_published_wheel_docs_cover_one_off_and_managed_uv_workflows(source_checkout_root: Path):
     """Published workflows must cover isolated execution and a persistent uv project."""
-    docs = (source_checkout_root / "docs/source/setup/installation/index.rst").read_text(encoding="utf-8")
+    docs = (source_checkout_root / "docs/source/isaaclab/installation.rst").read_text(encoding="utf-8")
     published_docs = docs.split("Installing the published wheel", maxsplit=1)[1].split("Optional extras", maxsplit=1)[0]
     project_docs = published_docs.split("uv project dependency", maxsplit=1)[1].split(
         "Standalone uv environment", maxsplit=1
@@ -45,14 +45,14 @@ def test_published_wheel_docs_cover_one_off_and_managed_uv_workflows(source_chec
     windows_docs = published_docs.split("Windows (x86_64)", maxsplit=1)[1].split("Linux (aarch64)", maxsplit=1)[0]
 
     assert "uvx --index https://pypi.nvidia.com" in published_docs
-    assert '--from "isaaclab==3.0.0rc1"' in published_docs
+    assert '--from "isaaclab==3.0.0"' in published_docs
     assert "--torch-backend cu130" in published_docs
     assert "uv init --python 3.12 my_isaaclab_project" in project_docs
     assert project_docs.count("--index-strategy unsafe-best-match") == 2
     assert "--index pytorch-cu130=https://download.pytorch.org/whl/cu130" in project_docs
     assert "torch==2.11.0 torchvision==0.26.0" in project_docs
     assert "--index nvidia=https://pypi.nvidia.com" in project_docs
-    assert "isaaclab==3.0.0rc1" in project_docs
+    assert "isaaclab==3.0.0" in {line.strip() for line in project_docs.splitlines()}
     assert "git+" not in published_docs
     assert "[tool.uv.sources]" not in published_docs
     assert "--torch-backend cu130" in windows_docs
@@ -155,8 +155,8 @@ def test_version_single_source_matches_literal_pins(source_checkout_root: Path):
     optional = pyproject["project"]["optional-dependencies"]
     overrides = pyproject["tool"]["uv"]["override-dependencies"]
 
-    # Isaac Sim extra mirrors the table; it is the only place the wheel is pinned.
-    assert optional["isaacsim"] == [f"isaacsim[all,extscache]=={versions['isaacsim']}"]
+    # Isaac Sim requirement mirrors the table; the extra is the only place the wheel is pinned.
+    assert f"isaacsim[all,extscache]=={versions['isaacsim']}" in optional["isaacsim"]
 
     # OV extras mirror the table. Table values may be an exact version ("1.2.3",
     # mirrored as ``pkg==1.2.3``) or a range spec (">=1.2.3", mirrored as ``pkg>=1.2.3``).

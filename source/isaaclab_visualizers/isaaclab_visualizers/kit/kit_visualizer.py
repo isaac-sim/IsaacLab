@@ -21,12 +21,13 @@ from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import create_rotation_matrix_from_view, quat_from_matrix
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
+from isaaclab.visualizers import VisualizerCfg
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg
 
 from isaaclab_visualizers.desktop_entry import write_desktop_entry
 
-from .kit_visualizer_cfg import KitVisualizerCfg
+from .kit_key_event_source import KitKeyEventSource
 
 logger = logging.getLogger(__name__)
 
@@ -49,14 +50,13 @@ class KitVisualizer(BaseVisualizer):
     _timeline_auto_update: ClassVar[bool | None] = None
     _timeline_control_owner_count: ClassVar[int] = 0
 
-    def __init__(self, cfg: KitVisualizerCfg):
+    def __init__(self, cfg: VisualizerCfg):
         """Initialize Kit visualizer state.
 
         Args:
             cfg: Kit visualizer configuration.
         """
         super().__init__(cfg)
-        self.cfg: KitVisualizerCfg = cfg
 
         self._simulation_app = None
         self._viewport_window = None
@@ -133,14 +133,14 @@ class KitVisualizer(BaseVisualizer):
                 ("streaming_gt_types", list(self.cfg.streaming_gt_types)),
                 ("max_visible_envs", self.cfg.max_visible_envs),
                 ("num_visualized_envs", num_visualized_envs),
-                ("create_viewport", self.cfg.create_viewport),
+                ("create_viewport", self.cfg.backend.create_viewport),
                 ("headless", self._runtime_headless),
             ],
         )
         if self.current_image_view is not None and not self._runtime_headless:
             import omni.ui
 
-            title = self.cfg.viewport_name or "Streaming View"
+            title = self.cfg.backend.viewport_name or "Streaming View"
             self._camera_image_provider = omni.ui.ByteImageProvider()
             self._camera_image_window = omni.ui.Window(
                 title, width=self.cfg.window.size[0], height=self.cfg.window.size[1]
@@ -154,10 +154,18 @@ class KitVisualizer(BaseVisualizer):
         self._fabric = sim.get_or_create_backend(FabricBackendCfg(stage=sim.stage, device=sim.device))
         self._fabric.bind_transforms(scene_data_provider)
         self._is_initialized = True
-        self._setup_initial_camera_view()
+        self.reapply_origin()
         self._controls_kit_timeline = sim.has_gui and self.physics_backend not in ("physx", "ovphysx")
         if self._controls_kit_timeline:
             self.play()
+        if not self._runtime_headless:
+            # keyboard input is optional: a failure here must not stop the visualizer from starting
+            try:
+                import omni.appwindow
+
+                self._key_event_source = KitKeyEventSource(omni.appwindow.get_default_app_window())
+            except Exception:
+                logger.exception("[KitVisualizer] Keyboard input is unavailable")
 
     def step(self, dt: float) -> None:
         """Advance visualizer/UI updates for one simulation step.
@@ -177,7 +185,7 @@ class KitVisualizer(BaseVisualizer):
         provider = self._sim.get_scene_data_provider()
         self._fabric.update_transforms(provider)
         self._fabric.update_geometries(provider, self._sim.render_generation)
-        if self.cfg.origin_type == "asset":
+        if self.cfg.backend.origin_type == "asset":
             self._update_asset_tracking_camera()
         self._app_pumped_this_step = self._pump_kit_app_update()
         if self._camera_image_provider is not None:
@@ -200,6 +208,7 @@ class KitVisualizer(BaseVisualizer):
         """Close viewport resources and restore temporary state."""
         if not self._is_initialized:
             return
+        self._close_key_event_source()
         try:
             if self._owns_kit_timeline:
                 self.stop()
@@ -294,7 +303,7 @@ class KitVisualizer(BaseVisualizer):
         provider = self._sim.get_scene_data_provider()
         self._fabric.update_transforms(provider)
         self._fabric.update_geometries(provider, self._sim.render_generation)
-        if self._runtime_headless and self.cfg.origin_type == "asset":
+        if self._runtime_headless and self.cfg.backend.origin_type == "asset":
             self._update_asset_tracking_camera()
         w, h = self.cfg.window.size
 
@@ -441,24 +450,10 @@ class KitVisualizer(BaseVisualizer):
             return
         self._set_viewport_camera(tuple(eye), tuple(target))
 
-    def reapply_origin(self) -> None:
-        """Recompute the camera position from the current :attr:`~KitVisualizerCfg.origin_type` and push it to
-        the viewport.
-
-        Call this after mutating :attr:`cfg.origin_type`, :attr:`cfg.origin_env_index`, or
-        :attr:`cfg.origin_track_path` so the viewport reflects the new origin immediately rather than
-        waiting for the next :meth:`step` call.
-
-        For ``"asset"`` origins the camera update is deferred to the
-        next :meth:`step` because asset state is not available until after
-        :meth:`~isaaclab.sim.SimulationContext.reset`.
-        """
-        self._setup_initial_camera_view()
-
     @property
     def viewer_origin(self) -> torch.Tensor | None:
-        """Current world-space origin offset applied to :attr:`~KitVisualizerCfg.eye` and
-        :attr:`~KitVisualizerCfg.lookat` when computing the absolute camera position.
+        """Current world-space origin offset applied to :attr:`~isaaclab.visualizers.VisualizerCfg.eye` and
+        :attr:`~isaaclab.visualizers.VisualizerCfg.lookat` when computing the absolute camera position.
 
         Returns ``None`` before :meth:`initialize` is called or when no valid origin has been
         established yet (e.g. asset-tracking before the first :meth:`step`).
@@ -635,8 +630,12 @@ class KitVisualizer(BaseVisualizer):
             self._write_desktop_entry()
             import omni.kit.viewport.utility as vp_utils
 
-            if self.cfg.create_viewport:
-                name = self.cfg.viewport_name if self.cfg.viewport_name is not None else _DEFAULT_VIEWPORT_NAME
+            if self.cfg.backend.create_viewport:
+                name = (
+                    self.cfg.backend.viewport_name
+                    if self.cfg.backend.viewport_name is not None
+                    else _DEFAULT_VIEWPORT_NAME
+                )
                 if not str(name).strip():
                     raise RuntimeError(
                         "[KitVisualizer] viewport_name must be a non-empty string when create_viewport=True."
@@ -663,7 +662,7 @@ class KitVisualizer(BaseVisualizer):
 
         RTX scene partitioning culls per-env geometry by the camera's non-primvar
         ``omni:scenePartition`` token. Interactive viewport cameras live outside
-        ``/World/envs`` and are created by Kit, so they do not inherit the env-root
+        the environment roots and are created by Kit, so they do not inherit the env-root
         primvar authored by the renderer. When the RTX spectator-view setting is
         enabled, leaving the viewport camera unpartitioned shows all environments.
         Otherwise, the viewport is assigned to the first visible environment.
@@ -672,7 +671,7 @@ class KitVisualizer(BaseVisualizer):
         if num_envs <= 0:
             return
 
-        env_prim = usd_stage.GetPrimAtPath("/World/envs/env_0")
+        env_prim = usd_stage.GetPrimAtPath(self._sim.get_clone_plan().env_template.format(0))
         env_partition_attr = env_prim.GetAttribute("primvars:omni:scenePartition")
         if not env_partition_attr.IsValid() or env_partition_attr.Get() is None:
             return
@@ -735,7 +734,9 @@ class KitVisualizer(BaseVisualizer):
 
         if main_viewport and main_viewport != window:
             window.dock_in(
-                main_viewport, dock_positions.get(self.cfg.dock_position.upper(), omni.ui.DockPosition.SAME), 0.5
+                main_viewport,
+                dock_positions.get(self.cfg.backend.dock_position.upper(), omni.ui.DockPosition.SAME),
+                0.5,
             )
             if focus:
                 await omni.kit.app.get_app().next_update_async()
@@ -749,7 +750,9 @@ class KitVisualizer(BaseVisualizer):
         if self._viewport_api is None:
             # Without a viewport, Kit does not create its default perspective
             # camera, so author it explicitly before render products use it.
-            self._set_usd_camera_pose(_DEFAULT_VIEWPORT_CAMERA_PATH, position, target)
+            # Kit stores existing camera transforms in the stronger session layer.
+            with Usd.EditContext(self._sim.stage, self._sim.stage.GetSessionLayer()):
+                self._set_usd_camera_pose(_DEFAULT_VIEWPORT_CAMERA_PATH, position, target)
             return
 
         try:
@@ -837,7 +840,7 @@ class KitVisualizer(BaseVisualizer):
         for env_id in range(num_envs):
             if env_id in visible:
                 continue
-            env_path = f"/World/envs/env_{env_id}"
+            env_path = self._sim.get_clone_plan().env_template.format(env_id)
             prim = usd_stage.GetPrimAtPath(env_path)
             if not prim.IsValid():
                 continue
@@ -925,37 +928,39 @@ class KitVisualizer(BaseVisualizer):
                 inv_attr.Set(prev)
         self._point_instancer_invisible_ids_backup.clear()
 
-    def _setup_initial_camera_view(self) -> None:
-        """Position the viewport camera according to :attr:`KitVisualizerCfg.origin_type`.
+    def reapply_origin(self) -> None:
+        """Apply the configured world, environment, or asset origin to the viewport camera.
 
-        Called once at the end of :meth:`initialize`. For ``"world"`` and ``"env"`` origins the
-        camera is positioned immediately. For asset-tracking origins the first update is deferred
-        to :meth:`step` because asset state is not yet available at initialization time.
+        Called during initialization and after changing ``cfg.backend.origin_type``,
+        ``cfg.backend.origin_env_index``, or ``cfg.backend.origin_track_path`` at runtime.
+        Asset tracking waits for the next :meth:`step`, when simulation state is available.
         """
         self._interactive_scene = self._sim.get_scene_data_provider().get_interactive_scene()
 
-        if self.cfg.origin_type == "world":
+        if self.cfg.backend.origin_type == "world":
             self._viewer_origin = torch.zeros(3)
-        elif self.cfg.origin_type == "env":
+        elif self.cfg.backend.origin_type == "env":
             scene = self._interactive_scene
             if scene is None:
                 logger.warning("[KitVisualizer] origin_type='env' requested but no scene is registered yet.")
                 self._viewer_origin = torch.zeros(3)
             else:
                 num_envs = scene.num_envs
-                if not (0 <= self.cfg.origin_env_index < num_envs):
+                if not (0 <= self.cfg.backend.origin_env_index < num_envs):
                     raise ValueError(
-                        f"[KitVisualizer] origin_env_index {self.cfg.origin_env_index} is out of range "
+                        f"[KitVisualizer] origin_env_index {self.cfg.backend.origin_env_index} is out of range "
                         f"[0, {num_envs - 1}] for origin_type='env'."
                     )
-                self._viewer_origin = scene.env_origins[self.cfg.origin_env_index]
-        elif self.cfg.origin_type == "asset":
-            if self.cfg.origin_track_path is None:
+                self._viewer_origin = scene.env_origins[self.cfg.backend.origin_env_index]
+        elif self.cfg.backend.origin_type == "asset":
+            if self.cfg.backend.origin_track_path is None:
                 raise ValueError("[KitVisualizer] origin_type='asset' requires origin_track_path to be set.")
             # Asset data is not available until after sim.reset(); defer to step().
             return
         else:
-            logger.warning("[KitVisualizer] Unknown origin_type '%s'; defaulting to world.", self.cfg.origin_type)
+            logger.warning(
+                "[KitVisualizer] Unknown origin_type '%s'; defaulting to world.", self.cfg.backend.origin_type
+            )
             self._viewer_origin = torch.zeros(3)
 
         self._apply_viewer_origin_to_camera()
@@ -963,23 +968,23 @@ class KitVisualizer(BaseVisualizer):
     def _update_asset_tracking_camera(self) -> None:
         """Update the viewport camera to track an asset root or body.
 
-        Called before viewport frames when :attr:`KitVisualizerCfg.origin_type` is ``"asset"``.
-        Parses :attr:`~KitVisualizerCfg.origin_track_path`: ``"asset_name"`` tracks the root,
+        Called before viewport frames when :attr:`KitBackendCfg.origin_type` is ``"asset"``.
+        Parses :attr:`~KitBackendCfg.origin_track_path`: ``"asset_name"`` tracks the root,
         ``"asset_name/body_name"`` tracks a specific body.
         """
         scene = self._interactive_scene
-        if scene is None or self.cfg.origin_track_path is None:
+        if scene is None or self.cfg.backend.origin_track_path is None:
             return
-        asset_name, _, body_name = self.cfg.origin_track_path.partition("/")
+        asset_name, _, body_name = self.cfg.backend.origin_track_path.partition("/")
         try:
             asset = scene[asset_name]
         except KeyError:
             return
         if body_name:
             body_ids, _ = asset.find_bodies(body_name)
-            self._viewer_origin = asset.data.body_pos_w.torch[self.cfg.origin_env_index, body_ids[0]]
+            self._viewer_origin = asset.data.body_pos_w.torch[self.cfg.backend.origin_env_index, body_ids[0]]
         else:
-            self._viewer_origin = asset.data.root_pos_w.torch[self.cfg.origin_env_index]
+            self._viewer_origin = asset.data.root_pos_w.torch[self.cfg.backend.origin_env_index]
         self._apply_viewer_origin_to_camera()
 
     def _apply_viewer_origin_to_camera(self) -> None:

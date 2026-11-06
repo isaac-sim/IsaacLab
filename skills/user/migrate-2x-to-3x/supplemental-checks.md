@@ -13,14 +13,14 @@ Use these checks to route investigation, not as standalone migration docs:
 | Symptom or old pattern | Current source of truth |
 | --- | --- |
 | Task names include the old Gym version suffix, such as `-v0` | Current task docs and the environment catalog; use suffixless task names in examples |
-| Visualizer launch behavior changed | `docs/source/migration/migrating_to_isaaclab_3-0.rst` and `source/isaaclab/isaaclab/app/sim_launcher.py` |
+| Visualizer launch behavior changed | `docs/source/isaaclab/migrating.rst` and `source/isaaclab/isaaclab/app/sim_launcher.py` |
 | Camera examples include obsolete launch options | Current sensor, renderer, and visualization docs; camera support is automatic |
-| Backend-specific physics or schema cfgs | `docs/source/concepts/backend_architecture.rst` and `docs/source/concepts/schema_cfgs.rst` |
+| Backend-specific physics or schema cfgs | `docs/source/concepts/backends_and_presets.rst` and `docs/source/concepts/schema_cfgs.rst` |
 | Imports of PhysX/Newton schema cfgs from `isaaclab.sim.schemas` | Move backend-specific imports to `isaaclab_physx.sim.schemas` or `isaaclab_newton.sim.schemas`; core forwarding shims are deprecated |
 | Spawner schema overrides that need multiple namespaces in one slot | Prefer schema fragments such as `UsdPhysicsDriveCfg`, `PhysxJointCfg`, `NewtonCollisionCfg`, or `MujocoJointCfg` instead of forcing one legacy property cfg to carry every backend attribute |
-| Quaternion order changed from WXYZ to XYZW | `docs/source/migration/migrating_to_isaaclab_3-0.rst` and `scripts/tools/find_quaternions.py` |
-| Asset or sensor data no longer behaves like plain tensors | `ProxyArray` sections in `docs/source/migration/migrating_to_isaaclab_3-0.rst` |
-| `root_physx_view` or object API warnings | asset view sections in `docs/source/migration/migrating_to_isaaclab_3-0.rst` |
+| Quaternion order changed from WXYZ to XYZW | `docs/source/isaaclab/migrating.rst` and `scripts/tools/find_quaternions.py` |
+| Asset or sensor data no longer behaves like plain tensors | `ProxyArray` sections in `docs/source/isaaclab/migrating.rst` |
+| `root_physx_view` or object API warnings | asset view sections in `docs/source/isaaclab/migrating.rst` |
 | RSL-RL config compatibility errors | `source/isaaclab_rl/isaaclab_rl/rsl_rl/rl_cfg.py` and `source/isaaclab_rl/isaaclab_rl/entrypoints/backends/train_rsl_rl.py` |
 | Pretrained checkpoint helper import path | `source/isaaclab_rl/isaaclab_rl/utils/pretrained_checkpoint.py` |
 
@@ -46,4 +46,4 @@ The external prototype migration skill called out useful search terms. Before us
 
 ## Documentation Gaps
 
-If one of these checks reveals a real migration issue that is missing from the official migration guide, add the migration note to `docs/source/migration/migrating_to_isaaclab_3-0.rst` and keep this file as a pointer.
+If one of these checks reveals a real migration issue that is missing from the official migration guide, add the migration note to `docs/source/isaaclab/migrating.rst` and keep this file as a pointer.

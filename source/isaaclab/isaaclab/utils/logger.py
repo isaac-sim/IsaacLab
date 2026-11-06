@@ -44,6 +44,9 @@ def configure_logging(
     to a file. The log directory can be specified using :attr:`log_dir`. If not provided, the logs will be saved
     to the temp directory with the sub-directory "isaaclab/logs".
 
+    Existing handlers on the root logger are removed and closed, as :func:`logging.basicConfig` does with
+    ``force=True``, so a log file opened by a previous call is released.
+
     The log file name is formatted as "isaaclab_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log".
     The log record format is "%(asctime)s [%(filename)s:%(lineno)d] %(levelname)s: %(message)s".
     The date format is "%Y-%m-%d %H:%M:%S".
@@ -62,10 +65,11 @@ def configure_logging(
     # isaaclab's own loggers inherit this level unless overridden
     root_logger.setLevel(logging_level)
 
-    # remove existing handlers
+    # remove and close existing handlers so that a replaced file handler releases its log file
     # Note: iterate over a copy [:] to avoid modifying list during iteration
     for handler in root_logger.handlers[:]:
         root_logger.removeHandler(handler)
+        handler.close()
 
     # add a stream handler with default level
     handler = logging.StreamHandler(sys.stdout)

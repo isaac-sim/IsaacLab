@@ -17,10 +17,52 @@ from pxr import Gf, Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.assets import ArticulationCfg
+from isaaclab.assets import ArticulationCfg, RigidObjectCfg
+from isaaclab.cloner import InclusionSet
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.sensors import JointWrenchSensorCfg
+from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg, ImuCfg, JointWrenchSensorCfg, PvaCfg
+from isaaclab.utils import instantiate, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, retrieve_file_path
+
+
+def assert_sensors_reject_partial_environment_coverage(sim, cfg) -> None:
+    """Check all native sensor bindings against one scene with assets present in only two of four worlds."""
+    cfg.wrench = None
+    cfg.crate = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Crate",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.2, 0.2, 0.2),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=1.0),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+            activate_contact_sensors=True,
+        ),
+    )
+    cfg.anchor = replace(cfg.crate, prim_path="{ENV_REGEX_NS}/Anchor")
+    cfg.clone_cfg.clone_combinations = [InclusionSet(assets=["robot", "crate"]), InclusionSet(assets=[])]
+    scene = InteractiveScene(cfg)
+    sim.reset()
+    crate = f"{scene.env_regex_ns}/Crate"
+    configs = [
+        ImuCfg(prim_path=crate),
+        PvaCfg(prim_path=crate),
+        ContactSensorCfg(prim_path=crate),
+        JointWrenchSensorCfg(prim_path=f"{scene.env_regex_ns}/Robot"),
+        FrameTransformerCfg(prim_path=crate, target_frames=[FrameTransformerCfg.FrameCfg(prim_path=crate)]),
+        FrameTransformerCfg(
+            prim_path=f"{scene.env_regex_ns}/Anchor", target_frames=[FrameTransformerCfg.FrameCfg(prim_path=crate)]
+        ),
+    ]
+    for sensor_cfg in configs:
+        sensor = instantiate(sensor_cfg)
+        try:
+            # Sensors added after reset have not received PHYSICS_READY; exercise real native initialization.
+            with pytest.raises(RuntimeError, match=f"{type(sensor).__name__} .*requires .* of 4 environments") as error:
+                sensor._initialize_callback(None)
+            assert ("Robot" if isinstance(sensor_cfg, JointWrenchSensorCfg) else "Crate") in str(error.value)
+            assert not sensor.is_initialized
+        finally:
+            sensor._clear_callbacks()
 
 
 @pytest.mark.integration

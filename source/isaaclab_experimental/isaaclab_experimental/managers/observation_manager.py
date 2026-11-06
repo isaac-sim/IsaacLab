@@ -32,11 +32,11 @@ where group configuration overwrites per term configuration if set. History foll
 
 The observation manager can be used to compute observations for all the groups or for a specific group. The
 observations are computed by calling the registered functions for each term in the group. The functions are
-called in the order of the terms in the group. The functions are expected to return a tensor with shape
-(num_envs, ...).
+called in the order of the terms in the group. The functions write into pre-allocated Warp buffers
+with shape (num_envs, ...) and return None.
 
-If a noise model or custom modifier is registered for a term, the function is called to corrupt
-the observation. The corruption function is expected to return a tensor with the same shape as the observation.
+If a tensor processor or noise model is registered for a term, it updates the observation buffer
+in place, preserving its shape. Tensor processors run before noise models.
 The observations are clipped and scaled as per the configuration settings.
 
 Experimental (Warp-first) note:
@@ -59,7 +59,7 @@ from isaaclab.envs.utils.io_descriptors import _warn_io_descriptors_deprecated
 from isaaclab.managers.manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
 from isaaclab.utils import instantiate, to_dict
 
-from isaaclab_experimental.utils import modifiers, noise
+from isaaclab_experimental.utils import noise, tensor_processors
 from isaaclab_experimental.utils.buffers import CircularBuffer
 from isaaclab_experimental.utils.torch_utils import clone_obs_buffer
 
@@ -133,11 +133,11 @@ class ObservationManager(ManagerBase):
 
     The observation manager can be used to compute observations for all the groups or for a specific group. The
     observations are computed by calling the registered functions for each term in the group. The functions are
-    called in the order of the terms in the group. The functions are expected to return a tensor with shape
-    (num_envs, ...).
+    called in the order of the terms in the group. The functions write into pre-allocated Warp buffers
+    with shape (num_envs, ...) and return None.
 
-    If a noise model or custom modifier is registered for a term, the function is called to corrupt
-    the observation. The corruption function is expected to return a tensor with the same shape as the observation.
+    If a tensor processor or noise model is registered for a term, it updates the observation buffer
+    in place, preserving its shape. Tensor processors run before noise models.
     The observations are clipped and scaled as per the configuration settings.
 
     Experimental (Warp-first) note:
@@ -350,7 +350,7 @@ class ObservationManager(ManagerBase):
                     func(self._env, **term_cfg.params, inspect=True)
                     desc = func._descriptor.__dict__.copy()
                     overloads = {}
-                    for k in ["modifiers", "clip", "scale", "history_length", "flatten_history_dim"]:
+                    for k in ["tensor_processors", "clip", "scale", "history_length", "flatten_history_dim"]:
                         if hasattr(term_cfg, k):
                             overloads[k] = getattr(term_cfg, k)
                     desc.update(overloads)
@@ -374,7 +374,7 @@ class ObservationManager(ManagerBase):
                         v = v.detach().cpu().numpy().tolist()
                     if k in ["scale", "clip", "history_length", "flatten_history_dim"]:
                         formatted_item["overloads"][k] = v
-                    elif k in ["modifiers", "description", "units"]:
+                    elif k in ["tensor_processors", "description", "units"]:
                         formatted_item["extras"][k] = v
                     else:
                         formatted_item[k] = v
@@ -409,9 +409,9 @@ class ObservationManager(ManagerBase):
             for term_name in self._group_obs_term_names[group_name]:
                 if term_name in self._group_obs_term_history_buffer[group_name]:
                     self._group_obs_term_history_buffer[group_name][term_name].reset(env_mask=env_mask)
-        # call all modifiers/noise models that are classes
-        for mod in self._group_obs_class_instances:
-            mod.reset(env_mask=env_mask)
+        # call all tensor processors/noise models that are classes
+        for tensor_processor in self._group_obs_class_instances:
+            tensor_processor.reset(env_mask=env_mask)
 
         # nothing to log here
         return {}
@@ -457,13 +457,13 @@ class ObservationManager(ManagerBase):
         """Computes the observations for a given group.
 
         The observations for a given group are computed by calling the registered functions for each
-        term in the group. The functions are called in the order of the terms in the group. The functions
-        are expected to return a tensor with shape (num_envs, ...).
+        term in the group. The functions are called in the order of the terms in the group and write into
+        pre-allocated Warp buffers with shape (num_envs, ...).
 
         The following steps are performed for each observation term:
 
         1. Compute observation term by calling the function
-        2. Apply custom modifiers in the order specified in :attr:`ObservationTermCfg.modifiers`
+        2. Apply custom tensor processors in the order specified in :attr:`ObservationTermCfg.tensor_processors`
         3. Apply corruption/noise model based on :attr:`ObservationTermCfg.noise`
         4. Apply clipping based on :attr:`ObservationTermCfg.clip`
         5. Apply scaling based on :attr:`ObservationTermCfg.scale`
@@ -500,15 +500,15 @@ class ObservationManager(ManagerBase):
         # Persistent per-term obs dict (pre-allocated in _prepare_terms).
         group_obs = self._group_obs_dict[group_name]
 
-        # evaluate terms: compute, add noise, clip, scale, custom modifiers
+        # evaluate terms: compute, apply tensor processors, add noise, clip, scale
         for term_name, term_cfg in zip(group_term_names, self._group_obs_term_cfgs[group_name]):
             # compute term's value into pre-allocated Warp output
             term_cfg.func(self._env, term_cfg.out_wp, **term_cfg.params)
 
-            # apply custom modifiers (in-place on out_wp)
-            if term_cfg.modifiers is not None:
-                for modifier in term_cfg.modifiers:
-                    modifier.func(term_cfg.out_wp, **modifier.params)
+            # apply custom tensor processors (in-place on out_wp)
+            if term_cfg.tensor_processors is not None:
+                for tensor_processor_cfg in term_cfg.tensor_processors:
+                    tensor_processor_cfg.func(term_cfg.out_wp, **tensor_processor_cfg.params)
 
             # apply noise (Warp in-place on out_wp)
             if isinstance(term_cfg.noise, noise.NoiseCfg):
@@ -605,9 +605,9 @@ class ObservationManager(ManagerBase):
         self._group_obs_concatenate_dim: dict[str, int] = dict()
 
         self._group_obs_term_history_buffer: dict[str, dict] = dict()
-        # create a list to store classes instances, e.g., for modifiers and noise models
+        # create a list to store class instances, e.g., for tensor processors and noise models
         # we store it as a separate list to only call reset on them and prevent unnecessary calls
-        self._group_obs_class_instances: list[modifiers.ModifierBase | noise.NoiseModel] = list()
+        self._group_obs_class_instances: list[tensor_processors.TensorProcessor | noise.NoiseModel] = list()
 
         # Persistent Warp output buffers for concatenated 2D groups (optional fast-path).
         # For other cases (non-concat groups, history outputs, non-2D concat dims), we allocate per-term outputs.
@@ -671,6 +671,7 @@ class ObservationManager(ManagerBase):
                     "history_length",
                     "flatten_history_dim",
                     "history_order",
+                    "history_newest_first",
                     "concatenate_dim",
                 ]:
                     continue
@@ -682,6 +683,7 @@ class ObservationManager(ManagerBase):
                         f"Configuration for the term '{term_name}' is not of type ObservationTermCfg."
                         f" Received: '{type(term_cfg)}'."
                     )
+                term_cfg._migrate_modifiers()
                 # resolve common terms in the config
                 # Warp-first signature is (env, out, **params)
                 self._resolve_common_term_cfg(f"{group_name}/{term_name}", term_cfg, min_argc=2)
@@ -735,39 +737,44 @@ class ObservationManager(ManagerBase):
                     )
                     term_cfg.scale_wp = wp.array(scale_vals, dtype=wp.float32, device=self._env.device)
 
-                # prepare modifiers for each observation
-                if term_cfg.modifiers is not None:
-                    # initialize list of modifiers for term
-                    for mod_cfg in term_cfg.modifiers:
-                        # check if class modifier and initialize with observation size when adding
-                        if isinstance(mod_cfg, modifiers.ModifierCfg):
-                            # to list of modifiers
-                            if inspect.isclass(mod_cfg.func):
-                                if not issubclass(mod_cfg.func, modifiers.ModifierBase):
+                # prepare tensor processors for each observation
+                if term_cfg.tensor_processors is not None:
+                    # initialize list of tensor processors for term
+                    for tensor_processor_cfg in term_cfg.tensor_processors:
+                        # check if class processor and initialize with observation size when adding
+                        if isinstance(tensor_processor_cfg, tensor_processors.TensorProcessorCfg):
+                            # to list of tensor processors
+                            if inspect.isclass(tensor_processor_cfg.func):
+                                if not issubclass(tensor_processor_cfg.func, tensor_processors.TensorProcessor):
                                     raise TypeError(
-                                        f"Modifier function '{mod_cfg.func}' for observation term '{term_name}'"
-                                        f" is not a subclass of 'ModifierBase'. Received: '{type(mod_cfg.func)}'."
+                                        f"Tensor processor function '{tensor_processor_cfg.func}' for observation term"
+                                        f" '{term_name}' is not a subclass of 'TensorProcessor'."
+                                        f" Received: '{type(tensor_processor_cfg.func)}'."
                                     )
-                                mod_cfg.func = mod_cfg.func(cfg=mod_cfg, data_dim=obs_dims, device=self._env.device)
+                                tensor_processor_cfg.func = tensor_processor_cfg.func(
+                                    cfg=tensor_processor_cfg, data_dim=obs_dims, device=self._env.device
+                                )
 
-                                # add to list of class modifiers
-                                self._group_obs_class_instances.append(mod_cfg.func)
+                                # add to list of class tensor processors
+                                self._group_obs_class_instances.append(tensor_processor_cfg.func)
                         else:
                             raise TypeError(
-                                f"Modifier configuration '{mod_cfg}' of observation term '{term_name}' is not of"
-                                f" required type ModifierCfg, Received: '{type(mod_cfg)}'"
+                                f"Tensor processor configuration '{tensor_processor_cfg}' of observation term"
+                                f" '{term_name}' is not of"
+                                f" required type TensorProcessorCfg, Received: '{type(tensor_processor_cfg)}'"
                             )
 
                         # check if function is callable
-                        if not callable(mod_cfg.func):
+                        if not callable(tensor_processor_cfg.func):
                             raise AttributeError(
-                                f"Modifier '{mod_cfg}' of observation term '{term_name}' is not callable."
-                                f" Received: {mod_cfg.func}"
+                                f"Tensor processor '{tensor_processor_cfg}' of observation term '{term_name}'"
+                                " is not callable."
+                                f" Received: {tensor_processor_cfg.func}"
                             )
 
                         # check if term's arguments are matched by params
-                        term_params = list(mod_cfg.params.keys())
-                        args = inspect.signature(mod_cfg.func).parameters
+                        term_params = list(tensor_processor_cfg.params.keys())
+                        args = inspect.signature(tensor_processor_cfg.func).parameters
                         args_with_defaults = [arg for arg in args if args[arg].default is not inspect.Parameter.empty]
                         args_without_defaults = [arg for arg in args if args[arg].default is inspect.Parameter.empty]
                         args = args_without_defaults + args_with_defaults
@@ -775,8 +782,8 @@ class ObservationManager(ManagerBase):
                         if len(args) > 1:
                             if set(args[1:]) != set(term_params + args_with_defaults):
                                 raise ValueError(
-                                    f"Modifier '{mod_cfg}' of observation term '{term_name}' expects"
-                                    f" mandatory parameters: {args_without_defaults[1:]}"
+                                    f"Tensor processor '{tensor_processor_cfg}' of observation term '{term_name}'"
+                                    f" expects mandatory parameters: {args_without_defaults[1:]}"
                                     f" and optional parameters: {args_with_defaults}, but received: {term_params}."
                                 )
 

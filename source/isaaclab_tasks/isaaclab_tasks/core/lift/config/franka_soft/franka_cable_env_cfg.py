@@ -51,12 +51,12 @@ class PhysicsCfg(PresetCfg):
                         ls_iterations=50,
                         integrator="implicitfast",
                     ),
-                    bodies=[r"/World/envs/env_.*/Robot"],
+                    bodies=[r"{ENV_REGEX_NS}/Robot"],
                 ),
                 CouplerEntryCfg(
                     name="cable",
                     solver_cfg=VBDSolverCfg(iterations=10),
-                    bodies=[r"/World/envs/env_.*/Cable"],
+                    bodies=[r"{ENV_REGEX_NS}/Cable"],
                     include_static_shapes=True,
                 ),
             ],
@@ -65,8 +65,8 @@ class PhysicsCfg(PresetCfg):
                     source="rigid",
                     destination="cable",
                     bodies=[
-                        r"/World/envs/env_.*/Robot/Geometry/.*panda_hand",
-                        r"/World/envs/env_.*/Robot/Geometry/.*panda_(left|right)finger",
+                        r"{ENV_REGEX_NS}/Robot/Geometry/.*panda_hand",
+                        r"{ENV_REGEX_NS}/Robot/Geometry/.*panda_(left|right)finger",
                     ],
                     collide_interval=1,
                 )
@@ -306,7 +306,7 @@ class TerminationsCfg:
 class FrankaCableEnvCfg(soft.FrankaSoftEnvCfg):
     """Manager-based RL environment for lifting a 12-segment cable."""
 
-    scene: FrankaCableSceneCfg = FrankaCableSceneCfg(num_envs=8192, env_spacing=2.0, replicate_physics=True)
+    scene: FrankaCableSceneCfg = FrankaCableSceneCfg(num_envs=8192, env_spacing=2.0)
     observations: ObservationsCfg = ObservationsCfg()
     commands: CommandsCfg = CommandsCfg()
     rewards: RewardsCfg = RewardsCfg()
@@ -324,7 +324,7 @@ class FrankaCableEnvCfg(soft.FrankaSoftEnvCfg):
 class FrankaCableCameraEnvCfg(FrankaCableEnvCfg):
     """Visual Franka cable lifting environment."""
 
-    scene: FrankaCableCameraSceneCfg = FrankaCableCameraSceneCfg(num_envs=128, env_spacing=2.0, replicate_physics=True)
+    scene: FrankaCableCameraSceneCfg = FrankaCableCameraSceneCfg(num_envs=128, env_spacing=2.0)
     observations: FrankaCableCameraObservationsCfg = FrankaCableCameraObservationsCfg()
 
     def __post_init__(self):

@@ -40,7 +40,7 @@ import warp as wp
 from isaaclab_physx.assets import Articulation
 from isaaclab_physx.assets.articulation.kernels import write_joint_state_data, write_joint_state_data_kernel
 
-from pxr import Gf, PhysxSchema, UsdGeom, UsdPhysics
+from pxr import Gf, PhysxSchema, Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -281,6 +281,37 @@ def test_gravity_compensation_holds_static_equilibrium(sim, device) -> None:
         assert not torch.allclose(data.mass_matrix.torch, primed[1], atol=1e-4), f"{kwarg} write left a stale matrix"
 
 
+def _author_fixed_joint_root_robot(usd_path: str) -> None:
+    """Author a two-link robot rooted at the fixed joint that attaches its base to the asset prim."""
+    stage = Usd.Stage.CreateNew(usd_path)
+    stage.SetDefaultPrim(UsdGeom.Xform.Define(stage, "/Robot").GetPrim())
+    for name in ("base", "link"):
+        body = UsdGeom.Xform.Define(stage, f"/Robot/{name}").GetPrim()
+        UsdPhysics.RigidBodyAPI.Apply(body)
+        UsdPhysics.MassAPI.Apply(body).CreateMassAttr(1.0)
+    # body0 targets the asset prim, neither a rigid body nor a collider, so the joint attaches the base to the world
+    root_joint = UsdPhysics.FixedJoint.Define(stage, "/Robot/root_joint")
+    root_joint.CreateBody0Rel().SetTargets(["/Robot"])
+    root_joint.CreateBody1Rel().SetTargets(["/Robot/base"])
+    UsdPhysics.ArticulationRootAPI.Apply(root_joint.GetPrim())
+    joint = UsdPhysics.RevoluteJoint.Define(stage, "/Robot/joint")
+    joint.CreateBody0Rel().SetTargets(["/Robot/base"])
+    joint.CreateBody1Rel().SetTargets(["/Robot/link"])
+    stage.Save()
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_initialization_fixed_joint_root(sim, device, tmp_path) -> None:
+    """``fix_root_link=True`` keeps an articulation rooted at its fixed world joint fixed-base."""
+    usd_path = str(tmp_path / "fixed_joint_root.usda")
+    _author_fixed_joint_root_robot(usd_path)
+    spawn = sim_utils.UsdFileCfg(usd_path=usd_path, fix_root_link=True)
+    articulation = Articulation(ArticulationCfg(prim_path="/World/Robot", spawn=spawn, actuators={}))
+    sim.reset()
+
+    assert articulation.is_fixed_base
+
+
 ##
 # Composite scene shared by the remaining tests.
 ##
@@ -423,8 +454,11 @@ def test_articulation_initialization_and_ordering(articulation_scene: _Articulat
     assert scene.reordered.root_view.prim_paths[0] == "/World/Reordered/Env_0/Robot/base"
 
     ordered, floating = scene.ordered, scene.floating
-    assert tuple(ordered.backend_joint_names) == BRANCHING_PHYSX_JOINT_NAMES
-    assert tuple(ordered.backend_body_names) == BRANCHING_PHYSX_BODY_NAMES
+    # Isaac Sim PhysX visits sibling links in authored joint-prim order; "physx" resolves the OVPhysX order.
+    assert tuple(ordered.backend_joint_names) == ("right_shoulder", "left_shoulder", "right_elbow", "left_elbow")
+    assert tuple(ordered.backend_body_names) == ("base", "right_upper", "left_upper", "right_tip", "left_tip")
+    assert get_articulation_name_ordering(ordered, "physx", "joint") == BRANCHING_PHYSX_JOINT_NAMES
+    assert get_articulation_name_ordering(ordered, "physx", "body") == BRANCHING_PHYSX_BODY_NAMES
     assert get_articulation_name_ordering(ordered, "mjwarp", "joint") == BRANCHING_MJWARP_JOINT_NAMES
     assert get_articulation_name_ordering(ordered, "mjwarp", "body") == BRANCHING_MJWARP_BODY_NAMES
     assert tuple(ordered.joint_names) == BRANCHING_MJWARP_JOINT_NAMES

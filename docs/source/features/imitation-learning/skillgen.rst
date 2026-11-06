@@ -3,19 +3,21 @@
 SkillGen for Automated Demonstration Generation
 ===============================================
 
-SkillGen is an advanced demonstration generation system that enhances Isaac Lab Mimic by integrating motion planning. It generates high-quality, adaptive, collision-free robot demonstrations by combining human-provided subtask segments with automated motion planning.
+SkillGen extends Isaac Lab Mimic with motion planning. It combines annotated human
+skill segments with cuRobo plans to generate demonstrations for new object placements.
 
 What is SkillGen?
 ~~~~~~~~~~~~~~~~~
 
-SkillGen addresses key limitations in traditional demonstration generation:
+SkillGen uses motion planning to control:
 
 * **Motion Quality**: Uses cuRobo's GPU-accelerated motion planner to generate smooth, collision-free trajectories
 * **Validity**: Generates kinematically feasible plans between skill segments
 * **Diversity**: Generates varied demonstrations through configurable sampling and planning parameters
 * **Adaptability**: Generates demonstrations that can be adapted to new object placements and scene configurations during data generation
 
-The system works by taking manually annotated human demonstrations, extracting localized subtask skills (see `Subtasks in SkillGen`_), and using cuRobo to plan feasible motions between these skill segments while respecting robot kinematics and collision constraints.
+SkillGen extracts local skills from annotated demonstrations (see `Subtasks in SkillGen`_),
+then uses cuRobo to connect them while respecting kinematics and collision constraints.
 
 Prerequisites
 ~~~~~~~~~~~~~
@@ -288,7 +290,7 @@ Generate demonstrations for the standard Isaac Lab Mimic cube stacking task. In 
 2. Pick up the green cube and place it on the red cube
 3. Final stack order: blue (bottom), red (middle), green (top).
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/cube_stack_data_gen_skillgen.gif
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/imitation_learning/skillgen/cube_stack_data_gen_skillgen.gif
    :width: 75%
    :align: center
    :alt: Cube stacking task generated with SkillGen
@@ -349,7 +351,7 @@ Task 2: Adaptive Cube Stacking in a Bin
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 SkillGen can also be used to generate datasets for adaptive tasks. In this example, we generate a dataset for adaptive cube stacking in a narrow bin. The bin is placed at a fixed position and orientation in the workspace and a blue cube is placed at the center of the bin. The robot must generate successful demonstrations for stacking the red and green cubes on the blue cube without colliding with the bin.
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/bin_cube_stack_data_gen_skillgen.gif
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/imitation_learning/skillgen/bin_cube_stack_data_gen_skillgen.gif
    :width: 75%
    :align: center
    :alt: Adaptive bin cube stacking task generated with SkillGen
@@ -547,13 +549,13 @@ cuRobo Planner (GPU, collision-aware)
    :widths: 50 50
    :header-rows: 0
 
-   * - .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/cube_stack_end_to_end_curobo.gif
+   * - .. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/imitation_learning/skillgen/cube_stack_end_to_end_curobo.gif
          :height: 260px
          :align: center
          :alt: cuRobo planner test on cube stack using Franka Panda robot
 
          Cube stack planner test.
-     - .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/obstacle_avoidance_curobo.gif
+     - .. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/imitation_learning/skillgen/obstacle_avoidance_curobo.gif
          :height: 260px
          :align: center
          :alt: cuRobo planner test on obstacle avoidance using Franka Panda robot
@@ -594,7 +596,7 @@ Visualization and Debugging
 
 Users can visualize the planned trajectories and debug for collisions using Rerun-based plan visualizer. This can be enabled by setting ``visualize_plan = True`` in the cuRobo planner configuration. Note that rerun needs to be installed to visualize the planned trajectories. Refer to Step 3 in :ref:`skillgen-installation` for installation instructions.
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/rerun_cube_stack.gif
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/imitation_learning/skillgen/rerun_cube_stack.gif
    :width: 80%
    :align: center
    :alt: Rerun visualization of planned trajectories and collisions

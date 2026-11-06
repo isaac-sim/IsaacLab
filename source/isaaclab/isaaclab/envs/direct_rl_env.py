@@ -98,7 +98,7 @@ class DirectRLEnv(gym.Env):
             logger.warning("Seed not set for the environment. The environment creation may not be deterministic.")
 
         # Backwards-compat: if the deprecated viewer field has non-default eye/lookat, apply
-        # them to sim.default_visualizer_cfg so the scene camera still matches user intent.
+        # them to sim.visualizer_cfgs so the scene camera still matches user intent.
         _apply_deprecated_viewer_cfg(self.cfg)
 
         # create a simulation context to control the simulator
@@ -181,8 +181,8 @@ class DirectRLEnv(gym.Env):
 
         # let the physics backend know about the env decimation so it can
         # fold the full loop into a single step() when possible
-        self.sim.physics_manager.set_decimation(self.cfg.decimation)
-        self._physics_handles_decimation = self.sim.physics_manager.handles_decimation()
+        self.sim.backend_manager.set_decimation(self.cfg.decimation)
+        self._physics_handles_decimation = self.sim.backend_manager.handles_decimation()
 
         # check if debug visualization is has been implemented by the environment
         source_code = inspect.getsource(self._set_debug_vis_impl)
@@ -348,8 +348,8 @@ class DirectRLEnv(gym.Env):
 
         if self.cfg.wait_for_textures and self.has_rtx_sensors:
             # Wait for assets to finish loading (PhysX-specific)
-            if hasattr(self.sim.physics_manager, "assets_loading"):
-                while self.sim.physics_manager.assets_loading():
+            if hasattr(self.sim.backend_manager, "assets_loading"):
+                while self.sim.backend_manager.assets_loading():
                     self.sim.render()
 
         # return observations

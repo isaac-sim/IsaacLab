@@ -119,7 +119,8 @@ SPHERE_CFG = ContactSensorRigidObjectCfg(
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.4, 0.4, 0.6)),
     ),
     init_state=RigidObjectCfg.InitialStateCfg(pos=(0, 1.0, 1.0)),
-    contact_pose=torch.tensor([0, 1.0, 0.0, 1, 0, 0, 0]),
+    # Shallow penetration: a center on the cobblestone triangles can resolve below the mesh and lose contact.
+    contact_pose=torch.tensor([0, 1.0, 0.2, 1, 0, 0, 0]),
     non_contact_pose=torch.tensor([0, 1.0, 1.0, 1, 0, 0, 0]),
 )
 """Configuration of the sphere prim."""
@@ -635,20 +636,26 @@ def test_contact_sensor_no_stale_data_after_reset(setup_simulation, device):
     Reproduces the manager-based RL flow where an environment terminates, ``_reset_idx`` writes
     new asset poses and calls :meth:`InteractiveScene.reset`, and the next observation read
     happens before any further physics step. The contact sensor's lazy refetch must not return
-    PhysX's stale post-step buffer for the reset env — it must reflect the freshly reset state.
+    PhysX's stale post-step buffers for the reset env — net forces, contact points and filtered
+    friction must reflect the freshly reset state.
     """
     sim_dt, _, settings = setup_simulation
     settings.set("/physics/disableContactProcessing", False)
-    with build_simulation_context(device=device, dt=sim_dt, add_lighting=True) as sim:
+    # tilted gravity keeps the cube sliding, so it reports friction before the reset
+    sim_cfg = SimulationCfg(dt=sim_dt, device=device, gravity=(-10.0, 0.0, -9.81))
+    with build_simulation_context(sim_cfg=sim_cfg, add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
         scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=2.0, lazy_sensor_update=False)
         scene_cfg.terrain = replace(FLAT_TERRAIN_CFG, prim_path="/World/ground")
         scene_cfg.shape = replace(CUBE_CFG, prim_path="{ENV_REGEX_NS}/Cube")
-        scene_cfg.shape.init_state.pos = (0.0, 0.0, 1.0)
+        scene_cfg.shape.init_state.pos = (0.0, 0.0, CUBE_CFG.spawn.size[2] / 2.0)
         scene_cfg.contact_sensor = ContactSensorCfg(
             prim_path="{ENV_REGEX_NS}/Cube",
             update_period=0.0,
             history_length=10,
+            track_contact_points=True,
+            track_friction_forces=True,
+            filter_prim_paths_expr=[scene_cfg.terrain.prim_path + "/terrain/GroundPlane/CollisionPlane"],
         )
         scene = InteractiveScene(scene_cfg)
         sim.reset()
@@ -657,13 +664,17 @@ def test_contact_sensor_no_stale_data_after_reset(setup_simulation, device):
         contact_sensor: ContactSensor = scene["contact_sensor"]
         shape: RigidObject = scene["shape"]
 
-        # Drop the cube and step until it has settled on the ground.
+        # Let the cube slide on the ground.
         for _ in range(200):
             _perform_sim_step(sim, scene, sim_dt)
 
-        # Sanity: cube is on the ground and reporting non-zero contact force.
-        pre_reset_force_mag = torch.linalg.norm(contact_sensor.data.net_normal_forces_w.torch, dim=-1).item()
+        # Sanity: the cube is on the ground and reporting non-zero contact force, friction and contact point.
+        data = contact_sensor.data
+        pre_reset_force_mag = torch.linalg.norm(data.net_normal_forces_w.torch, dim=-1).item()
         assert pre_reset_force_mag > 1.0, f"Expected non-zero contact force before reset; got {pre_reset_force_mag!r}"
+        pre_reset_friction_mag = torch.linalg.norm(data.friction_force_matrix_w.torch, dim=-1).item()
+        assert pre_reset_friction_mag > 1.0, f"Expected non-zero friction before reset; got {pre_reset_friction_mag!r}"
+        assert torch.isfinite(data.contact_pos_w.torch).all(), "Expected a contact point before reset."
 
         # Mimic ``ManagerBasedRLEnv._reset_idx``: write the post-reset asset pose, then
         # ``scene.reset(env_ids)`` (which resets all sensors). No further physics step runs.
@@ -674,18 +685,26 @@ def test_contact_sensor_no_stale_data_after_reset(setup_simulation, device):
         shape.write_root_velocity_to_sim_index(root_velocity=new_root_vel, env_ids=env_ids)
         scene.reset(env_ids=env_ids)
 
-        # The sensor must not return the cached pre-reset PhysX contact value here.
-        post_reset_force_mag = torch.linalg.norm(contact_sensor.data.net_normal_forces_w.torch, dim=-1).item()
+        # The sensor must not return the cached pre-reset PhysX contact values here.
+        data = contact_sensor.data
+        post_reset_force_mag = torch.linalg.norm(data.net_normal_forces_w.torch, dim=-1).item()
         assert post_reset_force_mag == 0.0, (
             "Contact sensor returned stale pre-reset data after scene.reset(): "
             f"got {post_reset_force_mag}, expected 0.0 (pre-reset value was {pre_reset_force_mag})."
+        )
+        assert torch.isnan(data.contact_pos_w.torch).all(), f"Stale contact point: {data.contact_pos_w.torch}"
+        assert torch.count_nonzero(data.friction_force_matrix_w.torch) == 0, (
+            f"Stale friction: {data.friction_force_matrix_w.torch} (pre-reset magnitude {pre_reset_friction_mag})"
+        )
+        assert torch.count_nonzero(data.friction_force_matrix_w_history.torch) == 0, (
+            f"Stale friction history: {data.friction_force_matrix_w_history.torch}"
         )
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
 @pytest.mark.parametrize(
     ("history_length", "update_period_steps", "expected_fetches", "expected_last_update"),
-    [(0, 1, 4, 0.0), (3, 1, 4, 0.01), (3, 2, 4, 0.0075)],
+    [(0, 1, 4, None), (3, 1, 4, 0.01), (3, 2, 4, 0.0075)],
 )
 def test_contact_history_updates_at_sensor_period(
     setup_simulation, device, history_length, update_period_steps, expected_fetches, expected_last_update
@@ -723,6 +742,8 @@ def test_contact_history_updates_at_sensor_period(
             original_fetch(**kwargs)
 
         contact_sensor._fetch_physx_buffers = count_fetches
+        if expected_last_update is None:
+            expected_last_update = wp.to_torch(contact_sensor._timestamp_last_update).item()
 
         for _ in range(4):
             _perform_sim_step(sim, scene, sim_dt)

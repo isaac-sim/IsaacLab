@@ -527,9 +527,9 @@ def make_camera_output_grid(images: torch.Tensor) -> torch.Tensor:
 
 
 _CAMERA_CHANNEL_KEYS = {
-    "rgb": ("rgb", "rgba"),
+    "rgb": ("rgb", "rgba", "simple_shading_full_mdl"),
     "depth": ("depth", "distance_to_image_plane"),
-    "segmentation": ("semantic_segmentation",),
+    "segmentation": ("semantic_segmentation", "instance_segmentation"),
     "normals": ("normals",),
 }
 

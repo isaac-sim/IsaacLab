@@ -131,7 +131,7 @@ class AnymalCFlatEnvCfg(DirectRLEnvCfg):
     )
 
     # scene
-    scene: AnymalCFlatSceneCfg = AnymalCFlatSceneCfg(num_envs=4096, env_spacing=4.0, replicate_physics=True)
+    scene: AnymalCFlatSceneCfg = AnymalCFlatSceneCfg(num_envs=4096, env_spacing=4.0)
 
     # events
     events: EventCfg = EventCfg()
@@ -163,7 +163,7 @@ class AnymalCRoughEnvCfg(AnymalCFlatEnvCfg):
     # env
     observation_space = 235
 
-    scene: AnymalCRoughSceneCfg = AnymalCRoughSceneCfg(num_envs=4096, env_spacing=4.0, replicate_physics=True)
+    scene: AnymalCRoughSceneCfg = AnymalCRoughSceneCfg(num_envs=4096, env_spacing=4.0)
 
     # reward scales (override from flat config)
     flat_orientation_reward_scale = 0.0

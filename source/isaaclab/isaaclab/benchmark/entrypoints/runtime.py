@@ -196,7 +196,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
                     env.unwrapped.sim.render_context, active=profile_render, timings=profile_timings
                 ),
                 stepping.profile_physics_steps(
-                    env.unwrapped.sim.physics_manager, active=profile_physics, timings=profile_timings
+                    env.unwrapped.sim.backend_manager, active=profile_physics, timings=profile_timings
                 ),
                 environment_step_timer,
                 BenchmarkMonitor(benchmark, interval=1.0),

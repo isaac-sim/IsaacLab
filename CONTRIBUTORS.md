@@ -49,6 +49,7 @@ Guidelines for modifications:
 * Achintya Paningapalli
 * Advait Jayant
 * Agon Serifi
+* Ahmet Gundogdu
 * Alessandro Assirelli
 * Alex Omar
 * Alexander Millane
@@ -114,6 +115,7 @@ Guidelines for modifications:
 * HuiDong Chen
 * Huihua Zhao
 * Iretiayo Akinola
+* Ivan Wang
 * Jack Zeng
 * Jan Kerner
 * Jean Tampon
@@ -124,6 +126,7 @@ Guidelines for modifications:
 * Jia Lin Yuan
 * Jiakai Zhang
 * Jichuan Hu
+* jih0
 * Jinghuan Shang
 * Jingzhou Liu
 * Jinqi Wei
@@ -143,9 +146,11 @@ Guidelines for modifications:
 * Lorenz Wellhausen
 * Lotus Li
 * Louis Le Lay
+* Luca Schwarzenbach
 * Lukas Fröhlich
 * Manuel Schweiger
 * Marco Alesiani
+* Mark Finean
 * Masoud Moghani
 * Mateo Guaman Castro
 * Matthew Taylor
@@ -198,16 +203,20 @@ Guidelines for modifications:
 * Ryan Gresia
 * Ryley McCarroll
 * Sahara Yuta
+* saime428
+* Sanghyun Yun
 * Sergey Grizan
 * Shafeef Omar
 * Shane Reetz
 * Shaoshu Su
 * Shaurya Dewan
+* Shreya Boyane
 * Shundo Kishi
 * Sixiang Chen
 * Song Yi
 * Stefan Van de Mosselaer
 * Stephan Pleines
+* Sujal
 * Tiffany Chen
 * Trushant Adeshara
 * Tsz Ki GAO

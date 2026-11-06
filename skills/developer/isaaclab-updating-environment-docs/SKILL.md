@@ -49,7 +49,7 @@ Keep this workflow synchronized with the environment-browser markers, the regist
 
 ## References
 
-- [Environment browser](../../../docs/source/setup/environments.rst)
+- [Environment browser](../../../docs/source/isaaclab/environments.rst)
 - [Environment documentation collector](../../../tools/environ_docs.py)
 - [Environment documentation updater](../../../tools/update_environments_rst.py)
 - [Environment list script](../../../scripts/environments/list_envs.py)

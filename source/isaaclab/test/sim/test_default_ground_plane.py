@@ -16,9 +16,9 @@ from isaaclab.utils.assets import retrieve_file_path
 USD_PATH = from_files_cfg._DEFAULT_GROUND_PLANE_USD
 NVIDIA_GREEN = (118, 185, 0)
 OFF_WHITE = (221, 218, 210)
-DARK_GREY = (90, 93, 97)
+DARK_GREY = (185, 186, 188)
 ROUGH = 255
-SMOOTH = 13
+SMOOTH = 166
 
 
 @pytest.fixture(scope="module")

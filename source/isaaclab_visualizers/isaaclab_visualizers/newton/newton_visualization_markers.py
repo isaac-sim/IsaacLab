@@ -92,6 +92,8 @@ class NewtonVisualizationMarkers:
 
     def set_visibility(self, visible: bool) -> None:
         """Set marker visibility."""
+        if visible != self.visible and self._registry is not None:
+            self._registry.set_group(self.group_id, self)
         self.visible = visible
 
     def is_visible(self) -> bool:
@@ -120,6 +122,8 @@ class NewtonVisualizationMarkers:
         if marker_indices is not None:
             self.marker_indices = marker_indices.detach().to(dtype=torch.int32)
             self.count = marker_indices.shape[0]
+        if self._registry is not None:
+            self._registry.set_group(self.group_id, self)
 
     def render(
         self,
@@ -194,9 +198,7 @@ class NewtonVisualizationMarkers:
                     self._warned_unsupported.add(unsupported_key)
                 continue
 
-            # TODO(newton-physics/newton#4539): Log only the shown markers once ViewerRTX batches resize or hide
-            # instances in place. Until then every prototype batch logs all markers and zero-scales the ones it does
-            # not show, since changing a batch's instance count rebuilds it in ViewerRTX.
+            # Keep instance batches stable as prototype selections change.
             if marker_indices is None:
                 shown = torch.full((num_markers,), proto_index == 0, dtype=torch.bool, device=translations.device)
             else:

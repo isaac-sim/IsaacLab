@@ -221,7 +221,6 @@ def update_net_forces_ovphysx_kernel(
     num_filter_shapes: int,
     history_length: int,
     contact_force_threshold: wp.float32,
-    timestamp: wp.array(dtype=wp.float32),
     elapsed_since_update: wp.array(dtype=wp.float64),
     # out
     net_normal_forces_w: wp.array2d(dtype=wp.vec3f),
@@ -261,7 +260,6 @@ def update_net_forces_ovphysx_kernel(
         num_filter_shapes: Number of filter shapes.
         history_length: Length of history.
         contact_force_threshold: Threshold for the contact force.
-        timestamp: Timestamp array. Shape is (num_envs,).
         elapsed_since_update: Time since the last sensor refresh [s]. Shape is (num_envs,).
         net_normal_forces_w: Net forces array. Shape is (num_envs, num_sensors).
         net_normal_forces_w_history: Net forces history array. Shape is (num_envs, history_length, num_sensors).
@@ -349,20 +347,3 @@ def update_net_forces_ovphysx_kernel(
 
         current_contact_time[env, sensor] = wp.where(in_contact, cct + elapsed_time, 0.0)
         current_air_time[env, sensor] = wp.where(in_contact, 0.0, cat + elapsed_time)
-
-
-@wp.kernel
-def concat_pos_and_quat_to_pose_kernel(
-    pos: wp.array2d(dtype=wp.vec3f),
-    quat: wp.array2d(dtype=wp.quatf),
-    pose: wp.array2d(dtype=wp.transformf),
-):
-    """Concatenate position and quaternion to pose.
-
-    Args:
-        pos: Position array. Shape is (N, B).
-        quat: Quaternion array. Shape is (N, B).
-        pose: Pose array. Shape is (N, B).
-    """
-    env, sensor = wp.tid()
-    pose[env, sensor] = wp.transform(pos[env, sensor], quat[env, sensor])

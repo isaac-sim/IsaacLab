@@ -1,21 +1,47 @@
 .. _warp-environments:
 
-Warp Experimental Environments
-==============================
+Warp Environments
+=================
 
 .. note::
 
    The warp environment infrastructure lives in ``isaaclab_experimental`` and
    ``isaaclab_tasks_experimental``. It's an experimental feature.
 
-The experimental extensions introduce **warp-first** environment infrastructure with CUDA graph capture
-support. All environment-side computation (observations, rewards, resets, actions) runs as pure Warp
-kernels, eliminating Python overhead and enabling CUDA graph capture for maximum throughput.
+Experimental Warp environments compute observations, rewards, resets, and actions
+in Warp kernels. CUDA graph capture reduces Python overhead during execution.
 
-Throughout this page, **stable** refers to the standard Torch-based implementations in the
-``isaaclab`` and ``isaaclab_tasks`` packages (the default runtime, used when ``--frontend warp``
-is not passed). Their Warp counterparts live in the ``isaaclab_experimental`` and
-``isaaclab_tasks_experimental`` packages.
+Here, **stable** means the default Torch environments in ``isaaclab`` and
+``isaaclab_tasks``. Pass ``--frontend warp`` to use their experimental Warp counterparts.
+
+
+Quick Start
+~~~~~~~~~~~
+
+.. code-block:: bash
+
+    # Direct workflow: stable task, warp env implementation
+    uv run isaaclab train --rl_library rsl_rl \
+        --task Isaac-Cartpole-Direct --frontend warp presets=newton_mjwarp --num_envs 4096
+    uv run isaaclab play --rl_library rsl_rl \
+        --task Isaac-Cartpole-Direct --frontend warp presets=newton_mjwarp \
+        --num_envs 32 --checkpoint latest --visualizer newton_gl
+
+    # Manager-based workflow: stable task on the warp runtime
+    uv run isaaclab train --rl_library rsl_rl \
+        --task Isaac-Velocity-Flat-AnymalD --frontend warp presets=newton_mjwarp --num_envs 4096
+    uv run isaaclab play --rl_library rsl_rl \
+        --task Isaac-Velocity-Flat-AnymalD --frontend warp presets=newton_mjwarp \
+        --num_envs 32 --checkpoint latest --visualizer newton_gl
+
+All RL libraries with warp-compatible wrappers are supported: RSL-RL, RL Games, SKRL, and
+Stable-Baselines3.
+
+.. note::
+
+   ``--video`` is rejected on the warp path, for both ``train`` and ``play``: video
+   recording requires the standard torch frontend. To record a rollout, replay the same
+   checkpoint with ``--frontend torch``; see :ref:`how_to_record_video`.
 
 
 Workflows
@@ -83,45 +109,15 @@ adapted: that observation term has no Warp twin. Check the terms used by a task 
 than assuming that every terrain configuration has the same limitation.
 
 
-Quick Start
-~~~~~~~~~~~
-
-.. code-block:: bash
-
-    # Direct workflow: stable task, warp env implementation
-    uv run isaaclab train --rl_library rsl_rl \
-        --task Isaac-Cartpole-Direct --frontend warp presets=newton_mjwarp --num_envs 4096
-    uv run isaaclab play --rl_library rsl_rl \
-        --task Isaac-Cartpole-Direct --frontend warp presets=newton_mjwarp \
-        --num_envs 32 --checkpoint latest --visualizer newton_gl
-
-    # Manager-based workflow: stable task on the warp runtime
-    uv run isaaclab train --rl_library rsl_rl \
-        --task Isaac-Velocity-Flat-AnymalD --frontend warp presets=newton_mjwarp --num_envs 4096
-    uv run isaaclab play --rl_library rsl_rl \
-        --task Isaac-Velocity-Flat-AnymalD --frontend warp presets=newton_mjwarp \
-        --num_envs 32 --checkpoint latest --visualizer newton_gl
-
-All RL libraries with warp-compatible wrappers are supported: RSL-RL, RL Games, SKRL, and
-Stable-Baselines3.
-
-.. note::
-
-   ``--video`` is rejected on the warp path, for both ``train`` and ``play``: video
-   recording requires the standard torch frontend. To record a rollout, replay the same
-   checkpoint with ``--frontend torch``; see :ref:`how_to_record_video`.
-
-
 Performance Comparison
 ~~~~~~~~~~~~~~~~~~~~~~
 
-Historical step time comparison between the stable (torch/manager) and warp (CUDA graph captured) variants,
-both running on the Newton physics backend. Measured over 300 iterations with 4096 environments.
-The table covers the measured tasks, not every currently supported task.
-These figures are retained as the original benchmark record, not a measurement of the latest
-``develop`` revision. For updated results, record the hardware and Isaac Lab, Newton, and Warp
-revisions, and compare both frontends on those same revisions. Improvements in shared base
-libraries can benefit both frontends and must not be attributed solely to the Warp frontend.
+These historical measurements compare Torch manager-based and CUDA-graph-captured
+Warp environments on Newton, over 300 iterations with 4096 environments. They do
+not represent the latest revision or every supported task.
+
+For a current comparison, use the same hardware and Isaac Lab, Newton, and Warp
+revisions for both frontends. Shared-library improvements can benefit both.
 
 .. note::
 
@@ -235,7 +231,7 @@ Limitations
 ~~~~~~~~~~~
 
 The warp env path is experimental and has the following known constraints. These are
-specific to warp envs; for Newton physics maturity and specialist guides see
+specific to warp envs; for Newton physics features and related guides see
 :ref:`physics-backends-newton`.
 
 **Physics backend**
@@ -344,10 +340,8 @@ when you want to isolate env overhead from policy compute.
 Migrating Existing Environments
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-This section covers the key conventions and patterns used by the warp-first environment
-infrastructure, useful for migrating existing torch environments or creating new ones
-natively: project layout, the kernel + launch pattern shared by observations / rewards /
-events / terminations / actions, capture-safety rules, and parity testing.
+The following sections cover project layout, Warp kernels, CUDA graph capture,
+and parity testing for new or migrated environments.
 
 
 Design Rationale

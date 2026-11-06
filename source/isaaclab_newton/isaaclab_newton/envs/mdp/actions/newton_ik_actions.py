@@ -24,7 +24,6 @@ from isaaclab.managers.action_manager import ActionTerm
 from isaaclab.utils import index_fill_, instantiate
 
 from isaaclab_newton.controllers.ik.newton_ik_objectives_cfg import NewtonIKPoseObjectiveCfg
-from isaaclab_newton.physics import NewtonManager
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -180,7 +179,10 @@ class NewtonInverseKinematicsAction(ActionTerm):
         asset_ids = cloner.path.get_asset_prototypes(plan, self._asset.cfg.prim_path)
         sources = cloner.path.get_asset_prototype_paths(plan)
         self._source_path = next(sources[index] for index in asset_ids if sources[index] is not None)
-        prototype_model = NewtonManager._cl_protos[self._source_path].finalize(device=NewtonManager.get_model().device)
+        backend_manager = env.sim.backend_manager
+        prototype_model = backend_manager.get_clone_source_builders()[self._source_path].finalize(
+            device=backend_manager.backend.model.device
+        )
         articulation_path = self._source_path + (self._asset.cfg.articulation_root_prim_path or "")
         prototype_view = ArticulationView(
             prototype_model, articulation_path, verbose=False, exclude_joint_types=[JointType.FREE, JointType.FIXED]

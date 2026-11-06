@@ -222,7 +222,7 @@ class FactoryEnvCfg(DirectRLEnvCfg):
         physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
     )
 
-    scene: FactorySceneCfg = FactorySceneCfg(num_envs=128, env_spacing=2.0, clone_in_fabric=True)
+    scene: FactorySceneCfg = FactorySceneCfg(num_envs=128, env_spacing=2.0)
 
 
 @configclass

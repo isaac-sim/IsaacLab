@@ -7,6 +7,7 @@
 
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -352,9 +353,8 @@ def test_fixed_joint_selection(sim, monkeypatch, root_type):
     views = {}
     view_factory = Mock(wraps=ArticulationView)
     monkeypatch.setattr(sensor_module, "ArticulationView", view_factory)
-    monkeypatch.setattr(sensor_module.NewtonManager, "views", views)
-    monkeypatch.setattr(sensor_module.NewtonManager, "get_model", lambda: model)
-    monkeypatch.setattr(sensor_module.NewtonManager, "get_state_0", lambda: state)
+    monkeypatch.setattr(sim.backend_manager, "views", views)
+    monkeypatch.setattr(sim.backend_manager, "backend", SimpleNamespace(model=model, state_0=state))
     monkeypatch.setattr(sensor_module.BaseJointWrenchSensor, "_initialize_impl", lambda self: None)
     monkeypatch.setattr(sensor_module, "resolve_matching_prims_from_source", lambda *a, **kw: [(None, root_expr)])
     sensor = sensor_module.JointWrenchSensor(JointWrenchSensorCfg(prim_path=root_expr))
@@ -370,7 +370,7 @@ def test_fixed_joint_selection(sim, monkeypatch, root_type):
         sensor._joint_child.numpy(), [0, 2, 1] if root_type == newton.JointType.REVOLUTE else [2, 1]
     )
     # Sensing must not create a second view or include welds in the control-joint selection.
-    view = views[sensor_module.NewtonManager, root_expr]
+    view = views[root_expr]
     assert sensor._root_view is view
     assert view_factory.call_count == 1
     assert view.joint_count == int(root_type == newton.JointType.REVOLUTE)

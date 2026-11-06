@@ -85,7 +85,7 @@ def configure_shoelace_builder(
 
     for side, free_end_at_start in (("Left", True), ("Right", False)):
         suffix = f"/ShoelaceScene/Shoelace{side}/geometry/mesh"
-        curve = stage.GetPrimAtPath(f"/World/envs/env_0{suffix}")
+        curve = stage.GetPrimAtPath(cfg.scene.clone_cfg.clone_template.format(0) + suffix)
         material, _ = UsdShade.MaterialBindingAPI(curve).ComputeBoundMaterial(materialPurpose="physics")
         friction = UsdPhysics.MaterialAPI(material.GetPrim()).GetDynamicFrictionAttr().Get()
         # Numeric suffixes recover curve order; lexical sorting would put segment 10 before segment 2.
@@ -139,11 +139,11 @@ def configure_shoelace_builder(
             (builder.joint_target_kd, physics.STRETCH_DAMPING, physics.BEND_DAMPING, physics.TAIL_BEND_DAMPING),
         ):
             values = np.column_stack((np.full_like(weights, stretch), bend + weights * (tail - bend)))
-            # Match the rod's four gain slots: two stretch/shear entries and two bend/twist entries.
-            values = np.repeat(values * reference_length / segment_length, 2, axis=1)
+            # Match the rod's six gain slots: shear X/Y, stretch Z, bend X/Y, and twist Z.
+            values = np.repeat(values * reference_length / segment_length, 3, axis=1)
             for joint, gains in zip(rod_joints, values, strict=True):
                 start = builder.joint_qd_start[joint]
-                target[start : start + 4] = gains.tolist()
+                target[start : start + 6] = gains.tolist()
     # Preserve the shoe's zero-mass contact model while retaining its imported kinematic flag.
     for body in bodies:
         if builder.body_label[body].endswith("/ShoelaceScene/Shoe"):

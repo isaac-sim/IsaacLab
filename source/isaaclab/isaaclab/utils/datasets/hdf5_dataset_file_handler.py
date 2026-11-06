@@ -40,6 +40,19 @@ def convert_pose_quat_wxyz_to_xyzw(pose: np.ndarray) -> np.ndarray:
     return np.concatenate([position, quat_xyzw], axis=-1)
 
 
+def _open_non_inheritable(file_path: str, mode: str):
+    """Open an HDF5 file whose descriptor child processes do not inherit.
+
+    HDF5 opens files without ``O_CLOEXEC``, unlike Python's own file objects. A child process started while
+    the file is open would keep the descriptor, and with it the HDF5 file lock, after the file is closed.
+    """
+    import h5py
+
+    file = h5py.File(file_path, mode)
+    os.set_inheritable(file.id.get_vfd_handle(), False)
+    return file
+
+
 class HDF5DatasetFileHandler(DatasetFileHandlerBase):
     """HDF5 dataset file handler for storing and loading episode data."""
 
@@ -52,18 +65,14 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
 
     def open(self, file_path: str, mode: str = "r"):
         """Open an existing dataset file."""
-        import h5py
-
         if self._hdf5_file_stream is not None:
             raise RuntimeError("HDF5 dataset file stream is already in use")
-        self._hdf5_file_stream = h5py.File(file_path, mode)
+        self._hdf5_file_stream = _open_non_inheritable(file_path, mode)
         self._hdf5_data_group = self._hdf5_file_stream["data"]
         self._demo_count = len(self._hdf5_data_group)
 
     def create(self, file_path: str, env_name: str | None = None):
         """Create a new dataset file."""
-        import h5py
-
         if self._hdf5_file_stream is not None:
             raise RuntimeError("HDF5 dataset file stream is already in use")
         if not file_path.endswith(".hdf5"):
@@ -71,7 +80,7 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
         dir_path = os.path.dirname(file_path)
         if dir_path:
             os.makedirs(dir_path, exist_ok=True)
-        self._hdf5_file_stream = h5py.File(file_path, "w")
+        self._hdf5_file_stream = _open_non_inheritable(file_path, "w")
 
         # Set the dataset format version
         self._hdf5_file_stream.attrs["format_version"] = DATASET_FORMAT_VERSION
@@ -325,10 +334,10 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
                 raise ValueError(f"Dataset is already in XYZW format (version {src_file.attrs['format_version']})")
 
             with h5py.File(output_path, "w") as dst_file:
-                # Set the new format version
-                dst_file.attrs["format_version"] = DATASET_FORMAT_VERSION
-
                 # Copy and convert all data
                 convert_group_quaternions(src_file, dst_file)
+
+                # Set the new format version after copying the source attributes.
+                dst_file.attrs["format_version"] = DATASET_FORMAT_VERSION
 
         return output_path

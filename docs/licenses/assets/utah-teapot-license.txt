@@ -1,0 +1,20 @@
+Utah Teapot model terms
+
+Source: https://graphics.cs.utah.edu/teapot/
+
+The University of Utah Graphics Lab makes the Utah Teapot model files
+available for unrestricted use, including commercial use. The source requests
+that the model and substantially derived versions be identified as the
+"Utah Teapot" or "Modified Utah Teapot" and that their origin as the historic
+Utah Teapot developed at the University of Utah be acknowledged. The source
+states that this attribution request preserves the model's historical identity
+and provenance and does not restrict use.
+
+The model files are supplied without warranty, and the provider disclaims
+liability arising from their use. Refer to the source URL above for the
+authoritative Terms of Use and Attribution.
+
+Attribution:
+
+This asset is based on the historic Utah Teapot developed at the University of
+Utah.

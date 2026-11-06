@@ -3,12 +3,9 @@
 Training a Gear Insertion Policy and ROS Deployment
 ====================================================
 
-This tutorial walks you through how to train a gear insertion reinforcement learning (RL) policy that transfers from simulation to a real robot. The workflow consists of two main stages:
-
-1. **Simulation Training in Isaac Lab**: Train the policy in a high-fidelity physics simulation with domain randomization
-2. **Real Robot Deployment with Isaac ROS**: Deploy the trained policy on real hardware using Isaac ROS and a custom ROS inference node
-
-This walkthrough covers the key principles and best practices for sim-to-real transfer using Isaac Lab.
+Train a gear-insertion policy in Isaac Lab, then deploy it with Isaac ROS and a
+custom inference node. The training setup uses domain randomization to account
+for differences between simulation and hardware.
 
 **Supported Robots:**
 

@@ -5,16 +5,16 @@
 
 """Runtime asset paths and physical defaults shared with offline authoring."""
 
-from pathlib import Path
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
-ASSET_DIR = Path(__file__).resolve().parent / "data"
+ASSET_DIR = f"{ISAACLAB_NUCLEUS_DIR}/Contrib/Shoelace"
 
 # Runtime assets; texture paths are resolved relative to each USD.
-SHOELACE_ASSET = ASSET_DIR / "shoelace.usda"  # Base asset
+SHOELACE_ASSET = f"{ASSET_DIR}/shoelace.usda"  # Base asset
 SHOELACE_ASSETS = (
     SHOELACE_ASSET,
     *(
-        ASSET_DIR / name
+        f"{ASSET_DIR}/{name}"
         for name in (
             "canvas_sand.usda",
             "canvas_rust.usda",

@@ -537,7 +537,7 @@ class ReorientEnvCfg(ManagerBasedRLEnvCfg):
     """Object reorientation environment, also the base of the lift environment."""
 
     # Scene settings
-    scene: SceneCfg = SceneCfg(num_envs=4096, env_spacing=3, replicate_physics=True)
+    scene: SceneCfg = SceneCfg(num_envs=4096, env_spacing=3)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -563,7 +563,7 @@ class ReorientEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.render_interval = self.decimation
         self.sim.physics = PhysicsCfg()
         # visualizer settings
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(-2.25, 0.0, 0.75), lookat=(0.0, 0.0, 0.45))
+        self.sim.visualizer_cfgs = VisualizerCfg(eye=(-2.25, 0.0, 0.75), lookat=(0.0, 0.0, 0.45))
 
     def play_mode(self):
         super().play_mode()

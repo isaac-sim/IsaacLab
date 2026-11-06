@@ -48,7 +48,7 @@ Elastic stiffness with ``--press_spheres``:
 .. raw:: html
 
    <video autoplay loop muted playsinline preload="metadata" aria-label="MPM elastic stiffness comparison under compression" style="width:100%; max-width:960px;">
-     <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_elastic_stiffness.mp4" type="video/mp4">
+     <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/mpm/mpm_elastic_stiffness.mp4" type="video/mp4">
    </video>
 
 Start with the elastic stiffness comparison:
@@ -136,7 +136,7 @@ total mass.
 .. raw:: html
 
    <video autoplay loop muted playsinline preload="metadata" aria-label="Rigid bodies and MPM objects descending identical inclines" style="width:100%; max-width:960px;">
-     <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_rigid_limit.mp4" type="video/mp4">
+     <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/mpm/mpm_rigid_limit.mp4" type="video/mp4">
    </video>
 
 .. code-block:: bash
@@ -166,7 +166,7 @@ for rendering, while leaving the particle simulation unchanged.
 .. raw:: html
 
    <video autoplay loop muted playsinline preload="metadata" aria-label="Reconstructed water surface falling into a shallow pool" style="width:100%; max-width:960px;">
-     <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_surface_reconstruction.mp4" type="video/mp4">
+     <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/mpm/mpm_surface_reconstruction.mp4" type="video/mp4">
    </video>
 
 .. code-block:: bash
@@ -205,9 +205,10 @@ receive the mesh for the current particle state. See
 
 .. note::
 
-   Surface reconstruction supports Newton GL and Newton RTX only, not Kit,
-   Viser, or Rerun. Select ``--fluid_render_mode particles`` to use these
-   visualizers without surface reconstruction.
+   This tutorial selects Newton GL or Newton RTX for surface reconstruction.
+   Select ``--fluid_render_mode particles`` for Kit, Viser, or Rerun.
+   The shared ``ParticleSurfaceRenderer`` also supports Kit; see the teapot
+   example in :ref:`newton-using-mpm`.
 
 
 Comparing one-way and two-way coupling

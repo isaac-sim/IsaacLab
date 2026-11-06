@@ -11,8 +11,7 @@ Deformables
 A deformable is an asset whose shape changes during simulation. Unlike a rigid body, it has no
 rigid root frame: its state is the position and velocity of every node of its simulation mesh.
 
-Isaac Lab models three kinds of deformable, distinguished by the dimensionality of the simulated
-geometry:
+Isaac Lab supports three kinds of deformable:
 
 .. list-table::
     :header-rows: 1
@@ -67,20 +66,19 @@ Backend support
     * - Volume
       - Yes
       - Yes, VBD solver only
-      - Experimental, CUDA devices only
+      - Yes, CUDA devices only
     * - Surface
       - Yes
       - Yes, VBD solver only
-      - Experimental, CUDA devices only
+      - Yes, CUDA devices only
     * - Cable
       - No
       - Yes, VBD solver only
       - No
 
-On Newton, deformables of every kind are simulated by the VBD solver, so a scene containing them
-must select a physics cfg whose solver is VBD. For the solver parameters, for running a rigid robot
-and a deformable in one scene, and for the tuning workflow, see
-:doc:`/source/how-to/solver_tuning_vbd` and :doc:`/source/concepts/coupled_solvers`.
+Newton deformables require the VBD solver. See :doc:`/source/how-to/solver_tuning_vbd`
+for configuration and tuning, and :doc:`/source/concepts/coupled_solvers` for scenes
+that combine a rigid robot with deformables.
 
 OvPhysX deformables carry further restrictions on node counts and startup cost. See
 :doc:`/source/concepts/physics-backends/ovphysx`.
@@ -500,7 +498,7 @@ Cable limitations
     Topologies the runtime object rejects still simulate: the physics model is built from the whole
     USD stage, so every curve carrying ``PhysicsCurvesDeformableSimAPI`` is imported whether or not
     a :class:`~isaaclab.assets.CableObject` wraps it. Drive them through
-    :class:`~isaaclab_newton.physics.NewtonManager` ``get_model()`` / ``get_state_0()`` and your own
+    the :class:`~isaaclab_newton.physics.NewtonBackend` ``model`` / ``state_0`` and your own
     ``newton.selection.ArticulationView``. There is no Isaac Lab asset wrapper for those cases.
 
 
@@ -513,7 +511,7 @@ everything else fixed. The labels give the value used in each run.
 Volume
 ^^^^^^
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/volume_youngs_1e3_1e4_1e5.gif
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/deformables/volume_youngs_1e3_1e4_1e5.gif
     :width: 640px
     :align: center
     :alt: A soft ball dropped on a table at three values of Young's modulus
@@ -522,7 +520,7 @@ Volume
     impact; at ``1e5`` Pa it barely deforms. This is the first knob to reach for when a soft body
     is too floppy or too rigid.
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/volume_poisson.gif
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/deformables/volume_poisson.gif
     :width: 640px
     :align: center
     :alt: A soft ball dropped on a table at three values of Poisson's ratio
@@ -531,7 +529,7 @@ Volume
     the ball squashes without spreading. At ``0.49`` it is nearly incompressible, so the same
     squash has to go somewhere and pushes outward into a wide bulge.
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/volume_particle_radius.gif
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/deformables/volume_particle_radius.gif
     :width: 640px
     :align: center
     :alt: A soft ball resting on a table at three values of particle radius
@@ -544,7 +542,7 @@ Volume
 Surface
 ^^^^^^^
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/cloth_stretch_stiffness.gif
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/deformables/cloth_stretch_stiffness.gif
     :width: 640px
     :align: center
     :alt: A cloth sheet draped over a roller at three values of stretch stiffness
@@ -552,7 +550,7 @@ Surface
     **Stretch stiffness**: resistance to in-plane elongation. The low value lets the sheet stretch
     and sag under its own weight; the high value holds it near its rest length.
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/cloth_bendstiffness.gif
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/deformables/cloth_bendstiffness.gif
     :width: 640px
     :align: center
     :alt: A cloth sheet falling from a roller at three values of bend stiffness
@@ -564,7 +562,7 @@ Surface
 Cable
 ^^^^^
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/cable_bend_1e0_1e1_1e.gif
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/deformables/cable_bend_1e0_1e1_1e.gif
     :width: 640px
     :align: center
     :alt: A cable spanning two posts at three values of bend stiffness
@@ -572,7 +570,7 @@ Cable
     **Bend stiffness**: at ``1e0`` the cable droops between its supports like slack rope; at
     ``1e2`` it holds itself straight like a stiff hose.
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/cable_twiststiffness_1e_1_1e0_1e1.gif
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/deformables/cable_twiststiffness_1e_1_1e0_1e1.gif
     :width: 640px
     :align: center
     :alt: A weighted hanging cable twisted at the top, at three values of twist stiffness
@@ -616,12 +614,24 @@ Run an example first to confirm that the spawner, solver, and visualizer all wor
     # A larger cable pile, stopping after a fixed number of steps.
     uv run isaaclab example cables --num_cables 40 --num_segments 15 --max_steps 500
 
+Try learned contact grasps on a soft beam, cloth sheet, or cable below. Change
+the target height or switch to Manual end-effector control; the beam and cloth
+also expose material settings. For controlled stiffness and cable-load
+comparisons, see :doc:`/source/how-to/solver_tuning_vbd`.
+
+.. isaaclab-demos:: franka_soft, franka_cloth, franka_cable
+   :title: Explore deformable manipulation
+   :physics: vbd
+   :activity: policy
+
 ``scripts/environments/state_machine/lift_franka_soft.py`` drives ``Isaac-Lift-Soft-Franka`` with a
 scripted state machine, which is a useful starting point for a deformable manipulation task.
 
 
-Related
--------
+.. _related:
+
+Where to go next
+----------------
 
 * :ref:`tutorial-interact-deformable-object` walks through a volume deformable step by step.
 * :doc:`/source/how-to/solver_tuning_vbd` covers the VBD solver parameters, the Newton

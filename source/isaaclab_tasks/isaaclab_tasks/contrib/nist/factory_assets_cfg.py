@@ -99,30 +99,30 @@ DOMELIGHT_CFG = AssetBaseCfg(
 FRANKA_ACTUATORS_CFG = {
     "panda_shoulder": ImplicitActuatorCfg(  # type:ignore
         joint_names_expr=["panda_joint[1-4]"],
-        effort_limit=87.0,
-        effort_limit_sim=870.0,
-        velocity_limit=2.175,
-        velocity_limit_sim=21.75,
+        actuator_effort_limit=87.0,
+        joint_effort_limit=870.0,
+        actuator_velocity_limit=2.175,
+        joint_velocity_limit=21.75,
         stiffness=80.0,
         damping=4.0,
         armature=0.0,
     ),
     "panda_forearm": ImplicitActuatorCfg(  # type:ignore
         joint_names_expr=["panda_joint[5-7]"],
-        effort_limit=12.0,
-        effort_limit_sim=120.0,
-        velocity_limit=2.61,
-        velocity_limit_sim=26.1,
+        actuator_effort_limit=12.0,
+        joint_effort_limit=120.0,
+        actuator_velocity_limit=2.61,
+        joint_velocity_limit=26.1,
         stiffness=80.0,
         damping=4.0,
         armature=0.0,
     ),
     "panda_hand": ImplicitActuatorCfg(  # type:ignore
         joint_names_expr=["panda_finger_joint.*"],
-        effort_limit=40.0,
-        effort_limit_sim=400.0,
-        velocity_limit=0.2,
-        velocity_limit_sim=2.0,
+        actuator_effort_limit=40.0,
+        joint_effort_limit=400.0,
+        actuator_velocity_limit=0.2,
+        joint_velocity_limit=2.0,
         stiffness=7500.0,
         damping=173.0,
         friction=0.1,
@@ -146,7 +146,7 @@ FRANKA_DEFAULT_STATE_CFG = ArticulationCfg.InitialStateCfg(
 )
 
 FRANKA_PANDA_PHYSX_CFG = ArticulationCfg(
-    prim_path="/World/envs/env_.*/Robot",
+    prim_path="{ENV_REGEX_NS}/Robot",
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ASSET_DIR}/franka_mimic.usd",
         activate_contact_sensors=True,
@@ -167,7 +167,7 @@ FRANKA_PANDA_PHYSX_CFG = ArticulationCfg(
 
 
 FRANKA_PANDA_NEWTON_CFG = ArticulationCfg(
-    prim_path="/World/envs/env_.*/Robot",
+    prim_path="{ENV_REGEX_NS}/Robot",
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ASSET_DIR}/franka_mimic.usd",
         activate_contact_sensors=True,
@@ -212,7 +212,7 @@ NISTBOARD_CFG = RigidObjectCfg(
 def _assembly_asset_cfg(name: str, usd_file: str, mass: float, *, is_socket: bool) -> RigidObjectCfg:
     """Create one assembly asset from the shared socket or plug physics policy."""
     return RigidObjectCfg(
-        prim_path=f"/World/envs/env_.*/{name}",
+        prim_path=f"{{ENV_REGEX_NS}}/{name}",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ASSET_DIR}/NIST/{usd_file}",
             rigid_props=ASSEMBLY_SOCKET_RIGID_BODY_PROPS_CFG if is_socket else ASSEMBLY_PLUG_RIGID_BODY_PROPS_CFG,

@@ -9,7 +9,6 @@
 
       AppLauncher
       LoadingScreen
-      Scan
       SimulationLauncher
 
    .. rubric:: Functions
@@ -18,14 +17,16 @@
 
       add_launcher_args
       launch_simulation
+      validate_launch
       report_activity
-      scan
 
 
 Simulation Launcher
 -------------------
 
 .. autofunction:: launch_simulation
+
+.. autofunction:: validate_launch
 
 .. autofunction:: add_launcher_args
 
@@ -35,10 +36,6 @@ Simulation Launcher
 .. autoclass:: AppLauncher
    :members:
 
-.. autofunction:: scan
-
-.. autoclass:: Scan
-   :members:
 
 
 

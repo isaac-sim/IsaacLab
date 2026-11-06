@@ -26,24 +26,24 @@ Also note existing install artifacts: `.venv/` or an env directory in the checko
 
 ## Express Route Mapping
 
-After preflight detection, read the "System requirements" and per-method sections from `docs/source/setup/installation/index.rst` in the checkout, then route on the detected facts to a section anchor:
+After preflight detection, read the "System requirements" and per-method sections from `docs/source/isaaclab/installation.rst` in the checkout, then route on the detected facts to a section anchor:
 
 | Detected facts | Route | Docs section |
 | --- | --- | --- |
-| Linux, NVIDIA GPU, GLIBC at or above the documented pip minimum | automatic uv from checkout (docs-Recommended) | `docs/source/setup/installation/index.rst` (`installation-method-uv`) |
-| Windows 11 | guided per-tab flow via the automatic uv or managed-env sections | `docs/source/setup/installation/index.rst` (`installation-method-uv` or `installation-method-python-env`) |
+| Linux, NVIDIA GPU, GLIBC at or above the documented pip minimum | automatic uv from checkout (docs-Recommended) | `docs/source/isaaclab/installation.rst` (`installation-method-uv`) |
+| Windows 11 | guided per-tab flow via the automatic uv or managed-env sections | `docs/source/isaaclab/installation.rst` (`installation-method-uv` or `installation-method-python-env`) |
 
 
 User-stated preferences override the routing and map directly:
 
 | Stated preference | Docs section |
 | --- | --- |
-| Isaac Sim contributor building from source | `docs/source/setup/installation/index.rst` (`installation-method-source`) |
-| External extension author, Isaac Lab wheel only | `docs/source/setup/installation/index.rst` (`installation-method-wheel`) |
-| Newton-only workflow, no Isaac Sim | `docs/source/setup/installation/index.rst` (`installation-method-uv`) |
-| Explicit uv environment | `docs/source/setup/installation/index.rst` (`installation-method-python-env`) |
-| Containerized deployment | `docs/source/setup/installation/index.rst` (`installation-method-container`); deep-dive `docs/source/workflows/docker/index.rst` |
-| Cloud-hosted GPU workstation | `docs/source/setup/installation/index.rst` (`installation-method-cloud`) |
+| Isaac Sim contributor building from source | `docs/source/isaaclab/installation.rst` (`installation-method-source`) |
+| External extension author, Isaac Lab wheel only | `docs/source/isaaclab/installation.rst` (`installation-method-wheel`) |
+| Newton-only workflow, no Isaac Sim | `docs/source/isaaclab/installation.rst` (`installation-method-uv`) |
+| Explicit uv environment | `docs/source/isaaclab/installation.rst` (`installation-method-python-env`) |
+| Containerized deployment | `docs/source/isaaclab/installation.rst` (`installation-method-container`) |
+| Cloud-hosted GPU workstation | `docs/source/isaaclab/installation.rst` (`installation-method-cloud`) |
 
 ## Express Flow Rules
 
@@ -76,9 +76,9 @@ bucket names, or CDN URLs into the skill.
 
 ## Prerequisite Minimums
 
-Read `docs/source/setup/installation/index.rst` "System requirements" from the checkout for current minimums rather than relying on cached values. Common gates:
+Read `docs/source/isaaclab/installation.rst` "System requirements" from the checkout for current minimums rather than relying on cached values. Common gates:
 
-- NVIDIA driver minimum (varies by platform; documented in the "System requirements" section of `index.rst`).
+- NVIDIA driver minimum (varies by platform; documented in the "System requirements" section of `installation.rst`).
 - Python 3.12 for the current Isaac Sim series.
 - GLIBC minimum for pip-based Isaac Sim install on Linux.
 - Ubuntu 22.04 or newer for the Isaac Sim source build (Linux only).
@@ -101,10 +101,10 @@ Apply at most one documented fix per failed step, retry once, then stop and hand
 
 | Symptom during install | First reference |
 | --- | --- |
-| `nvidia-smi` missing or driver too old | `docs/source/setup/installation/index.rst` ("System requirements" — driver minimums) |
+| `nvidia-smi` missing or driver too old | `docs/source/isaaclab/installation.rst` ("System requirements" — driver minimums) |
 | Network timeout fetching wheels | Retry the step once; then check proxy/firewall for github.com, pypi.org, pypi.nvidia.com, download.pytorch.org |
 | Windows path-too-long errors | Windows tab of the chosen section (long-path support) |
-| Docker step fails with runtime error | `docs/source/workflows/docker/index.rst` (NVIDIA Container Toolkit setup) |
+| Docker step fails with runtime error | `docs/source/isaaclab/installation.rst` (NVIDIA Container Toolkit setup) |
 | Import fails after install completes | Hand off to `isaaclab-setup-troubleshooting` |
 
 ## Cross-Skill Routing
