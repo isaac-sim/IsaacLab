@@ -3,6 +3,17 @@ Changelog
 
 .. towncrier release notes start
 
+30.1.1 (2026-11-05)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed command-line overrides of configuration class fields silently adding a misspelled field and leaving the
+  intended field unchanged. Such an override now warns with the override and the missing field. Keys of
+  dictionaries, such as a dictionary-based agent configuration, are not checked.
+
+
 30.1.0 (2026-11-04)
 ~~~~~~~~~~~~~~~~~~~
 
