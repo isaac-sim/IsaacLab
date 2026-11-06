@@ -1,4 +1,3 @@
-* Added reset-time rigid-object geometry and inertia selection using stock Newton's external contacts,
-  without rebuilding solver topology. Backend-owned banks retained selected IDs and native render catalogs;
-  selection updated collision geometry, margins, and gaps while preserving material randomization.
-  Compatible root-joint topology was required; internal MuJoCo contacts and sleeping were unsupported.
+* Added reset-time rigid-object catalog selection using Newton body variants with shared shape storage.
+  Newton owns selected IDs, shape rows, geometry, materials, and mass properties. MJWarp requires external
+  contacts and disabled sleeping; apply contact-material randomization after selecting a variant.

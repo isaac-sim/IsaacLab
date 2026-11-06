@@ -34,6 +34,7 @@ from isaaclab_visualizers.newton_adapter import (
     expand_infinite_plane_scale,
     log_geo_with_expanded_plane_scale,
 )
+from newton import ModelFlags
 
 from isaaclab.sim import SimulationContext
 from isaaclab.test.utils import DeviceScope, test_devices
@@ -640,8 +641,12 @@ def _make_newton_visualizer(viewer, scene_data_provider=None, state=None, *, cfg
     visualizer._viewer = viewer
     state = state or SimpleNamespace(body_q=wp.empty(1, dtype=wp.transform, device="cpu"))
     visualizer.backend = SimpleNamespace(
-        model=SimpleNamespace(num_envs=1, body_count=len(state.body_q)), state_0=state, geometry_offsets={}
+        model=SimpleNamespace(num_envs=1, body_count=len(state.body_q)),
+        state_0=state,
+        geometry_offsets={},
+        geometry_change_version=0,
     )
+    visualizer._geometry_change_version = 0
     provider = scene_data_provider or _SceneDataProvider()
     provider.poses = state.body_q
     visualizer._transform_mapping = None
@@ -698,9 +703,7 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
 
     new_model = SimpleNamespace(body_label=["/Object"], world_count=4, device="cpu")
     new_state = object()
-    bank = SimpleNamespace(render_model=object(), body_indices=(2, 3), variant_ids=ProxyArray(wp.zeros(2, dtype=int)))
-    banks = {"hidden": SimpleNamespace(render_model=None), "visible": bank} if picking else {}
-    backend = SimpleNamespace(model=new_model, state_0=new_state, mesh_variants=banks)
+    backend = SimpleNamespace(model=new_model, state_0=new_state, geometry_change_version=3)
     sim = SimpleNamespace(get_or_create_backend=Mock(return_value=backend))
     monkeypatch.setattr(SimulationContext, "instance", Mock(side_effect=AssertionError("No global resource lookup")))
 
@@ -726,14 +729,8 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
 
     assert visualizer.backend is backend
     sim.get_or_create_backend.assert_called_with(cfg)
-    viewer.set_model.assert_called_once()
-    assert viewer.set_model.call_args.args == (new_model,)
-    instances = viewer.set_model.call_args.kwargs["body_instances"]
-    assert len(instances) == int(picking)
-    if picking:
-        assert instances[0].model is bank.render_model
-        assert instances[0].bodies == bank.body_indices
-        assert instances[0].body_indices is bank.variant_ids.warp
+    viewer.set_model.assert_called_once_with(new_model)
+    assert visualizer._geometry_change_version == 3
     assert viewer.register_ui_callback.call_args_list == [
         call(viewer._render_training_controls, position="side"),
         call(visualizer._draw_streaming_view_controls, position="side"),
@@ -745,6 +742,19 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     if picking:
         assert viewer.wind is None
     assert visualizer._viewer_picking_binding._viewer is viewer
+
+
+def test_newton_visualizer_notifies_native_viewer_once_per_geometry_change():
+    viewer = _Viewer()
+    viewer.notify_model_changed = lambda flags: viewer.events.append(("notify", flags))
+    visualizer = _make_newton_visualizer(viewer)
+    visualizer.backend.geometry_change_version = 1
+
+    visualizer.step(0.1)
+    visualizer.step(0.1)
+
+    assert viewer.events.count(("notify", ModelFlags.SHAPE_TYPE_AND_SOURCE)) == 1
+    assert viewer.events.index(("notify", ModelFlags.SHAPE_TYPE_AND_SOURCE)) < viewer.events.index("log_state")
 
 
 def test_newton_visualizer_logs_native_contacts_when_available(monkeypatch):

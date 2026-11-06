@@ -13,7 +13,7 @@ from typing import Any
 
 import numpy as np
 import warp as wp
-from newton import Axis, ModelBuilder, ShapeFlags
+from newton import Axis, BodyFlags, JointType, ModelBuilder
 
 from pxr import Sdf, Usd, UsdGeom
 
@@ -36,7 +36,6 @@ from isaaclab_newton.cloner.newton_clone_utils import (
     replicate_builder_mapping,
 )
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonBuilderCfg, NewtonCfg, NewtonManager
-from isaaclab_newton.physics.mesh_variants import _mesh_variant_body_properties, _prepare_mesh_variant
 from isaaclab_newton.sim.spawners.mpm.mpm import _SIMULATION_POINTS_SUFFIX
 
 _PER_WORLD_BUILDER_HOOKS: list[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]] = []
@@ -218,59 +217,92 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
     target_owners = {}
     for rows, members in catalog_rows.items():
         builders = tuple(source_builders[sources[row]] for row in rows)
-        properties = _mesh_variant_body_properties(
-            builders, plan.asset_cfgs[rows[0]].mesh_variant_inertia_diagonal_offset
-        )
-        if properties is None:
+        if any(source.body_count != 1 or source.joint_count != 1 for source in builders):
+            continue
+        joint_types = {source.joint_type[0] for source in builders}
+        body_flags = {source.body_flags[0] for source in builders}
+        if len(joint_types) != 1 or joint_types.pop() not in (JointType.FREE, JointType.FIXED) or len(body_flags) != 1:
+            continue
+        if any(source.joint_parent[0] != -1 or source.joint_child[0] != 0 for source in builders):
             continue
         for row, imported in zip(rows, builders, strict=True):
             if cloner_path.relative_to(imported.body_label[0], sources[row]) is None:
-                raise ValueError(f"Mesh variant body {imported.body_label[0]!r} is outside source {sources[row]!r}.")
+                raise ValueError(f"Body variant {imported.body_label[0]!r} is outside source {sources[row]!r}.")
         variant_by_asset = {row: variant for variant, row in enumerate(rows)}
         initial_ids, targets = [], []
         for world, member in enumerate(members):
             row = plan.topology.world_prototypes[member]
-            target = cloner_path.rebase(
-                source_builders[sources[row]].body_label[0], sources[row], templates[member].format(world)
-            )
+            target = cloner_path.rebase(builders[0].body_label[0], sources[rows[0]], templates[member].format(world))
             initial_ids.append(variant_by_asset[row])
             targets.append(target)
             target_owners.setdefault(target, []).append(rows)
-        catalogs[rows] = properties, np.asarray(initial_ids, dtype=np.int32), targets
+        catalogs[rows] = builders, np.asarray(initial_ids, dtype=np.int32), targets
     # Distinct asset declarations can be views of the same body; neither can own an independent switch.
     conflicts = {rows for owners in target_owners.values() if len(owners) > 1 for rows in owners}
-    catalogs = {rows: properties for rows, properties in catalogs.items() if rows not in conflicts}
-    if load_visual_shapes:
-        # Native source imports are shared: stripping visuals must not alter a non-switchable asset.
-        while catalogs:
-            owned = {row for rows in catalogs for row in rows}
-            shared = {source for row, source in enumerate(sources) if row not in owned}
-            exclusive = {
-                rows: props for rows, props in catalogs.items() if not any(sources[row] in shared for row in rows)
-            }
-            if len(exclusive) == len(catalogs):
-                break
-            catalogs = exclusive
-    variant_sources = tuple(dict.fromkeys(sources[row] for rows in catalogs for row in rows))
-    render_models = {}
-    if load_visual_shapes and variant_sources:
-        # Collision topology stays strided; ragged visual geometry is a separate renderer projection.
-        for rows in catalogs:
-            render_builder = create_builder()
-            for row in rows:
-                render_builder.add_builder(source_builders[sources[row]])
-            render_models[rows] = render_builder.finalize(device="cpu")
-        collision_sources = build_source_builders(
-            stage,
-            variant_sources,
-            create_builder,
-            schema_resolvers,
-            ignore_paths=ignore_paths,
-            load_visual_shapes=False,
+    catalogs = {rows: values for rows, values in catalogs.items() if rows not in conflicts}
+    # One imported source can be both a catalog member and an ordinary asset. In that case it
+    # cannot be replaced by a variant-bearing clone source without changing the ordinary asset.
+    while catalogs:
+        owned = {row for rows in catalogs for row in rows}
+        shared = {source for row, source in enumerate(sources) if row not in owned}
+        exclusive = {
+            rows: values for rows, values in catalogs.items() if not any(sources[row] in shared for row in rows)
+        }
+        if len(exclusive) == len(catalogs):
+            break
+        catalogs = exclusive
+
+    retained_sources = source_builders
+    source_builders = dict(retained_sources)
+    for rows, (variants, _initial_ids, _targets) in catalogs.items():
+        inertia_offset = plan.asset_cfgs[rows[0]].mesh_variant_inertia_diagonal_offset
+        if not np.isfinite(inertia_offset) or inertia_offset < 0.0:
+            raise ValueError("mesh_variant_inertia_diagonal_offset must be finite and non-negative.")
+        if inertia_offset:
+            for source in variants:
+                source.body_inertia[0] = wp.mat33(np.asarray(source.body_inertia[0]) + np.eye(3) * inertia_offset)
+
+        imported = variants[0]
+        template = create_builder()
+        body = template.add_link(
+            xform=imported.body_q[0],
+            label=imported.body_label[0],
+            lock_inertia=True,
+            is_kinematic=bool(imported.body_flags[0] & BodyFlags.KINEMATIC),
         )
-        for source in collision_sources.values():
-            source.shape_flags = [flags & ~ShapeFlags.VISIBLE for flags in source.shape_flags]
-        source_builders.update(collision_sources)
+        joint_options = dict(
+            parent_xform=imported.joint_X_p[0],
+            child_xform=imported.joint_X_c[0],
+            label=imported.joint_label[0],
+            enabled=imported.joint_enabled[0],
+            collision_filter_parent=imported.joint_collision_filter_parent[0],
+        )
+        joint = (
+            template.add_joint_free(body, **joint_options)
+            if imported.joint_type[0] == JointType.FREE
+            else template.add_joint_fixed(-1, body, **joint_options)
+        )
+        template.add_articulation([joint], label=imported.articulation_label[0])
+        template.add_body_variants(body, variants, labels=[source.body_label[0] for source in variants])
+        for row, imported in zip(rows, variants, strict=True):
+            clone_source = create_builder()
+            clone_source.add_builder(template)
+            clone_source.body_q[0] = imported.body_q[0]
+            clone_source.joint_X_p[0] = imported.joint_X_p[0]
+            clone_source.joint_X_c[0] = imported.joint_X_c[0]
+            clone_source.joint_q[:] = imported.joint_q
+            clone_source.joint_qd[:] = imported.joint_qd
+            for name, labels in vars(clone_source).items():
+                if name.endswith("_label") and isinstance(labels, list):
+                    for index, label in enumerate(labels):
+                        if not isinstance(label, str):
+                            continue
+                        suffix = cloner_path.relative_to(label, sources[rows[0]])
+                        if suffix is None and label.startswith(sources[rows[0]] + "_"):
+                            suffix = label[len(sources[rows[0]]) :]
+                        if suffix is not None:
+                            labels[index] = sources[row] + suffix
+            source_builders[sources[row]] = clone_source
     # Imports contain authored USD poses, which need not include the planned world placement.
     source_inverse = {}
     xforms = UsdGeom.XformCache()
@@ -352,29 +384,15 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
         manager._scene_data_backend._geometry_batches = batches
         manager._cl_site_index_map = site_index_map
         manager._world_xforms = world_xforms
-        manager._cl_protos = source_builders
+        manager._cl_protos = retained_sources
         manager._particle_ranges = particle_ranges
         manager._num_envs = len(env_ids)
-        if catalogs:
-            bodies = {label: index for index, label in enumerate(builder.body_label)}
-            for rows, (properties, initial_ids, targets) in catalogs.items():
-                shapes = [
-                    [
-                        shape
-                        for shape in builder.body_shapes[bodies[target]]
-                        if int(builder.shape_flags[shape]) & int(ShapeFlags.COLLIDE_SHAPES)
-                    ]
-                    for target in targets
-                ]
-                sources_for_catalog = tuple(source_builders[sources[row]] for row in rows)
-                builder.mesh_variant_definitions[plan.asset_cfgs[rows[0]].prim_path] = _prepare_mesh_variant(
-                    builder,
-                    sources_for_catalog,
-                    np.asarray(shapes, dtype=np.int32),
-                    properties,
-                    initial_ids,
-                    render_models.get(rows),
-                )
+        bodies = {label: index for index, label in enumerate(builder.body_label)}
+        builder._isaaclab_initial_body_variants = tuple(
+            (bodies[target], int(variant))
+            for _rows, (_variants, initial_ids, targets) in catalogs.items()
+            for target, variant in zip(targets, initial_ids, strict=True)
+        )
     return builder, stage_info, site_index_map
 
 
