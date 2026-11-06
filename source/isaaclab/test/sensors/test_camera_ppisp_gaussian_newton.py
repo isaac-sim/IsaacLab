@@ -65,7 +65,7 @@ if not _MISSING_MODULES:
         render_synthetic_gaussian_scene_with_controller_ppisp_attrs,
         render_synthetic_gaussian_scene_with_static_ppisp_attrs,
     )
-    from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg  # noqa: E402
+    from isaaclab_newton.physics.mjwarp_solver_cfg import MJWarpSolverCfg  # noqa: E402
     from isaaclab_newton.physics.newton_manager_cfg import NewtonCfg  # noqa: E402
     from isaaclab_newton.renderers import NewtonWarpRendererCfg  # noqa: E402
 

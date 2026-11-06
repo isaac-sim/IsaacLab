@@ -50,6 +50,19 @@ class OvPhysxCfg(PhysicsCfg):
 
     class_type = "{DIR}.ovphysx_manager:OvPhysxManager"
 
+    legacy_joint_friction_replacements: dict[str, tuple[float, float, float]] = {}
+    """Explicit OVPhysX 0.7 migration values for legacy USD joint friction.
+
+    Keys are regular expressions matched against the complete joint name. Values are
+    ``(static effort, dynamic effort, viscous coefficient)`` in SI units: N or N*m,
+    and N*s/m or N*m*s/rad. These are calibrated replacement efforts, not converted
+    legacy coefficients. Static effort must be at least dynamic effort.
+
+    Only the private OVPhysX 0.7 export is changed. Older runtimes ignore this mapping.
+    Authored modern friction takes precedence. Unmatched nonzero legacy friction still
+    raises an error; this mapping does not provide a global fallback for unknown assets.
+    """
+
     cooked_collider_cache_dir: str | None = DEFAULT_COOKED_COLLIDER_CACHE_DIR
     """Directory for the OVPhysX cooked-collider cache, defaulting to a per-user directory under the
     system temporary directory. Set to ``None`` to use the runtime default.

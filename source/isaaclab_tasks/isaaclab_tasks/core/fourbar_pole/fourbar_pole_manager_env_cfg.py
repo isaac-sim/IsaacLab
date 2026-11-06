@@ -224,7 +224,7 @@ class FourbarPoleSwingupEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the fourbar-pole swing-up environment."""
 
     # Scene settings
-    scene: FourbarPoleSceneCfg = FourbarPoleSceneCfg(num_envs=4096, env_spacing=4.0, clone_in_fabric=True)
+    scene: FourbarPoleSceneCfg = FourbarPoleSceneCfg(num_envs=4096, env_spacing=4.0)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -240,7 +240,7 @@ class FourbarPoleSwingupEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 2
         self.episode_length_s = 5
         # Match Newton GL / --video camera to the task viewport when --viz newton creates the visualizer.
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(12.0, 0.0, 4.0))
+        self.sim.visualizer_cfgs = VisualizerCfg(eye=(12.0, 0.0, 4.0))
         # simulation settings
         self.sim.dt = 1 / 120
         self.sim.render_interval = self.decimation

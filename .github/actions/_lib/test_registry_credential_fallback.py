@@ -104,7 +104,7 @@ exit 1
 
 def test_public_nvcr_drops_only_that_registry(tmp_path: Path) -> None:
     """The refused nvcr.io credential goes; the push credentials stay."""
-    result = _run_setup(tmp_path, "nvcr.io/nvidia/isaac-sim:6.1.0", _DENY_UNLESS_ANONYMOUS)
+    result = _run_setup(tmp_path, "nvcr.io/nvidia/isaac-sim:6.2.0", _DENY_UNLESS_ANONYMOUS)
     assert result.returncode == 0, result.stderr
     assert _auths(tmp_path / "cfg" / "config.json") == {_ECR, _HUB}
 
@@ -126,7 +126,7 @@ def test_readable_image_keeps_credentials(tmp_path: Path) -> None:
 def test_transient_failure_keeps_credentials(tmp_path: Path) -> None:
     """A registry outage is not an authorization refusal, so nothing is dropped."""
     stub = 'echo "error: received unexpected HTTP status: 503" >&2\nexit 1'
-    result = _run_setup(tmp_path, "nvcr.io/nvidia/isaac-sim:6.1.0", stub)
+    result = _run_setup(tmp_path, "nvcr.io/nvidia/isaac-sim:6.2.0", stub)
     assert result.returncode == 0, result.stderr
     assert _auths(tmp_path / "cfg" / "config.json") == {"nvcr.io", _ECR, _HUB}
     assert "::warning::" in result.stdout
@@ -156,7 +156,7 @@ exit 1
 """
     Path("/tmp/il_anon_attempts").unlink(missing_ok=True)
     try:
-        result = _run_setup(tmp_path, "nvcr.io/nvidia/isaac-sim:6.1.0", stub)
+        result = _run_setup(tmp_path, "nvcr.io/nvidia/isaac-sim:6.2.0", stub)
         assert result.returncode == 0, result.stderr
         assert _auths(tmp_path / "cfg" / "config.json") == {_ECR, _HUB}
     finally:
@@ -165,7 +165,7 @@ exit 1
 
 def test_unowned_config_is_never_modified(tmp_path: Path) -> None:
     """A config this action did not create belongs to the runner and stays intact."""
-    result = _run_setup(tmp_path, "nvcr.io/nvidia/isaac-sim:6.1.0", _DENY_UNLESS_ANONYMOUS, owned=False)
+    result = _run_setup(tmp_path, "nvcr.io/nvidia/isaac-sim:6.2.0", _DENY_UNLESS_ANONYMOUS, owned=False)
     assert result.returncode == 0, result.stderr
     assert _auths(tmp_path / "cfg" / "config.json") == {"nvcr.io", _ECR, _HUB}
 
@@ -176,7 +176,7 @@ def test_already_checked_reference_is_not_probed_again(tmp_path: Path) -> None:
     The probes are network calls with backoff, and the first invocation already
     settled the outcome for this ref.
     """
-    ref = "nvcr.io/nvidia/isaac-sim:6.1.0"
+    ref = "nvcr.io/nvidia/isaac-sim:6.2.0"
     stub = 'echo "the probe must not run again" >&2\nexit 1'
     result = _run_setup(
         tmp_path,
@@ -189,12 +189,37 @@ def test_already_checked_reference_is_not_probed_again(tmp_path: Path) -> None:
     assert _auths(tmp_path / "cfg" / "config.json") == {"nvcr.io", _ECR, _HUB}
 
 
+def test_recreated_config_rechecks_previously_checked_image(tmp_path: Path) -> None:
+    """Cleanup must not leave a cached probe valid for newly copied credentials."""
+    runner_config = tmp_path / "home" / ".docker" / "config.json"
+    runner_config.parent.mkdir(parents=True)
+    _write_config(runner_config, ["nvcr.io", _ECR, _HUB])
+    removed_config = tmp_path / "removed-config"
+    ref = "nvcr.io/nvidia/isaac-sim:6.2.0"
+    result = _run_setup(
+        tmp_path,
+        ref,
+        _DENY_UNLESS_ANONYMOUS,
+        extra_env={
+            "DOCKER_CONFIG": str(removed_config),
+            "SETUP_DOCKER_CONFIG_OWNED": str(removed_config),
+            "SETUP_DOCKER_CONFIG_CHECKED_REF": ref,
+            "TMPDIR": str(tmp_path),
+        },
+    )
+    assert result.returncode == 0, result.stderr
+    updates = dict(line.split("=", 1) for line in (tmp_path / "github-env").read_text().splitlines())
+    recreated_config = Path(updates["DOCKER_CONFIG"]) / "config.json"
+    assert _auths(recreated_config) == {_ECR, _HUB}
+    assert _auths(runner_config) == {"nvcr.io", _ECR, _HUB}
+
+
 def test_registry_host_canonicalization() -> None:
     """Case, port, and Docker Hub spellings resolve to one registry identity."""
     helper = _load_helper()
-    assert helper.registry_host("nvcr.io/nvidia/isaac-sim:6.1.0") == "nvcr.io"
-    assert helper.registry_host("NVCR.IO/nvidia/isaac-sim:6.1.0") == "nvcr.io"
-    assert helper.registry_host("nvcr.io:443/nvidia/isaac-sim:6.1.0") == "nvcr.io"
+    assert helper.registry_host("nvcr.io/nvidia/isaac-sim:6.2.0") == "nvcr.io"
+    assert helper.registry_host("NVCR.IO/nvidia/isaac-sim:6.2.0") == "nvcr.io"
+    assert helper.registry_host("nvcr.io:443/nvidia/isaac-sim:6.2.0") == "nvcr.io"
     assert helper.registry_host("ubuntu:24.04") == "index.docker.io"
     assert helper.registry_host("docker.io/library/ubuntu:24.04") == "index.docker.io"
     assert helper.registry_host("nvcr.io.example.com/team/image:1") == "nvcr.io.example.com"
@@ -204,7 +229,7 @@ def test_helper_reports_when_nothing_matched(tmp_path: Path) -> None:
     """No stored credential for the registry is reported rather than claimed as success."""
     config = _write_config(tmp_path / "config.json", [_ECR])
     result = subprocess.run(
-        ["python3", str(_STRIP_HELPER), str(config), "nvcr.io/nvidia/isaac-sim:6.1.0"],
+        ["python3", str(_STRIP_HELPER), str(config), "nvcr.io/nvidia/isaac-sim:6.2.0"],
         capture_output=True,
         text=True,
         check=False,
@@ -221,7 +246,7 @@ def test_helper_also_clears_credential_helpers(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     result = subprocess.run(
-        ["python3", str(_STRIP_HELPER), str(config), "nvcr.io/nvidia/isaac-sim:6.1.0"],
+        ["python3", str(_STRIP_HELPER), str(config), "nvcr.io/nvidia/isaac-sim:6.2.0"],
         capture_output=True,
         text=True,
         check=False,
@@ -271,7 +296,7 @@ def test_malformed_digest_pin_fails(tmp_path: Path) -> None:
 def test_authorization_refusal_fails_without_retrying(tmp_path: Path) -> None:
     """An authorization refusal will not clear on its own, so it fails immediately."""
     stub = 'echo "denied: Access Denied" >&2\nexit 1'
-    result = _run_hash(tmp_path, "nvcr.io/example/isaac-sim", "latest-release-6-1", stub)
+    result = _run_hash(tmp_path, "nvcr.io/example/isaac-sim", "latest-release-6-2", stub)
     assert result.returncode == 1
     assert "cannot be read with the credentials available" in result.stdout
     assert "attempt 2/" not in result.stdout
@@ -284,7 +309,7 @@ def test_truncated_digest_is_rejected(tmp_path: Path) -> None:
     would accept the value below and fold it into the dependency-cache key.
     """
     stub = "echo '\"sha256:abc123\"'"
-    result = _run_hash(tmp_path, "nvcr.io/example/isaac-sim", "latest-release-6-1", stub)
+    result = _run_hash(tmp_path, "nvcr.io/example/isaac-sim", "latest-release-6-2", stub)
     assert result.returncode == 1
     assert "RESULT=" not in result.stdout
 
@@ -292,7 +317,7 @@ def test_truncated_digest_is_rejected(tmp_path: Path) -> None:
 def test_trailing_output_after_a_digest_is_rejected(tmp_path: Path) -> None:
     """Extra stdout alongside a well-formed digest must not reach the cache key."""
     stub = f"echo '\"{_DIGEST} unexpected\"'"
-    result = _run_hash(tmp_path, "nvcr.io/example/isaac-sim", "latest-release-6-1", stub)
+    result = _run_hash(tmp_path, "nvcr.io/example/isaac-sim", "latest-release-6-2", stub)
     assert result.returncode == 1
     assert "RESULT=" not in result.stdout
 
@@ -300,6 +325,42 @@ def test_trailing_output_after_a_digest_is_rejected(tmp_path: Path) -> None:
 def test_successful_read_ignores_stderr_noise(tmp_path: Path) -> None:
     """A warning emitted alongside a good digest is not concatenated into it."""
     stub = f'echo "buildx warning" >&2\necho \'"{_DIGEST}"\''
-    result = _run_hash(tmp_path, "nvcr.io/example/isaac-sim", "latest-release-6-1", stub)
+    result = _run_hash(tmp_path, "nvcr.io/example/isaac-sim", "latest-release-6-2", stub)
     assert result.returncode == 0, result.stderr
-    assert f"RESULT=nvcr.io/example/isaac-sim:latest-release-6-1:{_DIGEST}" in result.stdout
+    assert f"RESULT=nvcr.io/example/isaac-sim:latest-release-6-2:{_DIGEST}" in result.stdout
+
+
+_PYPROJECT = '[project]\nname = "isaaclab"\nversion = "1.0.0"\ndependencies = ["torch==2.10.0"]\n'
+_LOCK = (
+    '[[package]]\nname = "isaaclab"\nversion = "1.0.0"\nsource = { editable = "source/isaaclab" }\n\n'
+    '[[package]]\nname = "torch"\nversion = "2.10.0"\nsource = { registry = "https://pypi.org/simple" }\n'
+)
+
+
+def _manifest_hash(tmp_path: Path, pyproject: str, lock: str) -> str:
+    """Hash a one-package repository with the action's file-hash block."""
+    repo = tmp_path / "repo"
+    (repo / "source" / "isaaclab").mkdir(parents=True, exist_ok=True)
+    (repo / "source" / "isaaclab" / "pyproject.toml").write_text(pyproject, encoding="utf-8")
+    (repo / "uv.lock").write_text(lock, encoding="utf-8")
+    (repo / "Dockerfile").write_text("FROM scratch\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(["git", "add", "."], cwd=repo, check=True)
+    lines = _step_body(_HASH_ACTION).splitlines()
+    pattern = next(line for line in lines if line.startswith("deps_manifest_pattern="))
+    start = next(index for index, line in enumerate(lines) if line.startswith("mapfile -t manifest_files"))
+    end = next(index for index, line in enumerate(lines) if line.startswith("deps_hash="))
+    script = "\n".join(["deps_files=(Dockerfile)", pattern, *lines[start:end], 'echo "${file_hash}"'])
+    result = subprocess.run(["bash", "-c", script], cwd=repo, capture_output=True, text=True, check=True)
+    return result.stdout.strip()
+
+
+def test_deps_hash_ignores_first_party_version_bumps(tmp_path: Path) -> None:
+    """The nightly version bump must not rebuild the images; a dependency change must."""
+    base = _manifest_hash(tmp_path / "base", _PYPROJECT, _LOCK)
+    bumped = _manifest_hash(tmp_path / "bumped", _PYPROJECT.replace("1.0.0", "1.1.0"), _LOCK.replace("1.0.0", "1.1.0"))
+    dep_changed = _manifest_hash(tmp_path / "dep", _PYPROJECT.replace("2.10.0", "2.11.0"), _LOCK)
+    lock_changed = _manifest_hash(tmp_path / "lock", _PYPROJECT, _LOCK.replace("2.10.0", "2.11.0"))
+    assert bumped == base
+    assert dep_changed != base
+    assert lock_changed != base

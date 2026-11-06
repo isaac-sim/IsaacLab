@@ -283,15 +283,12 @@ def annotate_dataset(env_cfg, dataset_file_handler: HDF5DatasetFileHandler, succ
 
     # Only enables inputs if this script runs with a GUI
     if env.sim.has_gui:
-        from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg
+        from isaaclab.visualizers import add_key_callbacks
 
-        keyboard_interface = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.1, rot_sensitivity=0.1))
-        keyboard_interface.add_callback("N", play_cb)
-        keyboard_interface.add_callback("B", pause_cb)
-        keyboard_interface.add_callback("Q", skip_episode_cb)
+        key_callbacks = {"N": play_cb, "B": pause_cb, "Q": skip_episode_cb}
         if not args_cli.auto:
-            keyboard_interface.add_callback("S", mark_subtask_cb)
-        keyboard_interface.reset()
+            key_callbacks["S"] = mark_subtask_cb
+        add_key_callbacks(env.unwrapped.sim.visualizers, key_callbacks)
 
     # simulate environment -- run everything in inference mode
     exported_episode_count = 0
@@ -515,7 +512,6 @@ def annotate_episode_in_manual_mode(
 
             print(f'\tThe episode will be replayed again for re-marking subtask signals for the eef "{eef_name}".\n')
 
-    annotated_episode = env.recorder_manager.get_episode(0)
     for (
         subtask_term_signal_name,
         subtask_term_signal_action_index,
@@ -523,7 +519,9 @@ def annotate_episode_in_manual_mode(
         # subtask termination signal is false until subtask is complete, and true afterwards
         subtask_signals = torch.ones(len(episode.data["actions"]), dtype=torch.bool)
         subtask_signals[:subtask_term_signal_action_index] = False
-        annotated_episode.add(f"obs/datagen_info/subtask_term_signals/{subtask_term_signal_name}", subtask_signals)
+        env.recorder_manager.add_to_episodes(
+            f"obs/datagen_info/subtask_term_signals/{subtask_term_signal_name}", subtask_signals.unsqueeze(0), [0]
+        )
 
     if args_cli.annotate_subtask_start_signals:
         for (
@@ -532,8 +530,8 @@ def annotate_episode_in_manual_mode(
         ) in subtask_start_signal_action_indices.items():
             subtask_signals = torch.ones(len(episode.data["actions"]), dtype=torch.bool)
             subtask_signals[:subtask_start_signal_action_index] = False
-            annotated_episode.add(
-                f"obs/datagen_info/subtask_start_signals/{subtask_start_signal_name}", subtask_signals
+            env.recorder_manager.add_to_episodes(
+                f"obs/datagen_info/subtask_start_signals/{subtask_start_signal_name}", subtask_signals.unsqueeze(0), [0]
             )
 
     return True

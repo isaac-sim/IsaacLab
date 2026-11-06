@@ -424,6 +424,26 @@ class TestLifecycleCloudXRIntegration:
 
         assert lifecycle._cloudxr_launcher is None
 
+    @pytest.mark.parametrize(("preset", "expected"), [(None, "true"), ("false", "false")])
+    def test_start_silences_openxr_runtime_errors_unless_overridden(self, preset, expected):
+        """start() defaults OXR_NO_PRINTING to true and keeps a value the user already set."""
+        lifecycle = _make_lifecycle(cloudxr_env_file=None)
+
+        fake_teleop_modules = {
+            "isaacteleop.retargeting_engine.deviceio_source_nodes": MagicMock(),
+            "isaacteleop.retargeting_engine.interface": MagicMock(),
+        }
+
+        with (
+            patch.dict(os.environ, {}, clear=False),
+            patch.dict(sys.modules, fake_teleop_modules),
+        ):
+            os.environ.pop("OXR_NO_PRINTING", None)
+            if preset is not None:
+                os.environ["OXR_NO_PRINTING"] = preset
+            lifecycle.start()
+            assert os.environ["OXR_NO_PRINTING"] == expected
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

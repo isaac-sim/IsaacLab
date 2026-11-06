@@ -86,7 +86,10 @@ class ReorientDirectEnv(DirectRLEnv):
         self.goal_rot = torch.zeros((self.num_envs, 4), dtype=torch.float, device=self.device)
         self.goal_rot[:, 3] = 1.0  # identity quaternion in (x, y, z, w) layout
         self.goal_pos = torch.zeros((self.num_envs, 3), dtype=torch.float, device=self.device)
-        self.goal_pos[:, :] = torch.tensor(self.cfg.goal_marker_position, device=self.device)
+        if self.cfg.goal_marker_position is None:
+            self.goal_pos[:, :] = self.in_hand_pos + torch.tensor(self.cfg.goal_marker_offset, device=self.device)
+        else:
+            self.goal_pos[:, :] = torch.tensor(self.cfg.goal_marker_position, device=self.device)
         self.reset_goal_buf = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         self.successes = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
         self.consecutive_successes = torch.zeros(1, dtype=torch.float, device=self.device)

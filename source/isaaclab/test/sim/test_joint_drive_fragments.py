@@ -119,8 +119,10 @@ def test_mujoco_joint_actuatorgravcomp_enables_gravcomp_on_every_joint_body():
     assert stage.GetPrimAtPath("/World/Articulation/link_b").GetAttribute("mjc:gravcomp").Get() == pytest.approx(1.0)
 
 
-def test_mujoco_joint_actuatorgravcomp_preserves_authored_body_gravcomp():
-    # an explicitly authored body gravcomp must not be clobbered by the actuatorgravcomp auto-enable
+@pytest.mark.parametrize("gravcomp", [0.5, 0.0])
+def test_mujoco_joint_actuatorgravcomp_preserves_authored_body_gravcomp(gravcomp):
+    # an explicitly authored body gravcomp, including 0.0, must not be clobbered by the
+    # actuatorgravcomp auto-enable
     from isaaclab_newton.sim.schemas import MujocoJointCfg
 
     from isaaclab.sim.schemas import apply_joint_drive_properties
@@ -132,9 +134,9 @@ def test_mujoco_joint_actuatorgravcomp_preserves_authored_body_gravcomp():
     prim = _make_revolute_joint(stage)
     UsdPhysics.RevoluteJoint(prim).CreateBody1Rel().SetTargets(["/World/Articulation/body1"])
     body = stage.GetPrimAtPath("/World/Articulation/body1")
-    safe_set_attribute_on_usd_prim(body, "mjc:gravcomp", 0.5, camel_case=False)
+    safe_set_attribute_on_usd_prim(body, "mjc:gravcomp", gravcomp, camel_case=False)
     apply_joint_drive_properties("/World/Articulation(/.*)?", [MujocoJointCfg(actuatorgravcomp=True)], stage)
-    assert body.GetAttribute("mjc:gravcomp").Get() == pytest.approx(0.5)
+    assert body.GetAttribute("mjc:gravcomp").Get() == pytest.approx(gravcomp)
 
 
 # -------------------------------------------------------------------------------------

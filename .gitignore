@@ -62,6 +62,9 @@ _build
 **/logs/*
 **/recordings/*
 
+# Local development tools and generated media.
+/tools/local/
+
 # Pre-Trained Checkpoints
 /.pretrained_checkpoints/
 

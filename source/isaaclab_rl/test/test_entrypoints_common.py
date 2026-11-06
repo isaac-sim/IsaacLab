@@ -268,21 +268,18 @@ def test_run_summary_reports_concrete_backends(
     selectors: list[str],
     expected_physics: str,
     expected_renderer: str,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The summary reports the backends the launch resolved."""
-    from isaaclab.app import scan
+    from isaaclab.app import validate_launch
 
     import isaaclab_tasks  # noqa: F401
     from isaaclab_tasks.utils import resolve_task_config
 
     task = "Isaac-Cartpole-Camera-Direct"
-    monkeypatch.setattr(rl_common.sys, "argv", ["train.py", *selectors])
-    env_cfg, _ = resolve_task_config(task, "rsl_rl_cfg_entry_point")
+    env_cfg, _ = resolve_task_config(task, "rsl_rl_cfg_entry_point", overrides=selectors)
     screen = _RecordingScreen()
     args_cli = argparse.Namespace(task=task, device=None, num_envs=None, visualizer=None)
-    # resolve the automatic selections as the launch does, without starting a runtime
-    scan(env_cfg, args_cli)
+    validate_launch(env_cfg, args_cli)
 
     rl_common.show_run_summary(screen, args_cli, env_cfg, library="rsl_rl", action="train")
 
@@ -295,9 +292,9 @@ def test_run_summary_reports_the_launch_resolved_visualizers_and_device() -> Non
     """A run without visualizers shows headless, and the device is the one the launch resolved (e.g. per rank)."""
     from isaaclab.app import launch_simulation
 
-    sim_cfg = SimulationCfg(physics=NewtonCfg(), device="cuda:0")
+    sim_cfg = SimulationCfg(physics=NewtonCfg(), device="cpu")
     env_cfg = SimpleNamespace(sim=sim_cfg, scene=SimpleNamespace(num_envs=4))
-    args_cli = argparse.Namespace(task="Isaac-Test", device="cuda:0", num_envs=None, visualizer=None)
+    args_cli = argparse.Namespace(task="Isaac-Test", device="cpu", num_envs=None, visualizer=None)
     screen = _RecordingScreen()
 
     with launch_simulation(env_cfg, args_cli):

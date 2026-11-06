@@ -234,7 +234,9 @@ def outputs(pkg: Path) -> list[Path]:
 
 def restore(pkg: Path) -> None:
     """Roll ``pkg``'s compile outputs back to ``HEAD``."""
-    run("git", "checkout", "HEAD", "--", *outputs(pkg))
+    tracked = [path for path in outputs(pkg) if run("git", "ls-tree", "-r", "--name-only", "HEAD", "--", path).strip()]
+    if tracked:
+        run("git", "checkout", "HEAD", "--", *tracked)
     run("git", "clean", "-fdq", "--", pkg / "changelog.d")
 
 
@@ -337,7 +339,7 @@ def main() -> None:
     check.add_argument(
         "base_ref",
         nargs="?",
-        default=os.environ.get("ISAACLAB_CHANGELOG_BASE_REF", "develop"),
+        default=os.environ.get("ISAACLAB_CHANGELOG_BASE_REF", "main"),
         help="Git ref or commit; branch shorthand prefers origin/<branch>.",
     )
     check.add_argument("--include-worktree", action="store_true", help="Include uncommitted tracked changes.")

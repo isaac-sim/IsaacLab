@@ -86,7 +86,7 @@ To set the environment variables, one can use the following command in the termi
       .. warning::
 
          Livestreaming is not currently supported or validated on DGX Spark. See the
-         :doc:`/source/setup/installation/index` for the current list of features not
+         :doc:`/source/isaaclab/installation` for the current list of features not
          yet validated on this platform.
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows

@@ -27,6 +27,8 @@ from __future__ import annotations
 
 import argparse
 
+from isaaclab_physx.physics import PhysxCfg
+
 from isaaclab.app import add_launcher_args, launch_simulation
 
 parser = argparse.ArgumentParser(description="Benchmark FrameView backends and PhysX RigidBodyView.")
@@ -63,6 +65,7 @@ import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.views import FrameView
+from isaaclab.utils.warp import ProxyArray
 
 try:
     from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
@@ -87,8 +90,7 @@ def benchmark_usd_or_fabric(view_type: str, num_iterations: int) -> dict[str, fl
     print("  Setting up scene")
     sim_utils.create_new_stage()
     start_time = time.perf_counter()
-    sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, use_fabric=(view_type == "fabric"))
-    sim = sim_utils.SimulationContext(sim_cfg)
+    sim = sim_utils.SimulationContext(sim_cfgs[view_type])
     stage = sim_utils.get_current_stage()
     print(f"  SimulationContext: {time.perf_counter() - start_time:.4f}s")
 
@@ -137,9 +139,9 @@ def benchmark_newton(num_iterations: int) -> dict[str, float]:
     from pxr import Gf
 
     from isaaclab.assets import RigidObjectCfg
-    from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-    from isaaclab.sim import SimulationCfg, build_simulation_context
-    from isaaclab.utils import configclass
+    from isaaclab.scene import InteractiveSceneCfg
+    from isaaclab.sim import build_simulation_context
+    from isaaclab.utils import configclass, instantiate
 
     timing_results = {}
 
@@ -157,16 +159,15 @@ def benchmark_newton(num_iterations: int) -> dict[str, float]:
         )
 
     print("  Setting up Newton scene")
-    newton_cfg = SimulationCfg(physics=NewtonCfg(solver_cfg=MJWarpSolverCfg()), device=args_cli.device)
     start_time = time.perf_counter()
-    ctx = build_simulation_context(device=args_cli.device, sim_cfg=newton_cfg, add_ground_plane=True)
+    ctx = build_simulation_context(device=args_cli.device, sim_cfg=sim_cfgs["newton"], add_ground_plane=True)
     sim = ctx.__enter__()
     sim._app_control_on_stop_handle = None
-    InteractiveScene(_SceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0))
+    scene = instantiate(_SceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0))
 
     stage = sim_utils.get_current_stage()
-    for i in range(args_cli.num_envs):
-        prim = stage.DefinePrim(f"/World/envs/env_{i}/Cube/Sensor", "Xform")
+    for env_path in scene.env_prim_paths:
+        prim = stage.DefinePrim(f"{env_path}/Cube/Sensor", "Xform")
         sim_utils.standardize_xform_ops(prim)
         prim.GetAttribute("xformOp:translate").Set(Gf.Vec3d(0.1, 0.0, 0.05))
         prim.GetAttribute("xformOp:orient").Set(Gf.Quatd(1.0, 0.0, 0.0, 0.0))
@@ -175,7 +176,7 @@ def benchmark_newton(num_iterations: int) -> dict[str, float]:
     print(f"  Newton scene setup: {time.perf_counter() - start_time:.4f}s")
 
     start_time = time.perf_counter()
-    view = NewtonSiteFrameView("/World/envs/env_.*/Cube/Sensor", device=args_cli.device)
+    view = NewtonSiteFrameView(f"{scene.env_regex_ns}/Cube/Sensor", device=args_cli.device)
     num_prims = view.count
     timing_results["init"] = time.perf_counter() - start_time
 
@@ -197,8 +198,7 @@ def benchmark_physx(num_iterations: int) -> dict[str, float]:
     print("  Setting up scene")
     sim_utils.create_new_stage()
     start_time = time.perf_counter()
-    sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, use_fabric=False)
-    sim = sim_utils.SimulationContext(sim_cfg)
+    sim = sim_utils.SimulationContext(sim_cfgs["physx"])
     stage = sim_utils.get_current_stage()
     print(f"  SimulationContext: {time.perf_counter() - start_time:.4f}s")
 
@@ -218,7 +218,7 @@ def benchmark_physx(num_iterations: int) -> dict[str, float]:
 
     pattern = "/World/Env_*/Object"
     start_time = time.perf_counter()
-    physics_sim_view = sim.physics_manager.get_physics_sim_view()
+    physics_sim_view = sim.backend_manager.get_physics_sim_view()
     view = physics_sim_view.create_rigid_body_view(pattern)
     num_prims = view.count
     timing_results["init"] = time.perf_counter() - start_time
@@ -266,8 +266,8 @@ def _run_pose_benchmarks(
     num_prims: int,
     num_iterations: int,
     timing_results: dict,
-    positions: wp.array,
-    orientations: wp.array,
+    positions: ProxyArray,
+    orientations: ProxyArray,
 ):
     """Shared benchmark loop for get/set world poses on any FrameView."""
     start_time = time.perf_counter()
@@ -275,10 +275,9 @@ def _run_pose_benchmarks(
         view.get_world_poses()
     timing_results["get_world_poses"] = (time.perf_counter() - start_time) / num_iterations
 
-    new_positions = wp.clone(positions)
-    new_positions_t = wp.to_torch(new_positions)
-    new_positions_t[:, 2] += 0.5
-    expected_positions = new_positions_t.clone()
+    new_positions = positions.torch.clone()
+    new_positions[:, 2] += 0.5
+    expected_positions = new_positions.clone()
 
     start_time = time.perf_counter()
     for _ in range(num_iterations):
@@ -287,9 +286,9 @@ def _run_pose_benchmarks(
     timing_results["set_world_poses"] = (time.perf_counter() - start_time) / num_iterations
 
     ret_pos, ret_quat = view.get_world_poses()
-    ret_pos_t = wp.to_torch(ret_pos)
-    ret_quat_t = wp.to_torch(ret_quat)
-    ori_t = wp.to_torch(orientations)
+    ret_pos_t = ret_pos.torch
+    ret_quat_t = ret_quat.torch
+    ori_t = orientations.torch
 
     pos_ok = torch.allclose(ret_pos_t, expected_positions, atol=1e-4, rtol=0)
     quat_ok = torch.allclose(ret_quat_t, ori_t, atol=1e-4, rtol=0)
@@ -445,5 +444,15 @@ def main():
 
 if __name__ == "__main__":
     # each backend builds its own simulation context; the USD, Fabric, and PhysX views need Kit
-    with launch_simulation(None, args_cli):
+    sim_cfgs = {
+        name: sim_utils.SimulationCfg(
+            dt=1.0 / 60.0 if name == "newton" else 0.01,
+            device=args_cli.device,
+            use_fabric=name == "fabric",
+            physics=NewtonCfg(solver_cfg=MJWarpSolverCfg()) if name == "newton" else PhysxCfg(),
+        )
+        for name in args_cli.backends
+        if name != "newton" or HAS_NEWTON
+    }
+    with launch_simulation(sim_cfgs, args_cli):
         main()

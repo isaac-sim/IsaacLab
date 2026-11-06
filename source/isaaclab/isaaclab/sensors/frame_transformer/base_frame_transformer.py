@@ -81,6 +81,12 @@ class BaseFrameTransformer(SensorBase):
     Operations
     """
 
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
+        """Reset clocks and invalidate transforms derived from the current scene state."""
+        env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
+        super().reset(env_mask=env_mask)
+        self._invalidate_buffers(env_mask)
+
     def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
         """Find bodies in the articulation based on the name keys.
 
@@ -105,6 +111,7 @@ class BaseFrameTransformer(SensorBase):
         the common sensor infrastructure from :class:`SensorBase`.
         """
         super()._initialize_impl()
+        self._invalidate_buffers(self._ALL_ENV_MASK)
 
     @abstractmethod
     def _update_buffers_impl(self, env_mask: wp.array):

@@ -19,6 +19,7 @@ from ... import sim as sim_utils
 from ...markers import VisualizationMarkers
 from ...terrains.trimesh.utils import make_plane
 from ...utils import math as math_utils
+from ...utils.mesh import convert_faces_to_triangles
 from ...utils.warp import ProxyArray, convert_to_warp_mesh
 from ...utils.warp.kernels import raycast_mesh_masked_kernel
 from ..sensor_base import SensorBase
@@ -41,6 +42,10 @@ class BaseRayCaster(SensorBase):
     The meshes are parsed from the list of primitive paths provided in the configuration. These are then
     converted to warp meshes and stored in the :attr:`meshes` dictionary. The ray-caster then ray-casts
     against these warp meshes using the ray pattern provided in the configuration.
+
+    The fixed local ``ray_starts`` and ``ray_directions`` patterns are shared across sensor instances
+    as broadcast views. Treat them as read-only and configure the pattern through ``cfg.pattern_cfg``.
+    World-frame rays, drift, and hit buffers remain independent for each sensor instance.
 
     .. note::
         Currently, only static meshes are supported. Extending the warp mesh to support dynamic meshes
@@ -106,7 +111,9 @@ class BaseRayCaster(SensorBase):
 
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
         # reset the timers and counters
-        super().reset(env_ids, env_mask)
+        reset_mask = self._resolve_indices_and_mask(env_ids, env_mask)
+        super().reset(env_mask=reset_mask)
+        self._invalidate_buffers(reset_mask)
         # Drift buffers start at zero, so zero ranges (the defaults) need no resampling.
         sample_drift = any(self.cfg.drift_range)
         ray_cast_range_list = tuple(
@@ -150,10 +157,16 @@ class BaseRayCaster(SensorBase):
 
     def _initialize_impl(self):
         super()._initialize_impl()
+        self._scene_data_provider = self._sim.get_scene_data_provider()
         self._initialize_pose_tracking()
         if not hasattr(self, "_view_count"):
             view: Any = self._view
             self._view_count = view.count
+        if self._view_count != self._num_envs:
+            raise RuntimeError(
+                f"{type(self).__name__} at '{self.cfg.prim_path}' found {self._view_count} instances in"
+                f" {self._num_envs} environments, expected one mount in every environment."
+            )
 
         # Resolve alignment mode to integer constant for kernel dispatch
         alignment_map = {"world": 0, "yaw": 1, "base": 2}
@@ -164,6 +177,7 @@ class BaseRayCaster(SensorBase):
         # load the meshes by parsing the stage
         self._initialize_warp_meshes()
         self._initialize_rays_impl()
+        self._invalidate_buffers(self._ALL_ENV_MASK)
 
     def _initialize_pose_tracking(self) -> None:
         """Initialize backend-specific sensor pose tracking.
@@ -206,6 +220,7 @@ class BaseRayCaster(SensorBase):
                 points = np.matmul(points, transform_matrix[:3, :3].T)
                 points += transform_matrix[:3, 3]
                 indices = np.asarray(mesh_prim.GetFaceVertexIndicesAttr().Get())
+                indices = convert_faces_to_triangles(indices, np.asarray(mesh_prim.GetFaceVertexCountsAttr().Get()))
                 wp_mesh = convert_to_warp_mesh(points, indices, device=self._device)
                 logger.info(
                     f"Read mesh prim: {mesh_prim.GetPath()} with {len(points)} vertices and {len(indices)} faces."
@@ -229,9 +244,10 @@ class BaseRayCaster(SensorBase):
         )
         ray_starts_torch += offset_pos
 
-        # Repeat for each environment
-        ray_starts_torch = ray_starts_torch.repeat(self._view_count, 1, 1).contiguous()
-        ray_directions_torch = ray_directions_torch.repeat(self._view_count, 1, 1).contiguous()
+        # The configured pattern is shared; only world-frame rays and drift vary per environment.
+        # Warp preserves these zero-stride batch views, avoiding copies of the fixed local pattern.
+        ray_starts_torch = ray_starts_torch.expand(self._view_count, -1, -1)
+        ray_directions_torch = ray_directions_torch.expand(self._view_count, -1, -1)
 
         # Keep public aliases warp-first; kernels use the underlying Warp arrays.
         self.ray_starts = ProxyArray(wp.from_torch(ray_starts_torch, dtype=wp.vec3f))

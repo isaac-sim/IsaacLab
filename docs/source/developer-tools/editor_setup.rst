@@ -1,13 +1,11 @@
 .. _setup-vs-code:
 
 Editor setup
-------------
+============
 
-Editor setup is optional and is not required to run Isaac Lab. The repository
-includes shared settings for `Visual Studio Code <https://code.visualstudio.com/>`_
-and compatible editors such as `Cursor <https://www.cursor.com/>`_. Complete one
-of the :ref:`Isaac Lab installation methods <isaaclab-installation-root>` before
-configuring your editor.
+After :ref:`installing Isaac Lab <isaaclab-installation-root>`, use the repository
+settings for `VS Code <https://code.visualstudio.com/>`_ or a compatible editor such
+as `Cursor <https://www.cursor.com/>`_. Editor setup is optional.
 
 The ``.vscode`` directory contains the checked-in templates and tasks:
 
@@ -23,7 +21,7 @@ The ``.vscode`` directory contains the checked-in templates and tasks:
    └── tasks.json
 
 Configure a source checkout
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
+---------------------------
 
 Open the Isaac Lab repository root in your editor. Then run the setup command
 that matches your installation from a terminal in that directory.
@@ -72,7 +70,7 @@ Isaac Lab packages found in the active Python environment. This covers source,
 editable, and wheel installations without storing absolute paths in Git.
 
 Configure VS Code
-^^^^^^^^^^^^^^^^^
+-----------------
 
 Install the extensions recommended by the repository when VS Code prompts you.
 At minimum, install the Python and Pylance extensions. Run the setup command
@@ -81,7 +79,7 @@ the same interpreter used by the command. For the recommended uv installation,
 this is ``.venv/bin/python`` on Linux or ``.venv\Scripts\python.exe`` on Windows.
 
 Configure Cursor
-^^^^^^^^^^^^^^^^
+----------------
 
 Cursor cannot use Pylance because Pylance is licensed for official VS Code
 builds. Install the Python extension and the `basedpyright
@@ -94,25 +92,6 @@ extension (``detachhead.basedpyright``). Then:
 
 No Cursor-specific path list is required. Pylance and basedpyright read the
 same Pyright configuration.
-
-Troubleshoot editor imports
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-If an import is still unresolved:
-
-1. Confirm the selected editor interpreter matches ``python`` in the setup command.
-2. Rerun setup with ``uv run --extra isaacsim isaaclab --editor`` if the missing import is from
-   ``omni``, ``pxr``, or ``isaacsim``.
-3. Reload the editor window.
-4. Inspect the generated ``extraPaths`` in the root ``pyrightconfig.json``.
-
-Remove simulator extension directories that the project does not use if
-language-server indexing consumes too much memory.
-
-For more information about VS Code support in Isaac Sim, see:
-
-* `Isaac Sim VSCode support <https://docs.isaacsim.omniverse.nvidia.com/latest/development_tools/vscode.html#visual-studio-code-vs-code>`__
-
 
 Attach to a Running ``debugpy`` Session
 ---------------------------------------
@@ -177,3 +156,22 @@ These are configured in the ``.vscode/settings.json`` file:
    }
 
 The ruff linter will show warnings and errors in your code to help you follow Python best practices and the project's coding standards.
+
+
+Troubleshoot editor imports
+---------------------------
+
+If an import is still unresolved:
+
+1. Confirm the selected editor interpreter matches ``python`` in the setup command.
+2. Rerun setup with ``uv run --extra isaacsim isaaclab --editor`` if the missing import is from
+   ``omni``, ``pxr``, or ``isaacsim``.
+3. Reload the editor window.
+4. Inspect the generated ``extraPaths`` in the root ``pyrightconfig.json``.
+
+Remove simulator extension directories that the project does not use if
+language-server indexing consumes too much memory.
+
+For more information about VS Code support in Isaac Sim, see:
+
+* `Isaac Sim VSCode support <https://docs.isaacsim.omniverse.nvidia.com/latest/development_tools/vscode.html#visual-studio-code-vs-code>`__

@@ -12,8 +12,8 @@ import warp as wp
 
 from isaaclab.sensors.contact_sensor import BaseContactSensorData
 from isaaclab.utils.warp import ProxyArray
-
-from isaaclab_ov.sensors.kernels import concat_pos_and_quat_to_pose_kernel
+from isaaclab.utils.warp import memory as memory_kernels
+from isaaclab.utils.warp.launch_cache import _WarpLaunchCache
 
 logger = logging.getLogger(__name__)
 
@@ -29,13 +29,7 @@ class ContactSensorData(BaseContactSensorData):
         """
         if self._pose_w is None:
             return None
-        wp.launch(
-            concat_pos_and_quat_to_pose_kernel,
-            dim=(self._num_envs, self._num_sensors),
-            inputs=[self._pos_w, self._quat_w],
-            outputs=[self._pose_w],
-            device=self._device,
-        )
+        self._read_launch_cache.launch("pose_w", memory_kernels.concat, self._pos_w, self._quat_w, self._pose_w)
         if self._pose_w_ta is None:
             self._pose_w_ta = ProxyArray(self._pose_w)
         return self._pose_w_ta
@@ -69,6 +63,62 @@ class ContactSensorData(BaseContactSensorData):
         if self._quat_w_ta is None:
             self._quat_w_ta = ProxyArray(self._quat_w)
         return self._quat_w_ta
+
+    @property
+    def net_forces_w(self) -> ProxyArray | None:
+        """The net total contact forces (normal + friction) [N] in world frame.
+
+        Shape is (num_instances, num_sensors), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, num_sensors, 3).
+        """
+        if self._net_forces_w is None:
+            return None
+        if self._net_forces_w_ta is None:
+            self._net_forces_w_ta = ProxyArray(self._net_forces_w)
+        return self._net_forces_w_ta
+
+    @property
+    def net_forces_w_history(self) -> ProxyArray | None:
+        """History of net total contact forces (normal + friction) [N].
+
+        Shape is (num_instances, history_length, num_sensors), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, history_length, num_sensors, 3).
+        """
+        if self._net_forces_w_history is None:
+            return None
+        if self._net_forces_w_history_ta is None:
+            self._net_forces_w_history_ta = ProxyArray(self._net_forces_w_history)
+        return self._net_forces_w_history_ta
+
+    @property
+    def force_matrix_w(self) -> ProxyArray | None:
+        """Total contact forces (normal + friction) [N] filtered between sensor and filtered bodies.
+
+        Shape is (num_instances, num_sensors, num_filter_shapes), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, num_sensors, num_filter_shapes, 3).
+
+        None if :attr:`ContactSensorCfg.filter_prim_paths_expr` is empty.
+        """
+        if self._force_matrix_w is None:
+            return None
+        if self._force_matrix_w_ta is None:
+            self._force_matrix_w_ta = ProxyArray(self._force_matrix_w)
+        return self._force_matrix_w_ta
+
+    @property
+    def force_matrix_w_history(self) -> ProxyArray | None:
+        """History of filtered total contact forces [N].
+
+        Shape is (num_instances, history_length, num_sensors, num_filter_shapes), dtype = wp.vec3f.
+        In torch this resolves to (num_instances, history_length, num_sensors, num_filter_shapes, 3).
+
+        None if :attr:`ContactSensorCfg.filter_prim_paths_expr` is empty.
+        """
+        if self._force_matrix_w_history is None:
+            return None
+        if self._force_matrix_w_history_ta is None:
+            self._force_matrix_w_history_ta = ProxyArray(self._force_matrix_w_history)
+        return self._force_matrix_w_history_ta
 
     @property
     def net_normal_forces_w(self) -> ProxyArray | None:
@@ -143,13 +193,41 @@ class ContactSensorData(BaseContactSensorData):
 
     @property
     def net_friction_forces_w(self) -> ProxyArray | None:
-        """Not supported by the OVPhysX contact sensor."""
-        raise NotImplementedError("net_friction_forces_w is not supported by the OVPhysX contact sensor.")
+        """The net friction contact forces [N] in world frame.
+
+        Shape is (num_instances, num_sensors), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, num_sensors, 3).
+
+        None if :attr:`ContactSensorCfg.track_friction_forces` is False.
+        """
+        if self._net_friction_forces_w is None:
+            return None
+        if self._net_friction_forces_w_ta is None:
+            self._net_friction_forces_w_ta = ProxyArray(self._net_friction_forces_w)
+        return self._net_friction_forces_w_ta
 
     @property
     def net_friction_forces_w_history(self) -> ProxyArray | None:
-        """Not supported by the OVPhysX contact sensor."""
-        raise NotImplementedError("net_friction_forces_w_history is not supported by the OVPhysX contact sensor.")
+        """History of net friction contact forces [N].
+
+        Shape is (num_instances, history_length, num_sensors), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, history_length, num_sensors, 3).
+
+        None if :attr:`ContactSensorCfg.track_friction_forces` is False.
+        """
+        if self._net_friction_forces_w_history is None:
+            return None
+        if self._net_friction_forces_w_history_ta is None:
+            self._net_friction_forces_w_history_ta = ProxyArray(self._net_friction_forces_w_history)
+        return self._net_friction_forces_w_history_ta
+
+    @property
+    def friction_forces_w(self) -> ProxyArray | None:
+        """Aggregate friction forces [N], identical to :attr:`net_friction_forces_w`.
+
+        None if :attr:`ContactSensorCfg.track_friction_forces` is False.
+        """
+        return self.net_friction_forces_w
 
     @property
     def friction_force_matrix_w(self) -> ProxyArray | None:
@@ -158,7 +236,7 @@ class ContactSensorData(BaseContactSensorData):
         Shape is (num_instances, num_sensors, num_filter_shapes), dtype = wp.vec3f. In torch this resolves to
         (num_instances, num_sensors, num_filter_shapes, 3).
 
-        None if :attr:`ContactSensorCfg.track_friction_forces` is False.
+        None if :attr:`ContactSensorCfg.track_friction_forces` is False or no filters are configured.
         """
         if self._friction_force_matrix_w is None:
             return None
@@ -173,7 +251,7 @@ class ContactSensorData(BaseContactSensorData):
         Shape is (num_instances, history_length, num_sensors, num_filter_shapes), dtype = wp.vec3f.
         In torch this resolves to (num_instances, history_length, num_sensors, num_filter_shapes, 3).
 
-        None if :attr:`ContactSensorCfg.track_friction_forces` is False.
+        None if :attr:`ContactSensorCfg.track_friction_forces` is False or no filters are configured.
         """
         if self._friction_force_matrix_w_history is None:
             return None
@@ -265,6 +343,7 @@ class ContactSensorData(BaseContactSensorData):
         self._num_envs = num_envs
         self._num_sensors = num_sensors
         self._device = device
+        self._read_launch_cache = _WarpLaunchCache(device)
         # Ensure history_length >= 1 for consistent buffer shapes
         effective_history = max(history_length, 1)
 
@@ -274,6 +353,10 @@ class ContactSensorData(BaseContactSensorData):
             (num_envs, effective_history, num_sensors), dtype=wp.vec3f, device=device
         )
 
+        # Total forces include friction even when the optional friction split is disabled.
+        self._net_forces_w = wp.zeros_like(self._net_normal_forces_w)
+        self._net_forces_w_history = wp.zeros_like(self._net_normal_forces_w_history)
+
         # Track force matrix if requested - only with filter
         if num_filter_shapes > 0:
             self._normal_force_matrix_w = wp.zeros(
@@ -282,9 +365,13 @@ class ContactSensorData(BaseContactSensorData):
             self._normal_force_matrix_w_history = wp.zeros(
                 (num_envs, effective_history, num_sensors, num_filter_shapes), dtype=wp.vec3f, device=device
             )
+            self._force_matrix_w = wp.zeros_like(self._normal_force_matrix_w)
+            self._force_matrix_w_history = wp.zeros_like(self._normal_force_matrix_w_history)
         else:
             self._normal_force_matrix_w = None
             self._normal_force_matrix_w_history = None
+            self._force_matrix_w = None
+            self._force_matrix_w_history = None
 
         # Track pose if requested
         if track_pose:
@@ -323,14 +410,16 @@ class ContactSensorData(BaseContactSensorData):
         else:
             self._contact_pos_w = None
 
-        # Track friction forces if requested
+        # Expose separate friction data only when requested.
         if track_friction_forces:
-            self._friction_force_matrix_w = wp.zeros(
-                (num_envs, num_sensors, num_filter_shapes), dtype=wp.vec3f, device=device
-            )
-            self._friction_force_matrix_w_history = wp.zeros(
-                (num_envs, effective_history, num_sensors, num_filter_shapes), dtype=wp.vec3f, device=device
-            )
+            self._net_friction_forces_w = wp.zeros_like(self._net_normal_forces_w)
+            self._net_friction_forces_w_history = wp.zeros_like(self._net_normal_forces_w_history)
+        else:
+            self._net_friction_forces_w = None
+            self._net_friction_forces_w_history = None
+        if track_friction_forces and num_filter_shapes > 0:
+            self._friction_force_matrix_w = wp.zeros_like(self._normal_force_matrix_w)
+            self._friction_force_matrix_w_history = wp.zeros_like(self._normal_force_matrix_w_history)
         else:
             self._friction_force_matrix_w = None
             self._friction_force_matrix_w_history = None
@@ -339,6 +428,12 @@ class ContactSensorData(BaseContactSensorData):
         self._pose_w_ta: ProxyArray | None = None
         self._pos_w_ta: ProxyArray | None = None
         self._quat_w_ta: ProxyArray | None = None
+        self._net_forces_w_ta: ProxyArray | None = None
+        self._net_forces_w_history_ta: ProxyArray | None = None
+        self._force_matrix_w_ta: ProxyArray | None = None
+        self._force_matrix_w_history_ta: ProxyArray | None = None
+        self._net_friction_forces_w_ta: ProxyArray | None = None
+        self._net_friction_forces_w_history_ta: ProxyArray | None = None
         self._net_normal_forces_w_ta: ProxyArray | None = None
         self._net_normal_forces_w_history_ta: ProxyArray | None = None
         self._normal_force_matrix_w_ta: ProxyArray | None = None

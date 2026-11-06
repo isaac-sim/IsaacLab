@@ -36,9 +36,8 @@ Then run the same task on every visible GPU:
 
    uv run isaaclab train_multigpu --task Isaac-Cartpole
 
-That is the complete transition from a single-GPU run. ``train_multigpu`` adds
-``--distributed`` and selects the distributed launcher automatically. All other
-arguments are the same arguments accepted by ``train``:
+``train_multigpu`` adds ``--distributed`` and chooses the launcher. Other arguments
+work as they do with ``train``:
 
 .. code-block:: bash
 
@@ -107,7 +106,7 @@ for most core tasks.
      - ``uv run --extra skrl isaaclab train_multigpu --rl_library skrl ...``
    * - skrl
      - JAX
-     - ``uv run --extra skrl isaaclab train_multigpu --rl_library skrl --ml_framework jax ...``
+     - ``uv run --extra skrl-jax isaaclab train_multigpu --rl_library skrl --ml_framework jax ...``
 
 skrl with JAX uses skrl's distributed launcher instead of ``torchrun``. Pass an
 integer ``--num_gpus`` and use ``--coordinator_address`` to configure its
@@ -115,7 +114,7 @@ coordinator:
 
 .. code-block:: bash
 
-   uv run --extra skrl isaaclab train_multigpu \
+   uv run --extra skrl-jax isaaclab train_multigpu \
       --rl_library skrl --ml_framework jax --num_gpus 4 \
       --coordinator_address localhost:5000 \
       --task Isaac-Cartpole

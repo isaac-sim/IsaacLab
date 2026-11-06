@@ -5,11 +5,10 @@ Using an operational space controller
 
 .. currentmodule:: isaaclab
 
-Sometimes, controlling the end-effector pose of the robot using a differential IK controller is not sufficient.
-For example, we might want to enforce a very specific pose tracking error dynamics in the task space, actuate the robot
-with joint effort/torque commands, or apply a contact force at a specific direction while controlling the motion of
-the other directions (e.g., washing the surface of the table with a cloth). In such tasks, we can use an
-operational space controller (OSC).
+Use :class:`controllers.OperationalSpaceController` to control end-effector motion
+and contact force through joint efforts. This example presses against a tilted wall
+while tracking a pose along the unconstrained directions. See
+:doc:`../concepts/motion_generators` for the control methods and their requirements.
 
 .. rubric:: References for the operational space control:
 
@@ -18,12 +17,10 @@ operational space controller (OSC).
 
 2. Robot Dynamics Lecture Notes by Marco Hutter (ETH Zurich). URL https://ethz.ch/content/dam/ethz/special-interest/mavt/robotics-n-intelligent-systems/rsl-dam/documents/RobotDynamics2017/RD_HS2017script.pdf
 
-In this tutorial, we will learn how to use an OSC to control the robot.
-We will use the :class:`controllers.OperationalSpaceController` class to apply a constant force perpendicular to a
-tilted wall surface while tracking a desired end-effector pose in all the other directions.
-
 This tutorial uses Isaac Sim PhysX and requires an Isaac Sim installation.
 The target quaternions use ``(x, y, z, w)`` order and orient the end-effector toward the tilted wall.
+For controller selection and the control-loop walkthrough, see
+:doc:`../concepts/motion_generators`.
 
 The Code
 ~~~~~~~~
@@ -73,7 +70,7 @@ axes) or a list of six scalars, one value corresponding to each axis. If desired
 values could be a command parameter (e.g., to learn the values using RL or change them on the go). For this,
 ``impedance_mode`` should be either ``"variable_kp"`` to include the stiffness values within the command or
 ``"variable"`` to include both the stiffness and damping ratio values. In these cases, ``motion_stiffness_limits_task``
-and ``motion_damping_limits_task`` should be set as well, which puts bounds on the stiffness and damping ratio values.
+and ``motion_damping_ratio_limits_task`` should be set as well, which puts bounds on the stiffness and damping ratio values.
 
 For contact force control, it is possible to apply an open-loop force control by not setting the
 ``contact_wrench_stiffness_task``, or apply a closed-loop force control (with the feed-forward term) by setting
@@ -134,12 +131,12 @@ gravity compensation vector and null-space joint position targets if required.
 Computing robot command
 -----------------------
 
-The OSC separates the operation of setting the desired command and computing the desired joint positions.
+The OSC separates the operation of setting the desired command and computing the desired joint efforts.
 To set the desired command, the user should provide command vector, which  includes the target commands
 (i.e., in the order they appear in the ``target_types`` argument of the OSC configuration),
 and the desired stiffness and damping ratio values if the impedance_mode is set to ``"variable_kp"`` or ``"variable"``.
 They should be all in the same coordinate frame as the task frame (e.g., indicated with ``_task`` subscript) and
-concatanated together.
+concatenated together.
 
 In this tutorial, the desired wrench is already defined w.r.t. the task frame, and the desired pose is transformed
 to the task frame as the following:

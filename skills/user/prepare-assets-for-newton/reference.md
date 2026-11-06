@@ -5,7 +5,7 @@ This reference follows the sections in the [asset migration guide](../../../docs
 ## Contents
 
 - Multi-Backend Asset Importing Pipeline
-- Use Per-Solver Asset Configuration Classes
+- Use Per-Solver Schema Fragments
 - Audit The Authored Mechanical Model
 - Match Contact And Friction Behavior
 - Velocity Limits Distinction
@@ -22,14 +22,16 @@ This reference follows the sections in the [asset migration guide](../../../docs
 - Keep `run_asset_transformer=True` and `run_multi_physics_conversion=True` so new conversions contain neutral physics, PhysX, and MuJoCo payloads.
 - Expect the new converter's nested rigid-body structure.
 
-## Use Per-Solver Asset Configuration Classes
+## Use Per-Solver Schema Fragments
 
 | Property | Configuration |
 | --- | --- |
-| Common USD Physics | `RigidBodyBaseCfg`, `JointDriveBaseCfg`, and other base cfgs |
-| MJWarp-specific | `MujocoRigidBodyPropertiesCfg`, `MujocoJointDrivePropertiesCfg`, `MujocoCollisionCfg` |
-| Newton-native | matching `Newton*PropertiesCfg` |
-| PhysX-only | matching `Physx*PropertiesCfg` |
+| Common USD Physics | `UsdPhysicsRigidBodyCfg`, `UsdPhysicsDriveCfg`, and other solver-common fragments |
+| MJWarp-specific | `MujocoRigidBodyCfg`, `MujocoJointCfg`, `MujocoCollisionCfg` |
+| Newton-native | matching `Newton*Cfg` fragments |
+| PhysX-only | matching `Physx*Cfg` fragments |
+
+Pass the fragments that apply as a list on the same spawner field (e.g. `rigid_props=[UsdPhysicsRigidBodyCfg(...), PhysxRigidBodyCfg(...)]`).
 
 A field present in an asset or imported model is not proof that MJWarp consumes it. Check the Newton/MuJoCo and PhysX schema APIs.
 

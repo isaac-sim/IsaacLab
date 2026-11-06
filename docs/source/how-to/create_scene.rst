@@ -7,29 +7,13 @@ Using the Interactive Scene
 
 .. currentmodule:: isaaclab
 
-So far in the tutorials, we manually spawned assets into the simulation and created
-object instances to interact with them. However, as the complexity of the scene
-increases, it becomes tedious to perform these tasks manually. In this tutorial,
-we will introduce the :class:`scene.InteractiveScene` class, which provides a convenient
-interface for spawning prims and managing them in the simulation.
+:class:`scene.InteractiveScene` spawns and manages the assets and sensors in an
+environment. It groups ground planes, lights, robots, rigid objects, and sensors in
+one configuration and handles cloning them across parallel environments.
 
-At a high-level, the interactive scene is a collection of scene entities. Each entity
-can be either a non-interactive prim (e.g. ground plane, light source), an interactive
-prim (e.g. articulation, rigid object), or a sensor (e.g. camera, lidar). The interactive
-scene provides a convenient interface for spawning these entities and managing them
-in the simulation.
-
-Compared the manual approach, it provides the following benefits:
-
-* Alleviates the user needing to spawn each asset separately as this is handled implicitly.
-* Enables user-friendly cloning of scene prims for multiple environments.
-* Collects all the scene entities into a single object, which makes them easier to manage.
-
-In this tutorial, we take the cartpole example from the :ref:`tutorial-interact-articulation`
-tutorial and replace the ``design_scene`` function with an :class:`scene.InteractiveScene` object.
-While it may seem like overkill to use the interactive scene for this simple example, it will
-become more useful in the future as more assets and sensors are added to the scene.
-
+This tutorial replaces the ``design_scene`` function from
+:ref:`tutorial-interact-articulation` with an ``InteractiveScene``. The same pattern
+extends to scenes with more assets and sensors.
 
 The Code
 ~~~~~~~~

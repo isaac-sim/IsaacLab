@@ -116,6 +116,9 @@ class randomize_rigid_body_material(ManagerTermBase):
         material_samples = self.material_buckets[bucket_ids]
 
         materials = wp.to_torch(self.asset.root_view.get_material_properties())
+        # Negative restitution encodes compliant stiffness, not bounce.
+        restitution = materials[env_ids, :, 2]
+        material_samples[..., 2] = torch.where(restitution < 0.0, restitution, material_samples[..., 2])
         if self.num_shapes_per_body is not None:
             for body_id in self._backend_body_ids:
                 start_idx = sum(self.num_shapes_per_body[:body_id])
@@ -261,14 +264,6 @@ class randomize_visual_color(ManagerTermBase):
         asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         mesh_name: str = cfg.params["mesh_name"]  # type: ignore
 
-        # EventManager checks replication only for prestartup terms.
-        if env.cfg.scene.replicate_physics:
-            raise RuntimeError(
-                "Unable to randomize visual color with scene replication enabled."
-                " For stable USD-level randomization, please disable scene replication"
-                " by setting 'replicate_physics' to False in 'InteractiveSceneCfg'."
-            )
-
         asset = env.scene[asset_cfg.name]
 
         # Binding materials on the articulation root invalidates its PhysX view.
@@ -371,14 +366,6 @@ class randomize_visual_texture_material(ManagerTermBase):
             env: The environment instance.
         """
         super().__init__(cfg, env)
-
-        # EventManager checks replication only for prestartup terms.
-        if env.cfg.scene.replicate_physics:
-            raise RuntimeError(
-                "Unable to randomize visual texture material with scene replication enabled."
-                " For stable USD-level randomization, please disable scene replication"
-                " by setting 'replicate_physics' to False in 'InteractiveSceneCfg'."
-            )
 
         self._rep = rep = _get_replicator()
         # this term draws from Replicator's random streams, so they follow the environment seed

@@ -7,16 +7,10 @@ Interacting with an articulation
 
 .. currentmodule:: isaaclab
 
-This runtime example complements :ref:`asset-authoring`. It uses an existing robot
-configuration; see :ref:`how-to-write-articulation-config` to create one and
-:ref:`asset-config-backends` to adapt its spawn properties to PhysX or Newton.
-
-
-This tutorial shows how to interact with an articulated robot in the simulation. It is a continuation of the
-:ref:`tutorial-interact-rigid-object` tutorial, where we learned how to interact with a rigid object.
-On top of setting the root state, we will see how to set the joint state and apply commands to the articulated
-robot.
-
+Set a robot's root and joint states, then apply joint commands during simulation.
+This example builds on :ref:`tutorial-interact-rigid-object` and uses an existing
+robot configuration. To create a configuration, see :ref:`how-to-write-articulation-config`;
+to adapt its spawn properties to PhysX or Newton, see :ref:`asset-config-backends`.
 
 The Code
 ~~~~~~~~

@@ -75,6 +75,7 @@ jobs:
         # 502/503/504 are often transient (GitHub throttles runners) and lychee does not retry them.
         # PR and push runs accept them like 429; the weekly and manual runs stay strict so a persistent
         # gateway failure still fails. They are kept out of the shared cache so later runs re-check.
+        # Remove the SO-101 exclusion once NVIDIA/so101-typing-task is public.
         args: >-
           --verbose
           --no-progress
@@ -88,6 +89,7 @@ jobs:
           --exclude-loopback
           --exclude '^file://'
           --exclude '^mailto:'
+          --exclude '^https://github\.com/NVIDIA/so101-typing-task(?:\.git)?(?:[/?#]|$)'
           --exclude 'localhost'
           --exclude 'www\.tensorflow\.org/tensorboard'
           --exclude '127\.0\.0\.1'

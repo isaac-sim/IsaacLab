@@ -113,6 +113,7 @@ def run(argv: list[str]) -> BenchmarkResult:
     from isaaclab.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, BenchmarkResult, builders, capture, stepping
     from isaaclab.benchmark.schema import StartupTime
 
+    from isaaclab_rl.entrypoints.backends import cli_args_rl_games as cli_args
     from isaaclab_rl.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper
 
     # Importing the task packages registers their gym environments so the
@@ -139,8 +140,7 @@ def run(argv: list[str]) -> BenchmarkResult:
 
             if args_cli.num_envs is not None:
                 env_cfg.scene.num_envs = args_cli.num_envs
-            if args_cli.seed is not None:
-                agent_cfg["params"]["seed"] = args_cli.seed
+            agent_cfg = cli_args.update_rl_games_cfg(agent_cfg, args_cli)
             env_cfg.seed = agent_cfg["params"]["seed"]
 
             config_name = agent_cfg["params"]["config"]["name"]
@@ -154,6 +154,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                     checkpoint_pattern=r".*\.pth",
                     other_dirs=["nn"],
                     preferred_checkpoint_pattern=rf"{re.escape(config_name)}\.pth",
+                    latest_checkpoint_pattern=rf"(?:last_)?({re.escape(config_name)}_(?:ep|frame)_.*)\.pth",
                     metadata={"agent": args_cli.agent},
                 )
             else:

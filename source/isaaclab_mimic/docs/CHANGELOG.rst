@@ -3,6 +3,58 @@ Changelog
 
 .. towncrier release notes start
 
+2.1.7 (2026-10-29)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed ``isaaclab_mimic.ui.instruction_display``. Its only user, ``record_demos.py``, now ships its
+  instruction display in :mod:`isaaclab_teleop.entrypoints`.
+
+
+2.1.6 (2026-10-25)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed generated locomanipulation objects to use the scene's environment namespace.
+
+
+2.1.5 (2026-10-23)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed cuRobo collision-world initialization for native environment copies that have no destination
+  geometry in USD. Imported the selected world's authored sources using the clone plan and preserved
+  destination names and environment placement without modifying the simulation stage.
+
+
+2.1.4 (2026-10-14)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Separated locomanipulation SDG configuration from runtime imports and left URDF retrieval to the IK controller, allowing task configuration before simulation launch.
+
+
+2.1.3 (2026-10-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed a segmentation fault in :class:`~isaaclab_mimic.motion_planners.curobo.curobo_planner.CuroboPlanner`
+  when initializing the static collision world on simulations running with ``--device cpu`` in scenes that
+  contain non-triangular meshes, such as the sorting bin in the adaptive bin cube stacking task. cuRobo's
+  quad-mesh triangulation launches its Warp kernel on Warp's default device while its arrays live on CUDA,
+  so stage parsing now runs under ``wp.ScopedDevice`` pinned to cuRobo's CUDA device.
+
+
 2.1.2 (2026-10-03)
 ~~~~~~~~~~~~~~~~~~
 

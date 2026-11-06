@@ -191,3 +191,74 @@ def test_config_load_does_not_import_backend_modules(task_name: str, all_cfg_che
         "__init__.py, or move the import under TYPE_CHECKING and use a string "
         "reference for isinstance checks."
     )
+
+
+def test_teleop_configs_resolve_and_validate_without_teleop():
+    """Configs with optional Isaac Teleop integrations must resolve and validate without the package."""
+    script = textwrap.dedent("""\
+        import builtins
+        import importlib.util
+
+        original_import = builtins.__import__
+        original_find_spec = importlib.util.find_spec
+
+        def block_teleop(name, *args, **kwargs):
+            if name == "isaaclab_teleop" or name.startswith("isaaclab_teleop."):
+                raise ModuleNotFoundError("No module named 'isaaclab_teleop'", name="isaaclab_teleop")
+            return original_import(name, *args, **kwargs)
+
+        def hide_teleop(name, *args, **kwargs):
+            if name == "isaaclab_teleop" or name.startswith("isaaclab_teleop."):
+                return None
+            return original_find_spec(name, *args, **kwargs)
+
+        builtins.__import__ = block_teleop
+        importlib.util.find_spec = hide_teleop
+
+        import gymnasium
+        import isaaclab_tasks  # noqa: F401
+        from isaaclab.utils import validate
+        from isaaclab_tasks.utils import resolve_task_config
+
+        locomanip_package = "isaaclab_tasks.contrib.locomanip_pick_place."
+        teleop_task_packages = (
+            "isaaclab_tasks.contrib.stack.",
+            "isaaclab_tasks.contrib.pick_place.",
+            locomanip_package,
+        )
+        task_names = []
+        covered_packages = set()
+        for task_name, task_spec in gymnasium.registry.items():
+            entry_point = task_spec.kwargs.get("env_cfg_entry_point")
+            if not isinstance(entry_point, str):
+                continue
+            for package in teleop_task_packages:
+                if entry_point.startswith(package):
+                    task_names.append(task_name)
+                    covered_packages.add(package)
+                    break
+
+        task_names.sort()
+        assert task_names
+        assert covered_packages == set(teleop_task_packages)
+
+        for task_name in task_names:
+            cfg, _ = resolve_task_config(task_name, "")
+            validate(cfg)
+            assert cfg.xr is None
+            assert cfg.isaac_teleop is None
+            entry_point = gymnasium.registry[task_name].kwargs["env_cfg_entry_point"]
+            if entry_point.startswith(locomanip_package):
+                assert cfg.scene.left_hand_contact is not None
+                assert cfg.scene.right_hand_contact is not None
+                assert cfg.scene.robot.spawn.activate_contact_sensors
+    """)
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode == 0, (
+        f"Subprocess failed:\n--- stdout ---\n{result.stdout}\n--- stderr ---\n{result.stderr}"
+    )

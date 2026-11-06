@@ -17,9 +17,11 @@ from isaaclab.utils import configclass
 
 from isaaclab_assets.robots.allegro import ALLEGRO_ACTUATED_JOINT_NAMES, ALLEGRO_FINGERTIP_BODY_NAMES
 
+from ...utils import VISUALIZER_CFG
 from .allegro_hand_common import (
     ALLEGRO_HAND_ROBOT_CFG,
     CUBE_CFG,
+    GOAL_MARKER_OFFSET,
     GOAL_OBJECT_CFG,
     PhysicsCfg,
 )
@@ -66,7 +68,6 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
     scene: AllegroHandSceneCfg = AllegroHandSceneCfg(
         num_envs=8192,
         env_spacing=0.75,
-        replicate_physics=True,
     )
     # reset
     reset_position_noise = 0.01  # range of position at reset
@@ -85,8 +86,19 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
     max_consecutive_success = 0
     in_hand_pos_offset: tuple[float, float, float] = (0.0, 0.0, -0.04)
     """In-hand goal anchor, relative to the object's default position [m]."""
-    goal_marker_position: tuple[float, float, float] = (-0.2, -0.45, 0.68)
-    """Fixed goal-marker display position [m], environment frame."""
+    goal_marker_position: tuple[float, float, float] | None = None
+    """Fixed goal-marker display position [m], environment frame, or ``None`` to follow the hand."""
+    goal_marker_offset: tuple[float, float, float] = GOAL_MARKER_OFFSET
+    """Goal-marker display offset from the in-hand position [m], used when no fixed position is set."""
     av_factor = 0.1
     act_moving_average = 1.0
     force_torque_obs_scale = 10.0
+
+    def play_mode(self) -> None:
+        """Frame one hand after applying the shared play-mode scene size."""
+        super().play_mode()
+        viewers = self.sim.visualizer_cfgs
+        for viewer in viewers if isinstance(viewers, list) else [viewers]:
+            viewer.eye = VISUALIZER_CFG.eye
+            viewer.lookat = VISUALIZER_CFG.lookat
+            viewer.focal_length = VISUALIZER_CFG.focal_length

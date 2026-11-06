@@ -98,7 +98,7 @@ class DirectRLEnv(gym.Env):
             logger.warning("Seed not set for the environment. The environment creation may not be deterministic.")
 
         # Backwards-compat: if the deprecated viewer field has non-default eye/lookat, apply
-        # them to sim.default_visualizer_cfg so the scene camera still matches user intent.
+        # them to sim.visualizer_cfgs so the scene camera still matches user intent.
         _apply_deprecated_viewer_cfg(self.cfg)
 
         # create a simulation context to control the simulator
@@ -163,8 +163,6 @@ class DirectRLEnv(gym.Env):
             if "prestartup" in self.event_manager.available_modes:
                 self.event_manager.apply(mode="prestartup")
 
-        self.video_recorders: list[VideoRecorder] = [VideoRecorder(cfg, self) for cfg in self.cfg.video_recorders]
-
         # play the simulator to activate physics handles
         # note: this activates the physics simulation view that exposes TensorAPIs
         # note: when started in extension mode, first call sim.reset_async() and then initialize the managers
@@ -179,10 +177,12 @@ class DirectRLEnv(gym.Env):
             # this shouldn't cause an issue since later on, users do a reset over all the environments
             # so the lazy buffers would be reset.
             self.scene.update(dt=self.physics_dt)
+        self.video_recorders: list[VideoRecorder] = [VideoRecorder(cfg, self) for cfg in self.cfg.video_recorders]
+
         # let the physics backend know about the env decimation so it can
         # fold the full loop into a single step() when possible
-        self.sim.physics_manager.set_decimation(self.cfg.decimation)
-        self._physics_handles_decimation = self.sim.physics_manager.handles_decimation()
+        self.sim.backend_manager.set_decimation(self.cfg.decimation)
+        self._physics_handles_decimation = self.sim.backend_manager.handles_decimation()
 
         # check if debug visualization is has been implemented by the environment
         source_code = inspect.getsource(self._set_debug_vis_impl)
@@ -348,8 +348,8 @@ class DirectRLEnv(gym.Env):
 
         if self.cfg.wait_for_textures and self.has_rtx_sensors:
             # Wait for assets to finish loading (PhysX-specific)
-            if hasattr(self.sim.physics_manager, "assets_loading"):
-                while self.sim.physics_manager.assets_loading():
+            if hasattr(self.sim.backend_manager, "assets_loading"):
+                while self.sim.backend_manager.assets_loading():
                     self.sim.render()
 
         # return observations

@@ -3,12 +3,9 @@
 Training a Gear Insertion Policy and ROS Deployment
 ====================================================
 
-This tutorial walks you through how to train a gear insertion reinforcement learning (RL) policy that transfers from simulation to a real robot. The workflow consists of two main stages:
-
-1. **Simulation Training in Isaac Lab**: Train the policy in a high-fidelity physics simulation with domain randomization
-2. **Real Robot Deployment with Isaac ROS**: Deploy the trained policy on real hardware using Isaac ROS and a custom ROS inference node
-
-This walkthrough covers the key principles and best practices for sim-to-real transfer using Isaac Lab.
+Train a gear-insertion policy in Isaac Lab, then deploy it with Isaac ROS and a
+custom inference node. The training setup uses domain randomization to account
+for differences between simulation and hardware.
 
 **Supported Robots:**
 
@@ -291,8 +288,10 @@ Contact-rich manipulation requires careful solver tuning. These parameters were 
 
 .. code-block:: python
 
+    from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+
     # Robot rigid body properties
-    rigid_props=sim_utils.RigidBodyPropertiesCfg(
+    rigid_props=PhysxRigidBodyCfg(
         disable_gravity=True,                    # Robot is mounted, no gravity
         max_depenetration_velocity=5.0,          # Control interpenetration resolution
         linear_damping=0.0,                      # No artificial damping
@@ -309,17 +308,19 @@ Contact-rich manipulation requires careful solver tuning. These parameters were 
 
 .. code-block:: python
 
+    from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxCollisionCfg
+
     # Articulation properties
-    articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+    articulation_props=PhysxArticulationCfg(
         enabled_self_collisions=False,
         solver_position_iteration_count=4,
         solver_velocity_iteration_count=1,
     ),
 
     # Contact properties
-    collision_props=sim_utils.CollisionPropertiesCfg(
-        contact_offset=0.005,                    # 5mm contact detection distance
-        rest_offset=0.0,                         # Objects touch at 0 distance
+    collision_props=PhysxCollisionCfg(
+        contact_offset=0.005,                # 5mm contact detection distance
+        rest_offset=0.0,                     # Objects touch at 0 distance
     ),
 
 Actuator Modeling
@@ -873,12 +874,12 @@ CUDA Out of Memory
 
    .. code-block:: python
 
-       rigid_props=sim_utils.RigidBodyPropertiesCfg(
+       rigid_props=PhysxRigidBodyCfg(
            solver_position_iteration_count=4,  # Use default value
            # ... other parameters
        ),
 
-       articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+       articulation_props=PhysxArticulationCfg(
            solver_position_iteration_count=4,  # Use default value
            # ... other parameters
        ),

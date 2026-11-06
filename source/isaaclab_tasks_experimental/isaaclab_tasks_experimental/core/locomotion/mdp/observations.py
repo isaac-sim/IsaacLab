@@ -16,7 +16,8 @@ from typing import TYPE_CHECKING
 import warp as wp
 from isaaclab_experimental.envs.utils.io_descriptors import generic_io_descriptor_warp
 from isaaclab_experimental.managers import SceneEntityCfg
-from isaaclab_newton.kernels.state_kernels import rotate_vec_to_body_frame
+
+from isaaclab.utils.warp.math import rotate_vec_to_body_frame, yaw_from_quat
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
@@ -39,10 +40,7 @@ def _base_yaw_roll_kernel(
     sin_roll = 2.0 * (qw * qx + qy * qz)
     cos_roll = 1.0 - 2.0 * (qx * qx + qy * qy)
     roll = wp.atan2(sin_roll, cos_roll)
-    # yaw = atan2(2*(qw*qz + qx*qy), 1 - 2*(qy^2 + qz^2))
-    sin_yaw = 2.0 * (qw * qz + qx * qy)
-    cos_yaw = 1.0 - 2.0 * (qy * qy + qz * qz)
-    yaw = wp.atan2(sin_yaw, cos_yaw)
+    yaw = yaw_from_quat(q)
     out[i, 0] = yaw
     out[i, 1] = roll
 
@@ -155,14 +153,7 @@ def _base_angle_to_target_kernel(
     dx = target_x - pos[0]
     dy = target_y - pos[1]
     walk_target_angle = wp.atan2(dy, dx)
-    # extract yaw from quaternion
-    qx = q[0]
-    qy = q[1]
-    qz = q[2]
-    qw = q[3]
-    sin_yaw = 2.0 * (qw * qz + qx * qy)
-    cos_yaw = 1.0 - 2.0 * (qy * qy + qz * qz)
-    yaw = wp.atan2(sin_yaw, cos_yaw)
+    yaw = yaw_from_quat(q)
     # normalize to [-pi, pi]
     angle = walk_target_angle - yaw
     out[i, 0] = wp.atan2(wp.sin(angle), wp.cos(angle))

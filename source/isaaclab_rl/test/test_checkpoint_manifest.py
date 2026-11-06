@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -89,6 +90,62 @@ def test_best_prefers_final_checkpoint(tmp_path: Path) -> None:
         task="Isaac-Cartpole",
         checkpoint_pattern=r"model(?:_.*)?\.zip",
         preferred_checkpoint_pattern=r"model\.zip",
+    )
+
+    assert checkpoint == str(expected.resolve())
+
+
+def test_latest_prefers_periodic_checkpoint_over_best_name(tmp_path: Path) -> None:
+    run_dir = tmp_path / "run"
+    (run_dir / "checkpoints").mkdir(parents=True)
+    write_run_manifest(str(run_dir), library="skrl", task="Isaac-Cartpole")
+    # skrl writes the best checkpoint as "best_agent.pt", which sorts after the periodic "agent_<timestep>.pt"
+    best = run_dir / "checkpoints" / "best_agent.pt"
+    best.touch()
+
+    def resolve(selector: str) -> str:
+        return resolve_checkpoint_selector(
+            str(tmp_path),
+            selector,
+            library="skrl",
+            task="Isaac-Cartpole",
+            checkpoint_pattern=r".*",
+            other_dirs=["checkpoints"],
+            latest_checkpoint_pattern=r"agent_.*",
+        )
+
+    assert resolve("latest") == str(best.resolve())
+    (run_dir / "checkpoints" / "agent_1000.pt").touch()
+    newest = run_dir / "checkpoints" / "agent_2000.pt"
+    newest.touch()
+    assert resolve("latest") == str(newest.resolve())
+    assert resolve("best") == str(best.resolve())
+
+
+@pytest.mark.parametrize("config_name", ["openarm_reach", "ant"])
+def test_latest_includes_rl_games_score_to_win_checkpoint(tmp_path: Path, config_name: str) -> None:
+    """rl_games saves the checkpoint that reaches ``score_to_win`` without the ``last_`` prefix of periodic saves.
+
+    ``ant`` sorts before ``last_`` and ``openarm_reach`` after it, so neither name order nor a ``last_`` filter
+    finds the newest epoch for both.
+    """
+    run_dir = tmp_path / "run"
+    (run_dir / "nn").mkdir(parents=True)
+    write_run_manifest(str(run_dir), library="rl_games", task="Isaac-Task")
+    for name in (f"last_{config_name}_ep_200_rew_10.pth", f"{config_name}.pth"):
+        (run_dir / "nn" / name).touch()
+    expected = run_dir / "nn" / f"{config_name}_ep_250_rew_10001.pth"
+    expected.touch()
+
+    checkpoint = resolve_checkpoint_selector(
+        str(tmp_path),
+        "latest",
+        library="rl_games",
+        task="Isaac-Task",
+        checkpoint_pattern=r".*\.pth",
+        other_dirs=["nn"],
+        preferred_checkpoint_pattern=rf"{re.escape(config_name)}\.pth",
+        latest_checkpoint_pattern=rf"(?:last_)?({re.escape(config_name)}_(?:ep|frame)_.*)\.pth",
     )
 
     assert checkpoint == str(expected.resolve())

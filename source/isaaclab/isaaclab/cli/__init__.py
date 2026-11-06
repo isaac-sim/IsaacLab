@@ -5,6 +5,7 @@
 
 import argparse
 import importlib.metadata
+import logging
 import os
 import sys
 from pathlib import Path
@@ -28,6 +29,8 @@ from .utils import (
     run_python_command,
 )
 
+logger = logging.getLogger(__name__)
+
 _TASK_ENTRY_POINT_GROUP = "isaaclab.tasks"
 
 
@@ -37,10 +40,21 @@ def _exit_on_error(status: int) -> None:
         raise SystemExit(status)
 
 
-def _load_external_tasks() -> None:
-    """Import task packages registered by installed downstream projects."""
+def load_external_tasks() -> None:
+    """Import task packages registered by installed downstream projects.
+
+    Load the ``isaaclab.tasks`` entry points before looking up registered task IDs.
+    Entry points should reference modules so repeated discovery uses Python's import cache.
+    A package that fails to import is reported with a warning, so one broken package cannot stop
+    every workflow.
+    """
     for entry_point in importlib.metadata.entry_points(group=_TASK_ENTRY_POINT_GROUP):
-        entry_point.load()
+        try:
+            entry_point.load()
+        except Exception:
+            logger.warning(
+                f"The '{entry_point.name}' task entry point of {entry_point.dist.name} failed to load.", exc_info=True
+            )
 
 
 def train(args: list[str] | None = None) -> None:
@@ -135,19 +149,9 @@ def teleop(args: list[str] | None = None) -> None:
     Args:
         args: Command-line arguments. Uses ``sys.argv`` when omitted.
     """
-    workflow_scripts = {
-        "run": ISAACLAB_ROOT / "scripts" / "environments" / "teleoperation" / "teleop_se3_agent.py",
-        "record": ISAACLAB_ROOT / "scripts" / "tools" / "record_demos.py",
-        "replay": ISAACLAB_ROOT / "scripts" / "tools" / "replay_demos.py",
-    }
-    parser = argparse.ArgumentParser(description="Run an Isaac Lab teleoperation workflow.")
-    parser.add_argument("command", choices=tuple(workflow_scripts), help="Teleoperation workflow to run.")
-    if args is None:
-        args = sys.argv[1:]
-    if not args or args[0] in ("-h", "--help"):
-        parser.parse_args(args)
-    parsed_args = parser.parse_args(args[:1])
-    run_python_command(workflow_scripts[parsed_args.command], args[1:], check=True)
+    from isaaclab_teleop.entrypoints import run_cli
+
+    _exit_on_error(run_cli(args))
 
 
 def benchmark(args: list[str] | None = None) -> None:
@@ -206,7 +210,7 @@ def cli() -> None:
         example(sys.argv[2:])
         return
     if len(sys.argv) > 1 and sys.argv[1] in subcommands:
-        _load_external_tasks()
+        load_external_tasks()
         subcommands[sys.argv[1]](sys.argv[2:])
         return
     if len(sys.argv) > 1 and sys.argv[1] == "teleop":

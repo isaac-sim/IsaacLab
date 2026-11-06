@@ -500,6 +500,7 @@ class _XrCameraFeedManager:
                         _panel_descriptor(cfg, self._layout_cfg),
                         width=int(fallback_image.shape[1]),
                         height=int(fallback_image.shape[0]),
+                        env_prim_path=self._env.scene.env_prim_paths[0],
                     )
                 except Exception:
                     if image_source is not None:
@@ -577,6 +578,7 @@ class _XrCameraFeedManager:
                     _panel_descriptor(feed.cfg, self._layout_cfg),
                     width=int(fallback_image.shape[1]),
                     height=int(fallback_image.shape[0]),
+                    env_prim_path=self._env.scene.env_prim_paths[0],
                 )
         except Exception:
             if camera_changed and replacement_source is not None:

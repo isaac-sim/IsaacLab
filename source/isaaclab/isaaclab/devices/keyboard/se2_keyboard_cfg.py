@@ -7,20 +7,18 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from ...utils import configclass
 from ..device_base import DeviceCfg
-
-if TYPE_CHECKING:
-    from .se2_keyboard import Se2Keyboard
 
 
 @configclass
 class Se2KeyboardCfg(DeviceCfg):
-    """Configuration for SE2 keyboard devices."""
+    """Configuration translated to Isaac Capture before device creation.
+
+    .. deprecated:: 3.2
+        Use :func:`isaaclab_teleop.se2_keyboard_teleop_cfg` for new configurations.
+    """
 
     v_x_sensitivity: float = 0.8
     v_y_sensitivity: float = 0.4
     omega_z_sensitivity: float = 1.0
-    class_type: type[Se2Keyboard] | str = "{DIR}.se2_keyboard:Se2Keyboard"

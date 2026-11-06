@@ -277,7 +277,7 @@ class FrankaEventCfg(lift.EventCfg):
 class FrankaMixinCfg:
     """Franka scene, observation, action, reward and event terms for the lift task."""
 
-    scene: FrankaSceneCfg = FrankaSceneCfg(num_envs=4096, env_spacing=3, replicate_physics=True)
+    scene: FrankaSceneCfg = FrankaSceneCfg(num_envs=4096, env_spacing=3)
     rewards: FrankaReorientRewardCfg = FrankaReorientRewardCfg()
     observations: StateObservationCfg = StateObservationCfg()
     actions: FrankaRelJointPosActionCfg = FrankaRelJointPosActionCfg()

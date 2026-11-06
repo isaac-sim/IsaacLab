@@ -7,8 +7,7 @@
 
 Mirrors ``isaaclab_physx/benchmark/sensors/benchmark_ray_caster.py`` but runs
 kitless against the OVPhysX backend. By default, matched sensors cast against a
-plane and deterministic rough terrain. The script also times each blocking
-native ``RIGID_BODY_POSE`` binding read in isolation.
+plane and deterministic rough terrain, including shared scene-pose refresh.
 
 Usage:
     uv run python source/isaaclab_ov/benchmark/sensors/benchmark_ray_caster.py --num_envs 4096
@@ -169,15 +168,11 @@ def main() -> None:
             # Intentionally drain warm-up work before any timed boundary.
             wp.synchronize_device(sim.device)
 
-            native_read = None
-            if sensor._ovphysx_body_view is not None:
-                native_read = partial(sensor._ovphysx_body_view.read, sensor._pose_buf)
             samples_by_workload[workload] = collect_sensor_latency_samples(
                 num_steps=args_cli.num_steps,
                 step=sim.step,
                 update=lambda sensor=sensor: sensor.update(sim_dt, force_recompute=True),
                 synchronize=synchronize_device,
-                native_read=native_read,
             )
 
             ray_hits = sensor.data.ray_hits_w.torch
@@ -237,7 +232,6 @@ def main() -> None:
                 update_phase=f"{workload}_sensor_update",
                 observer_phase=f"{workload}_observer",
                 validation_phase=f"{workload}_validation",
-                native_read_phase=f"{workload}_native_read",
             )
         benchmark.finalize()
 

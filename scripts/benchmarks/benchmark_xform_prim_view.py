@@ -39,6 +39,7 @@ from typing import Literal
 import torch
 import warp as wp
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
@@ -91,16 +92,15 @@ def benchmark_frame_view(  # noqa: C901
     cleanup = None
 
     if api == "isaaclab-newton-site":
-        newton_cfg = SimulationCfg(device=device, physics=NewtonCfg(solver_cfg=MJWarpSolverCfg()))
-        ctx = build_simulation_context(device=device, sim_cfg=newton_cfg, add_ground_plane=True)
+        ctx = build_simulation_context(device=device, sim_cfg=sim_cfgs[api], add_ground_plane=True)
         sim = ctx.__enter__()
         sim._app_control_on_stop_handle = None
         scene_cfg = _NewtonSceneCfg(num_envs=num_envs, env_spacing=2.0)
-        instantiate(scene_cfg)
+        scene = instantiate(scene_cfg)
 
         stage = sim_utils.get_current_stage()
-        for i in range(num_envs):
-            prim = stage.DefinePrim(f"/World/envs/env_{i}/Object/Sensor", "Xform")
+        for env_path in scene.env_prim_paths:
+            prim = stage.DefinePrim(f"{env_path}/Object/Sensor", "Xform")
             sim_utils.standardize_xform_ops(prim)
             prim.GetAttribute("xformOp:translate").Set(Gf.Vec3d(0.1, 0.0, 0.05))
             prim.GetAttribute("xformOp:orient").Set(Gf.Quatd(1.0, 0.0, 0.0, 0.0))
@@ -108,7 +108,7 @@ def benchmark_frame_view(  # noqa: C901
         sim.reset()
 
         start_time = time.perf_counter()
-        xform_view = NewtonSiteFrameView("/World/envs/env_.*/Object/Sensor", device=device)
+        xform_view = NewtonSiteFrameView(f"{scene.env_regex_ns}/Object/Sensor", device=device)
         timing_results["init"] = time.perf_counter() - start_time
         cleanup = lambda: ctx.__exit__(None, None, None)  # noqa: E731
 
@@ -116,7 +116,7 @@ def benchmark_frame_view(  # noqa: C901
         sim_utils.create_new_stage()
         start_time = time.perf_counter()
         use_fabric = api == "isaaclab-fabric"
-        sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=use_fabric))
+        sim = sim_utils.SimulationContext(sim_cfgs[api])
         stage = sim_utils.get_current_stage()
 
         for i in range(num_envs):
@@ -473,5 +473,14 @@ def main():
 
 if __name__ == "__main__":
     # each backend builds its own simulation context; the USD and Fabric views need Kit
-    with launch_simulation(None, args_cli):
+    sim_cfgs = {
+        name: SimulationCfg(
+            dt=1.0 / 60.0 if name == "isaaclab-newton-site" else 0.01,
+            device=args_cli.device,
+            use_fabric=name == "isaaclab-fabric",
+            physics=NewtonCfg(solver_cfg=MJWarpSolverCfg()) if name == "isaaclab-newton-site" else PhysxCfg(),
+        )
+        for name in ("isaaclab-usd", "isaaclab-fabric", "isaaclab-newton-site")
+    }
+    with launch_simulation(sim_cfgs, args_cli):
         main()

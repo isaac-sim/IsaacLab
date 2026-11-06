@@ -88,14 +88,6 @@ def _assert_buffers_stale(data, buffers) -> None:
         assert buffer.timestamp < data._sim_timestamp, name
 
 
-def _ignore_newton_model_changes(backend: str, monkeypatch: pytest.MonkeyPatch) -> None:
-    """The mocked Newton asset has no solver to receive model-change notifications."""
-    if backend == "newton":
-        from isaaclab_newton.physics import NewtonManager
-
-        monkeypatch.setattr(NewtonManager, "add_model_change", MagicMock())
-
-
 # ---------------------------------------------------------------------------
 # Counts, names, finders, and selectors
 # ---------------------------------------------------------------------------
@@ -178,13 +170,13 @@ def test_commanding_a_tendon_target_schedules_the_write(monkeypatch, backend):
 @requires("newton")
 def test_newton_tendon_target_requires_a_tendon_actuator(monkeypatch):
     """Without a MuJoCo tendon actuator Newton cannot command targets, and an untransmitting solver says so."""
-    from isaaclab_newton.physics import NewtonManager
+    from isaaclab_newton.physics import XPBDSolver, XPBDSolverCfg
 
     art, _ = _articulation("newton", "cpu", monkeypatch, num_fixed_tendons=2)
     with pytest.raises(RuntimeError, match="no MuJoCo tendon actuator"):
         art.set_fixed_tendon_position_target_index(target=torch.zeros((N, 2)))
     with pytest.raises(NotImplementedError, match="does not drive fixed tendons"):
-        NewtonManager.create_fixed_tendon_control(art)
+        XPBDSolver.fixed_tendon_control(XPBDSolverCfg(), art, None)
 
 
 # ---------------------------------------------------------------------------
@@ -382,7 +374,6 @@ def test_root_writes_invalidate_dependent_caches(monkeypatch, backend, body_orde
 
 @_BODY_ORDERINGS
 def test_set_coms_invalidates_same_timestamp_dependents(monkeypatch, backend, body_ordering):
-    _ignore_newton_model_changes(backend, monkeypatch)
     art, _ = _articulation(backend, "cpu", monkeypatch, num_joints=3, num_bodies=4, body_ordering=body_ordering)
     art.data.update(dt=0.01)
     names = ["_root_com_pose_w", "_root_link_vel_w", "_body_com_pose_w", "_body_link_vel_w"]
@@ -477,6 +468,7 @@ _SCALAR_WRITERS = {
     "write_joint_velocity_limit_to_sim",
     "write_joint_effort_limit_to_sim",
     "write_joint_armature_to_sim",
+    "write_joint_friction_coefficient_to_sim",
     *[writer for writer, _, axis, *_ in _WRITERS if axis in ("fixed_tendon", "spatial_tendon")],
 }
 # Tendon setters that Newton implements.
@@ -493,7 +485,6 @@ def test_writer(monkeypatch, backend, device, selection, writer, kwarg, axis, tr
     if backend == "newton" and writer == "set_coms":
         # Newton stores the COM as a position only.
         trailing, dtype, getter = 3, wp.vec3f, "data.body_com_pos_b"
-    _ignore_newton_model_changes(backend, monkeypatch)
     art, _ = _articulation(backend, device, monkeypatch)
     art.data.update(dt=0.01)
     method = getattr(art, f"{writer}_{selection}")
@@ -543,6 +534,38 @@ def test_writer(monkeypatch, backend, device, selection, writer, kwarg, axis, tr
         method(**{kwarg: extra_env})
     with pytest.raises((AssertionError, RuntimeError)):
         method(**{kwarg: wp.from_torch(extra_env.contiguous(), dtype=dtype)})
+
+
+@pytest.mark.parametrize("backend", backends("physx", "ovphysx"))
+@pytest.mark.parametrize("selection", ["index", "mask"])
+def test_friction_mixed_inputs_preserve_other_cells_and_components(monkeypatch, backend, selection):
+    """Mixed writes broadcast zero and preserve nonzero coefficients omitted with None."""
+    art, raw_backend = _articulation(backend, "cpu", monkeypatch)
+    names = ("joint_friction_coeff", "joint_dynamic_friction_coeff", "joint_viscous_friction_coeff")
+    expected = [torch.full((N, J), value) for value in (0.5, 0.4, 0.3)]
+    art.write_joint_friction_coefficient_to_sim_index(**dict(zip(names, expected, strict=True)))
+    values = _payload((N, J), 0, wp.float32, "cpu")
+    joints = [2, 0]
+    if selection == "index":
+        selectors = {"env_ids": [1], "joint_ids": joints}
+    else:
+        selectors = {"env_mask": _mask(N, [1], "cpu"), "joint_mask": _mask(J, joints, "cpu")}
+    write = getattr(art, f"write_joint_friction_coefficient_to_sim_{selection}")
+
+    for coefficients in ((0, values, None), (values, None, 0), (values, 0, values)):
+        inputs = {
+            name: value[1:, joints] if selection == "index" and isinstance(value, torch.Tensor) else value
+            for name, value in zip(names, coefficients, strict=True)
+        }
+        write(**inputs, **selectors)
+        actual = _backend_properties(backend, art, raw_backend)
+        for name, prop, reference, value in zip(
+            names, ("friction", "dynamic_friction", "viscous_friction"), expected, coefficients, strict=True
+        ):
+            if value is not None:
+                reference[1, joints] = value[1, joints] if isinstance(value, torch.Tensor) else value
+            _assert_reads_back(getattr(art.data, name), reference, name)
+            torch.testing.assert_close(actual[prop], reference)
 
 
 @requires("newton")
@@ -614,7 +637,8 @@ def test_partial_write_preserves_unselected_backend_rows(monkeypatch, backend, s
 
 
 def test_partial_joint_state_write_follows_int64_selectors_and_restarts_acceleration(monkeypatch, backend):
-    """A fused joint-state write honors unsorted int64 selectors and restarts the finite-difference baseline."""
+    """The deprecated fused joint-state write warns, honors unsorted int64 selectors and restarts the
+    finite-difference baseline."""
     art, raw_backend = _articulation(backend, "cpu", monkeypatch, num_joints=3, num_bodies=2)
     art.data.update(dt=0.01)
     expected_joint_pos = art.data.joint_pos.torch.clone()
@@ -631,13 +655,14 @@ def test_partial_joint_state_write_follows_int64_selectors_and_restarts_accelera
     velocity = torch.tensor([[0.2, -0.2]])
 
     # int64 selectors with the joints in reverse order; the payload follows the selector order.
-    art.write_joint_state_to_sim_index(
-        position=position[:, [1, 0]],
-        velocity=velocity[:, [1, 0]],
-        env_ids=torch.tensor([1], dtype=torch.int64),
-        joint_ids=torch.tensor([2, 0], dtype=torch.int64),
-        skip_forward=True,
-    )
+    with pytest.warns(DeprecationWarning, match="write_joint_state_to_sim_index is deprecated"):
+        art.write_joint_state_to_sim_index(
+            position=position[:, [1, 0]],
+            velocity=velocity[:, [1, 0]],
+            env_ids=torch.tensor([1], dtype=torch.int64),
+            joint_ids=torch.tensor([2, 0], dtype=torch.int64),
+            skip_forward=True,
+        )
 
     expected_joint_pos[1, [0, 2]] = position[0]
     expected_joint_vel[1, [0, 2]] = velocity[0]
@@ -661,7 +686,8 @@ def test_partial_joint_state_write_follows_int64_selectors_and_restarts_accelera
     # ``skip_forward`` leaves the body caches to the caller; a regular write invalidates them.
     for name, buffer in caches:
         assert buffer.timestamp == art.data._sim_timestamp, name
-    art.write_joint_state_to_sim_index(position=position, velocity=velocity, env_ids=[1], joint_ids=[0, 2])
+    with pytest.warns(DeprecationWarning, match="write_joint_state_to_sim_index is deprecated"):
+        art.write_joint_state_to_sim_index(position=position, velocity=velocity, env_ids=[1], joint_ids=[0, 2])
     _assert_buffers_stale(art.data, caches)
 
 
@@ -704,7 +730,6 @@ def test_write_tendon_properties_to_sim_selects_envs(monkeypatch, backend, devic
     """Pushing tendon properties writes the selected environments to the backend."""
     if backend == "newton" and kind == "spatial":
         pytest.skip("Newton does not support spatial tendons")
-    _ignore_newton_model_changes(backend, monkeypatch)
     num_instances = 3
     art, raw_backend = _articulation(backend, device, monkeypatch, num_instances=num_instances, num_joints=2)
     art.data.update(dt=0.01)
@@ -1097,7 +1122,6 @@ def test_ordering_reorders_public_dynamics_quantities(monkeypatch, backend, is_f
         is_fixed_base=is_fixed_base,
         monkeypatch=monkeypatch,
     )
-    identity_manager = getattr(identity_art, "_test_simulation_manager", None)
     ordered_art, ordered_raw = get_articulation(
         backend,
         num_instances,
@@ -1133,12 +1157,6 @@ def test_ordering_reorders_public_dynamics_quantities(monkeypatch, backend, is_f
     joint_user_to_backend, body_user_to_backend = _install_cyclic_ordering(ordered_art)
     identity_art.data.update(dt=0.01)
     ordered_art.data.update(dt=0.01)
-    if backend == "newton":
-        # Both mocks patch the same Newton module; read the shared model through the identity manager.
-        import isaaclab_newton.assets.articulation.articulation_data as newton_data_module
-
-        monkeypatch.setattr(newton_data_module, "SimulationManager", identity_manager)
-
     dofs = np.concatenate((np.arange(num_base_dofs), num_base_dofs + joint_user_to_backend))
     bodies = body_user_to_backend if num_base_dofs else body_user_to_backend[body_user_to_backend != 0] - 1
     for name in ("body_com_jacobian_w", "body_link_jacobian_w"):
@@ -1151,6 +1169,7 @@ def test_ordering_reorders_public_dynamics_quantities(monkeypatch, backend, is_f
 
 
 @requires("ovphysx")
+@pytest.mark.ov
 def test_ovphysx_ordered_reads_refresh_after_reset(monkeypatch):
     """Ordered OVPhysX pose, velocity, and friction shadows re-read the backend after invalidation."""
     from isaaclab_ov import tensor_types as TT
@@ -1200,6 +1219,7 @@ def test_ovphysx_ordered_reads_refresh_after_reset(monkeypatch):
 
 
 @requires("ovphysx")
+@pytest.mark.ov
 def test_ovphysx_ordered_reads_gather_once_per_step(monkeypatch):
     """Ordered root and body velocities share one backend read, and joint state is gathered once per step."""
     from isaaclab_ov import tensor_types as TT
@@ -1227,6 +1247,7 @@ def test_ovphysx_ordered_reads_gather_once_per_step(monkeypatch):
 
 
 @requires("ovphysx")
+@pytest.mark.ov
 def test_ovphysx_joint_acceleration_differences_public_order_velocities(monkeypatch):
     art, raw_backend = _ordered_joint_articulation("ovphysx", monkeypatch)
     user_to_backend = _user_to_backend(art.joint_ordering, 3)
@@ -1283,10 +1304,6 @@ def _property_payload(shape: tuple[int, ...], trailing: int, offset: float) -> t
 def test_property_writes_route_to_backend_and_preserve_other_rows(monkeypatch, backend, selection, mode):
     """Partial public property writes reach the matching backend joints and bodies and keep every other entry."""
     num_instances, count = 2, 4
-    if backend == "newton":
-        from isaaclab_newton.physics import NewtonManager
-
-        monkeypatch.setattr(NewtonManager, "add_model_change", MagicMock())
     art, raw_backend = get_articulation(
         backend,
         num_instances,
@@ -1325,6 +1342,16 @@ def test_property_writes_route_to_backend_and_preserve_other_rows(monkeypatch, b
             backend_values = _backend_properties(backend, art, raw_backend)[name]
             torch.testing.assert_close(backend_values, expected[name], rtol=0.0, atol=0.0, msg=f"{writer}: {mode}")
             _assert_proxy_close(getattr(art.data, getter), expected[name][:, user_to_backend[axis]])
+            scalar_friction = name == "friction" or (
+                backend == "ovphysx" and name in ("dynamic_friction", "viscous_friction")
+            )
+            if backend in ("physx", "ovphysx") and scalar_friction:
+                getattr(art, f"{writer}_{selection}")(**(kwargs | {kwarg: 0}))
+                expected[name][np.ix_(env_ids, user_to_backend[axis][items])] = 0
+                actual = _backend_properties(backend, art, raw_backend)
+                for component in ("friction", "dynamic_friction", "viscous_friction"):
+                    torch.testing.assert_close(actual[component], expected[component])
+                _assert_proxy_close(getattr(art.data, getter), expected[name][:, user_to_backend[axis]])
             if name == "position_limits":
                 # The soft limits of the written joints follow (factor 1.0); the others are untouched.
                 soft_limits = art.data.soft_joint_pos_limits.torch
@@ -1644,6 +1671,7 @@ def test_external_wrenches_are_written_in_backend_body_order(monkeypatch, backen
 
 
 @requires("ovphysx")
+@pytest.mark.ov
 def test_ovphysx_actuator_commands_are_written_in_backend_order(monkeypatch):
     """Implicit position, velocity, and effort commands reach their matching backend joints."""
     from isaaclab_ov import tensor_types as TT
@@ -1669,6 +1697,7 @@ def test_ovphysx_actuator_commands_are_written_in_backend_order(monkeypatch):
 
 
 @requires("ovphysx")
+@pytest.mark.ov
 def test_ovphysx_partial_effort_target_write_keeps_commanded_targets(monkeypatch):
     """A partial effort-target write keeps the other joints' commanded targets, not the last applied effort.
 
@@ -1696,6 +1725,7 @@ def test_ovphysx_partial_effort_target_write_keeps_commanded_targets(monkeypatch
 
 
 @requires("ovphysx")
+@pytest.mark.ov
 @pytest.mark.parametrize("selector_kind", ["torch", "warp"])
 def test_ovphysx_int64_effort_target_selector_reaches_binding(monkeypatch, selector_kind):
     """Indexed effort-target environment selectors reach the OVPhysX binding as int32 Warp indices."""
@@ -1726,6 +1756,7 @@ def test_ovphysx_int64_effort_target_selector_reaches_binding(monkeypatch, selec
 
 
 @requires("ovphysx")
+@pytest.mark.ov
 def test_ovphysx_configured_defaults_use_public_joint_names(monkeypatch):
     art, _ = get_articulation(
         "ovphysx", 1, 3, 2, device="cpu", joint_ordering=("joint_2", "joint_1", "joint_0"), monkeypatch=monkeypatch

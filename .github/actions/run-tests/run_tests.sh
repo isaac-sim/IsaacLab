@@ -252,6 +252,8 @@ run_tests() {
       "${docker_runtime_dir}/isaac-sim/pkg"
     docker_volume_args=(
       -v "${volume_mount_source}:/workspace/isaaclab:rw"
+      # Hide .git as the images do: the checkout's config requires Git LFS, which they do not ship.
+      --tmpfs /workspace/isaaclab/.git
       -v "${docker_runtime_dir}/home:/tmp/isaaclab-ci-home:rw"
       -v "${docker_runtime_dir}/isaac-sim/kit/cache:/isaac-sim/kit/cache:rw"
       -v "${docker_runtime_dir}/isaac-sim/kit/data:/isaac-sim/kit/data:rw"
@@ -268,6 +270,8 @@ run_tests() {
       -e "HOME=/tmp/isaaclab-ci-home"
       -e "XDG_CACHE_HOME=/tmp/isaaclab-ci-home/.cache"
       -e "XDG_DATA_HOME=/tmp/isaaclab-ci-home/.local/share"
+      # The image's /var/cache/hub belongs to uid 1000, not necessarily the host uid.
+      -e "HUB__CACHE__PATH=/tmp/isaaclab-ci-home/.cache/hub"
       -e "USER=${host_user}"
       -e "LOGNAME=${host_user}"
     )

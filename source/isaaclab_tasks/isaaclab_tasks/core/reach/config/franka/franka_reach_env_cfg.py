@@ -6,7 +6,10 @@
 """Configuration for the Franka reach environment."""
 
 import math
+import warnings
+from typing import TYPE_CHECKING
 
+import torch
 from isaaclab_newton.controllers.ik.newton_ik_objectives_cfg import (
     NewtonIKJointLimitObjectiveCfg,
     NewtonIKPoseObjectiveCfg,
@@ -24,9 +27,9 @@ from isaaclab.devices.gamepad import Se3GamepadCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
 from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
-from isaaclab.managers import RewardTermCfg as RewTerm
-from isaaclab.managers import SceneEntityCfg
+from isaaclab.managers import ObservationTermCfg, RewardTermCfg, SceneEntityCfg
 from isaaclab.utils import configclass, replace
+from isaaclab.utils import math as math_utils
 
 from isaaclab_tasks.utils import PresetCfg, preset
 
@@ -35,7 +38,10 @@ from isaaclab_tasks.utils import PresetCfg, preset
 ##
 from isaaclab_assets import FRANKA_MINIMAL_CFG, FRANKA_PANDA_CFG  # isort: skip
 
-from ...reach_env_cfg import ReachEnvCfg, RewardsCfg, TerminationsCfg
+from ...reach_env_cfg import ReachEnvCfg, RewardsCfg
+
+if TYPE_CHECKING:
+    from isaaclab.envs import ManagerBasedRLEnv
 
 ##
 # Environment configuration
@@ -91,26 +97,50 @@ class FrankaArmActionCfg(PresetCfg):
 
 @configclass
 class FrankaReachRewardsCfg(RewardsCfg):
-    """Keep continuous pose-tracking rewards specific to Franka Reach."""
+    """Legacy continuous Franka pose-tracking rewards.
 
-    end_effector_position_tracking_fine_grained = RewTerm(
+    .. deprecated::
+        Use :class:`~isaaclab_tasks.core.reach.reach_env_cfg.RewardsCfg` for shared Reach
+        rewards. Add ``end_effector_position_tracking_fine_grained`` explicitly if needed.
+    """
+
+    end_effector_position_tracking_fine_grained = RewardTermCfg(
         func=mdp.position_command_error_tanh,
         weight=0.1,
         params={"asset_cfg": SceneEntityCfg("robot", body_names="panda_hand"), "std": 0.1, "command_name": "ee_pose"},
     )
-    success: RewTerm | None = None
+    success: RewardTermCfg | None = None
+
+    def __post_init__(self):
+        warnings.warn(
+            "FrankaReachRewardsCfg is deprecated. Use the shared Reach RewardsCfg and add"
+            " end_effector_position_tracking_fine_grained explicitly if needed.",
+            FutureWarning,
+            stacklevel=2,
+        )
 
 
 @configclass
 class FrankaReachEnvCfg(ReachEnvCfg):
-    """Franka Reach configuration with selectable arm and physics presets."""
+    """Franka Reach configuration with selectable arm and physics presets.
 
-    rewards: FrankaReachRewardsCfg = FrankaReachRewardsCfg()
-    # Report success while continuing to track poses until timeout.
-    terminations: TerminationsCfg = replace(TerminationsCfg(), success=None)
+    The ``hold`` preset keeps one goal throughout the episode and rewards pose success
+    without resetting on arrival. It adds six pose-error observations for 38-input
+    joint-position policies, trained in the separate ``reach_franka_hold`` experiment.
+    Train and play with the same preset and physics backend; default 32-input Reach
+    checkpoints cannot be loaded with ``hold``. Holding requires the Torch frontend;
+    train a policy or supply a local holding checkpoint until pretrained policies are published.
+
+    Newton holding uses softer arm stiffness; PhysX holding retains authored stiffness
+    and increases command-change penalties. These profiles modify only the task config.
+    """
 
     def validate_config(self) -> None:
         """Validate the selected controller and physics backend."""
+        if self.observations.policy.ee_target_error is not None and not isinstance(
+            self.actions.arm_action, mdp.JointPositionActionCfg
+        ):
+            raise ValueError("The 'hold' preset requires the Franka joint-position action.")
         if isinstance(self.actions.arm_action, NewtonInverseKinematicsActionCfg) and not isinstance(
             self.sim.physics, NewtonCfg
         ):
@@ -120,6 +150,15 @@ class FrankaReachEnvCfg(ReachEnvCfg):
         super().__post_init__()
 
         self.scene.robot = replace(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+        # Joint inertia varies substantially along the arm; damp each drive accordingly.
+        self.scene.robot.actuators["panda_arm"].damping = {
+            "panda_joint1": 40.0,
+            "panda_joint2": 60.0,
+            "panda_joint3": 35.0,
+            "panda_joint4": 60.0,
+            "panda_joint[5-6]": 15.0,
+            "panda_joint7": 12.0,
+        }
         self.scene.robot.spawn.variants["Physics"] = preset(
             default="mujoco", isaacsim_physx="physx", physx="physx", ovphysx="physx"
         )
@@ -135,6 +174,24 @@ class FrankaReachEnvCfg(ReachEnvCfg):
             ),
             MujocoRigidBodyCfg(gravcomp=preset(default=None, diffik=1.0, diffik_abs=1.0, newton_ik=1.0)),
         ]
+        # Bound arm offsets away from joint limits and initialize both mimic fingers together.
+        self.events.reset_robot_joints = replace(
+            self.events.reset_robot_joints,
+            func=mdp.reset_joints_by_offset,
+            params={
+                "position_range": (-0.1, 0.1),
+                "velocity_range": (0.0, 0.0),
+                "asset_cfg": SceneEntityCfg("robot", joint_names="panda_joint.*"),
+            },
+        )
+        self.events.reset_robot_fingers = replace(
+            self.events.reset_robot_joints,
+            params={
+                "position_range": (0.0, 0.0),
+                "velocity_range": (0.0, 0.0),
+                "asset_cfg": SceneEntityCfg("robot", joint_names="panda_finger_joint.*"),
+            },
+        )
         # override rewards
         self.rewards.end_effector_position_tracking.params["asset_cfg"].body_names = ["panda_hand"]
         self.rewards.end_effector_orientation_tracking.params["asset_cfg"].body_names = ["panda_hand"]
@@ -146,20 +203,94 @@ class FrankaReachEnvCfg(ReachEnvCfg):
 
         # override actions
         self.actions.arm_action = FrankaArmActionCfg()
-        # Native SE(3) devices match the 6D relative differential and Newton IK actions.
-        relative_ik_teleop_devices = DevicesCfg(
-            devices={
-                "keyboard": Se3KeyboardCfg(gripper_term=False, sim_device=self.sim.device),
-                "gamepad": Se3GamepadCfg(gripper_term=False, sim_device=self.sim.device),
-                "spacemouse": Se3SpaceMouseCfg(gripper_term=False, sim_device=self.sim.device),
-            }
-        )
+
+        # Native SE(3) devices match the 6D relative differential and Newton IK actions. Sensitivities
+        # offset each action's scale so full device input commands 0.025 m and 0.025 rad per step.
+        def relative_ik_teleop_devices(rot_sensitivity: float) -> DevicesCfg:
+            device_cfgs = {"keyboard": Se3KeyboardCfg, "gamepad": Se3GamepadCfg, "spacemouse": Se3SpaceMouseCfg}
+            return DevicesCfg(
+                devices={
+                    name: device_cfg(
+                        gripper_term=False,
+                        pos_sensitivity=0.5,
+                        rot_sensitivity=rot_sensitivity,
+                        sim_device=self.sim.device,
+                    )
+                    for name, device_cfg in device_cfgs.items()
+                }
+            )
+
         self.teleop_devices = preset(
             default=DevicesCfg(),
-            diffik=relative_ik_teleop_devices,
-            newton_ik=relative_ik_teleop_devices,
+            diffik=relative_ik_teleop_devices(rot_sensitivity=0.05),
+            newton_ik=relative_ik_teleop_devices(rot_sensitivity=0.1),
         )
         # override command generator body
         # end-effector is along z-direction
         self.commands.ee_pose.body_name = "panda_hand"
         self.commands.ee_pose.ranges.pitch = (math.pi, math.pi)
+
+        # Train continued pose tracking with a fixed episode goal and explicit pose feedback.
+        self.observations.policy.ee_target_error = preset(
+            default=None,
+            hold=ObservationTermCfg(func=_pose_command_error, params={"command_name": "ee_pose"}),
+        )
+        # A finite interval beyond the episode prevents resampling; torch.uniform_ rejects infinity.
+        self.commands.ee_pose.resampling_time_range = preset(
+            default=self.commands.ee_pose.resampling_time_range, hold=(1.0e9, 1.0e9)
+        )
+        self.terminations.success = preset(default=self.terminations.success, hold=None)
+        self.rewards.success = preset(
+            default=self.rewards.success,
+            hold=RewardTermCfg(func=mdp.pose_command_success, weight=10.0, params={"command_name": "ee_pose"}),
+        )
+        # Keep each backend's stiffness and command-change costs together for every backend alias.
+        newton_hold_profile = {
+            "stiffness": {"panda_joint[1-2]": 100.0, "panda_joint[3-4]": 75.0, "panda_joint[5-7]": 30.0},
+            "action_rate": self.rewards.action_rate.weight,
+            "curriculum_action_rate": self.curriculum.action_rate.params["weight"],
+        }
+        physx_hold_profile = {"stiffness": None, "action_rate": -0.01, "curriculum_action_rate": -0.5}
+        hold_profiles = {
+            "default": newton_hold_profile,
+            "isaacsim_physx": physx_hold_profile,
+            "physx": physx_hold_profile,
+            "ovphysx": physx_hold_profile,
+        }
+        self.scene.robot.actuators["panda_arm"].stiffness = preset(
+            default=None,
+            hold=preset(**{backend: profile["stiffness"] for backend, profile in hold_profiles.items()}),
+        )
+        self.rewards.action_rate.weight = preset(
+            default=self.rewards.action_rate.weight,
+            hold=preset(**{backend: profile["action_rate"] for backend, profile in hold_profiles.items()}),
+        )
+        self.curriculum.action_rate.params["weight"] = preset(
+            default=self.curriculum.action_rate.params["weight"],
+            hold=preset(**{backend: profile["curriculum_action_rate"] for backend, profile in hold_profiles.items()}),
+        )
+
+
+def _pose_command_error(env: "ManagerBasedRLEnv", command_name: str) -> torch.Tensor:
+    """Return target-minus-current pose errors in the robot root frame.
+
+    Returns:
+        Tensor of shape (num_envs, 6), with position errors in meters followed by
+        axis-angle rotation errors in radians.
+    """
+    command = env.command_manager.get_term(command_name)
+    data = command.robot.data
+    position_b, orientation_b = math_utils.subtract_frame_transforms(
+        data.root_pos_w.torch,
+        data.root_quat_w.torch,
+        data.body_pos_w.torch[:, command.body_idx],
+        data.body_quat_w.torch[:, command.body_idx],
+    )
+    position_error, rotation_error = math_utils.compute_pose_error(
+        position_b,
+        orientation_b,
+        command.command[:, :3],
+        command.command[:, 3:],
+        rot_error_type="axis_angle",
+    )
+    return torch.cat((position_error, rotation_error), dim=-1)

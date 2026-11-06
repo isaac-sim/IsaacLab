@@ -207,7 +207,7 @@ def test_exported_asset_root_constants_follow_china_storage_profile(monkeypatch)
             patched_env.setenv("ISAACSIM_ASSET_REGION_PROFILE", "china")
             module = importlib.reload(assets_utils)
 
-            root = f"https://simready-cn.s3.oss-cn-shanghai.aliyuncs.com/Assets/Isaac/{module._ISAAC_SIM_ASSET_RELEASE}"
+            root = "https://simready-cn.s3.oss-cn-shanghai.aliyuncs.com/Assets/Isaac/6.2"
             assert root == module.NUCLEUS_ASSET_ROOT_DIR
             assert f"{root}/Isaac" == module.ISAAC_NUCLEUS_DIR
             assert f"{root}/Isaac/IsaacLab" == module.ISAACLAB_NUCLEUS_DIR
