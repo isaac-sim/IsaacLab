@@ -17,7 +17,7 @@ from newton import Axis, BodyFlags, JointType, ModelBuilder
 
 from pxr import Sdf, Usd, UsdGeom
 
-from isaaclab.assets import AssetBaseCfg
+from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.cloner import ClonePlan, PrototypeWorldTopology, ReplicateContext
 from isaaclab.cloner import path as cloner_path
 from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
@@ -118,10 +118,20 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
         root for root, parent in zip(shared, cloner_path.get_parent_indices(shared), strict=True) if parent == -1
     )
     simulation = isinstance(cfg, NewtonCfg)
-    catalog_rows = []
+    variant_groups = []
     if simulation and isinstance(cfg.solver_cfg, MJWarpSolverCfg) and not cfg.solver_cfg.use_mujoco_contacts:
-        for rows in plan.asset_catalogs:
-            if not any(row in asset_prototype_ids for row in rows):
+        seen_paths = set()
+        for asset_id in asset_prototype_ids:
+            asset = plan.asset_cfgs[asset_id]
+            if not isinstance(asset, RigidObjectCfg) or asset.spawn is None or asset.prim_path in seen_paths:
+                continue
+            seen_paths.add(asset.prim_path)
+            rows = tuple(
+                row
+                for row in cloner_path.get_asset_prototypes(plan, asset.prim_path)
+                if isinstance(plan.asset_cfgs[row], RigidObjectCfg) and plan.asset_cfgs[row].spawn is not None
+            )
+            if len(rows) < 2:
                 continue
             members = [
                 [
@@ -133,7 +143,7 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
             ]
             if any(len(indices) != 1 for indices in members):
                 continue
-            catalog_rows.append((rows, [indices[0] for indices in members]))
+            variant_groups.append((rows, [indices[0] for indices in members]))
             for row in rows:
                 if sources[row] is None:
                     asset = plan.asset_cfgs[row]
@@ -152,7 +162,7 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
         if not isinstance(plan.asset_cfgs[index], SensorBaseCfg)
         if not any(cloner_path.relative_to(source, owner) is not None for owner in routed_sources)
     )
-    variant_sources = tuple(dict.fromkeys(sources[row] for rows, _ in catalog_rows for row in rows))
+    variant_sources = tuple(dict.fromkeys(sources[row] for rows, _ in variant_groups for row in rows))
     if positions is None:
         positions = np.zeros((len(env_ids), 3), dtype=np.float32)
     if quaternions is None:
@@ -216,7 +226,7 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
     retained_sources = build_source_builders(stage, source_paths, builder_factory, schema_resolvers, **options)
     source_builders = dict(retained_sources)
     initial_selections = []
-    for rows, members in catalog_rows:
+    for rows, members in variant_groups:
         variants = tuple(retained_sources[sources[row]] for row in rows)
         if any(source.body_count != 1 or source.joint_count != 1 for source in variants):
             continue

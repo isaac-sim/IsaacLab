@@ -81,7 +81,7 @@ class BaseRigidObject(AssetBase):
 
     @property
     def num_mesh_variants(self) -> int:
-        """Number of variants in the configured spawner catalog, independent of backend switching support."""
+        """Number of variants in the configured spawner, independent of backend switching support."""
         return num_spawn_variants(self.cfg.spawn)
 
     @property
@@ -199,9 +199,9 @@ class BaseRigidObject(AssetBase):
     ) -> None:
         """Select collision geometry and inertial properties for selected environments.
 
-        Variant indices follow the configured multi-asset spawner's order. Static catalog spawning
+        Variant indices follow the configured multi-asset spawner's order. Static variant spawning
         is independent of reset-time selection support. Newton MJWarp supports compatible single-body
-        mesh catalogs with external contacts and disabled sleeping; other backends raise
+        variants with external contacts and disabled sleeping; other backends raise
         :class:`NotImplementedError` for this operation.
 
         Args:

@@ -248,7 +248,6 @@ def test_multi_spawner_creates_concrete_asset_prototypes(simulation, unused_vari
     with ReplicateSession((object_cfg, ground), 4, 2.0, world_prototypes=worlds) as session:
         plan = session.plan
         assert len(plan.asset_cfgs) == 3
-        assert plan.asset_catalogs == ((0, 1),)
         for cfg, shape in zip(plan.asset_cfgs[:2], object_cfg.spawn.assets_cfg, strict=True):
             assert cfg.spawn.assets_cfg[0] is shape
         expected_sources = ["/World/envs/env_0/Object", None if unused_variant else "/World/envs/env_2/Object"]

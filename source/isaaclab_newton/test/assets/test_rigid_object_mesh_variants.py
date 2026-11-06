@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Integration coverage for Isaac Lab catalogs backed by Newton body variants."""
+"""Integration coverage for multi-asset spawners backed by Newton body variants."""
 
 from isaaclab_newton.physics import NewtonCfg
 
@@ -31,11 +31,11 @@ pytestmark = [pytest.mark.integration, pytest.mark.kitless]
 
 
 def _spawn_named_cone(prim_path, cfg, **kwargs):
-    """Give the second catalog entry a different body path."""
+    """Give the second variant a different body path."""
     return sim_utils.spawn_mesh_cone(prim_path + "/large_part", cfg, **kwargs)
 
 
-def _catalog_object() -> RigidObjectCfg:
+def _variant_object() -> RigidObjectCfg:
     return RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Object",
         spawn=sim_utils.MultiAssetSpawnerCfg(
@@ -62,14 +62,14 @@ def _catalog_object() -> RigidObjectCfg:
 
 
 @configclass
-class _CatalogSceneCfg(InteractiveSceneCfg):
-    object: RigidObjectCfg = _catalog_object()
+class _VariantSceneCfg(InteractiveSceneCfg):
+    object: RigidObjectCfg = _variant_object()
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
 @pytest.mark.parametrize("use_mujoco_contacts", [False, True])
-def test_initially_unused_catalog_members_use_native_rows(device: str, use_mujoco_contacts: bool) -> None:
-    scene_cfg = _CatalogSceneCfg(num_envs=1, env_spacing=2.0)
+def test_initially_unused_variant_members_use_native_rows(device: str, use_mujoco_contacts: bool) -> None:
+    scene_cfg = _VariantSceneCfg(num_envs=1, env_spacing=2.0)
     scene_cfg.object.spawn.assets_cfg[1].func = sim_utils.spawn_mesh_cone
     third = scene_cfg.object.spawn.assets_cfg[0].copy()
     third.radius, third.mass_props.mass = 0.06, 27.0
@@ -134,7 +134,7 @@ def test_initially_unused_catalog_members_use_native_rows(device: str, use_mujoc
         pytest.param(XPBDSolverCfg(), False, id="xpbd"),
     ],
 )
-def test_select_catalog_member_updates_only_requested_world(device: str, solver_cfg, supports_selection: bool) -> None:
+def test_select_variant_updates_only_requested_world(device: str, solver_cfg, supports_selection: bool) -> None:
     sim_cfg = SimulationCfg(
         device=device,
         gravity=(0.0, 0.0, 0.0),
@@ -142,7 +142,7 @@ def test_select_catalog_member_updates_only_requested_world(device: str, solver_
     )
     with build_simulation_context(sim_cfg=sim_cfg, add_ground_plane=True) as sim:
         sim._app_control_on_stop_handle = None
-        scene = InteractiveScene(_CatalogSceneCfg(num_envs=2, env_spacing=2.0))
+        scene = InteractiveScene(_VariantSceneCfg(num_envs=2, env_spacing=2.0))
         sim.register_interactive_scene(scene)
         sim.reset()
         asset = scene["object"]
