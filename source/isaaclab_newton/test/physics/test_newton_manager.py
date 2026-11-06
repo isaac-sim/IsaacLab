@@ -295,6 +295,7 @@ def _recording_backend(
         fk_mask=wp.zeros(1, dtype=wp.bool, device=device),
         kinematics_dirty=False,
         transforms_may_change_on_graph_replay=False,
+        state_version=0,
         model_changes=set(),
         warned_model_changes=set(),
         pre_actuator_callbacks=[],
@@ -304,7 +305,7 @@ def _recording_backend(
         solver_init_callbacks=[],
         decimation=1,
         capture=None,
-        graph=None,
+        graphs={},
     )
     backend.init_solver()
     events.clear()
@@ -446,12 +447,17 @@ def test_state_forces_apply_before_every_substep_and_the_step_ends_in_state_0(si
     assert events == [("pre_step", "state_0"), *substeps, ("post_step", "state_0"), ("check", False)]
 
 
-def test_decimation_loop_runs_actuator_callbacks_per_physics_step_and_post_step_callbacks_once():
+@pytest.mark.parametrize("graphable", [True, False], ids=["captured_actuators", "eager_actuators"])
+def test_decimation_loop_runs_actuator_callbacks_per_physics_step_and_post_step_callbacks_once(graphable):
+    """Capture-safe and eager actuators run the same order: pre-actuator, actuators, post-actuator, substeps."""
     events = []
     backend = _recording_backend(events, single_state=False)
     backend.pre_actuator_callbacks.append(lambda: events.append(("pre_actuator",)))
     backend.post_actuator_callbacks.append(lambda: events.append(("post_actuator",)))
     backend.post_step_callbacks.append(lambda: events.append(("post_physics_step",)))
+    backend.actuators = SimpleNamespace(
+        is_all_graphable=graphable, step=lambda *args, **kwargs: events.append(("act",))
+    )
     backend.actuators_active = True
     backend.set_decimation(2)
 
@@ -460,6 +466,7 @@ def test_decimation_loop_runs_actuator_callbacks_per_physics_step_and_post_step_
     physics_step = [
         ("pre_step", "state_0"),
         ("pre_actuator",),
+        ("act",),
         ("post_actuator",),
         ("step", "state_0", "state_1"),
         ("assign", "state_0", "state_1"),
@@ -545,10 +552,13 @@ def test_forward_resolves_flagged_worlds_once_and_not_while_an_outer_graph_recor
         state_0=object(),
         solver=object(),
         collision_pipeline=None,
+        device=wp.get_device("cpu"),
         world_mask=world_mask,
         fk_mask=fk_mask,
         kinematics_dirty=True,
         transforms_may_change_on_graph_replay=False,
+        model_changes=set(),
+        state_version=0,
     )
     scene_data = NewtonSceneDataBackend(manager)
 
@@ -587,6 +597,8 @@ def test_forward_keeps_implicit_mpm_history_on_automatic_resets():
         transforms_may_change_on_graph_replay=False,
         solver=_RejectingSolver(),
         collision_pipeline=None,
+        model_changes=set(),
+        state_version=0,
     )
 
     class RecordingPipeline:
@@ -609,7 +621,9 @@ def test_manager_flags_the_masked_worlds_and_articulations(articulation_mask):
     manager = NewtonManager(NewtonCfg())
     manager.backend = backend_stub(
         device=wp.get_device("cpu"),
-        model=SimpleNamespace(world_count=3),
+        model=SimpleNamespace(
+            world_count=3, articulation_world=wp.array([0, 0, 1, 1, 2, 2], dtype=wp.int32, device="cpu")
+        ),
         world_mask=wp.zeros(4, dtype=wp.bool, device="cpu"),
         fk_mask=wp.zeros(6, dtype=wp.bool, device="cpu"),
         kinematics_dirty=False,
@@ -636,6 +650,39 @@ def test_manager_flags_the_masked_worlds_and_articulations(articulation_mask):
     assert manager.backend.world_mask.numpy().tolist() == [False, True, False, False]
     assert body_mask.numpy().tolist() == [False, True, False]
     assert manager.backend.kinematics_dirty
+
+
+def test_fk_flags_the_worlds_of_reordered_view_rows_and_never_resets_the_global_world():
+    """View rows map to their articulations' worlds; a global articulation gets FK without a global-world reset."""
+    cfg = NewtonCfg(solver_cfg=XPBDSolverCfg(), use_cuda_graph=False)
+    builder = create_builder(cfg)
+    for world in range(3):
+        builder.begin_world()
+        for index in range(2 if world < 2 else 1):
+            label = f"world_{world}_{index}"
+            link = builder.add_link(mass=1.0, inertia=wp.diag(wp.vec3(0.1)), label=label)
+            builder.add_articulation([builder.add_joint_revolute(-1, link)], label=label)
+        builder.end_world()
+    link = builder.add_link(mass=1.0, inertia=wp.diag(wp.vec3(0.1)), label="global")
+    builder.add_articulation([builder.add_joint_revolute(-1, link)], label="global")
+    backend = NewtonBackend(NewtonBackendCfg(physics_cfg=cfg, device="cpu"), builder, dt=0.01)
+    backend.init_solver()
+    initial = backend.state_0.body_q.numpy().copy()
+    backend.state_0.joint_q.fill_(0.5)
+    view_rows = (("world_2_0", "global"), ("world_0_0", "world_0_1"), ("world_1_0", "world_1_1"))
+    labels = backend.model.articulation_label
+    articulation_ids = wp.array(
+        [[labels.index(label) for label in row] for row in view_rows], dtype=wp.int32, device="cpu"
+    )
+
+    backend.invalidate_fk(wp.array([True, False, True], dtype=wp.bool, device="cpu"), articulation_ids)
+
+    assert backend.world_mask.numpy().tolist() == [False, True, True, False]
+    backend.forward()
+    changed = np.any(backend.state_0.body_q.numpy() != initial, axis=1)
+    expected = {"world_1_0", "world_1_1", "world_2_0", "global"}
+    assert changed.tolist() == [label in expected for label in backend.model.body_label]
+    assert not backend.world_mask.numpy().any() and not backend.fk_mask.numpy().any()
 
 
 # ----- Independent backends ----------------------------------------------------------------
@@ -675,24 +722,33 @@ def _two_solver_configs() -> list[tuple[NewtonCfg, int]]:
     ]
 
 
-@pytest.mark.parametrize("captured", [False, True], ids=["eager", "captured"])
+@pytest.mark.parametrize("execution", ["eager", "backend_capture", "outer_capture"])
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_backends_with_different_solvers_step_side_by_side(device, captured):
-    """Each backend advances only its own model and matches a backend stepped alone."""
+def test_backends_with_different_solvers_step_side_by_side(device, execution):
+    """Each backend advances only its own model and matches a backend stepped alone.
+
+    An outer capture records each backend's step without running it or capturing a graph of its own.
+    """
+    captured = execution != "eager"
     pair = [_pendulums(cfg, decimation, device, captured=captured) for cfg, decimation in _two_solver_configs()]
     alone = [_pendulums(cfg, decimation, device) for cfg, decimation in _two_solver_configs()]
     start = [backend.state_0.joint_q.numpy().copy() for backend in pair]
+    steps = [backend.step for backend in pair]
+    if execution == "outer_capture":
+        steps = [P(wp.capture_launch, newton_backend.capture_graph(device, backend.step)) for backend in pair]
+        for backend, initial in zip(pair, start, strict=True):
+            np.testing.assert_array_equal(backend.state_0.joint_q.numpy(), initial)
 
     for _ in range(5):
-        pair[0].step()
+        steps[0]()
     np.testing.assert_array_equal(pair[1].state_0.joint_q.numpy(), start[1])
     for _ in range(5):
-        pair[1].step()
+        steps[1]()
         alone[0].step()
         alone[1].step()
 
     for backend, reference, initial in zip(pair, alone, start, strict=True):
-        assert (backend.graph is not None) is captured
+        assert bool(backend.graphs) is (execution == "backend_capture")
         assert np.all(np.abs(backend.state_0.joint_q.numpy() - initial) > 1e-3)
         np.testing.assert_allclose(backend.state_0.joint_q.numpy(), reference.state_0.joint_q.numpy(), atol=1e-5)
 
@@ -837,7 +893,7 @@ def test_captured_step_holds_staged_forces_and_recaptures_after_decimation_chang
                 manager.set_decimation(decimation)
             manager.backend.state_0.body_f.assign(wrench)
             sim.step(render=False)
-            assert manager.backend.graph is not None
+            assert manager.backend.graphs
             np.testing.assert_allclose(manager.backend.state_0.joint_qd.numpy(), 0.0, atol=1e-6)
             assert counter.numpy()[0] == step + 1
 
