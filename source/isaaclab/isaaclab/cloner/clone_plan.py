@@ -137,12 +137,7 @@ def make_clone_plan(
         world_prototype_starts=np.cumsum([0, *(len(world) for world in compositions)], dtype=np.int64),
         world_prototype_layout=np.ascontiguousarray(layout, dtype=np.int32),
     )
-    return ClonePlan(
-        topology,
-        asset_cfgs=asset_cfgs,
-        env_template=env_template,
-        positions=positions,
-    )
+    return ClonePlan(topology, asset_cfgs=asset_cfgs, env_template=env_template, positions=positions)
 
 
 def grid_transforms(N: int, spacing: float = 1.0, up_axis: str = "z") -> tuple[np.ndarray, np.ndarray]:
