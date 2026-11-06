@@ -66,6 +66,10 @@ def test_static_and_variant_tasks_resolve_with_their_policy_inputs():
     choice = reset.params["terms"]["reset_strategies"]
     assert list(choice.params["terms"]) == ["start_random"]
     assert variant.episode_length_s == 14.0
+    assert variant.events.held_asset_material.mode == variant.events.fixed_asset_material.mode == "reset"
+    assert list(variant.events.__dict__).index("reset_strategies") < list(variant.events.__dict__).index(
+        "held_asset_material"
+    )
 
 
 def test_simba_point_cloud_encoder_trains_and_exports():

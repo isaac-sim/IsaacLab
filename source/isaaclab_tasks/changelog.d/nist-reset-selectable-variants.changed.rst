@@ -5,3 +5,5 @@
   Robot, action, observation, and reset defaults changed; existing checkpoints are not guaranteed to work with
   these defaults. To replay an existing checkpoint, restore its saved environment and agent configuration,
   including the robot asset and observation ordering, rather than using the new defaults directly.
+* Randomized fixed and held assembly materials after reset-time native variant selection so each selected
+  catalog member retains the sampled contact properties during the episode.
