@@ -16,6 +16,8 @@ from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab_contrib.conveyors.newton import SurfaceVelocity
 from isaaclab_contrib.conveyors.surface_velocity import SurfaceVelocitySpec
 
+pytestmark = pytest.mark.kitless
+
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
 def test_transport_reset_rebind_and_close(device):
@@ -94,7 +96,19 @@ def test_transport_reset_rebind_and_close(device):
             np.testing.assert_array_equal(forces.numpy(), np.zeros((4, 6)))
             assert driver._conveyor.global_velocity_scale.numpy()[0] == 0
             if device != "cpu":
-                assert manager.backend.graph is not None
+                assert manager.backend.graphs
+                callback_runs = wp.zeros(1, dtype=wp.int32, device=device)
+
+                def record_substep(*_):
+                    callback_runs.fill_(1)
+
+                manager.register_post_solver_substep_callback(record_substep)
+                sim.step(render=False)
+                np.testing.assert_array_equal(callback_runs.numpy(), [1])
+                manager.unregister_post_solver_substep_callback(record_substep)
+                callback_runs.zero_()
+                sim.step(render=False)
+                np.testing.assert_array_equal(callback_runs.numpy(), [0])
         finally:
             driver.close()
             driver.close()
