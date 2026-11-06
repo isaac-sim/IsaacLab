@@ -115,9 +115,8 @@ def launches(monkeypatch: pytest.MonkeyPatch) -> dict:
         ),
         # a scene sensor needs no visualizer
         (dict(video="sensor:wrist_camera:depth"), ("sensor:wrist_camera:depth", [])),
-        # streaming visualizers have no frame capture, and recording needs the torch frontend
+        # streaming visualizers have no frame capture
         (dict(video="viser", visualizer=["viser"]), "has no frame capture"),
-        (dict(frontend="warp"), "--frontend 'warp'"),
     ],
     ids=[
         "viz-selected",
@@ -130,7 +129,6 @@ def launches(monkeypatch: pytest.MonkeyPatch) -> dict:
         "camera-view-windowed",
         "sensor",
         "streaming-rejected",
-        "warp-frontend-rejected",
     ],
 )
 def test_video_source_resolves_against_the_visualizer_selection(launches, cli, expected):
