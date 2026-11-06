@@ -27,7 +27,7 @@ class TeleopAction(ActionTerm):
     """Select human or policy input while preserving the task controller.
 
     Input acquisition belongs to interactive playback, which activates a source
-    on one term and distributes its sample across the robot's terms before each
+    on one term and distributes its sample across the task's teleop terms before each
     environment step. Only the declaring term owns the activated source's
     lifetime. Terms never step, render, or reset the simulation themselves.
     """
@@ -53,7 +53,12 @@ class TeleopAction(ActionTerm):
 
     @property
     def controller(self) -> ActionTerm:
-        """The existing task controller, including any controller-specific public API."""
+        """The existing task controller, including its configuration and subtype API.
+
+        Task functions that previously accessed controller-specific attributes
+        through ``action_manager.get_term(name)`` must use this property when
+        the term is wrapped. Arbitrary attributes and type checks are not proxied.
+        """
         return self._controller
 
     @property

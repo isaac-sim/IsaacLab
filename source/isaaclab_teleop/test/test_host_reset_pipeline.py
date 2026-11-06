@@ -8,6 +8,7 @@
 import threading
 import time
 
+import numpy as np
 import pytest
 
 pytest.importorskip("isaacteleop")
@@ -20,9 +21,11 @@ from isaacteleop.retargeting_engine.interface import (
     ExecutionEvents,
     ExecutionState,
     TensorGroup,
+    TensorGroupType,
 )
 from isaacteleop.retargeting_engine.interface.retargeter_core_types import ExecutionCache
-from isaacteleop.teleop_session_manager import RetargetingExecutionConfig, bool_signal
+from isaacteleop.retargeting_engine.tensor_types import NDArrayType
+from isaacteleop.teleop_session_manager import RetargetingExecutionConfig, TeleopSession, TeleopSessionConfig
 from isaacteleop.teleop_session_manager.async_retarget_runner import AsyncRetargetRunner, StepRequest
 
 pytestmark = [pytest.mark.unit, pytest.mark.kitless]
@@ -40,20 +43,22 @@ class _ResetProbe(BaseRetargeter):
         return {}
 
     def output_spec(self):
-        return {"action": bool_signal("reset_seen")}
+        return {"action": TensorGroupType("action", [NDArrayType("reset_seen", (1,))])}
 
     def _compute_fn(self, inputs, outputs, context):
         self.events.append((context.execution_events.reset, context.execution_events.execution_state))
         if self.fail:
             self.fail = False
             raise RuntimeError("retargeter failed")
-        outputs["action"][0] = context.execution_events.reset
+        outputs["action"][0] = np.array([context.execution_events.reset], dtype=np.float32)
 
 
 @pytest.fixture
 def reset_pipeline():
     probe = _ResetProbe()
-    lifecycle = TeleopSessionLifecycle(IsaacTeleopCfg(pipeline_builder=lambda: probe), use_kit_xr_bridge=False)
+    lifecycle = TeleopSessionLifecycle(
+        IsaacTeleopCfg(pipeline_builder=lambda: probe, sim_device="cpu"), use_kit_xr_bridge=False
+    )
     pipeline = lifecycle._build_combined_pipeline(probe)
     controller_inputs = {}
     for name, group_type in lifecycle._button_controllers.input_spec().items():
@@ -157,3 +162,71 @@ def test_async_notification_survives_dropped_requests_without_echo(reset_pipelin
     finally:
         release.set()
         assert runner.stop(timeout_s=5.0)
+
+
+def test_host_reset_withholds_old_actions_until_post_notification_result(reset_pipeline, monkeypatch):
+    """Real Capture latest-frame reuse cannot drive a new episode with a pre-reset action."""
+    lifecycle, pipeline, probe, inputs = reset_pipeline
+    session = TeleopSession(
+        TeleopSessionConfig(
+            app_name="host_reset_test",
+            pipeline=pipeline,
+            retargeting_execution=RetargetingExecutionConfig(mode="pipelined"),
+        )
+    )
+    entered = {frame: threading.Event() for frame in (1, 3, 5)}
+    release = {frame: threading.Event() for frame in entered}
+
+    def wait(frame):
+        entered[frame].set()
+        assert release[frame].wait(5.0), f"test did not release frame {frame}"
+
+    def execute(request):
+        # Replace only the native input phase; execute the real graph and let
+        # Capture own submission IDs, dropped requests, and completed outputs.
+        if request.frame_id == 5:
+            wait(5)
+        context = ComputeContext(
+            execution_events=ExecutionEvents(reset=request.frame_id == 1, execution_state=ExecutionState.RUNNING)
+        )
+        result = pipeline.execute_pipeline(inputs, context)
+        if request.frame_id in (1, 3):
+            wait(request.frame_id)
+        return result, context
+
+    monkeypatch.setattr(session, "_execute_step_request", execute)
+    monkeypatch.setattr(lifecycle, "_attach_keyboards", lambda: None)
+    monkeypatch.setattr(lifecycle, "_build_external_inputs", lambda *args: {probe.name: {}})
+    lifecycle._session, lifecycle._pipeline = session, pipeline
+    lifecycle._message_processor = object()  # Enable the normal returned-control-event path.
+    try:
+        lifecycle.notify_reset()  # No submitted frame yet: the synchronous seed is already fresh.
+        assert lifecycle.step().tolist() == [1.0]
+        lifecycle.step()  # Submit frame 1, held after graph execution but before publication.
+        assert entered[1].wait(5.0)
+        lifecycle.notify_reset()
+        assert lifecycle.step() is None  # Submit frame 2; latest output still belongs to the old episode.
+        assert lifecycle.step() is None  # Frame 3 supersedes pending frame 2.
+        release[1].set()
+        assert entered[3].wait(5.0)
+        assert lifecycle.step() is None  # Reset was consumed, but its result has not been published.
+        assert lifecycle.last_control_events.should_reset  # Preserve the operator event from old frame 1.
+
+        lifecycle.notify_reset()  # Another reset while frame 3's rebased result is still in flight.
+        assert lifecycle.step() is None
+        release[3].set()
+        assert entered[5].wait(5.0)
+        assert lifecycle.step() is None  # Completed frame 3 predates the second notification.
+        assert not lifecycle.last_control_events.should_reset
+
+        release[5].set()
+        assert session._async_runner.wait_for_frame(5, timeout_s=5.0) is not None
+        assert lifecycle.step() is not None
+        assert probe.events[:4] == [(True, ExecutionState.RUNNING)] * 4
+        assert not lifecycle.last_control_events.should_reset
+    finally:
+        for event in release.values():
+            event.set()
+        if session._async_runner is not None:
+            assert session._async_runner.stop(timeout_s=5.0)
+        lifecycle._session = None

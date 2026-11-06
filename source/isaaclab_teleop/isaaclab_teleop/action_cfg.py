@@ -30,6 +30,10 @@ class TeleopActionCfg(InteractiveActionTermCfg):
     dimension and processing remain those of ``controller``. Capture resources
     are activated by interactive playback; constructing or training the task
     alone retains ordinary policy control.
+
+    Task code using controller-specific attributes or type checks must access
+    the runtime term's :attr:`~isaaclab_teleop.TeleopAction.controller`. This
+    composite preserves the base action-term interface, not arbitrary subtype APIs.
     """
 
     class_type: type[TeleopAction] | str = "{DIR}.action:TeleopAction"
@@ -38,12 +42,12 @@ class TeleopActionCfg(InteractiveActionTermCfg):
     """Controller owning asset selection, scaling, clipping, and visualization."""
 
     source: TeleopSourceCfg | None = None
-    """Input resource declared by exactly one of the robot's teleop action terms.
+    """Input resource declared by exactly one of the task's teleop action terms.
 
     Playback constructs this source once after the environment is ready. Other
-    ``TeleopActionCfg`` terms for the same robot and environment row leave this
-    unset and consume the same input sample. The declaring term need not be the
-    first action term or represent a particular part of the robot.
+    ``TeleopActionCfg`` terms for the same environment row leave this unset and
+    consume the same input sample. Each controller selects its own asset. The
+    declaring term need not be the first action term or control a particular asset.
     """
 
     env_ids: list[int] = [0]

@@ -14,6 +14,7 @@ import logging
 import os
 import threading
 import time
+import weakref
 from collections.abc import Callable, Sequence
 from contextlib import ExitStack
 from typing import TYPE_CHECKING, Any, Protocol
@@ -388,6 +389,7 @@ class TeleopSessionLifecycle:
         # The worker consumes them only when it actually executes that graph.
         self._retargeter_reset_lock = threading.Lock()
         self._retargeter_reset_pending = False
+        self._retargeter_reset_frame_id: int | None = None
 
         # Keep the supplied live sequence so windows initialized later can join the session.
         self._visualizers = visualizers
@@ -557,9 +559,15 @@ class TeleopSessionLifecycle:
         already performed. It leaves operator commands and execution state intact.
         The notification survives dropped pipelined submissions; a worker consumes
         it only while executing the main graph. Multiple pending notifications coalesce.
+        Call from the application thread after resetting the environment. Actions
+        from requests submitted before this notification are withheld until a newer
+        result arrives; operator control events remain available throughout.
         """
         with self._retargeter_reset_lock:
             self._retargeter_reset_pending = True
+            self._retargeter_reset_frame_id = (
+                self._session.last_step_info.submitted_frame_id if self._session is not None else None
+            )
 
     def request_start(self) -> None:
         """Locally drive the teleop state machine toward RUNNING (headset-free start).
@@ -755,6 +763,7 @@ class TeleopSessionLifecycle:
         self._message_processor = None
         with self._retargeter_reset_lock:
             self._retargeter_reset_pending = False
+            self._retargeter_reset_frame_id = None
         self._last_step_result = None
         self._last_left_controller = None
         self._last_control_events = _NO_OP_EVENTS
@@ -814,6 +823,7 @@ class TeleopSessionLifecycle:
         if self._enable_debug_visualization:
             pipeline_outputs[self._CONTROLLER_LEFT_KEY] = self._button_controllers.output(ControllersSource.LEFT)
         lifecycle = self
+        completed_caches: weakref.WeakSet[ExecutionCache] = weakref.WeakSet()
 
         class _HostResetOutputCombiner(OutputCombiner):
             """Deliver host notifications at Capture's public pipeline execution boundary.
@@ -831,23 +841,28 @@ class TeleopSessionLifecycle:
 
             def execute_pipeline_with_cache(self, cache):
                 # Reusing this completed frame must not consume a newer notification.
-                cached = cache.get_cached(id(self))
-                if cached is not None:
-                    return cached
+                # Track our executions without depending on Capture's internal cache keys.
+                if cache in completed_caches:
+                    return super().execute_pipeline_with_cache(cache)
                 with lifecycle._retargeter_reset_lock:
                     reset = lifecycle._retargeter_reset_pending
                     lifecycle._retargeter_reset_pending = False
                 if not reset:
-                    return super().execute_pipeline_with_cache(cache)
+                    result = super().execute_pipeline_with_cache(cache)
+                    completed_caches.add(cache)
+                    return result
 
                 context = cache.context
                 cache.context = dataclasses.replace(
                     context, execution_events=dataclasses.replace(context.execution_events, reset=True)
                 )
                 try:
-                    return super().execute_pipeline_with_cache(cache)
+                    result = super().execute_pipeline_with_cache(cache)
+                    completed_caches.add(cache)
+                    return result
                 except BaseException:
-                    lifecycle.notify_reset()
+                    with lifecycle._retargeter_reset_lock:
+                        lifecycle._retargeter_reset_pending = True
                     raise
                 finally:
                     # Capture publishes the original control context, so a host
@@ -1529,6 +1544,16 @@ class TeleopSessionLifecycle:
         self._last_right_controller = result.get(self._CONTROLLER_RIGHT_KEY)
         self._last_left_controller = result.get(self._CONTROLLER_LEFT_KEY)
 
+        # Capture's public step API has one application-thread submitter. A frame
+        # newer than the reset's submission fence must have executed after the
+        # notification, even if intermediate submissions were dropped or reused.
+        with self._retargeter_reset_lock:
+            if self._retargeter_reset_frame_id is not None:
+                returned_frame_id = self._session.last_step_info.returned_frame_id
+                if returned_frame_id is None or returned_frame_id <= self._retargeter_reset_frame_id:
+                    return None
+                self._retargeter_reset_frame_id = None
+
         # Extract the flattened action array (DLPack-compatible) from
         # TensorReorderer and move to the simulation device.
         action_array = result["action"][0]
@@ -1584,6 +1609,8 @@ class TeleopSessionLifecycle:
                     raise
                 logger.debug(f"Suppressed error tearing down dead session: {e}")
             self._session = None
+        with self._retargeter_reset_lock:
+            self._retargeter_reset_frame_id = None
         self._session_start_deferred_logged = False
         self._last_step_result = None
         self._last_control_events = _NO_OP_EVENTS

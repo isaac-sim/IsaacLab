@@ -565,11 +565,13 @@ def launch_playback(
     """
     session = None
     dataset_file = getattr(args_cli, "dataset_file", None)
-    if not dataset_file and (
+    if dataset_file is not None and not dataset_file.strip():
+        raise ValueError("--dataset_file must be a non-empty path.")
+    if dataset_file is None and (
         getattr(args_cli, "num_demos", 0) or getattr(args_cli, "demo_export_mode", "succeeded") != "succeeded"
     ):
         raise ValueError("Demonstration collection options require --dataset_file.")
-    if dataset_file and (not enable_teleop or args_cli.teleop is False or not has_play_teleop(env_cfg)):
+    if dataset_file is not None and (not enable_teleop or args_cli.teleop is False or not has_play_teleop(env_cfg)):
         raise ValueError("--dataset_file requires playback with task-configured Capture input enabled.")
     if has_play_teleop(env_cfg) and args_cli.frontend != "torch":
         raise ValueError("TeleopActionCfg requires --frontend torch, including policy-only playback.")
@@ -579,7 +581,7 @@ def launch_playback(
 
             session = CapturePlaySession(env_cfg)
             session.prepare_environment()
-            if dataset_file:
+            if dataset_file is not None:
                 from isaaclab_teleop.recording import DemoRecordingCfg
 
                 session.configure_recording(

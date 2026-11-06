@@ -212,20 +212,17 @@ def xr_runtime(monkeypatch):
 @pytest.mark.parametrize(
     ("violation", "message"),
     [
-        ("different_robot", "same robot asset and environment row"),
-        ("different_row", "same robot asset and environment row"),
+        ("different_row", "same environment row"),
         ("second_source", "exactly one.*owning input"),
     ],
 )
-def test_shared_input_rejects_multiple_robot_targets_before_resource_start(violation, message, monkeypatch):
-    """A Capture session must have one source and one robot target, including split controllers."""
+def test_shared_input_rejects_multiple_sources_or_rows_before_resource_start(violation, message, monkeypatch):
+    """A Capture session must have one source and one environment row across its controllers."""
     cfg = _config(num_envs=2)
     cfg.actions.gripper = TeleopActionCfg(
         controller=ActionTermCfg(class_type=_Controller, asset_name="robot"),
     )
-    if violation == "different_robot":
-        cfg.actions.gripper.controller.asset_name = "other_robot"
-    elif violation == "different_row":
+    if violation == "different_row":
         cfg.actions.gripper.env_ids = [1]
     else:
         cfg.actions.gripper.source = cfg.actions.robot.source.copy()
@@ -300,6 +297,35 @@ def test_failed_input_drain_keeps_xr_and_environment_alive_for_retry(xr_runtime)
     env.source.fail_close = False
     session.close()
     assert events[-3:] == ["source_close", "xr_close", "env_close"]
+
+
+def test_failed_controller_close_can_retry_after_other_action_terms_close(monkeypatch):
+    """Partially retired action terms must not block a later environment cleanup attempt."""
+    cfg, events = _config(), []
+    cfg.actions.gripper = TeleopActionCfg(controller=ActionTermCfg(class_type=_Controller, asset_name="robot"))
+    session = CapturePlaySession(cfg)
+    session.prepare()
+    env = _Env(cfg, events)
+    wrapped = session.attach(env)
+    controller = env.action_manager.get_term("robot").controller
+    close_controller = controller.close
+    fail_close = True
+
+    def close():
+        if fail_close:
+            raise RuntimeError("controller cleanup failed")
+        close_controller()
+
+    monkeypatch.setattr(controller, "close", close)
+    with pytest.raises(RuntimeError, match="Failed to close 1 action term"):
+        wrapped.close()
+    assert env.source.closed and not env.closed
+
+    fail_close = False
+    session.close()
+    wrapped.close()
+    assert env.closed
+    assert events.count("source_close") == events.count("env_close") == 1
 
 
 def test_xr_closes_native_windows_on_host_after_input_drains_and_retries_failures(xr_runtime, monkeypatch):

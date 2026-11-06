@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import nullcontext
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -185,6 +186,31 @@ def test_common_train_args_register_frontend_with_torch_default() -> None:
     assert parser.parse_args(["--frontend", "warp"]).frontend == "warp"
     with pytest.raises(SystemExit):
         parser.parse_args(["--frontend", "tensorflow"])
+
+
+@pytest.mark.kitless
+def test_playback_rejects_explicit_blank_dataset_before_launch(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A blank shell-expanded output path must not silently disable requested collection."""
+    parser = argparse.ArgumentParser()
+    rl_common.add_common_play_args(parser, agent_default=None, agent_help="")
+    env_cfg = ManagerBasedRLEnvCfg(actions={})
+    launches = []
+
+    def launch(*args, **kwargs):
+        launches.append(args)
+        return nullcontext()
+
+    monkeypatch.setattr(rl_common, "launch_simulation", launch)
+    with rl_common.launch_playback(env_cfg, parser.parse_args(["--no-teleop"])):
+        pass
+    assert len(launches) == 1
+    launches.clear()
+    for value in ("", " \t "):
+        args_cli = parser.parse_args(["--no-teleop", "--dataset_file", value])
+        with pytest.raises(ValueError, match="--dataset_file must be a non-empty path"):
+            with rl_common.launch_playback(env_cfg, args_cli):
+                pass
+    assert launches == []
 
 
 @pytest.mark.parametrize(
