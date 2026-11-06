@@ -233,7 +233,15 @@ class _State:
 
 
 def _recording_backend(
-    events, *, single_state=True, num_substeps=1, device="cpu", captures=True, ignored_model_changes=None, **cfg
+    events,
+    *,
+    single_state=True,
+    num_substeps=1,
+    device="cpu",
+    captures=True,
+    cpu_capture=False,
+    ignored_model_changes=None,
+    **cfg,
 ):
     """A backend whose solver hooks and states record every operation of a step."""
 
@@ -271,6 +279,7 @@ def _recording_backend(
             events.append(("check", captured))
 
     RecordingSolver.single_state = single_state
+    RecordingSolver.cpu_capture = cpu_capture
     RecordingSolver.ignored_model_changes = ignored_model_changes or {}
     physics_cfg = NewtonCfg(num_substeps=num_substeps, solver_cfg=NewtonSolverCfg(class_type=RecordingSolver), **cfg)
     backend = backend_stub(
@@ -482,19 +491,30 @@ def test_model_changes_notify_the_solver_once_per_step_and_warn_once_when_ignore
     assert [record.message for record in caplog.records].count("Ignored model change") == 1
 
 
-@pytest.mark.parametrize("supported", [True, False])
-def test_step_runs_eagerly_once_then_replays_a_graph_only_when_the_solver_supports_capture(monkeypatch, supported):
+@pytest.mark.parametrize(
+    ("device", "supported", "cpu_capture", "expected"),
+    [
+        pytest.param("cuda:0", True, False, True, id="cuda"),
+        pytest.param("cuda:0", False, False, False, id="cuda_unsupported"),
+        pytest.param("cpu", True, True, True, id="cpu"),
+        pytest.param("cpu", True, False, False, id="cpu_without_cpu_capture"),
+    ],
+)
+def test_step_runs_eagerly_once_then_replays_a_graph_only_when_the_solver_supports_capture(
+    monkeypatch, device, supported, cpu_capture, expected
+):
+    """CUDA captures every capturable solver; the CPU captures only solvers that opt into Warp CPU capture."""
     events, replays = [], []
     monkeypatch.setattr(newton_backend, "capture_graph", lambda device, segment, relaxed=False: segment)
     monkeypatch.setattr(wp, "capture_launch", lambda segment: (replays.append(segment), segment()))
-    backend = _recording_backend(events, device="cuda:0", captures=supported)
+    backend = _recording_backend(events, device=device, captures=supported, cpu_capture=cpu_capture)
 
     captured = [backend.step() for _ in range(2)]
 
-    assert captured == [supported, supported]
-    assert len(replays) == int(supported)
+    assert captured == [expected, expected]
+    assert len(replays) == int(expected)
     assert events.count(("step", "state_0", "state_0")) == 2
-    assert [event for event in events if event[0] == "check"] == [("check", supported)] * 2
+    assert [event for event in events if event[0] == "check"] == [("check", expected)] * 2
 
 
 # ----- Reset masks -------------------------------------------------------------------------
@@ -649,11 +669,12 @@ def _two_solver_configs() -> list[tuple[NewtonCfg, int]]:
 
 
 @pytest.mark.parametrize("execution", ["eager", "backend_capture", "outer_capture"])
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize("device", test_devices())
 def test_backends_with_different_solvers_step_side_by_side(device, execution):
     """Each backend advances only its own model and matches a backend stepped alone.
 
-    An outer capture records each backend's step without running it or capturing a graph of its own.
+    An outer capture records each backend's step without running it or capturing a graph of its own. On the CPU,
+    both captures use Warp's CPU graph capture.
     """
     captured = execution != "eager"
     pair = [_pendulums(cfg, decimation, device, captured=captured) for cfg, decimation in _two_solver_configs()]
@@ -691,6 +712,49 @@ def test_backends_with_different_solvers_step_side_by_side(device, execution):
         backend.forward()
     assert np.any(pair[0].state_0.body_q.numpy() != body_q[0], axis=1).tolist() == [True, False, True, False]
     np.testing.assert_array_equal(pair[1].state_0.body_q.numpy(), body_q[1])
+
+
+def _boxes_on_ground(solver_cfg: NewtonSolverCfg, *, captured: bool) -> NewtonBackend:
+    """A CPU backend of two worlds, each dropping a tilted box onto a shared ground plane, two steps per call."""
+    physics_cfg = NewtonCfg(solver_cfg=solver_cfg, num_substeps=2)
+    builder = create_builder(physics_cfg)
+    builder.add_ground_plane()
+    for world in range(2):
+        builder.begin_world()
+        pose = wp.transform(wp.vec3(0.0, 0.0, 0.12), wp.quat_rpy(0.3, 0.1 * world, 0.0))
+        builder.add_shape_box(builder.add_body(xform=pose, mass=1.0), hx=0.1, hy=0.1, hz=0.1)
+        builder.end_world()
+    solver_cfg.class_type.prepare_builder(solver_cfg, builder)
+    backend = NewtonBackend(NewtonBackendCfg(physics_cfg=physics_cfg, device="cpu"), builder, dt=0.01)
+    backend.init_solver()
+    if not captured:
+        backend.capture = None
+    backend.actuators_active = True
+    backend.set_decimation(2)
+    return backend
+
+
+@pytest.mark.parametrize(
+    "solver_cfg",
+    [MJWarpSolverCfg(use_mujoco_contacts=False), XPBDSolverCfg(), FeatherstoneSolverCfg()],
+    ids=["mjwarp", "xpbd", "featherstone"],
+)
+def test_cpu_captured_steps_with_contacts_match_eager_steps(solver_cfg):
+    """Each solver that opts into Warp CPU capture replays collision and solver steps bit for bit like eager steps."""
+    trajectories = []
+    for captured in (False, True):
+        backend = _boxes_on_ground(solver_cfg, captured=captured)
+        poses = []
+        for _ in range(10):
+            backend.step()
+            poses.append(backend.state_0.body_q.numpy().copy())
+        assert bool(backend.graphs) is captured
+        assert backend.contacts.rigid_contact_count.numpy()[0] > 0
+        trajectories.append(np.stack(poses))
+        backend.close()
+
+    assert np.isfinite(trajectories[0]).all()
+    np.testing.assert_array_equal(trajectories[1], trajectories[0])
 
 
 # ----- Queries -----------------------------------------------------------------------------

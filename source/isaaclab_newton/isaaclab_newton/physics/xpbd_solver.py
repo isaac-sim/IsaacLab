@@ -15,3 +15,4 @@ class XPBDSolver(NewtonSolver):
 
     solver_class = SolverXPBD
     deterministic = True
+    cpu_capture = True

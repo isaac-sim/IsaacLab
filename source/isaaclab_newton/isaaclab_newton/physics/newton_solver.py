@@ -60,6 +60,14 @@ class NewtonSolver:
     contact_sensors: ClassVar[bool] = True
     """Whether Newton contact sensors can read the solver's contacts."""
 
+    cpu_capture: ClassVar[bool] = False
+    """Whether the solver's step replays correctly from a Warp CPU graph.
+
+    Warp's CPU capture records only Warp kernel launches and memory operations. Other work in the step, such as
+    :meth:`warp.Mesh.refit`, torch operations, or host reads, runs once at capture time and never on replay. On
+    the CPU, the step is captured only when this is set and :meth:`supports_capture` holds.
+    """
+
     ignored_model_changes: ClassVar[Mapping[ModelFlags, str]] = {}
     """Model changes the solver does not apply after construction, mapped to the warning logged once."""
 
@@ -120,7 +128,7 @@ class NewtonSolver:
 
     @classmethod
     def supports_capture(cls, cfg: NewtonSolverCfg, solver: SolverBase) -> bool:
-        """Whether the solver can be recorded into a CUDA graph."""
+        """Whether the solver can be recorded into a graph; on the CPU, :attr:`cpu_capture` must also be set."""
         return True
 
     # ----- Contacts -----

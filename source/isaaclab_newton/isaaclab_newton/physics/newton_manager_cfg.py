@@ -134,11 +134,21 @@ class NewtonCfg(PhysicsCfg):
     """Whether to enable debug mode for the solver."""
 
     use_cuda_graph: bool = True
-    """Whether to use CUDA graphing when simulating.
+    """Whether to replay the physics step from a captured Warp graph.
 
     Graphs are captured immediately after the first eager physics step, after reset and decimation
     setup. Capture does not advance physics. Kit/RTX uses a nonblocking stream with relaxed
     capture mode; kitless simulation uses Warp's standard capture mode.
+
+    On the CPU, solvers that set :attr:`~isaaclab_newton.physics.NewtonSolver.cpu_capture` (MJWarp
+    without ``use_mujoco_cpu``, XPBD and Featherstone) are captured with Warp's CPU graph capture,
+    which removes Python launch overhead; the other solvers step eagerly.
+
+    Step callbacks registered on the manager are recorded into the captured step, so they must be
+    graph-safe: fixed array shapes and no host branching on device data. On the CPU they must also
+    issue only Warp work on contiguous arrays: Warp's CPU capture does not record torch operations,
+    host reads or :meth:`warp.Mesh.refit`, which then run once at capture time instead of on every
+    step. Set this to False to step such callbacks eagerly.
 
     If set to False, the simulation performance will be severely degraded.
     """
