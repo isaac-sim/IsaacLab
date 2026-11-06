@@ -128,8 +128,10 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
             seen_paths.add(asset.prim_path)
             rows = tuple(
                 row
-                for row in cloner_path.get_asset_prototypes(plan, asset.prim_path)
-                if isinstance(plan.asset_cfgs[row], RigidObjectCfg) and plan.asset_cfgs[row].spawn is not None
+                for row, candidate in enumerate(plan.asset_cfgs)
+                if isinstance(candidate, RigidObjectCfg)
+                and candidate.spawn is not None
+                and candidate.prim_path == asset.prim_path
             )
             if len(rows) < 2:
                 continue
