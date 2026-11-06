@@ -122,6 +122,7 @@ def test_all_extra_aggregates_curated_ov_rl_and_visualizer_extras(source_checkou
         "tetrahedralization",
         "video",
         "leapp",
+        "simready",
         "wandb",
         "test",
         "dev",
