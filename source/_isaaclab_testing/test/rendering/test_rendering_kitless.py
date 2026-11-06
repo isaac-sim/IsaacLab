@@ -16,7 +16,7 @@ _CASES = [
         stage,
         case,
         id=f"{stage}-{case.id}",
-        marks=pytest.mark.ov if case.physics == "ovphysx" or case.renderer == "ovrtx" else (),
+        marks=case.marks + ((pytest.mark.ov,) if case.physics == "ovphysx" or case.renderer == "ovrtx" else ()),
     )
     for stage, case in KITLESS_RENDERING_CASES
 ]
