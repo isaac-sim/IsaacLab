@@ -189,7 +189,7 @@ FRANKA_ROBOTIQ_GRIPPER_CFG = clone(FRANKA_PANDA_LEGACY_CFG)
 # there. The asset is the Isaac Sim Franka with the Isaac Lab Franka arm inertias; its Robotiq gripper variant sits on
 # the flange ``panda_link8`` with rubber finger pads.
 FRANKA_ROBOTIQ_GRIPPER_CFG.spawn.usd_path = (
-    "https://huggingface.co/datasets/LiFanxing/franka_robotiq/resolve/47163169a7decfe1131d3734b51007f74fe0f594"
+    "https://huggingface.co/datasets/LiFanxing/franka_robotiq/resolve/ef93081cb37c317ac9ab2ab8b826d9e1aaae1e36"
     "/franka.usd"
 )
 FRANKA_ROBOTIQ_GRIPPER_CFG.spawn.variants = {"Gripper": "Robotiq_2F_85"}
