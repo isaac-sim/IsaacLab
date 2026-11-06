@@ -25,7 +25,7 @@ class SpawnerCfg:
     prim path to spawn the asset at, the configuration instance and transformation, and returns the
     spawned prim.
 
-    The function is typically decorated with :func:`isaaclab.sim.utils.clone` decorator
+    The function is typically decorated with :func:`~isaaclab.sim.utils.prims.clone` decorator
     that checks if input prim path is a regex expression and spawns the asset at all matching prims.
     For this, the decorator spawns the asset once and copies its USD spec to the other matching parent
     prims with ``Sdf.CopySpec``.
@@ -65,7 +65,7 @@ class SpawnerCfg:
     copy_from_source: bool = True
     """Whether to copy the asset from the source prim or inherit it. Defaults to True.
 
-    This parameter is currently not consumed: :func:`~isaaclab.sim.utils.clone` always copies the
+    This parameter is currently not consumed: :func:`~isaaclab.sim.utils.prims.clone` always copies the
     source prim spec to the cloned prims.
     """
 

@@ -68,10 +68,11 @@ class UnitreeG1Retargeter(RetargeterBase):
             data: Dictionary mapping tracking targets to joint data dictionaries.
 
         Returns:
-            A single tensor concatenating:
-                Left wrist pose
-                Right wrist pose in USD frame
-                Retargeted hand joint angles
+            A single tensor that concatenates the following values, in order.
+
+            - Left wrist pose
+            - Right wrist pose in USD frame
+            - Retargeted hand joint angles
         """
 
         # Access the left and right hand data using the enum key

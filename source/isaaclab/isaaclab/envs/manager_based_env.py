@@ -352,7 +352,7 @@ class ManagerBasedEnv:
 
             However, in case of extension mode, the user must call this function manually after the simulator
             is reset. This is because the simulator is only reset when the user calls
-            :meth:`SimulationContext.reset`.
+            :meth:`~isaaclab.sim.SimulationContext.reset`.
 
         """
         # prepare the managers

@@ -46,8 +46,9 @@ and setting up different Stable-Baselines3 components. For this tutorial, the im
 the environment and wrapping it with the Stable-Baselines3 wrapper.
 
 Video recording is configured with :class:`~isaaclab.envs.VideoRecorderCfg` before the environment is
-created. The shared ``pre_launch_video_config`` and ``apply_video_recording`` helpers select the recording
-camera and attach the recorder; this workflow does not use Gymnasium's ``RecordVideo`` wrapper.
+created. The shared ``pre_launch_video_config`` helper adds a recorder for the ``--video`` source when the
+environment config declares none, and ``apply_video_recording`` sets the output directory and clip schedule;
+this workflow does not use Gymnasium's ``RecordVideo`` wrapper.
 
 :class:`~isaaclab_rl.sb3.Sb3VecEnvWrapper` then adapts the environment to Stable-Baselines3. When normalization
 is enabled, `stable_baselines3.common.vec_env.VecNormalize`_ wraps that adapter to normalize observations

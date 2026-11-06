@@ -22,7 +22,7 @@ to :class:`~isaaclab.managers.CurriculumTermCfg`:
 Modifying Reward Weights
 ------------------------
 
-The class :class:`modify_reward_weight` updates the weight of a reward term after a specified number of simulation
+The class :class:`modify_reward_weight` updates the weight of a reward term after a specified number of environment
 steps. This can be passed directly as the ``func`` in a ``CurriculumTermCfg``.
 
 .. literalinclude:: ../../../source/isaaclab/isaaclab/envs/mdp/curriculums.py

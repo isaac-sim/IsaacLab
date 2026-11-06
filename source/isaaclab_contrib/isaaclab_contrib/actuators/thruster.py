@@ -130,7 +130,7 @@ class Thruster:
                 per-thruster thrust [N], with shape (num_envs, num_thrusters).
 
         Returns:
-            The same :class:`~isaaclab_contrib.utils.types.MultiRotorActions` record, with ``thrusts``
+            The same ``MultiRotorActions`` record, with ``thrusts``
             replaced by the applied per-thruster thrust [N], i.e. the updated thrust state clipped to
             the thruster limits, with shape (num_envs, num_thrusters).
 

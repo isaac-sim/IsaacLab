@@ -102,7 +102,7 @@ class GaitReward(ManagerTermBase):
                 velocity_threshold (horizontal base speed threshold [m/s]),
                 synced_feet_pair_names (exactly two pairs of foot names), asset_cfg
                 (robot scene entity), and sensor_cfg (contact sensor scene entity).
-                All six values are cached at initialization.
+                All six are read once at initialization.
             env: The RL environment instance.
         """
         super().__init__(cfg, env)

@@ -365,8 +365,8 @@ class DirectMARLEnv(gym.Env):
         The environment steps forward at a fixed time-step, while the physics simulation is decimated at a
         lower time-step. This is to ensure that the simulation is stable. These two time-steps can be configured
         independently using the :attr:`DirectMARLEnvCfg.decimation` (number of simulation steps per environment step)
-        and the :attr:`DirectMARLEnvCfg.sim.dt` (physics time-step). Based on these parameters, the environment
-        time-step is computed as the product of the two.
+        and the :attr:`~isaaclab.sim.SimulationCfg.dt` of :attr:`~isaaclab.envs.DirectMARLEnvCfg.sim` (physics
+        time-step). Based on these parameters, the environment time-step is computed as the product of the two.
 
         This function performs the following steps:
 
