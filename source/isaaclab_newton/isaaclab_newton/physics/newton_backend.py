@@ -484,7 +484,7 @@ class NewtonBackend:
                     actuators.step(self.state_0, self.control, self.dt)
                     self._launch("after_actuators", self._after_actuators)
                 self._launch("finish_step", self._finish_step)
-        # Graph replays skip the per-step increments in _after_actuators.
+        # Graph replays skip the per-substep increments.
         self.state_version += 1
         captured = bool(self.graphs)
         if not self.device.is_capturing:
@@ -604,7 +604,6 @@ class NewtonBackend:
         for callback in self.post_actuator_callbacks:
             callback()
         self._run_solver_substeps(self.contacts if self.collision_pipeline is not None else None)
-        self.state_version += 1
 
     def _finish_step(self) -> None:
         """Run the post-step callbacks and update the sensors once after the last physics step."""
@@ -643,6 +642,8 @@ class NewtonBackend:
                 else:
                     self.state_0, self.state_1 = self.state_1, self.state_0
             self.state_0.clear_forces()
+            # Derived data read by the next substep's state-force callbacks must see this substep's state.
+            self.state_version += 1
             if collide_mid_loop and (i + 1) % collide_every == 0 and i + 1 < num_substeps:
                 self.collision_pipeline.collide(self.state_0, contacts)
         solver_cls.post_step(solver_cfg, solver, self.state_0)

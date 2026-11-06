@@ -156,6 +156,8 @@ class ArticulationData(BaseArticulationData):
         """
         # update the simulation timestamp
         self._sim_timestamp += dt
+        # Replaying an outer capture of the step skips the backend's version increments, so invalidate here.
+        self._backend_manager.backend.state_version += 1
         # Trigger an update of the joint and body com acceleration buffers at a higher frequency
         # since we do finite differencing.
         self.joint_acc
