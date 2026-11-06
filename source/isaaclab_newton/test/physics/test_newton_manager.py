@@ -647,8 +647,16 @@ def _two_solver_configs() -> list[tuple[NewtonCfg, int]]:
     ]
 
 
-@pytest.mark.parametrize("execution", ["eager", "backend_capture", "outer_capture"])
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize(
+    ("device", "execution"),
+    [
+        (device, execution)
+        for device in test_devices()
+        for execution in ("eager", "backend_capture", "outer_capture")
+        # The capture cases already step their CPU reference backends eagerly.
+        if execution != "eager" or device != "cpu"
+    ],
+)
 def test_backends_with_different_solvers_step_side_by_side(device, execution):
     """Each backend advances only its own model and matches a backend stepped alone.
 

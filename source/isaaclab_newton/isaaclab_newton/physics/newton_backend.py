@@ -576,7 +576,7 @@ class NewtonBackend:
             return
         fn()
         if self.capture is not None:
-            with Timer(name="newton_cuda_graph", msg="Graph capture took:"):
+            with Timer(name="newton_graph_capture", msg="Graph capture took:"):
                 self.graphs[key] = self.capture(fn)
 
     def _simulate(self, steps: int) -> None:
