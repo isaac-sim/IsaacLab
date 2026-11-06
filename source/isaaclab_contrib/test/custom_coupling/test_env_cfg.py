@@ -6,9 +6,9 @@
 """Unit tests for the custom coupling environment configuration."""
 
 import pytest
+from isaaclab_newton.physics.coupling import CouplerProxyCfg
 
 import isaaclab_contrib.custom_coupling.tasks  # noqa: F401
-from isaaclab_contrib.coupling import CouplerProxyCfg
 from isaaclab_contrib.custom_coupling import CoupledMJWarpVBDSolverCfg
 
 from isaaclab_tasks.utils import resolve_task_config

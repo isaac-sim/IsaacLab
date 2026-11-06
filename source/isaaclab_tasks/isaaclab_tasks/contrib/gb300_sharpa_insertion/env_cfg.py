@@ -14,6 +14,7 @@ from isaaclab_newton.controllers.ik.newton_ik_objectives_cfg import (
 from isaaclab_newton.controllers.ik.newton_ik_solver_cfg import NewtonIKSolverCfg
 from isaaclab_newton.envs.mdp.actions.newton_ik_actions_cfg import NewtonInverseKinematicsActionCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonShapeCfg, VBDSolverCfg
+from isaaclab_newton.physics.coupling import CouplerEntryCfg, CouplerProxyCfg
 from isaaclab_newton.sim.schemas import NewtonCollisionCfg
 
 import isaaclab.envs.mdp as base_mdp
@@ -25,8 +26,6 @@ from isaaclab.managers import EventTermCfg, ObservationGroupCfg, ObservationTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
-
-from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg
 
 from . import mdp
 from .assets import (

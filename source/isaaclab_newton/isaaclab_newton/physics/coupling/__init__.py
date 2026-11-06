@@ -5,10 +5,8 @@
 
 """Named Newton couplers and their configurations.
 
-This package contains contributed coupled-solver support (proxy and ADMM based
-rigid-deformable coupling) that wraps Newton's experimental coupled solvers.
-Each sub-solver declares its model ownership as a named entry, and coupling
-interfaces refer to those entries by name.
+The coupler wraps Newton's experimental coupled solvers (proxy and ADMM based rigid-deformable coupling). Each
+sub-solver declares its model ownership as a named entry, and coupling interfaces refer to those entries by name.
 """
 
 from isaaclab.utils.module import lazy_export

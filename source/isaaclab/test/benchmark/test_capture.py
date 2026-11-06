@@ -18,6 +18,7 @@ from isaaclab_newton.physics import (
     VBDSolverCfg,
     XPBDSolverCfg,
 )
+from isaaclab_newton.physics.coupling import CouplerAdmmCfg, CouplerEntryCfg, CouplerProxyCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
@@ -38,7 +39,6 @@ from isaaclab.benchmark.measurements import (
 )
 from isaaclab.benchmark.schema import Hardware, Resources, Versions
 
-from isaaclab_contrib.coupling import CouplerAdmmCfg, CouplerEntryCfg, CouplerProxyCfg
 from isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_solver_cfg import CoupledMJWarpVBDSolverCfg
 
 
