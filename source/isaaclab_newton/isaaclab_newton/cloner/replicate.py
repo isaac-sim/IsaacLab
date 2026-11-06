@@ -231,6 +231,14 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
             row = plan.topology.world_prototypes[member]
             target = cloner_path.rebase(variants[0].body_label[0], sources[rows[0]], templates[member].format(world))
             initial_selections.append((target, variant_by_asset[row]))
+        inertia_offset = plan.asset_cfgs[rows[0]].mesh_variant_inertia_diagonal_offset
+        if not np.isfinite(inertia_offset) or inertia_offset < 0.0:
+            raise ValueError("mesh_variant_inertia_diagonal_offset must be finite and non-negative.")
+        if inertia_offset:
+            for source in variants:
+                source.body_inertia[0] = wp.mat33(
+                    np.asarray(source.body_inertia[0]).reshape(3, 3) + np.eye(3) * inertia_offset
+                )
         imported = variants[0]
         template = builder_factory()
         body = template.add_link(

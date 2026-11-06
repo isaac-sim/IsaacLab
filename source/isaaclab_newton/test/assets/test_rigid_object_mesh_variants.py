@@ -74,6 +74,7 @@ def test_initially_unused_catalog_members_use_native_rows(device: str, use_mujoc
     third = scene_cfg.object.spawn.assets_cfg[0].copy()
     third.radius, third.mass_props.mass = 0.06, 27.0
     scene_cfg.object.spawn.assets_cfg.append(third)
+    scene_cfg.object.mesh_variant_inertia_diagonal_offset = 1.0e-5
     sim_cfg = SimulationCfg(
         device=device,
         gravity=(0.0, 0.0, 0.0),
