@@ -18,7 +18,7 @@ import threading
 import time
 import urllib.request
 from datetime import datetime, timezone
-from http.client import HTTPMessage, HTTPResponse
+from http.client import HTTPException, HTTPMessage, HTTPResponse
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -42,21 +42,28 @@ class RemoteGreetings:
     """
 
     def __init__(self, encoding: str = "utf-8") -> None:
+        self._lock = threading.Lock()
+        self._logos: tuple[str, str] | None = None
+        if os.getenv("ISAACLAB_REMOTE_GREETINGS") == "0":
+            return
         self._root = ISAACLAB_NUCLEUS_DIR.rstrip("/\\") + "/Greetings"
-        cache_root = os.getenv("XDG_CACHE_HOME") or os.getenv("LOCALAPPDATA") or str(Path.home() / ".cache")
+        try:
+            cache_root = os.getenv("XDG_CACHE_HOME") or os.getenv("LOCALAPPDATA") or str(Path.home() / ".cache")
+        except (OSError, RuntimeError) as error:
+            logger.debug("Loading greeting cache directory unavailable: %s", error)
+            return
         namespace = hashlib.sha256(self._root.encode()).hexdigest()[:16]
         self._cache = Path(cache_root) / "isaaclab" / "greetings" / namespace
         self._manifest_path = self._cache / "manifest.json"
         self._on_date = datetime.now(timezone.utc).date()
         self._encoding = encoding
-        self._lock = threading.Lock()
-        self._logos: tuple[str, str] | None = None
         self._reference: AssetReference | None = None
+        self._random = random.Random()
         fresh = False
         try:
-            manifest = _decode_catalog(_read_local(self._manifest_path, _MAX_CATALOG_BYTES))
+            manifest = json.loads(_read_local(self._manifest_path, _MAX_CATALOG_BYTES).decode("utf-8"))
             references = list(select_assets(manifest, self._on_date))
-            random.shuffle(references)
+            self._random.shuffle(references)
             desired_cached = not references
             if references:
                 self._reference = references[0]
@@ -97,7 +104,7 @@ class RemoteGreetings:
         """Publish a new pair only after validating its catalog and selected payload."""
         try:
             manifest_blob = _read_bytes(f"{self._root}/manifest.json", _MAX_CATALOG_BYTES)
-            manifest = _decode_catalog(manifest_blob)
+            manifest = json.loads(manifest_blob.decode("utf-8"))
             references = select_assets(manifest, self._on_date)
             logos = None
             if references:
@@ -105,7 +112,7 @@ class RemoteGreetings:
                 reference = next(
                     (item for item in references if self._reference and item.identifier == self._reference.identifier),
                     None,
-                ) or random.choice(references)
+                ) or self._random.choice(references)
                 try:
                     logos = self._cached_pair(reference)
                 except (OSError, ValueError):
@@ -116,7 +123,7 @@ class RemoteGreetings:
             self._write_cache(self._manifest_path, manifest_blob)
             with self._lock:
                 self._logos = logos
-        except (OSError, ValueError, RecursionError) as error:
+        except (OSError, ValueError, RecursionError, HTTPException) as error:
             logger.debug("Remote loading greeting unavailable: %s", error)
 
     def _write_cache(self, path: Path, blob: bytes) -> None:
@@ -134,28 +141,6 @@ class RemoteGreetings:
             if temporary is not None:
                 with contextlib.suppress(OSError):
                     temporary.unlink()
-
-
-class _SameOriginRedirect(urllib.request.HTTPRedirectHandler):
-    """Keep optional banner downloads on their configured asset origin."""
-
-    def redirect_request(
-        self,
-        req: urllib.request.Request,
-        fp: HTTPResponse,
-        code: int,
-        msg: str,
-        headers: HTTPMessage,
-        newurl: str,
-    ) -> urllib.request.Request | None:
-        if urlsplit(req.full_url)[:2] != urlsplit(newurl)[:2]:
-            raise ValueError("A loading greeting redirected outside its asset origin.")
-        return super().redirect_request(req, fp, code, msg, headers, newurl)
-
-
-def _decode_catalog(blob: bytes) -> object:
-    """Decode bounded UTF-8 JSON; protocol validation remains with select_assets."""
-    return json.loads(blob.decode("utf-8"))
 
 
 def _read_local(path: Path, limit: int) -> bytes:
@@ -191,3 +176,20 @@ def _read_bytes(location: str, limit: int) -> bytes:
     if not parsed.scheme or (os.name == "nt" and len(parsed.scheme) == 1):
         return _read_local(Path(location), limit)
     raise ValueError("Loading greetings require an HTTP(S) or local asset root.")
+
+
+class _SameOriginRedirect(urllib.request.HTTPRedirectHandler):
+    """Keep optional banner downloads on their configured asset origin."""
+
+    def redirect_request(
+        self,
+        req: urllib.request.Request,
+        fp: HTTPResponse,
+        code: int,
+        msg: str,
+        headers: HTTPMessage,
+        newurl: str,
+    ) -> urllib.request.Request | None:
+        if urlsplit(req.full_url)[:2] != urlsplit(newurl)[:2]:
+            raise ValueError("A loading greeting redirected outside its asset origin.")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)

@@ -9,11 +9,14 @@ import hashlib
 import io
 import json
 import os
+import random
 import threading
 import time
 import urllib.request
 from datetime import date, datetime, timezone
+from http.client import IncompleteRead
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 
@@ -160,19 +163,23 @@ def test_payload_integrity_and_static_slots(source, monkeypatch):
     controls = ["\x1b[2J", "\x1b]8;;x\x07", "\x1b[1m", "\x1b[38;2;256;0;0m", "\r", "\x9b", "\u2028", "\u2029"]
     for control in controls:
         payload["slots"][1]["frame"] = "\n".join([control + " " * 74] * 12)
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="terminal|Unicode|SGR"):
             decode_greeting(*_encode(payload))
 
 
 def test_nonblocking_refresh_cache_variety_and_offline_fallback(source, monkeypatch):
+    random_state = random.getstate()
     corrupt = source.first.blob.replace(b"Season", b"Tamper")
     source.blobs[source.first.reference.path] = corrupt
     assert _load(source).logos is None
+    assert random.getstate() == random_state
     assert all(path.read_bytes() != corrupt for path in source.cache.rglob("*") if path.is_file())
     source.blobs[source.first.reference.path] = source.first.blob
     second = _add_asset(source, "second", "Spring")
     monkeypatch.setattr(
-        remote, "random", SimpleNamespace(choice=lambda items: items[0], shuffle=lambda items: items.reverse())
+        remote.random,
+        "Random",
+        lambda: SimpleNamespace(choice=lambda items: items[0], shuffle=lambda items: items.reverse()),
     )
     source.done.clear()
     source.entered.clear()
@@ -202,6 +209,11 @@ def test_nonblocking_refresh_cache_variety_and_offline_fallback(source, monkeypa
     assert source.done.wait(2)
     assert loader.logos == second.logos
     assert any(path.read_bytes() == second.blob for path in source.cache.rglob(f"{second.reference.sha256}.json"))
+    assert random.getstate() == random_state
+    with monkeypatch.context() as patch:
+        patch.setattr(remote, "_read_bytes", Mock(side_effect=IncompleteRead(b"partial")))
+        loader._refresh()
+        assert loader.logos == second.logos
     source.manifest["schema_version"] = 99
     for path in source.cache.rglob("manifest.json"):
         os.utime(path, (0, 0))
@@ -212,7 +224,18 @@ def test_nonblocking_refresh_cache_variety_and_offline_fallback(source, monkeypa
     assert _load(source).logos is None
 
 
-def test_encoding_cache_permissions_and_default_fallback(source):
+def test_encoding_cache_permissions_and_default_fallback(source, monkeypatch):
+    with monkeypatch.context() as patch:
+        patch.setenv("ISAACLAB_REMOTE_GREETINGS", "0")
+        assert remote.RemoteGreetings().logos is None
+        assert not source.entered.wait(0.05)
+        assert not source.requests and not source.cache.exists()
+    with monkeypatch.context() as patch:
+        patch.delenv("XDG_CACHE_HOME")
+        patch.delenv("LOCALAPPDATA", raising=False)
+        patch.setattr(remote.Path, "home", Mock(side_effect=RuntimeError("No home directory")))
+        assert remote.RemoteGreetings().logos is None
+        assert not source.requests and not source.cache.exists()
     assert _load(source, encoding="ascii").logos is None
     source.cache.write_text("Cache directory is blocked by a file.", encoding="utf-8")
     assert _load(source).logos == source.first.logos
