@@ -186,16 +186,6 @@ class RigidObject(BaseRigidObject):
             raise ValueError("Mesh variants require one selection per environment index.")
         if not selection_count:
             return
-        for values in (variant_ids, env_ids):
-            if isinstance(values, torch.Tensor):
-                if values.dtype not in (torch.int32, torch.int64) or values.device != torch.device(self.device):
-                    raise ValueError("Mesh variant selectors must be signed int32/int64 on the asset device.")
-            elif (
-                not isinstance(values, wp.array)
-                or values.dtype not in (wp.int32, wp.int64)
-                or str(values.device) != self.device
-            ):
-                raise ValueError("Mesh variant selectors must be signed int32/int64 on the asset device.")
         stream = None
         if wp.get_device(self.device).is_cuda and (
             isinstance(variant_ids, torch.Tensor) or isinstance(env_ids, torch.Tensor)
