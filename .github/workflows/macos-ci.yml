@@ -1,0 +1,59 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Experimental CPU-only macOS support: the source checkout's uv environment must install on
+# Apple silicon. GitHub-hosted macOS runners cannot run Docker, so the job runs natively.
+# It is not a required check, so a workflow-level ``paths:`` filter is safe here.
+name: macOS
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - "**/pyproject.toml"
+      - "uv.lock"
+      - "tools/wheel_builder/uv-overrides.txt"
+      - "source/isaaclab/test/cli/**"
+      - ".github/workflows/macos-ci.yml"
+  push:
+    branches:
+      - main
+      - develop
+      - release/**
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  uv-environment:
+    name: uv environment (macOS arm64)
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
+        with:
+          version: "0.12.9"
+          # a cold install takes ~20 s, less than saving the cache, which would compete for the repo's budget
+          enable-cache: false
+
+      - name: Install the uv environment
+        run: uv sync --frozen
+
+      - name: Import the CPU stack
+        run: uv run --frozen python -c "import isaaclab, isaaclab_newton, isaaclab_rl, isaaclab_tasks, newton, pxr, torch, warp"
+
+      - name: Run packaging tests
+        run: >-
+          uv run --frozen --with pytest python -m pytest -v
+          source/isaaclab/test/cli/test_source_package_metadata.py
+          source/isaaclab/test/cli/test_uv_run_pyproject.py
