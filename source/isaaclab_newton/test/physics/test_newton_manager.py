@@ -280,6 +280,8 @@ def _recording_backend(
         solver_dt=0.002 / num_substeps,
         actuators=None,
         actuators_active=False,
+        control_bound=False,
+        control_every_physics_step=False,
         contact_sensors={},
         imu_sensors=[],
         world_mask=wp.zeros(2, dtype=wp.bool, device=device),
@@ -858,3 +860,57 @@ def test_stateful_actuators_replay_like_eager_steps_across_decimation_changes(mo
                     )
             trajectories.append(np.asarray(samples))
     np.testing.assert_allclose(trajectories[1], trajectories[0], atol=1e-6, rtol=1e-5)
+
+
+@wp.kernel
+def _damp_body(body_qd: wp.array(dtype=wp.spatial_vector), body_f: wp.array(dtype=wp.spatial_vector)):
+    # a state-dependent command: it changes between the physics steps of one environment step
+    body_f[0] = wp.spatial_vector(0.0, 0.0, -20.0 * body_qd[0][2], 0.0, 0.0, 0.0)
+
+
+def _bound_control(manager: NewtonManager, *, graphable: bool):
+    """Actions that damp a free body, and an empty scene; both support graph capture when ``graphable``."""
+    applied = []
+    actions = SimpleNamespace(
+        supports_graph_capture=graphable,
+        apply_every_physics_step=True,
+        apply_action=lambda: (
+            applied.append(None),
+            wp.launch(_damp_body, 1, inputs=[manager.backend.state_0.body_qd, manager.backend.state_0.body_f]),
+        ),
+    )
+    scene = SimpleNamespace(supports_graph_capture=True, write_data_to_sim=lambda: None)
+    return actions, scene, applied
+
+
+def test_bound_control_runs_before_every_physics_step_like_the_environment_loop():
+    """Bound actions run before every physics step of one captured step, also after a hard reset, like the env loop."""
+    decimation, num_steps, velocities = 3, 4, []
+    for bound in (True, False):
+        sim_cfg = SimulationCfg(dt=0.01, device="cuda:0", physics=NewtonCfg(solver_cfg=MJWarpSolverCfg()))
+        with build_simulation_context(sim_cfg=sim_cfg) as sim:
+            builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+            builder.add_body(mass=1.0)
+            sim.reset()
+            manager = sim.backend_manager
+            manager.activate_newton_actuator_path()
+            manager.set_decimation(decimation)
+            actions, scene, applied = _bound_control(manager, graphable=bound)
+            assert manager.bind_control(actions, scene) is bound
+            assert manager.handles_decimation() is bound
+            for reset in (False, True):
+                if reset:
+                    sim.reset()
+                    assert manager.backend.control_bound is bound
+                applied.clear()
+                for _ in range(num_steps):
+                    for _ in range(1 if bound else decimation):
+                        if not bound:
+                            actions.apply_action()
+                        sim.step(render=False)
+                # bound steps record the actions once per physics step and then replay them
+                assert len(applied) == (2 * decimation if bound else num_steps * decimation)
+                velocities.append(manager.backend.state_0.body_qd.numpy().copy())
+    np.testing.assert_allclose(velocities[:2], velocities[2:], rtol=1e-5, atol=1e-6)
+    # damping holds the body well below free-fall speed
+    assert velocities[0][0, 2] > -0.5 * 9.81 * num_steps * decimation * 0.01

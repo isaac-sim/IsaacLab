@@ -208,6 +208,10 @@ class NewtonBackend:
         """Newton actuators run inside the step, or ``None``."""
         self.actuators_active = False
         """Whether an articulation runs its Newton actuators in the step (:meth:`activate_actuators`)."""
+        self.control_bound = False
+        """Whether the environment's actions and asset writes run as pre-actuator callbacks of every physics step."""
+        self.control_every_physics_step = False
+        """Whether the environment applies an action that must run before every physics step."""
         self.pre_actuator_callbacks: list[Callable[[], None]] = []
         """Run before the Newton actuators of every physics step."""
         self.post_actuator_callbacks: list[Callable[[], None]] = []
@@ -449,8 +453,8 @@ class NewtonBackend:
         return sensor
 
     def handles_decimation(self) -> bool:
-        """Whether one :meth:`step` runs the whole decimation loop: once an articulation runs Newton actuators in it."""
-        return self.actuators_active
+        """Whether one :meth:`step` runs the whole decimation loop: bound control, or actuators with held actions."""
+        return self.control_bound or (self.actuators_active and not self.control_every_physics_step)
 
     def set_decimation(self, decimation: int) -> None:
         """Set the physics steps per environment step."""
@@ -482,7 +486,7 @@ class NewtonBackend:
             else:
                 if self.device.is_capturing:
                     raise RuntimeError("Newton actuators that cannot be captured prevent recording the step.")
-                self._stage_body_forces()
+                self.stage_body_forces()
                 for _ in range(steps):
                     self._launch("before_actuators", self._before_actuators)
                     actuators.step(self.state_0, self.control, self.dt)
@@ -582,7 +586,7 @@ class NewtonBackend:
     def _simulate(self, steps: int) -> None:
         """Run ``steps`` physics steps with the Newton actuators, then finish the step."""
         actuators = self.actuators
-        self._stage_body_forces()
+        self.stage_body_forces()
         for i in range(steps):
             self._before_actuators()
             if actuators is not None:
@@ -612,8 +616,8 @@ class NewtonBackend:
             callback()
         self._update_sensors(self.contacts if self.collision_pipeline is not None else None)
 
-    def _stage_body_forces(self) -> None:
-        """Copy the body forces written to ``state_0`` before the step, so that every solver substep applies them."""
+    def stage_body_forces(self) -> None:
+        """Copy the body forces written to ``state_0``, so that every following solver substep applies them."""
         if self.staged_body_f is not None:
             wp.copy(self.staged_body_f, self.state_0.body_f)
 

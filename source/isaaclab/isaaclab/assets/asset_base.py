@@ -78,6 +78,9 @@ class AssetBase(Asset, ABC):
     _check_shapes: bool = __debug__
     """Class-level default for shape validation. Overridden per-instance in ``__init__``."""
 
+    supports_graph_capture: bool = False
+    """Whether :meth:`write_data_to_sim` can be recorded into a CUDA graph."""
+
     def __init__(self, cfg: AssetBaseCfg):
         """Initialize the asset base.
 

@@ -22,6 +22,8 @@ if TYPE_CHECKING:
 class BiasedJointPositionAction(JointPositionAction):
     """Joint position action that compensates the joint-encoder calibration error."""
 
+    apply_every_physics_step = False
+
     cfg: BiasedJointPositionActionCfg
     """The configuration of the action term."""
 

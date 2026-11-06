@@ -42,7 +42,9 @@ from .newton_scene_data import NewtonSceneDataBackend
 
 if TYPE_CHECKING:
     from isaaclab.assets import BaseArticulation
+    from isaaclab.managers import ActionManager
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
+    from isaaclab.scene import InteractiveScene
 
 
 logger = logging.getLogger(__name__)
@@ -231,6 +233,7 @@ class NewtonManager(PhysicsManager):
         """Clear all Newton-specific state (callbacks cleared by super().close())."""
         self._close_backend(dispatch_stop=False)
         self._decimation = 1
+        self._control: tuple[ActionManager, InteractiveScene] | None = None
         # Site requests and replication outputs survive hard resets.
         # (body_pattern, per_world, xform floats) -> (label, transform)
         self._site_requests: dict[tuple[str | None, bool, tuple[float, ...]], tuple[str, wp.transform]] = {}
@@ -490,6 +493,8 @@ class NewtonManager(PhysicsManager):
             device=self.get_device(),
         ):
             backend.init_solver(None if plan is None else plan.env_template, relaxed_capture=self._relaxed_capture)
+        if self._control is not None:
+            self._bind_control()
         self._mark_transforms_changed()
 
     def _relaxed_capture(self) -> bool:
@@ -584,7 +589,7 @@ class NewtonManager(PhysicsManager):
     def set_decimation(self, decimation: int) -> None:
         """Set the decimation count; see :meth:`NewtonBackend.set_decimation`.
 
-        Once Newton actuators run in the step, one :meth:`step` advances the whole decimation loop.
+        :meth:`handles_decimation` tells whether one :meth:`step` advances the whole decimation loop.
         """
         self._decimation = max(1, decimation)
         if self.backend is not None:
@@ -593,6 +598,36 @@ class NewtonManager(PhysicsManager):
     def handles_decimation(self) -> bool:
         """Whether :meth:`step` executes the full decimation loop; see :meth:`NewtonBackend.handles_decimation`."""
         return self.backend.handles_decimation()
+
+    def bind_control(self, actions: ActionManager, scene: InteractiveScene) -> bool:
+        """Run the environment's actions and asset writes as pre-actuator callbacks of every physics step.
+
+        Binds only when both support graph capture; one :meth:`step` then advances the whole decimation loop. Hard
+        resets bind again on the new backend.
+
+        Args:
+            actions: Environment action manager.
+            scene: Scene whose assets write to the simulation.
+
+        Returns:
+            Whether the step now applies the actions and writes the assets.
+        """
+        self._control = (actions, scene)
+        self._bind_control()
+        return self.backend.control_bound
+
+    def _bind_control(self) -> None:
+        """Register the bound control on the current backend, in the environment's order."""
+        actions, scene = self._control
+        backend = self.backend
+        backend.control_every_physics_step = actions.apply_every_physics_step
+        if not (actions.supports_graph_capture and scene.supports_graph_capture):
+            return
+        self.register_pre_actuator_callback(actions.apply_action)
+        self.register_pre_actuator_callback(scene.write_data_to_sim)
+        # Asset writes replace the body forces staged before the step.
+        self.register_pre_actuator_callback(backend.stage_body_forces)
+        backend.control_bound = True
 
     def add_contact_sensor(
         self,
