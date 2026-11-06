@@ -22,11 +22,6 @@ Both modes still step physics. A task with a non-``None`` mode also enables the 
 BENCHMARK_MODES: tuple[BenchmarkMode, ...] = ("render", "physics_render")
 """Explicit benchmark modes; ``None`` disables benchmark animation and scope profiling."""
 
-DIRECT_POSE_VISUALIZER_ERROR = (
-    "Isaac RTX direct posing requires no visualizer, or only visualizers that do not pump the Kit app"
-    " loop. Alternatively, use benchmark_mode=physics_render."
-)
-
 
 def read_benchmark_mode() -> BenchmarkMode | None:
     """Read the benchmark mode from ``BENCHMARK_MODE``, rejecting unknown values.
@@ -57,10 +52,20 @@ def check_direct_pose_cfg(benchmark_mode: BenchmarkMode | None, lazy_sensor_upda
         raise ValueError("Render benchmark mode requires scene.lazy_sensor_update=True to render the direct pose.")
 
 
-def kit_renders_before_direct_pose(benchmark_mode: BenchmarkMode | None, sim: Any) -> bool:
-    """Whether Isaac RTX would render through a Kit app-pumping visualizer before the ``"render"`` pose write."""
-    return (
+def check_direct_pose_rendering(env: Any, benchmark_mode: BenchmarkMode | None) -> None:
+    """Close the environment and fail if Isaac RTX would render through a Kit app-pumping visualizer before the
+    ``"render"`` pose write.
+
+    Raises:
+        ValueError: If the environment cannot render its direct pose.
+    """
+    if (
         benchmark_mode == "render"
-        and "isaac_rtx" in sim.render_context.renderer_types
-        and any(visualizer.pumps_app_update() for visualizer in sim.visualizers)
-    )
+        and "isaac_rtx" in env.sim.render_context.renderer_types
+        and any(visualizer.pumps_app_update() for visualizer in env.sim.visualizers)
+    ):
+        env.close()
+        raise ValueError(
+            "Isaac RTX direct posing requires no visualizer, or only visualizers that do not pump the Kit app"
+            " loop. Alternatively, use benchmark_mode=physics_render."
+        )

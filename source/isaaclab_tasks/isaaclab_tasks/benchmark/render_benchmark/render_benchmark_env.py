@@ -16,11 +16,7 @@ import torch
 from isaaclab.envs import DirectRLEnv
 from isaaclab.sensors import save_images_to_file
 
-from isaaclab_tasks.benchmark.benchmark_mode import (
-    DIRECT_POSE_VISUALIZER_ERROR,
-    check_direct_pose_cfg,
-    kit_renders_before_direct_pose,
-)
+from isaaclab_tasks.benchmark.benchmark_mode import check_direct_pose_cfg, check_direct_pose_rendering
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
@@ -49,9 +45,7 @@ class RenderBenchmarkEnv(DirectRLEnv):
         self._anim_time: float = 0.0
         super().__init__(cfg, render_mode, **kwargs)
         self._tiled_camera = self.scene["tiled_camera"]
-        if kit_renders_before_direct_pose(cfg.benchmark_mode, self.sim):
-            self.close()
-            raise ValueError(DIRECT_POSE_VISUALIZER_ERROR)
+        check_direct_pose_rendering(self, cfg.benchmark_mode)
 
     # --- joint animation -----------------------------------------------------
 

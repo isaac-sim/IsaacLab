@@ -36,6 +36,8 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEMO_PATH = REPO_ROOT / "examples" / "demos" / "rizon_sharpa_coffee.py"
 DEMO_ARGUMENTS = ("--visualizer", "none", "--headless")
+MAX_POSE_ERROR = 1e-3
+"""Largest accepted start-pose error and hand drift [rad]."""
 SOURCES = (
     "examples/demos/rizon_sharpa_coffee.py",
     "source/isaaclab_tasks/isaaclab_tasks/contrib/rizon_sharpa_coffee",
@@ -99,9 +101,6 @@ def main() -> None:
         env = CoffeeDemoEnv(cfg)
         try:
             env.reset()
-            # One target per substep is recorded; Newton running the substeps in one call would hide them.
-            if env.sim.backend_manager.handles_decimation():
-                raise RuntimeError("The demo's physics runs the decimation loop itself; substep targets are hidden.")
             controller = CoffeeScoopDemo(env)
             robot = env.scene["robot"]
             arm_ids = [robot.joint_names.index(name) for name in ARM_JOINT_NAMES]
@@ -126,7 +125,10 @@ def main() -> None:
                     hand_drift = max(hand_drift, float((joint_pos[hand_ids] - hand_hold).abs().max()))
                     if controller.finished:
                         break
+                    if len(targets) >= args.max_steps:
+                        raise RuntimeError(f"The scripted sequence did not finish within {args.max_steps} steps.")
                     env.step(controller.compute())
+                    # Physics that ran the decimation loop itself would call apply_action once and hide the substeps.
                     if len(substep_targets) != cfg.decimation:
                         raise RuntimeError(f"Expected {cfg.decimation} substep targets, got {len(substep_targets)}.")
                     targets.append(list(substep_targets))
@@ -139,6 +141,11 @@ def main() -> None:
             env.close()
 
     start_error = max(abs(a - b) for a, b in zip(positions[0], COFFEE_READY_POSITIONS))
+    # The benchmark starts from the ready pose and holds the hand at its default grip, so both must match the demo.
+    if start_error > MAX_POSE_ERROR or hand_drift > MAX_POSE_ERROR:
+        raise RuntimeError(
+            f"Start error {start_error:.2e} or hand drift {hand_drift:.2e} exceeds {MAX_POSE_ERROR} rad."
+        )
     recording = {
         "isaac_lab_commit": commit,
         "command": command,

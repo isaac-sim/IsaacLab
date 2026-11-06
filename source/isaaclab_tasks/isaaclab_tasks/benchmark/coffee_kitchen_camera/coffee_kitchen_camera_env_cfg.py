@@ -7,17 +7,21 @@
 
 The scene comes from the demo's own code (:mod:`isaaclab_tasks.contrib.rizon_sharpa_coffee`): its
 ``configure_scene`` builds the robot, table, bowl, cup and spoon, and its kinematic mount moves the spoon
-with the palm. Every environment replays the demo's recorded arm motion (``coffee_arm_motion.json``) in a
-loop from its own time offset.
+with the palm. Every environment replays the demo's recorded arm motion (``coffee_arm_motion.json``, made by
+``scripts/benchmarks/record_coffee_arm_motion.py``) in a loop from its own time offset, at the demo's 800 Hz
+physics with 8 substeps per 100 Hz step. :attr:`CoffeeKitchenCameraEnvCfg.benchmark_mode` selects how:
+
+* ``"render"`` (default): the demo's measured arm pose is written after physics, then rendered;
+* ``"physics_render"``: the demo's actuator targets are sent before every physics substep, and MJWarp moves the arm.
 
 Differences from the demo:
 
 * no coffee powder or water, so no MPM solver;
 * a kitchen in every environment instead of one around the first, without its ceiling, lights and cameras;
 * the scene's dome and key lights light it instead of the demo's kitchen lighting, which turns them off.
-  RTX Minimal mode shades with the first distant light only, which is the key light;
-* the recorded motion replaces the live IK controller, at 100 Hz physics instead of 800 Hz;
-* a square camera with the demo's kitchen view.
+  RTX Minimal mode shades with distant lights only, and the key light is the scene's only one;
+* the recorded motion replaces the live IK controller;
+* a square camera with the demo's kitchen view, rendering every 100 Hz step instead of every other one.
 
 The camera data type and resolution are ``presets=`` selectable with the same names as the Kuka-Allegro
 camera presets, e.g. ``presets=simple_shading_full_mdl64``.
@@ -32,6 +36,7 @@ from typing import TYPE_CHECKING, Any
 
 import torch
 from isaaclab_newton.physics import NewtonCfg
+from isaaclab_newton.renderers import NewtonWarpRendererCfg
 
 if TYPE_CHECKING:
     from pxr import Usd
@@ -40,7 +45,9 @@ import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
+from isaaclab.envs.manager_based_env_cfg import DefaultEventManagerCfg
 from isaaclab.managers import ActionTerm, ActionTermCfg, SceneEntityCfg
+from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.sensors import CameraCfg
@@ -48,6 +55,7 @@ from isaaclab.sim import UsdFileCfg
 from isaaclab.utils import configclass, replace
 from isaaclab.utils.math import create_rotation_matrix_from_view, quat_from_matrix
 
+from isaaclab_tasks.benchmark.benchmark_mode import BENCHMARK_MODE, BenchmarkMode
 from isaaclab_tasks.contrib.rizon_sharpa_coffee.assets import COFFEE_ASSET_DIR
 from isaaclab_tasks.contrib.rizon_sharpa_coffee.demo_env_cfg import CoffeeDemoEnvCfg, CoffeeSceneCfg, configure_scene
 from isaaclab_tasks.utils import PresetCfg, preset
@@ -80,14 +88,14 @@ def spawn_coffee_kitchen(
     orientation: tuple[float, float, float, float] | None = None,
     **kwargs: Any,
 ) -> Usd.Prim:
-    """Spawn the demo's kitchen without its ceiling, lights and cameras, and hide the table's studio floor.
+    """Spawn the demo's kitchen without its ceiling, lights, cameras and malformed normals, and hide the studio floor.
 
     Like the demo's presentation, the kitchen keeps its authored placement around the table, so the scene's
-    default pose is ignored, and the studio floor is hidden. The ceiling is removed so that the key light reaches
-    the table. Cloned into every environment, the kitchen's lights and cameras would multiply with the
+    default pose is ignored, and the studio floor is hidden. The ceiling is removed so that, with shadows on, the
+    key light reaches the table. Cloned into every environment, the kitchen's lights and cameras would multiply with the
     environment count, and RTX Minimal mode does not use them.
     """
-    from pxr import Usd, UsdGeom, UsdLux  # noqa: PLC0415
+    from pxr import Sdf, Usd, UsdGeom, UsdLux, UsdPhysics  # noqa: PLC0415
 
     kitchen = sim_utils.spawn_from_usd(prim_path, cfg, translation=None, orientation=None, **kwargs)
     stage = kitchen.GetStage()
@@ -104,10 +112,25 @@ def spawn_coffee_kitchen(
         ceiling = root.GetPrimAtPath("KitchenRoom/Ceiling")
         if not ceiling.IsValid():
             raise RuntimeError(f"{root.GetPath()} has no KitchenRoom/Ceiling")
-        for prim in [*lights, *cameras, ceiling]:
+        # The kitchen is static, and Newton rejects its appliances' disabled door and drawer bodies and their joints,
+        # which belong to no articulation. Without them, the doors and drawers are static geometry.
+        joints = [prim for prim in prims if prim.IsA(UsdPhysics.Joint)]
+        bodies = [prim for prim in prims if prim.HasAPI(UsdPhysics.RigidBodyAPI)]
+        for prim in [*lights, *cameras, ceiling, *joints, *bodies]:
             if prim.IsInstanceProxy():
-                raise RuntimeError(f"{prim.GetPath()} is inside an instance and cannot be deactivated")
+                raise RuntimeError(f"{prim.GetPath()} is inside an instance and cannot be edited")
+        for prim in [*lights, *cameras, ceiling, *joints]:
             prim.SetActive(False)
+        for prim in bodies:
+            prim.RemoveAPI(UsdPhysics.RigidBodyAPI)
+        # The hosted kitchen authors many meshes' normals interpolation as a token-valued primvars:normals. Newton's
+        # importer reads that as normals and fails, so the token moves onto the meshes' normals attribute.
+        for prim in prims:
+            primvar = prim.GetAttribute("primvars:normals")
+            if primvar and primvar.GetTypeName() == Sdf.ValueTypeNames.TokenArray and not prim.IsInstanceProxy():
+                (interpolation,) = primvar.Get()
+                UsdGeom.Mesh(prim).SetNormalsInterpolation(interpolation)
+                primvar.Block()
     for prim in stage.Traverse():
         if prim.GetPath().HasPrefix("/World/envs") and prim.GetName() == "StudioFloor":
             UsdGeom.Imageable(prim).MakeInvisible()
@@ -150,7 +173,11 @@ KITCHEN_CAMERA_CFG = CameraCfg(
     ),
     width=MISSING,
     height=MISSING,
-    renderer_cfg=MultiBackendRendererCfg(),
+    # Newton cannot load the robot's UDIM textures, so its renderer runs untextured.
+    renderer_cfg=MultiBackendRendererCfg(
+        newton_renderer=NewtonWarpRendererCfg(enable_textures=False),
+        default=NewtonWarpRendererCfg(enable_textures=False),
+    ),
 )
 
 
@@ -222,7 +249,11 @@ class CoffeeMotionPlaybackCfg(ActionTermCfg):
     class_type: type[ActionTerm] | str = "{DIR}.coffee_kitchen_camera_env:CoffeeMotionPlayback"
     asset_name: str = "robot"
     motion_file: str = str(Path(__file__).with_name("coffee_arm_motion.json"))
-    """JSON recording with ``rate_hz``, arm ``joint_names`` and per-step ``positions`` [rad]."""
+    """JSON recording from ``scripts/benchmarks/record_coffee_arm_motion.py``.
+
+    It holds ``rate_hz``, ``decimation`` and the arm ``joint_names``, the measured ``positions`` [rad] and
+    ``velocities`` [rad/s] per step, and the actuator ``targets`` [rad] per step and substep.
+    """
 
 
 @configclass
@@ -262,6 +293,18 @@ class CoffeeKitchenPhysicsCfg(PresetCfg):
 
 
 @configclass
+class CoffeeKitchenEventsCfg(DefaultEventManagerCfg):
+    """The default reset, plus the ``"render"`` mode's pose write after physics on every step."""
+
+    recorded_pose = EventTerm(
+        func="isaaclab_tasks.benchmark.coffee_kitchen_camera.coffee_kitchen_camera_env:pose_from_recording",
+        mode="interval",
+        interval_range_s=(0.0, 0.0),
+        is_global_time=True,
+    )
+
+
+@configclass
 class CoffeeKitchenCameraEnvCfg(ManagerBasedRLEnvCfg):
     """The coffee demo's kitchen scene with one camera per environment."""
 
@@ -269,6 +312,7 @@ class CoffeeKitchenCameraEnvCfg(ManagerBasedRLEnvCfg):
     scene: CoffeeKitchenSceneCfg = CoffeeKitchenSceneCfg(num_envs=256, env_spacing=8.0)
     observations: CoffeeKitchenObservationsCfg = CoffeeKitchenObservationsCfg()
     actions: CoffeeKitchenActionsCfg = CoffeeKitchenActionsCfg()
+    events: CoffeeKitchenEventsCfg = CoffeeKitchenEventsCfg()
     commands = None
     rewards = None
     terminations = None
@@ -278,11 +322,19 @@ class CoffeeKitchenCameraEnvCfg(ManagerBasedRLEnvCfg):
     # The seed sets which environment gets which motion offset; a fixed default keeps runs without --seed comparable.
     seed = 42
 
+    benchmark_mode: BenchmarkMode = BENCHMARK_MODE or "render"
+    """How the recorded motion drives the arm; see :data:`~isaaclab_tasks.benchmark.benchmark_mode.BenchmarkMode`.
+
+    ``"render"`` (the default) writes the demo's measured arm pose after physics; ``"physics_render"`` sends the
+    demo's actuator targets before every physics substep. Defaults to the ``BENCHMARK_MODE`` environment variable when
+    it is set.
+    """
+
     def __post_init__(self):
         super().__post_init__()
-        # One physics step and one render per step, at the recording's 100 Hz.
-        self.decimation = 1
-        self.sim.dt = 1.0 / 100.0
+        # The demo's physics rate; one environment step is one step of the 100 Hz recording.
+        self.decimation = _DEMO.decimation
+        self.sim.dt = _DEMO.sim.dt
         self.sim.render_interval = self.decimation
         self.sim.use_newton_actuators = True
         self.sim.physics = CoffeeKitchenPhysicsCfg()
