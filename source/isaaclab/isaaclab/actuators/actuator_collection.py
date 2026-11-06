@@ -162,7 +162,7 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
 
     @property
     def supports_graph_capture(self) -> bool:
-        """Whether :meth:`compute` launches only Warp work, i.e. no Isaac Lab actuator model runs in Torch."""
+        """Whether :meth:`compute` can be recorded into a CUDA graph: no Isaac Lab actuator model runs in Torch."""
         return not self._execution_actuators
 
     @property

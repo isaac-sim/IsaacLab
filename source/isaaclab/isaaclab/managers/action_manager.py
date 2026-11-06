@@ -39,17 +39,8 @@ class ActionTerm(ManagerTermBase):
       responsible for applying the processed actions to the asset managed by the term.
     """
 
-    supports_graph_capture: ClassVar[bool] = False
-    """Whether :meth:`apply_actions` launches only Warp work on fixed buffers, so it can be recorded into a CUDA graph.
-
-    Terms that set it write their processed actions in place.
-    """
-
     apply_every_physics_step: ClassVar[bool] = True
-    """Whether :meth:`apply_actions` must run before every physics step.
-
-    Terms whose applied command depends only on the processed actions, not on the asset's state, set it to ``False``.
-    """
+    """Whether :meth:`apply_actions` must run before every physics step because its command depends on asset state."""
 
     def __init__(self, cfg: ActionTermCfg, env: ManagerBasedEnv):
         """Initialize the action term.
@@ -285,6 +276,11 @@ class ActionManager(ManagerBase):
     def prev_action(self) -> torch.Tensor:
         """The previous actions sent to the environment. Shape is (num_envs, total_action_dim)."""
         return self._prev_action
+
+    @property
+    def supports_graph_capture(self) -> bool:
+        """Whether :meth:`apply_action` can be recorded into a CUDA graph."""
+        return all(term.supports_graph_capture for term in self._terms.values())
 
     @property
     def apply_every_physics_step(self) -> bool:

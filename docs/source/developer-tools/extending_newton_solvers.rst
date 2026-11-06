@@ -133,11 +133,10 @@ substeps``, and post-step callbacks and sensors run once at the end.
 Every substep runs ``staged body forces -> state-force callbacks -> step``, and ``pre_step`` and ``post_step`` run
 around each physics step's substeps.
 
-:meth:`~isaaclab_newton.physics.NewtonManager.bind_control` binds the environment's control: each action term's
-``apply_actions`` and the scene's ``write_data_to_sim`` become pre-actuator callbacks, followed by
-:meth:`~isaaclab_newton.physics.NewtonBackend.stage_body_forces`, so they run before every physics step as in the
-environment's own loop. It binds only when every action term and written asset sets ``supports_graph_capture``.
-Wrench composers record their work once forces are first written, which captures the step again.
+:meth:`~isaaclab_newton.physics.NewtonManager.bind_control` makes the action manager's ``apply_action``, the scene's
+``write_data_to_sim`` and :meth:`~isaaclab_newton.physics.NewtonBackend.stage_body_forces` pre-actuator callbacks, so
+they run before every physics step as in the environment's own loop. It binds only when both report
+``supports_graph_capture``. The first wrench written to an asset captures the step again with the wrench work.
 
 Every physics step ends in ``state_0``, so ``manager.backend.state_0`` is always the same object. The captured step
 records the callbacks, so they must be graph-safe. Consumers register them with

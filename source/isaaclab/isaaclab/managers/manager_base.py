@@ -11,7 +11,7 @@ import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
 from dataclasses import fields
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from ..physics import PhysicsEvent, PhysicsManager
 from ..utils import string as string_utils
@@ -53,6 +53,9 @@ class ManagerTermBase(ABC):
         my_manager = ManagerBase(cfg=ManagerCfg(), env=env)
 
     """
+
+    supports_graph_capture: ClassVar[bool] = False
+    """Whether the term launches only Warp work on fixed buffers, so it can be recorded into a CUDA graph."""
 
     def __init__(self, cfg: ManagerTermBaseCfg, env: ManagerBasedEnv):
         """Initialize the manager term.

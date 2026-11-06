@@ -465,11 +465,7 @@ class NewtonBackend:
         return sensor
 
     def handles_decimation(self) -> bool:
-        """Whether one :meth:`step` runs the whole decimation loop.
-
-        It does once the environment's control runs in the step (:attr:`control_bound`), or once an articulation runs
-        Newton actuators in it and the environment's actions hold for the whole environment step.
-        """
+        """Whether one :meth:`step` runs the whole decimation loop: bound control, or actuators with held actions."""
         return self.control_bound or (self.actuators_active and not self.control_every_physics_step)
 
     def set_decimation(self, decimation: int) -> None:
@@ -646,10 +642,7 @@ class NewtonBackend:
         self._update_sensors()
 
     def stage_body_forces(self) -> None:
-        """Copy the body forces written to ``state_0``, so that every following solver substep applies them.
-
-        The step stages the forces written before it; pre-actuator callbacks that write body forces stage them again.
-        """
+        """Copy the body forces written to ``state_0``, so that every following solver substep applies them."""
         if self.staged_body_f is not None:
             wp.copy(self.staged_body_f, self.state_0.body_f)
 
