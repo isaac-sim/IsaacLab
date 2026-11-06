@@ -550,10 +550,9 @@ def test_recorded_wrench_work_applies_wrenches_written_after_capture(device):
     asset = SimpleNamespace(
         num_instances=2, num_bodies=2, device=device, data=_AssetData(com.to(device), quat.to(device))
     )
-    instantaneous, permanent = WrenchComposer(asset), WrenchComposer(asset)
     first_uses = []
-    for composer in (instantaneous, permanent):
-        composer.on_first_use = lambda composer=composer: first_uses.append(composer)
+    instantaneous = WrenchComposer(asset, on_first_use=lambda: first_uses.append("instantaneous"))
+    permanent = WrenchComposer(asset, on_first_use=lambda: first_uses.append("permanent"))
     with wp.ScopedDevice(device):
         local = wp.array([[[1.0, 0.0, 0.0]]], dtype=wp.vec3f)
         instantaneous.add_forces_and_torques_index(local, env_ids=[0], body_ids=[0])
@@ -578,7 +577,7 @@ def test_recorded_wrench_work_applies_wrenches_written_after_capture(device):
         _assert_vectors(force, _grid({(0, 0): (1.0, -2.0, 0.0)}).to(device))
         wp.capture_launch(capture.graph)
         _assert_vectors(force, _grid({(0, 0): (0.0, -2.0, 0.0)}).to(device))
-    assert first_uses == [instantaneous, permanent]
+    assert first_uses == ["instantaneous", "permanent"]
 
 
 @pytest.mark.parametrize(
