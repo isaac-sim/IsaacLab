@@ -23,8 +23,10 @@ import warp as wp
 from pxr import Gf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
+from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.test.utils import DeviceScope, test_devices
+from isaaclab.utils.math import quat_mul
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.isaacsim_ci]
 
@@ -295,6 +297,73 @@ def test_camera_set_world_poses(setup_sim_camera):
     torch.testing.assert_close(camera.data.pos_w.torch, eyes)
     _assert_quat_close(camera.data.quat_w_ros.torch, quat_ros_gt)
     torch.testing.assert_close(camera.frame.torch, frame + 2)
+
+
+def test_camera_reset_reads_pose_after_reset_events(setup_sim_camera):
+    """The first capture after a reset reads the camera pose that reset events wrote.
+
+    Uses the default ``update_latest_camera_pose=False``. Environments reset their sensors before reset
+    events move the assets, so a pose read inside :meth:`Camera.reset` returns the previous episode's
+    pose. Cameras that are not reset keep their pose, a pose set after the reset is kept, and parent
+    motion between resets is not tracked.
+    """
+    sim, camera_cfg, dt = setup_sim_camera
+    for i in range(2):
+        sim_utils.create_prim(f"/World/Origin_{i}", "Xform", translation=(5.0, 2.0 * i, 1.0))
+    body = RigidObject(
+        RigidObjectCfg(
+            prim_path="/World/Origin_.*/Body",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.2, 0.2, 0.2),
+                rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
+            ),
+        )
+    )
+    camera = Camera(replace(camera_cfg, prim_path="/World/Origin_.*/Body/Camera"))
+    sim.reset()
+    pos_w = camera.data.pos_w.torch.clone()
+    quat_w = camera.data.quat_w_world.torch.clone()
+
+    # move both cameras during an episode step
+    poses = body.data.root_link_pose_w.torch.clone()
+    poses[:, 2] += 1.0
+    body.write_root_pose_to_sim_index(root_pose=poses)
+    sim.step()
+    camera.update(dt)
+
+    # reset the first camera as ManagerBasedEnv.reset() does: the sensors reset, a reset event moves
+    # the body, and the simulation is forwarded before the observations
+    env_ids = torch.tensor([0], device=camera.device)
+    camera.reset(env_ids)
+    poses[0, 0] += 1.0
+    body.write_root_pose_to_sim_index(root_pose=poses[:1], env_ids=env_ids)
+    sim.forward()
+    pos_w[0] = poses[0, :3]
+    torch.testing.assert_close(camera.data.pos_w.torch, pos_w)
+
+    # later motion is not tracked
+    poses[:, 1] += 1.0
+    body.write_root_pose_to_sim_index(root_pose=poses)
+    sim.step()
+    camera.update(dt)
+    torch.testing.assert_close(camera.data.pos_w.torch, pos_w)
+
+    # reset both cameras: a reset event moves and turns the bodies, and a later one places the first camera,
+    # which keeps the written pose, while the second camera reads its new pose
+    camera.reset()
+    yaw = torch.tensor([0.0, 0.0, 0.70710678, 0.70710678], device=camera.device)
+    poses[:, 0] += 1.0
+    poses[:, 3:] = yaw
+    body.write_root_pose_to_sim_index(root_pose=poses)
+    position = torch.tensor([POSITION], device=camera.device)
+    orientation = torch.tensor([QUAT_WORLD], device=camera.device)
+    camera.set_world_poses(position, orientation, env_ids=[0], convention="world")
+    sim.forward()
+    pos_w[0] = position[0]
+    pos_w[1] = poses[1, :3]
+    torch.testing.assert_close(camera.data.pos_w.torch, pos_w)
+    _assert_quat_close(camera.data.quat_w_world.torch[0], orientation[0], rtol=1e-5, atol=1e-5)
+    _assert_quat_close(camera.data.quat_w_world.torch[1], quat_mul(yaw, quat_w[1]), rtol=1e-5, atol=1e-5)
 
 
 def test_intrinsic_matrix(setup_sim_camera):
