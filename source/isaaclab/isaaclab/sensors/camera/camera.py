@@ -331,7 +331,7 @@ class Camera(SensorBase):
         """
         return (
             type(self)._update_buffers_impl is Camera._update_buffers_impl
-            and type(self)._update_outdated_buffers is SensorBase._update_outdated_buffers
+            and type(self)._update_outdated_buffers is Camera._update_outdated_buffers
         )
 
     @property
@@ -725,6 +725,39 @@ class Camera(SensorBase):
         else:
             self._update_camera_state(env_mask=env_mask, frame_op=1)
         self._renderer.prepare_capture(self._render_data, self._data, self._frame)
+
+    def _update_outdated_buffers(self) -> None:
+        """Refresh outdated buffers, capturing the other due cameras of the renderer with them on OVRTX.
+
+        OVRTX renders every camera of the renderer on each submission, so a lazy read refreshes the due cameras that
+        share this camera's renderer and batch implementation in one submission instead of one submission per read.
+        """
+        if not self._data_dirty:
+            return
+        # FIXME: Drop this OVRTX check once an OVRTX submission renders only the requested products, or once
+        # OVRTX takes camera poses from the scene like Isaac RTX does through Fabric, so peers need no
+        # preparation here. See OVRTXRenderer.render_batch.
+        if (
+            # An invalidated camera fails in the scalar path instead of silently returning stale buffers.
+            self.is_initialized
+            # A subclass with its own capture hook keeps its scalar path.
+            and self.supports_batch_update
+            and self._renderer.cfg.renderer_type == "ovrtx"
+            and self._env_mask_has_any(self._is_outdated)
+        ):
+            batch_impl = type(self)._update_buffers_batch_impl
+            peers = [
+                camera
+                for camera in self._sim.get_scene_data_provider().cameras.values()
+                if camera is not self
+                and camera._renderer is self._renderer
+                and camera.supports_batch_update
+                and type(camera)._update_buffers_batch_impl is batch_impl
+            ]
+            SensorBase._process_batch([self, *peers])
+        else:
+            self._update_buffers_impl(self._is_outdated)
+            self._mark_buffers_updated()
 
     def _update_buffers_impl(self, env_mask: wp.array):
         if not self._env_mask_has_any(env_mask):

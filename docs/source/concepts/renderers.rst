@@ -397,8 +397,9 @@ For a camera capturing once per environment step, steady-state operation is:
 
 The first image is returned immediately after priming and repeated once on the next capture.
 
-Each camera owns its pending observations. Reading camera A never changes camera B's pixels or
-metadata, even when they share a native render submission. Reset discards that camera's pending
+Each camera owns its pending observations. Reading camera A does not change camera B's pixels or
+metadata, even when they share a native render submission, unless B is a due OVRTX camera that a lazy
+read of A captures with it (see the lazy-update paragraph below). Reset discards that camera's pending
 observations. A partial environment reset re-primes the whole tiled camera product, without
 invalidating other cameras.
 
@@ -492,7 +493,10 @@ instance, renders each group, and reads its outputs. The context does not retain
 queue. Each camera retains its own update period and reset state.
 
 With lazy sensor updates, reading a camera's ``data`` refreshes only that camera's sensor buffers
-and capture timestamps. It does not refresh peer camera sensors sharing the renderer.
+and capture timestamps. It does not refresh peer camera sensors sharing the renderer, except on
+OVRTX. Every OVRTX submission renders all cameras of the renderer, so a read there also captures
+the renderer's other due cameras that use the same batch implementation in that submission and
+publishes their outputs, even for cameras that are never read.
 
 Core concepts
 -------------

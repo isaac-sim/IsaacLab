@@ -41,6 +41,7 @@ def _renderer(cfg, *, sim):
     renderer = Mock(spec=BaseRenderer)
     renderer._sim = sim
     renderer.visual_material_writer = None
+    renderer.cfg = cfg
     return renderer
 
 
@@ -339,6 +340,23 @@ class _CpuCamera(Camera):
         self._update_camera_state(env_ids=env_ids, env_mask=env_mask, frame_op=frame_op)
 
 
+class _HookedCamera(_CpuCamera):
+    """A camera with its own batch hook, which records the cameras it captures."""
+
+    hooked: list[list[str]] = []
+
+    @staticmethod
+    def _update_buffers_batch_impl(sensors):
+        _HookedCamera.hooked.append([sensor._render_data.name for sensor in sensors])
+        Camera._update_buffers_batch_impl(sensors)
+
+
+class _ScalarHookCamera(_CpuCamera):
+    """A camera whose batch hook refreshes each camera on its own, as the sensor default does."""
+
+    _update_buffers_batch_impl = staticmethod(SensorBase._update_buffers_batch_impl)
+
+
 class _CpuSensor(SensorBase):
     """Exercise generic sensor updates without a rendering backend."""
 
@@ -441,7 +459,7 @@ def test_camera_eager_updates_render_shared_batch_with_current_poses(camera_batc
 
 
 def test_camera_lazy_reads_leave_peer_cameras_outdated(camera_batch_context, monkeypatch):
-    """Reading a lazy camera captures only that camera, even when a peer shares its renderer."""
+    """Outside OVRTX, reading a lazy camera captures only that camera, even when a peer shares its renderer."""
     _, renderer, batches = camera_batch_context
     cameras = [_CpuCamera(renderer, "wide"), _CpuCamera(renderer, "tele")]
     cameras[0].pose, cameras[1].pose = 1.0, 2.0
@@ -464,6 +482,76 @@ def test_camera_lazy_reads_leave_peer_cameras_outdated(camera_batch_context, mon
         np.testing.assert_allclose(camera._timestamp_last_update.numpy(), [0.01, 0.01])
     assert batches == [[("wide", 1.0)], [("tele", 2.0)]]
     renderer.render.assert_not_called()
+
+
+def test_ovrtx_camera_lazy_read_captures_due_peers(camera_batch_context, monkeypatch):
+    """On OVRTX, every submission renders all cameras, so a lazy read captures the due peers of its renderer with it."""
+    _, renderer, batches = camera_batch_context
+    renderer.cfg = replace(renderer.cfg, renderer_type="ovrtx")
+    wide, tele, slow = _CpuCamera(renderer, "wide"), _CpuCamera(renderer, "tele"), _CpuCamera(renderer, "slow", 1.0)
+    wide.pose, tele.pose, slow.pose = 1.0, 2.0, 3.0
+    provider = SimpleNamespace(cameras={"wide": wide, "tele": tele, "slow": slow})
+    monkeypatch.setattr(SimulationContext.instance(), "get_scene_data_provider", lambda: provider)
+    scene = _camera_scene([wide, tele, slow], lazy=True)
+
+    InteractiveScene.update(scene, 0.01)
+    assert wide.data.info["pose"] == 1.0
+    assert sorted(batches[0]) == [("slow", 3.0), ("tele", 2.0), ("wide", 1.0)]
+    assert tele.data.info["pose"] == 2.0 and slow.data.info["pose"] == 3.0
+    assert len(batches) == 1
+
+    # The slow camera is not due yet and stays cached.
+    InteractiveScene.update(scene, 0.01)
+    assert tele.data.info["pose"] == 2.0
+    assert [sorted(batch) for batch in batches[1:]] == [[("tele", 2.0), ("wide", 1.0)]]
+    for camera, frames, captured in ((wide, 2, 0.02), (tele, 2, 0.02), (slow, 1, 0.01)):
+        assert camera.data.info["pose"] == camera.pose
+        np.testing.assert_array_equal(camera.frame.warp.numpy(), [frames, frames])
+        np.testing.assert_allclose(camera._timestamp_last_update.numpy(), [captured, captured])
+    assert len(batches) == 2
+    renderer.render.assert_not_called()
+
+
+def test_ovrtx_camera_lazy_read_captures_itself_and_skips_invalidated_peers(camera_batch_context, monkeypatch):
+    """An OVRTX lazy read captures itself even when absent from the camera registry, and skips invalidated peers."""
+    _, renderer, batches = camera_batch_context
+    renderer.cfg = replace(renderer.cfg, renderer_type="ovrtx")
+    reader, peer, invalidated = (_CpuCamera(renderer, name) for name in ("reader", "peer", "invalidated"))
+    reader.pose, peer.pose = 1.0, 2.0
+    invalidated._is_initialized = False
+    # The registry is keyed by prim path, so a camera on the reader's prim path replaces the reader there.
+    provider = SimpleNamespace(cameras={"/World/envs/env_.*/Camera": peer, "invalidated": invalidated})
+    monkeypatch.setattr(SimulationContext.instance(), "get_scene_data_provider", lambda: provider)
+    InteractiveScene.update(_camera_scene([reader, peer], lazy=True), 0.01)
+
+    assert reader.data.info["pose"] == 1.0
+    assert [sorted(batch) for batch in batches] == [[("peer", 2.0), ("reader", 1.0)]]
+    assert not peer._data_dirty and invalidated._data_dirty
+
+
+def test_ovrtx_camera_lazy_read_captures_only_peers_of_its_batch_hook(camera_batch_context, monkeypatch):
+    """A lazy read captures the due peers that share its batch hook; a camera with its own hook keeps it."""
+    _, renderer, batches = camera_batch_context
+    renderer.cfg = replace(renderer.cfg, renderer_type="ovrtx")
+    monkeypatch.setattr(_HookedCamera, "hooked", [])
+    wide, tele = _CpuCamera(renderer, "wide"), _CpuCamera(renderer, "tele")
+    side, top = _HookedCamera(renderer, "side"), _HookedCamera(renderer, "top")
+    solo = _ScalarHookCamera(renderer, "solo")
+    cameras = {camera._render_data.name: camera for camera in (wide, tele, side, top, solo)}
+    monkeypatch.setattr(
+        SimulationContext.instance(), "get_scene_data_provider", lambda: SimpleNamespace(cameras=cameras)
+    )
+    scene = _camera_scene(list(cameras.values()), lazy=True)
+
+    InteractiveScene.update(scene, 0.01)
+    wide.data
+    assert sorted(batches[0]) == [("tele", 0.0), ("wide", 0.0)]
+    assert _HookedCamera.hooked == [] and side._data_dirty and top._data_dirty
+    side.data
+    assert _HookedCamera.hooked == [["side", "top"]] and not top._data_dirty
+    # A hook that refreshes cameras one by one captures its camera once instead of re-entering the shared capture.
+    solo.data
+    assert batches[2:] == [[("solo", 0.0)]]
 
 
 def test_eager_scene_batches_multiple_sensor_families(camera_batch_context):
