@@ -3,11 +3,19 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import os
 import tempfile
+from collections.abc import Callable
+from dataclasses import MISSING
+from typing import TYPE_CHECKING
+
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
+from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.controllers.pink_ik import DampingTaskCfg, FrameTaskCfg, NullSpacePostureTaskCfg, PinkIKControllerCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -19,17 +27,32 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.contrib import ISAACLAB_TELEOP_AVAILABLE
+from isaaclab_tasks.contrib.packing_table import configure_packing_table_collisions
+from isaaclab_tasks.contrib.spawn_wrapping import wrap_spawn
+from isaaclab_tasks.contrib.steering_wheel import (
+    condition_newton_steering_wheel_detail_collisions,
+)
+from isaaclab_tasks.contrib.teleop_physics_cfg import (
+    TeleopPhysicsCfg,
+    check_kitless_backend_preparation,
+    prepare_humanoid_teleop_environment,
+)
 
 from . import mdp
+from .gr1t2_kitless_action_cfg import GR1T2KitlessPinkInverseKinematicsActionCfg
 
 from isaaclab_assets.robots.fourier import GR1T2_HIGH_PD_CFG  # isort: skip
 from isaaclab_tasks.contrib.robot_pov_camera_cfg import robot_pov_camera_cfg  # isort: skip
+
+if TYPE_CHECKING:
+    from pxr import Usd
 
 
 def build_gr1t2_pickplace_pipeline():
@@ -582,6 +605,19 @@ class EventCfg:
 class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the GR1T2 environment."""
 
+    class_type: type | str = "isaaclab_tasks.contrib.teleop_env:HumanoidTeleopEnv"
+    _prepared_kitless_backend: str | None = None
+    kitless_preparation: dict[str, str] = {
+        "ovphysx": "isaaclab_tasks.contrib.pick_place.pickplace_gr1t2_env_cfg:prepare_gr1t2_for_kitless_ovphysx",
+        "newton_mjwarp": (
+            "isaaclab_tasks.contrib.pick_place.pickplace_gr1t2_env_cfg:prepare_gr1t2_for_kitless_newton_mjwarp"
+        ),
+    }
+    """Preparation function, as a ``"module:function"`` reference, for each supported kitless backend."""
+    haptic_feedback: object | None = None
+    image_obs_list: list[str] = ["robot_pov_cam"]
+    sim: SimulationCfg = SimulationCfg(physics=TeleopPhysicsCfg())
+
     # Scene settings
     scene: PickPlaceGR1T2SceneCfg = PickPlaceGR1T2SceneCfg(num_envs=1, env_spacing=2.5)
     # Basic settings
@@ -643,6 +679,9 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
 
     def __post_init__(self):
         """Post initialization."""
+        # Prepared config copies already contain their backend and teleop settings.
+        if self._prepared_kitless_backend is not None:
+            return
         # general settings
         self.decimation = 6
         self.episode_length_s = 20.0
@@ -657,8 +696,6 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
         self.actions.upper_body_ik.controller.usd_path = self.scene.robot.spawn.usd_path
         self.actions.upper_body_ik.controller.urdf_output_dir = self.temp_urdf_dir
 
-        self.image_obs_list = ["robot_pov_cam"]
-
         if ISAACLAB_TELEOP_AVAILABLE:
             from isaaclab_teleop import GloveHapticFeedbackCfg, IsaacTeleopCfg, XrCameraFeedCfg, XrCfg
 
@@ -668,6 +705,7 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
                 anchor_rot=(0.0, 0.0, 0.0, 1.0),
             )
             self.isaac_teleop = IsaacTeleopCfg(
+                prepare_environment=prepare_humanoid_teleop_environment,
                 pipeline_builder=lambda: build_gr1t2_pickplace_pipeline()[0],
                 sim_device=self.sim.device,
                 xr_cfg=self.xr,
@@ -690,3 +728,282 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
                 left_sensor_name="left_hand_contact",
                 right_sensor_name="right_hand_contact",
             )
+
+
+def prepare_gr1t2_for_kitless_ovphysx(env_cfg: ManagerBasedRLEnvCfg) -> None:
+    """Configure a GR1T2 task's asset and action boundaries for kitless OVPhysX.
+
+    Replaces the Pink action term with the kitless GR1T2 term and selects the vendored kinematics
+    URDF for it, requires initial bimanual hand tracking, restores actuator coverage, conditions the
+    robot spawn, and authors PhysX contact offsets on the packing table. The configured controlled
+    joints (with or without the waist) are kept. A prepared configuration only re-attaches its spawn
+    conditioning.
+
+    Args:
+        env_cfg: GR1T2 pick-place task configuration.
+
+    Raises:
+        ValueError: If ``env_cfg`` was already prepared for a different backend.
+    """
+    if check_kitless_backend_preparation(env_cfg, "ovphysx"):
+        condition_kitless_gr1t2_stage(env_cfg.scene.robot, env_cfg.actions.upper_body_ik)
+        return
+    action_cfg = _use_kitless_action_term(env_cfg)
+    # Do not apply retargeter defaults before hand tracking starts.
+    if env_cfg.isaac_teleop is not None:
+        env_cfg.isaac_teleop.require_initial_bimanual_hand_tracking = True
+    apply_kitless_ovphysx_drive_gains(env_cfg.scene.robot)
+    condition_kitless_ovphysx_robot_spawn_properties(env_cfg.scene.robot)
+    condition_kitless_gr1t2_stage(env_cfg.scene.robot, action_cfg)
+    configure_packing_table_collisions(env_cfg.scene.packing_table, physx_offsets=True)
+    env_cfg._prepared_kitless_backend = "ovphysx"
+
+
+def prepare_gr1t2_for_kitless_newton_mjwarp(env_cfg: ManagerBasedRLEnvCfg) -> None:
+    """Configure a GR1T2 task's actuators, contacts and action boundaries for kitless Newton.
+
+    Shares the kitless action term and its URDF with :func:`prepare_gr1t2_for_kitless_ovphysx`,
+    applies Newton actuator gains and MJWarp contact budgets, and keeps the configured
+    controlled joints. Hand joint limits are not widened on Newton.
+
+    Args:
+        env_cfg: GR1T2 pick-place task configuration.
+
+    Raises:
+        ValueError: If ``env_cfg`` was already prepared for a different backend.
+    """
+    if check_kitless_backend_preparation(env_cfg, "newton_mjwarp"):
+        condition_kitless_gr1t2_stage(env_cfg.scene.robot, env_cfg.actions.upper_body_ik, widen_hand_limits=False)
+        return
+    action_cfg = _use_kitless_action_term(env_cfg)
+    if env_cfg.isaac_teleop is not None:
+        env_cfg.isaac_teleop.require_initial_bimanual_hand_tracking = True
+    _stabilize_gr1t2_for_kitless_newton_mjwarp(env_cfg)
+    condition_kitless_gr1t2_stage(env_cfg.scene.robot, action_cfg, widen_hand_limits=False)
+    configure_packing_table_collisions(env_cfg.scene.packing_table)
+    env_cfg._prepared_kitless_backend = "newton_mjwarp"
+
+
+def _use_kitless_action_term(env_cfg: ManagerBasedRLEnvCfg) -> GR1T2KitlessPinkInverseKinematicsActionCfg:
+    """Replace the Pink action term with the kitless GR1T2 term and select the vendored URDF.
+
+    The kitless term keeps the task's Pink settings, including caller changes made before preparation.
+    """
+    action_cfg = env_cfg.actions.upper_body_ik
+    if not isinstance(action_cfg, GR1T2KitlessPinkInverseKinematicsActionCfg):
+        settings = {name: value for name, value in vars(action_cfg).items() if name != "class_type"}
+        action_cfg = GR1T2KitlessPinkInverseKinematicsActionCfg(**settings)
+        env_cfg.actions.upper_body_ik = action_cfg
+    action_cfg.controller.urdf_path = os.path.join(
+        os.path.dirname(__file__), "assets", "GR1T2_fourier_hand_6dof_kinematics.urdf"
+    )
+    return action_cfg
+
+
+def _stabilize_gr1t2_for_kitless_newton_mjwarp(env_cfg: ManagerBasedRLEnvCfg) -> None:
+    """Apply Newton actuator, allocation-budget, and wheel-collision preparation."""
+    from isaaclab_newton.sim.schemas import NewtonArticulationCfg
+
+    # Match the kitless OVPhysX task: internal finger contacts must not force
+    # compliant thumb drives away from their commands. Object contacts remain.
+    fragments = env_cfg.scene.robot.spawn.articulation_props
+    for fragment in fragments if isinstance(fragments, list) else [fragments]:
+        if isinstance(fragment, NewtonArticulationCfg):
+            fragment.self_collision_enabled = False
+
+    groups = env_cfg.scene.robot.actuators
+    contracts = {
+        "head": (["head_.*"], 80.0, 8.0, 0.03, 80.0),
+        "trunk": (["waist_.*"], 500.0, 50.0, 0.10, 250.0),
+        "legs": ([".*_hip_.*", ".*_knee_.*", ".*_ankle_.*"], 300.0, 30.0, 0.125, 250.0),
+        "right-arm": (["right_shoulder_.*", "right_elbow_.*", "right_wrist_.*"], 1200.0, 60.0, 0.30, 800.0),
+        "left-arm": (["left_shoulder_.*", "left_elbow_.*", "left_wrist_.*"], 1200.0, 60.0, 0.30, 800.0),
+    }
+    for name, (joint_names, stiffness, damping, armature, effort_limit) in contracts.items():
+        actuator = groups.get(name)
+        if actuator is None:
+            actuator = ImplicitActuatorCfg(joint_names_expr=joint_names)
+            groups[name] = actuator
+        actuator.joint_names_expr = joint_names
+        actuator.stiffness = stiffness
+        actuator.damping = damping
+        actuator.armature = armature
+        actuator.joint_effort_limit = effort_limit
+
+    for name in ("left-hand", "right-hand"):
+        # The action conditions all eleven targets to the asset's mimic relation. Give Newton the
+        # same compliant hand drives as the OVPhysX path.
+        hand = groups[name]
+        hand.stiffness = 5.0
+        hand.damping = 0.5
+        hand.armature = 0.02
+        hand.joint_effort_limit = 20.0
+
+    solver_cfg = env_cfg.sim.physics.solver_cfg
+    solver_cfg.nconmax = 4096
+    solver_cfg.njmax = 1536
+    condition_newton_steering_wheel_detail_collisions(env_cfg.scene.object)
+
+
+def apply_kitless_ovphysx_drive_gains(robot_cfg: ArticulationCfg) -> None:
+    """Restore stable actuator coverage around the Kit-tuned arm drives."""
+    groups = {
+        "head": (["head_.*"], 80.0, 8.0, 0.03, 80.0),
+        "legs": ([".*_hip_.*", ".*_knee_.*", ".*_ankle_.*"], 300.0, 30.0, 0.10, 250.0),
+        "right-hand": (None, 5.0, 0.5, 0.001, 20.0),
+        "left-hand": (None, 5.0, 0.5, 0.001, 20.0),
+    }
+    for group_name, (joint_expr, stiffness, damping, armature, effort_limit) in groups.items():
+        actuator = robot_cfg.actuators.get(group_name)
+        if actuator is None:
+            assert joint_expr is not None
+            actuator = ImplicitActuatorCfg(joint_names_expr=list(joint_expr))
+            robot_cfg.actuators[group_name] = actuator
+        actuator.stiffness = stiffness
+        actuator.damping = damping
+        actuator.armature = armature
+        actuator.joint_effort_limit = effort_limit
+
+    if robot_cfg.spawn is not None and robot_cfg.spawn.articulation_props is not None:
+        fragments = robot_cfg.spawn.articulation_props
+        for fragment in fragments if isinstance(fragments, list) else [fragments]:
+            if isinstance(fragment, PhysxArticulationCfg):
+                fragment.enabled_self_collisions = False
+
+
+def condition_kitless_ovphysx_robot_spawn_properties(robot_cfg: ArticulationCfg) -> None:
+    """Limit robot contact depenetration for kitless OVPhysX."""
+    if robot_cfg.spawn is not None and robot_cfg.spawn.rigid_props is not None:
+        fragments = robot_cfg.spawn.rigid_props
+        for fragment in fragments if isinstance(fragments, list) else [fragments]:
+            if isinstance(fragment, PhysxRigidBodyCfg):
+                fragment.max_depenetration_velocity = 0.1
+
+
+def _author_kitless_contact_offsets(prim) -> bool:
+    """Author Kit-parity PhysX contact offsets on a collision prim before kitless parsing.
+
+    Both kitless backends receive the same spawned stage: OVPhysX consumes these
+    ``physxCollision`` offsets, and Newton parses the same collision prims.
+    """
+    from pxr import Sdf
+
+    schemas = prim.GetMetadata("apiSchemas")
+    applied = [str(schema) for schema in (schemas.GetAddedOrExplicitItems() if schemas else [])]
+    if not any(schema.startswith("PhysicsCollisionAPI") for schema in applied):
+        return False
+    if not any(schema.startswith("PhysxCollisionAPI") for schema in applied):
+        list_op = Sdf.TokenListOp()
+        list_op.explicitItems = [*applied, "PhysxCollisionAPI"]
+        prim.SetMetadata("apiSchemas", list_op)
+    prim.CreateAttribute("physxCollision:contactOffset", Sdf.ValueTypeNames.Float).Set(0.001)
+    prim.CreateAttribute("physxCollision:restOffset", Sdf.ValueTypeNames.Float).Set(0.0)
+    return True
+
+
+def _spawn_and_condition(prim_path: str, cfg: GR1T2KitlessUsdFileCfg, *args, **kwargs) -> Usd.Prim:
+    import math
+
+    from pxr import Gf, Sdf, Usd
+
+    prim = cfg.original_spawn(prim_path, cfg, *args, **kwargs)
+    action_cfg = cfg.action_cfg
+    action_cfg.hand_joint_limits.clear()
+    action_cfg.hand_mimic_relations.clear()
+
+    # Collision meshes below instanceable ``collisions`` scopes are
+    # immutable proxies. De-instance those scopes so the parser-visible
+    # collision prims can receive the OVPhysX contact offsets.
+    for child in Usd.PrimRange(prim):
+        if child.GetName() == "collisions" and child.IsInstanceable():
+            child.SetInstanceable(False)
+
+    for child in Usd.PrimRange(prim):
+        _author_kitless_contact_offsets(child)
+        inertia = child.GetAttribute("physics:diagonalInertia")
+        if inertia and inertia.HasValue():
+            value = inertia.Get()
+            if min(value) < 1.0e-4:
+                inertia.Set(Gf.Vec3f(*(max(component, 1.0e-4) for component in value)))
+
+        is_hand_joint = child.GetName()[:2] in ("L_", "R_") and child.GetTypeName() == "PhysicsRevoluteJoint"
+        schemas = child.GetMetadata("apiSchemas")
+        applied = list(schemas.GetAddedOrExplicitItems()) if schemas else []
+        kept = [schema for schema in applied if not str(schema).startswith("PhysxMimicJointAPI")]
+        if len(kept) != len(applied):
+            gearing = child.GetAttribute("physxMimicJoint:rotZ:gearing")
+            offset = child.GetAttribute("physxMimicJoint:rotZ:offset")
+            reference = child.GetRelationship("physxMimicJoint:rotZ:referenceJoint")
+            targets = reference.GetTargets() if reference else []
+            if gearing and gearing.HasValue() and targets:
+                action_cfg.hand_mimic_relations[child.GetName()] = (
+                    targets[0].name,
+                    float(gearing.Get()),
+                    float(offset.Get()) if offset and offset.HasValue() else 0.0,
+                )
+            list_op = Sdf.TokenListOp()
+            list_op.explicitItems = kept
+            child.SetMetadata("apiSchemas", list_op)
+            for property_name in [name for name in child.GetPropertyNames() if name.startswith("physxMimicJoint:")]:
+                if not child.RemoveProperty(property_name):
+                    mimic_attr = child.GetAttribute(property_name)
+                    if mimic_attr and mimic_attr.GetTypeName() == Sdf.ValueTypeNames.Float:
+                        mimic_attr.Set(0.0)
+
+        if is_hand_joint:
+            lower = child.GetAttribute("physics:lowerLimit")
+            upper = child.GetAttribute("physics:upperLimit")
+            if lower and upper and lower.HasValue() and upper.HasValue():
+                action_cfg.hand_joint_limits[child.GetName()] = (
+                    math.radians(float(lower.Get())),
+                    math.radians(float(upper.Get())),
+                )
+                if cfg.widen_hand_limits:
+                    lower.Set(-720.0)
+                    upper.Set(720.0)
+    return prim
+
+
+@configclass
+class GR1T2KitlessUsdFileCfg(UsdFileCfg):
+    """Serializable GR1T2 spawn preparation and asset-owned hand metadata."""
+
+    original_spawn: Callable | str = MISSING
+    action_cfg: GR1T2KitlessPinkInverseKinematicsActionCfg | None = None
+    widen_hand_limits: bool = True
+    func: Callable | str = _spawn_and_condition
+
+
+def condition_kitless_gr1t2_stage(
+    robot_cfg: ArticulationCfg,
+    action_cfg: GR1T2KitlessPinkInverseKinematicsActionCfg,
+    *,
+    widen_hand_limits: bool = True,
+) -> None:
+    """Condition the spawned GR1T2 hand description before kitless physics parses it.
+
+    The raw asset has near-singular finger inertia, hard PhysX-only mimic
+    constraints, and hand rest poses exactly on physical limits. Those inputs
+    are stable after Kit's asset preparation but are ill-conditioned when read
+    directly by a kitless backend. This spawn boundary runs for both OVPhysX and
+    Newton. It:
+
+    - de-instances ``collisions`` scopes and authors Kit-parity PhysX contact
+      offsets (contact 1 mm, rest 0) on every collision prim;
+    - floors every diagonal inertia component below 1e-4 [kg·m²] on every body,
+      which in this asset affects the finger links;
+    - removes the hard mimic constraints that conflict with direct hand drives;
+    - optionally widens the hand joint limits (``widen_hand_limits``, used for
+      OVPhysX). Newton retains the anatomical limits because bounding drive
+      targets alone does not bound simulated positions.
+
+    The original mimic relations and anatomical limits are recorded on the typed
+    action config for target conditioning. The source USD and normal Kit path
+    remain unchanged.
+    """
+    if robot_cfg.spawn is None:
+        return
+    robot_cfg.spawn = wrap_spawn(robot_cfg.spawn, GR1T2KitlessUsdFileCfg, _spawn_and_condition)
+    # Seed metadata from this environment; Asset construction owns its independent spawn copy.
+    robot_cfg.spawn.action_cfg = action_cfg
+    robot_cfg.spawn.widen_hand_limits = widen_hand_limits
