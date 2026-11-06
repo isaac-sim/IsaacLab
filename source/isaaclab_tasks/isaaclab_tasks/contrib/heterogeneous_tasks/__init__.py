@@ -15,10 +15,11 @@ import os
 
 # TODO: Point to the Isaac Lab Nucleus once the assets are uploaded there.
 VLA_BENCHMARKS_ASSETS_DIR = os.environ.get(
-    "VLA_BENCHMARKS_ASSETS_DIR", "https://huggingface.co/datasets/LiFanxing/HeteroTask/resolve/main"
+    "VLA_BENCHMARKS_ASSETS_DIR",
+    "https://huggingface.co/datasets/LiFanxing/HeteroTask/resolve/f7eacb6db16e3cc4479c5f620686337edc4e209e",
 )
 """Root of the tasks' assets: the objects from the RoboLab and Omniverse libraries as complete USD files, and the
-robot table and dome light texture. Defaults to the HeteroTask dataset on Hugging Face; the environment variable of the
-same name overrides it, e.g. with a local copy. The robot is that of
-:obj:`~isaaclab_assets.robots.franka.FRANKA_ROBOTIQ_GRIPPER_CFG`.
+robot table and dome light texture. Defaults to a fixed commit of the HeteroTask dataset on Hugging Face, so the tasks
+do not change when the dataset does; the environment variable of the same name overrides it, e.g. with a local copy.
+The robot is that of :obj:`~isaaclab_assets.robots.franka.FRANKA_ROBOTIQ_GRIPPER_CFG`.
 """
