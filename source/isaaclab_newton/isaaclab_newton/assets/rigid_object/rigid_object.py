@@ -1154,9 +1154,7 @@ class RigidObject(BaseRigidObject):
 
     def _invalidate_fk_index(self, env_ids: wp.array | torch.Tensor) -> None:
         """Schedule FK for env_ids through a scratch mask that the invalidation clears as it reads it."""
-            env_mask = shared_kernels.mask_from_ids(
-                env_ids, self._ALL_INDICES, self._ALL_ENV_MASK, self._index_env_mask
-            )
+        env_mask = shared_kernels.mask_from_ids(env_ids, self._ALL_INDICES, self._ALL_ENV_MASK, self._index_env_mask)
         self._backend_manager.invalidate_fk(
             env_mask, self.root_view.articulation_ids, consume_mask=env_mask is self._index_env_mask
         )
