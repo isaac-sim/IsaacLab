@@ -45,6 +45,13 @@ class ActionTerm(ManagerTermBase):
     apply_every_physics_step: ClassVar[bool] = True
     """Whether :meth:`apply_actions` must run before every physics step because its command depends on asset state."""
 
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        # A subclass that overrides apply_actions declares its own flags; it does not inherit them.
+        if "apply_actions" in cls.__dict__:
+            cls.supports_graph_capture = cls.__dict__.get("supports_graph_capture", False)
+            cls.apply_every_physics_step = cls.__dict__.get("apply_every_physics_step", True)
+
     def __init__(self, cfg: ActionTermCfg, env: ManagerBasedEnv):
         """Initialize the action term.
 

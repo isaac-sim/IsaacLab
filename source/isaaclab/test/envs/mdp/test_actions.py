@@ -259,3 +259,25 @@ def test_recordable_joint_actions_process_into_the_same_buffer(action_cls, cfg) 
 
     assert action.processed_actions is processed
     assert torch.all(processed < 0.0)
+
+
+def test_subclass_overriding_apply_actions_does_not_inherit_capture_flags() -> None:
+    """A subclass with its own ``apply_actions`` is neither recorded nor folded unless it says so."""
+
+    class Applies(JointEffortAction):
+        def apply_actions(self):
+            pass
+
+    class Declares(Applies):
+        apply_every_physics_step = False
+
+        def apply_actions(self):
+            pass
+
+    class Processes(JointEffortAction):
+        def process_actions(self, actions):
+            super().process_actions(actions)
+
+    assert not Applies.supports_graph_capture and Applies.apply_every_physics_step
+    assert not Declares.supports_graph_capture and not Declares.apply_every_physics_step
+    assert Processes.supports_graph_capture and not Processes.apply_every_physics_step
