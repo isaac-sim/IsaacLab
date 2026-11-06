@@ -20,14 +20,16 @@ pytestmark = pytest.mark.kitless
 
 
 class _Controller(ActionTerm):
+    dimension = 2
+
     def __init__(self, cfg, env):
         super().__init__(cfg, env)
-        self._raw = torch.zeros(env.num_envs, 2)
+        self._raw = torch.zeros(env.num_envs, self.action_dim)
         self._processed = torch.zeros_like(self._raw)
 
     @property
     def action_dim(self):
-        return 2
+        return self.dimension
 
     @property
     def raw_actions(self):
@@ -73,7 +75,11 @@ class _Source(TeleopSource):
             raise RuntimeError("Source close failed")
 
 
-def _build(**kwargs):
+class _GripperController(_Controller):
+    dimension = 1
+
+
+def _build(*, terms=None, **kwargs):
     env = SimpleNamespace(
         num_envs=3,
         device="cpu",
@@ -85,15 +91,18 @@ def _build(**kwargs):
         events=[],
         applied=None,
     )
-    cfg = TeleopActionCfg(
-        controller=ActionTermCfg(class_type=_Controller, asset_name="robot"),
-        # The source constructor intentionally cannot accept runtime arguments:
-        # ordinary task construction must never instantiate it.
-        source=TeleopSourceCfg(class_type=object),
-        **kwargs,
-    )
-    env.action_manager = ActionManager(SimpleNamespace(robot=cfg), env)
-    return env, env.action_manager.get_term("robot")
+    if terms is None:
+        terms = {
+            "robot": TeleopActionCfg(
+                controller=ActionTermCfg(class_type=_Controller, asset_name="robot"),
+                # The source constructor intentionally cannot accept runtime arguments:
+                # ordinary task construction must never instantiate it.
+                source=TeleopSourceCfg(class_type=object),
+                **kwargs,
+            )
+        }
+    env.action_manager = ActionManager(SimpleNamespace(**terms), env)
+    return env, env.action_manager.get_term(next(iter(terms)))
 
 
 def test_task_term_preserves_controller_and_policy_until_capture_takes_control():
@@ -150,6 +159,63 @@ def test_adapter_reset_selection_and_stale_sample_handling():
     env.action_manager.process_action(torch.ones(3, 2))
     torch.testing.assert_close(env.action_manager.action, torch.ones(3, 2))
     env.action_manager.close()
+
+
+def test_one_sample_drives_arm_and_gripper_without_duplicate_source_lifecycle():
+    """Split controllers share input while their adapters and reset state remain isolated."""
+
+    def arm_actions(values, env, env_ids):
+        # An in-place conversion must not corrupt the shared Capture sample.
+        values.mul_(-1)
+        return values[:2]
+
+    env, arm = _build(
+        terms={
+            "arm": TeleopActionCfg(
+                controller=ActionTermCfg(class_type=_Controller, asset_name="robot"),
+                source=TeleopSourceCfg(class_type=object),
+                env_ids=[1],
+                action_adapter=arm_actions,
+            ),
+            "gripper": TeleopActionCfg(
+                controller=ActionTermCfg(class_type=_GripperController, asset_name="robot"),
+                env_ids=[1],
+                action_adapter=lambda values, env, env_ids: values[2:],
+            ),
+        }
+    )
+    manager = env.action_manager
+    gripper = manager.get_term("gripper")
+    source = _Source(env)
+    source.sample = TeleopSample(torch.tensor([1.0, 2.0, 0.25]))
+    arm.activate(source)
+    assert not arm.poll_source()
+    gripper.set_sample(arm.sample)
+    policy = torch.ones(3, 3)
+    manager.process_action(policy)
+
+    torch.testing.assert_close(manager.action, torch.tensor([[1.0, 1.0, 1.0], [-1.0, -2.0, 0.25], [1.0, 1.0, 1.0]]))
+    torch.testing.assert_close(arm.processed_actions[1], torch.tensor([-2.0, -4.0]))
+    torch.testing.assert_close(gripper.processed_actions[1], torch.tensor([0.5]))
+    torch.testing.assert_close(source.sample.actions, torch.tensor([1.0, 2.0, 0.25]))
+    assert source.polls == 1
+
+    manager.reset(torch.tensor([0]))
+    assert source.resets == []
+    manager.process_action(policy)
+    torch.testing.assert_close(manager.action[1], torch.tensor([-1.0, -2.0, 0.25]))
+    manager.reset(torch.tensor([1]))
+    assert source.resets == [[1]]
+    manager.process_action(policy)
+    torch.testing.assert_close(manager.action, policy)
+
+    source.sample.active = False
+    arm.poll_source()
+    gripper.set_sample(arm.sample)
+    manager.process_action(policy)
+    torch.testing.assert_close(manager.action, policy)
+    manager.close()
+    assert env.events == ["source_closed", "controller_closed", "controller_closed"]
 
 
 @pytest.mark.parametrize(

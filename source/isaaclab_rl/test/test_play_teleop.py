@@ -13,6 +13,7 @@ import sys
 from types import SimpleNamespace
 
 import gymnasium as gym
+import h5py
 import pytest
 import torch
 from isaaclab_newton.physics import NewtonCfg
@@ -20,7 +21,14 @@ from isaaclab_physx.physics import PhysxCfg
 from isaaclab_teleop import CaptureTeleopSourceCfg, TeleopActionCfg, TeleopSample, TeleopSource, se3_keyboard_teleop_cfg
 
 from isaaclab.envs import ManagerBasedRLEnvCfg
-from isaaclab.managers import ActionManager, ActionTerm, ActionTermCfg
+from isaaclab.managers import (
+    ActionManager,
+    ActionTerm,
+    ActionTermCfg,
+    RecorderManager,
+    TerminationManager,
+    TerminationTermCfg,
+)
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
@@ -38,6 +46,7 @@ class _InputSource(TeleopSource):
 
     def __init__(self, cfg, env, *, env_ids, xr_session=None):
         self.polls = 0
+        self.close_calls = 0
         self.closed = False
         self.session_cleanup_failed = False
         env.input_source = self
@@ -47,12 +56,13 @@ class _InputSource(TeleopSource):
 
     def advance(self):
         self.polls += 1
-        return TeleopSample(actions=torch.tensor([4.0]), active=self.polls == 1)
+        return TeleopSample(actions=torch.tensor([4.0, -0.5]), active=self.polls == 1)
 
     def reset(self, env_ids=None):
         pass
 
     def close(self):
+        self.close_calls += 1
         self.closed = True
 
 
@@ -84,10 +94,16 @@ class _EffortTerm(ActionTerm):
 
 @configclass
 class _ActionsCfg:
+    gripper = TeleopActionCfg(
+        controller=ActionTermCfg(class_type=_EffortTerm, asset_name="robot"),
+        env_ids=[1],
+        action_adapter=lambda values, env, env_ids: values[1:],
+    )
     controlled = TeleopActionCfg(
         controller=ActionTermCfg(class_type=_EffortTerm, asset_name="robot"),
         source=CaptureTeleopSourceCfg(class_type=_InputSource, device=se3_keyboard_teleop_cfg()),
         env_ids=[1],
+        action_adapter=lambda values, env, env_ids: values[:1],
     )
     policy = ActionTermCfg(class_type=_EffortTerm, asset_name="robot")
 
@@ -107,8 +123,19 @@ class _PlaybackCfg(ManagerBasedRLEnvCfg):
         pass
 
 
+class _SinkScene(dict):
+    """Small physical-state boundary used by the real action/state recorders."""
+
+    def __init__(self, num_envs, action_dim):
+        super().__init__(robot=object())
+        self.position = torch.zeros(num_envs, action_dim)
+
+    def get_state(self, *, is_relative=False):
+        return {"articulation": {"robot": {"joint_position": self.position}}}
+
+
 class _ActionSink(gym.Env):
-    """Observe actions crossing the real playback and input wrappers."""
+    """Exercise real action, termination, and recording managers around simple state updates."""
 
     def __init__(self, cfg, **kwargs):
         self.cfg = cfg
@@ -121,26 +148,59 @@ class _ActionSink(gym.Env):
         )
         self.scene = {"robot": object()}
         self.action_manager = ActionManager(cfg.actions, self)
+        action_dim = self.action_manager.total_action_dim
+        self.scene = _SinkScene(self.num_envs, action_dim)
+        self.episode_length_buf = torch.zeros(self.num_envs, dtype=torch.long)
+        self.termination_manager = TerminationManager(cfg.terminations, self)
+        self.recorder_manager = RecorderManager(cfg.recorders, self)
         self.step_dt = 0.01
-        self.single_action_space = gym.spaces.Box(-10.0, 10.0, shape=(2,))
+        self.single_action_space = gym.spaces.Box(-10.0, 10.0, shape=(action_dim,))
         self.action_spaces = {"robot": self.single_action_space}
-        self.action_space = gym.spaces.Box(-10.0, 10.0, shape=(self.num_envs, 2))
+        self.action_space = gym.spaces.Box(-10.0, 10.0, shape=(self.num_envs, action_dim))
         self.observation_space = self.action_space
         self.reset_buf = torch.zeros(self.num_envs, dtype=torch.bool)
         self.applied = []
+        self.obs_buf = {"policy": self.scene.position.clone()}
+        self.extras = {}
         self.closed = False
 
     def reset(self, **kwargs):
-        self.action_manager.reset(kwargs.get("env_ids"))
-        return {}, {}
+        env_ids = kwargs.get("env_ids", slice(None))
+        self.recorder_manager.record_pre_reset(env_ids)
+        self.scene.position[env_ids] = 0
+        self.episode_length_buf[env_ids] = 0
+        self.action_manager.reset(env_ids)
+        self.termination_manager.reset(env_ids)
+        self.recorder_manager.reset(env_ids)
+        self.obs_buf = {"policy": self.scene.position.clone()}
+        self.recorder_manager.record_post_reset(env_ids)
+        return self.obs_buf, self.extras
 
     def step(self, action):
         self.action_manager.process_action(action)
         self.applied.append(self.action_manager.action.clone())
-        return {}, torch.zeros(self.num_envs), self.reset_buf, self.reset_buf, {}
+        self.recorder_manager.record_pre_step()
+        self.scene.position += self.action_manager.action
+        self.episode_length_buf += 1
+        self.reset_buf = self.termination_manager.compute()
+        self.obs_buf = {"policy": self.scene.position.clone()}
+        self.recorder_manager.record_post_step()
+        reset_env_ids = self.reset_buf.nonzero(as_tuple=False).flatten()
+        if len(reset_env_ids):
+            self.reset(env_ids=reset_env_ids)
+        return (
+            self.obs_buf,
+            torch.zeros(self.num_envs),
+            self.termination_manager.terminated,
+            self.termination_manager.time_outs,
+            self.extras,
+        )
 
     def close(self):
+        if self.closed:
+            return
         self.action_manager.close()
+        self.recorder_manager.close()
         self.closed = True
 
 
@@ -182,10 +242,81 @@ def test_play_uses_configured_input_without_loading_a_policy(playback_task, monk
     env = created[0]
     assert env.num_envs == 2
     assert env.cfg.seed == 7
-    assert torch.equal(env.applied[0], torch.tensor([[0.0, 0.0], [4.0, 0.0]]))
-    assert torch.equal(env.applied[1], torch.zeros(2, 2))
+    assert torch.equal(env.applied[0], torch.tensor([[0.0, 0.0, 0.0], [-0.5, 4.0, 0.0]]))
+    assert torch.equal(env.applied[1], torch.zeros(2, 3))
+    assert env.input_source.polls == 2
+    assert env.input_source.close_calls == 1
     assert env.input_source.closed and env.closed
     assert sys.argv is original_argv
+
+
+def _success_after_two_steps(env):
+    return env.episode_length_buf >= 2
+
+
+def test_play_cli_exports_requested_demos_with_applied_actions_and_provenance(playback_task, monkeypatch, tmp_path):
+    """Collection flags reach the real recorder and stop after completed demos, without a policy backend."""
+    task, created = playback_task
+    cfg = _PlaybackCfg()
+    cfg.actions.controlled.env_ids = [0]
+    cfg.actions.gripper.env_ids = [0]
+    cfg.terminations = {"success": TerminationTermCfg(func=_success_after_two_steps)}
+    gym.spec(task).kwargs["env_cfg_entry_point"] = lambda: cfg
+    monkeypatch.setattr(dispatch, "_run_backend", lambda *args: pytest.fail("collection loaded a policy backend"))
+    dataset = tmp_path / "demonstrations.hdf5"
+
+    assert (
+        dispatch.run_play_cli(
+            ["--task", task, "--num_envs", "1", "--dataset_file", str(dataset), "--num_demos", "2", "--max_steps", "20"]
+        )
+        == 0
+    )
+
+    env = created[0]
+    assert len(env.applied) == 4
+    assert env.input_source.polls == 4
+    assert env.input_source.close_calls == 1
+    assert env.closed
+    with h5py.File(dataset, "r") as output:
+        assert list(output["data"]) == ["demo_0", "demo_1"]
+        first = output["data/demo_0"]
+        second = output["data/demo_1"]
+        torch.testing.assert_close(
+            torch.from_numpy(first["actions"][:]), torch.tensor([[-0.5, 4.0, 0.0], [0.0, 0.0, 0.0]])
+        )
+        torch.testing.assert_close(torch.from_numpy(second["actions"][:]), torch.zeros(2, 3))
+        assert first["metadata/teleop_active"][:].tolist() == [[True], [False]]
+        assert second["metadata/teleop_active"][:].tolist() == [[False], [False]]
+        assert bool(first.attrs["success"]) and bool(second.attrs["success"])
+        torch.testing.assert_close(torch.from_numpy(first["obs/policy"][0]), torch.zeros(3))
+        torch.testing.assert_close(
+            torch.from_numpy(first["states/articulation/robot/joint_position"][:]),
+            torch.tensor([[-0.5, 4.0, 0.0], [-0.5, 4.0, 0.0]]),
+        )
+
+
+@pytest.mark.parametrize("activation", ["unconfigured", "disabled"])
+def test_collection_rejects_missing_capture_before_launch(playback_task, monkeypatch, tmp_path, activation):
+    """A dataset request cannot silently become policy-only playback with no collection session."""
+    task, created = playback_task
+    cfg = _PlaybackCfg()
+    if activation == "unconfigured":
+        cfg.actions = {"policy": _ActionsCfg().policy}
+    args = argparse.Namespace(
+        task=task,
+        frontend="torch",
+        teleop=False if activation == "disabled" else None,
+        dataset_file=str(tmp_path / "demonstrations.hdf5"),
+    )
+    monkeypatch.setattr(
+        common, "launch_simulation", lambda *args, **kwargs: pytest.fail("attempted to launch simulation")
+    )
+
+    with pytest.raises(ValueError, match="--dataset_file requires playback with task-configured Capture input enabled"):
+        with launch_playback(cfg, args):
+            pytest.fail("playback started without a collection source")
+
+    assert not created
 
 
 def test_zero_agent_seeds_before_config_construction_without_reseeding(playback_task, monkeypatch):
@@ -294,20 +425,21 @@ def test_env_factory_activates_input_only_for_enabled_playback(playback_task, ac
         env = create_isaaclab_env(task, cfg, args, convert_marl_to_single_agent=False, playback_session=session)
         try:
             env.reset()
-            policy_action = torch.ones(3, 2)
+            policy_action = torch.ones(3, 3)
             env.step(policy_action)
         finally:
             env.close()
 
     sink = created[0]
-    expected = torch.ones(3, 2)
+    expected = torch.ones(3, 3)
     if activation == "policy":
-        expected[1, 0] = 4.0
+        expected[1, 0] = -0.5
+        expected[1, 1] = 4.0
         assert sink.input_source.closed
     else:
         assert not hasattr(sink, "input_source")
     assert torch.equal(sink.applied[0], expected)
-    assert torch.equal(policy_action, torch.ones(3, 2))
+    assert torch.equal(policy_action, torch.ones(3, 3))
     assert sink.closed
 
 

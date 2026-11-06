@@ -6,6 +6,8 @@
 """Playback ownership across task actions, episode resets, and the external XR renderer."""
 
 import sys
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 
 import gymnasium as gym
@@ -19,6 +21,7 @@ from isaaclab_teleop.ovxr_cfg import OvLibrariesXrCameraCfg, OvLibrariesXrCfg
 from isaaclab_teleop.play_source_cfg import CaptureTeleopSourceCfg
 from isaaclab_teleop.playback import CapturePlaySession, PlaybackStopped, configured_teleop_actions
 from isaaclab_teleop.source import TeleopSample, TeleopSource
+from isaaclab_visualizers.newton import NewtonGLBackendCfg, NewtonRTXBackendCfg
 
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
@@ -34,7 +37,7 @@ from isaaclab.renderers import RendererCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim import SimulationContext
-from isaaclab.visualizers import VisualizerBackendCfg, VisualizerCfg
+from isaaclab.visualizers import ImageViewCfg, SceneCameraCfg, VisualizerCfg
 
 pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
@@ -104,6 +107,7 @@ class _Env(gym.Env):
         self.auto_reset = False
         self.closed = False
         self.sim = SimpleNamespace(
+            visualizers=[],
             is_playing=lambda: True,
             get_physics_step_count=lambda: self.steps,
             get_physics_dt=lambda: 0.01,
@@ -205,6 +209,35 @@ def xr_runtime(monkeypatch):
     return events, sessions
 
 
+@pytest.mark.parametrize(
+    ("violation", "message"),
+    [
+        ("different_robot", "same robot asset and environment row"),
+        ("different_row", "same robot asset and environment row"),
+        ("second_source", "exactly one.*owning input"),
+    ],
+)
+def test_shared_input_rejects_multiple_robot_targets_before_resource_start(violation, message, monkeypatch):
+    """A Capture session must have one source and one robot target, including split controllers."""
+    cfg = _config(num_envs=2)
+    cfg.actions.gripper = TeleopActionCfg(
+        controller=ActionTermCfg(class_type=_Controller, asset_name="robot"),
+    )
+    if violation == "different_robot":
+        cfg.actions.gripper.controller.asset_name = "other_robot"
+    elif violation == "different_row":
+        cfg.actions.gripper.env_ids = [1]
+    else:
+        cfg.actions.gripper.source = cfg.actions.robot.source.copy()
+    monkeypatch.setattr(_Env, "__init__", lambda *args: pytest.fail("invalid session constructed an environment"))
+    monkeypatch.setattr(_Source, "start", lambda *args: pytest.fail("invalid session started Capture"))
+
+    with pytest.raises(ValueError, match=message):
+        session = CapturePlaySession(cfg)
+        session.prepare()
+        session.attach(_Env(cfg, []))
+
+
 def test_operator_reset_is_an_interruption_without_a_physics_or_recorder_step():
     """A reset marks the selected episode boundary and preserves its pre-reset observation."""
     cfg, events = _config(num_envs=2), []
@@ -267,6 +300,73 @@ def test_failed_input_drain_keeps_xr_and_environment_alive_for_retry(xr_runtime)
     env.source.fail_close = False
     session.close()
     assert events[-3:] == ["source_close", "xr_close", "env_close"]
+
+
+def test_xr_closes_native_windows_on_host_after_input_drains_and_retries_failures(xr_runtime, monkeypatch):
+    """Borrowed windows outlive input, but retire before worker-owned scene teardown."""
+    events, instances = xr_runtime
+    cfg = _config(xr=True)
+    session = CapturePlaySession(cfg)
+    session.prepare()
+    env = _Env(cfg, events)
+    wrapped = session.attach(env)
+    host_thread = threading.get_ident()
+    window_threads, environment_threads = [], []
+
+    class NativeWindow:
+        closed = False
+        fail_close = True
+
+        def close(self):
+            if self.closed:
+                return
+            window_threads.append(threading.get_ident())
+            assert env.source.closed, "Capture must release its borrowed window before window teardown"
+            assert threading.get_ident() == host_thread, "Native windows must close on their owning host thread"
+            if self.fail_close:
+                raise RuntimeError("native window close failed")
+            events.append("window_close")
+            self.closed = True
+
+    window = NativeWindow()
+    env.sim.visualizers.append(window)
+    close_environment = env.close
+
+    def close_environment_on_worker():
+        environment_threads.append(threading.get_ident())
+        # SimulationContext retires its visualizers again during environment close.
+        for visualizer in env.sim.visualizers:
+            visualizer.close()
+        close_environment()
+
+    def close_xr():
+        events.append("xr_close")
+        with ThreadPoolExecutor(max_workers=1) as render_worker:
+            render_worker.submit(env.close).result()
+
+    monkeypatch.setattr(env, "close", close_environment_on_worker)
+    monkeypatch.setattr(instances[0], "close", close_xr)
+    env.source.fail_close = True
+    with pytest.raises(RuntimeError, match="input still in flight"):
+        wrapped.close()
+    assert not env.source.closed and not window.closed and not env.closed
+    assert not window_threads and not environment_threads and "xr_close" not in events
+
+    env.source.fail_close = False
+    with pytest.raises(RuntimeError, match="native window close failed"):
+        session.close()
+    assert env.source.closed and not window.closed and not env.closed
+    assert window_threads == [host_thread]
+    assert not environment_threads and "xr_close" not in events
+
+    window.fail_close = False
+    session.close()
+    wrapped.close()
+    assert window.closed and env.closed
+    assert window_threads == [host_thread, host_thread]
+    assert len(environment_threads) == 1 and environment_threads[0] != host_thread
+    assert events[-4:] == ["source_close", "window_close", "xr_close", "env_close"]
+    assert events.count("source_close") == events.count("env_close") == 1
 
 
 def test_prepared_xr_context_is_released_when_environment_construction_fails(xr_runtime):
@@ -365,6 +465,51 @@ def test_xr_preserves_learning_cameras_and_rejects_shared_renderer_consumers():
     cfg.video_recorders = []
     session.validate()
     assert cfg.scene.learning_camera is original and cfg.scene.panel is panel
-    cfg.sim.visualizer_cfgs = VisualizerCfg(backend=VisualizerBackendCfg(visualizer_type="newton_gl"))
-    with pytest.raises(ValueError, match="local visualizers"):
+    cfg.sim.visualizer_cfgs = VisualizerCfg(backend=NewtonGLBackendCfg())
+    session.validate()
+
+
+def test_xr_allows_independent_lab_views_and_rejects_consumers_of_leased_cameras():
+    """A Lab viewer may use its own view while Capture alone renders XR-owned cameras."""
+    cfg = _config(xr=True)
+    view = cfg.observations.operator
+    cfg.scene.learning_camera = CameraCfg(
+        prim_path="/World/learning", width=8, height=8, spawn=None, renderer_cfg=RendererCfg(class_type=object)
+    )
+    session = CapturePlaySession(cfg)
+    cfg.sim.visualizer_cfgs = VisualizerCfg(backend=NewtonGLBackendCfg(), eye=(1.0, 2.0, 3.0))
+    session.validate()
+    assert not view.presentation.desktop_mirror_enabled
+    assert cfg.sim.visualizer_cfgs.eye == (1.0, 2.0, 3.0)
+
+    cfg.sim.visualizer_cfgs = VisualizerCfg(backend=NewtonRTXBackendCfg())
+    with pytest.raises(ValueError, match="perspective view shares"):
         session.validate()
+    cfg.sim.visualizer_cfgs.backend.renderer_cfg = OVRTXRendererCfg(log_file_path="/tmp/independent-viewer.log")
+    session.validate()
+
+    # An RTX viewer borrowing an independent sensor never uses its default
+    # perspective renderer, so that unused default must not reject the view.
+    cfg.sim.visualizer_cfgs = VisualizerCfg(backend=NewtonRTXBackendCfg(), view=ImageViewCfg(source="learning_camera"))
+    session.validate()
+    panel = CameraCfg(prim_path="{ENV_REGEX_NS}/HeadCamera", width=8, height=8, spawn=None, renderer_cfg=view.renderer)
+    cfg.scene.panel = panel
+    view.presentation = OvLibrariesXrCfg(auxiliary_cameras=(OvLibrariesXrCameraCfg(name="panel", camera_cfg=panel),))
+    cfg.sim.visualizer_cfgs.view.source = "panel"
+    with pytest.raises(ValueError, match="XR-owned panel cameras"):
+        session.validate()
+    cfg.sim.visualizer_cfgs = VisualizerCfg(
+        backend=NewtonGLBackendCfg(),
+        cameras=[SceneCameraCfg(prim_path="/World/envs/env_0/HeadCamera")],
+        streaming_view=True,
+    )
+    with pytest.raises(ValueError, match="XR-owned panel cameras"):
+        session.validate()
+    cfg.sim.visualizer_cfgs.cameras = [SceneCameraCfg(prim_path="/World/learning")]
+    session.validate()
+    cfg.sim.visualizer_cfgs.cameras = None
+    with pytest.raises(ValueError, match="XR-owned panel cameras"):
+        session.validate()
+    # Automatic selection only binds cameras that supply all requested channels.
+    cfg.sim.visualizer_cfgs.streaming_gt_types = ("depth",)
+    session.validate()

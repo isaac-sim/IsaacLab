@@ -33,6 +33,7 @@ import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
 
 from .common import (
+    add_demo_recording_args,
     add_frontend_args,
     add_video_args,
     apply_env_overrides,
@@ -339,6 +340,7 @@ def _parse_args(argv: list[str] | None, policy: PolicyName) -> argparse.Namespac
         help="Number of environment steps to run. Runs unbounded when omitted.",
     )
     add_video_args(parser, action=f"the {policy} agent run")
+    add_demo_recording_args(parser)
     add_frontend_args(parser)
     add_launcher_args(parser)
     # let task configs select the simulation device
