@@ -13,15 +13,20 @@ import warp as wp
 
 from ...utils.buffers import TimestampedBuffer
 from ...utils.leapp import (
-    POSE6_COMPONENT_AXIS,
+    ANGULAR_VELOCITY_COMPONENT_AXIS,
+    LINEAR_VELOCITY_COMPONENT_AXIS,
     POSE7_COMPONENT_AXIS,
     QUAT_XYZW_COMPONENT_AXIS,
+    TWIST_COMPONENT_AXIS,
     XYZ_COMPONENT_AXIS,
     ExpressionFrame,
     Kind,
+    body_angular_velocity_axes_resolver,
+    body_linear_velocity_axes_resolver,
     body_pose6_axes_resolver,
     body_pose_axes_resolver,
     body_quat_axes_resolver,
+    body_twist_axes_resolver,
     body_xyz_axes_resolver,
     joint_axes_resolver,
     leapp_tensor_semantics,
@@ -691,7 +696,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.FRAME_TWIST, axes=[None, POSE6_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.FRAME_TWIST, axes=[None, TWIST_COMPONENT_AXIS])
     def root_link_vel_w(self) -> ProxyArray:
         """Root link velocity ``[lin_vel, ang_vel]`` in simulation world frame.
 
@@ -717,7 +722,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.FRAME_TWIST, axes=[None, POSE6_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.FRAME_TWIST, axes=[None, TWIST_COMPONENT_AXIS])
     def root_com_vel_w(self) -> ProxyArray:
         """Root center of mass velocity ``[lin_vel, ang_vel]`` in simulation world frame.
 
@@ -794,7 +799,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.FRAME_TWIST, axes_resolver=body_pose6_axes_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_TWIST, axes_resolver=body_twist_axes_resolver)
     def body_link_vel_w(self) -> ProxyArray:
         """Body link velocity ``[lin_vel, ang_vel]`` in simulation world frame.
 
@@ -822,7 +827,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.FRAME_TWIST, axes_resolver=body_pose6_axes_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_TWIST, axes_resolver=body_twist_axes_resolver)
     def body_com_vel_w(self) -> ProxyArray:
         """Body center of mass velocity ``[lin_vel, ang_vel]`` in simulation world frame.
 
@@ -1051,7 +1056,7 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(
-        kind=Kind.FRAME_LINEAR_VELOCITY, axes=[None, XYZ_COMPONENT_AXIS], expressed_in=ExpressionFrame.SELF
+        kind=Kind.FRAME_LINEAR_VELOCITY, axes=[None, LINEAR_VELOCITY_COMPONENT_AXIS], expressed_in=ExpressionFrame.SELF
     )
     def root_link_lin_vel_b(self) -> ProxyArray:
         """Root link linear velocity in base frame.
@@ -1066,7 +1071,9 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(
-        kind=Kind.FRAME_ANGULAR_VELOCITY, axes=[None, XYZ_COMPONENT_AXIS], expressed_in=ExpressionFrame.SELF
+        kind=Kind.FRAME_ANGULAR_VELOCITY,
+        axes=[None, ANGULAR_VELOCITY_COMPONENT_AXIS],
+        expressed_in=ExpressionFrame.SELF,
     )
     def root_link_ang_vel_b(self) -> ProxyArray:
         """Root link angular velocity in base frame.
@@ -1081,7 +1088,7 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(
-        kind=Kind.FRAME_LINEAR_VELOCITY, axes=[None, XYZ_COMPONENT_AXIS], expressed_in=ExpressionFrame.SELF
+        kind=Kind.FRAME_LINEAR_VELOCITY, axes=[None, LINEAR_VELOCITY_COMPONENT_AXIS], expressed_in=ExpressionFrame.SELF
     )
     def root_com_lin_vel_b(self) -> ProxyArray:
         """Root center of mass linear velocity in base frame.
@@ -1096,7 +1103,9 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(
-        kind=Kind.FRAME_ANGULAR_VELOCITY, axes=[None, XYZ_COMPONENT_AXIS], expressed_in=ExpressionFrame.SELF
+        kind=Kind.FRAME_ANGULAR_VELOCITY,
+        axes=[None, ANGULAR_VELOCITY_COMPONENT_AXIS],
+        expressed_in=ExpressionFrame.SELF,
     )
     def root_com_ang_vel_b(self) -> ProxyArray:
         """Root center of mass angular velocity in base frame.
@@ -1138,7 +1147,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.FRAME_LINEAR_VELOCITY, axes=[None, XYZ_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.FRAME_LINEAR_VELOCITY, axes=[None, LINEAR_VELOCITY_COMPONENT_AXIS])
     def root_link_lin_vel_w(self) -> ProxyArray:
         """Root linear velocity in simulation world frame.
 
@@ -1150,7 +1159,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.FRAME_ANGULAR_VELOCITY, axes=[None, XYZ_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.FRAME_ANGULAR_VELOCITY, axes=[None, ANGULAR_VELOCITY_COMPONENT_AXIS])
     def root_link_ang_vel_w(self) -> ProxyArray:
         """Root link angular velocity in simulation world frame.
 
@@ -1186,7 +1195,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.FRAME_LINEAR_VELOCITY, axes=[None, XYZ_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.FRAME_LINEAR_VELOCITY, axes=[None, LINEAR_VELOCITY_COMPONENT_AXIS])
     def root_com_lin_vel_w(self) -> ProxyArray:
         """Root center of mass linear velocity in simulation world frame.
 
@@ -1198,7 +1207,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.FRAME_ANGULAR_VELOCITY, axes=[None, XYZ_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.FRAME_ANGULAR_VELOCITY, axes=[None, ANGULAR_VELOCITY_COMPONENT_AXIS])
     def root_com_ang_vel_w(self) -> ProxyArray:
         """Root center of mass angular velocity in simulation world frame.
 
@@ -1236,7 +1245,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.FRAME_LINEAR_VELOCITY, axes_resolver=body_xyz_axes_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_LINEAR_VELOCITY, axes_resolver=body_linear_velocity_axes_resolver)
     def body_link_lin_vel_w(self) -> ProxyArray:
         """Linear velocity of all bodies in simulation world frame.
 
@@ -1249,7 +1258,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.FRAME_ANGULAR_VELOCITY, axes_resolver=body_xyz_axes_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_ANGULAR_VELOCITY, axes_resolver=body_angular_velocity_axes_resolver)
     def body_link_ang_vel_w(self) -> ProxyArray:
         """Angular velocity of all bodies in simulation world frame.
 
@@ -1288,7 +1297,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.FRAME_LINEAR_VELOCITY, axes_resolver=body_xyz_axes_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_LINEAR_VELOCITY, axes_resolver=body_linear_velocity_axes_resolver)
     def body_com_lin_vel_w(self) -> ProxyArray:
         """Linear velocity of all bodies in simulation world frame.
 
@@ -1301,7 +1310,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.FRAME_ANGULAR_VELOCITY, axes_resolver=body_xyz_axes_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_ANGULAR_VELOCITY, axes_resolver=body_angular_velocity_axes_resolver)
     def body_com_ang_vel_w(self) -> ProxyArray:
         """Angular velocity of all bodies in simulation world frame.
 
@@ -1409,26 +1418,26 @@ class BaseArticulationData(ABC):
         return self.root_link_quat_w
 
     @property
-    @leapp_tensor_semantics(kind=Kind.FRAME_TWIST, axes=[None, POSE6_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.FRAME_TWIST, axes=[None, TWIST_COMPONENT_AXIS])
     def root_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`root_com_vel_w`."""
         return self.root_com_vel_w
 
     @property
-    @leapp_tensor_semantics(kind=Kind.FRAME_LINEAR_VELOCITY, axes=[None, XYZ_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.FRAME_LINEAR_VELOCITY, axes=[None, LINEAR_VELOCITY_COMPONENT_AXIS])
     def root_lin_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`root_com_lin_vel_w`."""
         return self.root_com_lin_vel_w
 
     @property
-    @leapp_tensor_semantics(kind=Kind.FRAME_ANGULAR_VELOCITY, axes=[None, XYZ_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.FRAME_ANGULAR_VELOCITY, axes=[None, ANGULAR_VELOCITY_COMPONENT_AXIS])
     def root_ang_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`root_com_ang_vel_w`."""
         return self.root_com_ang_vel_w
 
     @property
     @leapp_tensor_semantics(
-        kind=Kind.FRAME_LINEAR_VELOCITY, axes=[None, XYZ_COMPONENT_AXIS], expressed_in=ExpressionFrame.SELF
+        kind=Kind.FRAME_LINEAR_VELOCITY, axes=[None, LINEAR_VELOCITY_COMPONENT_AXIS], expressed_in=ExpressionFrame.SELF
     )
     def root_lin_vel_b(self) -> ProxyArray:
         """Shorthand for :attr:`root_com_lin_vel_b`."""
@@ -1436,7 +1445,9 @@ class BaseArticulationData(ABC):
 
     @property
     @leapp_tensor_semantics(
-        kind=Kind.FRAME_ANGULAR_VELOCITY, axes=[None, XYZ_COMPONENT_AXIS], expressed_in=ExpressionFrame.SELF
+        kind=Kind.FRAME_ANGULAR_VELOCITY,
+        axes=[None, ANGULAR_VELOCITY_COMPONENT_AXIS],
+        expressed_in=ExpressionFrame.SELF,
     )
     def root_ang_vel_b(self) -> ProxyArray:
         """Shorthand for :attr:`root_com_ang_vel_b`."""
@@ -1461,19 +1472,19 @@ class BaseArticulationData(ABC):
         return self.body_link_quat_w
 
     @property
-    @leapp_tensor_semantics(kind=Kind.FRAME_TWIST, axes_resolver=body_pose6_axes_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_TWIST, axes_resolver=body_twist_axes_resolver)
     def body_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_vel_w`."""
         return self.body_com_vel_w
 
     @property
-    @leapp_tensor_semantics(kind=Kind.FRAME_LINEAR_VELOCITY, axes_resolver=body_xyz_axes_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_LINEAR_VELOCITY, axes_resolver=body_linear_velocity_axes_resolver)
     def body_lin_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_lin_vel_w`."""
         return self.body_com_lin_vel_w
 
     @property
-    @leapp_tensor_semantics(kind=Kind.FRAME_ANGULAR_VELOCITY, axes_resolver=body_xyz_axes_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_ANGULAR_VELOCITY, axes_resolver=body_angular_velocity_axes_resolver)
     def body_ang_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_ang_vel_w`."""
         return self.body_com_ang_vel_w

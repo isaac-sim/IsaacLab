@@ -142,8 +142,35 @@ def test_projected_gravity_observation_exports_root_quat_w_input(monkeypatch: py
     assert semantics.extra == {"isaaclab_connection": "state:robot:root_quat_w"}
 
 
+@pytest.mark.parametrize(
+    ("property_name", "source_name", "components"),
+    [
+        ("root_lin_vel_w", "root_com_lin_vel_w", ["vx", "vy", "vz"]),
+        ("root_ang_vel_w", "root_com_ang_vel_w", ["wx", "wy", "wz"]),
+        ("root_vel_w", "root_com_vel_w", ["vx", "vy", "vz", "wx", "wy", "wz"]),
+    ],
+)
+def test_root_velocity_components_follow_leapp_conventions(monkeypatch, property_name, source_name, components):
+    """Root velocity aliases retain their values and use the standard component vocabulary."""
+
+    class RootData(SimpleNamespace):
+        root_lin_vel_w = BaseArticulationData.root_lin_vel_w
+        root_ang_vel_w = BaseArticulationData.root_ang_vel_w
+        root_vel_w = BaseArticulationData.root_vel_w
+
+    values = torch.arange(2 * len(components), dtype=torch.float32).reshape(2, -1)
+    data = RootData(**{source_name: ProxyArray(wp.from_torch(values))})
+    captured = _capture_leapp_inputs(monkeypatch)
+    proxy = _DataProxy(data, "robot", "velocity", {}, {}, lambda name: name)
+
+    torch.testing.assert_close(getattr(proxy, property_name).torch, values)
+    assert len(captured) == 1
+    semantics = captured[0][1]
+    assert semantics.axes == [None, leapp.Axis(leapp.AxisKind.COMPONENT, names=components)]
+
+
 def test_ray_caster_coordinates_use_component_axes(monkeypatch: pytest.MonkeyPatch):
-    """Sensor coordinates are components even when the quantity uses a custom kind."""
+    """World-frame sensor poses use built-in quantities and coordinate component axes."""
     from isaaclab.sensors.ray_caster import RayCasterData
 
     annotated_inputs = _capture_leapp_inputs(monkeypatch)
@@ -154,6 +181,8 @@ def test_ray_caster_coordinates_use_component_axes(monkeypatch: pytest.MonkeyPat
     assert proxy.pos_w.torch.shape == (2, 3)
     assert proxy.quat_w.torch.shape == (2, 4)
     position, orientation = [semantics for _, semantics in annotated_inputs]
+    assert position.kind == Kind.FRAME_POSITION
+    assert orientation.kind == Kind.FRAME_ORIENTATION
     assert position.axes == [None, leapp.Axis(leapp.AxisKind.COMPONENT, names=["x", "y", "z"])]
     assert orientation.axes == [None, leapp.Axis(leapp.AxisKind.COMPONENT, names=["qx", "qy", "qz", "qw"])]
     assert position.extra == {"isaaclab_connection": "state:ray_caster:pos_w"}
@@ -285,7 +314,10 @@ def test_camera_pixels_drive_joint_target_through_export_and_deployment(tmp_path
     output = outputs[0]
     assert output.kind == Kind.JOINT_POSITION
     assert output.extra == {"isaaclab_connection": "write:robot:set_joint_position_target_index"}
-    assert output.axes == [None, leapp.Axis(leapp.AxisKind.ELEMENT, names=["slider_to_cart"])]
+    assert output.axes == [
+        leapp.Axis(leapp.AxisKind.SYSTEM),
+        leapp.Axis(leapp.AxisKind.ELEMENT, names=["slider_to_cart"]),
+    ]
 
     pipeline = tmp_path / "camera-action" / "camera-action.yaml"
     description = yaml.safe_load(pipeline.read_text())
@@ -671,7 +703,7 @@ def test_command_metadata_uses_the_actual_reference_frame(monkeypatch, command_t
     assert (
         semantics.kind
         == {
-            "velocity": "command/body/velocity",
+            "velocity": leapp.Kind.FRAME_TWIST,
             "pose": leapp.Kind.FRAME_POSE,
             "planar": "command/body/pose",
         }[command_type]
@@ -680,10 +712,10 @@ def test_command_metadata_uses_the_actual_reference_frame(monkeypatch, command_t
         assert semantics.axes == common["axes"]
     else:
         names = {
-            "velocity": ["lin_vel_x", "lin_vel_y", "ang_vel_z"],
+            "velocity": ["vx", "vy", "wz"],
             "pose": ["x", "y", "z", "qx", "qy", "qz", "qw"],
             "planar": ["x", "y", "z", "heading"],
         }[command_type]
-        assert semantics.axes == [None, leapp.Axis(leapp.AxisKind.COMPONENT, names=names)]
+        assert semantics.axes == [leapp.Axis(leapp.AxisKind.SYSTEM), leapp.Axis(leapp.AxisKind.COMPONENT, names=names)]
     assert semantics.expressed_in == ("base" if command_type == "velocity" else None)
     assert semantics.reference == ("base" if command_type == "pose" else None)

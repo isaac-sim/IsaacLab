@@ -5,7 +5,14 @@
 
 from abc import ABC, abstractmethod
 
-from ...utils.leapp import POSE7_COMPONENT_AXIS, Axis, AxisKind, Kind, leapp_tensor_semantics
+from ...utils.leapp import (
+    POSE7_COMPONENT_AXIS,
+    TWIST_COMPONENT_AXIS,
+    Axis,
+    AxisKind,
+    Kind,
+    leapp_tensor_semantics,
+)
 from ...utils.warp import ProxyArray
 
 
@@ -49,7 +56,7 @@ class BaseCableObjectData(ABC):
     @abstractmethod
     @leapp_tensor_semantics(
         kind=Kind.FRAME_TWIST,
-        axes=[None, Axis(AxisKind.ELEMENT), Axis(AxisKind.COMPONENT, names=["vx", "vy", "vz", "wx", "wy", "wz"])],
+        axes=[None, Axis(AxisKind.ELEMENT), TWIST_COMPONENT_AXIS],
     )
     def segment_velocity_w(self) -> ProxyArray:
         """Segment center-of-mass velocities in the simulation world frame.

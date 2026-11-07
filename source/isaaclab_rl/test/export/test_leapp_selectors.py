@@ -62,11 +62,11 @@ def test_static_action_gains_accept_selector_representations(
     expected_names = [[asset.joint_names[index] for index in expected_indices]]
     assert select_element_names(asset.joint_names, selector) == expected_names[0]
     assert outputs_by_name["binary_gripper_kp_gains"].axes == [
-        None,
+        leapp.Axis(leapp.AxisKind.SYSTEM),
         leapp.Axis(leapp.AxisKind.ELEMENT, names=expected_names[0]),
     ]
     assert outputs_by_name["binary_gripper_kd_gains"].axes == [
-        None,
+        leapp.Axis(leapp.AxisKind.SYSTEM),
         leapp.Axis(leapp.AxisKind.ELEMENT, names=expected_names[0]),
     ]
 
@@ -154,4 +154,4 @@ def test_variable_osc_exports_only_actuator_gains(monkeypatch):
     assert {output.name for output in outputs} == expected.keys()
     for output in outputs:
         torch.testing.assert_close(output.ref, expected[output.name])
-        assert output.axes == [None, leapp.Axis(leapp.AxisKind.ELEMENT, names=joint_names)]
+        assert output.axes == [leapp.Axis(leapp.AxisKind.SYSTEM), leapp.Axis(leapp.AxisKind.ELEMENT, names=joint_names)]

@@ -15,7 +15,7 @@ import torch
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
-from isaaclab.utils.leapp import POSE7_COMPONENT_AXIS
+from isaaclab.utils.leapp import POSE7_COMPONENT_AXIS, Axis, AxisKind
 
 from ..utils import SuccessTracker
 
@@ -80,7 +80,7 @@ class ReorientCommand(CommandTerm):
         # adds (optional) cmd kind and element names for leapp export
         # during export, semantic data about this command will be used to annotate the command input
         self.cfg.cmd_kind = self.cfg.cmd_kind or "command/body/pose"
-        self.cfg.axes = self.cfg.axes or [None, POSE7_COMPONENT_AXIS]
+        self.cfg.axes = self.cfg.axes or [Axis(AxisKind.SYSTEM), POSE7_COMPONENT_AXIS]
 
     def __str__(self) -> str:
         msg = "ReorientCommand:\n"

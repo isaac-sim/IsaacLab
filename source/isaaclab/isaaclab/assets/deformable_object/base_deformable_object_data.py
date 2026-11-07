@@ -7,7 +7,12 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from ...utils.leapp import XYZ_COMPONENT_AXIS, Kind, leapp_tensor_semantics
+from ...utils.leapp import (
+    LINEAR_VELOCITY_COMPONENT_AXIS,
+    XYZ_COMPONENT_AXIS,
+    Kind,
+    leapp_tensor_semantics,
+)
 from ...utils.warp import ProxyArray
 
 
@@ -89,7 +94,7 @@ class BaseDeformableObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.FRAME_LINEAR_VELOCITY, axes=[None, None, XYZ_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.FRAME_LINEAR_VELOCITY, axes=[None, None, LINEAR_VELOCITY_COMPONENT_AXIS])
     def nodal_vel_w(self) -> ProxyArray:
         """Nodal velocities in simulation world frame [m/s].
 
@@ -130,7 +135,7 @@ class BaseDeformableObjectData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=Kind.FRAME_LINEAR_VELOCITY, axes=[None, XYZ_COMPONENT_AXIS])
+    @leapp_tensor_semantics(kind=Kind.FRAME_LINEAR_VELOCITY, axes=[None, LINEAR_VELOCITY_COMPONENT_AXIS])
     def root_vel_w(self) -> ProxyArray:
         """Root velocity from vertex velocities for the deformable bodies in simulation
         world frame [m/s]. Shape is (num_instances,) vec3f.

@@ -40,7 +40,7 @@ from functools import wraps
 from typing import TYPE_CHECKING, Any
 
 import torch
-from leapp import Axis, AxisKind, ExportManager, FunctionPatch, Kind, TensorSemantics, annotate
+from leapp import Axis, AxisKind, ExportManager, FunctionPatch, Kind, TensorSemantics, annotate, kd, kp
 
 from ...actuators import IdealPDActuator, ImplicitActuator
 from ...assets.articulation.base_articulation import BaseArticulation
@@ -88,13 +88,15 @@ def _gain_semantics(
     term_name: str, scene_key: str, kind: str, ref: torch.Tensor, element_names: list[str] | None
 ) -> TensorSemantics:
     """Build the exported ``kp``/``kd`` gain tensor for an action term."""
-    return TensorSemantics(
+    sem = (kp if kind == "kp" else kd)(
         name=f"{term_name}_{kind}_gains",
         ref=ref,
-        kind=Kind.KP if kind == "kp" else Kind.KD,
-        axes=[None, Axis(AxisKind.ELEMENT, names=element_names)] if element_names is not None else None,
-        extra=build_write_connection(scene_key, _GAIN_WRITE_METHODS[kind]),
+        axes=[Axis(AxisKind.SYSTEM), Axis(AxisKind.ELEMENT, names=element_names)]
+        if element_names is not None
+        else None,
     )
+    sem.extra = build_write_connection(scene_key, _GAIN_WRITE_METHODS[kind])
+    return sem
 
 
 def _effective_joint_gains(real_asset) -> tuple[torch.Tensor | None, torch.Tensor | None]:
