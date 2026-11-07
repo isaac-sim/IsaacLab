@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Gym registration for the opt-in custom coupling example.
+"""Gym registration for the deprecated coupling task alias.
 
 Registration lives here rather than in the package ``__init__`` so importing the
 example's library modules does not register the task.

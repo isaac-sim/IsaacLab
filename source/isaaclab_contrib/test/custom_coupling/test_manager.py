@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 
 import pytest
 import warp as wp
-from isaaclab_newton.physics import MJWarpSolverCfg, VBDSolverCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, VBDSolverCfg, coupling
 from isaaclab_newton.physics.newton_builder import register_builder_attributes, usd_schema_resolvers
 from newton import ModelBuilder
 
@@ -36,6 +36,28 @@ def _create(
     solver_cfg = CoupledMJWarpVBDSolverCfg() if solver_cfg is None else solver_cfg
     _stub_subsolvers(monkeypatch, solver_cfg)
     return CoupledMJWarpVBDSolver(solver_cfg, MagicMock(), NOT_GUARANTEED)
+
+
+def test_legacy_coupling_imports_preserve_classes_and_warn() -> None:
+    """Old package and submodule imports retain class identity while directing callers to Newton."""
+    with pytest.warns(DeprecationWarning, match="isaaclab_newton.physics.coupling") as records:
+        import isaaclab_contrib.coupling as legacy
+        from isaaclab_contrib.coupling.coupler import CouplerSolver
+        from isaaclab_contrib.coupling.coupler_cfg import (
+            CouplerAdmmCfg,
+            CouplerCfg,
+            CouplerEntryCfg,
+            CouplerProxyCfg,
+            CouplerProxyMappingCfg,
+        )
+
+    assert len(records) == 1
+    assert legacy.CouplerSolver is CouplerSolver is coupling.CouplerSolver
+    assert legacy.CouplerAdmmCfg is CouplerAdmmCfg is coupling.CouplerAdmmCfg
+    assert legacy.CouplerCfg is CouplerCfg is coupling.CouplerCfg
+    assert legacy.CouplerEntryCfg is CouplerEntryCfg is coupling.CouplerEntryCfg
+    assert legacy.CouplerProxyCfg is CouplerProxyCfg is coupling.CouplerProxyCfg
+    assert legacy.CouplerProxyMappingCfg is CouplerProxyMappingCfg is coupling.CouplerProxyMappingCfg
 
 
 def test_registered_mujoco_solver_imports_mujoco_joint_properties() -> None:

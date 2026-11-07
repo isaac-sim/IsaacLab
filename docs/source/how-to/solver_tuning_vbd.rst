@@ -261,8 +261,9 @@ Deprecated Manual MJWarp + VBD Solver
 
 :class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolverCfg` and
 :class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolver` are deprecated.
-Existing configurations retain their shared-model one-way and two-way penalty
-coupling, including ``integrate_with_external_rigid_solver=True`` for VBD.
+Explicitly selected manual configurations retain their shared-model one-way
+and two-way penalty coupling, including
+``integrate_with_external_rigid_solver=True`` for VBD.
 
 For new scenes, use :class:`~isaaclab_newton.physics.coupling.CouplerProxyCfg`
 with named entries and proxy mappings, as described in
@@ -271,9 +272,11 @@ proxy feedback has different numerical behavior, so retune contact and solver
 parameters before reusing a policy or grasp trajectory.
 
 The opt-in task registered by :mod:`isaaclab_contrib.custom_coupling.tasks`
-remains available as ``IsaacContrib-Lift-Soft-Franka-Custom-Coupling`` with its
-manual coupling preset. Use ``Isaac-Lift-Soft-Franka`` with
-``physics=newton_mjwarp_vbd_proxy`` for new runs.
+remains available as ``IsaacContrib-Lift-Soft-Franka-Custom-Coupling``, a
+deprecated alias that now uses the core generic proxy preset. Its legacy
+``physics=newton_mjwarp_vbd`` selector also selects proxy coupling. The task
+warns about the changed physics; retune former manual-coupling policies.
+Use ``Isaac-Lift-Soft-Franka`` with ``physics=newton_mjwarp_vbd_proxy`` for new runs.
 
 
 .. _newton-vbd-proxy-coupling:
