@@ -34,5 +34,8 @@ class RigidObjectCfg(AssetBaseCfg):
     init_state: InitialStateCfg = InitialStateCfg()
     """Initial state of the rigid object. Defaults to identity pose with zero velocity."""
 
+    enable_mesh_variants: bool = False
+    """Enable reset-time selection for a multi-asset spawner when the backend supports it."""
+
     mesh_variant_inertia_diagonal_offset: float = 0.0
     """Diagonal inertia added when selecting a mesh variant [kg·m²]. Defaults to ``0.0``."""

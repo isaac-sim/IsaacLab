@@ -117,23 +117,15 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
     global_paths = tuple(
         root for root, parent in zip(shared, cloner_path.get_parent_indices(shared), strict=True) if parent == -1
     )
-    simulation = isinstance(cfg, NewtonCfg)
+    newton_physics = isinstance(cfg, NewtonCfg)
     variant_groups = []
-    if simulation and isinstance(cfg.solver_cfg, MJWarpSolverCfg) and not cfg.solver_cfg.use_mujoco_contacts:
-        seen_paths = set()
-        for asset_id in asset_prototype_ids:
-            asset = plan.asset_cfgs[asset_id]
-            if not isinstance(asset, RigidObjectCfg) or asset.spawn is None or asset.prim_path in seen_paths:
-                continue
-            seen_paths.add(asset.prim_path)
-            rows = tuple(
-                row
-                for row, candidate in enumerate(plan.asset_cfgs)
-                if isinstance(candidate, RigidObjectCfg)
-                and candidate.spawn is not None
-                and candidate.prim_path == asset.prim_path
-            )
-            if len(rows) < 2:
+    if newton_physics and isinstance(cfg.solver_cfg, MJWarpSolverCfg) and not cfg.solver_cfg.use_mujoco_contacts:
+        asset_prototypes = {}
+        for row, asset in enumerate(plan.asset_cfgs):
+            if isinstance(asset, RigidObjectCfg) and asset.enable_mesh_variants and asset.spawn is not None:
+                asset_prototypes.setdefault(asset.prim_path, []).append(row)
+        for rows in asset_prototypes.values():
+            if len(rows) < 2 or not any(row in asset_prototype_ids for row in rows):
                 continue
             members = [
                 [
@@ -164,22 +156,22 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
         if not isinstance(plan.asset_cfgs[index], SensorBaseCfg)
         if not any(cloner_path.relative_to(source, owner) is not None for owner in routed_sources)
     )
-    variant_sources = tuple(dict.fromkeys(sources[row] for rows, _ in variant_groups for row in rows))
+    variant_sources = tuple(sources[row] for rows, _ in variant_groups for row in rows)
     if positions is None:
         positions = np.zeros((len(env_ids), 3), dtype=np.float32)
     if quaternions is None:
         quaternions = np.zeros((len(env_ids), 4), dtype=np.float32)
         quaternions[:, 3] = 1.0
 
-    schema_resolvers = usd_schema_resolvers(cfg.solver_cfg if simulation else None)
-    builder_factory = partial(create_builder, cfg) if simulation else ModelBuilder
+    schema_resolvers = usd_schema_resolvers(cfg.solver_cfg if newton_physics else None)
+    builder_factory = partial(create_builder, cfg) if newton_physics else ModelBuilder
     builder_factory = partial(builder_factory, up_axis=up_axis)
-    load_visual_shapes = cfg.load_visual_shapes if simulation else True
+    load_visual_shapes = cfg.load_visual_shapes if newton_physics else True
     if load_visual_shapes is None:
         load_visual_shapes = sim.is_rendering or sim.can_render_rgb_array() or sim.visual_shapes_required
     builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg))
     builder.up_axis = Axis.from_string(up_axis)
-    import_paths = (sim.cfg.physics_prim_path, *global_paths) if simulation else global_paths
+    import_paths = (sim.cfg.physics_prim_path, *global_paths) if newton_physics else global_paths
     # A parent import owns its whole subtree; reject nested replacements before importing either source.
     needed = set()
     for start, end in zip(starts[:-1], starts[1:], strict=True):
@@ -211,7 +203,7 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
     entries = deformable_prototypes(stage, plan, exclude_paths=exclude_paths)
     ignore_paths = [*exclude_paths, *(entry.root_path for entry in entries)]
     stage_info = None
-    if simulation:
+    if newton_physics:
         ignore_paths.extend(inject_terrain_heightfields(stage, builder, root_paths=import_paths, device=sim.device))
         stage_info = builder.add_usd(
             stage,
@@ -224,7 +216,7 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
 
     import_results: dict[str, dict[str, Any]] = {}
     options = dict(ignore_paths=ignore_paths, load_visual_shapes=load_visual_shapes)
-    options.update(skip_mesh_approximation=not simulation, import_results_out=import_results)
+    options.update(skip_mesh_approximation=not newton_physics, import_results_out=import_results)
     retained_sources = build_source_builders(stage, source_paths, builder_factory, schema_resolvers, **options)
     source_builders = dict(retained_sources)
     initial_selections = []
@@ -307,7 +299,7 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
     source_cables = {}
     for source, imported in import_results.items():
         cables = source_cables[source] = {}
-        if not simulation or not imported["path_cable_map"]:
+        if not newton_physics or not imported["path_cable_map"]:
             continue
         shapes = {label: index for index, label in enumerate(source_builders[source].shape_label)}
         for path, (bodies, _) in imported["path_cable_map"].items():
@@ -316,7 +308,7 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
             if len(UsdGeom.BasisCurves(stage.GetPrimAtPath(path)).GetCurveVertexCountsAttr().Get()) != 1:
                 continue
             cables[path] = [shapes[f"{path}_edge_capsule_{segment}"] for segment in range(len(bodies))]
-    if simulation:
+    if newton_physics:
         for entry in entries:
             ancestors = reversed(Sdf.Path(entry.root_path).GetPrefixes())
             owners = [source_builders[str(path)] for path in ancestors if str(path) in source_builders]
@@ -353,7 +345,7 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
                 visual_ranges[cloner_path.rebase(particle_visual_paths[path], source, destination)] = native_range
 
     options = dict(env_ids=env_ids, source_site_indices=source_sites, env_root_sites=root_sites)
-    options["per_world_builder_hooks"] = _PER_WORLD_BUILDER_HOOKS if simulation else ()
+    options["per_world_builder_hooks"] = _PER_WORLD_BUILDER_HOOKS if newton_physics else ()
     has_geometry = any(source_cables.values()) or any(result["path_particle_map"] for result in import_results.values())
     options["source_builder_added"] = record_geometry if has_geometry else None
     local_site_map, world_xforms = replicate_builder_mapping(
@@ -361,7 +353,7 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
     )
     site_index_map = {label: (idx, None) for label, idx in global_sites.items()}
     site_index_map.update((label, (None, per_world)) for label, per_world in local_site_map.items())
-    if simulation:
+    if newton_physics:
         geometry = expand_deformable_entries(entries, plan, env_ids, positions, imported_sources=source_builders)
         ranges = dict(zip(builder.surface_label, builder._surface_particle_start, strict=True))
         ranges.update(zip(builder.volume_label, builder._volume_particle_start, strict=True))

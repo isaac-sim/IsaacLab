@@ -132,12 +132,14 @@ the initial variant for each world. A reset event can change it before writing t
    part_cfg = RigidObjectCfg(
        prim_path="{ENV_REGEX_NS}/Part",
        spawn=sim_utils.MultiUsdFileCfg(usd_path=["small_part.usd", "large_part.usd"]),
+       enable_mesh_variants=True,
    )
 
 Call ``scene["part"].write_mesh_variant_to_sim(variant_ids, env_ids)`` to select variants. A task with matching
 fixed and movable objects selects the same ID on both. Newton owns the selected IDs, geometry, and mass properties.
 
-Reset-time selection currently requires Newton MJWarp with external contacts and sleeping disabled. Every
+Multi-asset spawning stays static unless ``enable_mesh_variants=True`` is set. Reset-time selection currently
+requires Newton MJWarp with external contacts and sleeping disabled. Every
 alternative must contain one rigid body with the same fixed/free root-joint type and kinematic flags. Newton permits
 different shape types and counts, but shapes sharing a row need compatible collision groups. Select before
 randomizing contact materials because Newton restores the variant's materials. Other backends and unsupported
