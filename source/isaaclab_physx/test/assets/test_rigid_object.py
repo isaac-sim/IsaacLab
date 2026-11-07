@@ -472,6 +472,29 @@ def test_rigid_object_inertial_properties(scene: _Scene) -> None:
         torch.testing.assert_close(wp.to_torch(raw).to(device).reshape(expected[name].shape), expected[name])
 
 
+def test_rigid_object_inertia_write_refreshes_the_cached_com_orientation(scene: _Scene) -> None:
+    """A non-diagonal inertia write moves the PhysX principal axes, and the cached COM orientation follows at once."""
+    device = scene.device
+    cube_object = scene.cubes
+    data = cube_object.data
+    initial_inertia = data.body_inertia.torch.clone()
+    quat_before = data.body_com_quat_b.torch[:, 0].clone()  # primes the static COM cache
+
+    # Principal moments (3, 2, 4) rotated 45 deg about z: the xy product of inertia is non-zero.
+    inertia = initial_inertia.clone()
+    inertia[:, 0] = torch.tensor([2.5, 0.5, 0.0, 0.5, 2.5, 0.0, 0.0, 0.0, 4.0], device=device)
+    try:
+        cube_object.set_inertias_index(inertias=inertia)
+        view_quat = wp.to_torch(cube_object.root_view.get_coms())[:, 3:7].to(device)
+        cached_quat = data.body_com_quat_b.torch[:, 0]
+        # The orientation moved, and the cache matches PhysX up to the sign of the quaternion.
+        assert (torch.sum(quat_before * view_quat, dim=-1).abs() < 0.99).all()
+        torch.testing.assert_close(torch.sum(cached_quat * view_quat, dim=-1).abs(), torch.ones(_NUM_ENVS).to(device))
+    finally:
+        cube_object.set_inertias_index(inertias=initial_inertia)
+        scene.step()
+
+
 @pytest.mark.isaacsim_ci
 def test_rigid_object_root_state_writes(scene: _Scene) -> None:
     """Root writes round-trip through the written frame and keep the other frame consistent with the offset."""
