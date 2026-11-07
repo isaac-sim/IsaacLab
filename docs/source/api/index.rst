@@ -37,6 +37,7 @@ The following modules are available in the ``isaaclab`` extension:
    :hidden:
 
    lab/isaaclab.envs.mdp
+   lab/isaaclab.envs.reset
    lab/isaaclab.envs.ui
    lab/isaaclab.sensors.patterns
    lab/isaaclab.sim.converters
