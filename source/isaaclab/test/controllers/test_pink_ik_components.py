@@ -307,18 +307,19 @@ def test_action_gravity_compensation_with_migrated_robot_configs(fixed_base, dis
         cfg=robot_cfg,
         data=SimpleNamespace(gravity_compensation_forces=SimpleNamespace(torch=forces)),
         num_base_dofs=num_base_dofs,
-        set_joint_effort_target_index=Mock(),
+        actuators=SimpleNamespace(target_command=SimpleNamespace(set_effort_index=Mock())),
     )
     action = SimpleNamespace(
         _asset=asset, _controlled_joint_ids=[0, 2], _controlled_joint_ids_tensor=torch.tensor([0, 2])
     )
     PinkInverseKinematicsAction._apply_gravity_compensation(action)
 
+    set_effort_index = asset.actuators.target_command.set_effort_index
     if disable_gravity:
-        asset.set_joint_effort_target_index.assert_not_called()
+        set_effort_index.assert_not_called()
     else:
-        asset.set_joint_effort_target_index.assert_called_once()
-        kwargs = asset.set_joint_effort_target_index.call_args.kwargs
+        set_effort_index.assert_called_once()
+        kwargs = set_effort_index.call_args.kwargs
         assert kwargs["joint_ids"] == [0, 2]
         expected = forces[:, [0, 2]] if fixed_base else forces[:, [6, 8]]
-        torch.testing.assert_close(kwargs["target"], expected)
+        torch.testing.assert_close(kwargs["value"], expected)

@@ -12,8 +12,8 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
-from isaaclab.utils import index_fill_
 from isaaclab.utils.math import matrix_from_quat
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -153,12 +153,13 @@ class open_drawer_bonus(ManagerTermBase):
         self.succeeded = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
         self.best_drawer_pos = torch.zeros(env.num_envs, device=env.device)
 
-    def reset(self, env_ids: torch.Tensor):
+    def reset(self, env_mask: ProxyArray):
         log = self._env.extras.setdefault("log", {})
-        log["Metrics/success_rate"] = self.succeeded[env_ids].float().mean()
-        log["Metrics/drawer_pos"] = self.best_drawer_pos[env_ids].mean()
-        index_fill_(self.succeeded, env_ids, False)
-        index_fill_(self.best_drawer_pos, env_ids, 0.0)
+        num_reset = env_mask.torch.sum().clamp_min(1)
+        log["Metrics/success_rate"] = (self.succeeded & env_mask.torch).sum() / num_reset
+        log["Metrics/drawer_pos"] = torch.where(env_mask.torch, self.best_drawer_pos, 0.0).sum() / num_reset
+        self.succeeded.masked_fill_(env_mask.torch, False)
+        self.best_drawer_pos.masked_fill_(env_mask.torch, 0.0)
 
     def __call__(self, env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, success_threshold: float) -> torch.Tensor:
         drawer_pos = env.scene[asset_cfg.name].data.joint_pos.torch[:, asset_cfg.joint_ids][:, 0]

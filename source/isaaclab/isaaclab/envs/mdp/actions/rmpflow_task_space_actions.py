@@ -179,8 +179,8 @@ class RMPFlowAction(ActionTerm):
             joint_pos_des = joint_pos.clone()
             joint_vel_des = torch.zeros_like(joint_pos_des)
         # set the joint position command
-        self._asset.set_joint_position_target_index(target=joint_pos_des, joint_ids=self._joint_ids)
-        self._asset.set_joint_velocity_target_index(target=joint_vel_des, joint_ids=self._joint_ids)
+        self._asset.actuators.target_command.set_position_index(value=joint_pos_des, joint_ids=self._joint_ids)
+        self._asset.actuators.target_command.set_velocity_index(value=joint_vel_des, joint_ids=self._joint_ids)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         index_fill_(self._raw_actions, env_ids, 0.0)

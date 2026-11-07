@@ -413,17 +413,18 @@ class SurfaceGripper(AssetBase):
             env_ids = self._ALL_INDICES
         self.reset_index(env_ids)
 
-    def reset(self, indices: torch.Tensor | None = None) -> None:
+    def reset(self, env_ids: torch.Tensor | None = None, env_mask: wp.array | None = None) -> None:
         """Reset the gripper command buffer.
 
-        .. deprecated:: v2.0.0
-            Use :meth:`reset_index` instead.
-
         Args:
-            indices: A tensor of integers representing the indices of the grippers to reset. Defaults to None.
+            env_ids: Indices of the grippers to reset. Defaults to None (all grippers).
+            env_mask: Boolean mask of the grippers to reset. Shape is (num_envs,). Takes precedence over
+                ``env_ids``. Defaults to None.
         """
-        env_ids = self._resolve_env_ids(indices)
-        self.reset_index(env_ids)
+        if env_mask is not None:
+            self.reset_mask(wp.to_torch(env_mask))
+        else:
+            self.reset_index(self._resolve_env_ids(env_ids))
 
     """
     Initialization.

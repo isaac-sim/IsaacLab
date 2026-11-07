@@ -11,10 +11,12 @@ from dataclasses import field
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 from isaaclab.cloner import path as cloner_path
 from isaaclab.managers.scene_entity_cfg import SceneEntityCfg
 from isaaclab.utils import configclass
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from isaaclab.assets import BaseArticulation, BaseRigidObject, BaseRigidObjectCollection
@@ -36,6 +38,9 @@ class SceneEntitySelectionCfg(SceneEntityCfg):
 
     instance_ids: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long), init=False, repr=False)
     """Physics-view instance row of each environment, or ``-1`` if absent, shape ``(num_envs,)``."""
+
+    row_mask: ProxyArray | None = field(default=None, init=False, repr=False)
+    """Reused buffer of :meth:`view_row_mask`, shape ``(num_instances,)``."""
 
     def resolve(self, scene: InteractiveScene):
         """Resolve entity members and its environment-to-instance mapping."""
@@ -65,6 +70,24 @@ class SceneEntitySelectionCfg(SceneEntityCfg):
         if strict and not bool(selected.all()):
             raise ValueError(f"Environments {env_ids[~selected].tolist()} contain no '{self.name}'.")
         return instance_ids[selected], env_ids[selected]
+
+    def view_row_mask(self, env_mask: ProxyArray) -> wp.array:
+        """Select the physics-view instance rows of the environments in ``env_mask``.
+
+        The rows are gathered on the device into a buffer reused across calls, so the mask stays valid until the
+        next call.
+
+        Args:
+            env_mask: Boolean mask of the global environments. Shape is (num_envs,).
+
+        Returns:
+            Boolean row mask, dtype ``wp.bool``. Shape is (num_instances,).
+        """
+        if self.row_mask is None:
+            device = str(self.env_ids.device)
+            self.row_mask = ProxyArray(wp.zeros(self.env_ids.numel(), dtype=wp.bool, device=device))
+        torch.index_select(env_mask.torch, 0, self.env_ids, out=self.row_mask.torch)
+        return self.row_mask.warp
 
     def scatter_to_envs(self, values: torch.Tensor, *, fill_value: float | int | bool = 0) -> torch.Tensor:
         """Scatter physics-view values into global environment order.
