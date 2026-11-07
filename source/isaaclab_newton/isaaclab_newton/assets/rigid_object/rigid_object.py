@@ -446,8 +446,8 @@ class RigidObject(BaseRigidObject):
             device=self.device,
         )
         # Nonfloating root bindings write model.joint_X_p, not state.joint_q.
-        if (solver := self._backend_manager.backend.solver) is not None and not self.root_view.is_floating_base:
-            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
+        if self._backend_manager.backend.solver is not None and not self.root_view.is_floating_base:
+            self._backend_manager.add_model_change(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of pose-dependent properties.
         if not skip_forward:
             self.data._reset_pose()
@@ -492,8 +492,8 @@ class RigidObject(BaseRigidObject):
             outputs=[self.data._sim_bind_root_link_pose_w],
             device=self.device,
         )
-        if (solver := self._backend_manager.backend.solver) is not None and not self.root_view.is_floating_base:
-            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
+        if self._backend_manager.backend.solver is not None and not self.root_view.is_floating_base:
+            self._backend_manager.add_model_change(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of pose-dependent properties.
         if not skip_forward:
             self.data._reset_pose()
@@ -540,8 +540,8 @@ class RigidObject(BaseRigidObject):
             outputs=[self.data._sim_bind_root_link_pose_w],
             device=self.device,
         )
-        if (solver := self._backend_manager.backend.solver) is not None and not self.root_view.is_floating_base:
-            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
+        if self._backend_manager.backend.solver is not None and not self.root_view.is_floating_base:
+            self._backend_manager.add_model_change(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of pose-dependent properties.
         if not skip_forward:
             self.data._reset_pose()
@@ -586,8 +586,8 @@ class RigidObject(BaseRigidObject):
             outputs=[self.data._sim_bind_root_link_pose_w],
             device=self.device,
         )
-        if (solver := self._backend_manager.backend.solver) is not None and not self.root_view.is_floating_base:
-            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
+        if self._backend_manager.backend.solver is not None and not self.root_view.is_floating_base:
+            self._backend_manager.add_model_change(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of pose-dependent properties.
         if not skip_forward:
             self.data._reset_pose()
