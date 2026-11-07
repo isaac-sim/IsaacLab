@@ -119,7 +119,7 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
     )
     newton_physics = isinstance(cfg, NewtonCfg)
     variant_groups = []
-    if cfg.mesh_variant_source_root:
+    if cfg.get_mesh_variant_source_root():
         asset_prototypes = {}
         for row, asset in enumerate(plan.asset_cfgs):
             spawn = getattr(asset, "spawn", None)
