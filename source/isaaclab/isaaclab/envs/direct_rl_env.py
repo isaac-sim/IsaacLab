@@ -21,6 +21,7 @@ import torch
 
 from ..managers import EventManager
 from ..sim import SimulationContext
+from ..sim.usd_export import export_scene
 from ..sim.utils.stage import use_stage
 from ..utils import index_fill_, instantiate, validate
 from ..utils.noise import NoiseModel
@@ -185,9 +186,7 @@ class DirectRLEnv(gym.Env):
         self._physics_handles_decimation = self.sim.backend_manager.handles_decimation()
         # export after asset initialization, before startup events
         if self.cfg.scene.export_usd_path is not None:
-            from ..sim.usd_export import UsdExporter
-
-            UsdExporter.export_configured_scene(self.scene)
+            export_scene(self.scene)
 
         # check if debug visualization is has been implemented by the environment
         source_code = inspect.getsource(self._set_debug_vis_impl)
