@@ -210,6 +210,12 @@ def cli() -> None:
         example(sys.argv[2:])
         return
     if len(sys.argv) > 1 and sys.argv[1] in subcommands:
+        # Task entry points import decorated math helpers. LEAPP export disables TorchScript in
+        # run_export_cli(), which runs only after this import, so those helpers stay compiled.
+        if sys.argv[1] == "leapp" and len(sys.argv) > 2 and sys.argv[2] == "export":
+            import torch
+
+            torch.jit._state.disable()
         load_external_tasks()
         subcommands[sys.argv[1]](sys.argv[2:])
         return
