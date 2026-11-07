@@ -148,6 +148,10 @@ rows at 0% or 100%. A shuffled cyclic stream receives 50% of assignments through
 which keeps persistently difficult reaching and grasp-acquisition rows represented alongside the
 adaptive competence frontier. There are no runtime stages or region probabilities.
 
+Outcome history and adaptive weighting use the shared `SuccessMonitor` and `Sampler` utilities.
+The task adapter owns cyclic coverage, progress attribution, and playback selection; artifact
+validation and particle restoration remain part of the Pour reset pipeline.
+
 The sampler reports its effective pool size, concentration, and cyclic-replay fraction. Offline
 reset regions remain in the artifact as generation provenance, but runtime does not maintain a
 second set of per-region counters. Evaluate frozen policies separately rather than inferring
