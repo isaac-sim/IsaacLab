@@ -699,13 +699,14 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def body_inertia(self) -> ProxyArray:
-        """Body inertia tensors about the COM in link-aligned axes [kg*m^2].
+        """Body inertia tensors about the COM, expressed in the body link frame [kg*m^2].
 
         Shape is (num_instances, num_bodies, 9), dtype = wp.float32. In torch this resolves to
         (num_instances, num_bodies, 9).
 
-        The tensors are flattened in row-major order. World-frame inertia is ``R @ I @ R.transpose(-1, -2)``, where
-        ``R`` is the rotation matrix from :attr:`body_com_quat_w` and ``I`` is the local 3-by-3 tensor.
+        The tensors are flattened in row-major order and can be non-diagonal. World-frame inertia is
+        ``R @ I @ R.transpose(-1, -2)``, where ``R`` is the rotation matrix from :attr:`body_link_quat_w` and ``I``
+        is the reshaped 3-by-3 tensor.
         """
         return self._body_inertia_ta
 

@@ -766,14 +766,14 @@ class BaseArticulationData(ABC):
     @abstractmethod
     @leapp_tensor_semantics(const=True)
     def body_inertia(self) -> ProxyArray:
-        """Flattened body inertia about each body's center of mass, expressed in local axes.
+        """Flattened body inertia about each body's center of mass, expressed in the body link frame.
 
         Shape is (num_instances, num_bodies, 9), dtype = wp.float32. In torch this resolves to
         (num_instances, num_bodies, 9).
 
-        PhysX uses the center-of-mass frame axes; Newton uses axes aligned with the body link frame.
-        To express the inertia in world coordinates, reshape each tensor to (3, 3) and compute
-        ``R @ I @ R.transpose(-1, -2)``, where ``R`` maps the backend's local inertia axes to the world frame.
+        All backends express the tensors in the body link frame, so they can be non-diagonal. To express the
+        inertia in world coordinates, reshape each tensor to (3, 3) and compute ``R @ I @ R.transpose(-1, -2)``,
+        where ``R`` is the rotation matrix from :attr:`body_link_quat_w`.
         """
         raise NotImplementedError
 

@@ -457,7 +457,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
 
     @property
     def body_inertia(self) -> ProxyArray:
-        """Inertia tensor of all bodies, expressed at the center of mass [kg·m²].
+        """Inertia tensor of all bodies about the center of mass, expressed in the body link frame [kg·m²].
 
         Shape is (num_instances, num_bodies, 9), dtype = ``wp.float32``.
         The 9 components are the row-major flatten of the 3×3 inertia matrix

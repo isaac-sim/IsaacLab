@@ -910,7 +910,7 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def body_inertia(self) -> ProxyArray:
-        """Body inertia tensors [kg*m^2].
+        """Body inertia tensors about the COM, expressed in the body link frame [kg*m^2].
 
         Shape is (num_instances, num_bodies, 9), dtype = ``wp.float32``; the
         trailing 9 is the row-major 3×3 inertia tensor.

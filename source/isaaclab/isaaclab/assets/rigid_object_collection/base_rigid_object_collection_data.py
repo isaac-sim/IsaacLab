@@ -254,7 +254,7 @@ class BaseRigidObjectCollectionData(ABC):
     @abstractmethod
     @leapp_tensor_semantics(const=True)
     def body_inertia(self) -> ProxyArray:
-        """Inertia of all bodies in the simulation world frame.
+        """Inertia of all bodies about their centers of mass, expressed in the body link frames.
 
         Shape is (num_instances, num_bodies, 9), dtype = wp.float32. In torch this resolves to
         (num_instances, num_bodies, 9).

@@ -1597,7 +1597,7 @@ class BaseArticulation(AssetBase):
         body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Set inertias of all bodies in the simulation world frame.
+        """Set inertias of all bodies about their centers of mass, expressed in the body link frames.
 
         .. note::
             This method expects partial data.
@@ -1621,7 +1621,7 @@ class BaseArticulation(AssetBase):
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set inertias of all bodies in the simulation world frame.
+        """Set inertias of all bodies about their centers of mass, expressed in the body link frames.
 
         .. note::
             This method expects full data.
