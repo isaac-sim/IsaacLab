@@ -7,7 +7,10 @@
 
 from __future__ import annotations
 
+import numpy as np
+
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
@@ -18,6 +21,15 @@ from isaaclab_tasks.utils import resolve_presets
 from . import factory_assets_cfg as assets
 from .assembly_variants import ASSEMBLY_VARIANTS
 from .factory_presets import RobotArticulationCfg
+
+
+def _paired_clone_strategy(weights: np.ndarray, num_clones: int) -> np.ndarray:
+    """Start each world with matching fixed and held assembly variants."""
+    count = len(ASSEMBLY_VARIANTS)
+    if weights.size != count * count:
+        raise ValueError("Factory variants expect one fixed/held prototype pair per assembly combination.")
+    paired = np.arange(count, dtype=np.int32) * (count + 1)
+    return paired[cloner.sequential(weights[paired], num_clones)]
 
 
 def _variant_spawner(configs: tuple[RigidObjectCfg, ...]) -> sim_utils.MultiAssetSpawnerCfg:
@@ -33,6 +45,7 @@ class FactoryVariantSceneCfg(InteractiveSceneCfg):
 
     num_envs: int = 4096
     env_spacing: float = 2.0
+    clone_cfg: cloner.CloneCfg = cloner.CloneCfg(clone_strategy=_paired_clone_strategy)
 
     ground = assets.GROUND_CFG
     table = assets.TABLE_CFG

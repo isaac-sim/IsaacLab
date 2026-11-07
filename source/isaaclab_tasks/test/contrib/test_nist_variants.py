@@ -9,6 +9,7 @@ import subprocess
 import sys
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 import torch
 import warp as wp
@@ -58,6 +59,9 @@ def test_static_and_variant_tasks_resolve_with_their_policy_inputs():
     assert len(variant.events.assembly_variants.params["variant_names"]) == 20
     assert len(variant.scene.fixed_asset.spawn.assets_cfg) == len(variant.scene.held_asset.spawn.assets_cfg) == 20
     assert not variant.scene.clone_cfg.clone_combinations
+    count = len(ASSEMBLY_VARIANTS)
+    paired = variant.scene.clone_cfg.clone_strategy(np.ones(count * count), count)
+    np.testing.assert_array_equal(paired, np.arange(count) * (count + 1))
     assert static_agent.obs_groups == {"actor": ["policy"], "critic": ["policy"]}
     assert variant_agent.obs_groups == {"actor": ["policy", "perception"], "critic": ["policy", "perception"]}
     for group in variant_agent.obs_groups["actor"]:
