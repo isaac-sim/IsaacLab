@@ -515,6 +515,11 @@ class NewtonBackend:
             self.solver_ops.check_step(captured, self.cfg.debug_mode)
         return captured
 
+    def stage_body_forces(self) -> None:
+        """Copy the body forces written to ``state_0``, so that every following solver substep applies them."""
+        if self.staged_body_f is not None:
+            wp.copy(self.staged_body_f, self.state_0.body_f)
+
     def state_pointers(self) -> tuple[int, int]:
         """Addresses of :attr:`state_0`'s body and particle arrays, ``0`` for an absent array.
 
@@ -640,11 +645,6 @@ class NewtonBackend:
         for callback in self.post_step_callbacks:
             callback()
         self._update_sensors()
-
-    def stage_body_forces(self) -> None:
-        """Copy the body forces written to ``state_0``, so that every following solver substep applies them."""
-        if self.staged_body_f is not None:
-            wp.copy(self.staged_body_f, self.state_0.body_f)
 
     def _run_solver_substeps(self, contacts: Contacts | None, *, observables: SolverBase.Observables | None) -> None:
         """Run the solver substeps of one physics step, ending in :attr:`state_0`.
