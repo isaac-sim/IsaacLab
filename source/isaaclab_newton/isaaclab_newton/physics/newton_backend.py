@@ -811,7 +811,7 @@ class NewtonBackend:
         """Prepare the solver, collide, and run the pre-actuator callbacks of one physics step."""
         self.solver_ops.pre_step(self.state_0)
         if self.collision_pipeline is not None:
-            self.collision_pipeline.collide(self.state_0, self.contacts)
+            self.collision_pipeline.collide(self.state_0, self.contacts, dt=self.solver_dt)
         for callback in self.pre_actuator_callbacks:
             callback()
 
@@ -862,7 +862,7 @@ class NewtonBackend:
             # Derived data read by the next substep's state-force callbacks must see this substep's state.
             self.state_version += 1
             if collide_mid_loop and (i + 1) % collide_every == 0 and i + 1 < num_substeps:
-                self.collision_pipeline.collide(self.state_0, contacts)
+                self.collision_pipeline.collide(self.state_0, contacts, dt=dt)
         ops.post_step(self.state_0)
 
     def _update_sensors(self) -> None:
