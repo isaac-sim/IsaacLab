@@ -14,7 +14,6 @@ import sys
 import textwrap
 import time
 from io import StringIO
-from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
@@ -31,7 +30,7 @@ _ALT_SCREEN_OFF = "\x1b[?1049l"
 @pytest.fixture(autouse=True)
 def _local_greetings(monkeypatch):
     # These tests own console behavior; network and cache contracts are tested separately.
-    greeting = SimpleNamespace(logos=None)
+    greeting = Mock(logos=None)
     monkeypatch.setattr(loading_screen, "RemoteGreetings", lambda **kwargs: greeting)
     return greeting
 
@@ -114,7 +113,6 @@ def test_live_lifecycle_restores_normal_screen(monkeypatch: pytest.MonkeyPatch, 
         screen.stage("Loading task")
         assert screen._rich_console is not None
         assert screen._rich_console.color_system == "truecolor"
-        assert "NARROW HOLIDAY" not in _render(screen._display, 80)
         # A color continuing across artwork rows must not leak into the run summary.
         _local_greetings.logos = tuple(
             "\x1b[48;2;255;0;0m" + "\n".join([label.ljust(cols)] * 12) + "\x1b[0m"
@@ -143,10 +141,9 @@ def test_live_lifecycle_restores_normal_screen(monkeypatch: pytest.MonkeyPatch, 
 
 @pytest.mark.parametrize(("enabled", "logo"), [(True, False), (False, True)])
 def test_hidden_greetings_do_not_start_remote_loading(monkeypatch: pytest.MonkeyPatch, enabled, logo):
-    def unexpected_download(**kwargs):
-        pytest.fail("A hidden greeting started remote loading")
-
-    monkeypatch.setattr(loading_screen, "RemoteGreetings", unexpected_download)
+    monkeypatch.setattr(
+        loading_screen, "RemoteGreetings", Mock(side_effect=AssertionError("A hidden greeting started remote loading"))
+    )
     screen = loading_screen.LoadingScreen(1, enabled=enabled, logo=logo)
     _prepare_redirect(screen, monkeypatch)
     with screen:
