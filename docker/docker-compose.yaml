@@ -130,6 +130,15 @@ x-default-isaac-lab-deploy: &default-isaac-lab-deploy
           count: all
           capabilities: [ gpu ]
 
+# Kit and its plugins spawn many threads, processes, and open files. Runtimes with a low default
+# process limit (for example Podman's 2048 PIDs on Rocky Linux) otherwise fail to fork child
+# processes with "Resource temporarily unavailable".
+x-default-isaac-lab-ulimits: &default-isaac-lab-ulimits
+  nproc: 65535
+  nofile:
+    soft: 65536
+    hard: 65536
+
 services:
   # This service is the base Isaac Lab image
   isaac-lab-base:
@@ -151,6 +160,8 @@ services:
     volumes: *default-isaac-lab-volumes
     network_mode: host
     deploy: *default-isaac-lab-deploy
+    pids_limit: -1
+    ulimits: *default-isaac-lab-ulimits
     # This is the entrypoint for the container
     entrypoint: bash
     stdin_open: true
@@ -173,6 +184,8 @@ services:
     volumes: *kitless-isaac-lab-volumes
     network_mode: host
     deploy: *default-isaac-lab-deploy
+    pids_limit: -1
+    ulimits: *default-isaac-lab-ulimits
     entrypoint: bash
     stdin_open: true
     tty: true
