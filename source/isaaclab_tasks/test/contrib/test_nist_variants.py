@@ -9,6 +9,7 @@ import subprocess
 import sys
 from types import SimpleNamespace
 
+import gymnasium as gym
 import numpy as np
 import pytest
 import torch
@@ -28,6 +29,7 @@ from isaaclab_tasks.contrib.nist.assembly_profile import AssemblyProfile
 from isaaclab_tasks.contrib.nist.assembly_variants import ASSEMBLY_VARIANTS
 from isaaclab_tasks.contrib.nist.config.agents.models import MLPEncoder, SimBaModel
 from isaaclab_tasks.contrib.nist.factory_env_cfg import FactoryEnvCfg
+from isaaclab_tasks.contrib.nist.factory_variant_env import FactoryVariantEnv
 from isaaclab_tasks.contrib.nist.factory_variant_env_cfg import FactoryVariantEnvCfg
 from isaaclab_tasks.contrib.nist.mdp.observations import scene_point_cloud_b
 from isaaclab_tasks.contrib.nist.utils import reset_state
@@ -56,6 +58,9 @@ def test_static_and_variant_tasks_resolve_with_their_policy_inputs():
     )
     assert type(static) is FactoryEnvCfg
     assert isinstance(variant, FactoryVariantEnvCfg)
+    assert gym.spec("IsaacContrib-Factory-Variant-Franka").entry_point == (
+        "isaaclab_tasks.contrib.nist.factory_variant_env:FactoryVariantEnv"
+    )
     assert not hasattr(static.terminations, "solver_reset_required")
     assert variant.terminations.solver_reset_required.func == "isaaclab_newton.envs.mdp:SolverResetRequired"
     assert list(variant.rewards.__dict__)[-1] == "solver_reset_reward"
@@ -78,6 +83,44 @@ def test_static_and_variant_tasks_resolve_with_their_policy_inputs():
     assert list(variant.events.__dict__).index("held_asset_material") < list(variant.events.__dict__).index(
         "reset_strategies"
     )
+
+
+def test_variant_recovers_nonfinite_step_outputs_and_initial_reset(monkeypatch):
+    """The policy boundary retries bad worlds and leaves valid worlds' histories alone."""
+    from isaaclab.envs import ManagerBasedRLEnv
+
+    env = object.__new__(FactoryVariantEnv)
+    env._is_closed = True
+    calls = []
+    env.scene = SimpleNamespace(num_envs=2, write_data_to_sim=lambda: calls.append("write"))
+    env.sim = SimpleNamespace(device="cpu", forward=lambda: calls.append("forward"))
+    env.reset_buf = torch.zeros(2, dtype=torch.bool)
+    env._reset_idx = lambda ids: calls.append(("reset", ids.tolist()))
+    env.observation_manager = SimpleNamespace(
+        compute=lambda update_history: {"policy": torch.ones(2, 1), "perception": torch.ones(2, 1)}
+    )
+    observations = {"policy": torch.tensor([[float("nan")], [2.0]]), "perception": torch.ones(2, 1)}
+    reward = torch.tensor([float("nan"), 2.0])
+    terminated = torch.zeros(2, dtype=torch.bool)
+    timeouts = torch.zeros(2, dtype=torch.bool)
+    monkeypatch.setattr(
+        ManagerBasedRLEnv, "step", lambda self, action: (observations, reward, terminated, timeouts, {})
+    )
+    result = env.step(torch.tensor([[float("nan")], [0.0]]))
+    assert calls == [("reset", [0]), "write", "forward"]
+    assert torch.isfinite(result[0]["policy"]).all() and torch.isfinite(result[1]).all()
+    assert result[0]["policy"][1, 0] == 2.0 and result[1][1] == 2.0
+    assert result[2].tolist() == [True, False] and result[3].tolist() == [False, False]
+
+    calls.clear()
+    monkeypatch.setattr(
+        ManagerBasedRLEnv,
+        "reset",
+        lambda self, **kwargs: ({"policy": torch.tensor([[float("nan")], [2.0]]), "perception": torch.ones(2, 1)}, {}),
+    )
+    initial_obs, _ = env.reset()
+    assert calls == [("reset", [0]), "write", "forward"]
+    assert torch.isfinite(initial_obs["policy"]).all() and initial_obs["policy"][1, 0] == 2.0
 
 
 def test_simba_point_cloud_encoder_trains_and_exports():

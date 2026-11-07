@@ -29,7 +29,7 @@ gym.register(
 
 gym.register(
     id="IsaacContrib-Factory-Variant-Franka",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab_tasks.contrib.nist.factory_variant_env:FactoryVariantEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": "isaaclab_tasks.contrib.nist.factory_variant_env_cfg:FactoryVariantEnvCfg",
