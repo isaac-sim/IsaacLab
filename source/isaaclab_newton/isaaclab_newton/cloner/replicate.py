@@ -122,27 +122,16 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
     if cfg.get_mesh_variant_source_root():
         asset_prototypes = {}
         for row, asset in enumerate(plan.asset_cfgs):
-            spawn = getattr(asset, "spawn", None)
-            if isinstance(spawn, (MultiAssetSpawnerCfg, MultiUsdFileCfg)) and not spawn.static:
-                if not isinstance(asset, RigidObjectCfg):
-                    raise NotImplementedError("Reset-time mesh variants require RigidObjectCfg.")
+            if (
+                isinstance(asset, RigidObjectCfg)
+                and isinstance(asset.spawn, (MultiAssetSpawnerCfg, MultiUsdFileCfg))
+                and not asset.spawn.static
+            ):
                 asset_prototypes.setdefault(asset.prim_path, []).append(row)
         for rows in asset_prototypes.values():
             if not any(row in asset_prototype_ids for row in rows):
                 continue
-            if len(rows) < 2:
-                raise ValueError("Reset-time mesh variants require at least two alternatives.")
-            members = [
-                [
-                    index
-                    for index in range(starts[prototype + 1], starts[prototype + 2])
-                    if plan.topology.world_prototypes[index] in rows
-                ]
-                for prototype in plan.topology.world_prototype_layout
-            ]
-            if any(len(indices) != 1 for indices in members):
-                raise ValueError("Reset-time mesh variants require one alternative per world prototype.")
-            variant_groups.append((rows, [indices[0] for indices in members]))
+            variant_groups.append(rows)
             for row in rows:
                 sources[row] = plan.asset_cfgs[row].spawn.spawn_path
     routed_sources = tuple(sources[index] for index in asset_prototype_ids if sources[index] is not None)
@@ -156,7 +145,7 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
         if not isinstance(plan.asset_cfgs[index], SensorBaseCfg)
         if not any(cloner_path.relative_to(source, owner) is not None for owner in routed_sources)
     )
-    variant_sources = tuple(sources[row] for rows, _ in variant_groups for row in rows)
+    variant_sources = tuple(sources[row] for rows in variant_groups for row in rows)
     if positions is None:
         positions = np.zeros((len(env_ids), 3), dtype=np.float32)
     if quaternions is None:
@@ -220,24 +209,18 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
     retained_sources = build_source_builders(stage, source_paths, builder_factory, schema_resolvers, **options)
     source_builders = dict(retained_sources)
     initial_selections = []
-    for rows, members in variant_groups:
+    for rows in variant_groups:
         variants = tuple(retained_sources[sources[row]] for row in rows)
-        if any(source.body_count != 1 or source.joint_count != 1 for source in variants):
-            raise ValueError("Reset-time mesh variants require one rigid body and one root joint per alternative.")
-        joint_types = {source.joint_type[0] for source in variants}
-        body_flags = {source.body_flags[0] for source in variants}
-        if len(joint_types) != 1 or joint_types.pop() not in (JointType.FREE, JointType.FIXED) or len(body_flags) != 1:
-            raise ValueError("Reset-time mesh variants require matching fixed/free joints and body flags.")
-        if any(source.joint_parent[0] != -1 or source.joint_child[0] != 0 for source in variants):
-            raise ValueError("Reset-time mesh variants require a root joint connected to the only body.")
-        variant_by_asset = {row: variant for variant, row in enumerate(rows)}
-        for world, member in enumerate(members):
+        for world, prototype in enumerate(plan.topology.world_prototype_layout):
+            member = next(
+                index
+                for index in range(starts[prototype + 1], starts[prototype + 2])
+                if plan.topology.world_prototypes[index] in rows
+            )
             row = plan.topology.world_prototypes[member]
             target = cloner_path.rebase(variants[0].body_label[0], sources[rows[0]], templates[member].format(world))
-            initial_selections.append((target, variant_by_asset[row]))
+            initial_selections.append((target, rows.index(row)))
         inertia_offset = plan.asset_cfgs[rows[0]].mesh_variant_inertia_diagonal_offset
-        if not np.isfinite(inertia_offset) or inertia_offset < 0.0:
-            raise ValueError("mesh_variant_inertia_diagonal_offset must be finite and non-negative.")
         if inertia_offset:
             for source in variants:
                 source.body_inertia[0] = wp.mat33(
