@@ -37,9 +37,8 @@ class PhysicsCfg:
     launcher_type: ClassVar[str | None] = None
     """The launcher that starts the runtime this backend runs in, as ``"module:Class"``, or None if none is needed."""
 
-    def get_mesh_variant_source_root(self) -> str | None:
-        """USD source namespace for native mesh variants, or None when the backend cannot select them."""
-        return None
+    mesh_variant_source_root: str | None = None
+    """USD source namespace for native mesh variants, when provided by the backend."""
 
     deterministic: bool = False
     """Whether to request reproducible physics from the backend. Defaults to False.

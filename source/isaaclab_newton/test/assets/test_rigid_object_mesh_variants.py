@@ -137,7 +137,7 @@ def test_native_selection_preserves_initial_worlds_and_unused_variant(device: st
         pytest.param(XPBDSolverCfg(), False, id="xpbd"),
     ],
 )
-def test_static_multi_asset_variants(device: str, solver_cfg, static: bool) -> None:
+def test_multi_asset_variants_across_solvers(device: str, solver_cfg, static: bool) -> None:
     sim_cfg = SimulationCfg(
         device=device,
         gravity=(0.0, 0.0, 0.0),
@@ -147,17 +147,23 @@ def test_static_multi_asset_variants(device: str, solver_cfg, static: bool) -> N
         sim._app_control_on_stop_handle = None
         scene_cfg = _VariantSceneCfg(num_envs=2, env_spacing=2.0)
         scene_cfg.object.spawn.static = static
-        if not static:
-            with pytest.raises(NotImplementedError, match="Reset-time mesh variants are unavailable"):
-                InteractiveScene(scene_cfg)
-            return
         scene = InteractiveScene(scene_cfg)
         sim.register_interactive_scene(scene)
+        if isinstance(solver_cfg, MJWarpSolverCfg) and solver_cfg.use_mujoco_contacts:
+            with pytest.raises(NotImplementedError, match="supports body variants only with Newton contacts"):
+                sim.reset()
+            return
         sim.reset()
         asset = scene["object"]
         assert asset.num_mesh_variants == 2
         torch.testing.assert_close(asset.data.body_mass.torch[:, 0].cpu(), torch.tensor([1.0, 8.0]))
-        with pytest.raises(NotImplementedError, match="Reset-time mesh variant selection is unavailable"):
-            _ = asset.mesh_variant_ids
-        with pytest.raises(NotImplementedError, match="Reset-time mesh variant selection is unavailable"):
+        if static:
+            with pytest.raises(NotImplementedError, match="Reset-time mesh variant selection is unavailable"):
+                _ = asset.mesh_variant_ids
+            with pytest.raises(NotImplementedError, match="Reset-time mesh variant selection is unavailable"):
+                asset.write_mesh_variant_to_sim(torch.tensor([1], dtype=torch.int32, device=device), (0,))
+        else:
+            torch.testing.assert_close(asset.mesh_variant_ids.torch.cpu(), torch.tensor([0, 1], dtype=torch.int32))
             asset.write_mesh_variant_to_sim(torch.tensor([1], dtype=torch.int32, device=device), (0,))
+            torch.testing.assert_close(asset.data.body_mass.torch[:, 0].cpu(), torch.tensor([8.0, 8.0]))
+            sim.step()
