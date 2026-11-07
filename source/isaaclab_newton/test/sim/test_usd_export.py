@@ -76,7 +76,9 @@ def _export(
         live = _capture(model, state.body_q, state.joint_q, state.joint_qd)
         solver_type = type(manager.backend.solver)
         # The engine's own construction of the solver, stepped from the reset state.
-        solver = solver_cfg.class_type.build(solver_cfg, model, wp.DeterministicMode.NOT_GUARANTEED)
+        plan = scene.clone_plan
+        env_template = None if plan is None else plan.env_template
+        solver = solver_cfg.class_type(solver_cfg, model, wp.DeterministicMode.NOT_GUARANTEED, env_template).native
         motion = _rollout(model, solver, state.joint_q, state.joint_qd)
     return output, live, solver_type, motion
 
