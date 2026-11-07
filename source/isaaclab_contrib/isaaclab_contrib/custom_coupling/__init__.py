@@ -3,9 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Opt-in example of a custom Newton coupled solver.
+"""Deprecated adapters to the generic Newton proxy coupler.
 
-Import :mod:`isaaclab_contrib.custom_coupling.tasks` to register the example task.
+Use :mod:`isaaclab_newton.physics.coupling` for new configurations. Import
+:mod:`isaaclab_contrib.custom_coupling.tasks` to register the deprecated task alias.
 """
 
 from isaaclab.utils.module import lazy_export

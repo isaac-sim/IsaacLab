@@ -271,15 +271,15 @@ The four architectures differ in what drives the substep loop:
      - ``build`` returns a :class:`newton.solvers.SolverBase` subclass
        that holds several sub-solvers, built from their own configurations,
        and fixes the substep order in its ``step()``.
-       :class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolver`
-       is the in-tree example. Its Newton solver clears force accumulators, detects
-       contacts once, injects soft-to-rigid reactions into ``body_f`` when
-       ``coupling_mode="two_way"``, then advances MJWarp on its own internal
-       contacts and VBD on the detected ones.
 
 A custom shared-model solver bypasses entry ownership resolution, so it cannot
 reuse the coupler's selectors or validation. For the proxy and ADMM trade-offs,
 see :ref:`newton-coupled-solvers`.
+
+:class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolver` is a deprecated
+adapter to proxy coupling. New MJWarp and VBD integrations should configure
+:class:`~isaaclab_newton.physics.coupling.CouplerProxyCfg` directly; see
+:ref:`newton-vbd-proxy-coupling`.
 
 
 .. _related-documentation:

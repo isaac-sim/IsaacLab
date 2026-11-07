@@ -15,10 +15,12 @@ import numpy as np
 import pytest
 import warp as wp
 from isaaclab_newton.physics import (
+    MJWarpSolverCfg,
     NewtonBackend,
     NewtonBackendCfg,
     NewtonCfg,
     NewtonManager,
+    VBDSolverCfg,
     XPBDSolverCfg,
 )
 from isaaclab_newton.physics.coupling import (
@@ -28,13 +30,17 @@ from isaaclab_newton.physics.coupling import (
     CouplerProxyMappingCfg,
 )
 from newton import CollisionPipeline, Mesh, ModelBuilder
-from newton.solvers import SolverXPBD
+from newton.solvers import SolverMuJoCo, SolverXPBD
 from newton.solvers.experimental.coupled import SolverCoupledADMM, SolverCoupledProxy
 
 from isaaclab.sim import SimulationContext
 
+pytestmark = pytest.mark.kitless
 
-def _bind_coupler(builder: ModelBuilder, solver_cfg: CouplerProxyCfg | CouplerAdmmCfg) -> NewtonManager:
+
+def _bind_coupler(
+    builder: ModelBuilder, solver_cfg: CouplerProxyCfg | CouplerAdmmCfg, *, dt: float = 1.0 / 60.0
+) -> NewtonManager:
     """Build a manager over a backend finalized from ``builder`` whose coupler solver and contacts are constructed."""
     cfg = NewtonCfg(solver_cfg=solver_cfg)
     manager = NewtonManager(cfg)
@@ -46,7 +52,7 @@ def _bind_coupler(builder: ModelBuilder, solver_cfg: CouplerProxyCfg | CouplerAd
     )
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr(SimulationContext, "instance", lambda: manager._sim)
-        manager.backend = NewtonBackend(NewtonBackendCfg(physics_cfg=cfg, device="cpu"), dt=1.0 / 60.0)
+        manager.backend = NewtonBackend(NewtonBackendCfg(physics_cfg=cfg, device="cpu"), dt=dt)
     manager.initialize_solver()
     return manager
 
@@ -118,6 +124,90 @@ def test_proxy_destination_can_receive_only_proxy_bodies():
     backend = _bind_coupler(builder, solver_cfg).backend
 
     assert backend.solver._entries["destination"].proxy_body_local_indices.numpy().tolist() == [0]
+
+
+def test_proxy_coupling_controls_rigid_soft_feedback():
+    """VBD contact blocks a soft body, optional feedback pushes its rigid collider, and authored forces survive."""
+
+    def run(proxy_relaxation: float) -> tuple[np.ndarray, np.ndarray]:
+        builder = ModelBuilder(gravity=(0.0, 0.0, 0.0))
+        SolverMuJoCo.register_custom_attributes(builder)
+        builder.default_shape_cfg.ke = 1.0e4
+        builder.default_shape_cfg.mu = 1.0e-4
+        builder.begin_world()
+        body = builder.add_link(
+            mass=1.0,
+            inertia=wp.mat33(np.eye(3, dtype=np.float32)),
+            label="/World/Collider",
+        )
+        joint = builder.add_joint_free(child=body)
+        builder.add_articulation([joint])
+        builder.add_shape_box(body=body, hx=0.1, hy=0.1, hz=0.1)
+        builder.add_soft_grid(
+            pos=wp.vec3(-0.17, -0.03, -0.03),
+            rot=wp.quat_identity(),
+            vel=wp.vec3(1.0, 0.0, 0.0),
+            dim_x=1,
+            dim_y=1,
+            dim_z=1,
+            cell_x=0.06,
+            cell_y=0.06,
+            cell_z=0.06,
+            density=100.0,
+            k_mu=1.0e4,
+            k_lambda=1.0e4,
+            k_damp=1.0,
+            particle_radius=0.01,
+        )
+        builder.end_world()
+        builder.color()
+        cfg = CouplerProxyCfg(
+            entries=[
+                CouplerEntryCfg(
+                    name="rigid", solver_cfg=MJWarpSolverCfg(use_mujoco_cpu=True), bodies=["/World/Collider"]
+                ),
+                CouplerEntryCfg(name="soft", solver_cfg=VBDSolverCfg(iterations=5), all_particles=True),
+            ],
+            proxies=[
+                CouplerProxyMappingCfg(
+                    source="rigid",
+                    destination="soft",
+                    bodies=["/World/Collider"],
+                    mode="staggered",
+                    proxy_relaxation=proxy_relaxation,
+                )
+            ],
+        )
+        backend = _bind_coupler(builder, cfg, dt=1.0 / 600.0).backend
+        wrench = wp.array([[0.0, 0.1, 0.0, 0.0, 0.0, 0.0]], dtype=wp.spatial_vector, device="cpu")
+        for _ in range(120):
+            backend.state_0.body_f.assign(wrench)
+            backend._simulate(1)
+        if proxy_relaxation == 1.0:
+            # A coupled reset must preserve native CPU history unless its template world is selected.
+            data = backend.solver.solver("rigid").mj_data
+            joint_q = backend.state_0.joint_q.numpy().copy()
+            data.qacc_warmstart[:] = 7.0
+            for mask in ([False, False], [False, True]):
+                backend.solver_ops.reset(backend.state_0, wp.array(mask, dtype=wp.bool, device="cpu"))
+                np.testing.assert_array_equal(data.qacc_warmstart, 7.0)
+                np.testing.assert_array_equal(backend.state_0.joint_q.numpy(), joint_q)
+            backend.solver_ops.reset(backend.state_0, wp.array([True, False], dtype=wp.bool, device="cpu"))
+            np.testing.assert_array_equal(data.qacc_warmstart, 0.0)
+            np.testing.assert_array_equal(backend.state_0.joint_q.numpy(), joint_q)
+        return backend.state_0.body_q.numpy()[0, :3], backend.state_0.particle_q.numpy()
+
+    one_way_rigid, one_way_soft = run(0.0)
+    two_way_rigid, two_way_soft = run(1.0)
+
+    assert np.isfinite(one_way_soft).all() and np.isfinite(two_way_soft).all()
+    # Without contact the soft body's center would travel from -0.14 m to +0.06 m.
+    assert one_way_soft[:, 0].mean() < -0.07
+    assert abs(one_way_rigid[0]) < 1.0e-5
+    assert two_way_rigid[0] > one_way_rigid[0] + 0.001
+    # A transverse force is independent of the normal contact reaction.
+    assert one_way_rigid[1] > 1.0e-6
+    assert two_way_rigid[1] > 1.0e-4
 
 
 @pytest.mark.parametrize(

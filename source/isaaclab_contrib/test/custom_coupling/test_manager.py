@@ -3,37 +3,20 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unit tests for the custom coupled solver."""
-
-from unittest.mock import MagicMock
+"""Compatibility tests for the deprecated coupled-solver configuration."""
 
 import pytest
 import warp as wp
 from isaaclab_newton.physics import MJWarpSolverCfg, VBDSolverCfg
+from isaaclab_newton.physics.coupling import CouplerProxyCfg, CouplerSolver
 from isaaclab_newton.physics.newton_builder import register_builder_attributes, usd_schema_resolvers
 from newton import ModelBuilder
 
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
-from isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_solver import CoupledMJWarpVBDSolver
-from isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_solver_cfg import CoupledMJWarpVBDSolverCfg
+from isaaclab_contrib.custom_coupling import CoupledMJWarpVBDSolver, CoupledMJWarpVBDSolverCfg
 
-NOT_GUARANTEED = wp.DeterministicMode.NOT_GUARANTEED
-
-
-def _stub_subsolvers(monkeypatch: pytest.MonkeyPatch, solver_cfg: CoupledMJWarpVBDSolverCfg) -> None:
-    """Make the MJWarp and VBD sub-solver configurations build mocks."""
-    monkeypatch.setattr(solver_cfg.rigid_solver_cfg, "class_type", MagicMock())
-    monkeypatch.setattr(solver_cfg.soft_solver_cfg, "class_type", MagicMock())
-
-
-def _create(
-    monkeypatch: pytest.MonkeyPatch, solver_cfg: CoupledMJWarpVBDSolverCfg | None = None
-) -> CoupledMJWarpVBDSolver:
-    """Construct the coupled solver's driver over mocked sub-solvers."""
-    solver_cfg = CoupledMJWarpVBDSolverCfg() if solver_cfg is None else solver_cfg
-    _stub_subsolvers(monkeypatch, solver_cfg)
-    return CoupledMJWarpVBDSolver(solver_cfg, MagicMock(), NOT_GUARANTEED)
+pytestmark = pytest.mark.kitless
 
 
 def test_registered_mujoco_solver_imports_mujoco_joint_properties() -> None:
@@ -63,91 +46,37 @@ def test_registered_mujoco_solver_imports_mujoco_joint_properties() -> None:
     assert model.joint_damping.numpy()[-1] == pytest.approx(0.23)
 
 
-def test_reset_forwards_to_both_subsolvers(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The coupled solver's reset reaches both sub-solvers."""
-    solver = _create(monkeypatch).native
-    rigid_solver = solver.rigid_solver
-    rigid_solver.use_mujoco_cpu = False
-    soft_solver = solver.soft_solver
-    state = object()
-    world_mask = object()
+@pytest.mark.parametrize(("mode", "relaxation"), [("one_way", 0.0), ("two_way", 1.0)])
+def test_legacy_config_translates_to_proxy_coupling(mode, relaxation, monkeypatch):
+    """Legacy fields keep their settings and select feedback without mutating caller-owned configs."""
+    rigid = MJWarpSolverCfg(iterations=17)
+    soft = VBDSolverCfg(iterations=7, integrate_with_external_rigid_solver=True)
+    with pytest.warns(FutureWarning, match="proxy feedback"):
+        cfg = CoupledMJWarpVBDSolverCfg(rigid_solver_cfg=rigid, soft_solver_cfg=soft, coupling_mode=mode)
+    # Native construction is covered by the core coupler runtime tests; this boundary owns legacy translation.
+    monkeypatch.setattr(CouplerSolver, "build", lambda *args: None)
+    driver = CoupledMJWarpVBDSolver(cfg, None, wp.DeterministicMode.NOT_GUARANTEED)
+    proxy_cfg = driver.cfg
 
-    solver.reset(state, world_mask=world_mask)
-
-    rigid_solver.reset.assert_called_once_with(state, world_mask=world_mask, flags=0)
-    soft_solver.reset.assert_called_once_with(state, world_mask=world_mask, flags=0)
-
-
-def test_reset_skips_all_false_cpu_mask(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Keep CPU warm-start state when no world needs reset."""
-    solver = _create(monkeypatch).native
-    rigid_solver = solver.rigid_solver
-    rigid_solver.use_mujoco_cpu = True
-    soft_solver = solver.soft_solver
-    world_mask = MagicMock()
-    world_mask.numpy.return_value.any.return_value = False
-
-    solver.reset(object(), world_mask=world_mask)
-
-    rigid_solver.reset.assert_not_called()
-    soft_solver.reset.assert_not_called()
-
-
-@pytest.mark.parametrize(
-    ("solver_cfg", "match"),
-    [
-        (CoupledMJWarpVBDSolverCfg(coupling_mode="invalid"), "coupling_mode"),
-        (
-            CoupledMJWarpVBDSolverCfg(rigid_solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False)),
-            "MJWarp internal contacts",
-        ),
-        (
-            CoupledMJWarpVBDSolverCfg(soft_solver_cfg=VBDSolverCfg()),
-            "VBD external rigid-body integration",
-        ),
-    ],
-)
-def test_build_solver_rejects_invalid_configuration(solver_cfg: CoupledMJWarpVBDSolverCfg, match: str) -> None:
-    with pytest.raises(ValueError, match=match):
-        CoupledMJWarpVBDSolver(solver_cfg, MagicMock(), NOT_GUARANTEED)
+    assert isinstance(proxy_cfg, CouplerProxyCfg)
+    rigid_entry, soft_entry = proxy_cfg.entries
+    assert rigid_entry.solver_cfg.iterations == 17
+    assert rigid_entry.bodies == [".*"] and rigid_entry.include_static_shapes
+    assert soft_entry.solver_cfg.iterations == 7
+    assert soft_entry.solver_cfg.integrate_with_external_rigid_solver is False
+    assert soft_entry.all_particles and not soft_entry.include_static_shapes
+    assert soft.integrate_with_external_rigid_solver is True
+    assert cfg.soft_solver_cfg.integrate_with_external_rigid_solver is True
+    (mapping,) = proxy_cfg.proxies
+    assert (mapping.source, mapping.destination) == (rigid_entry.name, soft_entry.name)
+    assert mapping.bodies == [".*"]
+    assert mapping.collision_pipeline is None
+    assert mapping.proxy_relaxation == relaxation
+    assert mapping.proxy_relaxation_mode == "fixed"
 
 
-def test_build_solver_builds_each_sub_solver(monkeypatch: pytest.MonkeyPatch) -> None:
-    solver_cfg = CoupledMJWarpVBDSolverCfg()
-    driver = _create(monkeypatch, solver_cfg)
-
-    assert driver.rigid is solver_cfg.rigid_solver_cfg.class_type.return_value
-    assert driver.native.rigid_solver is driver.rigid.native
-    assert driver.native.soft_solver is driver.soft.native
-
-
-@pytest.mark.parametrize("mode", ["one_way", "two_way"])
-def test_step_preserves_input_forces(mode: str, monkeypatch: pytest.MonkeyPatch) -> None:
-    state_in = MagicMock()
-    state_in.body_f = object()
-    state_in.particle_f = MagicMock()
-    state_out = MagicMock()
-    control = object()
-    contacts = object()
-    collision_pipeline = MagicMock()
-    reactions = MagicMock()
-    solver_cfg = CoupledMJWarpVBDSolverCfg(coupling_mode=mode)
-    driver = _create(monkeypatch, solver_cfg)
-    solver = driver.native
-    rigid_solver = solver.rigid_solver
-    soft_solver = solver.soft_solver
-    driver.prepare_contacts(contacts, collision_pipeline)
-    monkeypatch.setattr(solver, "_apply_reactions", reactions)
-
-    solver.step(state_in, state_out, control, contacts, 0.01)
-
-    state_in.clear_forces.assert_not_called()
-    state_in.particle_f.zero_.assert_not_called()
-    state_out.clear_forces.assert_called_once_with()
-    collision_pipeline.collide.assert_called_once_with(state_in, contacts)
-    rigid_solver.step.assert_called_once_with(state_in, state_out, control, None, 0.01)
-    soft_solver.step.assert_called_once_with(state_in, state_out, control, contacts, 0.01)
-    if mode == "two_way":
-        reactions.assert_called_once_with(state_in, state_out, contacts, 0.01)
-    else:
-        reactions.assert_not_called()
+def test_legacy_config_rejects_invalid_mode():
+    with pytest.warns(FutureWarning):
+        cfg = CoupledMJWarpVBDSolverCfg(coupling_mode="invalid")
+    with pytest.raises(ValueError, match="coupling_mode"):
+        CoupledMJWarpVBDSolver(cfg, None, wp.DeterministicMode.NOT_GUARANTEED)

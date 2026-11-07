@@ -3,7 +3,13 @@ isaaclab_contrib.custom_coupling
 
 .. automodule:: isaaclab_contrib.custom_coupling
 
-The custom MJWarp and VBD coupled solver is an opt-in example. Import
+The MJWarp and VBD classes are deprecated adapters to
+:class:`~isaaclab_newton.physics.coupling.CouplerProxyCfg`. Configure named
+entries and proxy mappings directly for new scenes; see
+:ref:`newton-vbd-proxy-coupling`.
+
+The adapters now use proxy feedback instead of the former shared-model penalty
+reactions. Retune contact and solver parameters when migrating. Import
 :mod:`isaaclab_contrib.custom_coupling.tasks` explicitly to register
 ``IsaacContrib-Lift-Soft-Franka-Custom-Coupling``. The environment requires a
 full Isaac Lab installation containing :mod:`isaaclab_tasks`.

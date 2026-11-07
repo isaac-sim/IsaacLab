@@ -183,7 +183,7 @@ Core Solve
     * - ``rigid_body_particle_contact_buffer_size``
       - Default: ``256``. Per-body capacity for particle, edge, and face soft contacts. Increase it if Newton reports a per-body contact buffer overflow.
     * - ``integrate_with_external_rigid_solver``
-      - Default: ``False``. Set to ``True`` only when a manual manager integrates rigid bodies in the shared model. Proxy-coupled entries use partitioned model views and leave this ``False``.
+      - Default: ``False``. Set to ``True`` only when an external solver integrates rigid bodies in the shared model. Proxy-coupled entries use partitioned model views and leave this ``False``.
 
 Structural joint stiffness keeps rigid links attached; actuator stiffness drives
 the allowed joint coordinates toward their targets. Tune these separately under
@@ -256,48 +256,29 @@ cross the contact band within one substep; increase it only after verifying that
 the cheaper, staler contact set does not cause tunneling or ejection.
 
 
-Custom MJWarp + VBD Parameters
-------------------------------
+Migrating the Custom MJWarp + VBD Solver
+----------------------------------------
 
-The opt-in
-:class:`~isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_solver_cfg.CoupledMJWarpVBDSolverCfg`
-runs MJWarp and VBD over one shared model. Import
-:mod:`isaaclab_contrib.custom_coupling.tasks` explicitly to register
-``IsaacContrib-Lift-Soft-Franka-Custom-Coupling``, which selects the
-``newton_mjwarp_vbd`` preset.
+:class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolverCfg` and
+:class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolver` are deprecated
+adapters to :class:`~isaaclab_newton.physics.coupling.CouplerProxyCfg`. Use named
+entries and proxy mappings directly for new scenes, as described in
+:ref:`newton-vbd-proxy-coupling`.
 
-.. list-table::
-    :header-rows: 1
-    :widths: 30 70
+The adapters expose every collidable rigid body to VBD as a proxy. They copy
+``soft_solver_cfg`` with ``integrate_with_external_rigid_solver=False`` so VBD
+integrates those proxies. ``coupling_mode="one_way"`` selects fixed
+``proxy_relaxation=0``; ``"two_way"`` selects fixed ``proxy_relaxation=1``.
+Proxy feedback replaces the former same-substep penalty reactions, so retune
+contact and solver parameters before reusing a policy or grasp trajectory.
 
-    * - Parameter
-      - Description
-    * - ``rigid_solver_cfg``
-      - MJWarp configuration for rigid bodies.
-    * - ``soft_solver_cfg``
-      - VBD configuration. Set ``integrate_with_external_rigid_solver=True``
-        so VBD advances only particles.
-    * - ``coupling_mode="one_way"``
-      - Advance rigid bodies first, then particles without rigid reaction
-        forces.
-    * - ``coupling_mode="two_way"``
-      - Inject particle reactions before MJWarp, then advance VBD with the same
-        contacts.
+The adapter retains shared outer contacts, including ``NewtonCfg.collision_cfg`` settings,
+and static ground/table visibility in both solver views. Its driver exposes the translated
+``CouplerProxyCfg`` through ``driver.cfg``; the caller-owned nested configurations stay unchanged.
 
-MJWarp ``nconmax`` and ``njmax`` must cover the rigid contacts and constraints
-in the scene. ``ccd_iterations`` can affect fast rigid contacts near
-deformables. See :doc:`/source/how-to/solver_tuning_mjwarp` for the rigid-solver
-parameters.
-
-Use the custom coupled solver adapter for direct shared-model substep ordering. Use proxy
-coupling when deformable contact is localized to selected rigid bodies.
-
-Start from ``coupling_mode="two_way"``. With two-way coupling the body-particle
-reaction acts on the arm as well as the deformable, so the gripper is less
-likely to clip through the object than under one-way coupling. If it still
-clips, lower the arm actuator stiffness so the arm can yield to those reactions,
-and command the gripper to close fully, letting the actuator's maximum effort
-limit the squeeze.
+The opt-in task registered by :mod:`isaaclab_contrib.custom_coupling.tasks`
+remains available as ``IsaacContrib-Lift-Soft-Franka-Custom-Coupling``, using the core proxy preset.
+Use ``Isaac-Lift-Soft-Franka`` with ``physics=newton_mjwarp_vbd_proxy`` for new runs.
 
 
 .. _newton-vbd-proxy-coupling:

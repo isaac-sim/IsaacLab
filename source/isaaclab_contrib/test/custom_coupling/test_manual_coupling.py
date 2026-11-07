@@ -6,26 +6,32 @@
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
+from isaaclab_newton.physics import NewtonCfg
+
+from isaaclab.sim import SimulationCfg
 from isaaclab.test.utils import launch_test_simulation
 
-launch_test_simulation()
+launch_test_simulation(SimulationCfg(physics=NewtonCfg()))
 
+import pytest
 import torch
 from isaaclab_newton.assets import DeformableObject, RigidObject
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, VBDSolverCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, VBDSolverCfg
 from isaaclab_newton.sim.spawners.materials import NewtonDeformableBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.assets.deformable_object import DeformableObjectCfg
 from isaaclab.cloner import CloneCfg, clone_plan_from_env_0, replicate
-from isaaclab.sim import SimulationCfg, build_simulation_context
+from isaaclab.sim import build_simulation_context
 
 from isaaclab_contrib.custom_coupling import CoupledMJWarpVBDSolverCfg
 
+pytestmark = pytest.mark.kitless
+
 
 def _make_coupled_cfg(coupling_mode: str) -> SimulationCfg:
-    """Create a simulation config for the manual coupling manager."""
+    """Create a simulation config for the deprecated coupling adapter."""
     solver_cfg = CoupledMJWarpVBDSolverCfg(
         rigid_solver_cfg=MJWarpSolverCfg(
             njmax=40,
