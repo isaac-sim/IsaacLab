@@ -69,12 +69,13 @@ import isaaclab.assets.articulation.ordering_resolvers as ordering_resolvers
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.actuators import ActuatorBaseCfg, IdealPDActuatorCfg, ImplicitActuatorCfg
-from isaaclab.assets import ArticulationCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.assets.articulation.ordering_resolvers import get_articulation_name_ordering
 from isaaclab.controllers import OperationalSpaceController, OperationalSpaceControllerCfg
 from isaaclab.envs.mdp import randomize_physics_scene_gravity
 from isaaclab.envs.mdp.events import randomize_rigid_body_collider_offsets, randomize_rigid_body_material
 from isaaclab.managers import EventTermCfg, SceneEntityCfg
+from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationContext, build_simulation_context
 from isaaclab.test.utils.articulation_ordering import (
     BRANCHING_MJWARP_BODY_NAMES,
@@ -707,8 +708,30 @@ def test_initialization_fixed_joint_root(device, tmp_path) -> None:
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CPU))
 def test_hard_reset_recreates_ordered_state_and_actuators(device: str) -> None:
-    """Hard resets rebuild ordered state and actuators once, preserving configured gains and live writes."""
-    leg_cfg = local_usd("floating_two_leg.usda")
+    """Hard resets rebuild state and live bindings despite different static geometry between worlds."""
+    obstacle_mesh = sim_utils.MeshFileCfg(
+        mesh=sim_utils.MeshFileCfg.TriangleMeshCfg(
+            vertices=[(0.0, 0.0, 0.0), (0.1, 0.0, 0.0), (0.0, 0.1, 0.0), (0.0, 0.0, 0.1)],
+            faces=[(0, 2, 1), (0, 1, 3), (0, 3, 2), (1, 2, 3)],
+        ),
+        mesh_collision_props=sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="none"),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+    )
+
+    def spawn_pair(prim_path, cfg, translation=None, orientation=None):
+        del cfg
+        prim = sim_utils.create_prim(prim_path, translation=translation, orientation=orientation)
+        for index in range(2):
+            obstacle_mesh.func(f"{prim_path}/Mesh{index}", obstacle_mesh, translation=(0.3 * index, 0.0, 0.0))
+        return prim
+
+    def spawn_colliding_robot(prim_path, cfg, translation=None, orientation=None):
+        prim = sim_utils.spawn_from_usd(prim_path, cfg, translation=translation, orientation=orientation)
+        collider = sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1), collision_props=sim_utils.UsdPhysicsCollisionCfg())
+        collider.func(f"{prim_path}/base/Collision", collider)
+        return prim
+
+    leg_cfg = local_usd("floating_two_leg.usda", func=spawn_colliding_robot)
     explicit_legs = IdealPDActuatorCfg(joint_names_expr=[".*"], stiffness=40.0, damping=5.0, actuator_effort_limit=80.0)
     implicit_legs = ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=40.0, damping=5.0)
     orderings = {"joint_ordering": _LEG_PUBLIC_JOINT_NAMES, "body_ordering": _LEG_PUBLIC_BODY_NAMES}
@@ -734,7 +757,35 @@ def test_hard_reset_recreates_ordered_state_and_actuators(device: str) -> None:
         body_ordering=("Root", "Link_3", "Link_0", "Link_5", "Link_1", "Link_4", "Link_2"),
     )
     with build_simulation_context(sim_cfg=newton_sim_cfg(device, use_newton_actuators=False)) as sim:
-        articulations = spawn_assets(cfgs)
+        # Three worlds expose nonuniform strides; any two starts always define a uniform stride.
+        scene_cfg = InteractiveSceneCfg(num_envs=3, env_spacing=40.0)
+        scene_cfg.clone_cfg.clone_template = "/World/Env_{}"
+        scene_cfg.clone_cfg.clone_strategy = lambda weights, count: np.arange(count) % len(weights)
+        for name, cfg in cfgs.items():
+            setattr(scene_cfg, name, cfg)
+        scene_cfg.obstacle = AssetBaseCfg(
+            prim_path="/World/Env_[^/]*/Obstacle",
+            init_state=AssetBaseCfg.InitialStateCfg(pos=(5.0, 0.0, 0.0)),
+            spawn=sim_utils.MultiAssetSpawnerCfg(
+                assets_cfg=[
+                    obstacle_mesh,
+                    sim_utils.SpawnerCfg(func=spawn_pair),
+                ],
+                random_choice=False,
+            ),
+        )
+        scene_cfg.parcel = RigidObjectCfg(
+            prim_path="/World/Env_[^/]*/Parcel",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.1, 0.1, 0.1),
+                rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+                mass_props=sim_utils.MassCfg(mass=1.0),
+                collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+            ),
+        )
+        scene = InteractiveScene(scene_cfg)
+        articulations = scene.articulations
+        parcel = scene["parcel"]
         sim.reset()
         callback_counts = (
             len(sim.backend_manager._callbacks),
@@ -751,6 +802,13 @@ def test_hard_reset_recreates_ordered_state_and_actuators(device: str) -> None:
                     len(sim.backend_manager.backend.post_step_callbacks),
                     len(sim.backend_manager.backend.post_actuator_callbacks),
                 )
+
+            pose = parcel.data.root_link_pose_w.torch.clone()
+            other = pose[[0, 2]].clone()
+            pose[1, 2] += 0.1
+            parcel.write_root_pose_to_sim_index(root_pose=pose[1:2], env_ids=torch.tensor([1], device=device))
+            torch.testing.assert_close(parcel.data.root_link_pose_w.torch[1:2], pose[1:2])
+            torch.testing.assert_close(parcel.data.root_link_pose_w.torch[[0, 2]], other)
 
             positions = []
             for name, articulation in articulations.items():

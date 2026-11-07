@@ -128,8 +128,8 @@ Each :meth:`~isaaclab_newton.physics.NewtonManager.step` covers the whole decima
 decimation (:meth:`~isaaclab_newton.physics.NewtonManager.handles_decimation`: an articulation runs its Newton
 actuators in the step), and one physics step otherwise. Every physics step runs ``collide -> pre-actuator callbacks
 -> Newton actuators -> post-actuator callbacks -> substeps``, and post-step callbacks and sensors run once at the end.
-Every substep runs ``staged body forces -> state-force callbacks -> step``, and ``pre_step`` and ``post_step`` run
-around each physics step's substeps.
+Every substep runs ``staged body forces -> state-force callbacks -> step -> post-solver-substep callbacks -> force
+clearing``, and ``pre_step`` and ``post_step`` run around each physics step's substeps.
 
 Every physics step ends in ``state_0``, so ``manager.backend.state_0`` is always the same object. The captured step
 records the callbacks, so they must be graph-safe. Consumers register them with
