@@ -98,7 +98,10 @@ class ActionTerm(ManagerTermBase):
     @property
     @abstractmethod
     def processed_actions(self) -> torch.Tensor:
-        """The actions computed by the term after applying any processing."""
+        """The actions computed by the term after applying any processing.
+
+        Terms that support graph capture update this tensor in place, so a held reference sees later commands.
+        """
         raise NotImplementedError
 
     @property

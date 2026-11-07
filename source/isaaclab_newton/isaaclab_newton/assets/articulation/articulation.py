@@ -362,6 +362,11 @@ class Articulation(BaseArticulation):
         """
         return self._permanent_wrench_composer
 
+    @property
+    def supports_graph_capture(self) -> bool:
+        """Whether :meth:`write_data_to_sim` can be recorded: no Torch actuators and no fixed tendons."""
+        return self.actuators.supports_graph_capture and self._fixed_tendon_control is None
+
     """
     Operations.
     """
@@ -385,11 +390,6 @@ class Articulation(BaseArticulation):
         # reset external wrenches.
         self._instantaneous_wrench_composer.reset(env_ids, env_mask)
         self._permanent_wrench_composer.reset(env_ids, env_mask)
-
-    @property
-    def supports_graph_capture(self) -> bool:
-        """Whether :meth:`write_data_to_sim` can be recorded: no Torch actuators and no fixed tendons."""
-        return self.actuators.supports_graph_capture and self._fixed_tendon_control is None
 
     def write_data_to_sim(self):
         """Write external wrenches and joint commands to the simulation.
