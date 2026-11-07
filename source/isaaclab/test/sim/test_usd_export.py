@@ -472,6 +472,23 @@ def test_remote_asset_references_are_reported(caplog):
     assert "https://example.com/robot.usda" in caplog.text
 
 
+def test_relative_references_of_a_scene_opened_from_a_file_resolve_in_another_directory(tmp_path):
+    """The export copies the scene's root layer, so its relative asset paths are anchored to the scene's file."""
+    (tmp_path / "scene").mkdir()
+    robot = Usd.Stage.CreateNew(str(tmp_path / "scene" / "robot.usda"))
+    robot.SetDefaultPrim(robot.DefinePrim("/Robot", "Xform"))
+    robot.Save()
+    stage = Usd.Stage.CreateNew(str(tmp_path / "scene" / "scene.usda"))
+    stage.DefinePrim("/World/Robot").GetReferences().AddReference("./robot.usda")
+    exporter = _Exporter(_scene(stage=stage, cable_objects={}))
+    exporter._select_environment = lambda stage: None
+    exporter.compute_diff = lambda stage: []
+
+    exported = Usd.Stage.Open(exporter.export(str(tmp_path / "export.usda")))
+
+    assert exported.GetPrimAtPath("/World/Robot").GetTypeName() == "Xform"
+
+
 def test_a_collision_schema_the_export_applies_states_the_other_offsets():
     """Writing one offset applies PhysxCollisionAPI, which enables the collider's other authored offset."""
     stage = Usd.Stage.CreateInMemory()

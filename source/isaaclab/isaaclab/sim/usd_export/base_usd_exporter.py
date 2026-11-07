@@ -144,7 +144,7 @@ class UsdEdit(NamedTuple):
 class BaseUsdExporter(ABC):
     """Export one environment of an initialized scene: its USD plus the values its engine holds.
 
-    The exported layer is the scene's in-memory root layer reduced to one environment, so assets
+    The exported layer is the scene's root layer reduced to one environment, so assets
     stay references to their source files. A backend compares the engine with what an import of the
     layer gives (its base) and writes every value that differs, which is what Isaac Lab set.
     """
@@ -184,8 +184,14 @@ class BaseUsdExporter(ABC):
             # Their values are not exported, so a fresh import would not reproduce them.
             raise NotImplementedError("Scenes with deformable or cable objects are not exported on this backend.")
         self._schema_defaults.cache_clear()  # include schemas registered since the last export
+        source = self.scene.stage.GetRootLayer()
         layer = Sdf.Layer.CreateAnonymous(".usda")
-        layer.TransferContent(self.scene.stage.GetRootLayer())
+        layer.TransferContent(source)
+        if not source.anonymous:
+            # Relative asset paths resolve against the source file, which the copy and the export do not share.
+            UsdUtils.ModifyAssetPaths(
+                layer, lambda asset: asset if "://" in asset else source.ComputeAbsolutePath(asset)
+            )
         stage = Usd.Stage.Open(layer)
         self._select_environment(stage)
         for edit in self.compute_diff(stage):
