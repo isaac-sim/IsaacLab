@@ -132,7 +132,6 @@ def _sample_variant_points(
     from ..utils.rigid_object_hasher import RigidObjectHasher
 
     plan = env.sim.get_clone_plan()
-    paths = cloner.path.get_asset_prototype_paths(plan)
     prototypes = cloner.path.get_asset_prototypes(plan, asset.cfg.prim_path)
     hasher = RigidObjectHasher(
         env.num_envs,
@@ -140,9 +139,7 @@ def _sample_variant_points(
         device=env.device,
         rigid_body_root=True,
         compact_sources=True,
-        source_paths=tuple(
-            paths[prototypes[index]] or plan.asset_cfgs[prototypes[index]].spawn.spawn_path for index in source_indices
-        ),
+        source_paths=tuple(plan.asset_cfgs[prototypes[index]].spawn.spawn_path for index in source_indices),
     )
     if hasher.num_root != asset.num_mesh_variants:
         raise ValueError(
