@@ -7,6 +7,8 @@ from isaaclab.utils import configclass
 
 from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg
 
+from .models import SimBaModelCfg
+
 
 @configclass
 class FactoryPPORunnerCfg(RslRlOnPolicyRunnerCfg):
@@ -40,4 +42,36 @@ class FactoryPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         lam=0.90,
         desired_kl=0.01,
         max_grad_norm=1.0,
+    )
+
+
+@configclass
+class FactoryVariantPPORunnerCfg(FactoryPPORunnerCfg):
+    """PPO runner using SimBa and encoded variant point clouds."""
+
+    obs_groups = {"actor": ["policy", "perception"], "critic": ["policy", "perception"]}
+    actor = SimBaModelCfg(
+        distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=1.0, std_type="scalar"),
+        obs_normalization=True,
+        hidden_dim=256,
+        num_blocks=2,
+        expansion_factor=4,
+        activation="swish",
+        encoder_cfg={
+            "perception": SimBaModelCfg.MLPEncoderCfg(
+                hidden_dims=[256], output_dim=128, activation="elu", last_activation="elu"
+            )
+        },
+    )
+    critic = SimBaModelCfg(
+        obs_normalization=True,
+        hidden_dim=256,
+        num_blocks=2,
+        expansion_factor=4,
+        activation="swish",
+        encoder_cfg={
+            "perception": SimBaModelCfg.MLPEncoderCfg(
+                hidden_dims=[256], output_dim=128, activation="elu", last_activation="elu"
+            )
+        },
     )
