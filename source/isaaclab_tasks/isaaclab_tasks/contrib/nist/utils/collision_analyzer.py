@@ -90,7 +90,6 @@ class CollisionAnalyzer:
                 device=device,
                 prim_path_pattern=self.asset.cfg.prim_path,
                 rigid_object_hasher=asset_hasher,
-                include_boundary_points=True,
             )
             if local_pts is None:
                 raise ValueError(f"No collision geometry found below '{self.asset.cfg.prim_path}'.")
@@ -119,7 +118,6 @@ class CollisionAnalyzer:
                     prim_path_pattern=prim_path,
                     device=device,
                     rigid_object_hasher=asset_hasher,
-                    include_boundary_points=True,
                 )
                 if local_pts is not None:
                     point_clouds.append(local_pts.unsqueeze(1))

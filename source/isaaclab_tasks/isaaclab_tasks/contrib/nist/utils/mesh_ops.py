@@ -173,13 +173,11 @@ def sample_object_point_cloud(
     device: str = "cuda",
     rigid_object_hasher: RigidObjectHasher | None = None,
     seed: int = 42,
-    *,
-    include_boundary_points: bool = False,
 ) -> torch.Tensor | None:
     """Sample a point cloud on the collision geometry of an asset.
 
     Robust to heterogeneous collider counts across envs. Uses
-    ``RigidObjectHasher`` to reuse identical ordered geometry batches and sampling modes.
+    ``RigidObjectHasher`` to reuse identical ordered geometry batches.
 
     Args:
         num_envs: Number of environments to sample.
@@ -188,10 +186,6 @@ def sample_object_point_cloud(
         device: Device on which to sample.
         rigid_object_hasher: Existing geometry index, or ``None`` to construct one.
         seed: Seed for surface sampling.
-        include_boundary_points: Include a regular boundary grid for single-cube bodies when the
-            budget permits eight points. Single-mesh bodies reserve at most half the budget for
-            unique surface vertices, spread out when they do not all fit. Collision checks can opt
-            in to retain these boundaries; the default preserves observation surface sampling.
 
     Returns:
         Root-frame surface points [m], shape ``(num_envs, num_points, 3)``, or ``None`` without geometry.
@@ -208,7 +202,7 @@ def sample_object_point_cloud(
     replicated_env = torch.all(hasher.root_prim_hashes == hasher.root_prim_hashes[0])
     hashes = hasher.root_prim_hashes[:1] if replicated_env else hasher.root_prim_hashes
     cache_device = str(torch.empty(0, device=device).device)
-    cache_key = (tuple(hashes.tolist()), seed, num_points, cache_device, include_boundary_points)
+    cache_key = (tuple(hashes.tolist()), seed, num_points, cache_device)
     point_cloud_store = hasher.point_cloud_cache
     root_scales = hasher.root_prim_scales.to(device)[:, None]
     if cache_key in point_cloud_store:
@@ -218,12 +212,10 @@ def sample_object_point_cloud(
     if replicated_env:
         mask_env0 = hasher.collider_prim_env_ids == 0
         prims = [p for p, m in zip(hasher.collider_prims, mask_env0) if m]
-        env_ids = hasher.collider_prim_env_ids[mask_env0]
         rel_pos = hasher.collider_rel_pos[mask_env0]
         rel_mat = hasher.collider_rel_mat[mask_env0]
     else:
         prims = hasher.collider_prims
-        env_ids = hasher.collider_prim_env_ids
         rel_pos = hasher.collider_rel_pos
         rel_mat = hasher.collider_rel_mat
     mesh_tensors = [_load_mesh_tensors(p) for p in prims]
@@ -232,39 +224,9 @@ def sample_object_point_cloud(
     # the whole collider rather than clustering on its largest faces
     surface = sample_triangle_mesh_surface(mesh_tensors, num_points * 2, device=device, seed=seed)
     local = _gather_farthest_points(surface, num_points)
-    boundary_colliders = []
-    if include_boundary_points and num_points >= 2:
-        counts = torch.bincount(env_ids, minlength=hasher.num_root).tolist()
-        rows = env_ids.tolist()
-        singles = [i for i, row in enumerate(rows) if counts[row] == 1]
-        cubes = [i for i in singles if prims[i].GetTypeName() == "Cube" and num_points >= 8]
-        if cubes:
-            from pxr import UsdGeom
-
-            resolution = 2
-            while (resolution + 1) ** 3 - (resolution - 1) ** 3 <= num_points:
-                resolution += 1
-            axis = torch.linspace(-1.0, 1.0, resolution, device=device)
-            grid = torch.cartesian_prod(axis, axis, axis)
-            grid = grid[(grid.abs() == 1.0).any(dim=1)]
-            for i in cubes:
-                local[i, : len(grid)] = grid * (0.5 * UsdGeom.Cube(prims[i]).GetSizeAttr().Get())
-            boundary_colliders.extend(cubes)
-        for i in singles:
-            if prims[i].GetTypeName() == "Mesh":
-                vertices, faces = mesh_tensors[i]
-                # Ignore unused vertices: they are not part of the collision surface.
-                vertices = torch.unique(vertices[torch.unique(faces)], dim=0).to(device)
-                if len(vertices) > num_points // 2:
-                    vertices = _gather_farthest_points(vertices.unsqueeze(0), num_points // 2)[0]
-                local[i, : len(vertices)] = vertices
-                boundary_colliders.append(i)
     root = torch.einsum("nij,npj->npi", rel_mat.to(device), local) + rel_pos.to(device).unsqueeze(1)
 
-    if len(boundary_colliders) == len(prims) == len(hashes):
-        merged = torch.empty_like(root)
-        merged[env_ids.to(device)] = root
-    elif replicated_env:
+    if replicated_env:
         merged = _gather_farthest_points(root.reshape(1, -1, 3), num_points)
     else:
         env_ids = hasher.collider_prim_env_ids.to(device)
@@ -272,20 +234,14 @@ def sample_object_point_cloud(
         if (counts == 0).any():
             raise ValueError("Every heterogeneous asset root must contain collision geometry.")
         max_c = int(counts.max().item())
-        buf = torch.empty((hasher.num_root, max_c * num_points, 3), device=device, dtype=root.dtype)
+        buf = torch.zeros((hasher.num_root, max_c * num_points, 3), device=device, dtype=root.dtype)
         placed = torch.zeros_like(counts)
         for i in range(len(hasher.collider_prims)):
             r = int(env_ids[i].item())
             start = placed[r].item() * num_points
-            if start == 0:
-                # Padding must duplicate a surface point, not introduce the asset origin.
-                buf[r] = root[i, 0]
             buf[r, start : start + num_points] = root[i]
             placed[r] += 1
         merged = _gather_farthest_points(buf, num_points)
-        if boundary_colliders:
-            # Compound-body thinning must not discard a neighboring single body's boundary samples.
-            merged[env_ids[boundary_colliders]] = root[boundary_colliders]
 
     point_cloud_store[cache_key] = merged
     return merged.expand(num_envs if replicated_env else hasher.num_root, -1, -1) * root_scales
