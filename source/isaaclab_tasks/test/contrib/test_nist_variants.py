@@ -56,6 +56,9 @@ def test_static_and_variant_tasks_resolve_with_their_policy_inputs():
     )
     assert type(static) is FactoryEnvCfg
     assert isinstance(variant, FactoryVariantEnvCfg)
+    assert not hasattr(static.terminations, "solver_reset_required")
+    assert variant.terminations.solver_reset_required.func == "isaaclab_newton.envs.mdp:SolverResetRequired"
+    assert list(variant.rewards.__dict__)[-1] == "solver_reset_reward"
     assert len(variant.events.assembly_variants.params["variant_names"]) == 20
     assert len(variant.scene.fixed_asset.spawn.assets_cfg) == len(variant.scene.held_asset.spawn.assets_cfg) == 20
     assert not variant.scene.fixed_asset.spawn.static and not variant.scene.held_asset.spawn.static

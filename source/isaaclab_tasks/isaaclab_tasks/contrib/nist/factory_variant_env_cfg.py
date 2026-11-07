@@ -8,6 +8,7 @@
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
+from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.utils.configclass import configclass
@@ -108,6 +109,13 @@ class FactoryVariantEventCfg:
 
 
 @configclass
+class FactoryVariantRewardsCfg(FactoryRewardsCfg):
+    """Clear rewards from worlds with nonfinite MJWarp solver state."""
+
+    solver_reset_reward = RewTerm(func="isaaclab_newton.envs.mdp:zero_reward_on_solver_reset", weight=1.0)
+
+
+@configclass
 class FactoryVariantTerminationsCfg(FactoryTerminationsCfg):
     """Use variant geometry and Newton failure detection."""
 
@@ -119,6 +127,7 @@ class FactoryVariantTerminationsCfg(FactoryTerminationsCfg):
             "fixed_asset_cfg": SceneEntityCfg("fixed_asset"),
         },
     )
+    solver_reset_required = DoneTerm(func="isaaclab_newton.envs.mdp:SolverResetRequired")
 
 
 @configclass
@@ -129,7 +138,7 @@ class FactoryVariantEnvCfg(FactoryEnvCfg):
     observations: FactoryVariantObservationsCfg = FactoryVariantObservationsCfg()
     events: FactoryVariantEventCfg = FactoryVariantEventCfg()
     terminations: FactoryVariantTerminationsCfg = FactoryVariantTerminationsCfg()
-    rewards: FactoryRewardsCfg = FactoryRewardsCfg()
+    rewards: FactoryVariantRewardsCfg = FactoryVariantRewardsCfg()
 
     def __post_init__(self) -> None:
         super().__post_init__()
