@@ -273,22 +273,17 @@ def _prepare_cloning(
         spawn = getattr(cfg, "spawn", None)
         if spawn is None:
             continue
-        is_multi_asset = isinstance(spawn, (sim_utils.MultiAssetSpawnerCfg, sim_utils.MultiUsdFileCfg))
-        variant_sources = is_multi_asset and not spawn.static
-        if variant_sources and prototype_root is None:
-            raise NotImplementedError("Reset-time mesh variants are unavailable for this physics backend and solver.")
-        paths = (
-            [f"{prototype_root}/asset_{index}" for index in indices]
-            if variant_sources
-            else [source_paths[index] for index in indices]
-        )
-        if is_multi_asset:
-            spawn.spawn_path, spawn.spawn_paths = None, paths
-            for index, path in zip(indices, paths, strict=True):
+        if isinstance(spawn, (sim_utils.MultiAssetSpawnerCfg, sim_utils.MultiUsdFileCfg)):
+            if not spawn.static and prototype_root is None:
+                raise NotImplementedError("Reset-time mesh variants are unavailable with this solver.")
+            spawn.spawn_paths = [
+                source_paths[index] if spawn.static else f"{prototype_root}/asset_{index}" for index in indices
+            ]
+            for index, path in zip(indices, spawn.spawn_paths, strict=True):
                 plan.asset_cfgs[index].spawn.spawn_paths = [path]
-                if variant_sources:
+                if not spawn.static:
                     plan.asset_cfgs[index].spawn.spawn_path = path
         else:
-            spawn.spawn_path = paths[0]
+            spawn.spawn_path = source_paths[indices[0]]
     sim.set_clone_plan(plan)
     return plan
