@@ -55,7 +55,15 @@ def test_so101_steel_contact_budget_scales_with_constructed_scene():
                 "enable_joint_velocity_limits": False,
             },
         ),
-        ("Isaac-Reach-Franka-OSC", 8, {}),
+        (
+            "Isaac-Reach-Franka-OSC",
+            8,
+            {
+                "update_mass_matrix_interval": 2,
+                "articulation_constraint_max": 64,
+                "enable_joint_velocity_limits": True,
+            },
+        ),
         (
             "Isaac-Reach-UR10",
             4,
