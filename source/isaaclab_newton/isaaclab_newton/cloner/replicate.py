@@ -118,22 +118,19 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
         root for root, parent in zip(shared, cloner_path.get_parent_indices(shared), strict=True) if parent == -1
     )
     newton_physics = isinstance(cfg, NewtonCfg)
-    variant_groups = []
-    if cfg.mesh_variant_source_root:
-        asset_prototypes = {}
-        for row, asset in enumerate(plan.asset_cfgs):
-            if (
-                isinstance(asset, RigidObjectCfg)
-                and isinstance(asset.spawn, (MultiAssetSpawnerCfg, MultiUsdFileCfg))
-                and not asset.spawn.static
-            ):
-                asset_prototypes.setdefault(asset.prim_path, []).append(row)
-        for rows in asset_prototypes.values():
-            if not any(row in asset_prototype_ids for row in rows):
-                continue
-            variant_groups.append(rows)
-            for row in rows:
-                sources[row] = plan.asset_cfgs[row].spawn.spawn_path
+    asset_prototypes = {}
+    for row, asset in enumerate(plan.asset_cfgs):
+        if (
+            isinstance(asset, RigidObjectCfg)
+            and isinstance(asset.spawn, (MultiAssetSpawnerCfg, MultiUsdFileCfg))
+            and not asset.spawn.static
+            and asset.spawn.spawn_path
+        ):
+            asset_prototypes.setdefault(asset.prim_path, []).append(row)
+    variant_groups = [rows for rows in asset_prototypes.values() if any(row in asset_prototype_ids for row in rows)]
+    for rows in variant_groups:
+        for row in rows:
+            sources[row] = plan.asset_cfgs[row].spawn.spawn_path
     routed_sources = tuple(sources[index] for index in asset_prototype_ids if sources[index] is not None)
     world_assets = plan.topology.world_prototypes[starts[1] :]
     has_world_source = any(asset in asset_prototype_ids and sources[asset] is not None for asset in world_assets)

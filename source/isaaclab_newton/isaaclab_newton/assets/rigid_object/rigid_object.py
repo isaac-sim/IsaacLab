@@ -16,11 +16,8 @@ import warp as wp
 from newton import ModelFlags
 from newton.selection import ArticulationView
 
-from pxr import UsdPhysics
-
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
-from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 from isaaclab.utils.warp import ProxyArray, memory
 from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 from isaaclab.utils.wrench_composer import WrenchComposer
@@ -1067,37 +1064,17 @@ class RigidObject(BaseRigidObject):
     """
 
     def _initialize_impl(self):
-        def has_rigid_body_api(prim) -> bool:
-            return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
-
-        resolve_matching_prims_from_source(self.cfg.prim_path, predicate=has_rigid_body_api, expected_num_matches=1)
         model = self._backend_manager.backend.model
-        root_pattern = re.compile(self.cfg.prim_path)
-        roots = {}
-        for index, path in enumerate(model.articulation_label):
-            root = None
-            while path:
-                if root_pattern.fullmatch(path):
-                    root = path
-                path = path.rpartition("/")[0]
-            if root is not None:
-                if root in roots:
-                    raise RuntimeError(f"Multiple rigid objects match '{root}'.")
-                roots[root] = index
-        self._root_view = ArticulationView(model, list(roots.values()), verbose=False)
-        if self._root_view.link_count != 1:
+        self._root_view = ArticulationView(model, re.compile(self.cfg.prim_path + r"(?:/.*)?"), verbose=False)
+        if self._root_view.link_count != 1 or self._root_view.articulation_ids.shape[1] != 1:
             raise RuntimeError(f"Expected one rigid body per object at '{self.cfg.prim_path}'.")
-        if self.num_mesh_variants > 1:
+        self._variant_body_indices = None
+        if model.body_variant is not None:
             articulation_starts = model.articulation_start.numpy()
             joint_children = model.joint_child.numpy()
             body_indices = joint_children[articulation_starts[self._root_view.articulation_ids.numpy().ravel()]]
-            self._variant_body_indices = (
-                wp.array(body_indices, dtype=wp.int32, device=self.device)
-                if all(len(model.body_variant_labels(int(body))) == self.num_mesh_variants for body in body_indices)
-                else None
-            )
-        else:
-            self._variant_body_indices = None
+            if model.body_variant_labels(int(body_indices[0])):
+                self._variant_body_indices = wp.array(body_indices, dtype=wp.int32, device=self.device)
 
         # container for data access
         self._data = RigidObjectData(self.root_view, self.device, backend_manager=self._backend_manager)
