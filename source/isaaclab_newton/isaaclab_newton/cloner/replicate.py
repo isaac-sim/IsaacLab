@@ -36,7 +36,7 @@ from isaaclab_newton.cloner.newton_clone_utils import (
     build_source_builders,
     replicate_builder_mapping,
 )
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonBuilderCfg, NewtonCfg, NewtonCloneRecord
+from isaaclab_newton.physics import NewtonBuilderCfg, NewtonCfg, NewtonCloneRecord
 from isaaclab_newton.physics.newton_builder import create_builder, inject_terrain_heightfields, usd_schema_resolvers
 from isaaclab_newton.sim.spawners.mpm.mpm import _SIMULATION_POINTS_SUFFIX
 
@@ -119,18 +119,19 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
     )
     newton_physics = isinstance(cfg, NewtonCfg)
     variant_groups = []
-    if newton_physics and isinstance(cfg.solver_cfg, MJWarpSolverCfg) and not cfg.solver_cfg.use_mujoco_contacts:
+    if cfg.mesh_variant_source_root:
         asset_prototypes = {}
         for row, asset in enumerate(plan.asset_cfgs):
-            if (
-                isinstance(asset, RigidObjectCfg)
-                and isinstance(asset.spawn, (MultiAssetSpawnerCfg, MultiUsdFileCfg))
-                and not asset.spawn.static
-            ):
+            spawn = getattr(asset, "spawn", None)
+            if isinstance(spawn, (MultiAssetSpawnerCfg, MultiUsdFileCfg)) and not spawn.static:
+                if not isinstance(asset, RigidObjectCfg):
+                    raise NotImplementedError("Reset-time mesh variants require RigidObjectCfg.")
                 asset_prototypes.setdefault(asset.prim_path, []).append(row)
         for rows in asset_prototypes.values():
-            if len(rows) < 2 or not any(row in asset_prototype_ids for row in rows):
+            if not any(row in asset_prototype_ids for row in rows):
                 continue
+            if len(rows) < 2:
+                raise ValueError("Reset-time mesh variants require at least two alternatives.")
             members = [
                 [
                     index
@@ -140,15 +141,10 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
                 for prototype in plan.topology.world_prototype_layout
             ]
             if any(len(indices) != 1 for indices in members):
-                continue
+                raise ValueError("Reset-time mesh variants require one alternative per world prototype.")
             variant_groups.append((rows, [indices[0] for indices in members]))
             for row in rows:
-                if sources[row] is None:
-                    asset = plan.asset_cfgs[row]
-                    spawn = asset.spawn
-                    sources[row] = spawn.spawn_path = f"/World/IsaacLabPrototypes/asset_{row}"
-                    spawn.spawn_paths = [sources[row]]
-                    spawn.func(sources[row], spawn, translation=asset.init_state.pos, orientation=asset.init_state.rot)
+                sources[row] = plan.asset_cfgs[row].spawn.spawn_path
     routed_sources = tuple(sources[index] for index in asset_prototype_ids if sources[index] is not None)
     world_assets = plan.topology.world_prototypes[starts[1] :]
     has_world_source = any(asset in asset_prototype_ids and sources[asset] is not None for asset in world_assets)
@@ -227,13 +223,13 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
     for rows, members in variant_groups:
         variants = tuple(retained_sources[sources[row]] for row in rows)
         if any(source.body_count != 1 or source.joint_count != 1 for source in variants):
-            continue
+            raise ValueError("Reset-time mesh variants require one rigid body and one root joint per alternative.")
         joint_types = {source.joint_type[0] for source in variants}
         body_flags = {source.body_flags[0] for source in variants}
         if len(joint_types) != 1 or joint_types.pop() not in (JointType.FREE, JointType.FIXED) or len(body_flags) != 1:
-            continue
+            raise ValueError("Reset-time mesh variants require matching fixed/free joints and body flags.")
         if any(source.joint_parent[0] != -1 or source.joint_child[0] != 0 for source in variants):
-            continue
+            raise ValueError("Reset-time mesh variants require a root joint connected to the only body.")
         variant_by_asset = {row: variant for variant, row in enumerate(rows)}
         for world, member in enumerate(members):
             row = plan.topology.world_prototypes[member]

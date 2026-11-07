@@ -30,6 +30,7 @@ from isaaclab.scene_data import SceneDataProvider
 from isaaclab.sensors import CameraCfg, RayCasterCfg, SensorBaseCfg
 from isaaclab.sim import CuboidCfg, MultiAssetSpawnerCfg, PinholeCameraCfg, SimulationContext, SphereCfg
 from isaaclab.sim.spawners.wrappers import spawn_multi_asset, spawn_multi_usd_file
+from isaaclab.sim.utils.stage import use_stage
 
 
 class _Context(ReplicateContext):
@@ -46,6 +47,7 @@ def simulation(monkeypatch):
     registry = []
     sim = SimpleNamespace(
         backend_manager=SimpleNamespace(clone_context_type=_Context),
+        cfg=SimpleNamespace(physics=SimpleNamespace(mesh_variant_source_root=None)),
         clone_contexts={},
         _backend_registry=registry,
         _render_context=RenderContext(registry),
@@ -229,12 +231,13 @@ def test_grid_transforms_centers_a_float32_grid():
 
 
 @pytest.mark.parametrize("unused_variant", [False, True])
-def test_multi_spawner_creates_concrete_asset_prototypes(simulation, unused_variant):
+@pytest.mark.parametrize("static", [True, False])
+def test_multi_spawner_creates_concrete_asset_prototypes(simulation, unused_variant, static):
     """Homogeneous planning rejects variants atomically; a session authors each alternative once."""
     shapes = [CuboidCfg(size=(1, 1, 1)), SphereCfg(radius=1)]
     object_cfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Object",
-        spawn=MultiAssetSpawnerCfg(assets_cfg=shapes),
+        spawn=MultiAssetSpawnerCfg(assets_cfg=shapes, static=static),
     )
     robot = AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Robot", spawn=CuboidCfg(size=(1, 1, 1)))
     with pytest.raises(ValueError, match="single-variant"):
@@ -245,18 +248,39 @@ def test_multi_spawner_creates_concrete_asset_prototypes(simulation, unused_vari
 
     ground = AssetBaseCfg(prim_path="/World/Ground")
     worlds = ((0,),) if unused_variant else None
+    if not static:
+        simulation.cfg.physics.mesh_variant_source_root = "/World/IsaacLabPrototypes"
+        simulation.render_context.clone_contexts.add(UsdReplicateContext)
     with ReplicateSession((object_cfg, ground), 4, 2.0, world_prototypes=worlds) as session:
         plan = session.plan
         assert len(plan.asset_cfgs) == 3
         for cfg, shape in zip(plan.asset_cfgs[:2], object_cfg.spawn.assets_cfg, strict=True):
             assert cfg.spawn.assets_cfg[0] is shape
-        expected_sources = ["/World/envs/env_0/Object", None if unused_variant else "/World/envs/env_2/Object"]
+        expected_sources = (
+            ["/World/envs/env_0/Object", None if unused_variant else "/World/envs/env_2/Object"]
+            if static
+            else ["/World/IsaacLabPrototypes/asset_0", "/World/IsaacLabPrototypes/asset_1"]
+        )
         assert object_cfg.spawn.spawn_paths == expected_sources
-        assert cloner_path.get_asset_prototype_paths(plan)[:2] == tuple(expected_sources)
+        assert cloner_path.get_asset_prototype_paths(plan)[:2] == tuple(
+            expected_sources if not unused_variant else [expected_sources[0], None]
+        )
         np.testing.assert_array_equal(plan.topology.world_prototypes, [2, 0] if unused_variant else [2, 0, 1])
         np.testing.assert_array_equal(
             plan.topology.world_prototype_layout, [0, 0, 0, 0] if unused_variant else [0, 0, 1, 1]
         )
+        if not static:
+            with use_stage(simulation.stage):
+                object_cfg.spawn.func(object_cfg.prim_path, object_cfg.spawn)
+            assert all(simulation.stage.GetPrimAtPath(path) for path in expected_sources)
+    if not static:
+        root = simulation.stage.GetPrimAtPath("/World/IsaacLabPrototypes")
+        assert UsdGeom.Imageable(root).ComputeVisibility() == UsdGeom.Tokens.invisible
+        for env in range(4):
+            path = f"/World/envs/env_{env}/Object"
+            prim = simulation.stage.GetPrimAtPath(path)
+            assert prim
+            assert UsdGeom.Imageable(prim).ComputeVisibility() == UsdGeom.Tokens.inherited
     if unused_variant:
         assert all(1 not in ids for _, _, ids in simulation.calls)
 
