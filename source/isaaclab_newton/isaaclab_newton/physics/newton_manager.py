@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import logging
 import re
 from collections.abc import Callable
@@ -352,26 +351,25 @@ class NewtonManager(PhysicsManager):
     def invalidate_fk(
         self,
         env_mask: wp.array | None = None,
-        env_ids: wp.array | None = None,
         articulation_ids: wp.array | None = None,
+        *,
+        articulation_mask: wp.array | None = None,
+        consume_mask: bool = False,
     ) -> None:
-        """Mark environments as needing FK recomputation and solver reset; see :meth:`NewtonBackend.invalidate_fk`.
+        """Publish an authored-state change and schedule FK; see :meth:`NewtonBackend.invalidate_fk`.
 
-        Called by asset write methods that modify joint coordinates or root transforms. The masks are consumed by the
-        next forward, raw-state, rendering, or physics-step boundary.
+        Asset writers invalidate their own caches separately. Pending work is consumed at the next
+        forward, raw-state, rendering, or physics-step boundary.
         """
         self._mark_transforms_changed()
-        self.backend.invalidate_fk(env_mask, env_ids, articulation_ids)
+        self.backend.invalidate_fk(
+            env_mask, articulation_ids, articulation_mask=articulation_mask, consume_mask=consume_mask
+        )
 
-    def invalidate_body_state(
-        self, env_ids: wp.array(dtype=wp.int32) | None = None, env_mask: wp.array(dtype=wp.bool) | None = None
-    ) -> None:
-        """Mark selected maximal-coordinate body state as changed without requesting FK.
-
-        See :meth:`NewtonBackend.invalidate_body_state`.
-        """
+    def invalidate_body_state(self, env_mask: wp.array | None = None, *, consume_mask: bool = False) -> None:
+        """Publish directly authored body state; see :meth:`NewtonBackend.invalidate_body_state`."""
         self._mark_transforms_changed()
-        self.backend.invalidate_body_state(env_ids, env_mask)
+        self.backend.invalidate_body_state(env_mask, consume_mask=consume_mask)
 
     def _drain_stale_cuda_error(self) -> None:
         """Clear a stale CUDA error latched on the device before (re)initialization.
@@ -501,8 +499,7 @@ class NewtonManager(PhysicsManager):
 
     def _prepare_visualizer_for_capture(self) -> None:
         """Let the Newton visualizer register picking forces before the step is captured."""
-        solver_cfg = self._cfg.solver_cfg
-        if solver_cfg.class_type.applies_body_forces(solver_cfg, self.backend.solver):
+        if self.backend.solver_ops.applies_body_forces():
             self._sim._prepare_newton_visualizer_for_capture()
 
     def create_visual_material_writer(self, batches: tuple[VisualMaterialBatch, ...]) -> VisualMaterialWriter:
@@ -537,35 +534,36 @@ class NewtonManager(PhysicsManager):
         self.backend.solver_init_callbacks.append(callback)
 
     def register_pre_actuator_callback(self, callback: Callable[[], None]) -> None:
-        """Append a hook invoked before the actuator step.
+        """Append a hook invoked before the Newton actuators of every physics step.
 
-        Each callback runs inside the captured CUDA graph once per decimation iteration when
-        :meth:`handles_decimation` is ``True``, and eagerly once per step otherwise.
-        Hard resets discard these hooks; register them again when the new model is ready.
+        Each callback is recorded into the captured step, so it must be graph-safe. Hard resets discard these hooks;
+        register them again when the new model is ready.
         """
         self.backend.pre_actuator_callbacks.append(callback)
+        self.backend.invalidate_graph()
 
     def register_post_actuator_callback(self, callback: Callable[[], None]) -> None:
-        """Append a hook invoked after the actuator step on every iteration.
+        """Append a hook invoked after the Newton actuators of every physics step.
 
-        Each callback runs inside the captured CUDA graph (when :meth:`handles_decimation` is ``True``) right after the
-        Newton actuators and before the solver substeps, so its writes to ``state``/``control`` are visible to the
-        integrator on the same iteration. Callbacks fire in registration order.
-        Hard resets discard these hooks; register them again when the new model is ready.
+        Each callback is recorded into the captured step right after the Newton actuators and before the solver
+        substeps, so its writes to ``state``/``control`` are visible to the integrator on the same iteration.
+        Callbacks fire in registration order. Hard resets discard these hooks; register them again when the new model
+        is ready.
         """
         self.backend.post_actuator_callbacks.append(callback)
+        self.backend.invalidate_graph()
 
     def register_state_force_callback(self, callback: Callable[[State], None]) -> None:
         """Register a graph-safe callback that applies forces before every solver substep.
 
-        Callbacks must be registered before the step is captured. Hard resets discard these hooks; register them again
-        when the new model is ready.
+        Hard resets discard these hooks; register them again when the new model is ready.
 
         Args:
             callback: Function that adds forces [N, N·m] to the provided state.
         """
         if callback not in self.backend.state_force_callbacks:
             self.backend.state_force_callbacks.append(callback)
+            self.backend.invalidate_graph()
 
     def register_post_step_callback(self, callback: Callable[[], None]) -> None:
         """Append a hook invoked once per :meth:`step`, after the last solver substep and before sensors update.
@@ -575,18 +573,18 @@ class NewtonManager(PhysicsManager):
         Hard resets discard these hooks; register them again when the new model is ready.
         """
         self.backend.post_step_callbacks.append(callback)
+        self.backend.invalidate_graph()
 
     def unregister_post_step_callback(self, callback: Callable[[], None]) -> None:
         """Remove a post-step callback; removing an absent callback is a no-op."""
-        if self.backend is not None:
-            with contextlib.suppress(ValueError):
-                self.backend.post_step_callbacks.remove(callback)
+        if self.backend is not None and callback in self.backend.post_step_callbacks:
+            self.backend.post_step_callbacks.remove(callback)
+            self.backend.invalidate_graph()
 
     def set_decimation(self, decimation: int) -> None:
         """Set the decimation count; see :meth:`NewtonBackend.set_decimation`.
 
-        When all actuators are graphable the entire decimation loop is captured as a single CUDA graph, right after
-        the next requested step runs eagerly.
+        Once Newton actuators run in the step, one :meth:`step` advances the whole decimation loop.
         """
         self._decimation = max(1, decimation)
         if self.backend is not None:

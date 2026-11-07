@@ -3,6 +3,48 @@ Changelog
 
 .. towncrier release notes start
 
+11.0.1 (2026-11-06)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Configured RTX camera rendering before simulation reset and Gaussian HDR tonemapping when creating render products,
+  including the legacy setting required by Isaac Sim 6.2.
+
+
+11.0.0 (2026-11-05)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Adopted shared PVA output storage and optional output groups; skip unavailable native reads, retain recorded launches, and clear measurements on STOP.
+* Reused shared sensor math, packing, and reset operations while retaining native gathering and solver-specific policies.
+* Used tiled concatenation for packed contact and frame-transformer poses, reusing recorded CUDA commands until sensor buffers are recreated.
+* Initialized frame-transformer orientations directly in Warp without Torch mutation.
+
+Deprecated
+^^^^^^^^^^
+
+* Marked direct use of PhysX PvaData as deprecated in its API documentation. Imports remain available without warnings; use isaaclab.sensors.PvaData or sensor.data.
+
+Fixed
+^^^^^
+
+* Fixed environment-owned lights affecting cameras in other Isaac RTX scene partitions.
+
+
+10.0.4 (2026-11-03)
+~~~~~~~~~~~~~~~~~~~
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated ``Articulation.write_joint_state_to_sim_index``. Use ``write_joint_state_to_sim_mask``, or
+  ``write_joint_position_to_sim_index`` and ``write_joint_velocity_to_sim_index``.
+
+
 10.0.3 (2026-10-30)
 ~~~~~~~~~~~~~~~~~~~
 

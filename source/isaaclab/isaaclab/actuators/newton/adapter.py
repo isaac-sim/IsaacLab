@@ -607,7 +607,7 @@ def _create_actuators_from_usd(
     as ``SHARED_PARAMS`` (e.g. ``model_path``, ``lookup_positions``) remain
     part of the grouping key and are passed through directly.
     """
-    from pxr import Usd  # noqa: PLC0415
+    from pxr import Sdf, Usd  # noqa: PLC0415
 
     wp_device = wp.get_device(device)
 
@@ -620,9 +620,17 @@ def _create_actuators_from_usd(
 
     parsed_per_joint: dict[int, Any] = {}
     for prim in Usd.PrimRange(root_prim):
-        # Isaac Lab actuator configs explicitly select this checkpoint. Preserve
-        # their existing execution semantics with Newton's trust-gated parser.
-        parsed = parse_actuator_prim(prim, allow_unsafe_torch_checkpoints=True)
+        allow_unsafe_torch_checkpoint = False
+        if prim.GetTypeName() == "NewtonActuator":
+            # Newton 1.9 gates legacy Torch checkpoint imports; opt in only for authored Torch model paths.
+            model_path_attr = prim.GetAttribute("newton:modelPath")
+            model_path = model_path_attr.Get() if model_path_attr else None
+            if isinstance(model_path, Sdf.AssetPath):
+                model_path = model_path.path
+            allow_unsafe_torch_checkpoint = isinstance(model_path, str) and model_path.lower().endswith(
+                (".pt", ".pth", ".pt2")
+            )
+        parsed = parse_actuator_prim(prim, allow_unsafe_torch_checkpoints=allow_unsafe_torch_checkpoint)
         if parsed is None:
             continue
         target_name = parsed.target_path.rsplit("/", 1)[-1]

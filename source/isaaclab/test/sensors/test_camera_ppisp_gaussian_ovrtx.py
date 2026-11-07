@@ -64,7 +64,7 @@ from generate_synthetic_gaussian_asset import (
 
 from isaaclab.sim import SimulationCfg
 
-pytestmark = [pytest.mark.integration, pytest.mark.rendering]
+pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.ov]
 
 # Use collection-time skip markers so unavailable optional modules remain
 # visible per test in reports.
