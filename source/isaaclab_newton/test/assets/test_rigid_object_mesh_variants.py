@@ -54,6 +54,7 @@ def _variant_object() -> RigidObjectCfg:
                 ),
             ]
         ),
+        enable_mesh_variants=True,
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.2)),
     )
 
@@ -129,13 +130,14 @@ def test_native_selection_preserves_initial_worlds_and_unused_variant(device: st
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
 @pytest.mark.parametrize(
-    "solver_cfg",
+    "solver_cfg, enable_mesh_variants",
     [
-        pytest.param(MJWarpSolverCfg(use_mujoco_contacts=True), id="mjwarp-internal"),
-        pytest.param(XPBDSolverCfg(), id="xpbd"),
+        pytest.param(MJWarpSolverCfg(use_mujoco_contacts=False), False, id="static-multi-asset"),
+        pytest.param(MJWarpSolverCfg(use_mujoco_contacts=True), True, id="mjwarp-internal"),
+        pytest.param(XPBDSolverCfg(), True, id="xpbd"),
     ],
 )
-def test_unsupported_solver_keeps_static_variants(device: str, solver_cfg) -> None:
+def test_static_multi_asset_variants(device: str, solver_cfg, enable_mesh_variants: bool) -> None:
     sim_cfg = SimulationCfg(
         device=device,
         gravity=(0.0, 0.0, 0.0),
@@ -143,7 +145,9 @@ def test_unsupported_solver_keeps_static_variants(device: str, solver_cfg) -> No
     )
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
         sim._app_control_on_stop_handle = None
-        scene = InteractiveScene(_VariantSceneCfg(num_envs=2, env_spacing=2.0))
+        scene_cfg = _VariantSceneCfg(num_envs=2, env_spacing=2.0)
+        scene_cfg.object.enable_mesh_variants = enable_mesh_variants
+        scene = InteractiveScene(scene_cfg)
         sim.register_interactive_scene(scene)
         sim.reset()
         asset = scene["object"]
