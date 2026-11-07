@@ -36,6 +36,7 @@ def _variant_object() -> RigidObjectCfg:
     return RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Object",
         spawn=sim_utils.MultiAssetSpawnerCfg(
+            static=False,
             assets_cfg=[
                 sim_utils.MeshConeCfg(
                     radius=0.02,
@@ -52,9 +53,8 @@ def _variant_object() -> RigidObjectCfg:
                     rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
                     collision_props=sim_utils.UsdPhysicsCollisionCfg(),
                 ),
-            ]
+            ],
         ),
-        enable_mesh_variants=True,
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.2)),
     )
 
@@ -130,14 +130,14 @@ def test_native_selection_preserves_initial_worlds_and_unused_variant(device: st
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
 @pytest.mark.parametrize(
-    "solver_cfg, enable_mesh_variants",
+    "solver_cfg, static",
     [
-        pytest.param(MJWarpSolverCfg(use_mujoco_contacts=False), False, id="static-multi-asset"),
-        pytest.param(MJWarpSolverCfg(use_mujoco_contacts=True), True, id="mjwarp-internal"),
-        pytest.param(XPBDSolverCfg(), True, id="xpbd"),
+        pytest.param(MJWarpSolverCfg(use_mujoco_contacts=False), True, id="static-multi-asset"),
+        pytest.param(MJWarpSolverCfg(use_mujoco_contacts=True), False, id="mjwarp-internal"),
+        pytest.param(XPBDSolverCfg(), False, id="xpbd"),
     ],
 )
-def test_static_multi_asset_variants(device: str, solver_cfg, enable_mesh_variants: bool) -> None:
+def test_static_multi_asset_variants(device: str, solver_cfg, static: bool) -> None:
     sim_cfg = SimulationCfg(
         device=device,
         gravity=(0.0, 0.0, 0.0),
@@ -146,7 +146,7 @@ def test_static_multi_asset_variants(device: str, solver_cfg, enable_mesh_varian
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
         sim._app_control_on_stop_handle = None
         scene_cfg = _VariantSceneCfg(num_envs=2, env_spacing=2.0)
-        scene_cfg.object.enable_mesh_variants = enable_mesh_variants
+        scene_cfg.object.spawn.static = static
         scene = InteractiveScene(scene_cfg)
         sim.register_interactive_scene(scene)
         sim.reset()

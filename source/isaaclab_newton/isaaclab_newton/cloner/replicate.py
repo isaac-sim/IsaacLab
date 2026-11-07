@@ -28,7 +28,7 @@ from isaaclab.scene_data.deformable_discovery import (
     expand_deformable_entries,
 )
 from isaaclab.sensors import SensorBaseCfg
-from isaaclab.sim import SimulationContext, SpawnerCfg
+from isaaclab.sim import MultiAssetSpawnerCfg, MultiUsdFileCfg, SimulationContext, SpawnerCfg
 
 from isaaclab_newton.cloner.newton_clone_utils import (
     add_deformable_from_usd,
@@ -122,7 +122,11 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
     if newton_physics and isinstance(cfg.solver_cfg, MJWarpSolverCfg) and not cfg.solver_cfg.use_mujoco_contacts:
         asset_prototypes = {}
         for row, asset in enumerate(plan.asset_cfgs):
-            if isinstance(asset, RigidObjectCfg) and asset.enable_mesh_variants and asset.spawn is not None:
+            if (
+                isinstance(asset, RigidObjectCfg)
+                and isinstance(asset.spawn, (MultiAssetSpawnerCfg, MultiUsdFileCfg))
+                and not asset.spawn.static
+            ):
                 asset_prototypes.setdefault(asset.prim_path, []).append(row)
         for rows in asset_prototypes.values():
             if len(rows) < 2 or not any(row in asset_prototype_ids for row in rows):
