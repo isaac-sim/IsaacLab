@@ -19,7 +19,6 @@ from . import mesh_ops as _mesh_ops
 from .rigid_object_hasher import RigidObjectHasher
 from .sdf import (
     ColliderTransform,
-    _pack_collider_bounds,
     get_signed_distance_mega,
     pack_collider_transforms,
     update_articulated_collider_transforms,
@@ -90,7 +89,6 @@ class CollisionAnalyzer:
                 device=device,
                 prim_path_pattern=self.asset.cfg.prim_path,
                 rigid_object_hasher=asset_hasher,
-                include_boundary_points=True,
             )
             if local_pts is None:
                 raise ValueError(f"No collision geometry found below '{self.asset.cfg.prim_path}'.")
@@ -119,7 +117,6 @@ class CollisionAnalyzer:
                     prim_path_pattern=prim_path,
                     device=device,
                     rigid_object_hasher=asset_hasher,
-                    include_boundary_points=True,
                 )
                 if local_pts is not None:
                     point_clouds.append(local_pts.unsqueeze(1))
@@ -159,7 +156,6 @@ class CollisionAnalyzer:
         obs_flat_mat_inv: list[torch.Tensor] = []
         obs_flat_env_ids: list[torch.Tensor] = []
         obs_flat_handles: list[list[int]] = []
-        meshes: dict[int, wp.Mesh] = {}
         self._meshes: dict[tuple, wp.Mesh] = {}
 
         # Articulated obstacles (multiple body links): the hasher's root-relative
@@ -274,7 +270,6 @@ class CollisionAnalyzer:
                     )
                 mesh = self._meshes[mesh_key]
                 handles_flat.append(mesh.id)
-                meshes[mesh.id] = mesh
 
             obs_flat_pos.append(collider_pos)
             obs_flat_mat.append(identity)
@@ -336,26 +331,6 @@ class CollisionAnalyzer:
             outputs=[self.wp_colliders],
             device=device,
         )
-        mesh_bounds = [
-            torch.stack((wp.to_torch(mesh.points).amin(dim=0), wp.to_torch(mesh.points).amax(dim=0)))
-            for mesh in meshes.values()
-        ]
-        bounds = torch.stack([torch.zeros((2, 3), device=device), *mesh_bounds])
-        # Expand outward to absorb float32 transform/distance roundoff; the zero row stays disabled.
-        padding = 8.0 * torch.finfo(bounds.dtype).eps * bounds.abs().amax(dim=(1, 2), keepdim=True).clamp_min(1.0)
-        bounds[1:] += bounds.new_tensor([[[-1.0], [1.0]]]) * padding[1:]
-        bounds_ids = {handle: i + 1 for i, handle in enumerate(meshes)}
-        bounds_indices = torch.tensor(
-            [bounds_ids.get(handle, 0) for handle in handle_buf.tolist()], dtype=torch.int32, device=device
-        )
-        wp.launch(
-            _pack_collider_bounds,
-            dim=total_slots,
-            inputs=[wp.from_torch(bounds, dtype=wp.vec3), wp.from_torch(bounds_indices, dtype=wp.int32)],
-            outputs=[self.wp_colliders],
-            device=device,
-        )
-
         # Convert remaining data to persistent warp arrays
         self.wp_local_pts = wp.from_torch(self.local_pts, dtype=wp.vec3)
         self.wp_body_ids = wp.from_torch(self._body_ids_i32, dtype=wp.int32)

@@ -31,17 +31,11 @@ import warp as wp
 
 @wp.struct
 class ColliderTransform:
-    """Per-collider rigid transform (root-relative, or world-space for articulated bodies).
-
-    Bounds enclose the statically transformed mesh in its local frame [m]. Equal lower/upper
-    bounds disable pruning, preserving callers that only initialize the transform fields.
-    """
+    """Per-collider rigid transform (root-relative, or world-space for articulated bodies)."""
 
     pos: wp.vec3
     mat: wp.mat33
     mat_inv: wp.mat33
-    bounds_lower: wp.vec3
-    bounds_upper: wp.vec3
 
 
 # ---------------------------------------------------------------------------
@@ -65,20 +59,6 @@ def pack_collider_transforms(
     ct.pos = pos[i]
     ct.mat = mat[i]
     ct.mat_inv = mat_inv[i]
-    out[i] = ct
-
-
-@wp.kernel
-def _pack_collider_bounds(
-    bounds: wp.array(dtype=wp.vec3, ndim=2),
-    indices: wp.array(dtype=wp.int32),
-    out: wp.array(dtype=ColliderTransform),
-):
-    """Scatter deduplicated mesh bounds into the existing collider slots once at initialization."""
-    i = wp.tid()
-    ct = out[i]
-    ct.bounds_lower = bounds[indices[i], 0]
-    ct.bounds_upper = bounds[indices[i], 1]
     out[i] = ct
 
 
@@ -141,10 +121,7 @@ def query_collider_sdf(
     q_local = to_local * ((query_origin - root_pos) - root_mat * coll.pos + query_world)
     if not wp.isfinite(q_local):
         return -wp.inf
-    # The inverse-transform Frobenius norm bounds the world query radius in mesh coordinates.
-    local_max_dist = max_dist * wp.sqrt(wp.ddot(to_local, to_local))
-    # Axis-aligned ray votes can misclassify exterior points coplanar with mesh faces.
-    mp = wp.mesh_query_point_sign_winding_number(mesh_id, q_local, local_max_dist)
+    mp = wp.mesh_query_point(mesh_id, q_local, max_dist)
     if mp.result:
         if check_dist:
             closest = wp.mesh_eval_position(mesh_id, mp.face, mp.u, mp.v)
@@ -237,18 +214,6 @@ def get_signed_distance_mega(
             mid = mesh_handles[index]
             if mid != wp.uint64(0):
                 coll = colliders[index]
-                if check_dist and wp.length_sq(coll.bounds_upper - coll.bounds_lower) > 0.0:
-                    to_local = coll.mat_inv * root_mat_inv
-                    q_local = to_local * ((query_origin - root_pos) - root_mat * coll.pos + query)
-                    if not wp.isfinite(q_local):
-                        best = -wp.inf
-                        break
-                    delta = wp.max(wp.max(coll.bounds_lower - q_local, q_local - coll.bounds_upper), wp.vec3(0.0))
-                    lower_bound = wp.length(delta) / (wp.sqrt(wp.ddot(to_local, to_local)) * 1.000001)
-                    # Never prune interior queries. Preserve the max_dist no-hit sentinel and
-                    # per-obstacle offsets, not only the eventual acceptance predicate.
-                    if lower_bound > 0.0 and wp.min(lower_bound, max_dist) + min_dist_offsets[obs_idx] >= best:
-                        continue
                 sd = query_collider_sdf(
                     query,
                     root_pos,

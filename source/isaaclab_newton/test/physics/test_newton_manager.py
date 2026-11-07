@@ -98,6 +98,37 @@ def test_collision_cfg_leaves_max_triangle_pairs_to_newton():
     assert NewtonCollisionPipelineCfg().to_pipeline_args()["max_triangle_pairs"] is None
 
 
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_all_shapes_sdf_provisions_analytic_colliders(device):
+    """A configured Newton model has SDF resources for finite box and curved colliders."""
+    collision = NewtonCollisionPipelineCfg(
+        speculative_contact_gap_max=0.01,
+        sdf_all_shapes=NewtonCollisionPipelineCfg.SDFAllShapesCfg(sdf_max_resolution=32),
+    )
+    cfg = NewtonCfg(
+        solver_cfg=XPBDSolverCfg(),
+        collision_cfg=collision,
+        num_substeps=2,
+        collision_decimation=1,
+        use_cuda_graph=False,
+    )
+    builder = create_builder(cfg)
+    builder.begin_world()
+    body = builder.add_body(mass=1.0)
+    builder.add_shape_box(body=body, hx=0.1, hy=0.1, hz=0.1)
+    builder.add_shape_sphere(body=body, radius=0.05)
+    builder.end_world()
+
+    backend = NewtonBackend(NewtonBackendCfg(physics_cfg=cfg, device=device), builder, dt=0.01)
+
+    assert collision.to_pipeline_args()["speculative_contact_gap_max"] == 0.01
+    assert backend.model.shape_count == 2
+    assert (backend.model._shape_sdf_index.numpy() >= 0).all()
+    assert (backend.model.shape_edge_range.numpy()[:, 1] > 0).all()
+    backend.init_solver()
+    backend.step()
+
+
 def test_reset_lets_consumers_bind_each_new_backend_before_the_solver_exists(monkeypatch):
     """Each hard reset finalizes a new backend, dispatches ``PHYSICS_READY``, then builds the solver.
 
@@ -545,12 +576,12 @@ def test_collision_decimation_recollides_between_substeps_except_after_the_last(
 ):
     events = []
     backend = _recording_backend(events, num_substeps=8, collision_decimation=collision_decimation)
-    backend.collision_pipeline = SimpleNamespace(collide=lambda state, contacts: events.append(("collide",)))
+    backend.collision_pipeline = SimpleNamespace(collide=lambda state, contacts, *, dt: events.append(("collide", dt)))
     backend.contacts = object()
 
     backend.step()
 
-    assert events.count(("collide",)) == 1 + mid_loop_collides
+    assert events.count(("collide", backend.solver_dt)) == 1 + mid_loop_collides
 
 
 def test_model_changes_notify_the_solver_once_per_step_and_warn_once_when_ignored(caplog):

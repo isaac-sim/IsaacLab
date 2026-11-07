@@ -258,6 +258,12 @@ class FactoryPhysicsCfg(PresetCfg):
             broad_phase="sap",
             max_triangle_pairs=90_000_000,
             rigid_contact_max=5_000_000,
+            speculative_contact_gap_max=0.01,
+            sdf_all_shapes=NewtonCollisionPipelineCfg.SDFAllShapesCfg(
+                sdf_max_resolution=256,
+                sdf_narrow_band_inner=-0.005,
+                sdf_narrow_band_outer=0.005,
+            ),
         ),
         num_substeps=8,
         debug_mode=False,

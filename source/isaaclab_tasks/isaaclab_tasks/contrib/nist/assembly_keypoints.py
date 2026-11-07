@@ -406,8 +406,7 @@ class BNCSocketKeyPointsCfg:
 class DSUBPlugKeyPointsCfg:
     insertion_tip: Offset = Offset(pos=(0.0, 0.0, 0.0))
     grasp_point: Offset = Offset(pos=(0.0, 0.0, 0.0125))
-    # The finite finger pads can reach the wider flange during the allowed grasp-pose jitter.
-    grasp_diameter: float = 0.01285
+    grasp_diameter: float = 0.0115
 
 
 @configclass
@@ -420,8 +419,7 @@ class DSUBSocketKeyPointsCfg:
 class RJ45PlugKeyPointsCfg:
     insertion_tip: Offset = Offset(pos=(0.0, 0.0, 0.015))
     tail: Offset = Offset(pos=(0.0, 0.0, 0.0771))
-    # Center the closing-axis span [-5.2, 5.8] mm at the grasp height.
-    grasp_point: Offset = Offset(pos=(0.0, 0.0003, 0.0388))
+    grasp_point: Offset = Offset(pos=(0.0, 0.0, 0.0388))
     grasp_diameter: float = 0.011
 
 

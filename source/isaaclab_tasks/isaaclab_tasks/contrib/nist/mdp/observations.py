@@ -140,7 +140,9 @@ def _sample_variant_points(
         device=env.device,
         rigid_body_root=True,
         compact_sources=True,
-        source_paths=tuple(paths[prototypes[index]] for index in source_indices),
+        source_paths=tuple(
+            paths[prototypes[index]] or plan.asset_cfgs[prototypes[index]].spawn.spawn_path for index in source_indices
+        ),
     )
     if hasher.num_root != asset.num_mesh_variants:
         raise ValueError(

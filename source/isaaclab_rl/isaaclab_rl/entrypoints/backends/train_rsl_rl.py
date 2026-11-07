@@ -56,6 +56,64 @@ with contextlib.suppress(ImportError):
     import isaaclab_tasks_experimental  # noqa: F401
 
 
+class _HeatmapLogger:
+    """Upload two-dimensional environment heatmaps with RSL-RL's W&B metrics."""
+
+    def __init__(self, logger, env) -> None:
+        self._logger = logger
+        self._env = env
+
+    def __getattr__(self, name: str):
+        return getattr(self._logger, name)
+
+    def log(self, *args, **kwargs) -> None:
+        self._logger.log(*args, **kwargs)
+        iteration = kwargs["it"] if "it" in kwargs else args[0]
+        if iteration % 250 or self._logger.writer is None:
+            return
+        heatmaps = self._env.unwrapped.extras.get("heatmap", {})
+        if not heatmaps:
+            return
+
+        import matplotlib.pyplot as plt
+        import wandb
+
+        images = {}
+        for tag, data in heatmaps.items():
+            values = data["values"].detach().float().cpu()
+            if values.ndim != 2:
+                raise ValueError(f"Heatmap '{tag}' must be two-dimensional, got shape {tuple(values.shape)}.")
+            rows, columns = values.shape
+            figure, axes = plt.subplots(figsize=(max(8.0, 0.7 * columns), max(4.0, 0.65 * rows)))
+            color_map = plt.get_cmap(data.get("cmap", "RdYlGn")).with_extremes(bad="#d9d9d9")
+            image = axes.imshow(
+                values.numpy(), cmap=color_map, vmin=data.get("vmin", 0.0), vmax=data.get("vmax", 1.0), aspect="auto"
+            )
+            if x_labels := data.get("x_labels"):
+                axes.set_xticks(range(columns), x_labels, rotation=60, ha="right", rotation_mode="anchor")
+                axes.set_xlabel(data.get("x_label", "Assembly asset"))
+            else:
+                axes.set_xticks([])
+            if y_labels := data.get("y_labels"):
+                axes.set_yticks(range(rows), y_labels)
+                axes.set_ylabel(data.get("y_label", "Reset label"))
+            else:
+                axes.set_yticks([])
+            for row in range(rows):
+                for column in range(columns):
+                    value = values[row, column]
+                    label = format(float(value), data.get("value_format", ".0%")) if value.isfinite() else "—"
+                    rgba = image.cmap(image.norm(float(value))) if value.isfinite() else color_map.get_bad()
+                    luminance = 0.2126 * rgba[0] + 0.7152 * rgba[1] + 0.0722 * rgba[2]
+                    text_color = "black" if luminance > 0.5 else "white"
+                    axes.text(column, row, label, color=text_color, ha="center", va="center", fontsize=6)
+            figure.colorbar(image, ax=axes, label=data.get("color_label", "Value"))
+            figure.tight_layout()
+            images[tag] = wandb.Image(figure)
+            plt.close(figure)
+        wandb.log(images, step=iteration)
+
+
 def _parse_args(argv: list[str]) -> argparse.Namespace:
     """Parse RSL-RL training arguments."""
     parser = argparse.ArgumentParser(description="Train an RL agent with RSL-RL.")
@@ -177,6 +235,8 @@ def _run(args_cli: argparse.Namespace) -> None:
             else:
                 raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
             report_activity(None)
+            if agent_cfg.logger == "wandb":
+                runner.logger = _HeatmapLogger(runner.logger, env)
 
             # configure_seed must run after runner construction so torch determinism does not disturb its initialization
             if args_cli.deterministic:

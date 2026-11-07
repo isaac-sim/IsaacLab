@@ -251,11 +251,11 @@ class FactoryAssemblyProfileCfg(PresetCfg):
         ]
     )
 
-    # Gear mesh
+    # Gear mesh — fraction starts at 0.1 so teeth are clear before yaw noise
     gear_mesh_small: AssemblyProfileCfg = AssemblyProfileCfg(
         segments=[
             IncrementalSegmentCfg(
-                fraction=(0.0, 1.0),
+                fraction=(0.1, 1.0),
                 start_sampler=UniformYawCfg(),
                 start_pose=kpts.GEAR_BASE.small_gear_assembled_bottom_offset,
                 distance=_dist(kpts.GEAR_BASE.small_gear_assembled_bottom_offset, kpts.GEAR_BASE.small_gear_tip_offset),
@@ -265,7 +265,7 @@ class FactoryAssemblyProfileCfg(PresetCfg):
     gear_mesh_medium: AssemblyProfileCfg = AssemblyProfileCfg(
         segments=[
             IncrementalSegmentCfg(
-                fraction=(0.0, 1.0),
+                fraction=(0.1, 1.0),
                 start_sampler=UniformYawCfg(),
                 start_pose=kpts.GEAR_BASE.medium_gear_assembled_bottom_offset,
                 distance=_dist(
@@ -277,7 +277,7 @@ class FactoryAssemblyProfileCfg(PresetCfg):
     gear_mesh_large: AssemblyProfileCfg = AssemblyProfileCfg(
         segments=[
             IncrementalSegmentCfg(
-                fraction=(0.0, 1.0),
+                fraction=(0.1, 1.0),
                 start_sampler=UniformYawCfg(),
                 start_pose=kpts.GEAR_BASE.large_gear_assembled_bottom_offset,
                 distance=_dist(kpts.GEAR_BASE.large_gear_assembled_bottom_offset, kpts.GEAR_BASE.large_gear_tip_offset),
@@ -403,13 +403,14 @@ class FactoryAssemblyProfileCfg(PresetCfg):
         ]
     )
 
-    # BNC — linear insertion then bayonet twist; endpoint rotations already encode the quarter-turn.
+    # BNC — linear insertion then bayonet twist
     bnc: AssemblyProfileCfg = AssemblyProfileCfg(
         segments=[
             EndPointsSegmentCfg(
                 fraction=(0.0, 0.4),
                 start_pose=kpts.BNC_SOCKET.plug_assembled,
                 end_pose=kpts.BNC_SOCKET.insert_start,
+                revolutions=(0.0, 0.0, 0.25),
             ),
             EndPointsSegmentCfg(
                 fraction=(0.4, 1.0),
