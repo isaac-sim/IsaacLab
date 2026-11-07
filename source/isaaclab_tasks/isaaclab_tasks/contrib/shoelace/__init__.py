@@ -20,3 +20,14 @@ gym.register(
         "default_agent": "rsl_rl",
     },
 )
+
+gym.register(
+    id="IsaacContrib-Shoelace-G1Inspire",
+    entry_point=f"{__name__}.shoelace_physics:create_shoelace_env",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.g1_inspire_env_cfg:G1ShoelaceEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1ShoelacePPORunnerCfg",
+        "default_agent": "rsl_rl",
+    },
+)

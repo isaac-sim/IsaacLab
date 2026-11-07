@@ -37,13 +37,13 @@ def install_settled_default_state(env: ManagerBasedEnv, env_ids: torch.Tensor | 
         curve = _source_curve(env, side)
         positions = read_shoelace_attribute(curve, "settledPositions", (cable.num_segments, 3))
         orientations = read_shoelace_attribute(curve, "settledOrientations", (cable.num_segments, 4), quaternion=True)
-        transform = _source_transform(curve)
+        source_env = env.sim.stage.GetPrimAtPath(env.scene.env_prim_paths[0])
+        transform = _source_transform(curve, source_env)
         matrix = np.asarray(transform)
         positions = positions @ matrix[:3, :3] + matrix[3, :3]
         rotation = transform.ExtractRotationQuat()
         default_pose = cable.data.default_segment_pose_w.torch
-        # Remove the source environment origin before broadcasting to replicated environments.
-        positions -= env.scene.env_origins[0].cpu().numpy()
+        # USD retains the source prototype; world placement comes from the clone plan.
         default_pose[..., :3] = default_pose.new_tensor(positions)
         default_pose[..., :3] += env.scene.env_origins.unsqueeze(1)
         local_rotation = default_pose.new_tensor(orientations)
@@ -79,6 +79,36 @@ def reset_arm_joints(
     robot: Articulation = env.scene[asset_cfg.name]
     joint_pos = robot.data.joint_pos.torch[env_ids][:, asset_cfg.joint_ids]
     robot.actuators.target_command.set_position_index(value=joint_pos, joint_ids=asset_cfg.joint_ids, env_ids=env_ids)
+
+
+def mirror_arm_joints(
+    env: ManagerBasedEnv,
+    env_ids: torch.Tensor | slice,
+    source_cfg: SceneEntityCfg,
+    asset_cfg: SceneEntityCfg,
+    mirror_signs: tuple[float, ...],
+) -> None:
+    """Mirror an already-reset arm's state and synchronize the other arm's position targets.
+
+    Run after the source arm reset. Both entity selections must preserve corresponding joint order.
+    This retains reset noise while making its realization symmetric, including partial resets.
+
+    Args:
+        env: Environment containing the two arms.
+        env_ids: Environments to reset.
+        source_cfg: Arm whose reset positions and velocities are mirrored.
+        asset_cfg: Arm receiving the mirrored state.
+        mirror_signs: Axial reflection signs in the selections' common joint order.
+    """
+    source: Articulation = env.scene[source_cfg.name]
+    target: Articulation = env.scene[asset_cfg.name]
+    joint_pos = source.data.joint_pos.torch[env_ids][:, source_cfg.joint_ids]
+    signs = joint_pos.new_tensor(mirror_signs)
+    joint_pos = joint_pos * signs
+    joint_vel = source.data.joint_vel.torch[env_ids][:, source_cfg.joint_ids] * signs
+    target.write_joint_position_to_sim_index(position=joint_pos, joint_ids=asset_cfg.joint_ids, env_ids=env_ids)
+    target.write_joint_velocity_to_sim_index(velocity=joint_vel, joint_ids=asset_cfg.joint_ids, env_ids=env_ids)
+    target.actuators.target_command.set_position_index(value=joint_pos, joint_ids=asset_cfg.joint_ids, env_ids=env_ids)
 
 
 def reset_shoe_position(
@@ -124,13 +154,13 @@ def _source_curve(env: ManagerBasedEnv, side: str) -> Usd.Prim:
     return curve
 
 
-def _source_transform(curve: Usd.Prim) -> Gf.Matrix4d:
-    """Return the default-time curve-to-world transform, with translation in [m].
+def _source_transform(curve: Usd.Prim, source_env: Usd.Prim) -> Gf.Matrix4d:
+    """Return the default-time curve-to-environment transform, with translation in [m].
 
     The generated asset is meter-based. Raise ``ValueError`` for scale, shear, or
     reflection, which violate the baked startup data's rigid-transform assumption.
     """
-    transform = UsdGeom.Xformable(curve).ComputeLocalToWorldTransform(Usd.TimeCode.Default())
+    transform, _ = UsdGeom.XformCache(Usd.TimeCode.Default()).ComputeRelativeTransform(curve, source_env)
     linear = np.asarray(transform)[:3, :3]
     if not np.allclose(linear @ linear.T, np.eye(3), atol=1.0e-6) or np.linalg.det(linear) < 0.0:
         raise ValueError(f"{curve.GetPath()}: bake scale/shear before using shoelace startup data")

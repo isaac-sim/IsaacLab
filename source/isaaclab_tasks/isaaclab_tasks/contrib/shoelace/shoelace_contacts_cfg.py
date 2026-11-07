@@ -19,3 +19,11 @@ class FingerTailContactSensorCfg(SensorBaseCfg):
     """Configuration for the task's four finger-tail contact observations."""
 
     class_type: type["FingerTailContactSensor"] | str = "{DIR}.shoelace_contacts:FingerTailContactSensor"
+
+    robot_prim_names: tuple[str, str] = ("RobotLeft", "RobotRight")
+    """Robot prim names in left/right arm order; both may name one articulation."""
+    finger_body_names: tuple[tuple[str, str], tuple[str, str]] = (
+        ("panda_leftfinger", "panda_rightfinger"),
+        ("panda_leftfinger", "panda_rightfinger"),
+    )
+    """Two contacting finger body names per arm, in observation column order."""
