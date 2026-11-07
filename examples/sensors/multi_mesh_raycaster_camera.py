@@ -9,15 +9,15 @@
 .. code-block:: bash
 
     # with allegro hand
-    uvx --from 'isaaclab[isaacsim]' isaaclab example multi-mesh-ray-caster-camera \\
+    uvx isaaclab example multi-mesh-ray-caster-camera \\
         --num_envs 16 --asset_type allegro_hand
 
     # with anymal-D bodies
-    uvx --from 'isaaclab[isaacsim]' isaaclab example multi-mesh-ray-caster-camera \\
+    uvx isaaclab example multi-mesh-ray-caster-camera \\
         --num_envs 16 --asset_type anymal_d
 
-    # with random multiple objects
-    uvx --from 'isaaclab[isaacsim]' isaaclab example multi-mesh-ray-caster-camera \\
+    # with multiple primitive objects
+    uvx isaaclab example multi-mesh-ray-caster-camera \\
         --num_envs 16 --asset_type objects
 
 """
@@ -43,23 +43,21 @@ parser.add_argument("--log_interval", type=int, default=100, help="Steps between
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 parser.add_argument(
     "--physics",
-    default="isaacsim_physx",
-    choices=["isaacsim_physx"],
+    default="newton_mjwarp",
+    choices=["isaacsim_physx", "newton_mjwarp"],
     help="Physics backend.",
 )
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["kit"])
+parser.set_defaults(visualizer=["newton_gl"])
 args_cli = parser.parse_args()
 if args_cli.log_interval < 1:
     parser.error("--log_interval must be at least 1.")
 if args_cli.max_steps == 0 or args_cli.max_steps < -1:
     parser.error("--max_steps must be positive or -1.")
-
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
-
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, AssetBaseCfg, RigidObjectCfg
 from isaaclab.markers.config import VisualizationMarkersCfg
+from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors.ray_caster import MultiMeshRayCasterCameraCfg, patterns
 from isaaclab.utils import configclass, instantiate, replace
@@ -83,7 +81,7 @@ RAY_CASTER_MARKER_CFG = VisualizationMarkersCfg(
 if args_cli.asset_type == "allegro_hand":
     asset_cfg = replace(ALLEGRO_HAND_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     ray_caster_cfg = MultiMeshRayCasterCameraCfg(
-        prim_path="{ENV_REGEX_NS}/Robot",
+        prim_path="{ENV_REGEX_NS}/Robot/allegro_mount",
         update_period=1 / 60,
         offset=MultiMeshRayCasterCameraCfg.OffsetCfg(
             pos=(-0.70, -0.7, -0.25), rot=(0.268976, 0.268976, 0.653951, 0.653951)
@@ -163,8 +161,7 @@ elif args_cli.asset_type == "objects":
                     visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 1.0), metallic=0.2),
                 ),
             ],
-            random_choice=True,
-            rigid_props=PhysxRigidBodyCfg(solver_position_iteration_count=4, solver_velocity_iteration_count=0),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
             mass_props=sim_utils.MassCfg(mass=1.0),
             collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         ),
@@ -260,7 +257,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: "InteractiveScene") -
         if isinstance(scene["asset"], Articulation):
             default_joint_pos = scene["asset"].data.default_joint_pos.torch
             targets = default_joint_pos + 5 * (torch.rand_like(default_joint_pos) - 0.5)
-            scene["asset"].set_joint_position_target_index(target=targets)
+            scene["asset"].actuators.target_command.set_position_index(value=targets)
         scene.write_data_to_sim()
         sim.step()
         count += 1
@@ -274,7 +271,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: "InteractiveScene") -
 def main() -> None:
     """Run the multi-mesh ray-caster camera example."""
 
-    sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device)
+    sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device, physics=PhysicsCfg())
     with launch_simulation(sim_cfg, args_cli):
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
