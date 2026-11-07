@@ -17,6 +17,7 @@ from ..app.loading_screen import report_activity
 from ..managers import ActionManager, EventManager, ObservationManager, RecorderManager
 from ..scene import InteractiveScene
 from ..sim import SimulationContext
+from ..sim.usd_export import export_scene
 from ..sim.utils.stage import use_stage
 from ..utils import validate
 from ..utils.seed import configure_seed
@@ -206,6 +207,9 @@ class ManagerBasedEnv:
         # fold the full loop into a single step() when possible
         self.sim.backend_manager.set_decimation(self.cfg.decimation)
         self._physics_handles_decimation = self.sim.backend_manager.handles_decimation()
+        # export after asset initialization, before startup events
+        if self.cfg.scene.export_usd_path is not None:
+            export_scene(self.scene)
         # add timeline event to load managers
         report_activity("Setting up managers")
         self.load_managers()
