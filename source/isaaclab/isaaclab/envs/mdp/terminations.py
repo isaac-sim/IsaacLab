@@ -80,7 +80,10 @@ def root_height_below_minimum(
     """Terminate when the asset's root height is below the minimum height.
 
     Note:
-        This is currently only supported for flat terrains, i.e. the minimum height is in the world frame.
+        The minimum height is measured in the world frame, so this term only suits flat terrain. On rough
+        terrain, such as stairs or pits, the ground under the robot is not at a fixed height. Use
+        :func:`pelvis_below_terrain_clearance` there instead, which measures the root height above the
+        ground sampled by a ray-cast height scanner.
     """
     asset: RigidObject = env.scene[asset_cfg.name]
     return asset.data.root_pos_w.torch[:, 2] < minimum_height
@@ -92,7 +95,14 @@ def pelvis_below_terrain_clearance(
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
     sensor_cfg: SceneEntityCfg = SceneEntityCfg("height_scanner"),
 ) -> torch.Tensor:
-    """Terminate when the root sits less than ``minimum_height`` above the ground beneath it."""
+    """Terminate when the root sits less than ``minimum_height`` above the ground beneath it.
+
+    This is the terrain-aware counterpart of :func:`root_height_below_minimum`. The ground height of each
+    environment is the median height of the ray hits of the sensor in ``sensor_cfg``, typically a
+    downward-facing :class:`~isaaclab.sensors.RayCaster` attached to the robot base. The median keeps a few
+    rays that hit tall obstacles, such as a nearby wall, from shifting the ground estimate. Rays that hit
+    nothing count as ground at height zero.
+    """
     asset = env.scene[asset_cfg.name]
     sensor = env.scene[sensor_cfg.name]
     hits = sensor.data.ray_hits_w.torch[..., 2]
