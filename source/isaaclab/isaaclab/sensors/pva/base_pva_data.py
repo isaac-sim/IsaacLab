@@ -10,6 +10,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 from ...utils.leapp import (
+    ANGULAR_VELOCITY_COMPONENT_AXIS,
+    LINEAR_VELOCITY_COMPONENT_AXIS,
     POSE7_COMPONENT_AXIS,
     QUAT_XYZW_COMPONENT_AXIS,
     XYZ_COMPONENT_AXIS,
@@ -72,7 +74,7 @@ class BasePvaData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(
-        kind=Kind.FRAME_LINEAR_VELOCITY, axes=[None, XYZ_COMPONENT_AXIS], expressed_in=ExpressionFrame.SELF
+        kind=Kind.FRAME_LINEAR_VELOCITY, axes=[None, LINEAR_VELOCITY_COMPONENT_AXIS], expressed_in=ExpressionFrame.SELF
     )
     def lin_vel_b(self) -> ProxyArray:
         """PVA frame linear velocity relative to the world expressed in PVA frame [m/s].
@@ -84,7 +86,9 @@ class BasePvaData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(
-        kind=Kind.FRAME_ANGULAR_VELOCITY, axes=[None, XYZ_COMPONENT_AXIS], expressed_in=ExpressionFrame.SELF
+        kind=Kind.FRAME_ANGULAR_VELOCITY,
+        axes=[None, ANGULAR_VELOCITY_COMPONENT_AXIS],
+        expressed_in=ExpressionFrame.SELF,
     )
     def ang_vel_b(self) -> ProxyArray:
         """PVA frame angular velocity relative to the world expressed in PVA frame [rad/s].

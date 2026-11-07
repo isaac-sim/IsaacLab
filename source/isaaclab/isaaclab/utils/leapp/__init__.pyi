@@ -4,6 +4,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "LINEAR_VELOCITY_COMPONENT_AXIS",
+    "ANGULAR_VELOCITY_COMPONENT_AXIS",
+    "TWIST_COMPONENT_AXIS",
+    "body_linear_velocity_axes_resolver",
+    "body_angular_velocity_axes_resolver",
+    "body_twist_axes_resolver",
     "Axis",
     "AxisKind",
     "ExportPatcher",
@@ -37,6 +43,12 @@ __all__ = [
 
 from .export_annotator import ExportPatcher, patch_env_for_export
 from .leapp_semantics import (
+    LINEAR_VELOCITY_COMPONENT_AXIS,
+    ANGULAR_VELOCITY_COMPONENT_AXIS,
+    TWIST_COMPONENT_AXIS,
+    body_linear_velocity_axes_resolver,
+    body_angular_velocity_axes_resolver,
+    body_twist_axes_resolver,
     Axis,
     AxisKind,
     InputKindEnum,

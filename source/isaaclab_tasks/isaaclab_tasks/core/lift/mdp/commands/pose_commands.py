@@ -15,7 +15,7 @@ import torch
 from isaaclab.assets import Asset, AssetBase, VisualMaterial
 from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
-from isaaclab.utils.leapp import POSE7_COMPONENT_AXIS
+from isaaclab.utils.leapp import POSE7_COMPONENT_AXIS, Axis, AxisKind, Kind
 from isaaclab.utils.math import combine_frame_transforms, compute_pose_error, quat_from_euler_xyz, quat_unique
 
 if TYPE_CHECKING:
@@ -92,8 +92,9 @@ class ObjectUniformPoseCommand(CommandTerm):
 
         # adds (optional) cmd kind and element names for leapp export
         # during export, semantic data about this command will be used to annotate the command input
-        self.cfg.cmd_kind = self.cfg.cmd_kind or "command/body/pose"
-        self.cfg.axes = self.cfg.axes or [None, POSE7_COMPONENT_AXIS]
+        self.cfg.cmd_kind = self.cfg.cmd_kind or Kind.FRAME_POSE
+        self.cfg.axes = self.cfg.axes or [Axis(AxisKind.SYSTEM), POSE7_COMPONENT_AXIS]
+        self.cfg.cmd_reference = self.cfg.cmd_reference or self.robot.backend_body_names[0]
 
     def __str__(self) -> str:
         msg = "ObjectUniformPoseCommand:\n"

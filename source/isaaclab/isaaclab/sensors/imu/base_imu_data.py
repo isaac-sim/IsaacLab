@@ -10,6 +10,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 from ...utils.leapp import (
+    ANGULAR_VELOCITY_COMPONENT_AXIS,
     XYZ_COMPONENT_AXIS,
     ExpressionFrame,
     Kind,
@@ -31,7 +32,9 @@ class BaseImuData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(
-        kind=Kind.FRAME_ANGULAR_VELOCITY, axes=[None, XYZ_COMPONENT_AXIS], expressed_in=ExpressionFrame.SELF
+        kind=Kind.FRAME_ANGULAR_VELOCITY,
+        axes=[None, ANGULAR_VELOCITY_COMPONENT_AXIS],
+        expressed_in=ExpressionFrame.SELF,
     )
     def ang_vel_b(self) -> ProxyArray:
         """IMU frame angular velocity relative to the world expressed in IMU frame [rad/s].

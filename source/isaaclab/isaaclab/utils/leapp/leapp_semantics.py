@@ -63,6 +63,9 @@ QUAT_XYZW_COMPONENT_AXIS: Axis = Axis(AxisKind.COMPONENT, names=["qx", "qy", "qz
 POSE7_COMPONENT_AXIS: Axis = Axis(AxisKind.COMPONENT, names=["x", "y", "z", "qx", "qy", "qz", "qw"])
 POSE6_COMPONENT_AXIS: Axis = Axis(AxisKind.COMPONENT, names=["x", "y", "z", "angular_x", "angular_y", "angular_z"])
 WRENCH6_COMPONENT_AXIS: Axis = Axis(AxisKind.COMPONENT, names=["fx", "fy", "fz", "tx", "ty", "tz"])
+LINEAR_VELOCITY_COMPONENT_AXIS: Axis = Axis(AxisKind.COMPONENT, names=["vx", "vy", "vz"])
+ANGULAR_VELOCITY_COMPONENT_AXIS: Axis = Axis(AxisKind.COMPONENT, names=["wx", "wy", "wz"])
+TWIST_COMPONENT_AXIS: Axis = Axis(AxisKind.COMPONENT, names=["vx", "vy", "vz", "wx", "wy", "wz"])
 
 
 def select_element_names(names: list[str] | None, indices: Any = None) -> list[str] | None:
@@ -136,7 +139,7 @@ def joint_axes_resolver(data_self, ref) -> list[Axis | None] | None:
         getattr(data_self, "joint_names", getattr(data_self, "_joint_names", None)),
         getattr(data_self, "_joint_ids", None),
     )
-    return [None, Axis(AxisKind.ELEMENT, names=names)] if names is not None else None
+    return [Axis(AxisKind.SYSTEM), Axis(AxisKind.ELEMENT, names=names)] if names is not None else None
 
 
 def body_names_resolver(data_self) -> list[str] | None:
@@ -152,7 +155,7 @@ def _compound_axes_resolver(outer_fn: Callable, component_axis: Axis) -> Callabl
 
     def resolver(data_self, ref) -> list[Axis | None] | None:
         names = outer_fn(data_self)
-        return [None, Axis(AxisKind.ELEMENT, names=names), component_axis] if names else None
+        return [Axis(AxisKind.SYSTEM), Axis(AxisKind.ELEMENT, names=names), component_axis] if names else None
 
     return resolver
 
@@ -165,6 +168,9 @@ def _target_frame_names(data_self) -> list[str] | None:
 body_xyz_axes_resolver = _compound_axes_resolver(body_names_resolver, XYZ_COMPONENT_AXIS)
 body_pose_axes_resolver = _compound_axes_resolver(body_names_resolver, POSE7_COMPONENT_AXIS)
 body_pose6_axes_resolver = _compound_axes_resolver(body_names_resolver, POSE6_COMPONENT_AXIS)
+body_linear_velocity_axes_resolver = _compound_axes_resolver(body_names_resolver, LINEAR_VELOCITY_COMPONENT_AXIS)
+body_angular_velocity_axes_resolver = _compound_axes_resolver(body_names_resolver, ANGULAR_VELOCITY_COMPONENT_AXIS)
+body_twist_axes_resolver = _compound_axes_resolver(body_names_resolver, TWIST_COMPONENT_AXIS)
 body_quat_axes_resolver = _compound_axes_resolver(body_names_resolver, QUAT_XYZW_COMPONENT_AXIS)
 body_wrench_axes_resolver = _compound_axes_resolver(body_names_resolver, WRENCH6_COMPONENT_AXIS)
 target_frame_xyz_axes_resolver = _compound_axes_resolver(_target_frame_names, XYZ_COMPONENT_AXIS)

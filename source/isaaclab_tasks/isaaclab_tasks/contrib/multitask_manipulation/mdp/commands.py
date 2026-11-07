@@ -14,7 +14,7 @@ import torch
 
 from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
-from isaaclab.utils.leapp import POSE7_COMPONENT_AXIS
+from isaaclab.utils.leapp import POSE7_COMPONENT_AXIS, Axis, AxisKind, Kind
 from isaaclab.utils.math import combine_frame_transforms, quat_from_euler_xyz, quat_unique
 
 if TYPE_CHECKING:
@@ -30,8 +30,8 @@ class SelectedUniformPoseCommand(CommandTerm):
 
     def __init__(self, cfg: SelectedUniformPoseCommandCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
-        self.cfg.cmd_kind = self.cfg.cmd_kind or "frame/pose"
-        self.cfg.axes = self.cfg.axes or [None, POSE7_COMPONENT_AXIS]
+        self.cfg.cmd_kind = self.cfg.cmd_kind or Kind.FRAME_POSE
+        self.cfg.axes = self.cfg.axes or [Axis(AxisKind.SYSTEM), POSE7_COMPONENT_AXIS]
         self.pose_command = torch.zeros(self.num_envs, 7, device=self.device)
         self._all_env_ids = torch.arange(self.num_envs, device=self.device)
         self._reference_cfg = cfg.reference_cfg

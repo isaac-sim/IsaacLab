@@ -342,6 +342,7 @@ def _make_pose_command(
 
     robot = SimpleNamespace(
         is_initialized=True,
+        backend_body_names=["base"],
         data=SimpleNamespace(
             root_pos_w=SimpleNamespace(torch=root_pos_w),
             root_quat_w=SimpleNamespace(torch=identity_quat),
@@ -369,6 +370,7 @@ def _make_pose_command(
         position_only=True,
         cmd_kind=None,
         axes=None,
+        cmd_reference=None,
     )
 
     def _initialize_command_term(command, command_cfg, command_env) -> None:
