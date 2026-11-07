@@ -5,9 +5,33 @@
 
 """Outcome attribution and selective resets at the shared sampler boundary."""
 
+from collections import deque
+
+import pytest
 import torch
 
-from isaaclab_tasks.utils import ResetStateSampler, ResetStateSamplerCfg, SuccessMonitorCfg
+from isaaclab_tasks.utils import ResetStateSampler, ResetStateSamplerCfg, SuccessMonitor, SuccessMonitorCfg
+
+pytestmark = pytest.mark.kitless
+
+
+def test_rolling_history_matches_per_row_deques():
+    """Duplicate IDs, wraparound, and oversized batches retain the latest outcomes in input order."""
+    capacity = 5
+    row_count = 4
+    monitor = SuccessMonitor(SuccessMonitorCfg(monitored_history_len=capacity), 1, row_count, "cpu")
+    reference = [deque(maxlen=capacity) for _ in range(row_count)]
+    generator = torch.Generator().manual_seed(31)
+
+    for batch_size in (4, 11, 2, 17, 7, 23):
+        rows = torch.randint(row_count, (batch_size,), generator=generator)
+        success = torch.rand(batch_size, generator=generator) > 0.45
+        monitor.success_update(rows, success)
+        for row, outcome in zip(rows.tolist(), success.tolist(), strict=True):
+            reference[row].append(outcome)
+
+        expected_rates = torch.tensor([sum(history) / max(1, len(history)) for history in reference])
+        torch.testing.assert_close(monitor.get_success_rate(), expected_rates)
 
 
 def test_reset_records_previous_rows_and_preserves_unselected_environments():
