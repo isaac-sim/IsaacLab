@@ -94,3 +94,28 @@ def test_compute_matches_impedance_law(
     torques = controller.compute(dof_pos, dof_vel, mass_matrix if inertial else None, gravity_vec if gravity else None)
     assert torques.dtype == dtype
     torch.testing.assert_close(torques, expected, atol=1e-4, rtol=1e-4)
+
+
+@pytest.mark.parametrize(
+    "damping_ratio",
+    [0.5, [0.2 * (i + 1) for i in range(_NUM_DOF)]],
+    ids=["scalar", "per_joint"],
+)
+def test_variable_kp_uses_configured_damping_ratio(damping_ratio: float | list[float]) -> None:
+    """In ``variable_kp`` mode, the velocity gains follow the commanded stiffness and the configured damping ratio."""
+    device = "cpu"
+    cfg = JointImpedanceControllerCfg(impedance_mode="variable_kp", stiffness=50.0, damping_ratio=damping_ratio)
+    limits = torch.stack(
+        [-torch.ones(_NUM_ROBOTS, _NUM_DOF, device=device), torch.ones(_NUM_ROBOTS, _NUM_DOF, device=device)], dim=-1
+    )
+    controller = JointImpedanceController(cfg, _NUM_ROBOTS, limits, device)
+
+    # zero position error, so the torque is only the damping term
+    dof_pos = torch.zeros(_NUM_ROBOTS, _NUM_DOF, device=device)
+    dof_vel = torch.ones(_NUM_ROBOTS, _NUM_DOF, device=device)
+    p_gains = torch.linspace(10.0, 100.0, _NUM_DOF, device=device).expand(_NUM_ROBOTS, -1)
+    controller.set_command(torch.cat([dof_pos, p_gains], dim=-1))
+    torques = controller.compute(dof_pos, dof_vel)
+
+    expected_ratio = torch.tensor(damping_ratio, device=device)
+    torch.testing.assert_close(torques, -2.0 * p_gains.sqrt() * expected_ratio * dof_vel)
