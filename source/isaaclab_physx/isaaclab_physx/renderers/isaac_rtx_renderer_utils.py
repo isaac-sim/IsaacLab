@@ -24,6 +24,7 @@ from .isaac_rtx_renderer_cfg import IsaacRtxRendererGlobalSettingsCfg
 logger = logging.getLogger(__name__)
 
 _RTX_FIELD_TO_SETTING = {
+    "points_update_mode": "/isaaclab/render/points_update_mode",
     "enable_translucency": "/rtx/translucency/enabled",
     "enable_reflections": "/rtx/reflections/enabled",
     "enable_global_illumination": "/rtx/indirectDiffuse/enabled",
