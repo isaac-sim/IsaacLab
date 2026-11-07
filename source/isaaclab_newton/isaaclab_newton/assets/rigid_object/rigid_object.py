@@ -1069,12 +1069,11 @@ class RigidObject(BaseRigidObject):
         if self._root_view.link_count != 1 or self._root_view.articulation_ids.shape[1] != 1:
             raise RuntimeError(f"Expected one rigid body per object at '{self.cfg.prim_path}'.")
         self._variant_body_indices = None
-        if model.body_variant is not None:
+        if self.num_mesh_variants > 1:
             articulation_starts = model.articulation_start.numpy()
             joint_children = model.joint_child.numpy()
             body_indices = joint_children[articulation_starts[self._root_view.articulation_ids.numpy().ravel()]]
-            if model.body_variant_labels(int(body_indices[0])):
-                self._variant_body_indices = wp.array(body_indices, dtype=wp.int32, device=self.device)
+            self._variant_body_indices = wp.array(body_indices, dtype=wp.int32, device=self.device)
 
         # container for data access
         self._data = RigidObjectData(self.root_view, self.device, backend_manager=self._backend_manager)
