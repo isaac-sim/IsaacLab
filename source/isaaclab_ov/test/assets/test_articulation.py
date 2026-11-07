@@ -1062,7 +1062,7 @@ def test_effort_binding_excludes_implicit_pd(scene: _ArticulationScene) -> None:
 
 @pytest.mark.parametrize("scene", _ALL_DEVICES, indirect=True)
 def test_com_orientation_write_invalidates_static_inertia_cache_with_body_ordering(scene: _ArticulationScene) -> None:
-    """Partial COM writes and COM rotations follow non-identity body order.
+    """Partial COM writes, COM rotations, and inertia-driven principal-axis changes follow non-identity body order.
 
     COM pose is a CPU-resident OVPhysX binding, and the raw ``root_view.set_attribute`` restore
     below forbids cross-device staging, so the raw COM tensors stay on the host.
@@ -1129,6 +1129,22 @@ def test_com_orientation_write_invalidates_static_inertia_cache_with_body_orderi
         articulation.data.body_inertia.torch[:, public_body_id : public_body_id + 1],
         expected_rotated_inertia,
     )
+
+    # A non-diagonal inertia write moves the principal axes, and the cached COM orientations follow without a step.
+    articulation.data.body_com_pose_w  # primes the world-frame pose derived from the COM cache
+    inertia = torch.tensor([[[2.5, 0.5, 0.0, 0.5, 2.5, 0.0, 0.0, 0.0, 4.0]]], device=device)
+    articulation.set_inertias_index(inertias=inertia, body_ids=[public_body_id])
+    native_quat = _read_binding_to_torch(articulation, TT.BODY_COM_POSE, device)[:, backend_body_id, 3:7]
+    assert (torch.sum(coms[:, 0, 3:7] * native_quat, dim=-1).abs() < 0.99).all()
+    expected_world_quat = math_utils.quat_mul(
+        articulation.data.body_link_pose_w.torch[:, public_body_id, 3:7], native_quat
+    )
+    for quat, expected in (
+        (articulation.data.body_com_quat_b.torch[:, public_body_id], native_quat),
+        (articulation.data.body_com_pose_w.torch[:, public_body_id, 3:7], expected_world_quat),
+    ):
+        # Equal up to the sign of the quaternion.
+        torch.testing.assert_close(torch.sum(quat * expected, dim=-1).abs(), torch.ones_like(quat[:, 0]))
 
 
 @pytest.mark.parametrize("scene", _CUDA_SCENES, indirect=True)

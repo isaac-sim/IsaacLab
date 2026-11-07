@@ -391,6 +391,21 @@ def test_rigid_object_real_ovphysx_seams(scene: _RigidScene) -> None:
         assert torch.count_nonzero(composer.composed_force.torch) == 0
         assert torch.count_nonzero(composer.composed_torque.torch) == 0
 
+    # A non-diagonal inertia write moves the principal axes, and the cached COM orientations follow without a step.
+    quat_before = rigid_object.data.body_com_quat_b.torch[:, 0].clone()
+    rigid_object.data.body_com_pose_w  # primes the world-frame pose derived from the COM cache
+    inertias = torch.tensor([2.5, 0.5, 0.0, 0.5, 2.5, 0.0, 0.0, 0.0, 4.0], device=device).repeat(_NUM_CUBES, 1, 1)
+    rigid_object.set_inertias_index(inertias=wp.from_torch(inertias, dtype=wp.float32))
+    native_quat = wp.to_torch(rigid_object.root_view.get_attribute(TT.RIGID_BODY_COM_POSE)).to(device)[:, 3:7]
+    assert (torch.sum(quat_before * native_quat, dim=-1).abs() < 0.99).all()
+    expected_world_quat = quat_mul(rigid_object.data.body_link_pose_w.torch[:, 0, 3:7], native_quat)
+    for quat, expected in (
+        (rigid_object.data.body_com_quat_b.torch[:, 0], native_quat),
+        (rigid_object.data.body_com_pose_w.torch[:, 0, 3:7], expected_world_quat),
+    ):
+        # Equal up to the sign of the quaternion.
+        torch.testing.assert_close(torch.sum(quat * expected, dim=-1).abs(), torch.ones_like(quat[:, 0]))
+
 
 @pytest.mark.parametrize("scene", test_devices(), indirect=True)
 def test_initialization_with_kinematic_enabled(scene: _RigidScene) -> None:
