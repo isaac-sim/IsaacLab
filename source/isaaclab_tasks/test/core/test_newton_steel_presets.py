@@ -6,10 +6,12 @@
 """Resolved task settings for Newton Steel."""
 
 import pytest
-from isaaclab_newton.physics import SteelSolverCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, SteelSolverCfg
+
+from isaaclab.sim import SimulationCfg
 
 from isaaclab_tasks.contrib.keyboard.so101_env_cfg import SO101KeyboardEnvCfg, SO101SceneCfg
-from isaaclab_tasks.utils import resolve_task_config
+from isaaclab_tasks.utils import PresetCfg, resolve_task_config
 
 
 def test_so101_newton_steel_preset_enables_parallel_streams() -> None:
@@ -90,3 +92,18 @@ def test_newton_steel_tuning_preserves_substeps(task, iterations, solver_changes
 def test_franka_newton_steel_tasks_select_driven_usd_variant(task: str) -> None:
     cfg, _ = resolve_task_config(task, None, overrides=["presets=newton_steel"])
     assert cfg.scene.robot.spawn.variants["Physics"] == "physx"
+
+
+@pytest.mark.parametrize("task", ["Isaac-Open-Drawer-Franka", "Isaac-Open-Drawer-Franka-Direct"])
+@pytest.mark.parametrize(
+    ("override", "dt"),
+    [("presets=newton_mjwarp", 1 / 600), ("presets=newton_steel", 1 / 60), ("physics=newton_steel", 1 / 60)],
+)
+def test_cabinet_simulation_resolves_from_physics_and_dt_presets(task: str, override: str, dt: float) -> None:
+    cfg, _ = resolve_task_config(task, None, overrides=[override])
+    assert isinstance(cfg.sim, SimulationCfg)
+    assert not isinstance(cfg.sim, PresetCfg)
+    assert cfg.sim.dt == dt
+    expected_solver = MJWarpSolverCfg if override == "presets=newton_mjwarp" else SteelSolverCfg
+    assert isinstance(cfg.sim.physics.solver_cfg, expected_solver)
+    assert cfg.decimation == (10 if override == "presets=newton_mjwarp" else 1)
