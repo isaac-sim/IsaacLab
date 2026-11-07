@@ -99,7 +99,7 @@ def _validate_replay(env: gym.Env) -> dict[str, bool]:
         raise RuntimeError("A reset state already satisfies the grasped-cube goal.")
     before = task.scene.get_state(is_relative=True)
     split = max(1, task.num_envs // 2)
-    task._reset_idx(torch.arange(split, device=task.device))
+    task.reset(env_ids=torch.arange(split, device=task.device))
     if success_cfg.func(task, **success_cfg.params).any():
         raise RuntimeError("Partial replay produced an already successful reset state.")
     after = task.scene.get_state(is_relative=True)
@@ -133,8 +133,7 @@ def _rollout(env: gym.Env, agent_cfg, args: argparse.Namespace) -> dict:
 
     elapsed = torch.zeros(task.num_envs, device=task.device)
     cube_start = mdp.object_position(task).clone()
-    orientation = task._tcp_pose()[:, 3:].clone()
-    orientation[:] = orientation.new_tensor((1.0, 0.0, 0.0, 0.0))
+    orientation = cube_start.new_tensor((1.0, 0.0, 0.0, 0.0)).expand(task.num_envs, -1)
     completed = 0
     successes = 0
     remaining = torch.full((task.num_envs,), args.episodes // task.num_envs, dtype=torch.long, device=task.device)
@@ -160,11 +159,11 @@ def _rollout(env: gym.Env, agent_cfg, args: argparse.Namespace) -> dict:
                 finite &= bool(torch.isfinite(observations["policy"]).all().item())
 
             # Same-step auto-reset restores the cube before this read. The successful terminal
-            # transition is counted from its binary reward, never from a post-reset observation.
+            # transition remains cached in the termination manager until the next step.
             finite &= bool(torch.isfinite(reward).all().item())
             counted = done & (remaining > 0)
             completed += int(counted.sum().item())
-            successes += int(((reward > 0.5) & counted).sum().item())
+            successes += int((task.termination_manager.get_term("success") & counted).sum().item())
             remaining[counted] -= 1
             maximum_height = max(maximum_height, float(mdp.object_position(task)[:, 2].max().item()))
             elapsed += task.step_dt

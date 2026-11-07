@@ -40,6 +40,12 @@ def test_collection_rejects_candidates_covers_groups_and_preserves_rng():
         "table": {"attempted": 8, "accepted": 4, "rejected/generator": 2, "rejected/reachable": 2},
         "grasped": {"attempted": 8, "accepted": 3, "rejected/generator": 2, "rejected/reachable": 2},
     }
+    assert buffer.rejection_counts == {
+        "table/generator": 2,
+        "table/reachable": 2,
+        "grasped/generator": 2,
+        "grasped/reachable": 2,
+    }
     selected = buffer.get_state(torch.tensor([6, 0, 4]))["rigid_object"]["cube"]["root_pose"]
     assert (selected[:, 0] * torch.tensor([-1, 1, -1]) > 1.0).all()
     torch.testing.assert_close(torch.get_rng_state(), torch_state)

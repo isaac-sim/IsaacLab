@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils.math import quat_apply
+from isaaclab.utils.math import combine_frame_transforms
 
 from isaaclab_tasks.core.lift.mdp import object_reached_goal
 
@@ -32,8 +32,15 @@ def hand_pose(
     robot = env.scene[asset_cfg.name]
     body_id = asset_cfg.body_ids[0]
     orientation = robot.data.body_link_quat_w.torch[:, body_id]
-    offset = orientation.new_tensor((0.0, 0.0, 0.107)).expand(env.num_envs, -1)
-    position = robot.data.body_link_pos_w.torch[:, body_id] + quat_apply(orientation, offset)
+    position = robot.data.body_link_pos_w.torch[:, body_id]
+    offset = env.cfg.actions.arm.body_offset
+    if offset is not None:
+        position, orientation = combine_frame_transforms(
+            position,
+            orientation,
+            position.new_tensor(offset.pos).expand_as(position),
+            orientation.new_tensor(offset.rot).expand_as(orientation),
+        )
     return torch.cat((position - env.scene.env_origins, orientation), dim=-1)
 
 
@@ -74,8 +81,8 @@ def goal_reached(
 
 
 def success_reward(env: ManagerBasedRLEnv) -> torch.Tensor:
-    """Return the binary goal success for the terminal transition."""
-    return env.termination_manager.get_term("success").float()
+    """Return goal success per second [1/s] for a unit terminal reward."""
+    return env.termination_manager.get_term("success").float() / env.step_dt
 
 
 def object_dropped(env: ManagerBasedRLEnv) -> torch.Tensor:

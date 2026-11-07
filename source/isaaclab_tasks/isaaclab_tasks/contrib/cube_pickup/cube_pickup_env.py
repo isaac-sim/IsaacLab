@@ -18,7 +18,7 @@ import isaaclab.envs.mdp as mdp
 from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.envs.reset import ResetStateBuffer
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils import clone
+from isaaclab.utils import clone, instantiate
 from isaaclab.utils.math import compute_pose_error
 
 from isaaclab_tasks.utils import ResetStateSampler
@@ -189,7 +189,7 @@ class CubePickupEnv(ManagerBasedRLEnv):
         sampler_cfg = clone(self.cfg.reset_sampler)
         if self.cfg.reset_mode == "uniform":
             sampler_cfg.sampling.strategies = [UniformSamplingStrategyCfg()]
-        self.reset_sampler = ResetStateSampler(sampler_cfg, self.num_envs, self.reset_buffer.num_states, self.device)
+        self.reset_sampler = instantiate(sampler_cfg, self.num_envs, self.reset_buffer.num_states, self.device)
         self.generation_report = {
             "seed": self.cfg.reset_buffer.seed,
             "num_states": self.reset_buffer.num_states,
@@ -225,7 +225,7 @@ class CubePickupEnv(ManagerBasedRLEnv):
     def _reset_idx(self, env_ids: torch.Tensor | slice):
         ids = self.scene._ALL_INDICES[env_ids]
         success = self.termination_manager.get_term("success")[ids].clone()
-        valid = (self.episode_length_buf[ids] > 0) & self.termination_manager.dones[ids]
+        valid = (self.episode_length_buf[ids] > 0) & self.reset_buf[ids]
         metrics: dict[str, torch.Tensor] = {}
         rows = None
         if self.reset_sampler is not None:

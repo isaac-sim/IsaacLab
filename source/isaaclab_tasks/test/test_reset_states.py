@@ -12,7 +12,7 @@ import torch
 
 from isaaclab_tasks.utils import ResetStateSampler, ResetStateSamplerCfg, SuccessMonitor, SuccessMonitorCfg
 
-pytestmark = pytest.mark.kitless
+pytestmark = [pytest.mark.unit, pytest.mark.kitless, pytest.mark.windows_ci]
 
 
 def test_rolling_history_matches_per_row_deques():

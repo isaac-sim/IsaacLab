@@ -40,7 +40,7 @@ from . import mdp as pickup_mdp
 
 @configclass
 class PhysicsCfg(PresetCfg):
-    """Supported physics backend for this example."""
+    """Expose the supported ``physics=newton_mjwarp`` task selector."""
 
     newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
@@ -168,7 +168,7 @@ class ObservationsCfg:
 
 @configclass
 class RewardsCfg:
-    """One terminal success reward; its weight cancels reward-manager integration."""
+    """One unit terminal success reward."""
 
     success = RewardTermCfg(func=pickup_mdp.success_reward, weight=1.0)
 
@@ -221,7 +221,6 @@ class CubePickupEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.physics = PhysicsCfg()
         self.episode_length_s = 12.0
         self.is_finite_horizon = True
-        self.rewards.success.weight = 1.0 / (self.sim.dt * self.decimation)
         self.sim.visualizer_cfgs = VisualizerCfg(eye=(1.3, 1.1, 0.9), lookat=(0.45, 0.0, 0.15))
 
     def play_mode(self):
