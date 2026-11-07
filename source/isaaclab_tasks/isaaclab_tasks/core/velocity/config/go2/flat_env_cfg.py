@@ -22,6 +22,7 @@ class UnitreeGo2FlatEnvCfg(UnitreeGo2RoughEnvCfg):
         newton_mjwarp.solver_cfg.njmax = 65
         newton_mjwarp.solver_cfg.nconmax = 35
         self.sim.physics.default = newton_mjwarp
+        self.sim.physics.newton_steel.solver_cfg.joint_limit_activation_gap = 0.2
         # scene
         self.scene.terrain.terrain_type = "plane"
         self.scene.terrain.terrain_generator = None

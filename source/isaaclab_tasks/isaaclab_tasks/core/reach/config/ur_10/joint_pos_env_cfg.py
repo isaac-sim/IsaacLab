@@ -28,6 +28,11 @@ class UR10ReachEnvCfg(ReachEnvCfg):
 
         # switch robot to ur10
         self.scene.robot = replace(UR10_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+        steel_solver = self.sim.physics.newton_steel.solver_cfg
+        steel_solver.iterations = 4
+        steel_solver.update_mass_matrix_interval = 4
+        steel_solver.articulation_constraint_max = 16
+        steel_solver.filter_fixed_root_contacts = True
         # override events
         self.events.reset_robot_joints.params["position_range"] = (0.75, 1.25)
         # override rewards

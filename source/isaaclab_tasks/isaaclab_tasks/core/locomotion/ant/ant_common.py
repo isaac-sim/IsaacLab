@@ -5,7 +5,7 @@
 
 """Configurations shared by the direct and manager-based Ant environments."""
 
-from isaaclab_newton.physics import KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg, SteelSolverCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
@@ -58,6 +58,11 @@ class AntPhysicsCfg(PresetCfg):
         ),
         num_substeps=1,
         debug_mode=False,
+    )
+    newton_steel: NewtonCfg = NewtonCfg(
+        solver_cfg=SteelSolverCfg(
+            enable_joint_limits=True, articulation_constraint_max=64, free_body_constraint_max=512
+        ),
     )
     newton_kamino: NewtonCfg = NewtonCfg(
         solver_cfg=KaminoPADMMSolverCfg(sparse_jacobian=True),
