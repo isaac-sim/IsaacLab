@@ -89,6 +89,8 @@ def backend_stub(**fields):
     from isaaclab_newton.physics import NewtonBackend  # noqa: PLC0415
 
     backend = object.__new__(NewtonBackend)
+    backend.contact_sensors = {}
+    backend.contact_observables = None
     backend.__dict__.update(fields)
     return backend
 
