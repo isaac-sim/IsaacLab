@@ -105,7 +105,13 @@ def test_all_shapes_sdf_provisions_analytic_colliders(device):
         speculative_contact_gap_max=0.01,
         sdf_all_shapes=NewtonCollisionPipelineCfg.SDFAllShapesCfg(sdf_max_resolution=32),
     )
-    cfg = NewtonCfg(solver_cfg=XPBDSolverCfg(), collision_cfg=collision, use_cuda_graph=False)
+    cfg = NewtonCfg(
+        solver_cfg=XPBDSolverCfg(),
+        collision_cfg=collision,
+        num_substeps=2,
+        collision_decimation=1,
+        use_cuda_graph=False,
+    )
     builder = create_builder(cfg)
     builder.begin_world()
     body = builder.add_body(mass=1.0)
@@ -119,6 +125,8 @@ def test_all_shapes_sdf_provisions_analytic_colliders(device):
     assert backend.model.shape_count == 2
     assert (backend.model._shape_sdf_index.numpy() >= 0).all()
     assert (backend.model.shape_edge_range.numpy()[:, 1] > 0).all()
+    backend.init_solver()
+    backend.step()
 
 
 def test_reset_lets_consumers_bind_each_new_backend_before_the_solver_exists(monkeypatch):

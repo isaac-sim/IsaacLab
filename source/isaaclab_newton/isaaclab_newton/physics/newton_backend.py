@@ -758,7 +758,7 @@ class NewtonBackend:
         for i in range(decimation):
             solver_cfg.class_type.pre_step(solver_cfg, self.solver, self.state_0)
             if pipeline is not None:
-                pipeline.collide(self.state_0, contacts)
+                pipeline.collide(self.state_0, contacts, dt=self.solver_dt)
             for callback in self.pre_actuator_callbacks:
                 callback()
             if actuators is not None:
@@ -779,7 +779,7 @@ class NewtonBackend:
         self._stage_body_forces()
         solver_cfg.class_type.pre_step(solver_cfg, self.solver, self.state_0)
         if pipeline is not None:
-            pipeline.collide(self.state_0, contacts)
+            pipeline.collide(self.state_0, contacts, dt=self.solver_dt)
         self._run_solver_substeps(contacts)
         for callback in self.post_step_callbacks:
             callback()
@@ -817,7 +817,7 @@ class NewtonBackend:
                     self.state_0, self.state_1 = self.state_1, self.state_0
             self.state_0.clear_forces()
             if collide_mid_loop and (i + 1) % collide_every == 0 and i + 1 < num_substeps:
-                self.collision_pipeline.collide(self.state_0, contacts)
+                self.collision_pipeline.collide(self.state_0, contacts, dt=dt)
         solver_cls.post_step(solver_cfg, solver, self.state_0)
 
     def _update_sensors(self, contacts: Contacts | None) -> None:
