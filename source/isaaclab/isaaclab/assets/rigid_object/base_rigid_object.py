@@ -80,8 +80,9 @@ class BaseRigidObject(AssetBase):
 
     @property
     def num_mesh_variants(self) -> int:
-        """Number of authored alternatives in the configured spawner."""
-        return len(getattr(self.cfg.spawn, "spawn_paths", None) or (None,))
+        """Number of selectable mesh variants; static assets have one choice."""
+        spawn = self.cfg.spawn
+        return 1 if getattr(spawn, "static", True) else len(spawn.spawn_paths)
 
     @property
     def mesh_variant_ids(self) -> ProxyArray:

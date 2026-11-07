@@ -155,7 +155,7 @@ def test_multi_asset_variants_across_solvers(device: str, solver_cfg, static: bo
             return
         sim.reset()
         asset = scene["object"]
-        assert asset.num_mesh_variants == 2
+        assert asset.num_mesh_variants == (1 if static else 2)
         torch.testing.assert_close(asset.data.body_mass.torch[:, 0].cpu(), torch.tensor([1.0, 8.0]))
         if static:
             with pytest.raises(NotImplementedError, match="Reset-time mesh variant selection is unavailable"):
