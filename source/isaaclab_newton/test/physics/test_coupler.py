@@ -51,7 +51,6 @@ from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
 
 pytestmark = pytest.mark.kitless
 
-
 _CELL_TEMPLATE = "/Lab/Cells/Cell{}"
 """Clone-plan environment template naming environments ``/Lab/Cells/Cell{i}``."""
 
@@ -213,6 +212,7 @@ def test_config_validation_requires_newton_solver_config():
             "projection cannot yet run",
         ),
         (MPMSolverCfg(), {}, NotImplementedError, "must set in_place=True"),
+        (MJWarpSolverCfg(use_mujoco_cpu=True), {}, NotImplementedError, "reset-mask lifecycle"),
     ],
 )
 def test_config_validation_rejects_unsupported_nested_lifecycle(solver_cfg, entry_kwargs, error_type, match):

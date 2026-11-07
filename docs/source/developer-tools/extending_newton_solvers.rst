@@ -277,7 +277,8 @@ reuse the coupler's selectors or validation. For the proxy and ADMM trade-offs,
 see :ref:`newton-coupled-solvers`.
 
 :class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolver` is a deprecated
-adapter to proxy coupling. New MJWarp and VBD integrations should configure
+shared-model solver that retains its manual penalty coupling. New MJWarp and
+VBD integrations should configure
 :class:`~isaaclab_newton.physics.coupling.CouplerProxyCfg` directly; see
 :ref:`newton-vbd-proxy-coupling`.
 

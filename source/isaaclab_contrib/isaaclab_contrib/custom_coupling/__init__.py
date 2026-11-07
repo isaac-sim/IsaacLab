@@ -3,10 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Deprecated adapters to the generic Newton proxy coupler.
+"""Deprecated manual Newton coupling example.
 
-Use :mod:`isaaclab_newton.physics.coupling` for new configurations. Import
-:mod:`isaaclab_contrib.custom_coupling.tasks` to register the deprecated task alias.
+Use :mod:`isaaclab_newton.physics.coupling` for new configurations. The manual solver keeps its existing
+behavior during deprecation. Import :mod:`isaaclab_contrib.custom_coupling.tasks` to register its example task.
 """
 
 from isaaclab.utils.module import lazy_export

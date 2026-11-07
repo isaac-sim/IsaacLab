@@ -44,6 +44,16 @@ class MJWarpSolver(NewtonSolver):
             logger.info("MuJoCo CPU backend is already reproducible; Newton's deterministic mode is not applied.")
         return wp.DeterministicMode.NOT_GUARANTEED
 
+    @classmethod
+    def coupling_error(cls, cfg: MJWarpSolverCfg, in_place: bool) -> str | None:
+        """MuJoCo on the CPU resets one global state, which a coupled entry cannot mask per world."""
+        if cfg.use_mujoco_cpu:
+            return (
+                "enables MJWarpSolverCfg.use_mujoco_cpu, whose global reset state cannot yet preserve the per-world"
+                " reset-mask lifecycle inside a coupled entry"
+            )
+        return None
+
     def build(self, model: Model, mode: wp.DeterministicMode, env_template: str | None) -> SolverMuJoCo:
         """Construct MuJoCo Warp; a determinism guarantee disables its sensor stage, which cannot honor it."""
         deterministic = mode != wp.DeterministicMode.NOT_GUARANTEED

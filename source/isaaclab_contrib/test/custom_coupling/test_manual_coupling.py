@@ -31,7 +31,7 @@ pytestmark = pytest.mark.kitless
 
 
 def _make_coupled_cfg(coupling_mode: str) -> SimulationCfg:
-    """Create a simulation config for the deprecated coupling adapter."""
+    """Create a simulation config for the deprecated manual coupled solver."""
     solver_cfg = CoupledMJWarpVBDSolverCfg(
         rigid_solver_cfg=MJWarpSolverCfg(
             njmax=40,

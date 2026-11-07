@@ -256,29 +256,24 @@ cross the contact band within one substep; increase it only after verifying that
 the cheaper, staler contact set does not cause tunneling or ejection.
 
 
-Migrating the Custom MJWarp + VBD Solver
-----------------------------------------
+Deprecated Manual MJWarp + VBD Solver
+-------------------------------------
 
 :class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolverCfg` and
-:class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolver` are deprecated
-adapters to :class:`~isaaclab_newton.physics.coupling.CouplerProxyCfg`. Use named
-entries and proxy mappings directly for new scenes, as described in
-:ref:`newton-vbd-proxy-coupling`.
+:class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolver` are deprecated.
+Existing configurations retain their shared-model one-way and two-way penalty
+coupling, including ``integrate_with_external_rigid_solver=True`` for VBD.
 
-The adapters expose every collidable rigid body to VBD as a proxy. They copy
-``soft_solver_cfg`` with ``integrate_with_external_rigid_solver=False`` so VBD
-integrates those proxies. ``coupling_mode="one_way"`` selects fixed
-``proxy_relaxation=0``; ``"two_way"`` selects fixed ``proxy_relaxation=1``.
-Proxy feedback replaces the former same-substep penalty reactions, so retune
-contact and solver parameters before reusing a policy or grasp trajectory.
-
-The adapter retains shared outer contacts, including ``NewtonCfg.collision_cfg`` settings,
-and static ground/table visibility in both solver views. Its driver exposes the translated
-``CouplerProxyCfg`` through ``driver.cfg``; the caller-owned nested configurations stay unchanged.
+For new scenes, use :class:`~isaaclab_newton.physics.coupling.CouplerProxyCfg`
+with named entries and proxy mappings, as described in
+:ref:`newton-vbd-proxy-coupling`. Switching is an explicit configuration change:
+proxy feedback has different numerical behavior, so retune contact and solver
+parameters before reusing a policy or grasp trajectory.
 
 The opt-in task registered by :mod:`isaaclab_contrib.custom_coupling.tasks`
-remains available as ``IsaacContrib-Lift-Soft-Franka-Custom-Coupling``, using the core proxy preset.
-Use ``Isaac-Lift-Soft-Franka`` with ``physics=newton_mjwarp_vbd_proxy`` for new runs.
+remains available as ``IsaacContrib-Lift-Soft-Franka-Custom-Coupling`` with its
+manual coupling preset. Use ``Isaac-Lift-Soft-Franka`` with
+``physics=newton_mjwarp_vbd_proxy`` for new runs.
 
 
 .. _newton-vbd-proxy-coupling:

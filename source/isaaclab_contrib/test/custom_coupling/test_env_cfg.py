@@ -9,24 +9,25 @@ import pytest
 from isaaclab_newton.physics.coupling import CouplerProxyCfg
 
 import isaaclab_contrib.custom_coupling.tasks  # noqa: F401
+from isaaclab_contrib.custom_coupling import CoupledMJWarpVBDSolverCfg
 
 from isaaclab_tasks.utils import resolve_task_config
 
 pytestmark = pytest.mark.kitless
 
 
-def test_legacy_task_and_preset_use_generic_coupling() -> None:
-    """The deprecated task and preset remain selectable and use the supported generic coupler."""
+def test_example_default_preset_uses_the_manual_coupler() -> None:
+    """Importing the example must select its own manual coupling preset."""
     env_cfg, _ = resolve_task_config("IsaacContrib-Lift-Soft-Franka-Custom-Coupling", "", overrides=())
 
-    assert isinstance(env_cfg.sim.physics.solver_cfg, CouplerProxyCfg)
+    assert isinstance(env_cfg.sim.physics.solver_cfg, CoupledMJWarpVBDSolverCfg)
 
-    # Keep the former preset name available during deprecation.
+    # The moved preset name is selectable on the contrib example.
     env_cfg, _ = resolve_task_config(
         "IsaacContrib-Lift-Soft-Franka-Custom-Coupling", "", overrides=("physics=newton_mjwarp_vbd",)
     )
 
-    assert isinstance(env_cfg.sim.physics.solver_cfg, CouplerProxyCfg)
+    assert isinstance(env_cfg.sim.physics.solver_cfg, CoupledMJWarpVBDSolverCfg)
 
 
 def test_core_task_rejects_the_removed_preset_name() -> None:

@@ -3,34 +3,39 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Deprecated Franka soft lifting task using the generic proxy coupler."""
+"""Franka soft lifting environment using the custom coupled solver."""
 
-import warnings
+from isaaclab_newton.physics import MJWarpSolverCfg, VBDSolverCfg
 
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import PhysicsCfg as CorePhysicsCfg
 
+from .coupled_mjwarp_vbd_solver_cfg import CoupledMJWarpVBDSolverCfg
+
 
 @configclass
 class PhysicsCfg(CorePhysicsCfg):
-    """Keep the legacy preset name as an alias of the supported generic proxy preset."""
+    """Adds the manual MJWarp and VBD coupling preset on top of the core proxy presets."""
 
-    newton_mjwarp_vbd = CorePhysicsCfg().newton_mjwarp_vbd_proxy
+    newton_mjwarp_vbd = replace(
+        CorePhysicsCfg().newton_mjwarp_vbd_proxy,
+        solver_cfg=CoupledMJWarpVBDSolverCfg(
+            rigid_solver_cfg=MJWarpSolverCfg(
+                njmax=40, nconmax=20, ls_iterations=20, integrator="implicitfast", ccd_iterations=100
+            ),
+            soft_solver_cfg=VBDSolverCfg(integrate_with_external_rigid_solver=True),
+        ),
+    )
+
     default = newton_mjwarp_vbd
 
 
 @configclass
 class FrankaSoftCustomCouplingEnvCfg(FrankaSoftEnvCfg):
-    """Deprecated task alias for Franka soft lifting with generic proxy coupling."""
+    """Franka soft lifting with manual MJWarp and VBD coupling."""
 
     def __post_init__(self) -> None:
-        warnings.warn(
-            "IsaacContrib-Lift-Soft-Franka-Custom-Coupling is deprecated and now uses generic proxy coupling. "
-            "Use Isaac-Lift-Soft-Franka with physics=newton_mjwarp_vbd_proxy; retune former manual-coupling policies.",
-            FutureWarning,
-            stacklevel=2,
-        )
         super().__post_init__()
         self.sim.physics = PhysicsCfg()
