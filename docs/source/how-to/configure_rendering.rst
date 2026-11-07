@@ -119,16 +119,74 @@ Customize Isaac RTX
 Isaac RTX remains available for Isaac Sim workflows. The settings below are specific to
 that legacy renderer; use Newton Warp or OVRTX for new Newton and kit-less workloads.
 
-.. note::
+Explicit RTX execution modes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-   Requesting one of the ``simple_shading_*`` camera data types without a regular color output
-   switches that camera's render product to RTX Minimal mode; the data type selects the shading
-   level. The switch applies per render product, so other cameras and the Kit viewport keep their
-   configured render mode. RTX Minimal uses only the first ``DistantLight`` prim, ignores
-   ``DomeLight`` prims, and may also use configured ambient lighting. When ``rgb``, ``rgba``, or
-   ``rgb_hdr`` is requested from the same render product, it retains its configured render mode to
-   preserve the color output; the ``simple_shading_*`` output remains available but does not receive
-   the RTX Minimal performance improvement.
+RTX execution and shading modes belong to each camera's render product. They are stored in
+``CameraCfg.render_settings``, independently of the shared renderer configuration. Use the
+helpers and enums from ``isaaclab_ov.renderers`` or ``isaaclab_physx.renderers``:
+
+.. code-block:: python
+
+   from isaaclab_ov.renderers import (
+       OVRTXRendererCfg,
+       RtxMinimalShadingMode,
+       RtxRenderMode,
+       apply_minimal_shading_mode,
+       apply_render_mode,
+   )
+
+   camera_cfg.renderer_cfg = OVRTXRendererCfg(enable_shadows=True)
+   camera_cfg.data_types = ["rgb", "depth"]
+   apply_render_mode(camera_cfg, RtxRenderMode.MINIMAL)
+   apply_minimal_shading_mode(camera_cfg, RtxMinimalShadingMode.DIFFUSE_MDL)
+
+The helpers update the camera's render settings in place and preserve unrelated attributes.
+They require enum members. Selecting a shading level does not change the execution mode.
+Cameras with equal renderer configurations share the same renderer, even when their execution
+and shading modes differ.
+
+The default execution mode is ``RtxRenderMode.REAL_TIME_PATH_TRACING``. In Minimal mode,
+``rgb`` returns the image produced by the selected shading level: ``CONSTANT_DIFFUSE`` uses
+constant diffuse shading, ``DIFFUSE_MDL`` evaluates textured diffuse materials, and ``FULL_MDL``
+evaluates full MDL materials (the default).
+
+The helpers store native values under ``omni:rtx:rendermode`` (USD ``Token``) and
+``omni:rtx:minimal:mode`` (USD ``Int``). Serialized configurations can supply these entries in
+``render_settings`` directly. Both backends validate these attributes before creating a product.
+
+Simple-shading output shortcuts
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``simple_shading_*`` camera outputs are a deliberate exception to configuration-driven mode
+selection. They override **both** mode attributes in that camera's ``render_settings``:
+
+* ``simple_shading_constant_diffuse`` selects Minimal and ``RtxMinimalShadingMode.CONSTANT_DIFFUSE``.
+* ``simple_shading_diffuse_mdl`` selects Minimal and ``RtxMinimalShadingMode.DIFFUSE_MDL``.
+* ``simple_shading_full_mdl`` selects Minimal and ``RtxMinimalShadingMode.FULL_MDL``.
+
+For example, requesting ``simple_shading_diffuse_mdl`` from a camera configured for real-time
+path tracing with full MDL still renders in Minimal mode with diffuse MDL. The shortcut changes
+the effective render-product settings; it does not mutate the camera configuration object.
+Requesting different simple-shading modes from the same camera is rejected; use separate cameras.
+These shortcuts are supported directly, without a compatibility default or deprecation warning.
+Existing preset selectors continue to work.
+
+OVRTX reads these outputs from Minimal's ``LdrColor`` buffer. Isaac RTX uses its separate
+``SimpleShadingSD`` AOV. RGB and a simple-shading output can share a camera, but that camera
+uses Minimal mode for both. Use a separate path-tracing camera when full path-traced RGB is needed.
+Isaac RTX Minimal requires Isaac Sim 6.0 or newer.
+
+HDR outputs and ISP require path tracing. They cannot be combined with a simple-shading shortcut,
+because the shortcut always selects Minimal. Remove the shortcut and configure path tracing for
+HDR or ISP, or request a non-HDR output instead.
+
+Settings belong to each render product, so a shortcut does not overwrite other cameras or the Kit
+viewport. RTX Minimal uses the first ``DistantLight`` prim, ignores ``DomeLight`` prims, and may use
+configured ambient lighting. OVRTX's ``enable_shadows`` (default False) controls hard shadows
+for all outputs in Minimal mode, including RGB. OVRTX path tracing always casts shadows.
+Isaac RTX retains Kit's Minimal shadow settings; the process-wide Isaac RTX quality settings
+remain separate from the per-camera execution mode.
 
 Overriding Specific Rendering Settings
 --------------------------------------

@@ -68,6 +68,7 @@ from pxr import Gf, Sdf, Usd, UsdGeom, UsdLux, UsdShade
 
 from isaaclab.markers.visualization_markers_cfg import VisualizationMarkersCfg
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
+from isaaclab.renderers._rtx_renderer_cfg import _SIMPLE_SHADING_MODES
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sensors.camera.camera_data import CameraData
 from isaaclab.sim import PreviewSurfaceCfg, SimulationContext, use_stage
@@ -95,7 +96,6 @@ from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
 )
 from isaaclab_ov.renderers.ovrtx_shader_cache import redirect_shader_cache
 from isaaclab_ov.renderers.ovrtx_usd import (
-    _RTX_MINIMAL_MODES,
     build_render_product_as_string,
     render_var_prim_names_by_source,
 )
@@ -626,7 +626,10 @@ class OVRTXRenderer(BaseRenderer):
         render_data = OVRTXCameraRenderData(spec, f"RenderCamera_{self.scene.next_camera_id}", camera_paths)
         scope, product_path = render_data.render_scope_name, render_data.render_product_path
         usd = build_render_product_as_string(
-            spec, render_data, device_id=self._warp_device.ordinal, enable_shadows=self.cfg.enable_shadows
+            spec,
+            render_data,
+            device_id=self._warp_device.ordinal,
+            enable_shadows=self.cfg.enable_shadows,
         )
         try:
             # Registration mutates the shared scene; finish renders using its existing products first.
@@ -930,21 +933,13 @@ class OVRTXRenderer(BaseRenderer):
 
         ldr_color = frame.render_vars.get(render_data.render_var_keys[_LDR_COLOR_VAR])
         if ldr_color is not None:
-            buffer_key = None
-
+            buffer_keys = [dt for dt in _SIMPLE_SHADING_MODES if dt in output_buffers]
             if render_data.ppisp_pipeline is None and "rgba" in output_buffers:
-                buffer_key = "rgba"
-            else:
-                # The output buffers must contain only one simple shading data type at most after resolution of the data
-                # types during creation of the output buffers (OVRTXCameraRenderData._create_warp_buffers).
-                for dt in _RTX_MINIMAL_MODES:
-                    if dt in output_buffers:
-                        buffer_key = dt
-                        break
-
-            if buffer_key is not None:
+                buffer_keys.append("rgba")
+            if buffer_keys:
                 with self._map_render_var_to_dlpack(ldr_color) as tiled_data:
-                    self._launch_extract_all_tiles(render_data, tiled_data, output_buffers[buffer_key])
+                    for buffer_key in buffer_keys:
+                        self._launch_extract_all_tiles(render_data, tiled_data, output_buffers[buffer_key])
 
         for depth_var, buffer_keys in _DEPTH_VAR_BUFFER_KEYS.items():
             depth_render_var = frame.render_vars.get(render_data.render_var_keys[depth_var])

@@ -379,7 +379,8 @@ def validate_launch(  # noqa: C901
         if isinstance(node, PhysxAutoCfg):
             replacements[id(node)] = _resolve_physx_auto_cfg(node, bool(kit_sources))
         elif isinstance(node, RendererCfg) and node.renderer_type == "auto_rtx":
-            replacements[id(node)] = IsaacRtxRendererCfg() if kit_sources else OVRTXRendererCfg()
+            renderer_cls = IsaacRtxRendererCfg if kit_sources else OVRTXRendererCfg
+            replacements[id(node)] = renderer_cls()
         elif isinstance(node, VisualizerCfg) and max_visible is not None:
             node.max_visible_envs = max_visible
 

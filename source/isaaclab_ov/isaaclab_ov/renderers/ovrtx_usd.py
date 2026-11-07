@@ -14,6 +14,10 @@ from typing import TYPE_CHECKING
 
 from pxr import Sdf, Usd
 
+from isaaclab.renderers._rtx_renderer_cfg import _RTX_MINIMAL_MODE_ATTR, _RTX_RENDER_MODE_ATTR, _resolve_rtx_render_mode
+
+from .ovrtx_renderer_cfg import RtxRenderMode
+
 if TYPE_CHECKING:
     from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 
@@ -46,15 +50,6 @@ _RENDER_VAR_BY_DATA_TYPE: dict[str, tuple[str, str]] = {
     ),
 }
 
-# Maps simple shading data types to the render product's ``omni:rtx:minimal:mode``.
-_RTX_MINIMAL_MODES = {
-    "simple_shading_constant_diffuse": 1,
-    "simple_shading_diffuse_mdl": 2,
-    "simple_shading_full_mdl": 3,
-}
-
-_COLOR_DATA_TYPES = frozenset({"rgb", "rgba"})
-
 # Segmentation ID-map vars are authored alongside the pixel AOVs, not as camera data types.
 _SEGMENTATION_MAP_RENDER_VARS: tuple[tuple[str, str], ...] = (
     ("StableIdSemanticIdMap", "StableIdSemanticIdMap"),
@@ -80,28 +75,13 @@ def get_render_var_configs(data_types: list[str], render_scope_name: str) -> lis
         Render-var configs as (absolute prim path, prim name, source name) tuples.
 
     Raises:
-        ValueError: If no outputs are requested, an output is unsupported, or outputs are incompatible.
+        ValueError: If no outputs are requested or an output is unsupported.
     """
     if not data_types:
         raise ValueError("OVRTX render products require at least one output.")
     unsupported = set(data_types) - _RENDER_VAR_BY_DATA_TYPE.keys()
     if unsupported:
         raise ValueError(f"Unsupported OVRTX output types: {sorted(unsupported)}.")
-    simple_shading = list(dict.fromkeys(data_type for data_type in data_types if data_type in _RTX_MINIMAL_MODES))
-    color = list(dict.fromkeys(data_type for data_type in data_types if data_type in _COLOR_DATA_TYPES))
-
-    if simple_shading and color:
-        raise ValueError(
-            f"OVRTX cannot render simple shading {simple_shading} together with {color} on one render product:"
-            " both read the 'LdrColor' render var, and simple shading additionally requires RTX Minimal mode."
-            " Request them from separate cameras."
-        )
-    if len(simple_shading) > 1:
-        raise ValueError(
-            f"OVRTX supports at most one simple shading data type per render product, got {simple_shading}."
-            " RTX Minimal mode is a per-render-product setting. Request them from separate cameras."
-        )
-
     render_vars = list(dict.fromkeys(_RENDER_VAR_BY_DATA_TYPE[data_type] for data_type in data_types))
 
     # Author the ID-to-label map render vars needed to decode the segmentation info dicts.
@@ -160,8 +140,7 @@ def build_render_product_as_string(
         render_data: Camera's render scope and product identity.
         device_id: CUDA device index the render product is pinned to, so its render var buffers are
             allocated on the same device as the Warp kernels that read them.
-        enable_shadows: Whether lights cast shadows. Defaults to False. Only honored for the
-            ``simple_shading_*`` data types, which are the ones that select RTX Minimal mode.
+        enable_shadows: Whether lights cast shadows in Minimal mode. Defaults to False.
 
     Returns:
         Render product USD layer, including the USDA header and default prim metadata.
@@ -171,9 +150,7 @@ def build_render_product_as_string(
         data_types.append("rgb_hdr")
     tiled_width, tiled_height = render_data.num_cols * render_data.width, render_data.num_rows * render_data.height
     render_var_configs = get_render_var_configs(data_types, render_data.render_scope_name)
-    minimal_mode = next(
-        (_RTX_MINIMAL_MODES[data_type] for data_type in data_types if data_type in _RTX_MINIMAL_MODES), None
-    )
+    render_mode, minimal_mode = _resolve_rtx_render_mode(spec.cfg.render_settings, data_types)
 
     background_color = spec.cfg.background_color
     if background_color is None:
@@ -188,14 +165,16 @@ def build_render_product_as_string(
     # Minimal is the only OVRTX render mode with a shadow switch, so ``enable_shadows`` is authored
     # only there. The path-traced modes always trace shadows: ``omni:rtx:shadows:enabled`` exists as
     # a setting name and authors without error, but no path-tracing backend reads it.
-    if minimal_mode is None:
+    if render_mode == RtxRenderMode.REAL_TIME_PATH_TRACING:
         render_mode_lines = ['token omni:rtx:rendermode = "RealTimePathTracing"']
-    else:
+    elif render_mode == RtxRenderMode.MINIMAL:
         render_mode_lines = [
             'token omni:rtx:rendermode = "Minimal"',
             f"int omni:rtx:minimal:mode = {minimal_mode}",
             f"bool omni:rtx:minimal:castShadows = {'true' if enable_shadows else 'false'}",
         ]
+    else:
+        raise ValueError(f"Unsupported OVRTX render mode {render_mode!r}.")
 
     # Workaround: ovrtx 0.5 misses GPU-read transform changes, so eco mode freezes output after 500 frames.
     render_mode_lines.append("bool omni:rtx:rt:ecoMode:enabled = false")
@@ -244,5 +223,8 @@ def Scope "{render_data.render_scope_name}"
     stage.GetRootLayer().ImportFromString(layer)
     product = stage.GetPrimAtPath(render_data.render_product_path)
     for name, (type_name, value) in spec.cfg.render_settings.items():
+        # Mode settings were resolved above; simple-shading requests take precedence.
+        if name in (_RTX_RENDER_MODE_ATTR, _RTX_MINIMAL_MODE_ATTR):
+            continue
         product.CreateAttribute(name, getattr(Sdf.ValueTypeNames, type_name)).Set(value)
     return stage.GetRootLayer().ExportToString()
