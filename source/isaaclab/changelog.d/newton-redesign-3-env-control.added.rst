@@ -1,6 +1,8 @@
 * Added :meth:`PhysicsManager.bind_control <isaaclab.physics.PhysicsManager.bind_control>`, which let a physics
   backend run the environment's actions and asset writes inside its step. :class:`~isaaclab.envs.ManagerBasedEnv`
-  called it after loading its managers and skipped the actions and asset writes that the step ran.
+  called it after loading its managers, unless its render interval was not a multiple of the decimation or a recorder
+  term recorded after every physics step, and skipped the actions and asset writes that the step ran.
+* Added :attr:`RecorderManager.records_physics_steps <isaaclab.managers.RecorderManager.records_physics_steps>`.
 * Added ``supports_graph_capture`` to :class:`~isaaclab.managers.ActionTerm`,
   :class:`~isaaclab.managers.ActionManager`, :class:`~isaaclab.assets.AssetBase`,
   :class:`~isaaclab.actuators.ActuatorCollection` and :class:`~isaaclab.scene.InteractiveScene`, and

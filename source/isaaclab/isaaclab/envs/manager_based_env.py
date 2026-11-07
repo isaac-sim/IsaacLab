@@ -207,8 +207,10 @@ class ManagerBasedEnv:
         report_activity("Setting up managers")
         self.load_managers()
         report_activity(None)
-        # let the physics backend run the actions, asset writes and decimation loop inside its step when it can
-        self._physics_handles_actions = self.sim.backend_manager.bind_control(self.action_manager, self.scene)
+        # let the physics backend run the actions, asset writes and decimation loop inside its step when it can,
+        # unless renders or recorders must run between the physics steps of one environment step
+        if self.cfg.sim.render_interval % self.cfg.decimation == 0 and not self.recorder_manager.records_physics_steps:
+            self._physics_handles_actions = self.sim.backend_manager.bind_control(self.action_manager, self.scene)
         self.sim.backend_manager.set_decimation(self.cfg.decimation)
         self._physics_handles_decimation = self.sim.backend_manager.handles_decimation()
 
