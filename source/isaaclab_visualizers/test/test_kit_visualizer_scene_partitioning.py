@@ -351,3 +351,54 @@ def test_marker_environment_ids_are_sticky_and_revalidated_on_change() -> None:
     )
 
     assert not primvar.GetAttr().HasAuthoredValueOpinion()
+
+
+@pytest.mark.parametrize("headless", [False, True])
+def test_sensor_capture_updates_kit_when_visualizer_step_does_not(monkeypatch, kit_app, headless):
+    """GUI updates stay continuous; headless video stays idle until a sensor frame is requested."""
+    usd_module = ModuleType("omni.usd")
+    monkeypatch.setitem(sys.modules, "omni.usd", usd_module)
+    monkeypatch.setattr(omni, "usd", usd_module, raising=False)
+    import isaaclab_physx.renderers.isaac_rtx_renderer_utils as rtx_utils
+
+    visualizer = KitVisualizer(VisualizerCfg(headless=headless, backend=KitBackendCfg()))
+    visualizer._is_initialized = True
+    visualizer._fabric = MagicMock()
+    sim = MagicMock(render_generation=0, is_rendering=True, visualizers=[visualizer])
+    sim.get_setting.return_value = True
+    visualizer._sim = sim
+    monkeypatch.setattr(visualizer, "_refresh_partial_viz_point_instancers_if_needed", MagicMock())
+    monkeypatch.setattr(rtx_utils.sim_utils.SimulationContext, "instance", lambda: sim)
+    monkeypatch.setattr(rtx_utils, "_last_render_update_key", (0, -1, -1))
+    monkeypatch.setattr(rtx_utils, "_get_stage_streaming_busy", lambda: False)
+    fabric_module = ModuleType("isaaclab_physx.renderers.fabric")
+    fabric_module.FabricBackendCfg = lambda **kwargs: SimpleNamespace(**kwargs)
+    monkeypatch.setitem(sys.modules, "isaaclab_physx.renderers.fabric", fabric_module)
+    settings = MagicMock()
+    settings.get.return_value = True
+    monkeypatch.setattr(kit_visualizer_module, "get_settings_manager", lambda: settings)
+
+    # Prime annotators, as the renderer does once before yielding to a GUI visualizer.
+    sim.get_physics_step_count.return_value = 0
+    rtx_utils.ensure_isaac_rtx_render_update()
+    kit_app.update.reset_mock()
+
+    for step in (1, 2, 3):
+        previous_updates = kit_app.update.call_count
+        sim.get_physics_step_count.return_value = step
+        visualizer.step(0.01)
+        rtx_utils.pump_kit_app_for_headless_video_render_if_needed(sim)
+        assert kit_app.update.call_count == previous_updates + int(not headless), (
+            "Headless video pumped Kit before a capture was requested"
+        )
+        # SimulationContext.render() advances the generation after its callbacks.
+        sim.render_generation += 1
+        if step == 2:
+            continue  # No camera capture is requested between recording windows.
+        # Sensor rendering is requested after the scene and camera state are prepared.
+        rtx_utils.ensure_isaac_rtx_render_update()
+        assert kit_app.update.call_count == previous_updates + 1, "A capture reused the previous step's Kit frame"
+        # Other cameras in this step share the update.
+        rtx_utils.ensure_isaac_rtx_render_update()
+        assert kit_app.update.call_count == previous_updates + 1
+    sim.backend_manager.forward.assert_not_called()
