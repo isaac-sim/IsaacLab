@@ -61,8 +61,6 @@ class ResetStateBuffer:
         """Generator names, in collection order."""
         self.group_ids = torch.empty(0, dtype=torch.long)
         """Generator index for every stored row, shape [num_states]."""
-        self.rejection_counts: dict[str, int] = {}
-        """Rejected candidates per named condition; one candidate can fail several conditions."""
         self.collection_report: dict[str, dict[str, int]] = {}
         """Attempted, accepted, and rejected candidate counts for each generator."""
 
@@ -70,6 +68,19 @@ class ResetStateBuffer:
     def num_states(self) -> int:
         """Number of collected states."""
         return self.group_ids.numel()
+
+    @property
+    def rejection_counts(self) -> dict[str, int]:
+        """Derive rejected candidates per named condition from the collection report.
+
+        One candidate can fail several conditions. Keys have the form ``generator/condition``.
+        """
+        return {
+            f"{group}/{key.removeprefix('rejected/')}": count
+            for group, report in self.collection_report.items()
+            for key, count in report.items()
+            if key.startswith("rejected/")
+        }
 
     def collect(
         self,
@@ -109,7 +120,6 @@ class ResetStateBuffer:
             raise ValueError("The check name 'generator' is reserved for generator validity.")
         batches: list[ResetStateBuffer.State] = []
         groups: list[torch.Tensor] = []
-        self.rejection_counts = {}
         self.collection_report = {}
         devices = [env_ids.device.index] if env_ids.is_cuda else []
         numpy_state, python_state = np.random.get_state(), random.getstate()
@@ -137,9 +147,6 @@ class ResetStateBuffer:
                                     f"{name}/{key} must return a boolean mask shaped {tuple(env_ids.shape)}."
                                 )
                             rejected = int((~mask).sum())
-                            self.rejection_counts[f"{name}/{key}"] = (
-                                self.rejection_counts.get(f"{name}/{key}", 0) + rejected
-                            )
                             report[f"rejected/{key}"] = report.get(f"rejected/{key}", 0) + rejected
                             valid &= mask
                         selected = env_ids[valid][: quota - accepted]

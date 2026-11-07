@@ -5,9 +5,12 @@
 
 """Outcome attribution and selective resets at the shared sampler boundary."""
 
+import pytest
 import torch
 
 from isaaclab_tasks.utils import ResetStateSampler, ResetStateSamplerCfg, SuccessMonitorCfg
+
+pytestmark = [pytest.mark.unit, pytest.mark.kitless, pytest.mark.windows_ci]
 
 
 def test_reset_records_previous_rows_and_preserves_unselected_environments():
