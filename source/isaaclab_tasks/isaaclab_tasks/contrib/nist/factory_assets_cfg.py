@@ -218,10 +218,14 @@ TABLE_CFG = RigidObjectCfg(
 x, y, z = NIST_BOARD_CFG.nist_board_center.pos
 
 # NIST Board
+# The 6.2 board extends its collider to 30 mm; keep the reference's 8.762 mm collider.
 NISTBOARD_CFG = RigidObjectCfg(
     prim_path="{ENV_REGEX_NS}/NistBoard",
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ASSET_DIR}/NIST/Taskboard/nistboard.usd",
+        usd_path=(
+            "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.1/Isaac/IsaacLab/Factory/"
+            "NIST/Taskboard/nistboard.usd"
+        ),
         rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
         scale=(1.0, 1.0, 1.0),
         physics_material=ASSEMBLY_CONTACT_MATERIAL_CFG,
