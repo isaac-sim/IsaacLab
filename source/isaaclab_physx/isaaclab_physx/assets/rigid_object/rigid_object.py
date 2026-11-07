@@ -18,6 +18,7 @@ from pxr import UsdPhysics
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
 from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
+from isaaclab.utils.buffers import reset_timestamps
 from isaaclab.utils.warp import ProxyArray, memory
 from isaaclab.utils.wrench_composer import WrenchComposer
 
@@ -921,6 +922,9 @@ class RigidObject(BaseRigidObject):
         wp.copy(self._cpu_body_inertia, self.data._body_inertia)
         wp.synchronize_stream(self.device)
         self.root_view.set_inertias(self._cpu_body_inertia.flatten(), indices=cpu_env_ids)
+        # PhysX recomputes the principal-axis rotation when setting inertia, so the cached COM pose is stale.
+        reset_timestamps([self.data._body_com_pose_b])
+        self.data._reset_body_com_pose_b_dependents()
 
     def set_inertias_mask(
         self,
