@@ -36,7 +36,7 @@ class ProxyArray:
     * Convenience properties (``shape``, ``dtype``, ``device``) delegated to the warp array.
     * A deprecation bridge for common torch functions, indexing, and arithmetic/comparison
       operators while emitting a one-time :class:`DeprecationWarning`. Tensor instance methods
-      such as ``clone()`` are not forwarded; use explicit ``.torch`` access for those.
+      such as ``clone()`` are also forwarded to the ``.torch`` view through this bridge.
 
     Example:
 

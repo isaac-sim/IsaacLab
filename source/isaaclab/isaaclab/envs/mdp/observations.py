@@ -152,7 +152,7 @@ def body_pose_w(
         asset_cfg: The SceneEntity associated with this observation.
 
     Returns:
-        The poses of bodies in articulation [num_env, 7 * num_bodies]. Pose order is [x,y,z,qw,qx,qy,qz].
+        The poses of bodies in articulation [num_env, 7 * num_bodies]. Pose order is [x,y,z,qx,qy,qz,qw].
         Output is stacked horizontally per body.
     """
     asset: Articulation = env.scene[asset_cfg.name]
@@ -809,7 +809,7 @@ class image_features(ManagerTermBase):
 
             Args:
                 model: The ResNet model.
-                images: The preprocessed image tensor. Shape is (num_envs, channel, height, width).
+                images: The preprocessed image tensor. Shape is (num_envs, height, width, channel).
 
             Returns:
                 The extracted features tensor. Shape is (num_envs, feature_dim).

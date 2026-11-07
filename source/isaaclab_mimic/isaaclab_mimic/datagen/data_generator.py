@@ -649,14 +649,9 @@ class DataGenerator:
         Returns:
             A dictionary containing the following items:
                 - initial_state (dict): initial simulator state for the executed trajectory
-                - states (list): simulator state at each timestep
-                - observations (list): observation dictionary at each timestep
-                - datagen_infos (list): datagen_info at each timestep
-                - actions (np.array): action executed at each timestep
                 - success (bool): whether the trajectory successfully solved the task or not
-                - src_demo_inds (list): list of selected source demonstration indices for each subtask
-                - src_demo_labels (np.array): same as @src_demo_inds, but repeated to have a label for
-                  each timestep of the trajectory.
+
+            If skillgen motion planning fails, only ``{"success": False}`` is returned.
         """
         # With skillgen, a motion planner is required to generate collision-free transitions between subtasks.
         if self.env_cfg.datagen_config.use_skillgen and motion_planner is None:

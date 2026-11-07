@@ -288,7 +288,7 @@ generic commands above.
      - No ordering override needed; joint and body order is identical in both backends. The
        ``play`` entry point applies ``play_mode`` overrides automatically.
    * - ``Isaac-Velocity-Rough-G1``
-     - ``g1_rough``
+     - ``g1_rough_teacher``
      - Branched topology: set the ordering overrides shown in the generic commands above.
    * - ``Isaac-Velocity-Rough-AnymalD``
      - ``anymal_d_rough``

@@ -36,7 +36,7 @@ def aggregate_inertia_about_robot_com(
       num_envs=N, num_bodies=B
 
     Args:
-      body_inertias_local (N,B,9|3,3): Link inertias in the mass/COM frame.
+      body_inertias_local (N,B,9): Link inertias in the mass/COM frame [kg·m²] (row-major flattened 3x3).
       body_inv_mass_local (N,B): Inverse link masses (<=0 treated as padding).
       body_com_pos_b (N,B,3): Link COM position relative to the link frame
         (massLocalPose translation); used as body_pos_b + R_link_base @ body_com_pos_b.

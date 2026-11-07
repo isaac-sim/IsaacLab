@@ -169,10 +169,11 @@ class OpenDrawerSm:
     machine with the following states:
 
     1. REST: The robot is at rest.
-    2. APPROACH_HANDLE: The robot moves towards the handle of the drawer.
-    3. GRASP_HANDLE: The robot grasps the handle of the drawer.
-    4. OPEN_DRAWER: The robot opens the drawer.
-    5. RELEASE_HANDLE: The robot releases the handle of the drawer. This is the final state.
+    2. APPROACH_INFRONT_HANDLE: The robot moves to a pose in front of the handle of the drawer.
+    3. APPROACH_HANDLE: The robot moves towards the handle of the drawer.
+    4. GRASP_HANDLE: The robot grasps the handle of the drawer.
+    5. OPEN_DRAWER: The robot opens the drawer.
+    6. RELEASE_HANDLE: The robot releases the handle of the drawer. This is the final state.
     """
 
     def __init__(self, dt: float, num_envs: int, device: torch.device | str = "cpu", position_threshold=0.01):
@@ -182,6 +183,8 @@ class OpenDrawerSm:
             dt: The environment time step.
             num_envs: The number of environments to simulate.
             device: The device to run the state machine on.
+            position_threshold: Distance [m] between the end-effector and its target below which a state is
+                considered reached. Defaults to 0.01.
         """
         # save parameters
         self.dt = float(dt)

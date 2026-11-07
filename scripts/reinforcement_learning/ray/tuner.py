@@ -405,7 +405,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--workflow",
         default=None,  # populated with RL Games
-        help="The absolute path of the workflow to use for the experiment. By default, RL Games is used.",
+        help="The absolute path of the workflow to use for the experiment. Defaults to the unified train.py.",
     )
     parser.add_argument(
         "--mlflow_uri",

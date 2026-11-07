@@ -41,7 +41,7 @@ Wrapper for recording videos
 ----------------------------
 
 The :class:`gymnasium.wrappers.RecordVideo` wrapper can be used to record videos of the environment.
-The wrapper takes a ``video_dir`` argument, which specifies where to save the videos. The videos are saved in
+The wrapper takes a ``video_folder`` argument, which specifies where to save the videos. The videos are saved in
 `mp4 <https://en.wikipedia.org/wiki/MP4_file_format>`__ format at specified intervals for specified
 number of environment steps or episodes.
 
@@ -93,9 +93,12 @@ sources and clip options.
 
     from isaaclab.app import launch_simulation
     from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+    from isaaclab.visualizers import VisualizerCfg
 
     # record from a Kit visualizer with this camera pose
-    env_cfg.sim.visualizer_cfgs = KitBackendCfg(eye=(1.0, 1.0, 1.0), lookat=(0.0, 0.0, 0.0))
+    env_cfg.sim.visualizer_cfgs = VisualizerCfg(
+        eye=(1.0, 1.0, 1.0), lookat=(0.0, 0.0, 0.0), backend=KitBackendCfg()
+    )
     env_cfg.video_recorders = [
         VideoRecorderCfg(source="viz:kit", output_dir="videos/train", video_length=200, video_interval=1500)
     ]

@@ -4,12 +4,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-Configuration classes defining the different terrains available. Each configuration class must
-inherit from ``isaaclab.terrains.terrains_cfg.TerrainConfig`` and define the following attributes:
+Configuration for terrain generation using sub-terrain configurations derived from
+:class:`isaaclab.terrains.SubTerrainBaseCfg`.
 
-- ``name``: Name of the terrain. This is used for the prim name in the USD stage.
-- ``function``: Function to generate the terrain. This function must take as input the terrain difficulty
-  and the configuration parameters and return a `tuple with the `trimesh`` mesh object and terrain origin.
+The keys in :attr:`TerrainGeneratorCfg.sub_terrains` name the sub-terrains. Each sub-terrain's
+:attr:`~isaaclab.terrains.SubTerrainBaseCfg.function` takes the terrain difficulty and configuration,
+and returns a tuple containing a list of ``trimesh.Trimesh`` meshes and the terrain origin.
 """
 
 from __future__ import annotations

@@ -63,7 +63,7 @@ and thresholds for reset conditions.
       ...
       # reset
       max_cart_pos = 3.0
-      initial_pole_angle_range = [-0.25, 0.25]
+      initial_pole_angle_range = (-0.25 * math.pi, 0.25 * math.pi)  # [rad]
 
       # reward scales
       rew_scale_alive = 1.0
@@ -111,43 +111,13 @@ buffer as a return value. Within this function, the task is free to implement th
 the reward function. In this example, we implement a Pytorch JIT function that computes
 the various components of the reward function.
 
-.. code-block:: python
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_env.py
+   :language: python
+   :pyobject: CartpoleEnv._get_rewards
 
-   def _get_rewards(self) -> torch.Tensor:
-        total_reward = compute_rewards(
-            self.cfg.rew_scale_alive,
-            self.cfg.rew_scale_terminated,
-            self.cfg.rew_scale_pole_pos,
-            self.cfg.rew_scale_cart_vel,
-            self.cfg.rew_scale_pole_vel,
-            self.joint_pos[:, self._pole_dof_idx[0]],
-            self.joint_vel[:, self._pole_dof_idx[0]],
-            self.joint_pos[:, self._cart_dof_idx[0]],
-            self.joint_vel[:, self._cart_dof_idx[0]],
-            self.reset_terminated,
-        )
-        return total_reward
-
-   @torch.jit.script
-   def compute_rewards(
-       rew_scale_alive: float,
-       rew_scale_terminated: float,
-       rew_scale_pole_pos: float,
-       rew_scale_cart_vel: float,
-       rew_scale_pole_vel: float,
-       pole_pos: torch.Tensor,
-       pole_vel: torch.Tensor,
-       cart_pos: torch.Tensor,
-       cart_vel: torch.Tensor,
-       reset_terminated: torch.Tensor,
-   ):
-       rew_alive = rew_scale_alive * (1.0 - reset_terminated.float())
-       rew_termination = rew_scale_terminated * reset_terminated.float()
-       rew_pole_pos = rew_scale_pole_pos * torch.sum(torch.square(pole_pos), dim=-1)
-       rew_cart_vel = rew_scale_cart_vel * torch.sum(torch.abs(cart_vel), dim=-1)
-       rew_pole_vel = rew_scale_pole_vel * torch.sum(torch.abs(pole_vel), dim=-1)
-       total_reward = rew_alive + rew_termination + rew_pole_pos + rew_cart_vel + rew_pole_vel
-       return total_reward
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_env.py
+   :language: python
+   :pyobject: compute_rewards
 
 
 Defining Observations

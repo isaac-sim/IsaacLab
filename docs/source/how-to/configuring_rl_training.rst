@@ -23,7 +23,7 @@ in the ``isaaclab_tasks`` package. This is the same task that we used in the
 
 .. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/__init__.py
    :language: python
-   :lines: 50-64
+   :lines: 54-70
 
 The Code Explained
 ------------------
@@ -91,7 +91,7 @@ reads the configuration instance:
     .. literalinclude:: ../../../source/isaaclab_rl/isaaclab_rl/entrypoints/backends/train_sb3.py
       :language: python
       :linenos:
-      :emphasize-lines: 56-60, 97-98
+      :emphasize-lines: 71-76, 112
 
 The argument ``--rl_library`` selects the reinforcement learning library. The ``--agent``
 argument selects the library-specific configuration entry point from the ``kwargs``

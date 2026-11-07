@@ -39,25 +39,21 @@ For this tutorial, we use the training implementation from `Stable-Baselines3`_ 
 The Code Explained
 ------------------
 
-.. currentmodule:: isaaclab_rl.utils
+.. currentmodule:: isaaclab_rl.sb3
 
 Most of the code above is boilerplate code to create logging directories, saving the parsed configurations,
 and setting up different Stable-Baselines3 components. For this tutorial, the important part is creating
 the environment and wrapping it with the Stable-Baselines3 wrapper.
 
-There are three wrappers used in the code above:
+Video recording is configured with :class:`~isaaclab.envs.VideoRecorderCfg` before the environment is
+created. The shared ``pre_launch_video_config`` helper adds a recorder for the ``--video`` source when the
+environment config declares none, and ``apply_video_recording`` sets the output directory and clip schedule;
+this workflow does not use Gymnasium's ``RecordVideo`` wrapper.
 
-1. :class:`gymnasium.wrappers.RecordVideo`: This wrapper records a video of the environment
-   and saves it to the specified directory. This is useful for visualizing the agent's behavior
-   during training.
-2. :class:`wrappers.sb3.Sb3VecEnvWrapper`: This wrapper converts the environment
-   into a Stable-Baselines3 compatible environment.
-3. `stable_baselines3.common.vec_env.VecNormalize`_: This wrapper normalizes the
-   environment's observations and rewards.
-
-Each of these wrappers wrap around the previous wrapper by following ``env = wrapper(env, *args, **kwargs)``
-repeatedly. The final environment is then used to train the agent. For more information on how these
-wrappers work, please refer to the :ref:`how-to-env-wrappers` documentation.
+:class:`~isaaclab_rl.sb3.Sb3VecEnvWrapper` then adapts the environment to Stable-Baselines3. When normalization
+is enabled, `stable_baselines3.common.vec_env.VecNormalize`_ wraps that adapter to normalize observations
+and rewards. The resulting environment is passed to the training algorithm. For details of the adapter,
+see :ref:`how-to-env-wrappers`.
 
 The Code Execution
 ------------------
@@ -125,11 +121,8 @@ training command as follows:
 
         uv run --extra sb3 isaaclab train --rl_library sb3 --task Isaac-Cartpole --num_envs 64 --viz kit
 
-This will open the Kit visualizer window and you can see the agent training in the environment. However, this
-can slow down the training process because interactive visual feedback is enabled. As a workaround, you
-can switch between different render modes in the ``"Isaac Lab"`` window that is docked on the bottom-right
-corner of the screen. To learn more about these render modes, please check the
-:class:`sim.SimulationContext.RenderMode` class.
+This opens the Kit visualizer window so you can watch the agent train. Interactive visualization adds work
+to each rendered frame. To train without an interactive window, omit ``--viz kit`` from the command.
 
 Viewing the logs
 ~~~~~~~~~~~~~~~~

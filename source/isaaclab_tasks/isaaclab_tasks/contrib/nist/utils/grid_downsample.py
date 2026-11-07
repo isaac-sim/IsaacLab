@@ -5,8 +5,7 @@
 
 """Grid-bucket downsampling — a drop-in replacement for farthest-point sampling
 on inputs that are already near-uniform in space — plus the matching feature
-extractor dispatch shared by the locomotion FPS helper and the curriculum
-StateBuffer."""
+extractor dispatch used by the ``reset_accumulator`` state-table compaction."""
 
 from __future__ import annotations
 
@@ -21,8 +20,8 @@ def extract_features(states: torch.Tensor, extractor: Callable | None) -> torch.
     """Run :paramref:`extractor` against ``states`` with the standard dispatch.
 
     The single source of truth for the ``(states_slab) -> features`` API that the
-    curriculum streaming
-    :class:`~isaaclab_tasks.contrib.nist.utils.StateBuffer.compact`
+    state-table compaction in
+    :class:`~isaaclab_tasks.contrib.nist.utils.reset_accumulator`
     consumes.
 
     ``None`` falls back to xyz (first 3 columns); objects with a
@@ -41,7 +40,7 @@ def grid_bucket_downsample(pts: torch.Tensor, k: int) -> torch.Tensor:
     """Downsample ``pts`` to ~``k`` samples with uniform spatial coverage.
 
     Partitions the D-dimensional axis-aligned bounding box of ``pts`` into
-    a grid with cell side ``(volume / k)^(1/D)`` and keeps one randomly-
+    a grid with cell side ``(volume / min(N, 3k))^(1/D)`` and keeps one randomly-
     chosen candidate per non-empty cell. Gives Poisson-disk-like spacing
     at ``O(N log N)`` via a single sort — a drop-in replacement for
     farthest-point sampling on inputs that are already near-uniform, with

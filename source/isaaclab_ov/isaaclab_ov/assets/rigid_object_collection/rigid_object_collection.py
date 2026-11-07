@@ -270,13 +270,13 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     ) -> None:
         """Set the body pose over selected environment and body indices into the simulation.
 
-        The body pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+        The body pose has components (px, py, pz, qx, qy, qz, qw).
 
         .. note::
             This method expects partial data.
 
         Args:
-            body_poses: Body poses in simulation frame [m, rad]. Shape is (len(env_ids), len(body_ids), 7)
+            body_poses: Body poses in simulation frame [m, dimensionless]. Shape is (len(env_ids), len(body_ids), 7)
                 or (len(env_ids), len(body_ids)) with dtype wp.transformf.
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
@@ -297,13 +297,13 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     ) -> None:
         """Set the body pose over selected environment and body masks into the simulation.
 
-        The body pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+        The body pose has components (px, py, pz, qx, qy, qz, qw).
 
         .. note::
             This method expects full data.
 
         Args:
-            body_poses: Body poses in simulation frame [m, rad]. Shape is (num_instances, num_bodies, 7)
+            body_poses: Body poses in simulation frame [m, dimensionless]. Shape is (num_instances, num_bodies, 7)
                 or (num_instances, num_bodies) with dtype wp.transformf.
             body_mask: Body mask. If None, then all bodies are updated. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
@@ -384,13 +384,14 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     ) -> None:
         """Set the body link pose over selected environment and body indices into the simulation.
 
-        The body link pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+        The body link pose has components (px, py, pz, qx, qy, qz, qw).
 
         .. note::
             This method expects partial data.
 
         Args:
-            body_poses: Body link poses in simulation frame [m, rad]. Shape is (len(env_ids), len(body_ids), 7)
+            body_poses: Body link poses in simulation frame [m, dimensionless].
+                Shape is (len(env_ids), len(body_ids), 7)
                 or (len(env_ids), len(body_ids)) with dtype wp.transformf.
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
@@ -426,13 +427,13 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     ) -> None:
         """Set the body link pose over selected environment and body masks into the simulation.
 
-        The body link pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+        The body link pose has components (px, py, pz, qx, qy, qz, qw).
 
         .. note::
             This method expects full data.
 
         Args:
-            body_poses: Body link poses in simulation frame [m, rad]. Shape is (num_instances, num_bodies, 7)
+            body_poses: Body link poses in simulation frame [m, dimensionless]. Shape is (num_instances, num_bodies, 7)
                 or (num_instances, num_bodies) with dtype wp.transformf.
             body_mask: Body mask. If None, then all bodies are updated. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
@@ -474,14 +475,14 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     ) -> None:
         """Set the body center of mass pose over selected environment and body indices into the simulation.
 
-        The body center of mass pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+        The body center of mass pose has components (px, py, pz, qx, qy, qz, qw).
         The orientation is the orientation of the principal axes of inertia.
 
         .. note::
             This method expects partial data.
 
         Args:
-            body_poses: Body center of mass poses in simulation frame [m, rad].
+            body_poses: Body center of mass poses in simulation frame [m, dimensionless].
                 Shape is (len(env_ids), len(body_ids), 7) or (len(env_ids), len(body_ids)) with dtype wp.transformf.
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
@@ -521,14 +522,14 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     ) -> None:
         """Set the body center of mass pose over selected environment and body masks into the simulation.
 
-        The body center of mass pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+        The body center of mass pose has components (px, py, pz, qx, qy, qz, qw).
         The orientation is the orientation of the principal axes of inertia.
 
         .. note::
             This method expects full data.
 
         Args:
-            body_poses: Body center of mass poses in simulation frame [m, rad].
+            body_poses: Body center of mass poses in simulation frame [m, dimensionless].
                 Shape is (num_instances, num_bodies, 7) or (num_instances, num_bodies) with dtype wp.transformf.
             body_mask: Body mask. If None, then all bodies are updated. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
@@ -896,8 +897,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             This method expects partial data.
 
         Args:
-            coms: Body center-of-mass poses [m, quaternion (w, x, y, z)].
-                Shape is (len(env_ids), len(body_ids)) with dtype wp.transformf.
+            coms: Body center-of-mass poses in the link frame [m, dimensionless], with components
+                (px, py, pz, qx, qy, qz, qw). Warp shape is (len(env_ids), len(body_ids)) with dtype wp.transformf.
+                Torch shape is (len(env_ids), len(body_ids), 7).
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
         """
@@ -936,8 +938,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             This method expects full data.
 
         Args:
-            coms: Body center-of-mass poses [m, quaternion (w, x, y, z)].
-                Shape is (num_instances, num_bodies) with dtype wp.transformf.
+            coms: Body center-of-mass poses in the link frame [m, dimensionless], with components
+                (px, py, pz, qx, qy, qz, qw). Warp shape is (num_instances, num_bodies) with dtype wp.transformf.
+                Torch shape is (num_instances, num_bodies, 7).
             body_mask: Body mask. If None, all bodies are updated.
                 Shape is (num_bodies,).
             env_mask: Environment mask. If None, all instances are updated.

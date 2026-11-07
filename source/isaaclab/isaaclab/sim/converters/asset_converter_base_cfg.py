@@ -36,8 +36,8 @@ class AssetConverterBaseCfg:
     usd_dir: str | None = None
     """The output directory path to store the generated USD file. Defaults to None.
 
-    If None, it is resolved as ``/tmp/IsaacLab/usd_{date}_{time}_{random}``, where
-    the parameters in braces are runtime generated.
+    If None, it is resolved as ``<tempdir>/IsaacLab/usd_{date}_{time}_{random}``, where
+    ``<tempdir>`` is the system temporary directory and the parameters in braces are runtime generated.
     """
 
     usd_file_name: str | None = None

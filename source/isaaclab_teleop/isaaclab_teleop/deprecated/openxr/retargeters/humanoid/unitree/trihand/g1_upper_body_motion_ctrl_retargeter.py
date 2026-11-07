@@ -53,15 +53,23 @@ class G1TriHandUpperBodyMotionControllerRetargeter(RetargeterBase):
         """Convert controller inputs to robot commands.
 
         Args:
-            data: Dictionary with MotionControllerTrackingTarget.LEFT/RIGHT keys
-                 Each value is a 2D array: [pose(7), inputs(7)]
+            data: Dictionary with MotionControllerTrackingTarget.LEFT/RIGHT keys.
+                Each value is a 2D array: [pose(7), inputs(7)].
 
         Returns:
-            Tensor: [left_wrist(7), right_wrist(7), hand_joints(14)]
-            hand_joints order:
+            Tensor arranged as [left_wrist(7), right_wrist(7), hand_joints(14)].
+            Each wrist contains position [m] and an xyzw quaternion.
+            The hand joints have the following order::
+
                 [
-                    left_proximal(3), right_proximal(3), left_distal(2), left_thumb_middle(1),
-                    right_distal(2), right_thumb_middle(1), left_thumb_tip(1), right_thumb_tip(1)
+                    left_proximal(3),
+                    right_proximal(3),
+                    left_distal(2),
+                    left_thumb_middle(1),
+                    right_distal(2),
+                    right_thumb_middle(1),
+                    left_thumb_tip(1),
+                    right_thumb_tip(1),
                 ]
         """
 
@@ -127,7 +135,7 @@ class G1TriHandUpperBodyMotionControllerRetargeter(RetargeterBase):
             default_pose: Default pose to use if no data
 
         Returns:
-            Wrist pose array [x, y, z, w, x, y, z]
+            Wrist pose array [x, y, z, qx, qy, qz, qw], with position [m] and xyzw orientation.
         """
         if len(controller_data) > DeviceBase.MotionControllerDataRowIndex.POSE.value:
             return controller_data[DeviceBase.MotionControllerDataRowIndex.POSE.value]

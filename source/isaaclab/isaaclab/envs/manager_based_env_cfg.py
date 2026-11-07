@@ -52,7 +52,7 @@ class ManagerBasedEnvCfg:
 
     # ui settings
     ui_window_class_type: type | str | None = "isaaclab.envs.ui.base_env_window:BaseEnvWindow"
-    """The class type of the UI window. Default is None.
+    """The class type of the UI window. Defaults to :class:`~isaaclab.envs.ui.BaseEnvWindow`.
 
     If None, then no UI window is created.
 

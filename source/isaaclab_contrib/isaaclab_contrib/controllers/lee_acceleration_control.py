@@ -52,7 +52,7 @@ class LeeAccController(LeeControllerBase):
         """Compute wrench command from acceleration setpoint.
 
         Args:
-            command: (num_envs, 4) acceleration command command [ax, ay, az, yaw_rate] in body frame.
+            command: (num_envs, 4) acceleration command [ax, ay, az, yaw_rate], with the acceleration in world frame.
 
         Returns:
             (num_envs, 6) wrench command [fx, fy, fz, tx, ty, tz] in body frame.

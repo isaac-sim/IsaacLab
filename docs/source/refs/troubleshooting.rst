@@ -252,7 +252,7 @@ mode because Isaac Lab computes their effort directly.
 
 Joints not covered by an Isaac Lab actuator configuration retain their imported
 USD target modes. Thus, zero-gain USD drives no longer require
-:attr:`~isaaclab.sim.spawners.from_files.FileCfg.ensure_drives_exist` solely
+:attr:`~isaaclab.sim.spawners.from_files.UsdFileCfg.ensure_drives_exist` solely
 to make a configured joint actuate in Newton. The option remains available for
 workflows that need to author placeholder drives independently of an Isaac Lab
 actuator configuration. See :ref:`import-new-asset-ensure-drives-exist` for
@@ -290,7 +290,7 @@ The viser visualizer serves a web UI instead of opening a window
 
 ``--visualizer viser`` does not open a native window. Check the terminal for the served
 URL; the default port is ``8080``, configurable through
-:attr:`~isaaclab_visualizers.ViserBackendCfg.port`. The ``viser`` package ships in the
+``ViserBackendCfg.port``. The ``viser`` package ships in the
 ``viser`` extra.
 
 

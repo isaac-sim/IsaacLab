@@ -30,7 +30,8 @@ class UniformPose2dCommand(CommandTerm):
     The command generator samples uniform 2D positions around the environment origin. It sets
     the height of the position command to the default root height of the robot. The heading
     command is either set to point towards the target or is sampled uniformly.
-    This can be configured through the :attr:`Pose2dCommandCfg.simple_heading` parameter in
+    This can be configured through the
+    :attr:`~isaaclab.envs.mdp.commands.commands_cfg.UniformPose2dCommandCfg.simple_heading` parameter in
     the configuration.
     """
 

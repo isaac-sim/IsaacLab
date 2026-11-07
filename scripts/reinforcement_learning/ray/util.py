@@ -108,7 +108,10 @@ def get_invocation_command_from_cfg(
 def remote_execute_job(
     job_cmd: str, identifier_string: str, test_mode: bool = False, extract_experiment: bool = False
 ) -> str | dict:
-    """This method has an identical signature to :meth:`execute_job`, with the ray remote decorator"""
+    """Run :func:`execute_job` remotely with command, identifier, test, and experiment-extraction options.
+
+    Other execution options use the defaults from :func:`execute_job`.
+    """
     return execute_job(
         job_cmd=job_cmd, identifier_string=identifier_string, test_mode=test_mode, extract_experiment=extract_experiment
     )
@@ -338,9 +341,8 @@ def get_gpu_node_resources(
     Args:
         total_resources: When true, return total available resources. Defaults to False.
         one_node_only: When true, return resources for a single node. Defaults to False.
-        include_gb_ram: Set to true to convert MB to GB in result
+        include_gb_ram: Set to true to add the node RAM in GB (converted from bytes) under the ``ram_gb`` key
         include_id: Set to true to include node ID
-        ray_address: The ray address to connect to.
 
     Returns:
         Resource information for all nodes, sorted by descending GPU count, then descending CPU
@@ -545,35 +547,39 @@ class JobNode:
         Convert node affinity settings into a dictionary of Ray actor scheduling options.
 
         Args:
-            nodes (list[dict[str, Any]]): List of node metadata from `ray.nodes()` which looks like this:
-            [{
-                'NodeID': 'xxx',
-                'Alive': True,
-                'NodeManagerAddress': 'x.x.x.x',
-                'NodeManagerHostname': 'ray-head-mjzzf',
-                'NodeManagerPort': 44039,
-                'ObjectManagerPort': 35689,
-                'ObjectStoreSocketName': '/tmp/ray/session_xxx/sockets/plasma_store',
-                'RayletSocketName': '/tmp/ray/session_xxx/sockets/raylet',
-                'MetricsExportPort': 8080,
-                'NodeName': 'x.x.x.x',
-                'RuntimeEnvAgentPort': 63725,
-                'DeathReason': 0,
-                'DeathReasonMessage': '',
-                'alive': True,
-                'Resources': {
-                    'node:__internal_head__': 1.0,
-                    'object_store_memory': 422449279795.0,
-                    'memory': 1099511627776.0,
-                    'GPU': 8.0,
-                    'node:x.x.x.x': 1.0,
-                    'CPU': 192.0,
-                    'accelerator_type:H20': 1.0
-                    },
-                'Labels': {
-                    'ray.io/node_id': 'xxx'
-                    }
-                },...]
+            nodes: Node metadata from ``ray.nodes()``. For example:
+
+                .. code-block:: python
+
+                    [
+                        {
+                            "NodeID": "xxx",
+                            "Alive": True,
+                            "NodeManagerAddress": "x.x.x.x",
+                            "NodeManagerHostname": "ray-head-mjzzf",
+                            "NodeManagerPort": 44039,
+                            "ObjectManagerPort": 35689,
+                            "ObjectStoreSocketName": "/tmp/ray/session_xxx/sockets/plasma_store",
+                            "RayletSocketName": "/tmp/ray/session_xxx/sockets/raylet",
+                            "MetricsExportPort": 8080,
+                            "NodeName": "x.x.x.x",
+                            "RuntimeEnvAgentPort": 63725,
+                            "DeathReason": 0,
+                            "DeathReasonMessage": "",
+                            "alive": True,
+                            "Resources": {
+                                "node:__internal_head__": 1.0,
+                                "object_store_memory": 422449279795.0,
+                                "memory": 1099511627776.0,
+                                "GPU": 8.0,
+                                "node:x.x.x.x": 1.0,
+                                "CPU": 192.0,
+                                "accelerator_type:H20": 1.0,
+                            },
+                            "Labels": {"ray.io/node_id": "xxx"},
+                        },
+                        ...,
+                    ]
 
         Returns:
             dict[str, Any]: A dictionary with possible scheduling options:

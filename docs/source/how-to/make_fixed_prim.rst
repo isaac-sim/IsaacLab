@@ -71,7 +71,7 @@ Articulation
 
 Fixing the root of an articulation requires having a fixed joint to the root rigid body link of the articulation.
 This can be achieved by setting the spawner-level
-:attr:`~isaaclab.sim.spawners.from_files.FileCfg.fix_root_link` flag as True. Based on the value of
+:attr:`~isaaclab.sim.spawners.from_files.UsdFileCfg.fix_root_link` flag as True. Based on the value of
 this parameter, the following cases are possible:
 
 * If set to :obj:`None`, the root link is not modified.
@@ -163,7 +163,7 @@ and instancing layout. ``fix_root_link`` is consumed on this path regardless of 
 
       UsdPhysics also allows the articulation root properties on the fixed joint that connects the root link to the
       world. The articulation is parsed as a fixed-base system rooted at that joint. Setting
-      :attr:`~isaaclab.sim.spawners.from_files.FileCfg.fix_root_link` to True enables the joint. Setting it to False
+      :attr:`~isaaclab.sim.spawners.from_files.UsdFileCfg.fix_root_link` to True enables the joint. Setting it to False
       is not supported for such an articulation: it logs a warning and leaves the joint enabled. To obtain a floating
       base, author the asset without the world joint, or convert it with ``fix_base=False``.
 
@@ -178,7 +178,7 @@ and instancing layout. ``fix_root_link`` is consumed on this path regardless of 
    to consider the fixed joint as a part of the maximal coordinate tree. This is different from PhysX
    considering the articulation as a fixed-base system.
 
-   Internally, when the parameter :attr:`~isaaclab.sim.spawners.from_files.FileCfg.fix_root_link` is set to True
+   Internally, when the parameter :attr:`~isaaclab.sim.spawners.from_files.UsdFileCfg.fix_root_link` is set to True
    and the articulation is detected as a floating-base system, the fixed joint is created between the world frame
    the root rigid body link of the articulation. However, to make the PhysX parser consider the articulation as a
    fixed-base system, the articulation root properties are removed from the root rigid body prim and applied to

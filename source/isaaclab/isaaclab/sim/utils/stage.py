@@ -210,7 +210,7 @@ def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
         A context manager that sets the stage in the context.
 
     Raises:
-        AssertionError: If the stage is not a USD stage instance.
+        TypeError: If the stage is not a USD stage instance.
 
     Example:
         >>> from pxr import Usd
@@ -337,7 +337,7 @@ def clear_stage(predicate: Callable[[Usd.Prim], bool] | None = None) -> None:
 
     The function will delete all prims in the stage that satisfy the predicate. If the predicate
     is None, a default predicate will be used that deletes all prims. The default predicate deletes
-    all prims that are not the root prim, are not under the /Render namespace, have the ``no_delete``
+    all prims that are not the root prim, are not under the /Render namespace, do not have the ``no_delete``
     metadata, are not ancestral to any other prim, and are not hidden in the stage window.
 
     Args:

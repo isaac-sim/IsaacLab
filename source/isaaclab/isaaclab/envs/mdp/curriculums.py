@@ -113,7 +113,7 @@ class modify_env_param(ManagerTermBase):
                         "static_friction_range": [0.5, 1.0],
                         "dynamic_friction_range": [0.3, 1.0],
                         "restitution_range": [0.0, 0.5],
-                        "num_step": 120000,
+                        "num_steps": 120000,
                     },
                 },
             )

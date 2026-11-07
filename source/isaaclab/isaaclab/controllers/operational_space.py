@@ -241,7 +241,7 @@ class OperationalSpaceController:
                 containing position and the quaternion ``(x, y, z, w)``. Defaults to None.
 
         Format:
-            Task-space targets, ordered according to 'command_types':
+            Task-space targets, ordered according to 'target_types':
 
                 Absolute pose: shape (``num_envs``, 7), containing position and quaternion ``(x, y, z, w)``.
                 The quaternion is normalized before use. Entries that cannot be normalized (e.g. all zeros or
@@ -421,7 +421,6 @@ class OperationalSpaceController:
         Raises:
             ValueError: When motion-control is enabled but the current end-effector pose or velocity is not provided.
             ValueError: When inertial dynamics decoupling is enabled but the mass matrix is not provided.
-            ValueError: When the current end-effector pose is not provided for the ``pose_rel`` command.
             ValueError: When closed-loop force control is enabled but the current end-effector force is not provided.
             ValueError: When gravity compensation is enabled but the gravity vector is not provided.
             ValueError: When null-space control is enabled but the system is not redundant.

@@ -121,8 +121,9 @@ class LetterTypingCommandCfg(CommandTermCfg):
         so the buffer (and the curriculum frontier) is not biased toward near-done states."""
 
         enabled: bool = False
-        """Enable the success-conditioned replay curriculum (needs :attr:`ik`; a silent no-op without it). Does
-        NOT gate the reset IK snap itself - that runs on every reset whenever :attr:`ik` is set."""
+        """Enable the success-conditioned replay curriculum (needs :attr:`ik`; without it the curriculum is
+        disabled with a printed warning). Does NOT gate the reset IK snap itself - that runs on every reset
+        whenever :attr:`ik` is set."""
 
         buffer_size: int = 4096
         """Number of reset snapshots to cache (also the number of slots the success monitor tracks). Built in
@@ -171,7 +172,7 @@ class LetterTypingCommandCfg(CommandTermCfg):
     class_type: type = LetterTypingCommand
 
     asset_name: str = MISSING
-    """Robot asset name. Used by the reset-pose IK solve (see ``reset_above_key``)."""
+    """Robot asset name. Used by the reset-pose IK solve (see :meth:`LetterTypingCommand._solve_reset_pose`)."""
 
     object_name: str = MISSING
     """Keyboard articulation asset name whose ``key_*_joint`` joints are read."""

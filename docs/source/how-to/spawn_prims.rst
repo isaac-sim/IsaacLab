@@ -79,10 +79,10 @@ At a high-level, this is how it works:
    prim_path = "/path/to/prim"
 
    # Spawn the prim into the scene using the corresponding spawner function
-   spawn_my_prim(prim_path, cfg, translation=[0, 0, 0], orientation=[1, 0, 0, 0], scale=[1, 1, 1])
+   spawn_my_prim(prim_path, cfg, translation=[0, 0, 0], orientation=[0, 0, 0, 1], scale=[1, 1, 1])
    # OR
    # Use the spawner function directly from the configuration class
-   cfg.func(prim_path, cfg, translation=[0, 0, 0], orientation=[1, 0, 0, 0], scale=[1, 1, 1])
+   cfg.func(prim_path, cfg, translation=[0, 0, 0], orientation=[0, 0, 0, 1], scale=[1, 1, 1])
 
 
 In this tutorial, we demonstrate the spawning of various different prims into the scene. For more

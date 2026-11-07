@@ -181,7 +181,7 @@ to combine them into a single actuator model.
    ``None`` retains the imported USD value; explicit actuator configurations use
    effort mode. Zero-gain USD drives therefore need no placeholder solely for a
    configured actuator. See :ref:`import-new-asset-ensure-drives-exist` for when
-   :attr:`~isaaclab.sim.spawners.from_files.FileCfg.ensure_drives_exist`
+   :attr:`~isaaclab.sim.spawners.from_files.UsdFileCfg.ensure_drives_exist`
    remains useful.
 
 

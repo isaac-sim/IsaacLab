@@ -64,11 +64,12 @@ def rollout(policy, env, success_term, horizon, device):
     Args:
         policy: The robomimicpolicy to play.
         env: The environment to play in.
+        success_term: The success termination term, evaluated each step to detect task success.
         horizon: The step horizon of each rollout.
         device: The device to run the policy on.
 
     Returns:
-        terminated: Whether the rollout terminated.
+        success: Whether the success termination term was satisfied during the rollout.
         traj: The trajectory of the rollout.
     """
     policy.start_episode()
@@ -86,7 +87,7 @@ def rollout(policy, env, success_term, horizon, device):
             # Process image observations for robomimic inference
             for image_name in env.cfg.image_obs_list:
                 if image_name in obs_dict["policy"].keys():
-                    # Convert from chw uint8 to hwc normalized float
+                    # Convert from hwc uint8 to chw normalized float
                     image = torch.squeeze(obs_dict["policy"][image_name])
                     image = image.permute(2, 0, 1).clone().float()
                     image = image / 255.0

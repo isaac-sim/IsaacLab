@@ -91,7 +91,7 @@ def install_rosdep_packages(paths: list[str], ros_distro: str = "humble"):
     the installation of ROS dependencies. If the ROS workspace does not exist, the function raises an error.
 
     Args:
-        path: A list of paths to the extension roots.
+        paths: A list of paths to the extension roots.
         ros_distro: The ROS distribution to use for rosdep. Default is 'humble'.
 
     Raises:

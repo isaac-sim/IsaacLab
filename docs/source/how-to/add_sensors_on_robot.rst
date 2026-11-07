@@ -103,7 +103,7 @@ BVH and ignores the mesh list. The ray caster tracks the existing prim selected 
 :attr:`~sensors.RayCasterCfg.prim_path`; it does not spawn a new USD prim.
 
 For this tutorial, the ray-cast based height scanner is attached under the base frame of the robot.
-The pattern of rays is specified using the :attr:`~sensors.RayCasterCfg.pattern` attribute. For
+The pattern of rays is specified using the :attr:`~sensors.RayCasterCfg.pattern_cfg` attribute. For
 a uniform grid pattern, we specify the pattern using :class:`~sensors.patterns.GridPatternCfg`.
 Since we only care about the height information, we do not need to consider the roll and pitch
 of the robot. Hence, we set the :attr:`~sensors.RayCasterCfg.ray_alignment` to "yaw".

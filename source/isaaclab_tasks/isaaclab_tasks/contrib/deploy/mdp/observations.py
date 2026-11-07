@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
 
 class gear_shaft_pos_w(ManagerTermBase):
-    """Gear shaft position in world frame with offset applied.
+    """Gear shaft position in the environment frame with offset applied.
 
     This class-based term caches gear offset tensors and identity quaternions for efficient computation
     across all environments. It transforms the gear base position by the appropriate offset based on the
@@ -35,13 +35,13 @@ class gear_shaft_pos_w(ManagerTermBase):
             list [x, y, z]. This parameter is required and must be provided in the configuration.
 
     Returns:
-        Gear shaft position tensor in the environment frame with shape (num_envs, 3).
+        Gear shaft position [m] in the environment frame with shape (num_envs, 3).
+        Returns zeros while the gear type manager is absent during initialization.
 
     Raises:
         ValueError: If the 'gear_offsets' parameter is not provided in the configuration.
         TypeError: If the 'gear_offsets' parameter is not a dictionary.
         ValueError: If any of the required gear type keys are missing from 'gear_offsets'.
-        RuntimeError: If the gear type manager is not initialized in the environment.
     """
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
@@ -107,14 +107,15 @@ class gear_shaft_pos_w(ManagerTermBase):
         asset_cfg: SceneEntityCfg = SceneEntityCfg("factory_gear_base"),
         gear_offsets: dict | None = None,
     ) -> torch.Tensor:
-        """Compute gear shaft position in world frame.
+        """Compute gear shaft position in the environment frame.
 
         Args:
             env: Environment instance
             asset_cfg: Configuration of the gear base asset (unused, kept for compatibility)
 
         Returns:
-            Gear shaft position tensor of shape (num_envs, 3)
+            Gear shaft position [m] in the environment frame, shape (num_envs, 3).
+            Returns zeros while the gear type manager is absent during initialization.
         """
         # Check if gear type manager exists
         # During initialization (shape checking), the manager may not exist yet
@@ -192,17 +193,15 @@ class gear_shaft_quat_w(ManagerTermBase):
 
 
 class gear_pos_w(ManagerTermBase):
-    """Gear position in world frame.
+    """Gear position in the environment frame.
 
     This class-based term returns the position of the active gear in each environment. It uses
     vectorized indexing to efficiently select the correct gear position based on the gear type
     (small, medium, or large) active in each environment.
 
     Returns:
-        Gear position tensor in the environment frame with shape (num_envs, 3).
-
-    Raises:
-        RuntimeError: If the gear type manager is not initialized in the environment.
+        Gear position [m] in the environment frame with shape (num_envs, 3).
+        Returns zeros while the gear type manager is absent during initialization.
     """
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
@@ -227,13 +226,14 @@ class gear_pos_w(ManagerTermBase):
         }
 
     def __call__(self, env: ManagerBasedRLEnv) -> torch.Tensor:
-        """Compute gear position in world frame.
+        """Compute gear position in the environment frame.
 
         Args:
             env: Environment instance
 
         Returns:
-            Gear position tensor of shape (num_envs, 3)
+            Gear position [m] in the environment frame, shape (num_envs, 3).
+            Returns zeros while the gear type manager is absent during initialization.
         """
         # Check if gear type manager exists
         # During initialization (shape checking), the manager may not exist yet
@@ -271,9 +271,7 @@ class gear_quat_w(ManagerTermBase):
 
     Returns:
         Gear orientation tensor as a quaternion (x, y, z, w) with shape (num_envs, 4).
-
-    Raises:
-        RuntimeError: If the gear type manager is not initialized in the environment.
+        Returns identity quaternions while the gear type manager is absent during initialization.
     """
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
@@ -304,7 +302,8 @@ class gear_quat_w(ManagerTermBase):
             env: Environment instance
 
         Returns:
-            Gear orientation tensor of shape (num_envs, 4)
+            Gear orientation as xyzw quaternions, shape (num_envs, 4).
+            Returns identity quaternions while the gear type manager is absent during initialization.
         """
         # Check if gear type manager exists
         # During initialization (shape checking), the manager may not exist yet

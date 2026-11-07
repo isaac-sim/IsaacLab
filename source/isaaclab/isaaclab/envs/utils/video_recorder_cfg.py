@@ -73,7 +73,7 @@ class VideoRecorderCfg:
     * ``"viz:<type>"``                 – a ``kit``, ``newton_gl`` or ``newton_rtx`` visualizer, interactive
       camera: the one ``--viz`` selected, else a headless one added for the recording.
     * ``"viz:<type>:streaming_view"``  – the streaming camera panel of that visualizer (requires
-      ``streaming_view=True`` on its config, e.g. :class:`~isaaclab_visualizers.kit.KitBackendCfg`).
+      ``streaming_view=True`` on its :class:`~isaaclab.visualizers.VisualizerCfg`).
     * ``"sensor:<name>"``              – scene sensor, RGB channel (default); no visualizer is added.
     * ``"sensor:<name>:<channel>"``    – scene sensor channel: ``rgb``, ``depth`` (colorized via the turbo
       colormap), ``segmentation`` or ``normals`` (colorized).
@@ -106,9 +106,9 @@ class VideoRecorderCfg:
     fps: int | None = None
     """Output video frame rate in frames per second.
 
-    ``None`` (default): resolved automatically from the environment at recording time
-    using ``env.metadata["render_fps"]`` when available, falling back to
-    ``round(1.0 / env.step_dt)``.  Set an explicit integer to override.
+    ``None`` (default): resolved automatically as ``max(1, round(base_fps / frame_stride))``.
+    The base rate uses ``env.metadata["render_fps"]`` when available, falling back to
+    ``1.0 / env.step_dt``. Set an explicit integer to override.
     """
 
     video_length: int = 200

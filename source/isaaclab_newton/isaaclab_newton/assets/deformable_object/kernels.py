@@ -196,7 +196,7 @@ def enforce_kinematic_targets(
 
     For each particle, reads the kinematic target flag (w-component):
     - flag == 0.0 (kinematic): set inv_mass to 0, particle_flags to 0, write target position, zero velocity.
-    - flag != 0.0 (free): restore the default inv_mass and set particle_flags to 1 (ACTIVE).
+    - flag != 0.0 (free): restore the default inv_mass and the default particle_flags.
 
     Args:
         targets: Per-instance kinematic targets. Shape is (num_instances, particles_per_body).

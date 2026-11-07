@@ -52,7 +52,11 @@ class LeeAttController(LeeControllerBase):
         """Compute wrench command from attitude setpoint.
 
         Args:
-            command: (num_envs, 4) attitude command command [thrust, roll, pitch, yaw_rate] in body frame.
+            command: Attitude command [thrust_offset, roll, pitch, yaw_rate]. The
+                dimensionless thrust offset maps to body-Z force as
+                (thrust_offset + 1) * mass * gravity_magnitude; zero gives hover thrust.
+                Roll and pitch are world-frame Euler setpoints [rad] at the current yaw,
+                and yaw rate is in [rad/s]. Shape is (num_envs, 4).
 
         Returns:
             (num_envs, 6) wrench command [fx, fy, fz, tx, ty, tz] in body frame.

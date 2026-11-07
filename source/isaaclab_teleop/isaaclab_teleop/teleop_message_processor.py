@@ -268,7 +268,7 @@ class TeleopMessageProcessor(BaseRetargeter):
 def _classify_command(text: str) -> str | None:
     """Return ``"start"``, ``"stop"``, ``"reset"``, or ``None``.
 
-    Uses word-boundary matching so that e.g. ``"stop_and_restart"``
+    Uses word-boundary matching so that e.g. ``"stop and restart"``
     matches ``"stop"`` (not ``"start"``).
     """
     for pattern, label in _COMMAND_PATTERNS:
@@ -281,8 +281,9 @@ def _extract_command(text: str) -> str | None:
     """Extract the command string from a JSON or plain-text payload.
 
     Tries JSON parsing first (Quest client format) and falls back to the
-    raw text for plain-string payloads.  Non-string JSON scalars (numbers,
-    arrays, booleans) are discarded.
+    raw text for non-JSON payloads.  Valid JSON that is not a
+    ``teleop_command`` object (including bare JSON strings, numbers, arrays
+    and booleans) is discarded.
     """
     try:
         obj = json.loads(text)

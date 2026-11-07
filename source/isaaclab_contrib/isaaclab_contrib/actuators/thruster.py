@@ -126,10 +126,13 @@ class Thruster:
         and integrates with the selected kernel.
 
         Args:
-            control_action: (num_envs, num_thrusters) commanded per-thruster thrust [N].
+            control_action: Action record whose ``thrusts`` member contains the commanded
+                per-thruster thrust [N], with shape (num_envs, num_thrusters).
 
         Returns:
-            (num_envs, num_thrusters) updated thrust state [N].
+            The same ``MultiRotorActions`` record, with ``thrusts``
+            replaced by the applied per-thruster thrust [N], i.e. the updated thrust state clipped to
+            the thruster limits, with shape (num_envs, num_thrusters).
 
         """
         des_thrust = control_action.thrusts
@@ -177,7 +180,11 @@ class Thruster:
         self.curr_thrust[env_ids] = self.thrust_const[env_ids] * self._init_thruster_rps[env_ids] ** 2
 
     def reset(self, env_ids: Sequence[int]) -> None:
-        """Reset all envs."""
+        """Reset thruster parameters and state for the selected environments.
+
+        Args:
+            env_ids: Indices of the environments to reset.
+        """
         self.reset_idx(env_ids)
 
     def motor_model_rate(self, error: torch.Tensor, mixing_factor: torch.Tensor):

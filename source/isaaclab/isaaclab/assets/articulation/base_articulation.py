@@ -1597,7 +1597,7 @@ class BaseArticulation(AssetBase):
         body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Set inertias of all bodies in the simulation world frame.
+        """Set inertias of all bodies about their centers of mass, expressed in the body link frames.
 
         .. note::
             This method expects partial data.
@@ -1621,7 +1621,7 @@ class BaseArticulation(AssetBase):
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set inertias of all bodies in the simulation world frame.
+        """Set inertias of all bodies about their centers of mass, expressed in the body link frames.
 
         .. note::
             This method expects full data.
@@ -1649,7 +1649,7 @@ class BaseArticulation(AssetBase):
         """Set joint position targets into internal buffers.
 
         .. deprecated::
-            Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+            Use :attr:`isaaclab.actuators.ActuatorCollection.target_command` and call
             ``set_position_index``.
 
         .. note::
@@ -1687,7 +1687,7 @@ class BaseArticulation(AssetBase):
         """Set joint position targets into internal buffers.
 
         .. deprecated::
-            Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+            Use :attr:`isaaclab.actuators.ActuatorCollection.target_command` and call
             ``set_position_mask``.
 
         .. note::
@@ -1726,7 +1726,7 @@ class BaseArticulation(AssetBase):
         """Set joint velocity targets into internal buffers.
 
         .. deprecated::
-            Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+            Use :attr:`isaaclab.actuators.ActuatorCollection.target_command` and call
             ``set_velocity_index``.
 
         .. note::
@@ -1764,7 +1764,7 @@ class BaseArticulation(AssetBase):
         """Set joint velocity targets into internal buffers.
 
         .. deprecated::
-            Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+            Use :attr:`isaaclab.actuators.ActuatorCollection.target_command` and call
             ``set_velocity_mask``.
 
         .. note::
@@ -1803,7 +1803,7 @@ class BaseArticulation(AssetBase):
         """Set joint efforts into internal buffers.
 
         .. deprecated::
-            Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+            Use :attr:`isaaclab.actuators.ActuatorCollection.target_command` and call
             ``set_effort_index``.
 
         .. note::
@@ -1841,7 +1841,7 @@ class BaseArticulation(AssetBase):
         """Set joint efforts into internal buffers.
 
         .. deprecated::
-            Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+            Use :attr:`isaaclab.actuators.ActuatorCollection.target_command` and call
             ``set_effort_mask``.
 
         .. note::
@@ -3197,7 +3197,7 @@ class BaseArticulation(AssetBase):
         joint_ids: Sequence[int] | slice | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Deprecated. Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+        """Deprecated. Use :attr:`isaaclab.actuators.ActuatorCollection.target_command` and call
         ``set_position_index``.
         """
         warnings.warn(
@@ -3216,7 +3216,7 @@ class BaseArticulation(AssetBase):
         joint_ids: Sequence[int] | slice | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Deprecated. Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+        """Deprecated. Use :attr:`isaaclab.actuators.ActuatorCollection.target_command` and call
         ``set_velocity_index``.
         """
         warnings.warn(
@@ -3235,7 +3235,7 @@ class BaseArticulation(AssetBase):
         joint_ids: Sequence[int] | slice | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Deprecated. Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+        """Deprecated. Use :attr:`isaaclab.actuators.ActuatorCollection.target_command` and call
         ``set_effort_index``.
         """
         warnings.warn(

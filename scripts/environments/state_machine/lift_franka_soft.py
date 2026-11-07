@@ -181,7 +181,8 @@ class PickAndLiftSm:
     2. APPROACH_ABOVE_OBJECT: The robot moves above the object.
     3. APPROACH_OBJECT: The robot moves to the object.
     4. GRASP_OBJECT: The robot grasps the object.
-    5. LIFT_OBJECT: The robot lifts the object to the desired pose. This is the final state.
+    5. LIFT_OBJECT: The robot lifts the object to the desired pose.
+    6. OPEN_GRIPPER: The robot opens the gripper to release the object. This is the final state.
     """
 
     def __init__(self, dt: float, num_envs: int, device: torch.device | str = "cpu", position_threshold=0.03):
@@ -191,6 +192,8 @@ class PickAndLiftSm:
             dt: The environment time step.
             num_envs: The number of environments to simulate.
             device: The device to run the state machine on.
+            position_threshold: Distance [m] between the end-effector and its target below which a state is
+                considered reached. Defaults to 0.03.
         """
         # save parameters
         self.dt = float(dt)
@@ -289,9 +292,9 @@ def main():
         desired_orientation = torch.zeros((env.unwrapped.num_envs, 4), device=env.unwrapped.device)
         desired_orientation[:, 0] = 1.0
 
-        # Top-down approach: identity quaternion (wxyz, w=1) aligns panda_hand with the Franka root,
-        # giving the canonical top-down grasp pose. The bar lies along world-X, so the gripper
-        # closes across its short side without any wrist twist.
+        # Top-down approach: quaternion (x, y, z, w) = (1, 0, 0, 0), a 180 deg rotation about X
+        # relative to the Franka root, gives the canonical top-down grasp pose. The bar lies along
+        # world-X, so the gripper closes across its short side without any wrist twist.
         object_grasp_orientation = torch.zeros((env.unwrapped.num_envs, 4), device=env.unwrapped.device)
         object_grasp_orientation[:, 0] = 1.0
         # Grasp 1 cm below the deformable's centre of mass, so the fingers close around its lower half.

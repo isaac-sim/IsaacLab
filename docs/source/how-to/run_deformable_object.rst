@@ -110,10 +110,10 @@ We apply transformations to the nodal positions to randomize the initial state o
    :start-at: # reset the nodal state of the object
    :end-at: nodal_state[..., :3] = cube_object.transform_nodal_pos(nodal_state[..., :3], pos_w, quat_w)
 
-To reset the deformable object, we first set the nodal state by calling the :meth:`assets.DeformableObject.write_nodal_state_to_sim`
+To reset the deformable object, we first set the nodal state by calling the :meth:`assets.DeformableObject.write_nodal_state_to_sim_index`
 method. This method writes the nodal state of the deformable object prim into the simulation buffer.
 Additionally, we free all the kinematic targets set for the nodes in the previous simulation step by calling
-the :meth:`assets.DeformableObject.write_nodal_kinematic_target_to_sim` method. We explain the
+the :meth:`assets.DeformableObject.write_nodal_kinematic_target_to_sim_index` method. We explain the
 kinematic targets in the next section.
 
 Finally, we call the :meth:`assets.DeformableObject.reset` method to reset any internal buffers and caches.
@@ -135,7 +135,7 @@ targets for the node at index 0 (bottom-left corner) to move the cube along the 
 
 At every step, we increment the kinematic position target for the node by a small value. Additionally,
 we set the flag to indicate that the target is a kinematic target for that node in the simulation buffer.
-These are set into the simulation buffer by calling the :meth:`assets.DeformableObject.write_nodal_kinematic_target_to_sim`
+These are set into the simulation buffer by calling the :meth:`assets.DeformableObject.write_nodal_kinematic_target_to_sim_index`
 method.
 
 .. literalinclude:: ../../../scripts/tutorials/01_assets/run_deformable_object.py

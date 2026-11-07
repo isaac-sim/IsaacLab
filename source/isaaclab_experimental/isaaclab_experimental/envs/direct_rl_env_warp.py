@@ -374,7 +374,7 @@ class DirectRLEnvWarp(DirectRLEnv):
         The environment steps forward at a fixed time-step, while the physics simulation is decimated at a
         lower time-step. This is to ensure that the simulation is stable. These two time-steps can be configured
         independently using the :attr:`DirectRLEnvCfg.decimation` (number of simulation steps per environment step)
-        and the :attr:`DirectRLEnvCfg.sim.physics_dt` (physics time-step). Based on these parameters, the environment
+        and the :attr:`DirectRLEnvCfg.sim.dt` (physics time-step). Based on these parameters, the environment
         time-step is computed as the product of the two.
 
         This function performs the following steps:
@@ -383,8 +383,7 @@ class DirectRLEnvWarp(DirectRLEnv):
         2. Apply the actions to the simulator and step through the physics in a decimated manner.
         3. Compute the reward and done signals.
         4. Reset environments that have terminated or reached the maximum episode length.
-        5. Apply interval events if they are enabled.
-        6. Compute observations.
+        5. Compute observations.
 
         Args:
             action: The actions to apply on the environment. Shape is (num_envs, action_dim).
@@ -542,9 +541,6 @@ class DirectRLEnvWarp(DirectRLEnv):
             None.
 
         Raises:
-            RuntimeError: If mode is set to "rgb_data" and simulation render mode does not support it.
-                In this case, the simulation render mode must be set to ``RenderMode.PARTIAL_RENDERING``
-                or ``RenderMode.FULL_RENDERING``.
             NotImplementedError: If an unsupported rendering mode is specified.
         """
         # run a rendering step of the simulator

@@ -83,9 +83,9 @@ def rollout(policy, env: gym.Env, success_term, horizon: int, device: torch.devi
     Args:
         policy: The robomimic policy to evaluate.
         env: The environment to evaluate in.
+        success_term: The success termination term, evaluated each step to detect task success.
         horizon: The step horizon of each rollout.
         device: The device to run the policy on.
-        args_cli: Command line arguments containing normalization factors.
 
     Returns:
         terminated: Whether the rollout terminated successfully.
@@ -106,7 +106,7 @@ def rollout(policy, env: gym.Env, success_term, horizon: int, device: torch.devi
             # Process image observations for robomimic inference
             for image_name in env.cfg.image_obs_list:
                 if image_name in obs_dict["policy"].keys():
-                    # Convert from chw uint8 to hwc normalized float
+                    # Convert from hwc uint8 to chw normalized float
                     image = torch.squeeze(obs_dict["policy"][image_name])
                     image = image.permute(2, 0, 1).clone().float()
                     image = image / 255.0
@@ -158,6 +158,7 @@ def evaluate_model(
         model_path: Path to the model checkpoint.
         env: The environment to evaluate in.
         device: The device to run the policy on.
+        success_term: The success termination term, evaluated each step to detect task success.
         num_rollouts: Number of rollouts to perform.
         horizon: Step horizon of each rollout.
         seed: Random seed to use.

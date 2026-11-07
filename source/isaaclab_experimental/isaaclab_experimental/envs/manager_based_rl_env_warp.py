@@ -50,7 +50,7 @@ DEBUG_TIMER_RESET = os.environ.get("DEBUG_TIMER_RESET", "0") == "1"
 class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
     """The superclass for the manager-based workflow reinforcement learning-based environments.
 
-    This class inherits from :class:`ManagerBasedEnv` and implements the core functionality for
+    This class inherits from :class:`ManagerBasedEnvWarp` and implements the core functionality for
     reinforcement learning-based environments. It is designed to be used with any RL
     library. The class is designed to be used with vectorized environments, i.e., the
     environment is expected to be run in parallel with multiple sub-environments. The
@@ -406,9 +406,6 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
             None.
 
         Raises:
-            RuntimeError: If mode is set to "rgb_data" and simulation render mode does not support it.
-                In this case, the simulation render mode must be set to ``RenderMode.PARTIAL_RENDERING``
-                or ``RenderMode.FULL_RENDERING``.
             NotImplementedError: If an unsupported rendering mode is specified.
         """
         # run a rendering step of the simulator
@@ -484,18 +481,18 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         """Reset environments based on specified indices.
 
         IMPORTANT:
-            This function always uses the **TerminationManager-produced Warp env mask** (`self.reset_buf`) to select
+            This function always uses the persistent Warp env mask (`self.reset_mask_wp`) to select
             which envs to reset. The ids/mask conversion is performed in `step()` before calling this function.
 
             In other words:
-            - If `env_mask` is provided, it **must** be `self.reset_buf` (Warp bool mask)
-            - If `env_mask` is not provided, this function will populate `self.reset_buf` from `env_ids`
+            - If `env_mask` is provided, it **must** be `self.reset_mask_wp` (Warp bool mask)
+            - If `env_mask` is not provided, this function will populate `self.reset_mask_wp` from `env_ids`
             - When `env_mask` is provided, `env_ids` **must** correspond to the same mask
 
         Args:
             env_ids: Environment indices to reset.
-            env_mask: Warp boolean env mask selecting envs to reset. Must be `self.reset_buf`.
-                If None, uses and populates `self.reset_buf` from `env_ids`.
+            env_mask: Warp boolean env mask selecting envs to reset. Must be `self.reset_mask_wp`.
+                If None, uses and populates `self.reset_mask_wp` from `env_ids`.
         """
         if env_mask is None:
             # Base `reset()` / `reset_to()` call-path provides only `env_ids`.

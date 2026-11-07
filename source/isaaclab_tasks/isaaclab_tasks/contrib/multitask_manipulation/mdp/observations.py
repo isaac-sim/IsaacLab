@@ -52,7 +52,7 @@ def lift_object_pose_b(
     robot_cfg: SceneEntitySelectionCfg,
     object_cfg: SceneEntitySelectionCfg,
 ) -> torch.Tensor:
-    """Return the lift object's pose in the Franka root frame."""
+    """Return the lift object's pose in the OpenArm root frame."""
     robot: Articulation = env.scene[robot_cfg.name]
     object_asset: RigidObject = env.scene[object_cfg.name]
     robot_rows = robot_cfg.instance_ids[object_cfg.env_ids]

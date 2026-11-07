@@ -154,7 +154,8 @@ def define_actuator_properties(
     * :class:`~isaaclab.actuators.DelayedPDActuatorCfg` →
       same as ``IdealPDActuatorCfg`` + ``NewtonActuatorDelayAPI``
     * :class:`~isaaclab.actuators.RemotizedPDActuatorCfg` →
-      same as ``DelayedPDActuatorCfg`` + ``NewtonPositionBasedClampingAPI``
+      ``NewtonPDControlAPI`` + ``NewtonActuatorDelayAPI`` + ``NewtonPositionBasedClampingAPI``
+      (no ``NewtonMaxEffortClampingAPI``)
     * :class:`~isaaclab.actuators.ActuatorNetMLPCfg` /
       :class:`~isaaclab.actuators.ActuatorNetLSTMCfg` →
       ``NewtonNeuralControlAPI`` (+ ``NewtonDCMotorClampingAPI``)

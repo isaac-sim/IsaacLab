@@ -43,7 +43,7 @@ an iterative IK solver.
        gravity vector, contact force, and joint state as required by enabled features
 
 Basic joint-space control sets joint targets directly on the actuators.
-For joint-space impedance control, use :class:`JointImpedanceController`
+For joint-space impedance control, use ``isaaclab.controllers.joint_impedance.JointImpedanceController``
 (see `Joint-space controllers`_).
 
 Start with differential IK for reaching or teleoperation with position-controlled
@@ -246,7 +246,7 @@ A more complete formulation which considers the dynamics of the articulation wou
     \tau = M \left( k_p (q_{des} - q)  - k_d \dot{q} \right) + g
 
 where :math:`M` is the joint-space inertia matrix of size :math:`n \times n`, and :math:`g` is the joint-space
-gravity vector. This implementation is available through the :class:`JointImpedanceController` class by setting the
+gravity vector. This implementation is available through the ``JointImpedanceController`` class by setting the
 impedance mode to ``"fixed"``. The gains :math:`k_p` are parsed from the input configuration and :math:`k_d`
 are computed while considering the system as a decoupled point-mass oscillator, i.e.,
 
@@ -267,7 +267,7 @@ Position control with variable stiffness
 Action dimensions: ``"2n"`` (number of joints)
 
 Variable-stiffness control uses the same law, with :math:`k_p` supplied in the
-command. Set :class:`JointImpedanceController` to ``"variable_kp"`` mode.
+command. Set ``JointImpedanceController`` to ``"variable_kp"`` mode.
 
 Position control with variable impedance
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -275,7 +275,7 @@ Position control with variable impedance
 Action dimensions: ``"3n"`` (number of joints)
 
 Variable-impedance control also supplies damping through the command. Set
-:class:`JointImpedanceController` to ``"variable"`` mode.
+``JointImpedanceController`` to ``"variable"`` mode.
 
 Task-space controllers
 ----------------------
@@ -436,6 +436,6 @@ Examples of reactive planners include:
 
 .. warning::
 
-    :class:`RmpFlowController` wraps the CPU-based Lula bindings, so its computation can
+    ``isaaclab.controllers.rmp_flow.RmpFlowController`` wraps the CPU-based Lula bindings, so its computation can
     limit throughput in large batches. It also needs the Lula library and robot description
     files; these dependencies are separate from the selected physics backend.

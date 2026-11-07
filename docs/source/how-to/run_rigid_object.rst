@@ -106,10 +106,12 @@ is defined in the **simulation world frame**, and not of their parent Xform prim
 engine only understands the world frame and not the parent Xform prim's frame. Thus, we need to transform
 desired state of the rigid object prim into the world frame before setting it.
 
-We use the :attr:`assets.RigidObject.data.default_root_state` attribute to get the default root state of the
-spawned rigid object prims. This default state can be configured from the :attr:`assets.RigidObjectCfg.init_state`
-attribute, which we left as identity in this tutorial. We then randomize the translation of the root state and
-set the desired state of the rigid object prim using the :meth:`assets.RigidObject.write_root_pose_to_sim` and :meth:`assets.RigidObject.write_root_velocity_to_sim` methods.
+We use the :attr:`~isaaclab_physx.assets.RigidObjectData.default_root_pose` and
+:attr:`~isaaclab_physx.assets.RigidObjectData.default_root_vel` attributes of the rigid object's data
+(``RigidObject.data``) to get the default root state of the spawned rigid object prims. This default state
+can be configured from the :attr:`assets.RigidObjectCfg.init_state` attribute, which we left as identity in this
+tutorial. We then randomize the translation of the root state and
+set the desired state of the rigid object prim using the :meth:`assets.RigidObject.write_root_pose_to_sim_index` and :meth:`assets.RigidObject.write_root_velocity_to_sim_index` methods.
 As the name suggests, this method writes the root state of the rigid object prim into the simulation buffer.
 
 .. literalinclude:: ../../../scripts/tutorials/01_assets/run_rigid_object.py

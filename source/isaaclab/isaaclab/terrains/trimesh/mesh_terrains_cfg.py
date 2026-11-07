@@ -173,7 +173,7 @@ class MeshStarTerrainCfg(SubTerrainBaseCfg):
     function: str = "{DIR}.mesh_terrains:star_terrain"
 
     num_bars: int = MISSING
-    """The number of bars per-side the star. Must be greater than 2."""
+    """The number of bars per-side the star. Must be at least 2."""
 
     bar_width_range: tuple[float, float] = MISSING
     """The minimum and maximum width of the bars in the star (in m)."""
@@ -241,7 +241,7 @@ class MeshRepeatedObjectsTerrainCfg(SubTerrainBaseCfg):
     """
 
     platform_width: float = 1.0
-    """The width of the cylindrical platform at the center of the terrain. Defaults to 1.0."""
+    """The width of the square platform at the center of the terrain. Defaults to 1.0."""
 
     platform_height: float = -1.0
     """The height of the platform. Defaults to -1.0.
@@ -317,7 +317,7 @@ class MeshRepeatedCylindersTerrainCfg(MeshRepeatedObjectsTerrainCfg):
         """Configuration for repeated cylinder."""
 
         radius: float = MISSING
-        """The radius of the pyramids (in m)."""
+        """The radius of the cylinders (in m)."""
         max_yx_angle: float = 0.0
         """The maximum angle along the y and x axis. Defaults to 0.0."""
         degrees: bool = True

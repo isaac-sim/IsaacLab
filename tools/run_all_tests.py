@@ -15,7 +15,7 @@
     # for quiet run
     uv run python tools/run_all_tests.py --quiet
 
-    # for increasing timeout (default is 600 seconds)
+    # for increasing timeout (default is 1000 seconds)
     uv run python tools/run_all_tests.py --timeout 1000
 
 """
@@ -43,7 +43,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--skip_tests",
         default="",
-        help="Space separated list of tests to skip in addition to those in tests_to_skip.py.",
+        help="Space separated list of tests to skip in addition to TESTS_TO_SKIP in test_settings.py.",
         type=str,
         nargs="*",
     )

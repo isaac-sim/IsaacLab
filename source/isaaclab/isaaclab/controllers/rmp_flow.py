@@ -344,7 +344,15 @@ class RmpFlowController:
             self._rmpflow_policies[index].reset()
 
     def set_command(self, command: torch.Tensor):
-        """Set target end-effector pose command."""
+        """Set the target end-effector poses for the robot batch.
+
+        The controller assumes each robot's base frame coincides with the world frame (identity base pose).
+        Targets are passed to the policy in world coordinates without a base-frame transform.
+
+        Args:
+            command: Target poses with shape (num_robots, 7). Each pose contains position (x, y, z) in meters
+                followed by a quaternion in (x, y, z, w) order.
+        """
         self._command[:] = command
 
     def compute(

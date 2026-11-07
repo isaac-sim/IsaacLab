@@ -342,7 +342,8 @@ class BaseDeformableObject(AssetBase):
         """Transform the nodal positions based on the pose transformation.
 
         This function computes the transformation of the nodal positions based on the pose transformation.
-        It multiplies the nodal positions with the rotation matrix of the pose and adds the translation.
+        It centers the nodal positions on their mean, multiplies them with the rotation matrix of the pose,
+        adds the translation, and then adds the mean back (i.e. the rotation is applied about the centroid).
         Internally, it calls the :meth:`isaaclab.utils.math.transform_points` function.
 
         Args:

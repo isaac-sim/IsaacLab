@@ -430,7 +430,8 @@ def pit_terrain(
 
     The terrain contains a platform at the center and a staircase leading out of the pit.
     The staircase is a series of steps that are aligned along the x- and y- axis. The steps are
-    created by extruding a ring along the x- and y- axis. If :obj:`is_double_pit` is True, the pit
+    created by extruding a ring along the x- and y- axis. If
+    :attr:`~isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshPitTerrainCfg.double_pit` is True, the pit
     contains two levels.
 
     .. image:: ../../_static/terrains/trimesh/pit_terrain.jpg

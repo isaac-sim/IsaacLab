@@ -79,7 +79,7 @@ def decompose_fabric_transformation_matrix_to_warp_arrays(
     """Decompose Fabric transformation matrices into position, orientation, and scale arrays.
 
     This kernel extracts transform components from Fabric's omni:fabric:worldMatrix attribute
-    and stores them in separate arrays. It handles the quaternion convention conversion
+    and stores them in separate arrays. Orientations are written in Warp's (x, y, z, w) order.
 
     Args:
         fabric_matrices: Fabric array containing 4x4 transformation matrices
