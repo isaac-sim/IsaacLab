@@ -48,7 +48,6 @@ class LeeControllerBase:
         body_link_pos_w = self._to_torch(self.robot.data.body_link_pos_w)
         root_pos_w = self._to_torch(self.robot.data.root_pos_w)
         body_com_pos_b = self._to_torch(self.robot.data.body_com_pos_b)
-        body_com_quat_b = self._to_torch(self.robot.data.body_com_quat_b)
         body_link_quat_w = self._to_torch(self.robot.data.body_link_quat_w)
 
         # Aggregate mass and inertia about the robot COM for all bodies
@@ -57,15 +56,15 @@ class LeeControllerBase:
 
         # Use the public-order `data.body_mass`/`data.body_inertia` buffers (not the
         # backend-order `root_view.get_masses()`/`get_inertias()`) so each body pairs
-        # correctly with the public-order `body_com_pos_b`/`body_com_quat_b`/
-        # `body_link_pos_w`/`body_link_quat_w` buffers above.
+        # correctly with the public-order `body_com_pos_b`/`body_link_pos_w`/`body_link_quat_w`
+        # buffers above.
         body_masses = self._to_torch(self.robot.data.body_mass)
         body_inv_mass_local = torch.where(body_masses > 0, 1.0 / body_masses, torch.zeros_like(body_masses))
         self.mass, self.robot_inertia, _ = aggregate_inertia_about_robot_com(
             self._to_torch(self.robot.data.body_inertia),
             body_inv_mass_local,
             body_com_pos_b,
-            body_com_quat_b,
+            None,
             math_utils.quat_apply_inverse(root_quat_exp, body_link_pos_delta),
             math_utils.quat_mul(math_utils.quat_inv(root_quat_exp), body_link_quat_w),
         )

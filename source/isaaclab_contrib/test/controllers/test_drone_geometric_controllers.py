@@ -29,6 +29,7 @@ from isaaclab_contrib.controllers.lee_acceleration_control_cfg import LeeAccCont
 from isaaclab_contrib.controllers.lee_attitude_control_cfg import LeeAttControllerCfg
 from isaaclab_contrib.controllers.lee_position_control_cfg import LeePosControllerCfg
 from isaaclab_contrib.controllers.lee_velocity_control_cfg import LeeVelControllerCfg
+from isaaclab_contrib.utils.math import aggregate_inertia_about_robot_com
 
 
 class _DummyRobot:
@@ -176,3 +177,48 @@ def test_lee_controllers_basic(
         assert gain.shape == (num_envs, 3), f"Expected {name} shape ({num_envs}, 3), got {gain.shape}"
         assert torch.all(gain >= gain_min), f"{name} below minimum: {gain.min()} < {gain_min.min()}"
         assert torch.all(gain <= gain_max), f"{name} above maximum: {gain.max()} > {gain_max.max()}"
+
+
+def test_lee_controller_inertia_rotates_link_frame_inertia_once(monkeypatch: pytest.MonkeyPatch):
+    """Robot inertia rotates ``data.body_inertia`` by the link rotation only, not by ``body_com_quat_b`` too.
+
+    ``data.body_inertia`` is already expressed in the link frame on every backend, so rotated principal
+    axes must not rotate it a second time.
+    """
+    _patch_sim_context(monkeypatch, base_mod)
+    robot = _DummyRobot(num_envs=1, num_bodies=2, device=torch.device("cpu"))
+    s = 0.5**0.5
+    # Body 0 is the massless root. Body 1 sits at the root origin with its link rotated +90 deg about z
+    # (x_link -> y_base, y_link -> -x_base) and its principal axes rotated +90 deg about link x (xyzw).
+    robot.data.body_link_quat_w[0, 1] = torch.tensor([0.0, 0.0, s, s])
+    robot.data.body_com_quat_b[0, 1] = torch.tensor([s, 0.0, 0.0, s])
+    robot.data.body_mass[0] = torch.tensor([0.0, 2.0])
+    # Non-diagonal inertia about the COM, expressed in the link frame.
+    robot.data.body_inertia[0, 1] = torch.tensor([1.0, 0.1, 0.2, 0.1, 2.0, 0.3, 0.2, 0.3, 3.0])
+
+    controller = vel_mod.LeeVelController(_create_vel_cfg(), robot, num_envs=1, device="cpu")
+
+    # R_link I R_link^T for the +90 deg z rotation, written out by hand.
+    expected = torch.tensor([[2.0, -0.1, -0.3], [-0.1, 1.0, 0.2], [-0.3, 0.2, 3.0]])
+    torch.testing.assert_close(controller.mass, torch.tensor([2.0]))
+    torch.testing.assert_close(controller.robot_inertia[0], expected)
+
+
+def test_aggregate_inertia_warns_and_ignores_deprecated_com_quat():
+    """Passing the deprecated ``body_com_quat_b`` warns and does not rotate the link-frame inertia."""
+    inertia_link = torch.tensor([[1.0, 0.1, 0.2], [0.1, 2.0, 0.3], [0.2, 0.3, 3.0]])
+    s = 0.5**0.5
+    # Principal axes rotated +90 deg about link x (xyzw); the link frame coincides with the base frame.
+    com_quat_b = torch.tensor([s, 0.0, 0.0, s]).reshape(1, 1, 4)
+
+    with pytest.warns(DeprecationWarning, match="body_com_quat_b"):
+        _, inertia_total, _ = aggregate_inertia_about_robot_com(
+            inertia_link.reshape(1, 1, 9),
+            torch.tensor([[0.5]]),
+            torch.zeros(1, 1, 3),
+            com_quat_b,
+            torch.zeros(1, 1, 3),
+            torch.tensor([0.0, 0.0, 0.0, 1.0]).reshape(1, 1, 4),
+        )
+
+    torch.testing.assert_close(inertia_total[0], inertia_link)
