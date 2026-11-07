@@ -17,6 +17,7 @@ from isaaclab.utils import configclass
 
 from isaaclab_tasks.utils import preset
 
+from ...reach_env_cfg import ReachPhysicsCfg
 from . import franka_reach_env_cfg
 
 
@@ -60,6 +61,8 @@ class FrankaReachEnvCfg(franka_reach_env_cfg.FrankaReachEnvCfg):
                 rigid_props.disable_gravity = True
             elif isinstance(rigid_props, MujocoRigidBodyCfg):
                 rigid_props.gravcomp = 1.0
+        # The joint-position solver tuning does not apply to OSC.
+        self.sim.physics.newton_steel = ReachPhysicsCfg().newton_steel
 
         # The OSC action term replaces the parent's arm-controller presets, so the parent's controller-keyed
         # variants would only zero the action-magnitude reward weight or attach 6D teleop devices here. Resolve

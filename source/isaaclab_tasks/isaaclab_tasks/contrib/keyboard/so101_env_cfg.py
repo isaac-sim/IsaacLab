@@ -3,7 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
+from isaaclab_newton.physics import (
+    MJWarpSolverCfg,
+    NewtonCfg,
+    NewtonCollisionPipelineCfg,
+    NewtonShapeCfg,
+    SteelSolverCfg,
+)
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
@@ -67,6 +73,7 @@ class KeyboardAssetCfg(PresetCfg):
         articulation_root_prim_path=None,
         spawn=MultiAssetSpawnerCfg(assets_cfg=list(TYPING_KEYBOARD_POOL.spawners_single), random_choice=False),
     )
+    newton_steel = newton_mjwarp  # Both solvers consume the Newton-compatible keyboard assets.
     isaacsim_physx = default
     physx = default
     default = newton_mjwarp
@@ -307,6 +314,20 @@ class PhysicsCfg(PresetCfg):
         num_substeps=2,
         debug_mode=False,
     )
+    newton_steel = NewtonCfg(
+        solver_cfg=SteelSolverCfg(
+            update_mass_matrix_interval=2,
+            use_parallel_streams=True,
+            enable_joint_limits=True,
+            joint_limit_activation_gap=0.1,
+            articulation_constraint_max=1024,
+            free_body_constraint_max=64,
+            parallel_tree=True,
+        ),
+        collision_cfg=NewtonCollisionPipelineCfg(),
+        default_shape_cfg=NewtonShapeCfg(gap=0.002),
+        num_substeps=2,
+    )
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
     default = newton_mjwarp
 
@@ -327,6 +348,13 @@ class SO101KeyboardEnvCfg(ManagerBasedRLEnvCfg):
         self.episode_length_s = 6.0
         self.sim.render_interval = self.decimation
         self.sim.visualizer_cfgs = VisualizerCfg(eye=(0.85, -0.75, 1.0), lookat=(0.25, 0.0, 0.1), focal_length=28.0)
+        physics = self.sim.physics
+        if isinstance(physics, PhysicsCfg):
+            physics = physics.newton_steel
+        if isinstance(physics, NewtonCfg) and isinstance(physics.solver_cfg, SteelSolverCfg):
+            collision_cfg = physics.collision_cfg
+            if collision_cfg is not None and collision_cfg.rigid_contact_max is None:
+                collision_cfg.rigid_contact_max = 170 * self.scene.num_envs
 
     def play_mode(self):
         """Enable typing markers for every playback environment."""

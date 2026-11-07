@@ -14,6 +14,7 @@ from isaaclab_newton.physics import (
     NewtonCfg,
     NewtonCollisionPipelineCfg,
     NewtonShapeCfg,
+    SteelSolverCfg,
 )
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
@@ -67,6 +68,18 @@ class RoughPhysicsCfg(PresetCfg):
         num_substeps=2,
         debug_mode=False,
         default_shape_cfg=NewtonShapeCfg(margin=0.0, ke=160000.0, kd=1100.0),
+    )
+    newton_steel = NewtonCfg(
+        solver_cfg=SteelSolverCfg(
+            update_mass_matrix_interval=2,
+            enable_joint_limits=True,
+            contact_friction_gap_max=0.02,
+            articulation_constraint_max=192,
+            free_body_constraint_max=32,
+        ),
+        collision_cfg=NewtonCollisionPipelineCfg(max_triangle_pairs=12_000_000),
+        num_substeps=2,
+        default_shape_cfg=NewtonShapeCfg(margin=0.01, ke=160000.0, kd=1100.0),
     )
     newton_kamino = NewtonCfg(solver_cfg=KaminoPADMMSolverCfg(max_contacts_per_world=64))
     default = newton_mjwarp

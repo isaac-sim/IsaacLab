@@ -7,7 +7,7 @@
 
 from dataclasses import MISSING
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, SteelSolverCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
@@ -130,6 +130,15 @@ class CabinetSimCfg(PresetCfg):
             debug_mode=False,
         ),
     )
+    newton_steel: SimulationCfg = replace(
+        newton_mjwarp,
+        dt=1 / 60,
+        physics=NewtonCfg(
+            solver_cfg=SteelSolverCfg(
+                enable_joint_limits=True, articulation_constraint_max=256, free_body_constraint_max=32
+            ),
+        ),
+    )
     default: SimulationCfg = newton_mjwarp
 
 
@@ -145,6 +154,7 @@ class CabinetDecimationCfg(PresetCfg):
     ovphysx: int = isaacsim_physx
     physx: int = isaacsim_physx
     newton_mjwarp: int = 10
+    newton_steel: int = 1
     default: int = newton_mjwarp
 
 

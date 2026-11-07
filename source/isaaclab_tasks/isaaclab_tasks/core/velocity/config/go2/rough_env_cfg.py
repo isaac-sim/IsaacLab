@@ -47,6 +47,7 @@ class UnitreeGo2RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         # simulation
         # execute the DC motor actuators through the backend-native path
         self.sim.use_newton_actuators = True
+        self.sim.physics.newton_steel.solver_cfg.joint_limit_activation_gap = 0.4
         # scene
         self.scene.robot = replace(UNITREE_GO2_CFG, prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/base"

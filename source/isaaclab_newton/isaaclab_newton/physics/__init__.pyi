@@ -35,6 +35,8 @@ __all__ = [
     "NewtonSoftContactCfg",
     "NewtonSolver",
     "NewtonSolverCfg",
+    "SteelSolver",
+    "SteelSolverCfg",
     "create_builder",
     "VBDSolver",
     "VBDSolverCfg",
@@ -69,6 +71,8 @@ from .newton_collision_cfg import HydroelasticSDFCfg, NewtonCollisionPipelineCfg
 from .newton_manager import NewtonManager, create_newton_builder
 from .newton_manager_cfg import NewtonCfg, NewtonShapeCfg, NewtonSoftContactCfg, NewtonSolverCfg
 from .newton_solver import NewtonSolver
+from .steel_solver import SteelSolver
+from .steel_solver_cfg import SteelSolverCfg
 from .vbd_solver import VBDSolver
 from .vbd_solver_cfg import VBDSolverCfg
 from .xpbd_solver import XPBDSolver

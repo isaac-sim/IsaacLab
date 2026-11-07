@@ -7,7 +7,13 @@
 
 from dataclasses import MISSING
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
+from isaaclab_newton.physics import (
+    MJWarpSolverCfg,
+    NewtonCfg,
+    NewtonCollisionPipelineCfg,
+    NewtonShapeCfg,
+    SteelSolverCfg,
+)
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxRigidBodyCfg
@@ -522,6 +528,18 @@ class PhysicsCfg(PresetCfg):
         default_shape_cfg=NewtonShapeCfg(),
         num_substeps=2,
         debug_mode=False,
+    )
+    newton_steel = NewtonCfg(
+        solver_cfg=SteelSolverCfg(
+            update_mass_matrix_interval=2,
+            enable_joint_limits=True,
+            joint_limit_activation_gap=0.1,
+            articulation_constraint_max=192,
+            free_body_constraint_max=64,
+        ),
+        collision_cfg=NewtonCollisionPipelineCfg(rigid_contact_max=4_000_000),
+        default_shape_cfg=NewtonShapeCfg(),
+        num_substeps=2,
     )
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
     default = newton_mjwarp
