@@ -22,7 +22,6 @@ from http.client import HTTPException, HTTPMessage, HTTPResponse
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from ..utils.assets import ISAACLAB_NUCLEUS_DIR
 from ._greeting_catalog import AssetReference, decode_greeting, select_assets
 
 logger = logging.getLogger(__name__)
@@ -31,6 +30,7 @@ _MAX_CATALOG_BYTES = 524288
 _MAX_ASSET_BYTES = 262144
 _REQUEST_TIMEOUT = 1.0
 _REFRESH_INTERVAL = 300
+_GREETINGS_ROOT = "https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/greetings"
 
 
 class RemoteGreetings:
@@ -46,7 +46,7 @@ class RemoteGreetings:
         self._logos: tuple[str, str] | None = None
         if os.getenv("ISAACLAB_REMOTE_GREETINGS") == "0":
             return
-        self._root = ISAACLAB_NUCLEUS_DIR.rstrip("/\\") + "/Greetings"
+        self._root = _GREETINGS_ROOT
         try:
             cache_root = os.getenv("XDG_CACHE_HOME") or os.getenv("LOCALAPPDATA") or str(Path.home() / ".cache")
         except (OSError, RuntimeError) as error:
@@ -153,29 +153,22 @@ def _read_local(path: Path, limit: int) -> bytes:
 
 
 def _read_bytes(location: str, limit: int) -> bytes:
-    """Read HTTP(S) or local asset roots without importing a simulator or an image library."""
-    parsed = urlsplit(location)
-    if parsed.scheme in ("http", "https"):
-        request = urllib.request.Request(location, headers={"Accept": "application/json"})
-        opener = urllib.request.build_opener(_SameOriginRedirect())
-        with opener.open(request, timeout=_REQUEST_TIMEOUT) as response:
-            deadline = time.monotonic() + _REQUEST_TIMEOUT
-            chunks = []
-            size = 0
-            while size <= limit:
-                if time.monotonic() >= deadline:
-                    raise TimeoutError("Loading greeting download exceeded its time limit.")
-                chunk = response.read1(min(65536, limit + 1 - size))
-                if not chunk:
-                    return b"".join(chunks)
-                chunks.append(chunk)
-                size += len(chunk)
-        raise ValueError("Loading greeting download exceeds its byte limit.")
-    if parsed.scheme == "file" and parsed.netloc in ("", "localhost"):
-        return _read_local(Path(urllib.request.url2pathname(parsed.path)), limit)
-    if not parsed.scheme or (os.name == "nt" and len(parsed.scheme) == 1):
-        return _read_local(Path(location), limit)
-    raise ValueError("Loading greetings require an HTTP(S) or local asset root.")
+    """Read a bounded HTTP response without importing a simulator or an image library."""
+    request = urllib.request.Request(location, headers={"Accept": "application/json"})
+    opener = urllib.request.build_opener(_SameOriginRedirect())
+    with opener.open(request, timeout=_REQUEST_TIMEOUT) as response:
+        deadline = time.monotonic() + _REQUEST_TIMEOUT
+        chunks = []
+        size = 0
+        while size <= limit:
+            if time.monotonic() >= deadline:
+                raise TimeoutError("Loading greeting download exceeded its time limit.")
+            chunk = response.read1(min(65536, limit + 1 - size))
+            if not chunk:
+                return b"".join(chunks)
+            chunks.append(chunk)
+            size += len(chunk)
+    raise ValueError("Loading greeting download exceeds its byte limit.")
 
 
 class _SameOriginRedirect(urllib.request.HTTPRedirectHandler):

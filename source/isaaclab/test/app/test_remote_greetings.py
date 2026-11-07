@@ -79,7 +79,9 @@ def source(tmp_path, monkeypatch):
             source.done.set()
 
     def open_url(opener, request, *args, **kwargs):
-        path = request.full_url.removeprefix("https://greetings.example/IsaacLab/Greetings/")
+        path = request.full_url.removeprefix(
+            "https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/greetings/"
+        )
         source.requests.append(path)
         source.entered.set()
         if not source.release.wait(2):
@@ -89,7 +91,6 @@ def source(tmp_path, monkeypatch):
         return io.BytesIO(json.dumps(source.manifest).encode() if path == "manifest.json" else source.blobs[path])
 
     monkeypatch.setenv("XDG_CACHE_HOME", str(source.cache))
-    monkeypatch.setattr(remote, "ISAACLAB_NUCLEUS_DIR", "https://greetings.example/IsaacLab")
     monkeypatch.setattr(remote, "datetime", SimpleNamespace(now=lambda tz: source.now))
     monkeypatch.setattr(remote.RemoteGreetings, "_refresh", observed_refresh)
     monkeypatch.setattr(urllib.request.OpenerDirector, "open", open_url)
