@@ -157,7 +157,9 @@ class Se3AbsRetargeterCfg(RetargeterCfg):
     """Configuration for absolute position retargeter."""
 
     zero_out_xy_rotation: bool = True
-    """If True, zero out the rotation around the x and y axes. Defaults to True."""
+    """Whether to retain only yaw before applying a fixed 180-degree rotation about the tool X axis.
+    Defaults to True.
+    """
 
     use_wrist_rotation: bool = False
     """If True, use the wrist rotation instead of the finger average. Defaults to False."""
