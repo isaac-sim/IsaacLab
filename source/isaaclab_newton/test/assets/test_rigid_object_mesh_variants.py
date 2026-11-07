@@ -147,6 +147,10 @@ def test_static_multi_asset_variants(device: str, solver_cfg, static: bool) -> N
         sim._app_control_on_stop_handle = None
         scene_cfg = _VariantSceneCfg(num_envs=2, env_spacing=2.0)
         scene_cfg.object.spawn.static = static
+        if not static:
+            with pytest.raises(NotImplementedError, match="Reset-time mesh variants are unavailable"):
+                InteractiveScene(scene_cfg)
+            return
         scene = InteractiveScene(scene_cfg)
         sim.register_interactive_scene(scene)
         sim.reset()

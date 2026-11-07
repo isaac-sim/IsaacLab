@@ -124,6 +124,15 @@ class NewtonCfg(PhysicsCfg):
     class_type: type[NewtonManager] | str = "{DIR}.newton_manager:NewtonManager"
     """Manager class, constructed by SimulationContext as ``instantiate(cfg)``."""
 
+    @property
+    def mesh_variant_source_root(self) -> str | None:
+        """Keep switchable rigid sources outside the cloned worlds for MJWarp's native body variants."""
+        from .mjwarp_solver_cfg import MJWarpSolverCfg
+
+        if isinstance(self.solver_cfg, MJWarpSolverCfg) and not self.solver_cfg.use_mujoco_contacts:
+            return "/World/IsaacLabPrototypes"
+        return None
+
     num_substeps: int = 1
     """Number of substeps to use for the solver."""
 
