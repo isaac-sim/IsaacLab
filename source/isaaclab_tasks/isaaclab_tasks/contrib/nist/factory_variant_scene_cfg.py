@@ -24,6 +24,7 @@ def _variant_spawner(configs: tuple[RigidObjectCfg, ...]) -> sim_utils.MultiAsse
     return sim_utils.MultiAssetSpawnerCfg(
         assets_cfg=[resolve_presets(cfg.spawn.copy(), selected=("newton_mjwarp",)) for cfg in configs],
         activate_contact_sensors=True,
+        static=False,
     )
 
 
