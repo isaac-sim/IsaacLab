@@ -29,6 +29,7 @@ from isaaclab_contrib.controllers.lee_acceleration_control_cfg import LeeAccCont
 from isaaclab_contrib.controllers.lee_attitude_control_cfg import LeeAttControllerCfg
 from isaaclab_contrib.controllers.lee_position_control_cfg import LeePosControllerCfg
 from isaaclab_contrib.controllers.lee_velocity_control_cfg import LeeVelControllerCfg
+from isaaclab_contrib.utils.math import aggregate_inertia_about_robot_com
 
 
 class _DummyRobot:
@@ -201,3 +202,23 @@ def test_lee_controller_inertia_rotates_link_frame_inertia_once(monkeypatch: pyt
     expected = torch.tensor([[2.0, -0.1, -0.3], [-0.1, 1.0, 0.2], [-0.3, 0.2, 3.0]])
     torch.testing.assert_close(controller.mass, torch.tensor([2.0]))
     torch.testing.assert_close(controller.robot_inertia[0], expected)
+
+
+def test_aggregate_inertia_warns_and_ignores_deprecated_com_quat():
+    """Passing the deprecated ``body_com_quat_b`` warns and does not rotate the link-frame inertia."""
+    inertia_link = torch.tensor([[1.0, 0.1, 0.2], [0.1, 2.0, 0.3], [0.2, 0.3, 3.0]])
+    s = 0.5**0.5
+    # Principal axes rotated +90 deg about link x (xyzw); the link frame coincides with the base frame.
+    com_quat_b = torch.tensor([s, 0.0, 0.0, s]).reshape(1, 1, 4)
+
+    with pytest.warns(DeprecationWarning, match="body_com_quat_b"):
+        _, inertia_total, _ = aggregate_inertia_about_robot_com(
+            inertia_link.reshape(1, 1, 9),
+            torch.tensor([[0.5]]),
+            torch.zeros(1, 1, 3),
+            com_quat_b,
+            torch.zeros(1, 1, 3),
+            torch.tensor([0.0, 0.0, 0.0, 1.0]).reshape(1, 1, 4),
+        )
+
+    torch.testing.assert_close(inertia_total[0], inertia_link)

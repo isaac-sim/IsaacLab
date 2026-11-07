@@ -64,6 +64,7 @@ class LeeControllerBase:
             self._to_torch(self.robot.data.body_inertia),
             body_inv_mass_local,
             body_com_pos_b,
+            None,
             math_utils.quat_apply_inverse(root_quat_exp, body_link_pos_delta),
             math_utils.quat_mul(math_utils.quat_inv(root_quat_exp), body_link_quat_w),
         )

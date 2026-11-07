@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import logging
+import warnings
 
 import torch
 import torch.nn.functional
@@ -23,6 +24,7 @@ def aggregate_inertia_about_robot_com(
     body_inertias_local: torch.Tensor,
     body_inv_mass_local: torch.Tensor,
     body_com_pos_b: torch.Tensor,
+    body_com_quat_b: torch.Tensor | None,
     body_pos_b: torch.Tensor,
     body_quat_b: torch.Tensor,
     eps=1e-12,
@@ -40,6 +42,11 @@ def aggregate_inertia_about_robot_com(
       body_inv_mass_local (N,B): Inverse link masses (<=0 treated as padding).
       body_com_pos_b (N,B,3): Link COM position relative to the link frame
         (massLocalPose translation); used as body_pos_b + R_link_base @ body_com_pos_b.
+      body_com_quat_b (None): Deprecated and ignored; pass ``None``. ``body_inertias_local`` is already
+        expressed in the link frame, so the principal-axes rotation must not be applied.
+
+        .. deprecated:: 6.0.0
+           The argument will be removed in a future release.
       body_pos_b (N,B,3): Link origins in base frame.
       body_quat_b (N,B,4 xyzw): Link→base orientation.
       eps (float): Small value to guard division by zero.
@@ -56,6 +63,14 @@ def aggregate_inertia_about_robot_com(
       4) Parallel-axis: I_pa = m (‖r‖² I - r rᵀ), r = com_link_b - com_robot_b
       5) Sum over links and symmetrize
     """
+    if body_com_quat_b is not None:
+        warnings.warn(
+            "The `body_com_quat_b` argument of `aggregate_inertia_about_robot_com` is deprecated and ignored:"
+            " `body_inertias_local` is already expressed in the link frame. Pass `None` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
     # Inertia about the link COM, expressed in the link frame
     num_envs, num_bodies, _ = body_inertias_local.shape
     I_local = body_inertias_local.view(num_envs, num_bodies, 3, 3)
@@ -72,8 +87,8 @@ def aggregate_inertia_about_robot_com(
     # Robot COM base frame (mass-weighted)
     com_robot_b = (m.unsqueeze(-1) * com_link_b).sum(dim=1) / (m_sum + eps)
 
-    # Rotate inertia from link frame to base frame. ``body_inertias_local`` is already in the link
-    # frame, so the principal-axes rotation (``body_com_quat_b``) must not be applied again.
+    # Rotate inertia from link frame to base frame (it is already in the link frame, so the
+    # principal-axes rotation must not be applied on top).
     I_base = R_link_base @ I_local @ R_link_base.transpose(-1, -2)
 
     # Parallel-axis to robot COM
