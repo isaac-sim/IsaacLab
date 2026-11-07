@@ -691,6 +691,8 @@ def test_articulation_joint_and_body_properties_round_trip(articulation_scene: _
     inertias = articulation.data.body_inertia.torch[env_ids][:, body_ids].clone()
     inertias[0, 0, 0] *= 1.2
     inertias[0, 1, 4] *= 1.3
+    # A product of inertia makes PhysX re-derive the principal axes, so the COM orientation changes on write.
+    inertias[0, 1, [1, 3]] = 0.25 * inertias[0, 1, 0]
     expected_masses = articulation.data.body_mass.torch.clone()
     expected_masses[env_ids[:, None], body_ids] = masses
     articulation.set_masses_index(masses=masses, env_ids=env_ids, body_ids=body_ids)
@@ -701,6 +703,7 @@ def test_articulation_joint_and_body_properties_round_trip(articulation_scene: _
     torch.testing.assert_close(articulation.data.body_com_pose_b.torch, expected_coms)
     expected_inertias = articulation.data.body_inertia.torch.clone()
     expected_inertias[env_ids[:, None], body_ids] = inertias
+    articulation.data.body_com_quat_w  # primes the world-frame COM cache before the inertia write
     articulation.set_inertias_index(inertias=inertias, env_ids=env_ids, body_ids=body_ids)
     torch.testing.assert_close(articulation.data.body_inertia.torch, expected_inertias)
     for public, raw in (
@@ -709,6 +712,10 @@ def test_articulation_joint_and_body_properties_round_trip(articulation_scene: _
         (articulation.data.body_inertia.torch, articulation.root_view.get_inertias()),
     ):
         torch.testing.assert_close(wp.to_torch(raw).to(device), public[:, body_backend_to_user])
+    torch.testing.assert_close(
+        articulation.data.body_com_quat_w.torch,
+        quat_mul(articulation.data.body_link_quat_w.torch, articulation.data.body_com_quat_b.torch),
+    )
 
     # Restore the initial properties for the tests that drive this island.
     articulation.set_masses_index(masses=initial_properties["masses"], full_data=True)
@@ -1243,39 +1250,6 @@ def test_inertial_writes_refresh_the_mass_matrix(articulation_scene: _Articulati
         after = data.mass_matrix.torch.clone()
         write(**{kwarg: initial})
         assert not torch.allclose(after, before, atol=1e-4), f"{kwarg} write left a stale matrix"
-
-
-def test_inertia_write_refreshes_the_cached_com_orientation(articulation_scene: _ArticulationScene) -> None:
-    """A non-diagonal inertia write moves the PhysX principal axes, and the cached COM orientation follows at once."""
-    articulation = articulation_scene.floating
-    data = articulation.data
-    body_id = 1
-    initial_inertia = data.body_inertia.torch.clone()
-    quat_before = data.body_com_quat_b.torch[:, body_id].clone()  # primes the static COM cache
-    data.body_com_pose_w  # primes the world-frame pose derived from it
-
-    # Principal moments (3, 2, 4) rotated 45 deg about z: the xy product of inertia is non-zero.
-    inertia = initial_inertia.clone()
-    inertia[:, body_id] = torch.tensor([2.5, 0.5, 0.0, 0.5, 2.5, 0.0, 0.0, 0.0, 4.0], device=articulation_scene.device)
-    try:
-        articulation.set_inertias_index(inertias=inertia)
-        view_quat = wp.to_torch(articulation.root_view.get_coms())[:, body_id, 3:7].to(articulation_scene.device)
-        cached_quat = data.body_com_quat_b.torch[:, body_id]
-        # The orientation moved, and the cache matches PhysX up to the sign of the quaternion.
-        assert (torch.sum(quat_before * view_quat, dim=-1).abs() < 0.99).all()
-        torch.testing.assert_close(
-            torch.sum(cached_quat * view_quat, dim=-1).abs(), torch.ones(_NUM_ENVS).to(cached_quat)
-        )
-        # The world-frame pose derived from the cache follows as well.
-        expected_world_quat = quat_mul(data.body_link_pose_w.torch[:, body_id, 3:7], view_quat)
-        world_quat = data.body_com_pose_w.torch[:, body_id, 3:7]
-        torch.testing.assert_close(
-            torch.sum(world_quat * expected_world_quat, dim=-1).abs(), torch.ones(_NUM_ENVS).to(world_quat)
-        )
-    finally:
-        articulation.set_inertias_index(inertias=initial_inertia)
-        articulation_scene.sim.step()
-        articulation.update(articulation_scene.sim.cfg.dt)
 
 
 def test_joint_position_limit_clamping_respects_logging(articulation_scene: _ArticulationScene, caplog) -> None:

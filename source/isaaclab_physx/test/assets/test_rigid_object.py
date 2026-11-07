@@ -471,35 +471,19 @@ def test_rigid_object_inertial_properties(scene: _Scene) -> None:
         torch.testing.assert_close(data.torch, expected[name])
         torch.testing.assert_close(wp.to_torch(raw).to(device).reshape(expected[name].shape), expected[name])
 
-
-def test_rigid_object_inertia_write_refreshes_the_cached_com_orientation(scene: _Scene) -> None:
-    """A non-diagonal inertia write moves the PhysX principal axes, and the cached COM orientation follows at once."""
-    device = scene.device
-    cube_object = scene.cubes
-    data = cube_object.data
-    initial_inertia = data.body_inertia.torch.clone()
-    quat_before = data.body_com_quat_b.torch[:, 0].clone()  # primes the static COM cache
-    data.body_com_pose_w  # primes the world-frame pose derived from it
-
-    # Principal moments (3, 2, 4) rotated 45 deg about z: the xy product of inertia is non-zero.
-    inertia = initial_inertia.clone()
-    inertia[:, 0] = torch.tensor([2.5, 0.5, 0.0, 0.5, 2.5, 0.0, 0.0, 0.0, 4.0], device=device)
-    try:
-        cube_object.set_inertias_index(inertias=inertia)
-        view_quat = wp.to_torch(cube_object.root_view.get_coms())[:, 3:7].to(device)
-        cached_quat = data.body_com_quat_b.torch[:, 0]
-        # The orientation moved, and the cache matches PhysX up to the sign of the quaternion.
-        assert (torch.sum(quat_before * view_quat, dim=-1).abs() < 0.99).all()
-        torch.testing.assert_close(torch.sum(cached_quat * view_quat, dim=-1).abs(), torch.ones(_NUM_ENVS).to(device))
-        # The world-frame pose derived from the cache follows as well.
-        expected_world_quat = quat_mul(data.body_link_pose_w.torch[:, 0, 3:7], view_quat)
-        world_quat = data.body_com_pose_w.torch[:, 0, 3:7]
-        torch.testing.assert_close(
-            torch.sum(world_quat * expected_world_quat, dim=-1).abs(), torch.ones(_NUM_ENVS).to(device)
-        )
-    finally:
-        cube_object.set_inertias_index(inertias=initial_inertia)
-        scene.step()
+    # A product of inertia makes PhysX re-derive the principal axes; the COM caches follow without a step.
+    cube_object.data.body_com_quat_w  # primes the world-frame COM cache before the inertia write
+    inertias = expected["body_inertia"][1:].clone()
+    inertias[..., [1, 3]] = 0.25 * inertias[..., [0]]
+    cube_object.set_inertias_index(inertias=inertias, env_ids=env_ids, body_ids=body_ids)
+    torch.testing.assert_close(
+        cube_object.data.body_com_quat_b.torch[:, 0], wp.to_torch(cube_object.root_view.get_coms()).to(device)[:, 3:7]
+    )
+    torch.testing.assert_close(
+        cube_object.data.body_com_quat_w.torch,
+        quat_mul(cube_object.data.body_link_quat_w.torch, cube_object.data.body_com_quat_b.torch),
+    )
+    cube_object.set_inertias_index(inertias=expected["body_inertia"][1:], env_ids=env_ids, body_ids=body_ids)
 
 
 @pytest.mark.isaacsim_ci
