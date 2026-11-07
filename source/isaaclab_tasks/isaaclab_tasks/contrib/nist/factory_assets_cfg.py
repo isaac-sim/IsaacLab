@@ -221,10 +221,6 @@ x, y, z = NIST_BOARD_CFG.nist_board_center.pos
 NISTBOARD_CFG = RigidObjectCfg(
     prim_path="{ENV_REGEX_NS}/NistBoard",
     spawn=sim_utils.UsdFileCfg(
-        func=preset(
-            default="isaaclab.sim.spawners.from_files.from_files:spawn_from_usd",
-            newton_mjwarp="isaaclab_tasks.contrib.nist.factory_spawners:spawn_nistboard_with_deep_collider",
-        ),
         usd_path=f"{ASSET_DIR}/NIST/Taskboard/nistboard.usd",
         rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
         scale=(1.0, 1.0, 1.0),
@@ -232,12 +228,6 @@ NISTBOARD_CFG = RigidObjectCfg(
         make_uninstanceable=True,
     ),
     init_state=RigidObjectCfg.InitialStateCfg(pos=(0.65 - x, 0.0 - y, 0.0206 - z), rot=(0.0, 1.0, 0.0, 0.0)),
-)
-NISTBOARD_NEWTON_CFG = NISTBOARD_CFG.replace(
-    spawn=NISTBOARD_CFG.spawn.replace(
-        func="isaaclab_tasks.contrib.nist.factory_spawners:spawn_nistboard_with_deep_collider",
-        physics_material=ASSEMBLY_CONTACT_MATERIAL_CFG.newton_mjwarp,
-    )
 )
 
 

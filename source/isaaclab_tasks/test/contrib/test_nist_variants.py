@@ -70,9 +70,9 @@ def test_static_and_variant_tasks_resolve_with_their_policy_inputs():
     choice = reset.params["terms"]["reset_strategies"]
     assert list(choice.params["terms"]) == ["start_random"]
     assert variant.episode_length_s == 14.0
-    assert variant.events.held_asset_material.mode == variant.events.fixed_asset_material.mode == "reset"
-    assert list(variant.events.__dict__).index("reset_strategies") < list(variant.events.__dict__).index(
-        "held_asset_material"
+    assert variant.events.held_asset_material.mode == variant.events.fixed_asset_material.mode == "startup"
+    assert list(variant.events.__dict__).index("held_asset_material") < list(variant.events.__dict__).index(
+        "reset_strategies"
     )
 
 
@@ -263,7 +263,7 @@ def test_gear_profile_reaches_assembled_and_entry_poses(name):
     variant = next(variant for variant in ASSEMBLY_VARIANTS if variant.name == name)
     segment = variant.profile.segments[0]
     profile = AssemblyProfile(variant.profile)
-    assembled, _ = profile.sample((0.0, 0.0), 1, "cpu")
+    assembled, _ = profile.sample((0.1, 0.1), 1, "cpu")
     entry, _ = profile.sample((1.0, 1.0), 1, "cpu")
     torch.testing.assert_close(assembled[0], torch.tensor(segment.start_pose.pos))
     torch.testing.assert_close(entry[0], torch.tensor(segment.start_pose.pos) + torch.tensor(segment.distance))
@@ -271,14 +271,14 @@ def test_gear_profile_reaches_assembled_and_entry_poses(name):
 
 @pytest.mark.parametrize("fraction", [0.2, 0.4, 0.7])
 def test_bnc_profile_turns_then_withdraws(fraction):
-    """The bayonet segment turns through a quarter circle before linear withdrawal."""
+    """The first segment includes the reference's extra turn; withdrawal uses its authored pose."""
     variant = next(variant for variant in ASSEMBLY_VARIANTS if variant.name == "bnc")
     twist, withdrawal = variant.profile.segments
     position, orientation = AssemblyProfile(variant.profile).sample((fraction, fraction), 1, "cpu")
     segment = twist if fraction <= twist.fraction[1] else withdrawal
     progress = (fraction - segment.fraction[0]) / (segment.fraction[1] - segment.fraction[0])
     expected_position = torch.lerp(torch.tensor(segment.start_pose.pos), torch.tensor(segment.end_pose.pos), progress)
-    angle = torch.tensor([min(fraction / twist.fraction[1], 1.0) * torch.pi / 2])
+    angle = torch.tensor([fraction / twist.fraction[1] * torch.pi if segment is twist else torch.pi / 2])
     expected_orientation = math_utils.quat_mul(
         torch.tensor([twist.start_pose.quat]),
         math_utils.quat_from_euler_xyz(torch.zeros_like(angle), torch.zeros_like(angle), angle),
