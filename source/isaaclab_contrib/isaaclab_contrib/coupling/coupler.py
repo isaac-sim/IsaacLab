@@ -354,6 +354,10 @@ class CouplerSolver(NewtonSolver):
             kwargs["shape_pairs_filtered"] = self.native.view(self.cfg.outer_contact_entry).shape_contact_pairs
         return super().create_collision_pipeline(**kwargs)
 
+    def material_graph_signature(self) -> tuple:
+        """Include material-dependent capture state from the implicit-MPM entries."""
+        return tuple(entry.material_graph_signature() for entry in self.entries.values())
+
     def reset(self, state: State, world_mask: wp.array) -> None:
         """Reset every entry for masked worlds, promoting a selected single MPM world to the full-reset path."""
         solver = self.native

@@ -367,8 +367,11 @@ class NewtonBackend:
                 logger.warning(ignored[change])
                 self.warned_model_changes.add(change)
             flags |= change
+        signature = self.solver_ops.material_graph_signature() if self.graphs else None
         with wp.ScopedDevice(self.device):
             self.solver.notify_model_changed(flags)
+        if signature is not None and signature != self.solver_ops.material_graph_signature():
+            self.invalidate_graph()
         self.model_changes.clear()
 
     def activate_actuators(self) -> None:

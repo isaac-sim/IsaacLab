@@ -145,6 +145,10 @@ class NewtonSolver:
 
     # ----- Stepping and resets -----
 
+    def material_graph_signature(self) -> tuple:
+        """Return material buffers and host-side branches that model notifications can change."""
+        return ()
+
     def pre_step(self, state: State) -> None:
         """Refresh solver structures once per physics step, before collision."""
 
