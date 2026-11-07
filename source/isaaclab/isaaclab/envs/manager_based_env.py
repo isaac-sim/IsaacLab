@@ -208,8 +208,17 @@ class ManagerBasedEnv:
         self.load_managers()
         report_activity(None)
         # let the physics backend run the actions, asset writes and decimation loop inside its step when it can,
-        # unless renders or recorders must run between the physics steps of one environment step
-        if self.cfg.sim.render_interval % self.cfg.decimation == 0 and not self.recorder_manager.records_physics_steps:
+        # unless renders, recorders or sensors must run between the physics steps of one environment step
+        eager_sensors = not self.scene.cfg.lazy_sensor_update
+        sensors_sample_physics_steps = any(
+            (eager_sensors or getattr(sensor.cfg, "history_length", 0) > 0) and sensor.cfg.update_period < self.step_dt
+            for sensor in self.scene.sensors.values()
+        )
+        if (
+            self.cfg.sim.render_interval % self.cfg.decimation == 0
+            and not self.recorder_manager.records_physics_steps
+            and not sensors_sample_physics_steps
+        ):
             self._physics_handles_actions = self.sim.backend_manager.bind_control(self.action_manager, self.scene)
         self.sim.backend_manager.set_decimation(self.cfg.decimation)
         self._physics_handles_decimation = self.sim.backend_manager.handles_decimation()

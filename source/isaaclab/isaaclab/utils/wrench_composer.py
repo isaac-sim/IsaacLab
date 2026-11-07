@@ -483,8 +483,7 @@ class WrenchComposer:
                     f"into composer with shape ({self.num_envs}, {self.num_bodies})."
                 )
 
-        self._active = True
-        self._dirty = True
+        self._mark_active()
         self._has_local_wrench = self._has_local_wrench or other._has_local_wrench
         self._has_global_wrench = self._has_global_wrench or other._has_global_wrench
         self._has_global_positions = self._has_global_positions or other._has_global_positions
@@ -673,12 +672,7 @@ class WrenchComposer:
         Frame and argument presence are launch-time choices, fixed during graph capture.
         Selection contents and force/torque values remain device inputs on every replay.
         """
-        self._active = True
-        self._dirty = True
-        if not self._used:
-            self._used = True
-            if self._on_first_use is not None:
-                self._on_first_use()
+        self._mark_active()
         if is_global:
             self._has_global_wrench = True
             self._has_global_positions = self._has_global_positions or (forces is not None and positions is not None)
@@ -686,6 +680,15 @@ class WrenchComposer:
             return force, self._global_torque_w
         self._has_local_wrench = True
         return self._local_force_b, self._local_torque_b
+
+    def _mark_active(self) -> None:
+        """Mark pending contributions, calling :attr:`_on_first_use` at the first one."""
+        self._active = True
+        self._dirty = True
+        if not self._used:
+            self._used = True
+            if self._on_first_use is not None:
+                self._on_first_use()
 
     def _resolve_env_ids(self, env_ids: wp.array | torch.Tensor | list | slice | None) -> wp.array | torch.Tensor:
         """Resolve environment IDs.

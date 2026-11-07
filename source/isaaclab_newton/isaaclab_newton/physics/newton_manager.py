@@ -573,7 +573,8 @@ class NewtonManager(PhysicsManager):
     def register_post_step_callback(self, callback: Callable[[], None]) -> None:
         """Append a hook invoked once per :meth:`step`, after the last solver substep and before sensors update.
 
-        The hook reflects the state after all decimation iterations of the step. Callbacks must be graph-safe (fixed
+        The hook reflects the state after all decimation iterations of the step; with bound control it also runs before
+        every physics step, ahead of the bound writes. Callbacks must be graph-safe (fixed
         shapes, no host branching on device data) because they are recorded into the captured step.
         Hard resets discard these hooks; register them again when the new model is ready.
         """

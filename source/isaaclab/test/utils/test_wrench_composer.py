@@ -580,6 +580,23 @@ def test_recorded_wrench_work_applies_wrenches_written_after_capture(device):
     assert first_uses == ["instantaneous", "permanent"]
 
 
+@pytest.mark.parametrize("device", test_devices())
+def test_raw_buffer_merge_is_the_first_use_of_its_destination(device):
+    """A merge into an unused composer calls its first-use callback, as a force write would."""
+    com, quat = _poses()
+    asset = SimpleNamespace(
+        num_instances=2, num_bodies=2, device=device, data=_AssetData(com.to(device), quat.to(device))
+    )
+    first_uses = []
+    source = WrenchComposer(asset)
+    destination = WrenchComposer(asset, on_first_use=lambda: first_uses.append("destination"))
+    with wp.ScopedDevice(device):
+        source.add_forces_and_torques_index(wp.array([[[3.0, 0.0, 0.0]]], dtype=wp.vec3f), env_ids=[0], body_ids=[0])
+        destination.add_raw_buffers_from(source)
+        destination.add_raw_buffers_from(source)
+    assert first_uses == ["destination"]
+
+
 @pytest.mark.parametrize(
     "name",
     [
