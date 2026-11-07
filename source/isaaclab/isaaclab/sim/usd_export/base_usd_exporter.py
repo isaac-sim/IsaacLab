@@ -27,6 +27,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# USD vocabulary of the export: pseudo attributes of an edit, engine sentinels, and the USD attributes that
+# every backend's importer reads, which the backend exporters map their engine values onto.
+
 _WORLD_POSE = "isaaclab:worldPose"
 """Pseudo attribute of a :class:`UsdEdit` that places a prim at a world transform."""
 
