@@ -58,7 +58,7 @@ class NewtonSolver:
     """Whether the solver can honor a Warp determinism guarantee."""
 
     contact_sensors: ClassVar[bool] = True
-    """Whether Newton contact sensors can read the solver's contacts."""
+    """Whether the Newton solver can provide CONTACT_F observables to contact sensors."""
 
     ignored_model_changes: ClassVar[Mapping[ModelFlags, str]] = {}
     """Model changes the solver does not apply after construction, mapped to the warning logged once."""
@@ -158,7 +158,7 @@ class NewtonSolver:
         *,
         observables: SolverBase.Observables | None = None,
     ) -> None:
-        """Advance one substep of ``dt`` [s], filling any requested solver observables."""
+        """Advance one substep of ``dt`` [s]."""
         if observables is None:
             self.native.step(state_in, state_out, control, contacts, dt)
         else:
