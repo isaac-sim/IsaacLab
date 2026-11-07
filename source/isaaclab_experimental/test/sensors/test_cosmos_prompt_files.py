@@ -1,0 +1,60 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Cosmos prompts read from files: text as written, JSON as-is, one prompt per file."""
+
+import json
+
+import pytest
+from isaaclab_experimental.cosmos import CosmosModel, CosmosModelCfg, read_prompt_files
+
+_SCENE = {
+    "subjects": [{"description": "A small apple with a yellow upper half and a red lower half."}],
+    "context": "Preserve the geometry, camera pose and movements of the depth conditioning.",
+}
+
+
+def test_text_and_json_files_become_prompts_in_the_order_given(tmp_path):
+    """Text loses only its surrounding whitespace; a JSON caption keeps its structure, serialized once."""
+    (tmp_path / "b.txt").write_text("  A grey bedsheet covers the table.\nSoft light.\n", encoding="utf-8")
+    (tmp_path / "a.json").write_text(json.dumps(_SCENE, indent=2) + "\n", encoding="utf-8")
+    scene = '{"subjects": [{"description": "A small apple with a yellow upper half and a red lower half."}], '
+    scene += '"context": "Preserve the geometry, camera pose and movements of the depth conditioning."}'
+    (tmp_path / "c.txt").write_text("A white plate.", encoding="utf-8")
+    sheet = "A grey bedsheet covers the table.\nSoft light."
+
+    assert read_prompt_files([str(tmp_path / "b.txt"), str(tmp_path / "a.json")]) == [sheet, scene]
+    # A pattern expands in sorted order.
+    assert read_prompt_files([str(tmp_path / "*.txt")]) == [sheet, "A white plate."]
+
+
+def test_prompt_files_replace_the_text_prompt_and_a_prompt_is_never_read_as_a_path(tmp_path):
+    """Paths go in ``prompt_files``; ``prompt`` is always used as text, even when it looks like a path."""
+    (tmp_path / "red.txt").write_text("A red cube.", encoding="utf-8")
+    (tmp_path / "blue.json").write_text(json.dumps({"subjects": "A blue cube."}), encoding="utf-8")
+    path_like = str(tmp_path / "red.txt")
+
+    from_files = CosmosModel(CosmosModelCfg(prompt="A lab.", prompt_files=str(tmp_path / "*"), max_episode_frames=13))
+    as_text = CosmosModel(CosmosModelCfg(prompt=path_like, max_episode_frames=13))
+
+    assert from_files._cfg.prompt == ['{"subjects": "A blue cube."}', "A red cube."]
+    assert as_text._cfg.prompt == path_like
+
+
+@pytest.mark.parametrize(
+    "name,content,message",
+    [
+        ("missing.txt", None, "does not exist"),
+        ("empty.txt", " \n", "is empty"),
+        ("broken.json", '{"subjects": [', "not valid JSON"),
+        ("prompt.md", "A lab.", "must be a .txt or .json file"),
+        ("none-*.json", None, "No Cosmos prompt file matches"),
+    ],
+)
+def test_unusable_prompt_files_are_rejected_with_their_path(tmp_path, name, content, message):
+    if content is not None:
+        (tmp_path / name).write_text(content, encoding="utf-8")
+    with pytest.raises(ValueError, match=message):
+        read_prompt_files([str(tmp_path / name)])
