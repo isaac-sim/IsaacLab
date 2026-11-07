@@ -185,6 +185,18 @@ class randomize_rigid_body_material(ManagerTermBase):
     On PhysX and OVPhysX, compliant-contact stiffness stored as negative native restitution is
     preserved. Restitution samples apply only to non-compliant shapes; friction is randomized for both.
 
+    The sampled values are per-shape material properties. The friction applied at a contact also depends
+    on the material of the other shape, such as the terrain, and on how the solver combines the two:
+
+    - **PhysX** and **OVPhysX**: Combined according to the materials' friction combine mode, see
+      :attr:`~isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg.friction_combine_mode`.
+    - **Newton with the MuJoCo Warp solver**: When both shapes have the same MuJoCo contact priority
+      (``mjc:priority``, which defaults to 0), the solver uses the larger of the two friction coefficients.
+      If the terrain friction is at or above the upper end of ``static_friction_range``, every contact uses
+      the terrain friction and this randomization has no effect. To make it effective, set the terrain
+      friction below the sampled range, or give the asset's colliders a higher priority with
+      :attr:`~isaaclab_newton.sim.schemas.MujocoCollisionCfg.priority` so that their friction is used.
+
     .. attention::
         On PhysX, this function uses CPU tensors to assign the material properties. It is recommended to
         use this function only during the initialization of the environment.
