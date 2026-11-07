@@ -121,6 +121,33 @@ variant because their batched Newton views currently require a uniform body layo
 
 For more detail on prototype assignment and replication, see :doc:`cloning`.
 
+Reset-time selection
+~~~~~~~~~~~~~~~~~~~~
+
+A rigid object's multi-asset spawner defines the variants and their IDs in list order. Clone composition chooses
+the initial variant for each world. A reset event can change it before writing the episode's pose and velocity:
+
+.. code-block:: python
+
+   part_cfg = RigidObjectCfg(
+       prim_path="{ENV_REGEX_NS}/Part",
+       spawn=sim_utils.MultiUsdFileCfg(usd_path=["small_part.usd", "large_part.usd"], static=False),
+   )
+
+Call ``scene["part"].write_mesh_variant_to_sim(variant_ids, env_ids)`` to select variants. A task with matching
+fixed and movable objects selects the same ID on both. Newton owns the selected IDs, geometry, and mass properties.
+
+Multi-asset spawning keeps its initial choice unless ``static=False`` is set. Reset-time selection uses Newton
+body variants with XPBD or MJWarp with external contacts and sleeping disabled, and at least two alternatives. Every
+alternative must contain one rigid body with the same fixed/free root-joint type and kinematic flags. Newton permits
+different shape types and counts, but shapes sharing a row need compatible collision groups. Select before
+randomizing contact materials because Newton restores the variant's materials. MJWarp with MuJoCo contacts rejects
+body variants when the solver initializes. Other physics backends keep the initial choice.
+
+With supported Newton physics, ``static=False`` authors every alternative under ``/World/IsaacLabPrototypes`` and
+clones the chosen source into each world. The source parent is hidden after cloning. The default ``static=True``
+authors each alternative at its first assigned world and uses the same source-to-destination clone pass.
+
 Run the example
 ---------------
 
