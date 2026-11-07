@@ -37,6 +37,12 @@ candidate. Generation must synchronize the scene before checks read derived body
 poses or contacts. Capture returns tensors for the accepted environments in the
 order supplied to the callback.
 
+For a purely procedural tensor catalog, the candidate indices can identify recipe
+rows instead of simulation environments. Generate and validate the recipe tensors
+in the callbacks without writing or stepping the scene. Use this only for recipe
+construction; validation of physical contacts and restored grasps still needs
+simulation and replay checks.
+
 A single generator is sufficient for ordinary randomized starts. Named generators
 collect balanced groups, which prevents an easily generated reset category from
 filling the entire buffer. When the collection budget is exhausted, construction
@@ -155,12 +161,13 @@ binary pickup-to-point reward. Generate and inspect a small buffer first:
        --num_envs 64 --bank_size 256 --headless --output outputs/pickup/reset_states.json
 
 Train with the existing RSL-RL runner. ``--num_envs`` is the number of environments
-per GPU in distributed training:
+per GPU in distributed training. Training runs without a viewer when no visualizer
+is requested:
 
 .. code-block:: bash
 
    uv run isaaclab train_multigpu --num_gpus 4 --rl_library rsl_rl \
-       --task IsaacContrib-Cube-Pickup-Franka --num_envs 1024 --headless
+       --task IsaacContrib-Cube-Pickup-Franka --num_envs 1024
 
 The task saves its generated reset states alongside the training logs. Evaluate a
 saved checkpoint from ordinary table starts using a separate seed:

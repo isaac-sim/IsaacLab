@@ -201,6 +201,7 @@ class EventsCfg:
 class CubePickupEnvCfg(ManagerBasedRLEnvCfg):
     """Reference task for sparse learning with generated and validated reset states."""
 
+    class_type: type | str = "{DIR}.cube_pickup_env:CubePickupEnv"
     scene: SceneCfg = SceneCfg(num_envs=1024, env_spacing=2.0)
     actions: ActionsCfg = ActionsCfg()
     observations: ObservationsCfg = ObservationsCfg()

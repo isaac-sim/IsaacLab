@@ -81,7 +81,7 @@ class ResetStateBuffer:
     ) -> None:
         """Generate, check, and capture a complete buffer before training starts.
 
-        Each generator receives all candidate environment indices on every attempt. Its optional
+        Each generator receives all candidate indices on every attempt. Its optional
         boolean return mask reports failed construction, such as an unsuccessful IK solve. Named
         checks return additional acceptance masks. Only candidates passing every condition are
         captured. Named generators receive equal quotas, differing by at most one row.
@@ -90,7 +90,8 @@ class ResetStateBuffer:
         the simulation or advance the environment's episode bookkeeping itself.
 
         Args:
-            env_ids: Candidate environment indices, shape [N], on the simulation device.
+            env_ids: Candidate indices, shape [N], on the generation device. These normally identify
+                simulation environments. Pure tensor-recipe generators may index their recipe batch instead.
             generate: A generator callback or a non-empty mapping of generator names to callbacks.
                 The optional returned mask has shape [N].
             capture: Callback returning a tensor tree with one leading row per supplied index.
