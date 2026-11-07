@@ -498,7 +498,7 @@ class NewtonBackend:
             else:
                 if self.device.is_capturing:
                     raise RuntimeError("Newton actuators that cannot be captured prevent recording the step.")
-                self.stage_body_forces()
+                self._stage_body_forces()
                 for i in range(steps):
                     self._launch("before_actuators", self._before_actuators)
                     actuators.step(self.state_0, self.control, self.dt)
@@ -514,11 +514,6 @@ class NewtonBackend:
         if not self.device.is_capturing:
             self.solver_ops.check_step(captured, self.cfg.debug_mode)
         return captured
-
-    def stage_body_forces(self) -> None:
-        """Copy the body forces written to ``state_0``, so that every following solver substep applies them."""
-        if self.staged_body_f is not None:
-            wp.copy(self.staged_body_f, self.state_0.body_f)
 
     def state_pointers(self) -> tuple[int, int]:
         """Addresses of :attr:`state_0`'s body and particle arrays, ``0`` for an absent array.
@@ -615,7 +610,7 @@ class NewtonBackend:
     def _simulate(self, steps: int) -> None:
         """Run ``steps`` physics steps with the Newton actuators, then finish the step."""
         actuators = self.actuators
-        self.stage_body_forces()
+        self._stage_body_forces()
         for i in range(steps):
             self._before_actuators()
             if actuators is not None:
@@ -632,6 +627,9 @@ class NewtonBackend:
             self.collision_pipeline.collide(self.state_0, self.contacts)
         for callback in self.pre_actuator_callbacks:
             callback()
+        if self.control_bound:
+            # bound asset writes replace the body forces staged before the step
+            self._stage_body_forces()
 
     def _after_actuators(self, observables: SolverBase.Observables | None) -> None:
         """Run the post-actuator callbacks and the solver substeps of one physics step."""
@@ -645,6 +643,11 @@ class NewtonBackend:
         for callback in self.post_step_callbacks:
             callback()
         self._update_sensors()
+
+    def _stage_body_forces(self) -> None:
+        """Copy the body forces written to ``state_0`` before the step, so that every solver substep applies them."""
+        if self.staged_body_f is not None:
+            wp.copy(self.staged_body_f, self.state_0.body_f)
 
     def _run_solver_substeps(self, contacts: Contacts | None, *, observables: SolverBase.Observables | None) -> None:
         """Run the solver substeps of one physics step, ending in :attr:`state_0`.

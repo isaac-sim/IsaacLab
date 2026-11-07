@@ -625,8 +625,6 @@ class NewtonManager(PhysicsManager):
             return
         self.register_pre_actuator_callback(actions.apply_action)
         self.register_pre_actuator_callback(scene.write_data_to_sim)
-        # Asset writes replace the body forces staged before the step.
-        self.register_pre_actuator_callback(backend.stage_body_forces)
         backend.control_bound = True
 
     def add_contact_sensor(
