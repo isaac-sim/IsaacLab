@@ -137,7 +137,7 @@ def replicate(plan: ClonePlan, *, replicate_physics: bool | None = None) -> None
             sim.clone_contexts[context] = context(sim)
     for context in sorted(routing, key=lambda context: context.replicate_priority):
         sim.clone_contexts[context].replicate(plan, tuple(sorted(routing[context])))
-    root = sim.cfg.physics.mesh_variant_source_root
+    root = sim.cfg.physics.get_mesh_variant_source_root()
     if root and sim.stage.GetPrimAtPath(root):
         from pxr import UsdGeom  # noqa: PLC0415
 
@@ -268,7 +268,7 @@ def _prepare_cloning(
     options = dict(weights=weights, shared_assets=shared, clone_strategy=clone_strategy, env_template=env_template)
     plan = make_clone_plan(asset_prototypes, worlds, num_clones, positions=positions, **options)
     source_paths = cloner_path.get_asset_prototype_paths(plan)
-    prototype_root = sim.cfg.physics.mesh_variant_source_root
+    prototype_root = sim.cfg.physics.get_mesh_variant_source_root()
     for cfg, indices in declarations:
         spawn = getattr(cfg, "spawn", None)
         if spawn is None:
