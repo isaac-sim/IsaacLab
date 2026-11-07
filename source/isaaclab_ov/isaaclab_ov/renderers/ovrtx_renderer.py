@@ -119,7 +119,6 @@ if TYPE_CHECKING:
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 
 _RENDER_VAR_PRIM_NAMES = render_var_prim_names_by_source()
-_RENDER_DELTA_TIME = 1.0 / 60.0
 _GPU_CAMERA_TRANSFORMS_ATTRIBUTE = "omni:rtx:scene:hydra:readGPUCameraTransformsFromFabricInRenderDelegate"
 _LDR_COLOR_VAR = "LdrColor"
 _CAMERA_INTRINSIC_ATTRIBUTES = (
@@ -1209,6 +1208,9 @@ class OVRTXRenderer(BaseRenderer):
         if self.backend.renderer is None or not self._camera_render_data:
             return
         products = self.backend.render_products.copy()
+        # OVRTX uses the step delta only for temporal effects such as motion blur and motion
+        # vectors, so it must match the simulated time between rendered frames.
+        delta_time = self._sim.get_rendering_dt()
         material_writer = self._visual_material_writer_ref() if self._visual_material_writer_ref is not None else None
         try:
             if material_writer is not None:
@@ -1223,7 +1225,7 @@ class OVRTXRenderer(BaseRenderer):
                 ordinal = self.scene.commit()
             elif self.cfg.async_rendering:
                 unread = {data.ready[0] for data in render_data if data.ready is not None}
-                operation = self.backend.renderer.step_async(render_products=products, delta_time=_RENDER_DELTA_TIME)
+                operation = self.backend.renderer.step_async(render_products=products, delta_time=delta_time)
                 for data in render_data:
                     previous = data.pending
                     data.pending = (operation, data.capture)
@@ -1232,7 +1234,7 @@ class OVRTXRenderer(BaseRenderer):
                 for previous in unread:
                     previous.wait().fetch()
             else:
-                result = self.backend.renderer.step(render_products=products, delta_time=_RENDER_DELTA_TIME)
+                result = self.backend.renderer.step(render_products=products, delta_time=delta_time)
                 self._process_render_products(render_data, result)
         finally:
             if material_writer is not None:
@@ -1249,9 +1251,7 @@ class OVRTXRenderer(BaseRenderer):
         if self._use_ovstage:
             # Stage writes and material reads finish before rendering. Consume only after advancing
             # the ordinal so a failed readback cannot leave later writes at the sealed floor.
-            result = self.backend.renderer.step(
-                render_products=products, delta_time=_RENDER_DELTA_TIME, ordinal=ordinal
-            )
+            result = self.backend.renderer.step(render_products=products, delta_time=delta_time, ordinal=ordinal)
             self._process_render_products(render_data, result)
 
     def cleanup(self, render_data: OVRTXCameraRenderData | None) -> None:
