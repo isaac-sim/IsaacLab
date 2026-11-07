@@ -53,7 +53,8 @@ def mirror_vec3(data: torch.Tensor, axial: bool = False) -> torch.Tensor:
 def mirror_quat(data: torch.Tensor) -> torch.Tensor:
     """Reflect XYZW orientations across the XZ plane, preserving quaternion sign.
 
-    Uses Isaac Lab develop's XYZW convention, including ``root_quat_w``.
+    Uses Isaac Lab's XYZW convention, including ``root_quat_w``. Convert legacy
+    WXYZ observations to XYZW before using this rule, or supply a custom rule.
     The corresponding rotation matrix transforms as ``S @ R @ S``, where
     ``S = diag(1, -1, 1)``. Arbitrary leading batch or history dimensions are supported.
     """
