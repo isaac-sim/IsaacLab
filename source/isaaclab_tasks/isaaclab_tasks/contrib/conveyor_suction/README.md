@@ -60,8 +60,14 @@ robot frame, pickup/placement history, and a 64-ray collision point cloud with v
 Actions are three Cartesian increments plus binary vacuum. Differential IK maintains a downward
 tool orientation. Preserve the checkpoint's observation scales and mixed action distribution.
 
-Training uses the shared `ResetStateSampler` and `SuccessMonitor`: 64 progress levels each for
-controlled descent, held transport, approach and empty-tool return, plus a full-home bucket.
+Training builds its procedural recipe buffer with the shared
+[`ResetStateBuffer` API](../../../../../docs/source/how-to/reset_state_buffers.rst) from
+[#8872](https://github.com/isaac-sim/IsaacLab/pull/8872). Collection validates finite recipe tensors,
+joint limits and the existing IK residual; native reset hooks restore controller targets and seals.
+These are procedural starts, rather than captured scripted grasp rollouts.
+`ResetStateSampler` and `SuccessMonitor` track 64 progress levels each for controlled descent,
+held transport, approach and empty-tool return, plus a full-home bucket. These 257 histories
+are shared across the buffer's parcel, fixture and destination combinations.
 Beta sampling favors intermediate success while retaining uniform coverage. Only the parcel
 selected by the original reset updates that reset bucket; every later receipt still earns reward.
 Held resets restore native suction seals, and no reset seeds delivery credit. Playback uses full

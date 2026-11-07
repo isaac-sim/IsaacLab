@@ -135,7 +135,7 @@ def _check_full_batch_receipts(env, rows, actions, hold_at_goal, place_in_bin, p
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_receipts_record_success_and_continue_without_reset(device):
+def test_receipts_record_success_and_continue_without_reset(device, monkeypatch):
     """Receipts reward once, record the sampled row once, and preserve history through handoffs and failures."""
     pytest.importorskip("newton.surface_gripper", reason="Requires the optional Newton surface-gripper prototype.")
     task = "IsaacContrib-Conveyor-Suction-Sorting"
@@ -163,7 +163,25 @@ def test_receipts_record_success_and_continue_without_reset(device):
     with closing(gym.make(task, cfg=cfg).unwrapped) as env:
         assert len(env.parcels) == 5, "The completion boundary must use five physical parcels."
         assert env.layout_ids.tolist() == [0, 1], "The impact fixture uses the original five-lane world."
-        reset = env.event_manager.get_term_cfg("reset_parcels").func
+        term = env.event_manager.get_term_cfg("reset_parcels")
+        reset = term.func
+        generate = type(reset)._generate_recipes
+        for field, value, condition in (
+            ("pick_positions", float("nan"), "finite"),
+            ("arm_positions", 10.0, "joint_limits"),
+        ):
+            with monkeypatch.context() as patch:
+
+                def invalid_recipe(self, ids):
+                    state = generate(self, ids)
+                    state[field][0, 0] = value
+                    return state
+
+                patch.setattr(type(reset), "_generate_recipes", invalid_recipe)
+                # Invalid canonical rows must fail, rather than duplicate or renumber valid recipes.
+                with pytest.raises(RuntimeError, match=f"after 1 batches.*{condition}") as error:
+                    type(reset)(term, env)
+                assert f"'default/{condition}': 1" in str(error.value)
         samples = cfg.events.reset_parcels.params["samples_per_path"]
         rows = torch.tensor([samples // 2 + 1, samples // 2 + 2], device=device)
         reset.reset_sampler.sampler.sample = lambda probabilities, count: rows[:count]

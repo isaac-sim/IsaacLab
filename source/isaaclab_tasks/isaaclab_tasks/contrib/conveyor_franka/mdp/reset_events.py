@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 
 import torch
 
+from isaaclab.envs.reset import ResetStateBuffer, ResetStateBufferCfg
 from isaaclab.managers import EventTermCfg, ManagerTermBase
 
 from ..conveyor_geometry import (
@@ -261,31 +262,76 @@ class ConveyorResetStateTable(ManagerTermBase):
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
-        rows = build_reset_rows()
-        self.recipe_ids = torch.tensor([row.recipe for row in rows], dtype=torch.long, device=env.device)
-        self.target_cube_ids = torch.tensor([row.target_cube_id for row in rows], dtype=torch.long, device=env.device)
-        self.variant_ids = torch.tensor([row.variant_id for row in rows], dtype=torch.long, device=env.device)
-        self.source_side_ids = torch.tensor([row.source_side_id for row in rows], dtype=torch.long, device=env.device)
-        self._arm_positions = torch.tensor([row.arm_positions for row in rows], dtype=torch.float32, device=env.device)
-        self._finger_positions = torch.tensor(
-            [row.finger_position for row in rows], dtype=torch.float32, device=env.device
-        )
-        self.held_rows = torch.tensor([row.held for row in rows], dtype=torch.bool, device=env.device)
-        self._belt_range_fractions = torch.tensor(
-            [row.belt_range_fraction for row in rows], dtype=torch.float32, device=env.device
-        )
         self._robot: Articulation = env.scene["robot"]
         self._cubes: tuple[RigidObject, ...] = tuple(env.scene[f"cube_{cube_id}"] for cube_id in range(CUBE_COUNT))
         self._arm_joint_ids = self._robot.find_joints("panda_joint[1-7]", preserve_order=True)[0]
         self._finger_joint_ids = self._robot.find_joints("panda_finger_joint[1-2]", preserve_order=True)[0]
         if len(self._arm_joint_ids) != 7 or len(self._finger_joint_ids) != 2:
             raise ValueError("Conveyor transfer requires seven Panda arm joints and two finger joints.")
+        candidates: ResetStateBuffer.State = {}
+
+        def generate(row_ids: torch.Tensor) -> None:
+            rows = build_reset_rows()
+            candidates.update(
+                robot={
+                    "arm_positions": torch.tensor(
+                        [row.arm_positions for row in rows], dtype=torch.float32, device=env.device
+                    ),
+                    "finger_position": torch.tensor(
+                        [row.finger_position for row in rows], dtype=torch.float32, device=env.device
+                    ),
+                },
+                recipe={
+                    "recipe_ids": torch.tensor([row.recipe for row in rows], device=env.device),
+                    "target_cube_ids": torch.tensor([row.target_cube_id for row in rows], device=env.device),
+                    "variant_ids": torch.tensor([row.variant_id for row in rows], device=env.device),
+                    "source_side_ids": torch.tensor([row.source_side_id for row in rows], device=env.device),
+                    "held_rows": torch.tensor([row.held for row in rows], device=env.device),
+                    "belt_range_fraction": torch.tensor(
+                        [row.belt_range_fraction for row in rows], dtype=torch.float32, device=env.device
+                    ),
+                },
+            )
+
+        def finite(row_ids: torch.Tensor) -> torch.Tensor:
+            return (
+                torch.isfinite(candidates["robot"]["arm_positions"][row_ids]).all(dim=1)
+                & torch.isfinite(candidates["robot"]["finger_position"][row_ids])
+                & torch.isfinite(candidates["recipe"]["belt_range_fraction"][row_ids])
+            )
+
+        limits = self._robot.data.joint_pos_limits.torch[0]
+
+        def joint_limits(row_ids: torch.Tensor) -> torch.Tensor:
+            arms = candidates["robot"]["arm_positions"][row_ids]
+            fingers = candidates["robot"]["finger_position"][row_ids, None]
+            return ((arms >= limits[self._arm_joint_ids, 0]) & (arms <= limits[self._arm_joint_ids, 1])).all(dim=1) & (
+                (fingers >= limits[self._finger_joint_ids, 0]) & (fingers <= limits[self._finger_joint_ids, 1])
+            ).all(dim=1)
+
+        # Candidate indices name canonical recipes, not scene environments. Collection
+        # validates procedural parameters; the calibrated states are replayed below.
+        self.reset_buffer = ResetStateBuffer(ResetStateBufferCfg(size=len(build_reset_rows()), max_batches=1))
+        self.reset_buffer.collect(
+            torch.arange(self.reset_buffer.cfg.size, device=env.device),
+            generate,
+            lambda ids: {
+                group: {key: value[ids] for key, value in fields.items()} for group, fields in candidates.items()
+            },
+            {"finite": finite, "joint_limits": joint_limits},
+        )
+        recipes = self.reset_buffer.state["recipe"]
+        self.recipe_ids = recipes["recipe_ids"]
+        self.target_cube_ids = recipes["target_cube_ids"]
+        self.variant_ids = recipes["variant_ids"]
+        self.source_side_ids = recipes["source_side_ids"]
+        self.held_rows = recipes["held_rows"]
         self.row_ids = torch.randint(self.row_count, (env.num_envs,), dtype=torch.long, device=env.device)
 
     @property
     def row_count(self) -> int:
         """Number of immutable physical reset rows."""
-        return self.recipe_ids.numel()
+        return self.reset_buffer.num_states
 
     def _filtered_rows(
         self,
@@ -349,7 +395,8 @@ class ConveyorResetStateTable(ManagerTermBase):
         source_side_ids = self.source_side_ids[row_ids]
         held_rows = self.held_rows[row_ids]
 
-        arm_positions = self._arm_positions[row_ids].clone()
+        state = self.reset_buffer.get_state(row_ids)
+        arm_positions = state["robot"]["arm_positions"]
         if arm_joint_noise > 0.0:
             noise = (2.0 * torch.rand_like(arm_positions) - 1.0) * arm_joint_noise
             # Preserve the exact approach, closure, and held-object manifold.
@@ -359,7 +406,7 @@ class ConveyorResetStateTable(ManagerTermBase):
         joint_positions = self._robot.data.default_joint_pos.torch[env_ids].clone()
         joint_velocities = torch.zeros_like(joint_positions)
         joint_positions[:, self._arm_joint_ids] = arm_positions
-        joint_positions[:, self._finger_joint_ids] = self._finger_positions[row_ids, None]
+        joint_positions[:, self._finger_joint_ids] = state["robot"]["finger_position"][:, None]
         self._robot.actuators.target_command.set_position_index(value=joint_positions, env_ids=env_ids)
         self._robot.actuators.target_command.set_velocity_index(value=joint_velocities, env_ids=env_ids)
         self._robot.write_joint_position_to_sim_index(position=joint_positions, env_ids=env_ids)
@@ -373,7 +420,7 @@ class ConveyorResetStateTable(ManagerTermBase):
             base_x += (2.0 * torch.rand_like(base_x) - 1.0) * cube_position_noise
 
         belt_rows = recipes == int(ConveyorResetRecipe.BELT)
-        range_fraction = self._belt_range_fractions[row_ids]
+        range_fraction = state["recipe"]["belt_range_fraction"]
         active_lower = TRANSFER_X + range_fraction * (belt_start_x_range[0] - TRANSFER_X)
         active_upper = TRANSFER_X + range_fraction * (belt_start_x_range[1] - TRANSFER_X)
         # Each inactive cube occupies a different straight run; X overlap is harmless.

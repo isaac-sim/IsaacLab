@@ -6,6 +6,7 @@
 """Racetrack policy contracts exercised through real CPU managers and assets."""
 
 from contextlib import closing
+from dataclasses import replace
 
 import gymnasium as gym
 import pytest
@@ -20,6 +21,7 @@ from isaaclab_tasks.contrib.conveyor_franka.conveyor_geometry import (
     BELT_INNER_STRAIGHT_Y,
     BELT_OUTER_STRAIGHT_Y,
 )
+from isaaclab_tasks.contrib.conveyor_franka.mdp import reset_events
 from isaaclab_tasks.contrib.conveyor_franka.mdp.commands import select_next_transfer_cube
 from isaaclab_tasks.contrib.conveyor_franka.mdp.kinematics import end_effector_pose, tool_velocity
 from isaaclab_tasks.contrib.conveyor_franka.mdp.reset_events import (
@@ -134,11 +136,23 @@ def _check_physical_reset_anchors(env):
         term.params.update(original)
 
 
-def test_checkpoint_interface_and_invalid_action_recovery():
+def test_checkpoint_interface_and_invalid_action_recovery(monkeypatch):
     """The real racetrack preserves learned feature order, finite rewards and independent resets."""
     with closing(
         _environment(fixed_recipe=int(ConveyorResetRecipe.BELT), fixed_target_cube_id=2, fixed_source_side_id=0)
     ) as env:
+        term = env.event_manager.get_term_cfg("reset_from_state_table")
+        rows = reset_events.build_reset_rows()
+        for invalid, condition in (
+            (replace(rows[-1], belt_range_fraction=float("nan")), "finite"),
+            (replace(rows[-1], arm_positions=(10.0, *rows[-1].arm_positions[1:])), "joint_limits"),
+        ):
+            with monkeypatch.context() as patch:
+                patch.setattr(reset_events, "build_reset_rows", lambda: (*rows[:-1], invalid))
+                # A bad canonical row must fail, rather than duplicate or renumber accepted recipes.
+                with pytest.raises(RuntimeError, match=f"after 1 batches.*{condition}") as error:
+                    type(term.func)(term, env)
+                assert f"'default/{condition}': 1" in str(error.value)
         _check_physical_reset_anchors(env)
         obs, _ = env.reset()
         assert obs["policy"].shape == (2, 123)

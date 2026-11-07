@@ -16,8 +16,6 @@ import torch
 from isaaclab.managers import CurriculumTermCfg, ManagerTermBase
 
 from isaaclab_tasks.utils.reset_states import ResetStateSampler, ResetStateSamplerCfg
-from isaaclab_tasks.utils.sampling import SamplerCfg
-from isaaclab_tasks.utils.success_monitor import SuccessMonitorCfg
 
 from .reset_events import ConveyorResetRecipe
 
@@ -26,7 +24,7 @@ if TYPE_CHECKING:
 
 
 class ConveyorResetCurriculum(ManagerTermBase):
-    """Sample reset rows using the shared NIST sampler and completed-transfer outcomes.
+    """Sample reset rows using the shared reset API and completed-transfer outcomes.
 
     Reset geometry and command metadata belong to the reset term. Only recent success
     evidence lives here; standard PPO checkpoints start a fresh sampling history on resume.
@@ -36,7 +34,7 @@ class ConveyorResetCurriculum(ManagerTermBase):
         super().__init__(cfg, env)
         self._reset_term = env.event_manager.get_term_cfg("reset_from_state_table").func
         self.reset_sampler = ResetStateSampler(
-            ResetStateSamplerCfg(success_monitor=cfg.params["success_monitor"], sampling=cfg.params["sampling"]),
+            cfg.params["sampling"],
             env.num_envs,
             self._reset_term.row_count,
             env.device,
@@ -49,13 +47,12 @@ class ConveyorResetCurriculum(ManagerTermBase):
         self,
         env: ManagerBasedRLEnv,
         env_ids: Sequence[int] | torch.Tensor | slice,
-        success_monitor: SuccessMonitorCfg,
-        sampling: SamplerCfg,
+        sampling: ResetStateSamplerCfg,
         command_name: str = "transfer",
         fixed_source_side_id: int | None = None,
     ) -> dict[str, torch.Tensor]:
         """Record finished episodes and draw rows for only the resetting environments."""
-        del success_monitor, sampling
+        del sampling
         ids = (
             env.scene._ALL_INDICES[env_ids]
             if isinstance(env_ids, slice)

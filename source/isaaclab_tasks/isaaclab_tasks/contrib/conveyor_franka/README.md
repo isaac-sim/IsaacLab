@@ -34,12 +34,13 @@ uv run isaaclab train --rl_library rsl_rl \
 
 ### Curriculum and evaluation
 
-Racetrack training samples physically calibrated resets from release through moving-belt pickup.
-The shared `SuccessMonitor` records whether each episode completed a stable transfer from its
-sampled reset row. NIST's reusable `Sampler` mixes uniform coverage with a Beta-shaped score
-centered at 50% transfer success, giving partly learned rows more practice while keeping every
-row eligible. Reset recipes generate the robot and cube states directly; the task needs no
-cached physical-state bank or assembly-variant machinery.
+Racetrack training uses the shared [reset-buffer API](../../../../../docs/source/how-to/reset_state_buffers.rst)
+from [#8872](https://github.com/isaac-sim/IsaacLab/pull/8872). `ResetStateBuffer` constructs and
+stores the calibrated procedural recipes once, rejecting non-finite or out-of-limit joint states.
+Task reset events restore their robot, cube and command state through normal asset APIs.
+`ResetStateSampler` and `SuccessMonitor` favor rows near 50% transfer success while retaining
+uniform coverage. Outcomes credit the previous reset row before a replacement is selected.
+The buffer contains procedural recipes; it does not turn them into physically generated grasps.
 
 Training uses standard PPO with the existing arm-and-gripper action distribution. Checkpoints
 save policy and optimizer state; sampling history starts fresh when the environment is recreated,

@@ -32,6 +32,8 @@ from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_contrib.conveyors.surface_velocity import SurfaceVelocitySpec
 
+from isaaclab_tasks.utils import ResetStateSamplerCfg
+
 from . import mdp
 from .conveyor_geometry import (
     BELT_COLOR,
@@ -252,14 +254,7 @@ class CurriculumCfg:
         func=mdp.ConveyorResetCurriculum,
         params={
             "command_name": "transfer",
-            "success_monitor": mdp.SuccessMonitorCfg(monitored_history_len=50),
-            "sampling": mdp.SamplerCfg(
-                strategies=[
-                    mdp.BetaSamplingStrategyCfg(target=0.5, kappa=2.0),
-                    mdp.UniformSamplingStrategyCfg(weight=0.05),
-                ],
-                eps=1.0e-4,
-            ),
+            "sampling": ResetStateSamplerCfg(),
             "fixed_source_side_id": None,
         },
     )
