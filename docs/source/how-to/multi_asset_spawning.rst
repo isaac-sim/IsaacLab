@@ -137,12 +137,12 @@ the initial variant for each world. A reset event can change it before writing t
 Call ``scene["part"].write_mesh_variant_to_sim(variant_ids, env_ids)`` to select variants. A task with matching
 fixed and movable objects selects the same ID on both. Newton owns the selected IDs, geometry, and mass properties.
 
-Multi-asset spawning keeps its initial choice unless ``static=False`` is set. Reset-time selection currently
-requires Newton MJWarp with external contacts and sleeping disabled and at least two alternatives. Every
+Multi-asset spawning keeps its initial choice unless ``static=False`` is set. Reset-time selection uses Newton
+body variants with XPBD or MJWarp with external contacts and sleeping disabled, and at least two alternatives. Every
 alternative must contain one rigid body with the same fixed/free root-joint type and kinematic flags. Newton permits
 different shape types and counts, but shapes sharing a row need compatible collision groups. Select before
-randomizing contact materials because Newton restores the variant's materials. Other backends and unsupported
-objects require ``static=True``; requesting ``static=False`` raises ``NotImplementedError`` during clone preparation.
+randomizing contact materials because Newton restores the variant's materials. MJWarp with MuJoCo contacts rejects
+body variants when the solver initializes. Other physics backends keep the initial choice.
 
 With supported Newton physics, ``static=False`` authors every alternative under ``/World/IsaacLabPrototypes`` and
 clones the chosen source into each world. The source parent is hidden after cloning. The default ``static=True``

@@ -47,7 +47,7 @@ def simulation(monkeypatch):
     registry = []
     sim = SimpleNamespace(
         backend_manager=SimpleNamespace(clone_context_type=_Context),
-        cfg=SimpleNamespace(physics=SimpleNamespace(get_mesh_variant_source_root=lambda: None)),
+        cfg=SimpleNamespace(physics=SimpleNamespace(mesh_variant_source_root=None)),
         clone_contexts={},
         _backend_registry=registry,
         _render_context=RenderContext(registry),
@@ -249,7 +249,7 @@ def test_multi_spawner_creates_concrete_asset_prototypes(simulation, unused_vari
     ground = AssetBaseCfg(prim_path="/World/Ground")
     worlds = ((0,),) if unused_variant else None
     if not static:
-        simulation.cfg.physics.get_mesh_variant_source_root = lambda: "/World/IsaacLabPrototypes"
+        simulation.cfg.physics.mesh_variant_source_root = "/World/IsaacLabPrototypes"
         simulation.render_context.clone_contexts.add(UsdReplicateContext)
     with ReplicateSession((object_cfg, ground), 4, 2.0, world_prototypes=worlds) as session:
         plan = session.plan
