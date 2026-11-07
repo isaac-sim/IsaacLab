@@ -8,25 +8,12 @@
 Reset-state sampling
 --------------------
 
-:class:`~isaaclab_tasks.utils.ResetStateSampler` assigns reset rows and tracks their
-outcomes through :class:`~isaaclab_tasks.utils.SuccessMonitor`. Tasks own the physical
-state catalog and restoration. The default Beta/uniform mixture favors intermediate
-success while retaining coverage.
+:class:`~isaaclab_tasks.utils.ResetStateSampler` assigns reset rows using recent
+episode outcomes tracked by :class:`~isaaclab_tasks.utils.SuccessMonitor`. Its
+configurable sampling strategies support cached or procedural state catalogs.
 
-.. code-block:: python
-
-   from isaaclab_tasks.utils import ResetStateSampler, ResetStateSamplerCfg
-
-   sampler = ResetStateSampler(ResetStateSamplerCfg(), num_envs, row_count, device)
-   # Before clearing old success flags or restoring selected environments:
-   rows = sampler.reset(env_ids, success=episode_success[env_ids], valid=episode_length[env_ids] > 0)
-   # Restore physical state, commands, controller targets and attachments for these rows.
-
-Outcomes belong to the previous row assignments. Omit ``success`` for the initial draw;
-``valid`` excludes zero-step/manual resets, and ``row_mask`` restricts the next draw.
-Partial resets preserve other environments' assignments. Sampling history is local to the
-live environment and is not included in ordinary policy checkpoints. Evaluate complete-task
-starts separately from the adaptive training mixture.
+See :doc:`/source/how-to/reset_state_buffers` for buffer creation, validation,
+physical replay, outcome attribution, and evaluation from complete task starts.
 
 Sampling strategies
 -------------------

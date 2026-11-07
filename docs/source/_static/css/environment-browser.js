@@ -65,6 +65,7 @@
             ["IsaacContrib-Conveyor-Racetrack-Transfer-v0", "rsl_rl", "", "", "", "./tasks/conveyor/racetrack_transfer.jpg"],
             ["IsaacContrib-Conveyor-Suction-Sorting", "rsl_rl", "", "", "", "environment-previews/conveyor_suction_sorting.jpg"],
             ["IsaacContrib-Conveyor-Warehouse-Sorting-v0", "rsl_rl", "", "", "", "environment-previews/conveyor_warehouse_sorting.jpg"],
+            ["IsaacContrib-Cube-Pickup-Franka", "rsl_rl", "newton_mjwarp", "", "", "", false, {}, {}, "", null, ["||", "newton_mjwarp||"]],
             ["IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav", "rsl_rl", "", "", "", "environment-previews/rizon4s_gear_assembly.jpg"],
             ["IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference", "rsl_rl", "", "", "", "environment-previews/rizon4s_gear_assembly.jpg"],
             ["IsaacContrib-Deploy-GearAssembly-UR10e-2F140", "rsl_rl", "", "", "", "environment-previews/ur10e_2f140_gear_assembly.jpg"],
