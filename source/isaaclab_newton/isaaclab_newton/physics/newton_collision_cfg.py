@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import Any, Literal
 
 from isaaclab.utils import configclass, to_dict
@@ -94,6 +95,81 @@ class NewtonCollisionPipelineCfg:
     .. _CollisionPipeline API: https://newton-physics.github.io/newton/api/_generated/newton.CollisionPipeline.html
     """
 
+    @configclass
+    class SDFAllShapesCfg:
+        """Strict SDF provisioning for every finite shape collider in the assembled model.
+
+        The backend applies this policy after USD-authored mesh approximations and
+        scene replication have completed. It preserves boxes because Newton can
+        create their texture SDFs and collision edges directly, tessellates other
+        analytic colliders, keeps the resulting collision geometry, and requests
+        a texture SDF for every finite colliding shape before model finalization.
+        Infinite planes remain analytic half-spaces; unsupported finite geometry
+        raises instead of silently retaining a non-SDF collision path.
+        """
+
+        sdf_max_resolution: int | None = 64
+        """Maximum SDF grid dimension [dimensionless].
+
+        Must be positive, less than ``65536``, and divisible by 8. Ignored when
+        :attr:`sdf_target_voxel_size` is set.
+        """
+
+        sdf_target_voxel_size: float | None = None
+        """Target SDF voxel size [m].
+
+        When set, this takes precedence over :attr:`sdf_max_resolution`.
+        """
+
+        sdf_narrow_band_inner: float = -0.1
+        """Inner narrow-band distance for SDF generation [m]. Must be negative."""
+
+        sdf_narrow_band_outer: float = 0.1
+        """Outer narrow-band distance for SDF generation [m]. Must be positive."""
+
+        sdf_texture_format: Literal["uint8", "uint16", "float32"] = "uint16"
+        """Subgrid texture storage format for generated SDFs."""
+
+        sdf_padding: float | None = None
+        """SDF AABB padding [m]. When ``None``, each shape's contact gap is used."""
+
+        primitive_mesh_segments: int = 32
+        """Circumferential tessellation segments for curved analytic colliders."""
+
+        plane_thickness: float = 0.1
+        """Full thickness [m] of the downward slab replacing each finite collision plane."""
+
+        def __post_init__(self) -> None:
+            if self.sdf_max_resolution is None and self.sdf_target_voxel_size is None:
+                raise ValueError("Set sdf_max_resolution or sdf_target_voxel_size for strict SDF provisioning.")
+            if self.sdf_max_resolution is not None:
+                if self.sdf_max_resolution <= 0 or self.sdf_max_resolution >= (1 << 16):
+                    raise ValueError(
+                        f"sdf_max_resolution must be positive and less than {1 << 16} (got {self.sdf_max_resolution})."
+                    )
+                if self.sdf_max_resolution % 8 != 0:
+                    raise ValueError(f"sdf_max_resolution must be divisible by 8 (got {self.sdf_max_resolution}).")
+            if self.sdf_target_voxel_size is not None and (
+                not math.isfinite(self.sdf_target_voxel_size) or self.sdf_target_voxel_size <= 0.0
+            ):
+                raise ValueError(
+                    f"sdf_target_voxel_size must be finite and positive (got {self.sdf_target_voxel_size})."
+                )
+            if not (
+                math.isfinite(self.sdf_narrow_band_inner)
+                and math.isfinite(self.sdf_narrow_band_outer)
+                and self.sdf_narrow_band_inner < 0.0 < self.sdf_narrow_band_outer
+            ):
+                raise ValueError(
+                    "sdf_narrow_band_inner and sdf_narrow_band_outer must be finite and satisfy inner < 0 < outer."
+                )
+            if self.sdf_padding is not None and (not math.isfinite(self.sdf_padding) or self.sdf_padding < 0.0):
+                raise ValueError(f"sdf_padding must be finite and nonnegative (got {self.sdf_padding}).")
+            if self.primitive_mesh_segments < 8:
+                raise ValueError(f"primitive_mesh_segments must be at least 8 (got {self.primitive_mesh_segments}).")
+            if not math.isfinite(self.plane_thickness) or self.plane_thickness <= 0.0:
+                raise ValueError(f"plane_thickness must be finite and positive (got {self.plane_thickness}).")
+
     broad_phase: Literal["explicit", "nxn", "sap"] = "explicit"
     """Broad phase algorithm for collision detection.
 
@@ -136,6 +212,15 @@ class NewtonCollisionPipelineCfg:
 
     Defaults to ``None`` (auto-estimate, same as Newton's default).
     """
+
+    speculative_contact_gap_max: float | None = None
+    """Maximum velocity-derived rigid-contact detection gap [m].
+
+    ``None`` disables speculative contacts, matching Newton's default.
+    """
+
+    sdf_all_shapes: SDFAllShapesCfg | None = None
+    """Optional strict SDF provisioning for every finite colliding shape."""
 
     soft_contact_max: int | None = None
     """Maximum number of soft contacts to allocate.
@@ -192,6 +277,7 @@ class NewtonCollisionPipelineCfg:
         from newton.geometry import HydroelasticSDF
 
         cfg_dict = to_dict(self)
+        cfg_dict.pop("sdf_all_shapes", None)
         hydro_cfg = cfg_dict.pop("sdf_hydroelastic_config", None)
         if hydro_cfg is not None:
             cfg_dict["sdf_hydroelastic_config"] = HydroelasticSDF.Config(**hydro_cfg)
