@@ -229,8 +229,8 @@ def test_initialization_rejects_non_rigid_body_prims(api: str) -> None:
         # Check that the framework doesn't hold excessive strong references.
         assert sys.getrefcount(cube_object) < 10
 
-        error = "Multiple rigid objects match" if api == "nested" else "Expected 1 prims at"
-        with pytest.raises(RuntimeError, match=error):
+        error = "No articulations matching" if api == "none" else "Expected one rigid body per object"
+        with pytest.raises(KeyError if api == "none" else RuntimeError, match=error):
             sim.reset()
 
 

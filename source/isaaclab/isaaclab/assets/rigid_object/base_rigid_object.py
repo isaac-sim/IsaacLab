@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
-from ...cloner import num_spawn_variants
 from ...utils.warp import ProxyArray
 from ...utils.wrench_composer import WrenchComposer
 from ..asset_base import AssetBase
@@ -81,8 +80,8 @@ class BaseRigidObject(AssetBase):
 
     @property
     def num_mesh_variants(self) -> int:
-        """Number of variants in the configured spawner, independent of backend switching support."""
-        return num_spawn_variants(self.cfg.spawn)
+        """Number of authored alternatives in the configured spawner."""
+        return len(getattr(self.cfg.spawn, "spawn_paths", None) or (None,))
 
     @property
     def mesh_variant_ids(self) -> ProxyArray:
