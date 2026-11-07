@@ -16,6 +16,8 @@ import torch
 from isaaclab.envs import DirectRLEnv
 from isaaclab.sensors import save_images_to_file
 
+from isaaclab_tasks.benchmark.benchmark_mode import check_direct_pose_cfg, check_direct_pose_rendering
+
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
 
@@ -36,24 +38,14 @@ class RenderBenchmarkEnv(DirectRLEnv):
     cfg: RenderBenchmarkFrankaCabinetEnvCfg
 
     def __init__(self, cfg: RenderBenchmarkFrankaCabinetEnvCfg, render_mode: str | None = None, **kwargs):
-        if cfg.benchmark_mode == "render" and not cfg.scene.lazy_sensor_update:
-            raise ValueError("Render benchmark mode requires scene.lazy_sensor_update=True to render the direct pose.")
+        check_direct_pose_cfg(cfg.benchmark_mode, cfg.scene.lazy_sensor_update)
         # Per-(env, joint) sinusoid phases [rad] and the elapsed animation time [s]. The phases
         # are filled on the first step; see :meth:`_sample_animation_phases`.
         self._anim_phases: dict[str, torch.Tensor] | None = None
         self._anim_time: float = 0.0
         super().__init__(cfg, render_mode, **kwargs)
         self._tiled_camera = self.scene["tiled_camera"]
-        if (
-            cfg.benchmark_mode == "render"
-            and "isaac_rtx" in self.sim.render_context.renderer_types
-            and any(visualizer.pumps_app_update() for visualizer in self.sim.visualizers)
-        ):
-            self.close()
-            raise ValueError(
-                "Isaac RTX direct posing requires no visualizer, or only visualizers that do not pump the Kit app"
-                " loop. Alternatively, use benchmark_mode=physics_render."
-            )
+        check_direct_pose_rendering(self, cfg.benchmark_mode)
 
     # --- joint animation -----------------------------------------------------
 
