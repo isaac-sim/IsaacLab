@@ -103,6 +103,7 @@ Table of Contents
    source/isaaclab/ecosystem
    source/isaaclab/installation
    source/isaaclab/environments
+   source/isaaclab/contrib_stacking
    source/isaaclab/quickstart
    source/isaaclab/tutorial
    source/isaaclab/demos

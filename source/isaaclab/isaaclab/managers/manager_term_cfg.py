@@ -106,6 +106,14 @@ class ActionTermCfg:
     action names (:attr:`action_names`) for task-space action terms.
     """
 
+    controller_owned_write_methods: dict[str, str] = dict()
+    """Map simulator write methods to capabilities supplied by the deployment controller.
+
+    These writes are executed while tracing the simulator behavior but are excluded from
+    the exported policy outputs. Deployment adapters must explicitly provide every named
+    capability.
+    """
+
 
 ##
 # Command manager.

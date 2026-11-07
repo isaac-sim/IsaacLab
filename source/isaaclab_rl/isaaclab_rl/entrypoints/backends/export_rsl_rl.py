@@ -161,7 +161,7 @@ def export_rsl_rl_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg: R
             required_obs_groups = set(obs_groups_cfg.get(model_group, ["policy"]))
         else:
             required_obs_groups = {"policy"}
-        policy_node_name = prepare_export_env(env, args_cli, required_obs_groups=required_obs_groups)
+        policy_node_name, patcher = prepare_export_env(env, args_cli, required_obs_groups=required_obs_groups)
         env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
 
         logger.info(f"Loading model checkpoint from: {resume_path}")
@@ -176,7 +176,7 @@ def export_rsl_rl_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg: R
         recurrent = is_actor_recurrent_policy(policy)
 
         save_path = resolve_export_save_path(args_cli, "rsl_rl", log_dir)
-        with leapp_capture(args_cli, save_path=save_path, env_cfg=env_cfg) as num_steps:
+        with leapp_capture(args_cli, save_path=save_path, env_cfg=env_cfg, patcher=patcher) as num_steps:
             obs = env.reset()[0]
             for _ in range(num_steps):
                 with torch.inference_mode():

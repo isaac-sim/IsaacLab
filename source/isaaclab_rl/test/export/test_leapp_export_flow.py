@@ -246,6 +246,7 @@ def test_leapp_export_flow(backend: str, task: str, checkpoint_task: str, direct
         deployment.inference = manager
         deployment._input_mapping = {}
         deployment._output_mapping = {}
+        deployment._controller_owned_write_specs = ()
         deployment.command_manager = None
         deployment._resolve_io()
         manager.reset()
