@@ -276,13 +276,6 @@ A custom shared-model solver bypasses entry ownership resolution, so it cannot
 reuse the coupler's selectors or validation. For the proxy and ADMM trade-offs,
 see :ref:`newton-coupled-solvers`.
 
-:class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolver` is a deprecated
-shared-model solver that retains its manual penalty coupling. New MJWarp and
-VBD integrations should configure
-:class:`~isaaclab_newton.physics.coupling.CouplerProxyCfg` directly; see
-:ref:`newton-vbd-proxy-coupling`.
-
-
 .. _related-documentation:
 
 Where to go next

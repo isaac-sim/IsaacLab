@@ -39,8 +39,6 @@ from isaaclab.benchmark.measurements import (
 )
 from isaaclab.benchmark.schema import Hardware, Resources, Versions
 
-from isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_solver_cfg import CoupledMJWarpVBDSolverCfg
-
 
 class _Rec:
     def __init__(self, data):
@@ -264,12 +262,6 @@ def test_synth_run_id():
             "newton_kamino",
             ["newton_kamino", "newton_mjwarp"],
             "admm",
-        ),
-        (
-            NewtonCfg(solver_cfg=CoupledMJWarpVBDSolverCfg(coupling_mode="one_way")),
-            "newton_mjwarp",
-            ["newton_mjwarp", "newton_vbd"],
-            "custom_one_way",
         ),
     ],
 )
