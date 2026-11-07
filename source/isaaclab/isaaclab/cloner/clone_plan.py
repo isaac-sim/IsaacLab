@@ -229,7 +229,7 @@ class path:
             plan: Host declarations, topology, and naming template.
 
         Returns:
-            One source path per asset definition, or None for an unused, unauthored definition. Explicit
+            One source path per asset definition, or None for an unused definition. Explicit
             spawner paths take precedence; otherwise the first participating prototype/world
             supplies the source. Shared world -1 precedes replicated worlds.
         """
@@ -238,13 +238,15 @@ class path:
         first_worlds[0] = -1
         prototypes, first = np.unique(plan.topology.world_prototype_layout, return_index=True)
         first_worlds[prototypes + 1] = first
-        sources = [getattr(getattr(cfg, "spawn", None), "spawn_path", None) for cfg in plan.asset_cfgs]
+        sources = [None] * len(plan.asset_cfgs)
         for asset, template, world in zip(
             plan.topology.world_prototypes, templates, np.repeat(first_worlds, np.diff(starts)), strict=True
         ):
             if world < -1 or sources[asset] is not None:
                 continue
-            sources[asset] = template.format(int(world))
+            spawn = getattr(plan.asset_cfgs[asset], "spawn", None)
+            source = getattr(spawn, "spawn_path", None)
+            sources[asset] = source if source is not None else template.format(int(world))
         return tuple(sources)
 
     @staticmethod
