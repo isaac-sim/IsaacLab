@@ -479,6 +479,7 @@ def test_rigid_object_inertia_write_refreshes_the_cached_com_orientation(scene: 
     data = cube_object.data
     initial_inertia = data.body_inertia.torch.clone()
     quat_before = data.body_com_quat_b.torch[:, 0].clone()  # primes the static COM cache
+    data.body_com_pose_w  # primes the world-frame pose derived from it
 
     # Principal moments (3, 2, 4) rotated 45 deg about z: the xy product of inertia is non-zero.
     inertia = initial_inertia.clone()
@@ -490,6 +491,12 @@ def test_rigid_object_inertia_write_refreshes_the_cached_com_orientation(scene: 
         # The orientation moved, and the cache matches PhysX up to the sign of the quaternion.
         assert (torch.sum(quat_before * view_quat, dim=-1).abs() < 0.99).all()
         torch.testing.assert_close(torch.sum(cached_quat * view_quat, dim=-1).abs(), torch.ones(_NUM_ENVS).to(device))
+        # The world-frame pose derived from the cache follows as well.
+        expected_world_quat = quat_mul(data.body_link_pose_w.torch[:, 0, 3:7], view_quat)
+        world_quat = data.body_com_pose_w.torch[:, 0, 3:7]
+        torch.testing.assert_close(
+            torch.sum(world_quat * expected_world_quat, dim=-1).abs(), torch.ones(_NUM_ENVS).to(device)
+        )
     finally:
         cube_object.set_inertias_index(inertias=initial_inertia)
         scene.step()

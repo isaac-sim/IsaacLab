@@ -46,7 +46,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, get_articulation_name_ordering
 from isaaclab.sim import SimulationContext, build_simulation_context
-from isaaclab.utils.math import combine_frame_transforms, matrix_from_quat, quat_apply
+from isaaclab.utils.math import combine_frame_transforms, matrix_from_quat, quat_apply, quat_mul
 
 _FIXTURE = Path(__file__).parent / "data" / "articulation_ordering_branching.usda"
 _NUM_ENVS = 2
@@ -1252,6 +1252,7 @@ def test_inertia_write_refreshes_the_cached_com_orientation(articulation_scene: 
     body_id = 1
     initial_inertia = data.body_inertia.torch.clone()
     quat_before = data.body_com_quat_b.torch[:, body_id].clone()  # primes the static COM cache
+    data.body_com_pose_w  # primes the world-frame pose derived from it
 
     # Principal moments (3, 2, 4) rotated 45 deg about z: the xy product of inertia is non-zero.
     inertia = initial_inertia.clone()
@@ -1264,6 +1265,12 @@ def test_inertia_write_refreshes_the_cached_com_orientation(articulation_scene: 
         assert (torch.sum(quat_before * view_quat, dim=-1).abs() < 0.99).all()
         torch.testing.assert_close(
             torch.sum(cached_quat * view_quat, dim=-1).abs(), torch.ones(_NUM_ENVS).to(cached_quat)
+        )
+        # The world-frame pose derived from the cache follows as well.
+        expected_world_quat = quat_mul(data.body_link_pose_w.torch[:, body_id, 3:7], view_quat)
+        world_quat = data.body_com_pose_w.torch[:, body_id, 3:7]
+        torch.testing.assert_close(
+            torch.sum(world_quat * expected_world_quat, dim=-1).abs(), torch.ones(_NUM_ENVS).to(world_quat)
         )
     finally:
         articulation.set_inertias_index(inertias=initial_inertia)
