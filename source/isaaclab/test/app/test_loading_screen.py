@@ -23,6 +23,8 @@ from rich.text import Text
 
 from isaaclab.app import loading_screen
 
+pytestmark = pytest.mark.kitless
+
 _ALT_SCREEN_ON = "\x1b[?1049h"
 _ALT_SCREEN_OFF = "\x1b[?1049l"
 
@@ -151,7 +153,6 @@ def test_hidden_greetings_do_not_start_remote_loading(monkeypatch: pytest.Monkey
         screen.close()
 
 
-@pytest.mark.kitless
 @pytest.mark.parametrize(
     ("drawn", "columns"),
     [(-1, 100), (0, 130)],
