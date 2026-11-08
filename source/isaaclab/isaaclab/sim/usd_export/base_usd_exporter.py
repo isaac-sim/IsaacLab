@@ -200,8 +200,11 @@ class BaseUsdExporter(ABC):
         for edit in self.compute_diff(stage):
             edit.apply(stage)
         self._write_pd_actuators_as_drives(stage)
-        self._localize_asset_paths(layer, path)
-        if not layer.Export(path):
+        # The file names remote assets where the stage composed their cached copies; no stage composes this copy.
+        exported = Sdf.Layer.CreateAnonymous(".usda")
+        exported.TransferContent(layer)
+        self._localize_asset_paths(exported, path)
+        if not exported.Export(path):
             raise RuntimeError(f"Could not write USD to '{path}'.")
         return path
 

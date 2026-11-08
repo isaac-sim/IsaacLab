@@ -5,6 +5,7 @@
 
 """Kit-less tests of how the USD export maps engine values and actuators to prims."""
 
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
@@ -14,6 +15,7 @@ import torch
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
 from isaaclab.sim.usd_export.physx_usd_exporter import PhysxUsdExporter
+from isaaclab.utils import assets as assets_utils
 
 
 class _Exporter(PhysxUsdExporter):
@@ -487,6 +489,27 @@ def test_relative_references_of_a_scene_opened_from_a_file_resolve_in_another_di
     exported = Usd.Stage.Open(exporter.export(str(tmp_path / "export.usda")))
 
     assert exported.GetPrimAtPath("/World/Robot").GetTypeName() == "Xform"
+
+
+def test_a_cached_remote_asset_is_referenced_by_its_url_without_opening_it(tmp_path, capfd):
+    """The export names a cached remote asset by its URL in a copy no stage composes, so nothing opens the URL."""
+    url = "https://example.com/Robots/robot.usda"
+    cached = Path(assets_utils._mirror_path(url, str(tmp_path / "cache")))
+    cached.parent.mkdir(parents=True)
+    robot = Usd.Stage.CreateNew(str(cached))
+    robot.SetDefaultPrim(robot.DefinePrim("/Robot", "Xform"))
+    robot.Save()
+    stage = Usd.Stage.CreateInMemory()
+    stage.DefinePrim("/World/Robot").GetReferences().AddReference(str(cached))
+    exporter = _Exporter(_scene(stage=stage, cable_objects={}))
+    exporter._select_environment = lambda stage: None
+    held = []  # an engine import may keep the stage it read alive past the diff
+    exporter.compute_diff = lambda stage: held.append(stage) or []
+
+    exported = Path(exporter.export(str(tmp_path / "export.usda")))
+
+    assert f"@{url}@" in exported.read_text()
+    assert "Could not open asset" not in capfd.readouterr().err
 
 
 def test_a_collision_schema_the_export_applies_states_the_other_offsets():
