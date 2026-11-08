@@ -20,7 +20,6 @@ import torch
 
 from ..managers import EventManager
 from ..sim import SimulationContext
-from ..sim.usd_export import export_scene
 from ..sim.utils.stage import use_stage
 from ..utils import index_fill_, instantiate, validate
 from ..utils.noise import NoiseModel
@@ -180,7 +179,7 @@ class DirectMARLEnv(gym.Env):
         self._physics_handles_decimation = self.sim.backend_manager.handles_decimation()
         # export after asset initialization, before startup events
         if self.cfg.scene.export_usd_path is not None:
-            export_scene(self.scene)
+            self.scene.export_to_usd(self.cfg.scene.export_usd_path)
 
         # check if debug visualization is has been implemented by the environment
         source_code = inspect.getsource(self._set_debug_vis_impl)

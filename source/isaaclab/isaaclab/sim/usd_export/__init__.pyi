@@ -7,8 +7,7 @@ __all__ = [
     "BaseUsdExporter",
     "UsdEdit",
     "UsdExporter",
-    "export_scene",
 ]
 
-from .base_usd_exporter import BaseUsdExporter, UsdEdit, export_scene
+from .base_usd_exporter import BaseUsdExporter, UsdEdit
 from .usd_exporter import UsdExporter

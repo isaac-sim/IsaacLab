@@ -17,7 +17,6 @@ Isaac Sim and OVPhysX open it, and Newton reads it with :meth:`newton.ModelBuild
    UsdExporter
    BaseUsdExporter
    UsdEdit
-   export_scene
 
 Exporters
 ---------
@@ -31,5 +30,3 @@ Exporters
 
 .. autoclass:: UsdEdit
    :members:
-
-.. autofunction:: export_scene

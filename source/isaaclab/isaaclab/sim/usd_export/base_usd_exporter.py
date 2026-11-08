@@ -144,25 +144,6 @@ class UsdEdit(NamedTuple):
         attribute.Set(self.value)
 
 
-def export_scene(scene: InteractiveScene) -> str | None:
-    """Export the scene to its configured path during environment setup.
-
-    A failed export is logged rather than raised, so training continues without the file.
-
-    Args:
-        scene: Initialized scene with :attr:`~isaaclab.scene.InteractiveSceneCfg.export_usd_path` set.
-
-    Returns:
-        The written path, or None if the export failed.
-    """
-    path = scene.cfg.export_usd_path
-    try:
-        return scene.export_to_usd(path)
-    except Exception:
-        logger.exception(f"USD export to '{path}' failed; continuing without it.")
-        return None
-
-
 class BaseUsdExporter(ABC):
     """Export one environment of an initialized scene: its USD plus the values its engine holds.
 
