@@ -21,6 +21,8 @@ __all__ = [
     "MJWarpSolver",
     "MJWarpSolverCfg",
     "MjWarpActuatorBridge",
+    "get_particle_material_parameters",
+    "set_particle_material_parameters",
     "MPMSolver",
     "MPMSolverCfg",
     "NewtonBackend",
@@ -59,6 +61,7 @@ from .kamino_solver_cfg import (
 from .mjwarp_actuator_bridge import MjWarpActuatorBridge
 from .mjwarp_solver import MJWarpSolver
 from .mjwarp_solver_cfg import MJWarpSolverCfg
+from .mpm_material import get_particle_material_parameters, set_particle_material_parameters
 from .mpm_solver import MPMSolver, reset_mpm_solver_state
 from .mpm_solver_cfg import MPMSolverCfg
 from .newton_backend import NewtonBackend, NewtonCloneRecord

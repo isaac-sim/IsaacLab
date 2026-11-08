@@ -244,6 +244,12 @@ class MPMSolver(NewtonSolver):
         """Construct implicit MPM from the configuration authored on the active physics scene."""
         return self.solver_class(model, mpm_solver_config(self.cfg), temporary_store=TemporaryStore())
 
+    def material_graph_signature(self) -> tuple:
+        """Track MPM allocations and material-dependent branches recorded during capture."""
+        from .mpm_material import mpm_material_graph_signature  # noqa: PLC0415
+
+        return mpm_material_graph_signature((self.native,))
+
     def applies_body_forces(self) -> bool:
         return False
 
