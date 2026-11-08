@@ -148,7 +148,7 @@ class BinaryJointAction(ActionTerm):
 class BinaryJointPositionAction(BinaryJointAction):
     """Binary joint action that sets the binary action into joint position targets."""
 
-    supports_graph_capture = True
+    is_graphable = True
 
     cfg: actions_cfg.BinaryJointPositionActionCfg
     """The configuration of the action term."""
@@ -160,7 +160,7 @@ class BinaryJointPositionAction(BinaryJointAction):
 class BinaryJointVelocityAction(BinaryJointAction):
     """Binary joint action that sets the binary action into joint velocity targets."""
 
-    supports_graph_capture = True
+    is_graphable = True
 
     cfg: actions_cfg.BinaryJointVelocityActionCfg
     """The configuration of the action term."""
@@ -178,7 +178,7 @@ class AbsBinaryJointPositionAction(BinaryJointAction):
     closed joint-position target.
     """
 
-    supports_graph_capture = True
+    is_graphable = True
 
     cfg: actions_cfg.AbsBinaryJointPositionActionCfg
     """The configuration of the action term."""

@@ -39,14 +39,14 @@ class ActionTerm(ManagerTermBase):
       responsible for applying the processed actions to the asset managed by the term.
     """
 
-    supports_graph_capture: ClassVar[bool] = False
+    is_graphable: ClassVar[bool] = False
     """Whether :meth:`apply_actions` can be recorded into a CUDA graph, i.e. it writes from fixed buffers."""
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         # A subclass that overrides apply_actions declares its own flag; it does not inherit it.
         if "apply_actions" in cls.__dict__:
-            cls.supports_graph_capture = cls.__dict__.get("supports_graph_capture", False)
+            cls.is_graphable = cls.__dict__.get("is_graphable", False)
 
     def __init__(self, cfg: ActionTermCfg, env: ManagerBasedEnv):
         """Initialize the action term.
@@ -287,9 +287,9 @@ class ActionManager(ManagerBase):
         return self._prev_action
 
     @property
-    def supports_graph_capture(self) -> bool:
+    def is_graphable(self) -> bool:
         """Whether :meth:`apply_action` can be recorded into a CUDA graph."""
-        return all(term.supports_graph_capture for term in self._terms.values())
+        return all(term.is_graphable for term in self._terms.values())
 
     @property
     def has_debug_vis_implementation(self) -> bool:

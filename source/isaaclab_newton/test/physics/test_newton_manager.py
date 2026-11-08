@@ -943,13 +943,13 @@ def _bound_control(manager: NewtonManager, *, graphable: bool):
     """Actions that damp a free body, and an empty scene; both support graph capture when ``graphable``."""
     applied = []
     actions = SimpleNamespace(
-        supports_graph_capture=graphable,
+        is_graphable=graphable,
         apply_action=lambda: (
             applied.append("action"),
             wp.launch(_damp_body, 1, inputs=[manager.backend.state_0.body_qd, manager.backend.state_0.body_f]),
         ),
     )
-    scene = SimpleNamespace(supports_graph_capture=True, write_data_to_sim=lambda: None)
+    scene = SimpleNamespace(is_graphable=True, write_data_to_sim=lambda: None)
     return actions, scene, applied
 
 

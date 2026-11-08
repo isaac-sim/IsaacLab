@@ -363,9 +363,9 @@ class Articulation(BaseArticulation):
         return self._permanent_wrench_composer
 
     @property
-    def supports_graph_capture(self) -> bool:
+    def is_graphable(self) -> bool:
         """Whether :meth:`write_data_to_sim` can be recorded: no Torch actuators and no fixed tendons."""
-        return self.actuators.supports_graph_capture and self._fixed_tendon_control is None
+        return self.actuators.is_graphable and self._fixed_tendon_control is None
 
     """
     Operations.

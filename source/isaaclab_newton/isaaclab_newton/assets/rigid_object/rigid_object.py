@@ -51,7 +51,7 @@ class RigidObject(BaseRigidObject):
     __backend_name__: str = "newton"
     """The name of the backend for the rigid object."""
 
-    supports_graph_capture = True
+    is_graphable = True
 
     def __init__(self, cfg: RigidObjectCfg):
         """Initialize the rigid object.

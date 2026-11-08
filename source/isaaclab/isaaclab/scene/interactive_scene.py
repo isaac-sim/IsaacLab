@@ -412,7 +412,7 @@ class InteractiveScene:
         return self.get_state(is_relative=False)
 
     @property
-    def supports_graph_capture(self) -> bool:
+    def is_graphable(self) -> bool:
         """Whether :meth:`write_data_to_sim` can be recorded into a CUDA graph."""
         writers = (
             self._articulations,
@@ -422,7 +422,7 @@ class InteractiveScene:
             self._surface_grippers,
             self._rigid_object_collections,
         )
-        return all(asset.supports_graph_capture for assets in writers for asset in assets.values())
+        return all(asset.is_graphable for assets in writers for asset in assets.values())
 
     """
     Operations.

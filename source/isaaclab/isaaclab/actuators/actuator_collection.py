@@ -161,7 +161,7 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
         return self._control.device
 
     @property
-    def supports_graph_capture(self) -> bool:
+    def is_graphable(self) -> bool:
         """Whether :meth:`compute` can be recorded into a CUDA graph: no Isaac Lab actuator model runs in Torch."""
         return not self._execution_actuators
 

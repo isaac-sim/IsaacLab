@@ -620,7 +620,7 @@ class NewtonManager(PhysicsManager):
     def _bind_control(self) -> None:
         """Register the bound control on the current backend, in the environment's order."""
         actions, scene = self._control
-        if not (actions.supports_graph_capture and scene.supports_graph_capture):
+        if not (actions.is_graphable and scene.is_graphable):
             return
         self.register_pre_actuator_callback(actions.apply_action)
         self.register_pre_actuator_callback(scene.write_data_to_sim)
