@@ -13,7 +13,7 @@ import subprocess
 import sys
 import textwrap
 import time
-from io import StringIO
+from io import BytesIO, StringIO, TextIOWrapper
 from unittest.mock import Mock
 
 import pytest
@@ -149,6 +149,31 @@ def test_hidden_greetings_do_not_start_remote_loading(monkeypatch: pytest.Monkey
     with screen:
         screen.summary("Local run", {"Task": "Cartpole"})
         screen.close()
+
+
+@pytest.mark.kitless
+@pytest.mark.parametrize(
+    ("drawn", "columns"),
+    [(-1, 100), (0, 130)],
+    ids=["standard-width-art", "wide-width-art"],
+)
+def test_summary_prints_on_console_that_cannot_encode_greeting_art(
+    monkeypatch: pytest.MonkeyPatch, drawn: int, columns: int
+):
+    # Output redirected to a file on Windows is encoded with the ANSI code page, which has no block or
+    # box-drawing characters, so a greeting drawn with them must give way to one the console can show.
+    console = TextIOWrapper(BytesIO(), encoding="cp1252")
+    monkeypatch.setattr(sys, "stdout", console)
+    monkeypatch.setenv("COLUMNS", str(columns))
+    monkeypatch.setattr(loading_screen.random, "choice", lambda options: options[drawn])
+    screen = loading_screen.LoadingScreen(1, enabled=False)
+
+    screen.summary("Run", {"Task": "Cartpole"})
+
+    console.flush()
+    shown = Text.from_ansi(console.buffer.getvalue().decode("cp1252")).plain
+    assert "Cartpole" in shown
+    assert "Welcome to Isaac Lab 3!" in shown
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="Pseudo-terminals require POSIX.")
