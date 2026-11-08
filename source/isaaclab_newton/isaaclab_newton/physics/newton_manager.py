@@ -620,13 +620,11 @@ class NewtonManager(PhysicsManager):
     def _bind_control(self) -> None:
         """Register the bound control on the current backend, in the environment's order."""
         actions, scene = self._control
-        backend = self.backend
-        backend.control_every_physics_step = actions.apply_every_physics_step
         if not (actions.supports_graph_capture and scene.supports_graph_capture):
             return
         self.register_pre_actuator_callback(actions.apply_action)
         self.register_pre_actuator_callback(scene.write_data_to_sim)
-        backend.control_bound = True
+        self.backend.control_bound = True
 
     def add_contact_sensor(
         self,

@@ -185,8 +185,6 @@ class JointPositionAction(JointAction):
 
     supports_graph_capture = True
 
-    apply_every_physics_step = False
-
     cfg: actions_cfg.JointPositionActionCfg
     """The configuration of the action term."""
 
@@ -240,8 +238,6 @@ class JointVelocityAction(JointAction):
 
     supports_graph_capture = True
 
-    apply_every_physics_step = False
-
     cfg: actions_cfg.JointVelocityActionCfg
     """The configuration of the action term."""
 
@@ -261,8 +257,6 @@ class JointEffortAction(JointAction):
     """Joint action term that applies the processed actions to the articulation's joints as effort commands."""
 
     supports_graph_capture = True
-
-    apply_every_physics_step = False
 
     cfg: actions_cfg.JointEffortActionCfg
     """The configuration of the action term."""

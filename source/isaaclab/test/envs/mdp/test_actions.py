@@ -252,7 +252,7 @@ def test_recordable_joint_actions_process_into_the_same_buffer(action_cls, cfg) 
     """A step that records ``apply_actions`` reads the processed buffer, so processing writes it in place."""
     cfg.asset_name, cfg.joint_names = "robot", [".*"]
     action = action_cls(cfg, _make_env(["a", "b"]))
-    assert action_cls.supports_graph_capture and not action_cls.apply_every_physics_step
+    assert action_cls.supports_graph_capture
     processed = action.processed_actions
 
     action.process_actions(torch.full((2, action.action_dim), -0.25))
@@ -262,14 +262,14 @@ def test_recordable_joint_actions_process_into_the_same_buffer(action_cls, cfg) 
 
 
 def test_subclass_overriding_apply_actions_does_not_inherit_capture_flags() -> None:
-    """A subclass with its own ``apply_actions`` is neither recorded nor folded unless it says so."""
+    """A subclass with its own ``apply_actions`` is not recorded unless it says so."""
 
     class Applies(JointEffortAction):
         def apply_actions(self):
             pass
 
     class Declares(Applies):
-        apply_every_physics_step = False
+        supports_graph_capture = True
 
         def apply_actions(self):
             pass
@@ -278,6 +278,6 @@ def test_subclass_overriding_apply_actions_does_not_inherit_capture_flags() -> N
         def process_actions(self, actions):
             super().process_actions(actions)
 
-    assert not Applies.supports_graph_capture and Applies.apply_every_physics_step
-    assert not Declares.supports_graph_capture and not Declares.apply_every_physics_step
-    assert Processes.supports_graph_capture and not Processes.apply_every_physics_step
+    assert not Applies.supports_graph_capture
+    assert Declares.supports_graph_capture
+    assert Processes.supports_graph_capture

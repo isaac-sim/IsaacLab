@@ -43,8 +43,6 @@ class JointPositionToLimitsAction(ActionTerm):
 
     supports_graph_capture = True
 
-    apply_every_physics_step = False
-
     cfg: actions_cfg.JointPositionToLimitsActionCfg
     """The configuration of the action term."""
     _asset: Articulation

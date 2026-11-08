@@ -150,8 +150,6 @@ class BinaryJointPositionAction(BinaryJointAction):
 
     supports_graph_capture = True
 
-    apply_every_physics_step = False
-
     cfg: actions_cfg.BinaryJointPositionActionCfg
     """The configuration of the action term."""
 
@@ -163,8 +161,6 @@ class BinaryJointVelocityAction(BinaryJointAction):
     """Binary joint action that sets the binary action into joint velocity targets."""
 
     supports_graph_capture = True
-
-    apply_every_physics_step = False
 
     cfg: actions_cfg.BinaryJointVelocityActionCfg
     """The configuration of the action term."""
@@ -183,8 +179,6 @@ class AbsBinaryJointPositionAction(BinaryJointAction):
     """
 
     supports_graph_capture = True
-
-    apply_every_physics_step = False
 
     cfg: actions_cfg.AbsBinaryJointPositionActionCfg
     """The configuration of the action term."""

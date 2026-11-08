@@ -42,15 +42,11 @@ class ActionTerm(ManagerTermBase):
     supports_graph_capture: ClassVar[bool] = False
     """Whether :meth:`apply_actions` can be recorded into a CUDA graph, i.e. it writes from fixed buffers."""
 
-    apply_every_physics_step: ClassVar[bool] = True
-    """Whether :meth:`apply_actions` must run before every physics step because its command depends on asset state."""
-
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        # A subclass that overrides apply_actions declares its own flags; it does not inherit them.
+        # A subclass that overrides apply_actions declares its own flag; it does not inherit it.
         if "apply_actions" in cls.__dict__:
             cls.supports_graph_capture = cls.__dict__.get("supports_graph_capture", False)
-            cls.apply_every_physics_step = cls.__dict__.get("apply_every_physics_step", True)
 
     def __init__(self, cfg: ActionTermCfg, env: ManagerBasedEnv):
         """Initialize the action term.
@@ -294,11 +290,6 @@ class ActionManager(ManagerBase):
     def supports_graph_capture(self) -> bool:
         """Whether :meth:`apply_action` can be recorded into a CUDA graph."""
         return all(term.supports_graph_capture for term in self._terms.values())
-
-    @property
-    def apply_every_physics_step(self) -> bool:
-        """Whether any term must apply its actions before every physics step."""
-        return any(term.apply_every_physics_step for term in self._terms.values())
 
     @property
     def has_debug_vis_implementation(self) -> bool:

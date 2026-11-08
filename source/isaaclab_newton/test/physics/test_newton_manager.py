@@ -283,7 +283,6 @@ def _recording_backend(
         actuators=None,
         actuators_active=False,
         control_bound=False,
-        control_every_physics_step=False,
         contact_sensors={},
         imu_sensors=[],
         world_mask=wp.zeros(2, dtype=wp.bool, device=device),
@@ -945,7 +944,6 @@ def _bound_control(manager: NewtonManager, *, graphable: bool):
     applied = []
     actions = SimpleNamespace(
         supports_graph_capture=graphable,
-        apply_every_physics_step=True,
         apply_action=lambda: (
             applied.append("action"),
             wp.launch(_damp_body, 1, inputs=[manager.backend.state_0.body_qd, manager.backend.state_0.body_f]),
@@ -968,7 +966,6 @@ def test_bound_control_runs_before_every_physics_step_like_the_environment_loop(
             builder.add_body(mass=1.0)
             sim.reset()
             manager = sim.backend_manager
-            manager.activate_newton_actuator_path()
             manager.set_decimation(decimation)
             actions, scene, applied = _bound_control(manager, graphable=bound)
             assert manager.bind_control(actions, scene) is bound
