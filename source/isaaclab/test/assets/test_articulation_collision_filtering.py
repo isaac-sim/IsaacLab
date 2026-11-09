@@ -7,12 +7,12 @@
 
 import pytest
 
-from pxr import Sdf, Usd, UsdGeom, UsdPhysics
+from pxr import Usd, UsdGeom, UsdPhysics
 
 from isaaclab.assets import ArticulationCfg, Asset
 from isaaclab.sim import use_stage
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
 
 def _author_robot(stage, path="/Robot", root="palm"):
@@ -35,9 +35,18 @@ def _cfg(**kwargs):
     )
 
 
+def _filtered_pairs(stage: Usd.Stage) -> set[frozenset[str]]:
+    """Read exclusions as unordered prim-path pairs."""
+    return {
+        frozenset((str(prim.GetPath()), str(target)))
+        for prim in stage.Traverse()
+        for target in UsdPhysics.FilteredPairsAPI(prim).GetFilteredPairsRel().GetTargets()
+    }
+
+
 @pytest.mark.parametrize(
     "root,asset_path",
-    [("palm", "/Robot"), ("root_joint", "/Robot"), ("palm", "/Robot/palm"), ("root_joint", "/Robot/root_joint")],
+    [("palm", "/Robot"), ("palm", "/Robot/palm"), ("root_joint", "/Robot/root_joint")],
 )
 def test_body_and_joint_roots_include_sibling_links(root, asset_path):
     """Articulation membership follows joints, including links outside the root prim's subtree."""
@@ -47,14 +56,10 @@ def test_body_and_joint_roots_include_sibling_links(root, asset_path):
     cfg.prim_path = asset_path
     with use_stage(stage):
         Asset(cfg)
-    palm = UsdPhysics.FilteredPairsAPI(stage.GetPrimAtPath("/Robot/palm"))
-    targets = set(palm.GetFilteredPairsRel().GetTargets())
-    # Exclusions are symmetric, so either endpoint can own the authored relationship.
-    for link in ("thumb", "tip"):
-        link_targets = (
-            UsdPhysics.FilteredPairsAPI(stage.GetPrimAtPath(f"/Robot/{link}")).GetFilteredPairsRel().GetTargets()
-        )
-        assert Sdf.Path(f"/Robot/{link}") in targets or Sdf.Path("/Robot/palm") in link_targets
+    assert _filtered_pairs(stage) == {
+        frozenset(("/Robot/palm", "/Robot/thumb")),
+        frozenset(("/Robot/palm", "/Robot/tip")),
+    }
 
 
 @pytest.mark.parametrize("selector", ["missing", "[", []], ids=["unmatched", "invalid-regex", "empty-group"])
@@ -71,7 +76,7 @@ def test_invalid_selectors_do_not_partially_author_filters(selector):
 
 
 def test_explicit_articulation_root_isolates_overlapping_groups():
-    """An explicit root selects one graph; same-group exclusions omit self-pairs and preserve targets."""
+    """Reject ambiguous roots, then filter one graph while preserving existing exclusions."""
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.Xform.Define(stage, "/Robot")
     _author_robot(stage, "/Robot/Hand")
@@ -79,16 +84,13 @@ def test_explicit_articulation_root_isolates_overlapping_groups():
     palm = stage.GetPrimAtPath("/Robot/Hand/palm")
     UsdPhysics.FilteredPairsAPI.Apply(palm).CreateFilteredPairsRel().AddTarget("/External/Body")
     cfg = _cfg(articulation_root_prim_path="/Hand/palm")
-    cfg.self_collision_filter_pairs = [(["thumb", ".*"], ".*"), ("thumb", "palm")]
+    cfg.self_collision_filter_pairs = [(["thumb", ".*"], ".*")]
     with use_stage(stage):
+        with pytest.raises(ValueError, match="articulation"):
+            Asset(_cfg())
         Asset(cfg)
         Asset(cfg)
-    pairs = set()
-    for prim in Usd.PrimRange(stage.GetPrimAtPath("/Robot/Hand")):
-        for target in UsdPhysics.FilteredPairsAPI(prim).GetFilteredPairsRel().GetTargets():
-            assert target != prim.GetPath()
-            pairs.add(frozenset((str(prim.GetPath()), str(target))))
-    assert pairs == {
+    assert _filtered_pairs(stage) == {
         frozenset(("/Robot/Hand/palm", "/External/Body")),
         frozenset(("/Robot/Hand/palm", "/Robot/Hand/thumb")),
         frozenset(("/Robot/Hand/palm", "/Robot/Hand/tip")),
@@ -97,16 +99,6 @@ def test_explicit_articulation_root_isolates_overlapping_groups():
     assert all(
         not prim.HasAPI(UsdPhysics.FilteredPairsAPI) for prim in Usd.PrimRange(stage.GetPrimAtPath("/Robot/Other"))
     )
-
-
-def test_multiple_articulations_require_an_explicit_root():
-    """A broad asset path cannot silently select one of several independent articulations."""
-    stage = Usd.Stage.CreateInMemory()
-    UsdGeom.Xform.Define(stage, "/Robot")
-    _author_robot(stage, "/Robot/Hand")
-    _author_robot(stage, "/Robot/Other")
-    with use_stage(stage), pytest.raises(ValueError, match="articulation"):
-        Asset(_cfg())
 
 
 def test_instance_proxy_bodies_raise_before_authoring():

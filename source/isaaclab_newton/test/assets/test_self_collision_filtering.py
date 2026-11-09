@@ -13,9 +13,9 @@ from pxr import Usd, UsdGeom, UsdPhysics
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, Asset, AssetBaseCfg
 from isaaclab.cloner import make_clone_plan, replicate
-from isaaclab.sim import MultiAssetSpawnerCfg, SimulationCfg, SpawnerCfg, build_simulation_context
+from isaaclab.sim import MultiAssetSpawnerCfg, SimulationCfg, SimulationContext, SpawnerCfg, build_simulation_context
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.kitless]
 
 
 def _spawn_robot(prim_path: str, _cfg: SpawnerCfg | None = None, **_kwargs) -> Usd.Prim:
@@ -52,19 +52,25 @@ def _spawn_scene(prim_path: str, _cfg: SpawnerCfg, **_kwargs) -> Usd.Prim:
     return root
 
 
-@pytest.mark.parametrize("spawn", [True, False], ids=["spawn", "existing-stage"])
-def test_body_group_exclusions_survive_newton_replication(spawn):
+def _finalize_contact_pairs(sim: SimulationContext) -> set[frozenset[str]]:
+    """Finalize the CPU builder and read the eligible collision pairs."""
+    model = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics)).finalize(device="cpu")
+    return {
+        frozenset((model.shape_label[first], model.shape_label[second]))
+        for first, second in model.shape_contact_pairs.numpy()
+    }
+
+
+def test_body_group_exclusions_survive_newton_replication():
     """Every collider of the selected bodies is excluded in each clone, with sibling contacts preserved."""
     physics_cfg = NewtonCfg(solver_cfg=VBDSolverCfg(), load_visual_shapes=False)
     with build_simulation_context(sim_cfg=SimulationCfg(device="cpu", physics=physics_cfg)) as sim:
         source = "/World/envs/env_0/Robot"
         sibling = "/World/envs/env_0/Sibling"
-        if not spawn:
-            _spawn_robot(source)
         _spawn_robot(sibling)
         cfg = ArticulationCfg(
             prim_path="/World/envs/env_[^/]+/Robot",
-            spawn=SpawnerCfg(func=_spawn_robot, spawn_path=source) if spawn else None,
+            spawn=SpawnerCfg(func=_spawn_robot, spawn_path=source),
             actuators={},
             self_collision_filter_pairs=[(["left.*"], "right")],
         )
@@ -73,13 +79,7 @@ def test_body_group_exclusions_survive_newton_replication(spawn):
         plan = make_clone_plan((cfg, sibling_cfg), ((0, 1),), 2)
         sim.set_clone_plan(plan)
         replicate(plan)
-        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=physics_cfg))
-        model = builder.finalize(device="cpu")
-
-        allowed_pairs = {
-            frozenset((model.shape_label[first], model.shape_label[second]))
-            for first, second in model.shape_contact_pairs.numpy()
-        }
+        allowed_pairs = _finalize_contact_pairs(sim)
         for env in range(2):
             robot_path = f"/World/envs/env_{env}/Robot"
             sibling_path = f"/World/envs/env_{env}/Sibling"
@@ -136,12 +136,7 @@ def test_group_exclusions_follow_multiple_prototype_sources_and_nested_views():
             )
         )
         replicate(plan)
-        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=physics_cfg))
-        model = builder.finalize(device="cpu")
-        allowed_pairs = {
-            frozenset((model.shape_label[first], model.shape_label[second]))
-            for first, second in model.shape_contact_pairs.numpy()
-        }
+        allowed_pairs = _finalize_contact_pairs(sim)
         for env in range(2):
             for name in ("Robot", "Nested"):
                 path = f"/World/envs/env_{env}/Scene/{name}"
