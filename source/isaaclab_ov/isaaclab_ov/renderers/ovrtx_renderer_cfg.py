@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 import tempfile
 from dataclasses import MISSING
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, Literal
 
 import warp as wp
 
@@ -41,6 +41,8 @@ class OVRTXBackendCfg(BackendCfg):
     """Whether OVRTX reads its GPU transform cache, resolved before native construction."""
     device: str = MISSING
     """Normalized simulation device: ``cpu`` or ``cuda:<index>``."""
+    motion_bvh: Literal["disable", "enable", "auto"] | None = None
+    """Motion BVH mode passed to the native renderer. ``None`` leaves it disabled."""
 
 
 @configclass
@@ -65,6 +67,14 @@ class OVRTXRendererCfg(RendererCfg):
 
     cloning_contexts: tuple[type | str, ...] = ("isaaclab_ov.cloner:OvrtxReplicateContext",)
     """Request native OVRTX copies; clone preparation may select a shared OVStage instead."""
+
+    motion_bvh: Literal["disable", "enable", "auto"] | None = None
+    """Motion BVH mode for lidar and other non-visual sensors. Defaults to disabled.
+
+    ``None`` leaves the renderer setting unset, which is the existing camera behavior.
+    ``"auto"`` enables motion BVH when a non-visual sensor is rendered. ``"enable"`` and
+    ``"disable"`` force the mode. The value is read when the native renderer is created.
+    """
 
     async_rendering: bool = False
     """Trade one capture of camera latency for pipelined rendering. Defaults to False (synchronous).

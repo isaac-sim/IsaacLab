@@ -48,3 +48,21 @@ class CameraImageStack(ManagerTermBase):
         if data_type == "albedo":
             images = images[..., :3]
         return self._frames(images, functools.partial(normalize_camera_image, data_type=data_type))
+
+
+def lidar_points(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Return one lidar's points flattened per environment, with misses replaced by zeros.
+
+    :attr:`~isaaclab.sensors.lidar.LidarData.points` keeps non-finite values for rays that miss.
+    Those values cannot be concatenated with the joint state, so this term writes zeros there.
+
+    Args:
+        env: Environment whose scene owns the lidar.
+        sensor_cfg: Scene entity that names the lidar sensor.
+
+    Returns:
+        Tensor of shape ``(num_envs, num_rays * 3)``.
+    """
+    points = env.scene.sensors[sensor_cfg.name].data.points.torch
+    flat = points.reshape(points.shape[0], -1)
+    return torch.nan_to_num(flat, nan=0.0, posinf=0.0, neginf=0.0)

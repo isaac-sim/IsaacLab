@@ -19,6 +19,10 @@
     CameraData
     CameraCfg
     ExposureCfg
+    Lidar
+    LidarData
+    LidarCfg
+    LidarSpawnerCfg
     ContactSensor
     ContactSensorData
     ContactSensorCfg
@@ -143,6 +147,31 @@ Frame Transformer
     :members:
     :inherited-members:
     :exclude-members: __init__
+
+Lidar
+-----
+
+.. autoclass:: Lidar
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: LidarData
+    :members:
+    :inherited-members:
+    :exclude-members: __init__
+
+.. autoclass:: LidarCfg
+    :members:
+    :inherited-members:
+    :show-inheritance:
+    :exclude-members: __init__, class_type
+
+.. autoclass:: LidarSpawnerCfg
+    :members:
+    :inherited-members:
+    :show-inheritance:
+    :exclude-members: __init__, class_type
 
 Ray-Cast Sensor
 ---------------

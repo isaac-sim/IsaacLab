@@ -49,3 +49,27 @@ def test_newton_renderer_accepts_supported_data_types(cfg_cls):
     """The guard must not reject data types the Newton Warp renderer does publish."""
     cfg = resolve_presets(cfg_cls(), {"newton_warp", "rgb"})
     validate(cfg)  # must not raise
+
+
+def test_lidar_preset_uses_one_ovrtx_renderer():
+    """The lidar preset pins the camera and the lidar to OVRTX with motion BVH enabled."""
+    from isaaclab_ov.renderers import OVRTXRendererCfg
+
+    from isaaclab.sensors import LidarCfg
+
+    cfg = resolve_presets(CartpoleManagerCameraEnvCfg(), {"lidar"})
+    validate(cfg)
+    assert isinstance(cfg.scene.lidar, LidarCfg)
+    assert isinstance(cfg.scene.lidar.renderer_cfg, OVRTXRendererCfg)
+    assert isinstance(cfg.scene.tiled_camera.renderer_cfg, OVRTXRendererCfg)
+    assert cfg.scene.lidar.renderer_cfg.motion_bvh == "auto"
+    assert cfg.scene.tiled_camera.renderer_cfg.motion_bvh == "auto"
+    assert cfg.scene.lidar.renderer_cfg == cfg.scene.tiled_camera.renderer_cfg
+
+
+def test_rgb_preset_has_no_lidar():
+    """Existing camera presets do not gain a lidar or change renderer."""
+    cfg = resolve_presets(CartpoleManagerCameraEnvCfg(), {"rgb"})
+    validate(cfg)
+    assert not hasattr(cfg.scene, "lidar")
+    assert cfg.scene.tiled_camera.data_types == ["rgb"]
