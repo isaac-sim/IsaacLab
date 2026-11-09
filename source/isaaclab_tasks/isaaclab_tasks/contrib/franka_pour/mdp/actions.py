@@ -142,4 +142,4 @@ class CurriculumGripperPositionAction(BinaryJointPositionAction):
     def process_actions(self, actions: torch.Tensor) -> None:
         self._previous_target.copy_(self._processed_actions)
         super().process_actions(actions)
-        torch.lerp(self._previous_target, self._processed_actions, self._alpha, out=self._processed_actions)
+        self._processed_actions[:] = torch.lerp(self._previous_target, self._processed_actions, self._alpha)

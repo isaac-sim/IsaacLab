@@ -137,7 +137,7 @@ class BinaryJointAction(ActionTerm):
         else:
             close_mask = actions < 0
         # compute the command in place: a recorded apply_actions reads this buffer
-        torch.where(close_mask, self._close_command, self._open_command, out=self._processed_actions)
+        self._processed_actions[:] = torch.where(close_mask, self._close_command, self._open_command)
         if self.cfg.clip is not None:
             self._processed_actions.clamp_(min=self._clip[:, :, 0], max=self._clip[:, :, 1])
 
@@ -194,7 +194,7 @@ class AbsBinaryJointPositionAction(BinaryJointAction):
             # true: close 0.0, false: open 0.785
             binary_mask = actions < self.cfg.threshold
         # compute the command in place: a recorded apply_actions reads this buffer
-        torch.where(binary_mask, self._open_command, self._close_command, out=self._processed_actions)
+        self._processed_actions[:] = torch.where(binary_mask, self._open_command, self._close_command)
         if self.cfg.clip is not None:
             self._processed_actions.clamp_(min=self._clip[:, :, 0], max=self._clip[:, :, 1])
 

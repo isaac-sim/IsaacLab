@@ -157,7 +157,7 @@ class JointPositionToLimitsAction(ActionTerm):
         # store the raw actions
         self._raw_actions[:] = actions
         # apply affine transformations in place: a recorded apply_actions reads this buffer
-        torch.mul(self._raw_actions, self._scale, out=self._processed_actions)
+        self._processed_actions[:] = self._raw_actions * self._scale
         if self.cfg.clip is not None:
             self._processed_actions.clamp_(min=self._clip[:, :, 0], max=self._clip[:, :, 1])
         # rescale the position targets if configured

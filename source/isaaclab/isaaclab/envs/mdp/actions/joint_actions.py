@@ -170,7 +170,7 @@ class JointAction(ActionTerm):
         # store the raw actions
         self._raw_actions[:] = actions
         # apply the affine transformations in place: a recorded apply_actions reads this buffer
-        torch.mul(self._raw_actions, self._scale, out=self._processed_actions)
+        self._processed_actions[:] = self._raw_actions * self._scale
         self._processed_actions.add_(self._offset)
         # clip actions
         if self.cfg.clip is not None:
