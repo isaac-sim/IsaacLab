@@ -216,28 +216,10 @@ class CameraCfg(SensorBaseCfg):
     """Camera exposure, authored on the camera prims before the scene is cloned. Defaults to the renderer's
     exposure."""
 
-    tensor_processors: list[TensorProcessorCfg] = []
-    """Processors that compute camera outputs from render outputs. Defaults to an empty list.
-
-    Each ``func`` is a :class:`~isaaclab.utils.tensor_processors.TensorProcessor` class, constructed at the first
-    published capture with the configuration and the named camera buffers. After each published capture, processors
-    run in order on the render outputs and earlier processors' outputs, and their outputs are added to
-    :attr:`CameraData.output`. The renderer produces every input that no earlier processor produces, so a processor
-    can replace an output it reads. Camera resets and teardown call the processors' ``reset`` and ``close``. Camera
-    construction calls an optional ``func.prepare_camera(cfg, stage, camera_prim_paths, renderer_cfg)`` class method
-    before the scene is cloned or exported; it returns the configuration to use, or None to remove the processor.
-
-    With ``update_period > 0``, environments become due on different steps, but each capture renders every
-    environment. A stateful processor can list ``"env_mask"`` in its ``inputs`` to receive a boolean mask of shape
-    ``(N,)`` marking the environments due for the capture, whose frame and timestamp advance. The name is reserved
-    and the mask is not published as a camera output. It describes the current capture request, so these processors
-    need synchronous rendering.
-    """
-
     isp_cfg: Any | CameraISPMode | None = None
     """PPISP coefficients or discovery mode. Defaults to None (no PPISP).
 
-    .. deprecated:: 42.0.0
+    .. deprecated::
         Add ``isaaclab_ppisp.PpispProcessorCfg(isp_cfg=...)`` to :attr:`tensor_processors` instead. Camera
         construction moves a non-None value there with a :class:`FutureWarning`.
     """
@@ -251,7 +233,9 @@ class CameraCfg(SensorBaseCfg):
     renderer produces every input that no earlier processor produces, so a processor can replace an output it reads.
     The render outputs that processors read are published too, :attr:`data_types` adds render outputs that no
     processor reads, and an entry that a processor produces is not rendered. A processor returns exactly the names
-    in its ``outputs``. Camera resets and teardown call the processors' ``reset`` and ``close``.
+    in its ``outputs``. Camera resets and teardown call the processors' ``reset`` and ``close``. Camera construction
+    calls an optional ``func.prepare_camera(cfg, stage, camera_prim_paths, renderer_cfg)`` class method before the
+    scene is cloned or exported; it returns the configuration to use, or None to remove the processor.
 
     With ``update_period > 0``, environments become due on different steps, but each capture renders every
     environment. A stateful processor can list ``CAPTURE_ENV_MASK_NAME`` in its ``inputs`` to receive a boolean
