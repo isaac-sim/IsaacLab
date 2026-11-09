@@ -5,3 +5,4 @@
   initial state of articulation joints and volume deformables. Explicit PD
   actuators, which run outside the physics engine, are written as joint drive gains. Files the run
   wrote to the temporary directory, such as re-saved actuator networks, are copied next to the export.
+  On PhysX and OvPhysX, exporting needs ``export_usd_path`` set when the scene is created.

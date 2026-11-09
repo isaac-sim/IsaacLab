@@ -441,6 +441,28 @@ def test_explicit_pd_actuator_is_exported_as_a_joint_drive(tmp_path):
     assert model.joint_target_kd.numpy()[hinge_dof] == pytest.approx(4.5, rel=1e-5)
 
 
+def test_a_scene_without_an_export_path_does_not_read_the_engine_for_an_export(tmp_path, monkeypatch):
+    """Only a scene that exports reads the engine at startup, which costs PhysX a view and a copy per asset."""
+    from isaaclab_newton.physics import NewtonCfg, XPBDSolverCfg
+
+    from isaaclab.scene import InteractiveScene
+    from isaaclab.sim import SimulationCfg, build_simulation_context
+    from isaaclab.sim.usd_export.base_usd_exporter import BaseUsdExporter
+    from isaaclab.test.utils.usd_export import make_export_scene_cfg
+
+    reads = []
+    monkeypatch.setattr(BaseUsdExporter, "read_engine_base", lambda self: reads.append(self))
+    cfg = make_export_scene_cfg(tmp_path)
+    cfg.export_usd_path = None
+    sim_cfg = SimulationCfg(device="cpu", dt=1 / 120, physics=NewtonCfg(solver_cfg=XPBDSolverCfg()))
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        scene = InteractiveScene(cfg)
+        sim.reset()
+
+    assert scene._usd_export_base is None
+    assert reads == []
+
+
 def test_model_without_joint_dofs_has_no_changed_values():
     """A model without joint DOFs, e.g. one with only fixed joints, compares to empty builder lists."""
     from types import SimpleNamespace

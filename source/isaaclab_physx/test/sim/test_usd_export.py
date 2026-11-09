@@ -102,7 +102,7 @@ def test_importing_the_export_reproduces_deformables(tmp_path):
         sim_utils.OmniPhysicsDeformableBodyCfg(),
         PhysxDeformableBodyCfg(solver_position_iteration_count=24, linear_damping=0.05),
     ]
-    cfg = InteractiveSceneCfg(num_envs=1, env_spacing=1.0)
+    cfg = InteractiveSceneCfg(num_envs=1, env_spacing=1.0, export_usd_path=str(tmp_path / "exported.usda"))
     cfg.beam = DeformableObjectCfg(
         prim_path="{ENV_REGEX_NS}/Beam",
         init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, -0.3, 1.0)),

@@ -233,7 +233,10 @@ class BaseUsdExporter(ABC):
         if isinstance(base, Exception):
             raise RuntimeError("The engine could not be read when the physics became ready.") from base
         if base is None:
-            raise RuntimeError("The engine was not read when the physics became ready: create the scene first.")
+            raise RuntimeError(
+                "The engine was not read when the physics became ready: create the scene with the scene"
+                " configuration's export_usd_path set, and export after the simulation is reset."
+            )
         return base
 
     @staticmethod

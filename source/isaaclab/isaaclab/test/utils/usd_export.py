@@ -14,7 +14,7 @@ def make_export_scene_cfg(directory: Path):
     """Create a scene whose configuration overrides values of its own USD assets.
 
     The robot USD authors a revolute drive (stiffness 1, damping 1 per degree, max force 100) that
-    the actuator configuration replaces. The scene has one environment.
+    the actuator configuration replaces. The scene has one environment and exports to ``directory``.
 
     Args:
         directory: Directory for the generated robot USD file.
@@ -71,7 +71,7 @@ def make_export_scene_cfg(directory: Path):
     drive.CreateMaxForceAttr().Set(100)
     stage.GetRootLayer().Save()
 
-    cfg = InteractiveSceneCfg(num_envs=1, env_spacing=3.0)
+    cfg = InteractiveSceneCfg(num_envs=1, env_spacing=3.0, export_usd_path=str(Path(directory) / "exported.usda"))
     cfg.robot = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/Robot",
         spawn=sim_utils.UsdFileCfg(usd_path=str(source)),

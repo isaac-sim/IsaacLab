@@ -129,7 +129,8 @@ class InteractiveSceneCfg:
     """USD file to export environment 0 to after asset initialization. Defaults to None (no export).
 
     The export happens before startup events and the first physics step; see
-    :meth:`~isaaclab.scene.InteractiveScene.export_to_usd`.
+    :meth:`~isaaclab.scene.InteractiveScene.export_to_usd`. On PhysX and OvPhysX, setting it also has the
+    scene read the engine before its assets initialize, which the export compares against.
     """
 
 
