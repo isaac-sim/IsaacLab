@@ -838,8 +838,8 @@ def test_newton_ordered_state_publishes_inside_captured_cuda_graph(device: str) 
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_bound_writes_read_the_reordered_state_of_the_current_physics_step(device: str) -> None:
-    """A bound asset write runs between the physics steps of one step and reads the current reordered body poses."""
+def test_handled_writes_read_the_reordered_state_of_the_current_physics_step(device: str) -> None:
+    """A handled asset write runs between the physics steps of one step and reads the current reordered body poses."""
     articulation_cfg = ArticulationCfg(
         prim_path="/World/Env_[^/]*/Robot",
         spawn=local_usd("floating_two_leg.usda"),
@@ -864,7 +864,7 @@ def test_bound_writes_read_the_reordered_state_of_the_current_physics_step(devic
         manager = sim.backend_manager
         manager.set_decimation(3)
         actions = SimpleNamespace(is_graphable=True, apply_action=lambda: None)
-        assert manager.bind_control(actions, SimpleNamespace(is_graphable=True, write_data_to_sim=write_data_to_sim))
+        assert manager.handle_actions(actions, SimpleNamespace(is_graphable=True, write_data_to_sim=write_data_to_sim))
         # a spinning robot moves during the step, so a pose from before the step cannot pass for the current one
         spin = torch.tensor([[1.0, 0.0, 0.0, 0.0, 0.0, 5.0]], device=device).repeat(articulation.num_instances, 1)
         articulation.write_root_velocity_to_sim_index(root_velocity=spin)

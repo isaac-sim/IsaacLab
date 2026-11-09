@@ -210,7 +210,7 @@ class NewtonBackend:
         """Newton actuators run inside the step, or ``None``."""
         self.actuators_active = False
         """Whether an articulation runs its Newton actuators in the step (:meth:`activate_actuators`)."""
-        self.control_bound = False
+        self.handles_actions = False
         """Whether the environment's actions and asset writes run as pre-actuator callbacks of every physics step."""
         self.pre_actuator_callbacks: list[Callable[[], None]] = []
         """Run before the Newton actuators of every physics step."""
@@ -463,8 +463,8 @@ class NewtonBackend:
         return sensor
 
     def handles_decimation(self) -> bool:
-        """Whether one :meth:`step` runs the whole decimation loop: with bound control or Newton actuators."""
-        return self.control_bound or self.actuators_active
+        """Whether one :meth:`step` runs the whole decimation loop: when it handles actions or runs Newton actuators."""
+        return self.handles_actions or self.actuators_active
 
     def set_decimation(self, decimation: int) -> None:
         """Set the physics steps per environment step."""
@@ -625,8 +625,8 @@ class NewtonBackend:
             self.collision_pipeline.collide(self.state_0, self.contacts)
         for callback in self.pre_actuator_callbacks:
             callback()
-        if self.control_bound:
-            # bound asset writes replace the body forces staged before the step
+        if self.handles_actions:
+            # the asset writes replace the body forces staged before the step
             self._stage_body_forces()
 
     def _after_actuators(self, observables: SolverBase.Observables | None) -> None:

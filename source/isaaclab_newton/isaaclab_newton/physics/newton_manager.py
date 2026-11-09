@@ -233,7 +233,7 @@ class NewtonManager(PhysicsManager):
         """Clear all Newton-specific state (callbacks cleared by super().close())."""
         self._close_backend(dispatch_stop=False)
         self._decimation = 1
-        self._control: tuple[ActionManager, InteractiveScene] | None = None
+        self._handled_actions: tuple[ActionManager, InteractiveScene] | None = None
         # Site requests and replication outputs survive hard resets.
         # (body_pattern, per_world, xform floats) -> (label, transform)
         self._site_requests: dict[tuple[str | None, bool, tuple[float, ...]], tuple[str, wp.transform]] = {}
@@ -493,8 +493,8 @@ class NewtonManager(PhysicsManager):
             device=self.get_device(),
         ):
             backend.init_solver(None if plan is None else plan.env_template, relaxed_capture=self._relaxed_capture)
-        if self._control is not None:
-            self._bind_control()
+        if self._handled_actions is not None:
+            self._handle_actions()
         self._mark_transforms_changed()
 
     def _relaxed_capture(self) -> bool:
@@ -599,11 +599,11 @@ class NewtonManager(PhysicsManager):
         """Whether :meth:`step` executes the full decimation loop; see :meth:`NewtonBackend.handles_decimation`."""
         return self.backend.handles_decimation()
 
-    def bind_control(self, actions: ActionManager, scene: InteractiveScene) -> bool:
+    def handle_actions(self, actions: ActionManager, scene: InteractiveScene) -> bool:
         """Run the environment's actions and asset writes as pre-actuator callbacks of every physics step.
 
-        Binds only when both support graph capture; one :meth:`step` then advances the whole decimation loop. Hard
-        resets bind again on the new backend.
+        Only when both support graph capture; one :meth:`step` then advances the whole decimation loop. Hard resets
+        register them again on the new backend.
 
         Args:
             actions: Environment action manager.
@@ -612,18 +612,18 @@ class NewtonManager(PhysicsManager):
         Returns:
             Whether the step now applies the actions and writes the assets.
         """
-        self._control = (actions, scene)
-        self._bind_control()
-        return self.backend.control_bound
+        self._handled_actions = (actions, scene)
+        self._handle_actions()
+        return self.backend.handles_actions
 
-    def _bind_control(self) -> None:
-        """Register the bound control on the current backend, in the environment's order."""
-        actions, scene = self._control
+    def _handle_actions(self) -> None:
+        """Register the handled actions and asset writes on the current backend, in the environment's order."""
+        actions, scene = self._handled_actions
         if not (actions.is_graphable and scene.is_graphable):
             return
         self.register_pre_actuator_callback(actions.apply_action)
         self.register_pre_actuator_callback(scene.write_data_to_sim)
-        self.backend.control_bound = True
+        self.backend.handles_actions = True
 
     def add_contact_sensor(
         self,

@@ -671,10 +671,10 @@ class PhysicsManager(metaclass=_PhysicsManagerMeta):
         """
         return False
 
-    def bind_control(self, actions: ActionManager, scene: InteractiveScene) -> bool:
+    def handle_actions(self, actions: ActionManager, scene: InteractiveScene) -> bool:
         """Run the environment's actions and asset writes inside :meth:`step`, before every physics step.
 
-        The default implementation binds nothing.
+        The default implementation handles nothing.
 
         Args:
             actions: Environment action manager.

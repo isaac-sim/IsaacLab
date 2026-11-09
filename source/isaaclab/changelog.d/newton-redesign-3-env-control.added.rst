@@ -1,4 +1,4 @@
-* Added :meth:`PhysicsManager.bind_control <isaaclab.physics.PhysicsManager.bind_control>`, which let a physics
+* Added :meth:`PhysicsManager.handle_actions <isaaclab.physics.PhysicsManager.handle_actions>`, which let a physics
   backend run the environment's actions and asset writes inside its step. :class:`~isaaclab.envs.ManagerBasedEnv`
   called it after loading its managers, unless its render interval was not a multiple of the decimation, a recorder
   term recorded after every physics step, or a sensor sampled at times other than whole environment steps, and

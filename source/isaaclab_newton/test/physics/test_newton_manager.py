@@ -282,7 +282,7 @@ def _recording_backend(
         solver_dt=0.002 / num_substeps,
         actuators=None,
         actuators_active=False,
-        control_bound=False,
+        handles_actions=False,
         contact_sensors={},
         imu_sensors=[],
         world_mask=wp.zeros(2, dtype=wp.bool, device=device),
@@ -939,7 +939,7 @@ def _damp_body(body_qd: wp.array(dtype=wp.spatial_vector), body_f: wp.array(dtyp
     body_f[0] = wp.spatial_vector(0.0, 0.0, -20.0 * body_qd[0][2], 0.0, 0.0, 0.0)
 
 
-def _bound_control(manager: NewtonManager, *, graphable: bool):
+def _handled_actions(manager: NewtonManager, *, graphable: bool):
     """Actions that damp a free body, and an empty scene; both support graph capture when ``graphable``."""
     applied = []
     actions = SimpleNamespace(
@@ -953,13 +953,13 @@ def _bound_control(manager: NewtonManager, *, graphable: bool):
     return actions, scene, applied
 
 
-def test_bound_control_runs_before_every_physics_step_like_the_environment_loop():
-    """Bound actions run before every physics step of one captured step, also after a hard reset, like the env loop.
+def test_handled_actions_run_before_every_physics_step_like_the_environment_loop():
+    """Handled actions run before every physics step of one captured step, also after a hard reset, like the env loop.
 
     The post-step callbacks still run once per step, after its last physics step.
     """
     decimation, num_steps, velocities = 3, 4, []
-    for bound in (True, False):
+    for handled in (True, False):
         sim_cfg = SimulationCfg(dt=0.01, device="cuda:0", physics=NewtonCfg(solver_cfg=MJWarpSolverCfg()))
         with build_simulation_context(sim_cfg=sim_cfg) as sim:
             builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
@@ -967,23 +967,23 @@ def test_bound_control_runs_before_every_physics_step_like_the_environment_loop(
             sim.reset()
             manager = sim.backend_manager
             manager.set_decimation(decimation)
-            actions, scene, applied = _bound_control(manager, graphable=bound)
-            assert manager.bind_control(actions, scene) is bound
-            assert manager.handles_decimation() is bound
+            actions, scene, applied = _handled_actions(manager, graphable=handled)
+            assert manager.handle_actions(actions, scene) is handled
+            assert manager.handles_decimation() is handled
             for reset in (False, True):
                 if reset:
                     sim.reset()
-                    assert manager.backend.control_bound is bound
+                    assert manager.backend.handles_actions is handled
                 # hard resets discard the post-step callbacks
                 manager.register_post_step_callback(lambda: applied.append("publish"))
                 applied.clear()
                 for _ in range(num_steps):
-                    for _ in range(1 if bound else decimation):
-                        if not bound:
+                    for _ in range(1 if handled else decimation):
+                        if not handled:
                             actions.apply_action()
                         sim.step(render=False)
-                # bound steps record the actions once per physics step and then replay them
-                if bound:
+                # steps that handle actions record the actions once per physics step and then replay them
+                if handled:
                     assert applied == (["action"] * decimation + ["publish"]) * 2
                 else:
                     assert applied.count("action") == num_steps * decimation

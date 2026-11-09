@@ -401,8 +401,8 @@ class Articulation(BaseArticulation):
             We write external wrench to the simulation here since this function is called before the simulation step.
             This ensures that the external wrench is applied at every simulation step.
         """
-        if self._post_step_callback is not None and self._backend_manager.backend.control_bound:
-            # bound writes run between physics steps, before the post-step callbacks republish the reordered state
+        if self._post_step_callback is not None and self._backend_manager.backend.handles_actions:
+            # handled writes run between physics steps, before the post-step callbacks republish the reordered state
             self._post_step_callback()
         # write external wrench
         if self._instantaneous_wrench_composer.pending or self._permanent_wrench_composer.pending:

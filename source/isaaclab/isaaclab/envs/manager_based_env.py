@@ -224,7 +224,7 @@ class ManagerBasedEnv:
             and not self.recorder_manager.records_physics_steps
             and not sensors_sample_physics_steps
         ):
-            self._physics_handles_actions = self.sim.backend_manager.bind_control(self.action_manager, self.scene)
+            self._physics_handles_actions = self.sim.backend_manager.handle_actions(self.action_manager, self.scene)
         self.sim.backend_manager.set_decimation(self.cfg.decimation)
         self._physics_handles_decimation = self.sim.backend_manager.handles_decimation()
 
