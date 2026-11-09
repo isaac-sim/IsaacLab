@@ -145,7 +145,7 @@ def spawn_multi_usd_file(
     usd_template_cfg = UsdFileCfg()
     for attr_name, attr_value in cfg.__dict__.items():
         # skip names we know are not present
-        if attr_name in ["func", "usd_path", "random_choice", "spawn_path", "spawn_paths"]:
+        if attr_name in ["func", "usd_path", "random_choice", "spawn_path", "spawn_paths", "static"]:
             continue
         # set the attribute into the template
         setattr(usd_template_cfg, attr_name, attr_value)
