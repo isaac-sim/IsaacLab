@@ -201,6 +201,8 @@ class EventsCfg:
 class CubePickupEnvCfg(ManagerBasedRLEnvCfg):
     """Reference task for sparse learning with generated and validated reset states."""
 
+    class_type: type | str = "{DIR}.cube_pickup_env:CubePickupEnv"
+
     scene: SceneCfg = SceneCfg(num_envs=1024, env_spacing=2.0)
     actions: ActionsCfg = ActionsCfg()
     observations: ObservationsCfg = ObservationsCfg()
@@ -209,7 +211,7 @@ class CubePickupEnvCfg(ManagerBasedRLEnvCfg):
     events: EventsCfg = EventsCfg()
     commands: CommandsCfg = CommandsCfg()
     curriculum = None
-    reset_buffer: ResetStateBufferCfg = ResetStateBufferCfg(size=1024, max_batches=50, seed=0)
+    reset_buffer: ResetStateBufferCfg = ResetStateBufferCfg(size=1024, max_batches=512, seed=0)
     reset_sampler: ResetStateSamplerCfg = ResetStateSamplerCfg()
     reset_mode: Literal["adaptive", "uniform", "table"] = "adaptive"
     """Training distribution, or ordinary home/table starts for evaluation."""
