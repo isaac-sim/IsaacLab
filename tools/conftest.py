@@ -6,12 +6,14 @@
 import contextlib
 import logging
 import os
+import re
 import select
 import signal
 import subprocess
 import sys
 import threading
 import time
+from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -88,6 +90,16 @@ and a Kit process has enough threads to exceed that; this is the whole dump.
 
 TIMEOUT_RETRIES = 0
 """Number of times to retry a test that reaches its hard timeout before giving up."""
+
+OUTPUT_BUDGET_BYTES = 5 * 1024 * 1024
+"""Output above which a passing test file fails.
+
+Test files print at most a few hundred kilobytes. Output that grows with environment or step count stalls
+any reader slower than the test, such as a benchmark harness relaying it line by line.
+"""
+
+OUTPUT_EXCERPT_BYTES = 64 * 1024
+"""Bytes printed from each end of a stream over :data:`OUTPUT_BUDGET_BYTES`, keeping it out of the job log."""
 
 SHUTDOWN_GRACE_PERIOD = 30
 """Seconds to wait for clean exit after the JUnit XML report file appears.
@@ -285,6 +297,14 @@ _OUTPUT_LOCK = threading.Lock()
 """Serializes printing whole passes' output, so concurrently finishing files do not interleave in the job log."""
 
 
+def _excerpt(data: bytes) -> bytes:
+    """Return ``data``, or only its two ends around an omission marker when it exceeds the output budget."""
+    if len(data) <= OUTPUT_BUDGET_BYTES:
+        return data
+    omitted = len(data) - 2 * OUTPUT_EXCERPT_BYTES
+    return data[:OUTPUT_EXCERPT_BYTES] + f"\n... {omitted} bytes omitted ...\n".encode() + data[-OUTPUT_EXCERPT_BYTES:]
+
+
 def _print_captured_output(label, options, stdout_data, stderr_data):
     """Print one process's captured output in a single block, unless it was already echoed as it arrived."""
     if options.echo:
@@ -292,9 +312,9 @@ def _print_captured_output(label, options, stdout_data, stderr_data):
     with _OUTPUT_LOCK:
         sys.stdout.write(f"\n{'=' * 30} output of {label} {'=' * 30}\n")
         sys.stdout.flush()
-        sys.stdout.buffer.write(stdout_data)
+        sys.stdout.buffer.write(_excerpt(stdout_data))
         sys.stdout.flush()
-        sys.stderr.buffer.write(stderr_data)
+        sys.stderr.buffer.write(_excerpt(stderr_data))
         sys.stderr.flush()
         sys.stdout.write(f"{'=' * 30} end of {label} {'=' * 30}\n")
         sys.stdout.flush()
@@ -343,8 +363,8 @@ def _dump_hung_process_stacks(process, stdout_fd, stderr_fd, env, options):
         delivered, or died before it could answer.  The byte strings are whatever the child wrote to its own
         streams while being dumped, and belong in the captured output either way.
     """
-    stdout_data = b""
-    stderr_data = b""
+    stdout_data = bytearray()
+    stderr_data = bytearray()
     dumps = []
 
     dump_file = env.get(hang_dump.DUMP_PATH_ENV_VAR, "")
@@ -407,8 +427,9 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
         the test completed but the process hung during shutdown.
     """
     options = options or _CaptureOptions()
-    stdout_data = b""
-    stderr_data = b""
+    # Grown in place: concatenating immutable bytes copies the whole buffer per read, quadratic in the output.
+    stdout_data = bytearray()
+    stderr_data = bytearray()
     process = None
 
     try:
@@ -488,9 +509,10 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
                 except subprocess.TimeoutExpired:
                     pass
                 wall_time = time.time() - start_time
-                return -1, stdout_data, stderr_data, kill_reason, wall_time, pre_kill_diag
+                return -1, bytes(stdout_data), bytes(stderr_data), kill_reason, wall_time, pre_kill_diag
 
-            stdout_chunk, stderr_chunk = _drain_ready_output(process, stdout_fd, stderr_fd, echo=options.echo)
+            echo = options.echo and len(stdout_data) + len(stderr_data) <= OUTPUT_BUDGET_BYTES
+            stdout_chunk, stderr_chunk = _drain_ready_output(process, stdout_fd, stderr_fd, echo=echo)
             stdout_data += stdout_chunk
             stderr_data += stderr_chunk
 
@@ -512,7 +534,7 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
                 pass
 
         wall_time = time.time() - start_time
-        return process.returncode, stdout_data, stderr_data, "", wall_time, ""
+        return process.returncode, bytes(stdout_data), bytes(stderr_data), "", wall_time, ""
 
     except Exception as e:
         if process is not None and process.poll() is None:
@@ -522,7 +544,7 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
                 stdout_data += rem_out
                 stderr_data += rem_err
         stdout_data += f"\n[capture error: {e}]\n".encode()
-        return -1, stdout_data, stderr_data, "", 0.0, ""
+        return -1, bytes(stdout_data), bytes(stderr_data), "", 0.0, ""
 
 
 _SIGNAL_DESCRIPTIONS = {
@@ -1267,6 +1289,31 @@ def _run_one_pass(
             tests=tests,
             skipped=skipped,
         )
+
+    output_size = len(stdout_data) + len(stderr_data)
+    if output_size > OUTPUT_BUDGET_BYTES:
+        # Digits vary per environment and step; masking them groups one log statement under one line.
+        lines = (re.sub(rb"\d+", b"N", line) for line in (*stdout_data.splitlines(), *stderr_data.splitlines()))
+        line, count = Counter(line for line in lines if line.strip()).most_common(1)[0]
+        msg = (
+            f"printed {output_size / 2**20:.1f} MiB, over the {OUTPUT_BUDGET_BYTES / 2**20:.0f} MiB output budget;"
+            f" most repeated line ({count}x): {line[:300].decode('utf-8', errors='replace')}"
+        )
+        logger.error(f"{ctx.test_file}{suffix}: {msg}")
+        if not has_test_failures:
+            return _make_failed_pass_result(
+                "output_budget",
+                pass_file_label,
+                msg,
+                report_file,
+                stdout_data,
+                stderr_data,
+                time_elapsed,
+                wall_time,
+                report=report,
+                tests=tests,
+                skipped=skipped,
+            )
 
     was_failure = has_test_failures or (returncode != 0 and not shutdown_hanged)
 
