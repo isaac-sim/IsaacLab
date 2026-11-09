@@ -181,12 +181,15 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
         """Reset all actuator group states.
 
         .. caution::
-            If both ``env_ids`` and ``env_mask`` are provided, ``env_mask`` takes precedence.
+            If both ``env_ids`` and ``env_mask`` are provided, each actuator uses the one it takes without conversion.
 
         Args:
             env_ids: Environment indices to reset. Defaults to all environments.
             env_mask: Environment mask. Shape is (num_instances,). Defaults to None.
         """
+        # None selects all environments; delayed-actuator buffers do not accept a slice
+        if isinstance(env_ids, slice) and env_ids == slice(None):
+            env_ids = None
         group_env_ids = self._control._normalize_index_sequence(env_ids)
         for actuator in self._groups.values():
             # Newton-executed groups are reset through the backend below.

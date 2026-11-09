@@ -45,7 +45,7 @@ class _ThrusterCollection(dict):
         """Reset every thruster actuator for the given environments.
 
         .. caution::
-            If both ``env_ids`` and ``env_mask`` are provided, ``env_mask`` takes precedence.
+            If both ``env_ids`` and ``env_mask`` are provided, the mask is used: the masked write measured faster.
 
         Args:
             env_ids: Environment indices to reset. Defaults to None (all environments).
@@ -256,7 +256,7 @@ class Multirotor(Articulation):
         in the configuration.
 
         .. caution::
-            If both ``env_ids`` and ``env_mask`` are provided, ``env_mask`` takes precedence.
+            If both ``env_ids`` and ``env_mask`` are provided, the mask is used: the masked write measured faster.
 
         Args:
             env_ids: Environment indices to reset. Defaults to None (all environments).

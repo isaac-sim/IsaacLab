@@ -241,7 +241,8 @@ class ActuatorBase(ABC):
         """Reset the internals within the group.
 
         .. caution::
-            If both ``env_ids`` and ``env_mask`` are provided, ``env_mask`` takes precedence.
+            If both ``env_ids`` and ``env_mask`` are provided, the implementation uses the one it takes without
+            conversion.
 
         Args:
             env_ids: Environment indices or a slice selecting the environments to reset. None resets all

@@ -211,7 +211,7 @@ class Articulation(BaseArticulation):
         """Reset the articulation.
 
         .. caution::
-            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`.
+            If both `env_ids` and `env_mask` are provided, `env_mask` is used: the masked writes take it.
 
         Args:
             env_ids: Environment indices. If None, then all indices are used.
@@ -219,9 +219,8 @@ class Articulation(BaseArticulation):
         """
         if (env_ids is None) or (env_ids == slice(None)):
             env_ids = slice(None)
-        # reset actuators, including backend-native actuator state. None selects all
-        # environments; delayed-actuator buffers do not accept a slice.
-        self.actuators.reset(None if env_ids == slice(None) else env_ids, env_mask=env_mask)
+        # reset actuators, including backend-native actuator state
+        self.actuators.reset(env_ids, env_mask=env_mask)
         # reset external wrenches.
         self._instantaneous_wrench_composer.reset(env_ids, env_mask)
         self._permanent_wrench_composer.reset(env_ids, env_mask)

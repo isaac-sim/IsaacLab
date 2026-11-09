@@ -418,7 +418,7 @@ class SurfaceGripper(AssetBase):
             Use :meth:`reset_index` instead.
 
         .. caution::
-            If both ``env_ids`` and ``env_mask`` are provided, ``env_mask`` takes precedence.
+            If both ``env_ids`` and ``env_mask`` are provided, ``env_ids`` is used: the gripper view takes indices.
 
         Args:
             env_ids: Environment indices. Defaults to None (all environments).
