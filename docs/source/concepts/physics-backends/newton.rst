@@ -59,7 +59,7 @@ runtime comparison at each task's configured environment count, run
 ``presets=newton_mjwarp`` without passing ``--num_envs``.
 
 Selective self-collision filtering
----------------------------------
+----------------------------------
 
 Use :attr:`~isaaclab.assets.ArticulationCfg.self_collision_filter_pairs` to exclude
 contacts between groups of articulation bodies. For example, exclude thumb contacts
