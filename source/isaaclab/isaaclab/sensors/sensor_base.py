@@ -471,10 +471,6 @@ class SensorBase(ABC):
 
     def _update_outdated_buffers(self) -> None:
         """Fills the sensor data for the outdated sensors."""
-        self._refresh_if_dirty()
-
-    def _refresh_if_dirty(self) -> None:
-        """Refresh the outdated environments' data when a physics step or a reset changed it."""
         # a CUDA graph replays without this check, so the refresh timestamp reads stale in each new recording, which
         # then holds the refresh (see TimestampedBuffer); the outdated mask selects the environments each replay updates
         if not self._data_dirty and self._refreshed.timestamp >= 0.0:
