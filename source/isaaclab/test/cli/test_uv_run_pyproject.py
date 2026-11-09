@@ -231,6 +231,7 @@ def test_uv_run_declares_no_extra_conflicts(source_checkout_root: Path):
     assert "fsspec>=2026.6.0" in tool_uv["override-dependencies"]
     assert "packaging>=20,<27" in tool_uv["override-dependencies"]
     assert "urllib3>=2.8.0" in tool_uv["override-dependencies"]
+    assert "scipy>=1.18.0" in tool_uv["override-dependencies"]
 
 
 def test_rl_games_aiohttp_requirement_uses_security_floor(source_checkout_root: Path):
