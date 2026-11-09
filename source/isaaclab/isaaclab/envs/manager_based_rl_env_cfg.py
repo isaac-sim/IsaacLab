@@ -57,7 +57,7 @@ class ManagerBasedRLEnvCfg(ManagerBasedEnvCfg):
     it. Custom stateful observation terms should check ``env.is_observation_preview``; stateful
     tensor processors should override their ``preview`` method. Observation noise is evaluated as
     in ordinary observations. Extra reads from active recorder terms remain outside this guarantee.
-    Warp environments do not support terminal capture and warn when this flag is enabled.
+    Warp environments do not support terminal capture.
     """
 
     episode_length_s: float = MISSING

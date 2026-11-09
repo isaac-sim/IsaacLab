@@ -105,8 +105,7 @@ def test_obs_space_follows_clip_constraint():
 
 
 @pytest.mark.parametrize("env_kind", ["manager", "direct", "marl"])
-@pytest.mark.parametrize("boundary", ["auto", "manual", "mixed"])
-def test_final_observations_precede_resets_and_events(env_kind, boundary):
+def test_final_observations_precede_resets_and_events(env_kind):
     """Every boundary captures once, including manual resets, with owned pre-event successors."""
     import torch
 
@@ -116,7 +115,6 @@ def test_final_observations_precede_resets_and_events(env_kind, boundary):
     cls = {"manager": ManagerBasedRLEnv, "direct": DirectRLEnv, "marl": DirectMARLEnv}[env_kind]
     env = object.__new__(cls)
     env._is_closed = True
-    env._is_observation_preview = False
     env.cfg = SimpleNamespace(
         decimation=1,
         sim=SimpleNamespace(render_interval=1, dt=0.01),
@@ -129,11 +127,7 @@ def test_final_observations_precede_resets_and_events(env_kind, boundary):
     state = torch.tensor([[10.0], [20.0]])
     reset_calls = []
     preview_values = []
-    manual_reset = boundary != "auto"
-    ui_request = [manual_reset]
-
-    def consume_reset():
-        return ui_request.pop() if ui_request else False
+    ui_requests = iter((False, False, True, True))
 
     def observe():
         if env.is_observation_preview:
@@ -151,7 +145,7 @@ def test_final_observations_precede_resets_and_events(env_kind, boundary):
         device="cpu",
         is_rendering=False,
         is_playing=lambda: True,
-        consume_reset_request=consume_reset,
+        consume_reset_request=lambda: next(ui_requests),
         step=lambda **kwargs: state.add_(1),
     )
     env.scene = SimpleNamespace(num_envs=2, write_data_to_sim=lambda: None, update=lambda **kwargs: None)
@@ -166,9 +160,11 @@ def test_final_observations_precede_resets_and_events(env_kind, boundary):
     env.reset_time_outs = torch.zeros(2, dtype=torch.bool)
     env._reset_idx = reset
     env.event_manager = SimpleNamespace(active_terms=["interval"], available_modes=["interval"], apply=event)
-    done = torch.tensor([boundary != "manual", False])
+    done = torch.zeros(2, dtype=torch.bool)
     timeout = torch.zeros(2, dtype=torch.bool)
     reward = torch.zeros(2)
+    env.extras = {"final_obs": {"policy": torch.full_like(state, -999)}}
+    actions = torch.zeros(2, 1)
     if env_kind == "manager":
 
         def managed_observe(env):
@@ -178,8 +174,8 @@ def test_final_observations_precede_resets_and_events(env_kind, boundary):
         group.value = ObservationTermCfg(func=managed_observe)
         env.observation_manager = ObservationManager({"policy": group}, env)
         env.recorder_manager = SimpleNamespace(
-            active_terms=[],
             record_pre_step=lambda: None,
+            record_post_step=lambda: None,
             record_post_physics_decimation_step=lambda: None,
             record_pre_reset=lambda ids: None,
             record_post_reset=lambda ids: None,
@@ -188,8 +184,6 @@ def test_final_observations_precede_resets_and_events(env_kind, boundary):
         env.termination_manager = SimpleNamespace(compute=lambda: done.clone(), terminated=done, time_outs=timeout)
         env.reward_manager = SimpleNamespace(compute=lambda **kwargs: reward)
         env.command_manager = SimpleNamespace(compute=lambda **kwargs: state.add_(100))
-        env.extras = {"final_obs": {"policy": torch.full_like(state, -999)}}
-        actions = torch.zeros(2, 1)
     else:
         env._pre_physics_step = lambda actions: None
         env._apply_action = lambda: None
@@ -197,29 +191,39 @@ def test_final_observations_precede_resets_and_events(env_kind, boundary):
             env._get_dones = lambda: (done, timeout)
             env._get_rewards = lambda: reward
             env._get_observations = lambda: {"policy": observe()}
-            env.extras = {"final_obs": {"policy": torch.full_like(state, -999)}}
-            actions = torch.zeros(2, 1)
         else:
-            env.possible_agents = ["a", "b"]
+            env.cfg.possible_agents = env.possible_agents = ["a", "b"]
             env._get_dones = lambda: ({"a": done, "b": done.clone()}, {"a": timeout, "b": timeout.clone()})
             env._get_rewards = lambda: {"a": reward, "b": reward.clone()}
             env._get_observations = lambda: {"a": observe(), "b": state}
             env.extras = {agent: {"final_obs": torch.full_like(state, -999)} for agent in ("a", "b")}
+            wrapper_timeouts = torch.zeros(2, dtype=torch.bool)
+            env.extras.update(time_outs=wrapper_timeouts, log={"final_obs": "keep"})
             actions = {"a": torch.zeros(2, 1), "b": torch.zeros(2, 1)}
-    # Initialization may probe observations; only actual step-time previews count.
-    preview_values.clear()
-    _, _, terminated, _, extras = env.step(actions)
-    terminal = extras["a"]["final_obs"] if env_kind == "marl" else extras["final_obs"]["policy"]
-    torch.testing.assert_close(terminal, torch.tensor([[11.0], [21.0]]))
-    assert len(preview_values) == len(reset_calls) == 1
-    assert reset_calls[0].tolist() == ([0, 1] if manual_reset else [0])
-    terminated = terminated["a"] if env_kind == "marl" else terminated
-    assert terminated.tolist() == [True, manual_reset]
-    assert not env.is_observation_preview
-    done.zero_()
-    env.step(actions)
+    first_terminal = None
+    for auto_reset, manual_reset in ((True, False), (False, False), (False, True), (True, True)):
+        done.zero_()
+        done[0] = auto_reset
+        expected = state + 1
+        reset_calls.clear()
+        preview_values.clear()
+        _, _, terminated, _, extras = env.step(actions)
+        terminated = terminated["a"] if env_kind == "marl" else terminated
+        assert terminated.tolist() == [auto_reset or manual_reset, manual_reset]
+        assert not env.is_observation_preview
+        assert len(preview_values) == len(reset_calls) == int(auto_reset or manual_reset)
+        if not (auto_reset or manual_reset):
+            if env_kind == "marl":
+                assert all("final_obs" not in env.extras[agent] for agent in env.possible_agents)
+            else:
+                assert "final_obs" not in env.extras
+            continue
+        terminal = extras["a"]["final_obs"] if env_kind == "marl" else extras["final_obs"]["policy"]
+        torch.testing.assert_close(terminal, expected)
+        assert reset_calls[0].tolist() == ([0, 1] if manual_reset else [0])
+        if first_terminal is None:
+            first_terminal = terminal
+    torch.testing.assert_close(first_terminal, torch.tensor([[11.0], [21.0]]))
     if env_kind == "marl":
-        assert all("final_obs" not in value for value in env.extras.values())
-    else:
-        assert "final_obs" not in env.extras
-    torch.testing.assert_close(terminal, torch.tensor([[11.0], [21.0]]))
+        assert env.extras["log"] == {"final_obs": "keep"}
+        assert env.extras["time_outs"] is wrapper_timeouts

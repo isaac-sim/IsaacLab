@@ -237,10 +237,11 @@ def test_image_features_flattens_encoder_output():
         (2, True, True, torch.uint8),
         (1, True, False, torch.uint8),
         (2, False, True, torch.float32),
+        (2, False, False, torch.uint8),
     ],
 )
 def test_rgb_manager_destination(frame_stack, channel_first, normalize, dtype):
-    """Manager destinations preserve RGB math, layout, frame order and snapshot lifetime."""
+    """Manager destinations and terminal previews preserve frame order, reset state and storage."""
     camera = _random_rgb().to(dtype)
     env = _make_env({"rgb": camera})
     env.sim = SimpleNamespace(is_playing=lambda: True)
@@ -259,33 +260,8 @@ def test_rgb_manager_destination(frame_stack, channel_first, normalize, dtype):
         expected = expected.permute(0, 3, 1, 2)
     result = manager.compute()["policy"]
     torch.testing.assert_close(result, expected, atol=1e-5, rtol=1e-5)
-    camera.zero_()
-    manager.compute()
-    manager.reset()
-    manager.compute()
-    torch.testing.assert_close(result, expected, atol=1e-5, rtol=1e-5)
 
-
-@pytest.mark.parametrize(
-    ("channel_first", "dtype", "normalize"),
-    [(False, torch.uint8, False), (True, torch.uint8, True), (False, torch.float32, True)],
-)
-def test_camera_terminal_preview_preserves_survivor_history(channel_first, dtype, normalize):
-    """Terminal capture must not append an extra frame to surviving camera histories."""
-    camera = _random_rgb().to(dtype)
-    env = _make_env({"rgb": camera})
-    env.sim = SimpleNamespace(is_playing=lambda: True)
-    cfg = ObservationGroupCfg()
-    cfg.image = ObservationTermCfg(
-        func=image_rgb,
-        params={"frame_stack": 2, "channel_first": channel_first, "normalize": normalize},
-    )
-    manager = ObservationManager({"policy": cfg}, env)
-    manager.reset()
-    manager.compute(update_history=True)
-    camera.copy_(_random_rgb())
     previous = camera.clone()
-    manager.compute(update_history=True)
     camera.copy_(_random_rgb())
     successor = camera.clone()
     env.observation_manager = manager
@@ -296,12 +272,16 @@ def test_camera_terminal_preview_preserves_survivor_history(channel_first, dtype
     camera[0].zero_()
     live = manager.compute(update_history=True)["policy"]
 
-    expected = torch.cat([_rgb_reference(frame) if normalize else frame for frame in (previous, successor)], dim=-1)
+    frames = [successor] if frame_stack == 1 else [previous, successor]
+    terminal_expected = torch.cat([_rgb_reference(frame) if normalize else frame for frame in frames], dim=-1)
     if channel_first:
-        expected = expected.permute(0, 3, 1, 2)
-    torch.testing.assert_close(terminal, expected, atol=1e-5, rtol=1e-5)
-    torch.testing.assert_close(live[1:], expected[1:], atol=1e-5, rtol=1e-5)
+        terminal_expected = terminal_expected.permute(0, 3, 1, 2)
+    torch.testing.assert_close(terminal, terminal_expected, atol=1e-5, rtol=1e-5)
+    torch.testing.assert_close(live[1:], terminal_expected[1:], atol=1e-5, rtol=1e-5)
     assert not live[0].any()
     camera.zero_()
     manager.compute(update_history=True)
-    torch.testing.assert_close(terminal, expected, atol=1e-5, rtol=1e-5)
+    manager.reset()
+    manager.compute()
+    torch.testing.assert_close(result, expected, atol=1e-5, rtol=1e-5)
+    torch.testing.assert_close(terminal, terminal_expected, atol=1e-5, rtol=1e-5)

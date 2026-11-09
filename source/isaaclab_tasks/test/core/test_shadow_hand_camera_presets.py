@@ -354,12 +354,17 @@ def test_feature_preview_preserves_training_state(tmp_path):
     extractor.l2_loss = torch.nn.MSELoss()
     extractor.step_count = 1
     extractor.log_dir = str(tmp_path)
-    images = {"rgb": torch.randint(0, 255, (2, 4, 4, 3), dtype=torch.uint8)}
+    images = {"rgb": torch.zeros((2, 4, 4, 3), dtype=torch.uint8)}
     targets = torch.zeros(2, 27)
     extractor.step(images, targets)
+    # Zero images make each embedding equal to the controlled linear-layer bias.
+    with torch.no_grad():
+        extractor.feature_extractor[1].weight.zero_()
+        extractor.feature_extractor[1].bias.fill_(0.5)
     parameters = [value.detach().clone() for value in extractor.feature_extractor.parameters()]
     loss, embeddings = extractor.step(images, targets, preview=True)
-    assert loss is None and embeddings.shape == targets.shape
+    assert loss is None
+    torch.testing.assert_close(embeddings, torch.full_like(targets, 0.5), rtol=0, atol=0)
     assert not embeddings.requires_grad
     assert extractor.step_count == 2
     for actual, expected in zip(extractor.feature_extractor.parameters(), parameters):

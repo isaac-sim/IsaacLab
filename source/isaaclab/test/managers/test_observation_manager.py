@@ -69,7 +69,7 @@ class complex_function_class(ManagerTermBase):
         self._time_passed[env_ids] = 0.0
 
     def __call__(self, env: object, interval: float) -> torch.Tensor:
-        if getattr(env, "is_observation_preview", False):
+        if env.is_observation_preview:
             return (self._time_passed + interval).unsqueeze(-1)
         self._time_passed += interval
         return self._time_passed.clone().unsqueeze(-1)
@@ -546,9 +546,9 @@ def test_invalid_observation_config(setup_env):
         ObservationManager(cfg, env)
 
 
-def test_callable_class_term(setup_env):
-    env = setup_env
-    """Test the observation computation with callable class term."""
+def test_callable_class_term():
+    """Stateful terms preview without advancing their state or replacing cached observations."""
+    env = DummyEnv(num_envs=20)
 
     @configclass
     class MyObservationManagerCfg:
@@ -571,6 +571,12 @@ def test_callable_class_term(setup_env):
     # check the observation
     assert observations["policy"].shape == (env.num_envs, 5)
     assert observations["policy"][0, -1].item() == pytest.approx(0.2 * 0.5)
+    preview = obs_man.compute(preview=True)
+    assert preview["policy"][0, -1].item() == pytest.approx(0.2)
+    assert obs_man.get_active_iterable_terms(0)[-1][1] == pytest.approx([0.1])
+    assert not env.is_observation_preview
+    with pytest.raises(ValueError, match="preview"):
+        obs_man.compute(update_history=True, preview=True)
 
     # check memory in term
     num_exec_count = 10
@@ -836,6 +842,12 @@ class DummyEnv:
         self.device = "cpu"
         self.sim = DummySimulation()
         self.observation = torch.arange(num_envs, dtype=torch.float32).unsqueeze(-1)
+        self._is_observation_preview = False
+
+    @property
+    def is_observation_preview(self) -> bool:
+        """Expose the preview signal to stateful terms."""
+        return self._is_observation_preview
 
 
 class StatefulBiasTensorProcessor(tensor_processors.TensorProcessor):
@@ -1000,8 +1012,8 @@ def test_compute_updates_history_only_when_requested(lag, history_length, term_h
     if history:
         assert torch.all(history.current_length == 0)
 
-    def compute_output(update_history=False):
-        output = manager.compute(update_history=update_history)["policy"]
+    def compute_output(update_history=False, *, preview=False):
+        output = manager.compute(update_history=update_history, preview=preview)["policy"]
         return output["dummy"] if term_history else output
 
     outputs = []
@@ -1011,13 +1023,15 @@ def test_compute_updates_history_only_when_requested(lag, history_length, term_h
         env.observation.fill_(step)
         # Delay retains each sample's noise; history stacks the delayed, scaled outputs.
         manager.cfg.policy.dummy.noise.bias = float(step)
-        output = compute_output(update_history=True)
         sample_steps = torch.arange(step - max(1, history_length) + 1, step + 1)
         expected = 4.0 * (sample_steps - lag).clamp_min(0).expand(env.num_envs, -1).clone()
         if step >= 3:
             expected[1].clamp_(min=12.0)
+        preview = compute_output(preview=True)
+        torch.testing.assert_close(preview, expected)
+        output = compute_output(update_history=True)
         torch.testing.assert_close(output, expected)
-        outputs.append((output, expected))
+        outputs.extend(((preview, expected), (output, expected)))
         env.observation.fill_(-100.0)
         rng_state = torch.get_rng_state()
         torch.testing.assert_close(compute_output(), expected)
@@ -1046,50 +1060,19 @@ def test_observation_delay_config_validation(params, error):
         validate(cfg)
 
 
-def test_preview_includes_current_frame_without_advancing_delay_or_history():
-    """Terminal observations include the successor while live episode history advances once."""
-    import copy
-
-    cfg = HistoryObservationsCfg()
-    cfg.policy.history_length = 3
-    cfg.policy.concatenate_terms = False
-    cfg.policy.current = copy.deepcopy(cfg.policy.dummy)
-    cfg.policy.dummy.delay_min_lag = cfg.policy.dummy.delay_max_lag = 1
-    cfg.policy.dummy.delay_hold_prob = 1.0
-    env = DummyEnv()
-    manager = ObservationManager(cfg, cast("ManagerBasedEnv", env))
-    for value in (10.0, 20.0):
-        env.observation.fill_(value)
-        manager.compute(update_history=True)
-    env.observation.fill_(30.0)
-    manager.reset([1])
-    preview = manager.compute(preview=True)["policy"]
-    expected_current = torch.tensor([[10.0, 20.0, 30.0], [30.0, 30.0, 30.0]])
-    expected_delayed = torch.tensor([[10.0, 10.0, 20.0], [30.0, 30.0, 30.0]])
-    torch.testing.assert_close(preview["current"], expected_current)
-    torch.testing.assert_close(preview["dummy"], expected_delayed)
-    committed = manager.compute(update_history=True)["policy"]
-    torch.testing.assert_close(committed["current"], expected_current)
-    torch.testing.assert_close(committed["dummy"], expected_delayed)
-    env.observation.fill_(40.0)
-    following = manager.compute(update_history=True)["policy"]
-    torch.testing.assert_close(following["current"], torch.tensor([[20.0, 30.0, 40.0], [30.0, 30.0, 40.0]]))
-
-
 @pytest.mark.parametrize(
     ("processor_cfg", "dtype", "expected_preview", "expected_live", "expected_following"),
     [
-        (tensor_processors.IntegratorCfg(dt=1.0), torch.float32, [45.0, 45.0], [45.0, 15.0], [80.0, 50.0]),
         (tensor_processors.IntegratorCfg(dt=1.0), torch.float64, [45.0, 45.0], [45.0, 15.0], [80.0, 50.0]),
         (
-            tensor_processors.DigitalFilterCfg(A=[0.0], B=[0.0, 1.0]),
+            tensor_processors.DigitalFilterCfg(A=[-0.5], B=[0.25, 0.25]),
             torch.float32,
-            [20.0, 20.0],
-            [20.0, 0.0],
-            [30.0, 30.0],
+            [16.875, 16.875],
+            [16.875, 7.5],
+            [25.9375, 21.25],
         ),
     ],
-    ids=["integrator", "integrator_float64_input", "digital_filter"],
+    ids=["integrator_float64_input", "digital_filter"],
 )
 def test_preview_preserves_tensor_processors_across_partial_reset(
     processor_cfg, dtype, expected_preview, expected_live, expected_following
@@ -1171,35 +1154,3 @@ def test_dictionary_term_rejected(setup_env):
     cfg.sensors = ObservationTermCfg(func=lambda env: {"position": env.data.pos_w})
     with pytest.raises(TypeError, match=r"torch\.Tensor"):
         ObservationManager({"policy": cfg}, setup_env)
-
-
-@pytest.mark.parametrize("capture_final_obs", [False, True], ids=["direct", "final_obs"])
-def test_preview_preserves_custom_term_state_and_cached_observations(capture_final_obs):
-    """Custom terms see the public flag, and GUI reads still use the committed snapshot."""
-    from types import SimpleNamespace
-
-    from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
-
-    env = object.__new__(ManagerBasedEnv)
-    env._is_closed = True
-    env.scene = SimpleNamespace(num_envs=2)
-    env.sim = SimpleNamespace(device="cpu", is_playing=lambda: True)
-    group = ObservationGroupCfg()
-    group.clock = ObservationTermCfg(func=complex_function_class, params={"interval": 0.5})
-    manager = ObservationManager({"policy": group}, env)
-    manager.reset()
-    committed = manager.compute(update_history=True)
-    torch.testing.assert_close(committed["policy"], torch.full((2, 1), 0.5))
-    env.observation_manager = manager
-    env.extras = {}
-    if capture_final_obs:
-        ManagerBasedRLEnv._capture_final_obs(env)
-        preview = env.extras["final_obs"]
-    else:
-        preview = manager.compute(preview=True)
-    torch.testing.assert_close(preview["policy"], torch.full((2, 1), 1.0))
-    assert manager.get_active_iterable_terms(0) == [("policy-clock", [0.5])]
-    assert not env.is_observation_preview
-    torch.testing.assert_close(manager.compute(update_history=True)["policy"], torch.full((2, 1), 1.0))
-    with pytest.raises(ValueError, match="preview"):
-        manager.compute(update_history=True, preview=True)

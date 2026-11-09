@@ -10,7 +10,6 @@ import inspect
 import logging
 import math
 import os
-import warnings
 from abc import abstractmethod
 from dataclasses import MISSING
 from typing import Any, ClassVar
@@ -115,13 +114,6 @@ class DirectRLEnvWarp(DirectRLEnv):
             RuntimeError: If a simulation context already exists. The environment must always create one
                 since it configures the simulation context and controls the simulation.
         """
-        if cfg.compute_final_obs:
-            warnings.warn(
-                "compute_final_obs is unsupported by Warp environments; final_obs will remain absent.",
-                UserWarning,
-                stacklevel=2,
-            )
-
         # check that the config is valid
         validate(cfg)
         # store inputs to class
