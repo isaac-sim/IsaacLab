@@ -199,6 +199,72 @@ def test_nonzero_pytest_exit_preserves_reported_tests(monkeypatch, tmp_path: Pat
     assert "pytest exited with code 2" in xml
 
 
+def test_output_over_budget_fails_and_names_the_repeated_line(monkeypatch, tmp_path: Path) -> None:
+    """A passing file that floods its output must fail, quoting the log statement that floods it."""
+    orchestrator = _load_orchestrator_module()
+    test_file = tmp_path / "test_sample.py"
+    test_file.write_text("def test_present():\n    pass\n", encoding="utf-8")
+    report_paths: list[Path] = []
+    flood = b"".join(b"[Warning] attr /World/envs/env_%d/material has no valid data\n\n" % i for i in range(100_000))
+
+    def _capture(*_args, report_file: str, **_kwargs):
+        report_paths.append(Path(report_file))
+        _write_partial_junit_report(report_file)
+        return 0, flood, b"", "", 0.1, ""
+
+    monkeypatch.setattr(orchestrator, "capture_test_output_with_timeout", _capture)
+    monkeypatch.chdir(tmp_path)
+    context = orchestrator._PassContext(
+        test_file=str(test_file),
+        file_name=test_file.name,
+        workspace_root=str(tmp_path),
+        ci_marker=None,
+        timeout=10,
+        startup_deadline=1,
+        env={},
+        inject_shard_select=False,
+        pytest_targets=[str(test_file)],
+        capture=orchestrator._CaptureOptions(),
+    )
+
+    report, status, was_failure = orchestrator._run_one_pass(context, k_expr=None, suffix="")
+
+    assert len(flood) > orchestrator.OUTPUT_BUDGET_BYTES
+    assert status["result"] == "FAILED"
+    assert status["errors"] == 1
+    assert status["tests"] == 3
+    assert was_failure
+    xml = report_paths[0].read_text(encoding="utf-8")
+    assert "test_present" in xml
+    assert "output budget" in xml
+    assert "(100000x): [Warning] attr /World/envs/env_N/material has no valid data" in xml
+
+
+@posix_only
+def test_capture_keeps_up_with_flooding_output(tmp_path: Path) -> None:
+    """Capturing tens of megabytes must take seconds; a reader slower than the test stalls it on a full pipe."""
+    orchestrator = _load_orchestrator_module()
+    script = tmp_path / "floods.py"
+    script.write_text(
+        "import sys\n"
+        "sys.stdout.write('collected 1 item\\n')\n"
+        "sys.stdout.flush()\n"
+        "sys.stdout.buffer.write((b'x' * 99 + b'\\n') * 200_000)\n",
+        encoding="utf-8",
+    )
+
+    returncode, stdout, _stderr, kill_reason, wall_time, _diag = orchestrator.capture_test_output_with_timeout(
+        [sys.executable, str(script)],
+        timeout=60,
+        env=os.environ.copy(),
+        options=orchestrator._CaptureOptions(echo=False),
+    )
+
+    assert (returncode, kill_reason) == (0, "")
+    assert len(stdout) == len("collected 1 item\n") + 20_000_000
+    assert wall_time < 10
+
+
 def test_filter_deselecting_all_tests_is_not_a_failure(monkeypatch, tmp_path: Path) -> None:
     """A global filter selecting nothing should be a visible non-failing outcome."""
     orchestrator = _load_orchestrator_module()
