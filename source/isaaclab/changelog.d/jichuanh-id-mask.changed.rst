@@ -9,3 +9,6 @@
   :func:`~isaaclab.utils.warp.memory.resolve_ids` as well, so slices other than ``slice(None)`` are accepted.
 * Changed :func:`~isaaclab.utils.warp.memory.resolve_1d_mask` to make ``scratch_mask`` optional for callers that never
   pass ids. Their masks are returned as given. Ids without a ``scratch_mask`` raise a :class:`ValueError`.
+* Changed :func:`~isaaclab.utils.warp.memory.resolve_ids` to use given ids over a mask: the mask is converted to ids
+  only when no ids (or ``slice(None)``) are given. When both ``env_ids`` and ``env_mask`` are given, PhysX assets now
+  use the ids, which their views take without a host synchronization; mask-native consumers still use the mask.

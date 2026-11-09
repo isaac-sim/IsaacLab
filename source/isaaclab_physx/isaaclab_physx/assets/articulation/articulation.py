@@ -4140,7 +4140,7 @@ class Articulation(BaseArticulation):
 
         Args:
             env_ids: Environment indices. If None, then all indices are used.
-            env_mask: Boolean mask; takes precedence over ``env_ids``.
+            env_mask: Boolean mask, converted to ids only when ``env_ids`` is not given.
 
         Returns:
             Environment indices.

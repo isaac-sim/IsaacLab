@@ -5,3 +5,5 @@
 * Changed the body, joint and tendon selection helpers of the PhysX assets to resolve ids and masks through
   :func:`~isaaclab.utils.warp.memory.resolve_ids`, as the env selection does, so slices other than ``slice(None)`` are
   accepted.
+* Changed the PhysX assets to use ``env_ids`` when both ``env_ids`` and ``env_mask`` are given: their views take
+  indices, so the mask is converted only when no ids are given.
