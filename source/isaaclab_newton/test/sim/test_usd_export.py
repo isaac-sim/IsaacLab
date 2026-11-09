@@ -314,6 +314,29 @@ def test_a_changed_joint_of_a_type_not_exported_is_refused(tmp_path):
         )
 
 
+@pytest.mark.parametrize("change", ["added", "switched"])
+def test_bodies_and_colliders_a_builder_hook_adds_or_switches_are_refused(tmp_path, change):
+    """A world builder hook changes the model outside the USD, so an import would not have what it adds or switches."""
+    from isaaclab_newton.physics import XPBDSolverCfg
+
+    def hook(builder, world, position, orientation):
+        if change == "added":
+            body = builder.add_body(label=f"/World/envs/env_{world}/Extra")
+            builder.add_shape_box(body=body, hx=0.1, hy=0.1, hz=0.1, label=f"/World/envs/env_{world}/Extra/Box")
+            return
+        for shape, label in enumerate(builder.shape_label):
+            if label.endswith("/Robot/Link/Collision") and builder.shape_world[shape] == world:
+                builder.shape_flags[shape] &= ~int(newton.ShapeFlags.COLLIDE_SHAPES)
+
+    refused = {
+        "added": "['/World/envs/env_0/Extra', '/World/envs/env_0/Extra/Box']",
+        "switched": "['/World/envs/env_0/Robot/Link/Collision']",
+    }
+    with pytest.raises(NotImplementedError, match="outside the USD") as error:
+        _export(tmp_path, XPBDSolverCfg(), "cpu", world_hook=hook)
+    assert refused[change] in str(error.value)
+
+
 @pytest.mark.parametrize("solver", ["mujoco", "xpbd"])
 def test_builder_hook_and_shape_default_changes_are_written(tmp_path, solver):
     """Changes Isaac Lab makes while building the model, which Newton's import alone does not make, are written.

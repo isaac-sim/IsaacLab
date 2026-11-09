@@ -106,7 +106,8 @@ class UsdExporter(BaseUsdExporter):
     attributes registered and the Newton, PhysX and, for MuJoCo, MuJoCo schema resolvers. USD cannot yet
     state Newton's substeps and collision pipeline settings, nor a joint target mode other than the one the
     import infers from the gains; the export warns about these. Terrain that Isaac Lab collides as a
-    heightfield is imported as its mesh.
+    heightfield is imported as its mesh. Bodies and colliders added outside the USD, such as by a world builder
+    hook, and collision switched there, are refused.
     """
 
     # Newton's import builds cables from their USD curves, as Isaac Lab does.
@@ -125,6 +126,21 @@ class UsdExporter(BaseUsdExporter):
         solver_cfg = physics_cfg.solver_cfg
         model = self.scene.sim.backend_manager.backend.model
         builder = self._import_base(stage, model, solver_cfg)
+        # A world builder hook can add bodies and colliders, or switch collision, where the stage does not.
+        flags, collide = model.shape_flags.numpy(), int(newton.ShapeFlags.COLLIDE_SHAPES)
+        added = [
+            model.body_label[body] for body in self._selected(model.body_world) if body in builder.unmatched["body"]
+        ]
+        added += [
+            model.shape_label[shape]
+            for shape in self._selected(model.shape_world)
+            if (flags[shape] ^ builder.shape_flags[shape]) & collide
+            or (shape in builder.unmatched["shape"] and flags[shape] & collide)
+        ]
+        if added:
+            raise NotImplementedError(
+                f"These bodies and colliders were added, or their collision switched, outside the USD: {added}."
+            )
         gravity = model.gravity.numpy()
         gravity = gravity[self.env_id] if gravity.ndim == 2 else gravity
         joint_edits, drives = self._joint_edits(stage, model, builder)
@@ -649,7 +665,7 @@ class _AlignedBase:
     """The arrays of a base model indexed like a live model's entities, matched by body, shape and joint label.
 
     An entity of the live model that the base does not have, such as one of another environment, keeps its
-    live value, so it never counts as changed.
+    live value, so it never counts as changed; :attr:`unmatched` holds these bodies and shapes.
     """
 
     def __init__(self, live: newton.Model, base: newton.Model):
@@ -660,6 +676,10 @@ class _AlignedBase:
             "shape": self._match(live.shape_label, base.shape_label),
             "joint": self._entries(joints, live.joint_qd_start, base.joint_qd_start),  # per DOF
             "joint_q": self._entries(joints, live.joint_q_start, base.joint_q_start),  # per coordinate
+        }
+        self.unmatched = {
+            kind: set(range(len(getattr(live, f"{kind}_label")))) - {index for index, _ in self._pairs[kind]}
+            for kind in ("body", "shape")
         }
 
     @staticmethod
