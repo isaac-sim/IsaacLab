@@ -41,7 +41,7 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.rough_29dof_env_cfg:G1RoughTeacherEnvCfg",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_29dof_ppo_cfg:G1RoughTeacherPPORunnerCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1RoughTeacherPPORunnerCfg",
         "default_agent": "rsl_rl",
     },
 )
@@ -52,6 +52,6 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.rough_29dof_env_cfg:G1RoughDepthStudentEnvCfg",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_29dof_ppo_cfg:G1RoughDepthStudentRunnerCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1RoughDepthStudentRunnerCfg",
     },
 )
