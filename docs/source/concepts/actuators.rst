@@ -616,8 +616,9 @@ properties. Use articulation data and joint writers to read or change them.
 
 The runtime group properties ``effort_limit_sim``, ``velocity_limit_sim``, ``armature``,
 ``friction``, ``dynamic_friction``, and ``viscous_friction`` were removed. Read their live values
-from articulation data and use the corresponding joint writers. The deprecated
-``effort_limit_sim`` and ``velocity_limit_sim`` configuration aliases remain available through 3.x.
+from articulation data and use the corresponding joint writers. The ``effort_limit_sim`` and
+``velocity_limit_sim`` configuration aliases were removed in 3.1; use ``joint_effort_limit`` and
+``joint_velocity_limit`` instead.
 See :ref:`actuators-solver-limit-migration` for replacement data views and writers.
 
 Explicit actuators store model state such as ``actuator_effort_limit``, rated ``actuator_velocity_limit``, gains,
@@ -639,9 +640,7 @@ different values. Explicit models clip output to ``actuator_effort_limit``;
 ``joint_effort_limit`` limits the solver.
 ``actuator_velocity_limit`` is the model's rated joint-side speed, or a soft-limit snapshot for
 implicit actuators. ``joint_velocity_limit`` requests a solver constraint. Because backends
-enforce it differently, solver velocity limits are not portable clamps. ``effort_limit`` and
-``velocity_limit`` are deprecated configuration and runtime group aliases. ``velocity_limit``
-resolves to ``actuator_velocity_limit``; ``effort_limit`` resolves to ``actuator_effort_limit``.
+enforce it differently, solver velocity limits are not portable clamps.
 An implicit group may configure ``actuator_effort_limit`` separately from ``joint_effort_limit``
 to keep a rated model-facing limit distinct from the solver clamp; when unset, it tracks the
 live solver limit.

@@ -19,6 +19,7 @@ from unittest.mock import Mock
 import pytest
 from rich.cells import cell_len
 from rich.console import Console, RenderableType
+from rich.text import Text
 
 from isaaclab.app import loading_screen
 
@@ -26,9 +27,19 @@ _ALT_SCREEN_ON = "\x1b[?1049h"
 _ALT_SCREEN_OFF = "\x1b[?1049l"
 
 
-def _render(display: RenderableType, width: int) -> str:
+@pytest.fixture(autouse=True)
+def _local_greetings(monkeypatch):
+    # These tests own console behavior; network and cache contracts are tested separately.
+    greeting = Mock(logos=None)
+    monkeypatch.setattr(loading_screen, "RemoteGreetings", lambda **kwargs: greeting)
+    return greeting
+
+
+def _render(display: RenderableType, width: int, color_system=None) -> str:
     stream = StringIO()
-    Console(file=stream, width=width, color_system=None).print(display)
+    Console(
+        file=stream, width=width, color_system=color_system, force_terminal=color_system is not None, no_color=False
+    ).print(display)
     return stream.getvalue()
 
 
@@ -91,8 +102,9 @@ def _prepare_redirect(screen: loading_screen.LoadingScreen, monkeypatch: pytest.
     return output
 
 
-def test_live_lifecycle_restores_normal_screen(monkeypatch: pytest.MonkeyPatch):
+def test_live_lifecycle_restores_normal_screen(monkeypatch: pytest.MonkeyPatch, _local_greetings):
     screen = loading_screen.LoadingScreen(2, enabled=True)
+    screen._ascii_only = False
     output = _prepare_redirect(screen, monkeypatch)
     original_input = builtins.input
 
@@ -101,6 +113,17 @@ def test_live_lifecycle_restores_normal_screen(monkeypatch: pytest.MonkeyPatch):
         screen.stage("Loading task")
         assert screen._rich_console is not None
         assert screen._rich_console.color_system == "truecolor"
+        # A color continuing across artwork rows must not leak into the run summary.
+        _local_greetings.logos = tuple(
+            "\x1b[48;2;255;0;0m" + "\n".join([label.ljust(cols)] * 12) + "\x1b[0m"
+            for label, cols in (("NARROW HOLIDAY", 24), ("WIDE HOLIDAY", 74))
+        )
+        for width, label in ((80, "NARROW HOLIDAY"), (130, "WIDE HOLIDAY")):
+            text = Text.from_ansi(_render(screen._display, width, color_system="truecolor"))
+            assert label in text.plain
+            assert text.get_style_at_offset(Console(), text.plain.index("Task")).bgcolor is None
+            for offset in (text.plain.index(label), text.plain.rindex(label)):
+                assert text.get_style_at_offset(Console(), offset).bgcolor.get_truecolor() == (255, 0, 0)
         screen.close()
 
     rendered = output.getvalue()
@@ -110,9 +133,22 @@ def test_live_lifecycle_restores_normal_screen(monkeypatch: pytest.MonkeyPatch):
     assert "Loading task" in rendered[:normal_screen]
     assert "%" in rendered[:normal_screen]
     assert rendered.rindex("Run") > normal_screen
+    assert "NARROW HOLIDAY" in rendered[normal_screen:]
     assert "hidden diagnostic" not in rendered
     assert "Ready in" in rendered
     assert builtins.input is original_input
+
+
+@pytest.mark.parametrize(("enabled", "logo"), [(True, False), (False, True)])
+def test_hidden_greetings_do_not_start_remote_loading(monkeypatch: pytest.MonkeyPatch, enabled, logo):
+    monkeypatch.setattr(
+        loading_screen, "RemoteGreetings", Mock(side_effect=AssertionError("A hidden greeting started remote loading"))
+    )
+    screen = loading_screen.LoadingScreen(1, enabled=enabled, logo=logo)
+    _prepare_redirect(screen, monkeypatch)
+    with screen:
+        screen.summary("Local run", {"Task": "Cartpole"})
+        screen.close()
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="Pseudo-terminals require POSIX.")
