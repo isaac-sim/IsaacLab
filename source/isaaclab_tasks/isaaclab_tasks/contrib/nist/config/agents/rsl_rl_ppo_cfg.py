@@ -49,6 +49,7 @@ class FactoryPPORunnerCfg(RslRlOnPolicyRunnerCfg):
 class FactoryVariantPPORunnerCfg(FactoryPPORunnerCfg):
     """PPO runner using SimBa and encoded variant point clouds."""
 
+    max_iterations = 50000
     obs_groups = {"actor": ["policy", "perception"], "critic": ["policy", "perception"]}
     actor = SimBaModelCfg(
         distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=1.0, std_type="scalar"),
