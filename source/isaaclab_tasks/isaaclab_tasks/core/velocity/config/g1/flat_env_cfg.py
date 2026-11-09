@@ -13,7 +13,7 @@ from isaaclab_assets import G1_MINIMAL_CFG
 
 from ... import mdp
 from ...velocity_env_cfg import LocomotionVelocityRoughEnvCfg
-from .rough_env_cfg import G1EventsCfg, G1ObservationsCfg, G129DofRewards
+from .rough_env_cfg import G1EventsCfg, G1ObservationsCfg, G1Rewards
 
 
 @configclass
@@ -22,7 +22,7 @@ class G1FlatEnvCfg(LocomotionVelocityRoughEnvCfg):
 
     events: G1EventsCfg = G1EventsCfg()
     observations: G1ObservationsCfg = G1ObservationsCfg(height_scan=None)
-    rewards: G129DofRewards = G129DofRewards(
+    rewards: G1Rewards = G1Rewards(
         track_lin_vel_xy_exp=RewTerm(
             func=mdp.track_lin_vel_xy_yaw_frame_exp,
             weight=1.0,
@@ -103,10 +103,6 @@ class G1FlatEnvCfg(LocomotionVelocityRoughEnvCfg):
             weight=-0.1,
             params={"asset_cfg": SceneEntityCfg("robot", joint_names="torso_joint")},
         ),
-        pelvis_height=None,
-        torso_ang_vel=None,
-        root_downward_speed=None,
-        feet_support_edge=None,
     )
 
     def __post_init__(self):
