@@ -10,7 +10,14 @@ from ..utils import configclass
 from .actuator_base_cfg import ActuatorBaseCfg
 
 if TYPE_CHECKING:
-    from .actuator_pd import DCMotor, DelayedPDActuator, IdealPDActuator, ImplicitActuator, RemotizedPDActuator
+    from .actuator_pd import (
+        DCMotor,
+        DelayedImplicitActuator,
+        DelayedPDActuator,
+        IdealPDActuator,
+        ImplicitActuator,
+        RemotizedPDActuator,
+    )
 
 """
 Implicit Actuator Models.
@@ -26,6 +33,19 @@ class ImplicitActuatorCfg(ActuatorBaseCfg):
     """
 
     class_type: type["ImplicitActuator"] | str = "{DIR}.actuator_pd:ImplicitActuator"
+
+
+@configclass
+class DelayedImplicitActuatorCfg(ImplicitActuatorCfg):
+    """Configuration for delayed targets with solver-side implicit PD control."""
+
+    class_type: type["DelayedImplicitActuator"] | str = "{DIR}.actuator_pd:DelayedImplicitActuator"
+
+    min_delay: int = 0
+    """Minimum command delay in physics steps, sampled per environment at reset. Defaults to 0."""
+
+    max_delay: int = 0
+    """Maximum command delay in physics steps (inclusive). Defaults to 0."""
 
 
 """

@@ -22,6 +22,7 @@ from isaaclab.actuators import (
     ActuatorControl,
     DCMotor,
     DCMotorCfg,
+    DelayedImplicitActuatorCfg,
     DelayedPDActuatorCfg,
     IdealPDActuatorCfg,
     ImplicitActuator,
@@ -670,6 +671,136 @@ def test_custom_singleton_compute_receives_original_selector():
     collection.compute()
 
     assert collection["all"].observed_joint_indices == slice(None)
+
+
+@pytest.mark.parametrize("delay", [0, 2])
+def test_delayed_implicit_commands_and_partial_reset(delay):
+    """Delay all solver targets, use fresh state for telemetry, and isolate reset histories."""
+    control = FakeActuatorControl(joint_names=["joint_0", "joint_1"])
+    collection = ActuatorCollection(
+        {
+            "all": DelayedImplicitActuatorCfg(
+                joint_names_expr=[".*"],
+                stiffness=2.0,
+                damping=3.0,
+                joint_effort_limit=100.0,
+                min_delay=delay,
+                max_delay=delay,
+            )
+        },
+        control,
+    )
+    collection["all"].reset()
+    for step in range(4):
+        collection.target_command.position.torch.fill_(step + 1.0)
+        collection.target_command.velocity.torch.fill_(step + 2.0)
+        collection.target_command.effort.torch.fill_(step + 3.0)
+        control.joint_pos.torch.fill_(step)
+        control.joint_vel.torch.fill_(1.0)
+        collection.compute()
+        delayed_step = max(0, step - delay)
+        for channel, offset in (("position", 1.0), ("velocity", 2.0), ("effort", 3.0)):
+            torch.testing.assert_close(
+                getattr(collection.output_command, channel).torch,
+                torch.full((2, 2), delayed_step + offset),
+            )
+            torch.testing.assert_close(
+                getattr(collection.target_command, channel).torch, torch.full((2, 2), step + offset)
+            )
+        expected_effort = 6.0 * delayed_step + 8.0 - 2.0 * step
+        torch.testing.assert_close(collection.computed_effort.torch, torch.full((2, 2), expected_effort))
+
+    collection.reset(torch.tensor([0]))
+    collection.target_command.position.torch.fill_(10.0)
+    collection.target_command.velocity.torch.fill_(20.0)
+    collection.target_command.effort.torch.fill_(30.0)
+    collection.compute()
+    for channel, fresh, previous in (("position", 10.0, 3.0), ("velocity", 20.0, 4.0), ("effort", 30.0, 5.0)):
+        expected = torch.tensor([[fresh, fresh], [fresh, fresh] if delay == 0 else [previous, previous]])
+        torch.testing.assert_close(getattr(collection.output_command, channel).torch, expected)
+    torch.testing.assert_close(control.joint_stiffness.torch, torch.full((2, 2), 2.0))
+    torch.testing.assert_close(control.joint_damping.torch, torch.full((2, 2), 3.0))
+
+
+def test_delayed_implicit_rejects_native_execution_bypass():
+    """Fail clearly when a native execution path would skip command delays."""
+    cfg = DelayedImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=2.0, damping=0.0, max_delay=2)
+    with pytest.raises(ValueError, match="use_newton_actuators"):
+        ActuatorCollection({"all": cfg}, NativeFakeActuatorControl())
+
+
+def test_delayed_implicit_samples_one_delay_per_environment():
+    """Each environment holds its sampled delay across all joints and command channels."""
+    control = FakeActuatorControl(num_envs=32, joint_names=["joint_0", "joint_1"])
+    collection = ActuatorCollection(
+        {
+            "all": DelayedImplicitActuatorCfg(
+                joint_names_expr=[".*"],
+                stiffness=2.0,
+                damping=0.0,
+                min_delay=1,
+                max_delay=3,
+            )
+        },
+        control,
+    )
+    with torch.random.fork_rng(devices=[]):
+        torch.manual_seed(42)
+        collection.reset()
+    for step in range(6):
+        for channel, offset in (("position", 0.0), ("velocity", 10.0), ("effort", 20.0)):
+            getattr(collection.target_command, channel).torch.fill_(step + offset)
+        collection.compute()
+        if step >= 3:
+            observed_delays = step - collection.output_command.position.torch
+            assert torch.all((observed_delays >= 1) & (observed_delays <= 3))
+            assert torch.unique(observed_delays).numel() > 1
+            torch.testing.assert_close(observed_delays[:, 0], observed_delays[:, 1])
+            torch.testing.assert_close(
+                collection.output_command.velocity.torch, collection.output_command.position.torch + 10.0
+            )
+            torch.testing.assert_close(
+                collection.output_command.effort.torch, collection.output_command.position.torch + 20.0
+            )
+            if step == 3:
+                initial_delays = observed_delays.clone()
+            else:
+                torch.testing.assert_close(observed_delays, initial_delays)
+
+
+@pytest.mark.parametrize("min_delay,max_delay", [(-1, 2), (3, 2)])
+def test_delayed_implicit_rejects_invalid_delay_bounds(min_delay, max_delay):
+    cfg = DelayedImplicitActuatorCfg(
+        joint_names_expr=[".*"], stiffness=2.0, damping=0.0, min_delay=min_delay, max_delay=max_delay
+    )
+    with pytest.raises(ValueError, match="0 <= min_delay <= max_delay"):
+        ActuatorCollection({"all": cfg}, FakeActuatorControl())
+
+
+def test_delayed_pd_retains_delay_before_explicit_torque_computation():
+    """The shared delay lifecycle must still feed delayed targets to the explicit PD controller."""
+    control = FakeActuatorControl(num_envs=1, joint_names=["joint_0"])
+    collection = ActuatorCollection(
+        {
+            "all": DelayedPDActuatorCfg(
+                joint_names_expr=[".*"],
+                stiffness=2.0,
+                damping=3.0,
+                actuator_effort_limit=100.0,
+                min_delay=1,
+                max_delay=1,
+            )
+        },
+        control,
+    )
+    collection.reset()
+    for step, expected_effort in enumerate((13.0, 11.0, 15.0)):
+        collection.target_command.position.torch.fill_(step + 1.0)
+        collection.target_command.velocity.torch.fill_(step + 2.0)
+        collection.target_command.effort.torch.fill_(step + 5.0)
+        control.joint_pos.torch.fill_(step)
+        collection.compute()
+        torch.testing.assert_close(collection.output_command.effort.torch, torch.tensor([[expected_effort]]))
 
 
 def test_multi_group_explicit_outputs_match_pd_formula():
