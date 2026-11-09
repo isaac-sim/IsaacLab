@@ -9,7 +9,6 @@ import contextlib
 import ctypes
 import importlib.util
 import sys
-import tempfile
 import types
 from builtins import ExceptionGroup
 from pathlib import Path
@@ -84,7 +83,7 @@ def _make_ovrtx_camera_render_data() -> OVRTXCameraRenderData:
 def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer = OVRTXRenderer(OVRTXRendererCfg(), sim=SimulationContext.instance())
     renderer.backend = OVRTXBackend.__new__(OVRTXBackend)
-    renderer.backend._usd_files = tempfile.TemporaryDirectory(prefix="isaaclab-test-ovrtx-")
+    renderer.backend._usd_files = None
     renderer.scene = renderer.backend
     from isaaclab_ov.stage import OvstageBackend
 
@@ -102,7 +101,7 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     return renderer
 
 
-def test_legacy_scene_keeps_binary_backing_files_until_destroy_succeeds():
+def test_legacy_scene_keeps_binary_backing_files_until_reset_succeeds() -> None:
     """Replacement and native failures retain each crate until the native scene closes."""
     from pxr import Sdf, Usd
 
@@ -114,9 +113,10 @@ def test_legacy_scene_keeps_binary_backing_files_until_destroy_succeeds():
 
     class NativeRenderer:
         fail_load = False
+        fail_reset = True
         fail_destroy = True
 
-        def open_usd(self, path):
+        def open_usd(self, path: str) -> None:
             file = Path(path)
             assert file.read_bytes()[:8] == b"PXR-USDC"
             files.append(file)
@@ -127,31 +127,42 @@ def test_legacy_scene_keeps_binary_backing_files_until_destroy_succeeds():
             if self.fail_load:
                 raise RuntimeError("load failed")
 
-        def destroy(self):
+        def reset_stage(self) -> None:
             assert all(file.exists() for file in files)
-            if self.fail_destroy:
-                raise RuntimeError("destroy failed")
+            if self.fail_reset:
+                raise RuntimeError("reset failed")
             retained_layers.clear()
 
+        def destroy(self) -> None:
+            assert not retained_layers
+            assert not any(file.exists() for file in files)
+            if self.fail_destroy:
+                raise RuntimeError("destroy failed")
+
     backend = OVRTXBackend.__new__(OVRTXBackend)
-    backend._usd_files = tempfile.TemporaryDirectory(prefix="isaaclab-test-ovrtx-")
-    directory = Path(backend._usd_files.name)
+    backend._usd_files = None
     backend.renderer = native = NativeRenderer()
     try:
         backend.populate(stage.Flatten())
+        directory = Path(backend._usd_files.name)
         native.fail_load = True
         with pytest.raises(RuntimeError, match="load failed"):
             backend.populate(stage.Flatten())
         assert len(set(files)) == 2
         assert all(file.exists() for file in files)
-        with pytest.raises(RuntimeError, match="destroy failed"):
+        with pytest.raises(RuntimeError, match="reset failed"):
             backend.close()
         assert directory.exists()
+        native.fail_reset = False
+        with pytest.raises(RuntimeError, match="destroy failed"):
+            backend.close()
+        assert not directory.exists()
         native.fail_destroy = False
         backend.close()
         backend.close()
         assert not directory.exists()
     finally:
+        native.fail_reset = False
         native.fail_destroy = False
         backend.close()
 

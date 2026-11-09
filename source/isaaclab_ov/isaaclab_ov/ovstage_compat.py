@@ -6,6 +6,7 @@
 """OVStage population and clone compatibility without loading the native runtime."""
 
 import math
+import warnings
 from functools import cache
 from importlib.metadata import PackageNotFoundError, version
 from typing import TYPE_CHECKING
@@ -25,7 +26,13 @@ OVSTAGE_REQUIRES_CPU_HIERARCHY_BEFORE_CLONE = OVSTAGE_VERSION is not None and OV
 
 
 def populate_stage(
-    stage: "ovstage.Stage", usd_path: str, *, ordinal: int, domains: "ovstage.PopulationDomain", physics: bool = False
+    stage: "ovstage.Stage",
+    usd_path: str | None = None,
+    *,
+    ordinal: int,
+    domains: "ovstage.PopulationDomain",
+    physics: bool = False,
+    usda: str | None = None,
 ) -> None:
     """Populate rendering and optional physics data across the OVStage 0.4 API transition.
 
@@ -34,23 +41,45 @@ def populate_stage(
 
     Args:
         stage: Native stage to populate.
-        usd_path: Path to the exported binary USD scene.
+        usd_path: Path to the exported binary USD scene. USDA text is deprecated.
         ordinal: Population write ordinal, sealed by the caller after cloning.
         domains: Native population domains, normally rendering.
         physics: Whether an OVPhysX consumer also needs physics data.
+        usda: Deprecated text-input keyword. Use ``usd_path`` with a file path instead.
     """
     import ovstage
+
+    if usd_path is not None and usda is not None:
+        raise TypeError("Specify only one of usd_path and usda.")
+    if usda is not None:
+        usd_path = usda
+    if usd_path is None:
+        raise TypeError("populate_stage requires a USD file path or deprecated USDA text.")
+    text_input = usda is not None or usd_path.lstrip().startswith("#usda")
+    if text_input:
+        warnings.warn(
+            "USDA text in populate_stage is deprecated and will be removed in Isaac Lab 4.0. "
+            "Pass usd_path with the path to a binary USD file instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
 
     if physics:
         physics_domain = getattr(ovstage.PopulationDomain, "PHYSICS", None)
         if physics_domain is None:
-            ovstage.population.open_usd_with_desc(
-                stage, usd_path, ordinal, math.nan,
-                descs=(ovstage.population.Desc(domains=domains), _physics_population_desc()),
-            )  # fmt: skip
+            descs = (ovstage.population.Desc(domains=domains), _physics_population_desc())
+            if text_input:
+                ovstage.population.open_usd_from_string_with_desc(
+                    stage, usd_path, ordinal=ordinal, time=ovstage.population.DEFAULT_TIME, descs=descs
+                )
+            else:
+                ovstage.population.open_usd_with_desc(stage, usd_path, ordinal, math.nan, descs=descs)
             return
         domains |= physics_domain
-    ovstage.population.open_usd(stage, usd_path, ordinal=ordinal, domains=domains)
+    if text_input:
+        ovstage.population.open_usd_from_string(stage, usd_path, ordinal=ordinal, domains=domains)
+    else:
+        ovstage.population.open_usd(stage, usd_path, ordinal=ordinal, domains=domains)
 
 
 @cache

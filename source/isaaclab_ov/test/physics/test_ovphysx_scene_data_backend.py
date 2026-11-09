@@ -180,8 +180,11 @@ def test_transforms_finish_dirty_kinematics_before_native_reads(manager, monkeyp
     assert calls == ["fk", "read", "fk", "read"]
 
 
-@pytest.mark.parametrize(("modern", "failure"), [(False, None), (True, None), (True, "attach")])
-def test_manager_attaches_and_releases_owned_ovstage(manager, monkeypatch, modern, failure):
+@pytest.mark.parametrize(
+    ("modern", "failure", "input_kind"),
+    [(False, None, "layer"), (True, None, "text"), (True, "attach", "keyword")],
+)
+def test_manager_attaches_and_releases_owned_ovstage(manager, monkeypatch, modern, failure, input_kind):
     """The registered resource releases the attached OVStage once, after PhysX."""
     import isaaclab_ov.physics.ovphysx_manager as om_mod
 
@@ -262,11 +265,16 @@ def test_manager_attaches_and_releases_owned_ovstage(manager, monkeypatch, moder
         "_close_all_for",
         lambda value: events.append(("close_views", value)),
     )
-    if failure == "attach":
-        with pytest.raises(RuntimeError, match=f"{failure} failed"):
-            manager.backend.load(Sdf.Layer.CreateAnonymous())
-    else:
-        manager.backend.load(Sdf.Layer.CreateAnonymous())
+    layer = Sdf.Layer.CreateAnonymous()
+    with ExitStack() as expected:
+        if failure == "attach":
+            expected.enter_context(pytest.raises(RuntimeError, match="attach failed"))
+        if input_kind != "layer":
+            expected.enter_context(pytest.warns(DeprecationWarning, match="OvPhysxBackend.load.*4.0"))
+        if input_kind == "keyword":
+            manager.backend.load(stage_usda=layer.ExportToString())
+        else:
+            manager.backend.load(layer.ExportToString() if input_kind == "text" else layer)
     stage = stages[0]
     assert manager.backend.stage is stage
     manager.backend.close()
@@ -426,33 +434,56 @@ def test_manager_destroys_ovstage_when_population_fails(manager, monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "population_api, physics",
-    [("domains", True), ("selectors", True), ("selectors", False)],
-    ids=["legacy-physics", "selector-physics", "rendering-only"],
+    ("population_api", "physics", "input_kind"),
+    [
+        ("domains", True, "file"),
+        ("selectors", True, "file"),
+        ("selectors", False, "file"),
+        ("domains", True, "text"),
+        ("selectors", True, "text"),
+        ("selectors", False, "keyword"),
+    ],
 )
-def test_population_dispatch_preserves_requested_data_and_write_ordinal(monkeypatch, population_api, physics):
-    """Route physics intent, rendering domains, and the write ordinal through either native API."""
+def test_population_dispatch_preserves_requested_data_and_write_ordinal(
+    monkeypatch: pytest.MonkeyPatch, population_api: str, physics: bool, input_kind: str
+) -> None:
+    """Route file and deprecated text inputs through the requested native population API."""
     from isaaclab_ov import ovstage_compat
 
     native_stage, physics_desc = object(), object()
     calls = []
     descriptions = []
+    content = "/tmp/scene.usdc" if input_kind == "file" else "#usda 1.0\n"
 
     class DomainPopulation:
         @staticmethod
-        def open_usd(stage, usda, ordinal, domains):
-            calls.append((stage, usda, ordinal, domains))
+        def open_usd(stage: object, usd_path: str, ordinal: int, domains: int) -> None:
+            calls.append(("file", stage, usd_path, ordinal, domains))
+
+        @staticmethod
+        def open_usd_from_string(stage: object, usda: str, ordinal: int, domains: int) -> None:
+            calls.append(("text", stage, usda, ordinal, domains))
 
     class SelectorPopulation(DomainPopulation):
+        DEFAULT_TIME = 0.0
+
         class Desc:
-            def __init__(self, *, domains):
+            def __init__(self, *, domains: int) -> None:
                 self.domains = domains
 
         @staticmethod
-        def open_usd_with_desc(stage, usda, ordinal, time, descs):
-            calls.append((stage, usda, ordinal, time, tuple(descs)))
+        def open_usd_with_desc(
+            stage: object, usd_path: str, ordinal: int, time: float, descs: tuple[object, ...]
+        ) -> None:
+            calls.append(("file", stage, usd_path, ordinal, time, tuple(descs)))
 
-    def describe_physics():
+        @staticmethod
+        def open_usd_from_string_with_desc(
+            stage: object, usda: str, ordinal: int, time: float, descs: tuple[object, ...]
+        ) -> None:
+            calls.append(("text", stage, usda, ordinal, time, tuple(descs)))
+
+    def describe_physics() -> object:
         descriptions.append(physics_desc)
         return physics_desc
 
@@ -466,18 +497,53 @@ def test_population_dispatch_preserves_requested_data_and_write_ordinal(monkeypa
     monkeypatch.setitem(sys.modules, "ovstage", runtime)
     monkeypatch.setattr(ovstage_compat, "_physics_population_desc", describe_physics)
 
-    ovstage_compat.populate_stage(native_stage, "/tmp/scene.usdc", ordinal=7, domains=1, physics=physics)
+    with ExitStack() as expected:
+        if input_kind != "file":
+            expected.enter_context(pytest.warns(DeprecationWarning, match="populate_stage.*4.0"))
+        if input_kind == "keyword":
+            ovstage_compat.populate_stage(native_stage, usda=content, ordinal=7, domains=1, physics=physics)
+        else:
+            ovstage_compat.populate_stage(native_stage, content, ordinal=7, domains=1, physics=physics)
 
+    kind = "file" if input_kind == "file" else "text"
     if population_api == "selectors" and physics:
         assert descriptions == [physics_desc]
         assert len(calls) == 1
-        stage, usda, ordinal, time, descs = calls[0]
-        assert (stage, usda, ordinal) == (native_stage, "/tmp/scene.usdc", 7)
-        assert math.isnan(time)
+        actual_kind, stage, usd_input, ordinal, time, descs = calls[0]
+        assert (actual_kind, stage, usd_input, ordinal) == (kind, native_stage, content, 7)
+        assert math.isnan(time) if input_kind == "file" else time == SelectorPopulation.DEFAULT_TIME
         assert len(descs) == 2 and descs[0].domains == 1 and descs[1] is physics_desc
     else:
         assert descriptions == []
-        assert calls == [(native_stage, "/tmp/scene.usdc", 7, 3 if physics else 1)]
+        assert calls == [(kind, native_stage, content, 7, 3 if physics else 1)]
+
+
+@pytest.mark.parametrize("keyword", [False, True])
+def test_deprecated_scene_population_keeps_binary_handoff(monkeypatch: pytest.MonkeyPatch, keyword: bool) -> None:
+    """Legacy layer-owner calls warn while preserving scene data in binary population."""
+    from isaaclab_ov import stage as stage_module
+
+    from pxr import Usd
+
+    source = Usd.Stage.CreateInMemory()
+    source.DefinePrim("/World").CreateAttribute("value", Sdf.ValueTypeNames.Int).Set(17)
+    native = SimpleNamespace(advance_write_floor=lambda **_: SimpleNamespace(wait=lambda: None))
+    monkeypatch.setattr(stage_module, "create_ovstage", lambda _: nullcontext(native))
+    monkeypatch.setattr(stage_module.ovstage, "PathDictionary", lambda _: nullcontext(object()))
+    imported = []
+
+    def populate(stage: object, usd_path: str, **kwargs) -> None:
+        layer = Sdf.Layer.FindOrOpen(usd_path)
+        imported.append(layer.GetAttributeAtPath("/World.value").default)
+
+    monkeypatch.setattr(stage_module, "populate_stage", populate)
+    with closing(stage_module.OvstageBackend(stage_module.OvstageBackendCfg())) as backend:
+        with pytest.warns(DeprecationWarning, match="OvstageBackend.populate.*4.0"):
+            if keyword:
+                backend.populate(usda=source.ExportToString())
+            else:
+                backend.populate(source.ExportToString())
+    assert imported == [17]
 
 
 def test_physics_population_preserves_resolved_values_and_clone_relationships():
@@ -486,7 +552,7 @@ def test_physics_population_preserves_resolved_values_and_clone_relationships():
     import ovstage
     from isaaclab_ov.stage import OvstageBackend, OvstageBackendCfg, _handle_raw_id
 
-    from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
+    from pxr import Usd, UsdGeom, UsdPhysics, UsdShade
 
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.SetStageMetersPerUnit(stage, 0.01)

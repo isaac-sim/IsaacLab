@@ -10,7 +10,6 @@ from __future__ import annotations
 import ast
 import contextlib
 import importlib.util
-import tempfile
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -103,7 +102,7 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
         cfg=SimpleNamespace(read_gpu_transforms=False),
     )
     renderer.scene = renderer.backend
-    renderer.backend._usd_files = tempfile.TemporaryDirectory(prefix="isaaclab-test-ovrtx-")
+    renderer.backend._usd_files = None
     renderer.backend.populate = OVRTXBackend.populate.__get__(renderer.backend)
     renderer.backend.renderer = SimpleNamespace(
         open_usd=Mock(),
@@ -284,8 +283,10 @@ def test_object_bindings_preserve_source_and_destination_scales(env_template):
     )
 
 
-@pytest.mark.parametrize("dump_enabled", [False, True])
-def test_prepare_stage_writes_debug_dump_only_when_requested(tmp_path, monkeypatch, dump_enabled):
+@pytest.mark.parametrize("dump_enabled, export_succeeds", [(False, True), (True, True), (True, False)])
+def test_prepare_stage_writes_debug_dump_only_when_requested(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, dump_enabled: bool, export_succeeds: bool
+) -> None:
     """The optional dump preserves the raw stage and remains absent by default."""
     assets = (AssetBaseCfg(prim_path="/World/envs/env_[^/]+"),)
     plan = make_clone_plan(assets, ((0,),), 2, positions=np.zeros((2, 3), dtype=np.float32))
@@ -299,11 +300,28 @@ def test_prepare_stage_writes_debug_dump_only_when_requested(tmp_path, monkeypat
     expected_pre_export = stage.ExportToString()
 
     _prepare_clones(renderer, plan)
-    renderer.prepare_stage(stage, 2)
+    if not export_succeeds:
+        export = Sdf.Layer.Export
+        monkeypatch.setattr(
+            Sdf.Layer, "Export", lambda layer, path: False if Path(path).parent == output_dir else export(layer, path)
+        )
+        with (
+            pytest.warns(FutureWarning, match="pre_ovrtx_renderer_stage.usdc"),
+            pytest.raises(RuntimeError, match="Failed to export USD diagnostic"),
+        ):
+            renderer.prepare_stage(stage, 2)
+        return
+    with (
+        pytest.warns(FutureWarning, match="pre_ovrtx_renderer_stage.usdc") if dump_enabled else contextlib.nullcontext()
+    ):
+        renderer.prepare_stage(stage, 2)
 
     assert output_dir.exists() is dump_enabled
     if dump_enabled:
         assert Sdf.Layer.FindOrOpen(str(output_dir / _PRE_OVRTX_STAGE_FILE)).ExportToString() == expected_pre_export
+        for name in (_PRE_OVRTX_STAGE_FILE, _OVRTX_STAGE_FILE):
+            with (output_dir / name).open("rb") as file:
+                assert file.read(8) == b"PXR-USDC"
     assert (output_dir / _OVRTX_STAGE_FILE).exists() is dump_enabled
 
 
@@ -493,7 +511,6 @@ def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatc
         exported_usd = renderer.backend.renderer.open_usd.call_args.args[0]
         backend.populate(Sdf.Layer.FindOrOpen(exported_usd))
         assert imported.call_args.args[0] is native
-        assert Path(imported.call_args.args[1]).read_bytes()[:8] == b"PXR-USDC"
         assert imported.call_args.kwargs["domains"] == ovstage.PopulationDomain.RENDERING
         native.clone.assert_called_once_with(source, [env_template.format(i) + suffix for i in (1, 2)], ordinal=1)
         native.advance_write_floor.assert_called_once_with(ordinal=1)

@@ -490,7 +490,7 @@ def _define_tendon_joint(stage: Usd.Stage, path: str, schema_name: str) -> None:
 
 
 def _make_articulation_root_stage_layer() -> Sdf.Layer:
-    """Serialize one relevant articulation subtree and unrelated joints in memory."""
+    """Return a flattened layer with one articulation subtree and unrelated joints."""
     stage = Usd.Stage.CreateInMemory()
     stage.DefinePrim("/World", "Xform")
     stage.DefinePrim("/World/envs", "Xform")

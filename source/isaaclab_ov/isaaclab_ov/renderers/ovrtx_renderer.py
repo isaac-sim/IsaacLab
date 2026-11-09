@@ -29,6 +29,7 @@ import os
 import sys
 import tempfile
 import uuid
+import warnings
 import weakref
 from builtins import ExceptionGroup
 from collections import deque
@@ -101,7 +102,8 @@ from isaaclab_ov.renderers.ovrtx_usd import (
     render_var_prim_names_by_source,
 )
 from isaaclab_ov.renderers.visual_materials import OVRTXVisualMaterialWriter
-from isaaclab_ov.stage import (
+
+from ..stage import (
     _handle_raw_id,
     export_stage_to_layer,
     points_tensor_from_warp,
@@ -178,7 +180,8 @@ def _write_file(output_dir: Path, file_name: str, layer: Sdf.Layer) -> None:
     """Write a binary USD debug dump, creating its directory if needed."""
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / file_name
-    layer.Export(str(output_path))
+    if not layer.Export(str(output_path)):
+        raise RuntimeError(f"Failed to export USD diagnostic to {output_path}.")
     logger.info("Wrote USD file: %s", output_path)
 
 
@@ -287,14 +290,16 @@ class OVRTXBackend:
             self.population_env_paths: list[str] = []
             self.clone_positions: np.ndarray | None = None
         self.renderer = Renderer(native_cfg)
-        self._usd_files = tempfile.TemporaryDirectory(prefix="isaaclab-ovrtx-")
+        self._usd_files: tempfile.TemporaryDirectory | None = None
 
     def populate(self, layer: Sdf.Layer) -> None:
-        """Load binary USD and retain its backing file until the renderer is destroyed.
+        """Load binary USD and retain its backing file until the native scene is cleared.
 
         Args:
             layer: Prepared scene containing the routed prototypes and their materials.
         """
+        if self._usd_files is None:
+            self._usd_files = tempfile.TemporaryDirectory(prefix="isaaclab-ovrtx-")
         usd_path = str(Path(self._usd_files.name) / f"scene-{uuid.uuid4().hex}.usdc")
         if not layer.Export(usd_path):
             raise RuntimeError(f"Failed to export the native USD scene to {usd_path}.")
@@ -309,11 +314,15 @@ class OVRTXBackend:
     def close(self) -> None:
         """Destroy the engine; the simulation's backend registry releases any borrowed stage afterward."""
         if self.renderer is not None:
+            if self._usd_files is not None:
+                # Clear the legacy USD stage before removing crates that Windows may still map.
+                self.renderer.reset_stage()
+                self._usd_files.cleanup()
+                self._usd_files = None
             # The SDK destroys bindings and detaches only if attached, including partial initialization.
             self.renderer.destroy()
             self.renderer = None
             self.attached = False
-        self._usd_files.cleanup()
 
 
 class OVRTXCameraRenderData:
@@ -442,6 +451,13 @@ class OVRTXRenderer(BaseRenderer):
         light_partitions = _resolve_env_light_partitions(stage, env_paths, copies=self.scene.clone_copies)
         if self.cfg.temp_usd_dir is not None or not self._use_ovstage or not self.scene.ordinal:
             if self.cfg.temp_usd_dir is not None:
+                warnings.warn(
+                    "OVRTX diagnostic dumps now use pre_ovrtx_renderer_stage.usdc and ovrtx_renderer_stage.usdc. "
+                    "Update readers of the former .usda filenames. Binary dumps preserve oversized attributes "
+                    "that USDA cannot represent. This migration warning will be removed in Isaac Lab 4.0.",
+                    FutureWarning,
+                    stacklevel=2,
+                )
                 _write_file(Path(self.cfg.temp_usd_dir), "pre_ovrtx_renderer_stage.usdc", stage.Flatten())
             # Physics population needs fully composed instance collider data.
             layer = export_stage_to_layer(
