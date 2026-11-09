@@ -109,6 +109,7 @@ Table of Contents
    source/isaaclab/interactive_demos
    source/how-to/index
    source/isaaclab/migrating
+   source/isaaclab/community_projects
 
 
 .. toctree::
