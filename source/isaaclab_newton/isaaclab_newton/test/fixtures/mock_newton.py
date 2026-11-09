@@ -77,6 +77,33 @@ def create_mock_newton_manager(
         solver=None,
         actuators=None,
         dt=0.01,
+        state_version=0,
+        device=wp.get_device("cpu"),
+        transforms_may_change_on_graph_replay=False,
     )
-    manager.transforms_may_change_on_graph_replay = False
     return manager
+
+
+def backend_stub(**fields):
+    """Return a :class:`~isaaclab_newton.physics.NewtonBackend` holding only ``fields``, without a finalized model."""
+    from isaaclab_newton.physics import NewtonBackend  # noqa: PLC0415
+
+    backend = object.__new__(NewtonBackend)
+    backend.contact_sensors = {}
+    backend.contact_observables = None
+    backend.__dict__.update(fields)
+    return backend
+
+
+def solver_driver(solver_cls, cfg, native=None):
+    """Return a ``solver_cls`` driver of ``native`` for ``cfg``, without building a Newton solver.
+
+    ``solver_cls`` may be a configuration's ``class_type`` reference string.
+    """
+    from isaaclab.utils.string import string_to_callable  # noqa: PLC0415
+
+    if isinstance(solver_cls, str):
+        solver_cls = string_to_callable(solver_cls)
+    driver = object.__new__(solver_cls)
+    driver.cfg, driver.native = cfg, native
+    return driver

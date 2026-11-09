@@ -3,6 +3,27 @@ Changelog
 
 .. towncrier release notes start
 
+6.0.0 (2026-11-07)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed :class:`~isaaclab_contrib.coupling.CouplerSolver` and
+  :class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolver` into solver drivers. The coupler kept each entry's
+  driver in ``entries`` and ``build_coupled`` became an instance method; the custom coupled solver kept its sub-solver
+  drivers as ``rigid`` and ``soft``.
+
+
+5.0.1 (2026-10-29)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Viewed packed multirotor defaults as typed components without allocating output buffers or launching a split kernel.
+
+
 5.0.0 (2026-10-28)
 ~~~~~~~~~~~~~~~~~~
 

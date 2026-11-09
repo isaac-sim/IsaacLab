@@ -3,7 +3,7 @@
 Tutorial
 ========
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/tutorial_so101_vialplace_play.gif
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/tutorials/tutorial_so101_vialplace_play.gif
    :alt: The SO-101 arm picking up a vial and placing it in a rack.
    :align: center
    :width: 85%
@@ -14,6 +14,11 @@ Tutorial
    <https://docs.nvidia.com/learning/physical-ai/sim-to-real-so-101/latest/index.html>`__ and its
    `workshop repository <https://github.com/isaac-sim/Sim-to-Real-SO-101-Workshop>`__, which present a broader
    end-to-end physical AI workflow with the SO-101, Isaac Lab, and NVIDIA Isaac GR00T.
+
+   The `Getting Started With Isaac Lab learning path
+   <https://docs.nvidia.com/learning/physical-ai/getting-started-with-isaac-lab/latest/index.html>`__
+   uses the same task and code as this tutorial, with a broader, guided introduction to robot learning,
+   project setup, and policy training.
 
 Build a vial-placement task for an `SO-101 arm
 <https://github.com/TheRobotStudio/SO-ARM100>`__ using the

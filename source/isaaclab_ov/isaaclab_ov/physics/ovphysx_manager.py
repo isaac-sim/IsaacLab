@@ -348,8 +348,8 @@ class OvPhysxBackend:
             self.scene.reset()
             self.stage = None
         if self.scene is None:
-            # PHYSICS population currently omits native-instance collider dependencies.
-            self.scene = instantiate(OvstageBackendCfg(population_domains=ovstage.PopulationDomain.ALL))
+            # Include rendering data for native-instance collider dependencies as well as physics.
+            self.scene = instantiate(OvstageBackendCfg(populate_physics=True))
         try:
             self.scene.populate(stage_usda)
             operation = self.physx.attach_ovstage(self.scene.stage, read_ordinal=self.scene.ordinal - 1)

@@ -19,9 +19,10 @@ from pxr import UsdPhysics
 
 from isaaclab.sensors.joint_wrench import BaseJointWrenchSensor
 from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
+from isaaclab.utils.warp import memory as memory_kernels
 
 from .joint_wrench_sensor_data import JointWrenchSensorData
-from .kernels import joint_wrench_reset_kernel, joint_wrench_to_incoming_joint_frame_kernel
+from .kernels import joint_wrench_to_incoming_joint_frame_kernel
 
 if TYPE_CHECKING:
     from isaaclab.sensors.joint_wrench import JointWrenchSensorCfg
@@ -111,7 +112,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
         super().reset(None, env_mask)
         wp.launch(
-            joint_wrench_reset_kernel,
+            memory_kernels.make_clear_pair(wp.vec3f, 2),
             dim=(self._num_envs, self._num_joints),
             inputs=[env_mask, self._data._force, self._data._torque],
             device=self._device,
