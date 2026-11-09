@@ -137,6 +137,85 @@ Training uses the original controller without opening Capture:
 This is interactive policy playback, not intervention training. RLinf remote workers do
 not support local input; use ``--no-teleop`` with that backend.
 
+Franka Reach examples
+---------------------
+
+The optional package in ``examples/teleop_franka`` attaches Capture input to the existing
+Franka Reach RL task. It registers ``Isaac-Reach-Franka-Teleop`` as a configuration of the
+same environment implementation, preserving the original scene, rewards, resets, and agent
+registrations. The original ``Isaac-Reach-Franka`` registration remains unchanged. Keeping
+the example in an external package makes its teleop dependency explicit.
+
+The task configuration selects the existing relative or absolute IK controller and adds its
+input. With no presets selected, it retains the original joint-position controller without
+Capture input or XR presentation:
+
+.. literalinclude:: ../../../examples/teleop_franka/isaaclab_teleop_franka/franka_env_cfg.py
+   :language: python
+   :start-at: @configclass
+
+From the repository root, use the relative IK and keyboard presets together:
+
+.. code-block:: bash
+
+   uv run --extra teleop --with-editable examples/teleop_franka isaaclab play \
+       --task Isaac-Reach-Franka-Teleop --num_envs 1 --viz newton_gl --real-time \
+       physics=newton_mjwarp presets=diffik,keyboard
+
+Focus the Lab viewer. ``W/S``, ``A/D``, and ``Q/E`` translate the end effector;
+``Z/X``, ``T/G``, and ``C/V`` rotate it. ``P`` disengages input, ``B`` engages it,
+and ``R`` resets the task and disengages input. This Reach task has no gripper action.
+
+For Quest controllers, first prepare the Capture 1.7.93a1/OVXR environment described in
+:doc:`kitless_xr_source`, including its CloudXR prerequisites. The ``ovxr`` selection is a
+local installation step, not an extra already present in the default project. Then use:
+
+.. code-block:: bash
+
+   uv run --extra ovxr --with-editable examples/teleop_franka isaaclab play \
+       --task Isaac-Reach-Franka-Teleop --num_envs 1 --viz newton_gl --real-time \
+       physics=newton_mjwarp presets=diffik_abs,xr
+
+Once the embedded CloudXR runtime is ready, print the Quest browser client URL from another
+terminal in the same prepared environment:
+
+.. code-block:: bash
+
+   uv run --extra ovxr python -m isaaccapture.cloudxr.webclient --print-only
+
+Open that URL in the Quest browser and connect. Input starts disengaged; use
+``B`` in the focused Lab viewer after the right controller is tracked. The first active,
+tracked sample establishes a reference between the controller and the measured robot pose.
+Subsequent controller displacement produces an absolute end-effector target with 1:1
+position scaling in the robot base frame. Holding the controller still keeps the target
+fixed even while the robot catches up. Actual motion remains subject to IK, joint limits,
+and physics.
+
+Reset, disengagement, and tracking loss clear that reference. Re-engagement or tracking
+recovery calibrates again from the measured pose, preventing a target jump. The Capture
+pipeline carries a tracking epoch so recovery is detected even when asynchronous sampling
+skips an invalid frame. The example's ``xr.py`` owns this mapping and converts the target
+back through the existing controller's scale and offset; the controller remains unchanged.
+Unavailable input yields to the policy, or to the measured-pose hold used by checkpoint-free
+absolute-IK playback.
+
+The XR view is only for the operator. Capture's desktop mirror is disabled; Newton GL
+provides an independent desktop view. Initial RTX shader compilation can take several
+minutes, so the example permits a ten-minute startup. The task's ordinary episode timeout
+still applies; add ``env.episode_length_s=3600`` for a longer inspection session.
+When using a trained policy, select the controller preset used during training.
+
+The example package has focused configuration, tracking, and calibration checks. Run the
+full set in the prepared OVXR environment with test dependencies available:
+
+.. code-block:: bash
+
+   uv run --extra dev --extra ovxr --with-editable examples/teleop_franka \
+       python -m pytest examples/teleop_franka/tests/test_franka_teleop.py
+
+Using ``--extra teleop`` instead checks configuration compatibility and skips the two
+XR runtime tests that require Capture 1.7.93a1.
+
 Operator presentation with kitless XR
 -------------------------------------
 
