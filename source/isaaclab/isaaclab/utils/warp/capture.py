@@ -58,18 +58,14 @@ def capturing(device: wp.Device | str | None = None) -> bool:
     return bool(recordings()) and wp.get_device(device).is_capturing
 
 
-_recording_token: list = [None]
-"""The token of the :class:`GraphedCallable` recording in progress, which the recording sets."""
-
-
 def recording_key(captures: dict) -> object:
     """The identity of the recording in progress, given a non-empty :func:`recordings` table.
 
     A :class:`GraphedCallable` recording spans the graphs it splits around eager calls, so it is the identity while one
     records; any other recording is identified by its captures.
     """
-    token = _recording_token[0]
-    return tuple(captures) if token is None else token
+    recording = GraphedCallable._recording
+    return tuple(captures) if recording is None else recording.token
 
 
 def is_recording() -> bool:
@@ -455,7 +451,6 @@ def _record_calls(device: wp.Device, run_eager: Callable[[Callable[..., Any], tu
         GraphedCallable._settle()
     recording = _Recording(device, run_eager)
     enclosing, GraphedCallable._recording = GraphedCallable._recording, recording
-    _recording_token[0] = recording.token
     try:
         with _paused_gc(), wp.ScopedStream(recording.capture_stream):
             recording.begin()
@@ -469,7 +464,6 @@ def _record_calls(device: wp.Device, run_eager: Callable[[Callable[..., Any], tu
             recording.end()
     finally:
         GraphedCallable._recording = enclosing
-        _recording_token[0] = None if enclosing is None else enclosing.token
 
 
 def _replay(steps: list, run_eager: Callable[[Callable[..., Any], tuple, dict], Any]) -> None:

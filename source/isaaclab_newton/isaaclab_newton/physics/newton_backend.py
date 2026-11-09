@@ -318,8 +318,7 @@ class NewtonBackend:
             return
         wp.launch(
             _make_flag_worlds_and_articulations(articulation_ids.shape[1], articulation_mask is not None),
-            # a mask shorter than the world count selects only the worlds it covers
-            dim=min(articulation_ids.shape[0], env_mask.shape[0]),
+            dim=articulation_ids.shape[0],
             inputs=[env_mask, articulation_ids, self.model.articulation_world, articulation_mask, consume_mask],
             outputs=[self.world_mask, self.fk_mask],
             device=self.device,
