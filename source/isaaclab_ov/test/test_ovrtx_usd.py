@@ -67,15 +67,35 @@ def camera_spec():
 
 @pytest.fixture
 def render_data(camera_spec):
+    paths = list(camera_spec.camera_prim_paths)
     return SimpleNamespace(
         render_scope_name="RenderCamera_0",
-        render_product_path="/RenderCamera_0/RenderProduct",
-        camera_paths=list(camera_spec.camera_prim_paths),
         width=16,
         height=8,
-        num_cols=2,
-        num_rows=2,
+        products=[
+            SimpleNamespace(
+                path="/RenderCamera_0/RenderProduct",
+                camera_paths=paths,
+                num_cols=2,
+                num_rows=2,
+            )
+        ],
     )
+
+
+def _make_render_data(camera_spec, max_envs_per_render_product):
+    """Build the real render data so the product split under test is the production one."""
+    pytest.importorskip("ovrtx")
+    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXCameraRenderData
+
+    camera_spec.cfg.max_envs_per_render_product = max_envs_per_render_product
+    return OVRTXCameraRenderData(camera_spec, "RenderCamera_0", list(camera_spec.camera_prim_paths))
+
+
+def _open_layer(render_scope: str) -> Usd.Stage:
+    layer = Sdf.Layer.CreateAnonymous(".usda")
+    assert layer.ImportFromString(render_scope)
+    return Usd.Stage.Open(layer)
 
 
 def _make_multi_env_stage(num_envs: int) -> Usd.Stage:
@@ -153,11 +173,8 @@ def test_render_var_prim_paths_cover_every_authored_render_var(camera_spec, rend
     authored = get_render_var_configs(data_types, render_scope_name=render_scope_name)
     camera_spec.cfg.data_types = data_types
     render_data.render_scope_name = render_scope_name
-    render_data.render_product_path = f"/{render_scope_name}/RenderProduct"
-    render_scope = build_render_product_as_string(camera_spec, render_data, device_id=0)
-    layer = Sdf.Layer.CreateAnonymous(".usda")
-    assert layer.ImportFromString(render_scope)
-    stage = Usd.Stage.Open(layer)
+    render_data.products[0].path = f"/{render_scope_name}/RenderProduct"
+    stage = _open_layer(build_render_product_as_string(camera_spec, render_data, device_id=0))
     assert stage.GetDefaultPrim().GetPath() == Sdf.Path(f"/{render_scope_name}")
     product = stage.GetPrimAtPath(f"/{render_scope_name}/RenderProduct")
     assert product.GetTypeName() == "RenderProduct"
@@ -171,6 +188,65 @@ def test_render_var_prim_paths_cover_every_authored_render_var(camera_spec, rend
         assert prim.GetAttribute("sourceName").Get() == source
         assert prim.GetParent().GetPath() == Sdf.Path(f"/{render_scope_name}/Vars")
         assert prim_paths[source] == path
+
+
+@pytest.mark.parametrize("max_envs_per_render_product", [None, 4, 8], ids=["none", "equal", "larger"])
+def test_default_render_product_layout_is_single_product(camera_spec, max_envs_per_render_product):
+    """Without a split, or with a limit at or above the environment count, the legacy single product is kept."""
+    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderProduct
+
+    render_data = _make_render_data(camera_spec, max_envs_per_render_product)
+    paths = list(camera_spec.camera_prim_paths)
+    assert render_data.products == [OVRTXRenderProduct("/RenderCamera_0/RenderProduct", paths, 0, 4, 2, 2)]
+    assert render_data.render_product_path == "/RenderCamera_0/RenderProduct"
+    assert render_data.render_product_paths == ("/RenderCamera_0/RenderProduct",)
+    stage = _open_layer(build_render_product_as_string(camera_spec, render_data, device_id=0))
+    products = [prim for prim in stage.Traverse() if prim.GetTypeName() == "RenderProduct"]
+    assert [str(prim.GetPath()) for prim in products] == ["/RenderCamera_0/RenderProduct"]
+    assert products[0].GetAttribute("resolution").Get() == Gf.Vec2i(32, 16)
+    assert products[0].GetRelationship("camera").GetTargets() == [Sdf.Path(paths[0])]
+    assert products[0].GetRelationship("orderedVars").GetTargets() == [Sdf.Path("/RenderCamera_0/Vars/LdrColor")]
+
+
+def test_render_product_chunks_author_one_product_per_slice(camera_spec):
+    """Each product covers a contiguous environment slice with its own atlas and the shared RenderVars."""
+    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderProduct
+
+    paths = [f"/World/envs/env_{i}/Robot/head_cam" for i in range(5)]
+    camera_spec = CameraRenderSpec(
+        cfg=camera_spec.cfg, device="cpu", num_instances=5, camera_prim_paths=tuple(paths), view_count=5
+    )
+    camera_spec.cfg.render_settings = {"omni:rtx:quality": ("Int", 0)}
+    render_data = _make_render_data(camera_spec, 2)
+    assert render_data.products == [
+        OVRTXRenderProduct("/RenderCamera_0/RenderProduct_0", paths[0:2], 0, 2, 2, 1),
+        OVRTXRenderProduct("/RenderCamera_0/RenderProduct_1", paths[2:4], 2, 2, 2, 1),
+        OVRTXRenderProduct("/RenderCamera_0/RenderProduct_2", paths[4:5], 4, 1, 1, 1),
+    ]
+    assert render_data.render_product_path == "/RenderCamera_0/RenderProduct_0"
+    resolutions = [Gf.Vec2i(32, 8), Gf.Vec2i(32, 8), Gf.Vec2i(16, 8)]
+    stage = _open_layer(build_render_product_as_string(camera_spec, render_data, device_id=0))
+    products = [prim for prim in stage.Traverse() if prim.GetTypeName() == "RenderProduct"]
+    assert [str(prim.GetPath()) for prim in products] == [product.path for product in render_data.products]
+    for prim, product, resolution in zip(products, render_data.products, resolutions, strict=True):
+        assert prim.GetRelationship("camera").GetTargets() == [Sdf.Path(product.camera_paths[0])]
+        assert prim.GetAttribute("resolution").Get() == resolution
+        assert prim.GetRelationship("orderedVars").GetTargets() == [Sdf.Path("/RenderCamera_0/Vars/LdrColor")]
+        assert prim.GetAttribute("omni:rtx:quality").Get() == 0
+    assert len([prim for prim in stage.Traverse() if prim.GetTypeName() == "RenderVar"]) == 1
+
+
+def test_chunked_render_data_rejects_incomplete_camera_paths(camera_spec):
+    """A split needs one camera path per environment; a prototype-only path list cannot be sliced."""
+    spec = CameraRenderSpec(
+        cfg=camera_spec.cfg,
+        device="cpu",
+        num_instances=2,
+        camera_prim_paths=camera_spec.camera_prim_paths[:1],
+        view_count=2,
+    )
+    with pytest.raises(ValueError, match="one camera path per environment"):
+        _make_render_data(spec, 1)
 
 
 def test_ovrtx_primary_render_var_follows_the_first_requested_data_type():

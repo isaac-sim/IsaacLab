@@ -257,6 +257,36 @@ def test_camera_cfg_rejects_outputs_unsupported_by_renderer():
         validate(make_cfg("simple_shading_full_mdl"))
 
 
+@pytest.mark.parametrize(
+    "max_envs, valid", [(None, True), (3, True), (0, False), (2.0, False), (True, False), (False, False)]
+)
+def test_camera_cfg_validates_render_product_split(max_envs, valid):
+    """The render product split is None or a positive integer; other values are rejected before any renderer runs."""
+    pytest.importorskip("isaaclab_ov")
+    from isaaclab_ov.renderers import OVRTXRendererCfg
+
+    cfg = CameraCfg(
+        height=64,
+        width=64,
+        prim_path="/World/Camera",
+        spawn=_SPAWN,
+        renderer_cfg=OVRTXRendererCfg(),
+        max_envs_per_render_product=max_envs,
+    )
+    if valid:
+        validate(cfg)
+    else:
+        with pytest.raises(ValueError, match="max_envs_per_render_product"):
+            validate(cfg)
+
+
+def test_camera_cfg_rejects_render_product_split_on_single_product_renderer():
+    """The default Isaac RTX renderer rejects a split at configuration time, before the scene loads."""
+    cfg = CameraCfg(height=64, width=64, prim_path="/World/Camera", spawn=_SPAWN, max_envs_per_render_product=3)
+    with pytest.raises(ValueError, match="IsaacRtxRendererCfg.*max_envs_per_render_product"):
+        validate(cfg)
+
+
 @pytest.mark.parametrize("colorize", [True, False])
 def test_newton_warp_segmentation_spec_follows_colorize_flags(colorize):
     """Segmentation specs are RGBA uint8 when colorized, else single-channel int32 (matching RTX)."""
