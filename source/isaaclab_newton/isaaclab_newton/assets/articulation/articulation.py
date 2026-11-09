@@ -702,8 +702,8 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # Nonfloating root bindings write model.joint_X_p, not state.joint_q.
-        if (solver := self._backend_manager.backend.solver) is not None and not self.root_view.is_floating_base:
-            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
+        if self._backend_manager.backend.solver is not None and not self.root_view.is_floating_base:
+            self._backend_manager.add_model_change(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of the pose related properties.
         if not skip_forward:
             self.data._reset_pose()
@@ -747,8 +747,8 @@ class Articulation(BaseArticulation):
             outputs=[self.data._sim_bind_root_link_pose_w],
             device=self.device,
         )
-        if (solver := self._backend_manager.backend.solver) is not None and not self.root_view.is_floating_base:
-            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
+        if self._backend_manager.backend.solver is not None and not self.root_view.is_floating_base:
+            self._backend_manager.add_model_change(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of the pose related properties.
         if not skip_forward:
             self.data._reset_pose()
@@ -795,8 +795,8 @@ class Articulation(BaseArticulation):
             outputs=[self.data._sim_bind_root_link_pose_w],
             device=self.device,
         )
-        if (solver := self._backend_manager.backend.solver) is not None and not self.root_view.is_floating_base:
-            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
+        if self._backend_manager.backend.solver is not None and not self.root_view.is_floating_base:
+            self._backend_manager.add_model_change(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of the pose related properties.
         if not skip_forward:
             self.data._reset_pose()
@@ -840,8 +840,8 @@ class Articulation(BaseArticulation):
             outputs=[self.data._sim_bind_root_link_pose_w],
             device=self.device,
         )
-        if (solver := self._backend_manager.backend.solver) is not None and not self.root_view.is_floating_base:
-            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
+        if self._backend_manager.backend.solver is not None and not self.root_view.is_floating_base:
+            self._backend_manager.add_model_change(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of the pose related properties.
         if not skip_forward:
             self.data._reset_pose()
@@ -1649,50 +1649,6 @@ class Articulation(BaseArticulation):
             env_ids=env_ids,
         )
 
-    def write_actuator_stiffness_to_sim(
-        self,
-        *,
-        stiffness: torch.Tensor,
-        env_ids: torch.Tensor,
-        joint_ids: torch.Tensor,
-    ) -> None:
-        """Write native actuator stiffness [N/m or N·m/rad, depending on joint type].
-
-        .. deprecated:: 3.0
-            Use :func:`isaaclab.envs.mdp.events.randomize_actuator_gains` for
-            managed randomization. Direct controller-gain writes have no public
-            replacement. This method will be removed in 3.1.
-
-        Args:
-            stiffness: Controller stiffness [N/m or N·m/rad, depending on joint type].
-            env_ids: Articulation instance indices.
-            joint_ids: Articulation-local joint indices.
-        """
-        self._write_deprecated_native_actuator_gain(
-            "write_actuator_stiffness_to_sim", "kp", stiffness, env_ids, joint_ids
-        )
-
-    def write_actuator_damping_to_sim(
-        self,
-        *,
-        damping: torch.Tensor,
-        env_ids: torch.Tensor,
-        joint_ids: torch.Tensor,
-    ) -> None:
-        """Write native actuator damping [N·s/m or N·m·s/rad, depending on joint type].
-
-        .. deprecated:: 3.0
-            Use :func:`isaaclab.envs.mdp.events.randomize_actuator_gains` for
-            managed randomization. Direct controller-gain writes have no public
-            replacement. This method will be removed in 3.1.
-
-        Args:
-            damping: Controller damping [N·s/m or N·m·s/rad, depending on joint type].
-            env_ids: Articulation instance indices.
-            joint_ids: Articulation-local joint indices.
-        """
-        self._write_deprecated_native_actuator_gain("write_actuator_damping_to_sim", "kd", damping, env_ids, joint_ids)
-
     def write_joint_damping_to_sim_mask(
         self,
         *,
@@ -1789,7 +1745,7 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        self.data._joint_pos_limits.timestamp = self.data._sim_timestamp
+        self.data._joint_pos_limits.timestamp = self.data._state_version
         if report_clamping and self._clamped_default_count.numpy()[0] > 0:
             logger.log(
                 log_level,
@@ -1864,7 +1820,7 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        self.data._joint_pos_limits.timestamp = self.data._sim_timestamp
+        self.data._joint_pos_limits.timestamp = self.data._state_version
         if report_clamping and self._clamped_default_count.numpy()[0] > 0:
             logger.log(
                 log_level,
