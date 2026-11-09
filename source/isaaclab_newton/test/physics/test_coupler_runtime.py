@@ -21,18 +21,19 @@ from isaaclab_newton.physics import (
     NewtonManager,
     XPBDSolverCfg,
 )
+from isaaclab_newton.physics.coupling import (
+    CouplerAdmmCfg,
+    CouplerEntryCfg,
+    CouplerProxyCfg,
+    CouplerProxyMappingCfg,
+)
 from newton import CollisionPipeline, Mesh, ModelBuilder
 from newton.solvers import SolverXPBD
 from newton.solvers.experimental.coupled import SolverCoupledADMM, SolverCoupledProxy
 
 from isaaclab.sim import SimulationContext
 
-from isaaclab_contrib.coupling import (
-    CouplerAdmmCfg,
-    CouplerEntryCfg,
-    CouplerProxyCfg,
-    CouplerProxyMappingCfg,
-)
+pytestmark = pytest.mark.kitless
 
 
 def _bind_coupler(builder: ModelBuilder, solver_cfg: CouplerProxyCfg | CouplerAdmmCfg) -> NewtonManager:
