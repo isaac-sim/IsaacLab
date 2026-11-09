@@ -302,11 +302,14 @@ def test_context_close_releases_writers_and_preserves_prepared_renderers(sim, fa
 class _CpuCamera(Camera):
     """Exercise capture timing with CPU buffers and an in-memory pose source."""
 
-    def __init__(self, renderer, name, update_period=0.0, processors=()):
+    def __init__(self, renderer, name, update_period=0.0, processors=(), outputs=()):
         self.cfg = SimpleNamespace(
             update_period=update_period,
             update_latest_camera_pose=True,
-            tensor_processors=[SimpleNamespace(func=Mock(return_value=processor)) for processor in processors],
+            tensor_processors=[
+                SimpleNamespace(func=Mock(return_value=processor), inputs=[CAPTURE_ENV_MASK_NAME], outputs=outputs)
+                for processor in processors
+            ],
         )
         self._sim = renderer._sim
         self._device = "cpu"
@@ -654,12 +657,26 @@ def test_first_processor_output_carries_the_capture_metadata(camera_batch_contex
             data.info[name] = {"capture": {"frame": rd.pose}}
 
     renderer.read_output.side_effect = read_output
-    camera = _CpuCamera(renderer, "camera", processors=[Mock(return_value={"rgb": object()})])
+    camera = _CpuCamera(renderer, "camera", processors=[Mock(return_value={"rgb": object()})], outputs=["rgb"])
     camera._data.info["depth"] = None
 
     InteractiveScene.update(_camera_scene([camera]), 0.01)
 
     assert camera.data.info["rgb"] == camera.data.info["depth"] == {"capture": {"frame": 0.0}}
+
+
+def test_processors_read_and_return_only_what_their_configuration_lists(camera_batch_context):
+    """The capture mask reaches only processors that list it, and returning unlisted output names is an error."""
+    _, renderer, _ = camera_batch_context
+    received = []
+    processor = Mock(side_effect=lambda buffers: received.append(set(buffers)) or {"rgba": object()})
+    camera = _CpuCamera(renderer, "camera", processors=[processor], outputs=["rgb"])
+    camera.cfg.tensor_processors[0].inputs = []
+
+    with pytest.raises(ValueError, match=r"lists the outputs \['rgb'\]"):
+        InteractiveScene.update(_camera_scene([camera]), 0.01)
+
+    assert received == [set()]
 
 
 def test_failed_processor_close_still_releases_the_camera(camera_batch_context):
