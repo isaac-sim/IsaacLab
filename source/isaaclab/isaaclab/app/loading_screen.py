@@ -21,10 +21,13 @@ from functools import wraps
 from typing import IO, Any
 
 from rich.cells import cell_len, chop_cells, set_cell_size
+from rich.color import ColorSystem
 from rich.console import Console, ConsoleOptions, Group, RenderableType, RenderResult
 from rich.constrain import Constrain
 from rich.live import Live
 from rich.text import Text
+
+from ._remote_greetings import RemoteGreetings
 
 _LABEL_WIDTH = 14
 _STAGE_WIDTH = 22
@@ -208,7 +211,18 @@ def _join_columns(left: str, right: str, gap: int = _COLUMN_GAP) -> str:
     Returns:
         The combined block, without a trailing newline.
     """
-    left_lines, right_lines = left.splitlines(), right.splitlines()
+    left_lines = left.splitlines()
+    # Preserve colors that continue across artwork rows, while isolating each
+    # row from the summary inserted before the next row.
+    right_lines = [
+        "\x1b[0m"
+        + "".join(
+            segment.style.render(segment.text, color_system=ColorSystem.TRUECOLOR) if segment.style else segment.text
+            for segment in line.render(_WRAP_CONSOLE)
+        )
+        + "\x1b[0m"
+        for line in Text.from_ansi(right).split("\n", allow_blank=True)
+    ]
     width = _block_width(left)
     rows = range(max(len(left_lines), len(right_lines)))
     return "\n".join(
@@ -328,6 +342,7 @@ class LoadingScreen:
         """
         self._num_stages = num_stages
         self._logos = random.choice(_LOGO_PAIRS) if logo else ()
+        self._remote_greetings: RemoteGreetings | None = None
         self._enabled = _console_is_interactive() if enabled is None else enabled
         self._console: IO[str] = sys.stdout
         self._ascii_only = not _supports_box_drawing(self._console)
@@ -357,6 +372,10 @@ class LoadingScreen:
         if self._enabled:
             self._redirect()
             if self._enabled:
+                if self._logos and not self._ascii_only:
+                    self._remote_greetings = RemoteGreetings(
+                        encoding=getattr(self._console, "encoding", None) or "utf-8"
+                    )
                 self._rich_console = Console(
                     file=self._console,
                     color_system="truecolor",
@@ -410,7 +429,7 @@ class LoadingScreen:
             self._refresh()
             return
         terminal_width = shutil.get_terminal_size(fallback=(_STANDARD_WIDTH, 24)).columns
-        summary, _ = _format_header(title, fields, self._logos, terminal_width, ascii_only=self._ascii_only)
+        summary, _ = _format_header(title, fields, self._greeting_logos, terminal_width, ascii_only=self._ascii_only)
         self._write(f"\n{summary}\n\n")
 
     def stage(self, name: str) -> None:
@@ -473,7 +492,7 @@ class LoadingScreen:
                 final_header, _ = _format_header(
                     self._summary_title,
                     self._summary_fields,
-                    self._logos,
+                    self._greeting_logos,
                     self._rich_console.width,
                     ascii_only=self._ascii_only,
                 )
@@ -522,6 +541,15 @@ class LoadingScreen:
         if live is not None:
             live.refresh()
 
+    @property
+    def _greeting_logos(self) -> tuple[str, ...]:
+        """Keep bundled defaults until a validated seasonal pair is available."""
+        if self._remote_greetings is not None:
+            logos = self._remote_greetings.logos
+            if logos:
+                return logos
+        return self._logos
+
     def _render(self, terminal_width: int) -> RenderableType:
         """Render the current header and progress state for a terminal width."""
         display_width = _display_width(terminal_width)
@@ -530,7 +558,7 @@ class LoadingScreen:
             header, _ = _format_header(
                 self._summary_title,
                 self._summary_fields,
-                self._logos,
+                self._greeting_logos,
                 terminal_width,
                 ascii_only=self._ascii_only,
             )
