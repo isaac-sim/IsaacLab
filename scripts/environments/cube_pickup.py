@@ -169,7 +169,7 @@ def _rollout(env: gym.Env, agent_cfg, args: argparse.Namespace) -> dict:
             finite &= torch.isfinite(observations["policy"]).all() & torch.isfinite(reward).all()
             counted = done & (remaining > 0)
             counts += torch.stack((counted.sum(), (task.termination_manager.get_term("success") & counted).sum()))
-            remaining[counted] -= 1
+            remaining.sub_(counted.long())
             cube_position = mdp.object_position(task)
             maximum_height = torch.fmax(maximum_height, cube_position[:, 2].max())
             if args.mode == "scripted":

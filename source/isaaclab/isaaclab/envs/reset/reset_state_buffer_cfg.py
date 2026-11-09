@@ -5,7 +5,7 @@
 
 """Configuration for bounded reset-state collection."""
 
-from isaaclab.utils import configclass
+from ...utils import configclass
 
 
 @configclass

@@ -16,7 +16,7 @@ from isaaclab.envs.reset import ResetStateBuffer, ResetStateBufferCfg
 pytestmark = [pytest.mark.unit, pytest.mark.kitless, pytest.mark.windows_ci]
 
 
-def test_collection_rejects_candidates_covers_groups_and_preserves_rng():
+def test_collection_rejects_candidates_covers_groups_and_preserves_rng() -> None:
     values = torch.empty(4, 2)
     env_ids = torch.arange(4)
 
@@ -40,14 +40,15 @@ def test_collection_rejects_candidates_covers_groups_and_preserves_rng():
         "table": {"attempted": 8, "accepted": 4, "rejected/generator": 2, "rejected/reachable": 2},
         "grasped": {"attempted": 8, "accepted": 3, "rejected/generator": 2, "rejected/reachable": 2},
     }
-    assert buffer.rejection_counts == {
-        "table/generator": 2,
-        "table/reachable": 2,
-        "grasped/generator": 2,
-        "grasped/reachable": 2,
-    }
-    selected = buffer.get_state(torch.tensor([6, 0, 4]))["rigid_object"]["cube"]["root_pose"]
+    row_ids = torch.tensor([6, 0, 4])
+    selected = buffer.get_state(row_ids)["rigid_object"]["cube"]["root_pose"]
     assert (selected[:, 0] * torch.tensor([-1, 1, -1]) > 1.0).all()
+    expected = selected.clone()
+    values.zero_()
+    selected.zero_()
+    exported = buffer.state
+    exported["rigid_object"]["cube"]["root_pose"].zero_()
+    torch.testing.assert_close(buffer.get_state(row_ids)["rigid_object"]["cube"]["root_pose"], expected)
     torch.testing.assert_close(torch.get_rng_state(), torch_state)
     np.testing.assert_equal(np.random.get_state(), numpy_state)
     assert random.getstate() == python_state
@@ -65,23 +66,22 @@ def test_collection_rejects_candidates_covers_groups_and_preserves_rng():
     assert random.getstate() == python_state
 
 
-def test_impossible_recollection_is_bounded_and_preserves_the_complete_catalog():
+def test_impossible_recollection_is_bounded_and_preserves_the_complete_catalog() -> None:
     buffer = ResetStateBuffer(ResetStateBufferCfg(size=5, max_batches=2))
     buffer.collect(torch.arange(3), lambda ids: None, lambda ids: {"pose": ids[:, None].float()})
     catalog = buffer.get_state(torch.arange(5))["pose"]
-    with pytest.raises(RuntimeError, match="collected 0/5 states after 2 batches.*collision_free.*6"):
+    with pytest.raises(RuntimeError, match="collected 2/5 states after 2 batches.*collision_free.*4"):
         buffer.collect(
             torch.arange(3),
             {"blocked": lambda ids: None},
-            lambda ids: {"pose": torch.zeros(len(ids), 7)},
-            {"collision_free": lambda ids: torch.zeros_like(ids, dtype=torch.bool)},
+            lambda ids: {"pose": torch.full((len(ids), 1), 999.0)},
+            {"collision_free": lambda ids: ids == 1},
         )
     assert buffer.num_states == 5
     torch.testing.assert_close(buffer.get_state(torch.arange(5))["pose"], catalog)
     assert buffer.group_names == ("default",)
     assert buffer.group_ids.tolist() == [0] * 5
     assert buffer.collection_report == {"default": {"attempted": 6, "accepted": 5}}
-    assert buffer.rejection_counts == {}
     with pytest.raises(ValueError, match="'generator' is reserved"):
         buffer.collect(
             torch.arange(3),
@@ -91,7 +91,7 @@ def test_impossible_recollection_is_bounded_and_preserves_the_complete_catalog()
         )
 
 
-def test_capture_requires_selected_rows_and_a_consistent_state_tree():
+def test_capture_requires_selected_rows_and_a_consistent_state_tree() -> None:
     buffer = ResetStateBuffer(ResetStateBufferCfg(size=3, max_batches=2))
     with pytest.raises(ValueError, match="leading dimension of 2"):
         buffer.collect(torch.arange(3), lambda ids: ids > 0, lambda ids: {"pose": torch.zeros(3, 7)})

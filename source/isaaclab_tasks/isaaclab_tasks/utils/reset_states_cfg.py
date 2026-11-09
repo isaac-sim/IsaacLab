@@ -7,22 +7,17 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from isaaclab.utils import configclass
 
 from .sampling import BetaSamplingStrategyCfg, SamplerCfg, UniformSamplingStrategyCfg
 from .success_monitor_cfg import SuccessMonitorCfg
-
-if TYPE_CHECKING:
-    from .reset_states import ResetStateSampler
 
 
 @configclass
 class ResetStateSamplerCfg:
     """Configure outcome tracking and sampling independently of a task's state representation."""
 
-    class_type: type[ResetStateSampler] | str = "{DIR}.reset_states:ResetStateSampler"
+    class_type: type | str = "{DIR}.reset_states:ResetStateSampler"
     """Runtime sampler implementation."""
 
     success_monitor: SuccessMonitorCfg = SuccessMonitorCfg(monitored_history_len=50)

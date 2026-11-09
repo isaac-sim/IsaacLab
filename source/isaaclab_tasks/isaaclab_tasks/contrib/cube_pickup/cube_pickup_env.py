@@ -32,23 +32,44 @@ class CubePickupEnv(ManagerBasedRLEnv):
 
     cfg: CubePickupEnvCfg
 
-    def __init__(self, cfg: CubePickupEnvCfg, **kwargs):
+    def __init__(self, cfg: CubePickupEnvCfg, **kwargs) -> None:
         self.reset_buffer: ResetStateBuffer | None = None
         self.reset_sampler: ResetStateSampler | None = None
+        self._arm_scale = torch.tensor(cfg.actions.arm.scale, dtype=torch.float32, device=cfg.sim.device).expand(6)
+        self._arm_offset = torch.tensor(cfg.actions.arm.offset, dtype=torch.float32, device=cfg.sim.device).expand(6)
+        offset = cfg.actions.arm.body_offset
+        self._tcp_offset_pos = (
+            torch.tensor(offset.pos, dtype=torch.float32, device=cfg.sim.device).expand(cfg.scene.num_envs, -1)
+            if offset is not None
+            else None
+        )
+        self._tcp_offset_rot = (
+            torch.tensor(offset.rot, dtype=torch.float32, device=cfg.sim.device).expand(cfg.scene.num_envs, -1)
+            if offset is not None
+            else None
+        )
         super().__init__(cfg, **kwargs)
         self._hand_cfg = SceneEntityCfg("robot", body_names="panda_hand")
         self._hand_cfg.resolve(self.scene)
         self._bank_generator = torch.Generator(device=self.device)
         self._bank_generator.manual_seed(cfg.reset_buffer.seed)
-        self._reset_generator = torch.Generator(device=self.device)
-        self._reset_generator.manual_seed(torch.initial_seed() if cfg.seed is None else cfg.seed)
         self.generation_report: dict = {}
         self.command_manager.reset()
         if cfg.reset_mode != "table":
             self._collect_reset_states()
 
     def scripted_action(self, target: torch.Tensor, *, close: bool) -> torch.Tensor:
-        """Create a bounded relative IK action for target poses [m, xyzw]."""
+        """Create normalized relative IK actions for target grasp-center poses.
+
+        Args:
+            target: Poses with shape (num_envs, 7). Positions [m] are relative to environment
+                origins in world axes; orientations are world-frame quaternions in xyzw order.
+            close: Whether to close the gripper.
+
+        Returns:
+            Actions with shape (num_envs, 7): scaled root-frame translation and axis-angle
+            rotation increments, followed by the binary gripper command (-1 closed, +1 open).
+        """
         current = pickup_mdp.hand_pose(self, self._hand_cfg)
         position_error, rotation_error = compute_pose_error(
             current[:, :3], current[:, 3:], target[:, :3], target[:, 3:], rot_error_type="axis_angle"
@@ -61,9 +82,10 @@ class CubePickupEnv(ManagerBasedRLEnv):
             ),
             dim=-1,
         )
-        arm = self.action_manager.get_term("arm")
         action = torch.zeros((self.num_envs, 7), device=self.device)
-        action[:, :6] = torch.where(arm._scale != 0.0, (delta - arm._offset) / arm._scale, 0.0).clamp(-1.0, 1.0)
+        action[:, :6] = torch.where(self._arm_scale != 0.0, (delta - self._arm_offset) / self._arm_scale, 0.0).clamp(
+            -1.0, 1.0
+        )
         action[:, 6] = -1.0 if close else 1.0
         return action
 
@@ -87,9 +109,9 @@ class CubePickupEnv(ManagerBasedRLEnv):
         )
         report_path.write_text(json.dumps(self.generation_report, indent=2) + "\n")
 
-    def _reset_idx(self, env_ids: torch.Tensor | slice):
-        ids = self.scene._ALL_INDICES[env_ids]
-        success = self.termination_manager.get_term("success")[ids].clone()
+    def _reset_idx(self, env_ids: torch.Tensor | slice) -> None:
+        ids = self.scene._ALL_INDICES[env_ids] if isinstance(env_ids, slice) else env_ids
+        success = self.termination_manager.get_term("success")[ids]
         valid = (self.episode_length_buf[ids] > 0) & self.reset_buf[ids]
         metrics: dict[str, torch.Tensor] = {}
         rows = None
@@ -100,20 +122,17 @@ class CubePickupEnv(ManagerBasedRLEnv):
             counts.scatter_add_(0, previous_groups, valid.float())
             successes = torch.zeros_like(counts).scatter_add_(0, previous_groups, (success & valid).float())
             rates = successes / counts.clamp_min(1)
-            completed_counts = counts.tolist()
             for group_id, name in enumerate(self.reset_buffer.group_names):
-                if completed_counts[group_id]:
-                    metrics[f"Reset/{name}_success"] = rates[group_id]
+                metrics[f"Reset/{name}_success"] = rates[group_id]
             rows = self.reset_sampler.reset(ids, success=success, valid=valid)
             probabilities = torch.zeros_like(counts).scatter_add_(
                 0, self.reset_buffer.group_ids, self.reset_sampler.probabilities
             )
             for group_id, name in enumerate(self.reset_buffer.group_names):
                 metrics[f"Reset/{name}_probability"] = probabilities[group_id]
-            if any(completed_counts):
-                metrics["Metrics/success_rate"] = successes.sum() / counts.sum()
-        elif valid.any():
-            metrics["Metrics/success_rate"] = (success & valid).float().sum() / valid.sum()
+            metrics["Metrics/success_rate"] = successes.sum() / counts.sum().clamp_min(1)
+        else:
+            metrics["Metrics/success_rate"] = (success & valid).float().sum() / valid.sum().clamp_min(1)
         super()._reset_idx(env_ids)
         if rows is None:
             self._reset_table(ids)
@@ -125,7 +144,7 @@ class CubePickupEnv(ManagerBasedRLEnv):
         mdp.reset_scene_to_default(self, env_ids)
         cube = self.scene["object"]
         state = cube.data.default_root_state.torch[env_ids].clone()
-        generator = self._bank_generator if generating else self._reset_generator
+        generator = self._bank_generator if generating else None
         offsets = torch.rand((env_ids.numel(), 2), device=self.device, generator=generator)
         state[:, 0] = 0.45 + 0.10 * offsets[:, 0]
         state[:, 1] = -0.08 + 0.16 * offsets[:, 1]
@@ -221,7 +240,7 @@ class CubePickupEnv(ManagerBasedRLEnv):
             & (robot.data.joint_vel.torch[env_ids].abs().amax(dim=-1) < 3.0)
         )
 
-    def _capture(self, env_ids: torch.Tensor) -> dict:
+    def _capture(self, env_ids: torch.Tensor) -> ResetStateBuffer.State:
         state = self.scene.get_state(is_relative=True)
         return {
             kind: {name: {field: value[env_ids] for field, value in fields.items()} for name, fields in assets.items()}

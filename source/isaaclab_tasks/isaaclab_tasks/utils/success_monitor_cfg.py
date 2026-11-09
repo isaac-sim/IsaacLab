@@ -7,19 +7,14 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from isaaclab.utils import configclass
-
-if TYPE_CHECKING:
-    from .success_monitor import SuccessMonitor
 
 
 @configclass
 class SuccessMonitorCfg:
     """Configuration for :class:`SuccessMonitor`."""
 
-    class_type: type[SuccessMonitor] | str = "{DIR}.success_monitor:SuccessMonitor"
+    class_type: type | str = "{DIR}.success_monitor:SuccessMonitor"
     """Monitor implementation, resolved when the environment starts."""
 
     monitored_history_len: int = 10

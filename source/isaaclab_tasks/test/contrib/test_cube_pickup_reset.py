@@ -5,6 +5,7 @@
 
 """CPU regressions for pickup rewards, completed episodes, and reset-bank persistence."""
 
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -31,11 +32,11 @@ from isaaclab_tasks.utils import ResetStateSampler, ResetStateSamplerCfg
 pytestmark = [pytest.mark.unit, pytest.mark.kitless, pytest.mark.windows_ci]
 
 
-def _success(env):
+def _success(env) -> torch.Tensor:
     return env.success_flags
 
 
-def test_terminal_reward_stays_binary_after_timing_overrides():
+def test_terminal_reward_stays_binary_after_timing_overrides() -> None:
     """Post-construction CLI overrides must not rescale the terminal +1 reward."""
     cfg = CubePickupEnvCfg()
     update_from_dict(cfg, {"decimation": 2, "sim": {"dt": 1.0 / 240.0}})
@@ -52,7 +53,7 @@ def test_terminal_reward_stays_binary_after_timing_overrides():
     torch.testing.assert_close(rewards, torch.tensor([1.0, 0.0]))
 
 
-def test_viewer_reset_does_not_record_an_unfinished_episode():
+def test_viewer_reset_does_not_record_an_unfinished_episode() -> None:
     """A viewer termination alias must not credit a manual reset as a completed failure."""
     env = CubePickupEnv.__new__(CubePickupEnv)
     env._is_closed = True
@@ -91,12 +92,11 @@ def test_viewer_reset_does_not_record_an_unfinished_episode():
     assert env.extras["log"]["Reset/default_success"].item() == 1.0
 
 
-def test_saving_reset_bank_rejects_its_json_report_path(tmp_path):
+def test_saving_reset_bank_rejects_its_json_report_path(tmp_path: Path) -> None:
     """Reject an output collision before replacing an existing catalog."""
     env = CubePickupEnv.__new__(CubePickupEnv)
     env._is_closed = True
     env.reset_buffer = ResetStateBuffer(ResetStateBufferCfg(size=1))
-    env.reset_buffer.collect(torch.arange(1), lambda ids: None, lambda ids: {"row": ids[:, None]})
     env.generation_report = {}
     path = tmp_path / "bank.json"
     path.write_bytes(b"existing catalog")

@@ -16,11 +16,7 @@ __all__ = [
 
 from .sampler import Sampler
 from .sampler_cfg import SamplerCfg
-from .sampling_strategies import (
-    BetaSamplingStrategy,
-    SamplingStrategy,
-    UniformSamplingStrategy,
-)
+from .sampling_strategies import BetaSamplingStrategy, SamplingStrategy, UniformSamplingStrategy
 from .sampling_strategies_cfg import (
     BetaSamplingStrategyCfg,
     SamplingStrategyCfg,

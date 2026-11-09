@@ -21,33 +21,30 @@ if TYPE_CHECKING:
 
 
 def object_position(env: ManagerBasedRLEnv) -> torch.Tensor:
-    """Cube center position relative to the environment origin [m]."""
+    """Cube center positions [m] relative to environment origins in world axes, shape (num_envs, 3)."""
     return env.scene["object"].data.root_pos_w.torch - env.scene.env_origins
 
 
 def hand_pose(
     env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot", body_names="panda_hand")
 ) -> torch.Tensor:
-    """Grasp-center position [m] and orientation [xyzw] relative to the environment origin."""
+    """Grasp-center poses with shape (num_envs, 7).
+
+    Positions [m] are relative to environment origins in world axes; orientations are
+    world-frame quaternions in xyzw order.
+    """
     robot = env.scene[asset_cfg.name]
     body_id = asset_cfg.body_ids[0]
     orientation = robot.data.body_link_quat_w.torch[:, body_id]
     position = robot.data.body_link_pos_w.torch[:, body_id]
-    arm = env.action_manager.get_term("arm")
-    if arm.cfg.body_offset is not None:
-        position, orientation = combine_frame_transforms(
-            position,
-            orientation,
-            arm._offset_pos,
-            arm._offset_rot,
-        )
+    position, orientation = combine_frame_transforms(position, orientation, env._tcp_offset_pos, env._tcp_offset_rot)
     return torch.cat((position - env.scene.env_origins, orientation), dim=-1)
 
 
 def object_to_hand(
     env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot", body_names="panda_hand")
 ) -> torch.Tensor:
-    """Cube displacement from the grasp center [m]."""
+    """Cube-minus-grasp-center displacements [m] in world axes, shape (num_envs, 3)."""
     return object_position(env) - hand_pose(env, asset_cfg)[:, :3]
 
 
@@ -81,11 +78,11 @@ def goal_reached(
 
 
 def success_reward(env: ManagerBasedRLEnv) -> torch.Tensor:
-    """Return goal success per second [1/s] for a unit terminal reward."""
+    """Return goal success per second [1/s], shape (num_envs,), for a unit terminal reward."""
     return env.termination_manager.get_term("success").float() / env.step_dt
 
 
 def object_dropped(env: ManagerBasedRLEnv) -> torch.Tensor:
-    """Terminate when the cube leaves the table workspace [m]."""
+    """Return workspace-exit flags with shape (num_envs,), using positions in environment-frame [m]."""
     position = object_position(env)
     return (position[:, 2] < -0.02) | (position[:, 0] < 0.15) | (position[:, 0] > 0.85) | (position[:, 1].abs() > 0.45)

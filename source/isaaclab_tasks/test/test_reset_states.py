@@ -13,7 +13,7 @@ from isaaclab_tasks.utils import ResetStateSampler, ResetStateSamplerCfg, Succes
 pytestmark = [pytest.mark.unit, pytest.mark.kitless, pytest.mark.windows_ci]
 
 
-def test_reset_records_previous_rows_and_preserves_unselected_environments():
+def test_reset_records_previous_rows_and_preserves_unselected_environments() -> None:
     """Startup masks and partial resets never credit a replacement row or an untouched episode."""
     sampler = ResetStateSampler(
         ResetStateSamplerCfg(success_monitor=SuccessMonitorCfg(monitored_history_len=2)), 4, 3, "cpu"
@@ -50,7 +50,7 @@ def test_reset_records_previous_rows_and_preserves_unselected_environments():
     torch.testing.assert_close(sampler.row_ids, assigned)
 
 
-def test_sampling_tracks_the_current_success_frontier_without_starving_other_rows():
+def test_sampling_tracks_the_current_success_frontier_without_starving_other_rows() -> None:
     """The sampler observes live rolling outcomes and retains positive weight for easy and hard starts."""
     sampler = ResetStateSampler(ResetStateSamplerCfg(), 3, 3, "cpu")
     env_ids = torch.arange(3)
