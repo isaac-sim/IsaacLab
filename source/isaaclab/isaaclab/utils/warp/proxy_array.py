@@ -24,22 +24,15 @@ runtime aid for tracking down call sites that may still assume Isaac Lab 2.x's
 ``(w, x, y, z)`` quaternion convention after the migration to Isaac Lab 3.x's
 ``(x, y, z, w)`` convention. See the Isaac Lab 3.0 migration guide for details."""
 
-_IMPLICIT_TORCH_STRICT_ENV = "ISAACLAB_PROXY_ARRAY_STRICT"
-"""Environment variable that, when set to ``"1"``, makes implicit torch use of a :class:`ProxyArray` raise a
-:class:`TypeError` instead of warning. Run with it to list every call site that still relies on the deprecation
-bridge before the bridge is removed."""
-
 
 class ProxyArray:
     """Warp-first array wrapper providing cached zero-copy ``.torch`` and ``.warp`` accessors.
 
     This class wraps a :class:`warp.array` and provides:
 
-    * A ``.warp`` attribute holding the original warp array (for kernel interop).
-    * A ``.torch`` attribute holding a cached, zero-copy :class:`torch.Tensor` view
-      (via :func:`warp.to_torch`), created on first read.
-
-    Both are plain instance attributes once set, so reading them costs a dictionary lookup.
+    * A ``.warp`` property that returns the original warp array (for kernel interop).
+    * A ``.torch`` property that returns a cached, zero-copy :class:`torch.Tensor` view
+      (via :func:`warp.to_torch`).
     * Convenience properties (``shape``, ``dtype``, ``device``) delegated to the warp array.
     * A deprecation bridge for common torch functions, indexing, and arithmetic/comparison
       operators while emitting a one-time :class:`DeprecationWarning`. Tensor instance methods
@@ -61,12 +54,6 @@ class ProxyArray:
 
         # Deprecation bridge (warns once, then silent)
         result = ta + 1.0  # works, emits DeprecationWarning
-
-    .. deprecated::
-        Implicit torch use of a ProxyArray (indexing, operators, torch functions and tensor methods on the
-        ProxyArray itself) is a compatibility bridge for code written against ``torch.Tensor`` attributes; it is
-        removed after the next release. Read ``.torch`` instead. Set ``ISAACLAB_PROXY_ARRAY_STRICT=1`` to make
-        every implicit use raise, which lists the call sites to migrate.
     """
 
     _deprecation_warned: ClassVar[bool] = False
@@ -90,18 +77,23 @@ class ProxyArray:
                 f"ProxyArray expects a warp.array, got {type(wp_array).__name__}."
                 " If you have a ProxyArray, use it directly instead of wrapping it again."
             )
-        # Write the instance dictionary directly: __setattr__ rejects every write, and a subclass may define
-        # ``warp`` or ``torch`` as properties, which then still take precedence.
-        self.__dict__["_warp"] = wp_array
-        self.__dict__["warp"] = wp_array
-        # Cached once at construction; only used when the WARN_ON_TORCH_QUATF_ACCESS env var is set.
-        self.__dict__["_is_quatf"] = wp_array.dtype is wp.quatf
+        # Bypass __setattr__ for the two internal fields — everything else raises.
+        object.__setattr__(self, "_warp", wp_array)
+        object.__setattr__(self, "_torch_cache", None)
+        # Cached once at construction so the .torch read path stays a constant-time
+        # check; only used when the WARN_ON_TORCH_QUATF_ACCESS env var is set.
+        object.__setattr__(self, "_is_quatf", wp_array.dtype is wp.quatf)
 
     def __setattr__(self, name: str, value) -> None:
-        """Forbid mutation of ProxyArray instances.
+        """Forbid mutation of ProxyArray instances except for the internal torch cache.
 
-        Every write raises :class:`AttributeError` so callers don't accidentally re-point the wrapper.
+        The torch view is populated lazily on first ``.torch`` access; that is the
+        only allowed post-init state change. Every other write raises
+        :class:`AttributeError` so callers don't accidentally re-point the wrapper.
         """
+        if name == "_torch_cache":
+            object.__setattr__(self, name, value)
+            return
         raise AttributeError(
             f"ProxyArray is immutable; cannot set attribute {name!r}."
             " Construct a new ProxyArray instead of mutating an existing one."
@@ -121,41 +113,39 @@ class ProxyArray:
     # Core accessors
     # ------------------------------------------------------------------
 
-    warp: wp.array
-    """The underlying warp array."""
+    @property
+    def warp(self) -> wp.array:
+        """The underlying warp array."""
+        return self._warp
 
-    torch: torch.Tensor
-    """A cached, zero-copy :class:`torch.Tensor` view of the warp array.
+    @property
+    def torch(self) -> torch.Tensor:
+        """A cached, zero-copy :class:`torch.Tensor` view of the warp array.
 
-    The tensor is created on first access and kept as an instance attribute, so later reads cost a dictionary
-    lookup. Since this is a zero-copy view, modifications to the tensor are visible through the warp array and
-    vice versa.
+        The tensor is created on first access and cached for subsequent calls.
+        Since this is a zero-copy view, modifications to the
+        tensor are visible through the warp array and vice versa.
 
-    When the underlying warp array has dtype ``wp.quatf`` and the ``WARN_ON_TORCH_QUATF_ACCESS`` environment
-    variable is set to ``"1"``, each read emits a :class:`UserWarning` pointing at the call site. This is a
-    runtime aid for migrating Isaac Lab 2.x code (which used the ``(w, x, y, z)`` quaternion convention) to
-    Isaac Lab 3.x's ``(x, y, z, w)`` convention. Such views are not kept, so every read checks the flag.
-    """
-
-    def _torch_view(self) -> torch.Tensor:
-        """Create the torch view on its first read and keep it, except for quatf arrays, which warn per read."""
-        if self._is_quatf:
-            if self._quatf_access_warning_enabled():
-                warnings.warn(
-                    "Reading .torch on a wp.quatf-typed ProxyArray. The Isaac Lab"
-                    " quaternion convention changed from (w, x, y, z) in 2.x to"
-                    " (x, y, z, w) in 3.x. If your code assumes the old order,"
-                    " this is likely the source of incorrect rotations."
-                    f" Unset {_QUATF_ACCESS_WARN_ENV} to silence this warning.",
-                    UserWarning,
-                    stacklevel=3,
-                )
-            view = self.__dict__.get("_quatf_torch")
-            if view is None:
-                view = self.__dict__["_quatf_torch"] = wp.to_torch(self._warp)
-            return view
-        view = self.__dict__["torch"] = wp.to_torch(self._warp)
-        return view
+        When the underlying warp array has dtype ``wp.quatf`` and the
+        ``WARN_ON_TORCH_QUATF_ACCESS`` environment variable is set to ``"1"``,
+        each read emits a :class:`UserWarning` pointing at the call site. This
+        is a runtime aid for migrating Isaac Lab 2.x code (which used the
+        ``(w, x, y, z)`` quaternion convention) to Isaac Lab 3.x's
+        ``(x, y, z, w)`` convention.
+        """
+        if self._is_quatf and self._quatf_access_warning_enabled():
+            warnings.warn(
+                "Reading .torch on a wp.quatf-typed ProxyArray. The Isaac Lab"
+                " quaternion convention changed from (w, x, y, z) in 2.x to"
+                " (x, y, z, w) in 3.x. If your code assumes the old order,"
+                " this is likely the source of incorrect rotations."
+                f" Unset {_QUATF_ACCESS_WARN_ENV} to silence this warning.",
+                UserWarning,
+                stacklevel=2,
+            )
+        if self._torch_cache is None:
+            self._torch_cache = wp.to_torch(self._warp)
+        return self._torch_cache
 
     # ------------------------------------------------------------------
     # Convenience properties
@@ -179,16 +169,6 @@ class ProxyArray:
     def __len__(self) -> int:
         """Return the size of the first dimension."""
         return self._warp.shape[0]
-
-    def __copy__(self) -> ProxyArray:
-        """Return a wrapper of the same warp array."""
-        return ProxyArray(self._warp)
-
-    def __deepcopy__(self, memo: dict) -> ProxyArray:
-        """Return a wrapper of a copy of the warp array."""
-        copied = ProxyArray(wp.clone(self._warp))
-        memo[id(self)] = copied
-        return copied
 
     def __repr__(self) -> str:
         """Return a string representation of the ProxyArray."""
@@ -227,19 +207,16 @@ class ProxyArray:
     # ------------------------------------------------------------------
 
     def __getattr__(self, name: str):
-        """Create the torch view on its first read, and forward other unknown attributes to it (deprecation bridge).
+        """Forward unknown attribute access to the torch view (deprecation bridge).
 
-        Called only when normal attribute lookup fails, so ``shape``, ``dtype``, ``device``, ``warp`` and a
-        ``torch`` view already read are unaffected.
+        Called only when normal attribute lookup fails (i.e. the attribute is not
+        defined on :class:`ProxyArray` itself), so explicit properties such as
+        ``shape``, ``dtype``, ``device``, ``warp``, and ``torch`` are unaffected.
 
         This allows tensor instance methods (``float()``, ``clone()``, ``cpu()``,
         ``permute()``, etc.) to be called on a :class:`ProxyArray` without an
         explicit ``.torch`` accessor, emitting a one-time :class:`DeprecationWarning`.
         """
-        if name == "torch":
-            return self._torch_view()
-        if name.startswith("_"):
-            raise AttributeError(name)
         self._warn_implicit()
         return getattr(self.torch, name)
 
@@ -271,15 +248,7 @@ class ProxyArray:
 
     @classmethod
     def _warn_implicit(cls) -> None:
-        """Emit a one-time deprecation warning for implicit torch usage, or raise in strict mode.
-
-        Every path of the deprecation bridge goes through this method, so removing the bridge removes its callers.
-        """
-        if os.environ.get(_IMPLICIT_TORCH_STRICT_ENV, "0") == "1":
-            raise TypeError(
-                f"Implicit use of ProxyArray as a torch.Tensor is deprecated ({_IMPLICIT_TORCH_STRICT_ENV}=1)."
-                " Use the explicit .torch property instead."
-            )
+        """Emit a one-time deprecation warning for implicit torch usage."""
         if not cls._deprecation_warned:
             cls._deprecation_warned = True
             warnings.warn(
@@ -385,57 +354,3 @@ class ProxyArray:
 
     def __ge__(self, other) -> torch.Tensor:
         return self._binop(other, "__ge__")
-
-    def __and__(self, other) -> torch.Tensor:
-        return self._binop(other, "__and__")
-
-    def __rand__(self, other) -> torch.Tensor:
-        return self._binop(other, "__rand__")
-
-    def __or__(self, other) -> torch.Tensor:
-        return self._binop(other, "__or__")
-
-    def __ror__(self, other) -> torch.Tensor:
-        return self._binop(other, "__ror__")
-
-    def __xor__(self, other) -> torch.Tensor:
-        return self._binop(other, "__xor__")
-
-    def __rxor__(self, other) -> torch.Tensor:
-        return self._binop(other, "__rxor__")
-
-    def __invert__(self) -> torch.Tensor:
-        self._warn_implicit()
-        return ~self.torch
-
-    # ------------------------------------------------------------------
-    # Deprecation bridge — in-place operators, which keep the wrapper (and the memory it wraps)
-    # ------------------------------------------------------------------
-
-    def _inplace(self, other, op: str) -> ProxyArray:
-        """Apply an in-place torch operator to the torch view and keep this wrapper bound to the same memory."""
-        self._warn_implicit()
-        other_val = other.torch if isinstance(other, ProxyArray) else other
-        getattr(self.torch, op)(other_val)
-        return self
-
-    def __iadd__(self, other) -> ProxyArray:
-        return self._inplace(other, "__iadd__")
-
-    def __isub__(self, other) -> ProxyArray:
-        return self._inplace(other, "__isub__")
-
-    def __imul__(self, other) -> ProxyArray:
-        return self._inplace(other, "__imul__")
-
-    def __itruediv__(self, other) -> ProxyArray:
-        return self._inplace(other, "__itruediv__")
-
-    def __iand__(self, other) -> ProxyArray:
-        return self._inplace(other, "__iand__")
-
-    def __ior__(self, other) -> ProxyArray:
-        return self._inplace(other, "__ior__")
-
-    def __ixor__(self, other) -> ProxyArray:
-        return self._inplace(other, "__ixor__")
