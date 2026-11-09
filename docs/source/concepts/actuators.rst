@@ -534,8 +534,11 @@ reset. Reset clears history only for the selected environments. Until enough his
 the oldest command since reset is used; ``min_delay=max_delay=0`` passes commands through.
 
 Delayed implicit actuators run through Lab command processing on PhysX and Newton. When combining
-them with explicit actuator groups, set ``SimulationCfg(use_newton_actuators=False)``. Native
-explicit actuator execution bypasses Lab command processing and this combination raises an error.
+them with explicit actuator groups in the same articulation, set
+``SimulationCfg(use_newton_actuators=False)``. Native explicit actuator execution bypasses that
+articulation's Lab command processing and this combination raises an error. Separate articulations
+may mix delayed implicit and native explicit actuators; Newton then keeps command updates in the
+environment's physics loop so delays still count physics steps.
 
 .. figure:: ../_static/actuators/delay-clip.webp
     :align: center
