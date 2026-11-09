@@ -15,6 +15,7 @@ is the signal that the Kit branch was taken. No Kit/GPU required.
 """
 
 import argparse
+import contextlib
 import signal
 import sys
 import types
@@ -44,39 +45,6 @@ def kit_branch_taken(monkeypatch: pytest.MonkeyPatch):
 
     monkeypatch.setitem(vars(physx_app), "KitLauncher", FakeKitLauncher)
     return taken
-
-
-def test_kitless_launch_configures_storage_before_user_code(kit_branch_taken, monkeypatch: pytest.MonkeyPatch):
-    """A direct OmniClient read inside a kitless runtime must see profile routing."""
-    events = []
-    monkeypatch.setattr(sim_launcher, "configure_storage_profile", lambda: events.append("configured"))
-
-    with launch_simulation(cfg=PhysicsCfg(), launcher_args={}):
-        events.append("user-code")
-
-    assert events == ["configured", "user-code"]
-    assert kit_branch_taken == []
-
-
-def test_storage_profile_failure_closes_started_kit(monkeypatch: pytest.MonkeyPatch):
-    """A profile failure after Kit starts must still close the application."""
-    close_calls = []
-
-    class FakeKitLauncher(SimulationLauncher):
-        def close(self, exit_code=0):
-            close_calls.append(exit_code)
-
-    def reject_profile():
-        raise RuntimeError("profile rejected")
-
-    monkeypatch.setitem(vars(physx_app), "KitLauncher", FakeKitLauncher)
-    monkeypatch.setattr(sim_launcher, "configure_storage_profile", reject_profile)
-
-    with pytest.raises(RuntimeError, match="profile rejected"):
-        with launch_simulation(cfg=PhysicsCfg(), launcher_args={"require_kit": True}):
-            pass
-
-    assert close_calls == [1]
 
 
 @pytest.mark.parametrize(
@@ -117,13 +85,12 @@ def test_kitless_ovrtx_registers_before_user_code(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setitem(
         sys.modules, "ovrtx", types.SimpleNamespace(register_schema_paths=lambda: calls.append("register"))
     )
-    monkeypatch.setattr(sim_launcher, "configure_storage_profile", lambda: calls.append("storage"))
     with launch_simulation(
         SimulationCfg(physics=sim_launcher.NewtonCfg(), device="cpu"), {"visualizer": ["newton_rtx"]}
     ):
         calls.append("user")
 
-    assert calls == ["register", "storage", "user"]
+    assert calls == ["register", "user"]
 
 
 @pytest.mark.parametrize("channels", [("rgb",), ("rgb", "depth")])
@@ -193,22 +160,19 @@ def config_named_launcher(monkeypatch: pytest.MonkeyPatch):
     return cfg, events, startup_args
 
 
-@pytest.mark.parametrize("interrupt", [False, True])
-def test_config_named_launcher_starts_and_closes(config_named_launcher, interrupt):
+@pytest.mark.parametrize(("outcome", "exit_code"), [("ok", 0), ("interrupt", 130), ("error", 1)])
+def test_config_named_launcher_starts_and_closes(config_named_launcher, outcome, exit_code):
     """A config-selected launcher closes on success or interruption with the correct exit status."""
     cfg, events, _ = config_named_launcher
 
-    try:
-        with launch_simulation(cfg):
-            events.append("user")
-            if interrupt:
-                signal.raise_signal(signal.SIGINT)
-    except KeyboardInterrupt:
-        assert interrupt
-    else:
-        assert not interrupt
+    with contextlib.suppress(KeyboardInterrupt, RuntimeError), launch_simulation(cfg):
+        events.append("user")
+        if outcome == "interrupt":
+            signal.raise_signal(signal.SIGINT)
+        elif outcome == "error":
+            raise RuntimeError("user failure")
 
-    assert events == ["start", "user", 130 if interrupt else 0]
+    assert events == ["start", "user", exit_code]
 
 
 @pytest.mark.parametrize(("newton_window", "exit_code"), [(True, 0), (False, 7)])
