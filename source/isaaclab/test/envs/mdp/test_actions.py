@@ -261,23 +261,27 @@ def test_recordable_joint_actions_process_into_the_same_buffer(action_cls, cfg) 
     assert torch.all(processed < 0.0)
 
 
-def test_subclass_overriding_apply_actions_does_not_inherit_capture_flags() -> None:
-    """A subclass with its own ``apply_actions`` is not recorded unless it says so."""
+def test_subclass_overriding_action_methods_does_not_inherit_is_graphable() -> None:
+    """A subclass with its own ``process_actions`` or ``apply_actions`` is not recorded unless it says so."""
 
     class Applies(JointEffortAction):
         def apply_actions(self):
             pass
 
-    class Declares(Applies):
+    class Processes(JointEffortAction):
+        def process_actions(self, actions):
+            self._processed_actions = actions.clamp(-1.0, 1.0)
+
+    class Declares(Processes):
         is_graphable = True
 
-        def apply_actions(self):
-            pass
-
-    class Processes(JointEffortAction):
         def process_actions(self, actions):
             super().process_actions(actions)
 
+    class Inherits(JointEffortAction):
+        pass
+
     assert not Applies.is_graphable
+    assert not Processes.is_graphable
     assert Declares.is_graphable
-    assert Processes.is_graphable
+    assert Inherits.is_graphable

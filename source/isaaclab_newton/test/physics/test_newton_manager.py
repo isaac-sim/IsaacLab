@@ -956,7 +956,7 @@ def _bound_control(manager: NewtonManager, *, graphable: bool):
 def test_bound_control_runs_before_every_physics_step_like_the_environment_loop():
     """Bound actions run before every physics step of one captured step, also after a hard reset, like the env loop.
 
-    Each bound action reads the state that the post-step callbacks publish after the previous physics step.
+    The post-step callbacks still run once per step, after its last physics step.
     """
     decimation, num_steps, velocities = 3, 4, []
     for bound in (True, False):
@@ -982,9 +982,9 @@ def test_bound_control_runs_before_every_physics_step_like_the_environment_loop(
                         if not bound:
                             actions.apply_action()
                         sim.step(render=False)
-                # bound steps record the actions after the published state of every physics step, then replay them
+                # bound steps record the actions once per physics step and then replay them
                 if bound:
-                    assert applied == (["publish", "action"] * decimation + ["publish"]) * 2
+                    assert applied == (["action"] * decimation + ["publish"]) * 2
                 else:
                     assert applied.count("action") == num_steps * decimation
                 velocities.append(manager.backend.state_0.body_qd.numpy().copy())

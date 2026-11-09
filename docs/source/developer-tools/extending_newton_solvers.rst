@@ -134,9 +134,9 @@ around each physics step's substeps.
 
 :meth:`~isaaclab_newton.physics.NewtonManager.bind_control` makes the action manager's ``apply_action`` and the
 scene's ``write_data_to_sim`` pre-actuator callbacks, so they run before every physics step as in the environment's
-own loop. Before them, the post-step callbacks republish the asset state they read, and after them, the step stages
-the body forces they write. It binds only when both report ``is_graphable``. The first wrench written to an
-asset captures the step again with the wrench work.
+own loop, and the step stages the body forces they write. Post-step callbacks still run once at the end of the step,
+so articulations republish the reordered state they read before writing. It binds only when both report
+``is_graphable``. The first wrench written to an asset captures the step again with the wrench work.
 
 Every physics step ends in ``state_0``, so ``manager.backend.state_0`` is always the same object. The captured step
 records the callbacks, so they must be graph-safe. Consumers register them with

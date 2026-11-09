@@ -623,10 +623,6 @@ class NewtonBackend:
         self.solver_ops.pre_step(self.state_0)
         if self.collision_pipeline is not None:
             self.collision_pipeline.collide(self.state_0, self.contacts)
-        if self.control_bound:
-            # bound asset writes read the state that the post-step callbacks publish
-            for callback in self.post_step_callbacks:
-                callback()
         for callback in self.pre_actuator_callbacks:
             callback()
         if self.control_bound:

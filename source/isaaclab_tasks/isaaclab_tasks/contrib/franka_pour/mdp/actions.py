@@ -56,6 +56,8 @@ class EMARelativeJointPositionAction(RelativeJointPositionAction):
 class CurriculumGripperPositionAction(BinaryJointPositionAction):
     """Filtered binary symmetric finger-position command with grasp-contact state."""
 
+    is_graphable = True
+
     cfg: CurriculumGripperPositionActionCfg
 
     def __init__(self, cfg: CurriculumGripperPositionActionCfg, env: ManagerBasedEnv) -> None:

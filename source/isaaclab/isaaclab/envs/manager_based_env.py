@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import builtins
 import logging
+import math
 import sys
 import warnings
 from typing import Any
@@ -210,10 +211,14 @@ class ManagerBasedEnv:
         # let the physics backend run the actions, asset writes and decimation loop inside its step when it can,
         # unless renders, recorders or sensors must run between the physics steps of one environment step
         eager_sensors = not self.scene.cfg.lazy_sensor_update
-        sensors_sample_physics_steps = any(
-            (eager_sensors or getattr(sensor.cfg, "history_length", 0) > 0) and sensor.cfg.update_period < self.step_dt
-            for sensor in self.scene.sensors.values()
-        )
+        sensors_sample_physics_steps = False
+        for sensor in self.scene.sensors.values():
+            # a sensor that refreshes on update samples between env steps unless its period spans whole env steps
+            periods = sensor.cfg.update_period / self.step_dt
+            if (eager_sensors or getattr(sensor.cfg, "history_length", 0) > 0) and (
+                round(periods) == 0 or not math.isclose(periods, round(periods), abs_tol=1e-6)
+            ):
+                sensors_sample_physics_steps = True
         if (
             self.cfg.sim.render_interval % self.cfg.decimation == 0
             and not self.recorder_manager.records_physics_steps

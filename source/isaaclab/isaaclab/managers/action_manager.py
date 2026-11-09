@@ -40,12 +40,12 @@ class ActionTerm(ManagerTermBase):
     """
 
     is_graphable: ClassVar[bool] = False
-    """Whether :meth:`apply_actions` can be recorded into a CUDA graph, i.e. it writes from fixed buffers."""
+    """Whether :meth:`apply_actions` can be recorded into a CUDA graph: it writes from buffers updated in place."""
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        # A subclass that overrides apply_actions declares its own flag; it does not inherit it.
-        if "apply_actions" in cls.__dict__:
+        # A subclass that overrides how actions are processed or applied declares its own flag; it does not inherit it.
+        if "apply_actions" in cls.__dict__ or "process_actions" in cls.__dict__:
             cls.is_graphable = cls.__dict__.get("is_graphable", False)
 
     def __init__(self, cfg: ActionTermCfg, env: ManagerBasedEnv):

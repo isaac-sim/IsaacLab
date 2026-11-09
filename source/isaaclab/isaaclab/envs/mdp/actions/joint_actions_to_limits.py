@@ -205,6 +205,8 @@ class EMAJointPositionToLimitsAction(JointPositionToLimitsAction):
     On reset, the previous action is initialized to the current joint positions of the articulation's joints.
     """
 
+    is_graphable = True
+
     cfg: actions_cfg.EMAJointPositionToLimitsActionCfg
     """The configuration of the action term."""
 
