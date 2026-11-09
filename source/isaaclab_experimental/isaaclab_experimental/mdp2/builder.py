@@ -11,7 +11,7 @@ import math
 from dataclasses import dataclass
 
 from .config import DirectAction, FieldSelector, Observation, Phase, Reward, TaskCfg, Termination, TimeLimit
-from .mdp import MDP, ActionOp, TermOp
+from .mdp import MDP, ActionOp, Backend, TermOp
 from .scene import SceneSchema
 
 
@@ -22,10 +22,6 @@ class ScheduleEntry:
     path: tuple[str, ...]
     """Location in the task, for example ``("observations", "policy", "joint_pos")``."""
     cfg: DirectAction | Observation | Reward | Termination | TimeLimit
-
-    @property
-    def phase(self) -> Phase:
-        return self.cfg.phase
 
     def __str__(self) -> str:
         return ".".join(self.path)
@@ -75,12 +71,11 @@ class MDPBuilder:
 
     def schedule(self) -> tuple[ScheduleEntry, ...]:
         """Entries in execution order: by phase, then in the order they were added."""
-        return tuple(sorted(self._entries.values(), key=lambda entry: entry.phase))
+        return tuple(sorted(self._entries.values(), key=lambda entry: entry.cfg.phase))
 
-    def finalize(self, device: str = "cpu", backend: str = "torch") -> MDP:
+    def finalize(self, device: str = "cpu", backend: Backend | str = Backend.TORCH) -> MDP:
         """Validate and compile. Raises one ``ValueError`` listing every error."""
-        if backend != "torch":
-            raise ValueError(f"Unsupported backend {backend!r}. Available backends: 'torch'.")
+        backend = Backend(backend)
         errors: list[str] = []
         ops = {phase: [] for phase in Phase}
         observation_dims: dict[str, int] = {}
@@ -97,7 +92,7 @@ class MDPBuilder:
                     action_dim = columns.stop
                     ops[Phase.ACTIONS].append(ActionOp(str(entry), cfg.target, columns, cfg.scale, cfg.offset))
             else:
-                ops[entry.phase].append(self._compile_term(entry, errors, observation_dims))
+                ops[entry.cfg.phase].append(self._compile_term(entry, backend, errors, observation_dims))
         if len(time_limits) > 1:
             errors.append(f"Only one time limit is allowed, found {', '.join(map(str, time_limits))}.")
         if errors:
@@ -121,12 +116,15 @@ class MDPBuilder:
         self._entries[entry.path] = entry
         return entry
 
-    def _compile_term(self, entry: ScheduleEntry, errors: list[str], observation_dims: dict[str, int]) -> TermOp | None:
+    def _compile_term(
+        self, entry: ScheduleEntry, backend: Backend, errors: list[str], observation_dims: dict[str, int]
+    ) -> TermOp | None:
         """Compile a reward, termination, or observation. Appends to ``errors`` instead of raising."""
         cfg = entry.cfg
         num_errors = len(errors)
-        if cfg.term.torch is None:
-            errors.append(f"{entry}: the term has no 'torch' implementation.")
+        implementation = cfg.term.torch if backend is Backend.TORCH else cfg.term.warp
+        if implementation is None:
+            errors.append(f"{entry}: the term has no '{backend.value}' implementation.")
         sizes: dict[str, int] = {}
         for arg, selector in cfg.inputs.items():
             dims = self._resolve(entry, f"input {arg!r}", selector, errors)
@@ -144,22 +142,24 @@ class MDPBuilder:
         if len(errors) > num_errors:
             return None
 
+        output_shape = tuple(sizes.get(dim, dim) for dim in shape[1:])
         group = ""
         columns = slice(None)
         if isinstance(cfg, Observation):
             group = entry.path[1]
             start = observation_dims.get(group, 0)
-            columns = slice(start, start + math.prod(sizes.get(dim, dim) for dim in shape[1:]))
+            columns = slice(start, start + math.prod(output_shape))
             observation_dims[group] = columns.stop
         return TermOp(
             name=str(entry),
-            compute=cfg.term.torch.compute,
+            compute=implementation.compute,
             inputs=cfg.inputs,
             params=cfg.params,
             weight=cfg.weight if isinstance(cfg, Reward) else 1.0,
             truncation=cfg.truncation if isinstance(cfg, Termination) else False,
             group=group,
             columns=columns,
+            shape=output_shape,
         )
 
     def _resolve(

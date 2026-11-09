@@ -5,6 +5,7 @@
 
 __all__ = [
     "MDP",
+    "Backend",
     "DirectAction",
     "Entity",
     "EntitySchema",
@@ -14,7 +15,6 @@ __all__ = [
     "MDPState",
     "Observation",
     "ObservationGroup",
-    "Observations",
     "Phase",
     "PointMassScene",
     "Reward",
@@ -48,7 +48,7 @@ from .config import (
     Termination,
     TimeLimit,
 )
-from .mdp import MDP, MDPState, Observations, Transition
+from .mdp import MDP, Backend, MDPState, Transition
 from .scene import EntitySchema, PointMassScene, SceneData, SceneSchema
 from .runtime import apply_actions, evaluate, observe, reset
 from .terms import Implementation, TensorSpec, Term

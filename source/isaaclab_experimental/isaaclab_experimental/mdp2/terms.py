@@ -23,7 +23,11 @@ class Implementation:
     """Backend hooks of a term."""
 
     compute: Callable
-    """``compute(**inputs, **params)``, batched over worlds for Torch."""
+    """Torch: ``compute(**inputs, **params)`` returns a tensor batched over worlds.
+
+    Warp: ``compute(out, **inputs, **params)`` writes into ``out``, usually by launching a kernel. ``out`` has
+    the term's output shape, with dtype ``bool`` for terminations and ``float32`` otherwise.
+    """
 
 
 @dataclass(frozen=True)
@@ -31,8 +35,11 @@ class Term:
     """One reusable calculation. A function is shorthand for ``Implementation(compute=fn)``."""
 
     torch: Implementation | Callable | None = None
+    warp: Implementation | Callable | None = None
     output: TensorSpec = field(default_factory=TensorSpec)
 
     def __post_init__(self):
         if self.torch is not None and not isinstance(self.torch, Implementation):
             object.__setattr__(self, "torch", Implementation(compute=self.torch))
+        if self.warp is not None and not isinstance(self.warp, Implementation):
+            object.__setattr__(self, "warp", Implementation(compute=self.warp))

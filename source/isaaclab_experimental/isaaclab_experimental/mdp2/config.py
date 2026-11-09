@@ -53,7 +53,6 @@ class TermCfg:
     phase: ClassVar[Phase]
 
     term: Term
-    """The calculation."""
 
     inputs: dict[str, FieldSelector] = field(default_factory=dict)
     """Entity fields bound to the term's input arguments."""

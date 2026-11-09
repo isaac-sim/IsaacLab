@@ -12,6 +12,9 @@ from dataclasses import dataclass
 from typing import Protocol
 
 import torch
+import warp as wp
+
+from isaaclab.utils.warp import ProxyArray
 
 
 @dataclass(frozen=True)
@@ -22,7 +25,10 @@ class EntitySchema:
     """Element names per dimension, for example ``{"joints": ("x", "y")}``."""
 
     fields: Mapping[str, tuple[str, ...]]
-    """Dimensions of each field after the world dimension, for example ``{"joint_pos": ("joints",)}``."""
+    """Dimensions of each field after the world dimension, for example ``{"joint_pos": ("joints",)}``.
+
+    Fields are ``float32``.
+    """
 
 
 @dataclass(frozen=True)
@@ -41,7 +47,7 @@ class SceneData(Protocol):
 
     schema: SceneSchema
 
-    def data(self, entity: str, field: str) -> torch.Tensor:
+    def data(self, entity: str, field: str) -> ProxyArray:
         """Live view of an entity field, shape ``(num_worlds, ...)``."""
         ...
 
@@ -65,14 +71,15 @@ class PointMassScene:
         )
         self.dt = dt
         self.decimation = decimation
-        self._data = {"robot": {name: torch.zeros(num_worlds, len(joint_names), device=device) for name in fields}}
+        shape = (num_worlds, len(joint_names))
+        self._data = {"robot": {name: ProxyArray(wp.zeros(shape, dtype=wp.float32, device=device)) for name in fields}}
 
-    def data(self, entity: str, field: str) -> torch.Tensor:
+    def data(self, entity: str, field: str) -> ProxyArray:
         return self._data[entity][field]
 
     def step(self) -> None:
         """Advance one control step: ``decimation`` substeps of semi-implicit Euler."""
-        robot = self._data["robot"]
+        robot = {name: value.torch for name, value in self._data["robot"].items()}
         for _ in range(self.decimation):
             robot["joint_vel"].add_(robot["joint_effort_target"], alpha=self.dt)
             robot["joint_pos"].add_(robot["joint_vel"], alpha=self.dt)
@@ -80,4 +87,4 @@ class PointMassScene:
     def reset(self, mask: torch.Tensor) -> None:
         """Zero every field of the worlds selected by a boolean mask."""
         for value in self._data["robot"].values():
-            value.masked_fill_(mask[:, None], 0.0)
+            value.torch.masked_fill_(mask[:, None], 0.0)
