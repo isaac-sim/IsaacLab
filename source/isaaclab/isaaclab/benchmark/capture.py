@@ -279,9 +279,8 @@ def run_config_from_env_cfg(env_cfg: object) -> RunConfig:
         "isaaclab_newton.physics.vbd_solver_cfg.VBDSolverCfg": "newton_vbd",
         "isaaclab_newton.physics.mpm_solver_cfg.MPMSolverCfg": "newton_mpm",
         "isaaclab_newton.physics.newton_manager_cfg.NewtonCfg": "newton",
-        "isaaclab_contrib.coupling.coupler_cfg.CouplerProxyCfg": "proxy",
-        "isaaclab_contrib.coupling.coupler_cfg.CouplerAdmmCfg": "admm",
-        "isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_solver_cfg.CoupledMJWarpVBDSolverCfg": "custom",
+        "isaaclab_newton.physics.coupling.coupler_cfg.CouplerProxyCfg": "proxy",
+        "isaaclab_newton.physics.coupling.coupler_cfg.CouplerAdmmCfg": "admm",
     }
     physics_cfg = getattr(getattr(env_cfg, "sim", None), "physics", None)
     solvers = set()
@@ -310,9 +309,6 @@ def run_config_from_env_cfg(env_cfg: object) -> RunConfig:
         elif name in ("proxy", "admm"):
             coupling = name
             stack.extend(entry.solver_cfg for entry in node.entries)
-        elif name == "custom":
-            coupling = f"custom_{node.coupling_mode}"
-            stack.extend((node.rigid_solver_cfg, node.soft_solver_cfg))
         elif name is not None:
             solvers.add(name)
         else:

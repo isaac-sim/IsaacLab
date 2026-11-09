@@ -237,10 +237,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.reset_time_outs = self.termination_manager.time_outs
         self.reward_buf = self.reward_manager.compute(dt=self.step_dt)
 
-        if len(self.recorder_manager.active_terms) > 0:
-            # update observations for recording if needed
-            self.obs_buf = self.observation_manager.compute()
-            self.recorder_manager.record_post_step()
+        self.recorder_manager.record_post_step()
 
         # Consume UI resets before capture, so every boundary has a pre-reset observation.
         if self.sim.consume_reset_request():

@@ -20,7 +20,7 @@ from isaaclab.utils import clone, configclass, instantiate, replace, to_dict, up
 from isaaclab.utils.io import dump_yaml, load_yaml
 from isaaclab.utils.string import ResolvableString
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.windows_ci]
 
 """
 Mock classes and functions.
@@ -646,6 +646,32 @@ def test_wrap_resolvable_strings_handles_cyclic_containers():
     assert cfg.payload["self"] is cfg.payload
     assert cfg.payload["tuple"][0] is cfg.payload
     assert cfg.payload["tuple"][1]["back"] is cfg.payload
+
+
+def test_frozen_dataclass_fields_are_accepted():
+    """Frozen dataclasses with nothing to wrap are accepted, and plain ones still get callable strings wrapped."""
+    from dataclasses import dataclass as plain_dataclass
+
+    @plain_dataclass(frozen=True)
+    class Point:
+        x: float
+
+    @plain_dataclass
+    class Target:
+        func: str = "math:sqrt"
+
+    @configclass
+    class HoldsDataclassesCfg:
+        value: Any = None
+        values: list[Any] = field(default_factory=list)
+        named: dict[str, Any] = field(default_factory=dict)
+
+    cfg = HoldsDataclassesCfg(value=Point(1.0), values=[Point(2.0)], named={"a": Point(3.0), "b": Target()})
+
+    assert cfg.value == Point(1.0)
+    assert cfg.values == [Point(2.0)]
+    assert cfg.named["a"] == Point(3.0)
+    assert isinstance(cfg.named["b"].func, ResolvableString)
 
 
 def test_dir_resolution_uses_declaring_class_for_inherited_field():

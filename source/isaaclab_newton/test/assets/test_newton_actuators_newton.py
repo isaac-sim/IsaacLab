@@ -53,7 +53,7 @@ from isaaclab.actuators import (
 )
 from isaaclab.actuators.actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg
 from isaaclab.actuators.actuator_pd_cfg import RemotizedPDActuatorCfg
-from isaaclab.actuators.newton import read_group_parameter
+from isaaclab.actuators.newton import read_group_parameter, write_group_parameter
 from isaaclab.actuators.newton.kernels import sync_torque_telemetry
 from isaaclab.assets import ArticulationCfg
 from isaaclab.sim import SimulationContext, build_simulation_context
@@ -286,7 +286,7 @@ def _run(
     handles_dec = (
         use_newton_actuators
         and decimation > 1
-        and sim.backend_manager._is_all_graphable()
+        and sim.backend_manager.handles_decimation()
         and sim.backend_manager._decimation > 1
     )
 
@@ -863,7 +863,7 @@ def test_write_data_to_sim_writes_joint_targets_in_backend_order(newton_run: _Ru
 
 
 def test_newton_native_actuator_gain_write_maps_public_joint_subset_to_backend(newton_run: _Run) -> None:
-    """Map selected public joint IDs to Newton-controller columns."""
+    """Map selected group-local joint IDs to Newton drive columns under a permuted public joint order."""
     articulation = newton_run.articulations["ideal_reordered"]
     assert articulation.joint_ordering is not None
     assert articulation.newton_actuator_adapter is not None
@@ -880,8 +880,9 @@ def test_newton_native_actuator_gain_write_maps_public_joint_subset_to_backend(n
     joint_ids = torch.tensor([1, 3, 4], device=articulation.device, dtype=torch.long)
     stiffness = torch.tensor([[101.0, 103.0, 104.0]], device=articulation.device)
 
-    with pytest.warns(DeprecationWarning, match="write_actuator_stiffness_to_sim"):
-        articulation.write_actuator_stiffness_to_sim(stiffness=stiffness, env_ids=env_ids, joint_ids=joint_ids)
+    write_group_parameter(
+        articulation.actuators, "legs", "drive", "kp", stiffness, env_ids=env_ids, joint_ids=joint_ids
+    )
 
     backend_joint_ids = torch.tensor(
         articulation.joint_ordering.user_to_backend_indices, device=articulation.device, dtype=torch.long

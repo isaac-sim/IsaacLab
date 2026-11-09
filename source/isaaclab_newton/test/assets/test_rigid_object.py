@@ -155,6 +155,49 @@ def test_vbd_root_state_tracks_integrated_body(device: str, state_owner: str) ->
             assert torch.count_nonzero(cube_object.data.root_com_vel_w.torch) == 0
 
 
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_heading_tracks_a_spin_between_substeps_and_across_outer_graph_replays(device: str) -> None:
+    """Derived data read by a state-force callback or after an outer graph replay follows the integrated state."""
+    num_substeps, yaw_rate = 3, 0.5
+    with build_simulation_context(sim_cfg=newton_sim_cfg(device, num_substeps=num_substeps)) as sim:
+        cube = spawn_assets({"cube": _cube_cfg()}, num_envs=1)["cube"]
+        sim.reset()
+        velocity = torch.zeros_like(cube.data.default_root_vel.torch)
+        velocity[:, 5] = yaw_rate
+        cube.write_root_velocity_to_sim_index(root_velocity=velocity)
+        substep_headings = [wp.zeros(1, dtype=wp.float32, device=device) for _ in range(num_substeps)]
+        substep = iter(())
+
+        def record_heading(state) -> None:
+            wp.copy(next(substep), cube.data.heading_w.warp)
+
+        sim.backend_manager.register_state_force_callback(record_heading)
+        backend = sim.backend_manager.backend
+        dt = sim.cfg.dt
+
+        def substep_increments() -> np.ndarray:
+            return np.diff([heading.numpy()[0] for heading in substep_headings])
+
+        # Eager step: each substep's callback sees the previous substep's state.
+        substep = iter(substep_headings)
+        sim.step()
+        cube.update(dt)
+        np.testing.assert_allclose(substep_increments(), yaw_rate * dt / num_substeps, atol=1e-5)
+
+        # A caller-owned capture of the step records the same substep reads.
+        substep = iter(substep_headings)
+        with wp.ScopedCapture(device=device) as capture:
+            backend.step()
+        cube.update(dt)
+        heading = cube.data.heading_w.torch[0].item()
+        for _ in range(3):
+            wp.capture_launch(capture.graph)
+            cube.update(dt)
+            np.testing.assert_allclose(substep_increments(), yaw_rate * dt / num_substeps, atol=1e-5)
+            assert cube.data.heading_w.torch[0].item() == pytest.approx(heading + yaw_rate * dt, abs=1e-5)
+            heading = cube.data.heading_w.torch[0].item()
+
+
 @pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("api", ["none", "articulation"])
 def test_initialization_rejects_non_rigid_body_prims(api: str) -> None:
@@ -767,7 +810,7 @@ def test_body_link_pose_w_fresh_after_root_pose_write(scene: _Scene) -> None:
         getattr(cube_object, f"write_root_{writer}")(root_pose=target_pose)
 
         # The simulator-side dirty flag must be set before any property read clears it via forward().
-        assert _fk_reset_mask_dirty(), f"{writer} pose write must call NewtonManager.invalidate_fk()"
+        assert _fk_reset_mask_dirty(), f"{writer} pose write must schedule FK"
 
         # Read without stepping: getter must trigger forward kinematics and return the fresh pose.
         body_link = cube_object.data.body_link_pose_w.torch.view(num_cubes, 7)
@@ -1113,41 +1156,61 @@ def test_write_object_state(scene: _Scene) -> None:
 
 @pytest.mark.isaacsim_ci
 def test_body_pose_write_marks_fk_reset_mask(scene: _Scene) -> None:
-    """Regression: ``write_body_{link,com}_pose_to_sim_{index,mask}`` must mark FK dirty.
-
-    For a collection, ``_sim_bind_body_link_pose_w`` is bound directly to the simulator's root-transforms
-    buffer, so the property read is not what becomes stale — the simulator's internal ``body_q`` used by
-    collision detection is. The write methods must therefore call :meth:`NewtonManager.invalidate_fk`
-    so downstream consumers re-run forward kinematics before the next step. Without the fix,
-    ``_fk_reset_mask`` remains unset after an explicit pose write. The buffer-aliasing invariant is
-    also pinned: a refactor that decouples ``_sim_bind_body_link_pose_w`` from the write target would
-    silently make the property stale, so we check the post-write pose matches the written value.
-    """
-
-    def _fk_reset_mask_dirty() -> bool:
-        assert scene.sim.backend_manager.backend.fk_mask is not None
-        return bool(wp.to_torch(scene.sim.backend_manager.backend.fk_mask).any().item())
-
-    cube_object = scene.collection
+    """Partial collection writes accumulate precise FK selections and publish native body state."""
+    collection = scene.collection
+    manager = scene.sim.backend_manager
+    backend = manager.backend
+    articulation_ids = collection.root_view.articulation_ids.numpy()
     scene.step()
 
     for writer in ("link_pose_to_sim_index", "link_pose_to_sim_mask", "com_pose_to_sim_index", "com_pose_to_sim_mask"):
-        # Clear the dirty flag so we can observe that the write sets it.
-        scene.sim.backend_manager.forward()
-        assert not _fk_reset_mask_dirty()
+        manager.forward()
+        original = collection.data.body_link_pose_w.torch.clone()
+        expected = original.clone()
+        target = collection.data.body_com_pose_w.torch.clone() if writer.startswith("com") else original.clone()
+        expected_fk = np.zeros(backend.model.articulation_count, dtype=bool)
+        expected_worlds = np.zeros(backend.model.world_count + 1, dtype=bool)
 
-        pre_write_pose = cube_object.data.body_link_pose_w.torch.clone()
-        target_pose = pre_write_pose.clone()
-        target_pose[..., :3] += torch.tensor([10.0, 5.0, 2.0], device=target_pose.device)
-        getattr(cube_object, f"write_body_{writer}")(body_poses=target_pose)
+        # Neither selection starts at object zero. The second write must preserve the
+        # first write's pending work, without flushing it merely to get a destination.
+        for env, body in ((0, 1), (1, 2)):
+            offset = torch.tensor([0.25, 0.5, 0.75], device=target.device)
+            target[env, body, :3] += offset
+            expected[env, body, :3] += offset
+            if writer.endswith("index"):
+                getattr(collection, f"write_body_{writer}")(
+                    body_poses=target[env : env + 1, body : body + 1].contiguous(),
+                    env_ids=torch.tensor([env], dtype=torch.int64, device=target.device),
+                    body_ids=torch.tensor([body], dtype=torch.int64, device=target.device),
+                )
+            else:
+                env_selection = np.arange(collection.num_instances) == env
+                body_selection = np.arange(collection.num_bodies) == body
+                env_mask = wp.array(env_selection, dtype=wp.bool, device=scene.device)
+                body_mask = wp.array(body_selection, dtype=wp.bool, device=scene.device)
+                getattr(collection, f"write_body_{writer}")(body_poses=target, env_mask=env_mask, body_mask=body_mask)
+                np.testing.assert_array_equal(env_mask.numpy(), env_selection)
+                np.testing.assert_array_equal(body_mask.numpy(), body_selection)
+            expected_fk[articulation_ids[env, body]] = True
+            expected_worlds[env] = True
+            np.testing.assert_array_equal(backend.fk_mask.numpy(), expected_fk)
+            np.testing.assert_array_equal(backend.world_mask.numpy(), expected_worlds)
 
-        assert _fk_reset_mask_dirty(), f"{writer} pose write must call NewtonManager.invalidate_fk()"
+        manager.forward()
+        # Read native body_q, not the root joint-coordinate binding that the writer
+        # itself updates: this proves the deferred FK actually reached collision state.
+        native_pose = wp.to_torch(collection.root_view.get_link_transforms(backend.state_0))[:, :, 0]
+        torch.testing.assert_close(native_pose, expected)
+        torch.testing.assert_close(collection.data.body_link_pose_w.torch, expected)
+        assert not backend.world_mask.numpy().any()
+        assert not backend.fk_mask.numpy().any()
 
-        # body_link_pose_w must reflect the write immediately — its underlying buffer is the write
-        # target. A regression that moves this property to a separate cached buffer (mirroring the
-        # single-object case) would silently break this invariant.
-        body_link = cube_object.data.body_link_pose_w.torch
-        assert not torch.allclose(body_link[..., :3], pre_write_pose[..., :3], rtol=1e-4, atol=1e-4), (
-            f"body_link_pose_w still aliases the pre-write pose after {writer}; the buffer was not written"
-        )
-        torch.testing.assert_close(body_link[..., :3], target_pose[..., :3], rtol=1e-4, atol=1e-4)
+        if writer.endswith("mask"):
+            getattr(collection, f"write_body_{writer}")(
+                body_poses=target,
+                body_mask=wp.zeros(collection.num_bodies, dtype=wp.bool, device=scene.device),
+            )
+            assert not backend.world_mask.numpy().any()
+            assert not backend.fk_mask.numpy().any()
+            manager.forward()
+            torch.testing.assert_close(native_pose, expected)
