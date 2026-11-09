@@ -30,19 +30,14 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-"""
-Implicit Actuator Models.
-"""
-
 
 class _DelayedActuator:
     """Shared command history and reset lifecycle for delayed actuator models."""
 
-    def __init__(self, cfg: DelayedImplicitActuatorCfg | DelayedPDActuatorCfg, *args, **kwargs):
+    def __init__(self, cfg: DelayedImplicitActuatorCfg | DelayedPDActuatorCfg, *args, **kwargs) -> None:
         if not 0 <= cfg.min_delay <= cfg.max_delay:
             raise ValueError("Expected 0 <= min_delay <= max_delay.")
         super().__init__(cfg, *args, **kwargs)
-        # instantiate the delay buffers
         self.positions_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
         self.velocities_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
         self.efforts_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
@@ -64,7 +59,6 @@ class _DelayedActuator:
         if env_ids is None:
             env_ids = slice(None)
         num_envs = len(range(self._num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
-        # set a new random delay for environments in env_ids
         time_lags = torch.randint(
             low=self.cfg.min_delay,
             high=self.cfg.max_delay + 1,
@@ -72,7 +66,6 @@ class _DelayedActuator:
             dtype=torch.int,
             device=self._device,
         )
-        # set delays and reset buffers
         for delay_buffer in self._delay_buffers:
             delay_buffer.set_time_lag(time_lags, env_ids)
             delay_buffer.reset(env_ids)
@@ -80,11 +73,15 @@ class _DelayedActuator:
     def compute(
         self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
     ) -> ArticulationActions:
-        # apply delay based on the delay the model for all the setpoints
         control_action.joint_positions = self.positions_delay_buffer.compute(control_action.joint_positions)
         control_action.joint_velocities = self.velocities_delay_buffer.compute(control_action.joint_velocities)
         control_action.joint_efforts = self.efforts_delay_buffer.compute(control_action.joint_efforts)
         return super().compute(control_action, joint_pos, joint_vel)
+
+
+"""
+Implicit Actuator Models.
+"""
 
 
 class ImplicitActuator(ActuatorBase):

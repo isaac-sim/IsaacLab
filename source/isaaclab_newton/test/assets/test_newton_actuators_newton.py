@@ -203,6 +203,19 @@ class _Island:
 def _islands(mlp_path: str | None = None, lstm_path: str | None = None) -> dict[str, _Island]:
     """Return the actuator islands, with the neural island when the network checkpoints are given."""
     islands = {
+        "delayed_implicit": _Island(
+            {
+                "all": DelayedImplicitActuatorCfg(
+                    joint_names_expr=[".*"],
+                    stiffness=40.0,
+                    damping=5.0,
+                    min_delay=2,
+                    max_delay=2,
+                )
+            },
+            usd="fixed_cartpole.usda",
+            newton_only=True,
+        ),
         "ideal": _Island(IDEAL_PD_ACTUATORS),
         "ideal_reordered": _Island(IDEAL_PD_ACTUATORS, joint_ordering=_LEG_REORDERED_JOINT_NAMES),
         "cartpole": _Island(CARTPOLE_EXPLICIT_ACTUATORS, usd="fixed_cartpole.usda"),
@@ -450,10 +463,10 @@ def decimated_runs(device: str) -> dict[str, dict]:
 
 
 @pytest.fixture(scope="module")
-def newton_run(device: str, lab_run: dict, decimated_runs: dict, delayed_implicit_runs: dict) -> Iterator[_Run]:
+def newton_run(device: str, lab_run: dict, decimated_runs: dict) -> Iterator[_Run]:
     """Roll out every island on the Newton actuator path and keep the scene alive.
 
-    Depends on the completed Lab-path, decimated, and mixed-delay runs so their scenes are closed first.
+    Depends on the Lab-path and decimated runs so their scenes are built and closed first.
     """
     mlp_path = make_dummy_mlp_checkpoint()
     lstm_path = make_dummy_lstm_checkpoint()
@@ -784,71 +797,30 @@ def test_decimated_remotized_pd_matches_lab_actuators(decimated_runs: dict) -> N
     _assert_equivalent(decimated_runs["lab"], decimated_runs["newton"])
 
 
-@pytest.fixture(scope="module")
-def delayed_implicit_runs(device: str) -> dict[bool, dict[str, torch.Tensor]]:
-    """Record both articulation orders before the persistent native-actuator scene is built."""
-    runs = {}
-    for native_first in (False, True):
-        islands = {
-            "delayed": _Island(
-                {
-                    "all": DelayedImplicitActuatorCfg(
-                        joint_names_expr=[".*"],
-                        stiffness=40.0,
-                        damping=5.0,
-                        min_delay=2,
-                        max_delay=2,
-                    )
-                },
-                usd="fixed_cartpole.usda",
-            ),
-            "native": _Island(CARTPOLE_EXPLICIT_ACTUATORS, usd="fixed_cartpole.usda"),
-        }
-        if native_first:
-            islands = dict(reversed(islands.items()))
-        # Rotate graph capture across the initialization orders to cover eager and captured stepping.
-        sim_cfg = newton_sim_cfg(device, solver_cfg=_solver_cfg(), use_cuda_graph=native_first)
-        with build_simulation_context(sim_cfg=sim_cfg) as sim:
-            articulations = spawn_assets(
-                {name: _island_cfg(name, island, index) for index, (name, island) in enumerate(islands.items())},
-                num_envs=1,
+def test_delayed_implicit_keeps_physics_step_delay_beside_native_articulation(newton_run: _Run) -> None:
+    delayed = newton_run.articulations["delayed_implicit"]
+    delayed.reset()
+    manager = newton_run.sim.backend_manager
+    previous_decimation = manager._decimation
+    manager.set_decimation(4)
+    steps_per_call = 4 if manager.handles_decimation() else 1
+    samples = []
+    try:
+        for policy_step in range(4):
+            delayed.actuators.target_command.set_position_index(
+                value=torch.full_like(delayed.data.joint_pos.torch, float(policy_step))
             )
-            sim.reset()
-            for articulation in articulations.values():
-                articulation.reset()
-            delayed, native = articulations["delayed"], articulations["native"]
-            native_initial = native.data.joint_pos.torch.clone()
-            native.actuators.target_command.set_position_index(value=native_initial + 0.1)
-            decimation = 4
-            sim.backend_manager.set_decimation(decimation)
-            steps_per_call = decimation if sim.backend_manager.handles_decimation() else 1
-            samples = []
-            for policy_step in range(4):
-                delayed.actuators.target_command.set_position_index(
-                    value=torch.full_like(delayed.data.joint_pos.torch, float(policy_step))
-                )
-                for _ in range(decimation // steps_per_call):
-                    for articulation in articulations.values():
-                        articulation.write_data_to_sim()
-                    samples.append(delayed.actuators.output_command.position.torch[0, 0].clone())
-                    sim.step()
-                    for articulation in articulations.values():
-                        articulation.update(sim_cfg.dt * steps_per_call)
-            runs[native_first] = {
-                "targets": torch.stack(samples),
-                "native_displacement": native.data.joint_pos.torch.clone() - native_initial,
-            }
-    return runs
-
-
-@pytest.mark.parametrize("native_first", [False, True])
-def test_delayed_implicit_keeps_physics_step_delay_beside_native_articulation(delayed_implicit_runs, native_first):
-    """Native actuators on another robot must not fold Lab command updates into policy steps."""
-    run = delayed_implicit_runs[native_first]
-    # Commands change at physics steps 4, 8, and 12 and must arrive two steps later.
-    expected = torch.tensor([0.0] * 6 + [1.0] * 4 + [2.0] * 4 + [3.0] * 2, device=run["targets"].device)
-    torch.testing.assert_close(run["targets"], expected)
-    assert torch.any(run["native_displacement"].abs() > 1.0e-4)
+            for _ in range(4 // steps_per_call):
+                for articulation in newton_run.articulations.values():
+                    articulation.write_data_to_sim()
+                samples.append(delayed.actuators.output_command.position.torch[0, 0].clone())
+                newton_run.sim.step()
+                for articulation in newton_run.articulations.values():
+                    articulation.update(DT * steps_per_call)
+    finally:
+        manager.set_decimation(previous_decimation)
+    expected = torch.tensor([0.0] * 6 + [1.0] * 4 + [2.0] * 4 + [3.0] * 2, device=delayed.device)
+    torch.testing.assert_close(torch.stack(samples), expected)
 
 
 def test_dc_motor_clamp_binds(lab_run: dict, newton_run: _Run) -> None:

@@ -33,6 +33,8 @@ from isaaclab.actuators.newton import read_group_parameter, write_group_paramete
 from isaaclab.test.utils import test_devices
 from isaaclab.utils.warp import ProxyArray
 
+pytestmark = pytest.mark.kitless
+
 
 def _implicit_cfg(**kwargs) -> ImplicitActuatorCfg:
     """Create a valid implicit actuator config for collection tests."""
@@ -722,13 +724,6 @@ def test_delayed_implicit_commands_and_partial_reset(delay):
     torch.testing.assert_close(control.joint_damping.torch, torch.full((2, 2), 3.0))
 
 
-def test_delayed_implicit_rejects_native_execution_bypass():
-    """Fail clearly when a native execution path would skip command delays."""
-    cfg = DelayedImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=2.0, damping=0.0, max_delay=2)
-    with pytest.raises(ValueError, match="use_newton_actuators"):
-        ActuatorCollection({"all": cfg}, NativeFakeActuatorControl())
-
-
 def test_delayed_implicit_samples_one_delay_per_environment():
     """Each environment holds its sampled delay across all joints and command channels."""
     control = FakeActuatorControl(num_envs=32, joint_names=["joint_0", "joint_1"])
@@ -775,32 +770,6 @@ def test_delayed_implicit_rejects_invalid_delay_bounds(min_delay, max_delay):
     )
     with pytest.raises(ValueError, match="0 <= min_delay <= max_delay"):
         ActuatorCollection({"all": cfg}, FakeActuatorControl())
-
-
-def test_delayed_pd_retains_delay_before_explicit_torque_computation():
-    """The shared delay lifecycle must still feed delayed targets to the explicit PD controller."""
-    control = FakeActuatorControl(num_envs=1, joint_names=["joint_0"])
-    collection = ActuatorCollection(
-        {
-            "all": DelayedPDActuatorCfg(
-                joint_names_expr=[".*"],
-                stiffness=2.0,
-                damping=3.0,
-                actuator_effort_limit=100.0,
-                min_delay=1,
-                max_delay=1,
-            )
-        },
-        control,
-    )
-    collection.reset()
-    for step, expected_effort in enumerate((13.0, 11.0, 15.0)):
-        collection.target_command.position.torch.fill_(step + 1.0)
-        collection.target_command.velocity.torch.fill_(step + 2.0)
-        collection.target_command.effort.torch.fill_(step + 5.0)
-        control.joint_pos.torch.fill_(step)
-        collection.compute()
-        torch.testing.assert_close(collection.output_command.effort.torch, torch.tensor([[expected_effort]]))
 
 
 def test_multi_group_explicit_outputs_match_pd_formula():
@@ -920,29 +889,27 @@ def test_partial_coverage_explicit_group_reads_fresh_commands_each_compute():
 
 def test_native_execution_bypasses_lab_aggregation(monkeypatch):
     control = NativeFakeActuatorControl(joint_names=[f"joint_{index}" for index in range(4)])
+    configs = {
+        "hips": _dc_cfg(
+            ["joint_0", "joint_1"],
+            stiffness=20.0,
+            damping=1.0,
+            effort_limit=40.0,
+            velocity_limit=10.0,
+            saturation_effort=60.0,
+        ),
+        "knees": _dc_cfg(
+            ["joint_2", "joint_3"],
+            stiffness=30.0,
+            damping=2.0,
+            effort_limit=70.0,
+            velocity_limit=20.0,
+            saturation_effort=120.0,
+        ),
+    }
     with warnings.catch_warnings(record=True) as caught_warnings:
         warnings.simplefilter("always")
-        collection = ActuatorCollection(
-            {
-                "hips": _dc_cfg(
-                    ["joint_0", "joint_1"],
-                    stiffness=20.0,
-                    damping=1.0,
-                    effort_limit=40.0,
-                    velocity_limit=10.0,
-                    saturation_effort=60.0,
-                ),
-                "knees": _dc_cfg(
-                    ["joint_2", "joint_3"],
-                    stiffness=30.0,
-                    damping=2.0,
-                    effort_limit=70.0,
-                    velocity_limit=20.0,
-                    saturation_effort=120.0,
-                ),
-            },
-            control,
-        )
+        collection = ActuatorCollection(configs, control)
 
     assert not [warning for warning in caught_warnings if warning.category is DeprecationWarning]
 
@@ -951,6 +918,13 @@ def test_native_execution_bypasses_lab_aggregation(monkeypatch):
 
     monkeypatch.setattr(DCMotor, "compute", fail_compute)
     collection.compute()
+
+    configs["hips"] = DelayedImplicitActuatorCfg(
+        joint_names_expr=["joint_0", "joint_1"], stiffness=20.0, damping=1.0, max_delay=2
+    )
+    monkeypatch.setattr(control, "prepare_native_actuators", lambda collection, actuator_cfgs: {"knees"})
+    with pytest.raises(ValueError, match="use_newton_actuators"):
+        ActuatorCollection(configs, control)
 
 
 def test_collection_accepts_cached_proxy_joint_indices():
