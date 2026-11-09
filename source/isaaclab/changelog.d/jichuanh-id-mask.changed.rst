@@ -12,3 +12,5 @@
 * Changed :func:`~isaaclab.utils.warp.memory.resolve_ids` to use given ids over a mask: the mask is converted to ids
   only when no ids (or ``slice(None)``) are given. When both ``env_ids`` and ``env_mask`` are given, PhysX assets now
   use the ids, which their views take without a host synchronization; mask-native consumers still use the mask.
+* Changed :func:`~isaaclab.utils.warp.memory.resolve_ids` to accept ``all_ids=slice(None)`` for a consumer
+  that indexes torch tensors: every element stays a slice and given ids are returned as given.
