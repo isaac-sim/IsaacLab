@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import MISSING
 from typing import TYPE_CHECKING, Any
 
@@ -147,9 +148,14 @@ class ArticulationCfg(AssetBaseCfg):
         other actuator configurations no-op when native execution is disabled.
         """
         if self.self_collision_filter_pairs:
-            from .collision_filtering import _apply_self_collision_filters  # noqa: PLC0415
+            from ...sim.schemas.schemas import _apply_articulation_collision_filters  # noqa: PLC0415
 
-            _apply_self_collision_filters(self, stage)
+            _apply_articulation_collision_filters(
+                self._resolve_self_collision_filter_paths(),
+                self.self_collision_filter_pairs,
+                articulation_root_prim_path=self.articulation_root_prim_path,
+                stage=stage,
+            )
         if self.spawn is None or self.actuators is MISSING:
             return
         from ...sim.schemas.schemas_actuators import define_actuator_properties  # noqa: PLC0415
@@ -162,3 +168,35 @@ class ArticulationCfg(AssetBaseCfg):
             self.spawn.spawn_path if self.spawn is not None and self.spawn.spawn_path is not None else self.prim_path
         )
         define_actuator_properties(author_prim_path, self.actuators, stage=stage)
+
+    def _resolve_self_collision_filter_paths(self) -> list[str]:
+        """Resolve source prim-path expressions for this asset's collision exclusions."""
+        from ...cloner import path as cloner_path  # noqa: PLC0415
+        from ...sim import MultiAssetSpawnerCfg, MultiUsdFileCfg, SimulationContext  # noqa: PLC0415
+
+        expressions = [self.prim_path]
+        if self.spawn is not None:
+            if self.spawn.spawn_path is not None:
+                expressions.append(re.escape(self.spawn.spawn_path))
+            if isinstance(self.spawn, (MultiAssetSpawnerCfg, MultiUsdFileCfg)) and self.spawn.spawn_paths is not None:
+                expressions.extend(re.escape(path) for path in self.spawn.spawn_paths if path is not None)
+
+        sim = SimulationContext.instance()
+        plan = sim.get_clone_plan() if sim is not None else None
+        if plan is not None:
+            sources = cloner_path.get_asset_prototype_paths(plan)
+            expressions.extend(
+                re.escape(sources[index])
+                for index in cloner_path.get_asset_prototypes(plan, self.prim_path)
+                if sources[index] is not None
+            )
+            # A non-spawning articulation may be owned by a larger scene source.
+            templates, _ = cloner_path.get_world_prototype_asset_templates(plan)
+            for asset, template in zip(plan.topology.world_prototypes, templates, strict=True):
+                source = sources[asset]
+                if source is None or "{}" not in template:
+                    continue
+                matched = cloner_path.match(self.prim_path, template)
+                if matched is not None:
+                    expressions.append(re.escape(source) + matched.suffix)
+        return expressions
