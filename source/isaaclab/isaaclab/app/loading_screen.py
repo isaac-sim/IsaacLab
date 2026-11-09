@@ -586,7 +586,7 @@ class LoadingScreen:
             self._console.write(text)
         except UnicodeEncodeError:
             # Redirected consoles can use legacy encodings that cannot display every glyph.
-            encoding = getattr(self._console, "encoding", None) or "ascii"
+            encoding = self._console.encoding or "ascii"
             self._console.write(text.encode(encoding, errors="replace").decode(encoding))
         self._console.flush()
 

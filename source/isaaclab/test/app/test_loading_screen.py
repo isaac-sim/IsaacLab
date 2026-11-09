@@ -50,9 +50,10 @@ def _render(display: RenderableType, width: int, color_system=None) -> str:
 )
 def test_summary_preserves_encodable_text_on_redirected_console(
     monkeypatch: pytest.MonkeyPatch, encoding: str, expected_title: str, expected_description: str
-):
+) -> None:
     with TextIOWrapper(BytesIO(), encoding=encoding, errors="strict") as stream, monkeypatch.context() as patch:
         patch.setattr(sys, "stdout", stream)
+        patch.setenv("COLUMNS", "80")
         screen = loading_screen.LoadingScreen(1, enabled=False, logo=False)
 
         screen.summary("Isaac Lab · train", {"Task": "Isaac-Cartpole", "Description": "台車🙂"})
