@@ -34,6 +34,7 @@ def _task_helper_stays_python(argv: list[str], runner: str) -> bool:
     run = mock.Mock(return_value=0)
     enabled = bool(torch.jit._state._enabled)
     try:
+        torch.jit._state.enable()  # known starting state, independent of earlier tests
         with (
             mock.patch.dict(sys.modules, {"isaaclab_rl.entrypoints": mock.Mock(**{runner: run})}),
             mock.patch.object(cli.importlib.metadata, "entry_points", return_value=[entry_point]),
