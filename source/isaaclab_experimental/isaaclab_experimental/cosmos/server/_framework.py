@@ -291,6 +291,9 @@ class CosmosInferenceModel:
         data = _get_prompt_sample_data(sample, model, h=height, w=width, device="cuda")
         # Like the Sim-Transfer recipe (emphasize_control_in_prompt off), the caption does not name the control.
         data.update(dataset_name="video_transfer", system_prompt=_SYSTEM_PROMPT_TRANSFER, fps=[30.0])
+        # The Framework's own Transfer requests carry this marker. Compiled generation reads it to keep the numerics
+        # the checkpoint was validated with (see the Framework's docs/transfer_numerical_preservation.md).
+        data["_preserve_transfer_numerics"] = True
         return data
 
 
