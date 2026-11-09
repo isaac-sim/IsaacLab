@@ -125,11 +125,11 @@ def test_env_reset_clears_selected_mjwarp_solver_internals(device):
         warm_start[1].fill_(29.0)
         wp.synchronize_device(device)
 
-        with (
-            patch.object(NewtonBackend, "_simulate_full", lambda self: None),
-            patch.object(NewtonBackend, "_simulate_physics_only", lambda self: None),
-        ):
+        backend = sim.backend_manager.backend
+        backend.invalidate_graph()
+        with patch.object(NewtonBackend, "_simulate", lambda self, steps: None):
             sim.step(render=False)
+        backend.invalidate_graph()
         wp.synchronize_device(device)
 
         torch.testing.assert_close(wp.to_torch(state.joint_q), joint_q_before)

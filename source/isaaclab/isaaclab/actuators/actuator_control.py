@@ -311,7 +311,8 @@ class ActuatorControl(ABC):
         """Reset backend-native actuator state.
 
         .. caution::
-            If both ``env_ids`` and ``env_mask`` are provided, ``env_mask`` takes precedence.
+            If both ``env_ids`` and ``env_mask`` are provided, the implementation uses the one it takes without
+            conversion.
 
         Args:
             env_ids: Environments to reset.

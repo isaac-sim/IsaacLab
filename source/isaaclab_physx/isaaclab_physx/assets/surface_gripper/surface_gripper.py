@@ -418,7 +418,7 @@ class SurfaceGripper(AssetBase):
             Use :meth:`reset_index` instead.
 
         .. caution::
-            If both ``env_ids`` and ``env_mask`` are provided, ``env_mask`` takes precedence.
+            If both ``env_ids`` and ``env_mask`` are provided, ``env_ids`` is used: the gripper view takes indices.
 
         Args:
             env_ids: Environment indices. Defaults to None (all environments).
@@ -566,7 +566,7 @@ class SurfaceGripper(AssetBase):
 
         Args:
             env_ids: Environment indices. Can be None, a slice, a list, or a torch.Tensor.
-            env_mask: Boolean mask; takes precedence over ``env_ids``.
+            env_mask: Boolean mask, converted to ids only when ``env_ids`` is not given.
 
         Returns:
             A warp array of int32 indices.

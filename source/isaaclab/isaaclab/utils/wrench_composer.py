@@ -554,7 +554,7 @@ class WrenchComposer:
         flags. Other ``env_ids`` or ``env_mask`` values perform a partial reset on the specified environments using
         the reset kernels. An inactive composer already holds zero buffers, so any reset of it is a no-op.
 
-        .. caution:: If both ``env_ids`` and ``env_mask`` are provided, ``env_mask`` takes precedence.
+        .. caution:: If both ``env_ids`` and ``env_mask`` are provided, the mask is used: the kernels take it.
 
         Args:
             env_ids: Environment indices. Defaults to None (all environments).

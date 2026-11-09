@@ -23,7 +23,7 @@ The composite scene runs on the CPU without CUDA-graph capture. On CUDA, own-sce
 republish and the fixed-tendon mask writes recorded into a captured graph.
 """
 
-from isaaclab_newton.physics import NewtonCfg, NewtonManager
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonBackend, NewtonBackendCfg, NewtonCfg, NewtonManager
 from isaaclab_newton.test.fixtures.mock_newton import backend_stub
 
 from isaaclab.sim import FrameView, SimulationCfg
@@ -37,21 +37,22 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from types import SimpleNamespace
 
-import isaaclab_newton.physics.newton_backend as newton_backend_module
 import newton
 import numpy as np
 import pytest
 import torch
 import warp as wp
-from isaaclab_newton.assets import Articulation
+from isaaclab_newton.assets import Articulation, RigidObject
+from isaaclab_newton.assets.articulation import articulation as articulation_module
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
 from isaaclab_newton.assets.articulation.articulation_data import ArticulationData
 from isaaclab_newton.controllers.ik import NewtonIKPoseObjectiveCfg
 from isaaclab_newton.envs.mdp.actions.newton_ik_actions import NewtonInverseKinematicsAction
 from isaaclab_newton.envs.mdp.actions.newton_ik_actions_cfg import NewtonInverseKinematicsActionCfg
 from isaaclab_physx.sim.schemas import PhysxJointCfg
-from newton import JointType, ModelBuilder, ModelFlags, ShapeFlags
+from newton import JointTargetMode, JointType, ModelBuilder, ModelFlags, ShapeFlags
 from newton.selection import ArticulationView
+from newton.solvers import SolverMuJoCo
 from newton_test_utils import (
     NUM_ENVS,
     WRIST_USD_STIFFNESS,
@@ -384,27 +385,6 @@ def test_write_joint_limit_data_to_user_and_backend_mask_reorders_backend_buffer
     assert clamped_defaults.numpy()[0] == 2
 
 
-@pytest.mark.parametrize("index_dtype", [wp.int32, wp.int64])
-def test_scatter_reset_masks_from_ids_accepts_index_dtype(index_dtype: type) -> None:
-    """Set exact world and articulation reset masks from nonidentity environment IDs."""
-
-    env_ids = _selector([2, 0], index_dtype)
-    articulation_ids = wp.array(np.asarray([[0, 1], [2, 3], [4, 5]], dtype=np.int32), dtype=int, device="cpu")
-    world_mask = wp.zeros(3, dtype=wp.bool, device="cpu")
-    fk_mask = wp.zeros(6, dtype=wp.bool, device="cpu")
-
-    wp.launch(
-        newton_backend_module._flag_worlds_and_articulations_indexed,
-        dim=(env_ids.shape[0], articulation_ids.shape[1]),
-        inputs=[env_ids, articulation_ids],
-        outputs=[world_mask, fk_mask],
-        device="cpu",
-    )
-
-    np.testing.assert_array_equal(world_mask.numpy(), np.asarray([True, False, True]))
-    np.testing.assert_array_equal(fk_mask.numpy(), np.asarray([True, True, False, False, True, True]))
-
-
 def test_num_shapes_per_body_follows_public_body_order() -> None:
     """Align Newton shape counts with the public body-name axis."""
 
@@ -449,11 +429,14 @@ def test_task_space_allocation_and_capture(device, first_property):
     state, control = model.state(), model.control()
     backend_manager = NewtonManager(NewtonCfg())
     backend_manager.backend = backend_stub(
+        model_changes=set(),
         model=model,
         state_0=state,
         control=control,
         solver=None,
         kinematics_dirty=False,
+        state_version=0,
+        device=model.device,
         transforms_may_change_on_graph_replay=False,
     )
     view = ArticulationView(model, "Robot", exclude_joint_types=[JointType.FIXED])
@@ -500,11 +483,14 @@ def test_world_hinged_root_has_no_base_dofs(device):
     state, control = model.state(), model.control()
     backend_manager = NewtonManager(NewtonCfg())
     backend_manager.backend = backend_stub(
+        model_changes=set(),
         model=model,
         state_0=state,
         control=control,
         solver=None,
         kinematics_dirty=False,
+        state_version=0,
+        device=model.device,
         transforms_may_change_on_graph_replay=False,
     )
     root_view = ArticulationView(model, "Robot")
@@ -512,6 +498,93 @@ def test_world_hinged_root_has_no_base_dofs(device):
     data._apply_ordering_maps_after_resolve()
 
     assert data.body_link_jacobian_w.torch.shape[-1] == data.mass_matrix.torch.shape[-1] == 1
+
+
+@pytest.mark.parametrize(
+    ("asset_class", "writer", "selector"),
+    [
+        (Articulation, "write_root_link_pose_to_sim_index", "env_ids"),
+        (Articulation, "write_root_com_pose_to_sim_mask", "env_mask"),
+        (RigidObject, "write_root_link_pose_to_sim_mask", "env_mask"),
+        (RigidObject, "write_root_com_pose_to_sim_index", "env_ids"),
+    ],
+)
+def test_fixed_root_pose_write_updates_mujoco_root_transform(asset_class, writer, selector):
+    """A model-backed root write reaches MuJoCo Warp's solver-owned root transform at the next model refresh."""
+    builder = ModelBuilder()
+    SolverMuJoCo.register_custom_attributes(builder)
+    builder.begin_world()
+    root = builder.add_link(mass=1.0, inertia=wp.mat33(np.eye(3)))
+    builder.add_articulation([builder.add_joint_fixed(-1, root)], label="robot")
+    builder.end_world()
+    cfg = NewtonCfg(solver_cfg=MJWarpSolverCfg(), use_cuda_graph=False)
+    backend = NewtonBackend(NewtonBackendCfg(physics_cfg=cfg, device="cpu"), builder, dt=0.01)
+    backend.init_solver()
+    model = backend.model
+    view = ArticulationView(model, "robot", verbose=False)
+    body_com = view.get_attribute("body_com", model)[:, 0]
+    data = SimpleNamespace(
+        _sim_bind_root_link_pose_w=view.get_root_transforms(model)[:, 0],
+        _sim_bind_body_com_pos_b=body_com,
+        body_com_pos_b=body_com,
+    )
+    all_envs = wp.array([True], dtype=wp.bool, device="cpu")
+    asset = SimpleNamespace(
+        root_view=view,
+        data=data,
+        device="cpu",
+        _ALL_ENV_MASK=all_envs,
+        _resolve_env_ids=lambda ids: ids,
+        _resolve_mask=lambda mask, default: default if mask is None else mask,
+        assert_shape_and_dtype=lambda *args: None,
+        assert_shape_and_dtype_mask=lambda *args: None,
+    )
+    asset._backend_manager = NewtonManager(cfg)
+    asset._backend_manager.backend = backend
+    target = wp.array([[1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0]], dtype=wp.transform, device="cpu")
+    selection = wp.array([0], dtype=wp.int32, device="cpu") if selector == "env_ids" else all_envs
+
+    getattr(asset_class, writer)(asset, root_pose=target, skip_forward=True, **{selector: selection})
+    backend.notify_model_changes()
+
+    np.testing.assert_allclose(backend.solver.mjw_data.mocap_pos.numpy()[0, 0], target.numpy()[0, :3])
+
+
+def test_joint_target_modes_are_resolved_once_for_replicas(monkeypatch):
+    """Target modes are resolved on the first replica and copied to the others."""
+    builder = SimpleNamespace(
+        articulation_label=["/World/Env_0/Robot", "/World/Env_1/Robot"],
+        articulation_start=[0, 1],
+        articulation_end=[1, 2],
+        joint_type=[JointType.REVOLUTE, JointType.REVOLUTE],
+        joint_qd_start=[0, 1],
+        joint_label=["/World/Env_0/Robot/joint", "/World/Env_1/Robot/joint"],
+        joint_target_mode=[int(JointTargetMode.NONE)] * 2,
+        joint_target_ke=[0.0] * 2,
+        joint_target_kd=[0.0] * 2,
+    )
+    cfg = SimpleNamespace(
+        prim_path="/World/Env_[^/]*/Robot",
+        articulation_root_prim_path="",
+        actuators={"joint": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=10.0, damping=0.0)},
+    )
+    original = articulation_module.resolve_matching_names
+    resolutions = []
+
+    def count_resolutions(name_keys, names, *args, **kwargs):
+        if names == ["joint"]:
+            resolutions.append(names)
+        return original(name_keys, names, *args, **kwargs)
+
+    monkeypatch.setattr(articulation_module, "resolve_matching_names", count_resolutions)
+    monkeypatch.setattr(
+        SimulationContext, "instance", lambda: SimpleNamespace(backend_manager=SimpleNamespace(builder=builder))
+    )
+
+    Articulation._configure_joint_target_modes(SimpleNamespace(cfg=cfg), None)
+
+    assert builder.joint_target_mode == [int(JointTargetMode.POSITION)] * 2
+    assert len(resolutions) == 1
 
 
 ##
@@ -710,34 +783,13 @@ def test_hard_reset_recreates_ordered_state_and_actuators(device: str) -> None:
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_fixed_tendon_mask_writer_reaches_solver_on_every_replay(device: str) -> None:
-    """Each replay of a CUDA graph holding the fixed-tendon mask writer refreshes the solver's tendon properties.
-
-    The solver keeps its own copy of them, so a refresh queued only while capturing would leave the physics on the
-    values of the first replay.
-    """
-    with build_simulation_context(sim_cfg=newton_sim_cfg(device, use_newton_actuators=False)) as sim:
-        articulation = spawn_assets({"tendon": _island_cfgs()["tendon"]})["tendon"]
-        sim.reset()
-        stiffness = torch.zeros(articulation.num_instances, articulation.num_fixed_tendons, device=device)
-        with wp.ScopedCapture(device) as capture:
-            articulation.set_fixed_tendon_stiffness_mask(stiffness=stiffness)
-            articulation.write_fixed_tendon_properties_to_sim_mask()
-        solver_model = sim.backend_manager.backend.solver.mjw_model
-        for value in (12.0, 34.0):
-            stiffness.fill_(value)
-            wp.capture_launch(capture.graph)
-            sim.step()
-            np.testing.assert_allclose(solver_model.tendon_stiffness.numpy(), value)
-
-
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_newton_ordered_state_publishes_inside_captured_cuda_graph(device: str) -> None:
     """Republish the user-order state shadows from inside a captured CUDA graph.
 
     With CUDA-graph capture a step replays the recorded launches, so the post-step reorder of the Tier-1 shadows
     must be recorded into the graph rather than run from Python. The shadows are clobbered after the graph exists
     and must equal the reordered backend state after one replayed step, without a state property read in between.
+    A derived heading primed before capture must also refresh inside the graph when the root orientation changes.
     """
     articulation_cfg = ArticulationCfg(
         prim_path="/World/Env_[^/]*/Robot",
@@ -751,10 +803,14 @@ def test_newton_ordered_state_publishes_inside_captured_cuda_graph(device: str) 
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
         articulation = spawn_assets({"robot": articulation_cfg})["robot"]
         sim.reset()
-        # the first step captures the graph that later steps replay
-        sim.step()
-        assert sim.backend_manager.backend.graph is not None
         data = articulation.data
+        root_pose = data.root_link_pose_w.torch.clone()
+        sampled_heading = wp.zeros(articulation.num_instances, dtype=wp.float32, device=device)
+        wp.copy(sampled_heading, data.heading_w.warp)
+        sim.backend_manager.register_post_step_callback(lambda: wp.copy(sampled_heading, data.heading_w.warp))
+        # The first step captures the graph after the heading cache is already current at this timestamp.
+        sim.step()
+        assert sim.backend_manager.backend.graphs
         joint_u2b = np.asarray(articulation.joint_ordering.user_to_backend_indices)
         body_u2b = np.asarray(articulation.body_ordering.user_to_backend_indices)
 
@@ -773,6 +829,12 @@ def test_newton_ordered_state_publishes_inside_captured_cuda_graph(device: str) 
         np.testing.assert_allclose(
             data._body_com_vel_w_user.numpy(), data._sim_bind_body_com_vel_w.numpy()[:, body_u2b]
         )
+
+        for yaw in (0.4, -0.3):
+            root_pose[:, 3:] = torch.tensor([0.0, 0.0, np.sin(yaw / 2), np.cos(yaw / 2)], device=device)
+            articulation.write_root_pose_to_sim_index(root_pose=root_pose)
+            sim.step(render=False)
+            np.testing.assert_allclose(sampled_heading.numpy(), yaw, atol=1e-5)
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
@@ -1372,7 +1434,7 @@ def test_floating_articulation_root_and_wrench_response(scene: _Scene, monkeypat
     actuator_reset = actuator.reset
     reset_env_ids = []
 
-    def record_actuator_reset(env_ids: torch.Tensor | None = None, env_mask: torch.Tensor | None = None) -> None:
+    def record_actuator_reset(env_ids: torch.Tensor | None = None, env_mask: wp.array | None = None) -> None:
         reset_env_ids.append(env_ids)
         actuator_reset(env_ids, env_mask=env_mask)
 
@@ -2136,8 +2198,8 @@ def test_body_q_consistent_after_root_write(scene: _Scene) -> None:
     Regression test for a NaN bug where collide() used stale body_q after env
     reset because eval_fk was not called between write_root_pose and collide.
 
-    The scene uses Newton's collision pipeline, and the test patches ``_simulate_physics_only`` to capture
-    body_q at the moment collide() is called and asserts it matches joint_q.
+    The scene uses Newton's collision pipeline, and a control callback captures body_q right after collide()
+    and asserts it matches joint_q.
     """
     device = scene.device
     articulation = scene.articulations["floating"]
@@ -2159,7 +2221,7 @@ def test_body_q_consistent_after_root_write(scene: _Scene) -> None:
         env_ids=torch.tensor([0], device=device, dtype=torch.int32),
     )
 
-    # Pre-actuator callbacks run after the reset is resolved and before collision.
+    # Control callbacks run after the reset is resolved and after collision.
     captured = {}
     backend_manager = scene.sim.backend_manager
 

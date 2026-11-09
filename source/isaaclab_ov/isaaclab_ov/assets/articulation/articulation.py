@@ -211,7 +211,7 @@ class Articulation(BaseArticulation):
         """Reset the articulation.
 
         .. caution::
-            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`.
+            If both `env_ids` and `env_mask` are provided, `env_mask` is used: the masked writes take it.
 
         Args:
             env_ids: Environment indices. If None, then all indices are used.
@@ -219,9 +219,8 @@ class Articulation(BaseArticulation):
         """
         if (env_ids is None) or (env_ids == slice(None)):
             env_ids = slice(None)
-        # reset actuators, including backend-native actuator state. None selects all
-        # environments; delayed-actuator buffers do not accept a slice.
-        self.actuators.reset(None if env_ids == slice(None) else env_ids, env_mask=env_mask)
+        # reset actuators, including backend-native actuator state
+        self.actuators.reset(env_ids, env_mask=env_mask)
         # reset external wrenches.
         self._instantaneous_wrench_composer.reset(env_ids, env_mask)
         self._permanent_wrench_composer.reset(env_ids, env_mask)
@@ -918,6 +917,10 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Set joint positions and velocities over selected indices into the simulation.
 
+        .. deprecated::
+            Use :meth:`write_joint_state_to_sim_mask`, or :meth:`write_joint_position_to_sim_index` and
+            :meth:`write_joint_velocity_to_sim_index`.
+
         The joint position and velocity caches, finite-difference velocity baseline, and
         joint acceleration cache are updated in one device kernel.
 
@@ -934,6 +937,12 @@ class Articulation(BaseArticulation):
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
+        warnings.warn(
+            "Articulation.write_joint_state_to_sim_index is deprecated. Use write_joint_state_to_sim_mask, or"
+            " write_joint_position_to_sim_index and write_joint_velocity_to_sim_index.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         joint_selection_is_partial = joint_ids is not None
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)

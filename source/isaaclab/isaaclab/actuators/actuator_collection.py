@@ -24,7 +24,6 @@ from ..utils.warp.launch_cache import _WarpLaunchCache
 from . import actuator_kernels
 from .actuator_base import ActuatorBase, resolve_joint_parameter
 from .actuator_base_cfg import ActuatorBaseCfg, _is_implicit_actuator_cfg
-from .actuator_compat import resolve_limit_aliases
 from .actuator_control import _JOINT_PROPERTY_KEYS, ActuatorControl
 from .actuator_pd import IdealPDActuator, ImplicitActuator
 
@@ -88,8 +87,6 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
         self._allocate_buffers()
         self._target_command = ActuatorTargetCommand(self)
         self._output_command = ActuatorOutputCommand(self)
-        for name, cfg in resolved_cfgs.items():
-            resolve_limit_aliases(name, cfg, resolved_group_joints[name][1])
         self._native_group_names = self._control.prepare_native_actuators(self, resolved_cfgs)
         self._build_groups(resolved_cfgs, resolved_group_joints)
         self._newton_selection = self._control.finalize_native_actuators(self)
@@ -183,23 +180,21 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
     def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None) -> None:
         """Reset all actuator group states.
 
-        Isaac Lab actuator models receive the mask as a zero-copy boolean tensor through the ``env_mask``
-        argument of :meth:`~isaaclab.actuators.ActuatorBase.reset`. Backend-native actuator state resets from
-        the mask directly.
-
         .. caution::
-            If both ``env_ids`` and ``env_mask`` are provided, ``env_mask`` takes precedence.
+            If both ``env_ids`` and ``env_mask`` are provided, each actuator uses the one it takes without conversion.
 
         Args:
             env_ids: Environment indices to reset. Defaults to all environments.
             env_mask: Environment mask. Shape is (num_instances,). Defaults to None.
         """
+        # None selects all environments; delayed-actuator buffers do not accept a slice
+        if isinstance(env_ids, slice) and env_ids == slice(None):
+            env_ids = None
         group_env_ids = self._control._normalize_index_sequence(env_ids)
-        group_env_mask = None if env_mask is None else wp.to_torch(env_mask)
         for actuator in self._groups.values():
             # Newton-executed groups are reset through the backend below.
             if isinstance(actuator, ActuatorBase):
-                actuator.reset(env_ids=group_env_ids, env_mask=group_env_mask)
+                actuator.reset(env_ids=group_env_ids, env_mask=env_mask)
         self._control.reset_native_actuators(slice(None) if group_env_ids is None else group_env_ids, env_mask)
 
     def compute(self, dt: float = 0.0) -> None:

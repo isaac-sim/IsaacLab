@@ -248,10 +248,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         # -- reward computation
         self.reward_buf = self.reward_manager.compute(dt=self.step_dt)
 
-        if len(self.recorder_manager.active_terms) > 0:
-            # update observations for recording if needed
-            self.observation_manager.compute(return_cloned_output=False)
-            self.recorder_manager.record_post_step()
+        self.recorder_manager.record_post_step()
 
         # -- reset envs that terminated/timed-out and log the episode information
         # the reset pipeline advances curriculum and logging state even for an empty mask, so one

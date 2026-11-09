@@ -105,6 +105,10 @@ class NewtonActuatorAdapter:
         # Newton actuator states reset by a per-DOF mask, which every partial reset expands from the env mask.
         # Allocated once and fully rewritten on each reset, so a reset does not allocate.
         self._reset_dof_masks = [wp.zeros(act.indices.shape[0], dtype=wp.bool, device=device) for act in actuators]
+        # The state resets of each actuator.
+        self._state_resets = [
+            [state.reset for state in (sa, sb) if state is not None] for sa, sb in zip(self._states_a, self._states_b)
+        ]
         # Env masks for resolving env ids in :meth:`reset`.
         self._all_env_mask = wp.ones(num_envs, dtype=wp.bool, device=device)
         self._scratch_env_mask = wp.zeros(num_envs, dtype=wp.bool, device=device)
@@ -187,7 +191,7 @@ class NewtonActuatorAdapter:
                 resets all environments. Otherwise expects a torch tensor
                 or sequence of int indices.
             env_mask: Boolean environment mask with shape ``(num_envs,)``.
-                Takes precedence over :paramref:`env_ids`.
+                Used over :paramref:`env_ids` when given: the adapter's kernels take the mask.
 
         Newton's :meth:`Actuator.State.reset` expects a per-DOF boolean
         mask of length ``num_actuators`` (= ``num_envs * dofs_per_actuator``),
@@ -197,11 +201,9 @@ class NewtonActuatorAdapter:
         env mask before delegating to each state.
         """
         if env_mask is None and (env_ids is None or env_ids == slice(None)):
-            for sa, sb in zip(self._states_a, self._states_b):
-                if sa is not None:
-                    sa.reset(None)
-                if sb is not None:
-                    sb.reset(None)
+            for resets in self._state_resets:
+                for reset in resets:
+                    reset(None)
             return
 
         if env_mask is None:
@@ -214,17 +216,15 @@ class NewtonActuatorAdapter:
                 scratch_mask=self._scratch_env_mask,
             )
 
-        for act, sa, sb, per_dof_mask in zip(self.actuators, self._states_a, self._states_b, self._reset_dof_masks):
+        for act, resets, per_dof_mask in zip(self.actuators, self._state_resets, self._reset_dof_masks):
             wp.launch(
                 build_per_dof_env_mask_kernel,
                 dim=act.indices.shape[0],
                 inputs=[act.indices, env_mask, self._dof_offset, self.num_joints, per_dof_mask],
                 device=self._device,
             )
-            if sa is not None:
-                sa.reset(per_dof_mask)
-            if sb is not None:
-                sb.reset(per_dof_mask)
+            for reset in resets:
+                reset(per_dof_mask)
 
     def bind_articulation(
         self,
@@ -609,7 +609,7 @@ def _create_actuators_from_usd(
     as ``SHARED_PARAMS`` (e.g. ``model_path``, ``lookup_positions``) remain
     part of the grouping key and are passed through directly.
     """
-    from pxr import Usd  # noqa: PLC0415
+    from pxr import Sdf, Usd  # noqa: PLC0415
 
     wp_device = wp.get_device(device)
 
@@ -622,9 +622,17 @@ def _create_actuators_from_usd(
 
     parsed_per_joint: dict[int, Any] = {}
     for prim in Usd.PrimRange(root_prim):
-        # Isaac Lab actuator configs explicitly select this checkpoint. Preserve
-        # their existing execution semantics with Newton's trust-gated parser.
-        parsed = parse_actuator_prim(prim, allow_unsafe_torch_checkpoints=True)
+        allow_unsafe_torch_checkpoint = False
+        if prim.GetTypeName() == "NewtonActuator":
+            # Newton 1.9 gates legacy Torch checkpoint imports; opt in only for authored Torch model paths.
+            model_path_attr = prim.GetAttribute("newton:modelPath")
+            model_path = model_path_attr.Get() if model_path_attr else None
+            if isinstance(model_path, Sdf.AssetPath):
+                model_path = model_path.path
+            allow_unsafe_torch_checkpoint = isinstance(model_path, str) and model_path.lower().endswith(
+                (".pt", ".pth", ".pt2")
+            )
+        parsed = parse_actuator_prim(prim, allow_unsafe_torch_checkpoints=allow_unsafe_torch_checkpoint)
         if parsed is None:
             continue
         target_name = parsed.target_path.rsplit("/", 1)[-1]

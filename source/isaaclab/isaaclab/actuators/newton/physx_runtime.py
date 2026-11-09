@@ -130,7 +130,8 @@ class PhysxActuatorRuntime:
 
         Args:
             env_ids: Environments to reset. Defaults to all environments.
-            env_mask: Environment mask. Takes precedence over ``env_ids``. Shape is (num_instances,).
+            env_mask: Environment mask, which the adapter's kernels take; ``env_ids`` are used only without one.
+                Shape is (num_instances,).
         """
         if self.adapter is not None:
             self.adapter.reset(env_ids, env_mask)
@@ -173,7 +174,7 @@ class PhysxActuatorRuntime:
         graphs = []
         try:
             for _ in range(2):
-                with wp.ScopedCapture(device=self._articulation.device, force_module_load=True) as capture:
+                with wp.ScopedCapture(device=self._articulation.device) as capture:
                     self._run_native_actuator_kernels(collection, dt)
                 graphs.append(capture.graph)
         except Exception as exc:

@@ -419,7 +419,7 @@ class InteractiveScene:
         """Resets the scene entities.
 
         .. caution::
-            If both ``env_ids`` and ``env_mask`` are provided, ``env_mask`` takes precedence.
+            If both ``env_ids`` and ``env_mask`` are provided, each entity uses the one it takes without conversion.
 
         Args:
             env_ids: The indices of the environments to reset.

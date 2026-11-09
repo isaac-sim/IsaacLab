@@ -72,12 +72,15 @@ def test_proxy_array_selects_through_its_warp_array(device):
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("mask_type", ["warp", "torch"])
 def test_resolve_ids_from_a_mask(device, mask_type):
-    """A mask resolves to its ascending ids and takes precedence over ids; :func:`resolve_1d_indices` casts to int32."""
+    """A mask resolves to its ascending ids when no ids are given, and given ids are used as given;
+    :func:`resolve_1d_indices` casts to int32."""
     mask_bool = torch.tensor([0, 1, 1, 0, 1, 0, 0, 1], dtype=torch.bool, device=wp.device_to_torch(device))
     mask = wp.from_torch(mask_bool, dtype=wp.bool) if mask_type == "warp" else mask_bool
     all_ids = _all_ids(mask_bool.shape[0], device)
-    ids = resolve_ids(ids=[0, 1], mask=mask, all_ids=all_ids)
-    assert ids.dtype == torch.int64 and ids.tolist() == [1, 2, 4, 7]
+    assert resolve_ids(ids=[0, 1], mask=mask, all_ids=all_ids).numpy().tolist() == [0, 1]
+    for given in (None, slice(None)):
+        ids = resolve_ids(ids=given, mask=mask, all_ids=all_ids)
+        assert ids.dtype == torch.int64 and ids.tolist() == [1, 2, 4, 7]
     ids_int32 = resolve_1d_indices(resolve_ids(mask=mask, all_ids=all_ids))
     assert isinstance(ids_int32, wp.array) and ids_int32.dtype == wp.int32 and ids_int32.is_contiguous
     assert ids_int32.numpy().tolist() == [1, 2, 4, 7]
@@ -114,3 +117,15 @@ def test_resolve_1d_mask_copies_a_selection_on_another_device(device, monkeypatc
     ids = wp.array([0, 2], dtype=wp.int32, device="cpu")
     assert resolve_1d_mask(ids=ids, all_mask=all_mask, scratch_mask=scratch) is scratch
     assert scratch.numpy().tolist() == [True, False, True]
+
+
+@pytest.mark.parametrize("device", test_devices())
+def test_resolve_ids_for_torch_indexing(device):
+    """With ``all_ids=slice(None)``, every element stays a slice, given ids are returned as given, and a mask
+    resolves to its ids."""
+    mask = wp.array([False, True, True, False], dtype=wp.bool, device=device)
+    ids = torch.tensor([3, 0], device=wp.device_to_torch(device))
+    assert resolve_ids(all_ids=slice(None)) == slice(None)
+    assert resolve_ids(ids=slice(1, 3), all_ids=slice(None)) == slice(1, 3)
+    assert resolve_ids(ids=ids, mask=mask, all_ids=slice(None)) is ids
+    assert resolve_ids(ids=slice(None), mask=mask, all_ids=slice(None)).tolist() == [1, 2]

@@ -181,13 +181,13 @@ class Thruster:
         """Reset all envs.
 
         .. caution::
-            If both ``env_ids`` and ``env_mask`` are provided, ``env_mask`` takes precedence.
+            If both ``env_ids`` and ``env_mask`` are provided, ``env_ids`` is used: parameters are sampled per env id.
 
         Args:
             env_ids: Env indices to reset. If ``None``, resets all envs.
             env_mask: Env mask. Shape is (num_envs,). Defaults to None.
         """
-        if env_mask is not None:
+        if env_ids is None and env_mask is not None:
             # parameters are sampled per reset env, so the mask becomes indices
             env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
         self.reset_idx(env_ids)

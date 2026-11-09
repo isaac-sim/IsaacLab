@@ -629,7 +629,8 @@ def test_partial_write_preserves_unselected_backend_rows(monkeypatch, backend, s
 
 
 def test_partial_joint_state_write_follows_int64_selectors_and_restarts_acceleration(monkeypatch, backend):
-    """A fused joint-state write honors unsorted int64 selectors and restarts the finite-difference baseline."""
+    """The deprecated fused joint-state write warns, honors unsorted int64 selectors and restarts the
+    finite-difference baseline."""
     art, raw_backend = _articulation(backend, "cpu", monkeypatch, num_joints=3, num_bodies=2)
     art.data.update(dt=0.01)
     expected_joint_pos = art.data.joint_pos.torch.clone()
@@ -646,13 +647,14 @@ def test_partial_joint_state_write_follows_int64_selectors_and_restarts_accelera
     velocity = torch.tensor([[0.2, -0.2]])
 
     # int64 selectors with the joints in reverse order; the payload follows the selector order.
-    art.write_joint_state_to_sim_index(
-        position=position[:, [1, 0]],
-        velocity=velocity[:, [1, 0]],
-        env_ids=torch.tensor([1], dtype=torch.int64),
-        joint_ids=torch.tensor([2, 0], dtype=torch.int64),
-        skip_forward=True,
-    )
+    with pytest.warns(DeprecationWarning, match="write_joint_state_to_sim_index is deprecated"):
+        art.write_joint_state_to_sim_index(
+            position=position[:, [1, 0]],
+            velocity=velocity[:, [1, 0]],
+            env_ids=torch.tensor([1], dtype=torch.int64),
+            joint_ids=torch.tensor([2, 0], dtype=torch.int64),
+            skip_forward=True,
+        )
 
     expected_joint_pos[1, [0, 2]] = position[0]
     expected_joint_vel[1, [0, 2]] = velocity[0]
@@ -676,7 +678,8 @@ def test_partial_joint_state_write_follows_int64_selectors_and_restarts_accelera
     # ``skip_forward`` leaves the body caches to the caller; a regular write invalidates them.
     for name, buffer in caches:
         assert buffer.timestamp == art.data._sim_timestamp, name
-    art.write_joint_state_to_sim_index(position=position, velocity=velocity, env_ids=[1], joint_ids=[0, 2])
+    with pytest.warns(DeprecationWarning, match="write_joint_state_to_sim_index is deprecated"):
+        art.write_joint_state_to_sim_index(position=position, velocity=velocity, env_ids=[1], joint_ids=[0, 2])
     _assert_buffers_stale(art.data, caches)
 
 
@@ -1158,6 +1161,7 @@ def test_ordering_reorders_public_dynamics_quantities(monkeypatch, backend, is_f
 
 
 @requires("ovphysx")
+@pytest.mark.ov
 def test_ovphysx_ordered_reads_refresh_after_reset(monkeypatch):
     """Ordered OVPhysX pose, velocity, and friction shadows re-read the backend after invalidation."""
     from isaaclab_ov import tensor_types as TT
@@ -1207,6 +1211,7 @@ def test_ovphysx_ordered_reads_refresh_after_reset(monkeypatch):
 
 
 @requires("ovphysx")
+@pytest.mark.ov
 def test_ovphysx_ordered_reads_gather_once_per_step(monkeypatch):
     """Ordered root and body velocities share one backend read, and joint state is gathered once per step."""
     from isaaclab_ov import tensor_types as TT
@@ -1234,6 +1239,7 @@ def test_ovphysx_ordered_reads_gather_once_per_step(monkeypatch):
 
 
 @requires("ovphysx")
+@pytest.mark.ov
 def test_ovphysx_joint_acceleration_differences_public_order_velocities(monkeypatch):
     art, raw_backend = _ordered_joint_articulation("ovphysx", monkeypatch)
     user_to_backend = _user_to_backend(art.joint_ordering, 3)
@@ -1657,6 +1663,7 @@ def test_external_wrenches_are_written_in_backend_body_order(monkeypatch, backen
 
 
 @requires("ovphysx")
+@pytest.mark.ov
 def test_ovphysx_actuator_commands_are_written_in_backend_order(monkeypatch):
     """Implicit position, velocity, and effort commands reach their matching backend joints."""
     from isaaclab_ov import tensor_types as TT
@@ -1682,6 +1689,7 @@ def test_ovphysx_actuator_commands_are_written_in_backend_order(monkeypatch):
 
 
 @requires("ovphysx")
+@pytest.mark.ov
 def test_ovphysx_partial_effort_target_write_keeps_commanded_targets(monkeypatch):
     """A partial effort-target write keeps the other joints' commanded targets, not the last applied effort.
 
@@ -1709,6 +1717,7 @@ def test_ovphysx_partial_effort_target_write_keeps_commanded_targets(monkeypatch
 
 
 @requires("ovphysx")
+@pytest.mark.ov
 @pytest.mark.parametrize("selector_kind", ["torch", "warp"])
 def test_ovphysx_int64_effort_target_selector_reaches_binding(monkeypatch, selector_kind):
     """Indexed effort-target environment selectors reach the OVPhysX binding as int32 Warp indices."""
@@ -1739,6 +1748,7 @@ def test_ovphysx_int64_effort_target_selector_reaches_binding(monkeypatch, selec
 
 
 @requires("ovphysx")
+@pytest.mark.ov
 def test_ovphysx_configured_defaults_use_public_joint_names(monkeypatch):
     art, _ = get_articulation(
         "ovphysx", 1, 3, 2, device="cpu", joint_ordering=("joint_2", "joint_1", "joint_0"), monkeypatch=monkeypatch

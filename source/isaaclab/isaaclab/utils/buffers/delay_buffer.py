@@ -132,7 +132,9 @@ class DelayBuffer:
         """Sets the time lag for the delay buffer across the provided batch indices or mask.
 
         .. caution::
-            If both ``batch_ids`` and ``batch_mask`` are provided, ``batch_mask`` takes precedence.
+            If both ``batch_ids`` and ``batch_mask`` are provided, the mask is used: it selects on the device without a
+            host
+            synchronization.
 
         Args:
             time_lag: The desired delay for the buffer.
@@ -190,7 +192,9 @@ class DelayBuffer:
         Externally selected lags are preserved.
 
         .. caution::
-            If both ``batch_ids`` and ``batch_mask`` are provided, ``batch_mask`` takes precedence.
+            If both ``batch_ids`` and ``batch_mask`` are provided, the mask is used: it selects on the device without a
+            host
+            synchronization.
 
         Args:
             batch_ids: Elements to reset in the batch dimension. Default is None, which resets all the batch indices.
