@@ -124,7 +124,7 @@ because Newton cannot load the robot's UDIM textures.
    uv run --extra ovrtx isaaclab benchmark runtime \
        --task Isaac-RizonSharpa-Coffee-Kitchen-Camera-Benchmark \
        --num_envs 256 \
-       physics=newton_mjwarp renderer=ovrtx presets=simple_shading_full_mdl64
+       physics=newton_mjwarp renderer=ovrtx presets=simple_shading_full_mdl256
 
 Profiling works in both modes. The pose writes are outside both timers, and each environment step
 makes 8 physics calls. As for the Franka task, ``render`` mode with Isaac RTX requires running without

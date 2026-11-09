@@ -24,7 +24,7 @@ Differences from the demo:
 * a square camera with the demo's kitchen view, rendering every 100 Hz step instead of every other one.
 
 The camera data type and resolution are ``presets=`` selectable with the same names as the Kuka-Allegro
-camera presets, e.g. ``presets=simple_shading_full_mdl64``.
+camera presets, e.g. ``presets=simple_shading_full_mdl256``. The default is ``rgb256``.
 """
 
 from __future__ import annotations
@@ -196,7 +196,7 @@ _IMAGE_RESOLUTIONS = (64, 128, 256)
 
 
 def _camera_presets(make_option: Callable[[str, int], Any]) -> PresetCfg:
-    """One option per data type and resolution, named like the Kuka-Allegro camera presets (e.g. ``rgb64``).
+    """One option per data type and resolution, named like the Kuka-Allegro camera presets (e.g. ``rgb256``).
 
     The camera and its image observation share these names, so one ``presets=`` name selects both.
     """
@@ -205,7 +205,7 @@ def _camera_presets(make_option: Callable[[str, int], Any]) -> PresetCfg:
         for data_type in _IMAGE_OBSERVATION_FUNCS
         for resolution in _IMAGE_RESOLUTIONS
     }
-    return preset(default=options["rgb64"], **options)
+    return preset(default=options["rgb256"], **options)
 
 
 def _kitchen_camera(data_type: str, resolution: int) -> CameraCfg:

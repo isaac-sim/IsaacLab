@@ -282,13 +282,13 @@ def kitchen_presets():
 
 
 def test_camera_presets_resolve_to_expected_data_types(kitchen_presets):
-    """Each camera preset requests the data type and resolution it is named after (``default`` is ``rgb64``)."""
+    """Each camera preset requests the data type and resolution it is named after (``default`` is ``rgb256``)."""
     camera_presets = kitchen_presets["scene.camera"]
     expected = {
         f"{data_type}{resolution}": (data_type, resolution) for data_type in _DATA_TYPES for resolution in _RESOLUTIONS
     }
     assert set(camera_presets) == {"default", *expected}
-    expected["default"] = ("rgb", 64)
+    expected["default"] = ("rgb", 256)
     for preset_name, resolved in camera_presets.items():
         data_type, resolution = expected[preset_name]
         assert resolved.data_types == [data_type]
