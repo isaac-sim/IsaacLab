@@ -302,6 +302,34 @@ background. Set a normalized RGB tuple to use a solid color for pixels that miss
 The setting is per camera. Cameras with renderer-default and solid backgrounds can coexist in one
 scene.
 
+Render products per sensor
+--------------------------
+
+A camera sensor renders all of its environments into one tiled atlas through one render product.
+Every renderer buffer that scales with the atlas belongs to that product, and the RTX path tracer
+fails the frame when one buffer exceeds 4 GiB. With the Isaac Lab DLSS default, the renderer shades
+at half the atlas resolution per axis, and its largest buffer holds 64 bytes per shaded pixel. One
+product therefore renders ``4 * 2**32 / max(64, 28 * spp)`` atlas pixels at most, where ``spp`` is the
+path tracing sample count per pixel. That is ``2**28`` (about 268 million) atlas pixels at the default
+sample count. For example, 4096 environments of 256x256 pixels form a 64x64 tile grid of ``2**28``
+pixels and fail, while 4032 environments form a 64x63 grid and render.
+
+:attr:`~sensors.CameraCfg.max_envs_per_render_product` splits the sensor into
+``ceil(num_envs / M)`` render products of at most ``M`` environments each. Each product renders its
+own smaller atlas, and the outputs stay one ``(num_envs, height, width, channels)`` buffer per data
+type. The atlas of a product holds ``ceil(sqrt(M)) * ceil(M / ceil(sqrt(M)))`` tiles, which is more
+than ``M`` unless ``ceil(sqrt(M))`` divides ``M``. Keep that tile count times ``width * height`` below
+the pixel limit. Every extra product adds a fixed per-product cost, so use the smallest split that fits:
+
+.. code-block:: python
+
+   from isaaclab.utils import replace
+
+   large_batch_camera = replace(camera_cfg, max_envs_per_render_product=512)
+
+Only the OVRTX renderer supports this field. The Isaac RTX and Newton Warp renderers reject a value
+other than ``None`` at configuration time.
+
 Post-render image signal processing
 -----------------------------------
 

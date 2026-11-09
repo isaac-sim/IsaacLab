@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import contextlib
 import ctypes
+import dataclasses
 import logging
 import math
 import os
@@ -152,6 +153,29 @@ _DEPTH_VAR_BUFFER_KEYS: dict[str, tuple[str, ...]] = {
 # Opts Linux out of the host wait, onto the same GPU-side ordering every other platform uses.
 # See :meth:`OVRTXRenderer._map_render_var_to_dlpack`.
 _DISABLE_LINUX_CUDA_CPU_SYNC_ENV = "ISAAC_LAB_OVRTX_DISABLE_LINUX_CUDA_CPU_SYNC"
+
+
+def _latest_frame(frames: Sequence[FrameOutput]) -> FrameOutput:
+    """Return the frame with the latest capture time, which is the real image when DLSS adds generated ones."""
+    return frames[0] if len(frames) == 1 else max(frames, key=lambda frame: frame.end_time)
+
+
+@dataclasses.dataclass(frozen=True)
+class OVRTXRenderProduct:
+    """One render product of a camera sensor and the contiguous environment slice it renders."""
+
+    path: str
+    """Absolute prim path of the ``RenderProduct``."""
+    camera_paths: list[str]
+    """Camera prims of this slice, in sensor row order."""
+    env_offset: int
+    """First environment index of the slice."""
+    num_envs: int
+    """Number of environments in the slice."""
+    num_cols: int
+    """Tile columns of this product's atlas, ``ceil(sqrt(num_envs))``."""
+    num_rows: int
+    """Tile rows of this product's atlas, ``ceil(num_envs / num_cols)``."""
 
 
 def _gpu_side_render_var_sync_enabled() -> bool:
@@ -303,18 +327,26 @@ class OVRTXBackend:
 
 
 class OVRTXCameraRenderData:
-    """Owns one camera sensor's native resources and borrowed output buffers."""
+    """Owns one camera sensor's native resources and borrowed output buffers.
+
+    A sensor owns ``K = ceil(num_envs / max_envs_per_render_product)`` render products that share one
+    set of RenderVars under the sensor's scope. Product ``k`` renders a contiguous environment slice
+    into its own tiled atlas and writes that slice of the sensor's output buffers.
+    """
 
     def __init__(self, spec: CameraRenderSpec, render_scope_name: str, camera_paths: list[str]):
         """Create render data for a camera in its assigned render scope.
 
         Args:
             spec: Camera render specification.
-            render_scope_name: Root scope containing this camera's render product and RenderVars.
+            render_scope_name: Root scope containing this camera's render products and RenderVars.
             camera_paths: Concrete camera paths in sensor row order.
+
+        Raises:
+            ValueError: If ``spec.cfg.max_envs_per_render_product`` splits the sensor but ``camera_paths``
+                does not hold one path per environment.
         """
         self.render_scope_name = render_scope_name
-        self.render_product_path = f"/{render_scope_name}/RenderProduct"
         self.camera_paths = camera_paths
         self.render_var_keys = {
             source: f"/{render_scope_name}/Vars/{name}" for source, name in _RENDER_VAR_PRIM_NAMES.items()
@@ -325,8 +357,31 @@ class OVRTXCameraRenderData:
         self.height = spec.cfg.height
         self.num_envs = spec.num_instances
         self.data_types = spec.cfg.data_types
-        self.num_cols = math.ceil(math.sqrt(self.num_envs))
-        self.num_rows = math.ceil(self.num_envs / self.num_cols)
+        max_envs = spec.cfg.max_envs_per_render_product
+        chunk = self.num_envs if max_envs is None else min(max_envs, self.num_envs)
+        count = math.ceil(self.num_envs / chunk)
+        if count > 1 and len(camera_paths) != self.num_envs:
+            raise ValueError(
+                "max_envs_per_render_product needs one camera path per environment, got"
+                f" {len(camera_paths)} paths for {self.num_envs} environments."
+            )
+        self.products: list[OVRTXRenderProduct] = []
+        for k in range(count):
+            start, end = k * chunk, min((k + 1) * chunk, self.num_envs)
+            envs = end - start
+            cols = math.ceil(math.sqrt(envs))
+            # A single product keeps the legacy prim name, whether or not the split was requested.
+            name = "RenderProduct" if count == 1 else f"RenderProduct_{k}"
+            self.products.append(
+                OVRTXRenderProduct(
+                    path=f"/{render_scope_name}/{name}",
+                    camera_paths=camera_paths if count == 1 else camera_paths[start:end],
+                    env_offset=start,
+                    num_envs=envs,
+                    num_cols=cols,
+                    num_rows=math.ceil(envs / cols),
+                )
+            )
         self.warp_buffers: dict[str, wp.array] = {}
         self.intrinsic_bindings: list[AttributeBinding] = []
         self.camera_writes = _AsyncWriteBuffers[wp.array]()
@@ -344,6 +399,16 @@ class OVRTXCameraRenderData:
             from isaaclab_ppisp import PpispPipeline
 
             self.ppisp_pipeline = PpispPipeline(spec.cfg.isp_cfg)
+
+    @property
+    def render_product_path(self) -> str:
+        """Path of the first render product. Equals the legacy single product path when ``K == 1``."""
+        return self.products[0].path
+
+    @property
+    def render_product_paths(self) -> tuple[str, ...]:
+        """Paths of every render product of this sensor, in environment order."""
+        return tuple(product.path for product in self.products)
 
     def cleanup(self) -> None:
         """Release this camera's native resources and buffers. Safe to call repeatedly.
@@ -397,7 +462,8 @@ class OVRTXRenderer(BaseRenderer):
         self._geometry_writes = _AsyncWriteBuffers[wp.array]()
         self._geometry_timestamp = -1
         self._initialized_scene = False
-        self._output_id_color_buffers: dict[str, wp.array] = {}
+        # Colorization scratch per segmentation output and atlas shape, shared by same-shape products.
+        self._output_id_color_buffers: dict[tuple[str, tuple[int, ...]], wp.array] = {}
         self._visual_material_writer_ref: weakref.ReferenceType[OVRTXVisualMaterialWriter] | None = None
 
         # Clone preparation resolves scene ownership before acquiring native resources.
@@ -624,7 +690,7 @@ class OVRTXRenderer(BaseRenderer):
                 for path in camera_paths
             ]
         render_data = OVRTXCameraRenderData(spec, f"RenderCamera_{self.scene.next_camera_id}", camera_paths)
-        scope, product_path = render_data.render_scope_name, render_data.render_product_path
+        scope = render_data.render_scope_name
         usd = build_render_product_as_string(
             spec, render_data, device_id=self._warp_device.ordinal, enable_shadows=self.cfg.enable_shadows
         )
@@ -639,18 +705,21 @@ class OVRTXRenderer(BaseRenderer):
                 reference = ovstage.population.add_usd_reference_from_string(self.scene.stage, usd, f"/{scope}")
                 render_data.resources.callback(self._remove_usd_reference, reference)
                 ovstage.population.apply_usd_changes(self.scene.stage, ordinal=self.scene.ordinal)
-                with self.scene.query([product_path]) as query:
-                    # USD references drop external camera targets; author the relationship in Fabric.
-                    self.scene.stage.write_attribute(
-                        query,
-                        "camera",
-                        ordinal=self.scene.ordinal,
-                        tensors=np.array(
-                            [_handle_raw_id(self.scene.paths.intern_path(p)) for p in camera_paths], dtype=np.uint64
-                        ),
-                        is_array=True,
-                        semantic=ovstage.AttributeSemantic.RELATIONSHIP_PATH_ID,
-                    ).wait()
+                # USD references drop external camera targets; author the relationship in Fabric.
+                # One write per product: a multi-prim relationship write leaves products unrenderable.
+                for product in render_data.products:
+                    with self.scene.query([product.path]) as query:
+                        self.scene.stage.write_attribute(
+                            query,
+                            "camera",
+                            ordinal=self.scene.ordinal,
+                            tensors=np.array(
+                                [_handle_raw_id(self.scene.paths.intern_path(p)) for p in product.camera_paths],
+                                dtype=np.uint64,
+                            ),
+                            is_array=True,
+                            semantic=ovstage.AttributeSemantic.RELATIONSHIP_PATH_ID,
+                        ).wait()
                 render_data.camera_xform_binding = render_data.resources.enter_context(self.scene.query(camera_paths))
                 self.scene.stage.write_attribute(
                     render_data.camera_xform_binding,
@@ -677,11 +746,13 @@ class OVRTXRenderer(BaseRenderer):
             else:
                 reference = self.backend.renderer.add_usd_reference_from_string(usd, f"/{scope}")
                 render_data.resources.callback(self.backend.renderer.remove_usd, reference)
-                self.backend.renderer.write_array_attribute(
-                    prim_paths=[product_path],
-                    attribute_name="camera",
-                    tensors=[camera_paths],
-                )
+                # One write per product: a multi-prim relationship write leaves products unrenderable.
+                for product in render_data.products:
+                    self.backend.renderer.write_array_attribute(
+                        prim_paths=[product.path],
+                        attribute_name="camera",
+                        tensors=[product.camera_paths],
+                    )
                 render_data.camera_xform_binding = self.backend.renderer.bind_attribute(
                     prim_paths=camera_paths,
                     attribute_name="omni:xform",
@@ -718,8 +789,9 @@ class OVRTXRenderer(BaseRenderer):
             raise
         self.scene.next_camera_id += 1
         self._camera_render_data.append(render_data)
-        self.backend.render_products.add(render_data.render_product_path)
-        render_data.resources.callback(self.backend.render_products.discard, render_data.render_product_path)
+        for path in render_data.render_product_paths:
+            self.backend.render_products.add(path)
+            render_data.resources.callback(self.backend.render_products.discard, path)
         return render_data
 
     def set_outputs(self, render_data: OVRTXCameraRenderData, output_data: dict[str, ProxyArray]) -> None:
@@ -818,12 +890,60 @@ class OVRTXRenderer(BaseRenderer):
             mapping.unmap(stream=stream)
 
     def _process_segmentation(
-        self, render_data: OVRTXCameraRenderData, frame: FrameOutput, output_buffers: dict[str, wp.array]
+        self,
+        render_data: OVRTXCameraRenderData,
+        product: OVRTXRenderProduct,
+        frame: FrameOutput,
+        output_buffers: dict[str, wp.array],
     ) -> None:
-        """Extract segmentation pixels and decode their shared label map once per frame."""
+        """Extract one product's segmentation pixels into its slices of ``output_buffers``."""
+        for source, key, colorize in (
+            (_SEMANTIC_SEGMENTATION_VAR, "semantic_segmentation", self.cfg.colorize_semantic_segmentation),
+            (_INSTANCE_SEGMENTATION_VAR, "instance_segmentation", self.cfg.colorize_instance_segmentation),
+        ):
+            render_var = frame.render_vars.get(render_data.render_var_keys[source])
+            if key not in output_buffers or render_var is None:
+                continue
+            with self._map_render_var_to_dlpack(render_var) as tiled_data:
+                if tiled_data.dtype != wp.uint32:
+                    continue
+                if colorize:
+                    cache_key = (key, tiled_data.shape)
+                    color_buffer = self._output_id_color_buffers.get(cache_key)
+                    if color_buffer is None:
+                        color_buffer = wp.zeros(tiled_data.shape, dtype=wp.uint32, device=self._device)
+                        self._output_id_color_buffers[cache_key] = color_buffer
+                    wp.launch(
+                        generate_random_colors_from_ids_kernel,
+                        tiled_data.shape,
+                        inputs=[tiled_data, color_buffer],
+                        device=self._device,
+                    )
+                    colors = wp.to_torch(color_buffer).view(torch.uint8).reshape(*tiled_data.shape[:2], 4)
+                    self._launch_extract_all_tiles(
+                        render_data, product, wp.from_torch(colors, dtype=wp.uint8), output_buffers[key]
+                    )
+                else:
+                    # Keep uint32 in Warp; torch-to-Warp conversion does not support that dtype.
+                    if tiled_data.ndim == 2:
+                        tiled_data = tiled_data.reshape((*tiled_data.shape, 1))
+                    self._launch_extract_all_tiles(render_data, product, tiled_data, output_buffers[key])
+
+    def _process_segmentation_metadata(
+        self, render_data: OVRTXCameraRenderData, frames: Sequence[FrameOutput], output_buffers: dict[str, wp.array]
+    ) -> None:
+        """Decode the sensor's label maps once per step into ``render_data.renderer_info``.
+
+        The maps describe the whole scene, not one view. The first product's frame is the source for
+        every product of the sensor.
+
+        Raises:
+            RuntimeError: If ``instance_segmentation`` is requested and a map is missing from the frame.
+        """
         semantic, instance = "semantic_segmentation", "instance_segmentation"
         if semantic not in output_buffers and instance not in output_buffers:
             return
+        frame = frames[0]
         maps = {key: frame.render_vars.get(render_data.render_var_keys[key]) for key in _INSTANCE_SEGMENTATION_MAP_VARS}
         if instance in output_buffers and (missing := [key for key, value in maps.items() if value is None]):
             raise RuntimeError(
@@ -833,38 +953,6 @@ class OVRTXRenderer(BaseRenderer):
         labels = None
         if maps[_SEMANTIC_ID_MAP_VAR] is not None:
             labels = _decode_segmentation_map(maps[_SEMANTIC_ID_MAP_VAR], decode_semantic_id_map)
-
-        for source, key, colorize in (
-            (_SEMANTIC_SEGMENTATION_VAR, semantic, self.cfg.colorize_semantic_segmentation),
-            (_INSTANCE_SEGMENTATION_VAR, instance, self.cfg.colorize_instance_segmentation),
-        ):
-            render_var = frame.render_vars.get(render_data.render_var_keys[source])
-            if key not in output_buffers or render_var is None:
-                continue
-            with self._map_render_var_to_dlpack(render_var) as tiled_data:
-                if tiled_data.dtype != wp.uint32:
-                    continue
-                if colorize:
-                    color_buffer = self._output_id_color_buffers.get(key)
-                    if color_buffer is None or color_buffer.shape != tiled_data.shape:
-                        color_buffer = wp.zeros(tiled_data.shape, dtype=wp.uint32, device=self._device)
-                        self._output_id_color_buffers[key] = color_buffer
-                    wp.launch(
-                        generate_random_colors_from_ids_kernel,
-                        tiled_data.shape,
-                        inputs=[tiled_data, color_buffer],
-                        device=self._device,
-                    )
-                    colors = wp.to_torch(color_buffer).view(torch.uint8).reshape(*tiled_data.shape[:2], 4)
-                    self._launch_extract_all_tiles(
-                        render_data, wp.from_torch(colors, dtype=wp.uint8), output_buffers[key]
-                    )
-                else:
-                    # Keep uint32 in Warp; torch-to-Warp conversion does not support that dtype.
-                    if tiled_data.ndim == 2:
-                        tiled_data = tiled_data.reshape((*tiled_data.shape, 1))
-                    self._launch_extract_all_tiles(render_data, tiled_data, output_buffers[key])
-
         if semantic in output_buffers and labels is not None:
             render_data.renderer_info[semantic] = {
                 "idToLabels": build_semantic_id_to_labels(
@@ -880,9 +968,13 @@ class OVRTXRenderer(BaseRenderer):
             render_data.renderer_info[instance] = {"idToLabels": id_to_labels, "idToSemantics": id_to_semantics}
 
     def _launch_extract_all_tiles(
-        self, render_data: OVRTXCameraRenderData, tiled_buffer: wp.array, output_buffer: wp.array
+        self,
+        render_data: OVRTXCameraRenderData,
+        product: OVRTXRenderProduct,
+        tiled_buffer: wp.array,
+        output_buffer: wp.array,
     ) -> None:
-        """Launch ``extract_all_tiles_kernel`` for one tiled/output buffer pair.
+        """Launch ``extract_all_tiles_kernel`` for one product's tiled/output buffer pair.
 
         This is the only place that should launch ``extract_all_tiles_kernel``: it validates that
         ``output_buffer`` cannot read past the end of ``tiled_buffer`` (the kernel derives its per-thread
@@ -891,9 +983,11 @@ class OVRTXRenderer(BaseRenderer):
 
         Args:
             render_data: OVRTX render data for the current frame.
-            tiled_buffer: 3D array of shape (H, W, C) holding all tiles packed into one buffer.
-            output_buffer: 4D array of shape (num_envs, H, W, C) to receive the per-env tiles, with C no
-                greater than ``tiled_buffer``'s channel count.
+            product: Render product whose atlas ``tiled_buffer`` holds.
+            tiled_buffer: 3D array of shape (H, W, C) holding the product's tiles packed into one buffer.
+            output_buffer: 4D array of shape (product.num_envs, H, W, C) to receive the per-env tiles,
+                with C no greater than ``tiled_buffer``'s channel count. This is the product's dim-0
+                slice of the sensor's output buffer.
 
         Raises:
             ValueError: If ``output_buffer``'s channel count exceeds ``tiled_buffer``'s.
@@ -908,11 +1002,11 @@ class OVRTXRenderer(BaseRenderer):
 
         wp.launch(
             kernel=extract_all_tiles_kernel,
-            dim=(render_data.num_envs, render_data.height, render_data.width),
+            dim=(product.num_envs, render_data.height, render_data.width),
             inputs=[
                 tiled_buffer,
                 output_buffer,
-                render_data.num_cols,
+                product.num_cols,
                 render_data.width,
                 render_data.height,
             ],
@@ -920,14 +1014,32 @@ class OVRTXRenderer(BaseRenderer):
         )
 
     def _process_render_frame(
-        self, render_data: OVRTXCameraRenderData, frame: FrameOutput, output_buffers: dict[str, wp.array]
+        self,
+        render_data: OVRTXCameraRenderData,
+        frames: Sequence[FrameOutput],
+        output_buffers: dict[str, wp.array],
     ) -> None:
-        """Extract RGB, depth, albedo, and semantic from a single render frame into output_buffers."""
-        # Reset per-output metadata so it is a snapshot of this frame only. Unlike pixel AOVs (always
+        """Extract one frame per render product into the product's environment slice of ``output_buffers``."""
+        # Reset per-output metadata so it is a snapshot of this step only. Unlike pixel AOVs (always
         # present), metadata like the semantic ``idToLabels`` is only repopulated below when its render var
         # is available, so without this a missing SemanticIdMap on a later frame would leave a stale mapping.
         render_data.renderer_info.clear()
+        for product, frame in zip(render_data.products, frames, strict=True):
+            buffers = output_buffers
+            if len(render_data.products) > 1:
+                stop = product.env_offset + product.num_envs
+                buffers = {key: buffer[product.env_offset : stop] for key, buffer in output_buffers.items()}
+            self._process_product_frame(render_data, product, frame, buffers)
+        self._process_segmentation_metadata(render_data, frames, output_buffers)
 
+    def _process_product_frame(
+        self,
+        render_data: OVRTXCameraRenderData,
+        product: OVRTXRenderProduct,
+        frame: FrameOutput,
+        output_buffers: dict[str, wp.array],
+    ) -> None:
+        """Extract RGB, depth, albedo, and semantic from one product's frame into its output slices."""
         ldr_color = frame.render_vars.get(render_data.render_var_keys[_LDR_COLOR_VAR])
         if ldr_color is not None:
             buffer_key = None
@@ -944,7 +1056,7 @@ class OVRTXRenderer(BaseRenderer):
 
             if buffer_key is not None:
                 with self._map_render_var_to_dlpack(ldr_color) as tiled_data:
-                    self._launch_extract_all_tiles(render_data, tiled_data, output_buffers[buffer_key])
+                    self._launch_extract_all_tiles(render_data, product, tiled_data, output_buffers[buffer_key])
 
         for depth_var, buffer_keys in _DEPTH_VAR_BUFFER_KEYS.items():
             depth_render_var = frame.render_vars.get(render_data.render_var_keys[depth_var])
@@ -959,12 +1071,14 @@ class OVRTXRenderer(BaseRenderer):
                     )
                 for depth_type in buffer_keys:
                     if depth_type in output_buffers:
-                        self._launch_extract_all_tiles(render_data, tiled_depth_data, output_buffers[depth_type])
+                        self._launch_extract_all_tiles(
+                            render_data, product, tiled_depth_data, output_buffers[depth_type]
+                        )
 
         albedo_var = frame.render_vars.get(render_data.render_var_keys[_ALBEDO_VAR])
         if albedo_var is not None and "albedo" in output_buffers:
             with self._map_render_var_to_dlpack(albedo_var) as tiled_albedo_data:
-                self._launch_extract_all_tiles(render_data, tiled_albedo_data, output_buffers["albedo"])
+                self._launch_extract_all_tiles(render_data, product, tiled_albedo_data, output_buffers["albedo"])
 
         hdr_color = frame.render_vars.get(render_data.render_var_keys[_HDR_COLOR_VAR])
         if hdr_color is not None and "rgb_hdr" in output_buffers:
@@ -975,14 +1089,14 @@ class OVRTXRenderer(BaseRenderer):
                     tiled_hdr_data = wp.clone(tiled_hdr_data, device=output_device)
                 if tiled_hdr_data.dtype not in (wp.float16, wp.float32):
                     raise TypeError(f"Unsupported OVRTX HdrColor dtype: {tiled_hdr_data.dtype}.")
-                self._launch_extract_all_tiles(render_data, tiled_hdr_data, output_buffers["rgb_hdr"])
+                self._launch_extract_all_tiles(render_data, product, tiled_hdr_data, output_buffers["rgb_hdr"])
 
-        self._process_segmentation(render_data, frame, output_buffers)
+        self._process_segmentation(render_data, product, frame, output_buffers)
 
         normals_var = frame.render_vars.get(render_data.render_var_keys[_NORMALS_VAR])
         if normals_var is not None and "normals" in output_buffers:
             with self._map_render_var_to_dlpack(normals_var) as tiled_normals_data:
-                self._launch_extract_all_tiles(render_data, tiled_normals_data, output_buffers["normals"])
+                self._launch_extract_all_tiles(render_data, product, tiled_normals_data, output_buffers["normals"])
 
         # For motion vectors, extract only the first two (u, v) channels from the tiled buffer.
         # Note: mirrors the Isaac RTX renderer's handling of the "TargetMotionSD" AOV
@@ -990,7 +1104,9 @@ class OVRTXRenderer(BaseRenderer):
         motion_var = frame.render_vars.get(render_data.render_var_keys[_MOTION_VECTORS_VAR])
         if motion_var is not None and "motion_vectors" in output_buffers:
             with self._map_render_var_to_dlpack(motion_var) as tiled_motion_vectors_data:
-                self._launch_extract_all_tiles(render_data, tiled_motion_vectors_data, output_buffers["motion_vectors"])
+                self._launch_extract_all_tiles(
+                    render_data, product, tiled_motion_vectors_data, output_buffers["motion_vectors"]
+                )
 
     def drain_pending_renders(self, cameras: Sequence[OVRTXCameraRenderData] | None = None) -> list[Exception]:
         """Complete native work without publishing observations into any camera."""
@@ -1022,14 +1138,17 @@ class OVRTXRenderer(BaseRenderer):
     ) -> None:
         """Populate camera outputs only after every requested product returned a frame."""
         for data in render_data:
-            if data.render_product_path not in products or not products[data.render_product_path].frames:
-                raise RuntimeError(f"OVRTX returned no frame for render product {data.render_product_path!r}.")
+            for path in data.render_product_paths:
+                if path not in products or not products[path].frames:
+                    raise RuntimeError(f"OVRTX returned no frame for render product {path!r}.")
         for data in render_data:
-            frames = products[data.render_product_path].frames
             # DLSS-generated images have earlier capture times than the real frame. Keep all
             # camera outputs on the latest capture without assuming the returned list's order.
-            frame = frames[0] if len(frames) == 1 else max(frames, key=lambda frame: frame.end_time)
-            self._process_render_frame(data, frame, data.warp_buffers)
+            self._process_render_frame(
+                data,
+                [_latest_frame(products[path].frames) for path in data.render_product_paths],
+                data.warp_buffers,
+            )
 
             # Post-render PPISP uses each camera's own HDR source and RGBA destination.
             if data.ppisp_pipeline is not None:
@@ -1270,6 +1389,17 @@ class OVRTXRenderer(BaseRenderer):
             finally:
                 if render_data in self._camera_render_data:
                     self._camera_render_data.remove(render_data)
+                self._evict_unused_color_buffers()
+
+    def _evict_unused_color_buffers(self) -> None:
+        """Drop colorization scratch buffers whose atlas shape no live camera sensor renders."""
+        live_shapes = {
+            (product.num_rows * data.height, product.num_cols * data.width)
+            for data in self._camera_render_data
+            for product in data.products
+        }
+        for cache_key in [key for key in self._output_id_color_buffers if key[1][:2] not in live_shapes]:
+            del self._output_id_color_buffers[cache_key]
 
     def _remove_usd_reference(self, reference: int) -> None:
         """Publish removal of a private USD reference at the shared stage's current ordinal."""

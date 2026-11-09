@@ -104,6 +104,22 @@ class CameraCfg(SensorBaseCfg):
     for an interactive camera. These settings do not change the shared renderer configuration.
     """
 
+    max_envs_per_render_product: int | None = None
+    """Maximum number of environments rendered through one render product. Defaults to None.
+
+    ``None`` renders every environment of this sensor through one render product and one tiled
+    atlas, which is the previous behavior. An integer ``M`` splits the sensor into
+    ``ceil(num_envs / M)`` render products over contiguous environment slices. The outputs stay one
+    ``(num_envs, height, width, channels)`` buffer per data type.
+
+    Use this field when one atlas exceeds the renderer's 4 GiB per-buffer limit. The camera sensor
+    documentation (``docs/source/concepts/sensors/camera.rst``) explains the limit and how to size ``M``.
+
+    Only renderers whose configuration sets
+    :attr:`~isaaclab.renderers.RendererCfg.supports_render_product_split` accept a value other than
+    ``None``. Today that is the OVRTX renderer (:class:`~isaaclab_ov.renderers.OVRTXRendererCfg`).
+    """
+
     update_latest_camera_pose: bool = False
     """Whether to update the latest camera pose when fetching the camera's data. Defaults to False.
 
@@ -261,9 +277,20 @@ class CameraCfg(SensorBaseCfg):
             setattr(self, field_name, default)
 
     def validate_config(self) -> None:
-        """Validate the requested data types against the selected renderer contract."""
+        """Validate the render product split and the requested data types against the renderer contract."""
+        max_envs = self.max_envs_per_render_product
+        if max_envs is not None and (isinstance(max_envs, bool) or not isinstance(max_envs, int) or max_envs < 1):
+            raise ValueError(
+                f"CameraCfg.max_envs_per_render_product must be None or an integer >= 1, got {max_envs!r}."
+            )
         if self.renderer_cfg is None:
             return
+        if max_envs is not None and not self.renderer_cfg.supports_render_product_split:
+            raise ValueError(
+                f"Renderer {type(self.renderer_cfg).__name__} renders every environment through one render product,"
+                " so CameraCfg.max_envs_per_render_product must be None. Only renderers whose configuration sets"
+                " supports_render_product_split accept another value."
+            )
         supported_specs = self.renderer_cfg.supported_output_types()
         if supported_specs is None:
             return
