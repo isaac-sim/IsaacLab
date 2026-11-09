@@ -48,7 +48,7 @@ def _make_env(joint_names: list[str] | None = None, num_envs: int = NUM_ENVS) ->
     if joint_names is None:
         joint_names = JOINT_NAMES
 
-    def find_joints(_names, *, as_proxy: bool = False):
+    def find_joints(_names, *, as_proxy: bool = False, **_kwargs):
         joint_ids = _JointIds(len(joint_names)) if as_proxy else list(range(len(joint_names)))
         return joint_ids, list(joint_names)
 
