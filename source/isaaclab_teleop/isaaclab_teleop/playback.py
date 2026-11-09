@@ -433,12 +433,17 @@ class _CapturePlaybackEnv(gym.Wrapper):
         self._session = session
         self._env_ids = torch.tensor(session._input_cfg.env_ids, device=env.unwrapped.device, dtype=torch.long)
 
-    def reset(self, **kwargs: Any) -> tuple[dict, dict]:
+    def reset(self, *, env_ids: torch.Tensor | None = None, **kwargs: Any) -> tuple[dict, dict]:
         recording = self._session._recording
         if recording is not None:
             recording.before_explicit_reset(self.unwrapped)
         try:
-            result = self.env.reset(**kwargs)
+            if env_ids is None:
+                result = self.env.reset(**kwargs)
+            else:
+                # Selected-row reset is a Lab extension, unsupported by Gym's
+                # reset signature. Ordinary resets still initialize Gym wrappers.
+                result = self.unwrapped.reset(env_ids=env_ids, **kwargs)
         finally:
             if recording is not None:
                 recording.after_explicit_reset(self.unwrapped)

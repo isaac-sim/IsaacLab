@@ -239,13 +239,16 @@ def test_shared_input_rejects_multiple_sources_or_rows_before_resource_start(vio
 
 
 def test_operator_reset_is_an_interruption_without_a_physics_or_recorder_step():
-    """A reset marks the selected episode boundary and preserves its pre-reset observation."""
+    """A selected reset works through Gym wrapping and preserves other rows and terminal observations."""
     cfg, events = _config(num_envs=2), []
     assert list(configured_teleop_inputs(cfg)) == ["robot"]
     session = CapturePlaySession(cfg)
     session.prepare()
     env = _Env(cfg, events)
-    wrapped = session.attach(env)
+    wrapped = session.attach(gym.wrappers.OrderEnforcing(env))
+    wrapped.reset()
+    env.obs_buf["policy"].fill_(1)
+    events.clear()
     env.source.sample = TeleopSample(reset=True)
     obs, reward, terminated, truncated, extras = wrapped.step(torch.ones(2, 1))
     assert env.steps == 0 and "step" not in events
@@ -254,6 +257,10 @@ def test_operator_reset_is_an_interruption_without_a_physics_or_recorder_step():
     torch.testing.assert_close(extras["final_obs"]["policy"], torch.ones(2, 1))
     assert not terminated.any() and truncated.tolist() == [True, False]
     assert reward.tolist() == [0.0, 0.0] and extras["teleop_reset"].tolist() == [0]
+    # The ordinary reset must initialize Gym's lifecycle so playback can resume.
+    env.source.sample = TeleopSample(torch.tensor([0.5]))
+    wrapped.step(torch.ones(2, 1))
+    assert env.steps == 1
     wrapped.close()
     session.close()
     assert events[-2:] == ["source_close", "env_close"]
