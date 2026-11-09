@@ -250,8 +250,10 @@ def _recording_backend(
         def pre_step(self, state):
             events.append(("pre_step", state.name))
 
-        def step(self, state_in, state_out, *_args):
+        def step(self, state_in, state_out, *_args, observables=None):
             events.append(("step", state_in.name, state_out.name))
+            if observables is not None:
+                events.append(("observables", observables))
 
         def post_step(self, state):
             events.append(("post_step", state.name))
@@ -336,8 +338,8 @@ def test_deterministic_request_resolves_to_the_mode_the_solver_applies(
 
 @pytest.mark.parametrize("collision_cfg", [None, NewtonCollisionPipelineCfg()], ids=["default", "configured"])
 def test_deterministic_collision_pipeline_grows_with_the_solver_contact_capacity(collision_cfg):
-    """A deterministic pipeline sizes its sort buffer at construction, so it is rebuilt for the solver's contacts."""
-    pipelines, prepared = [], []
+    """Contact allocation can rebuild the pipeline but must leave solver output allocation to its caller."""
+    pipelines, prepared, observable_requests = [], [], []
 
     class FakePipeline:
         def __init__(self, **kwargs):
@@ -349,7 +351,10 @@ def test_deterministic_collision_pipeline_grows_with_the_solver_contact_capacity
 
     class RecordingSolver(NewtonSolver):
         def build(self, model, mode, env_template):
-            return SimpleNamespace(get_max_contact_count=lambda: 2)
+            return SimpleNamespace(
+                get_max_contact_count=lambda: 2,
+                observables=lambda *args, **kwargs: observable_requests.append((args, kwargs)),
+            )
 
         def create_collision_pipeline(self, **kwargs):
             return FakePipeline(**kwargs)
@@ -365,6 +370,7 @@ def test_deterministic_collision_pipeline_grows_with_the_solver_contact_capacity
         solver=ops.native,
         solver_ops=ops,
         collision_pipeline=None,
+        contact_sensors={"foot": object()},
         device="cpu",
         deterministic_mode=wp.DeterministicMode.GPU_TO_GPU,
     )
@@ -375,6 +381,7 @@ def test_deterministic_collision_pipeline_grows_with_the_solver_contact_capacity
     assert pipelines[0]["deterministic"] is True
     assert backend.contacts.rigid_contact_max == 2
     assert prepared == [backend.contacts]
+    assert observable_requests == []
 
 
 def test_collision_cfg_is_rejected_when_the_solver_does_not_use_the_collision_pipeline():
@@ -389,7 +396,72 @@ def test_collision_cfg_is_rejected_when_the_solver_does_not_use_the_collision_pi
         backend._allocate_contacts()
 
 
+def test_late_contact_sensor_registration_allocates_observables_and_invalidates_capture(monkeypatch):
+    """A new sensor must be included in the next captured step without reallocating existing contacts."""
+    allocated, requests = [], []
+    contacts = SimpleNamespace(rigid_contact_max=2)
+
+    class RecordingSensor:
+        solver_observable_kinds = frozenset({"contact_f"})
+
+        def __init__(self, model, **kwargs):
+            requests.append(kwargs["request_contact_attributes"])
+
+    solver = SimpleNamespace(observables=lambda kinds, *, contacts: allocated.append((kinds, contacts)) or object())
+    backend = backend_stub(
+        cfg=NewtonCfg(solver_cfg=MJWarpSolverCfg()),
+        model=object(),
+        solver=solver,
+        contacts=contacts,
+        graphs={"simulate": object()},
+    )
+    monkeypatch.setattr(newton_backend, "SensorContact", RecordingSensor)
+
+    backend.add_contact_sensor(body_names_expr="foot")
+
+    assert requests == [False]
+    assert allocated == [(RecordingSensor.solver_observable_kinds, contacts)]
+    assert backend.contact_observables is not None
+    assert backend.graphs == {}
+    backend.graphs = {"simulate": object()}
+    backend.add_contact_sensor(body_names_expr="hand")
+    assert backend.graphs == {}
+    assert len(allocated) == 1
+
+
+@pytest.mark.parametrize("solver_cfg", [FeatherstoneSolverCfg(), MPMSolverCfg()], ids=["featherstone", "mpm"])
+def test_contact_sensor_requires_solver_contact_force_observables(solver_cfg):
+    backend = backend_stub(cfg=NewtonCfg(solver_cfg=solver_cfg), model=object())
+
+    with pytest.raises(NotImplementedError, match="CONTACT_F observables"):
+        backend.add_contact_sensor(body_names_expr="foot")
+
+
 # ----- The step ----------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("decimation", "graphable"),
+    [(1, True), (2, True), (2, False)],
+    ids=["physics_only", "captured_actuators", "eager_actuators"],
+)
+def test_solver_observables_reach_contact_sensors_once_per_step(decimation, graphable):
+    events = []
+    backend = _recording_backend(events, num_substeps=2)
+    backend.contacts = object()
+    backend.contact_observables = object()
+    backend.contact_sensors["foot"] = SimpleNamespace(
+        update=lambda state, contacts, *, observables: events.append(("sensor", contacts, observables))
+    )
+    if decimation > 1:
+        backend.actuators_active = True
+        backend.actuators = SimpleNamespace(is_all_graphable=graphable, step=lambda *args, **kwargs: None)
+        backend.set_decimation(decimation)
+
+    backend.step()
+
+    assert events.count(("observables", backend.contact_observables)) == 1
+    assert events.count(("sensor", backend.contacts, backend.contact_observables)) == 1
 
 
 @pytest.mark.parametrize("single_state", [True, False], ids=["single_state", "double_state"])

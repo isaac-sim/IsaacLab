@@ -58,7 +58,7 @@ class NewtonSolver:
     """Whether the solver can honor a Warp determinism guarantee."""
 
     contact_sensors: ClassVar[bool] = True
-    """Whether Newton contact sensors can read the solver's contacts."""
+    """Whether the Newton solver can provide CONTACT_F observables to contact sensors."""
 
     ignored_model_changes: ClassVar[Mapping[ModelFlags, str]] = {}
     """Model changes the solver does not apply after construction, mapped to the warning logged once."""
@@ -154,9 +154,21 @@ class NewtonSolver:
     def pre_step(self, state: State) -> None:
         """Refresh solver structures once per physics step, before collision."""
 
-    def step(self, state_in: State, state_out: State, control: Control, contacts: Contacts | None, dt: float) -> None:
+    def step(
+        self,
+        state_in: State,
+        state_out: State,
+        control: Control,
+        contacts: Contacts | None,
+        dt: float,
+        *,
+        observables: SolverBase.Observables | None = None,
+    ) -> None:
         """Advance one substep of ``dt`` [s]."""
-        self.native.step(state_in, state_out, control, contacts, dt)
+        if observables is None:
+            self.native.step(state_in, state_out, control, contacts, dt)
+        else:
+            self.native.step(state_in, state_out, control, contacts, dt, observables=observables)
 
     def post_step(self, state: State) -> None:
         """Publish derived state once per physics step, after the substeps."""

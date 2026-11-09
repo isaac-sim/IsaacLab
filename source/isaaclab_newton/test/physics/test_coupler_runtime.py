@@ -21,18 +21,19 @@ from isaaclab_newton.physics import (
     NewtonManager,
     XPBDSolverCfg,
 )
+from isaaclab_newton.physics.coupling import (
+    CouplerAdmmCfg,
+    CouplerEntryCfg,
+    CouplerProxyCfg,
+    CouplerProxyMappingCfg,
+)
 from newton import CollisionPipeline, Mesh, ModelBuilder
 from newton.solvers import SolverXPBD
 from newton.solvers.experimental.coupled import SolverCoupledADMM, SolverCoupledProxy
 
 from isaaclab.sim import SimulationContext
 
-from isaaclab_contrib.coupling import (
-    CouplerAdmmCfg,
-    CouplerEntryCfg,
-    CouplerProxyCfg,
-    CouplerProxyMappingCfg,
-)
+pytestmark = pytest.mark.kitless
 
 
 def _bind_coupler(builder: ModelBuilder, solver_cfg: CouplerProxyCfg | CouplerAdmmCfg) -> NewtonManager:
@@ -208,7 +209,7 @@ def test_real_coupler_constructs_resets_and_steps(
     backend.state_0 = state_0
     backend.state_1 = state_1
     backend.control = control
-    backend._run_solver_substeps(contacts)
+    backend._run_solver_substeps(contacts, observables=None)
     state_1 = backend.state_0
 
     body_q_after = state_1.body_q.numpy()

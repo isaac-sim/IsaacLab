@@ -31,6 +31,15 @@ from isaaclab_newton.physics import (
     VBDSolverCfg,
     XPBDSolverCfg,
 )
+from isaaclab_newton.physics.coupling import (
+    CouplerAdmmCfg,
+    CouplerCfg,  # noqa: F401 - importing every public name guards the package exports
+    CouplerEntryCfg,
+    CouplerProxyCfg,
+    CouplerProxyMappingCfg,
+    CouplerSolver,
+    coupler,
+)
 from isaaclab_newton.physics.newton_builder import create_builder, register_builder_attributes, usd_schema_resolvers
 from isaaclab_newton.test.fixtures.mock_newton import backend_stub, solver_driver
 from newton import ModelBuilder, ShapeFlags
@@ -40,15 +49,7 @@ from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
 
-from isaaclab_contrib.coupling import (
-    CouplerAdmmCfg,
-    CouplerCfg,  # noqa: F401 - importing every public name guards the package exports
-    CouplerEntryCfg,
-    CouplerProxyCfg,
-    CouplerProxyMappingCfg,
-    CouplerSolver,
-    coupler,
-)
+pytestmark = pytest.mark.kitless
 
 _CELL_TEMPLATE = "/Lab/Cells/Cell{}"
 """Clone-plan environment template naming environments ``/Lab/Cells/Cell{i}``."""

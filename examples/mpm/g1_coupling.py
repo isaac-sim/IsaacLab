@@ -328,13 +328,12 @@ def _configure_particle_runway(env_cfg: Any) -> None:
     """Add the rigid runway, three particle strips, and directed coupler."""
     from isaaclab_newton.assets import MPMObjectCfg
     from isaaclab_newton.physics import MPMSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
-    from isaaclab_newton.sim.spawners.mpm import MPMGridCfg, MPMParticleMaterialCfg
-
-    from isaaclab_contrib.coupling import (
+    from isaaclab_newton.physics.coupling import (
         CouplerEntryCfg,
         CouplerProxyCfg,
         CouplerProxyMappingCfg,
     )
+    from isaaclab_newton.sim.spawners.mpm import MPMGridCfg, MPMParticleMaterialCfg
 
     previous_physics = env_cfg.sim.physics
     rigid_solver_cfg = previous_physics.solver_cfg.replace(

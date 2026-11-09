@@ -14,14 +14,13 @@ import numpy as np
 import torch
 from isaaclab_newton.assets import MPMObjectCfg
 from isaaclab_newton.physics import MPMSolverCfg
+from isaaclab_newton.physics.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 from isaaclab_newton.sim.spawners.mpm import MPMGridCfg, MPMParticleMaterialCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.spawners.materials import spawn_physics_material
 from isaaclab.terrains import TerrainImporter
-
-from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
 from .sonic_parameters import DAMPING, JOINT_NAMES, STIFFNESS
 
