@@ -6,6 +6,7 @@
   public frame metadata and graph execution hooks without depending on its internal cache keys.
 * Added shared Capture samples across task-selected action inputs and assets in one environment row,
   with one input owner, task-specific action adapters, and retryable input cleanup before controller teardown.
+  Operator resets preserve Gym wrapper initialization and reset only the selected Lab environment row.
 * Added HDF5 demonstration collection during task playback, with successful-only or all-episode
   export, per-step Capture provenance, and preservation of task observations and recorder terms.
 * Allowed independent Lab visualizers alongside kitless XR presentation while rejecting consumers
