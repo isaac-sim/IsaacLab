@@ -47,6 +47,20 @@ def create_camera_transforms_kernel(
 
 
 @wp.kernel
+def create_lidar_transforms_kernel(
+    positions: wp.array(dtype=wp.vec3),  # type: ignore
+    orientations: wp.array(dtype=wp.quatf),  # type: ignore
+    transforms: wp.array(dtype=wp.mat44d),  # type: ignore
+):
+    """Convert world-frame lidar poses to OVRTX row-vector matrices.
+
+    The orientation is written as authored. A lidar does not use the camera OpenGL rotation.
+    """
+    i = wp.tid()
+    transforms[i] = wp.mat44d(wp.transpose(wp.transform_to_matrix(wp.transformf(positions[i], orientations[i]))))
+
+
+@wp.kernel
 def extract_all_tiles_kernel(
     tiled_buffer: wp.array(dtype=Any, ndim=3),  # type: ignore
     output_buffer: wp.array(dtype=Any, ndim=4),  # type: ignore

@@ -36,6 +36,8 @@ interpretation of the prim paths for different sensor types:
 +---------------------+---------------------------+---------------------------------------------------------------+
 | Joint Wrench Sensor | /World/robot              | Leaf exists and is an articulation                            |
 +---------------------+---------------------------+---------------------------------------------------------------+
+| Lidar               | /World/envs/env_0/Lidar   | Leaf is available, and it will spawn an OmniLidar prim        |
++---------------------+---------------------------+---------------------------------------------------------------+
 
 """
 

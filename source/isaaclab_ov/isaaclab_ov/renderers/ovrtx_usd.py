@@ -140,6 +140,51 @@ def render_var_prim_paths_by_source(render_scope_name: str) -> Mapping[str, str]
     )
 
 
+def build_lidar_render_product_as_string(
+    *,
+    render_scope_name: str,
+    lidar_path: str,
+    device_id: int,
+) -> str:
+    """Build a lidar render-product layer that targets one sensor.
+
+    The product has no resolution and no camera render mode. Multi-environment rendering rewrites
+    the camera relationship to every lidar path, in environment order, after the layer is loaded.
+    The initial relationship names the source lidar, which exists in the trimmed stage.
+
+    Args:
+        render_scope_name: Root scope containing the render product and its point-cloud variable.
+        lidar_path: Absolute path of the source lidar prim.
+        device_id: CUDA device index the product is pinned to.
+
+    Returns:
+        USDA text for the lidar render product.
+    """
+    point_cloud = f"/{render_scope_name}/Vars/PointCloud"
+    return f'''#usda 1.0
+(defaultPrim = "{render_scope_name}")
+
+def Scope "{render_scope_name}"
+{{
+    def RenderProduct "RenderProduct"
+    {{
+        rel camera = [<{lidar_path}>]
+        uint[] deviceIds = [{device_id}]
+        rel orderedVars = [<{point_cloud}>]
+    }}
+
+    def "Vars"
+    {{
+        def RenderVar "PointCloud"
+        {{
+            uniform string sourceName = "PointCloud"
+            token[] channels = ["Coordinates", "Intensity", "Flags"]
+        }}
+    }}
+}}
+'''
+
+
 def build_render_product_as_string(
     spec: CameraRenderSpec,
     render_data: OVRTXCameraRenderData,
