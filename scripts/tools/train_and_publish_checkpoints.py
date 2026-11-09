@@ -683,6 +683,7 @@ def publish_pretrained_checkpoint(job: CheckpointJob, args: argparse.Namespace) 
     if args.dry_run:
         return True
 
+    # omniverseclient is no longer an Isaac Lab dependency: install it to publish
     import omni.client
     from omni.client._omniclient import CopyBehavior
 
