@@ -166,9 +166,22 @@ class CartpoleCameraFeaturePPORunnerCfg(RslRlOnPolicyRunnerCfg):
 
 
 @configclass
+class CartpoleLidarPPORunnerCfg(CartpoleCameraFeaturePPORunnerCfg):
+    """MLP policy for the joint state and lidar point cloud.
+
+    The critic reads the privileged joint state. The actor reads the policy group, which appends the
+    point cloud to that same joint state.
+    """
+
+    experiment_name = "cartpole_lidar"
+    obs_groups = {"actor": ["policy"], "critic": ["critic"]}
+
+
+@configclass
 class CartpoleCameraPPORunnerPresetsCfg(PresetCfg):
     """RSL-RL configuration family keyed by camera pipeline presets."""
 
     default = CartpoleCameraPPORunnerCfg()
     resnet18 = CartpoleCameraFeaturePPORunnerCfg()
     theia_tiny = CartpoleCameraFeaturePPORunnerCfg()
+    lidar = CartpoleLidarPPORunnerCfg()
