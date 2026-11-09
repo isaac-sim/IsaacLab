@@ -30,6 +30,7 @@ import pytest
 import torch
 import warp as wp
 from flaky import flaky
+from isaaclab_newton.physics import KaminoPADMMSolverCfg, VBDSolverCfg, XPBDSolverCfg
 from isaaclab_newton.physics.newton_backend import _compile_label_pattern
 from isaaclab_newton.sensors.contact_sensor import ContactSensorCfg as NewtonContactSensorCfg
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
@@ -353,14 +354,24 @@ def test_horizontal_collision_detects_contact(device: str, use_mujoco_contacts: 
 
 # The pipelines select distinct contact paths; the device selects none, so it rotates across them.
 @pytest.mark.parametrize(
-    "device, use_mujoco_contacts",
+    "device, use_mujoco_contacts, solver_cfg",
     [
-        pytest.param(device, pipeline.values[0], id=f"{pipeline.id}-{device}")
+        pytest.param(device, pipeline.values[0], None, id=f"{pipeline.id}-{device}")
         for device, pipeline in zip(test_devices() * len(COLLISION_PIPELINES), COLLISION_PIPELINES)
+    ]
+    + [
+        pytest.param(device, False, solver_cfg, id=f"{name}-{device}")
+        for device in test_devices(DeviceScope.CUDA)
+        for name, solver_cfg in (
+            ("xpbd", XPBDSolverCfg()),
+            ("vbd", VBDSolverCfg()),
+            ("kamino", KaminoPADMMSolverCfg()),
+            ("kamino_native", KaminoPADMMSolverCfg(use_collision_detector=True)),
+        )
     ],
 )
-def test_resting_object_contact_force(device: str, use_mujoco_contacts: bool):
-    """Test that resting object contact force equals weight and points upward.
+def test_resting_object_contact_force(device: str, use_mujoco_contacts: bool, solver_cfg):
+    """Test that each supported solver reports upward resting contact forces.
 
     Two objects (light=2kg and heavy=4kg) rest on ground.
 
@@ -379,6 +390,8 @@ def test_resting_object_contact_force(device: str, use_mujoco_contacts: bool):
     sim_cfg = make_sim_cfg(
         use_mujoco_contacts=use_mujoco_contacts, device=device, gravity=(0.0, 0.0, -gravity_magnitude)
     )
+    if solver_cfg is not None:
+        sim_cfg.physics.solver_cfg = solver_cfg
 
     with build_simulation_context(sim_cfg=sim_cfg, auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
@@ -443,11 +456,12 @@ def test_resting_object_contact_force(device: str, use_mujoco_contacts: bool):
             fa = force_mags_a[env_idx].max().item()
             fb = force_mags_b[env_idx].max().item()
 
-            if abs(fa - expected_force_a) >= 0.02 * expected_force_a:
+            tolerance = 0.02 if solver_cfg is None else 0.3
+            if abs(fa - expected_force_a) >= tolerance * expected_force_a:
                 errs.append(
                     f"Env {env_idx}: BoxA ({mass_a}kg) force should be ~{expected_force_a:.2f} N. Got {fa:.2f} N"
                 )
-            if abs(fb - expected_force_b) >= 0.02 * expected_force_b:
+            if abs(fb - expected_force_b) >= tolerance * expected_force_b:
                 errs.append(
                     f"Env {env_idx}: BoxB ({mass_b}kg) force should be ~{expected_force_b:.2f} N. Got {fb:.2f} N"
                 )
