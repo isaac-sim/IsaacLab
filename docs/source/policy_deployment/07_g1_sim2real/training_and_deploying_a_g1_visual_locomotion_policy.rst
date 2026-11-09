@@ -15,7 +15,7 @@ deployment using Isaac ROS Deploy and the official Unitree G1 ros2_control hardw
 
 .. code-block:: text
 
-   1. train      Isaac-Velocity-Rough-G1-29dof
+   1. train      Isaac-Velocity-Rough-G1-29DoF
    2. distill    Isaac-Velocity-Rough-G1-Depth-Student
    3. export     pipeline .yaml + .onnx + _initial_values.safetensors
    4. deploy     scripts/deploy/g1_deploy.py
@@ -69,7 +69,7 @@ neither, which is why the second stage exists.
 .. code-block:: bash
 
    uv run isaaclab train --rl_library rsl_rl \
-       --task Isaac-Velocity-Rough-G1-29dof
+       --task Isaac-Velocity-Rough-G1-29DoF
 
 The 29-DoF task trains the teacher for this deployment pipeline. It has a higher simulation cost
 than ``Isaac-Velocity-Rough-G1``, which uses the minimal robot model.

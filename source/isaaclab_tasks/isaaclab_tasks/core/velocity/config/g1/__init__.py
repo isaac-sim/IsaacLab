@@ -36,7 +36,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Velocity-Rough-G1-29dof",
+    id="Isaac-Velocity-Rough-G1-29DoF",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
