@@ -61,6 +61,7 @@ class TransportResource:
         self.streams = []
         self.closed = threading.Event()
         self.fail = False
+        self.error: type[Exception] = RuntimeError
         self.calls = []
         self.step_entered = threading.Event()
         self.resume_step = threading.Event()
@@ -96,7 +97,7 @@ class TransportStream:
         if not self.resource.resume_step.wait(5):
             raise TimeoutError("Test did not release the blocked generation")
         if self.resource.fail:
-            raise RuntimeError("generation rejected this chunk")
+            raise self.resource.error("generation rejected this chunk")
         return [np.full_like(control, 127) for control in controls]
 
     def close(self):
@@ -381,8 +382,11 @@ def test_only_one_generation_session_is_owned_and_disconnect_releases_it(cosmos_
         reconnect.close()
 
 
-def test_failed_generation_is_not_retried_and_releases_the_session(cosmos_service):
+@pytest.mark.parametrize("error", [RuntimeError, OSError, TimeoutError, ConnectionError])
+def test_failed_generation_is_not_retried_and_releases_the_session(cosmos_service, error):
+    """The camera receives the model's error, also when it is of a type that the connection itself can raise."""
     cosmos_service.resource.fail = True
+    cosmos_service.resource.error = error
     client = _client(cosmos_service.endpoint)
     stream = client.open_stream(num_views=1, seeds=(3,))
     try:

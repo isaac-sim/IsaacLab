@@ -78,12 +78,11 @@ nonpositive depth becomes black. `FunctionProcessorCfg` applies any such functio
 one camera buffer; any processor that produces uint8 `(N, H, W, 3)` controls under the
 image transfer processor's first input can take its place.
 
-## Local example and validation
+## Validation
 
-`examples/sensors/depth_image_processor.py` runs the processors on CPU with a small
-illustrative tint model. It requires no model or remote service:
+The tests run the processors on CPU with small stand-in models. They require no model
+or remote service:
 
 ```bash
-uv run python examples/sensors/depth_image_processor.py --output output/image-transfer-demo.npz
 uv run python -m pytest source/isaaclab_experimental/test/sensors/test_image_transfer.py
 ```

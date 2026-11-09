@@ -219,6 +219,18 @@ def _transports(model: _Model) -> tuple[list[str], str | None, str | None]:
     return ["socket", "cuda_ipc"], _cuda_ipc.host_id(), _cuda_ipc.pci_bus_id(int(index or 0))
 
 
+def _run_inference(state: _ServiceState, function, *args, **kwargs):
+    """Run a model call on the inference thread and return its result.
+
+    The connection handler reads an ``OSError`` as the camera disconnecting or idling. One raised by the model is a
+    failed generation, so it is raised as a ``RuntimeError``, which the handler reports to the camera.
+    """
+    try:
+        return state.executor.submit(function, *args, **kwargs).result()
+    except OSError as exc:
+        raise RuntimeError(f"{type(exc).__name__}: {exc}") from exc
+
+
 def _handle_connection(
     connection: socket.socket,
     state: _ServiceState,
@@ -286,14 +298,12 @@ def _handle_connection(
                     if state.stopping.is_set():
                         raise RuntimeError("Cosmos service is shutting down.")
                     state.owner = token
-                stream = state.executor.submit(state.model.open_stream, **arguments).result()
+                stream = _run_inference(state, state.model.open_stream, **arguments)
                 image_shape = (arguments["height"], arguments["width"], 3)
                 num_views = arguments["num_views"]
                 reply = {"ok": True}
                 if transport == "cuda_ipc":
-                    channel = state.executor.submit(
-                        _open_channel, state.model, num_views, image_shape, handles
-                    ).result()
+                    channel = _run_inference(state, _open_channel, state.model, num_views, image_shape, handles)
                     # The camera opens the generated-image buffer and event this service writes on its own GPU.
                     reply["ipc"] = channel.handles
                 send_message(connection, reply)
@@ -307,21 +317,21 @@ def _handle_connection(
                 episode = _episode_arguments(metadata, resets)
                 if channel is not None:
                     frames = _channel_frames(metadata["frames"], num_views)
-                    state.executor.submit(_step_channel, stream, channel, frames, resets, seeds, episode).result()
+                    _run_inference(state, _step_channel, stream, channel, frames, resets, seeds, episode)
                     send_message(connection, {"ok": True})
                     continue
                 if len(arrays) != num_views or any(array.shape[1:] != image_shape for array in arrays):
                     raise ValueError("Cosmos controls must hold one chunk per view at the configured image size.")
-                generated = state.executor.submit(stream.step, arrays, resets, seeds, **episode).result()
+                generated = _run_inference(state, stream.step, arrays, resets, seeds, **episode)
                 _check_generated(generated, arrays)
                 send_message(connection, {"ok": True}, generated)
             elif operation == "close":
                 _check_fields(metadata, {"op", "version"}, arrays)
                 if stream is not None:
-                    state.executor.submit(stream.close).result()
+                    _run_inference(state, stream.close)
                     stream = None
                 if channel is not None:
-                    state.executor.submit(channel.close).result()
+                    _run_inference(state, channel.close)
                     channel = None
                 with state.ownership_lock:
                     if state.owner is token:
