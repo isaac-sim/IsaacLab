@@ -255,11 +255,11 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
         assert renderer.scene.cfg.populate_physics is shared_physics
     if shared_physics:
         with pytest.raises(ValueError, match="one OVRTX engine"):
-            sim.get_or_create_backend(replace(renderer.cfg, log_level="error"))
+            sim.get_or_create_backend(replace(renderer.cfg, log_level="verbose"))
         conflict = next(
             resource
             for cfg, resource in sim._backend_registry
-            if isinstance(cfg, OVRTXRendererCfg) and cfg.log_level == "error"
+            if isinstance(cfg, OVRTXRendererCfg) and cfg.log_level == "verbose"
         )
         sim.close_backend(conflict)
     renderer.close()

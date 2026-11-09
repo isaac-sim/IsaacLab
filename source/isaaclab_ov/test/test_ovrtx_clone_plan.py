@@ -230,6 +230,42 @@ def test_native_replication_applies_compositions_then_positions(
     np.testing.assert_array_equal(actual, expected)
 
 
+@pytest.mark.rendering
+def test_default_native_replication_keeps_stdout_quiet(capfd):
+    """Default logging prints no OVRTX warning per attribute of each native clone.
+
+    A slow stdout consumer blocks the native writer, so per-clone output stalls large scenes.
+    """
+    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXBackend
+    from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg
+
+    stage = Usd.Stage.CreateInMemory()
+    cube = UsdGeom.Cube.Define(stage, "/World/envs/env_0/Object")
+    material = UsdShade.Material.Define(stage, "/World/envs/env_0/Object/material")
+    shader = UsdShade.Shader.Define(stage, "/World/envs/env_0/Object/material/Shader")
+    shader.CreateIdAttr("UsdPreviewSurface")
+    material.CreateSurfaceOutput().ConnectToSource(shader.ConnectableAPI(), "surface")
+    UsdShade.MaterialBindingAPI.Apply(cube.GetPrim()).Bind(material)
+    renderer_cfg = OVRTXRendererCfg()
+    backend = OVRTXBackend(
+        OVRTXBackendCfg(
+            scene_key=renderer_cfg,
+            log_file_path=renderer_cfg.log_file_path,
+            log_level=renderer_cfg.log_level,
+            use_ovstage=False,
+            read_gpu_transforms=True,
+            device="cuda:0",
+        )
+    )
+    try:
+        backend.renderer.open_usd_from_string(stage.GetRootLayer().ExportToString())
+        ovrtx_replicate(backend.renderer, [("/World/envs/env_0", [f"/World/envs/env_{i}" for i in range(1, 9)])], [])
+    finally:
+        backend.close()
+
+    assert "has no valid data" not in capfd.readouterr().out
+
+
 @pytest.mark.parametrize("copies", [[], [("/World/Source", [])]], ids=["no-copies", "no-targets"])
 def test_ovstage_replication_skips_hierarchy_without_clones(monkeypatch, copies):
     """OVStage 0.4 does no hierarchy work when there are no clone destinations."""

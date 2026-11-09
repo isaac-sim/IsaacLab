@@ -32,7 +32,7 @@ class OVRTXBackendCfg(BackendCfg):
     """None shares the simulation scene; standalone renderers retain their own scene policy."""
     log_file_path: str = os.path.join(tempfile.gettempdir(), "ovrtx_renderer.log")
     """Native renderer log destination."""
-    log_level: str = "verbose"
+    log_level: str = "error"
     """Native renderer log level."""
     use_ovstage: bool = MISSING
     """Whether the engine borrows a simulation-owned OVStage instead of using its internal stage."""
@@ -83,8 +83,11 @@ class OVRTXRendererCfg(RendererCfg):
     stage plus injected render products) under this directory. Must be writable.
     """
 
-    log_level: str = "verbose"
-    """OVRTX carb log level: "verbose", "info", "warn", "error"."""
+    log_level: str = "error"
+    """OVRTX carb log level: "verbose", "info", "warn", "error". Defaults to "error".
+
+    Lower levels print OVRTX warnings to stdout, including one per attribute of every native clone.
+    """
 
     log_file_path: str = os.path.join(tempfile.gettempdir(), "ovrtx_renderer.log")
     """Path for OVRTX log file. Defaults to ``<system temp>/ovrtx_renderer.log``."""
