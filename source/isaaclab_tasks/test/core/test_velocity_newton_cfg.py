@@ -11,7 +11,8 @@ from isaaclab_newton.physics import MJWarpSolverCfg
 from isaaclab.managers import RewardTermCfg
 
 from isaaclab_tasks.core.velocity import mdp
-from isaaclab_tasks.core.velocity.config.g1.rough_env_cfg import G1RoughEnvCfg, G1RoughTeacherEnvCfg
+from isaaclab_tasks.core.velocity.config.g1.rough_29dof_env_cfg import G1RoughTeacherEnvCfg
+from isaaclab_tasks.core.velocity.config.g1.rough_env_cfg import G1RoughEnvCfg
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
 
