@@ -67,6 +67,23 @@ def test_lidar_preset_uses_one_ovrtx_renderer():
     assert cfg.scene.lidar.renderer_cfg == cfg.scene.tiled_camera.renderer_cfg
 
 
+def test_lidar_preset_selects_mlp_agents():
+    """The lidar observation is a vector, so both registered agents must stay off the image CNN."""
+    from isaaclab_tasks.core.cartpole.agents import rl_games_camera_cfg
+    from isaaclab_tasks.core.cartpole.agents.rsl_rl_ppo_cfg import CartpoleCameraPPORunnerPresetsCfg
+
+    rl_games_cfg = resolve_presets(rl_games_camera_cfg(), {"lidar"})
+    rl_games_config = rl_games_cfg["params"]["config"]
+    assert "cnn" not in rl_games_cfg["params"]["network"]
+    assert rl_games_config["name"] == "cartpole_lidar"
+    assert "minibatch_size" not in rl_games_config
+    assert rl_games_config["horizon_length"] % rl_games_config["minibatch_size_per_env"] == 0
+
+    rsl_rl_cfg = resolve_presets(CartpoleCameraPPORunnerPresetsCfg(), {"lidar"})
+    assert rsl_rl_cfg.actor.class_name == "MLPModel"
+    assert rsl_rl_cfg.obs_groups == {"actor": ["policy"], "critic": ["critic"]}
+
+
 def test_rgb_preset_has_no_lidar():
     """Existing camera presets do not gain a lidar or change renderer."""
     cfg = resolve_presets(CartpoleManagerCameraEnvCfg(), {"rgb"})
