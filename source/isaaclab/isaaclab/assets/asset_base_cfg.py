@@ -105,7 +105,7 @@ class AssetBaseCfg:
     """
 
     def _post_spawn(self, stage: Any) -> None:
-        """Hook invoked by :class:`~isaaclab.assets.Asset` after its spawner returns a valid prim.
+        """Hook invoked by :class:`~isaaclab.assets.Asset` after spawning or referencing existing prims.
 
         The default implementation is a no-op. Subclasses that need to author additional
         USD schemas tied to this asset (for example, :class:`~isaaclab.assets.ArticulationCfg`
@@ -113,6 +113,6 @@ class AssetBaseCfg:
         override this method.
 
         Args:
-            stage: The USD stage on which the asset was spawned.
+            stage: The USD stage containing the asset.
         """
         pass

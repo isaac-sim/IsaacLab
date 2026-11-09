@@ -76,6 +76,25 @@ class ArticulationCfg(AssetBaseCfg):
     The soft joint position limits are accessible through the :attr:`ArticulationData.soft_joint_pos_limits` attribute.
     """
 
+    self_collision_filter_pairs: list[tuple[str | list[str], str | list[str]]] = []
+    """Additional self-collision exclusions between pairs of body-name regex groups. Defaults to [].
+
+    Each pair excludes collisions between every body matched by its first group and every body matched
+    by its second group. A group is a regex string or a non-empty list of regex strings, matched against
+    complete body names. Every expression must match at least one body in the selected articulation.
+    Overlapping groups are allowed; a body is never paired with itself. Use the same group on both
+    sides to exclude collisions within that group.
+
+    For example, ``[("thumb_.*", ["palm_link", "arm_link_[5-7]"])]`` filters thumb-to-palm and
+    thumb-to-arm contacts. Existing exclusions, including disabled articulation self-collisions and
+    adjacent-link filters, still apply. These pairs cannot re-enable contacts.
+
+    The exclusions are authored as USD ``physics:filteredPairs`` relationships when the asset is
+    constructed, before physics import and cloning. This also applies when :attr:`spawn` is None.
+    Set this field before constructing the asset; changing it after model initialization has no effect.
+    Body prims that are USD instance proxies cannot be edited and raise :class:`ValueError`.
+    """
+
     joint_ordering: list[str] | tuple[str, ...] | str | ArticulationOrderingConvention | None = None
     """Public joint-name ordering convention or complete explicit permutation.
 
@@ -119,15 +138,19 @@ class ArticulationCfg(AssetBaseCfg):
     """
 
     def _post_spawn(self, stage: Any) -> None:
-        """Author ``NewtonActuator`` USD prims from :attr:`actuators` after spawn.
+        """Author collision exclusions and, for spawned assets, Newton actuator prims.
 
         Invoked by :class:`~isaaclab.assets.Asset` once the articulation's prims
-        exist on the stage. Delegates to
+        exist on the stage. Actuator authoring delegates to
         :func:`~isaaclab.sim.schemas.define_actuator_properties`, which gates itself
         on ``sim_cfg.use_newton_actuators``. BAM requires native Newton execution;
         other actuator configurations no-op when native execution is disabled.
         """
-        if self.actuators is MISSING:
+        if self.self_collision_filter_pairs:
+            from .collision_filtering import _apply_self_collision_filters  # noqa: PLC0415
+
+            _apply_self_collision_filters(self, stage)
+        if self.spawn is None or self.actuators is MISSING:
             return
         from ...sim.schemas.schemas_actuators import define_actuator_properties  # noqa: PLC0415
 

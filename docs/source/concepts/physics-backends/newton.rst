@@ -58,6 +58,34 @@ runtime comparison at each task's configured environment count, run
 ``isaaclab benchmark runtime --task TASK presets=newton_steel`` and repeat with
 ``presets=newton_mjwarp`` without passing ``--num_envs``.
 
+Selective self-collision filtering
+---------------------------------
+
+Use :attr:`~isaaclab.assets.ArticulationCfg.self_collision_filter_pairs` to exclude
+contacts between groups of articulation bodies. For example, exclude thumb contacts
+with selected palm, mount, and arm bodies in an existing robot configuration:
+
+.. code-block:: python
+
+   robot_cfg.self_collision_filter_pairs = [
+       (["thumb_.*"], ["palm_link", "allegro_mount", "arm_link_[5-7]"]),
+   ]
+
+Each tuple pairs two groups, each expressed as one body-name regular expression or a
+list of expressions. Every body matched by the first group is filtered against every
+body matched by the second. Use the same group on both sides to exclude collisions
+within that group, for example ``("finger_.*", "finger_.*")``. Adapt the expressions
+to your asset: invalid expressions and expressions that match no bodies raise errors.
+The default empty list leaves collision filtering unchanged.
+
+Keep self-collisions enabled when using selective filtering. Existing adjacency
+exclusions and global self-collision settings still apply. Isaac Lab preserves
+existing exclusions and authors standard USD body ``filteredPairs`` relationships
+before model import and cloning. This supports spawned assets, existing stage assets
+(``spawn=None``), and clone variants, with patterns scoped to each selected
+articulation. Consumption of these USD filters has been verified with the Newton
+importer.
+
 Related workflows
 -----------------
 
