@@ -24,6 +24,11 @@ runtime aid for tracking down call sites that may still assume Isaac Lab 2.x's
 ``(w, x, y, z)`` quaternion convention after the migration to Isaac Lab 3.x's
 ``(x, y, z, w)`` convention. See the Isaac Lab 3.0 migration guide for details."""
 
+_IMPLICIT_TORCH_STRICT_ENV = "ISAACLAB_PROXY_ARRAY_STRICT"
+"""Environment variable that, when set to ``"1"``, makes implicit torch use of a :class:`ProxyArray` raise a
+:class:`TypeError` instead of warning. Run with it to list every call site that still relies on the deprecation
+bridge before the bridge is removed."""
+
 
 class ProxyArray:
     """Warp-first array wrapper providing cached zero-copy ``.torch`` and ``.warp`` accessors.
@@ -56,6 +61,12 @@ class ProxyArray:
 
         # Deprecation bridge (warns once, then silent)
         result = ta + 1.0  # works, emits DeprecationWarning
+
+    .. deprecated::
+        Implicit torch use of a ProxyArray (indexing, operators, torch functions and tensor methods on the
+        ProxyArray itself) is a compatibility bridge for code written against ``torch.Tensor`` attributes; it is
+        removed after the next release. Read ``.torch`` instead. Set ``ISAACLAB_PROXY_ARRAY_STRICT=1`` to make
+        every implicit use raise, which lists the call sites to migrate.
     """
 
     _deprecation_warned: ClassVar[bool] = False
@@ -260,7 +271,15 @@ class ProxyArray:
 
     @classmethod
     def _warn_implicit(cls) -> None:
-        """Emit a one-time deprecation warning for implicit torch usage."""
+        """Emit a one-time deprecation warning for implicit torch usage, or raise in strict mode.
+
+        Every path of the deprecation bridge goes through this method, so removing the bridge removes its callers.
+        """
+        if os.environ.get(_IMPLICIT_TORCH_STRICT_ENV, "0") == "1":
+            raise TypeError(
+                f"Implicit use of ProxyArray as a torch.Tensor is deprecated ({_IMPLICIT_TORCH_STRICT_ENV}=1)."
+                " Use the explicit .torch property instead."
+            )
         if not cls._deprecation_warned:
             cls._deprecation_warned = True
             warnings.warn(
@@ -366,3 +385,57 @@ class ProxyArray:
 
     def __ge__(self, other) -> torch.Tensor:
         return self._binop(other, "__ge__")
+
+    def __and__(self, other) -> torch.Tensor:
+        return self._binop(other, "__and__")
+
+    def __rand__(self, other) -> torch.Tensor:
+        return self._binop(other, "__rand__")
+
+    def __or__(self, other) -> torch.Tensor:
+        return self._binop(other, "__or__")
+
+    def __ror__(self, other) -> torch.Tensor:
+        return self._binop(other, "__ror__")
+
+    def __xor__(self, other) -> torch.Tensor:
+        return self._binop(other, "__xor__")
+
+    def __rxor__(self, other) -> torch.Tensor:
+        return self._binop(other, "__rxor__")
+
+    def __invert__(self) -> torch.Tensor:
+        self._warn_implicit()
+        return ~self.torch
+
+    # ------------------------------------------------------------------
+    # Deprecation bridge — in-place operators, which keep the wrapper (and the memory it wraps)
+    # ------------------------------------------------------------------
+
+    def _inplace(self, other, op: str) -> ProxyArray:
+        """Apply an in-place torch operator to the torch view and keep this wrapper bound to the same memory."""
+        self._warn_implicit()
+        other_val = other.torch if isinstance(other, ProxyArray) else other
+        getattr(self.torch, op)(other_val)
+        return self
+
+    def __iadd__(self, other) -> ProxyArray:
+        return self._inplace(other, "__iadd__")
+
+    def __isub__(self, other) -> ProxyArray:
+        return self._inplace(other, "__isub__")
+
+    def __imul__(self, other) -> ProxyArray:
+        return self._inplace(other, "__imul__")
+
+    def __itruediv__(self, other) -> ProxyArray:
+        return self._inplace(other, "__itruediv__")
+
+    def __iand__(self, other) -> ProxyArray:
+        return self._inplace(other, "__iand__")
+
+    def __ior__(self, other) -> ProxyArray:
+        return self._inplace(other, "__ior__")
+
+    def __ixor__(self, other) -> ProxyArray:
+        return self._inplace(other, "__ixor__")

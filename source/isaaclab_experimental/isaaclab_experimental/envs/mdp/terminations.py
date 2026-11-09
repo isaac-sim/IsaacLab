@@ -19,10 +19,9 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 
-from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.warp.math import quat_error_magnitude
 
-from isaaclab_experimental.managers import ManagerTermBase
+from isaaclab_experimental.managers import ManagerTermBase, SceneEntityCfg
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
@@ -125,7 +124,8 @@ class pose_command_success(ManagerTermBase):
         self._any_threshold = self._check_position or self._check_orientation
         self._body_idx = command.body_idx
         self._asset: Articulation = command.robot
-        self._cmd_wp = env.command_manager.get_command(command_name).warp
+        cmd = env.command_manager.get_command(command_name)
+        self._cmd_wp = cmd if isinstance(cmd, wp.array) else wp.from_torch(cmd)
         # zero-copy alias of the command's persistent sticky-success buffer (allocated once, never
         # reallocated), so the kernel's write lands in the tensor ``reset()`` reads and clears.
         self._succeeded_wp = wp.from_torch(command._succeeded) if self._any_threshold else None
@@ -196,15 +196,12 @@ def _joint_pos_out_of_manual_limit_kernel(
     upper: float,
     out: wp.array(dtype=wp.bool),
 ):
-    """1D kernel (num_envs,): whether any selected joint is outside the bounds."""
-    i = wp.tid()
-    violated = bool(False)
-    for j in range(joint_pos.shape[1]):
-        if joint_mask[j]:
-            v = joint_pos[i, j]
-            if v < lower or v > upper:
-                violated = True
-    out[i] = violated
+    """2D kernel (num_envs, num_joints). ``out`` is pre-zeroed; only writes True."""
+    i, j = wp.tid()
+    if joint_mask[j]:
+        v = joint_pos[i, j]
+        if v < lower or v > upper:
+            out[i] = True
 
 
 def joint_pos_out_of_manual_limit(
@@ -224,8 +221,8 @@ def joint_pos_out_of_manual_limit(
         )
     wp.launch(
         kernel=_joint_pos_out_of_manual_limit_kernel,
-        dim=env.num_envs,
-        inputs=[asset.data.joint_pos.warp, asset_cfg.joint_mask.warp, bounds[0], bounds[1], out],
+        dim=(env.num_envs, asset.data.joint_pos.warp.shape[1]),
+        inputs=[asset.data.joint_pos.warp, asset_cfg.joint_mask, bounds[0], bounds[1], out],
         device=env.device,
     )
 
@@ -264,6 +261,6 @@ def illegal_contact(env: ManagerBasedRLEnv, out, threshold: float, sensor_cfg: S
     wp.launch(
         kernel=_illegal_contact_kernel,
         dim=env.num_envs,
-        inputs=[contact_sensor.data.net_normal_forces_w_history.warp, sensor_cfg.body_indices.warp, threshold, out],
+        inputs=[contact_sensor.data.net_normal_forces_w_history.warp, sensor_cfg.body_ids_wp, threshold, out],
         device=env.device,
     )

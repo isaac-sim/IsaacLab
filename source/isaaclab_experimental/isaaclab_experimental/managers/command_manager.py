@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import inspect
 from abc import abstractmethod
-from collections.abc import Iterable, Sequence
-from typing import TYPE_CHECKING, Any
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import torch
 import warp as wp
@@ -18,14 +18,10 @@ from prettytable import PrettyTable
 
 from isaaclab.managers.manager_term_cfg import CommandTermCfg
 from isaaclab.utils import instantiate
-from isaaclab.utils.seed import WarpRng
-from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp.capture import captured, eager
 
-from isaaclab_experimental.utils.warp import is_warp_capturable
 from isaaclab_experimental.utils.warp.kernels import compute_reset_scale, count_masked
 
-from .manager_base import ManagerBase, ManagerTermBase, _config_key, split_terms
+from .manager_base import ManagerBase, ManagerTermBase
 
 # import omni.kit.app
 
@@ -310,6 +306,8 @@ class CommandTerm(ManagerTermBase):
             raise TypeError(f"env_mask must be a wp.array (got {type(env_mask)}).")
         if env_mask.dtype != wp.bool or env_mask.ndim != 1:
             raise TypeError(f"env_mask must be wp.bool 1D (got dtype={env_mask.dtype}, ndim={env_mask.ndim}).")
+        if self._env.rng_state_wp is None:
+            raise RuntimeError("Environment rng_state_wp is not initialized.")
 
         # resample time-left and increment command-counter for masked envs
         wp.launch(
@@ -319,7 +317,7 @@ class CommandTerm(ManagerTermBase):
                 env_mask,
                 self.time_left_wp,
                 self.command_counter_wp,
-                WarpRng.state,
+                self._env.rng_state_wp,
                 float(self.cfg.resampling_time_range[0]),
                 float(self.cfg.resampling_time_range[1]),
             ],
@@ -393,10 +391,8 @@ class CommandManager(ManagerBase):
 
         # call the base class constructor (this prepares the terms)
         super().__init__(cfg, env)
-        # an uncapturable command term runs its compute and reset eagerly
-        self._term_split = split_terms(list(self._terms.values()), is_warp_capturable)
-        # the command of each term as (buffer, proxy), rebuilt only when the term replaces its buffer
-        self._commands: dict[str, tuple[Any, ProxyArray]] = dict()
+        # store the commands
+        self._commands = dict()
         if self.cfg:
             self.cfg.debug_vis = False
             for term in self._terms.values():
@@ -406,11 +402,7 @@ class CommandManager(ManagerBase):
         self._reset_extras: dict[str, torch.Tensor] = {}
         for term_name, term in self._terms.items():
             for metric_name, metric_value in term.reset_extras.items():
-                # success rates share the unified ``Metrics/success_rate`` key across tasks, as in the stable terms
-                if metric_name == "success_rate":
-                    self._reset_extras["Metrics/success_rate"] = metric_value
-                else:
-                    self._reset_extras[f"Metrics/{term_name}/{metric_name}"] = metric_value
+                self._reset_extras[f"Metrics/{term_name}/{metric_name}"] = metric_value
 
     def __str__(self) -> str:
         """Returns: A string representation for the command manager."""
@@ -491,26 +483,41 @@ class CommandManager(ManagerBase):
         for term in self._terms.values():
             term.set_debug_vis(debug_vis)
 
-    @captured
-    def _reset(self, env_mask: wp.array) -> dict[str, torch.Tensor]:
-        """Resets the command terms of the environments selected by a boolean mask and logs their metrics.
+    def reset(
+        self,
+        env_ids: Sequence[int] | torch.Tensor | None = None,
+        *,
+        env_mask: wp.array | None = None,
+    ) -> dict[str, torch.Tensor]:
+        """Reset the command terms and log their metrics.
 
         This function resets the command counter and resamples the command for each term. It should be called
         at the beginning of each episode.
 
         Args:
+            env_ids: The specific environment indices to reset.
+                If None, all environments are considered.
             env_mask: Boolean Warp mask of shape (num_envs,) selecting reset environments.
+                If provided, takes precedence over ``env_ids``.
 
         Returns:
             A dictionary containing the information to log under the "Metrics/{term_name}/{metric_name}" key.
         """
-        for term in self._term_split.eager:
-            eager(term.reset, env_mask=env_mask)
-        for term in self._term_split.captured:
+        # Mask-first path: captured callers must provide env_mask.
+        if env_mask is None or not isinstance(env_mask, wp.array):
+            if wp.get_device().is_capturing:
+                raise RuntimeError(
+                    "CommandManager.reset requires env_mask(wp.array[bool]) during capture. "
+                    "Do not pass env_ids on captured paths."
+                )
+            env_mask = self._env.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+
+        for term in self._terms.values():
+            # reset the command term
             term.reset(env_mask=env_mask)
+
         return self._reset_extras
 
-    @captured
     def compute(self, dt: float):
         """Updates the commands.
 
@@ -520,70 +527,24 @@ class CommandManager(ManagerBase):
             dt: The time-step interval of the environment.
 
         """
-        for term in self._term_split.eager:
-            eager(term.compute, dt)
-        for term in self._term_split.captured:
+        # iterate over all the command terms
+        for term in self._terms.values():
+            # compute term's value
             term.compute(dt)
 
-    def get_command(self, name: str) -> ProxyArray:
+    def get_command(self, name: str) -> torch.Tensor:
         """Returns the command for the specified command term.
 
-        Torch code reads it through ``.torch`` and Warp code through ``.warp``. Terms read the command through
-        this accessor on every call rather than caching it, so a recorded stage always refers to the buffers of
-        the current environment.
-
         Args:
             name: The name of the command term.
 
         Returns:
-            The command of the specified command term. Shape is (num_envs, command_dim).
+            The command tensor of the specified command term.
         """
         command = self._terms[name].command
-        cached = self._commands.get(name)
-        if cached is None or cached[0] is not command:
-            cached = (command, ProxyArray(command if isinstance(command, wp.array) else wp.from_torch(command)))
-            self._commands[name] = cached
-        return cached[1]
-
-    def set_term_cfg(self, name: str, cfg: CommandTermCfg):
-        """Sets the configuration of the specified command term.
-
-        A command term reads its configuration, such as its sampling ranges, when a command stage records, so the
-        command stages record again on their next call when the configuration changes.
-
-        Args:
-            name: The name of the command term.
-            cfg: The configuration for the command term.
-
-        Raises:
-            ValueError: If the term name is not found.
-        """
-        if name not in self._terms:
-            raise ValueError(f"Command term '{name}' not found.")
-        changed = self._term_cfg_changed(name, cfg)
-        self._terms[name].cfg = cfg
-        if isinstance(self.cfg, dict):
-            self.cfg[name] = cfg
-        else:
-            setattr(self.cfg, name, cfg)
-        if changed:
-            self._record_term_again(name, cfg)
-
-    def get_term_cfg(self, name: str) -> CommandTermCfg:
-        """Gets the configuration of the specified command term.
-
-        Args:
-            name: The name of the command term.
-
-        Returns:
-            The configuration of the command term.
-
-        Raises:
-            ValueError: If the term name is not found.
-        """
-        if name not in self._terms:
-            raise ValueError(f"Command term '{name}' not found.")
-        return self._terms[name].cfg
+        if isinstance(command, wp.array):
+            return wp.to_torch(command)
+        return command
 
     def get_term(self, name: str) -> CommandTerm:
         """Returns the command term with the specified name.
@@ -599,12 +560,6 @@ class CommandManager(ManagerBase):
     """
     Helper functions.
     """
-
-    def _named_term_cfgs(self) -> Iterable[tuple[str, CommandTermCfg]]:
-        return ((name, term.cfg) for name, term in self._terms.items())
-
-    def _term_signature(self, term_cfg: CommandTermCfg) -> Any:
-        return _config_key(term_cfg)
 
     def _prepare_terms(self):
         # check if config is dict already

@@ -22,6 +22,7 @@ The following classes are part of the public :mod:`isaaclab_experimental.manager
    ManagerTermBase
    ObservationManager
    RewardManager
+   SceneEntityCfg
    TerminationManager
 
 .. autoclass:: ActionManager
@@ -49,6 +50,9 @@ The following classes are part of the public :mod:`isaaclab_experimental.manager
    :show-inheritance:
 
 .. autoclass:: RewardManager
+   :show-inheritance:
+
+.. autoclass:: SceneEntityCfg
    :show-inheritance:
 
 .. autoclass:: TerminationManager

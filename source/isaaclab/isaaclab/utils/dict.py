@@ -16,7 +16,6 @@ import torch
 
 from .array import TENSOR_TYPE_CONVERSIONS, TENSOR_TYPES
 from .string import ResolvableString, callable_to_string, string_to_slice
-from .warp.proxy_array import ProxyArray
 
 """
 Dictionary <-> Class operations.
@@ -44,11 +43,10 @@ def class_to_dict(obj: object) -> dict[str, Any]:
     # convert object to dictionary
     if isinstance(obj, dict):
         obj_dict = obj
-    elif isinstance(obj, (torch.Tensor, ProxyArray)):
+    elif isinstance(obj, torch.Tensor):
         # We have to treat torch tensors specially because `torch.tensor.__dict__` returns an empty
         # dict, which would mean that a torch.tensor would be stored as an empty dict. Instead we
         # want to store it directly as the tensor.
-        # A ProxyArray keeps its arrays in `__dict__`, so it is stored as it is too.
         return obj
     elif hasattr(obj, "__dict__"):
         obj_dict = obj.__dict__

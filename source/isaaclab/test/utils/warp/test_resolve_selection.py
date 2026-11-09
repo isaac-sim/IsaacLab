@@ -41,32 +41,13 @@ def test_resolve_ids(device):
         resolved = resolve_ids(ids=ids, all_ids=all_ids)
         assert resolved is ids or isinstance(ids, (list, slice))
         assert (wp.to_torch(resolved) if isinstance(resolved, wp.array) else resolved).tolist() == expected
+    with pytest.raises(TypeError, match="ProxyArray"):
+        resolve_ids(ids=ProxyArray(ids_int32), all_ids=all_ids)
     cached = wp.to_torch(all_ids)
     for selection in (slice(1, None, 2), slice(0, 0)):
         resolved = wp.to_torch(resolve_ids(ids=selection, all_ids=all_ids))
         assert resolved.data_ptr() == cached[selection].data_ptr()
         assert resolved.stride() == cached[selection].stride()
-
-
-@pytest.mark.parametrize("device", test_devices())
-def test_proxy_array_selects_through_its_warp_array(device):
-    """Every resolver takes a ProxyArray selector as its Warp array, without a copy."""
-    ids = wp.array([3, 1], dtype=wp.int32, device=device)
-    mask = wp.array([0, 1, 0, 1, 0], dtype=wp.bool, device=device)
-    all_ids = _all_ids(5, device)
-    assert resolve_ids(ids=ProxyArray(ids), all_ids=all_ids) is ids
-    assert resolve_ids(mask=ProxyArray(mask), all_ids=all_ids).tolist() == [1, 3]
-    assert resolve_1d_indices(ProxyArray(ids)).ptr == ids.ptr
-    all_mask = wp.ones(5, dtype=wp.bool, device=device)
-    assert resolve_1d_mask(mask=ProxyArray(mask), all_mask=all_mask) is mask
-    scratch = wp.zeros(5, dtype=wp.bool, device=device)
-    assert resolve_1d_mask(ids=ProxyArray(ids), all_mask=all_mask, scratch_mask=scratch).numpy().tolist() == [
-        False,
-        True,
-        False,
-        True,
-        False,
-    ]
 
 
 @pytest.mark.parametrize("device", test_devices())

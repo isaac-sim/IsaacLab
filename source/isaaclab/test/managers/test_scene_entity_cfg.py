@@ -12,28 +12,23 @@ from unittest.mock import Mock
 
 import pytest
 import torch
+import warp as wp
 
 from isaaclab.envs.mdp.events import apply_external_force_torque
 from isaaclab.envs.mdp.observations import joint_pos
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.test.utils import DeviceScope, test_devices
-from isaaclab.utils.dict import class_to_dict
+from isaaclab.utils import clone, replace
 from isaaclab.utils.string import resolve_matching_names
 
 pytestmark = pytest.mark.unit
-
-
-class _Scene(dict):
-    """Entity lookup and device of :class:`~isaaclab.scene.InteractiveScene`."""
-
-    device = "cpu"
 
 
 @pytest.fixture
 def scene():
     names = ["part_0", "part_1", "part_2", "part_3"]
     find = partial(resolve_matching_names, list_of_strings=names)
-    return _Scene(
+    return dict(
         robot=SimpleNamespace(
             joint_names=names,
             body_names=names,
@@ -117,23 +112,40 @@ def test_external_force_uses_selected_body_count(scene):
     assert kwargs["body_ids"].tolist() == [3, 1]
 
 
-def test_resolve_warp_indexes_and_masks_the_selection(scene):
-    """Warp ids keep the resolved order, and masks mark the selection over all joints or bodies."""
-    subset = SceneEntityCfg("robot", joint_names=["part_2", "part_0"], preserve_order=True, body_ids=[3, 1])
-    full = SceneEntityCfg("robot")
-    for cfg in (subset, full):
-        cfg.resolve(scene)
-        cfg.resolve_warp(scene)
+class _Scene(dict):
+    """Entity lookup and device of :class:`~isaaclab.scene.InteractiveScene`."""
 
-    assert subset.joint_indices.warp.numpy().tolist() == [2, 0]
-    assert subset.joint_mask.warp.numpy().tolist() == [True, False, True, False]
-    assert subset.body_indices.warp.numpy().tolist() == [3, 1]
-    assert subset.body_mask.warp.numpy().tolist() == [False, True, False, True]
-    assert full.joint_indices.warp.numpy().tolist() == [0, 1, 2, 3]
-    assert full.joint_mask.warp.numpy().tolist() == [True] * 4
-    assert full.body_indices.warp.numpy().tolist() == [0, 1, 2, 3]
-    assert full.body_mask.warp.numpy().tolist() == [True] * 4
-    for copied in (subset.copy(), copy.deepcopy(subset), class_to_dict(subset)):
-        for name in ("joint_indices", "joint_mask", "body_indices", "body_mask"):
-            value = copied[name] if isinstance(copied, dict) else getattr(copied, name)
-            assert value is getattr(subset, name)
+    device = "cpu"
+
+
+def test_resolve_fills_the_warp_ids_in_the_selection_order(scene):
+    """Warp ids keep the resolved order and repeats, expand slices, and count the bodies of a contact sensor."""
+    scene = _Scene(scene, sensor=SimpleNamespace(num_sensors=2, num_bodies=5))
+    subset = SceneEntityCfg("robot", joint_names=["part_2", "part_0"], preserve_order=True, body_ids=[3, 3, -1])
+    full = SceneEntityCfg("robot")
+    sensor = SceneEntityCfg("sensor")
+    for cfg in (subset, full, sensor):
+        cfg.resolve(scene)
+
+    assert subset.joint_ids_wp.dtype == wp.int32
+    assert subset.joint_ids_wp.numpy().tolist() == [2, 0]
+    assert subset.body_ids_wp.numpy().tolist() == [3, 3, 3]
+    assert full.joint_ids_wp.numpy().tolist() == [0, 1, 2, 3]
+    assert full.body_ids_wp.numpy().tolist() == [0, 1, 2, 3]
+    assert sensor.joint_ids_wp is None
+    assert sensor.body_ids_wp.numpy().tolist() == [0, 1]
+    # the torch selections keep their form
+    subset.finalize("cpu")
+    assert subset.joint_ids.dtype == torch.long
+    assert full.joint_ids == slice(None)
+
+
+def test_copies_share_the_warp_ids(scene):
+    """Configuration copies made after :meth:`resolve` share the Warp ids instead of copying device memory."""
+    scene = _Scene(scene)
+    cfg = SceneEntityCfg("robot", joint_names=["part_1"])
+    cfg.resolve(scene)
+
+    for copied in (cfg.copy(), clone(cfg), replace(cfg, name="robot")):
+        assert copied.joint_ids_wp is cfg.joint_ids_wp
+        assert copied.body_ids_wp is cfg.body_ids_wp

@@ -9,7 +9,6 @@ from types import SimpleNamespace
 from typing import Any
 
 import torch
-import warp as wp
 from leapp import annotate
 from leapp.utils.tensor_description import TensorSemantics
 
@@ -32,7 +31,7 @@ class TracedProxyArray(ProxyArray):
         task_name: str,
     ) -> None:
         super().__init__(proxy_array.warp)
-        astorch = wp.to_torch(proxy_array.warp)
+        astorch = proxy_array.torch
         sem = TensorSemantics(
             name=input_name,
             ref=astorch,

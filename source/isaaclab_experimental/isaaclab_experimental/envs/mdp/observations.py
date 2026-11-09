@@ -12,8 +12,7 @@ experimental Warp-first observation manager:
 
 where ``out`` is a pre-allocated Warp array with float32 dtype and shape ``(num_envs, D)``.
 Output dimension ``D`` is inferred from decorator metadata: ``axes`` for root-state terms,
-``out_dim`` for body/command/action/time terms, the ray count for ray-caster terms, or ``joint_ids``
-count for joint terms.
+``out_dim`` for body/command/action/time terms, or ``joint_ids`` count for joint terms.
 """
 
 from __future__ import annotations
@@ -23,7 +22,6 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
-from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.warp.math import body_ang_vel_from_root, body_lin_vel_from_root, rotate_vec_to_body_frame
 
 from isaaclab_experimental.envs.utils.io_descriptors import (
@@ -34,12 +32,11 @@ from isaaclab_experimental.envs.utils.io_descriptors import (
     record_joint_vel_offsets,
     record_shape,
 )
-from isaaclab_experimental.utils.warp import WarpCapturable
+from isaaclab_experimental.managers import SceneEntityCfg
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedEnv
-    from isaaclab.sensors import RayCaster
 
 
 # ---------------------------------------------------------------------------
@@ -198,16 +195,16 @@ Joint state.
 def joint_pos(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> None:
     """The joint positions of the asset."""
     asset: Articulation = env.scene[asset_cfg.name]
-    joint_indices = getattr(asset_cfg, "joint_indices", None)
-    if joint_indices is None:
+    joint_ids_wp = getattr(asset_cfg, "joint_ids_wp", None)
+    if joint_ids_wp is None:
         raise RuntimeError(
-            "SceneEntityCfg.joint_indices is required for subset joint observations in Warp-first observations. "
+            "SceneEntityCfg.joint_ids_wp is required for subset joint observations in Warp-first observations. "
             "Pass `asset_cfg` via term cfg params so it is resolved at manager init."
         )
     wp.launch(
         kernel=_joint_gather_kernel,
         dim=(env.num_envs, out.shape[1]),
-        inputs=[asset.data.joint_pos.warp, joint_indices.warp, out],
+        inputs=[asset.data.joint_pos.warp, joint_ids_wp, out],
         device=env.device,
     )
 
@@ -234,16 +231,16 @@ def joint_pos_rel(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEn
     asset: Articulation = env.scene[asset_cfg.name]
 
     # Subset selection (requires a pre-resolved Warp joint-id list).
-    joint_indices = getattr(asset_cfg, "joint_indices", None)
-    if joint_indices is None:
+    joint_ids_wp = getattr(asset_cfg, "joint_ids_wp", None)
+    if joint_ids_wp is None:
         raise RuntimeError(
-            "SceneEntityCfg.joint_indices is required for subset joint observations in Warp-first observations. "
+            "SceneEntityCfg.joint_ids_wp is required for subset joint observations in Warp-first observations. "
             "Pass `asset_cfg` via term cfg params so it is resolved at manager init."
         )
     wp.launch(
         kernel=_joint_rel_gather_kernel,
         dim=(env.num_envs, out.shape[1]),
-        inputs=[asset.data.joint_pos.warp, asset.data.default_joint_pos.warp, joint_indices.warp, out],
+        inputs=[asset.data.joint_pos.warp, asset.data.default_joint_pos.warp, joint_ids_wp, out],
         device=env.device,
     )
 
@@ -268,16 +265,16 @@ def _joint_pos_limit_normalized_kernel(
 def joint_pos_limit_normalized(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> None:
     """The joint positions of the asset normalized with the asset's joint limits."""
     asset: Articulation = env.scene[asset_cfg.name]
-    joint_indices = getattr(asset_cfg, "joint_indices", None)
-    if joint_indices is None:
+    joint_ids_wp = getattr(asset_cfg, "joint_ids_wp", None)
+    if joint_ids_wp is None:
         raise RuntimeError(
-            "SceneEntityCfg.joint_indices is required for subset joint observations in Warp-first observations. "
+            "SceneEntityCfg.joint_ids_wp is required for subset joint observations in Warp-first observations. "
             "Pass `asset_cfg` via term cfg params so it is resolved at manager init."
         )
     wp.launch(
         kernel=_joint_pos_limit_normalized_kernel,
         dim=(env.num_envs, out.shape[1]),
-        inputs=[asset.data.joint_pos.warp, asset.data.soft_joint_pos_limits.warp, joint_indices.warp, out],
+        inputs=[asset.data.joint_pos.warp, asset.data.soft_joint_pos_limits.warp, joint_ids_wp, out],
         device=env.device,
     )
 
@@ -288,16 +285,16 @@ def joint_pos_limit_normalized(env: ManagerBasedEnv, out, asset_cfg: SceneEntity
 def joint_vel(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> None:
     """The joint velocities of the asset."""
     asset: Articulation = env.scene[asset_cfg.name]
-    joint_indices = getattr(asset_cfg, "joint_indices", None)
-    if joint_indices is None:
+    joint_ids_wp = getattr(asset_cfg, "joint_ids_wp", None)
+    if joint_ids_wp is None:
         raise RuntimeError(
-            "SceneEntityCfg.joint_indices is required for subset joint observations in Warp-first observations. "
+            "SceneEntityCfg.joint_ids_wp is required for subset joint observations in Warp-first observations. "
             "Pass `asset_cfg` via term cfg params so it is resolved at manager init."
         )
     wp.launch(
         kernel=_joint_gather_kernel,
         dim=(env.num_envs, out.shape[1]),
-        inputs=[asset.data.joint_vel.warp, joint_indices.warp, out],
+        inputs=[asset.data.joint_vel.warp, joint_ids_wp, out],
         device=env.device,
     )
 
@@ -312,16 +309,16 @@ def joint_vel_rel(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEn
     asset: Articulation = env.scene[asset_cfg.name]
 
     # Subset selection (requires a pre-resolved Warp joint-id list).
-    joint_indices = getattr(asset_cfg, "joint_indices", None)
-    if joint_indices is None:
+    joint_ids_wp = getattr(asset_cfg, "joint_ids_wp", None)
+    if joint_ids_wp is None:
         raise RuntimeError(
-            "SceneEntityCfg.joint_indices is required for subset joint observations in Warp-first observations. "
+            "SceneEntityCfg.joint_ids_wp is required for subset joint observations in Warp-first observations. "
             "Pass `asset_cfg` via term cfg params so it is resolved at manager init."
         )
     wp.launch(
         kernel=_joint_rel_gather_kernel,
         dim=(env.num_envs, out.shape[1]),
-        inputs=[asset.data.joint_vel.warp, asset.data.default_joint_vel.warp, joint_indices.warp, out],
+        inputs=[asset.data.joint_vel.warp, asset.data.default_joint_vel.warp, joint_ids_wp, out],
         device=env.device,
     )
 
@@ -353,9 +350,20 @@ def generated_commands(env: ManagerBasedEnv, out, command_name: str) -> None:
     """The generated command from the command manager. Writes into ``out``.
 
     Warp-first override of :func:`isaaclab.envs.mdp.observations.generated_commands`.
-    Reads the command manager's Warp command array on every call.
+    Uses ``wp.from_torch`` to create a zero-copy warp view of the command tensor on first call.
     """
-    wp.copy(out, env.command_manager.get_command(command_name).warp)
+    # TODO(warp-migration): Cross-manager access (observation → command). Replace with direct
+    #  warp getter once all managers are guaranteed to be warp-native.
+    fn = generated_commands
+    if not getattr(fn, "_is_warmed_up", False) or fn._cmd_name != command_name:
+        cmd = env.command_manager.get_command(command_name)
+        if isinstance(cmd, wp.array):
+            fn._cmd_wp = cmd
+        else:
+            fn._cmd_wp = wp.from_torch(cmd)
+        fn._cmd_name = command_name
+        fn._is_warmed_up = True
+    wp.copy(out, fn._cmd_wp)
 
 
 """
@@ -397,35 +405,6 @@ def body_incoming_wrench(env: ManagerBasedEnv, out, sensor_cfg: SceneEntityCfg) 
     wp.launch(
         kernel=_body_incoming_wrench_kernel,
         dim=env.num_envs,
-        inputs=[sensor.data.force.warp, sensor.data.torque.warp, sensor_cfg.body_indices.warp, out],
-        device=env.device,
-    )
-
-
-@wp.kernel
-def _height_scan_kernel(
-    pos_w: wp.array(dtype=wp.vec3f),
-    ray_hits_w: wp.array(dtype=wp.vec3f, ndim=2),
-    offset: float,
-    out: wp.array(dtype=wp.float32, ndim=2),
-):
-    """Height of the sensor frame above each ray hit [m], minus the offset. Launch with dim=(num_envs, num_rays)."""
-    env_id, ray_id = wp.tid()
-    out[env_id, ray_id] = pos_w[env_id][2] - ray_hits_w[env_id, ray_id][2] - offset
-
-
-@WarpCapturable(False, reason="Ray-caster reads refresh the sensor through host-side timestamps and scene transforms.")
-def height_scan(env: ManagerBasedEnv, out, sensor_cfg: SceneEntityCfg, offset: float = 0.5) -> None:
-    """Height scan from the given sensor w.r.t. the sensor's frame [m]. Writes into ``out``.
-
-    Warp-first override of :func:`isaaclab.envs.mdp.observations.height_scan`. The provided offset
-    (Defaults to 0.5) is subtracted from the returned values. Missed rays keep their infinite hit
-    height, as in the stable term.
-    """
-    sensor: RayCaster = env.scene.sensors[sensor_cfg.name]
-    wp.launch(
-        kernel=_height_scan_kernel,
-        dim=(env.num_envs, sensor.num_rays),
-        inputs=[sensor.data.pos_w.warp, sensor.data.ray_hits_w.warp, offset, out],
+        inputs=[sensor.data.force.warp, sensor.data.torque.warp, sensor_cfg.body_ids_wp, out],
         device=env.device,
     )

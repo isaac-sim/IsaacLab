@@ -753,7 +753,7 @@ def test_heterogeneous_articulation_clone_indexed_state(device, variant, tmp_pat
         assert robot.num_joints == 1
         assert robot.num_bodies == 2
         assert robot.root_view.prim_paths == [f"/World/envs/env_{i}/Robot" for i in range(scene.num_envs)]
-        torch.testing.assert_close(robot.data.root_pos_w.torch, scene.env_origins)
+        torch.testing.assert_close(robot.data.root_pos_w.torch, scene.env_origins.torch)
         selected = torch.tensor([5, 3], device=device)
         positions = torch.tensor([[0.25], [-0.4]], device=device)
         robot.write_joint_state_to_sim(positions, torch.zeros_like(positions), env_ids=selected)

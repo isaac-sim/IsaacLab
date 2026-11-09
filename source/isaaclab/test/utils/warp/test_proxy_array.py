@@ -267,6 +267,17 @@ class TestProxyArrayDeprecationBridge:
             assert result.shape == (7,)
 
     @cpu_only
+    def test_strict_mode_raises(self, device, monkeypatch):
+        """With ISAACLAB_PROXY_ARRAY_STRICT=1 every implicit torch use raises; explicit .torch still works."""
+        from isaaclab.utils.warp.proxy_array import ProxyArray
+
+        ta = ProxyArray(wp.zeros(3, dtype=wp.float32, device=device))
+        monkeypatch.setenv("ISAACLAB_PROXY_ARRAY_STRICT", "1")
+        for implicit in (lambda: ta + 1.0, lambda: ta[0], lambda: torch.cat([ta, ta]), lambda: ta.clone()):
+            with pytest.raises(TypeError, match="ISAACLAB_PROXY_ARRAY_STRICT"):
+                implicit()
+        assert ta.torch.sum().item() == 0.0
+
     def test_warns_only_once(self, device):
         """Test that the deprecation warning is emitted only once per session."""
         from isaaclab.utils.warp.proxy_array import ProxyArray
@@ -429,6 +440,31 @@ class TestProxyArrayDeprecationBridge:
             _ = ta[0]
             deprecation_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
             assert len(deprecation_warnings) == 1
+
+    def test_bitwise_operators_and_invert(self):
+        """Test ``|``, ``&``, ``^`` and ``~`` on boolean buffers, as RL wrappers combine done signals."""
+        from isaaclab.utils.warp.proxy_array import ProxyArray
+
+        ProxyArray._deprecation_warned = True
+        terminated = ProxyArray(wp.array([True, False, False], dtype=wp.bool, device="cpu"))
+        truncated = ProxyArray(wp.array([False, False, True], dtype=wp.bool, device="cpu"))
+        assert (terminated | truncated).tolist() == [True, False, True]
+        assert (terminated & truncated).tolist() == [False, False, False]
+        assert (terminated ^ truncated).tolist() == [True, False, True]
+        assert (~terminated).tolist() == [False, True, True]
+        assert (torch.tensor([False, True, False]) | terminated).tolist() == [True, True, False]
+
+    def test_inplace_operators_keep_the_memory(self):
+        """Test in-place operators write through and keep the wrapper bound to the same Warp memory."""
+        from isaaclab.utils.warp.proxy_array import ProxyArray
+
+        ProxyArray._deprecation_warned = True
+        wp_arr = wp.array([1, 2, 3], dtype=wp.int64, device="cpu")
+        counter = ProxyArray(wp_arr)
+        original = counter
+        counter += 1
+        counter *= 2
+        assert counter is original and wp_arr.numpy().tolist() == [4, 6, 8]
 
 
 class TestWpToTorchShim:

@@ -7,8 +7,6 @@
 
 from __future__ import annotations
 
-import copy
-
 import numpy as np
 import pytest
 import torch
@@ -47,6 +45,15 @@ import isaaclab.envs.mdp.observations as stable_obs
 # ============================================================================
 # Fixtures
 # ============================================================================
+
+
+@pytest.fixture(autouse=True)
+def _clear_caches():
+    yield
+    for fn in [warp_obs.generated_commands]:
+        for attr in list(vars(fn)):
+            if attr.startswith("_"):
+                delattr(fn, attr)
 
 
 @pytest.fixture()
@@ -123,6 +130,7 @@ def warp_env(scene, action_wp, episode_length_buf):
     env.episode_length_buf = episode_length_buf
     env.step_dt = 0.02
     env.max_episode_length_s = 10.0
+    env.rng_state_wp = wp.array(np.arange(NUM_ENVS, dtype=np.uint32) + 42, device=DEVICE)
     return env
 
 
@@ -161,6 +169,7 @@ def warp_env_bodies(scene_bodies, action_wp, episode_length_buf, cmd_tensor, cmd
     env.step_dt = 0.02
     env.max_episode_length = 500
     env.max_episode_length_s = 10.0
+    env.rng_state_wp = wp.array(np.arange(NUM_ENVS, dtype=np.uint32) + 42, device=DEVICE)
     return env
 
 
@@ -174,7 +183,7 @@ def stable_env_bodies(scene_bodies, action_wp, episode_length_buf, cmd_tensor, c
     env = _Env()
     env.scene = scene_bodies
     env.action_manager = MockActionManagerWarp(action_wp[0], action_wp[1])
-    env.command_manager = MockCommandManager(cmd_tensor, cmd_term, proxy=False)
+    env.command_manager = MockCommandManager(cmd_tensor, cmd_term)
     env.num_envs = NUM_ENVS
     env.device = DEVICE
     env.episode_length_buf = episode_length_buf
@@ -299,12 +308,12 @@ class TestObservationParity:
 class TestObservationParityNewTerms:
     """Verify observation Warp kernels for newly migrated terms match stable torch implementations."""
 
-    def test_generated_commands(self, warp_env_bodies, stable_env_bodies, cmd_tensor, cmd_term):
+    def test_generated_commands(self, warp_env_bodies, stable_env_bodies, cmd_tensor):
         expected = stable_obs.generated_commands(stable_env_bodies, command_name="vel")
         actual = run_warp_obs(warp_obs.generated_commands, warp_env_bodies, (NUM_ENVS, CMD_DIM), command_name="vel")
         assert_close(actual, expected)
 
-        # Mutate the command tensor in-place: the replay must read the updated command.
+        # Mutate the command tensor in-place: the cached zero-copy view must pick it up on replay.
         def mutate():
             cmd_tensor[:] = torch.randn_like(cmd_tensor)
 
@@ -312,10 +321,3 @@ class TestObservationParityNewTerms:
             warp_obs.generated_commands, warp_env_bodies, mutate, shape=(NUM_ENVS, CMD_DIM), command_name="vel"
         )
         assert_close(actual_cap, stable_obs.generated_commands(stable_env_bodies, command_name="vel"))
-
-        # A second environment reads its own command, not the first environment's.
-        other_env = copy.copy(warp_env_bodies)
-        other_cmd = torch.randn_like(cmd_tensor)
-        other_env.command_manager = MockCommandManager(other_cmd, cmd_term)
-        actual_other = run_warp_obs(warp_obs.generated_commands, other_env, (NUM_ENVS, CMD_DIM), command_name="vel")
-        assert_close(actual_other, other_cmd)

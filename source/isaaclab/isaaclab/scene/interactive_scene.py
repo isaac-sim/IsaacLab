@@ -47,6 +47,7 @@ from ..sensors import CameraCfg, ContactSensorCfg, FrameTransformerCfg, SensorBa
 from ..sim import SimulationContext
 from ..sim.utils.stage import get_current_stage, get_current_stage_id
 from ..utils import instantiate, validate
+from ..utils.warp import ProxyArray
 from .interactive_scene_cfg import InteractiveSceneCfg
 
 if TYPE_CHECKING:
@@ -314,16 +315,19 @@ class InteractiveScene:
         return self.cfg.num_envs
 
     @property
-    def env_origins(self) -> torch.Tensor:
-        """Per-env world origins, shape ``(num_envs, 3)``."""
+    def env_origins(self) -> ProxyArray:
+        """Per-env world origins [m] as a :class:`~isaaclab.utils.warp.ProxyArray` of ``wp.vec3f``.
+
+        Torch code reads ``.torch``, of shape ``(num_envs, 3)``; Warp code reads ``.warp``, of shape ``(num_envs,)``.
+        """
         if self._terrain is not None:
             return self._terrain.env_origins
         plan = self.sim.get_clone_plan()
         if plan is not None and plan is not self._env_origins_plan:
             self._env_origins = plan.positions
             self._env_origins_plan = plan
-        if not isinstance(self._env_origins, torch.Tensor):
-            self._env_origins = torch.as_tensor(self._env_origins, device=self._ALL_INDICES.device)
+        if not isinstance(self._env_origins, ProxyArray):
+            self._env_origins = ProxyArray(wp.array(self._env_origins, dtype=wp.vec3f, device=self.device))
         return self._env_origins
 
     @property

@@ -30,7 +30,7 @@ def terrain_levels_vel(
     """Curriculum based on the distance the robot walked when commanded to move at a desired velocity."""
     asset: Articulation = env.scene[asset_cfg.name]
     terrain: TerrainImporter = env.scene.terrain
-    command = env.command_manager.get_command("base_velocity").torch
+    command = env.command_manager.get_command("base_velocity")
     distance = torch.norm(asset.data.root_pos_w.torch[env_ids, :2] - env.scene.env_origins[env_ids, :2], dim=1)
     move_up = distance > terrain.cfg.terrain_generator.size[0] / 2
     move_down = distance < torch.norm(command[env_ids, :2], dim=1) * env.max_episode_length_s * 0.5

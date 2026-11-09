@@ -279,19 +279,15 @@ class MockArticulationData:
 
 
 class MockWrenchComposer:
-    """Mock wrench composer that records the last wrenches and selection it was handed."""
+    """Mock wrench composer that records the last forces and torques it was handed."""
 
     def __init__(self):
         self.last_forces = None
         self.last_torques = None
-        self.last_body_mask = None
-        self.last_env_mask = None
 
-    def set_forces_and_torques_mask(self, forces=None, torques=None, body_mask=None, env_mask=None, **kw):
+    def set_forces_and_torques_mask(self, forces=None, torques=None, **kw):
         self.last_forces = forces
         self.last_torques = torques
-        self.last_body_mask = body_mask
-        self.last_env_mask = env_mask
 
 
 class MockArticulation:
@@ -397,7 +393,6 @@ class MockScene:
         self.articulations = dict(assets)
         self.rigid_objects = {}
         self.num_envs = NUM_ENVS
-        self.device = DEVICE
 
     def __getitem__(self, name: str):
         return self._assets[name]
@@ -489,7 +484,7 @@ class MockActionManagerTorch:
 
 
 class MockSceneEntityCfg:
-    """Unified cfg that works for both stable (joint_ids) and experimental (joint_mask / joint_indices)."""
+    """Unified cfg that works for both stable (joint_ids) and experimental (joint_mask / joint_ids_wp)."""
 
     def __init__(self, name: str, joint_ids: list[int], num_joints: int, device: str):
         self.name = name
@@ -499,8 +494,8 @@ class MockSceneEntityCfg:
         mask = [False] * num_joints
         for idx in joint_ids:
             mask[idx] = True
-        self.joint_mask = ProxyArray(wp.array(mask, dtype=wp.bool, device=device))
-        self.joint_indices = ProxyArray(wp.array(joint_ids, dtype=wp.int32, device=device))
+        self.joint_mask = wp.array(mask, dtype=wp.bool, device=device)
+        self.joint_ids_wp = wp.array(joint_ids, dtype=wp.int32, device=device)
 
 
 class MockContactSensorData:
@@ -539,14 +534,13 @@ class MockCommandTerm:
 
 
 class MockCommandManager:
-    """Mock command manager returning a fixed command and term: a ProxyArray like the Warp manager, or the tensor
-    like the stable manager."""
+    """Mock command manager returning a fixed command tensor and term."""
 
-    def __init__(self, command_tensor: torch.Tensor, cmd_term: MockCommandTerm, proxy: bool = True):
-        self._cmd = ProxyArray(wp.from_torch(command_tensor)) if proxy else command_tensor
+    def __init__(self, command_tensor: torch.Tensor, cmd_term: MockCommandTerm):
+        self._cmd = command_tensor
         self._term = cmd_term
 
-    def get_command(self, name: str) -> ProxyArray | torch.Tensor:
+    def get_command(self, name: str) -> torch.Tensor:
         return self._cmd
 
     def get_term(self, name: str):
@@ -646,8 +640,8 @@ class MockPoseCommandManager:
     def __init__(self, term):
         self._term = term
 
-    def get_command(self, name: str) -> ProxyArray:
-        return ProxyArray(wp.from_torch(self._term.pose_command_b))
+    def get_command(self, name: str) -> torch.Tensor:
+        return self._term.pose_command_b
 
     def get_term(self, name: str):
         return self._term
@@ -664,14 +658,14 @@ class MockBodyCfg:
 class MockSensorCfg:
     """SceneEntityCfg-like object for contact sensor terms.
 
-    Provides both ``body_ids`` (for stable functions) and ``body_indices``
+    Provides both ``body_ids`` (for stable functions) and ``body_ids_wp``
     (for experimental warp functions).
     """
 
     def __init__(self, name="contact_sensor", body_ids=None, device=DEVICE):
         self.name = name
         self.body_ids = body_ids if body_ids is not None else list(BODY_IDS)
-        self.body_indices = ProxyArray(wp.array(self.body_ids, dtype=wp.int32, device=device))
+        self.body_ids_wp = wp.array(self.body_ids, dtype=wp.int32, device=device)
 
 
 class MockTerminationManager:
