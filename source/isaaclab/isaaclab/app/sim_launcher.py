@@ -37,7 +37,6 @@ from ..scene.interactive_scene_cfg import InteractiveSceneCfg
 from ..sensors.camera.camera_cfg import CameraCfg
 from ..sim.simulation_cfg import SimulationCfg
 from ..sim.spawners.sensors.sensors_cfg import PinholeCameraCfg
-from ..utils.assets import configure_storage_profile
 from ..utils.device import set_cuda_device
 from ..utils.images import sensor_key_for_gt_type
 from ..utils.math import create_rotation_matrix_from_view, quat_from_matrix
@@ -492,16 +491,7 @@ def launch_simulation(
     previous_context = SimulationContext.instance()
     exit_code = 0
     try:
-        # With no selected profile this is a no-op; with one, it installs process-wide OmniClient
-        # routing before user code runs.
-        try:
-            configure_storage_profile()
-            yield physics_cfg
-        finally:
-            # Release runtime consumers before a launcher can terminate the process.
-            context = SimulationContext.instance()
-            if context is not None and context is not previous_context:
-                SimulationContext.clear_instance()
+        yield physics_cfg
     except KeyboardInterrupt:
         exit_code = 130
         raise
@@ -514,5 +504,9 @@ def launch_simulation(
         traceback.print_exc()
         raise
     finally:
+        # Release runtime consumers before a launcher can terminate the process.
+        context = SimulationContext.instance()
+        if context is not None and context is not previous_context:
+            SimulationContext.clear_instance()
         for launcher in reversed(launchers):
             launcher.close(exit_code)

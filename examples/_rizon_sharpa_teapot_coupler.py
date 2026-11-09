@@ -109,10 +109,9 @@ class TeapotSolver(CouplerSolver):
         repair_teapot_hulls(builder)
         super().prepare_builder(cfg, builder)
 
-    @classmethod
-    def build_coupled(cls, cfg, model, entries, proxies, mode):
+    def build_coupled(self, model, entries, proxies, mode):
         coupling = SolverCoupledProxy.Config(
             proxies=[SolverCoupledProxy.Proxy(**vars(proxy_cfg)) for proxy_cfg in proxies],
-            iterations=cfg.iterations,
+            iterations=self.cfg.iterations,
         )
         return _TeapotProxySolver(model=model, entries=entries, coupling=coupling)
