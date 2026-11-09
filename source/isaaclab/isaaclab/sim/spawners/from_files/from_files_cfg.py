@@ -289,6 +289,17 @@ class UsdFileCfg(FileCfg):
     Please check the :meth:`~isaaclab.sim.utils.make_uninstanceable` function for more information.
     """
 
+    move_rigid_body_to_root: bool = False
+    """Whether to move the file's single rigid body onto the spawned prim. Defaults to False.
+
+    Enable this option when the file nests its rigid body at a file-specific path and is spawned
+    with other files through :class:`~isaaclab.sim.spawners.wrappers.MultiAssetSpawnerCfg`, which
+    needs every file to hold its body at the same path. The move happens before the rigid-body,
+    mass, and collision overrides are applied.
+
+    Please check the :meth:`~isaaclab.sim.utils.move_rigid_body_to_root` function for more information.
+    """
+
 
 @configclass
 class UrdfFileCfg(FileCfg, converters.UrdfConverterCfg):

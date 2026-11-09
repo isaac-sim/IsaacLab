@@ -264,6 +264,73 @@ def make_uninstanceable(prim_path: str | Sdf.Path, stage: Usd.Stage | None = Non
         all_prims += child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies())
 
 
+def move_rigid_body_to_root(prim_path: str | Sdf.Path, stage: Usd.Stage | None = None):
+    """Move the single rigid body below a prim onto the prim itself.
+
+    Asset files often nest their rigid body under a file-specific path, such as ``/Root/Geometry/<name>``.
+    Heterogeneous cloning resolves the body path from one asset and applies it to every environment, so
+    files whose body paths differ cannot share one physics view. Moving the body onto the spawned prim
+    gives every file the same body path. The rigid-body schemas and their authored values move with it,
+    and so does a mass schema authored on the body itself. Colliders and their mass properties stay
+    where they are.
+
+    The function does nothing if the prim already is the rigid body.
+
+    Args:
+        prim_path: The path of the spawned prim.
+        stage: The stage where the prim exists. Defaults to None, in which case the current stage is used.
+
+    Raises:
+        ValueError: If the prim path is not global (i.e: does not start with '/').
+        ValueError: If the prim does not hold exactly one rigid body, if the body is inside an instance,
+            or if the body is offset from the prim, in which case moving it would change its frame.
+    """
+    from pxr import Gf, Usd, UsdGeom, UsdPhysics  # noqa: PLC0415
+
+    if stage is None:
+        stage = get_current_stage()
+    prim_path = str(prim_path)
+    if not prim_path.startswith("/"):
+        raise ValueError(f"Prim path '{prim_path}' is not global. It must start with '/'.")
+    prim = stage.GetPrimAtPath(prim_path)
+    if not prim.IsValid():
+        raise ValueError(f"Prim at path '{prim_path}' is not valid.")
+
+    bodies = [p for p in Usd.PrimRange(prim, Usd.TraverseInstanceProxies()) if p.HasAPI(UsdPhysics.RigidBodyAPI)]
+    if bodies == [prim]:
+        return
+    if len(bodies) != 1:
+        raise ValueError(f"Expected one rigid body at or below '{prim_path}', found {len(bodies)}.")
+    body = bodies[0]
+    if body.IsInstanceProxy():
+        raise ValueError(f"Rigid body '{body.GetPath()}' is inside an instance. Make the prim uninstanceable first.")
+    offset, _ = UsdGeom.XformCache().ComputeRelativeTransform(body, prim)
+    if not Gf.IsClose(offset, Gf.Matrix4d(1.0), 1e-6):
+        raise ValueError(
+            f"Rigid body '{body.GetPath()}' is offset from '{prim_path}'; moving it would change its frame."
+        )
+
+    applied = body.GetAppliedSchemas()
+    moved = [schema for schema in ("PhysicsRigidBodyAPI", "PhysxRigidBodyAPI", "PhysicsMassAPI") if schema in applied]
+    # a mass schema on a collider describes that collider, so it stays with the collider
+    if body.HasAPI(UsdPhysics.CollisionAPI) and "PhysicsMassAPI" in moved:
+        moved.remove("PhysicsMassAPI")
+    names = {*UsdPhysics.RigidBodyAPI.GetSchemaAttributeNames(False), "physics:simulationOwner"}
+    if "PhysicsMassAPI" in moved:
+        names.update(UsdPhysics.MassAPI.GetSchemaAttributeNames(False))
+    for prop in body.GetAuthoredProperties():
+        name = prop.GetName()
+        if name not in names and not name.startswith("physxRigidBody:"):
+            continue
+        if isinstance(prop, Usd.Relationship):
+            prim.CreateRelationship(name).SetTargets(prop.GetTargets())
+        else:
+            prim.CreateAttribute(name, prop.GetTypeName()).Set(prop.Get())
+    for schema in moved:
+        prim.AddAppliedSchema(schema)
+        body.RemoveAppliedSchema(schema)
+
+
 def set_prim_visibility(prim: Usd.Prim, visible: bool) -> None:
     """Sets the visibility of the prim in the opened stage.
 
