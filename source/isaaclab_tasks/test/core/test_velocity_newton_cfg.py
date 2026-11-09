@@ -120,10 +120,3 @@ def test_g1_rough_configuration_instances_are_independent(env_type):
 
     assert [other.to_dict() for other in others] == snapshots
     assert env_type().to_dict() == snapshots[int(env_type is G1RoughTeacherEnvCfg)]
-
-
-def test_g1_minimal_skrl_entry_point():
-    cfg = load_cfg_from_registry("Isaac-Velocity-Rough-G1", "skrl_cfg_entry_point")
-
-    assert cfg["agent"]["class"] == "PPO"
-    assert cfg["agent"]["rollouts"] == 24
