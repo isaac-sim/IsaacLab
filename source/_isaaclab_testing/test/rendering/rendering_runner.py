@@ -86,6 +86,7 @@ def run_rendering_case(
         background_color=case.background_color,
         physics_cfg=scene.physics_cfg,
         dt=scene.dt,
+        on_scene_created=scene.on_scene_created,
     ) as runtime:
         if case.scene == "shadow_hand":
             # A static image tests the declared pose, not contacts during PhysX's initialization steps.
@@ -122,6 +123,8 @@ def run_rendering_case(
             reset_mpm_solver_state(
                 runtime.sim.backend_manager.backend, world_mask=world_mask, flags=StateFlags.BODY | StateFlags.PARTICLE
             )
+        if scene.after_reset is not None:
+            scene.after_reset(runtime)
         for step in range(scene.steps_before_capture):
             if case.scene == "mpm" and step % 2 == 0:
                 robot = runtime.scene["robot"]
@@ -136,7 +139,10 @@ def run_rendering_case(
                 robot.actuators.target_command.set_position_index(value=targets)
             render_interval = 2 if case.scene == "mpm" else 4
             runtime.step(render=(step + 1) % render_interval == 0)
-        if case.scene in ("rendering_scene", "kuka_materials"):
+        if case.scene in ("rendering_scene", "kuka_materials") or (
+            case.scene == "gaussian_splats_valiant_1env" and case.renderer == "isaac_rtx"
+        ):
+            # Valiant's PPISP RGB can still be a flat shader warm-up frame while its depth is already populated.
             runtime.stabilize_camera()
         if case.scene == "kuka_materials":
             before = runtime.camera.data.output["rgb"].torch.clone()
@@ -205,6 +211,11 @@ def run_rendering_case(
                 max_diff_pct=image_max_diff_pct,
                 min_ssim=None if aov in _NO_SSIM else min_ssim,
                 alpha_only=aov in _ALPHA_ONLY_AOVS,
+                **(
+                    {"pixel_l2_threshold": scene.pixel_l2_thresholds[case.renderer, aov]}
+                    if (case.renderer, aov) in scene.pixel_l2_thresholds
+                    else {}
+                ),
             )
             comparison.record(request)
             if not comparison.passed:
