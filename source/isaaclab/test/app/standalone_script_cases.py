@@ -220,6 +220,12 @@ OVERRIDES = {
         }
     ),
     "examples/mpm/newton_mpm_granular.py": ScriptOverride(fixed_physics_backend="newton_mpm"),
+    "examples/mpm/newton_mpm_sleeping.py": ScriptOverride(
+        skip_reason="Requires the companion Newton sleeping runtime and Warp conditional-allocation support.",
+        args=("--settle-time", "1.0"),
+        fixed_physics_backend="newton_mpm",
+        visualizers=(None, "newton_gl"),
+    ),
     "examples/mpm/newton_mpm_twoway_coupling.py": ScriptOverride(
         args=("--max_steps", "2", "--voxel_size", "0.2"),
         fixed_physics_backend="newton_coupler",

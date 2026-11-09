@@ -18,6 +18,7 @@ from functools import partial
 
 import warp as wp
 from isaaclab_newton.physics import MPMSolverCfg, NewtonCollisionPipelineCfg, NewtonSolver, NewtonSolverCfg
+from isaaclab_newton.physics.mpm_solver import check_mpm_reset_status
 from isaaclab_newton.physics.newton_solver import solver_kwargs
 from newton import CollisionPipeline, Model, ModelBuilder, ShapeFlags, State
 from newton.solvers import SolverBase
@@ -363,8 +364,10 @@ class CouplerSolver(NewtonSolver):
             if not selected.any():
                 return
             if selected[0] and not selected[-1]:
+                check_mpm_reset_status(solver)
                 solver.reset(state, world_mask=None, flags=0)
                 return
+        check_mpm_reset_status(solver)
         solver.reset(state, world_mask=world_mask, flags=0)
 
     def check_step(self, captured: bool, debug: bool) -> None:
