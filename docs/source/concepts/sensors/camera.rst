@@ -328,7 +328,10 @@ reads. Camera resets call each processor's ``reset`` with the reset environments
    )
 
 Here the renderer produces only ``distance_to_image_plane``, and ``camera.data.output["rgb"]`` holds the
-processor's result. Processor outputs appear in :attr:`~sensors.CameraData.output` and
+processor's result. The render outputs that processors read, here ``distance_to_image_plane``, are published as
+well. :attr:`~sensors.CameraCfg.data_types` adds render outputs that no processor reads; an entry that a processor
+produces, like ``rgb`` here, is not rendered. A processor returns exactly the names in its ``outputs``; the camera
+raises an error otherwise. Processor outputs appear in :attr:`~sensors.CameraData.output` and
 :attr:`~sensors.CameraData.info` from the first capture on.
 
 With ``update_period > 0``, environments that reset at different times become due on different steps, but each
@@ -338,6 +341,10 @@ environments due for the capture, whose frame and timestamp advance. The name is
 published as an output. The mask describes
 the current capture request, so processors that read it need synchronous rendering; with ``async_rendering=True``
 the camera raises an error.
+
+With ``async_rendering=True``, the capture after a camera's first capture and after each reset publishes no new
+image, and the processors run on the previous image again. Processors that keep state between captures therefore
+need synchronous rendering as well.
 
 Post-render image signal processing
 -----------------------------------

@@ -668,8 +668,8 @@ class Camera(SensorBase):
             env_ids = range(*env_ids.indices(self._num_envs))
         self._renderer.reset(self._render_data, env_ids)
         if self._tensor_processors:
-            # Processors may keep per-environment history, so a mask resets only its rows.
-            processor_ids = env_ids if env_mask is None else wp.to_torch(env_mask).nonzero().squeeze(-1)
+            # Processors may keep per-environment history, so a mask resets only its rows, given as indices.
+            processor_ids = env_ids if env_mask is None else wp.to_torch(env_mask).nonzero().squeeze(-1).tolist()
             for processor in self._tensor_processors:
                 processor.reset(processor_ids)
         # reset the timestamps
@@ -818,14 +818,24 @@ class Camera(SensorBase):
         """Run the processors in order on the capture and publish their outputs."""
         if not self.cfg.tensor_processors:
             return
-        buffers = {**self._render_outputs, CAPTURE_ENV_MASK_NAME: ProxyArray(env_mask)}
+        buffers = dict(self._render_outputs)
+        capture_mask = ProxyArray(env_mask)
         for index, processor_cfg in enumerate(self.cfg.tensor_processors):
+            # The capture mask is an input for the processors that list it, not a camera output.
+            inputs = buffers
+            if CAPTURE_ENV_MASK_NAME in processor_cfg.inputs:
+                inputs = {**buffers, CAPTURE_ENV_MASK_NAME: capture_mask}
             # Construction needs the outputs of earlier processors, which exist after their first call.
             if index == len(self._tensor_processors):
-                self._tensor_processors.append(processor_cfg.func(processor_cfg, buffers))
-            buffers.update(self._tensor_processors[index](buffers))
-        # The capture mask is an input for processors, not a camera output.
-        del buffers[CAPTURE_ENV_MASK_NAME]
+                self._tensor_processors.append(processor_cfg.func(processor_cfg, inputs))
+            outputs = self._tensor_processors[index](inputs)
+            # The renderer is asked for inputs according to the listed outputs, so the two must agree.
+            if outputs.keys() != set(processor_cfg.outputs):
+                raise ValueError(
+                    f"Camera tensor processor {type(self._tensor_processors[index]).__name__} returned"
+                    f" {sorted(outputs)}, but its configuration lists the outputs {sorted(processor_cfg.outputs)}."
+                )
+            buffers.update(outputs)
         self._data.output.update(buffers)
         # Processor outputs enter info at their first publication. Renderers fill only existing info keys, so a new
         # output takes the capture metadata of the render outputs it was computed from; later captures fill it.
