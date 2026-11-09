@@ -34,6 +34,7 @@ from isaaclab.utils.string import resolve_matching_names, resolve_matching_names
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
 from isaaclab.utils.warp import ProxyArray, memory
 from isaaclab.utils.warp import math as warp_math
+from isaaclab.utils.warp.capture import eager_method
 from isaaclab.utils.warp.memory import resolve_1d_mask, resolve_ids, write_2d_with_mask
 from isaaclab.utils.wrench_composer import WrenchComposer
 
@@ -2368,6 +2369,7 @@ class Articulation(BaseArticulation):
         # tell the physics engine that some of the body properties have been updated
         self._backend_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
+    @eager_method  # converts CoM poses with torch and notifies the solver on the host
     def set_coms_mask(
         self,
         *,

@@ -80,6 +80,7 @@ def create_mock_newton_manager(
         state_version=0,
         device=wp.get_device("cpu"),
         transforms_may_change_on_graph_replay=False,
+        fk_on_every_step=False,
     )
     return manager
 

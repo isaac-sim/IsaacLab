@@ -1667,7 +1667,9 @@ class ArticulationData(BaseArticulationData):
         self._body_link_pose_w = TimestampedBuffer(wp.zeros(body_shape, dtype=wp.transformf, device=device))
         self._body_link_vel_w = TimestampedBuffer(wp.empty(body_shape, dtype=wp.spatial_vectorf, device=device))
         # -- com frame w.r.t. link frame
-        self._body_com_pose_b = TimestampedBuffer(wp.zeros(body_shape, dtype=wp.transformf, device=device))
+        self._body_com_pose_b = TimestampedBuffer(
+            wp.zeros(body_shape, dtype=wp.transformf, device=device), refresh_in_recordings=False
+        )
         self._body_com_pose_b_backend: TimestampedBuffer | None = None
         # -- com frame w.r.t. world frame
         self._root_com_pose_w = TimestampedBuffer(wp.empty(num_instances, dtype=wp.transformf, device=device))
@@ -1687,7 +1689,9 @@ class ArticulationData(BaseArticulationData):
         self._joint_vel = TimestampedBuffer(wp.zeros(joint_shape, dtype=wp.float32, device=device))
         self._joint_pos_backend: TimestampedBuffer | None = None
         self._joint_vel_backend: TimestampedBuffer | None = None
-        self._joint_acc = TimestampedBuffer(wp.zeros(joint_shape, dtype=wp.float32, device=device))
+        self._joint_acc = TimestampedBuffer(
+            wp.zeros(joint_shape, dtype=wp.float32, device=device), refresh_in_recordings=False
+        )
         # -- derived properties (these are cached to avoid repeated memory allocations)
         self._projected_gravity_b = TimestampedBuffer(wp.empty(num_instances, dtype=wp.vec3f, device=device))
         self._heading_w = TimestampedBuffer(wp.empty(num_instances, dtype=wp.float32, device=device))
@@ -1793,9 +1797,13 @@ class ArticulationData(BaseArticulationData):
         # host-to-device on GPU pipelines. Under body ordering the backend-order staging buffers
         # below are gathered into these public-order buffers on read.
         _masses = self._root_view.get_masses()
-        self._body_mass = TimestampedBuffer(wp.zeros(_masses.shape, dtype=_masses.dtype, device=device))
+        self._body_mass = TimestampedBuffer(
+            wp.zeros(_masses.shape, dtype=_masses.dtype, device=device), refresh_in_recordings=False
+        )
         _inertias = self._root_view.get_inertias()
-        self._body_inertia = TimestampedBuffer(wp.zeros(_inertias.shape, dtype=_inertias.dtype, device=device))
+        self._body_inertia = TimestampedBuffer(
+            wp.zeros(_inertias.shape, dtype=_inertias.dtype, device=device), refresh_in_recordings=False
+        )
         self._body_mass_backend: wp.array | None = None
         self._body_inertia_backend: wp.array | None = None
         self._default_root_state = None
@@ -1877,7 +1885,9 @@ class ArticulationData(BaseArticulationData):
             # selected cells into both buffers and push full backend rows to the simulation,
             # so a stale or divergent staging silently corrupts the unselected cells.
             if self._body_com_pose_b_backend is None:
-                self._body_com_pose_b_backend = TimestampedBuffer(wp.zeros(body_shape, wp.transformf, device))
+                self._body_com_pose_b_backend = TimestampedBuffer(
+                    wp.zeros(body_shape, wp.transformf, device), refresh_in_recordings=False
+                )
             if self._body_mass_backend is None:
                 self._body_mass_backend = wp.clone(self._body_mass.data, device=device)
             if self._body_inertia_backend is None:

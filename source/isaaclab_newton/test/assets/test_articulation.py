@@ -438,6 +438,7 @@ def test_task_space_allocation_and_capture(device, first_property):
         state_version=0,
         device=model.device,
         transforms_may_change_on_graph_replay=False,
+        fk_on_every_step=False,
     )
     view = ArticulationView(model, "Robot", exclude_joint_types=[JointType.FIXED])
     eager = ArticulationData(view, device, backend_manager=backend_manager)
@@ -492,6 +493,7 @@ def test_world_hinged_root_has_no_base_dofs(device):
         state_version=0,
         device=model.device,
         transforms_may_change_on_graph_replay=False,
+        fk_on_every_step=False,
     )
     root_view = ArticulationView(model, "Robot")
     data = ArticulationData(root_view, device, backend_manager=backend_manager)

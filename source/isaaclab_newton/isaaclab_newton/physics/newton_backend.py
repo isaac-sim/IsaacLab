@@ -156,7 +156,7 @@ class NewtonBackend:
             {} if simulation else {path: bounds[0] for path, bounds in self.deformable_ranges.items()}
         )
         """First particle index per deformable label on a render-only backend; empty on a simulation backend."""
-        self.bvh_refit = TimestampedBuffer()
+        self.bvh_refit = TimestampedBuffer(refresh_in_recordings=False)
         """Timestamp of the last BVH refit, shared by ray casters and cameras."""
         self.cfg: NewtonCfg | None = physics_cfg if simulation else None
         """Newton physics settings, or ``None`` for a render-only backend."""
@@ -197,7 +197,10 @@ class NewtonBackend:
         self.kinematics_dirty = False
         """Whether joint coordinates changed since the last forward kinematics."""
         self.transforms_may_change_on_graph_replay = False
-        """Whether state was written inside an outer CUDA graph capture; :meth:`forward` then always runs."""
+        """Whether state was written inside an outer CUDA graph capture, so reads refresh derived state."""
+        self.fk_on_every_step = False
+        """Whether a raw CUDA graph capture replays state writes without their forward kinematics; :meth:`forward`
+        then always runs."""
         self.model_changes: set[int] = set()
         """Model-property categories to notify the solver of at the next step."""
         self.warned_model_changes: set[int] = set()
@@ -237,7 +240,7 @@ class NewtonBackend:
         """Drop native handles after consumers release their bindings."""
         self.model = self.state_0 = self.state_1 = self.control = None
         self.particle_ranges, self.deformable_ranges, self.geometry_offsets = {}, {}, {}
-        self.bvh_refit = TimestampedBuffer()
+        self.bvh_refit = TimestampedBuffer(refresh_in_recordings=False)
         if self.cfg is not None:
             self.solver = self.solver_ops = self.collision_pipeline = self.contacts = self.contact_observables = None
             self.actuators = None
@@ -315,7 +318,8 @@ class NewtonBackend:
             return
         wp.launch(
             _make_flag_worlds_and_articulations(articulation_ids.shape[1], articulation_mask is not None),
-            dim=articulation_ids.shape[0],
+            # a mask shorter than the world count selects only the worlds it covers
+            dim=min(articulation_ids.shape[0], env_mask.shape[0]),
             inputs=[env_mask, articulation_ids, self.model.articulation_world, articulation_mask, consume_mask],
             outputs=[self.world_mask, self.fk_mask],
             device=self.device,
@@ -343,7 +347,7 @@ class NewtonBackend:
     def forward(self) -> None:
         """Reset solver internals and evaluate FK for the flagged worlds and articulations, then clear the flags."""
         self.notify_model_changes()
-        if not (self.kinematics_dirty or self.transforms_may_change_on_graph_replay):
+        if not (self.kinematics_dirty or self.fk_on_every_step):
             return
         ops, state = self.solver_ops, self.state_0
         if ops is None:

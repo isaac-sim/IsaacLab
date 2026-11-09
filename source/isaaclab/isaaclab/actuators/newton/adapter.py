@@ -17,6 +17,7 @@ to drive arrays.
 
 from __future__ import annotations
 
+import functools
 import warnings
 from collections import defaultdict
 from collections.abc import Sequence
@@ -32,6 +33,7 @@ from newton.actuators import Actuator, ClampingBase, Delay, parse_actuator_prim
 from newton.selection import ArticulationView
 
 from ...utils import index_fill_
+from ...utils.warp.capture import eager
 from ...utils.warp.memory import resolve_1d_mask
 from .kernels import build_implicit_dof_mask, build_per_dof_env_mask_kernel, zero_at_indices_kernel
 
@@ -105,9 +107,15 @@ class NewtonActuatorAdapter:
         # Newton actuator states reset by a per-DOF mask, which every partial reset expands from the env mask.
         # Allocated once and fully rewritten on each reset, so a reset does not allocate.
         self._reset_dof_masks = [wp.zeros(act.indices.shape[0], dtype=wp.bool, device=device) for act in actuators]
-        # The state resets of each actuator.
+        # The state resets of each actuator; a torch state, such as a neural network drive's, cannot be recorded, so a
+        # recording repeats its reset eagerly.
         self._state_resets = [
-            [state.reset for state in (sa, sb) if state is not None] for sa, sb in zip(self._states_a, self._states_b)
+            [
+                state.reset if act.is_graphable() else functools.partial(eager, state.reset)
+                for state in (sa, sb)
+                if state is not None
+            ]
+            for act, sa, sb in zip(actuators, self._states_a, self._states_b)
         ]
         # Env masks for resolving env ids in :meth:`reset`.
         self._all_env_mask = wp.ones(num_envs, dtype=wp.bool, device=device)

@@ -1774,12 +1774,16 @@ class ArticulationData(BaseArticulationData):
         # -- com frame w.r.t. world frame
         self._root_com_pose_w = TimestampedBuffer()
         self._body_com_pose_w = TimestampedBuffer()
-        self._body_com_acc_w = TimestampedBuffer(wp.zeros(body_shape, dtype=wp.spatial_vectorf, device=device))
+        self._body_com_acc_w = TimestampedBuffer(
+            wp.zeros(body_shape, dtype=wp.spatial_vectorf, device=device), refresh_in_recordings=False
+        )
         # -- derived properties (these are cached to avoid repeated memory allocations)
         self._projected_gravity_b = TimestampedBuffer()
         self._heading_w = TimestampedBuffer()
         # -- joint state
-        self._joint_acc = TimestampedBuffer(wp.zeros(joint_shape, dtype=wp.float32, device=device))
+        self._joint_acc = TimestampedBuffer(
+            wp.zeros(joint_shape, dtype=wp.float32, device=device), refresh_in_recordings=False
+        )
         self._joint_pos_user: wp.array | None = None
         self._joint_vel_user: wp.array | None = None
         self._joint_stiffness_user: wp.array | None = None

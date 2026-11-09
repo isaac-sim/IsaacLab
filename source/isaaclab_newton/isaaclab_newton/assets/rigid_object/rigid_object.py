@@ -21,6 +21,7 @@ import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
 from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.warp import ProxyArray, memory
+from isaaclab.utils.warp.capture import eager_method
 from isaaclab.utils.warp.memory import resolve_ids
 from isaaclab.utils.wrench_composer import WrenchComposer
 
@@ -841,6 +842,7 @@ class RigidObject(BaseRigidObject):
         # tell the physics engine that some of the body properties have been updated
         self._backend_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
+    @eager_method  # converts CoM poses with torch and notifies the solver on the host
     def set_coms_mask(
         self,
         *,

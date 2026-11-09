@@ -15,6 +15,7 @@ import warp as wp
 
 from ..utils import DelayBuffer, LinearInterpolation
 from ..utils.types import ArticulationActions
+from ..utils.warp.capture import eager_method
 from .actuator_base import ActuatorBase, resolve_joint_parameter
 
 if TYPE_CHECKING:
@@ -436,6 +437,7 @@ class DelayedPDActuator(IdealPDActuator):
         self.efforts_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
         self._delay_buffers = (self.positions_delay_buffer, self.velocities_delay_buffer, self.efforts_delay_buffer)
 
+    @eager_method  # samples new delays and resets the delay buffers with torch
     def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None):
         super().reset(env_ids, env_mask)
         # number of environments (since env_ids can be a slice)

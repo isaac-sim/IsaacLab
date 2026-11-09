@@ -111,6 +111,7 @@ def test_joint_commands_preserve_coordinate_layout(ball_joint):
         state_version=0,
         device=model.device,
         transforms_may_change_on_graph_replay=False,
+        fk_on_every_step=False,
     )
     view = ArticulationView(model, "Robot", exclude_joint_types=[newton.JointType.FREE])
     data = ArticulationData(view, "cpu", backend_manager=backend_manager)

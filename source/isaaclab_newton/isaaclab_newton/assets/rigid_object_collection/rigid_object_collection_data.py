@@ -729,7 +729,9 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         self._body_com_pose_b = TimestampedBuffer(wp.empty(body_shape, dtype=wp.transformf, device=device))
         # -- com frame w.r.t. world frame
         self._body_com_pose_w = TimestampedBuffer(wp.empty(body_shape, dtype=wp.transformf, device=device))
-        self._body_com_acc_w = TimestampedBuffer(wp.zeros(body_shape, dtype=wp.spatial_vectorf, device=device))
+        self._body_com_acc_w = TimestampedBuffer(
+            wp.zeros(body_shape, dtype=wp.spatial_vectorf, device=device), refresh_in_recordings=False
+        )
         # -- combined state (these are cached as they concatenate)
         self._body_state_w = TimestampedBuffer(wp.empty(body_shape, dtype=vec13f, device=device))
         self._body_link_state_w = TimestampedBuffer(wp.empty(body_shape, dtype=vec13f, device=device))

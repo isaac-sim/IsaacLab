@@ -20,6 +20,7 @@ import warp as wp
 from isaaclab.paths import ISAACLAB_ROOT
 from isaaclab.sensors import SensorBase, SensorBaseCfg
 from isaaclab.test.utils import DeviceScope, test_devices
+from isaaclab.utils.warp.capture import GraphedCallable
 
 pytestmark = pytest.mark.unit
 
@@ -175,3 +176,64 @@ def test_reset_cache_refreshes_on_positive_update_or_explicit_invalidation(devic
     sensor._invalidate_buffers()
     sensor.update(0.0, force_recompute=True)
     assert sensor.refreshes == [[1], [1]]
+
+
+@wp.kernel
+def _count_refresh(env_mask: wp.array(dtype=wp.bool), refreshes: wp.array(dtype=wp.int32)):
+    env = wp.tid()
+    if env_mask[env]:
+        refreshes[env] += 1
+
+
+class _DeviceRefreshSensor(_RefreshLogSensor):
+    """Sensor that counts the buffer refreshes of each environment on the device, as a CUDA graph replays them."""
+
+    def __init__(self, device: str):
+        super().__init__(update_period=0.0, device=device)
+        self.device_refreshes = wp.zeros(self._num_envs, dtype=wp.int32, device=device)
+
+    def _update_buffers_impl(self, env_mask: wp.array):
+        wp.launch(_count_refresh, dim=self._num_envs, inputs=[env_mask, self.device_refreshes], device=self._device)
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+def test_recorded_read_refreshes_on_every_replay(device):
+    """A read recorded while the sensor is not dirty, as after a reset, still refreshes the sensor on each replay."""
+    sensor = _DeviceRefreshSensor(device)
+    sensor.update(0.005)
+    _ = sensor.data  # the sensor is clean when the read is recorded
+    with wp.ScopedCapture(device=device) as capture:
+        _ = sensor.data
+    for _ in range(3):
+        sensor.update(0.005)
+        wp.capture_launch(capture.graph)
+    # one eager refresh, then one per replay
+    assert sensor.device_refreshes.numpy().tolist() == [4, 4]
+
+
+class _Reader:
+    """Two recorded parts that read the same sensor, as the post-physics and observation parts of a step do."""
+
+    def __init__(self, sensor: _DeviceRefreshSensor):
+        self.sensor = sensor
+        self.first = GraphedCallable(self._read, sensor._device)
+        self.second = GraphedCallable(self._read, sensor._device)
+
+    def _read(self):
+        _ = self.sensor.data
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+def test_recorded_parts_reading_a_sensor_refresh_it_each_step(device, monkeypatch):
+    """The data of a sensor that recorded parts read refreshes once per step, also when a step skips the part that
+    refreshed it first: each recording holds the refresh of the environments still outdated."""
+    monkeypatch.setattr(GraphedCallable, "enabled", True)
+    sensor = _DeviceRefreshSensor(device)
+    reader = _Reader(sensor)
+    for _ in range(4):  # the first step records both parts, the others replay them
+        sensor.update(0.005)
+        reader.first()
+        reader.second()
+    sensor.update(0.005)
+    reader.second()
+    assert sensor.device_refreshes.numpy().tolist() == [5, 5]

@@ -25,7 +25,9 @@ import torch
 import warp as wp
 
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
+from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import replace
+from isaaclab.utils.buffers import reset_timestamps
 from isaaclab.utils.warp import ProxyArray
 
 from .articulation_factory import get_articulation
@@ -392,6 +394,76 @@ def test_set_coms_invalidates_same_timestamp_dependents(monkeypatch, backend, bo
             buffers.append(("_body_com_vel_w_backend", art.data._body_com_vel_w_backend))
         set_coms(coms=coms)
         _assert_buffers_stale(art.data, buffers)
+
+
+# named apart from ``device``, whose Newton CUDA cases the conftest deselects: graph recording needs CUDA
+_CUDA_DEVICES = pytest.mark.parametrize("cuda_device", test_devices(DeviceScope.DEFAULT_CUDA))
+
+
+def _recordable_articulation(backend: str, cuda_device: str, monkeypatch: pytest.MonkeyPatch):
+    art, view = _articulation(backend, cuda_device, monkeypatch)
+    if backend == "physx":
+        # the TensorAPI returns its own stable buffer, where the fixture view returns a copy allocated per call
+        monkeypatch.setattr(
+            view, "get_root_transforms", lambda: view._as_structured(view._root_transforms, wp.transformf, (N,))
+        )
+    return art
+
+
+def _identity_yaw(pose: torch.Tensor) -> torch.Tensor:
+    pose = pose.clone()
+    pose[..., 3:] = torch.tensor([0.0, 0.0, 0.0, 1.0], device=pose.device)
+    return pose
+
+
+@_CUDA_DEVICES
+def test_lazy_properties_update_on_every_graph_replay(monkeypatch, backend, cuda_device):
+    """A lazy property read while a CUDA graph records updates on each replay, though current at recording.
+
+    The joint acceleration finite difference advances only in :meth:`update`, so the recording leaves it alone.
+    """
+    art = _recordable_articulation(backend, cuda_device, monkeypatch)
+    art.data.update(dt=0.01)
+    heading = art.data.heading_w
+    joint_acc = art.data.joint_acc
+    joint_acc_before = joint_acc.torch.clone()
+    with wp.ScopedCapture(device=cuda_device) as capture:
+        heading = art.data.heading_w
+        _ = art.data.joint_acc
+    recorded = heading.torch.clone()
+
+    art.write_root_link_pose_to_sim_index(root_pose=_payload((N,), 7, wp.transformf, cuda_device))
+    wp.capture_launch(capture.graph)
+    replayed = heading.torch.clone()
+    torch.testing.assert_close(joint_acc.torch, joint_acc_before)
+    art.data.update(dt=0.01)
+    torch.testing.assert_close(replayed, art.data.heading_w.torch)
+    assert not torch.allclose(replayed, recorded)
+
+
+@_CUDA_DEVICES
+def test_invalidation_inside_a_recording_records_the_update_again(monkeypatch, backend, cuda_device):
+    """A property invalidated between two reads of one recording updates again for the second read.
+
+    The recording writes the root pose in place and invalidates the heading as the root pose writers do.
+    """
+    art = _recordable_articulation(backend, cuda_device, monkeypatch)
+    rotated = _payload((N,), 7, wp.transformf, cuda_device)
+    art.write_root_link_pose_to_sim_index(root_pose=_identity_yaw(rotated))
+    art.data.update(dt=0.01)
+    unrotated = art.data.heading_w.torch.clone()
+    with wp.ScopedCapture(device=cuda_device) as capture:
+        _ = art.data.heading_w
+        wp.copy(art.data.root_link_pose_w.warp, wp.from_torch(rotated, dtype=wp.transformf))
+        reset_timestamps([art.data._heading_w])
+        heading = art.data.heading_w
+
+    wp.capture_launch(capture.graph)
+    replayed = heading.torch.clone()
+    art.write_root_link_pose_to_sim_index(root_pose=rotated)
+    art.data.update(dt=0.01)
+    torch.testing.assert_close(replayed, art.data.heading_w.torch)
+    assert not torch.allclose(replayed, unrotated)
 
 
 @requires("physx")

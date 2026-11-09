@@ -742,7 +742,9 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         self._body_link_pose_w = TimestampedBuffer(wp.zeros(body_shape, dtype=wp.transformf, device=device))
         self._body_link_vel_w = TimestampedBuffer(wp.empty(body_shape, dtype=wp.spatial_vectorf, device=device))
         # -- com frame w.r.t. link frame
-        self._body_com_pose_b = TimestampedBuffer(wp.zeros(body_shape, dtype=wp.transformf, device=device))
+        self._body_com_pose_b = TimestampedBuffer(
+            wp.zeros(body_shape, dtype=wp.transformf, device=device), refresh_in_recordings=False
+        )
         # -- com frame w.r.t. world frame
         self._body_com_pose_w = TimestampedBuffer(wp.empty(body_shape, dtype=wp.transformf, device=device))
         self._body_com_vel_w = TimestampedBuffer(wp.zeros(body_shape, dtype=wp.spatial_vectorf, device=device))

@@ -110,6 +110,7 @@ def test_reset_lets_consumers_bind_each_new_backend_before_the_solver_exists(mon
         assert isinstance(sim.backend_manager.backend.solver, SolverMuJoCo)
         # as a write during graph capture does
         sim.backend_manager.backend.transforms_may_change_on_graph_replay = True
+        sim.backend_manager.backend.fk_on_every_step = True
         sim.reset()
 
     assert events == ["ready", "prepare"] * 2
@@ -289,6 +290,7 @@ def _recording_backend(
         fk_mask=wp.zeros(1, dtype=wp.bool, device=device),
         kinematics_dirty=False,
         transforms_may_change_on_graph_replay=False,
+        fk_on_every_step=False,
         state_version=0,
         model_changes=set(),
         warned_model_changes=set(),
@@ -598,6 +600,7 @@ def test_forward_resolves_flagged_worlds_once_and_not_while_an_outer_graph_recor
         fk_mask=fk_mask,
         kinematics_dirty=True,
         transforms_may_change_on_graph_replay=False,
+        fk_on_every_step=False,
         model_changes=set(),
         state_version=0,
     )
@@ -626,6 +629,7 @@ def test_manager_flags_the_masked_worlds_and_articulations(articulation_mask):
         fk_mask=wp.zeros(6, dtype=wp.bool, device="cpu"),
         kinematics_dirty=False,
         transforms_may_change_on_graph_replay=False,
+        fk_on_every_step=False,
     )
     articulation_ids = wp.array([[0, 1], [2, 3], [4, 5]], dtype=wp.int32, device="cpu")
     env_mask = wp.array([True, False, True], dtype=wp.bool, device="cpu")
