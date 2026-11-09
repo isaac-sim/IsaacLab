@@ -24,40 +24,40 @@ class RslRlSacAlgorithmCfg:
     num_critics: int = 2
     """Number of independently initialized state-action critics."""
 
-    replay_buffer_size: int = 100_000
+    replay_buffer_capacity: int = 10_000_000
     """Replay capacity in transitions across all environments."""
 
     max_replay_memory_fraction: float | None = None
     """Optional fraction of free GPU memory used to cap replay on its first insertion."""
 
-    num_updates: int = MISSING
+    num_updates: int = 16
     """Number of critic updates per collection iteration."""
 
-    batch_size: int = MISSING
+    batch_size: int = 2048
     """Number of replay anchors sampled per update."""
 
-    n_steps: int = 1
+    num_return_steps: int = 3
     """Maximum number of transitions in each bootstrapped return."""
 
-    gamma: float = MISSING
+    gamma: float = 0.98
     """Discount factor."""
 
-    tau: float = MISSING
+    tau: float = 0.01
     """Interpolation weight of online parameters in each target update."""
 
-    actor_update_interval: int = 1
+    actor_update_interval: int = 2
     """Number of critic updates between actor and temperature updates."""
 
-    learning_starts: int = 1000
+    num_warmup_transitions: int = 100_000
     """Collected transition count before updates; also sets uniform-action warm-up for a new actor."""
 
-    actor_learning_rate: float = MISSING
+    actor_learning_rate: float = 0.0001
     """Learning rate for the actor optimizer."""
 
-    critic_learning_rate: float = MISSING
+    critic_learning_rate: float = 0.0001
     """Learning rate for the critic optimizer."""
 
-    alpha_learning_rate: float = MISSING
+    alpha_learning_rate: float = 0.0001
     """Learning rate for the entropy-temperature optimizer."""
 
     optimizer: Literal["adam", "adamw", "sgd", "rmsprop"] = "adam"
@@ -69,16 +69,16 @@ class RslRlSacAlgorithmCfg:
     max_grad_norm: float | None = None
     """Maximum actor and critic gradient norm; None disables clipping."""
 
-    init_alpha: float = 0.2
+    init_alpha: float = 0.01
     """Initial entropy temperature."""
 
     target_entropy: float | None = None
     """Target entropy; None uses minus the action dimension unless target_entropy_std is set."""
 
-    target_entropy_std: float | None = None
+    target_entropy_std: float | None = 0.15
     """Gaussian standard deviation used to derive target entropy when target_entropy is None."""
 
-    critic_loss: Literal["mse", "categorical"] = "mse"
+    critic_loss_type: Literal["mse", "categorical"] = "categorical"
     """Scalar mean-squared error or a categorical return distribution."""
 
     num_bins: int = 101
@@ -87,19 +87,19 @@ class RslRlSacAlgorithmCfg:
     value_range: tuple[float, float] = (-5.0, 5.0)
     """Lower and upper support bounds for categorical returns."""
 
-    reward_normalization: bool = False
+    reward_normalization: bool = True
     """Whether to scale replay rewards using discounted-return statistics."""
 
     reward_normalization_max_return: float = 5.0
     """Sets the scale floor to the largest observed absolute return divided by this value."""
 
-    exploration: Literal["gaussian", "held"] = "gaussian"
+    exploration_type: Literal["gaussian", "held"] = "held"
     """Independent Gaussian noise or noise held for a sampled number of environment steps."""
 
     noise_repeat_exponent: float = 2.0
     """Power-law exponent of the held-noise duration distribution."""
 
-    noise_repeat_max: int = 16
+    max_noise_repeat_steps: int = 16
     """Maximum number of environment steps sharing one held-noise sample."""
 
     learning_rate_schedule: Literal["constant", "cosine"] = "constant"
@@ -108,7 +108,7 @@ class RslRlSacAlgorithmCfg:
     final_learning_rate_ratio: float = 0.5
     """Learning-rate ratio reached at the end of cosine annealing."""
 
-    schedule_updates: int | None = None
+    num_schedule_updates: int | None = None
     """Number of critic updates in the cosine schedule; required for cosine annealing."""
 
     use_mixed_precision: bool = False

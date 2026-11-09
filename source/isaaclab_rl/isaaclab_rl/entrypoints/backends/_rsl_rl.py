@@ -31,3 +31,10 @@ def _create_rsl_rl_runner(
     if inference and "use_cuda_graph" in cfg["algorithm"]:
         cfg["algorithm"]["use_cuda_graph"] = False
     return resolve_callable(agent_cfg.class_name)(env, cfg, log_dir=log_dir, device=agent_cfg.device)
+
+
+def _rsl_rl_load_cfg(runner: OnPolicyRunner, resume_optimizer_state: bool) -> dict | None:
+    """Return the checkpoint selection for continued training, optionally without the policy optimizer state."""
+    if resume_optimizer_state:
+        return None
+    return {**runner.alg.get_default_load_cfg(), "optimizer": False}

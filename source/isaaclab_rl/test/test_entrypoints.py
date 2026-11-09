@@ -890,7 +890,7 @@ def test_rsl_rl_checkpoint_preserves_selected_optimizer_state(
     pytest.importorskip("rsl_rl")
     from tensordict import TensorDict
 
-    from isaaclab_rl.entrypoints.backends._rsl_rl import _create_rsl_rl_runner
+    from isaaclab_rl.entrypoints.backends._rsl_rl import _create_rsl_rl_runner, _rsl_rl_load_cfg
 
     distillation = runner_class == "DistillationRunner"
     model_names = ("student", "teacher") if distillation else ("actor", "critic")
@@ -927,7 +927,7 @@ def test_rsl_rl_checkpoint_preserves_selected_optimizer_state(
     checkpoint = str(tmp_path / "model.pt")
     source.save(checkpoint)
     destination = make_runner(1e-5)
-    destination.load(checkpoint, load_optimizer=resume_optimizer_state)
+    destination.load(checkpoint, load_cfg=_rsl_rl_load_cfg(destination, resume_optimizer_state))
 
     assert destination.current_learning_iteration == source.current_learning_iteration
     if distillation:
@@ -988,7 +988,7 @@ def test_sac_configuration_tracks_native_constructor() -> None:
     cfg = RslRlSacAlgorithmCfg()
     parameters = inspect.signature(SAC.__init__).parameters
     injected = {"self", "actor", "critics", "storage", "device", "multi_gpu_cfg"}
-    construction = {"class_name", "num_critics", "replay_buffer_size", "max_replay_memory_fraction"}
+    construction = {"class_name", "num_critics", "replay_buffer_capacity", "max_replay_memory_fraction"}
     assert {field.name for field in fields(cfg)} - construction == set(parameters) - injected
     for name, parameter in parameters.items():
         if name not in injected and not isinstance(getattr(cfg, name), type(MISSING)):

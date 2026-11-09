@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import MISSING
 from typing import Literal
 
@@ -34,7 +35,7 @@ class RslRlResidualMLPCfg:
     expansion: int = 4
     """Width multiplier inside each residual block."""
 
-    bn_momentum: float = 0.01
+    batch_norm_momentum: float = 0.01
     """Momentum of the BatchNorm running statistics."""
 
 
@@ -97,8 +98,8 @@ class RslRlMLPModelCfg:
         action_range: tuple[float | list[float], float | list[float]] = (-1.0, 1.0)
         """Lower and upper bounds in the environment's raw action coordinates."""
 
-        log_std_range: tuple[float, float] = (-5.0, 2.0)
-        """Clamping bounds for the Gaussian log standard deviation before squashing."""
+        std_range: tuple[float, float] = (math.exp(-5.0), math.exp(2.0))
+        """Clamping bounds for the Gaussian standard deviation before squashing."""
 
         init_std: float | None = None
         """Initial Gaussian standard deviation; None keeps the network's initialization."""

@@ -8,6 +8,8 @@
 The action bound 2 follows the FlashSAC single-setting benchmark.
 """
 
+import math
+
 from isaaclab.utils import configclass
 
 from isaaclab_rl.rsl_rl import (
@@ -34,27 +36,27 @@ class G1FlatSACRunnerCfg(RslRlSacRunnerCfg):
         hidden_dims=[],
         activation="relu",
         obs_normalization=False,
-        network_cfg=RslRlResidualMLPCfg(hidden_dim=128, num_blocks=2, expansion=4, bn_momentum=0.01),
+        network_cfg=RslRlResidualMLPCfg(hidden_dim=128, num_blocks=2, expansion=4, batch_norm_momentum=0.01),
         distribution_cfg=RslRlMLPModelCfg.SquashedGaussianDistributionCfg(
-            action_range=(-2.0, 2.0), log_std_range=(-10.0, 2.0)
+            action_range=(-2.0, 2.0), std_range=(math.exp(-10.0), math.exp(2.0))
         ),
     )
     critic = RslRlQMLPModelCfg(
         hidden_dims=[],
         activation="relu",
         obs_normalization=False,
-        network_cfg=RslRlResidualMLPCfg(hidden_dim=256, num_blocks=2, expansion=4, bn_momentum=0.01),
+        network_cfg=RslRlResidualMLPCfg(hidden_dim=256, num_blocks=2, expansion=4, batch_norm_momentum=0.01),
     )
     algorithm = RslRlSacAlgorithmCfg(
         num_critics=2,
-        replay_buffer_size=10_000_000,
+        replay_buffer_capacity=10_000_000,
         num_updates=64,
         batch_size=2048,
-        n_steps=3,
+        num_return_steps=3,
         gamma=0.99,
         tau=0.01,
         actor_update_interval=2,
-        learning_starts=8192,
+        num_warmup_transitions=8192,
         actor_learning_rate=3.0e-4,
         critic_learning_rate=3.0e-4,
         alpha_learning_rate=3.0e-4,
@@ -63,17 +65,17 @@ class G1FlatSACRunnerCfg(RslRlSacRunnerCfg):
         max_grad_norm=None,
         init_alpha=0.01,
         target_entropy_std=0.15,
-        critic_loss="categorical",
+        critic_loss_type="categorical",
         num_bins=101,
         value_range=(-5.0, 5.0),
         reward_normalization=True,
         reward_normalization_max_return=5.0,
-        exploration="held",
+        exploration_type="held",
         noise_repeat_exponent=2.0,
-        noise_repeat_max=16,
+        max_noise_repeat_steps=16,
         learning_rate_schedule="cosine",
         final_learning_rate_ratio=0.5,
-        schedule_updates=96_000,
+        num_schedule_updates=96_000,
         use_mixed_precision=False,
         symmetry_cfg=None,
         use_cuda_graph=True,

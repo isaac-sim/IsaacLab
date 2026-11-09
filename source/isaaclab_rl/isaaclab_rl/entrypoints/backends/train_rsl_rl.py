@@ -46,7 +46,7 @@ from ..common import (
     write_run_manifest,
 )
 from . import cli_args_rsl_rl as cli_args
-from ._rsl_rl import _configure_rsl_rl_env_cfg, _create_rsl_rl_runner
+from ._rsl_rl import _configure_rsl_rl_env_cfg, _create_rsl_rl_runner, _rsl_rl_load_cfg
 
 logger = logging.getLogger(__name__)
 
@@ -183,7 +183,7 @@ def _run(args_cli: argparse.Namespace) -> None:
                 # map to this process's device; the checkpoint's tensors otherwise land on the GPU that saved them
                 runner.load(
                     resume_path,
-                    load_optimizer=args_cli.resume_optimizer_state,
+                    load_cfg=_rsl_rl_load_cfg(runner, args_cli.resume_optimizer_state),
                     map_location=agent_cfg.device,
                 )
             dump_train_configs(rank_dir, env_cfg, agent_cfg)
