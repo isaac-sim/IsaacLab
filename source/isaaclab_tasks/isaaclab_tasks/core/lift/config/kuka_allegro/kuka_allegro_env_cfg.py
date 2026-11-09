@@ -5,12 +5,14 @@
 
 """Configuration for the Kuka-Allegro lift and reorient environments."""
 
+import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import CameraCfg, ContactSensorCfg
 from isaaclab.utils import configclass, replace
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_assets.robots.kuka_allegro import KUKA_ALLEGRO_CFG, KUKA_ALLEGRO_FRICTION_REPLACEMENTS
 
@@ -23,6 +25,47 @@ THUMB_SENSOR = "thumb_link_3_object_s"
 
 FINGER_SENSORS = [f"{name}_object_s" for name in FINGERTIP_LIST if name != "thumb_link_3"]
 """Contact sensors of the remaining fingers."""
+
+SIMREADY_OBJECTS = [
+    "Industrial/Hardware/Tapes/Clear_Tape_A01/sm_tape_clear_a01_01.usd",
+    "Industrial/Tools/Hand/Socket_9_16in_A01/sm_handTool_socket_9_16in_a01_01.usd",
+    "Industrial/Warehouse/Boxes/Box_Cube_A01/sm_box_cube_a01_01.usd",
+    "Residential/Kitchen/Dishware/Cup_C01/sm_kitchenware_cup_c01_01.usd",
+    "Residential/Kitchen/Dishware/Plastic_Cup_A01/sm_dishware_plastic_cup_a01_01.usd",
+    "Residential/Kitchen/Food/Beverages/Boxed_Drink_C01/sm_food_beverage_boxedDrink_c01_01.usd",
+    "Residential/Kitchen/Food/Canned_Goods/Can_B01/sm_food_beverage_can_b01_01.usd",
+    "Residential/Kitchen/Food/Canned_Goods/Canned_Food_L01/sm_food_processed_cannedFood_l01_01.usd",
+    "Residential/Kitchen/Food/Condiments/Ketchup_A02/sm_food_condiment_ketchup_a02_01.usd",
+    "Residential/Kitchen/Food/Fruit/Lime_A01/sm_food_produce_lime_a01_01.usd",
+    "Residential/Kitchen/Food/Fruit/Mango_C01/sm_food_produce_mango_c01_01.usd",
+    "Residential/Kitchen/Food/Snacks/Chips_H01/sm_food_processed_chips_h01_01.usd",
+    "Residential/Kitchen/Food/Vegetables/Garlic_Bulb_A01/sm_food_produce_garlic_bulb_a01_01.usd",
+    "Residential/Kitchen/Food/Vegetables/Onion_B01/sm_food_produce_onion_b01_01.usd",
+    "Residential/Recreation/Golf_Ball_A02/sm_misc_golfBall_a02_01.usd",
+    "Residential/Recreation/Pong_Paddle_Ball_A01/sm_misc_toy_pongPaddle_ball_a01_01.usd",
+]
+"""SimReady props of the ``simready`` object preset, relative to the SimReady asset folder.
+
+Found with :func:`~isaaclab.utils.assets.search_simready_usd_paths` as single-body PhysX props
+(``FET003_BASE_PHYSX`` without ``FET004_BASE_PHYSX``) whose body frame is the asset frame,
+3 to 15 cm across and 5 to 500 g as authored.
+"""
+
+
+@configclass
+class KukaAllegroObjectCfg(lift.ObjectCfg):
+    """Graspable objects for the Kuka-Allegro hand, with SimReady props as an alternative to the shapes."""
+
+    # the props keep their authored mass and inertia; their instanced colliders take the shapes' collision overrides
+    simready = lift.ObjectCfg().shapes.replace(
+        assets_cfg=[
+            sim_utils.UsdFileCfg(
+                usd_path=f"{ISAAC_NUCLEUS_DIR}/SimReady/{path}", make_uninstanceable=True, move_rigid_body_to_root=True
+            )
+            for path in SIMREADY_OBJECTS
+        ],
+        mass_props=None,
+    )
 
 
 ##
@@ -44,6 +87,7 @@ class KukaAllegroSceneCfg(lift.SceneCfg):
 
     def __post_init__(self):
         super().__post_init__()
+        self.object.spawn = KukaAllegroObjectCfg()
         for link_name in FINGERTIP_LIST:
             setattr(
                 self,
