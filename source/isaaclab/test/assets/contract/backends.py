@@ -83,9 +83,19 @@ AVAILABLE = [name for name in ("physx", "newton", "ovphysx") if name not in UNAV
 
 
 def backends(*names: str) -> list:
-    """Return pytest parameters for the named backends (default: all), skipping the unavailable ones."""
+    """Return pytest parameters for the named backends (default: all), skipping the unavailable ones.
+
+    The ``ovphysx`` parameter also carries ``pytest.mark.ov``.
+    """
     return [
-        pytest.param(name, id=name, marks=pytest.mark.skipif(name in UNAVAILABLE, reason=UNAVAILABLE.get(name, "")))
+        pytest.param(
+            name,
+            id=name,
+            marks=[
+                pytest.mark.skipif(name in UNAVAILABLE, reason=UNAVAILABLE.get(name, "")),
+                *([pytest.mark.ov] if name == "ovphysx" else []),
+            ],
+        )
         for name in names or ("physx", "newton", "ovphysx")
     ]
 
@@ -190,6 +200,8 @@ def newton_manager(num_instances: int, device: str) -> MagicMock:
     model.gravity = wp.array(np.tile([[0.0, 0.0, -9.81]], (num_instances + 1, 1)), dtype=wp.vec3f, device=device)
     manager = MagicMock()
     manager.backend.solver = None
+    manager.backend.state_version = 0
+    manager.backend.device = wp.get_device(device)
     manager.backend.model = model
     manager.backend.state_0 = manager.backend.state_1 = MagicMock()
     return manager

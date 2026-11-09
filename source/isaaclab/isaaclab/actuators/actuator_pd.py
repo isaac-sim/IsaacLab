@@ -16,7 +16,6 @@ import warp as wp
 from ..utils import DelayBuffer, LinearInterpolation
 from ..utils.types import ArticulationActions
 from .actuator_base import ActuatorBase, resolve_joint_parameter
-from .actuator_compat import limits_equal
 
 if TYPE_CHECKING:
     from .actuator_control import ActuatorControl
@@ -60,8 +59,6 @@ class ImplicitActuator(ActuatorBase):
         damping: torch.Tensor | float = 0.0,
         joint_effort_limit: torch.Tensor | float | None = None,
         actuator_velocity_limit: torch.Tensor | float | None = None,
-        effort_limit: torch.Tensor | float | None = None,  # TODO: Deprecated. Remove in 4.0.
-        velocity_limit: torch.Tensor | float | None = None,  # TODO: Deprecated. Remove in 4.0.
     ):
         """Initialize the implicit actuator.
 
@@ -78,27 +75,9 @@ class ImplicitActuator(ActuatorBase):
                 joint type]. Defaults to infinity.
             actuator_velocity_limit: Default actuator velocity limit [m/s or rad/s,
                 depending on joint type]. Defaults to infinity.
-            effort_limit: Deprecated alias for :paramref:`joint_effort_limit`.
-            velocity_limit: Deprecated alias for :paramref:`actuator_velocity_limit`.
         """
-        # TODO: Deprecated. Remove in 4.0.
-        if effort_limit is not None:
-            warnings.warn(
-                "The effort_limit constructor argument is deprecated. Use joint_effort_limit instead; "
-                "effort_limit will be removed in 3.1.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            if joint_effort_limit is not None and not limits_equal(joint_effort_limit, effort_limit):
-                raise ValueError(
-                    "Received conflicting joint_effort_limit and deprecated effort_limit constructor arguments."
-                )
-            joint_effort_limit = effort_limit
-        # the base class resolves deprecated configuration aliases and skips the actuator effort
-        # limit, which implicit models expose as a live projection of the articulation limit.
-        super().__init__(
-            cfg, joint_names, joint_ids, num_envs, device, None, actuator_velocity_limit, None, velocity_limit
-        )
+        # Implicit models expose their effort limit as a live projection of the articulation limit.
+        super().__init__(cfg, joint_names, joint_ids, num_envs, device, None, actuator_velocity_limit)
         # construction values, used until the group is bound to articulation storage.
         self._construction_stiffness = resolve_joint_parameter(
             self.cfg.stiffness, stiffness, joint_names, num_envs, device
@@ -293,8 +272,6 @@ class IdealPDActuator(ActuatorBase):
         damping: torch.Tensor | float = 0.0,
         actuator_effort_limit: torch.Tensor | float | None = None,
         actuator_velocity_limit: torch.Tensor | float | None = None,
-        effort_limit: torch.Tensor | float | None = None,  # TODO: Deprecated. Remove in 4.0.
-        velocity_limit: torch.Tensor | float | None = None,  # TODO: Deprecated. Remove in 4.0.
     ):
         super().__init__(
             cfg,
@@ -304,8 +281,6 @@ class IdealPDActuator(ActuatorBase):
             device,
             actuator_effort_limit,
             actuator_velocity_limit,
-            effort_limit,  # TODO: Deprecated. Remove in 4.0.
-            velocity_limit,  # TODO: Deprecated. Remove in 4.0.
         )
         self.stiffness = resolve_joint_parameter(self.cfg.stiffness, stiffness, joint_names, num_envs, device)
         self.damping = resolve_joint_parameter(self.cfg.damping, damping, joint_names, num_envs, device)
@@ -520,8 +495,6 @@ class RemotizedPDActuator(DelayedPDActuator):
         damping: torch.Tensor | float = 0.0,
         actuator_effort_limit: torch.Tensor | float | None = None,
         actuator_velocity_limit: torch.Tensor | float | None = None,
-        effort_limit: torch.Tensor | float | None = None,  # TODO: Deprecated. Remove in 4.0.
-        velocity_limit: torch.Tensor | float | None = None,  # TODO: Deprecated. Remove in 4.0.
     ):
         super().__init__(
             cfg,
@@ -533,8 +506,6 @@ class RemotizedPDActuator(DelayedPDActuator):
             damping,
             actuator_effort_limit,
             actuator_velocity_limit,
-            effort_limit,  # TODO: Deprecated. Remove in 4.0.
-            velocity_limit,  # TODO: Deprecated. Remove in 4.0.
         )
         # This model has no box constraints: the angle-dependent lookup table below governs
         # effort clipping, so the parsed actuator limits are replaced with infinity.

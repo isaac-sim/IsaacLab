@@ -10,7 +10,6 @@
   scratch mask of the articulation instead of allocating a mask on every call.
 * Changed the fixed-tendon mask setters of :class:`~isaaclab_newton.assets.Articulation` to write through the masks,
   as the other Newton mask writers do, instead of converting the masks to indices, which synchronized the host with
-  the GPU on every call. Recorded into a CUDA graph, ``write_fixed_tendon_properties_to_sim_mask`` refreshes the
-  solver's tendon properties on every replay.
+  the GPU on every call.
 * Changed the mask writers of :class:`~isaaclab_newton.assets.RigidObjectCollection` to launch over the mask lengths,
   as the other Newton mask writers do, so a mask shorter than the asset dimension writes only the rows it covers.

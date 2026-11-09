@@ -1072,7 +1072,7 @@ class RigidObject(BaseRigidObject):
 
         Args:
             env_ids: Environment indices. If None, then all indices are used.
-            env_mask: Boolean mask; takes precedence over ``env_ids``.
+            env_mask: Boolean mask, converted to ids only when ``env_ids`` is not given.
 
         Returns:
             A warp array of environment indices or a tensor of environment indices.
