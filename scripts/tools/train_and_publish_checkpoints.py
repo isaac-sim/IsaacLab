@@ -268,11 +268,7 @@ def _select_physics_variants(
                 selector = "isaacsim_physx"
             elif backend == "newtonmjwarp":
                 selector = next(
-                    (
-                        candidate
-                        for candidate in ("newton_mjwarp", "newton_mjwarp_vbd", "newton_mjwarp_vbd_proxy")
-                        if candidate in variants
-                    ),
+                    (candidate for candidate in ("newton_mjwarp", "newton_mjwarp_vbd_proxy") if candidate in variants),
                     None,
                 )
             if selector is None:
@@ -683,6 +679,7 @@ def publish_pretrained_checkpoint(job: CheckpointJob, args: argparse.Namespace) 
     if args.dry_run:
         return True
 
+    # omniverseclient is no longer an Isaac Lab dependency: install it to publish
     import omni.client
     from omni.client._omniclient import CopyBehavior
 

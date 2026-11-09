@@ -49,6 +49,8 @@ from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
 
+pytestmark = pytest.mark.kitless
+
 _CELL_TEMPLATE = "/Lab/Cells/Cell{}"
 """Clone-plan environment template naming environments ``/Lab/Cells/Cell{i}``."""
 

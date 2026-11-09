@@ -45,11 +45,10 @@ Responsibilities and Boundaries
 :class:`~isaaclab_newton.physics.NewtonBackend` holds everything bound to one finalized model and initializes, steps
 and queries it (``init_solver``, ``step``, ``forward``, ``invalidate_fk``, ...), so backends with different solvers can
 be built and stepped side by side. The :class:`~isaaclab_newton.physics.NewtonManager` runs one backend through the
-Isaac Lab lifecycle. The backend's solver
-(:attr:`NewtonBackend.solver <isaaclab_newton.physics.NewtonBackend>`) is Newton's solver, built with
-``solver_cfg.class_type.build(solver_cfg, model, mode)``. The Isaac Lab solver is never instantiated and holds no state:
-each method is a class method that takes the configuration and Newton's solver. A coupled solver builds each entry's
-Newton solver through the entry's own Isaac Lab solver.
+Isaac Lab lifecycle. The backend's Isaac Lab solver (``NewtonBackend.solver_ops``) is built with
+``instantiate(solver_cfg, model, mode, env_template)`` and holds the configuration as ``cfg`` and Newton's solver as
+``native``. The backend's solver (:attr:`NewtonBackend.solver <isaaclab_newton.physics.NewtonBackend>`) is that Newton
+solver. A coupled solver holds one Isaac Lab solver per entry, built from the entry's configuration.
 
 .. list-table::
    :header-rows: 1
@@ -187,10 +186,11 @@ else:
 
        iterations: int = 16
 
-``MySolver.build(cfg, model, mode, env_template)`` returns Newton's solver. Every method is a class method:
-methods called before the model exists take the configuration, and the rest also take Newton's solver, e.g.
-``MySolver.reset(cfg, solver, state, world_mask)``. State a solver needs between steps belongs on Newton's
-solver. Override only what differs:
+``MySolver(cfg, model, mode, env_template)`` calls ``build`` to construct Newton's solver. Methods called before the
+model exists (``solver_classes``, ``prepare_builder``, ``applied_deterministic_mode``, ``shares_materials``,
+``coupling_error``) and ``fixed_tendon_control`` are class methods that take the configuration. The rest are instance
+methods that read ``self.cfg`` and ``self.native``, e.g. ``reset(self, state, world_mask)``. Override only what
+differs:
 
 .. list-table::
    :header-rows: 1
@@ -271,16 +271,10 @@ The four architectures differ in what drives the substep loop:
      - ``build`` returns a :class:`newton.solvers.SolverBase` subclass
        that holds several sub-solvers, built from their own configurations,
        and fixes the substep order in its ``step()``.
-       :class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolver`
-       is the in-tree example. Its Newton solver clears force accumulators, detects
-       contacts once, injects soft-to-rigid reactions into ``body_f`` when
-       ``coupling_mode="two_way"``, then advances MJWarp on its own internal
-       contacts and VBD on the detected ones.
 
 A custom shared-model solver bypasses entry ownership resolution, so it cannot
 reuse the coupler's selectors or validation. For the proxy and ADMM trade-offs,
 see :ref:`newton-coupled-solvers`.
-
 
 .. _related-documentation:
 

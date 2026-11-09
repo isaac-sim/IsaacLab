@@ -3,6 +3,83 @@ Changelog
 
 .. towncrier release notes start
 
+45.0.1 (2026-11-09)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :func:`~isaaclab.utils.math.convert_camera_frame_orientation_convention` returning NaN for the ``"world"``
+  convention when TF32 matmuls are enabled. The constant rotation is a signed column permutation and is now applied
+  without a matmul, so the result no longer depends on matmul precision.
+
+
+45.0.0 (2026-11-07)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added server-scheduled seasonal loading greetings from a Hugging Face catalog with offline defaults,
+  validated caching, consistent artwork when resizing the terminal, and an option to disable remote
+  greetings.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed remote asset access in :mod:`isaaclab.utils.assets` from ``omni.client`` to
+  `OVStorage <https://github.com/NVIDIA-Omniverse/ovstorage>`__, which replaces the ``omniverseclient``
+  dependency. Scripts that import ``omni.client`` directly must install ``omniverseclient`` themselves.
+  Each asset region profile's object storage is now read through its CDN, and previously cached
+  assets are downloaded again once.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated :func:`~isaaclab.utils.assets.configure_storage_profile` and
+  :func:`~isaaclab.utils.assets.configure_asset_region_profile`, which configured ``omni.client`` routing.
+  They now have no effect, because Isaac Lab's asset helpers apply the selected profile themselves.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed the actuator limit aliases deprecated in Isaac Lab 3.0 for removal in 3.1,
+  including configuration fields, constructor arguments, and runtime properties. Use
+  ``actuator_effort_limit`` and ``actuator_velocity_limit`` for model limits, and
+  ``joint_effort_limit`` and ``joint_velocity_limit`` for solver limits. For implicit actuator
+  constructors, replace ``effort_limit`` with ``joint_effort_limit``. For implicit configurations
+  that previously supplied only ``effort_limit``, set both ``actuator_effort_limit`` and
+  ``joint_effort_limit`` to preserve both limits; replace a lone ``velocity_limit_sim`` with both
+  ``joint_velocity_limit`` and ``actuator_velocity_limit`` to preserve the solver and soft limits.
+
+Fixed
+^^^^^
+
+* Fixed :attr:`~isaaclab.managers.ActionTermCfg.clip` for the task-space action terms.
+  :class:`~isaaclab.envs.mdp.actions.DifferentialInverseKinematicsAction` resolved the ranges against
+  the joint names and indexed the task-space action vector with joint indices (an index error, or joint
+  limits applied to pose components), and :class:`~isaaclab.envs.mdp.actions.OperationalSpaceControllerAction`
+  ignored the setting. Both now match the keys against task-space action names (``pos_x``, ``rot_x``,
+  ``force_x``, ``stiffness_x``, ...), exposed as :attr:`action_names`, and reject keys that match nothing or
+  a quaternion component.
+* Fixed :func:`~isaaclab.terrains.height_field.utils.height_field_to_mesh` raising an unrelated
+  ``ValueError: too many values to unpack`` when a height-field generator returns only the height field. It now
+  raises a :class:`TypeError` that names the generator and the ``(height_field, origin)`` return contract, and it
+  restores the terrain size it changed for the generator when generation fails.
+* Request Newton's deprecated unsafe Torch-checkpoint import only for USD actuators that reference Torch checkpoints.
+
+
+44.0.1 (2026-11-06)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removed the no-op process-wide Gaussian skip-tonemapping setting and warning for OVRTX in
+  :class:`~isaaclab.sensors.Camera`; the OVRTX renderer now authors the setting on its render product.
+* Delegated Isaac RTX rendering policy from camera construction to the renderer.
+
+
 44.0.0 (2026-11-05)
 ~~~~~~~~~~~~~~~~~~~
 

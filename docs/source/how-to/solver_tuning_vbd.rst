@@ -183,7 +183,7 @@ Core Solve
     * - ``rigid_body_particle_contact_buffer_size``
       - Default: ``256``. Per-body capacity for particle, edge, and face soft contacts. Increase it if Newton reports a per-body contact buffer overflow.
     * - ``integrate_with_external_rigid_solver``
-      - Default: ``False``. Set to ``True`` only when a manual manager integrates rigid bodies in the shared model. Proxy-coupled entries use partitioned model views and leave this ``False``.
+      - Default: ``False``. Set to ``True`` only when an external solver integrates rigid bodies in the shared model. Proxy-coupled entries use partitioned model views and leave this ``False``.
 
 Structural joint stiffness keeps rigid links attached; actuator stiffness drives
 the allowed joint coordinates toward their targets. Tune these separately under
@@ -254,50 +254,6 @@ runs collision once per tick. A positive value ``k`` re-runs it every ``k``
 solver substeps. Use ``1`` for fast or thin rigid-soft interactions that can
 cross the contact band within one substep; increase it only after verifying that
 the cheaper, staler contact set does not cause tunneling or ejection.
-
-
-Custom MJWarp + VBD Parameters
-------------------------------
-
-The opt-in
-:class:`~isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_solver_cfg.CoupledMJWarpVBDSolverCfg`
-runs MJWarp and VBD over one shared model. Import
-:mod:`isaaclab_contrib.custom_coupling.tasks` explicitly to register
-``IsaacContrib-Lift-Soft-Franka-Custom-Coupling``, which selects the
-``newton_mjwarp_vbd`` preset.
-
-.. list-table::
-    :header-rows: 1
-    :widths: 30 70
-
-    * - Parameter
-      - Description
-    * - ``rigid_solver_cfg``
-      - MJWarp configuration for rigid bodies.
-    * - ``soft_solver_cfg``
-      - VBD configuration. Set ``integrate_with_external_rigid_solver=True``
-        so VBD advances only particles.
-    * - ``coupling_mode="one_way"``
-      - Advance rigid bodies first, then particles without rigid reaction
-        forces.
-    * - ``coupling_mode="two_way"``
-      - Inject particle reactions before MJWarp, then advance VBD with the same
-        contacts.
-
-MJWarp ``nconmax`` and ``njmax`` must cover the rigid contacts and constraints
-in the scene. ``ccd_iterations`` can affect fast rigid contacts near
-deformables. See :doc:`/source/how-to/solver_tuning_mjwarp` for the rigid-solver
-parameters.
-
-Use the custom coupled solver adapter for direct shared-model substep ordering. Use proxy
-coupling when deformable contact is localized to selected rigid bodies.
-
-Start from ``coupling_mode="two_way"``. With two-way coupling the body-particle
-reaction acts on the arm as well as the deformable, so the gripper is less
-likely to clip through the object than under one-way coupling. If it still
-clips, lower the arm actuator stiffness so the arm can yield to those reactions,
-and command the gripper to close fully, letting the actuator's maximum effort
-limit the squeeze.
 
 
 .. _newton-vbd-proxy-coupling:
