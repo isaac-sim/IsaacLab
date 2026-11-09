@@ -19,7 +19,6 @@ from isaaclab.controllers import DifferentialIKControllerCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.envs.reset import ResetStateBufferCfg
 from isaaclab.managers import (
-    EventTermCfg,
     ObservationGroupCfg,
     ObservationTermCfg,
     RewardTermCfg,
@@ -30,11 +29,10 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass, replace
 from isaaclab.visualizers import VisualizerCfg
 
-from isaaclab_tasks.core.lift.mdp import ObjectUniformPoseCommandCfg
-from isaaclab_tasks.utils import PresetCfg, ResetStateSamplerCfg
-
 from isaaclab_assets.robots import FRANKA_PANDA_HIGH_PD_CFG
 
+from ...core.lift.mdp import ObjectUniformPoseCommandCfg
+from ...utils import PresetCfg, ResetStateSamplerCfg
 from . import mdp as pickup_mdp
 
 
@@ -191,13 +189,6 @@ class TerminationsCfg:
 
 
 @configclass
-class EventsCfg:
-    """Manager lifecycle reset; task-specific states are restored after manager cleanup."""
-
-    reset_scene = EventTermCfg(func=mdp.reset_scene_to_default, mode="reset")
-
-
-@configclass
 class CubePickupEnvCfg(ManagerBasedRLEnvCfg):
     """Reference task for sparse learning with generated and validated reset states."""
 
@@ -208,7 +199,7 @@ class CubePickupEnvCfg(ManagerBasedRLEnvCfg):
     observations: ObservationsCfg = ObservationsCfg()
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
-    events: EventsCfg = EventsCfg()
+    events: dict = {}
     commands: CommandsCfg = CommandsCfg()
     curriculum = None
     reset_buffer: ResetStateBufferCfg = ResetStateBufferCfg(size=1024, max_batches=512, seed=0)

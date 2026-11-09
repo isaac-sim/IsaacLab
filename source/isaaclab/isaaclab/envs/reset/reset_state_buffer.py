@@ -14,21 +14,7 @@ from typing import TypeAlias
 import numpy as np
 import torch
 
-from isaaclab.utils import configclass
-
-
-@configclass
-class ResetStateBufferCfg:
-    """Configuration for bounded reset-state collection."""
-
-    size: int = 4096
-    """Number of accepted states to collect, shared approximately equally across named generators."""
-
-    max_batches: int = 100
-    """Maximum candidate batches per generator before collection fails."""
-
-    seed: int = 0
-    """Collection seed. The caller's Torch, NumPy, and Python random states are restored afterward."""
+from .reset_state_buffer_cfg import ResetStateBufferCfg
 
 
 class ResetStateBuffer:
@@ -62,7 +48,7 @@ class ResetStateBuffer:
         self.group_ids = torch.empty(0, dtype=torch.long)
         """Generator index for every stored row, shape [num_states]."""
         self.collection_report: dict[str, dict[str, int]] = {}
-        """Attempted, accepted, and rejected candidate counts for each generator."""
+        """Attempted, accepted, and rejected counts for the most recent successful collection."""
 
     @property
     def num_states(self) -> int:
@@ -99,6 +85,8 @@ class ResetStateBuffer:
 
         The callbacks own simulation synchronization and any settling; collection does not step
         the simulation or advance the environment's episode bookkeeping itself.
+        Failed collection preserves the previous catalog, group metadata, and report. An exhausted
+        generation budget includes the failed attempt's report in its exception.
 
         Args:
             env_ids: Candidate environment indices, shape [N], on the simulation device.
@@ -120,7 +108,7 @@ class ResetStateBuffer:
             raise ValueError("The check name 'generator' is reserved for generator validity.")
         batches: list[ResetStateBuffer.State] = []
         groups: list[torch.Tensor] = []
-        self.collection_report = {}
+        collection_report: dict[str, dict[str, int]] = {}
         devices = [env_ids.device.index] if env_ids.is_cuda else []
         numpy_state, python_state = np.random.get_state(), random.getstate()
         try:
@@ -134,7 +122,7 @@ class ResetStateBuffer:
                 for group, (name, generator) in enumerate(generators.items()):
                     quota = self.cfg.size // len(generators) + int(group < self.cfg.size % len(generators))
                     accepted = 0
-                    report = self.collection_report[name] = {"attempted": 0, "accepted": 0}
+                    report = collection_report[name] = {"attempted": 0, "accepted": 0}
                     for _ in range(self.cfg.max_batches):
                         report["attempted"] += env_ids.numel()
                         reported = generator(env_ids)
@@ -164,14 +152,17 @@ class ResetStateBuffer:
                     if accepted < quota:
                         raise RuntimeError(
                             f"Reset group '{name}' collected {accepted}/{quota} states after "
-                            f"{self.cfg.max_batches} batches. Rejections: {self.rejection_counts}"
+                            f"{self.cfg.max_batches} batches. Collection report: {collection_report}"
                         )
         finally:
             np.random.set_state(numpy_state)
             random.setstate(python_state)
-        self.state = _concatenate_states(batches)
-        self.group_ids = torch.cat(groups).long()
-        self.group_names = tuple(generators)
+        self.state, self.group_ids, self.group_names, self.collection_report = (
+            _concatenate_states(batches),
+            torch.cat(groups).long(),
+            tuple(generators),
+            collection_report,
+        )
 
     def get_state(self, row_ids: torch.Tensor) -> ResetStateBuffer.State:
         """Return the selected rows of the captured state tree.

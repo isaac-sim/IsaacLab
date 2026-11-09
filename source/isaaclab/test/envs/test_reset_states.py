@@ -51,24 +51,37 @@ def test_collection_rejects_candidates_covers_groups_and_preserves_rng():
     torch.testing.assert_close(torch.get_rng_state(), torch_state)
     np.testing.assert_equal(np.random.get_state(), numpy_state)
     assert random.getstate() == python_state
+    torch.rand(3)
+    np.random.random(3)
+    random.random()
+    torch_state, numpy_state, python_state = torch.get_rng_state(), np.random.get_state(), random.getstate()
     repeated = ResetStateBuffer(buffer.cfg)
     repeated.collect(env_ids, generators, capture, checks)
     torch.testing.assert_close(
         repeated.state["rigid_object"]["cube"]["root_pose"], buffer.state["rigid_object"]["cube"]["root_pose"]
     )
+    torch.testing.assert_close(torch.get_rng_state(), torch_state)
+    np.testing.assert_equal(np.random.get_state(), numpy_state)
+    assert random.getstate() == python_state
 
 
-def test_impossible_validation_is_bounded_and_reports_the_condition():
+def test_impossible_recollection_is_bounded_and_preserves_the_complete_catalog():
     buffer = ResetStateBuffer(ResetStateBufferCfg(size=5, max_batches=2))
-    with pytest.raises(RuntimeError, match="collected 0/5 states after 2 batches.*collision_free"):
+    buffer.collect(torch.arange(3), lambda ids: None, lambda ids: {"pose": ids[:, None].float()})
+    catalog = buffer.get_state(torch.arange(5))["pose"]
+    with pytest.raises(RuntimeError, match="collected 0/5 states after 2 batches.*collision_free.*6"):
         buffer.collect(
             torch.arange(3),
-            lambda ids: None,
+            {"blocked": lambda ids: None},
             lambda ids: {"pose": torch.zeros(len(ids), 7)},
             {"collision_free": lambda ids: torch.zeros_like(ids, dtype=torch.bool)},
         )
-    assert buffer.num_states == 0
-    assert buffer.rejection_counts == {"default/collision_free": 6}
+    assert buffer.num_states == 5
+    torch.testing.assert_close(buffer.get_state(torch.arange(5))["pose"], catalog)
+    assert buffer.group_names == ("default",)
+    assert buffer.group_ids.tolist() == [0] * 5
+    assert buffer.collection_report == {"default": {"attempted": 6, "accepted": 5}}
+    assert buffer.rejection_counts == {}
     with pytest.raises(ValueError, match="'generator' is reserved"):
         buffer.collect(
             torch.arange(3),

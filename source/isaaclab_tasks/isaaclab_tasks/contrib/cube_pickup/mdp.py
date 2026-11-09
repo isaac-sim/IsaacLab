@@ -14,7 +14,7 @@ import torch
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.math import combine_frame_transforms
 
-from isaaclab_tasks.core.lift.mdp import object_reached_goal
+from ...core.lift.mdp import object_reached_goal
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -33,13 +33,13 @@ def hand_pose(
     body_id = asset_cfg.body_ids[0]
     orientation = robot.data.body_link_quat_w.torch[:, body_id]
     position = robot.data.body_link_pos_w.torch[:, body_id]
-    offset = env.cfg.actions.arm.body_offset
-    if offset is not None:
+    arm = env.action_manager.get_term("arm")
+    if arm.cfg.body_offset is not None:
         position, orientation = combine_frame_transforms(
             position,
             orientation,
-            position.new_tensor(offset.pos).expand_as(position),
-            orientation.new_tensor(offset.rot).expand_as(orientation),
+            arm._offset_pos,
+            arm._offset_rot,
         )
     return torch.cat((position - env.scene.env_origins, orientation), dim=-1)
 

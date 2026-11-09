@@ -7,12 +7,12 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.utils.sampling.sampling_strategies import (
-    BetaSamplingStrategy,
-    UniformSamplingStrategy,
-)
+if TYPE_CHECKING:
+    from .sampling_strategies import BetaSamplingStrategy, UniformSamplingStrategy
 
 
 @configclass

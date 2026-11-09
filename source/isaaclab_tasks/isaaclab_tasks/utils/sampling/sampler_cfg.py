@@ -8,10 +8,12 @@
 from __future__ import annotations
 
 from dataclasses import field
+from typing import TYPE_CHECKING
 
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.utils.sampling.sampler import Sampler
+if TYPE_CHECKING:
+    from .sampler import Sampler
 
 
 @configclass

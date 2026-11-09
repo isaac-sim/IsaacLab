@@ -13,10 +13,10 @@ import torch
 
 from isaaclab.utils import instantiate
 
-from isaaclab_tasks.utils.sampling.sampling_strategies import SamplingStrategy
+from .sampling_strategies import SamplingStrategy
 
 if TYPE_CHECKING:
-    from isaaclab_tasks.utils.sampling.sampler_cfg import SamplerCfg
+    from .sampler_cfg import SamplerCfg
 
 
 class Sampler:

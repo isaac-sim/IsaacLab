@@ -9,27 +9,11 @@ from __future__ import annotations
 
 import torch
 
-from isaaclab.utils import configclass, instantiate
+from isaaclab.utils import instantiate
 
-from .sampling import BetaSamplingStrategyCfg, Sampler, SamplerCfg, UniformSamplingStrategyCfg
-from .success_monitor import SuccessMonitor, SuccessMonitorCfg
-
-
-@configclass
-class ResetStateSamplerCfg:
-    """Configure outcome tracking and sampling independently of a task's state representation."""
-
-    class_type: type[ResetStateSampler] | str = "{DIR}.reset_states:ResetStateSampler"
-    """Runtime sampler implementation."""
-
-    success_monitor: SuccessMonitorCfg = SuccessMonitorCfg(monitored_history_len=50)
-    """Rolling episode history for each reset row."""
-
-    sampling: SamplerCfg = SamplerCfg(
-        strategies=[BetaSamplingStrategyCfg(target=0.5, kappa=2.0), UniformSamplingStrategyCfg(weight=0.05)],
-        eps=1.0e-4,
-    )
-    """Sampling strategies; the default favors intermediate success while retaining all rows."""
+from .reset_states_cfg import ResetStateSamplerCfg
+from .sampling import Sampler
+from .success_monitor import SuccessMonitor
 
 
 class ResetStateSampler:
@@ -63,7 +47,6 @@ class ResetStateSampler:
         env_ids: torch.Tensor,
         success: torch.Tensor | None = None,
         valid: torch.Tensor | None = None,
-        row_mask: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """Record the finished episodes before selecting their next reset rows.
 
@@ -75,8 +58,6 @@ class ResetStateSampler:
             env_ids: Resetting environment indices, shape [N], on the sampler device.
             success: Whether each selected episode succeeded, shape [N]. ``None`` skips recording.
             valid: Which selected outcomes to record, shape [N]. ``None`` records every outcome.
-            row_mask: Eligible catalog rows, shape [row_count]. ``None`` permits every row.
-                At least one permitted row must have positive sampling weight.
 
         Returns:
             The newly assigned reset-row indices, shape [N], in ``env_ids`` order.
@@ -84,9 +65,6 @@ class ResetStateSampler:
         if success is not None:
             self.success_monitor.success_update(self.row_ids[env_ids], success, valid)
         self.probabilities = self.sampler.probabilities()
-        if row_mask is not None:
-            self.probabilities = self.probabilities * row_mask
-            self.probabilities.div_(self.probabilities.sum())
         if env_ids.numel():
             self.row_ids[env_ids] = self.sampler.sample(self.probabilities, env_ids.numel())
         return self.row_ids[env_ids]

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""CPU regressions for pickup reward scaling and completed-episode bookkeeping."""
+"""CPU regressions for pickup rewards, completed episodes, and reset-bank persistence."""
 
 from types import SimpleNamespace
 
@@ -89,3 +89,17 @@ def test_viewer_reset_does_not_record_an_unfinished_episode():
 
     torch.testing.assert_close(env.reset_sampler.success_monitor.get_success_rate(), torch.tensor([1.0, 1.0]))
     assert env.extras["log"]["Reset/default_success"].item() == 1.0
+
+
+def test_saving_reset_bank_rejects_its_json_report_path(tmp_path):
+    """Reject an output collision before replacing an existing catalog."""
+    env = CubePickupEnv.__new__(CubePickupEnv)
+    env._is_closed = True
+    env.reset_buffer = ResetStateBuffer(ResetStateBufferCfg(size=1))
+    env.reset_buffer.collect(torch.arange(1), lambda ids: None, lambda ids: {"row": ids[:, None]})
+    env.generation_report = {}
+    path = tmp_path / "bank.json"
+    path.write_bytes(b"existing catalog")
+    with pytest.raises(ValueError, match="different paths"):
+        env.save_reset_buffer(path)
+    assert path.read_bytes() == b"existing catalog"
