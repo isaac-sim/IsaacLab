@@ -288,6 +288,40 @@ def test_warmup_fills_the_history_window(window, frames, monkeypatch):
     assert opened == {"budget": frames, "frames": frames, "closed": True}
 
 
+def test_text_conditioning_marks_the_batch_as_a_transfer_request(monkeypatch):
+    """The model selects its Transfer numerics from the batch, as it does for the Framework's own Transfer requests."""
+
+    class Overrides:
+        model_fields = {}
+
+        def __init__(self, **settings):
+            self.prompt = settings["prompt"]
+
+        def build_sample(self, model_config):
+            return self
+
+    framework = {
+        "cosmos_framework.inference.args": {"OmniSampleOverrides": Overrides},
+        "cosmos_framework.inference.inference": {
+            "_get_prompt_sample_data": lambda sample, model, **_: {"caption": [sample.prompt]}
+        },
+        "cosmos_framework.model.generator.reasoner.qwen3_vl.utils": {"_SYSTEM_PROMPT_TRANSFER": "transfer"},
+    }
+    for name, attributes in framework.items():
+        module = types.ModuleType(name)
+        vars(module).update(attributes)
+        monkeypatch.setitem(sys.modules, name, module)
+    owner = _framework.CosmosInferenceModel.__new__(_framework.CosmosInferenceModel)
+    owner._pipeline = SimpleNamespace(model=SimpleNamespace(config=None))
+    owner._metadata_dir = SimpleNamespace(name="unused")
+
+    data = owner._prompt_batch("A lab.", HEIGHT, WIDTH, 13)
+
+    assert data["caption"] == ["A lab."]
+    assert data["dataset_name"] == "video_transfer" and data["system_prompt"] == "transfer"
+    assert data["_preserve_transfer_numerics"] is True
+
+
 def test_prompt_rows_merge_into_one_batch_with_a_caption_per_view():
     rows = [
         {"caption": ["A lab."], "neg_caption": [""], "system_prompt": "S", "fps": [30.0]},
