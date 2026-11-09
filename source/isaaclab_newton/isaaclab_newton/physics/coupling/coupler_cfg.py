@@ -16,9 +16,10 @@ from collections.abc import Callable
 from dataclasses import MISSING, field
 from typing import TYPE_CHECKING, Literal
 
-from isaaclab_newton.physics import NewtonCollisionPipelineCfg, NewtonSolverCfg
-
 from isaaclab.utils import configclass
+
+from ..newton_collision_cfg import NewtonCollisionPipelineCfg
+from ..newton_manager_cfg import NewtonSolverCfg
 
 if TYPE_CHECKING:
     from newton import CollisionPipeline
