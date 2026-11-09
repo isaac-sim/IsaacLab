@@ -5,6 +5,7 @@
 
 """OVStage population and clone compatibility without loading the native runtime."""
 
+import math
 from functools import cache
 from importlib.metadata import PackageNotFoundError, version
 from typing import TYPE_CHECKING
@@ -24,7 +25,7 @@ OVSTAGE_REQUIRES_CPU_HIERARCHY_BEFORE_CLONE = OVSTAGE_VERSION is not None and OV
 
 
 def populate_stage(
-    stage: "ovstage.Stage", usda: str, *, ordinal: int, domains: "ovstage.PopulationDomain", physics: bool = False
+    stage: "ovstage.Stage", usd_path: str, *, ordinal: int, domains: "ovstage.PopulationDomain", physics: bool = False
 ) -> None:
     """Populate rendering and optional physics data across the OVStage 0.4 API transition.
 
@@ -33,7 +34,7 @@ def populate_stage(
 
     Args:
         stage: Native stage to populate.
-        usda: Exported USD scene.
+        usd_path: Path to the exported binary USD scene.
         ordinal: Population write ordinal, sealed by the caller after cloning.
         domains: Native population domains, normally rendering.
         physics: Whether an OVPhysX consumer also needs physics data.
@@ -43,13 +44,13 @@ def populate_stage(
     if physics:
         physics_domain = getattr(ovstage.PopulationDomain, "PHYSICS", None)
         if physics_domain is None:
-            ovstage.population.open_usd_from_string_with_desc(
-                stage, usda, ordinal=ordinal, time=ovstage.population.DEFAULT_TIME,
+            ovstage.population.open_usd_with_desc(
+                stage, usd_path, ordinal, math.nan,
                 descs=(ovstage.population.Desc(domains=domains), _physics_population_desc()),
             )  # fmt: skip
             return
         domains |= physics_domain
-    ovstage.population.open_usd_from_string(stage, usda, ordinal=ordinal, domains=domains)
+    ovstage.population.open_usd(stage, usd_path, ordinal=ordinal, domains=domains)
 
 
 @cache

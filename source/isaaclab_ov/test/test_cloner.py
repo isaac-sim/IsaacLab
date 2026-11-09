@@ -90,10 +90,8 @@ def test_nested_clone_uses_final_target_pose(monkeypatch):
     if np.dot(orientation, expected_orientation) < 0.0:
         orientation = -orientation
     assert orientation.tolist() == pytest.approx(expected_orientation.tolist())
-    layer = Sdf.Layer.CreateAnonymous("export.usda")
-    serialized, native = _serialize_stage(stage, manager._clone_recipes, full_stage=True)
+    layer, native = _serialize_stage(stage, manager._clone_recipes, full_stage=True)
     assert not native
-    layer.ImportFromString(serialized)
     exported = Usd.Stage.Open(layer)
     target = exported.GetPrimAtPath(targets[1] + "/Body")
     actual = UsdGeom.XformCache().GetLocalToWorldTransform(target).ExtractTranslation()
@@ -120,9 +118,8 @@ def test_ovphysx_context_consumes_plan():
     assert recipes[0][3] == [0, 1, 2]
     assert recipes[1][3] == [0, 1]
     before = stage.ExportToString()
-    serialized, _ = _serialize_stage(stage, recipes, full_stage=True, plan=plan)
-    exported = Usd.Stage.CreateInMemory()
-    exported.GetRootLayer().ImportFromString(serialized)
+    layer, _ = _serialize_stage(stage, recipes, full_stage=True, plan=plan)
+    exported = Usd.Stage.Open(layer)
     for env_id, position in enumerate(positions):
         root = exported.GetPrimAtPath(f"/World/envs/env_{env_id}/Robot")
         actual = UsdGeom.XformCache().GetLocalToWorldTransform(root).ExtractTranslation()
@@ -308,9 +305,7 @@ def test_clone_export_preserves_sources_and_independent_assets(full_stage, env_t
     before = stage.GetRootLayer().ExportToString()
 
     for _ in range(2):
-        layer = Sdf.Layer.CreateAnonymous("export.usda")
-        serialized, native = _serialize_stage(stage, recipes, full_stage, plan)
-        assert layer.ImportFromString(serialized)
+        layer, native = _serialize_stage(stage, recipes, full_stage, plan)
         exported = Usd.Stage.Open(layer)
         for env_id, variant in enumerate(("cube", "sphere")):
             prim = exported.GetPrimAtPath(object_paths[env_id])
@@ -351,10 +346,8 @@ def test_full_stage_export_preserves_nested_authored_opinions():
         ("/Source/Robot/Link", ["/Target/Robot/Link", "/Other/Nested/Robot/Link"], [], [1, 2], 0),
         ("/Source/Robot", ["/Target/Robot"], [], [1], 0),
     ]
-    layer = Sdf.Layer.CreateAnonymous("export.usda")
-    serialized, native = _serialize_stage(stage, recipes, full_stage=True)
+    layer, native = _serialize_stage(stage, recipes, full_stage=True)
     assert not native
-    assert layer.ImportFromString(serialized)
     exported = Usd.Stage.Open(layer)
     assert exported.GetPrimAtPath("/Target/Robot").GetAttribute("test:physics").Get()
     assert exported.GetPrimAtPath("/Target/Robot").IsA(UsdGeom.Mesh)
@@ -407,11 +400,7 @@ def test_export_translates_legacy_joint_properties_without_editing_instances(mon
     instance.GetReferences().AddInternalReference("/Robot")
     instance.SetInstanceable(True)
     before = stage.GetRootLayer().ExportToString()
-    serialized, _ = _serialize_stage(
-        stage, [], full_stage=True, friction_replacements={"Angular|Linear": (0.2, 0.1, 0.0)}
-    )
-    layer = Sdf.Layer.CreateAnonymous()
-    layer.ImportFromString(serialized)
+    layer, _ = _serialize_stage(stage, [], full_stage=True, friction_replacements={"Angular|Linear": (0.2, 0.1, 0.0)})
     exported = Usd.Stage.Open(layer)
     for root in ("/Robot", "/Instance"):
         fixed = exported.GetPrimAtPath(f"{root}/Fixed")

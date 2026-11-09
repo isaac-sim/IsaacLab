@@ -44,7 +44,7 @@ from isaaclab_ov._clone import CloneRecipe, clone_transforms_from_positions
 from isaaclab_ov.cloner import OvPhysxReplicateContext
 from isaaclab_ov.cloner.replicate import _convert_legacy_joint_properties, _serialize_stage
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
-from isaaclab_ov.stage import OvstageBackend, OvstageBackendCfg, export_stage_to_string
+from isaaclab_ov.stage import OvstageBackend, OvstageBackendCfg, export_stage_to_layer
 
 from . import ovphysx_compat
 from .ovphysx_compat import OVPHYSX_LIFECYCLE_ENTRY_POINTS
@@ -333,11 +333,11 @@ class OvPhysxBackend:
         self.stage: Any = None
         self.rigid_body_view: Any = None
 
-    def load(self, stage_usda: str) -> None:
+    def load(self, stage_layer: Sdf.Layer) -> None:
         """Replace the attached scene after draining its native bindings.
 
         Args:
-            stage_usda: Exported USD scene to populate before physics attaches.
+            stage_layer: Exported USD scene to populate before physics attaches.
         """
         if self.stage is not None:
             if self.rigid_body_view is not None:
@@ -351,7 +351,7 @@ class OvPhysxBackend:
             # Include rendering data for native-instance collider dependencies as well as physics.
             self.scene = instantiate(OvstageBackendCfg(populate_physics=True))
         try:
-            self.scene.populate(stage_usda)
+            self.scene.populate(stage_layer)
             operation = self.physx.attach_ovstage(self.scene.stage, read_ordinal=self.scene.ordinal - 1)
         except Exception:
             if self.owns_scene:
@@ -421,7 +421,7 @@ class OvPhysxManager(PhysicsManager):
         self._cfg: OvPhysxCfg = cfg
         self.backend: OvPhysxBackend | None = None
         """Native resource borrowed from the context registry after warmup."""
-        self._stage_usda: str | None = None
+        self._stage_layer: Sdf.Layer | None = None
         self._warmup_done: bool = False
         self._requires_full_stage: bool = False
         self._clone_recipes: list[CloneRecipe] = []
@@ -523,7 +523,7 @@ class OvPhysxManager(PhysicsManager):
         self._gravity = tuple(sim_context.cfg.gravity)
         self._warmup_done = False
         self._requires_full_stage = False
-        self._stage_usda = None
+        self._stage_layer = None
         self._clone_recipes = []
         # SimulationContext retains this backend; native bindings remain deferred until the first SDP read.
         self._scene_data_backend = OvPhysxSceneDataBackend(self)
@@ -605,7 +605,7 @@ class OvPhysxManager(PhysicsManager):
                         atexit.unregister(self._close_at_exit)
                         self._atexit_registered = False
             finally:
-                self._stage_usda = None
+                self._stage_layer = None
                 self._warmup_done = False
                 self._requires_full_stage = False
                 self._clone_recipes = []
@@ -724,7 +724,7 @@ class OvPhysxManager(PhysicsManager):
         self._configure_physics_scenes(sim.stage, sim.cfg.physics_prim_path, self._cfg, ovphysx_device)
 
         if shared_scene is not None:
-            stage_usda = export_stage_to_string(
+            stage_layer = export_stage_to_layer(
                 sim.stage,
                 shared_scene.clone_env_paths,
                 source_paths=tuple(source for source, _ in shared_scene.clone_copies),
@@ -732,21 +732,18 @@ class OvPhysxManager(PhysicsManager):
                 env_paths=shared_scene.population_env_paths,
             )
             if ovphysx_compat.OVPHYSX_USES_TASKS:
-                layer = Sdf.Layer.CreateAnonymous()
-                layer.ImportFromString(stage_usda)
-                _convert_legacy_joint_properties(layer, self._cfg.legacy_joint_friction_replacements)
-                stage_usda = layer.ExportToString()
+                _convert_legacy_joint_properties(stage_layer, self._cfg.legacy_joint_friction_replacements)
             native_clones = ()
         else:
             full_stage = self._requires_full_stage or ovphysx_device == "cpu"
-            stage_usda, native_clones = _serialize_stage(
+            stage_layer, native_clones = _serialize_stage(
                 sim.stage,
                 self._clone_recipes,
                 full_stage,
                 plan,
                 friction_replacements=self._cfg.legacy_joint_friction_replacements,
             )
-        self._stage_usda = stage_usda
+        self._stage_layer = stage_layer
 
         self.backend = sim.get_or_create_backend(
             OvPhysxBackendCfg(
@@ -758,7 +755,7 @@ class OvPhysxManager(PhysicsManager):
         if not self._atexit_registered:
             atexit.register(self._close_at_exit)
             self._atexit_registered = True
-        self.backend.load(stage_usda)
+        self.backend.load(stage_layer)
         logger.info("OvPhysxManager: attached OVStage to ovphysx (device=%s)", ovphysx_device)
 
         for source, targets, transforms, env_ids, _ in native_clones:

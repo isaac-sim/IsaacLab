@@ -7,11 +7,15 @@
 
 from __future__ import annotations
 
+import math
 import sys
 from contextlib import ExitStack, closing, nullcontext
+from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
 import pytest
+
+from pxr import Sdf
 
 pytestmark = pytest.mark.ov
 
@@ -203,6 +207,7 @@ def test_manager_attaches_and_releases_owned_ovstage(manager, monkeypatch, moder
             return SimpleNamespace(wait=lambda: events.append(("seal", ordinal)))
 
         def __exit__(self, *exc):
+            assert all(file.exists() for file in populated_files)
             events.append(("destroy",))
 
     class FakePhysX:
@@ -236,13 +241,15 @@ def test_manager_attaches_and_releases_owned_ovstage(manager, monkeypatch, moder
     fake_ovstage = ModuleType("ovstage")
     from isaaclab_ov import stage as stage_module
 
-    monkeypatch.setattr(
-        stage_module,
-        "populate_stage",
-        lambda stage, usda, *, ordinal, domains, physics: events.append(
-            ("populate", stage, usda, ordinal, domains, physics)
-        ),
-    )
+    populated_files = []
+
+    def populate(stage, path, *, ordinal, domains, physics):
+        file = Path(path)
+        assert file.read_bytes()[:8] == b"PXR-USDC"
+        populated_files.append(file)
+        events.append(("populate", stage, ordinal, domains, physics))
+
+    monkeypatch.setattr(stage_module, "populate_stage", populate)
     fake_ovstage.PathDictionary = lambda stage: nullcontext(object())
     monkeypatch.setattr(stage_module, "ovstage", fake_ovstage)
     monkeypatch.setattr(stage_module, "create_ovstage", FakeStage)
@@ -257,9 +264,9 @@ def test_manager_attaches_and_releases_owned_ovstage(manager, monkeypatch, moder
     )
     if failure == "attach":
         with pytest.raises(RuntimeError, match=f"{failure} failed"):
-            manager.backend.load("#usda 1.0")
+            manager.backend.load(Sdf.Layer.CreateAnonymous())
     else:
-        manager.backend.load("#usda 1.0")
+        manager.backend.load(Sdf.Layer.CreateAnonymous())
     stage = stages[0]
     assert manager.backend.stage is stage
     manager.backend.close()
@@ -269,7 +276,7 @@ def test_manager_attaches_and_releases_owned_ovstage(manager, monkeypatch, moder
     # only, so attaching at an unsealed ordinal silently yields an empty scene.
     assert events == [
         ("stage", "isaaclab.scene"),
-        ("populate", stage, "#usda 1.0", 1, om_mod.ovstage.PopulationDomain.RENDERING, True),
+        ("populate", stage, 1, om_mod.ovstage.PopulationDomain.RENDERING, True),
         ("seal", 1),
         ("attach", stage, 1),
     ] + ([("wait_task", attach_task)] if modern else []) + [
@@ -280,6 +287,7 @@ def test_manager_attaches_and_releases_owned_ovstage(manager, monkeypatch, moder
         ("destroy",),
     ]
     assert manager.backend.rigid_body_view is None
+    assert populated_files and not any(file.exists() for file in populated_files)
 
 
 @pytest.mark.parametrize(
@@ -411,7 +419,7 @@ def test_manager_destroys_ovstage_when_population_fails(manager, monkeypatch):
     monkeypatch.setattr(stage_module, "create_ovstage", FakeStage)
 
     with pytest.raises(RuntimeError, match="population failed"):
-        manager.backend.load("#usda 1.0")
+        manager.backend.load(Sdf.Layer.CreateAnonymous())
     assert manager.backend.stage is None
 
     assert destroyed == ["isaaclab.scene"]
@@ -432,18 +440,16 @@ def test_population_dispatch_preserves_requested_data_and_write_ordinal(monkeypa
 
     class DomainPopulation:
         @staticmethod
-        def open_usd_from_string(stage, usda, ordinal, domains):
+        def open_usd(stage, usda, ordinal, domains):
             calls.append((stage, usda, ordinal, domains))
 
     class SelectorPopulation(DomainPopulation):
-        DEFAULT_TIME = 17.0
-
         class Desc:
             def __init__(self, *, domains):
                 self.domains = domains
 
         @staticmethod
-        def open_usd_from_string_with_desc(stage, usda, ordinal, time, descs):
+        def open_usd_with_desc(stage, usda, ordinal, time, descs):
             calls.append((stage, usda, ordinal, time, tuple(descs)))
 
     def describe_physics():
@@ -460,17 +466,18 @@ def test_population_dispatch_preserves_requested_data_and_write_ordinal(monkeypa
     monkeypatch.setitem(sys.modules, "ovstage", runtime)
     monkeypatch.setattr(ovstage_compat, "_physics_population_desc", describe_physics)
 
-    ovstage_compat.populate_stage(native_stage, "#usda 1.0", ordinal=7, domains=1, physics=physics)
+    ovstage_compat.populate_stage(native_stage, "/tmp/scene.usdc", ordinal=7, domains=1, physics=physics)
 
     if population_api == "selectors" and physics:
         assert descriptions == [physics_desc]
         assert len(calls) == 1
         stage, usda, ordinal, time, descs = calls[0]
-        assert (stage, usda, ordinal, time) == (native_stage, "#usda 1.0", 7, SelectorPopulation.DEFAULT_TIME)
+        assert (stage, usda, ordinal) == (native_stage, "/tmp/scene.usdc", 7)
+        assert math.isnan(time)
         assert len(descs) == 2 and descs[0].domains == 1 and descs[1] is physics_desc
     else:
         assert descriptions == []
-        assert calls == [(native_stage, "#usda 1.0", 7, 3 if physics else 1)]
+        assert calls == [(native_stage, "/tmp/scene.usdc", 7, 3 if physics else 1)]
 
 
 def test_physics_population_preserves_resolved_values_and_clone_relationships():
@@ -513,7 +520,7 @@ def test_physics_population_preserves_resolved_values_and_clone_relationships():
 
     with closing(OvstageBackend(OvstageBackendCfg(populate_physics=True))) as backend:
         backend.clone_copies = [("/World/Prototype", ["/World/Copy"])]
-        backend.populate(stage.ExportToString())
+        backend.populate(stage.Flatten())
 
         def read(path, attribute):
             with backend.query([path]) as query:

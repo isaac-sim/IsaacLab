@@ -9,8 +9,10 @@ import contextlib
 import ctypes
 import importlib.util
 import sys
+import tempfile
 import types
 from builtins import ExceptionGroup
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -82,6 +84,7 @@ def _make_ovrtx_camera_render_data() -> OVRTXCameraRenderData:
 def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer = OVRTXRenderer(OVRTXRendererCfg(), sim=SimulationContext.instance())
     renderer.backend = OVRTXBackend.__new__(OVRTXBackend)
+    renderer.backend._usd_files = tempfile.TemporaryDirectory(prefix="isaaclab-test-ovrtx-")
     renderer.scene = renderer.backend
     from isaaclab_ov.stage import OvstageBackend
 
@@ -97,6 +100,60 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer.backend.cfg = cfg
     SimulationContext.instance()._backend_registry.append((cfg, renderer.backend))
     return renderer
+
+
+def test_legacy_scene_keeps_binary_backing_files_until_destroy_succeeds():
+    """Replacement and native failures retain each crate until the native scene closes."""
+    from pxr import Sdf, Usd
+
+    stage = Usd.Stage.CreateInMemory()
+    attribute = stage.DefinePrim("/Splat").CreateAttribute("coefficients", Sdf.ValueTypeNames.Float3Array)
+    attribute.Set([(0.125, -0.25, 0.5), (-1.0, 2.0, 3.0)])
+    files = []
+    retained_layers = []
+
+    class NativeRenderer:
+        fail_load = False
+        fail_destroy = True
+
+        def open_usd(self, path):
+            file = Path(path)
+            assert file.read_bytes()[:8] == b"PXR-USDC"
+            files.append(file)
+            layer = Sdf.Layer.FindOrOpen(path)
+            retained_layers.append(layer)
+            values = layer.GetAttributeAtPath("/Splat.coefficients").default
+            np.testing.assert_array_equal(values, [(0.125, -0.25, 0.5), (-1.0, 2.0, 3.0)])
+            if self.fail_load:
+                raise RuntimeError("load failed")
+
+        def destroy(self):
+            assert all(file.exists() for file in files)
+            if self.fail_destroy:
+                raise RuntimeError("destroy failed")
+            retained_layers.clear()
+
+    backend = OVRTXBackend.__new__(OVRTXBackend)
+    backend._usd_files = tempfile.TemporaryDirectory(prefix="isaaclab-test-ovrtx-")
+    directory = Path(backend._usd_files.name)
+    backend.renderer = native = NativeRenderer()
+    try:
+        backend.populate(stage.Flatten())
+        native.fail_load = True
+        with pytest.raises(RuntimeError, match="load failed"):
+            backend.populate(stage.Flatten())
+        assert len(set(files)) == 2
+        assert all(file.exists() for file in files)
+        with pytest.raises(RuntimeError, match="destroy failed"):
+            backend.close()
+        assert directory.exists()
+        native.fail_destroy = False
+        backend.close()
+        backend.close()
+        assert not directory.exists()
+    finally:
+        native.fail_destroy = False
+        backend.close()
 
 
 @pytest.fixture(autouse=True)
@@ -1465,18 +1522,16 @@ def test_scene_preparation_respects_physics_population_and_camera_transform_mode
     monkeypatch.setattr(renderer, "_setup_geometry_bindings", lambda: None)
     monkeypatch.setattr(ovrtx_renderer_module, "ovrtx_replicate", lambda *args: None)
 
-    export_stage = ovrtx_renderer_module.export_stage_to_string
+    export_stage = ovrtx_renderer_module.export_stage_to_layer
 
     def export(*args, **kwargs):
         events.append("export")
         assert stage_mode != "shared"
         return export_stage(*args, **kwargs)
 
-    monkeypatch.setattr(ovrtx_renderer_module, "export_stage_to_string", export)
+    monkeypatch.setattr(ovrtx_renderer_module, "export_stage_to_layer", export)
 
-    def load(text):
-        layer = Sdf.Layer.CreateAnonymous()
-        assert layer.ImportFromString(text)
+    def load(layer):
         result = Usd.Stage.Open(layer)
         assert result.GetPrimAtPath("/World/Asset/Geometry").IsA(UsdGeom.Mesh)
         assert result.GetPrimAtPath("/World/Asset").HasAuthoredReferences() is not populate_physics
@@ -1497,7 +1552,7 @@ def test_scene_preparation_respects_physics_population_and_camera_transform_mode
         assert ("disable-camera-reads" in events) is needs_fallback
         events.append("attach")
 
-    renderer.backend.renderer = types.SimpleNamespace(open_usd_from_string=load, attach_ovstage=attach)
+    renderer.backend.renderer = types.SimpleNamespace(attach_ovstage=attach)
     renderer.scene = types.SimpleNamespace(
         clone_env_paths=[],
         clone_copies=[],

@@ -28,6 +28,7 @@ import math
 import os
 import sys
 import tempfile
+import uuid
 import weakref
 from builtins import ExceptionGroup
 from collections import deque
@@ -102,7 +103,7 @@ from isaaclab_ov.renderers.ovrtx_usd import (
 from isaaclab_ov.renderers.visual_materials import OVRTXVisualMaterialWriter
 from isaaclab_ov.stage import (
     _handle_raw_id,
-    export_stage_to_string,
+    export_stage_to_layer,
     points_tensor_from_warp,
     xform_tensor_from_numpy,
     xform_tensor_from_warp,
@@ -173,11 +174,11 @@ def _gpu_side_render_var_sync_enabled() -> bool:
     return value == "1"
 
 
-def _write_file(output_dir: Path, file_name: str, content: str) -> None:
-    """Write a UTF-8 debug dump, creating its directory if needed."""
+def _write_file(output_dir: Path, file_name: str, layer: Sdf.Layer) -> None:
+    """Write a binary USD debug dump, creating its directory if needed."""
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / file_name
-    output_path.write_text(content, encoding="utf-8")
+    layer.Export(str(output_path))
     logger.info("Wrote USD file: %s", output_path)
 
 
@@ -200,12 +201,12 @@ _decode_segmentation_map = (
 
 def _write_combined_stage(output_dir: Path, render_product_usd: str) -> None:
     """Write the scene and render product prims in one debug layer, preserving scene metadata."""
-    scene_layer = Sdf.Layer.OpenAsAnonymous(str(output_dir / "ovrtx_renderer_stage.usda"))
+    scene_layer = Sdf.Layer.OpenAsAnonymous(str(output_dir / "ovrtx_renderer_stage.usdc"))
     render_layer = Sdf.Layer.CreateAnonymous("render_product.usda")
     render_layer.ImportFromString(render_product_usd)
     for prim in render_layer.rootPrims:
         Sdf.CopySpec(render_layer, prim.path, scene_layer, prim.path)
-    _write_file(output_dir, "ovrtx_renderer_stage.usda", scene_layer.ExportToString())
+    _write_file(output_dir, "ovrtx_renderer_stage.usdc", scene_layer)
 
 
 def _resolve_env_light_partitions(
@@ -286,6 +287,18 @@ class OVRTXBackend:
             self.population_env_paths: list[str] = []
             self.clone_positions: np.ndarray | None = None
         self.renderer = Renderer(native_cfg)
+        self._usd_files = tempfile.TemporaryDirectory(prefix="isaaclab-ovrtx-")
+
+    def populate(self, layer: Sdf.Layer) -> None:
+        """Load binary USD and retain its backing file until the renderer is destroyed.
+
+        Args:
+            layer: Prepared scene containing the routed prototypes and their materials.
+        """
+        usd_path = str(Path(self._usd_files.name) / f"scene-{uuid.uuid4().hex}.usdc")
+        if not layer.Export(usd_path):
+            raise RuntimeError(f"Failed to export the native USD scene to {usd_path}.")
+        self.renderer.open_usd(usd_path)
 
     def detach(self) -> None:
         """Release the borrowed stage before it is rebuilt or destroyed."""
@@ -300,6 +313,7 @@ class OVRTXBackend:
             self.renderer.destroy()
             self.renderer = None
             self.attached = False
+        self._usd_files.cleanup()
 
 
 class OVRTXCameraRenderData:
@@ -428,9 +442,9 @@ class OVRTXRenderer(BaseRenderer):
         light_partitions = _resolve_env_light_partitions(stage, env_paths, copies=self.scene.clone_copies)
         if self.cfg.temp_usd_dir is not None or not self._use_ovstage or not self.scene.ordinal:
             if self.cfg.temp_usd_dir is not None:
-                _write_file(Path(self.cfg.temp_usd_dir), "pre_ovrtx_renderer_stage.usda", stage.ExportToString())
+                _write_file(Path(self.cfg.temp_usd_dir), "pre_ovrtx_renderer_stage.usdc", stage.Flatten())
             # Physics population needs fully composed instance collider data.
-            usd = export_stage_to_string(
+            layer = export_stage_to_layer(
                 stage, self.scene.clone_env_paths, source_paths=tuple(source for source, _ in self.scene.clone_copies),
                 keep_env_roots=False, env_paths=self.scene.population_env_paths,
                 preserve_references=not (self._use_ovstage and self.scene.cfg.populate_physics),
@@ -439,21 +453,16 @@ class OVRTXRenderer(BaseRenderer):
                 # Author the camera mode before loading the stage: changing it later
                 # leaves cached camera poses stale until another scene update.
                 settings_path = Sdf.Path(stage.GetMetadata("renderSettingsPrimPath") or "/Render/IsaacLabSettings")
-                layer = Sdf.Layer.CreateAnonymous()
-                layer.ImportFromString(usd)
                 attribute = layer.GetAttributeAtPath(settings_path.AppendProperty(_GPU_CAMERA_TRANSFORMS_ATTRIBUTE))
                 if attribute is None:
                     attribute = Sdf.AttributeSpec(
                         layer.GetPrimAtPath(settings_path), _GPU_CAMERA_TRANSFORMS_ATTRIBUTE, Sdf.ValueTypeNames.Bool
                     )
                 attribute.default = False
-                usd = layer.ExportToString()
             if self.cfg.temp_usd_dir is not None:
-                _write_file(Path(self.cfg.temp_usd_dir), "ovrtx_renderer_stage.usda", usd)
-            if self._use_ovstage:
-                self.scene.populate(usd)
-            else:
-                self.backend.renderer.open_usd_from_string(usd)
+                _write_file(Path(self.cfg.temp_usd_dir), "ovrtx_renderer_stage.usdc", layer)
+            self.scene.populate(layer)
+            if not self._use_ovstage:
                 ovrtx_replicate(self.backend.renderer, self.scene.clone_copies, env_paths, self.scene.clone_positions)
         partition_writes = (
             (env_paths, "primvars:omni:scenePartition", [f"env_{i}" for i in range(len(env_paths))]),

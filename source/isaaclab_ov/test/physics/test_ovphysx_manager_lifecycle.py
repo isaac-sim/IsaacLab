@@ -689,7 +689,7 @@ def test_warmup_collects_clone_receipt_before_model_init(monkeypatch, manager_mo
     sim.get_or_create_backend = lambda cfg, *, scene: backend
     monkeypatch.setattr(manager, "_device", "cuda:0")
     monkeypatch.setattr(manager, "_clone_recipes", clones)
-    monkeypatch.setattr(manager_module, "_serialize_stage", lambda *args, **kwargs: ("#usda 1.0", clones))
+    monkeypatch.setattr(manager_module, "_serialize_stage", lambda *args, **kwargs: (stage.Flatten(), clones))
     monkeypatch.setattr(
         manager, "_scene_data_backend", SimpleNamespace(_defer_setup=lambda *args: events.append("defer_bindings"))
     )

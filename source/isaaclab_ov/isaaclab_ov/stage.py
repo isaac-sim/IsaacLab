@@ -12,7 +12,10 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import tempfile
+import uuid
 from collections.abc import Iterator, Sequence
+from pathlib import Path
 
 import numpy as np
 import ovstage
@@ -205,21 +208,24 @@ class OvstageBackend:
         """Release borrowers before paths and stage, in reverse registration order."""
         self.reset()
 
-    def populate(self, usda: str) -> None:
+    def populate(self, layer: Sdf.Layer) -> None:
         """Import the exported prototypes and apply the clone context's prepared operations.
 
         Population commits ordinal 1. Consumers may then author render products and poses
         starting at ordinal 2, after every cloned camera path exists.
 
         Args:
-            usda: USD scene containing the routed prototypes and their materials.
+            layer: USD scene containing the routed prototypes and their materials.
         """
         if self.ordinal:
             return
 
+        usd_path = str(Path(self._usd_directory) / f"scene-{uuid.uuid4().hex}.usdc")
+        if not layer.Export(usd_path):
+            raise RuntimeError(f"Failed to export the native USD scene to {usd_path}.")
         # Ordinal 0 is the empty state; population and cloning form the first committed write.
         populate_stage(
-            self.stage, usda, ordinal=1, domains=self.cfg.population_domains, physics=self.cfg.populate_physics
+            self.stage, usd_path, ordinal=1, domains=self.cfg.population_domains, physics=self.cfg.populate_physics
         )
         ovstage_replicate(
             self.stage, self.paths, self.clone_copies, self.clone_env_paths, self.clone_positions, ordinal=1
@@ -261,12 +267,14 @@ class OvstageBackend:
         self.close()
         self.ordinal = self.next_camera_id = 0
         with contextlib.ExitStack() as resources:
+            # Native USD can retain mapped crate data until the stage has closed.
+            self._usd_directory = resources.enter_context(tempfile.TemporaryDirectory(prefix="isaaclab-ovstage-"))
             self.stage = resources.enter_context(create_ovstage("isaaclab.scene"))
             self.paths = resources.enter_context(ovstage.PathDictionary(self.stage))
             self.resources = resources.pop_all()
 
 
-def export_stage_to_string(
+def export_stage_to_layer(
     stage: Usd.Stage,
     clone_env_paths: Sequence[str],
     source_paths: tuple[str, ...],
@@ -274,7 +282,7 @@ def export_stage_to_string(
     *,
     env_paths: Sequence[str] = (),
     preserve_references: bool = False,
-) -> str:
+) -> Sdf.Layer:
     """Export routed prototypes without mutating the simulation's authored USD stage.
 
     An anonymous session layer hides non-source subtrees, including copies already authored
@@ -288,11 +296,11 @@ def export_stage_to_string(
         keep_env_roots: Whether to retain non-source environment roots and their transforms.
         env_paths: Environment frames to create in the private export before native cloning.
         preserve_references: Retain clean file-backed references and instances instead of baking
-            their geometry into text. Anonymous or unsaved referenced layers require full
-            composition so that the returned string does not depend on their Python lifetime.
+            their geometry. Anonymous or unsaved referenced layers require full composition
+            so that the returned layer does not depend on their Python lifetime.
 
     Returns:
-        USDA text containing the selected prototypes. By default, composition arcs are baked.
+        USD layer containing the selected prototypes. By default, composition arcs are baked.
     """
     export_session = Sdf.Layer.CreateAnonymous()
     export_session.subLayerPaths = [stage.GetSessionLayer().identifier]
@@ -337,7 +345,7 @@ def export_stage_to_string(
     # CPU hierarchy propagation requires USD-populated frames, including clone ancestors.
     # Author them only in the export; native cloning writes their poses from the plan.
     # The local layer stack is baked either way. External in-memory edits cannot be borrowed
-    # by a detached string; retain the fully composed export for those scenes and legacy callers.
+    # by a detached consumer; retain the fully composed export for those scenes.
     external_layers = set(export_stage.GetUsedLayers()) - set(export_stage.GetLayerStack())
     if preserve_references and all(not (layer.anonymous or layer.dirty) for layer in external_layers):
         # Keeping reference arcs avoids duplicating dense geometry and preserves material
@@ -376,4 +384,40 @@ def export_stage_to_string(
             while prim and prim.specifier == Sdf.SpecifierOver:
                 prim.specifier = Sdf.SpecifierDef
                 prim = prim.nameParent
-    return layer.ExportToString()
+    return layer
+
+
+def export_stage_to_string(
+    stage: Usd.Stage,
+    clone_env_paths: Sequence[str],
+    source_paths: tuple[str, ...],
+    keep_env_roots: bool = True,
+    *,
+    env_paths: Sequence[str] = (),
+    preserve_references: bool = False,
+) -> str:
+    """Serialize the selected prototypes as USDA text.
+
+    Native consumers use :func:`export_stage_to_layer` and binary USD files to avoid
+    the USDA writer's limit on the text length of an individual attribute value.
+
+    Args:
+        stage: USD stage to export.
+        clone_env_paths: Declared environment roots. Source filtering is skipped for one environment.
+        source_paths: Prototype subtrees retained with their materials and descendants.
+        keep_env_roots: Whether to retain non-source environment roots and their transforms.
+        env_paths: Environment frames to create in the private export before native cloning.
+        preserve_references: Retain clean file-backed references and instances. Anonymous
+            or unsaved referenced layers require full composition.
+
+    Returns:
+        USDA text containing the selected prototypes.
+    """
+    return export_stage_to_layer(
+        stage,
+        clone_env_paths,
+        source_paths,
+        keep_env_roots,
+        env_paths=env_paths,
+        preserve_references=preserve_references,
+    ).ExportToString()
