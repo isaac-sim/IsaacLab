@@ -45,10 +45,13 @@ def _spawn_robot(prim_path: str, _cfg: SpawnerCfg | None = None, **_kwargs) -> U
 
 
 def _spawn_scene(prim_path: str, _cfg: SpawnerCfg, **_kwargs) -> Usd.Prim:
-    """Author a scene with separately configured spawned and nested articulations."""
-    root = UsdGeom.Xform.Define(sim_utils.get_current_stage(), prim_path).GetPrim()
-    for name in ("Robot", "Nested"):
+    """Author selected and unselected articulations, including a pre-existing body exclusion."""
+    stage = sim_utils.get_current_stage()
+    root = UsdGeom.Xform.Define(stage, prim_path).GetPrim()
+    for name in ("Robot", "Nested", "Sibling"):
         _spawn_robot(f"{prim_path}/{name}")
+    left = stage.GetPrimAtPath(f"{prim_path}/Robot/left")
+    UsdPhysics.FilteredPairsAPI.Apply(left).CreateFilteredPairsRel().AddTarget(f"{prim_path}/Robot/spare")
     return root
 
 
@@ -105,10 +108,11 @@ def test_body_group_exclusions_survive_newton_replication():
 
 
 def test_group_exclusions_follow_multiple_prototype_sources_and_nested_views():
-    """Off-namespace variants and non-spawning views are filtered before either source is cloned."""
+    """Overlapping groups preserve exclusions and stay within the selected graphs of every source."""
     physics_cfg = NewtonCfg(solver_cfg=VBDSolverCfg(), load_visual_shapes=False)
     with build_simulation_context(sim_cfg=SimulationCfg(device="cpu", physics=physics_cfg)) as sim:
         sources = ["/World/prototypes/First", "/World/prototypes/Second"]
+        group = ["left", "(left|right)"]
         cfg = ArticulationCfg(
             prim_path="/World/envs/env_[^/]+/Scene",
             articulation_root_prim_path="/Robot",
@@ -118,7 +122,7 @@ def test_group_exclusions_follow_multiple_prototype_sources_and_nested_views():
                 random_choice=False,
             ),
             actuators={},
-            self_collision_filter_pairs=[("left", ["right"])],
+            self_collision_filter_pairs=[(group, group)],
         )
         # No destination prims or clone plan exist yet: the multi-spawner owns both sources.
         Asset(cfg)
@@ -128,12 +132,17 @@ def test_group_exclusions_follow_multiple_prototype_sources_and_nested_views():
         plan = make_clone_plan(prototypes, ((0,), (1,)), 2)
         sim.set_clone_plan(plan)
         # This view has no spawner; its parent scene's plan supplies both authored source paths.
-        Asset(
-            ArticulationCfg(
-                prim_path=cfg.prim_path + "/Nested",
-                actuators={},
-                self_collision_filter_pairs=[("left", "right")],
-            )
+        nested_cfg = ArticulationCfg(
+            prim_path=cfg.prim_path + "/Nested",
+            actuators={},
+            self_collision_filter_pairs=[("left", "right")],
+        )
+        Asset(nested_cfg)
+        Asset(nested_cfg)
+        assert all(
+            target != prim.GetPath()
+            for prim in sim.stage.Traverse()
+            for target in UsdPhysics.FilteredPairsAPI(prim).GetFilteredPairsRel().GetTargets()
         )
         replicate(plan)
         allowed_pairs = _finalize_contact_pairs(sim)
@@ -141,5 +150,9 @@ def test_group_exclusions_follow_multiple_prototype_sources_and_nested_views():
             for name in ("Robot", "Nested"):
                 path = f"/World/envs/env_{env}/Scene/{name}"
                 assert frozenset((f"{path}/left/a", f"{path}/right/a")) not in allowed_pairs
-                assert frozenset((f"{path}/left/b", f"{path}/right/a")) not in allowed_pairs
-                assert frozenset((f"{path}/right/a", f"{path}/spare/a")) in allowed_pairs
+            scene = f"/World/envs/env_{env}/Scene"
+            assert frozenset((f"{scene}/Robot/left/b", f"{scene}/Robot/spare/a")) not in allowed_pairs
+            assert frozenset((f"{scene}/Robot/right/a", f"{scene}/Robot/spare/a")) in allowed_pairs
+            assert frozenset((f"{scene}/Nested/left/b", f"{scene}/Nested/spare/a")) in allowed_pairs
+            assert frozenset((f"{scene}/Sibling/left/a", f"{scene}/Sibling/right/a")) in allowed_pairs
+            assert frozenset((f"{scene}/Sibling/left/b", f"{scene}/Sibling/spare/a")) in allowed_pairs
