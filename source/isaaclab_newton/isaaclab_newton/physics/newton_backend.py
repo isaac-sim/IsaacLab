@@ -107,6 +107,8 @@ class NewtonCloneRecord:
     """Body indices per replicated cable prim path."""
     geometry_batches: list
     """Shape batches the scene data backend publishes as geometry."""
+    initial_body_variants: tuple[tuple[int, int], ...] = ()
+    """Initial ``(body, variant)`` selections resolved by the clone composition root."""
 
 
 class NewtonBackend:
@@ -115,7 +117,14 @@ class NewtonBackend:
     A render-only backend (non-Newton physics) holds only the model and :attr:`state_0`.
     """
 
-    def __init__(self, cfg: NewtonBackendCfg, builder: ModelBuilder | None = None, *, dt: float | None = None):
+    def __init__(
+        self,
+        cfg: NewtonBackendCfg,
+        builder: ModelBuilder | None = None,
+        *,
+        dt: float | None = None,
+        initial_body_variants: tuple[tuple[int, int], ...] = (),
+    ):
         """Finalize a builder and allocate the buffers bound to its model.
 
         Args:
@@ -123,11 +132,20 @@ class NewtonBackend:
                 physics makes it render-only.
             builder: Builder to finalize. Defaults to the simulation's shared builder for ``cfg.physics_cfg``.
             dt: Duration of one physics step [s]. Required for a simulation backend.
+            initial_body_variants: Initial selections resolved from the clone plan.
         """
         if builder is None:
             builder = SimulationContext.instance().get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg.physics_cfg))
         self.model = builder.finalize(device=cfg.device)
         """Finalized Newton model; :attr:`model.num_envs` is its world count."""
+        if initial_body_variants:
+            bodies, variants = zip(*initial_body_variants, strict=True)
+            self.model.select_body_variants(
+                wp.array(variants, dtype=wp.int32, device=cfg.device),
+                bodies=wp.array(bodies, dtype=wp.int32, device=cfg.device),
+            )
+        self.geometry_change_version = 0
+        """Incremented when native body selection changes shape type or source after initialization."""
         self.model.num_envs = self.model.world_count
         self.device: wp.Device = self.model.device
         self.state_version = 0
