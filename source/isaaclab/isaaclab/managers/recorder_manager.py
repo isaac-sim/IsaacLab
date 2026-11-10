@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 import torch
 import warp as wp
+from gymnasium.vector import AutoresetMode
 from prettytable import PrettyTable
 
 from ..utils import configclass, instantiate
@@ -64,7 +65,7 @@ class RecorderTerm(ManagerTermBase):
     The recorder term is responsible for recording data at various stages of the environment's lifecycle.
     A recorder term is comprised of four user-defined callbacks to record data in the corresponding stages:
 
-    * Pre-reset recording: This callback is invoked at the beginning of `env.reset()` before the reset is effective.
+    * Pre-reset recording: This callback records final episode data before reset, or at completion if reset is deferred.
     * Post-reset recording: This callback is invoked at the end of `env.reset()`.
     * Pre-step recording: This callback is invoked at the beginning of `env.step()`, after the step action is processed
           and before the action is applied by the action manager.
@@ -86,7 +87,7 @@ class RecorderTerm(ManagerTermBase):
     """
 
     def record_pre_reset(self, env_ids: Sequence[int] | None) -> tuple[str | None, torch.Tensor | dict | None]:
-        """Record data at the beginning of env.reset() before reset is effective.
+        """Record final episode data before reset, or at completion if reset is deferred.
 
         Args:
             env_ids: The environment ids. All environments should be considered when set to None.
@@ -371,41 +372,67 @@ class RecorderManager(ManagerBase):
         for value_index, env_id in enumerate(env_ids):
             self._episodes[env_id].success = success_values[value_index].item()
 
-    def record_pre_step(self) -> None:
-        """Trigger recorder terms for pre-step functions."""
-        # Do nothing if no active recorder terms are provided
-        if len(self.active_terms) == 0:
-            return
-
-        for term in self._terms.values():
-            key, value = term.record_pre_step()
-            self.add_to_episodes(key, value)
-
-    def record_post_step(self) -> None:
-        """Trigger recorder terms for post-step functions."""
-        # Do nothing if no active recorder terms are provided
-        if len(self.active_terms) == 0:
-            return
-
-        for term in self._terms.values():
-            key, value = term.record_post_step()
-            self.add_to_episodes(key, value)
-
-    def record_post_physics_decimation_step(self) -> None:
-        """Trigger recorder terms for post-physics step functions in the decimation loop."""
-        # Do nothing if no active recorder terms are provided
-        if len(self.active_terms) == 0:
-            return
-
-        for term in self._terms.values():
-            key, value = term.record_post_physics_decimation_step()
-            self.add_to_episodes(key, value)
-
-    def record_pre_reset(self, env_ids: Sequence[int] | slice | None, force_export_or_skip=None) -> None:
-        """Trigger recorder terms for pre-reset functions.
+    def record_pre_step(self, env_ids: Sequence[int] | None = None) -> None:
+        """Collect pre-step data for selected episodes from full-batch recorder terms.
 
         Args:
-            env_ids: The environment ids in which a reset is triggered.
+            env_ids: Environment IDs whose episodes should be recorded. None records all environments;
+                an empty sequence records none.
+        """
+        self._record_step("record_pre_step", env_ids)
+
+    def record_post_step(self, env_ids: Sequence[int] | None = None) -> None:
+        """Collect post-step data for selected episodes from full-batch recorder terms.
+
+        Args:
+            env_ids: Environment IDs whose episodes should be recorded. None records all environments;
+                an empty sequence records none.
+        """
+        self._record_step("record_post_step", env_ids)
+
+    def record_post_physics_decimation_step(self, env_ids: Sequence[int] | None = None) -> None:
+        """Collect physics-substep data for selected episodes from full-batch recorder terms.
+
+        Args:
+            env_ids: Environment IDs whose episodes should be recorded. None records all environments;
+                an empty sequence records none.
+        """
+        self._record_step("record_post_physics_decimation_step", env_ids)
+
+    def _record_step(self, recorder_callback_name: str, env_ids: Sequence[int] | None) -> None:
+        """Select environment rows before appending a step callback's full-batch output."""
+        if len(self.active_terms) == 0 or (env_ids is not None and len(env_ids) == 0):
+            return
+        for recorder_term in self._terms.values():
+            data_key, recorder_data = getattr(recorder_term, recorder_callback_name)()
+            if data_key is None:
+                continue
+            if env_ids is not None:
+                recorder_data = self._select_environment_rows(recorder_data, env_ids)
+            self.add_to_episodes(data_key, recorder_data, env_ids)
+
+    @staticmethod
+    def _select_environment_rows(recorder_data: torch.Tensor | dict, env_ids: Sequence[int]) -> torch.Tensor | dict:
+        """Select rows recursively while preserving recorder terms' nested data structure."""
+        if isinstance(recorder_data, dict):
+            return {
+                data_key: RecorderManager._select_environment_rows(child_data, env_ids)
+                for data_key, child_data in recorder_data.items()
+            }
+        if isinstance(recorder_data, wp.array):
+            recorder_data = wp.to_torch(recorder_data)
+        environment_row_indices = torch.as_tensor(env_ids, dtype=torch.long, device=recorder_data.device)
+        return recorder_data[environment_row_indices]
+
+    def record_pre_reset(self, env_ids: Sequence[int] | slice | None, force_export_or_skip=None) -> None:
+        """Record final data and optionally export the selected episodes.
+
+        With autoreset disabled, only active episodes are recorded. A later explicit reset skips
+        episodes already marked inactive by the environment. An empty selection does nothing.
+
+        Args:
+            env_ids: Environment IDs whose episodes are ending. None selects all environments.
+            force_export_or_skip: Override the configured export behavior when not None.
         """
         # Do nothing if no active recorder terms are provided
         if len(self.active_terms) == 0:
@@ -413,10 +440,19 @@ class RecorderManager(ManagerBase):
 
         if env_ids is None:
             env_ids = slice(None)
+        if hasattr(self._env, "metadata") and self._env.metadata.get("autoreset_mode") == AutoresetMode.DISABLED:
+            active_episode_mask = self._env.active_episode_mask
+            if isinstance(env_ids, slice):
+                requested_env_ids = torch.arange(self._env.num_envs, device=self._env.device)[env_ids]
+            else:
+                requested_env_ids = torch.as_tensor(env_ids, dtype=torch.long, device=self._env.device)
+            env_ids = requested_env_ids[active_episode_mask[requested_env_ids]]
         if isinstance(env_ids, slice):
             env_ids = list(range(self._env.num_envs)[env_ids])
         if isinstance(env_ids, torch.Tensor):
             env_ids = env_ids.tolist()
+        if len(env_ids) == 0:
+            return
 
         for term in self._terms.values():
             key, value = term.record_pre_reset(env_ids)
@@ -434,10 +470,11 @@ class RecorderManager(ManagerBase):
             self.export_episodes(env_ids)
 
     def record_post_reset(self, env_ids: Sequence[int] | slice | None) -> None:
-        """Trigger recorder terms for post-reset functions.
+        """Record initial data for the selected environments after reset.
 
         Args:
-            env_ids: The environment ids in which a reset is triggered.
+            env_ids: Environment IDs whose episodes have started. None selects all environments;
+                an empty selection records nothing.
         """
         # Do nothing if no active recorder terms are provided
         if len(self.active_terms) == 0:
@@ -445,6 +482,8 @@ class RecorderManager(ManagerBase):
 
         if isinstance(env_ids, slice):
             env_ids = list(range(self._env.num_envs)[env_ids])
+        if env_ids is not None and len(env_ids) == 0:
+            return
 
         for term in self._terms.values():
             key, value = term.record_post_reset(env_ids)

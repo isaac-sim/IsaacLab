@@ -427,6 +427,8 @@ class ManagerBasedEnv:
         """
         if env_ids is None:
             env_ids = slice(None)
+        self.observation_manager.validate_partial_update_support(env_ids)
+
         # trigger recorder terms for pre-reset calls
         self.recorder_manager.record_pre_reset(env_ids)
 
@@ -449,7 +451,7 @@ class ManagerBasedEnv:
         self.recorder_manager.record_post_reset(env_ids)
 
         # compute observations
-        self.obs_buf = self.observation_manager.compute(update_history=True)
+        self.obs_buf = self.observation_manager.compute(update_history=True, env_ids=env_ids)
 
         if self.cfg.wait_for_textures and self.has_rtx_sensors:
             # Wait for assets to finish loading (PhysX-specific)
@@ -487,6 +489,8 @@ class ManagerBasedEnv:
         """
         if env_ids is None:
             env_ids = slice(None)
+        self.observation_manager.validate_partial_update_support(env_ids)
+
         # trigger recorder terms for pre-reset calls
         self.recorder_manager.record_pre_reset(env_ids)
 
@@ -510,7 +514,7 @@ class ManagerBasedEnv:
         self.recorder_manager.record_post_reset(env_ids)
 
         # compute observations
-        self.obs_buf = self.observation_manager.compute(update_history=True)
+        self.obs_buf = self.observation_manager.compute(update_history=True, env_ids=env_ids)
 
         # return observations
         return self.obs_buf, self.extras
