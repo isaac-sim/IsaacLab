@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import warp as wp
-from isaaclab_contrib.coupling import CouplerSolver
+from isaaclab_newton.physics.coupling import CouplerSolver
 from newton import GeoType
 from newton.solvers.experimental.coupled import SolverCoupledProxy
 from scipy.spatial import ConvexHull

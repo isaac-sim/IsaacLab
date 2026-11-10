@@ -38,12 +38,11 @@ import numpy as np
 import warp as wp
 from filelock import FileLock
 from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg
+from isaaclab_newton.physics.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 from scipy.interpolate import CubicSpline
 from scipy.spatial.transform import Rotation
 
 from isaaclab.utils import configclass
-
-from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
 if TYPE_CHECKING:
     import mujoco
