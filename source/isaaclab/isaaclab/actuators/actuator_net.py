@@ -23,7 +23,7 @@ import warp as wp
 from ..utils import index_fill_
 from ..utils.assets import read_file
 from ..utils.types import ArticulationActions
-from ..utils.warp.kernels import zero_masked_2d
+from ..utils.warp.memory import make_masked_fill
 from .actuator_pd import DCMotor
 
 if TYPE_CHECKING:
@@ -81,7 +81,12 @@ class ActuatorNetLSTM(DCMotor):
             for state in (self.sea_hidden_state_per_env, self.sea_cell_state_per_env):
                 for layer in state:
                     values = wp.from_torch(layer.view(self._num_envs, -1))
-                    wp.launch(zero_masked_2d, dim=values.shape, inputs=[env_mask, values], device=self._device)
+                    wp.launch(
+                        make_masked_fill(wp.float32, 2),
+                        dim=values.shape,
+                        inputs=[0.0, env_mask, None, values],
+                        device=self._device,
+                    )
 
     def compute(
         self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
@@ -168,7 +173,12 @@ class ActuatorNetMLP(DCMotor):
                 self._joint_vel_spare,
             ):
                 values = wp.from_torch(history.view(self._num_envs, -1))
-                wp.launch(zero_masked_2d, dim=values.shape, inputs=[env_mask, values], device=self._device)
+                wp.launch(
+                    make_masked_fill(wp.float32, 2),
+                    dim=values.shape,
+                    inputs=[0.0, env_mask, None, values],
+                    device=self._device,
+                )
 
     def compute(
         self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor

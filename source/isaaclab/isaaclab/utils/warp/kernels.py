@@ -63,19 +63,6 @@ def __dir__():
 
 
 ##
-# Masked reductions
-##
-
-
-@wp.kernel
-def zero_masked_2d(mask: wp.array(dtype=wp.bool), values: wp.array(dtype=wp.float32, ndim=2)):
-    """Zero out rows of a 2D float32 array where mask is True."""
-    env_id, j = wp.tid()
-    if mask[env_id]:
-        values[env_id, j] = 0.0
-
-
-##
 # Raycasting
 ##
 
