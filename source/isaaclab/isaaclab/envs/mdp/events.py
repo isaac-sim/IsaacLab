@@ -874,6 +874,7 @@ class randomize_joint_parameters(ManagerTermBase):
             "upper_limit_distribution_params",
         ):
             _validate_randomization_params(cfg, name, allow_negative=True)
+        _validate_limit_ranges(cfg, self.default_joint_pos_limits, self.asset_cfg.joint_ids, "joint")
 
     def __call__(
         self,
@@ -979,15 +980,6 @@ class randomize_joint_parameters(ManagerTermBase):
                     distribution=distribution,
                 )
 
-            # check the position limits of the selected environments and joints
-            # note: raising on invalid limits requires reading the result on the host
-            selected_limits = joint_pos_limits[:, joint_ids]
-            invalid = (selected_limits[..., 0] > selected_limits[..., 1]).any(dim=-1) & env_mask.torch
-            if invalid.any():
-                raise ValueError(
-                    "Randomization term 'randomize_joint_parameters' is setting lower joint limits that are greater"
-                    " than upper joint limits. Please check the distribution parameters for the joint position limits."
-                )
             self.asset.write_joint_position_limit_to_sim_mask(
                 limits=joint_pos_limits, joint_mask=joint_mask, env_mask=env_mask.warp, warn_limit_violation=False
             )
@@ -1041,6 +1033,9 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
         self.default_fixed_tendon_stiffness = self.asset.data.fixed_tendon_stiffness.torch.clone()
         self.default_fixed_tendon_damping = self.asset.data.fixed_tendon_damping.torch.clone()
         self.default_fixed_tendon_pos_limits = self.asset.data.fixed_tendon_pos_limits.torch.clone()
+        _validate_limit_ranges(
+            cfg, self.default_fixed_tendon_pos_limits, self.asset_cfg.fixed_tendon_ids, "fixed tendon"
+        )
         # read only when randomized: Newton raises NotImplementedError for these
         if cfg.params["limit_stiffness_distribution_params"] is not None:
             self.default_fixed_tendon_limit_stiffness = self.asset.data.fixed_tendon_limit_stiffness.torch.clone()
@@ -1134,14 +1129,6 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
                     distribution=distribution,
                 )
 
-            # check the limits of the selected environments and tendons
-            # note: raising on invalid limits requires reading the result on the host
-            tendon_limits = limit[:, tendon_ids]
-            if ((tendon_limits[..., 0] > tendon_limits[..., 1]).any(dim=-1) & env_mask.torch).any():
-                raise ValueError(
-                    "Randomization term 'randomize_fixed_tendon_parameters' is setting lower tendon limits that are"
-                    " greater than upper tendon limits."
-                )
             self.asset.set_fixed_tendon_position_limit_mask(
                 limit=limit, fixed_tendon_mask=tendon_mask, env_mask=env_mask.warp
             )
@@ -1827,20 +1814,43 @@ Internal helper functions.
 """
 
 
-def _index_mask(ids: list[int] | torch.Tensor | slice, num: int, device: torch.device | str) -> wp.array | None:
-    """Return a boolean mask that selects ``ids`` along an axis of length ``num``, without waiting on the device.
+def _validate_limit_ranges(cfg: EventTermCfg, limits: torch.Tensor, ids: list[int] | slice, kind: str) -> None:
+    """Raise if the configured ranges can sample a lower limit above an upper limit, checked once at creation.
+
+    Checking each sample would read the device on every reset. Gaussian samples are unbounded and not checked.
 
     Args:
-        ids: Indices or a slice along the axis.
-        num: Length of the axis.
-        device: Device of the mask.
+        cfg: The event term configuration with the limit distribution parameters.
+        limits: Default lower and upper limits. Shape is (num_envs, num_entries, 2).
+        ids: The randomized entries.
+        kind: Name of the limited entries, for the error message.
 
-    Returns:
-        Boolean mask with dtype ``wp.bool``. Shape is (num,). None when ``ids`` selects the whole axis.
+    Raises:
+        ValueError: If a sampled lower limit can exceed the sampled upper limit.
     """
-    if isinstance(ids, slice) and ids == slice(None):
-        return None
-    return env_mask_from_ids(ids, num, device).warp
+    params = cfg.params
+    lower, upper = params["lower_limit_distribution_params"], params["upper_limit_distribution_params"]
+    if (lower is None and upper is None) or params["distribution"] == "gaussian":
+        return
+
+    def sample_bounds(default: torch.Tensor, sample_range: tuple[float, float] | None):
+        if sample_range is None:
+            return default, default
+        operation = params["operation"]
+        a, b = (
+            torch.full_like(default, s) if operation == "abs" else default + s if operation == "add" else default * s
+            for s in sample_range
+        )
+        return torch.minimum(a, b), torch.maximum(a, b)
+
+    selected = limits[:, ids]
+    _, lower_max = sample_bounds(selected[..., 0], lower)
+    upper_min, _ = sample_bounds(selected[..., 1], upper)
+    if (lower_max > upper_min).any():
+        raise ValueError(
+            f"Randomizing {kind} limits can set a lower limit greater than its upper limit. Please check the"
+            " distribution parameters of the limits."
+        )
 
 
 def _randomize_prop_by_op(

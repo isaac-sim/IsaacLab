@@ -144,8 +144,9 @@ def test_tendon_defaults_and_signed_parameters():
     """Omitted operation uses abs; optional and signed fields retain their distinct policies."""
     # the term caches the tendon properties when created
     prop = SimpleNamespace(torch=torch.zeros(1, 1))
+    limits = SimpleNamespace(torch=torch.zeros(1, 1, 2))
     asset = SimpleNamespace(
-        data=SimpleNamespace(fixed_tendon_stiffness=prop, fixed_tendon_damping=prop, fixed_tendon_pos_limits=prop)
+        data=SimpleNamespace(fixed_tendon_stiffness=prop, fixed_tendon_damping=prop, fixed_tendon_pos_limits=limits)
     )
     env = SimpleNamespace(scene={"robot": asset})
     cfg = EventTermCfg(
