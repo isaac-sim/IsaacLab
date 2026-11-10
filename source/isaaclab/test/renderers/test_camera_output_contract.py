@@ -171,6 +171,21 @@ def test_camera_tensor_processors_chain_and_replace_render_outputs(device):
     assert _ScaleProcessor.events[2:] == [("close", "half"), ("close", "rgb_hdr")]
 
 
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_camera_rejects_unsupported_types_only_when_rendered(device):
+    """A processor output may reuse the name of a type the camera cannot render, since it is not rendered."""
+    processor = TensorProcessorCfg(
+        func=_ScaleProcessor,
+        inputs=["rgb_hdr", CAPTURE_ENV_MASK_NAME],
+        outputs=["bounding_box_3d"],
+        params={"scale": 1.0},
+    )
+    camera_kwargs = dict(data_types=["bounding_box_3d"], tensor_processors=[processor])
+    with _newton_cube_scene(device, 1, **camera_kwargs) as (camera, capture):
+        capture()
+        assert set(camera.data.output) == {"rgb_hdr", "bounding_box_3d"}
+
+
 @pytest.mark.parametrize("background", [None, (0.25, 0.5, 0.75)])
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_newton_hdr_background_preserves_unlit_geometry(background, device):
