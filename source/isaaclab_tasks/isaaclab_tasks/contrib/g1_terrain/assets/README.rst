@@ -23,9 +23,10 @@ the file is not a baked animation. This larger asset is stored with Git LFS.
 
 Backend presets in ``terrain_env_cfg.py`` select the appropriate USD, Newton
 MPM objects, solver coupling, control cadence, and SONIC gains before launch.
-``granular.py`` only enables PhysX GPU simulation and state readback; it no
-longer creates particles, contacts, or materials. PhysX still switches to host
-state buffers after the launcher selects the CUDA device.
+``ParticleTerrainImporter`` in ``terrain_env.py`` only enables PhysX GPU
+simulation and state readback; it no longer creates particles, contacts, or
+materials. PhysX still switches to host state buffers after the launcher selects
+the CUDA device.
 The granular demo's existing sky-light configuration is separate from these
 texture-free terrain assets.
 

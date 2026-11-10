@@ -31,7 +31,6 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_tasks.utils import PresetCfg, preset
 
-from .granular import ParticleTerrainImporter
 from .sonic_parameters import DAMPING, JOINT_NAMES, STIFFNESS
 
 TERRAIN_ASSET_DIR = Path(__file__).parent / "assets"
@@ -281,7 +280,9 @@ class GranularSceneCfg(TerrainSceneCfg):
             physx=str(TERRAIN_ASSET_DIR / "granular_physx.usdc"),
         ),
         class_type=preset(
-            default=TerrainImporter, isaacsim_physx=ParticleTerrainImporter, physx=ParticleTerrainImporter
+            default=TerrainImporter,
+            isaacsim_physx="isaaclab_tasks.contrib.g1_terrain.terrain_env:ParticleTerrainImporter",
+            physx="isaaclab_tasks.contrib.g1_terrain.terrain_env:ParticleTerrainImporter",
         ),
     )
     robot = TerrainSceneCfg().robot

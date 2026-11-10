@@ -10,15 +10,33 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING
 
+import torch
 from isaaclab_newton.physics import NewtonCfg
 from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.envs import ManagerBasedRLEnv
+from isaaclab.sim import SimulationContext
+from isaaclab.terrains import TerrainImporter
 
 from .terrain_env_cfg import G1PlatformsEnvCfg
 
 if TYPE_CHECKING:
     from isaaclab_visualizers.kit import KitVisualizer
+
+
+class ParticleTerrainImporter(TerrainImporter):
+    """Load the particle USD and enable GPU simulation with host state buffers."""
+
+    def import_usd(self, name: str, usd_path: str):
+        from pxr import PhysxSchema  # noqa: PLC0415
+
+        super().import_usd(name, usd_path)
+        sim = SimulationContext.instance()
+        sim.set_setting("/physics/cudaDevice", torch.cuda.current_device())
+        sim.set_setting("/physics/suppressReadback", False)
+        scene = PhysxSchema.PhysxSceneAPI(sim.stage.GetPrimAtPath(sim.cfg.physics_prim_path))
+        scene.CreateEnableGPUDynamicsAttr(True)
+        scene.CreateBroadphaseTypeAttr("GPU")
 
 
 class G1TerrainEnv(ManagerBasedRLEnv):
