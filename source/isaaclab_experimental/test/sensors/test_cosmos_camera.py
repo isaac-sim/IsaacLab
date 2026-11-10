@@ -70,6 +70,30 @@ def test_cosmos_camera_renders_a_canvas_with_the_same_view_and_publishes_the_ori
     assert torch.equal(published, colors.expand(2, height, width, 3))
 
 
+def _first_three_channels(data: torch.Tensor) -> torch.Tensor:
+    return data[..., :3]
+
+
+@pytest.mark.parametrize("render_output", ["semantic_segmentation", "rgb"])
+def test_cosmos_camera_takes_any_processors_that_write_the_control(render_output):
+    """A control other than depth: the camera renders what the control reads, and Cosmos still publishes rgb."""
+    from isaaclab.sensors.camera.camera_cfg import _render_data_types
+
+    control = FunctionProcessorCfg(function=_first_three_channels, inputs=[render_output], outputs=["control"])
+    camera = cosmos_camera(_camera(64, 64), CosmosModelCfg(), control=[control])
+    chain = camera.tensor_processors
+
+    assert chain[0].function is _first_three_channels and chain[0].inputs == [render_output]
+    assert isinstance(chain[1], CosmosTransferProcessorCfg) and len(chain) == 3  # control, Cosmos, resize
+    assert chain[1].inputs == ["control", CAPTURE_ENV_MASK_NAME] and chain[-1].outputs == ["rgb"]
+    # The renderer produces only the control's input, including rgb when the control is made from the rendered image.
+    assert _render_data_types(camera) == [render_output]
+
+    unrelated = FunctionProcessorCfg(function=_first_three_channels, inputs=["rgb"], outputs=["mask"])
+    with pytest.raises(ValueError, match="'control' buffer"):
+        cosmos_camera(_camera(64, 64), CosmosModelCfg(), control=[unrelated])
+
+
 def test_cosmos_camera_drops_the_isp_of_the_image_it_replaces():
     """An ISP processes the rendered rgb, which the Cosmos camera no longer renders."""
     camera = cosmos_camera(_camera(64, 64).replace(isp_cfg="ppisp"), CosmosModelCfg())

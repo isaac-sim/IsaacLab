@@ -241,6 +241,43 @@ configuration. Starting the service alone does not enable Cosmos for a task, and
 the task must already use camera observations. The training entry point does not
 need a Cosmos demo runner or model initialization code.
 
+### Other controls
+
+The checkpoint accepts four kinds of control: depth, segmentation, edge and blur, one kind per session. The service is
+not told which kind it receives, so any processors that write the `control` buffer work: uint8 images of shape
+`(N, H, W, 3)` at the canvas size. Pass them to `cosmos_camera` (or `apply_cosmos`) as `control`:
+
+```python
+import torch
+
+from isaaclab_experimental.cosmos import CosmosModelCfg, cosmos_camera
+from isaaclab_experimental.image_transfer import FunctionProcessorCfg
+
+
+def segmentation_to_control(data: torch.Tensor) -> torch.Tensor:
+    """Colorized segmentation of shape (N, H, W, 4) to three-channel controls."""
+    return data[..., :3].contiguous()
+
+
+camera_cfg = cosmos_camera(
+    task_camera_cfg,
+    CosmosModelCfg(prompt="A robot arm manipulating an object on a workbench."),
+    control=[
+        FunctionProcessorCfg(
+            function=segmentation_to_control, inputs=["semantic_segmentation"], outputs=["control"]
+        )
+    ],
+)
+```
+
+The camera then requests `semantic_segmentation` from the renderer instead of depth, colorized as
+`colorize_semantic_segmentation` does by default. A control computed from the rendered image, such as an edge or blur
+control, reads `rgb` in the same way: the renderer then produces `rgb` for the control, and the `rgb` the camera
+publishes is the generated one. Without `control`, the camera uses the depth control above.
+
+Isaac Lab provides the depth control, and depth is the control the demos were run with. Check the generated images
+of another control on your scene before training on them.
+
 ### A different prompt per episode
 
 `prompt` takes one string or a list. With a list, episode `k` of a camera stream uses
