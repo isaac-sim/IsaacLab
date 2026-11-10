@@ -3,15 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Cosmos on compatible Isaac Lab cameras: :func:`cosmos_camera` and :func:`apply_cosmos`."""
+"""Cosmos on compatible Isaac Lab cameras: :func:`cosmos_camera`."""
 
 from __future__ import annotations
 
 import logging
 import math
 from collections.abc import Sequence
-from dataclasses import fields, is_dataclass
-from typing import Any, Literal
+from typing import Any
 
 import torch
 
@@ -22,10 +21,9 @@ from isaaclab.utils.tensor_processors import TensorProcessorCfg
 
 from isaaclab_experimental.image_transfer import FunctionProcessorCfg
 
-from .._protocol import CANVAS_ASPECT_RATIOS, DEFAULT_ENDPOINT, request
+from .._protocol import CANVAS_ASPECT_RATIOS
 from .control_profiles import DEPTH_FAR, DEPTH_NEAR, depth_processor
-from .cosmos_model import service_endpoints, split_views
-from .cosmos_model_cfg import CosmosModelCfg, episode_frame_budget
+from .cosmos_model_cfg import CosmosModelCfg
 from .cosmos_processor_cfg import CosmosTransferProcessorCfg
 
 logger = logging.getLogger(__name__)
@@ -110,185 +108,6 @@ def cosmos_camera(
         # An ISP processes the rendered image, which Cosmos replaces; the camera no longer renders it.
         isp_cfg=None,
     )
-
-
-def service_capabilities(endpoint: str = DEFAULT_ENDPOINT, timeout: float = 5.0) -> dict[str, Any]:
-    """Return the capabilities of a running, idle Cosmos service, such as its independent reset support.
-
-    Args:
-        endpoint: Cosmos service endpoint.
-        timeout: Connection and response timeout [s].
-
-    Returns:
-        The capabilities in the service's status reply.
-
-    Raises:
-        RuntimeError: If the service is unavailable or already has a camera session.
-    """
-    try:
-        reply, _ = request(endpoint, {"op": "status"}, timeout=timeout)
-    except OSError as error:
-        raise RuntimeError(
-            f"Cosmos service at {endpoint} is unavailable or still starting; wait for its ready message, "
-            "or start isaaclab-cosmos-server as described in cosmos_service.md."
-        ) from error
-    if reply.get("session_active", False):
-        raise RuntimeError(
-            f"Cosmos service at {endpoint} already has an active camera session; close the other training/play "
-            "process or choose another service with the `endpoint` argument."
-        )
-    return reply["capabilities"]
-
-
-def apply_cosmos(
-    env_cfg: Any,
-    *,
-    prompt: str | list[str] | None = None,
-    camera: str | Sequence[str] | None = None,
-    control: Sequence[TensorProcessorCfg] | None = None,
-    near: float = DEPTH_NEAR,
-    far: float = DEPTH_FAR,
-    endpoint: str | list[str] = DEFAULT_ENDPOINT,
-    transport: Literal["auto", "cuda_ipc", "socket"] = "auto",
-) -> None:
-    """Put Cosmos on a task's camera in place.
-
-    Selects the scene camera publishing only ``rgb`` (or ``camera``) and replaces it with :func:`cosmos_camera`. Each
-    service generates its share of the task's environments (``env_cfg.scene.num_envs``, set with ``--num_envs``) as
-    one batch, so GPU memory limits their count. It derives the episode budget without changing capture timing and
-    checks that every service is running and idle. Tasks must read the camera image from its output; Direct tasks
-    that size their observation space from the camera configuration are not supported, because the camera renders
-    at the Cosmos canvas.
-
-    Several cameras share one session: each capture generates all their environments as one batch, camera ``k``'s
-    environment ``v`` being view ``k * num_envs + v`` (see :attr:`CosmosModelCfg.cameras`). They render at the canvas
-    closest to the first camera's aspect ratio, each keeping its own output size, and need the same update period.
-
-    Args:
-        env_cfg: Task environment configuration.
-        prompt: Appearance prompt, or a list: cycled per episode for one environment, one per view for several
-            environments or cameras (see :attr:`CosmosModelCfg.prompt`). None runs without a scene description.
-        camera: Scene camera name, or a list of names whose cameras share one session. Defaults to None, which
-            selects the only rgb camera.
-        control: Processors that write the ``control`` buffer, as for :func:`cosmos_camera`. Defaults to None,
-            which uses the depth control.
-        near: Depth rendered white [m], for the default depth control.
-        far: Depth rendered black [m], for the default depth control.
-        endpoint: Cosmos service endpoint, or a list of services, for example one per GPU, that split the
-            environments into contiguous shares.
-        transport: How images move to and from the service.
-
-    Raises:
-        ValueError: If no single rgb camera can be selected, a selected entity is not a suitable camera or already
-            has tensor processors, sensors update eagerly, a camera renders asynchronously, cameras sharing a session
-            have different update periods, there are fewer views than services, or a service cannot reset its share
-            of the views independently.
-        RuntimeError: If a service is not running or already has a camera session.
-    """
-    num_envs = env_cfg.scene.num_envs
-    names = _camera_names(env_cfg.scene, camera)
-    camera_cfgs = [getattr(env_cfg.scene, name, None) for name in names]
-    for name, camera_cfg in zip(names, camera_cfgs):
-        if not isinstance(camera_cfg, CameraCfg):
-            raise ValueError(f"Scene entity {name!r} is not a camera.")
-    if len(names) > 1 and len({camera_cfg.update_period for camera_cfg in camera_cfgs}) > 1:
-        raise ValueError("Cameras sharing a Cosmos session need the same update_period, so they capture together.")
-    camera_cfg = camera_cfgs[0]
-    endpoints = service_endpoints(endpoint)
-    endpoint = endpoints[0] if len(endpoints) == 1 else endpoints
-    shares = split_views(num_envs * len(names), len(endpoints))
-    for address, share in zip(endpoints, shares):
-        capabilities = service_capabilities(address)
-        # Views of one environment reset together, which the eager runtime supports.
-        if num_envs > 1 and len(share) > 1 and not capabilities.get("partial_resets", False):
-            raise ValueError(
-                "Several Cosmos environments need a Framework runtime with per-view caches and compiled inference "
-                f"for independent resets; start isaaclab-cosmos-server at {address} without --no-compile."
-            )
-    if prompt is None:
-        logger.warning("Cosmos runs without a prompt; pass `prompt` to describe the scene.")
-    if not env_cfg.scene.lazy_sensor_update:
-        raise ValueError("Cosmos needs scene.lazy_sensor_update=True so each image matches its simulation state.")
-    for name, cfg in zip(names, camera_cfgs):
-        if getattr(cfg.renderer_cfg, "async_rendering", False):
-            raise ValueError(
-                f"Cosmos needs synchronous rendering; set the camera {name}'s renderer_cfg.async_rendering=False "
-                f"(on the command line: env.scene.{name}.renderer_cfg.async_rendering=False)."
-            )
-    if hasattr(env_cfg, "observation_space") and not hasattr(env_cfg, "observations"):
-        logger.warning(
-            "Direct tasks that size their observation space from the camera configuration do not support Cosmos; "
-            "the camera renders at the Cosmos canvas."
-        )
-
-    # Count actual captures at the sensor's existing cadence.
-    steps_per_capture, _, budget = episode_frame_budget(env_cfg, camera_cfg.update_period)
-    model = CosmosModelCfg(
-        endpoint=endpoint,
-        prompt=prompt,
-        max_episode_frames=budget,
-        transport=transport,
-        cameras=tuple(names) if len(names) > 1 else (),
-    )
-    # Cameras sharing a session render at one canvas; each keeps its own output size.
-    canvas = _closest_canvas(camera_cfg) if len(names) > 1 else None
-    cosmos_cameras = {
-        name: cosmos_camera(cfg, model, control=control, near=near, far=far, canvas=canvas, name=name)
-        for name, cfg in zip(names, camera_cfgs)
-    }
-    for name, cosmos_cfg in cosmos_cameras.items():
-        setattr(env_cfg.scene, name, cosmos_cfg)
-    capture_hz = 1 / (steps_per_capture * env_cfg.sim.dt * env_cfg.decimation)
-    logger.info(
-        "Cosmos camera %s: %d environment(s), %d-frame budget, %.3f captures/s, %.3f generated updates/s "
-        "after the initial frame (simulation time).",
-        ", ".join(names),
-        num_envs,
-        budget,
-        capture_hz,
-        capture_hz / 4,
-    )
-    if len(names) > 1:
-        logger.info(
-            "Cosmos cameras %s share one session of %d views: camera k's environment v is view k * %d + v.",
-            ", ".join(names),
-            num_envs * len(names),
-            num_envs,
-        )
-    if len(endpoints) > 1:
-        logger.info(
-            "Cosmos splits the views across %d services: %s.",
-            len(endpoints),
-            ", ".join(f"{share.start}-{share.stop - 1} on {address}" for address, share in zip(endpoints, shares)),
-        )
-    if isinstance(prompt, (list, tuple)):
-        logger.info(
-            "Cosmos prompt list: %s.",
-            "cycles across episodes" if num_envs * len(names) == 1 else "assigned per view and kept across resets",
-        )
-
-
-def _camera_names(scene: Any, camera: str | Sequence[str] | None) -> list[str]:
-    """Return the selected cameras: the only rgb camera, or the named ones in the order given."""
-    if camera is None:
-        return [_select_camera(scene)]
-    names = [camera] if isinstance(camera, str) else list(camera)
-    if not names or len(set(names)) != len(names):
-        raise ValueError("Select Cosmos cameras by distinct scene names.")
-    return names
-
-
-def _select_camera(scene: Any) -> str:
-    """Return the name of the scene's only camera that publishes only rgb."""
-    names = []
-    if is_dataclass(scene):
-        for field in fields(scene):
-            value = getattr(scene, field.name)
-            if isinstance(value, CameraCfg) and list(value.data_types) == ["rgb"]:
-                names.append(field.name)
-    if len(names) != 1:
-        raise ValueError(f"Choose the Cosmos camera with the `camera` argument; rgb cameras in this scene: {names}.")
-    return names[0]
 
 
 def _closest_canvas(camera: CameraCfg) -> tuple[int, int]:

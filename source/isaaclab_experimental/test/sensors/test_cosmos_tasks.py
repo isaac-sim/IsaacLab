@@ -3,19 +3,19 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Cosmos on camera tasks: ``apply_cosmos`` for an unmodified task, and the registered Cosmos tasks."""
+"""Cosmos on camera tasks: ``cosmos_camera`` on an unmodified task, and the registered Cosmos tasks."""
 
-import logging
 import subprocess
 import sys
 import textwrap
 
 import pytest
 from isaaclab_experimental.cosmos import (
-    apply_cosmos,
+    CosmosModelCfg,
+    cosmos_camera,
+    episode_frame_budget,
     tasks,  # noqa: F401  (registers the Cosmos tasks)
 )
-from isaaclab_experimental.cosmos.client import camera as cosmos_camera_module
 
 from isaaclab_tasks.utils import parse_env_cfg, resolve_task_config
 
@@ -31,22 +31,6 @@ def _kuka(**overrides):
     for name, value in overrides.items():
         setattr(env_cfg, name, value)
     return env_cfg
-
-
-def _budget(env_cfg):
-    return env_cfg.scene.base_camera.tensor_processors[1].backend.max_episode_frames
-
-
-def _serve(monkeypatch, partial_resets=False):
-    """Stand in for the running service's status."""
-    capabilities = {"partial_resets": partial_resets}
-    monkeypatch.setattr(cosmos_camera_module, "service_capabilities", lambda endpoint, **kwargs: capabilities)
-
-
-@pytest.fixture(autouse=True)
-def _idle_service(monkeypatch):
-    """Every test sees a running, idle service; tests that batch environments call ``_serve`` again."""
-    _serve(monkeypatch)
 
 
 def test_core_tasks_do_not_import_cosmos_and_registration_imports_no_task_code():
@@ -81,17 +65,53 @@ def test_core_tasks_do_not_import_cosmos_and_registration_imports_no_task_code()
     assert result.returncode == 0, result.stderr[-2000:]
 
 
-def test_apply_cosmos_puts_cosmos_on_the_policy_camera_of_an_unmodified_task():
-    """The Kuka Allegro camera task gets Cosmos with its 64 x 64 observation kept."""
+def test_cosmos_camera_puts_cosmos_on_the_policy_camera_of_an_unmodified_task():
+    """The Kuka Allegro camera task gets Cosmos with its 64 x 64 observation kept, as the guide shows."""
     env_cfg = _kuka()
-    apply_cosmos(env_cfg, prompt=["A lab.", "A kitchen."])
+    camera = env_cfg.scene.base_camera
+    model = CosmosModelCfg(
+        prompt=["A lab.", "A kitchen."],
+        max_episode_frames=episode_frame_budget(env_cfg, camera.update_period)[2],
+    )
+    env_cfg.scene.base_camera = cosmos_camera(camera, model, near=0.6, far=1.9)
     env_cfg.validate()
     camera = env_cfg.scene.base_camera
     chain = camera.tensor_processors
 
     assert (camera.width, camera.height) == (640, 640)
     assert chain[1].backend.prompt == ["A lab.", "A kitchen."]
+    assert chain[1].backend.max_episode_frames == 361  # 12 s at 1/30 s steps: 360 steps and the initial frame
     assert chain[-1].params == {"width": 64, "height": 64}
+
+
+def test_the_capture_count_uses_the_sensor_update_tolerance():
+    """A sensor updates 1e-6 s early, so a 0.0200001 s period at 0.01 s steps captures every 2 steps, not 3."""
+    env_cfg = _kuka(episode_length_s=3.0, decimation=2)
+    env_cfg.sim.dt = 0.005
+
+    # 300 steps: 150 captures and the initial one, rounded up to 1 + 4*k
+    assert episode_frame_budget(env_cfg, 0.0200001) == (2, 151, 153)
+
+
+def test_named_cameras_share_one_session_at_one_canvas_and_keep_their_sizes():
+    """Cameras named in the model share one session; a wider wrist camera renders at the shared canvas."""
+    env_cfg = parse_env_cfg(KUKA_TASK, overrides=(KUKA_DUO_PRESETS, "env.scene.num_envs=1"))
+    env_cfg.scene.wrist_camera = env_cfg.scene.wrist_camera.replace(width=128)
+    names = ("base_camera", "wrist_camera")
+    model = CosmosModelCfg(
+        cameras=names,
+        max_episode_frames=episode_frame_budget(env_cfg, env_cfg.scene.base_camera.update_period)[2],
+    )
+    for name in names:
+        setattr(env_cfg.scene, name, cosmos_camera(getattr(env_cfg.scene, name), model, canvas=(640, 640), name=name))
+    env_cfg.validate()
+
+    for name, size in (("base_camera", (64, 64)), ("wrist_camera", (128, 64))):
+        camera = getattr(env_cfg.scene, name)
+        chain = camera.tensor_processors
+        assert (camera.width, camera.height) == (640, 640)
+        assert chain[1].backend.cameras == names and chain[1].camera == name
+        assert (chain[-1].params["width"], chain[-1].params["height"]) == size
 
 
 def test_the_shadow_hand_task_options_are_set_with_overrides():
@@ -119,47 +139,6 @@ def test_the_shadow_hand_task_options_are_set_with_overrides():
     assert env_cfg.feature_extractor.image_update_frames == 4
 
 
-def test_several_environments_need_a_compiled_service_that_batches_them(monkeypatch):
-    """The batch size is the task's environment count; independent resets still need compiled inference."""
-    env_cfg = _kuka()
-    env_cfg.scene.num_envs = 4
-    _serve(monkeypatch, partial_resets=False)
-    with pytest.raises(ValueError, match="without --no-compile"):
-        apply_cosmos(env_cfg)
-
-    _serve(monkeypatch, partial_resets=True)
-    apply_cosmos(env_cfg)
-    assert env_cfg.scene.num_envs == 4
-    assert env_cfg.scene.base_camera.tensor_processors[1].backend.max_episode_frames > 1
-
-
-def test_several_services_split_the_environments_and_each_is_checked(monkeypatch):
-    """A list of endpoints splits the environments; only a service with several needs compiled inference."""
-    checked = []
-
-    def capabilities(endpoint, **kwargs):
-        checked.append(endpoint)
-        return {"partial_resets": endpoint == "tcp://127.0.0.1:5556"}
-
-    monkeypatch.setattr(cosmos_camera_module, "service_capabilities", capabilities)
-    compiled, eager = "tcp://127.0.0.1:5556", "tcp://127.0.0.1:5557"
-
-    env_cfg = _kuka()
-    env_cfg.scene.num_envs = 3
-    apply_cosmos(env_cfg, endpoint=[compiled, eager])
-    backend = env_cfg.scene.base_camera.tensor_processors[1].backend
-    assert backend.endpoint == ["tcp://127.0.0.1:5556", "tcp://127.0.0.1:5557"]
-    assert checked == ["tcp://127.0.0.1:5556", "tcp://127.0.0.1:5557"]
-
-    # In the other order, the eager service would get two of the three environments.
-    env_cfg = _kuka()
-    env_cfg.scene.num_envs = 3
-    with pytest.raises(ValueError, match="at tcp://127.0.0.1:5557 without --no-compile"):
-        apply_cosmos(env_cfg, endpoint=[eager, compiled])
-    with pytest.raises(ValueError, match="at least one environment per service"):
-        apply_cosmos(_kuka(), endpoint=[compiled, eager])
-
-
 def test_the_shadow_hand_task_batches_several_environments_at_its_camera_rate():
     """Several environments on the task keep its camera rate; each environment's budget counts its own captures.
 
@@ -178,78 +157,6 @@ def test_the_shadow_hand_task_batches_several_environments_at_its_camera_rate():
     assert env_cfg.scene.num_envs == 2
     assert env_cfg.scene.tiled_camera.update_period == 0.1
     assert env_cfg.scene.tiled_camera.tensor_processors[-1].backend.max_episode_frames == 101
-
-
-def test_the_budget_counts_every_capture_and_keeps_the_camera_at_every_step():
-    env_cfg = _kuka()
-    apply_cosmos(env_cfg, prompt="A lab.")
-
-    assert env_cfg.scene.base_camera.update_period == 0.0
-    assert _budget(env_cfg) == 361  # 12 s at 1/30 s steps: 360 steps and the initial frame
-
-
-def test_the_capture_count_uses_the_sensor_update_tolerance():
-    """A sensor updates 1e-6 s early, so a 0.0200001 s period at 0.01 s steps captures every 2 steps, not 3."""
-    env_cfg = _kuka(episode_length_s=3.0, decimation=2)
-    env_cfg.sim.dt = 0.005
-    env_cfg.scene.base_camera.update_period = 0.0200001
-    apply_cosmos(env_cfg, prompt="A lab.")
-
-    assert env_cfg.scene.base_camera.update_period == 0.0200001
-    assert _budget(env_cfg) == 153  # 300 steps: 150 captures and the initial one, rounded up to 1 + 4*k
-
-
-def test_cosmos_needs_one_rgb_camera_or_an_explicit_choice():
-    env_cfg = parse_env_cfg(KUKA_TASK, overrides=(KUKA_DUO_PRESETS, "env.scene.num_envs=1"))
-    with pytest.raises(ValueError, match="`camera` argument"):
-        apply_cosmos(env_cfg, prompt="A lab.")
-    apply_cosmos(env_cfg, prompt="A lab.", camera="wrist_camera")
-    assert env_cfg.scene.wrist_camera.tensor_processors and not env_cfg.scene.base_camera.tensor_processors
-
-
-def test_named_cameras_share_one_session_at_one_canvas_and_keep_their_sizes():
-    """A list of cameras shares one session; a wider wrist camera renders at the shared canvas."""
-    env_cfg = parse_env_cfg(KUKA_TASK, overrides=(KUKA_DUO_PRESETS, "env.scene.num_envs=1"))
-    env_cfg.scene.wrist_camera = env_cfg.scene.wrist_camera.replace(width=128)
-    apply_cosmos(env_cfg, camera=["base_camera", "wrist_camera"])
-    env_cfg.validate()
-
-    for name, size in (("base_camera", (64, 64)), ("wrist_camera", (128, 64))):
-        camera = getattr(env_cfg.scene, name)
-        chain = camera.tensor_processors
-        assert (camera.width, camera.height) == (640, 640)
-        assert chain[1].backend.cameras == ("base_camera", "wrist_camera") and chain[1].camera == name
-        assert (chain[-1].params["width"], chain[-1].params["height"]) == size
-
-    # A list of names selects the cameras in the order given.
-    names = ["wrist_camera", "base_camera"]
-    env_cfg = parse_env_cfg(KUKA_TASK, overrides=(KUKA_DUO_PRESETS, "env.scene.num_envs=1"))
-    apply_cosmos(env_cfg, camera=names)
-    assert env_cfg.scene.base_camera.tensor_processors[1].backend.cameras == tuple(names)
-
-    # Two cameras of two environments are four views, which need independent resets.
-    with pytest.raises(ValueError, match="without --no-compile"):
-        apply_cosmos(parse_env_cfg(KUKA_TASK, overrides=(KUKA_DUO_PRESETS, "env.scene.num_envs=2")), camera=names)
-    with pytest.raises(ValueError, match="distinct scene names"):
-        apply_cosmos(_kuka(), camera=["base_camera", "base_camera"])
-
-
-def test_direct_tasks_that_size_observations_from_the_camera_are_warned(caplog, monkeypatch):
-    """Cartpole camera derives its observation space from the camera size, which Cosmos changes to the canvas."""
-    # A Hydra run earlier in the session with ``hydra/job_logging=disabled`` disables every existing logger.
-    monkeypatch.setattr(cosmos_camera_module.logger, "disabled", False)
-    env_cfg = parse_env_cfg("Isaac-Cartpole-Camera-Direct", overrides=("env.scene.num_envs=1",))
-    with caplog.at_level(logging.WARNING):
-        apply_cosmos(env_cfg, prompt="A cart.")
-    assert "Direct tasks" in caplog.text
-
-
-def test_every_camera_sharing_a_session_must_render_synchronously():
-    env_cfg = parse_env_cfg(KUKA_TASK, overrides=(KUKA_DUO_PRESETS, "env.scene.num_envs=1"))
-    env_cfg.scene.wrist_camera.renderer_cfg.async_rendering = True
-    with pytest.raises(ValueError, match="wrist_camera"):
-        apply_cosmos(env_cfg, camera=["base_camera", "wrist_camera"])
-    assert not env_cfg.scene.base_camera.tensor_processors
 
 
 def test_separate_shadow_hand_configs_do_not_share_cosmos_settings():
