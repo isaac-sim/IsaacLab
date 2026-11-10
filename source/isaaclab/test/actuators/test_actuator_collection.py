@@ -52,6 +52,13 @@ class ResetRecordingActuator(ImplicitActuator):
         self.reset_selection = (env_ids, env_mask)
 
 
+class IndexResetActuator(ImplicitActuator):
+    """Custom actuator with main's index-only :meth:`reset` signature."""
+
+    def reset(self, env_ids):
+        self.reset_env_ids = env_ids
+
+
 def _ideal_cfg(joints: list[str], *, stiffness: float, damping: float, effort_limit: float):
     return IdealPDActuatorCfg(
         joint_names_expr=joints,
@@ -689,6 +696,17 @@ def test_index_and_mask_resets_pass_both_selections_to_models():
     collection.reset(env_mask=wp.array([False, True], dtype=wp.bool, device="cpu"))
     env_ids, env_mask = collection["all"].reset_selection
     assert env_ids is None and env_mask.numpy().tolist() == [False, True]
+
+
+def test_index_resets_reach_a_custom_actuator_without_a_mask_argument():
+    cfg = _implicit_cfg()
+    cfg.class_type = IndexResetActuator
+    collection = ActuatorCollection({"all": cfg}, FakeActuatorControl())
+
+    collection.reset()
+    assert collection["all"].reset_env_ids is None
+    collection.reset([1])
+    assert collection["all"].reset_env_ids == [1]
 
 
 def test_multi_group_explicit_outputs_match_pd_formula():
