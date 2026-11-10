@@ -42,7 +42,6 @@ def create_test_articulation(
     device: str = "cuda:0",
 ):
     """Create a test Articulation instance with mocked dependencies."""
-    from isaaclab_ov import tensor_types as TT
     from isaaclab_ov.assets.articulation.articulation import Articulation
     from isaaclab_ov.assets.articulation.articulation_data import ArticulationData
 
@@ -55,6 +54,9 @@ def create_test_articulation(
         joint_names=joint_names,
         body_names=body_names,
     )
+
+    from isaaclab_ov import tensor_types as TT
+
     binding_set.set_random_data()
     mock_view = binding_set.view
 
