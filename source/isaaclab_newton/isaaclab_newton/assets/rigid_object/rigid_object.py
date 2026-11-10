@@ -52,6 +52,8 @@ class RigidObject(BaseRigidObject):
     __backend_name__: str = "newton"
     """The name of the backend for the rigid object."""
 
+    is_graphable = True
+
     def __init__(self, cfg: RigidObjectCfg):
         """Initialize the rigid object.
 
@@ -141,8 +143,8 @@ class RigidObject(BaseRigidObject):
             This ensures that the external wrench is applied at every simulation step.
         """
         # write external wrench
-        if self._instantaneous_wrench_composer.active or self._permanent_wrench_composer.active:
-            if self._instantaneous_wrench_composer.active:
+        if self._instantaneous_wrench_composer.pending or self._permanent_wrench_composer.pending:
+            if self._instantaneous_wrench_composer.pending:
                 composer = self._instantaneous_wrench_composer
                 composer.add_raw_buffers_from(self._permanent_wrench_composer)
             else:
@@ -1020,8 +1022,10 @@ class RigidObject(BaseRigidObject):
         self._ALL_BODY_MASK = wp.ones((self.num_bodies,), dtype=wp.bool, device=self.device)
 
         # external wrench composer
-        self._instantaneous_wrench_composer = WrenchComposer(self)
-        self._permanent_wrench_composer = WrenchComposer(self)
+        # a captured step records wrench work only once forces are written, so it is captured again then
+        invalidate_graph = self._backend_manager.backend.invalidate_graph
+        self._instantaneous_wrench_composer = WrenchComposer(self, on_first_use=invalidate_graph)
+        self._permanent_wrench_composer = WrenchComposer(self, on_first_use=invalidate_graph)
 
         # set information about rigid body into data
         self._data.body_names = self.body_names
