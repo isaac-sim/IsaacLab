@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import MISSING, field
 from typing import TYPE_CHECKING
 
+import numpy as np
 import torch
 import warp as wp
 
@@ -205,10 +206,12 @@ class SceneEntityCfg:
         """
         entity = scene[self.name]
         if hasattr(entity, "num_joints"):
-            self.joint_ids_wp = _warp_indices(self.joint_ids, entity.num_joints, scene.device)
+            self.joint_ids_wp = wp.array(
+                np.arange(entity.num_joints, dtype=np.int32)[self.joint_ids], device=scene.device
+            )
         num_bodies = entity.num_sensors if hasattr(entity, "num_sensors") else getattr(entity, "num_bodies", None)
         if num_bodies is not None:
-            self.body_ids_wp = _warp_indices(self.body_ids, num_bodies, scene.device)
+            self.body_ids_wp = wp.array(np.arange(num_bodies, dtype=np.int32)[self.body_ids], device=scene.device)
 
     def _resolve_joint_names(self, scene: InteractiveScene):
         # convert joint names to indices based on regex
@@ -354,11 +357,3 @@ class SceneEntityCfg:
                 if isinstance(self.object_collection_ids, int):
                     self.object_collection_ids = [self.object_collection_ids]
                 self.object_collection_names = [entity.object_names[i] for i in self.object_collection_ids]
-
-
-def _warp_indices(ids: list[int] | slice, count: int, device: str) -> wp.array:
-    """The selected indices of ``count`` items as an ``int32`` Warp array: a slice expands, a negative index wraps."""
-    items = range(count)
-    return wp.array(
-        list(items[ids]) if isinstance(ids, slice) else [items[i] for i in ids], dtype=wp.int32, device=device
-    )
