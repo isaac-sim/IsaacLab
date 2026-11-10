@@ -117,7 +117,7 @@ def test_clone_inputs_create_one_registry_resource_until_closed(monkeypatch):
 def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monkeypatch, invalidate):
     """Clean native reads reuse FK and conversions; writes and solver-buffer swaps refresh their values."""
     import warp as wp
-    from isaaclab_newton.physics import NewtonCfg, NewtonManager, NewtonSolverCfg
+    from isaaclab_newton.physics import NewtonCfg, NewtonManager
     from isaaclab_newton.physics.newton_scene_data import NewtonSceneDataBackend
     from isaaclab_newton.test.fixtures.mock_newton import backend_stub
 
@@ -127,10 +127,9 @@ def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monke
         body_q=wp.array([[0, 0, 0, 0, 0, 0, 1]], dtype=wp.transformf, device="cpu"),
         body_f=wp.zeros(1, dtype=wp.spatial_vectorf, device="cpu"),
     )
-    owner = NewtonManager(
-        NewtonCfg(solver_cfg=NewtonSolverCfg(class_type=SimpleNamespace(reset=Mock(), eval_fk=Mock())))
-    )
-    eval_fk = owner._cfg.solver_cfg.class_type.eval_fk
+    owner = NewtonManager(NewtonCfg())
+    solver_ops = SimpleNamespace(reset=Mock(), eval_fk=Mock())
+    eval_fk = solver_ops.eval_fk
     owner._device = "cpu"
     backend = NewtonSceneDataBackend(owner)
     provider = SceneDataProvider(backend)
@@ -141,6 +140,7 @@ def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monke
         model=SimpleNamespace(body_count=1, world_count=1, articulation_world=None),
         state_0=state,
         solver=None,
+        solver_ops=None,
         world_mask=wp.zeros(2, dtype=wp.bool, device="cpu"),
         fk_mask=wp.zeros(1, dtype=wp.bool, device="cpu"),
         state_version=0,
@@ -152,7 +152,7 @@ def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monke
     monkeypatch.setattr(owner, "_scene_data_backend", backend)
     # Fabric may bind between native allocation and solver initialization.
     assert backend.transforms.transforms is state.body_q
-    newton_backend.solver = object()
+    newton_backend.solver, newton_backend.solver_ops = object(), solver_ops
     monkeypatch.setattr(wp, "launch", Mock(wraps=wp.launch))
 
     output = SceneDataFormat.Matrix44()

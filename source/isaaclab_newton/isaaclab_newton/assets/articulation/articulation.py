@@ -362,6 +362,11 @@ class Articulation(BaseArticulation):
         """
         return self._permanent_wrench_composer
 
+    @property
+    def is_graphable(self) -> bool:
+        """Whether :meth:`write_data_to_sim` can be recorded: no Torch actuators and no fixed tendons."""
+        return self.actuators.is_graphable and self._fixed_tendon_control is None
+
     """
     Operations.
     """
@@ -396,9 +401,12 @@ class Articulation(BaseArticulation):
             We write external wrench to the simulation here since this function is called before the simulation step.
             This ensures that the external wrench is applied at every simulation step.
         """
+        if self._post_step_callback is not None and self._backend_manager.backend.handles_actions:
+            # handled writes run between physics steps, before the post-step callbacks republish the reordered state
+            self._post_step_callback()
         # write external wrench
-        if self._instantaneous_wrench_composer.active or self._permanent_wrench_composer.active:
-            if self._instantaneous_wrench_composer.active:
+        if self._instantaneous_wrench_composer.pending or self._permanent_wrench_composer.pending:
+            if self._instantaneous_wrench_composer.pending:
                 composer = self._instantaneous_wrench_composer
                 composer.add_raw_buffers_from(self._permanent_wrench_composer)
             else:
@@ -438,7 +446,7 @@ class Articulation(BaseArticulation):
                         self._ALL_BODY_MASK,
                     ],
                 )
-        if self._instantaneous_wrench_composer.active:
+        if self._instantaneous_wrench_composer.pending:
             self._instantaneous_wrench_composer.reset()
 
         # Compute processed actuator commands (native path is a no-op here) and
@@ -1647,50 +1655,6 @@ class Articulation(BaseArticulation):
             joint_ids=joint_ids,
             env_ids=env_ids,
         )
-
-    def write_actuator_stiffness_to_sim(
-        self,
-        *,
-        stiffness: torch.Tensor,
-        env_ids: torch.Tensor,
-        joint_ids: torch.Tensor,
-    ) -> None:
-        """Write native actuator stiffness [N/m or N·m/rad, depending on joint type].
-
-        .. deprecated:: 3.0
-            Use :func:`isaaclab.envs.mdp.events.randomize_actuator_gains` for
-            managed randomization. Direct controller-gain writes have no public
-            replacement. This method will be removed in 3.1.
-
-        Args:
-            stiffness: Controller stiffness [N/m or N·m/rad, depending on joint type].
-            env_ids: Articulation instance indices.
-            joint_ids: Articulation-local joint indices.
-        """
-        self._write_deprecated_native_actuator_gain(
-            "write_actuator_stiffness_to_sim", "kp", stiffness, env_ids, joint_ids
-        )
-
-    def write_actuator_damping_to_sim(
-        self,
-        *,
-        damping: torch.Tensor,
-        env_ids: torch.Tensor,
-        joint_ids: torch.Tensor,
-    ) -> None:
-        """Write native actuator damping [N·s/m or N·m·s/rad, depending on joint type].
-
-        .. deprecated:: 3.0
-            Use :func:`isaaclab.envs.mdp.events.randomize_actuator_gains` for
-            managed randomization. Direct controller-gain writes have no public
-            replacement. This method will be removed in 3.1.
-
-        Args:
-            damping: Controller damping [N·s/m or N·m·s/rad, depending on joint type].
-            env_ids: Articulation instance indices.
-            joint_ids: Articulation-local joint indices.
-        """
-        self._write_deprecated_native_actuator_gain("write_actuator_damping_to_sim", "kd", damping, env_ids, joint_ids)
 
     def write_joint_damping_to_sim_mask(
         self,
@@ -3342,8 +3306,10 @@ class Articulation(BaseArticulation):
         self._num_shapes_per_body_backend: list[int] | None = None
 
         # external wrench composer
-        self._instantaneous_wrench_composer = WrenchComposer(self)
-        self._permanent_wrench_composer = WrenchComposer(self)
+        # a captured step records wrench work only once forces are written, so it is captured again then
+        invalidate_graph = self._backend_manager.backend.invalidate_graph
+        self._instantaneous_wrench_composer = WrenchComposer(self, on_first_use=invalidate_graph)
+        self._permanent_wrench_composer = WrenchComposer(self, on_first_use=invalidate_graph)
 
         # asset named data
         self._resolve_and_install_ordering_maps()

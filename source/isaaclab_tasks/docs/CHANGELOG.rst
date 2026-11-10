@@ -3,6 +3,32 @@ Changelog
 
 .. towncrier release notes start
 
+30.1.3 (2026-11-10)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the coupled tasks to import their couplers from :mod:`isaaclab_newton.physics.coupling`.
+
+Fixed
+^^^^^
+
+* Fixed the Franka Pour curriculum gripper filtering each command against itself once joint actions processed in
+  place.
+
+
+30.1.2 (2026-11-07)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the Rizon coffee MPM solver to build through the instance :class:`~isaaclab_newton.physics.NewtonSolver` API.
+* Migrated the NIST Franka actuator configurations to the canonical actuator and joint limit
+  fields after the deprecated aliases were removed, preserving the distinct rated and solver limits.
+
+
 30.1.1 (2026-11-05)
 ~~~~~~~~~~~~~~~~~~~
 

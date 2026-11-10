@@ -10,7 +10,7 @@ from one authored USD asset. A narrow per-world Newton hook assigns the authored
 particle-collision roles, replaces the receiver's rigid mesh with an analytic box, and adds a
 particle-only spill floor.
 
-A Newton :class:`~isaaclab_contrib.coupling.CouplerProxyCfg` advances the robot and both cups
+A Newton :class:`~isaaclab_newton.physics.coupling.CouplerProxyCfg` advances the robot and both cups
 in the ``arm`` MJWarp entry and the particles and spill floor in the implicit ``media`` entry. Proxy
 coupling makes both cups' particle colliders available to MPM without assigning one body to two
 entries. The policy commands arm joint positions and a continuous symmetric finger target; all

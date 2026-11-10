@@ -288,57 +288,38 @@ def test_quat_error_mag_with_quat_unique(device):
 
 
 @pytest.mark.parametrize("device", test_devices())
-def test_convention_converter(device):
-    """Test convert_camera_frame_orientation_convention to and from ros, opengl, and world conventions."""
-    # Quaternions in xyzw format (converted from original wxyz test values)
-    quat_ros = torch.tensor([[0.33985114, 0.82047325, -0.42470819, -0.17591989]], device=device)
-    quat_opengl = torch.tensor([[0.17591988, 0.42470818, 0.82047324, 0.33985113]], device=device)
-    quat_world = torch.tensor([[-0.27984815, -0.1159169, 0.88047623, -0.3647052]], device=device)
-
-    # from ROS
-    torch.testing.assert_close(
-        math_utils.convert_camera_frame_orientation_convention(quat_ros, "ros", "opengl"), quat_opengl
-    )
-    torch.testing.assert_close(
-        math_utils.convert_camera_frame_orientation_convention(quat_ros, "ros", "world"), quat_world
-    )
-    torch.testing.assert_close(math_utils.convert_camera_frame_orientation_convention(quat_ros, "ros", "ros"), quat_ros)
-    # from OpenGL
-    torch.testing.assert_close(
-        math_utils.convert_camera_frame_orientation_convention(quat_opengl, "opengl", "ros"), quat_ros
-    )
-    torch.testing.assert_close(
-        math_utils.convert_camera_frame_orientation_convention(quat_opengl, "opengl", "world"), quat_world
-    )
-    torch.testing.assert_close(
-        math_utils.convert_camera_frame_orientation_convention(quat_opengl, "opengl", "opengl"), quat_opengl
-    )
-    # from World
-    torch.testing.assert_close(
-        math_utils.convert_camera_frame_orientation_convention(quat_world, "world", "ros"), quat_ros
-    )
-    torch.testing.assert_close(
-        math_utils.convert_camera_frame_orientation_convention(quat_world, "world", "opengl"), quat_opengl
-    )
-    torch.testing.assert_close(
-        math_utils.convert_camera_frame_orientation_convention(quat_world, "world", "world"), quat_world
-    )
-
-
-@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("origin", ["opengl", "ros", "world"])
 @pytest.mark.parametrize("target", ["opengl", "ros", "world"])
-def test_convention_converter_leading_dims(device, origin, target):
-    """Test convert_camera_frame_orientation_convention on (..., 4) inputs other than (N, 4)."""
-    quat = math_utils.random_orientation(6, device)
-    expected = math_utils.convert_camera_frame_orientation_convention(quat, origin, target)
-
-    # multiple leading dimensions (A, B, 4) match the flat (N, 4) result
-    nested = math_utils.convert_camera_frame_orientation_convention(quat.view(2, 3, 4), origin, target)
-    torch.testing.assert_close(nested, expected.view(2, 3, 4))
-    # a single (4,) quaternion matches the corresponding row
-    single = math_utils.convert_camera_frame_orientation_convention(quat[0], origin, target)
-    torch.testing.assert_close(single, expected[0])
+def test_convention_converter(device, origin, target):
+    """Check camera conventions and input shapes against known rotations, including native CUDA TF32."""
+    previous_precision = torch.backends.cuda.matmul.fp32_precision
+    try:
+        torch.backends.cuda.matmul.fp32_precision = "tf32"
+        # Each convention describes the same two rotations; the second is the identity in ROS.
+        quats = {
+            "ros": torch.tensor(
+                [[0.33985114, 0.82047325, -0.42470819, -0.17591989], [0.0, 0.0, 0.0, 1.0]], device=device
+            ),
+            "opengl": torch.tensor(
+                [[0.17591988, 0.42470818, 0.82047324, 0.33985113], [1.0, 0.0, 0.0, 0.0]], device=device
+            ),
+            "world": torch.tensor(
+                [[-0.27984815, -0.1159169, 0.88047623, -0.3647052], [0.5, -0.5, 0.5, 0.5]], device=device
+            ),
+        }
+        # An asymmetric batch makes row-order errors visible across leading dimensions.
+        indices = [0, 1, 0, 0, 1, 1, 0, 1]
+        quat = quats[origin][indices]
+        expected = quats[target][indices]
+        for orientation, expected_orientation in (
+            (quat, expected),
+            (quat.reshape(2, 4, 4), expected.reshape(2, 4, 4)),
+            (quat[0], expected[0]),
+        ):
+            actual = math_utils.convert_camera_frame_orientation_convention(orientation, origin, target)
+            torch.testing.assert_close(actual, expected_orientation)
+    finally:
+        torch.backends.cuda.matmul.fp32_precision = previous_precision
 
 
 @pytest.mark.parametrize("device", test_devices())

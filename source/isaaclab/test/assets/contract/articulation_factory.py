@@ -228,6 +228,7 @@ def _newton_articulation(N, J, B, FT, ST, device, is_fixed_base, joint_ordering,
     articulation._device = device
     articulation._clamped_default_count = wp.zeros(1, dtype=wp.int32, device=device)
     articulation._backend_manager = manager
+    articulation._post_step_callback = None
     articulation._data = newton_assets.ArticulationData(view, device, backend_manager=manager)
     # The solver builds this adapter; the shell has no model, so it stays absent.
     articulation._fixed_tendon_control = None
