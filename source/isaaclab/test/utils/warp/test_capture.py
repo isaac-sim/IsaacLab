@@ -245,8 +245,8 @@ def test_calls_record_a_call_once_and_replay_it():
     assert (fn.calls, _read(values)) == (1, [2, 2])
 
 
-def test_calls_copy_an_input_at_another_address_into_the_array_the_recording_reads():
-    """A call passing a new array each time, like the actions of each step, replays one recording reading a copy."""
+def test_calls_copy_a_staged_input_into_the_array_the_recording_reads():
+    """A call staging a new array each time, like the actions of each step, replays one recording reading a copy."""
     total = wp.zeros(2, dtype=wp.int32, device=DEVICE)
     runs = []
 
@@ -257,10 +257,21 @@ def test_calls_copy_an_input_at_another_address_into_the_array_the_recording_rea
     calls = GraphedCalls(DEVICE, True)
     inputs = [wp.full(2, step + 1, dtype=wp.int32, device=DEVICE) for step in range(4)]
     for values in inputs:
-        calls(add, values)
+        calls(add, calls.staged(values))
     assert _read(total) == [10, 10]
-    assert len(runs) == 2, "the second array records once more, on a buffer that later calls copy into"
+    assert len(runs) == 1, "the recording reads the staged buffer, so the call records once"
     assert _num_graphs(calls._graphed[add][0]) == 1
+    assert GraphedCalls(DEVICE, False).staged(inputs[0]) is inputs[0]
+
+
+def test_calls_reject_another_array_than_recorded():
+    """An array argument that is not staged must be the array the recording read."""
+    fn = _Affine()
+    calls = GraphedCalls(DEVICE, True)
+    recorded = wp.zeros(2, dtype=wp.int32, device=DEVICE)
+    calls(fn, recorded)
+    with pytest.raises(ValueError, match="staged"):
+        calls(fn, wp.zeros(2, dtype=wp.int32, device=DEVICE))
 
 
 def test_block_records_its_calls_as_one_graph():

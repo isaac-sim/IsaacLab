@@ -260,8 +260,8 @@ class GraphedCalls:
 
     ``calls(fn, *args, **kwargs)`` returns ``fn(*args, **kwargs)``. With recording on (the Warp frontend on a CUDA
     device), the first call of ``fn`` with given scalar arguments records it (see :class:`GraphedCallable`) and later
-    calls replay it. Array arguments are inputs: when a call passes an array at another address than the recording
-    read, it is copied into a buffer the recording reads from then on.
+    calls replay it. An array argument must be the array the recording read; an array the caller hands anew on each
+    call, such as the actions of a step, is passed as :meth:`staged` and copied into a buffer the recording reads.
 
     Inside ``with calls.block(name):`` the calls are recorded together, so a replay launches one graph for them, split
     only where a call cannot be recorded (see :func:`eager`). A replay runs the block when the block ends: inside it,
@@ -310,8 +310,8 @@ class GraphedCalls:
         if entry is None:
             entry = self._graphed[fn] = (GraphedCallable(fn, self._device), {})
         graphed, inputs = entry
-        args = tuple(self._input(graphed, inputs, index, value) for index, value in enumerate(args))
-        kwargs = {name: self._input(graphed, inputs, name, value) for name, value in kwargs.items()}
+        args = tuple(self._input(fn, inputs, index, value) for index, value in enumerate(args))
+        kwargs = {name: self._input(fn, inputs, name, value) for name, value in kwargs.items()}
         return graphed(*args, **kwargs)
 
     def block(self, name: str) -> contextlib.AbstractContextManager:
@@ -330,6 +330,13 @@ class GraphedCalls:
             block = self._blocks[name] = _Block(self)
         return block
 
+    def staged(self, array: torch.Tensor | wp.array) -> Any:
+        """Mark an array argument the caller hands anew on each call, such as the actions of a step.
+
+        The call copies it into a buffer of its own, which the recording reads. Without recording it is the array.
+        """
+        return _Staged(array) if self._enabled else array
+
     def close(self):
         """Drop the recordings and stop following the physics backend."""
         if self._watching:
@@ -341,22 +348,41 @@ class GraphedCalls:
         self._graphed.clear()
         self._blocks.clear()
 
-    def _input(self, graphed: GraphedCallable, inputs: dict, slot: int | str, value: Any) -> Any:
-        """The array a call passes, or the buffer the recording reads once the call passed another array."""
+    def _input(self, fn: Callable[..., Any], inputs: dict, slot: int | str, value: Any) -> Any:
+        """The array the recording reads for an argument: a staged array is copied into the call's buffer for it, any
+        other array must be the one recorded.
+
+        Raises:
+            ValueError: If an array argument that is not staged is another array than the recording read.
+        """
+        if isinstance(value, _Staged):
+            buffer = inputs.get(slot)
+            if buffer is None:
+                array = value.array
+                buffer = inputs[slot] = array.clone() if isinstance(array, torch.Tensor) else wp.clone(array)
+            elif isinstance(buffer, torch.Tensor):
+                buffer.copy_(value.array)
+            else:
+                wp.copy(buffer, value.array)
+            return buffer
         if not isinstance(value, (torch.Tensor, wp.array)):
             return value
-        first, buffer = inputs.setdefault(slot, (_value_key(value), None))
-        if buffer is not None:
-            if _value_key(value) != _value_key(buffer):
-                buffer.copy_(value) if isinstance(buffer, torch.Tensor) else wp.copy(buffer, value)
-            return buffer
-        if _value_key(value) == first:
-            return value
-        # another array than the one recorded: record again reading a buffer of its own, copied into from now on
-        buffer = value.clone() if isinstance(value, torch.Tensor) else wp.clone(value)
-        inputs[slot] = (first, buffer)
-        graphed.reset()
-        return buffer
+        if inputs.setdefault(slot, _value_key(value)) != _value_key(value):
+            raise ValueError(
+                f"{getattr(fn, '__qualname__', fn)}: argument {slot!r} is another array than the recording read. Pass"
+                " the same array on each call, or stage it with GraphedCalls.staged()."
+            )
+        return value
+
+
+class _Staged:
+    """An array argument a :class:`GraphedCalls` call copies into a buffer the recording reads (see
+    :meth:`GraphedCalls.staged`)."""
+
+    __slots__ = ("array",)
+
+    def __init__(self, array: torch.Tensor | wp.array):
+        self.array = array
 
 
 class _Block:
