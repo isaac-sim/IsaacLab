@@ -122,7 +122,7 @@ class BaseRigidObject(AssetBase):
         """Reset the rigid object.
 
         .. caution::
-            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`.
+            If both `env_ids` and `env_mask` are provided, the implementation uses the one it takes without conversion.
 
         Args:
             env_ids: Environment indices. If None, then all indices are used.

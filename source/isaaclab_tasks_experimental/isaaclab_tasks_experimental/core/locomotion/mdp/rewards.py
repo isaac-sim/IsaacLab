@@ -15,10 +15,10 @@ from typing import TYPE_CHECKING
 
 import torch
 import warp as wp
-from isaaclab_experimental.managers import SceneEntityCfg
 from isaaclab_experimental.managers.manager_base import ManagerTermBase
 
 import isaaclab.utils.string as string_utils
+from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.warp.math import rotate_vec_to_body_frame
 
 if TYPE_CHECKING:
@@ -33,11 +33,9 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 
 
-# Inline Tier 1 access: derives projected gravity directly from root_link_pose_w,
-# avoiding the lazy TimestampedWarpBuffer which is not CUDA-graph-capturable.
-# See GRAPH_CAPTURE_MIGRATION.md in isaaclab_newton for background.
-# If ArticulationData Tier 2 lazy update is made graph-safe, this can revert to
-# reading asset.data.projected_gravity_b directly.
+# Inline Tier 1 access: derives projected gravity directly from root_link_pose_w.
+# Lazy asset data is recorded into CUDA graphs as well (a recording recomputes it on every replay),
+# so this can read asset.data.projected_gravity_b directly.
 
 
 @wp.kernel

@@ -128,9 +128,24 @@ class RigidObjectData(BaseRigidObjectData):
         self._sim_timestamp += dt
         # Replaying an outer capture of the step skips the backend's version increments, so invalidate here.
         self._backend_manager.backend.state_version += 1
-        # Trigger an update of the body com acceleration buffer at a higher frequency
-        # since we do finite differencing.
-        self.body_com_acc_w
+        # finite differences advance once per physics step: computed here over the step, then read as they are;
+        # a zero step (the update at initialization) has no difference to take, so they keep their values
+        if dt == 0.0:
+            return
+        wp.launch(
+            shared_kernels.derive_body_acceleration_from_body_com_velocities,
+            dim=(self._num_instances, 1),
+            device=self.device,
+            inputs=[
+                self._sim_bind_body_com_vel_w,
+                dt,
+                self._previous_body_com_vel,
+            ],
+            outputs=[
+                self._body_com_acc_w.data,
+            ],
+        )
+        self._body_com_acc_w.timestamp = self._sim_timestamp
 
     def _reset_pose(self) -> None:
         """Invalidate pose-dependent caches after an authoritative state write."""
@@ -392,25 +407,6 @@ class RigidObjectData(BaseRigidObjectData):
         Shape is (num_instances, 1), dtype = wp.spatial_vectorf. In torch this resolves to (num_instances, 1, 6).
         This quantity is the acceleration of the rigid bodies' center of mass frame relative to the world.
         """
-        if self._body_com_acc_w.timestamp < self._sim_timestamp:
-            # Finite-difference over the elapsed time, which spans the decimation when Newton owns it.
-            time_elapsed = self._sim_timestamp - self._body_com_acc_w.timestamp
-            wp.launch(
-                shared_kernels.derive_body_acceleration_from_body_com_velocities,
-                dim=(self._num_instances, 1),
-                device=self.device,
-                inputs=[
-                    self._sim_bind_body_com_vel_w,
-                    time_elapsed,
-                    self._previous_body_com_vel,
-                ],
-                outputs=[
-                    self._body_com_acc_w.data,
-                ],
-            )
-            # set the buffer data and timestamp
-            self._body_com_acc_w.timestamp = self._sim_timestamp
-            # update the previous velocity
         return self._body_com_acc_w_ta
 
     @property

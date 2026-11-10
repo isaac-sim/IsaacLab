@@ -14,6 +14,7 @@ from types import SimpleNamespace
 
 import pytest
 import torch
+import warp as wp
 
 # The thruster model is pure torch bookkeeping; env/motor counts and device select no distinct branch.
 NUM_ENVS = 2
@@ -107,6 +108,27 @@ def test_reset_idx_resamples_only_selected_envs():
     torch.testing.assert_close(thr.curr_thrust[0], thr.thrust_const[0] * init_rps[0] ** 2)
     torch.testing.assert_close(thr.curr_thrust[1:], prev_thrust[1:])
     torch.testing.assert_close(thr.tau_inc_s[1:], prev_tau_inc[1:])
+
+
+def test_reset_by_mask_matches_reset_by_ids():
+    """A masked reset re-samples the same envs, with the same random draws, as the equivalent index reset."""
+    from isaaclab_contrib.actuators import Thruster
+
+    cfg = make_thruster_cfg(NUM_MOTORS)
+    thruster_names = [f"t{i}" for i in range(NUM_MOTORS)]
+    init_rps = torch.ones(NUM_ENVS, NUM_MOTORS, device=DEVICE)
+    states = []
+    resets = (
+        lambda thr: thr.reset(env_ids=[1]),
+        lambda thr: thr.reset(env_mask=wp.array([False, True], dtype=wp.bool, device=DEVICE)),
+    )
+    for reset in resets:
+        torch.manual_seed(0)
+        thr = Thruster(cfg, thruster_names, slice(None), NUM_ENVS, DEVICE, init_rps)  # type: ignore[arg-type]
+        reset(thr)
+        states.append(torch.stack([thr.tau_inc_s, thr.tau_dec_s, thr.thrust_const, thr.curr_thrust]))
+
+    torch.testing.assert_close(states[0], states[1])
 
 
 @pytest.mark.parametrize(("use_discrete_approximation", "integration_scheme"), [(True, "euler"), (False, "rk4")])

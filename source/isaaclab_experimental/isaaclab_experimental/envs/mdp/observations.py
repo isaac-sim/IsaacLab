@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
+from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.warp.math import body_ang_vel_from_root, body_lin_vel_from_root, rotate_vec_to_body_frame
 
 from isaaclab_experimental.envs.utils.io_descriptors import (
@@ -32,7 +33,6 @@ from isaaclab_experimental.envs.utils.io_descriptors import (
     record_joint_vel_offsets,
     record_shape,
 )
-from isaaclab_experimental.managers import SceneEntityCfg
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
@@ -96,11 +96,9 @@ def base_pos_z(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEntit
 
 
 # Inline Tier 1 access: these observations derive body-frame quantities directly from
-# root_link_pose_w (transformf) and root_com_vel_w (spatial_vectorf), avoiding the lazy
-# TimestampedWarpBuffer properties which are not CUDA-graph-capturable.
-# See GRAPH_CAPTURE_MIGRATION.md in isaaclab_newton for background.
-# If ArticulationData Tier 2 lazy update is made graph-safe in the future, these can
-# revert to reading the pre-computed .data buffers (simpler, avoids redundant rotations).
+# root_link_pose_w (transformf) and root_com_vel_w (spatial_vectorf).
+# Lazy asset data is recorded into CUDA graphs as well (a recording recomputes it on every replay),
+# so these can read the pre-computed .data buffers (simpler, avoids redundant rotations).
 
 
 @wp.kernel

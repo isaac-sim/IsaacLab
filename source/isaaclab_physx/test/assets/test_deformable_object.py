@@ -245,6 +245,28 @@ def test_deformable_nodal_state_writes(deformable_scene: _DeformableScene) -> No
 
 
 @pytest.mark.isaacsim_ci
+def test_deformable_nodal_state_mask_writes(deformable_scene: _DeformableScene) -> None:
+    """Mask writes take full-size data and reach only the environments the mask selects."""
+    scene = deformable_scene
+    device = scene.device
+    env_mask = wp.array([False, True], dtype=wp.bool, device=device)
+    for deformable in (scene.volume, scene.surface):
+        initial_state = deformable.data.nodal_state_w.torch.clone()
+        state = initial_state.clone()
+        state[:, 0, :3] += torch.tensor([0.01, 0.02, 0.03], device=device)
+        state[:, 0, 3] = 0.25
+        deformable.write_nodal_state_to_sim_mask(state, env_mask=env_mask)
+        expected = torch.cat((initial_state[:1], state[1:]))
+        torch.testing.assert_close(deformable.data.nodal_state_w.torch, expected)
+        for getter, component in (
+            (deformable.root_view.get_simulation_nodal_positions, slice(0, 3)),
+            (deformable.root_view.get_simulation_nodal_velocities, slice(3, 6)),
+        ):
+            raw = wp.to_torch(getter()).to(device).reshape(expected[..., component].shape)
+            torch.testing.assert_close(raw, expected[..., component])
+
+
+@pytest.mark.isaacsim_ci
 def test_volume_kinematic_targets_hold_selected_nodes(deformable_scene: _DeformableScene) -> None:
     """Kinematic targets of environment 0 hold its nodes while environment 1 keeps moving freely."""
     scene = deformable_scene

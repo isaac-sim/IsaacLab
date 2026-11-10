@@ -215,11 +215,16 @@ class AssetBase(Asset, ABC):
             self._debug_vis_handle = None
 
     @abstractmethod
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
         """Resets all internal buffers of selected environments.
+
+        .. caution::
+            If both ``env_ids`` and ``env_mask`` are provided, the implementation uses the one it takes without
+            conversion.
 
         Args:
             env_ids: The indices of the object to reset. Defaults to None (all instances).
+            env_mask: Boolean mask of the instances to reset. Shape is (num_instances,). Defaults to None.
         """
         raise NotImplementedError
 

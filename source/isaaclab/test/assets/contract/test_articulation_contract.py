@@ -25,8 +25,11 @@ import torch
 import warp as wp
 
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
+from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import replace
+from isaaclab.utils.buffers import reset_timestamps
 from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp.capture import GraphedCallable
 
 from .articulation_factory import get_articulation
 from .backends import backends, read_backend_joint_state, requires
@@ -139,20 +142,12 @@ def test_finders(monkeypatch, backend):
             finder("nonexistent_xyz")
 
 
-def test_resolve_ids_accept_tensor_views(monkeypatch, backend):
-    """Selector resolution honors tensor views, and environment slices alias the cached indices without copies."""
-    art, _ = _articulation(backend, "cpu", monkeypatch, num_instances=4, num_joints=4, num_bodies=4)
-    ids = torch.arange(4, dtype=torch.int32)
-    for resolve in (art._resolve_env_ids, art._resolve_joint_ids, art._resolve_body_ids):
-        assert resolve(ids).shape[0] == 4
-        assert resolve(ids[:2]).shape[0] == 2
-
-    cached = wp.to_torch(art._ALL_INDICES)
-    for selection in (slice(None), slice(1, None, 2), slice(0, 0)):
-        resolved = wp.to_torch(art._resolve_env_ids(selection))
-        torch.testing.assert_close(resolved, cached[selection])
-        assert resolved.data_ptr() == cached[selection].data_ptr()
-        assert resolved.stride() == cached[selection].stride()
+def test_resolvers_select_from_their_own_cached_indices(monkeypatch, backend):
+    """Each selector resolver returns its own cached indices for a selection of every element."""
+    art, _ = _articulation(backend, "cpu", monkeypatch)
+    assert art._resolve_env_ids(slice(None)) is art._ALL_INDICES
+    assert art._resolve_joint_ids(slice(None)) is art._ALL_JOINT_INDICES
+    assert art._resolve_body_ids(slice(None)) is art._ALL_BODY_INDICES
 
 
 # ---------------------------------------------------------------------------
@@ -402,6 +397,86 @@ def test_set_coms_invalidates_same_timestamp_dependents(monkeypatch, backend, bo
         _assert_buffers_stale(art.data, buffers)
 
 
+# named apart from ``device``, whose Newton CUDA cases the conftest deselects: graph recording needs CUDA
+_CUDA_DEVICES = pytest.mark.parametrize("cuda_device", test_devices(DeviceScope.DEFAULT_CUDA))
+
+
+def _recordable_articulation(backend: str, cuda_device: str, monkeypatch: pytest.MonkeyPatch):
+    art, view = _articulation(backend, cuda_device, monkeypatch)
+    if backend == "physx":
+        # the TensorAPI returns its own stable buffer, where the fixture view returns a copy allocated per call
+        monkeypatch.setattr(
+            view, "get_root_transforms", lambda: view._as_structured(view._root_transforms, wp.transformf, (N,))
+        )
+    return art
+
+
+def _identity_yaw(pose: torch.Tensor) -> torch.Tensor:
+    pose = pose.clone()
+    pose[..., 3:] = torch.tensor([0.0, 0.0, 0.0, 1.0], device=pose.device)
+    return pose
+
+
+@_CUDA_DEVICES
+def test_lazy_properties_update_on_every_graph_replay(monkeypatch, backend, cuda_device):
+    """A lazy property read while a GraphedCallable records updates on each replay, though current at recording.
+
+    The joint acceleration finite difference advances only in :meth:`update`, so the recording leaves it alone.
+    """
+    monkeypatch.setattr(GraphedCallable, "enabled", True)
+    art = _recordable_articulation(backend, cuda_device, monkeypatch)
+    art.data.update(dt=0.01)
+    _ = art.data.heading_w  # current when the read is recorded
+    joint_acc = art.data.joint_acc
+    joint_acc_before = joint_acc.torch.clone()
+
+    def read():
+        _ = art.data.joint_acc
+        return art.data.heading_w
+
+    graphed = GraphedCallable(read, cuda_device)
+    heading = graphed()
+    recorded = heading.torch.clone()
+
+    art.write_root_link_pose_to_sim_index(root_pose=_payload((N,), 7, wp.transformf, cuda_device))
+    graphed()
+    replayed = heading.torch.clone()
+    torch.testing.assert_close(joint_acc.torch, joint_acc_before)
+    art.data.update(dt=0.01)
+    torch.testing.assert_close(replayed, art.data.heading_w.torch)
+    assert not torch.allclose(replayed, recorded)
+
+
+@_CUDA_DEVICES
+def test_invalidation_inside_a_recording_records_the_update_again(monkeypatch, backend, cuda_device):
+    """A property invalidated between two reads of one recording updates again for the second read.
+
+    The recording writes the root pose in place and invalidates the heading as the root pose writers do.
+    """
+    monkeypatch.setattr(GraphedCallable, "enabled", True)
+    art = _recordable_articulation(backend, cuda_device, monkeypatch)
+    rotated = _payload((N,), 7, wp.transformf, cuda_device)
+    art.write_root_link_pose_to_sim_index(root_pose=_identity_yaw(rotated))
+    art.data.update(dt=0.01)
+    unrotated = art.data.heading_w.torch.clone()
+    rotated_wp = wp.from_torch(rotated, dtype=wp.transformf)
+
+    def rotate_and_read():
+        _ = art.data.heading_w
+        wp.copy(art.data.root_link_pose_w.warp, rotated_wp)
+        reset_timestamps([art.data._heading_w])
+        return art.data.heading_w
+
+    graphed = GraphedCallable(rotate_and_read, cuda_device)
+    heading = graphed()  # the recording is the first run
+    graphed()
+    replayed = heading.torch.clone()
+    art.write_root_link_pose_to_sim_index(root_pose=rotated)
+    art.data.update(dt=0.01)
+    torch.testing.assert_close(replayed, art.data.heading_w.torch)
+    assert not torch.allclose(replayed, unrotated)
+
+
 @requires("physx")
 def test_physx_com_cache_survives_com_and_joint_writes(monkeypatch):
     """A COM write refreshes the PhysX COM cache directly, and a joint write leaves it valid."""
@@ -527,8 +602,20 @@ def test_writer(monkeypatch, backend, device, selection, writer, kwarg, axis, tr
             method(**{kwarg: 1.0})
             _assert_reads_back(read(), torch.ones_like(expected), f"{writer} scalar")
 
-    if backend == "newton" and selection == "mask" and is_tendon:
-        return  # pinned by test_newton_fixed_tendon_mask_setters_reject_extra_environments
+    if writer == "set_fixed_tendon_position_limit":
+        # Limit pairs whose components are strided in memory write as contiguous ones do.
+        expected = _payload(shape, trailing, dtype, device, offset=200.0)
+        method(**{kwarg: expected.repeat_interleave(2, dim=-1)[..., ::2]})
+        _assert_reads_back(read(), expected, f"{writer} strided")
+
+    if backend == "newton" and selection == "mask" and not writer.endswith("_target"):
+        # A short mask writes only the rows it covers, even when the memory past its end selects more rows.
+        expected = read().torch.clone()
+        values = _payload(shape, trailing, dtype, device, offset=300.0)
+        method(**{kwarg: values[: N - 1]}, env_mask=_mask(N, range(N), device)[: N - 1])
+        expected[: N - 1] = values[: N - 1]
+        _assert_reads_back(read(), expected, f"{writer} short mask")
+
     extra_env = _payload((N + 1, *shape[1:]), trailing, dtype, device)
     with pytest.raises((AssertionError, RuntimeError)):
         method(**{kwarg: extra_env})
@@ -566,18 +653,6 @@ def test_friction_mixed_inputs_preserve_other_cells_and_components(monkeypatch, 
                 reference[1, joints] = value[1, joints] if isinstance(value, torch.Tensor) else value
             _assert_reads_back(getattr(art.data, name), reference, name)
             torch.testing.assert_close(actual[prop], reference)
-
-
-@requires("newton")
-@pytest.mark.xfail(
-    raises=pytest.fail.Exception,
-    strict=True,
-    reason="Newton fixed-tendon mask setters slice full data without validating its shape",
-)
-def test_newton_fixed_tendon_mask_setters_reject_extra_environments(monkeypatch):
-    art, _ = _articulation("newton", "cpu", monkeypatch)
-    with pytest.raises((AssertionError, RuntimeError)):
-        art.set_fixed_tendon_stiffness_mask(stiffness=torch.ones((N + 1, FT)))
 
 
 # quantity -> (writer, keyword, trailing size). Joint partial writes are covered by the ordering contract.

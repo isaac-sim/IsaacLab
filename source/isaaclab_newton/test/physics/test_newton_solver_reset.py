@@ -17,6 +17,7 @@ import torch
 import warp as wp
 from isaaclab_newton.assets import Articulation
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonBackend, NewtonCfg
+from isaaclab_newton.physics.newton_solver import NewtonSolver
 from isaaclab_physx.sim.schemas import PhysxJointCfg
 from newton.solvers import SolverMuJoCo
 
@@ -27,6 +28,7 @@ from isaaclab.cloner import CloneCfg, clone_plan_from_env_0, replicate
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.warp.capture import GraphedCallable
 
 
 def _generate_single_joint_articulations(num_articulations: int, device: str) -> Articulation:
@@ -136,3 +138,51 @@ def test_env_reset_clears_selected_mjwarp_solver_internals(device):
         torch.testing.assert_close(wp.to_torch(state.joint_qd), joint_qd_before)
         assert torch.count_nonzero(warm_start[0]).item() == 0
         torch.testing.assert_close(warm_start[1], torch.full_like(warm_start[1], 29.0))
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+def test_recorded_env_reset_evaluates_fk_once_per_replay(device):
+    """A recorded part of the step that resets an env clears the reset world's solver history inside its replay, and
+    the physics steps after it evaluate no further forward kinematics."""
+    sim_cfg = SimulationCfg(
+        dt=1 / 120,
+        physics=NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(njmax=20, nconmax=20, integrator="implicitfast"),
+            num_substeps=1,
+            use_cuda_graph=False,
+        ),
+    )
+    with build_simulation_context(sim_cfg=sim_cfg, device=device) as sim:
+        sim._app_control_on_stop_handle = None
+        articulation = _generate_single_joint_articulations(num_articulations=2, device=device)
+        sim.reset()
+        backend = sim.backend_manager.backend
+        warm_start = wp.to_torch(backend.solver.mjw_data.qacc_warmstart)
+        env_mask = wp.array([True, False], dtype=wp.bool, device=device)
+        joint_pos = wp.from_torch(articulation.data.default_joint_pos.torch.clone() + 0.25)
+
+        def reset_env_0():
+            articulation.write_joint_position_to_sim_mask(position=joint_pos, env_mask=env_mask)
+
+        reset = GraphedCallable(reset_env_0, device)
+        enabled, GraphedCallable.enabled = GraphedCallable.enabled, True
+        try:
+            reset()  # records
+            warm_start[0].fill_(13.0)
+            warm_start[1].fill_(17.0)
+            reset()  # replays
+            wp.synchronize_device(device)
+            assert torch.count_nonzero(warm_start[0]).item() == 0
+            torch.testing.assert_close(warm_start[1], torch.full_like(warm_start[1], 17.0))
+
+            with (
+                patch.object(NewtonSolver, "eval_fk", side_effect=NewtonSolver.eval_fk) as fk,
+                patch.object(NewtonBackend, "_simulate", lambda self, steps: None),
+            ):
+                backend.invalidate_graph()
+                for _ in range(2):
+                    sim.step(render=False)
+            assert fk.call_count == 0
+        finally:
+            GraphedCallable.enabled = enabled
+            reset.reset()

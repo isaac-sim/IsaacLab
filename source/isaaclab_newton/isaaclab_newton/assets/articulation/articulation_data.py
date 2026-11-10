@@ -158,10 +158,39 @@ class ArticulationData(BaseArticulationData):
         self._sim_timestamp += dt
         # Replaying an outer capture of the step skips the backend's version increments, so invalidate here.
         self._backend_manager.backend.state_version += 1
-        # Trigger an update of the joint and body com acceleration buffers at a higher frequency
-        # since we do finite differencing.
-        self.joint_acc
-        self.body_com_acc_w
+        # finite differences advance once per physics step: computed here over the step, then read as they are;
+        # a zero step (the update at initialization) has no difference to take, so they keep their values
+        if dt == 0.0:
+            return
+        wp.launch(
+            articulation_kernels.get_joint_acc_from_joint_vel,
+            dim=(self._num_instances, self._num_joints),
+            inputs=[
+                self.joint_vel.warp,
+                self._previous_joint_vel,
+                dt,
+            ],
+            outputs=[
+                self._joint_acc.data,
+            ],
+            device=self.device,
+        )
+        self._joint_acc.timestamp = self._sim_timestamp
+        body_ordering = self.body_ordering
+        wp.launch(
+            articulation_kernels.get_body_com_acc_from_body_com_vel_ordered,
+            dim=(self._num_instances, self._num_bodies),
+            device=self.device,
+            inputs=[
+                self._sim_bind_body_com_vel_w,
+                self._previous_body_com_vel,
+                body_ordering.user_to_backend if body_ordering is not None else None,
+                body_ordering is not None,
+                dt,
+            ],
+            outputs=[self._body_com_acc_w.data],
+        )
+        self._body_com_acc_w.timestamp = self._sim_timestamp
 
     def _update_body_state(self) -> None:
         """Resolve shared FK, then refresh this view's reordered body state after a manual write."""
@@ -841,24 +870,6 @@ class ArticulationData(BaseArticulationData):
 
         All values are relative to the world.
         """
-        if self._body_com_acc_w.timestamp < self._sim_timestamp:
-            # Finite-difference over the elapsed time, which spans the decimation when Newton owns it.
-            time_elapsed = self._sim_timestamp - self._body_com_acc_w.timestamp
-            body_ordering = self.body_ordering
-            wp.launch(
-                articulation_kernels.get_body_com_acc_from_body_com_vel_ordered,
-                dim=(self._num_instances, self._num_bodies),
-                device=self.device,
-                inputs=[
-                    self._sim_bind_body_com_vel_w,
-                    self._previous_body_com_vel,
-                    body_ordering.user_to_backend if body_ordering is not None else None,
-                    body_ordering is not None,
-                    time_elapsed,
-                ],
-                outputs=[self._body_com_acc_w.data],
-            )
-            self._body_com_acc_w.timestamp = self._sim_timestamp
         return self._body_com_acc_w_ta
 
     @property
@@ -1112,23 +1123,6 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to
         (num_instances, num_joints).
         """
-        if self._joint_acc.timestamp < self._sim_timestamp:
-            # note: we use finite differencing to compute acceleration
-            time_elapsed = self._sim_timestamp - self._joint_acc.timestamp
-            wp.launch(
-                articulation_kernels.get_joint_acc_from_joint_vel,
-                dim=(self._num_instances, self._num_joints),
-                inputs=[
-                    self.joint_vel.warp,
-                    self._previous_joint_vel,
-                    time_elapsed,
-                ],
-                outputs=[
-                    self._joint_acc.data,
-                ],
-                device=self.device,
-            )
-            self._joint_acc.timestamp = self._sim_timestamp
         return self._joint_acc_ta
 
     """
@@ -1958,7 +1952,8 @@ class ArticulationData(BaseArticulationData):
             self._previous_joint_vel.assign(self._sim_bind_joint_vel)
             self._actuator_stiffness.assign(self._sim_bind_joint_stiffness_sim)
             self._actuator_damping.assign(self._sim_bind_joint_damping_sim)
-        reset_timestamps([self._joint_acc, self._joint_pos_limits])
+        self._joint_acc.data.zero_()
+        reset_timestamps([self._joint_pos_limits])
 
     def _configure_body_ordering_buffers(self) -> None:
         """Allocate or release buffers owned only by nonidentity body ordering."""
@@ -1982,12 +1977,12 @@ class ArticulationData(BaseArticulationData):
             self._body_inertia_user = None
             self._body_com_pos_b_user = None
 
+        self._body_com_acc_w.data.zero_()
         reset_timestamps(
             [
                 self._body_link_vel_w,
                 self._body_com_pose_b,
                 self._body_com_pose_w,
-                self._body_com_acc_w,
                 self._body_state_w,
                 self._body_link_state_w,
                 self._body_com_state_w,

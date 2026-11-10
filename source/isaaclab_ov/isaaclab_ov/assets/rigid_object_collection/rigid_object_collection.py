@@ -21,6 +21,7 @@ from isaaclab.assets.rigid_object_collection.base_rigid_object_collection import
 from isaaclab.utils import clone, validate
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.warp import ProxyArray, memory
+from isaaclab.utils.warp.memory import resolve_1d_mask, resolve_ids
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_ov import tensor_types as TT
@@ -439,16 +440,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
-        if env_mask is not None:
-            env_mask_t = wp.to_torch(env_mask) if isinstance(env_mask, wp.array) else env_mask
-            env_ids = self._resolve_env_ids(torch.nonzero(env_mask_t)[:, 0])
-        else:
-            env_ids = self._ALL_ENV_INDICES
-        if body_mask is not None:
-            body_mask_t = wp.to_torch(body_mask) if isinstance(body_mask, wp.array) else body_mask
-            body_ids = self._resolve_body_ids(torch.nonzero(body_mask_t)[:, 0])
-        else:
-            body_ids = self._ALL_BODY_INDICES
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
+        body_ids = self._resolve_body_ids(body_mask=body_mask)
         self.assert_shape_and_dtype(body_poses, (self._num_instances, self._num_bodies), wp.transformf, "body_poses")
         wp.launch(
             shared_kernels.set_body_link_pose_to_sim_kernel(env_ids, body_ids),
@@ -535,16 +528,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
-        if env_mask is not None:
-            env_mask_t = wp.to_torch(env_mask) if isinstance(env_mask, wp.array) else env_mask
-            env_ids = self._resolve_env_ids(torch.nonzero(env_mask_t)[:, 0])
-        else:
-            env_ids = self._ALL_ENV_INDICES
-        if body_mask is not None:
-            body_mask_t = wp.to_torch(body_mask) if isinstance(body_mask, wp.array) else body_mask
-            body_ids = self._resolve_body_ids(torch.nonzero(body_mask_t)[:, 0])
-        else:
-            body_ids = self._ALL_BODY_INDICES
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
+        body_ids = self._resolve_body_ids(body_mask=body_mask)
         self.assert_shape_and_dtype(body_poses, (self._num_instances, self._num_bodies), wp.transformf, "body_poses")
         wp.launch(
             shared_kernels.set_body_com_pose_to_sim_kernel(env_ids, body_ids),
@@ -643,16 +628,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
-        if env_mask is not None:
-            env_mask_t = wp.to_torch(env_mask) if isinstance(env_mask, wp.array) else env_mask
-            env_ids = self._resolve_env_ids(torch.nonzero(env_mask_t)[:, 0])
-        else:
-            env_ids = self._ALL_ENV_INDICES
-        if body_mask is not None:
-            body_mask_t = wp.to_torch(body_mask) if isinstance(body_mask, wp.array) else body_mask
-            body_ids = self._resolve_body_ids(torch.nonzero(body_mask_t)[:, 0])
-        else:
-            body_ids = self._ALL_BODY_INDICES
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
+        body_ids = self._resolve_body_ids(body_mask=body_mask)
         self.assert_shape_and_dtype(
             body_velocities, (self._num_instances, self._num_bodies), wp.spatial_vectorf, "body_velocities"
         )
@@ -758,16 +735,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
-        if env_mask is not None:
-            env_mask_t = wp.to_torch(env_mask) if isinstance(env_mask, wp.array) else env_mask
-            env_ids = self._resolve_env_ids(torch.nonzero(env_mask_t)[:, 0])
-        else:
-            env_ids = self._ALL_ENV_INDICES
-        if body_mask is not None:
-            body_mask_t = wp.to_torch(body_mask) if isinstance(body_mask, wp.array) else body_mask
-            body_ids = self._resolve_body_ids(torch.nonzero(body_mask_t)[:, 0])
-        else:
-            body_ids = self._ALL_BODY_INDICES
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
+        body_ids = self._resolve_body_ids(body_mask=body_mask)
         self.assert_shape_and_dtype(
             body_velocities, (self._num_instances, self._num_bodies), wp.spatial_vectorf, "body_velocities"
         )
@@ -863,11 +832,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             env_mask: Environment mask. If None, all instances are updated.
                 Shape is (num_instances,).
         """
-        if env_mask is not None:
-            env_mask_t = wp.to_torch(env_mask) if isinstance(env_mask, wp.array) else env_mask
-            env_ids = self._resolve_env_ids(torch.nonzero(env_mask_t)[:, 0])
-        else:
-            env_ids = self._ALL_ENV_INDICES
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
         self.assert_shape_and_dtype(masses, (self._num_instances, self._num_bodies), wp.float32, "masses")
         wp.launch(
             memory.make_masked_copy(wp.float32, 2),
@@ -943,11 +908,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             env_mask: Environment mask. If None, all instances are updated.
                 Shape is (num_instances,).
         """
-        if env_mask is not None:
-            env_mask_t = wp.to_torch(env_mask) if isinstance(env_mask, wp.array) else env_mask
-            env_ids = self._resolve_env_ids(torch.nonzero(env_mask_t)[:, 0])
-        else:
-            env_ids = self._ALL_ENV_INDICES
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
         self.assert_shape_and_dtype(coms, (self._num_instances, self._num_bodies), wp.transformf, "coms")
         wp.launch(
             memory.make_masked_copy(wp.transformf, 2),
@@ -1033,11 +994,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             env_mask: Environment mask. If None, all instances are updated.
                 Shape is (num_instances,).
         """
-        if env_mask is not None:
-            env_mask_t = wp.to_torch(env_mask) if isinstance(env_mask, wp.array) else env_mask
-            env_ids = self._resolve_env_ids(torch.nonzero(env_mask_t)[:, 0])
-        else:
-            env_ids = self._ALL_ENV_INDICES
+        env_ids = self._resolve_env_ids(env_mask=env_mask)
         self.assert_shape_and_dtype(inertias, (self._num_instances, self._num_bodies, 9), wp.float32, "inertias")
         wp.launch(
             memory.make_masked_copy(wp.float32, 3),
@@ -1363,34 +1320,18 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     Internal helper.
     """
 
-    def _resolve_env_ids(self, env_ids) -> wp.array | torch.Tensor:
+    def _resolve_env_ids(self, env_ids=None, env_mask: wp.array | None = None) -> wp.array | torch.Tensor:
         """Resolve environment indices on ``self._device``.
 
         Tests sometimes hand us indices on CPU even when the sim runs on GPU; we move the
         resolved array onto ``self._device`` so kernel launches don't fail on a device
         mismatch.
         """
-        if env_ids is None or env_ids == slice(None):
-            return self._ALL_ENV_INDICES
-        if isinstance(env_ids, slice):
-            return wp.from_torch(wp.to_torch(self._ALL_ENV_INDICES)[env_ids])
-        if isinstance(env_ids, list):
-            return wp.array(env_ids, dtype=wp.int32, device=self._device)
-        if isinstance(env_ids, torch.Tensor):
-            return env_ids.to(device=self._device)
-        if isinstance(env_ids, wp.array) and str(env_ids.device) != self._device:
-            env_ids = wp.clone(env_ids, device=self._device)
-        return env_ids
+        return resolve_ids(ids=env_ids, mask=env_mask, all_ids=self._ALL_ENV_INDICES)
 
-    def _resolve_body_ids(self, body_ids) -> wp.array | torch.Tensor:
+    def _resolve_body_ids(self, body_ids=None, body_mask: wp.array | None = None) -> wp.array | torch.Tensor:
         """Resolve body indices on ``self._device``."""
-        if isinstance(body_ids, ProxyArray):
-            raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
-        if body_ids is None or body_ids == slice(None):
-            return self._ALL_BODY_INDICES
-        if isinstance(body_ids, list):
-            return wp.array(body_ids, dtype=wp.int32, device=self._device)
-        return body_ids
+        return resolve_ids(ids=body_ids, mask=body_mask, all_ids=self._ALL_BODY_INDICES)
 
     def _env_body_ids_to_view_ids(
         self, env_ids: torch.Tensor | wp.array, body_ids: torch.Tensor | wp.array, device: str = "cuda:0"
@@ -1400,6 +1341,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         Computes ``view_id = body_id * num_instances + env_id`` for each
         (env_id, body_id) pair.  The output array is laid out column-major over
         the (env, body) grid, matching the PhysX ``root_view`` ordering.
+        The mask writers convert their masks to ids for this: a binding write mask must cover all
+        ``num_bodies * num_instances`` rows, so an env mask does not fit.
 
         Args:
             env_ids: Environment indices.
@@ -1448,13 +1391,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         Returns:
             A ``wp.bool`` array of shape (num_instances,) on ``self._device``.
         """
-        if env_mask is None:
-            return self._ALL_TRUE_ENV_MASK
-        if isinstance(env_mask, torch.Tensor):
-            return wp.from_torch(env_mask.to(torch.bool), dtype=wp.bool)
-        if isinstance(env_mask, wp.array) and str(env_mask.device) != self._device:
-            env_mask = wp.clone(env_mask, device=self._device)
-        return env_mask
+        return resolve_1d_mask(mask=env_mask, all_mask=self._ALL_TRUE_ENV_MASK)
 
     def _resolve_body_mask(self, body_mask: wp.array | None) -> wp.array:
         """Resolve a body mask to a ``wp.bool`` array on ``self._device``.
@@ -1467,13 +1404,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         Returns:
             A ``wp.bool`` array of shape (num_bodies,) on ``self._device``.
         """
-        if body_mask is None:
-            return self._ALL_TRUE_BODY_MASK
-        if isinstance(body_mask, torch.Tensor):
-            return wp.from_torch(body_mask.to(torch.bool), dtype=wp.bool)
-        if isinstance(body_mask, wp.array) and str(body_mask.device) != self._device:
-            body_mask = wp.clone(body_mask, device=self._device)
-        return body_mask
+        return resolve_1d_mask(mask=body_mask, all_mask=self._ALL_TRUE_BODY_MASK)
 
     def _sim_env_ids_view(self, count: int) -> wp.array:
         """Return a cached prefix of the simulator-index scratch buffer."""

@@ -9,6 +9,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 import isaaclab.utils.math as math_utils
 
@@ -176,8 +177,19 @@ class Thruster:
         )
         self.curr_thrust[env_ids] = self.thrust_const[env_ids] * self._init_thruster_rps[env_ids] ** 2
 
-    def reset(self, env_ids: Sequence[int]) -> None:
-        """Reset all envs."""
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
+        """Reset all envs.
+
+        .. caution::
+            If both ``env_ids`` and ``env_mask`` are provided, ``env_ids`` is used: parameters are sampled per env id.
+
+        Args:
+            env_ids: Env indices to reset. If ``None``, resets all envs.
+            env_mask: Env mask. Shape is (num_envs,). Defaults to None.
+        """
+        if env_ids is None and env_mask is not None:
+            # parameters are sampled per reset env, so the mask becomes indices
+            env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
         self.reset_idx(env_ids)
 
     def motor_model_rate(self, error: torch.Tensor, mixing_factor: torch.Tensor):

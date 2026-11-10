@@ -33,6 +33,7 @@ from isaaclab.envs.utils.io_descriptors import (
     export_articulations_data,
     export_scene_data,
 )
+from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import use_stage
 from isaaclab.utils import validate
@@ -40,7 +41,6 @@ from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
 from isaaclab.utils.warp.memory import resolve_1d_mask
 
-from isaaclab_experimental.envs.interactive_scene_warp import InteractiveSceneWarp as InteractiveScene
 from isaaclab_experimental.utils.manager_call_switch import ManagerCallMode, ManagerCallSwitch
 
 # import logger
@@ -275,14 +275,8 @@ class ManagerBasedEnvWarp:
 
     @property
     def env_origins_wp(self) -> wp.array:
-        """Scene env origins as a warp ``vec3f`` array. Cached on first access."""
-        if not hasattr(self, "_env_origins_wp"):
-            origins = self.scene.env_origins
-            if isinstance(origins, wp.array):
-                self._env_origins_wp = origins
-            else:
-                self._env_origins_wp = wp.from_torch(origins, dtype=wp.vec3f)
-        return self._env_origins_wp
+        """Scene env origins as a warp ``vec3f`` array."""
+        return self.scene.env_origins.warp
 
     def resolve_env_mask(
         self,

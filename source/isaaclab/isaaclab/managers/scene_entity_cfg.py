@@ -7,10 +7,12 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING
+from dataclasses import MISSING, field
 from typing import TYPE_CHECKING
 
+import numpy as np
 import torch
+import warp as wp
 
 from ..utils import configclass
 
@@ -123,6 +125,22 @@ class SceneEntityCfg:
 
     """
 
+    joint_ids_wp: wp.array | None = field(default=None, metadata={"copy": False})
+    """The selected joints as an ``int32`` Warp array of indices, in the order of :attr:`joint_ids`.
+    Defaults to None.
+
+    Filled by :meth:`resolve_warp_ids` for the Warp terms; torch terms read :attr:`joint_ids`.
+    :func:`~isaaclab.utils.clone`, :func:`~isaaclab.utils.replace` and :func:`copy.deepcopy` share it.
+    """
+
+    body_ids_wp: wp.array | None = field(default=None, metadata={"copy": False})
+    """The selected bodies as an ``int32`` Warp array of indices, in the order of :attr:`body_ids`.
+    Defaults to None.
+
+    Filled by :meth:`resolve_warp_ids` for the Warp terms; torch terms read :attr:`body_ids`.
+    :func:`~isaaclab.utils.clone`, :func:`~isaaclab.utils.replace` and :func:`copy.deepcopy` share it.
+    """
+
     def resolve(self, scene: InteractiveScene):
         """Resolves the scene entity and converts the joint and body names to indices.
 
@@ -156,6 +174,25 @@ class SceneEntityCfg:
         # convert object collection names to indices based on regex
         self._resolve_object_collection_names(scene)
 
+    def resolve_warp_ids(self, scene: InteractiveScene):
+        """Fill :attr:`joint_ids_wp` and :attr:`body_ids_wp` with the selected indices, in selection order.
+
+        The Warp managers call it after :meth:`resolve` for their terms; torch terms do not need it.
+        A slice expands over the entity's joints or bodies (the sensors of a contact sensor) and a negative index
+        wraps, as in torch indexing.
+
+        Args:
+            scene: The interactive scene instance.
+        """
+        entity = scene[self.name]
+        if hasattr(entity, "num_joints"):
+            self.joint_ids_wp = wp.array(
+                np.arange(entity.num_joints, dtype=np.int32)[self.joint_ids], device=scene.device
+            )
+        num_bodies = entity.num_sensors if hasattr(entity, "num_sensors") else getattr(entity, "num_bodies", None)
+        if num_bodies is not None:
+            self.body_ids_wp = wp.array(np.arange(num_bodies, dtype=np.int32)[self.body_ids], device=scene.device)
+
     def finalize(self, device: str) -> None:
         """Move resolved index selections to the device.
 
@@ -171,6 +208,11 @@ class SceneEntityCfg:
             indices = getattr(self, name)
             if not isinstance(indices, (slice, torch.Tensor)):
                 setattr(self, name, torch.tensor(indices, dtype=torch.long, device=device))
+
+    def __deepcopy__(self, memo: dict) -> SceneEntityCfg:
+        """Copy as :meth:`copy` does, sharing the Warp ids: a Warp array cannot be deep-copied."""
+        memo[id(self)] = copied = self.copy()
+        return copied
 
     def _resolve_joint_names(self, scene: InteractiveScene):
         # convert joint names to indices based on regex

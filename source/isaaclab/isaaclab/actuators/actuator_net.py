@@ -18,10 +18,12 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 from ..utils import index_fill_
 from ..utils.assets import read_file
 from ..utils.types import ArticulationActions
+from ..utils.warp.memory import make_masked_fill
 from .actuator_pd import DCMotor
 
 if TYPE_CHECKING:
@@ -68,11 +70,23 @@ class ActuatorNetLSTM(DCMotor):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int]):
+    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None):
         # reset the hidden and cell states for the specified environments
-        with torch.no_grad():
-            index_fill_(self.sea_hidden_state_per_env, env_ids, 0.0, dim=1)
-            index_fill_(self.sea_cell_state_per_env, env_ids, 0.0, dim=1)
+        if env_mask is None or env_ids is not None:
+            with torch.no_grad():
+                index_fill_(self.sea_hidden_state_per_env, env_ids, 0.0, dim=1)
+                index_fill_(self.sea_cell_state_per_env, env_ids, 0.0, dim=1)
+        else:
+            # a mask alone resets with a Warp launch, which a CUDA graph recording of the reset holds
+            for state in (self.sea_hidden_state_per_env, self.sea_cell_state_per_env):
+                for layer in state:
+                    values = wp.from_torch(layer.view(self._num_envs, -1))
+                    wp.launch(
+                        make_masked_fill(wp.float32, 2),
+                        dim=values.shape,
+                        inputs=[0.0, env_mask, None, values],
+                        device=self._device,
+                    )
 
     def compute(
         self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
@@ -133,25 +147,53 @@ class ActuatorNetMLP(DCMotor):
             self._num_envs, history_length, self.num_joints, device=self._device
         )
         self._joint_vel_history = torch.zeros(self._num_envs, history_length, self.num_joints, device=self._device)
+        # each history shifts into a spare buffer and the two swap, so it stays at one of two addresses
+        self._joint_pos_error_spare = torch.zeros_like(self._joint_pos_error_history)
+        self._joint_vel_spare = torch.zeros_like(self._joint_vel_history)
+        self._history_shift = torch.tensor(
+            [(i - 1) % history_length for i in range(history_length)], device=self._device
+        )
 
     """
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int]):
+    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None):
         # reset the history for the specified environments
-        index_fill_(self._joint_pos_error_history, env_ids, 0.0)
-        index_fill_(self._joint_vel_history, env_ids, 0.0)
+        if env_mask is None or env_ids is not None:
+            index_fill_(self._joint_pos_error_history, env_ids, 0.0)
+            index_fill_(self._joint_vel_history, env_ids, 0.0)
+        else:
+            # a mask alone resets with a Warp launch, which a CUDA graph recording of the reset holds; it clears both
+            # buffers of each history, so it holds whichever the history is in
+            for history in (
+                self._joint_pos_error_history,
+                self._joint_pos_error_spare,
+                self._joint_vel_history,
+                self._joint_vel_spare,
+            ):
+                values = wp.from_torch(history.view(self._num_envs, -1))
+                wp.launch(
+                    make_masked_fill(wp.float32, 2),
+                    dim=values.shape,
+                    inputs=[0.0, env_mask, None, values],
+                    device=self._device,
+                )
 
     def compute(
         self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
     ) -> ArticulationActions:
         # move history queue by 1 and update top of history
         # -- positions
-        self._joint_pos_error_history = self._joint_pos_error_history.roll(1, 1)
+        torch.index_select(self._joint_pos_error_history, 1, self._history_shift, out=self._joint_pos_error_spare)
+        self._joint_pos_error_history, self._joint_pos_error_spare = (
+            self._joint_pos_error_spare,
+            self._joint_pos_error_history,
+        )
         self._joint_pos_error_history[:, 0] = control_action.joint_positions - joint_pos
         # -- velocity
-        self._joint_vel_history = self._joint_vel_history.roll(1, 1)
+        torch.index_select(self._joint_vel_history, 1, self._history_shift, out=self._joint_vel_spare)
+        self._joint_vel_history, self._joint_vel_spare = self._joint_vel_spare, self._joint_vel_history
         self._joint_vel_history[:, 0] = joint_vel
         # compute network inputs
         # -- positions

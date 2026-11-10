@@ -120,15 +120,42 @@ class BaseRayCaster(SensorBase):
             tuple(self.cfg.ray_cast_drift_range.get(key, (0.0, 0.0))) for key in ("x", "y", "z")
         )
         sample_ray_cast_drift = any(any(axis_range) for axis_range in ray_cast_range_list)
-        self._drift_sampled |= sample_drift or sample_ray_cast_drift
+        if (sample_drift or sample_ray_cast_drift) and not self._drift_sampled:
+            # Seed the masked-reset random states from torch's global generator on the first reset that samples
+            # drift, as main draws from it only then. A seed drawn during a capture would be replayed unchanged.
+            if wp.get_device(self._device).is_capturing:
+                raise RuntimeError("The first ray-caster reset that samples drift cannot run during a graph capture.")
+            wp.launch(
+                ray_caster_kernels.init_rng_state_kernel,
+                dim=self._view_count,
+                inputs=[int(torch.randint(0, 2**31 - 1, (1,)))],
+                outputs=[self._drift_rng_state],
+                device=self._device,
+            )
+            self._drift_sampled = True
         if not self._drift_sampled:
+            return
+        if env_mask is not None:
+            # Resample in a kernel from per-environment random states with the ranges as launch
+            # arguments, so the masked reset neither synchronizes nor allocates and can be captured.
+            # A zero range draws zero, which clears drift that was sampled before it was disabled.
+            wp.launch(
+                ray_caster_kernels.resample_drift_masked_kernel,
+                dim=self._view_count,
+                inputs=[
+                    reset_mask,
+                    wp.vec2f(*self.cfg.drift_range),
+                    wp.vec3f(*(low for low, _ in ray_cast_range_list)),
+                    wp.vec3f(*(high for _, high in ray_cast_range_list)),
+                    self._drift_rng_state,
+                ],
+                outputs=[self.drift.warp, self.ray_cast_drift.warp],
+                device=self._device,
+            )
             return
         # determine the selected batch size
         if env_ids is not None:
             num_envs_ids = len(range(self._view_count)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
-        elif env_mask is not None:
-            env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
-            num_envs_ids = len(env_ids)
         else:
             env_ids = slice(None)
             num_envs_ids = self._view_count
@@ -256,6 +283,8 @@ class BaseRayCaster(SensorBase):
         # Drift buffers are warp-first; reset uses explicit .torch views for sampling.
         self.drift = ProxyArray(wp.zeros(self._view_count, dtype=wp.vec3f, device=self._device))
         self.ray_cast_drift = ProxyArray(wp.zeros(self._view_count, dtype=wp.vec3f, device=self._device))
+        # Per-environment random states for masked drift resampling, seeded by the first reset that samples drift.
+        self._drift_rng_state = wp.empty(self._view_count, dtype=wp.uint32, device=self._device)
 
         # World-frame ray buffers
         self._ray_starts_w = wp.empty((self._view_count, self.num_rays), dtype=wp.vec3f, device=self._device)

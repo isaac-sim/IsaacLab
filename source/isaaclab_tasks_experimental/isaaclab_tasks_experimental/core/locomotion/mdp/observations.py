@@ -15,8 +15,8 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 from isaaclab_experimental.envs.utils.io_descriptors import generic_io_descriptor_warp
-from isaaclab_experimental.managers import SceneEntityCfg
 
+from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.warp.math import rotate_vec_to_body_frame, yaw_from_quat
 
 if TYPE_CHECKING:
@@ -57,9 +57,9 @@ def base_yaw_roll(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEn
     )
 
 
-# Inline Tier 1 access: derives projected gravity directly from root_link_pose_w,
-# avoiding the lazy TimestampedWarpBuffer which is not CUDA-graph-capturable.
-# See GRAPH_CAPTURE_MIGRATION.md in isaaclab_newton for background.
+# Inline Tier 1 access: derives projected gravity directly from root_link_pose_w.
+# Lazy asset data is recorded into CUDA graphs as well (a recording recomputes it on every replay),
+# so this can read asset.data.projected_gravity_b directly.
 
 
 @wp.kernel

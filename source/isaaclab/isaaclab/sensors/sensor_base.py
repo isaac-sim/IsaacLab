@@ -29,6 +29,7 @@ from ..cloner.cloner_cfg import expand_env_regex_ns
 from ..physics import PhysicsEvent, PhysicsManager
 from ..sim.utils.queries import get_first_matching_ancestor_prim
 from ..sim.utils.transforms import resolve_prim_pose
+from ..utils.buffers import TimestampedBuffer
 from ..utils.warp.memory import resolve_1d_mask
 from .kernels import invalidate_buffers_kernel, reset_envs_kernel, update_outdated_envs_kernel, update_timestamp_kernel
 
@@ -455,6 +456,8 @@ class SensorBase(ABC):
         # A negative timestamp means no backend sample has been read since initialization/reset.
         self._timestamp_last_update = wp.full(self._num_envs, -1.0, dtype=wp.float32, device=self._device)
         self._elapsed_since_update = wp.zeros(self._num_envs, dtype=wp.float64, device=self._device)
+        # the time of the last refresh, which reads stale in each new graph recording
+        self._refreshed = TimestampedBuffer(timestamp=0.0)
 
     def _invalidate_buffers(self, env_mask: wp.array | None = None) -> None:
         """Invalidate selected results without advancing sampling clocks; None selects all environments."""
@@ -468,7 +471,10 @@ class SensorBase(ABC):
 
     def _update_outdated_buffers(self) -> None:
         """Fills the sensor data for the outdated sensors."""
-        if not self._data_dirty:
+        # a CUDA graph replays without this check, so the refresh timestamp reads stale in each new GraphedCallable
+        # recording, which then holds the refresh (see TimestampedBuffer); the outdated mask selects the environments
+        # each replay updates
+        if not self._data_dirty and self._refreshed.timestamp >= 0.0:
             return
         self._update_buffers_impl(self._is_outdated)
         self._mark_buffers_updated()
@@ -483,6 +489,7 @@ class SensorBase(ABC):
             device=self._device,
         )
         self._data_dirty = False
+        self._refreshed.timestamp = 0.0
 
     @staticmethod
     def _process_batch(sensors: Sequence[SensorBase]) -> None:

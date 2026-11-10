@@ -19,9 +19,10 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 
+from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.warp.math import body_ang_vel_from_root, body_lin_vel_from_root, rotate_vec_to_body_frame
 
-from isaaclab_experimental.managers import ManagerTermBase, SceneEntityCfg
+from isaaclab_experimental.managers import ManagerTermBase
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
@@ -128,11 +129,9 @@ Root penalties.
 
 
 # Inline Tier 1 access: these rewards derive body-frame quantities directly from
-# root_link_pose_w (transformf) and root_com_vel_w (spatial_vectorf), avoiding the lazy
-# TimestampedWarpBuffer properties which are not CUDA-graph-capturable.
-# See GRAPH_CAPTURE_MIGRATION.md in isaaclab_newton for background.
-# If ArticulationData Tier 2 lazy update is made graph-safe in the future, these can
-# revert to reading the pre-computed .data buffers (simpler, avoids redundant rotations).
+# root_link_pose_w (transformf) and root_com_vel_w (spatial_vectorf).
+# Lazy asset data is recorded into CUDA graphs as well (a recording recomputes it on every replay),
+# so these can read the pre-computed .data buffers (simpler, avoids redundant rotations).
 
 
 @wp.kernel
@@ -246,16 +245,16 @@ Joint penalties.
 
 
 # TODO(warp-migration): Revisit whether 2D kernel + wp.atomic_add is faster than 1D with inner loop
-#  for the following masked reduction kernels. Profile with typical joint counts (12-30).
+#  for the following selected-joint reduction kernels. Profile with typical joint counts (12-30).
 @wp.kernel
-def _sum_sq_masked_kernel(
-    x: wp.array(dtype=wp.float32, ndim=2), joint_mask: wp.array(dtype=wp.bool), out: wp.array(dtype=wp.float32)
+def _sum_sq_selected_kernel(
+    x: wp.array(dtype=wp.float32, ndim=2), joint_ids: wp.array(dtype=wp.int32), out: wp.array(dtype=wp.float32)
 ):
     i = wp.tid()
     s = float(0.0)
-    for j in range(x.shape[1]):
-        if joint_mask[j]:
-            s += x[i, j] * x[i, j]
+    for k in range(joint_ids.shape[0]):
+        v = x[i, joint_ids[k]]
+        s += v * v
     out[i] = s
 
 
@@ -263,23 +262,22 @@ def joint_torques_l2(env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg = Sc
     """Penalize joint torques applied on the articulation using L2 squared kernel."""
     asset: Articulation = env.scene[asset_cfg.name]
     wp.launch(
-        kernel=_sum_sq_masked_kernel,
+        kernel=_sum_sq_selected_kernel,
         dim=env.num_envs,
-        inputs=[asset.actuators.applied_effort.warp, asset_cfg.joint_mask, out],
+        inputs=[asset.actuators.applied_effort.warp, asset_cfg.joint_ids_wp, out],
         device=env.device,
     )
 
 
 # TODO(warp-migration): Revisit 2D kernel + wp.atomic_add vs 1D inner loop.
 @wp.kernel
-def _sum_abs_masked_kernel(
-    x: wp.array(dtype=wp.float32, ndim=2), joint_mask: wp.array(dtype=wp.bool), out: wp.array(dtype=wp.float32)
+def _sum_abs_selected_kernel(
+    x: wp.array(dtype=wp.float32, ndim=2), joint_ids: wp.array(dtype=wp.int32), out: wp.array(dtype=wp.float32)
 ):
     i = wp.tid()
     s = float(0.0)
-    for j in range(x.shape[1]):
-        if joint_mask[j]:
-            s += wp.abs(x[i, j])
+    for k in range(joint_ids.shape[0]):
+        s += wp.abs(x[i, joint_ids[k]])
     out[i] = s
 
 
@@ -287,9 +285,9 @@ def joint_vel_l1(env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg) -> None
     """Penalize joint velocities on the articulation using an L1-kernel. Writes into ``out``."""
     asset: Articulation = env.scene[asset_cfg.name]
     wp.launch(
-        kernel=_sum_abs_masked_kernel,
+        kernel=_sum_abs_selected_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.joint_vel.warp, asset_cfg.joint_mask, out],
+        inputs=[asset.data.joint_vel.warp, asset_cfg.joint_ids_wp, out],
         device=env.device,
     )
 
@@ -298,9 +296,9 @@ def joint_vel_l2(env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg = SceneE
     """Penalize joint velocities on the articulation using L2 squared kernel."""
     asset: Articulation = env.scene[asset_cfg.name]
     wp.launch(
-        kernel=_sum_sq_masked_kernel,
+        kernel=_sum_sq_selected_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.joint_vel.warp, asset_cfg.joint_mask, out],
+        inputs=[asset.data.joint_vel.warp, asset_cfg.joint_ids_wp, out],
         device=env.device,
     )
 
@@ -309,26 +307,26 @@ def joint_acc_l2(env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg = SceneE
     """Penalize joint accelerations on the articulation using L2 squared kernel."""
     asset: Articulation = env.scene[asset_cfg.name]
     wp.launch(
-        kernel=_sum_sq_masked_kernel,
+        kernel=_sum_sq_selected_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.joint_acc.warp, asset_cfg.joint_mask, out],
+        inputs=[asset.data.joint_acc.warp, asset_cfg.joint_ids_wp, out],
         device=env.device,
     )
 
 
 # TODO(warp-migration): Revisit 2D kernel + wp.atomic_add vs 1D inner loop.
 @wp.kernel
-def _sum_abs_diff_masked_kernel(
+def _sum_abs_diff_selected_kernel(
     a: wp.array(dtype=wp.float32, ndim=2),
     b: wp.array(dtype=wp.float32, ndim=2),
-    joint_mask: wp.array(dtype=wp.bool),
+    joint_ids: wp.array(dtype=wp.int32),
     out: wp.array(dtype=wp.float32),
 ):
     i = wp.tid()
     s = float(0.0)
-    for j in range(a.shape[1]):
-        if joint_mask[j]:
-            s += wp.abs(a[i, j] - b[i, j])
+    for k in range(joint_ids.shape[0]):
+        j = joint_ids[k]
+        s += wp.abs(a[i, j] - b[i, j])
     out[i] = s
 
 
@@ -336,9 +334,9 @@ def joint_deviation_l1(env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg = 
     """Penalize joint positions that deviate from the default one."""
     asset: Articulation = env.scene[asset_cfg.name]
     wp.launch(
-        kernel=_sum_abs_diff_masked_kernel,
+        kernel=_sum_abs_diff_selected_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.joint_pos.warp, asset.data.default_joint_pos.warp, asset_cfg.joint_mask, out],
+        inputs=[asset.data.joint_pos.warp, asset.data.default_joint_pos.warp, asset_cfg.joint_ids_wp, out],
         device=env.device,
     )
 
@@ -348,25 +346,25 @@ def joint_deviation_l1(env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg = 
 def _joint_pos_limits_kernel(
     joint_pos: wp.array(dtype=wp.float32, ndim=2),
     soft_joint_pos_limits: wp.array(dtype=wp.vec2f, ndim=2),
-    joint_mask: wp.array(dtype=wp.bool),
+    joint_ids: wp.array(dtype=wp.int32),
     out: wp.array(dtype=wp.float32),
 ):
     i = wp.tid()
     s = float(0.0)
-    for j in range(joint_pos.shape[1]):
-        if joint_mask[j]:
-            pos = joint_pos[i, j]
-            lim = soft_joint_pos_limits[i, j]
-            lower = lim.x
-            upper = lim.y
-            # penalty for exceeding lower limit
-            below = lower - pos
-            if below > 0.0:
-                s += below
-            # penalty for exceeding upper limit
-            above = pos - upper
-            if above > 0.0:
-                s += above
+    for k in range(joint_ids.shape[0]):
+        j = joint_ids[k]
+        pos = joint_pos[i, j]
+        lim = soft_joint_pos_limits[i, j]
+        lower = lim.x
+        upper = lim.y
+        # penalty for exceeding lower limit
+        below = lower - pos
+        if below > 0.0:
+            s += below
+        # penalty for exceeding upper limit
+        above = pos - upper
+        if above > 0.0:
+            s += above
     out[i] = s
 
 
@@ -376,7 +374,7 @@ def joint_pos_limits(env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg = Sc
     wp.launch(
         kernel=_joint_pos_limits_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.joint_pos.warp, asset.data.soft_joint_pos_limits.warp, asset_cfg.joint_mask, out],
+        inputs=[asset.data.joint_pos.warp, asset.data.soft_joint_pos_limits.warp, asset_cfg.joint_ids_wp, out],
         device=env.device,
     )
 
