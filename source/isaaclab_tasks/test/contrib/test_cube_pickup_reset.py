@@ -83,6 +83,7 @@ def test_viewer_reset_does_not_record_an_unfinished_episode() -> None:
     env.common_step_counter = 0
     env._sim_step_counter = 0
     env._physics_handles_decimation = False
+    env._physics_handles_actions = False
     env.render_enabled = False
     env.has_rtx_sensors = False
     env.video_recorders = []
