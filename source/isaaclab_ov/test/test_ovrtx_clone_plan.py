@@ -231,7 +231,7 @@ def test_native_replication_applies_compositions_then_positions(
 
 
 @pytest.mark.rendering
-def test_default_native_replication_keeps_stdout_quiet(capfd):
+def test_default_native_replication_keeps_stdout_quiet(capfd) -> None:
     """Default logging prints no OVRTX warning per attribute of each native clone.
 
     A slow stdout consumer blocks the native writer, so per-clone output stalls large scenes.

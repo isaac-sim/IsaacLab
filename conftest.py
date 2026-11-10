@@ -19,8 +19,9 @@ and registered in the repo-root ``pyproject.toml``. Select them with the standar
 e.g. ``pytest -m unit source/isaaclab/test`` or ``pytest -m "not unit" source/isaaclab/test``.
 
 Also loads ``tools/ovrtx_log.py``, which replays the OVRTX renderer log per test, so every suite that
-builds a renderer reports what it logged the same way, and ``tools/hang_dump.py``, which lets the CI
-runner ask this process for a stack dump before it kills it for hanging.
+builds a renderer reports what it logged the same way, ``tools/hang_dump.py``, which lets the CI
+runner ask this process for a stack dump before it kills it for hanging, and ``tools/captured_output.py``,
+which hands the runner the output of passing tests that pytest captures and never prints.
 """
 
 from __future__ import annotations
@@ -36,7 +37,7 @@ except ModuleNotFoundError as exc:
 else:
     wp.config.enable_backward = False
 
-pytest_plugins = ["tools.ovrtx_log", "tools.hang_dump"]
+pytest_plugins = ["tools.ovrtx_log", "tools.hang_dump", "tools.captured_output"]
 
 JOURNAL_ENV_VAR = "ISAACLAB_TEST_JOURNAL"
 """Environment variable naming the crash-journal file. Unset (the default) disables journaling."""

@@ -11,11 +11,12 @@ import select
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from collections import Counter
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import pytest
 import tomllib
@@ -25,6 +26,7 @@ from prettytable import PrettyTable
 from isaaclab.test.utils import resolve_test_sim_device
 
 # Local imports
+import captured_output  # isort: skip
 import hang_dump  # isort: skip
 import ovrtx_log  # isort: skip
 import test_settings as test_settings  # isort: skip
@@ -99,7 +101,8 @@ any reader slower than the test, such as a benchmark harness relaying it line by
 """
 
 OUTPUT_EXCERPT_BYTES = 64 * 1024
-"""Bytes printed from each end of a stream over :data:`OUTPUT_BUDGET_BYTES`, keeping it out of the job log."""
+"""Bytes printed from each end of a stream when the output is over :data:`OUTPUT_BUDGET_BYTES`, keeping it out of
+the job log."""
 
 SHUTDOWN_GRACE_PERIOD = 30
 """Seconds to wait for clean exit after the JUnit XML report file appears.
@@ -298,23 +301,38 @@ _OUTPUT_LOCK = threading.Lock()
 
 
 def _excerpt(data: bytes) -> bytes:
-    """Return ``data``, or only its two ends around an omission marker when it exceeds the output budget."""
-    if len(data) <= OUTPUT_BUDGET_BYTES:
+    """Return ``data``, or only its two ends around an omission marker when it is longer than both."""
+    if len(data) <= 2 * OUTPUT_EXCERPT_BYTES:
         return data
     omitted = len(data) - 2 * OUTPUT_EXCERPT_BYTES
     return data[:OUTPUT_EXCERPT_BYTES] + f"\n... {omitted} bytes omitted ...\n".encode() + data[-OUTPUT_EXCERPT_BYTES:]
+
+
+def _describe_output_flood(output_size: int, streams: tuple[bytes, ...]) -> str:
+    """Return why output of ``output_size`` bytes fails the budget, quoting its most repeated nonblank line."""
+    counts = Counter()
+    for data in streams:
+        # Digits vary per environment and step; masking them groups one log statement under one line.
+        counts.update(re.sub(rb"\d+", b"N", line) for line in data.splitlines() if line.strip())
+    msg = f"printed {output_size / 2**20:.1f} MiB, over the {OUTPUT_BUDGET_BYTES / 2**20:.0f} MiB output budget"
+    if counts:
+        line, count = counts.most_common(1)[0]
+        msg += f"; most repeated line ({count}x): {line[:300].decode('utf-8', errors='replace')}"
+    return msg
 
 
 def _print_captured_output(label, options, stdout_data, stderr_data):
     """Print one process's captured output in a single block, unless it was already echoed as it arrived."""
     if options.echo:
         return
+    if len(stdout_data) + len(stderr_data) > OUTPUT_BUDGET_BYTES:
+        stdout_data, stderr_data = _excerpt(stdout_data), _excerpt(stderr_data)
     with _OUTPUT_LOCK:
         sys.stdout.write(f"\n{'=' * 30} output of {label} {'=' * 30}\n")
         sys.stdout.flush()
-        sys.stdout.buffer.write(_excerpt(stdout_data))
+        sys.stdout.buffer.write(stdout_data)
         sys.stdout.flush()
-        sys.stderr.buffer.write(_excerpt(stderr_data))
+        sys.stderr.buffer.write(stderr_data)
         sys.stderr.flush()
         sys.stdout.write(f"{'=' * 30} end of {label} {'=' * 30}\n")
         sys.stdout.flush()
@@ -358,9 +376,9 @@ def _dump_hung_process_stacks(process, stdout_fd, stderr_fd, env, options):
         options: How the child is watched: its ``pytest-xdist`` worker count and whether to echo its output.
 
     Returns:
-        Tuple of ``(dump_section, stdout_bytes, stderr_bytes)``.  *dump_section* is a report section, or
+        Tuple of ``(dump_section, stdout_data, stderr_data)``.  *dump_section* is a report section, or
         ``""`` when the process wrote nothing -- the case when it is wedged somewhere the signal cannot be
-        delivered, or died before it could answer.  The byte strings are whatever the child wrote to its own
+        delivered, or died before it could answer.  The two bytearrays are whatever the child wrote to its own
         streams while being dumped, and belong in the captured output either way.
     """
     stdout_data = bytearray()
@@ -464,6 +482,8 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
 
         while process.poll() is None:
             elapsed = time.time() - start_time
+            # Past the budget, output is still captured but no longer echoed, also while stacks are dumped.
+            echo = options.echo and len(stdout_data) + len(stderr_data) <= OUTPUT_BUDGET_BYTES
 
             if not started and (
                 b"KitLauncher initialization complete" in stderr_data
@@ -493,7 +513,7 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
                 # Ask the process where it is stuck before killing it -- SIGKILL below cannot be caught,
                 # so this is the only chance to get a stack out of it.
                 hang_stacks, dump_stdout, dump_stderr = _dump_hung_process_stacks(
-                    process, stdout_fd, stderr_fd, env, options
+                    process, stdout_fd, stderr_fd, env, replace(options, echo=echo)
                 )
                 stdout_data += dump_stdout
                 stderr_data += dump_stderr
@@ -511,7 +531,6 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
                 wall_time = time.time() - start_time
                 return -1, bytes(stdout_data), bytes(stderr_data), kill_reason, wall_time, pre_kill_diag
 
-            echo = options.echo and len(stdout_data) + len(stderr_data) <= OUTPUT_BUDGET_BYTES
             stdout_chunk, stderr_chunk = _drain_ready_output(process, stdout_fd, stderr_fd, echo=echo)
             stdout_data += stdout_chunk
             stderr_data += stderr_chunk
@@ -1037,10 +1056,13 @@ def _run_one_pass(
     hang_dump_file = os.path.abspath(os.path.join(HANG_DUMP_DIR, f"test-hangdump-{report_slug}{suffix}.log"))
     # The child opens this path directly, so the directory has to exist before it starts.
     os.makedirs(os.path.dirname(hang_dump_file), exist_ok=True)
+    # Outside tests/, which CI uploads: it holds every passing test's output, and is removed once read.
+    captured_output_file = os.path.join(tempfile.gettempdir(), f"isaaclab-captured-output-{report_slug}{suffix}.log")
     pass_env = {
         **ctx.env,
         JOURNAL_ENV_VAR: journal_file,
         hang_dump.DUMP_PATH_ENV_VAR: hang_dump_file,
+        captured_output.PATH_ENV_VAR: captured_output_file,
         # Absolute for the same reason as the journal: the test process saves its renderer log from
         # inside a fixture, so a test that changed directory would leave the artifact under the
         # temporary cwd.
@@ -1080,7 +1102,7 @@ def _run_one_pass(
     while True:
         # Clear the renderer log too: read after the subprocess dies, it is the only renderer output a
         # crash, hang, or timeout reports, and a leftover would be attributed to the wrong run.
-        for stale_file in (report_file, journal_file, hang_dump_file, ovrtx_log.LOG_PATH):
+        for stale_file in (report_file, journal_file, hang_dump_file, captured_output_file, ovrtx_log.LOG_PATH):
             with contextlib.suppress(FileNotFoundError):
                 os.remove(stale_file)
 
@@ -1094,6 +1116,12 @@ def _run_one_pass(
         )
         _print_captured_output(pass_file_label, ctx.capture, stdout_data, stderr_data)
         total_wall_time += wall_time
+        # Output of passing tests, which pytest captured and never printed to the streams above.
+        captured_data = b""
+        with contextlib.suppress(FileNotFoundError):
+            with open(captured_output_file, "rb") as file:
+                captured_data = file.read()
+            os.remove(captured_output_file)
 
         has_report = os.path.exists(report_file)
 
@@ -1253,6 +1281,25 @@ def _run_one_pass(
 
     has_test_failures = errors > 0 or failures > 0
 
+    output_size = len(stdout_data) + len(stderr_data) + len(captured_data)
+    if output_size > OUTPUT_BUDGET_BYTES:
+        msg = _describe_output_flood(output_size, (stdout_data, stderr_data, captured_data))
+        logger.error(f"{ctx.test_file}{suffix}: {msg}")
+        if not has_test_failures:
+            return _make_failed_pass_result(
+                "output_budget",
+                pass_file_label,
+                msg,
+                report_file,
+                stdout_data,
+                stderr_data,
+                time_elapsed,
+                wall_time,
+                report=report,
+                tests=tests,
+                skipped=skipped,
+            )
+
     shutdown_hanged = kill_reason in ("shutdown_hang", "timeout") and not has_test_failures
     no_tests_collected = returncode == pytest.ExitCode.NO_TESTS_COLLECTED
     expected_empty_selection = k_expr is not None or ctx.ci_marker or skipped > 0
@@ -1289,31 +1336,6 @@ def _run_one_pass(
             tests=tests,
             skipped=skipped,
         )
-
-    output_size = len(stdout_data) + len(stderr_data)
-    if output_size > OUTPUT_BUDGET_BYTES:
-        # Digits vary per environment and step; masking them groups one log statement under one line.
-        lines = (re.sub(rb"\d+", b"N", line) for line in (*stdout_data.splitlines(), *stderr_data.splitlines()))
-        line, count = Counter(line for line in lines if line.strip()).most_common(1)[0]
-        msg = (
-            f"printed {output_size / 2**20:.1f} MiB, over the {OUTPUT_BUDGET_BYTES / 2**20:.0f} MiB output budget;"
-            f" most repeated line ({count}x): {line[:300].decode('utf-8', errors='replace')}"
-        )
-        logger.error(f"{ctx.test_file}{suffix}: {msg}")
-        if not has_test_failures:
-            return _make_failed_pass_result(
-                "output_budget",
-                pass_file_label,
-                msg,
-                report_file,
-                stdout_data,
-                stderr_data,
-                time_elapsed,
-                wall_time,
-                report=report,
-                tests=tests,
-                skipped=skipped,
-            )
 
     was_failure = has_test_failures or (returncode != 0 and not shutdown_hanged)
 

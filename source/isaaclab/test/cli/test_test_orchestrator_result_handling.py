@@ -199,42 +199,39 @@ def test_nonzero_pytest_exit_preserves_reported_tests(monkeypatch, tmp_path: Pat
     assert "pytest exited with code 2" in xml
 
 
-def test_output_over_budget_fails_and_names_the_repeated_line(monkeypatch, tmp_path: Path) -> None:
-    """A passing file that floods its output must fail, quoting the log statement that floods it."""
+def test_passing_test_over_output_budget_fails_and_names_the_repeated_line(monkeypatch, tmp_path: Path) -> None:
+    """A passing test that floods its output must fail its file, although pytest prints none of that output."""
     orchestrator = _load_orchestrator_module()
+    (tmp_path / "pyproject.toml").write_text("", encoding="utf-8")
+    # The repo-root conftest.py registers the plugin by the same name.
+    (tmp_path / "conftest.py").write_text('pytest_plugins = ["tools.captured_output"]\n', encoding="utf-8")
     test_file = tmp_path / "test_sample.py"
-    test_file.write_text("def test_present():\n    pass\n", encoding="utf-8")
-    report_paths: list[Path] = []
-    flood = b"".join(b"[Warning] attr /World/envs/env_%d/material has no valid data\n\n" % i for i in range(100_000))
-
-    def _capture(*_args, report_file: str, **_kwargs):
-        report_paths.append(Path(report_file))
-        _write_partial_junit_report(report_file)
-        return 0, flood, b"", "", 0.1, ""
-
-    monkeypatch.setattr(orchestrator, "capture_test_output_with_timeout", _capture)
+    test_file.write_text(
+        "import os\n\n"
+        "def test_present():\n"
+        "    for i in range(100_000):\n"
+        "        os.write(1, b'[Warning] attr /World/envs/env_%d/material has no valid data\\n' % i)\n",
+        encoding="utf-8",
+    )
     monkeypatch.chdir(tmp_path)
     context = orchestrator._PassContext(
         test_file=str(test_file),
         file_name=test_file.name,
         workspace_root=str(tmp_path),
         ci_marker=None,
-        timeout=10,
-        startup_deadline=1,
-        env={},
+        timeout=60,
+        startup_deadline=0,
+        env={**os.environ, "PYTHONPATH": str(TOOLS_DIR.parent)},
         inject_shard_select=False,
         pytest_targets=[str(test_file)],
-        capture=orchestrator._CaptureOptions(),
+        capture=orchestrator._CaptureOptions(echo=False),
     )
 
     report, status, was_failure = orchestrator._run_one_pass(context, k_expr=None, suffix="")
 
-    assert len(flood) > orchestrator.OUTPUT_BUDGET_BYTES
     assert status["result"] == "FAILED"
-    assert status["errors"] == 1
-    assert status["tests"] == 3
     assert was_failure
-    xml = report_paths[0].read_text(encoding="utf-8")
+    xml = next((tmp_path / "tests").glob("test-reports-*.xml")).read_text(encoding="utf-8")
     assert "test_present" in xml
     assert "output budget" in xml
     assert "(100000x): [Warning] attr /World/envs/env_N/material has no valid data" in xml
