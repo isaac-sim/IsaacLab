@@ -187,10 +187,26 @@ SPECIALIZED_KITLESS_CASES = tuple(
 _CABLE_AOVS = (RenderBufferKind.RGB, RenderBufferKind.ALBEDO, RenderBufferKind.DEPTH, RenderBufferKind.NORMALS)
 # Gaussian-splat scenes (see ``rendering_scene_cfgs``).
 _GAUSSIAN_RGB_DEPTH = (RenderBufferKind.RGB, RenderBufferKind.DISTANCE_TO_IMAGE_PLANE)
-GAUSSIAN_KIT_CASES = tuple(
-    RenderCase(physics, renderer, _GAUSSIAN_RGB_DEPTH, scene=scene)
-    for scene in ("gaussian_splats_valiant_1env", "gaussian_splats_endeavor_4envs")
-    for physics, renderer in (("physx", "isaac_rtx"), ("newton", "newton_warp"))
+GAUSSIAN_KIT_CASES = (
+    RenderCase(
+        "physx",
+        "isaac_rtx",
+        (RenderBufferKind.RGB,),
+        scene="gaussian_splats_valiant_1env",
+        marks=(
+            pytest.mark.xfail(
+                reason="NVBUG 7071342: Valiant RTX RGB can mismatch the golden.",
+                raises=AssertionError,
+                strict=False,
+            ),
+        ),
+    ),
+    RenderCase("physx", "isaac_rtx", (RenderBufferKind.DISTANCE_TO_IMAGE_PLANE,), scene="gaussian_splats_valiant_1env"),
+    RenderCase("newton", "newton_warp", _GAUSSIAN_RGB_DEPTH, scene="gaussian_splats_valiant_1env"),
+    *(
+        RenderCase(physics, renderer, _GAUSSIAN_RGB_DEPTH, scene="gaussian_splats_endeavor_4envs")
+        for physics, renderer in (("physx", "isaac_rtx"), ("newton", "newton_warp"))
+    ),
 )
 # OVRTX 0.6 returns no finite splat depth, so these scenes are compared on RGB only.
 GAUSSIAN_KITLESS_CASES = tuple(
