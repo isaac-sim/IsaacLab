@@ -340,6 +340,7 @@ def test_frame_different_poses_multi_tiled_camera(setup_camera):
 
     # Play sim
     sim.reset()
+    assert all(camera._renderer is tiled_cameras[0]._renderer for camera in tiled_cameras)
 
     # Simulate physics
     for _ in range(10):
