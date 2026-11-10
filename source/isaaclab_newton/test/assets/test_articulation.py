@@ -1421,9 +1421,9 @@ def test_floating_articulation_root_and_wrench_response(scene: _Scene, monkeypat
     actuator_reset = actuator.reset
     reset_env_ids = []
 
-    def record_actuator_reset(env_ids: torch.Tensor | None = None) -> None:
+    def record_actuator_reset(env_ids: torch.Tensor | None = None, env_mask: wp.array | None = None) -> None:
         reset_env_ids.append(env_ids)
-        actuator_reset(env_ids)
+        actuator_reset(env_ids, env_mask)
 
     monkeypatch.setattr(actuator, "reset", record_actuator_reset)
     articulation.reset()
