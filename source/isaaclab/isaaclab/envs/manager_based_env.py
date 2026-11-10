@@ -34,6 +34,31 @@ from .utils.video_recorder import VideoRecorder
 logger = logging.getLogger(__name__)
 
 
+def _physics_can_handle_actions(env: ManagerBasedEnv) -> bool:
+    """Whether nothing runs between the physics steps of one environment step.
+
+    Renders, recorder terms that record every physics step, and sensors that refresh on update at times other than
+    whole environment steps all run there.
+
+    Args:
+        env: Environment with its managers loaded.
+
+    Returns:
+        Whether the physics backend may run the environment's actions and decimation loop inside its step.
+    """
+    if env.cfg.sim.render_interval % env.cfg.decimation != 0 or env.recorder_manager.records_physics_steps:
+        return False
+    eager_sensors = not env.scene.cfg.lazy_sensor_update
+    for sensor in env.scene.sensors.values():
+        # a sensor that refreshes on update samples between env steps unless its period spans whole env steps
+        periods = sensor.cfg.update_period / env.step_dt
+        if (eager_sensors or getattr(sensor.cfg, "history_length", 0) > 0) and (
+            round(periods) == 0 or not math.isclose(periods, round(periods), abs_tol=1e-6)
+        ):
+            return False
+    return True
+
+
 class ManagerBasedEnv:
     """The base environment encapsulates the simulation scene and the environment managers for
     the manager-based workflow.
@@ -95,7 +120,8 @@ class ManagerBasedEnv:
         self.cfg = cfg
         # initialize internal variables
         self._physics_handles_decimation = False
-        self._physics_handles_actions = False
+        # decided on the first step
+        self._physics_handles_actions: bool | None = None
 
         # set the seed for the environment
         if self.cfg.seed is not None:
@@ -208,25 +234,7 @@ class ManagerBasedEnv:
         report_activity("Setting up managers")
         self.load_managers()
         report_activity(None)
-        # let the physics backend run the actions, asset writes and decimation loop inside its step when it can,
-        # unless renders, recorders or sensors must run between the physics steps of one environment step
-        eager_sensors = not self.scene.cfg.lazy_sensor_update
-        sensors_sample_physics_steps = False
-        for sensor in self.scene.sensors.values():
-            # a sensor that refreshes on update samples between env steps unless its period spans whole env steps
-            periods = sensor.cfg.update_period / self.step_dt
-            if (eager_sensors or getattr(sensor.cfg, "history_length", 0) > 0) and (
-                round(periods) == 0 or not math.isclose(periods, round(periods), abs_tol=1e-6)
-            ):
-                sensors_sample_physics_steps = True
-        if (
-            self.cfg.sim.render_interval % self.cfg.decimation == 0
-            and not self.recorder_manager.records_physics_steps
-            and not sensors_sample_physics_steps
-        ):
-            self._physics_handles_actions = self.sim.backend_manager.handle_actions(self.action_manager, self.scene)
         self.sim.backend_manager.set_decimation(self.cfg.decimation)
-        self._physics_handles_decimation = self.sim.backend_manager.handles_decimation()
 
         # Wire live plots into all active visualizers (Newton, Rerun, Viser) and create
         # Kit omni.ui ManagerLiveVisualizer widgets when a GUI window is present.
@@ -534,6 +542,16 @@ class ManagerBasedEnv:
         # return observations
         return self.obs_buf, self.extras
 
+    def _handle_physics_actions(self):
+        """Let the physics backend run the actions, asset writes and decimation loop inside its step when it can.
+
+        Decided on the first step, so code that wraps the action manager after construction can mark it not graphable.
+        """
+        self._physics_handles_actions = _physics_can_handle_actions(self) and self.sim.backend_manager.handle_actions(
+            self.action_manager, self.scene
+        )
+        self._physics_handles_decimation = self.sim.backend_manager.handles_decimation()
+
     def step(self, action: torch.Tensor) -> tuple[VecEnvObs, dict]:
         """Execute one time-step of the environment's dynamics.
 
@@ -561,6 +579,8 @@ class ManagerBasedEnv:
             A tuple containing the observations and extras.
         """
         self.action_manager.process_action(action.to(self.device))
+        if self._physics_handles_actions is None:
+            self._handle_physics_actions()
 
         self.recorder_manager.record_pre_step()
 

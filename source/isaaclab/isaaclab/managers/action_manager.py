@@ -225,6 +225,7 @@ class ActionManager(ManagerBase):
 
         # call the base class constructor (this prepares the terms)
         super().__init__(cfg, env)
+        self._graphable = True
         # fixed once the terms are built
         self._action_term_dim = [term.action_dim for term in self._terms.values()]
         self._total_action_dim = sum(self._action_term_dim)
@@ -288,8 +289,16 @@ class ActionManager(ManagerBase):
 
     @property
     def is_graphable(self) -> bool:
-        """Whether :meth:`apply_action` can be recorded into a CUDA graph."""
-        return all(term.is_graphable for term in self._terms.values())
+        """Whether :meth:`apply_action` can be recorded into a CUDA graph.
+
+        True when all terms are. Set it to False before the environment's first step to keep :meth:`apply_action` in
+        the environment's loop, for example when wrapping it in Python.
+        """
+        return self._graphable and all(term.is_graphable for term in self._terms.values())
+
+    @is_graphable.setter
+    def is_graphable(self, value: bool):
+        self._graphable = value
 
     @property
     def has_debug_vis_implementation(self) -> bool:
