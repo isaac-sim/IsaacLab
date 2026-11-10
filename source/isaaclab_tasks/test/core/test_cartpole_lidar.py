@@ -44,9 +44,10 @@ from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.ov]
 
 
-def test_tiled_lidar_returns_are_local_to_each_environment():
+@pytest.mark.parametrize("task", ("Isaac-Cartpole-Camera", "Isaac-Cartpole-Camera-Direct"))
+def test_tiled_lidar_returns_are_local_to_each_environment(task):
     """Each environment's points land on its own cart, and the shared step still returns the camera."""
-    env_cfg = load_cfg_from_registry("Isaac-Cartpole-Camera", "env_cfg_entry_point")
+    env_cfg = load_cfg_from_registry(task, "env_cfg_entry_point")
     env_cfg = resolve_presets(env_cfg, {"lidar"})
     env_cfg.scene.num_envs = 4
     env_cfg.sim.device = _DEVICE
@@ -55,7 +56,7 @@ def test_tiled_lidar_returns_are_local_to_each_environment():
     sim_utils.create_new_stage()
     env = None
     try:
-        env = gym.make("Isaac-Cartpole-Camera", cfg=env_cfg)
+        env = gym.make(task, cfg=env_cfg)
         env.unwrapped.sim._app_control_on_stop_handle = None
         obs, _ = env.reset()
         actions = torch.zeros(env.action_space.shape, device=env.unwrapped.device)
@@ -74,6 +75,9 @@ def test_tiled_lidar_returns_are_local_to_each_environment():
         assert torch.isfinite(reward).all()
         assert torch.isfinite(obs["policy"]).all()
         assert obs["policy"].shape[-1] == 4 + points.shape[1] * 3
+        assert obs["critic"].shape[-1] == 4
+        assert env.unwrapped.single_observation_space["policy"].shape[-1] == obs["policy"].shape[-1]
+        assert env.unwrapped.single_observation_space["critic"].shape[-1] == 4
 
         for index in range(points.shape[0]):
             hits = points[index][valid[index]]
