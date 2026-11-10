@@ -72,6 +72,8 @@ class MJWarpSolver(NewtonSolver):
         kwargs.pop("ls_parallel", None)
         if deterministic:
             kwargs["disable_sensors"] = True
+        if model._has_body_variants:
+            kwargs["separate_worlds"] = True
         return self.solver_class(model, **kwargs)
 
     def supports_capture(self) -> bool:

@@ -12,6 +12,7 @@ from types import SimpleNamespace
 import gymnasium as gym
 import numpy as np
 import pytest
+import torch
 
 from isaaclab.envs import ManagerBasedRLEnv
 
@@ -102,3 +103,54 @@ def test_obs_space_follows_clip_constraint():
             assert term_space.shape == expected_shapes[term_name]
             assert np.all(term_space.low == low)
             assert np.all(term_space.high == high)
+
+
+@pytest.mark.parametrize("automatic,manual", [(True, False), (False, True), (True, True)])
+def test_step_forwards_reset_state_before_observations(automatic: bool, manual: bool):
+    """Both reset routes reconcile derived poses exactly once before observations read them."""
+    calls = []
+    env = object.__new__(ManagerBasedRLEnv)
+    env._is_closed = True
+    env.cfg = SimpleNamespace(decimation=1, sim=SimpleNamespace(dt=0.01, render_interval=1), compute_final_obs=False)
+    env.scene = SimpleNamespace(num_envs=2, write_data_to_sim=lambda: None, update=lambda dt: None)
+    env.sim = SimpleNamespace(
+        device="cpu",
+        is_rendering=False,
+        step=lambda render: None,
+        consume_reset_request=lambda: manual,
+        forward=lambda: calls.append("forward"),
+    )
+    env._physics_handles_decimation = False
+    env.render_enabled = False
+    env._sim_step_counter = 0
+    env.episode_length_buf = torch.zeros(2, dtype=torch.long)
+    env.common_step_counter = 0
+    env.extras = {}
+    env.action_manager = SimpleNamespace(process_action=lambda action: None, apply_action=lambda: None)
+
+    def recorder(*args):
+        return None
+
+    env.recorder_manager = SimpleNamespace(
+        record_pre_step=recorder,
+        record_post_physics_decimation_step=recorder,
+        record_post_step=recorder,
+        record_pre_reset=recorder,
+        record_post_reset=recorder,
+    )
+    env.termination_manager = SimpleNamespace(
+        compute=lambda: torch.tensor([automatic, False]),
+        terminated=torch.tensor([automatic, False]),
+        time_outs=torch.zeros(2, dtype=torch.bool),
+    )
+    env.reward_manager = SimpleNamespace(compute=lambda dt: torch.zeros(2))
+    env._reset_idx = lambda ids: calls.append("reset")
+    env.command_manager = SimpleNamespace(compute=lambda dt: None)
+    env.event_manager = SimpleNamespace(active_terms={})
+    env.video_recorders = []
+    env.observation_manager = SimpleNamespace(compute=lambda update_history: calls.append("observe") or {})
+
+    env.step(torch.zeros(2, 1))
+    assert calls[-1] == "observe"
+    assert calls.count("forward") == 1
+    assert calls.index("reset") < calls.index("forward") < calls.index("observe")

@@ -350,6 +350,8 @@ class NewtonManager(PhysicsManager):
     def add_model_change(self, change: ModelFlags) -> None:
         """Register a model change to notify the solver at the next step."""
         self.backend.model_changes.add(change)
+        if change & ModelFlags.SHAPE_TYPE_AND_SOURCE:
+            self.backend.geometry_change_version += 1
 
     def invalidate_fk(
         self,
@@ -461,7 +463,10 @@ class NewtonManager(PhysicsManager):
             device=device,
         ):
             cfg = NewtonBackendCfg(physics_cfg=self._cfg, device=sim.device)
-            self.backend = sim.get_or_create_backend(cfg, builder=builder, dt=self.get_physics_dt())
+            initial = () if self._clone is None else self._clone.initial_body_variants
+            self.backend = sim.get_or_create_backend(
+                cfg, builder=builder, dt=self.get_physics_dt(), initial_body_variants=initial
+            )
             self.backend.model.set_gravity(sim.cfg.gravity)
 
         self.backend.decimation = self._decimation

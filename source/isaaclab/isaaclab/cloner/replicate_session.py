@@ -137,6 +137,11 @@ def replicate(plan: ClonePlan, *, replicate_physics: bool | None = None) -> None
             sim.clone_contexts[context] = context(sim)
     for context in sorted(routing, key=lambda context: context.replicate_priority):
         sim.clone_contexts[context].replicate(plan, tuple(sorted(routing[context])))
+    root = sim.cfg.physics.mesh_variant_source_root
+    if root and sim.stage.GetPrimAtPath(root):
+        from pxr import UsdGeom  # noqa: PLC0415
+
+        UsdGeom.Xform.Define(sim.stage, root).MakeInvisible()
 
 
 def clone_plan_from_env_0(
@@ -263,16 +268,21 @@ def _prepare_cloning(
     options = dict(weights=weights, shared_assets=shared, clone_strategy=clone_strategy, env_template=env_template)
     plan = make_clone_plan(asset_prototypes, worlds, num_clones, positions=positions, **options)
     source_paths = cloner_path.get_asset_prototype_paths(plan)
+    prototype_root = sim.cfg.physics.mesh_variant_source_root
     for cfg, indices in declarations:
         spawn = getattr(cfg, "spawn", None)
         if spawn is None:
             continue
-        paths = [source_paths[index] for index in indices]
         if isinstance(spawn, (sim_utils.MultiAssetSpawnerCfg, sim_utils.MultiUsdFileCfg)):
-            spawn.spawn_path, spawn.spawn_paths = None, paths
-            for index, path in zip(indices, paths, strict=True):
+            spawn.spawn_paths = [
+                f"{prototype_root}/asset_{index}" if not spawn.static and prototype_root else source_paths[index]
+                for index in indices
+            ]
+            for index, path in zip(indices, spawn.spawn_paths, strict=True):
                 plan.asset_cfgs[index].spawn.spawn_paths = [path]
+                if not spawn.static and prototype_root:
+                    plan.asset_cfgs[index].spawn.spawn_path = path
         else:
-            spawn.spawn_path = paths[0]
+            spawn.spawn_path = source_paths[indices[0]]
     sim.set_clone_plan(plan)
     return plan

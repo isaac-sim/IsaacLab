@@ -5,9 +5,10 @@
 
 from __future__ import annotations
 
+import re
 import warnings
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import torch
@@ -15,12 +16,10 @@ import warp as wp
 from newton import ModelFlags
 from newton.selection import ArticulationView
 
-from pxr import UsdPhysics
-
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
-from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.warp import ProxyArray, memory
+from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
@@ -29,6 +28,22 @@ from .rigid_object_data import RigidObjectData
 
 if TYPE_CHECKING:
     from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
+
+
+@wp.kernel(enable_backward=False)
+def _body_variant_selection(
+    selections: wp.array(dtype=Any),
+    worlds: wp.array(dtype=Any),
+    bodies_by_world: wp.array(dtype=wp.int32),
+    bodies: wp.array(dtype=wp.int32),
+    variants: wp.array(dtype=wp.int32),
+):
+    index = wp.tid()
+    bodies[index] = bodies_by_world[wp.int32(worlds[index])]
+    variants[index] = wp.int32(selections[index])
+
+
+_BODY_VARIANT_SELECTION = IndexKernelDispatcher(_body_variant_selection, ("selections", "worlds"))
 
 
 class RigidObject(BaseRigidObject):
@@ -87,6 +102,18 @@ class RigidObject(BaseRigidObject):
         return self.root_view.link_names
 
     @property
+    def mesh_variant_ids(self) -> ProxyArray:
+        """Selected native body-variant index for each environment."""
+        if not self.is_initialized:
+            raise RuntimeError("Mesh variant selection requires an initialized rigid object.")
+        if self._variant_body_indices is None:
+            raise NotImplementedError(
+                "Reset-time mesh variant selection is unavailable for this spawner and Newton backend configuration."
+            )
+        selected = self.root_view.get_attribute("body_variant", self._backend_manager.backend.model)[:, 0, 0]
+        return ProxyArray(selected)
+
+    @property
     def root_view(self) -> ArticulationView:
         """Root view for the asset.
 
@@ -133,6 +160,58 @@ class RigidObject(BaseRigidObject):
         # reset external wrench
         self._instantaneous_wrench_composer.reset(env_ids)
         self._permanent_wrench_composer.reset(env_ids)
+
+    def write_mesh_variant_to_sim(
+        self,
+        variant_ids: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Select native geometry and inertial properties for the requested environments.
+
+        Variant indices follow the order of the configured multi-asset spawner. Selectors must be
+        signed int32/int64 Torch or Warp arrays on the asset device.
+        """
+        if not self.is_initialized:
+            raise RuntimeError("Mesh variant selection requires an initialized rigid object.")
+        if self._variant_body_indices is None:
+            raise NotImplementedError(
+                "Reset-time mesh variant selection is unavailable for this spawner and Newton backend configuration."
+            )
+        env_ids = self._resolve_env_ids(env_ids)
+        if not isinstance(env_ids, (torch.Tensor, wp.array)):
+            env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
+        selection_count = env_ids.shape[0]
+        if variant_ids.shape != (selection_count,) or env_ids.shape != (selection_count,):
+            raise ValueError("Mesh variants require one selection per environment index.")
+        if not selection_count:
+            return
+        stream = None
+        if wp.get_device(self.device).is_cuda and (
+            isinstance(variant_ids, torch.Tensor) or isinstance(env_ids, torch.Tensor)
+        ):
+            torch_stream = torch.cuda.current_stream(self.device)
+            stream = wp.stream_from_torch(torch_stream)
+            for indices in (variant_ids, env_ids):
+                if isinstance(indices, torch.Tensor):
+                    indices.record_stream(torch_stream)
+        with wp.ScopedStream(stream, sync_exit=True):
+            model = self._backend_manager.backend.model
+            bodies = self._variant_selection_bodies[:selection_count]
+            variants = self._variant_selection_ids[:selection_count]
+            wp.launch(
+                _BODY_VARIANT_SELECTION.select(variant_ids, env_ids),
+                dim=selection_count,
+                inputs=[variant_ids, env_ids, self._variant_body_indices],
+                outputs=[bodies, variants],
+                device=self.device,
+            )
+            flags = model.select_body_variants(variants, bodies=bodies)
+            self._backend_manager.add_model_change(flags)
+            env_mask = shared_kernels.mask_from_ids(
+                env_ids, self._ALL_INDICES, self._ALL_ENV_MASK, self._index_env_mask
+            )
+            self._backend_manager.invalidate_body_state(env_mask, consume_mask=env_mask is self._index_env_mask)
+            self.data._reset_body_com_pose_b_dependents()
 
     def write_data_to_sim(self) -> None:
         """Write external wrench to the simulation.
@@ -987,17 +1066,16 @@ class RigidObject(BaseRigidObject):
     """
 
     def _initialize_impl(self):
-        def has_rigid_body_api(prim) -> bool:
-            return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
-
-        resolve_kwargs = {"predicate": has_rigid_body_api, "expected_num_matches": 1}
-        _, root_prim_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
-        # -- object view
-        self._root_view = ArticulationView(
-            self._backend_manager.backend.model,
-            path_expr_to_glob(root_prim_path_expr),
-            verbose=False,
-        )
+        model = self._backend_manager.backend.model
+        self._root_view = ArticulationView(model, re.compile(self.cfg.prim_path + r"(?:/.*)?"), verbose=False)
+        if self._root_view.link_count != 1 or self._root_view.articulation_ids.shape[1] != 1:
+            raise RuntimeError(f"Expected one rigid body per object at '{self.cfg.prim_path}'.")
+        self._variant_body_indices = None
+        if self.num_mesh_variants > 1:
+            articulation_starts = model.articulation_start.numpy()
+            joint_children = model.joint_child.numpy()
+            body_indices = joint_children[articulation_starts[self._root_view.articulation_ids.numpy().ravel()]]
+            self._variant_body_indices = wp.array(body_indices, dtype=wp.int32, device=self.device)
 
         # container for data access
         self._data = RigidObjectData(self.root_view, self.device, backend_manager=self._backend_manager)
@@ -1019,6 +1097,9 @@ class RigidObject(BaseRigidObject):
         self._index_env_mask = wp.zeros((self.num_instances,), dtype=wp.bool, device=self.device)
         self._ALL_BODY_INDICES = wp.array(np.arange(self.num_bodies, dtype=np.int32), device=self.device)
         self._ALL_BODY_MASK = wp.ones((self.num_bodies,), dtype=wp.bool, device=self.device)
+        if self._variant_body_indices is not None:
+            self._variant_selection_bodies = wp.empty(self.num_instances, dtype=wp.int32, device=self.device)
+            self._variant_selection_ids = wp.empty(self.num_instances, dtype=wp.int32, device=self.device)
 
         # external wrench composer
         # a captured step records wrench work only once forces are written, so it is captured again then
@@ -1092,6 +1173,9 @@ class RigidObject(BaseRigidObject):
         super()._invalidate_initialize_callback(event)
         # set all existing views to None to invalidate them
         self._root_view = None
+        self._variant_body_indices = None
+        self._variant_selection_bodies = None
+        self._variant_selection_ids = None
 
     def write_root_state_to_sim(self, root_state: torch.Tensor, env_ids: Sequence[int] | torch.Tensor | None = None):
         """Deprecated, same as :meth:`write_root_link_pose_to_sim_index` and

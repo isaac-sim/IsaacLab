@@ -20,6 +20,14 @@ exposes ``.is_success``: a per-env bool tensor read at runtime to update
 the success monitor. Any domain (locomotion, manipulation, …) can satisfy
 this contract by registering a termination term named ``progress_context``
 whose function exposes an ``.is_success`` attribute.
+
+A second, optional contract runs the other way. A reset term whose function
+exposes a per-env bool ``.is_valid`` is reporting whether it managed to do
+what it was asked — an IK solve that reached its target, a placement that
+found room. :class:`ChainedResetTerms` and :class:`TermChoice` propagate it
+upward, and :class:`reset_accumulator` treats it as one more acceptance
+condition, so a strategy that failed on an env never reaches the state table.
+Terms that cannot fail simply omit the attribute.
 """
 
 from __future__ import annotations
@@ -33,10 +41,11 @@ from tqdm import tqdm
 from isaaclab.managers import EventTermCfg, ManagerTermBase
 from isaaclab.utils import instantiate
 
-from isaaclab_tasks.contrib.nist.utils import reset_state
-from isaaclab_tasks.contrib.nist.utils.grid_downsample import extract_features, grid_bucket_downsample
-from isaaclab_tasks.contrib.nist.utils.sampling import Sampler, SamplerCfg
 from isaaclab_tasks.utils.success_monitor import SuccessMonitorCfg
+
+from . import reset_state
+from .grid_downsample import extract_features, grid_bucket_downsample
+from .sampling import Sampler, SamplerCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -55,7 +64,7 @@ class reset_accumulator(ManagerTermBase):
 
     def __init__(self, cfg, env):
         super().__init__(cfg, env)
-        self.acceptance_conditions = [condition.func for condition in cfg.params["acceptance_conditions"].values()]
+        self.acceptance_conditions = cfg.params["acceptance_conditions"]
 
         # Filter to scene-resident assets: callers may include "optional" assets
         # that only exist for a subset of presets.
@@ -64,9 +73,10 @@ class reset_accumulator(ManagerTermBase):
         self.reset_assets = sorted((set(env.scene._articulations) | set(env.scene._rigid_objects)) & set(reset_assets))
         state_dim = reset_state.get_reset_state(env, torch.tensor([0], device=env.device), self.reset_assets).shape[-1]
         self._state_target_size = int(cfg.params["state_table_size"])
-        self._state_fps_features = cfg.params["state_table_fps_features"]
-        self._state_tag_names_bind: str | None = cfg.params["state_tag_names_bind"]
-        self._tag_indices_bind: str | None = cfg.params["state_tag_indices_bind"]
+        self._state_fps_features = cfg.params.get("state_table_fps_features")
+        self._state_tag_names_bind: str | None = cfg.params.get("state_tag_names_bind")
+        self._tag_indices_bind: str | None = cfg.params.get("state_tag_indices_bind")
+        self._tag_weight_bind: str | None = cfg.params.get("state_tag_weight_bind")
 
         oversample_capacity = int(self._state_target_size * float(cfg.params["state_table_oversample_ratio"]))
         self.sampled_slots = torch.zeros(env.num_envs, device=env.device, dtype=torch.long)
@@ -101,6 +111,7 @@ class reset_accumulator(ManagerTermBase):
         state_table_fps_features: Callable | None = None,
         state_tag_names_bind: str | None = None,
         state_tag_indices_bind: str | None = None,
+        state_tag_weight_bind: str | None = None,
         report: bool = False,
         monitor_exclude_terms: list[str] | tuple[str, ...] = (),
         wandb_3d_log: Callable[
@@ -128,14 +139,30 @@ class reset_accumulator(ManagerTermBase):
             all_env_ids = torch.arange(env.num_envs, device=env.device)
             precollect_capacity = self.state_data.shape[0]
             target_size = min(self._state_target_size, precollect_capacity)
+            # Optional feedback: steer the reset-strategy partition sampler toward categories that
+            # are still behind the even per-category target, so pre-collection spends more envs on
+            # underfilled categories instead of overfilling the easy ones.
+            tag_weight = eval(self._tag_weight_bind) if self._tag_weight_bind is not None else None  # noqa: S307
+            num_tags = len(self.state_tag_names) if self.state_tag_names is not None else 0
             state_size = 0
             pbar = tqdm(total=precollect_capacity, desc="reset_accumulator")
             while state_size < precollect_capacity:
                 prev_size = state_size
+                if tag_weight is not None and num_tags > 0:
+                    filled = self.state_tag_indices[:state_size]
+                    counts = torch.bincount(filled[filled >= 0], minlength=num_tags).float()
+                    deficit = (precollect_capacity / num_tags - counts).clamp_min(0.0)
+                    tag_weight.copy_(deficit if deficit.any() else torch.ones_like(deficit))
                 reset_term.func(env, all_env_ids, **reset_term.params)
                 valid_mask = torch.ones(len(all_env_ids), dtype=torch.bool, device=env.device)
-                for condition in self.acceptance_conditions:
-                    valid_mask &= condition(env, all_env_ids)
+                # The strategy gets the first word: an env it could not place the way it was asked
+                # to is not worth screening for collisions, let alone banking.
+                reported = getattr(reset_term.func, "is_valid", None)
+                if reported is not None:
+                    valid_mask &= reported[all_env_ids]
+                for condition in self.acceptance_conditions.values():
+                    condition_func = condition if callable(condition) else condition.func
+                    valid_mask &= condition_func(env, all_env_ids)
 
                 valid_env_ids = all_env_ids[valid_mask]
                 if valid_env_ids.numel() > 0:
@@ -252,6 +279,9 @@ class TermChoice(ManagerTermBase):
         self.term_partitions: dict[str, EventTermCfg] = cfg.params["terms"]  # type: ignore
         self.num_partitions = len(self.term_partitions)
         self.term_samples = torch.zeros((env.num_envs,), dtype=torch.long, device=env.device)
+        self.sampling_weight = torch.ones(self.num_partitions, device=env.device)
+        self.is_valid = torch.ones(env.num_envs, dtype=torch.bool, device=env.device)
+        """Whether the strategy each env drew reported success, per env, for the last call."""
         self._sampling_cfg: SamplerCfg = cfg.params["sampling"]
 
         # Need a monitor when the sampler has any non-uniform strategy, or when the user
@@ -279,6 +309,7 @@ class TermChoice(ManagerTermBase):
         success_monitor_cfg: SuccessMonitorCfg,
         report: bool = False,
     ) -> None:
+        env_ids = env.scene._ALL_INDICES[env_ids]
         if self.num_partitions == 0:
             return
         if report:
@@ -291,18 +322,22 @@ class TermChoice(ManagerTermBase):
             success = env.termination_manager.get_term_cfg("progress_context").func.is_success
             self.success_monitor.success_update(self.term_samples[env_ids], success[env_ids])
 
-        env_ids = env.scene._ALL_INDICES[env_ids]
-        probs, choices = self._sampler.probabilities_and_sample(len(env_ids))
-        self.term_samples[env_ids] = choices
+        probs = self._sampler.probabilities() * self.sampling_weight
+        probs = probs / probs.sum()
+        self.term_samples[env_ids] = self._sampler.sample(probs, len(env_ids))
         if report:
             log.update(
                 {f"Metrics/SampleProb/{name}": probs[i].item() for i, name in enumerate(self.term_partitions.keys())}
             )
 
+        self.is_valid[env_ids] = True
         for i, (_, term_cfg) in enumerate(self.term_partitions.items()):
             term_ids = env_ids[self.term_samples[env_ids] == i]
             if term_ids.numel() > 0:
                 term_cfg.func(env, term_ids, **term_cfg.params)
+                reported = getattr(term_cfg.func, "is_valid", None)
+                if reported is not None:
+                    self.is_valid[term_ids] = reported[term_ids]
 
         if report:
             env.extras.setdefault("log", {}).update(log)
@@ -312,6 +347,8 @@ class ChainedResetTerms(ManagerTermBase):
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
         self.terms: dict[str, EventTermCfg] = cfg.params["terms"]  # type: ignore
+        self.is_valid = torch.ones(env.num_envs, dtype=torch.bool, device=env.device)
+        """Whether every reporting term in the chain succeeded, per env, for the last call."""
 
     def __call__(
         self,
@@ -320,10 +357,15 @@ class ChainedResetTerms(ManagerTermBase):
         terms: dict[str, callable],
         probability: float = 1.0,
     ) -> None:
+        env_ids = env.scene._ALL_INDICES[env_ids]
+        self.is_valid[env_ids] = True
         if probability < 1.0:
-            env_ids = env.scene._ALL_INDICES[env_ids]
-            env_ids = env_ids[torch.rand(env_ids.shape[0], device=env.device) < probability]
-            if env_ids.shape[0] == 0:
-                return
+            env_ids = env_ids[torch.rand(env_ids.numel(), device=env.device) < probability]
+        if env_ids.numel() == 0:
+            return
+        env_ids_to_reset = env_ids
         for _, term in terms.items():
-            term.func(env, env_ids, **term.params)  # type: ignore
+            term.func(env, env_ids_to_reset, **term.params)  # type: ignore
+            reported = getattr(term.func, "is_valid", None)
+            if reported is not None:
+                self.is_valid[env_ids_to_reset] &= reported[env_ids_to_reset]

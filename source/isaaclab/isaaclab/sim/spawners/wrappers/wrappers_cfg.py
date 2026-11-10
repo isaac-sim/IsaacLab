@@ -41,6 +41,9 @@ class MultiAssetSpawnerCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     skipped.
     """
 
+    static: bool = True
+    """Keep each clone's initial asset choice. Set False to request reset-time mesh variants."""
+
     random_choice: bool = True
     """ This parameter is ignored.
     See :attr:`isaaclab.scene.interactive_scene_cfg.InteractiveSceneCfg.random_heterogeneous_cloning` for details.
@@ -76,6 +79,9 @@ class MultiUsdFileCfg(UsdFileCfg):
     sibling paths from the input ``prim_path``. Entries set to ``None`` are
     skipped.
     """
+
+    static: bool = True
+    """Keep each clone's initial USD choice. Set False to request reset-time mesh variants."""
 
     random_choice: bool = True
     """Whether to randomly select an asset configuration. Default is True.
