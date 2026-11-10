@@ -3,6 +3,26 @@ Changelog
 
 .. towncrier release notes start
 
+9.0.1 (2026-11-06)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Authored ``omni:rtx:gaussian:skipTonemapping:enabled = false`` on the OVRTX render product when a camera sets
+  an ISP, so Gaussian splats are tonemapped with the rest of the frame.
+
+Fixed
+^^^^^
+
+* Fixed OVPhysX stage population and shared OVRTX stage setup for OVStage 0.4 builds that replaced
+  physics population domains with selectors, while retaining support for older domain-based builds.
+* Fixed OVRTX stage export to compose collider geometry whenever physics population was enabled,
+  including isolated stages.
+* Fixed Newton with OVRTX and OVStage failing during camera initialization with OVStage builds that
+  removed physics population flags, while preserving composed USD export for shared OVPhysX stages.
+
+
 9.0.0 (2026-11-05)
 ~~~~~~~~~~~~~~~~~~
 

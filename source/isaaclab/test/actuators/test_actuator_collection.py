@@ -23,14 +23,12 @@ from isaaclab.actuators import (
     DCMotor,
     DCMotorCfg,
     DelayedPDActuatorCfg,
-    IdealPDActuator,
     IdealPDActuatorCfg,
     ImplicitActuator,
     ImplicitActuatorCfg,
 )
 from isaaclab.actuators.actuator_control import ArticulationActuatorControl
 from isaaclab.actuators.newton import read_group_parameter, write_group_parameter
-from isaaclab.utils import clone
 from isaaclab.utils.warp import ProxyArray
 
 
@@ -55,11 +53,6 @@ def _ideal_cfg(joints: list[str], *, stiffness: float, damping: float, effort_li
         actuator_effort_limit=effort_limit,
         actuator_velocity_limit=100.0,
     )
-
-
-def _ideal_pd_cfg(**kwargs) -> IdealPDActuatorCfg:
-    """Create a minimal ideal PD actuator configuration."""
-    return IdealPDActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=0.0, **kwargs)
 
 
 def _dc_cfg(
@@ -306,7 +299,6 @@ class NativeFakeActuatorControl(FakeActuatorControl):
         return True
 
     def prepare_native_actuators(self, collection, actuator_cfgs) -> set[str]:
-        self.prepared_actuator_cfgs = actuator_cfgs
         return set(actuator_cfgs)
 
     def compute_native_actuators(self, collection: ActuatorCollection, dt: float) -> bool:
@@ -340,57 +332,6 @@ class NativeGainFakeActuatorControl(NativeFakeActuatorControl):
         return {attr: wp.to_torch(getattr(drive, attr)).view(shape) for attr in ("kp", "kd") if hasattr(drive, attr)}
 
 
-@pytest.mark.parametrize(
-    ("cfg_factory", "with_joint_limit", "expected_joint_limit"),
-    [
-        (_ideal_pd_cfg, True, 34.0),
-        (_implicit_cfg, True, 34.0),
-        (_implicit_cfg, False, 12.0),
-    ],
-)
-def test_deprecated_effort_limit_forwards_by_actuator_type(cfg_factory, with_joint_limit, expected_joint_limit):
-    """``effort_limit`` resolves to the rated ``actuator_effort_limit`` for every actuator type.
-
-    For implicit groups without a separate solver clamp, the rated value also reaches
-    ``joint_effort_limit`` for backward compatibility.
-    """
-    cfg = (
-        cfg_factory(effort_limit=12.0, joint_effort_limit=34.0) if with_joint_limit else cfg_factory(effort_limit=12.0)
-    )
-    # Lab execution keeps the group as an inspectable Lab model instance; the explicit
-    # variant additionally warns about deprecated Lab execution, which pytest.warns tolerates.
-    control = FakeActuatorControl()
-
-    with pytest.warns(DeprecationWarning, match="actuator_effort_limit"):
-        collection = ActuatorCollection({"motor": cfg}, control)
-
-    # Runtime alias-property behavior (group.effort_limit get/set warnings) is covered by
-    # the per-actuator suites in test_implicit_actuator.py and test_ideal_pd_actuator.py.
-    group = collection["motor"]
-    assert group.cfg.actuator_effort_limit == 12.0
-    assert group.cfg.joint_effort_limit == expected_joint_limit
-    torch.testing.assert_close(group.actuator_effort_limit, torch.full((2, 3), 12.0))
-    if isinstance(group, ImplicitActuator):
-        # Lab explicit models hold no solver-limit view; the solver clamp lives on articulation data.
-        torch.testing.assert_close(group.joint_effort_limit, torch.full((2, 3), expected_joint_limit))
-
-
-def test_constructor_resolves_deprecated_velocity_limit_alias():
-    cfg = _ideal_pd_cfg(velocity_limit_sim=34.0)
-
-    with pytest.warns(DeprecationWarning, match="joint_velocity_limit"):
-        actuator = IdealPDActuator(
-            cfg,
-            joint_names=["joint_0", "joint_1", "joint_2"],
-            joint_ids=slice(None),
-            num_envs=2,
-            device="cpu",
-        )
-
-    assert actuator.cfg.joint_velocity_limit == 34.0
-    assert actuator.cfg.velocity_limit_sim is None
-
-
 def test_implicit_actuator_separate_rated_effort_limit_is_honored():
     """A rated limit distinct from the solver clamp stays on the implicit actuator."""
     cfg = _implicit_cfg(actuator_effort_limit=12.0, joint_effort_limit=34.0)
@@ -400,100 +341,6 @@ def test_implicit_actuator_separate_rated_effort_limit_is_honored():
     group = collection["motor"]
     torch.testing.assert_close(group.actuator_effort_limit, torch.full((2, 3), 12.0))
     torch.testing.assert_close(group.joint_effort_limit, torch.full((2, 3), 34.0))
-
-
-@pytest.mark.parametrize(
-    ("cfg", "actuator_type", "canonical_name"),
-    [
-        (_ideal_pd_cfg(), IdealPDActuator, "actuator_effort_limit"),
-        (_implicit_cfg(), ImplicitActuator, "joint_effort_limit"),
-    ],
-)
-def test_constructor_effort_limit_alias_conflicts_with_explicit_infinity(cfg, actuator_type, canonical_name):
-    constructor_kwargs = {
-        "joint_names": ["joint_0", "joint_1", "joint_2"],
-        "joint_ids": slice(None),
-        "num_envs": 2,
-        "device": "cpu",
-        "stiffness": 0.0,
-        "damping": 0.0,
-    }
-
-    with pytest.warns(DeprecationWarning, match=canonical_name):
-        with pytest.raises(ValueError, match=rf"conflicting {canonical_name}.*effort_limit"):
-            actuator_type(
-                cfg,
-                **constructor_kwargs,
-                **{canonical_name: torch.inf, "effort_limit": 12.0},
-            )
-
-    with pytest.warns(DeprecationWarning, match=canonical_name):
-        actuator = actuator_type(
-            clone(cfg), **constructor_kwargs, **{canonical_name: torch.full((2, 3), 12.0), "effort_limit": 12.0}
-        )
-    torch.testing.assert_close(getattr(actuator, canonical_name), torch.full((2, 3), 12.0))
-
-
-def test_equivalent_limit_aliases_prefer_canonical_values():
-    # Rows with a canonical value assert the canonical value wins over an equivalent alias.
-    # Rows with canonical_value=None assert the deprecated *_sim alias forwards onto the
-    # prepared copy when the canonical field is unset, without mutating the user's cfg.
-    scenarios = (
-        ("joint_effort_limit", "effort_limit_sim", 12.0, {"joint_.*": 12.0}, _ideal_pd_cfg, NativeFakeActuatorControl),
-        (
-            "joint_velocity_limit",
-            "velocity_limit_sim",
-            34.0,
-            {"joint_.*": 34.0},
-            _ideal_pd_cfg,
-            NativeFakeActuatorControl,
-        ),
-        ("actuator_effort_limit", "effort_limit", {"joint_.*": 12.0}, 12.0, _ideal_pd_cfg, NativeFakeActuatorControl),
-        ("joint_effort_limit", "effort_limit", {"joint_.*": 12.0}, 12.0, _implicit_cfg, FakeActuatorControl),
-        ("joint_effort_limit", "effort_limit_sim", None, 12.0, _ideal_pd_cfg, NativeFakeActuatorControl),
-        ("joint_velocity_limit", "velocity_limit_sim", None, 34.0, _ideal_pd_cfg, NativeFakeActuatorControl),
-    )
-
-    for canonical_name, alias_name, canonical_value, alias_value, cfg_factory, control_factory in scenarios:
-        cfg_kwargs = {alias_name: alias_value}
-        if canonical_value is not None:
-            cfg_kwargs[canonical_name] = canonical_value
-        cfg = cfg_factory(**cfg_kwargs)
-        control = control_factory()
-        with pytest.warns(DeprecationWarning):
-            collection = ActuatorCollection({"motor": cfg}, control)
-
-        prepared_cfgs = getattr(control, "prepared_actuator_cfgs", None)
-        resolved_cfg = prepared_cfgs["motor"] if prepared_cfgs is not None else collection["motor"].cfg
-        expected_value = canonical_value if canonical_value is not None else alias_value
-        assert getattr(resolved_cfg, canonical_name) == expected_value
-        # the user's cfg is never mutated: the canonical field keeps its original value.
-        assert getattr(cfg, canonical_name) == canonical_value
-        assert getattr(cfg, alias_name) == alias_value
-        if canonical_value is None:
-            assert resolved_cfg is not cfg
-
-
-def test_conflicting_limit_aliases_raise():
-    scenarios = (
-        ("joint_effort_limit", "effort_limit_sim", _ideal_pd_cfg, NativeFakeActuatorControl),
-        ("joint_velocity_limit", "velocity_limit_sim", _ideal_pd_cfg, NativeFakeActuatorControl),
-        ("actuator_effort_limit", "effort_limit", _ideal_pd_cfg, NativeFakeActuatorControl),
-        ("actuator_effort_limit", "effort_limit", _implicit_cfg, FakeActuatorControl),
-    )
-
-    for canonical_name, alias_name, cfg_factory, control_factory in scenarios:
-        cfg = cfg_factory(
-            **{
-                canonical_name: {"joint_0": 12.0, "joint_1": 10.0, "joint_2": 8.0},
-                alias_name: {"joint_0": 12.0, "joint_1": 11.0, "joint_2": 8.0},
-            }
-        )
-        with (
-            pytest.warns(DeprecationWarning),
-            pytest.raises(ValueError, match=rf"motor.*{canonical_name}.*{alias_name}"),
-        ):
-            ActuatorCollection({"motor": cfg}, control_factory())
 
 
 class ProxyFinderActuatorControl(FakeActuatorControl):

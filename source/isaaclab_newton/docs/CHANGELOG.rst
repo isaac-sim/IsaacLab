@@ -3,6 +3,61 @@ Changelog
 
 .. towncrier release notes start
 
+17.0.0 (2026-11-07)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Migrated Newton contact sensors from the deprecated ``Contacts.force`` path to solver observables for MuJoCo, XPBD,
+  VBD, Kamino, and Steel. Featherstone and implicit MPM contact sensors require ``CONTACT_F`` support in Newton.
+* **Breaking:** Changed :class:`~isaaclab_newton.physics.NewtonSolver` from a stateless class of classmethods into a
+  driver built from its configuration and model, so that callers no longer pass the configuration and Newton's solver
+  to every call. :meth:`~isaaclab_newton.physics.NewtonBackend.init_solver` stored it as ``NewtonBackend.solver_ops``,
+  while ``NewtonBackend.solver`` stayed Newton's solver. Configuration-level hooks such as ``prepare_builder`` and
+  ``fixed_tendon_control`` stayed classmethods. Custom solvers override ``build(self, model, mode, env_template)`` and
+  instance methods such as ``pre_step(self, state)``, reading ``self.cfg`` and ``self.native``.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed ``Articulation.write_actuator_stiffness_to_sim`` and
+  ``write_actuator_damping_to_sim``, deprecated in Isaac Lab 3.0 for removal in 3.1. Use
+  ``randomize_actuator_gains`` for managed randomization, or
+  ``isaaclab.actuators.newton.write_group_parameter`` with the ``"drive"`` component and
+  ``"kp"`` or ``"kd"`` for direct native gain writes. The direct writer takes an actuator
+  group name and group-local joint indices.
+
+
+16.0.0 (2026-11-06)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``NewtonBackend.state_version``, advanced after every solver substep, after FK, and by each asset's
+  ``update(dt)``. Derived asset data recomputed on read when the state version advanced, and on every read recorded
+  into a CUDA graph.
+* Added :meth:`NewtonBackend.notify_model_changes <isaaclab_newton.physics.NewtonBackend.notify_model_changes>` to
+  apply queued model-property edits; it ran before ``forward()``, scene-data state reads and steps.
+
+Changed
+^^^^^^^
+
+* Changed backend steps, BVH refits and sensor queries called inside an enclosing CUDA graph capture to record into it
+  instead of starting or replaying their own graph. Recorded BVH refits ran on every replay.
+* Changed :meth:`~isaaclab_newton.physics.NewtonBackend.invalidate_fk` to map articulation-view rows to worlds through
+  ``model.articulation_world``, so views over a subset of worlds flagged the right worlds and global articulations got
+  FK without resetting the global world.
+* Changed derived asset properties to recompute inside a step or capture instead of raising during capture.
+* Changed fixed-root pose writes to queue their model-property edit instead of notifying the solver immediately.
+* **Breaking:** Replaced ``NewtonBackend.graph`` with :attr:`~isaaclab_newton.physics.NewtonBackend.graphs`, the
+  captured parts of the step keyed by part.
+* Changed :meth:`~isaaclab_newton.physics.NewtonManager.handles_decimation` to fold the decimation loop into one step
+  whenever Newton actuators run in the step. Actuators that cannot be captured, such as Torch networks, ran eagerly
+  between captured graphs before and after them instead of disabling the folded loop.
+
+
 15.0.0 (2026-11-05)
 ~~~~~~~~~~~~~~~~~~~
 

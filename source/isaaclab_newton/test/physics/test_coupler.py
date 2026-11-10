@@ -31,16 +31,7 @@ from isaaclab_newton.physics import (
     VBDSolverCfg,
     XPBDSolverCfg,
 )
-from isaaclab_newton.physics.newton_builder import create_builder, register_builder_attributes, usd_schema_resolvers
-from isaaclab_newton.test.fixtures.mock_newton import backend_stub
-from newton import ModelBuilder, ShapeFlags
-from newton.solvers.experimental.coupled import SolverCoupledADMM, SolverCoupledProxy
-
-from pxr import Sdf, Usd, UsdGeom, UsdPhysics
-
-from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
-
-from isaaclab_contrib.coupling import (
+from isaaclab_newton.physics.coupling import (
     CouplerAdmmCfg,
     CouplerCfg,  # noqa: F401 - importing every public name guards the package exports
     CouplerEntryCfg,
@@ -49,6 +40,14 @@ from isaaclab_contrib.coupling import (
     CouplerSolver,
     coupler,
 )
+from isaaclab_newton.physics.newton_builder import create_builder, register_builder_attributes, usd_schema_resolvers
+from isaaclab_newton.test.fixtures.mock_newton import backend_stub, solver_driver
+from newton import ModelBuilder, ShapeFlags
+from newton.solvers.experimental.coupled import SolverCoupledADMM, SolverCoupledProxy
+
+from pxr import Sdf, Usd, UsdGeom, UsdPhysics
+
+from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
 
 pytestmark = pytest.mark.kitless
 
@@ -456,9 +455,8 @@ def test_mpm_entry_forwards_config_and_execution_policy():
     """MPM construction preserves grid configuration, substeps, and in-place stepping."""
 
     class RecordingMPMSolver(MPMSolver):
-        @classmethod
-        def build(cls, cfg, model, mode, env_template=None):
-            return SimpleNamespace(model=model, solver_cfg=cfg)
+        def build(self, model, mode, env_template):
+            return SimpleNamespace(model=model, solver_cfg=self.cfg)
 
     solver_cfg = MPMSolverCfg(class_type=RecordingMPMSolver, grid_type="fixed", max_active_cell_count=256)
     entry = coupler._ResolvedEntry(
@@ -474,14 +472,47 @@ def test_mpm_entry_forwards_config_and_execution_policy():
         shapes=[],
     )
 
-    solver_entry = coupler._coupled_entry(entry, _NG, None)
+    drivers = {}
+    solver_entry = coupler._coupled_entry(entry, _NG, None, drivers)
     solver = solver_entry.solver("media-view")
+
+    assert drivers["media"].native is solver
 
     assert solver.model == "media-view"
     assert solver.solver_cfg.grid_type == "fixed"
     assert solver.solver_cfg.max_active_cell_count == 256
     assert solver_entry.substeps == 2
     assert solver_entry.in_place is True
+
+
+@pytest.mark.parametrize(
+    ("grid_type", "max_active_cell_count", "expected"),
+    [
+        pytest.param("fixed", 1024, True, id="bounded_fixed"),
+        pytest.param("fixed", -1, False, id="unbounded_fixed"),
+        pytest.param("sparse", 1024, True, id="bounded_sparse"),
+        pytest.param("sparse", -1, False, id="unbounded_sparse"),
+        pytest.param("dense", -1, False, id="dense"),
+    ],
+)
+def test_mpm_grid_controls_coupled_cuda_graph_support(grid_type, max_active_cell_count, expected):
+    """A coupled solver must inherit every nested MPM grid's capture capability."""
+    mpm_solver = SimpleNamespace(
+        enable_timers=False,
+        grid_type=grid_type,
+        max_active_cell_count=max_active_cell_count,
+        grid_padding=0,
+        velocity_basis="Q1",
+        strain_basis="P0",
+        collider_basis="S2",
+    )
+    mpm_cfg = MPMSolverCfg()
+    solver_cfg = CouplerProxyCfg(entries=[CouplerEntryCfg(name="mpm", solver_cfg=mpm_cfg, in_place=True)])
+
+    driver = solver_driver(CouplerSolver, solver_cfg)
+    driver.entries = {"mpm": solver_driver(MPMSolver, mpm_cfg, mpm_solver)}
+
+    assert driver.supports_capture() is expected
 
 
 @pytest.mark.parametrize("vbd_entries", [0, 2])
@@ -575,7 +606,7 @@ def test_single_world_mpm_reset_promotes_local_mask(monkeypatch, mask_values, sh
     mask = _FakeArray(np.asarray(mask_values, dtype=np.bool_))
     solver_cfg = CouplerProxyCfg(entries=[CouplerEntryCfg(name="mpm", solver_cfg=MPMSolverCfg(), in_place=True)])
 
-    CouplerSolver.reset(solver_cfg, solver, state_0, mask)
+    solver_driver(CouplerSolver, solver_cfg, solver).reset(state_0, mask)
 
     assert calls == ([(state_0, None, 0)] if should_reset else [])
 
@@ -596,7 +627,7 @@ def test_single_world_non_mpm_reset_does_not_read_mask_on_host(monkeypatch):
     mask = _DeviceMask()
     solver_cfg = CouplerProxyCfg(entries=[CouplerEntryCfg(name="rigid", solver_cfg=XPBDSolverCfg())])
 
-    CouplerSolver.reset(solver_cfg, solver, state, mask)
+    solver_driver(CouplerSolver, solver_cfg, solver).reset(state, mask)
 
     assert calls == [(state, mask, 0)]
 
@@ -612,7 +643,7 @@ def test_multi_world_mpm_reset_is_not_promoted(monkeypatch):
     mask = _FakeArray(np.asarray([True, False, False], dtype=np.bool_))
     solver_cfg = CouplerProxyCfg(entries=[CouplerEntryCfg(name="mpm", solver_cfg=MPMSolverCfg(), in_place=True)])
 
-    CouplerSolver.reset(solver_cfg, solver, state, mask)
+    solver_driver(CouplerSolver, solver_cfg, solver).reset(state, mask)
 
     assert calls == [(state, mask, 0)]
 
@@ -657,8 +688,10 @@ def test_proxy_selects_expected_outer_collision_pipeline(monkeypatch, case, expe
         resolved_entries[0].config.solver_cfg = MJWarpSolverCfg()
     proxy_cfg.entries = [entry.config for entry in resolved_entries]
 
-    def coupled_entry(entry, mode, env_template):
+    def coupled_entry(entry, mode, env_template, drivers):
         recorded_entries.append(entry)
+        solver_cfg = entry.config.solver_cfg
+        drivers[entry.config.name] = solver_driver(solver_cfg.class_type, solver_cfg)
         return entry.config.name
 
     monkeypatch.setattr(coupler, "_coupled_entry", coupled_entry)
@@ -674,11 +707,11 @@ def test_proxy_selects_expected_outer_collision_pipeline(monkeypatch, case, expe
             ),
         ),
     )
-    solver = CouplerSolver.build(proxy_cfg, model, _NG, _CELL_TEMPLATE)
+    driver = CouplerSolver(proxy_cfg, model, _NG, _CELL_TEMPLATE)
 
-    assert CouplerSolver.uses_collision_pipeline(proxy_cfg, solver) is expected_outer
+    assert driver.uses_collision_pipeline() is expected_outer
     assert CouplerSolver.contact_sensors is False
-    assert CouplerSolver.applies_body_forces(proxy_cfg, solver) is True
+    assert driver.applies_body_forces() is True
     assert [entry.config.name for entry in recorded_entries] == ["rigid", "soft"]
     assert [entry.bodies for entry in recorded_entries] == [[0, 1], [2]]
     assert recorded_entries[1].shapes == [2]
@@ -694,16 +727,16 @@ def test_admm_always_requests_outer_collision_pipeline(monkeypatch):
     for entry in resolved_entries:
         entry.config.bodies = entry.bodies
     cfg = CouplerAdmmCfg(entries=[entry.config for entry in resolved_entries])
-    monkeypatch.setattr(coupler, "_coupled_entry", lambda entry, mode, env_template: entry.config.name)
+    monkeypatch.setattr(coupler, "_coupled_entry", lambda entry, mode, env_template, drivers: entry.config.name)
     monkeypatch.setattr(
         coupler,
         "_build_admm_coupled_solver",
         lambda model, entries, cfg, mode: SimpleNamespace(kind="admm", solver=lambda name: None),
     )
-    solver = CouplerSolver.build(cfg, model, _NG, _CELL_TEMPLATE)
+    driver = CouplerSolver(cfg, model, _NG, _CELL_TEMPLATE)
 
-    assert CouplerSolver.uses_collision_pipeline(cfg, solver) is True
-    assert CouplerSolver.applies_body_forces(cfg, solver) is True
+    assert driver.uses_collision_pipeline() is True
+    assert driver.applies_body_forces() is True
 
 
 def test_contact_sensor_guard_rejects_coupler():

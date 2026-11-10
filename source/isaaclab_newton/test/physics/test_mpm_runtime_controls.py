@@ -16,13 +16,12 @@ from isaaclab_newton.physics import (
     NewtonManager,
     XPBDSolverCfg,
 )
-from newton.solvers import SolverImplicitMPM
-
-from isaaclab_contrib.coupling import (
+from isaaclab_newton.physics.coupling import (
     CouplerEntryCfg,
     CouplerProxyCfg,
     CouplerProxyMappingCfg,
 )
+from newton.solvers import SolverImplicitMPM
 
 pytestmark = pytest.mark.kitless
 

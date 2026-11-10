@@ -37,6 +37,7 @@ from isaaclab_newton.physics import (
 from isaaclab_newton.physics.mpm_solver import implicit_mpm_solvers, mpm_solver_config
 from isaaclab_newton.physics.newton_builder import register_builder_attributes
 from isaaclab_newton.physics.newton_solver import solver_kwargs
+from isaaclab_newton.test.fixtures.mock_newton import solver_driver
 from newton import ModelBuilder
 from newton.solvers import SolverImplicitMPM, SolverMuJoCo, SolverXPBD
 
@@ -166,7 +167,7 @@ def test_mjwarp_authored_reset_imports_only_selected_worlds(device):
     qvel = wp.array(data.qvel, copy=False, device=device)
     qpos.fill_(1.25)
     qvel.fill_(-0.75)
-    reset = functools.partial(MJWarpSolver.reset, cfg, solver, state, world_mask)
+    reset = functools.partial(solver_driver(MJWarpSolver, cfg, solver).reset, state, world_mask)
     reset()  # Warm the reset kernels with an empty mask before capture.
     if not cfg.use_mujoco_cpu:
         with wp.ScopedCapture(device=device) as capture:
@@ -197,12 +198,12 @@ def test_mjwarp_determinism_disables_sensors_unless_a_sensor_needs_them(recorded
     """A guarantee builds MJWarp without its sensor stage, and refuses sensors that need that stage."""
     solver_cfg = MJWarpSolverCfg()
 
-    MJWarpSolver.build(solver_cfg, _model_stub(), wp.DeterministicMode.NOT_GUARANTEED)
-    MJWarpSolver.build(solver_cfg, _model_stub(), wp.DeterministicMode.RUN_TO_RUN)
-    MJWarpSolver.build(solver_cfg, _model_stub({"body_qdd"}), wp.DeterministicMode.NOT_GUARANTEED)
+    MJWarpSolver(solver_cfg, _model_stub(), wp.DeterministicMode.NOT_GUARANTEED)
+    MJWarpSolver(solver_cfg, _model_stub(), wp.DeterministicMode.RUN_TO_RUN)
+    MJWarpSolver(solver_cfg, _model_stub({"body_qdd"}), wp.DeterministicMode.NOT_GUARANTEED)
     for attr in ("body_qdd", "body_parent_f"):
         with pytest.raises(ValueError, match="does not support deterministic physics"):
-            MJWarpSolver.build(solver_cfg, _model_stub({attr}), wp.DeterministicMode.RUN_TO_RUN)
+            MJWarpSolver(solver_cfg, _model_stub({attr}), wp.DeterministicMode.RUN_TO_RUN)
 
     assert [kwargs["disable_sensors"] for kwargs in recorded_mujoco_kwargs] == [False, True, False]
     assert solver_cfg.disable_sensors is False
@@ -408,11 +409,11 @@ def test_mpm_kinematic_colliders_preserve_mass_for_other_solvers():
     # Explicit zero physical mass makes MuJoCo reject this free body. Kinematic
     # collider treatment must instead remain local to the MPM solver.
     rigid_solver = SolverMuJoCo(model, use_mujoco_cpu=True)
-    mpm_solver = MPMSolver.build(
+    mpm_solver = MPMSolver(
         MPMSolverCfg(voxel_size=0.1, grid_type="dense", grid_padding=1),
         model,
         wp.DeterministicMode.NOT_GUARANTEED,
-    )
+    ).native
 
     assert rigid_solver.mj_model.nbody == 3
     assert model.body_mass.numpy()[kinematic_body] == pytest.approx(0.35)
@@ -449,16 +450,16 @@ def test_mpm_mesh_colliders_support_b3_capture_and_replay(device):
         warmstart_mode="none",
     )
     model = builder.finalize(device=device)
-    solver = MPMSolver.build(solver_cfg, model, wp.DeterministicMode.NOT_GUARANTEED)
+    driver = MPMSolver(solver_cfg, model, wp.DeterministicMode.NOT_GUARANTEED)
     state = model.state()
     assert builder.shape_type[shape] == newton.GeoType.MESH
-    assert MPMSolver.supports_capture(solver_cfg, solver)
-    MPMSolver.step(solver_cfg, solver, state, state, None, None, 0.001)
+    assert driver.supports_capture()
+    driver.step(state, state, None, None, 0.001)
     before = state.particle_q.numpy().copy()
     with wp.ScopedCapture(device=device) as capture:
-        MPMSolver.step(solver_cfg, solver, state, state, None, None, 0.001)
+        driver.step(state, state, None, None, 0.001)
     wp.capture_launch(capture.graph)
-    MPMSolver.check_step(solver_cfg, solver, captured=True, debug=False)
+    driver.check_step(captured=True, debug=False)
     after = state.particle_q.numpy()
     assert np.isfinite(after).all()
     assert not np.array_equal(before, after)
@@ -474,7 +475,7 @@ def test_mpm_solver_build_preserves_python_precision_and_active_usd():
         model = builder.finalize(device="cpu")
         original_layer = sim.stage.GetRootLayer().ExportToString()
 
-        solver = MPMSolver.build(cfg, model, wp.DeterministicMode.NOT_GUARANTEED)
+        solver = MPMSolver(cfg, model, wp.DeterministicMode.NOT_GUARANTEED).native
 
         assert solver.voxel_size == cfg.voxel_size
         assert sim.stage.GetRootLayer().ExportToString() == original_layer
@@ -493,7 +494,9 @@ def test_mpm_step_projects_particles_out_of_colliders_only_when_configured(proje
         step=lambda *args: calls.append("step"), project_outside=lambda *args: calls.append("project")
     )
 
-    MPMSolver.step(MPMSolverCfg(project_outside_colliders=project_outside), solver, None, None, None, None, 0.01)
+    solver_driver(MPMSolver, MPMSolverCfg(project_outside_colliders=project_outside), solver).step(
+        None, None, None, None, 0.01, observables=None
+    )
 
     assert calls == (["step", "project"] if project_outside else ["step"])
 
@@ -504,7 +507,7 @@ def test_mpm_keeps_solver_history_on_automatic_resets():
     def reject_reset(*args, **kwargs):
         raise AssertionError("automatic resets must not clear implicit-MPM history")
 
-    MPMSolver.reset(MPMSolverCfg(), SimpleNamespace(reset=reject_reset), None, None)
+    solver_driver(MPMSolver, MPMSolverCfg(), SimpleNamespace(reset=reject_reset)).reset(None, None)
 
 
 def test_mpm_checks_sparse_grid_status_only_after_a_graph_replay():
@@ -512,8 +515,9 @@ def test_mpm_checks_sparse_grid_status_only_after_a_graph_replay():
     solver = object.__new__(SolverImplicitMPM)
     solver.check_sparse_grid_rebuild_status = lambda: calls.append("check")
 
-    MPMSolver.check_step(MPMSolverCfg(), solver, False, False)
-    MPMSolver.check_step(MPMSolverCfg(), solver, True, False)
+    driver = solver_driver(MPMSolver, MPMSolverCfg(), solver)
+    driver.check_step(False, False)
+    driver.check_step(True, False)
 
     assert calls == ["check"]
 
@@ -537,6 +541,6 @@ def test_vbd_rebuilds_its_particle_bvh_before_each_physics_step(particle_count):
     rebuilt = []
     solver = SimpleNamespace(model=SimpleNamespace(particle_count=particle_count), rebuild_bvh=rebuilt.append)
 
-    VBDSolver.pre_step(VBDSolverCfg(), solver, "state")
+    solver_driver(VBDSolver, VBDSolverCfg(), solver).pre_step("state")
 
     assert rebuilt == ["state"] * particle_count

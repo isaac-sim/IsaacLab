@@ -42,7 +42,9 @@ from .newton_scene_data import NewtonSceneDataBackend
 
 if TYPE_CHECKING:
     from isaaclab.assets import BaseArticulation
+    from isaaclab.managers import ActionManager
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
+    from isaaclab.scene import InteractiveScene
 
 
 logger = logging.getLogger(__name__)
@@ -231,6 +233,7 @@ class NewtonManager(PhysicsManager):
         """Clear all Newton-specific state (callbacks cleared by super().close())."""
         self._close_backend(dispatch_stop=False)
         self._decimation = 1
+        self._handled_actions: tuple[ActionManager, InteractiveScene] | None = None
         # Site requests and replication outputs survive hard resets.
         # (body_pattern, per_world, xform floats) -> (label, transform)
         self._site_requests: dict[tuple[str | None, bool, tuple[float, ...]], tuple[str, wp.transform]] = {}
@@ -490,6 +493,8 @@ class NewtonManager(PhysicsManager):
             device=self.get_device(),
         ):
             backend.init_solver(None if plan is None else plan.env_template, relaxed_capture=self._relaxed_capture)
+        if self._handled_actions is not None:
+            self._handle_actions()
         self._mark_transforms_changed()
 
     def _relaxed_capture(self) -> bool:
@@ -499,8 +504,7 @@ class NewtonManager(PhysicsManager):
 
     def _prepare_visualizer_for_capture(self) -> None:
         """Let the Newton visualizer register picking forces before the step is captured."""
-        solver_cfg = self._cfg.solver_cfg
-        if solver_cfg.class_type.applies_body_forces(solver_cfg, self.backend.solver):
+        if self.backend.solver_ops.applies_body_forces():
             self._sim._prepare_newton_visualizer_for_capture()
 
     def set_voxel_size(self, voxel_size: float, *, entry_name: str | None = None) -> None:
@@ -597,7 +601,7 @@ class NewtonManager(PhysicsManager):
     def set_decimation(self, decimation: int) -> None:
         """Set the decimation count; see :meth:`NewtonBackend.set_decimation`.
 
-        Once Newton actuators run in the step, one :meth:`step` advances the whole decimation loop.
+        :meth:`handles_decimation` tells whether one :meth:`step` advances the whole decimation loop.
         """
         self._decimation = max(1, decimation)
         if self.backend is not None:
@@ -606,6 +610,32 @@ class NewtonManager(PhysicsManager):
     def handles_decimation(self) -> bool:
         """Whether :meth:`step` executes the full decimation loop; see :meth:`NewtonBackend.handles_decimation`."""
         return self.backend.handles_decimation()
+
+    def handle_actions(self, actions: ActionManager, scene: InteractiveScene) -> bool:
+        """Run the environment's actions and asset writes as pre-actuator callbacks of every physics step.
+
+        Only when both support graph capture; one :meth:`step` then advances the whole decimation loop. Hard resets
+        register them again on the new backend.
+
+        Args:
+            actions: Environment action manager.
+            scene: Scene whose assets write to the simulation.
+
+        Returns:
+            Whether the step now applies the actions and writes the assets.
+        """
+        self._handled_actions = (actions, scene)
+        self._handle_actions()
+        return self.backend.handles_actions
+
+    def _handle_actions(self) -> None:
+        """Register the handled actions and asset writes on the current backend, in the environment's order."""
+        actions, scene = self._handled_actions
+        if not (actions.is_graphable and scene.is_graphable):
+            return
+        self.register_pre_actuator_callback(actions.apply_action)
+        self.register_pre_actuator_callback(scene.write_data_to_sim)
+        self.backend.handles_actions = True
 
     def add_contact_sensor(
         self,

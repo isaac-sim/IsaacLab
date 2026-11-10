@@ -24,7 +24,6 @@ from ..utils.warp.launch_cache import _WarpLaunchCache
 from . import actuator_kernels
 from .actuator_base import ActuatorBase, resolve_joint_parameter
 from .actuator_base_cfg import ActuatorBaseCfg, _is_implicit_actuator_cfg
-from .actuator_compat import resolve_limit_aliases
 from .actuator_control import _JOINT_PROPERTY_KEYS, ActuatorControl
 from .actuator_pd import IdealPDActuator, ImplicitActuator
 
@@ -88,8 +87,6 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
         self._allocate_buffers()
         self._target_command = ActuatorTargetCommand(self)
         self._output_command = ActuatorOutputCommand(self)
-        for name, cfg in resolved_cfgs.items():
-            resolve_limit_aliases(name, cfg, resolved_group_joints[name][1])
         self._native_group_names = self._control.prepare_native_actuators(self, resolved_cfgs)
         self._build_groups(resolved_cfgs, resolved_group_joints)
         self._newton_selection = self._control.finalize_native_actuators(self)
@@ -162,6 +159,11 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
     def device(self) -> str:
         """Warp/Torch device string."""
         return self._control.device
+
+    @property
+    def is_graphable(self) -> bool:
+        """Whether :meth:`compute` can be recorded into a CUDA graph: no Isaac Lab actuator model runs in Torch."""
+        return not self._execution_actuators
 
     @property
     def has_implicit_actuators(self) -> bool:

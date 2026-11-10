@@ -16,7 +16,7 @@ import warp as wp
 from newton._src.actuators.utils import load_checkpoint
 from newton.actuators import ClampingDCMotor, ClampingMaxEffort, ClampingPositionBased, DrivePD
 
-from pxr import Usd, UsdGeom, UsdPhysics
+from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.actuators import ActuatorBaseCfg, DCMotor, DCMotorCfg, DelayedPDActuatorCfg, RemotizedPDActuatorCfg
 from isaaclab.actuators.newton import NewtonActuatorAdapter
@@ -131,6 +131,32 @@ def test_checkpoint_metadata_rejects_pickle_without_deserializing(monkeypatch, t
         resave_checkpoint_with_metadata(str(checkpoint_path), {})
 
     assert not marker_path.exists()
+
+
+@pytest.mark.parametrize(
+    ("model_path", "expected_opt_in"),
+    [
+        ("network.pt", True),
+        ("network.pth", True),
+        ("network.PT2", True),
+        (None, False),
+        ("network.onnx", False),
+        ("network.pt.backup", False),
+    ],
+)
+def test_from_usd_limits_torch_checkpoint_opt_in(monkeypatch, model_path, expected_opt_in):
+    """Pass Newton's unsafe-import opt-in only for authored Torch checkpoint paths."""
+    stage = Usd.Stage.CreateInMemory()
+    prim = stage.DefinePrim("/Actuator", "NewtonActuator")
+    if model_path is not None:
+        prim.CreateAttribute("newton:modelPath", Sdf.ValueTypeNames.Asset).Set(Sdf.AssetPath(model_path))
+    parse = Mock(return_value=None)
+    monkeypatch.setattr("isaaclab.actuators.newton.adapter.parse_actuator_prim", parse)
+
+    with pytest.raises(ValueError, match="No NewtonActuator prims found"):
+        NewtonActuatorAdapter.from_usd(stage, ["joint"], 1, 1, "cpu", articulation_prim_path="/Actuator")
+
+    parse.assert_called_once_with(prim, allow_unsafe_torch_checkpoints=expected_opt_in)
 
 
 @pytest.mark.parametrize("kind", ["mlp", "lstm"])

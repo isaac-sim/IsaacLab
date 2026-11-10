@@ -23,7 +23,6 @@ from .assets import SPOON_BOWL_LENGTH, SPOON_BOWL_WIDTH
 if TYPE_CHECKING:
     from newton import Model, State
 
-    from .demo_env_cfg import CoffeeMPMSolverCfg
     from .dissolution import CoffeeDissolution
 
 
@@ -78,15 +77,12 @@ class CoffeeMPMSolver(MPMSolver):
 
     solver_class = SolverCoffeeMPM
 
-    @classmethod
-    def build(
-        cls, cfg: CoffeeMPMSolverCfg, model: Model, mode: wp.DeterministicMode, env_template: str | None = None
-    ) -> SolverCoffeeMPM:
+    def build(self, model: Model, mode: wp.DeterministicMode, env_template: str | None) -> SolverCoffeeMPM:
         """Construct :class:`SolverCoffeeMPM` from the shared MPM configuration resolution."""
-        grains = cfg.grains_per_particle
+        grains = self.cfg.grains_per_particle
         if type(grains) is not int or grains < 0:
             raise ValueError("grains_per_particle must be a nonnegative integer.")
-        return cls.solver_class(model, cfg.to_solver_config(), grains_per_particle=grains)
+        return self.solver_class(model, self.cfg.to_solver_config(), grains_per_particle=grains)
 
 
 def configure_spoon_rim_margin(solver: SolverCoffeeMPM, scale: float) -> None:
