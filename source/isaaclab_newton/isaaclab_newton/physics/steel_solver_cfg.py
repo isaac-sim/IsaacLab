@@ -16,12 +16,6 @@ from .newton_manager_cfg import NewtonSolverCfg
 
 @configclass
 class SteelSolverCfg(NewtonSolverCfg):
-    """Newton Steel settings used by Isaac Lab task presets.
-
-    Unlisted constructor options retain Newton's defaults. See Newton's ``SolverSteel``
-    documentation for the full experimental interface.
-    """
-
     class_type: type | str = "{DIR}.steel_solver:SteelSolver"
 
     solver_type: str = "steel"

@@ -324,7 +324,8 @@ class PhysicsCfg(PresetCfg):
             free_body_constraint_max=64,
             parallel_tree=True,
         ),
-        collision_cfg=NewtonCollisionPipelineCfg(),
+        # Default 4096 environments, 170 contacts each.
+        collision_cfg=NewtonCollisionPipelineCfg(rigid_contact_max=170 * 4096),
         default_shape_cfg=NewtonShapeCfg(gap=0.002),
         num_substeps=2,
     )
@@ -348,13 +349,6 @@ class SO101KeyboardEnvCfg(ManagerBasedRLEnvCfg):
         self.episode_length_s = 6.0
         self.sim.render_interval = self.decimation
         self.sim.visualizer_cfgs = VisualizerCfg(eye=(0.85, -0.75, 1.0), lookat=(0.25, 0.0, 0.1), focal_length=28.0)
-        physics = self.sim.physics
-        if isinstance(physics, PhysicsCfg):
-            physics = physics.newton_steel
-        if isinstance(physics, NewtonCfg) and isinstance(physics.solver_cfg, SteelSolverCfg):
-            collision_cfg = physics.collision_cfg
-            if collision_cfg is not None and collision_cfg.rigid_contact_max is None:
-                collision_cfg.rigid_contact_max = 170 * self.scene.num_envs
 
     def play_mode(self):
         """Enable typing markers for every playback environment."""
