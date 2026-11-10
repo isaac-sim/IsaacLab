@@ -190,18 +190,12 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
             env_mask: Boolean mask of the environments to reset. Shape is (num_instances,). Takes precedence over
                 ``env_ids`` and does not synchronize the device. Defaults to None.
         """
-        if env_mask is not None:
-            for actuator in self._groups.values():
-                if isinstance(actuator, ActuatorBase):
-                    actuator.reset(env_mask=env_mask)
-            self._control.reset_native_actuators(slice(None), env_mask)
-            return
-        group_env_ids = self._control._normalize_index_sequence(env_ids)
+        group_env_ids = None if env_mask is not None else self._control._normalize_index_sequence(env_ids)
         for actuator in self._groups.values():
             # Newton-executed groups are reset through the backend below.
             if isinstance(actuator, ActuatorBase):
-                actuator.reset(group_env_ids)
-        self._control.reset_native_actuators(slice(None) if group_env_ids is None else group_env_ids)
+                actuator.reset(group_env_ids, env_mask)
+        self._control.reset_native_actuators(slice(None) if group_env_ids is None else group_env_ids, env_mask)
 
     def compute(self, dt: float = 0.0) -> None:
         """Compute processed actuator commands and telemetry.

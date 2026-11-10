@@ -69,7 +69,7 @@ class ActuatorNetLSTM(DCMotor):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None):
+    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None) -> None:
         selection = env_ids if env_mask is None else wp.to_torch(env_mask)
         # reset the hidden and cell states for the specified environments
         with torch.no_grad():
@@ -140,7 +140,7 @@ class ActuatorNetMLP(DCMotor):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None):
+    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None) -> None:
         selection = env_ids if env_mask is None else wp.to_torch(env_mask)
         # reset the history for the specified environments
         index_fill_(self._joint_pos_error_history, selection, 0.0)

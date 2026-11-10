@@ -109,7 +109,7 @@ class NoiseModel:
         self._num_envs = num_envs
         self._device = device
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Reset the noise model.
 
         This method can be implemented by derived classes to reset the noise model.
@@ -154,7 +154,7 @@ class NoiseModelWithAdditiveBias(NoiseModel):
         self._num_components: int | None = None
         self._sample_bias_per_component = noise_model_cfg.sample_bias_per_component
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Reset the noise model.
 
         This method resets the bias term for the specified environments.

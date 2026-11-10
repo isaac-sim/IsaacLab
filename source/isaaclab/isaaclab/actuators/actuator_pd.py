@@ -170,7 +170,7 @@ class ImplicitActuator(ActuatorBase):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None):
+    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None) -> None:
         # This is a no-op. There is no state to reset for implicit actuators.
         pass
 
@@ -289,7 +289,7 @@ class IdealPDActuator(ActuatorBase):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None):
+    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None) -> None:
         pass
 
     def compute(
@@ -436,7 +436,7 @@ class DelayedPDActuator(IdealPDActuator):
         self.efforts_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
         self._delay_buffers = (self.positions_delay_buffer, self.velocities_delay_buffer, self.efforts_delay_buffer)
 
-    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None):
+    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None) -> None:
         super().reset(env_ids, env_mask)
         if env_mask is not None:
             # draw a delay for every environment and keep the selected ones, so the mask stays on the device

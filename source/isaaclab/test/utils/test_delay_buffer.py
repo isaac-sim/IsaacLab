@@ -159,16 +159,22 @@ def test_delay_buffer_cuda_graph(delay_buffer, device):
             torch.testing.assert_close(read, expected)
 
 
-def test_reset_with_mask_redraws_only_selected_lags():
-    """A mask reset clears and redraws the lags of the selected batches and keeps the others."""
-    buffer = DelayBuffer(8, 6, "cpu", min_lag=1, hold_prob=0.5)
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_reset_with_mask_keeps_unselected_batches_without_sync(device):
+    """A mask reset clears and redraws the selected batches on the device and keeps the others."""
+    buffer = DelayBuffer(8, 6, device, min_lag=1, hold_prob=0.5)
     for value in range(3):
-        buffer.compute(torch.full((6, 1), float(value)))
-    buffer._time_lags[:] = 0
-    mask = torch.tensor([True, False, True, False, False, True])
+        buffer.compute(torch.full((6, 1), float(value), device=device))
+    lags = buffer.time_lags.clone()
+    mask = torch.tensor([True, False, True, False, False, True], device=device)
 
-    buffer.reset(mask)
+    torch.cuda.synchronize(device)
+    torch.cuda.set_sync_debug_mode("error")
+    try:
+        buffer.reset(mask)
+    finally:
+        torch.cuda.set_sync_debug_mode(0)
 
-    assert torch.all(buffer.time_lags[mask] >= 1)
-    assert torch.all(buffer.time_lags[~mask] == 0)
+    assert torch.equal(buffer.time_lags[~mask], lags[~mask])
+    assert torch.all((buffer.time_lags[mask] >= 1) & (buffer.time_lags[mask] <= 8))
     assert torch.equal(buffer.num_pushes == 0, mask)

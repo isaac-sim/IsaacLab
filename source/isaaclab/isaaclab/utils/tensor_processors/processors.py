@@ -157,7 +157,7 @@ class DigitalFilter(TensorProcessor):
         self.x_n = torch.zeros(self._data_dim + (self.B.shape[0],), device=self._device)
         self.y_n = torch.zeros(self._data_dim + (self.A.shape[0],), device=self._device)
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Resets digital filter history.
 
         Args:
@@ -233,7 +233,7 @@ class Integrator(TensorProcessor):
         self.integral = torch.zeros(self._data_dim, device=self._device)
         self.y_prev = torch.zeros(self._data_dim, device=self._device)
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Resets integrator state to zero.
 
         Args:

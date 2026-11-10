@@ -248,7 +248,7 @@ class Multirotor(Articulation):
         # set targets
         self._data.thrust_target[env_ids, thruster_ids] = target
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Reset the multirotor to default state.
 
         This method resets both the base articulation state (pose, velocities) and
@@ -272,7 +272,6 @@ class Multirotor(Articulation):
         super().reset(env_ids, env_mask)
 
         if env_mask is not None:
-            # reset thruster targets of the masked environments to their default values
             if self._data.thrust_target is not None and self._data.default_thruster_rps is not None:
                 torch.where(
                     wp.to_torch(env_mask)[:, None],

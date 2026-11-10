@@ -125,12 +125,12 @@ class BaseRayCaster(SensorBase):
             return
         # resample drift for every sensor and keep it only where selected, so the selection stays on the device
         selected = wp.to_torch(reset_mask)[:, None]
-        drift = torch.zeros(self._view_count, 3, device=self.device)
         if sample_drift:
-            drift.uniform_(*self.cfg.drift_range)
-        torch.where(selected, drift, self.drift.torch, out=self.drift.torch)
+            drift = torch.empty(self._view_count, 3, device=self.device).uniform_(*self.cfg.drift_range)
+            torch.where(selected, drift, self.drift.torch, out=self.drift.torch)
+        else:
+            self.drift.torch.masked_fill_(selected, 0.0)
         # resample the ray cast drift
-        ray_cast_drift = torch.zeros(self._view_count, 3, device=self.device)
         if sample_ray_cast_drift:
             # Upload the ranges to the device only when the configuration changes.
             if ray_cast_range_list != self._ray_cast_drift_range_list:
@@ -140,7 +140,9 @@ class BaseRayCaster(SensorBase):
             ray_cast_drift = math_utils.sample_uniform(
                 ranges[:, 0], ranges[:, 1], (self._view_count, 3), device=self.device
             )
-        torch.where(selected, ray_cast_drift, self.ray_cast_drift.torch, out=self.ray_cast_drift.torch)
+            torch.where(selected, ray_cast_drift, self.ray_cast_drift.torch, out=self.ray_cast_drift.torch)
+        else:
+            self.ray_cast_drift.torch.masked_fill_(selected, 0.0)
 
     """
     Implementation.

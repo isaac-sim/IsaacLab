@@ -428,7 +428,7 @@ class InteractiveScene:
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Resets the scene entities.
 
         Args:
@@ -437,17 +437,17 @@ class InteractiveScene:
             env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Takes precedence over
                 ``env_ids`` and resets without synchronizing the device. Defaults to None.
         """
-        entities = (
-            *self._articulations.values(),
-            *self._cable_objects.values(),
-            *self._deformable_objects.values(),
-            *self._rigid_objects.values(),
-            *self._surface_grippers.values(),
-            *self._rigid_object_collections.values(),
-            *self._sensors.values(),
-        )
-        for entity in entities:
-            entity.reset(env_ids=env_ids, env_mask=env_mask)
+        for entities in (
+            self._articulations,
+            self._cable_objects,
+            self._deformable_objects,
+            self._rigid_objects,
+            self._surface_grippers,
+            self._rigid_object_collections,
+            self._sensors,
+        ):
+            for entity in entities.values():
+                entity.reset(env_ids=env_ids, env_mask=env_mask)
 
     def write_data_to_sim(self):
         """Writes the data of the scene entities to the simulation."""

@@ -155,11 +155,13 @@ def test_warp_manager_build_constructs_warp_env_with_cfg():
 
 
 def test_warp_direct_build_constructs_resolved_env_with_cfg():
-    cfg = types.SimpleNamespace(scene=types.SimpleNamespace(class_type=None))
+    scene_cfg = types.SimpleNamespace(class_type=None)
+    cfg = types.SimpleNamespace(scene=scene_cfg)
     expected_env = object()
+    calls: list[tuple[Any, Any]] = []
 
     def fake_env(*, cfg: Any, **kwargs: Any) -> Any:
-        assert kwargs == {"render_mode": "rgb_array"}
+        calls.append((cfg, kwargs))
         return expected_env
 
     with (
@@ -169,6 +171,9 @@ def test_warp_direct_build_constructs_resolved_env_with_cfg():
         env = WarpFrontend._build_direct_env(cfg, "Isaac-Test", render_mode="rgb_array")
 
     assert env is expected_env
+    # the supplied cfg is forwarded unchanged, scene selection included
+    assert calls == [(cfg, {"render_mode": "rgb_array"})]
+    assert cfg.scene is scene_cfg and scene_cfg.class_type is None
 
 
 # ======================================================================

@@ -207,18 +207,22 @@ def test_integral(device):
 
 
 @pytest.mark.parametrize(
-    "cfg", [tensor_processors.DigitalFilterCfg(A=[0.0, 0.1], B=[0.5, 0.5]), tensor_processors.IntegratorCfg(dt=0.1)]
+    ("cfg", "first", "third"),
+    [
+        # y[i] = 0.5 x[i] + 0.5 x[i-1] - 0.1 y[i-2] on a unit step: 0.5, 1.0, 0.95
+        (tensor_processors.DigitalFilterCfg(A=[0.0, 0.1], B=[0.5, 0.5]), 0.5, 0.95),
+        # trapezoidal integral of a unit step with dt = 0.1: 0.05, 0.15, 0.25
+        (tensor_processors.IntegratorCfg(dt=0.1), 0.05, 0.25),
+    ],
 )
-def test_stateful_tensor_processor_mask_reset(cfg):
-    """A mask reset clears the history of the selected environments only."""
-    processor, reference = (cfg.func(cfg, (3, 2), device="cpu") for _ in range(2))
+def test_stateful_tensor_processor_mask_reset(cfg, first, third):
+    """A mask reset restarts the history of the selected environments; the others continue."""
+    processor = cfg.func(cfg, (3, 2), device="cpu")
     data = torch.ones(3, 2)
-    expected = [reference(data).clone() for _ in range(3)]
     for _ in range(2):
         processor(data)
 
     processor.reset(env_mask=wp.array([True, False, True], dtype=wp.bool, device="cpu"))
     output = processor(data)
 
-    torch.testing.assert_close(output[[0, 2]], expected[0][[0, 2]])
-    torch.testing.assert_close(output[1], expected[2][1])
+    torch.testing.assert_close(output, torch.tensor([first, third, first])[:, None].expand(3, 2))

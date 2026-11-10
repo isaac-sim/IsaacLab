@@ -237,7 +237,7 @@ class ActuatorBase(ABC):
     """
 
     @abstractmethod
-    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None):
+    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None) -> None:
         """Reset the internals within the group.
 
         Args:

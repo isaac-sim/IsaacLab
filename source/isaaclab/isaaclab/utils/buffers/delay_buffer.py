@@ -165,7 +165,7 @@ class DelayBuffer:
         else:
             index_fill_(self._time_lags, batch_ids, time_lag)
 
-    def reset(self, batch_ids: Sequence[int] | torch.Tensor | None = None):
+    def reset(self, batch_ids: Sequence[int] | torch.Tensor | None = None) -> None:
         """Reset the data in the delay buffer at the specified batch indices.
 
         Automatically sampled lags are redrawn for those batches regardless of ``hold_prob``.

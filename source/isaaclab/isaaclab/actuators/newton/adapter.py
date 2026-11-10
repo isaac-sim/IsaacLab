@@ -224,20 +224,6 @@ class NewtonActuatorAdapter:
             wp.launch(set_mask_kernel, dim=num_envs, inputs=[env_mask, indices], device=self._device)
         self._reset_states(env_mask)
 
-    def _reset_states(self, env_mask: wp.array) -> None:
-        """Reset the actuator states of the environments selected by a boolean mask of shape (num_envs,)."""
-        for act, sa, sb, per_dof_mask in zip(self.actuators, self._states_a, self._states_b, self._reset_dof_masks):
-            if per_dof_mask is None:
-                continue
-            wp.launch(
-                build_per_dof_env_mask_kernel,
-                dim=act.indices.shape[0],
-                inputs=[act.indices, env_mask, self._dof_offset, self.num_joints, per_dof_mask],
-                device=self._device,
-            )
-            sa.reset(per_dof_mask)
-            sb.reset(per_dof_mask)
-
     def bind_articulation(
         self,
         *,
@@ -331,6 +317,20 @@ class NewtonActuatorAdapter:
             articulation_prim_path=articulation_prim_path,
         )
         return cls(actuators, num_envs, num_joints, dof_offset=0, device=device)
+
+    def _reset_states(self, env_mask: wp.array) -> None:
+        """Reset the actuator states of the environments selected by a boolean mask of shape (num_envs,)."""
+        for act, sa, sb, per_dof_mask in zip(self.actuators, self._states_a, self._states_b, self._reset_dof_masks):
+            if per_dof_mask is None:
+                continue
+            wp.launch(
+                build_per_dof_env_mask_kernel,
+                dim=act.indices.shape[0],
+                inputs=[act.indices, env_mask, self._dof_offset, self.num_joints, per_dof_mask],
+                device=self._device,
+            )
+            sa.reset(per_dof_mask)
+            sb.reset(per_dof_mask)
 
 
 # ---------------------------------------------------------------------------
