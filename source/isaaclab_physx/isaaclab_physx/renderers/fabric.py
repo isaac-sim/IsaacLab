@@ -192,7 +192,7 @@ class FabricBackend:
                 (
                     (selection, write_selection),
                     frequency,
-                    TimestampedBuffer(update_in_graph=False),
+                    TimestampedBuffer(),
                     offsets,
                     -frequency,
                 )

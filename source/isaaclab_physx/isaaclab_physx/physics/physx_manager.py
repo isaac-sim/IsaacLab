@@ -196,7 +196,7 @@ class PhysxSceneDataBackend(SceneDataBackend):
 
     def __init__(self, manager):
         self._manager = manager
-        self._transforms = TimestampedBuffer(SceneDataFormat.Transform(), update_in_graph=False)
+        self._transforms = TimestampedBuffer(SceneDataFormat.Transform())
         self.transforms_timestamp = 0
         self.geometry_timestamp = 0
         self.clear()
@@ -210,7 +210,7 @@ class PhysxSceneDataBackend(SceneDataBackend):
         self.transforms_timestamp += 1
         self.geometry_timestamp += 1
         self._fabric_timestamp = -1
-        self._geometry = TimestampedBuffer(update_in_graph=False)
+        self._geometry = TimestampedBuffer()
         self._fabric_transforms = SceneDataFormat.FabricMatrix44()
         self._fabric_selection = None
         self._fabric_hierarchy = None
@@ -244,9 +244,7 @@ class PhysxSceneDataBackend(SceneDataBackend):
             batches = deformable_geometry_batches(ordered, native_offsets, device=str(self._manager._device))
             bindings.append((view, batches))
         self._deformable_bindings = bindings
-        self._geometry = TimestampedBuffer(
-            [batch for _, batches in bindings for batch in batches], update_in_graph=False
-        )
+        self._geometry = TimestampedBuffer([batch for _, batches in bindings for batch in batches])
 
     @property
     def native_geometry_formats(self) -> tuple[Any, ...]:
