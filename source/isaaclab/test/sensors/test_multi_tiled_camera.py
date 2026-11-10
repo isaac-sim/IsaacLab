@@ -340,12 +340,9 @@ def test_frame_different_poses_multi_tiled_camera(setup_camera):
 
     # Play sim
     sim.reset()
-    renderer_cfg = tiled_cameras[0].cfg.renderer_cfg
-    assert all(
-        camera._renderer is tiled_cameras[0]._renderer
-        for camera in tiled_cameras
-        if camera.cfg.renderer_cfg == renderer_cfg
-    ), "Cameras with equal renderer configs should share one renderer instance."
+    assert all(camera._renderer is tiled_cameras[0]._renderer for camera in tiled_cameras), (
+        "Cameras with equal renderer configs should share one renderer instance."
+    )
 
     # Simulate physics
     for _ in range(10):
