@@ -176,3 +176,21 @@ def test_modify_env_param_indexes_into_dict_values():
     term(env, None, "params.ranges[1].high", modify_fn=lambda env, env_ids, value: value * 10)
 
     assert env.params["ranges"][1].high == 20.0
+
+
+def test_modify_env_param_sets_indexed_final_element():
+    """An address ending in an index sets that element, replacing an immutable tuple on its owner."""
+    env = SimpleNamespace(ranges=SimpleNamespace(lin_vel_x=(-1.0, 1.0)), weights=[1.0, 2.0])
+    steps = {"ranges.lin_vel_x[0]": -1.0, "ranges.lin_vel_x[1]": 1.0, "weights[1]": 1.0}
+    terms = {
+        address: mdp.modify_env_param(CurrTerm(func=mdp.modify_env_param, params={"address": address}), env)
+        for address in steps
+    }
+
+    # two terms widen the bounds of the same tuple in turn, so each must see the other's writes
+    for _ in range(2):
+        for address, step in steps.items():
+            terms[address](env, None, address, modify_fn=lambda env, env_ids, value, step=step: value + step)
+
+    assert env.ranges.lin_vel_x == (-3.0, 3.0)
+    assert env.weights == [1.0, 4.0]
