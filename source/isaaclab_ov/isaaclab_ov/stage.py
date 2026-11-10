@@ -153,6 +153,19 @@ def ovstage_replicate(
             output_ordinal=ordinal,
             model=ovstage.HierarchyComputationModel.CPU_INCREMENTAL,
         )
+    _apply_ovstage_copies(stage, paths, copies, env_paths, positions, ordinal=ordinal)
+
+
+def _apply_ovstage_copies(
+    stage: ovstage.Stage,
+    paths: ovstage.PathDictionary,
+    copies: Sequence[tuple[str, Sequence[str]]],
+    env_paths: Sequence[str],
+    positions: np.ndarray | None,
+    *,
+    ordinal: int,
+) -> None:
+    """Apply prepared copies and placement after source hierarchy preparation."""
     for source, targets in copies:
         if targets:
             stage.clone(source, targets, ordinal=ordinal)
@@ -185,6 +198,8 @@ class OvstageBackendCfg(BackendCfg):
     """Native USD domains to populate, independent of the physics population API."""
     populate_physics: bool = False
     """Include physics data for OVPhysX, using the population API supported by the installed OVStage."""
+    defer_render_copies: bool = False
+    """Populate physics originals first, completing render copies only after native physics bindings exist."""
 
 
 class OvstageBackend:
@@ -201,6 +216,7 @@ class OvstageBackend:
         self.clone_env_paths: list[str] = []
         self.population_env_paths: list[str] = []
         self.clone_positions: np.ndarray | None = None
+        self._deferred_render_copies: list[tuple[str, list[str]]] | None = None
         self.resources = contextlib.ExitStack()
         """Release borrowers before paths and stage, in reverse registration order."""
         self.reset()
@@ -208,13 +224,18 @@ class OvstageBackend:
     def populate(self, usda: str) -> None:
         """Import the exported prototypes and apply the clone context's prepared operations.
 
-        Population commits ordinal 1. Consumers may then author render products and poses
-        starting at ordinal 2, after every cloned camera path exists.
+        Population commits ordinal 1. With early physics attachment, ordinal 2 is reserved for
+        deferred render copies after native physics cloning and binding acquisition. Otherwise,
+        consumers may author render products and poses starting at ordinal 2.
 
         Args:
             usda: USD scene containing the routed prototypes and their materials.
         """
         if self.ordinal:
+            return
+
+        if self.cfg.defer_render_copies:
+            self._populate_originals(usda)
             return
 
         # Ordinal 0 is the empty state; population and cloning form the first committed write.
@@ -226,6 +247,66 @@ class OvstageBackend:
         )
         self.ordinal = 1
         self.commit()
+
+    @property
+    def render_copies_pending(self) -> bool:
+        """Whether population reserved a render-copy commit that consumers have not completed."""
+        return self._deferred_render_copies is not None
+
+    def _populate_originals(self, usda: str) -> None:
+        """Populate complete physics originals and retain the remaining render copies."""
+        layer = Sdf.Layer.CreateAnonymous()
+        if not layer.ImportFromString(usda):
+            raise ValueError("Cannot parse the original-world export for early physics attachment.")
+        original_stage = Usd.Stage.Open(layer)
+        _author_render_settings(original_stage)
+        for path in self.clone_env_paths:
+            prim = original_stage.GetPrimAtPath(path)
+            if not prim or prim.GetAllChildren() or prim.GetAppliedSchemas() or prim.HasAuthoredMetadata("apiSchemas"):
+                continue
+            if any(prop.GetName().startswith(("physics:", "physx")) for prop in prim.GetAuthoredProperties()):
+                continue
+            original_stage.RemovePrim(path)
+        # Serialization may materialize additional assets in original-bearing worlds. Retain
+        # only missing destinations, including render-only descendants of complete originals.
+        copies = [
+            (source, [target for target in targets if target != source and not original_stage.GetPrimAtPath(target)])
+            for source, targets in self.clone_copies
+        ]
+        for source, targets in copies:
+            if targets and not original_stage.GetPrimAtPath(source):
+                raise ValueError(f"The original-world export omitted render clone source {source!r}.")
+        populate_stage(self.stage, layer.ExportToString(), ordinal=1, domains=self.cfg.population_domains, physics=True)
+        if OVSTAGE_REQUIRES_CPU_HIERARCHY_BEFORE_CLONE and any(targets for _, targets in copies):
+            self.stage.compute_hierarchy(
+                input_ordinal=1, output_ordinal=1, model=ovstage.HierarchyComputationModel.CPU_INCREMENTAL
+            )
+        self.ordinal = 1
+        self.commit()
+        self._deferred_render_copies = copies
+
+    def complete_render_copies(self) -> None:
+        """Seal render copies at ordinal 2 after physics cloning and binding acquisition.
+
+        This ordinal is rendering-only and must never be passed to OVPhysX's stage-update API.
+        Repeated calls do nothing; resetting the stage rebuilds the pending copies during population.
+        """
+        if self._deferred_render_copies is None:
+            return
+        try:
+            if self.ordinal != 2:
+                raise RuntimeError(f"Expected reserved render-copy ordinal 2; found {self.ordinal}.")
+            _apply_ovstage_copies(
+                self.stage,
+                self.paths,
+                self._deferred_render_copies,
+                self.clone_env_paths,
+                self.clone_positions,
+                ordinal=2,
+            )
+            self.commit()
+        finally:
+            self._deferred_render_copies = None
 
     @contextlib.contextmanager
     def query(self, prim_paths: Sequence[str]) -> Iterator[ovstage.Query]:
@@ -253,6 +334,7 @@ class OvstageBackend:
 
     def close(self) -> None:
         """Release borrowers, then the path dictionary and stage."""
+        self._deferred_render_copies = None
         self.resources.close()
         self.stage = self.paths = None
 
@@ -264,6 +346,18 @@ class OvstageBackend:
             self.stage = resources.enter_context(create_ovstage("isaaclab.scene"))
             self.paths = resources.enter_context(ovstage.PathDictionary(self.stage))
             self.resources = resources.pop_all()
+
+
+def _author_render_settings(stage: Usd.Stage) -> None:
+    """Preserve render settings and scene partition defaults in a private scene export."""
+    # Perspective cameras see every partition; sensor cameras retain their explicit partition.
+    settings_path = stage.GetMetadata("renderSettingsPrimPath") or "/Render/IsaacLabSettings"
+    settings = UsdRender.Settings.Define(stage, settings_path)
+    settings.GetPrim().AddAppliedSchema("OmniRtxSettingsGlobalCommonAPI_1")
+    settings.GetPrim().CreateAttribute(
+        "omni:rtx:scenePartitioning:showAllPartitionsByDefault", Sdf.ValueTypeNames.Bool
+    ).Set(True)
+    stage.SetMetadata("renderSettingsPrimPath", settings_path)
 
 
 def export_stage_to_string(
@@ -298,14 +392,7 @@ def export_stage_to_string(
     export_session.subLayerPaths = [stage.GetSessionLayer().identifier]
     export_stage = Usd.Stage.Open(stage.GetRootLayer(), export_session)
     export_stage.SetEditTarget(export_session)
-    # Perspective cameras see every partition; sensor cameras retain their explicit partition.
-    settings_path = export_stage.GetMetadata("renderSettingsPrimPath") or "/Render/IsaacLabSettings"
-    settings = UsdRender.Settings.Define(export_stage, settings_path)
-    settings.GetPrim().AddAppliedSchema("OmniRtxSettingsGlobalCommonAPI_1")
-    settings.GetPrim().CreateAttribute(
-        "omni:rtx:scenePartitioning:showAllPartitionsByDefault", Sdf.ValueTypeNames.Bool
-    ).Set(True)
-    export_stage.SetMetadata("renderSettingsPrimPath", settings_path)
+    _author_render_settings(export_stage)
     prim_paths = []
     if len(clone_env_paths) > 1:
         source_path_set = frozenset(map(Sdf.Path, source_paths))

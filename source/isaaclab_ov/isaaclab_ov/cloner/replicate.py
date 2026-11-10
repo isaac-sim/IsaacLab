@@ -194,10 +194,11 @@ class OvrtxReplicateContext(cloner.ReplicateContext):
         if share_ovstage and sim.backend_manager.backend is not None and sim.backend_manager.backend.owns_scene:
             raise RuntimeError("Configure OVRTX cameras before the first OVPhysX reset to share its OVStage.")
         if use_ovstage:
-            replaced = (OvrtxReplicateContext, OvPhysxReplicateContext) if share_ovstage else (OvrtxReplicateContext,)
-            for context in replaced:
-                routing.setdefault(OvstageReplicateContext, set()).update(routing.pop(context, ()))
-                sim.clone_contexts.pop(context, None)
+            if share_ovstage:
+                # Keep the physics route so the existing planner builds native clone recipes.
+                routing.setdefault(OvstageReplicateContext, set()).update(routing.get(OvPhysxReplicateContext, ()))
+            routing.setdefault(OvstageReplicateContext, set()).update(routing.pop(OvrtxReplicateContext, ()))
+            sim.clone_contexts.pop(OvrtxReplicateContext, None)
 
         # Stage ownership is settled before native construction. Register the stage before its borrowers.
         for renderer in renderers:
@@ -223,7 +224,11 @@ class OvrtxReplicateContext(cloner.ReplicateContext):
             scene = None
             if use_ovstage:
                 scene = sim.get_or_create_backend(
-                    OvstageBackendCfg(scene_key=None if share_ovstage else backend_cfg, populate_physics=share_ovstage)
+                    OvstageBackendCfg(
+                        scene_key=None if share_ovstage else backend_cfg,
+                        populate_physics=share_ovstage,
+                        defer_render_copies=share_ovstage,
+                    )
                 )
             renderer.backend = sim.get_or_create_backend(backend_cfg)
             renderer.scene = scene if use_ovstage else renderer.backend
@@ -481,6 +486,7 @@ def _serialize_stage(
     plan: ClonePlan | None = None,
     *,
     friction_replacements: dict[str, tuple[float, float, float]] | None = None,
+    preserve_physics_ancestors: bool = False,
 ) -> tuple[str, list[CloneRecipe]]:
     """Export complete original worlds once and compile copies from those originals.
 
@@ -488,6 +494,9 @@ def _serialize_stage(
     import all its assets together; its copies inherit one collision group and environment ID.
     CPU, features without native cloning, and acceleration-spring materials with positive
     compliant-contact stiffness import every declared world instead.
+
+    When ``preserve_physics_ancestors`` is enabled, retain empty ancestors with authored
+    physics properties even when no API schema is applied.
     """
     if recipes and not full_stage:
         # Native clones lose acceleration-spring material behavior in OVPhysX 0.6.3.
@@ -592,7 +601,14 @@ def _serialize_stage(
                 # Empty clone ancestors make native literal-path lookup enumerate every world.
                 spec = layer.GetPrimAtPath(target_path.GetParentPath())
                 while spec and not spec.nameChildren and spec.typeName in ("", "Xform"):
-                    if spec.HasInfo("apiSchemas") or any(source.HasPrefix(spec.path) for source in sources):
+                    if (
+                        spec.HasInfo("apiSchemas")
+                        or any(source.HasPrefix(spec.path) for source in sources)
+                        or (
+                            preserve_physics_ancestors
+                            and any(prop.name.startswith(("physics:", "physx")) for prop in spec.properties)
+                        )
+                    ):
                         break
                     parent = spec.nameParent
                     del (parent.nameChildren if parent else layer.rootPrims)[spec.name]

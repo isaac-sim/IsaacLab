@@ -42,9 +42,9 @@ from isaaclab.utils.buffers import TimestampedBuffer
 
 from isaaclab_ov._clone import CloneRecipe, clone_transforms_from_positions
 from isaaclab_ov.cloner import OvPhysxReplicateContext
-from isaaclab_ov.cloner.replicate import _convert_legacy_joint_properties, _serialize_stage
+from isaaclab_ov.cloner.replicate import _serialize_stage
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
-from isaaclab_ov.stage import OvstageBackend, OvstageBackendCfg, export_stage_to_string
+from isaaclab_ov.stage import OvstageBackend, OvstageBackendCfg
 
 from . import ovphysx_compat
 from .ovphysx_compat import OVPHYSX_LIFECYCLE_ENTRY_POINTS
@@ -721,19 +721,22 @@ class OvPhysxManager(PhysicsManager):
         self._configure_physics_scenes(sim.stage, sim.cfg.physics_prim_path, self._cfg, ovphysx_device)
 
         if shared_scene is not None:
-            stage_usda = export_stage_to_string(
+            physics_recipes = [
+                recipe
+                for recipe in self._clone_recipes
+                if any(
+                    prim.HasAPI(UsdPhysics.RigidBodyAPI) or prim.HasAPI(UsdPhysics.CollisionAPI)
+                    for prim in Usd.PrimRange(sim.stage.GetPrimAtPath(recipe[0]), Usd.TraverseInstanceProxies())
+                )
+            ]
+            stage_usda, native_clones = _serialize_stage(
                 sim.stage,
-                shared_scene.clone_env_paths,
-                source_paths=tuple(source for source, _ in shared_scene.clone_copies),
-                keep_env_roots=False,
-                env_paths=shared_scene.population_env_paths,
+                physics_recipes,
+                False,
+                plan,
+                friction_replacements=self._cfg.legacy_joint_friction_replacements,
+                preserve_physics_ancestors=True,
             )
-            if ovphysx_compat.OVPHYSX_USES_TASKS:
-                layer = Sdf.Layer.CreateAnonymous()
-                layer.ImportFromString(stage_usda)
-                _convert_legacy_joint_properties(layer, self._cfg.legacy_joint_friction_replacements)
-                stage_usda = layer.ExportToString()
-            native_clones = ()
         else:
             full_stage = self._requires_full_stage or ovphysx_device == "cpu"
             stage_usda, native_clones = _serialize_stage(

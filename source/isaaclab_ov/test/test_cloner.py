@@ -468,3 +468,29 @@ def test_export_rejects_unrepresentable_legacy_joint_properties(
     with pytest.raises(ValueError, match=f"{message}.*(/Robot/Joint)|(/Robot/Joint).*{message}"):
         _serialize_stage(stage, [], full_stage=True, friction_replacements=replacements)
     assert stage.GetRootLayer().ExportToString() == before
+
+
+def test_clone_export_preserves_physics_authored_empty_ancestors():
+    """Original-only export retains physics attributes and relationships on clone ancestors."""
+    stage = Usd.Stage.CreateInMemory()
+    paths = [f"/World/envs/env_{index}/Object" for index in range(4)]
+    for path in paths:
+        UsdPhysics.RigidBodyAPI.Apply(stage.DefinePrim(path, "Xform"))
+    authored = stage.GetPrimAtPath("/World/envs/env_1")
+    authored.CreateAttribute("physics:rigidBodyEnabled", Sdf.ValueTypeNames.Bool).Set(False)
+    stage.GetPrimAtPath("/World/envs/env_2").CreateRelationship("physics:body0").SetTargets(["/Shared/Body"])
+    recipes = [(paths[0], paths, [], list(range(4)), 0)]
+
+    serialized, native = _serialize_stage(stage, recipes, False, preserve_physics_ancestors=True)
+    exported = Usd.Stage.CreateInMemory()
+    assert exported.GetRootLayer().ImportFromString(serialized)
+    attribute_root = exported.GetPrimAtPath("/World/envs/env_1")
+    relationship_root = exported.GetPrimAtPath("/World/envs/env_2")
+    assert attribute_root, "Export removed an ancestor with an authored physics attribute"
+    assert relationship_root, "Export removed an ancestor with an authored physics relationship"
+    assert attribute_root.GetAttribute("physics:rigidBodyEnabled").Get() is False
+    assert relationship_root.GetRelationship("physics:body0").GetTargets() == [Sdf.Path("/Shared/Body")]
+    assert not exported.GetPrimAtPath("/World/envs/env_3")
+    assert exported.GetPrimAtPath(paths[0])
+    assert all(not exported.GetPrimAtPath(path) for path in paths[1:])
+    assert [target for _, targets, *_ in native for target in targets] == paths[1:]

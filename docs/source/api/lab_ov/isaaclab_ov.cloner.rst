@@ -26,10 +26,10 @@ selected route. This flag alone never enables physics/rendering stage sharing.
 To share one OVStage with OVPhysX and OVRTX, set ``ISAAC_LAB_SHARE_OVSTAGE=1``. Sharing requires
 OVPhysX and selects OVStage rendering regardless of ``ISAAC_LAB_OVRTX_USE_OVSTAGE``.
 
-Sharing remains opt-in pending upstream cold-binding and shared-stage update performance fixes;
-OVPhysX 0.6.3 has the measured startup regression. In shared mode, ``OvstageReplicateContext`` combines
-both asset routes and clones one stage populated with physics and rendering domains before either
-consumer attaches.
+Sharing remains experimental and opt-in. It retains native physics cloning and populates complete
+original worlds in one stage before OVPhysX attaches. ``OvstageReplicateContext`` also receives the
+physics asset routes so it can complete the rendering copies after native physics cloning and binding
+acquisition. The selected route is retained across resets and subsequent renderer creation.
 
 Configure shared-stage cameras before the initial simulation reset. Cameras may have different product
 settings, but share one native renderer and must agree on native logging and transform-cache settings.
@@ -39,3 +39,15 @@ for those scenes; sharing rejects them before native population rather than drop
 
 The stage owner coordinates write ordinals and releases its borrowers before rebuilding. Rendering on
 an OVStage is synchronous.
+
+Shared-stage attachment order
+-----------------------------
+
+Shared mode uses early physics attachment without an additional flag. It populates complete original worlds at
+ordinal 1, attaches OVPhysX, and waits for native clones before physics warmup. Contact sensors and
+scene-data bindings initialize before the remaining render copies are committed at ordinal 2.
+OVRTX then attaches to the completed stage. Later physics edits consume their exact update ordinals
+and exclude the render-copy ordinal. A forced reset rebuilds this sequence after releasing bindings.
+
+Attaching physics before expanding the render hierarchy reduces initialization work and host memory.
+Legacy OVRTX and separate OVStage rendering remain available unchanged.
