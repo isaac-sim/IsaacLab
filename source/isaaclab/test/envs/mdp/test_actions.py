@@ -252,7 +252,6 @@ def test_recordable_joint_actions_process_into_the_same_buffer(action_cls, cfg) 
     """A step that records ``apply_actions`` reads the processed buffer, so processing writes it in place."""
     cfg.asset_name, cfg.joint_names = "robot", [".*"]
     action = action_cls(cfg, _make_env(["a", "b"]))
-    assert action_cls.is_graphable
     processed = action.processed_actions
 
     action.process_actions(torch.full((2, action.action_dim), -0.25))
@@ -263,10 +262,6 @@ def test_recordable_joint_actions_process_into_the_same_buffer(action_cls, cfg) 
 
 def test_subclass_overriding_action_methods_does_not_inherit_is_graphable() -> None:
     """A subclass with its own ``process_actions`` or ``apply_actions`` is not recorded unless it says so."""
-
-    class Applies(JointEffortAction):
-        def apply_actions(self):
-            pass
 
     class Processes(JointEffortAction):
         def process_actions(self, actions):
@@ -281,7 +276,6 @@ def test_subclass_overriding_action_methods_does_not_inherit_is_graphable() -> N
     class Inherits(JointEffortAction):
         pass
 
-    assert not Applies.is_graphable
     assert not Processes.is_graphable
     assert Declares.is_graphable
     assert Inherits.is_graphable

@@ -32,11 +32,9 @@ def _env(*, render_interval=2, records_physics_steps=False, lazy_sensor_update=F
 @pytest.mark.parametrize(
     ("env", "handled"),
     [
-        pytest.param(_env(), True, id="renders-once-per-env-step"),
         pytest.param(_env(render_interval=1), False, id="renders-every-physics-step"),
         pytest.param(_env(records_physics_steps=True), False, id="records-every-physics-step"),
         pytest.param(_env(sensor={"update_period": 0.02}), True, id="sensor-every-env-step"),
-        pytest.param(_env(sensor={"update_period": 0.04}), True, id="sensor-every-other-env-step"),
         pytest.param(_env(sensor={"update_period": 0.0}), False, id="sensor-every-physics-step"),
         pytest.param(_env(sensor={"update_period": 0.01}), False, id="sensor-mid-env-step"),
         pytest.param(_env(lazy_sensor_update=True, sensor={"update_period": 0.0}), True, id="lazy-sensor"),

@@ -939,20 +939,6 @@ def _damp_body(body_qd: wp.array(dtype=wp.spatial_vector), body_f: wp.array(dtyp
     body_f[0] = wp.spatial_vector(0.0, 0.0, -20.0 * body_qd[0][2], 0.0, 0.0, 0.0)
 
 
-def _handled_actions(manager: NewtonManager, *, graphable: bool):
-    """Actions that damp a free body, and an empty scene; both support graph capture when ``graphable``."""
-    applied = []
-    actions = SimpleNamespace(
-        is_graphable=graphable,
-        apply_action=lambda: (
-            applied.append("action"),
-            wp.launch(_damp_body, 1, inputs=[manager.backend.state_0.body_qd, manager.backend.state_0.body_f]),
-        ),
-    )
-    scene = SimpleNamespace(is_graphable=True, write_data_to_sim=lambda: None)
-    return actions, scene, applied
-
-
 def test_handled_actions_run_before_every_physics_step_like_the_environment_loop():
     """Handled actions run before every physics step of one captured step, also after a hard reset, like the env loop.
 
@@ -967,7 +953,16 @@ def test_handled_actions_run_before_every_physics_step_like_the_environment_loop
             sim.reset()
             manager = sim.backend_manager
             manager.set_decimation(decimation)
-            actions, scene, applied = _handled_actions(manager, graphable=handled)
+            applied = []
+            # actions that damp the free body, recorded into the step only when handled
+            actions = SimpleNamespace(
+                is_graphable=handled,
+                apply_action=lambda: (
+                    applied.append("action"),
+                    wp.launch(_damp_body, 1, inputs=[manager.backend.state_0.body_qd, manager.backend.state_0.body_f]),
+                ),
+            )
+            scene = SimpleNamespace(is_graphable=True, write_data_to_sim=lambda: None)
             assert manager.handle_actions(actions, scene) is handled
             assert manager.handles_decimation() is handled
             for reset in (False, True):

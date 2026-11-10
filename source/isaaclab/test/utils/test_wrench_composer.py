@@ -553,6 +553,7 @@ def test_recorded_wrench_work_applies_wrenches_written_after_capture(device):
     first_uses = []
     instantaneous = WrenchComposer(asset, on_first_use=lambda: first_uses.append("instantaneous"))
     permanent = WrenchComposer(asset, on_first_use=lambda: first_uses.append("permanent"))
+    merged = WrenchComposer(asset, on_first_use=lambda: first_uses.append("merged"))
     with wp.ScopedDevice(device):
         local = wp.array([[[1.0, 0.0, 0.0]]], dtype=wp.vec3f)
         instantaneous.add_forces_and_torques_index(local, env_ids=[0], body_ids=[0])
@@ -560,6 +561,9 @@ def test_recorded_wrench_work_applies_wrenches_written_after_capture(device):
         permanent.add_forces_and_torques_index(
             wp.array([[[0.0, 2.0, 0.0]]], dtype=wp.vec3f), env_ids=[0], body_ids=[0], is_global=True
         )
+        # a merge is a first use too, called once
+        merged.add_raw_buffers_from(permanent)
+        merged.add_raw_buffers_from(permanent)
         force = wp.zeros((2, 2), dtype=wp.vec3f)
         assert not instantaneous.active and instantaneous.pending is False
 
@@ -577,24 +581,7 @@ def test_recorded_wrench_work_applies_wrenches_written_after_capture(device):
         _assert_vectors(force, _grid({(0, 0): (1.0, -2.0, 0.0)}).to(device))
         wp.capture_launch(capture.graph)
         _assert_vectors(force, _grid({(0, 0): (0.0, -2.0, 0.0)}).to(device))
-    assert first_uses == ["instantaneous", "permanent"]
-
-
-@pytest.mark.parametrize("device", test_devices())
-def test_raw_buffer_merge_is_the_first_use_of_its_destination(device):
-    """A merge into an unused composer calls its first-use callback, as a force write would."""
-    com, quat = _poses()
-    asset = SimpleNamespace(
-        num_instances=2, num_bodies=2, device=device, data=_AssetData(com.to(device), quat.to(device))
-    )
-    first_uses = []
-    source = WrenchComposer(asset)
-    destination = WrenchComposer(asset, on_first_use=lambda: first_uses.append("destination"))
-    with wp.ScopedDevice(device):
-        source.add_forces_and_torques_index(wp.array([[[3.0, 0.0, 0.0]]], dtype=wp.vec3f), env_ids=[0], body_ids=[0])
-        destination.add_raw_buffers_from(source)
-        destination.add_raw_buffers_from(source)
-    assert first_uses == ["destination"]
+    assert first_uses == ["instantaneous", "permanent", "merged"]
 
 
 @pytest.mark.parametrize(
