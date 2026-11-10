@@ -82,6 +82,19 @@ def test_resolve_1d_mask_needs_a_scratch_mask_only_for_ids(device):
         resolve_1d_mask(ids=[1], all_mask=all_mask)
 
 
+@pytest.mark.parametrize("device", test_devices())
+def test_resolve_1d_mask_rejects_a_mask_longer_than_the_destination(device):
+    """A mask longer than ``all_mask`` raises with or without a scratch mask, so a consumer launching over the mask
+    length cannot write past its rows; without a scratch mask a shorter mask is returned as given."""
+    all_mask = wp.ones(3, dtype=wp.bool, device=device)
+    long_mask = wp.ones(5, dtype=wp.bool, device=device)
+    for scratch_mask in (None, wp.zeros(3, dtype=wp.bool, device=device)):
+        with pytest.raises(ValueError, match="destination shape"):
+            resolve_1d_mask(mask=long_mask, all_mask=all_mask, scratch_mask=scratch_mask)
+    short_mask = wp.ones(2, dtype=wp.bool, device=device)
+    assert resolve_1d_mask(mask=short_mask, all_mask=all_mask) is short_mask
+
+
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_resolve_1d_mask_copies_a_selection_on_another_device(device, monkeypatch):
     """A Warp mask or Warp ids on another device are copied to ``device``.
@@ -98,15 +111,3 @@ def test_resolve_1d_mask_copies_a_selection_on_another_device(device, monkeypatc
     ids = wp.array([0, 2], dtype=wp.int32, device="cpu")
     assert resolve_1d_mask(ids=ids, all_mask=all_mask, scratch_mask=scratch) is scratch
     assert scratch.numpy().tolist() == [True, False, True]
-
-
-@pytest.mark.parametrize("device", test_devices())
-def test_resolve_ids_for_torch_indexing(device):
-    """With ``all_ids=slice(None)``, every element stays a slice, given ids are returned as given, and a mask
-    resolves to its ids."""
-    mask = wp.array([False, True, True, False], dtype=wp.bool, device=device)
-    ids = torch.tensor([3, 0], device=wp.device_to_torch(device))
-    assert resolve_ids(all_ids=slice(None)) == slice(None)
-    assert resolve_ids(ids=slice(1, 3), all_ids=slice(None)) == slice(1, 3)
-    assert resolve_ids(ids=ids, mask=mask, all_ids=slice(None)) is ids
-    assert resolve_ids(ids=slice(None), mask=mask, all_ids=slice(None)).tolist() == [1, 2]

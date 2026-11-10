@@ -4103,7 +4103,7 @@ class Articulation(BaseArticulation):
 
         Args:
             joint_ids: Joint indices. If None, then all indices are used.
-            joint_mask: Boolean mask; takes precedence over ``joint_ids``.
+            joint_mask: Boolean mask, converted to ids only when ``joint_ids`` is not given.
 
         Returns:
             A warp array of joint indices or a tensor of joint indices.
@@ -4117,7 +4117,7 @@ class Articulation(BaseArticulation):
 
         Args:
             body_ids: Body indices. If None, then all indices are used.
-            body_mask: Boolean mask; takes precedence over ``body_ids``.
+            body_mask: Boolean mask, converted to ids only when ``body_ids`` is not given.
 
         Returns:
             A warp array of body indices or a tensor of body indices.
@@ -4133,7 +4133,7 @@ class Articulation(BaseArticulation):
 
         Args:
             tendon_ids: Tendon indices. If None, then all indices are used.
-            fixed_tendon_mask: Boolean mask; takes precedence over ``tendon_ids``.
+            fixed_tendon_mask: Boolean mask, converted to ids only when ``tendon_ids`` is not given.
 
         Returns:
             A warp array of tendon indices or a tensor of tendon indices.
@@ -4149,7 +4149,7 @@ class Articulation(BaseArticulation):
 
         Args:
             spatial_tendon_ids: Spatial tendon indices. If None, then all indices are used.
-            spatial_tendon_mask: Boolean mask; takes precedence over ``spatial_tendon_ids``.
+            spatial_tendon_mask: Boolean mask, converted to ids only when ``spatial_tendon_ids`` is not given.
 
         Returns:
             A warp array of spatial tendon indices or a tensor of spatial tendon indices.
