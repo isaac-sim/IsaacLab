@@ -88,7 +88,7 @@ def spawn_coffee_kitchen(
     orientation: tuple[float, float, float, float] | None = None,
     **kwargs: Any,
 ) -> Usd.Prim:
-    """Spawn the demo's kitchen without its ceiling, lights, cameras and malformed normals, and hide the studio floor.
+    """Spawn the demo's kitchen without its ceiling, lights, cameras, curves and malformed normals.
 
     Like the demo's presentation, the kitchen keeps its authored placement around the table, so the scene's
     default pose is ignored, and the studio floor is hidden. The ceiling is removed so that, with shadows on, the
@@ -116,10 +116,12 @@ def spawn_coffee_kitchen(
         # which belong to no articulation. Without them, the doors and drawers are static geometry.
         joints = [prim for prim in prims if prim.IsA(UsdPhysics.Joint)]
         bodies = [prim for prim in prims if prim.HasAPI(UsdPhysics.RigidBodyAPI)]
-        for prim in [*lights, *cameras, ceiling, *joints, *bodies]:
+        # The appliances' invisible grasp-annotation curves render nothing, yet slow every OVRTX render call.
+        curves = [prim for prim in prims if prim.IsA(UsdGeom.Curves)]
+        for prim in [*lights, *cameras, ceiling, *joints, *bodies, *curves]:
             if prim.IsInstanceProxy():
                 raise RuntimeError(f"{prim.GetPath()} is inside an instance and cannot be edited")
-        for prim in [*lights, *cameras, ceiling, *joints]:
+        for prim in [*lights, *cameras, ceiling, *joints, *curves]:
             prim.SetActive(False)
         for prim in bodies:
             prim.RemoveAPI(UsdPhysics.RigidBodyAPI)

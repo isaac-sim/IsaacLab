@@ -325,6 +325,8 @@ def _write_kitchen(path: Path, light_count: int) -> None:
     door = UsdGeom.Xform.Define(asset, "/Kitchen/Fridge/Door").GetPrim()
     UsdPhysics.RigidBodyAPI.Apply(door).CreateRigidBodyEnabledAttr(False)
     UsdPhysics.RevoluteJoint.Define(asset, "/Kitchen/Fridge/Joints/Hinge")
+    # As in the hosted kitchen's appliances: an invisible grasp-annotation curve.
+    UsdGeom.BasisCurves.Define(asset, "/Kitchen/Fridge/Grasp/grasp_identifier/grasp_identifier_curve").MakeInvisible()
     for index in range(light_count):
         UsdLux.SphereLight.Define(asset, f"/Kitchen/Lights/Light{index}")
     for index in range(KITCHEN_CAMERA_COUNT):
@@ -342,8 +344,8 @@ def _spawn_kitchen(stage: Usd.Stage, path: Path) -> None:
 
 
 def test_kitchen_spawner_removes_ceiling_lights_cameras_and_token_normals(tmp_path, stage):
-    """Every environment's copy keeps its geometry; loses the ceiling, lights, cameras, appliance joints and bodies;
-    gets its normals' interpolation from the token primvar; and hides the floor."""
+    """Every environment's copy keeps its geometry; loses the ceiling, lights, cameras, curves, appliance joints
+    and bodies; gets its normals' interpolation from the token primvar; and hides the floor."""
     kitchen_path = tmp_path / "kitchen.usda"
     _write_kitchen(kitchen_path, KITCHEN_LIGHT_COUNT)
     _spawn_kitchen(stage, kitchen_path)
@@ -359,6 +361,7 @@ def test_kitchen_spawner_removes_ceiling_lights_cameras_and_token_normals(tmp_pa
         assert not stage.GetPrimAtPath(f"{env}/Kitchen/Lights/Light0").IsActive()
         assert not stage.GetPrimAtPath(f"{env}/Kitchen/Cameras/Camera0").IsActive()
         assert not stage.GetPrimAtPath(f"{env}/Kitchen/Fridge/Joints/Hinge").IsActive()
+        assert not stage.GetPrimAtPath(f"{env}/Kitchen/Fridge/Grasp/grasp_identifier/grasp_identifier_curve").IsActive()
         door = stage.GetPrimAtPath(f"{env}/Kitchen/Fridge/Door")
         assert door.IsActive() and not door.HasAPI(UsdPhysics.RigidBodyAPI)
         floor = UsdGeom.Imageable(stage.GetPrimAtPath(f"{env}/Table/StudioFloor"))
