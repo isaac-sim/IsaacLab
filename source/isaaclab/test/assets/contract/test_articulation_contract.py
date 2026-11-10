@@ -29,6 +29,7 @@ from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import replace
 from isaaclab.utils.buffers import reset_timestamps
 from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp.capture import GraphedCallable
 
 from .articulation_factory import get_articulation
 from .backends import backends, read_backend_joint_state, requires
@@ -418,22 +419,27 @@ def _identity_yaw(pose: torch.Tensor) -> torch.Tensor:
 
 @_CUDA_DEVICES
 def test_lazy_properties_update_on_every_graph_replay(monkeypatch, backend, cuda_device):
-    """A lazy property read while a CUDA graph records updates on each replay, though current at recording.
+    """A lazy property read while a GraphedCallable records updates on each replay, though current at recording.
 
     The joint acceleration finite difference advances only in :meth:`update`, so the recording leaves it alone.
     """
+    monkeypatch.setattr(GraphedCallable, "enabled", True)
     art = _recordable_articulation(backend, cuda_device, monkeypatch)
     art.data.update(dt=0.01)
-    heading = art.data.heading_w
+    _ = art.data.heading_w  # current when the read is recorded
     joint_acc = art.data.joint_acc
     joint_acc_before = joint_acc.torch.clone()
-    with wp.ScopedCapture(device=cuda_device) as capture:
-        heading = art.data.heading_w
+
+    def read():
         _ = art.data.joint_acc
+        return art.data.heading_w
+
+    graphed = GraphedCallable(read, cuda_device)
+    heading = graphed()
     recorded = heading.torch.clone()
 
     art.write_root_link_pose_to_sim_index(root_pose=_payload((N,), 7, wp.transformf, cuda_device))
-    wp.capture_launch(capture.graph)
+    graphed()
     replayed = heading.torch.clone()
     torch.testing.assert_close(joint_acc.torch, joint_acc_before)
     art.data.update(dt=0.01)
@@ -447,18 +453,23 @@ def test_invalidation_inside_a_recording_records_the_update_again(monkeypatch, b
 
     The recording writes the root pose in place and invalidates the heading as the root pose writers do.
     """
+    monkeypatch.setattr(GraphedCallable, "enabled", True)
     art = _recordable_articulation(backend, cuda_device, monkeypatch)
     rotated = _payload((N,), 7, wp.transformf, cuda_device)
     art.write_root_link_pose_to_sim_index(root_pose=_identity_yaw(rotated))
     art.data.update(dt=0.01)
     unrotated = art.data.heading_w.torch.clone()
-    with wp.ScopedCapture(device=cuda_device) as capture:
-        _ = art.data.heading_w
-        wp.copy(art.data.root_link_pose_w.warp, wp.from_torch(rotated, dtype=wp.transformf))
-        reset_timestamps([art.data._heading_w])
-        heading = art.data.heading_w
+    rotated_wp = wp.from_torch(rotated, dtype=wp.transformf)
 
-    wp.capture_launch(capture.graph)
+    def rotate_and_read():
+        _ = art.data.heading_w
+        wp.copy(art.data.root_link_pose_w.warp, rotated_wp)
+        reset_timestamps([art.data._heading_w])
+        return art.data.heading_w
+
+    graphed = GraphedCallable(rotate_and_read, cuda_device)
+    heading = graphed()  # the recording is the first run
+    graphed()
     replayed = heading.torch.clone()
     art.write_root_link_pose_to_sim_index(root_pose=rotated)
     art.data.update(dt=0.01)
