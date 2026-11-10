@@ -8,8 +8,6 @@
 from __future__ import annotations
 
 import math
-from pathlib import Path
-from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING
 
 from isaaclab_newton.physics import NewtonCfg
@@ -17,7 +15,6 @@ from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.envs import ManagerBasedRLEnv
 
-from .terrain import create_terrain
 from .terrain_env_cfg import G1PlatformsEnvCfg
 
 if TYPE_CHECKING:
@@ -40,19 +37,9 @@ class G1TerrainEnv(ManagerBasedRLEnv):
             from .granular import configure_granular  # noqa: PLC0415
 
             configure_granular(cfg, is_physx)
-        self._terrain_directory = TemporaryDirectory(prefix="g1-terrain-")
-        cfg.scene.terrain.usd_path = str(
-            create_terrain(Path(self._terrain_directory.name), cfg.terrain_name, cfg.course, is_physx)
-        )
         super().__init__(cfg, **kwargs)
         if cfg.terrain_name == "granular" and is_physx:
             self.sim.set_setting("/physics/updateParticlesToUsd", True)
-
-    def close(self):
-        """Release the generated terrain after the simulator closes."""
-        super().close()
-        if hasattr(self, "_terrain_directory"):
-            self._terrain_directory.cleanup()
 
     def reset(self, **kwargs):
         """Initialize solver and sensor buffers with a neutral airborne step before resetting."""
@@ -71,8 +58,6 @@ class G1TerrainEnv(ManagerBasedRLEnv):
         from pxr import Gf, Usd, UsdGeom, UsdPhysics  # noqa: PLC0415
 
         from isaaclab.sim import bind_visual_material  # noqa: PLC0415
-
-        from .terrain import separate_ramp_base  # noqa: PLC0415
 
         stage = self.sim.stage
         for name, material_cfg in self.cfg.robot_visual_materials.items():
@@ -128,7 +113,8 @@ class G1TerrainEnv(ManagerBasedRLEnv):
         self.scene.update(0.0)
         if self.cfg.scene.depth_camera is not None:
             self.scene["depth_camera"].update(0.0, force_recompute=True)
-            separate_ramp_base(stage)
+            terrain = stage.GetPrimAtPath(f"{self.cfg.scene.terrain.prim_path}/terrain")
+            terrain.GetVariantSet("appearance").SetVariantSelection("visual")
         if kit_visualizer is not None:
             for _ in range(30):
                 self.sim.render()

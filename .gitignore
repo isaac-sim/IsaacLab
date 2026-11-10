@@ -15,6 +15,7 @@
 **/*.usd
 **/*.usda
 **/*.usdc
+!source/isaaclab_tasks/isaaclab_tasks/contrib/g1_terrain/assets/*.usdc
 **/*.usdz
 
 # Python
