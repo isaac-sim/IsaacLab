@@ -12,7 +12,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import CameraCfg, ContactSensorCfg
 from isaaclab.utils import configclass, replace
 
-from isaaclab_assets.robots.kuka_allegro import KUKA_ALLEGRO_CFG, KUKA_ALLEGRO_FRICTION_REPLACEMENTS
+from isaaclab_assets.robots.kuka_allegro import KUKA_ALLEGRO_CFG
 
 from ... import lift_env_cfg as lift
 from ... import mdp
@@ -103,14 +103,6 @@ class KukaAllegroReorientRewardCfg(lift.RewardsCfg):
 
 
 @configclass
-class KukaAllegroPhysicsCfg(lift.PhysicsCfg):
-    """Lift physics presets with the Kuka-Allegro asset's friction migration profile."""
-
-    ovphysx = replace(lift.PhysicsCfg().ovphysx, legacy_joint_friction_replacements=KUKA_ALLEGRO_FRICTION_REPLACEMENTS)
-    physx = replace(lift.PhysicsCfg().physx, ovphysx=ovphysx)
-
-
-@configclass
 class KukaAllegroMixinCfg:
     """Kuka-Allegro specific scene, observation, action and reward terms, mixed into the task configurations."""
 
@@ -121,7 +113,7 @@ class KukaAllegroMixinCfg:
 
     def __post_init__(self):
         super().__post_init__()
-        self.sim.physics = KukaAllegroPhysicsCfg()
+        self.sim.physics = lift.PhysicsCfg()
         self.commands.object_pose.body_name = "palm_link"
         events = self.events.conditional_reset.params["terms"]
         events["reset_robot_wrist_joint"].params["asset_cfg"] = SceneEntityCfg("robot", joint_names="iiwa7_joint_7")
