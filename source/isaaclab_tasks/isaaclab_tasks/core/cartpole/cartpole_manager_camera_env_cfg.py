@@ -6,9 +6,11 @@
 """Configuration for the manager-based cartpole camera environment."""
 
 import math
+from pathlib import Path
 
 from isaaclab_ov.renderers import OVRTXRendererCfg
 
+from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
@@ -36,27 +38,33 @@ class CartpoleCameraSceneCfg(CartpoleSceneCfg):
 
 
 def _cartpole_lidar_pattern() -> tuple[list[float], list[float], list[int], list[int]]:
-    """Build a 7 by 7 solid-state fan aimed at the cart.
+    """Build one solid-state grid aimed at the cartpole from the side camera.
 
-    The cart is about 20 cm across and the pole is a few centimeters wide. A sensor one meter
-    away, at the cart's height, hits that body with a two-degree grid. A lidar several meters
-    away looks past it.
+    Azimuth runs along the rail. Elevation is symmetric about the horizon because the pole
+    can hang below the slider as well as stand above it. Both angles use a 0.5° step, from
+    -40° to 40° in azimuth and from -12° to 12° in elevation.
     """
-    azimuths = [float(value) for value in range(-6, 7, 2)]
-    elevations = [float(value) for value in range(-6, 7, 2)]
-    azimuth_deg: list[float] = []
-    elevation_deg: list[float] = []
-    fire_time_ns: list[int] = []
-    channel_id: list[int] = []
-    index = 0
-    for elevation in elevations:
-        for azimuth in azimuths:
-            azimuth_deg.append(azimuth)
-            elevation_deg.append(elevation)
-            fire_time_ns.append(index * 1000)
-            channel_id.append(index + 1)
-            index += 1
+    azimuths = [round(-40.0 + index * 0.5, 1) for index in range(161)]
+    elevations = [round(-12.0 + index * 0.5, 1) for index in range(49)]
+    azimuth_deg = [azimuth for elevation in elevations for azimuth in azimuths]
+    elevation_deg = [elevation for elevation in elevations for _azimuth in azimuths]
+    fire_time_ns = [index * 1000 for index in range(len(azimuth_deg))]
+    channel_id = [index + 1 for index in range(len(azimuth_deg))]
     return azimuth_deg, elevation_deg, fire_time_ns, channel_id
+
+
+def export_lidar_stage_before_sim(env, env_ids) -> None:
+    """Write the authored stage to ``huidongc/cartpole_lidar_before_sim.usda`` before physics starts.
+
+    The root layer includes the lidar prim. The write is skipped when this checkout has no
+    ``huidongc`` directory.
+    """
+    del env_ids
+    output = Path.cwd() / "huidongc" / "cartpole_lidar_before_sim.usda"
+    if not output.parent.is_dir():
+        return
+    env.sim.stage.GetRootLayer().Export(str(output))
+    print(f"WROTE {output}", flush=True)
 
 
 _CARTPOLE_LIDAR_AZIMUTH, _CARTPOLE_LIDAR_ELEVATION, _CARTPOLE_LIDAR_TIME, _CARTPOLE_LIDAR_CHANNEL = (
@@ -76,8 +84,9 @@ class CartpoleLidarSceneCfg(CartpoleCameraSceneCfg):
     )
     lidar: LidarCfg = LidarCfg(
         prim_path="{ENV_REGEX_NS}/Lidar",
-        # Same orientation as the OVRTX lidar fixture (rotateXYZ 90, 0, -90), looking along world +X.
-        offset=LidarCfg.OffsetCfg(pos=(-1.0, 0.0, 2.0), rot=(0.5, -0.5, -0.5, 0.5)),
+        # Same position as the side camera. This quaternion aims the lidar boresight along
+        # world +X, at the cartpole: azimuth 0 and elevation 0 look at the rail center.
+        offset=LidarCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(0.5, -0.5, -0.5, 0.5)),
         azimuth_deg=_CARTPOLE_LIDAR_AZIMUTH,
         elevation_deg=_CARTPOLE_LIDAR_ELEVATION,
         fire_time_ns=_CARTPOLE_LIDAR_TIME,
@@ -244,8 +253,20 @@ class CartpoleCameraEnvCfg(PresetCfg):
     simple_shading_full_mdl = BaseCartpoleCameraEnvCfg(observations=image_observations_cfg("simple_shading_full_mdl"))
     resnet18 = BaseCartpoleCameraEnvCfg(observations=ResNet18ObservationCfg())
     theia_tiny = BaseCartpoleCameraEnvCfg(observations=TheiaTinyObservationCfg())
-    lidar = BaseCartpoleCameraEnvCfg(
-        scene=CartpoleLidarSceneCfg(num_envs=512, env_spacing=20.0),
-        observations=lidar_observations_cfg(),
-    )
+
+    @configclass
+    class LidarCartpoleCameraEnvCfg(BaseCartpoleCameraEnvCfg):
+        """Lidar variant viewed close enough to check hits against one cart and pole."""
+
+        scene: CartpoleLidarSceneCfg = CartpoleLidarSceneCfg(num_envs=512, env_spacing=20.0)
+
+        def __post_init__(self):
+            super().__post_init__()
+            # Hits are a few centimeters across, so frame environment 0 tightly enough to compare
+            # them with the cart and pole.
+            self.sim.visualizer_cfgs = VisualizerCfg(eye=(3.0, -3.0, 2.5), lookat=(0.0, 0.0, 1.0))
+            # Runs after the scene is authored and before the simulation plays.
+            self.events.export_stage = EventTerm(func=export_lidar_stage_before_sim, mode="prestartup")
+
+    lidar = LidarCartpoleCameraEnvCfg(observations=lidar_observations_cfg())
     default = rgb

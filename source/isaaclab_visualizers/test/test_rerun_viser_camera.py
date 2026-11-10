@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import socket
 import sys
 from types import SimpleNamespace
 
@@ -82,6 +83,37 @@ def test_rerun_viewer_skips_unchanged_instance_appearance(monkeypatch):
     viewer.log_instances("/robot", "/mesh", None, None, changed_colors, None, opacities=opacities)
     np.testing.assert_array_equal(calls[2].colors.numpy(), changed_colors.numpy())
     assert calls[2].opacities is None
+
+
+def test_rerun_recording_contains_points_logged_after_the_viewer_starts(tmp_path):
+    """A .rrd recorded beside the live viewer must contain data logged after startup."""
+
+    def _free_port() -> int:
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", 0))
+            return sock.getsockname()[1]
+
+    path = tmp_path / "points.rrd"
+    viewer = NewtonViewerRerun(
+        app_id="isaaclab-recording-test",
+        serve_web_viewer=True,
+        web_port=_free_port(),
+        grpc_port=_free_port(),
+        record_to_rrd=str(path),
+        open_browser=False,
+    )
+    try:
+        viewer.log_points(
+            "lidar/lidar",
+            wp.array([[1.0, 2.0, 3.0]], dtype=wp.vec3, device="cpu"),
+            radii=0.02,
+            colors=(1.0, 0.0, 0.0),
+        )
+    finally:
+        viewer.close()
+
+    text = "".join(chr(byte) if 32 <= byte < 127 else " " for byte in path.read_bytes())
+    assert "lidar/lidar" in text
 
 
 def test_viser_visualizer_set_camera_view():

@@ -87,8 +87,11 @@ def _author_lidar(prim, cfg: LidarCfg) -> None:
     _set_attr(prim, f"{prefix}:includeInvalidPoints", Sdf.ValueTypeNames.Bool, cfg.include_invalid_points)
     _set_attr(prim, f"{prefix}:maxReturns", Sdf.ValueTypeNames.UInt, int(cfg.max_returns))
     _set_attr(prim, f"{prefix}:tiledSubSampling", Sdf.ValueTypeNames.UInt, int(cfg.tiled_subsampling))
-    _set_attr(prim, f"{prefix}:validStartAzimuthDeg", Sdf.ValueTypeNames.Float, min(azimuths) - 1.0)
-    _set_attr(prim, f"{prefix}:validEndAzimuthDeg", Sdf.ValueTypeNames.Float, max(azimuths) + 1.0)
+    # The solid-state tick is placed at validStartAzimuthDeg, and each pattern azimuth is an offset
+    # from that tick. Keep the tick on the boresight so a configured azimuth of 0 looks along the
+    # sensor's forward axis.
+    _set_attr(prim, f"{prefix}:validStartAzimuthDeg", Sdf.ValueTypeNames.Float, 0.0)
+    _set_attr(prim, f"{prefix}:validEndAzimuthDeg", Sdf.ValueTypeNames.Float, 360.0)
     _set_attr(prim, f"{prefix}:rotPatternFiringResDeg", Sdf.ValueTypeNames.Float, 1.0)
     _set_attr(prim, f"{prefix}:minDetectableReflectance", Sdf.ValueTypeNames.Float, 0.0)
     _set_attr(prim, f"{prefix}:detectorNoiseVariance", Sdf.ValueTypeNames.Float, 0.0)
