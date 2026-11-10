@@ -31,8 +31,8 @@ solver differs. Write a new one when:
 
 Do not write one when an existing solver can advance the whole model, or when
 the scene can be partitioned into named solver entries. Partitioning is already
-covered by :class:`~isaaclab_contrib.coupling.CouplerProxyCfg` and
-:class:`~isaaclab_contrib.coupling.CouplerAdmmCfg`, which resolve into entry views over a
+covered by :class:`~isaaclab_newton.physics.coupling.CouplerProxyCfg` and
+:class:`~isaaclab_newton.physics.coupling.CouplerAdmmCfg`, which resolve into entry views over a
 shared model. Prefer that path for mixed rigid and deformable scenes. Write a
 custom coupled solver only when contact detection is shared but each solver
 consumes the contacts differently, or when the exchange between solvers is a
@@ -125,11 +125,18 @@ The Step
 --------
 
 Each :meth:`~isaaclab_newton.physics.NewtonManager.step` covers the whole decimation loop when the manager handles
-decimation (:meth:`~isaaclab_newton.physics.NewtonManager.handles_decimation`: an articulation runs its Newton
-actuators in the step), and one physics step otherwise. Every physics step runs ``collide -> pre-actuator callbacks
--> Newton actuators -> post-actuator callbacks -> substeps``, and post-step callbacks and sensors run once at the end.
+decimation (:meth:`~isaaclab_newton.physics.NewtonManager.handles_decimation`: the step handles the environment's
+actions, or an articulation runs its Newton actuators in the step), and one physics step otherwise. Every physics step
+runs ``collide -> pre-actuator callbacks -> Newton actuators -> post-actuator callbacks -> substeps``, and post-step
+callbacks and sensors run once at the end.
 Every substep runs ``staged body forces -> state-force callbacks -> step``, and ``pre_step`` and ``post_step`` run
 around each physics step's substeps.
+
+:meth:`~isaaclab_newton.physics.NewtonManager.handle_actions` makes the action manager's ``apply_action`` and the
+scene's ``write_data_to_sim`` pre-actuator callbacks, so they run before every physics step as in the environment's
+own loop, and the step stages the body forces they write. Post-step callbacks still run once at the end of the step,
+so articulations republish the reordered state they read before writing. It does so only when both report
+``is_graphable``. The first wrench written to an asset captures the step again with the wrench work.
 
 Every physics step ends in ``state_0``, so ``manager.backend.state_0`` is always the same object. The captured step
 records the callbacks, so they must be graph-safe. Consumers register them with
@@ -258,29 +265,23 @@ The four architectures differ in what drives the substep loop:
    * - Standalone solver
      - One manager, one solver, one model. The captured step owns the substep loop.
    * - Proxy coupling
-     - :class:`~isaaclab_contrib.coupling.CouplerProxyCfg` partitions the model
+     - :class:`~isaaclab_newton.physics.coupling.CouplerProxyCfg` partitions the model
        into named entries and builds a Newton coupled solver that exposes source
        bodies to the destination solver as proxies and returns lagged feedback.
        Each entry's Newton solver is built through the entry's own
        configuration. No new manager is required.
    * - ADMM coupling
-     - :class:`~isaaclab_contrib.coupling.CouplerAdmmCfg` uses the same manager
+     - :class:`~isaaclab_newton.physics.coupling.CouplerAdmmCfg` uses the same manager
        and entry model, but Newton creates symmetric interface constraints and
        iterates the sub-solvers. No new manager is required.
    * - Custom shared-model solver
      - ``build`` returns a :class:`newton.solvers.SolverBase` subclass
        that holds several sub-solvers, built from their own configurations,
        and fixes the substep order in its ``step()``.
-       :class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolver`
-       is the in-tree example. Its Newton solver clears force accumulators, detects
-       contacts once, injects soft-to-rigid reactions into ``body_f`` when
-       ``coupling_mode="two_way"``, then advances MJWarp on its own internal
-       contacts and VBD on the detected ones.
 
 A custom shared-model solver bypasses entry ownership resolution, so it cannot
 reuse the coupler's selectors or validation. For the proxy and ADMM trade-offs,
 see :ref:`newton-coupled-solvers`.
-
 
 .. _related-documentation:
 
