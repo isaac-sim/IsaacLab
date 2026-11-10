@@ -156,37 +156,6 @@ def ovstage_replicate(
     _apply_ovstage_copies(stage, paths, copies, env_paths, positions, ordinal=ordinal)
 
 
-def _apply_ovstage_copies(
-    stage: ovstage.Stage,
-    paths: ovstage.PathDictionary,
-    copies: Sequence[tuple[str, Sequence[str]]],
-    env_paths: Sequence[str],
-    positions: np.ndarray | None,
-    *,
-    ordinal: int,
-) -> None:
-    """Apply prepared copies and placement after source hierarchy preparation."""
-    for source, targets in copies:
-        if targets:
-            stage.clone(source, targets, ordinal=ordinal)
-    if positions is not None and env_paths:
-        xforms = np.tile(np.eye(4, dtype=np.float64), (len(env_paths), 1, 1))
-        xforms[:, 3, :3] = positions
-        path_list = paths.create_path_list_from_strings(env_paths)
-        try:
-            with stage.query_from_path_list(path_list) as query:
-                stage.write_attribute(
-                    query,
-                    "omni:xform",
-                    ordinal=ordinal,
-                    tensors=xform_tensor_from_numpy(xforms),
-                    is_array=False,
-                    semantic=ovstage.AttributeSemantic.MATRIX,
-                ).wait()
-        finally:
-            paths.destroy_path_list(path_list)
-
-
 @configclass
 class OvstageBackendCfg(BackendCfg):
     """Configuration of a simulation-owned stage and its populated domains."""
@@ -217,9 +186,15 @@ class OvstageBackend:
         self.population_env_paths: list[str] = []
         self.clone_positions: np.ndarray | None = None
         self._deferred_render_copies: list[tuple[str, list[str]]] | None = None
+        self._render_copy_error: Exception | None = None
         self.resources = contextlib.ExitStack()
         """Release borrowers before paths and stage, in reverse registration order."""
         self.reset()
+
+    @property
+    def render_copies_pending(self) -> bool:
+        """Whether population reserved a render-copy commit that consumers have not completed."""
+        return self._deferred_render_copies is not None
 
     def populate(self, usda: str) -> None:
         """Import the exported prototypes and apply the clone context's prepared operations.
@@ -248,10 +223,75 @@ class OvstageBackend:
         self.ordinal = 1
         self.commit()
 
-    @property
-    def render_copies_pending(self) -> bool:
-        """Whether population reserved a render-copy commit that consumers have not completed."""
-        return self._deferred_render_copies is not None
+    def complete_render_copies(self) -> None:
+        """Seal render copies at ordinal 2 after physics cloning and binding acquisition.
+
+        This ordinal is rendering-only and must never be passed to OVPhysX's stage-update API.
+        Repeated calls after success do nothing. A failure requires a stage reset because native
+        copies may already have been applied; population then rebuilds the pending copies.
+        """
+        if self._deferred_render_copies is None:
+            return
+        if self._render_copy_error is not None:
+            raise RuntimeError(
+                "Render-copy preparation failed; reset the stage before retrying."
+            ) from self._render_copy_error
+        try:
+            if self.ordinal != 2:
+                raise RuntimeError(f"Expected reserved render-copy ordinal 2; found {self.ordinal}.")
+            _apply_ovstage_copies(
+                self.stage,
+                self.paths,
+                self._deferred_render_copies,
+                self.clone_env_paths,
+                self.clone_positions,
+                ordinal=2,
+            )
+            self.commit()
+        except Exception as exc:
+            self._render_copy_error = exc
+            raise
+        self._deferred_render_copies = None
+
+    @contextlib.contextmanager
+    def query(self, prim_paths: Sequence[str]) -> Iterator[ovstage.Query]:
+        """Retain a query and its path list together until the caller leaves the context.
+
+        Args:
+            prim_paths: Prim paths in the query's binding order.
+
+        Yields:
+            The query, released before its caller-owned path list.
+        """
+        paths = self.paths.create_path_list_from_strings(prim_paths)
+        try:
+            with self.stage.query_from_path_list(paths) as query:
+                yield query
+        finally:
+            self.paths.destroy_path_list(paths)
+
+    def commit(self) -> int:
+        """Seal pending writes and return their ordinal; all consumers share the next write ordinal."""
+        ordinal = self.ordinal
+        self.stage.advance_write_floor(ordinal=ordinal).wait()
+        self.ordinal += 1
+        return ordinal
+
+    def close(self) -> None:
+        """Release borrowers, then the path dictionary and stage."""
+        self._deferred_render_copies = None
+        self._render_copy_error = None
+        self.resources.close()
+        self.stage = self.paths = None
+
+    def reset(self) -> None:
+        """Recreate the native stage after all consumers detach, retaining the prepared clone operations."""
+        self.close()
+        self.ordinal = self.next_camera_id = 0
+        with contextlib.ExitStack() as resources:
+            self.stage = resources.enter_context(create_ovstage("isaaclab.scene"))
+            self.paths = resources.enter_context(ovstage.PathDictionary(self.stage))
+            self.resources = resources.pop_all()
 
     def _populate_originals(self, usda: str) -> None:
         """Populate complete physics originals and retain the remaining render copies."""
@@ -284,80 +324,6 @@ class OvstageBackend:
         self.ordinal = 1
         self.commit()
         self._deferred_render_copies = copies
-
-    def complete_render_copies(self) -> None:
-        """Seal render copies at ordinal 2 after physics cloning and binding acquisition.
-
-        This ordinal is rendering-only and must never be passed to OVPhysX's stage-update API.
-        Repeated calls do nothing; resetting the stage rebuilds the pending copies during population.
-        """
-        if self._deferred_render_copies is None:
-            return
-        try:
-            if self.ordinal != 2:
-                raise RuntimeError(f"Expected reserved render-copy ordinal 2; found {self.ordinal}.")
-            _apply_ovstage_copies(
-                self.stage,
-                self.paths,
-                self._deferred_render_copies,
-                self.clone_env_paths,
-                self.clone_positions,
-                ordinal=2,
-            )
-            self.commit()
-        finally:
-            self._deferred_render_copies = None
-
-    @contextlib.contextmanager
-    def query(self, prim_paths: Sequence[str]) -> Iterator[ovstage.Query]:
-        """Retain a query and its path list together until the caller leaves the context.
-
-        Args:
-            prim_paths: Prim paths in the query's binding order.
-
-        Yields:
-            The query, released before its caller-owned path list.
-        """
-        paths = self.paths.create_path_list_from_strings(prim_paths)
-        try:
-            with self.stage.query_from_path_list(paths) as query:
-                yield query
-        finally:
-            self.paths.destroy_path_list(paths)
-
-    def commit(self) -> int:
-        """Seal pending writes and return their ordinal; all consumers share the next write ordinal."""
-        ordinal = self.ordinal
-        self.stage.advance_write_floor(ordinal=ordinal).wait()
-        self.ordinal += 1
-        return ordinal
-
-    def close(self) -> None:
-        """Release borrowers, then the path dictionary and stage."""
-        self._deferred_render_copies = None
-        self.resources.close()
-        self.stage = self.paths = None
-
-    def reset(self) -> None:
-        """Recreate the native stage after all consumers detach, retaining the prepared clone operations."""
-        self.close()
-        self.ordinal = self.next_camera_id = 0
-        with contextlib.ExitStack() as resources:
-            self.stage = resources.enter_context(create_ovstage("isaaclab.scene"))
-            self.paths = resources.enter_context(ovstage.PathDictionary(self.stage))
-            self.resources = resources.pop_all()
-
-
-def _author_render_settings(stage: Usd.Stage) -> None:
-    """Preserve render settings and scene partition defaults in a private scene export."""
-    # Perspective cameras see every partition; sensor cameras retain their explicit partition.
-    settings_path = stage.GetMetadata("renderSettingsPrimPath") or "/Render/IsaacLabSettings"
-    settings = UsdRender.Settings.Define(stage, settings_path)
-    settings.GetPrim().AddAppliedSchema("OmniRtxSettingsGlobalCommonAPI_1")
-    settings.GetPrim().CreateAttribute(
-        "omni:rtx:scenePartitioning:showAllPartitionsByDefault", Sdf.ValueTypeNames.Bool
-    ).Set(True)
-    stage.SetMetadata("renderSettingsPrimPath", settings_path)
 
 
 def export_stage_to_string(
@@ -464,3 +430,46 @@ def export_stage_to_string(
                 prim.specifier = Sdf.SpecifierDef
                 prim = prim.nameParent
     return layer.ExportToString()
+
+
+def _apply_ovstage_copies(
+    stage: ovstage.Stage,
+    paths: ovstage.PathDictionary,
+    copies: Sequence[tuple[str, Sequence[str]]],
+    env_paths: Sequence[str],
+    positions: np.ndarray | None,
+    *,
+    ordinal: int,
+) -> None:
+    """Apply prepared copies and placement after source hierarchy preparation."""
+    for source, targets in copies:
+        if targets:
+            stage.clone(source, targets, ordinal=ordinal)
+    if positions is not None and env_paths:
+        xforms = np.tile(np.eye(4, dtype=np.float64), (len(env_paths), 1, 1))
+        xforms[:, 3, :3] = positions
+        path_list = paths.create_path_list_from_strings(env_paths)
+        try:
+            with stage.query_from_path_list(path_list) as query:
+                stage.write_attribute(
+                    query,
+                    "omni:xform",
+                    ordinal=ordinal,
+                    tensors=xform_tensor_from_numpy(xforms),
+                    is_array=False,
+                    semantic=ovstage.AttributeSemantic.MATRIX,
+                ).wait()
+        finally:
+            paths.destroy_path_list(path_list)
+
+
+def _author_render_settings(stage: Usd.Stage) -> None:
+    """Preserve render settings and scene partition defaults in a private scene export."""
+    # Perspective cameras see every partition; sensor cameras retain their explicit partition.
+    settings_path = stage.GetMetadata("renderSettingsPrimPath") or "/Render/IsaacLabSettings"
+    settings = UsdRender.Settings.Define(stage, settings_path)
+    settings.GetPrim().AddAppliedSchema("OmniRtxSettingsGlobalCommonAPI_1")
+    settings.GetPrim().CreateAttribute(
+        "omni:rtx:scenePartitioning:showAllPartitionsByDefault", Sdf.ValueTypeNames.Bool
+    ).Set(True)
+    stage.SetMetadata("renderSettingsPrimPath", settings_path)

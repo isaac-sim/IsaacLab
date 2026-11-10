@@ -1046,20 +1046,19 @@ def test_segmentation_outputs_share_metadata_and_clear_stale_labels(monkeypatch,
 
 
 @pytest.mark.parametrize(
-    "settings, error",
+    "setting, value, error",
     [
-        ({"ISAAC_LAB_OVRTX_USE_OVSTAGE": "true"}, "Expected 0 or 1"),
-        ({"ISAAC_LAB_SHARE_OVSTAGE": "1"}, "requires OVPhysX"),
+        ("ISAAC_LAB_OVRTX_USE_OVSTAGE", "true", "Expected 0 or 1"),
+        ("ISAAC_LAB_SHARE_OVSTAGE", "1", "requires OVPhysX"),
     ],
 )
-def test_ovrtx_clone_preparation_rejects_invalid_selection(monkeypatch, settings, error):
+def test_ovrtx_clone_preparation_rejects_invalid_selection(monkeypatch, setting, value, error):
     """Reject malformed flags and unsupported sharing before native allocation."""
     from isaaclab_ov.cloner import OvrtxReplicateContext
 
     sim = SimulationContext.instance()
     renderer = sim.get_or_create_backend(OVRTXRendererCfg())
-    for setting, value in settings.items():
-        monkeypatch.setenv(setting, value)
+    monkeypatch.setenv(setting, value)
 
     with pytest.raises(ValueError, match=error):
         OvrtxReplicateContext.prepare(sim, {})

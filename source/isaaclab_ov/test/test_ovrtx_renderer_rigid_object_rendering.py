@@ -111,6 +111,7 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
 
     import isaaclab.sim as sim_utils
     from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
+    from isaaclab.physics import PhysicsEvent
     from isaaclab.scene import InteractiveSceneCfg
     from isaaclab.sensors import CameraCfg
     from isaaclab.utils import configclass, instantiate, replace
@@ -174,11 +175,15 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
         return native_step(renderer, **kwargs)
 
     monkeypatch.setattr(ovrtx.Renderer, "step", record_products)
-    cfg = SimulationCfg(device="cuda:0", dt=1 / 60, gravity=(0.0, 0.0, -10.0), physics=OvPhysxCfg())
+    cfg = SimulationCfg(device="cuda:0", dt=1 / 60, gravity=(0.0, 0.0, 0.0), physics=OvPhysxCfg())
     with build_simulation_context(sim_cfg=cfg) as sim:
         sim._app_control_on_stop_handle = None
         scene = instantiate(SceneCfg(num_envs=2, env_spacing=0.0, filter_collisions=True))
         sim.register_interactive_scene(scene)
+        # Default-priority user callbacks run before cameras, including after forced reinitialization.
+        sim.backend_manager.register_callback(
+            lambda _: sim.backend_manager.set_gravity((0.0, 0.0, -10.0)), PhysicsEvent.PHYSICS_READY
+        )
         try:
             # PPISP owns exposure before physics imports the camera into the shared scene.
             for prim in sim_utils.find_matching_prims(scene["other_camera"].cfg.prim_path, sim.stage):
@@ -253,7 +258,7 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
             expected = torch.tensor([[0.0, 0.0, 1.5], [0.0, 0.0, 2.5]], device="cuda:0")
             torch.testing.assert_close(scene["body"].data.root_link_pos_w.torch, expected, atol=0.02, rtol=0.0)
 
-            def check_supporting_forces(mass):
+            def check_supporting_forces(mass: float) -> None:
                 sensor = scene["contact"]
                 assert sensor.contact_view.sensor_count == 2
                 forces = torch.tensor([[[0.0, 0.0, mass * 10.0]]], device=sim.device).expand(2, -1, -1)
@@ -266,6 +271,9 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
             for sensor in (camera, other):
                 depth = sensor.data.output["depth"].torch[:, 16, 16, 0]
                 torch.testing.assert_close(depth, sensor.cfg.offset.pos[2] - expected[:, 2] - 0.5, atol=0.02, rtol=0.0)
+            # An ordinary non-soft reset retains the existing bindings and independent contacts.
+            sim.reset()
+            check_supporting_forces(1.0)
             for soft in (True, False):
                 if not soft:
                     UsdPhysics.MassAPI(sim.stage.GetPrimAtPath("/World/envs/env_0/Body")).GetMassAttr().Set(2.0)

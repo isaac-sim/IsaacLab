@@ -12,6 +12,7 @@ import contextlib
 import logging
 import re
 from collections.abc import Sequence
+from enum import Enum
 from fnmatch import fnmatchcase
 from typing import TYPE_CHECKING, Any
 
@@ -130,6 +131,11 @@ class ContactSensor(BaseContactSensor):
         if self._contact_binding is None:
             return None
         return self._contact_binding.sensor_count
+
+    @property
+    def _initialize_event(self) -> Enum:
+        """Acquire contact bindings before shared render copies expand the stage."""
+        return self._backend_manager._binding_init_event
 
     @property
     def data(self) -> ContactSensorData:

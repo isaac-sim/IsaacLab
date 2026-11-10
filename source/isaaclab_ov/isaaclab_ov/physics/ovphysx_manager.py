@@ -19,6 +19,7 @@ import math
 import os
 import stat
 from collections.abc import Sequence
+from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -418,6 +419,7 @@ class OvPhysxManager(PhysicsManager):
 
     def __init__(self, cfg: OvPhysxCfg):
         super().__init__(cfg)
+        self._binding_init_event = _OvPhysxEvent.BINDINGS_READY
         self._cfg: OvPhysxCfg = cfg
         self.backend: OvPhysxBackend | None = None
         """Native resource borrowed from the context registry after warmup."""
@@ -547,6 +549,9 @@ class OvPhysxManager(PhysicsManager):
                 if self.backend is not None and self.backend.stage is not None:
                     self.dispatch_event(PhysicsEvent.STOP, payload={})
                 self._warmup_and_load()
+            else:
+                # Consumers added since the previous reset still need their binding callback.
+                self.dispatch_event(self._binding_init_event, payload={})
             self.dispatch_event(PhysicsEvent.PHYSICS_READY, payload={})
         self.kinematics_dirty = True
         self._scene_data_backend.transforms_timestamp += 1
@@ -774,6 +779,12 @@ class OvPhysxManager(PhysicsManager):
         self._scene_data_backend._defer_setup(self.backend, self._device, entries)
 
         self.dispatch_event(PhysicsEvent.MODEL_INIT, payload={})
+        self.dispatch_event(self._binding_init_event, payload={})
+        if shared_scene is not None and shared_scene.render_copies_pending:
+            # Acquire publication bindings while the stage still contains only originals.
+            # Complete the reserved ordinal before public callbacks can author gravity or cameras.
+            self._scene_data_backend._ensure_setup()
+            shared_scene.complete_render_copies()
         self._warmup_done = True
 
     def _close_at_exit(self) -> None:
@@ -849,3 +860,9 @@ class OvPhysxManager(PhysicsManager):
                 ("gpuCollisionStackSize", cfg.gpu_collision_stack_size),
             ]:
                 scene_prim.CreateAttribute(f"physxScene:{attr}", Sdf.ValueTypeNames.UInt).Set(val)
+
+
+class _OvPhysxEvent(Enum):
+    """Internal initialization phase after native cloning and before render expansion."""
+
+    BINDINGS_READY = "ovphysx_bindings_ready"

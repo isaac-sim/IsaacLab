@@ -424,18 +424,6 @@ class OVRTXRenderer(BaseRenderer):
     def prepare_stage(self, stage: Usd.Stage, num_envs: int) -> None:
         """Load, clone, and bind the shared scene before any camera products are registered."""
         logger.info("Preparing stage (%d envs)...", num_envs)
-        if self._use_ovstage and self.scene.render_copies_pending:
-            from isaaclab_ov.sensors import ContactSensor
-
-            # Assets have bound native clones, but camera callbacks may precede contact sensors.
-            # Finish contact initialization and publication while the authored stage is small.
-            scene = self._sdp.get_interactive_scene()
-            if scene is not None:
-                for sensor in scene.sensors.values():
-                    if isinstance(sensor, ContactSensor):
-                        sensor._initialize_callback(None)
-            self._sim.backend_manager._scene_data_backend._ensure_setup()
-            self.scene.complete_render_copies()
         env_paths = self.scene.clone_env_paths
         light_partitions = _resolve_env_light_partitions(stage, env_paths, copies=self.scene.clone_copies)
         if self.cfg.temp_usd_dir is not None or not self._use_ovstage or not self.scene.ordinal:

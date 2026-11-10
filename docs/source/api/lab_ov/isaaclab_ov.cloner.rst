@@ -31,8 +31,8 @@ original worlds in one stage before OVPhysX attaches. ``OvstageReplicateContext`
 physics asset routes so it can complete the rendering copies after native physics cloning and binding
 acquisition. The selected route is retained across resets and subsequent renderer creation.
 
-Configure shared-stage cameras before the initial simulation reset. Cameras may have different product
-settings, but share one native renderer and must agree on native logging and transform-cache settings.
+Configure shared-stage cameras and contact sensors before the initial simulation reset. Cameras may have
+different product settings, but share one native renderer and must agree on native logging and transform-cache settings.
 Full-stage physics imports, including deformable scenes that require authored environment copies, are
 not supported in shared mode. Disable ``ISAAC_LAB_SHARE_OVSTAGE``
 for those scenes; sharing rejects them before native population rather than dropping their USD overrides.
@@ -44,10 +44,11 @@ Shared-stage attachment order
 -----------------------------
 
 Shared mode uses early physics attachment without an additional flag. It populates complete original worlds at
-ordinal 1, attaches OVPhysX, and waits for native clones before physics warmup. Contact sensors and
-scene-data bindings initialize before the remaining render copies are committed at ordinal 2.
-OVRTX then attaches to the completed stage. Later physics edits consume their exact update ordinals
-and exclude the render-copy ordinal. A forced reset rebuilds this sequence after releasing bindings.
+ordinal 1, attaches OVPhysX, and waits for native clones before physics warmup. The physics manager
+initializes asset, contact, and scene-data bindings before the stage owner commits the remaining render
+copies at ordinal 2. Only then does it publish ``PHYSICS_READY``, so startup gravity callbacks and
+camera preparation see the completed stage. OVRTX then attaches. Later physics edits consume their exact
+update ordinals and exclude the render-copy ordinal. A failed copy requires a stage rebuild before retry;
+a forced reset rebuilds this sequence after releasing bindings.
 
 Attaching physics before expanding the render hierarchy reduces initialization work and host memory.
-Legacy OVRTX and separate OVStage rendering remain available unchanged.

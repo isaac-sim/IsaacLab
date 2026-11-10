@@ -17,6 +17,7 @@ import sys
 import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
+from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 import warp as wp
@@ -93,6 +94,11 @@ class SensorBase(ABC):
     """
     Properties
     """
+
+    @property
+    def _initialize_event(self) -> Enum:
+        """Lifecycle phase in which this sensor can acquire its native resources."""
+        return PhysicsEvent.PHYSICS_READY
 
     @property
     def is_initialized(self) -> bool:
@@ -356,12 +362,12 @@ class SensorBase(ABC):
         def _invoke(callback_name, event):
             getattr(obj_ref, callback_name)(event)
 
-        # Backend-agnostic: PHYSICS_READY (init) and STOP (invalidate)
+        # Physics-only sensors may bind before render consumers and public readiness.
         self._initialize_handle = physics_mgr.register_callback(
             lambda payload: PhysicsManager.safe_callback_invoke(
                 _invoke, "_initialize_callback", payload, backend_manager=physics_mgr
             ),
-            PhysicsEvent.PHYSICS_READY,
+            self._initialize_event,
             order=10,
         )
         self._invalidate_initialize_handle = physics_mgr.register_callback(
@@ -388,8 +394,9 @@ class SensorBase(ABC):
         """Initializes the scene elements.
 
         .. note::
-            Physics handles are only valid once the simulation is ready. This callback runs when
-            :attr:`PhysicsEvent.PHYSICS_READY` is dispatched by the current backend.
+            The backend dispatches this callback once this sensor's native resources are valid.
+            Sensors initialize on :attr:`PhysicsEvent.PHYSICS_READY` unless their backend selects
+            an earlier binding phase.
         """
         if not self._is_initialized:
             self._initialize_impl()

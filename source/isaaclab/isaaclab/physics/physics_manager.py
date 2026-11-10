@@ -161,6 +161,8 @@ class PhysicsManager(metaclass=_PhysicsManagerMeta):
         self._sim_time: float = 0.0
         self._callbacks: dict[int, tuple[Any, Callable, int, str | None, Any]] = {}
         self._callback_id: int = 0
+        self._binding_init_event: Enum = PhysicsEvent.PHYSICS_READY
+        """Backend-owned phase for asset and contact bindings; may precede public readiness."""
         self.views: dict[str, Any] = {}
         """Backend views by prim path expression, shared by the consumers of this manager."""
 
