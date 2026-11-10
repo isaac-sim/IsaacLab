@@ -36,6 +36,15 @@ def test_collection_rejects_candidates_covers_groups_and_preserves_rng() -> None
     assert buffer.num_states == 7
     assert buffer.group_names == ("table", "grasped")
     assert buffer.group_ids.tolist() == [0, 0, 0, 0, 1, 1, 1]
+    exported_groups = buffer.group_ids
+    exported_groups.fill_(-1)
+    assert buffer.group_ids.tolist() == [0, 0, 0, 0, 1, 1, 1]
+    exported_groups.resize_(0)
+    assert buffer.num_states == 7
+    with pytest.raises(AttributeError):
+        buffer.group_ids = torch.empty(0, dtype=torch.long)
+    with pytest.raises(AttributeError):
+        buffer.group_names = ()
     assert buffer.collection_report == {
         "table": {"attempted": 8, "accepted": 4, "rejected/generator": 2, "rejected/reachable": 2},
         "grasped": {"attempted": 8, "accepted": 3, "rejected/generator": 2, "rejected/reachable": 2},

@@ -42,17 +42,25 @@ class ResetStateBuffer:
             raise ValueError("seed must be an integer in [0, 2**32).")
         self.cfg = cfg
         self._state: ResetStateBuffer.State = {}
-        self.group_names: tuple[str, ...] = ()
-        """Generator names, in collection order."""
-        self.group_ids = torch.empty(0, dtype=torch.long)
-        """Generator index for every stored row, shape [num_states]."""
+        self._group_names: tuple[str, ...] = ()
+        self._group_ids = torch.empty(0, dtype=torch.long)
         self.collection_report: dict[str, dict[str, int]] = {}
         """Attempted, accepted, and rejected counts for the most recent successful collection."""
 
     @property
     def num_states(self) -> int:
         """Number of collected states."""
-        return self.group_ids.numel()
+        return self._group_ids.numel()
+
+    @property
+    def group_names(self) -> tuple[str, ...]:
+        """Generator names, in collection order."""
+        return self._group_names
+
+    @property
+    def group_ids(self) -> torch.Tensor:
+        """Copy of each stored row's generator index, shape [num_states]."""
+        return self._group_ids.clone()
 
     @property
     def state(self) -> ResetStateBuffer.State:
@@ -156,7 +164,7 @@ class ResetStateBuffer:
         finally:
             np.random.set_state(numpy_state)
             random.setstate(python_state)
-        self._state, self.group_ids, self.group_names, self.collection_report = (
+        self._state, self._group_ids, self._group_names, self.collection_report = (
             state,
             group_ids,
             tuple(generators),

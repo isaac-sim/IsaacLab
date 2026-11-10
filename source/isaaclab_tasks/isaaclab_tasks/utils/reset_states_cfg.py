@@ -21,7 +21,11 @@ class ResetStateSamplerCfg:
     """Runtime sampler implementation."""
 
     success_monitor: SuccessMonitorCfg = SuccessMonitorCfg(monitored_history_len=50)
-    """Rolling episode history for each reset row."""
+    """Rolling episode history for each reset row.
+
+    Leave the monitor's target, concentration, and temperature at their defaults;
+    :attr:`sampling` owns reset-row selection.
+    """
 
     sampling: SamplerCfg = SamplerCfg(
         strategies=[BetaSamplingStrategyCfg(target=0.5, kappa=2.0), UniformSamplingStrategyCfg(weight=0.05)],

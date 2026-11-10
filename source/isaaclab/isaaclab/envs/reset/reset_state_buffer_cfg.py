@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configuration for bounded reset-state collection."""
+"""Reset-state collection limits and seed settings."""
 
 from ...utils import configclass
 

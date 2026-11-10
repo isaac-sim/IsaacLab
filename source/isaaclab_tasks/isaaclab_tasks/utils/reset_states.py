@@ -13,7 +13,7 @@ from isaaclab.utils import instantiate
 
 from .reset_states_cfg import ResetStateSamplerCfg
 from .sampling import Sampler
-from .success_monitor import SuccessMonitor
+from .success_monitor import SuccessMonitor, SuccessMonitorCfg
 
 
 class ResetStateSampler:
@@ -33,14 +33,25 @@ class ResetStateSampler:
     def __init__(self, cfg: ResetStateSamplerCfg, num_envs: int, row_count: int, device: str | torch.device) -> None:
         if num_envs < 1 or row_count < 1:
             raise ValueError("num_envs and row_count must be positive.")
+        monitor_defaults = SuccessMonitorCfg()
+        if (
+            cfg.success_monitor.target_success_rate != monitor_defaults.target_success_rate
+            or cfg.success_monitor.kappa != monitor_defaults.kappa
+            or cfg.success_monitor.temperature != monitor_defaults.temperature
+        ):
+            raise ValueError("Configure reset-row selection through sampling, not success_monitor sampling fields.")
         self.cfg = cfg
         self.row_ids = torch.zeros(num_envs, dtype=torch.long, device=device)
         """Current reset-row assignment for every environment, shape [num_envs]."""
         self.success_monitor: SuccessMonitor = instantiate(cfg.success_monitor, 1, row_count, device)
         """Rolling outcomes indexed by reset row."""
         self.sampler: Sampler = instantiate(cfg.sampling, self.success_monitor.success_rate)
-        self.probabilities = self.sampler.probabilities()
-        """Most recently used row probabilities, shape [row_count]. Treat this tensor as read-only."""
+        self._probabilities = self.sampler.probabilities()
+
+    @property
+    def probabilities(self) -> torch.Tensor:
+        """Copy of the most recently used row probabilities, shape [row_count]."""
+        return self._probabilities.clone()
 
     def reset(
         self,
@@ -64,7 +75,7 @@ class ResetStateSampler:
         """
         if success is not None:
             self.success_monitor.success_update(self.row_ids[env_ids], success, valid)
-        self.probabilities = self.sampler.probabilities()
+        self._probabilities = self.sampler.probabilities()
         if env_ids.numel():
-            self.row_ids[env_ids] = self.sampler.sample(self.probabilities, env_ids.numel())
+            self.row_ids[env_ids] = self.sampler.sample(self._probabilities, env_ids.numel())
         return self.row_ids[env_ids]

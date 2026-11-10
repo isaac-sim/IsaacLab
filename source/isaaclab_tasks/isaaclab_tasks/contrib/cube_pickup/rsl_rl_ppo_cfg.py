@@ -12,6 +12,8 @@ from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlOnPolicyRunnerCfg, RslRlPp
 
 @configclass
 class CubePickupPPORunnerCfg(RslRlOnPolicyRunnerCfg):
+    """PPO settings for learning the sparse pickup goal from generated reset states."""
+
     num_steps_per_env = 32
     max_iterations = 3000
     save_interval = 100

@@ -16,6 +16,7 @@ import torch
 
 import isaaclab.envs.mdp as mdp
 from isaaclab.envs import ManagerBasedRLEnv
+from isaaclab.envs.common import VecEnvStepReturn
 from isaaclab.envs.reset import ResetStateBuffer
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils import clone, instantiate
@@ -35,6 +36,7 @@ class CubePickupEnv(ManagerBasedRLEnv):
     def __init__(self, cfg: CubePickupEnvCfg, **kwargs) -> None:
         self.reset_buffer: ResetStateBuffer | None = None
         self.reset_sampler: ResetStateSampler | None = None
+        self._step_success_rate: torch.Tensor | None = None
         self._arm_scale = torch.tensor(cfg.actions.arm.scale, dtype=torch.float32, device=cfg.sim.device).expand(6)
         self._arm_offset = torch.tensor(cfg.actions.arm.offset, dtype=torch.float32, device=cfg.sim.device).expand(6)
         offset = cfg.actions.arm.body_offset
@@ -51,12 +53,20 @@ class CubePickupEnv(ManagerBasedRLEnv):
         super().__init__(cfg, **kwargs)
         self._hand_cfg = SceneEntityCfg("robot", body_names="panda_hand")
         self._hand_cfg.resolve(self.scene)
-        self._bank_generator = torch.Generator(device=self.device)
-        self._bank_generator.manual_seed(cfg.reset_buffer.seed)
         self.generation_report: dict = {}
         self.command_manager.reset()
         if cfg.reset_mode != "table":
             self._collect_reset_states()
+
+    def step(self, action: torch.Tensor) -> VecEnvStepReturn:
+        """Publish success only for natural outcomes observed during this step."""
+        self._step_success_rate = None
+        result = super().step(action)
+        if self._step_success_rate is None:
+            self.extras.get("log", {}).pop("Metrics/success_rate", None)
+        else:
+            self.extras["log"]["Metrics/success_rate"] = self._step_success_rate
+        return result
 
     def scripted_action(self, target: torch.Tensor, *, close: bool) -> torch.Tensor:
         """Create normalized relative IK actions for target grasp-center poses.
@@ -117,7 +127,7 @@ class CubePickupEnv(ManagerBasedRLEnv):
         rows = None
         if self.reset_sampler is not None:
             previous_rows = self.reset_sampler.row_ids[ids]
-            previous_groups = self.reset_buffer.group_ids[previous_rows]
+            previous_groups = self._reset_group_ids[previous_rows]
             counts = torch.zeros(len(self.reset_buffer.group_names), device=self.device)
             counts.scatter_add_(0, previous_groups, valid.float())
             successes = torch.zeros_like(counts).scatter_add_(0, previous_groups, (success & valid).float())
@@ -126,13 +136,13 @@ class CubePickupEnv(ManagerBasedRLEnv):
                 metrics[f"Reset/{name}_success"] = rates[group_id]
             rows = self.reset_sampler.reset(ids, success=success, valid=valid)
             probabilities = torch.zeros_like(counts).scatter_add_(
-                0, self.reset_buffer.group_ids, self.reset_sampler.probabilities
+                0, self._reset_group_ids, self.reset_sampler.probabilities
             )
             for group_id, name in enumerate(self.reset_buffer.group_names):
                 metrics[f"Reset/{name}_probability"] = probabilities[group_id]
-            metrics["Metrics/success_rate"] = successes.sum() / counts.sum().clamp_min(1)
-        else:
-            metrics["Metrics/success_rate"] = (success & valid).float().sum() / valid.sum().clamp_min(1)
+        if valid.any():
+            self._step_success_rate = (success & valid).float().sum() / valid.sum()
+            metrics["Metrics/success_rate"] = self._step_success_rate
         super()._reset_idx(env_ids)
         if rows is None:
             self._reset_table(ids)
@@ -140,12 +150,11 @@ class CubePickupEnv(ManagerBasedRLEnv):
             self._restore_reset_state(self.reset_buffer.get_state(rows), ids)
         self.extras["log"].update(metrics)
 
-    def _reset_table(self, env_ids: torch.Tensor, *, generating: bool = False) -> None:
+    def _reset_table(self, env_ids: torch.Tensor) -> None:
         mdp.reset_scene_to_default(self, env_ids)
         cube = self.scene["object"]
         state = cube.data.default_root_state.torch[env_ids].clone()
-        generator = self._bank_generator if generating else None
-        offsets = torch.rand((env_ids.numel(), 2), device=self.device, generator=generator)
+        offsets = torch.rand((env_ids.numel(), 2), device=self.device)
         state[:, 0] = 0.45 + 0.10 * offsets[:, 0]
         state[:, 1] = -0.08 + 0.16 * offsets[:, 1]
         state[:, :3] += self.scene.env_origins[env_ids]
@@ -170,7 +179,7 @@ class CubePickupEnv(ManagerBasedRLEnv):
             self._physics_step(self.scripted_action(target, close=close))
 
     def _generate(self, env_ids: torch.Tensor, stage: str) -> torch.Tensor:
-        self._reset_table(env_ids, generating=True)
+        self._reset_table(env_ids)
         self.action_manager.reset()
         rest = pickup_mdp.hand_pose(self, self._hand_cfg)
         self._drive(rest, 0.2)
@@ -183,7 +192,7 @@ class CubePickupEnv(ManagerBasedRLEnv):
         target[:, :3] = cube_position
         target[:, 2] += 0.10
         if stage == "approach":
-            fraction = torch.rand((self.num_envs, 1), device=self.device, generator=self._bank_generator)
+            fraction = torch.rand((self.num_envs, 1), device=self.device)
             target[:, :3] = torch.lerp(rest[:, :3], target[:, :3], fraction)
         self._drive(target, 5.0)
         if stage == "approach":
@@ -196,7 +205,7 @@ class CubePickupEnv(ManagerBasedRLEnv):
 
         target[:, :3] = cube_position
         if stage == "pregrasp":
-            target[:, 2] += 0.10 * torch.rand((self.num_envs,), device=self.device, generator=self._bank_generator)
+            target[:, 2] += 0.10 * torch.rand((self.num_envs,), device=self.device)
         self._drive(target, 2.0)
         aligned = (
             torch.linalg.vector_norm(
@@ -208,7 +217,7 @@ class CubePickupEnv(ManagerBasedRLEnv):
             return self._candidate_valid(env_ids) & aligned
 
         self._drive(target, 0.6, close=True)
-        target[:, 2] += 0.025 + 0.073 * torch.rand((self.num_envs,), device=self.device, generator=self._bank_generator)
+        target[:, 2] += 0.025 + 0.073 * torch.rand((self.num_envs,), device=self.device)
         self._drive(target, 1.0, close=True)
         height = pickup_mdp.object_position(self)[env_ids, 2]
         attached = torch.linalg.vector_norm(pickup_mdp.object_to_hand(self, self._hand_cfg)[env_ids], dim=-1) < 0.035
@@ -265,6 +274,7 @@ class CubePickupEnv(ManagerBasedRLEnv):
             for stage in ("table", "approach", "pregrasp", "grasp")
         }
         self.reset_buffer.collect(self.scene._ALL_INDICES, generators, self._capture)
+        self._reset_group_ids = self.reset_buffer.group_ids
         sampler_cfg = clone(self.cfg.reset_sampler)
         if self.cfg.reset_mode == "uniform":
             sampler_cfg.sampling.strategies = [UniformSamplingStrategyCfg()]

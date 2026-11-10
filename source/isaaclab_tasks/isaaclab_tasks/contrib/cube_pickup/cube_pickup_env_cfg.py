@@ -32,27 +32,8 @@ from isaaclab.visualizers import VisualizerCfg
 from isaaclab_assets.robots import FRANKA_PANDA_HIGH_PD_CFG
 
 from ...core.lift.mdp import ObjectUniformPoseCommandCfg
-from ...utils import PresetCfg, ResetStateSamplerCfg
+from ...utils import ResetStateSamplerCfg, preset
 from . import mdp as pickup_mdp
-
-
-@configclass
-class PhysicsCfg(PresetCfg):
-    """Expose the supported ``physics=newton_mjwarp`` task selector."""
-
-    newton_mjwarp = NewtonCfg(
-        solver_cfg=MJWarpSolverCfg(
-            njmax=128,
-            nconmax=64,
-            iterations=30,
-            ls_iterations=15,
-            cone="elliptic",
-            integrator="implicitfast",
-            use_mujoco_contacts=True,
-        ),
-        num_substeps=2,
-    )
-    default = newton_mjwarp
 
 
 @configclass
@@ -79,7 +60,7 @@ class SceneCfg(InteractiveSceneCfg):
     )
     light = AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0))
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         super().__post_init__()
         self.robot.spawn.variants["Physics"] = "mujoco"
         # Match the high-PD asset's gravity-free arm in the native MuJoCo model.
@@ -157,7 +138,7 @@ class ObservationsCfg:
         )
         actions = ObservationTermCfg(func=mdp.last_action)
 
-        def __post_init__(self):
+        def __post_init__(self) -> None:
             self.enable_corruption = False
             self.concatenate_terms = True
 
@@ -207,15 +188,27 @@ class CubePickupEnvCfg(ManagerBasedRLEnvCfg):
     reset_mode: Literal["adaptive", "uniform", "table"] = "adaptive"
     """Training distribution, or ordinary home/table starts for evaluation."""
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.decimation = 4
         self.sim.dt = 1.0 / 120.0
         self.sim.render_interval = self.decimation
-        self.sim.physics = PhysicsCfg()
+        newton = NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(
+                njmax=128,
+                nconmax=64,
+                iterations=30,
+                ls_iterations=15,
+                cone="elliptic",
+                integrator="implicitfast",
+                use_mujoco_contacts=True,
+            ),
+            num_substeps=2,
+        )
+        self.sim.physics = preset(default=newton, newton_mjwarp=newton)
         self.episode_length_s = 12.0
         self.is_finite_horizon = True
         self.sim.visualizer_cfgs = VisualizerCfg(eye=(1.3, 1.1, 0.9), lookat=(0.45, 0.0, 0.15))
 
-    def play_mode(self):
+    def play_mode(self) -> None:
         super().play_mode()
         self.reset_mode = "table"

@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils.math import combine_frame_transforms
+from isaaclab.utils.math import quat_apply, quat_mul
 
 from ...core.lift.mdp import object_reached_goal
 
@@ -33,11 +33,10 @@ def hand_pose(
     Positions [m] are relative to environment origins in world axes; orientations are
     world-frame quaternions in xyzw order.
     """
-    robot = env.scene[asset_cfg.name]
-    body_id = asset_cfg.body_ids[0]
-    orientation = robot.data.body_link_quat_w.torch[:, body_id]
-    position = robot.data.body_link_pos_w.torch[:, body_id]
-    position, orientation = combine_frame_transforms(position, orientation, env._tcp_offset_pos, env._tcp_offset_rot)
+    orientation = env.scene[asset_cfg.name].data.body_link_quat_w.torch[:, asset_cfg.body_ids[0]]
+    if env._tcp_offset_rot is not None:
+        orientation = quat_mul(orientation, env._tcp_offset_rot)
+    position = _hand_position(env, asset_cfg)
     return torch.cat((position - env.scene.env_origins, orientation), dim=-1)
 
 
@@ -45,7 +44,7 @@ def object_to_hand(
     env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot", body_names="panda_hand")
 ) -> torch.Tensor:
     """Cube-minus-grasp-center displacements [m] in world axes, shape (num_envs, 3)."""
-    return object_position(env) - hand_pose(env, asset_cfg)[:, :3]
+    return env.scene["object"].data.root_pos_w.torch - _hand_position(env, asset_cfg)
 
 
 def goal_reached(
@@ -86,3 +85,13 @@ def object_dropped(env: ManagerBasedRLEnv) -> torch.Tensor:
     """Return workspace-exit flags with shape (num_envs,), using positions in environment-frame [m]."""
     position = object_position(env)
     return (position[:, 2] < -0.02) | (position[:, 0] < 0.15) | (position[:, 0] > 0.85) | (position[:, 1].abs() > 0.45)
+
+
+def _hand_position(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Compute the configured grasp-center position in the world frame."""
+    robot = env.scene[asset_cfg.name]
+    body_id = asset_cfg.body_ids[0]
+    position = robot.data.body_link_pos_w.torch[:, body_id]
+    if env._tcp_offset_pos is not None:
+        position = position + quat_apply(robot.data.body_link_quat_w.torch[:, body_id], env._tcp_offset_pos)
+    return position

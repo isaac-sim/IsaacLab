@@ -94,8 +94,10 @@ outcomes for the initial draw and mask manual or zero-step resets. Only resettin
 environments receive new row assignments.
 
 The sampler reuses the shared success monitor and sampling strategies from
-:mod:`isaaclab_tasks.utils.sampling`. For a uniform baseline, configure the existing
-uniform strategy:
+:mod:`isaaclab_tasks.utils.sampling`. Configure row selection through
+``ResetStateSamplerCfg.sampling``; the monitor config controls outcome history.
+Non-default monitor sampling controls are rejected. For a uniform baseline,
+configure the existing uniform strategy:
 
 .. code-block:: python
 

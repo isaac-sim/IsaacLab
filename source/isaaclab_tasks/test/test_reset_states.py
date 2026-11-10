@@ -52,13 +52,18 @@ def test_reset_records_previous_rows_and_preserves_unselected_environments() -> 
 
 def test_sampling_tracks_the_current_success_frontier_without_starving_other_rows() -> None:
     """The sampler observes live rolling outcomes and retains positive weight for easy and hard starts."""
+    with pytest.raises(ValueError, match="through sampling"):
+        ResetStateSampler(ResetStateSamplerCfg(success_monitor=SuccessMonitorCfg(target_success_rate=0.8)), 3, 3, "cpu")
     sampler = ResetStateSampler(ResetStateSamplerCfg(), 3, 3, "cpu")
     env_ids = torch.arange(3)
     for success in ([False, True, False], [False, True, True]):
         sampler.row_ids[:] = env_ids
         sampler.reset(env_ids, torch.tensor(success))
     assert sampler.success_monitor.success_rate.tolist() == [0.0, 1.0, 0.5]
-    assert (sampler.probabilities > 0).all()
-    torch.testing.assert_close(sampler.probabilities.sum(), torch.tensor(1.0))
-    assert sampler.probabilities[2] > sampler.probabilities[0]
-    assert sampler.probabilities[2] > sampler.probabilities[1]
+    exported = sampler.probabilities
+    exported.zero_()
+    probabilities = sampler.probabilities
+    assert (probabilities > 0).all()
+    torch.testing.assert_close(probabilities.sum(), torch.tensor(1.0))
+    assert probabilities[2] > probabilities[0]
+    assert probabilities[2] > probabilities[1]
