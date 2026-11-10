@@ -20,8 +20,7 @@ logger = logging.getLogger(__name__)
 class ContactSensorData(BaseContactSensorData):
     """Data container for the contact reporting sensor."""
 
-    _pos_w: wp.array | None
-    _quat_w: wp.array | None
+    _track_pose: bool
 
     _net_forces_w: wp.array | None
     _net_forces_w_history: wp.array | None
@@ -49,35 +48,29 @@ class ContactSensorData(BaseContactSensorData):
 
     @property
     def pos_w(self) -> ProxyArray | None:
-        """Position of the sensor origin in world frame.
+        """Not supported by Newton contact sensor.
 
-        `wp.vec3f` array whose shape is (N,) where N is the number of sensors. Note, that when casted to as a
-        `torch.Tensor`, the shape will be (N, 3).
+        None if :attr:`ContactSensorCfg.track_pose` is False.
 
-        Note:
-            If the :attr:`ContactSensorCfg.track_pose` is False, then this quantity is None.
+        Raises:
+            NotImplementedError: If :attr:`ContactSensorCfg.track_pose` is True.
         """
-        if self._pos_w is None:
-            return None
-        if self._pos_w_ta is None:
-            self._pos_w_ta = ProxyArray(self._pos_w)
-        return self._pos_w_ta
+        if self._track_pose:
+            raise NotImplementedError("pos_w is not supported by the Newton contact sensor.")
+        return None
 
     @property
     def quat_w(self) -> ProxyArray | None:
-        """Orientation of the sensor origin in quaternion (x, y, z, w) in world frame.
+        """Not supported by Newton contact sensor.
 
-        `wp.quatf` whose shape is (N,) where N is the number of sensors. Note, that when casted to as a `torch.Tensor`,
-        the shape will be (N, 4).
+        None if :attr:`ContactSensorCfg.track_pose` is False.
 
-        Note:
-            If the :attr:`ContactSensorCfg.track_pose` is False, then this quantity is None.
+        Raises:
+            NotImplementedError: If :attr:`ContactSensorCfg.track_pose` is True.
         """
-        if self._quat_w is None:
-            return None
-        if self._quat_w_ta is None:
-            self._quat_w_ta = ProxyArray(self._quat_w)
-        return self._quat_w_ta
+        if self._track_pose:
+            raise NotImplementedError("quat_w is not supported by the Newton contact sensor.")
+        return None
 
     @property
     def net_forces_w(self) -> ProxyArray | None:
@@ -375,7 +368,7 @@ class ContactSensorData(BaseContactSensorData):
             history_length: The history length.
             generate_force_matrix: Whether to generate the force matrix.
             track_air_time: Whether to track the air time.
-            track_pose: Whether to track the pose.
+            track_pose: Whether pose tracking was requested, which the Newton sensor does not support.
             device: The device to use.
             track_contact_points: Whether to track the contact point positions.
             track_friction_forces: Whether to track friction contact forces.
@@ -386,16 +379,8 @@ class ContactSensorData(BaseContactSensorData):
             f" {generate_force_matrix}, track_contact_points: {track_contact_points}, track_air_time:"
             f" {track_air_time}, track_pose: {track_pose}, device: {device}"
         )
-        # Track pose if requested
-        if track_pose:
-            self._pose = wp.zeros((num_envs,), dtype=wp.transformf, device=device)
-            pos_scalars = wp.array(self._pose, dtype=wp.float32, device=device, copy=False)
-            self._pos_w = wp.array(pos_scalars[:, :3], dtype=wp.vec3f, device=device, copy=False)
-            self._quat_w = wp.array(pos_scalars[:, 3:], dtype=wp.quatf, device=device, copy=False)
-        else:
-            self._pose = None
-            self._pos_w = None
-            self._quat_w = None
+        # The sensor pose is not tracked; reading it raises if it was requested.
+        self._track_pose = track_pose
 
         # Ensure history_length >= 1 for consistent buffer shapes across backends.
         effective_history = max(history_length, 1)
@@ -482,8 +467,6 @@ class ContactSensorData(BaseContactSensorData):
             ProxyArray(self._net_normal_forces_w_history) if self._net_normal_forces_w_history is not None else None
         )
         # -- Lazy ProxyArray instances for nullable buffers (pinned on first access)
-        self._pos_w_ta: ProxyArray | None = None
-        self._quat_w_ta: ProxyArray | None = None
         self._force_matrix_w_ta: ProxyArray | None = None
         self._force_matrix_w_history_ta: ProxyArray | None = None
         self._normal_force_matrix_w_ta: ProxyArray | None = None
