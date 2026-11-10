@@ -23,12 +23,12 @@ def apply_actions(mdp: MDP, state: MDPState, actions: torch.Tensor) -> None:
 
 
 def evaluate(mdp: MDP, state: MDPState, transition: Transition) -> None:
-    """Advance episode lengths and term state, then write endings, rewards, and successor observations."""
+    """Write endings and rewards, then resample due commands, run due interval events, and observe successors."""
     _BACKENDS[mdp.backend].evaluate(mdp, state, transition)
 
 
 def reset(mdp: MDP, state: MDPState, mask: torch.Tensor) -> None:
-    """Reset the MDP state of the worlds selected by a boolean mask of shape ``(num_worlds,)``."""
+    """Reset term state and timers of the masked worlds, run reset events, then resample their commands."""
     _BACKENDS[mdp.backend].reset(mdp, state, mask)
 
 

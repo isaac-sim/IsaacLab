@@ -6,8 +6,11 @@
 __all__ = [
     "MDP",
     "Backend",
+    "Command",
     "DirectAction",
     "Entity",
+    "Event",
+    "EventMode",
     "EntitySchema",
     "FieldSelector",
     "Implementation",
@@ -29,15 +32,20 @@ __all__ = [
     "TimeLimit",
     "Transition",
     "apply_actions",
+    "commands",
     "evaluate",
     "observe",
     "reset",
+    "uniform",
 ]
 
 from .builder import MDPBuilder, ScheduleEntry
 from .config import (
+    Command,
     DirectAction,
     Entity,
+    Event,
+    EventMode,
     FieldSelector,
     Observation,
     ObservationGroup,
@@ -47,8 +55,10 @@ from .config import (
     TermCfg,
     Termination,
     TimeLimit,
+    commands,
 )
 from .mdp import MDP, Backend, MDPState, Transition
 from .scene import EntitySchema, PointMassScene, SceneData, SceneSchema
+from .rng import uniform
 from .runtime import apply_actions, evaluate, observe, reset
 from .terms import Implementation, State, Term

@@ -28,6 +28,8 @@ class Implementation:
       observations are computed again after a reset, and continuing worlds must get the same sample.
     - ``update(**args)`` advances state in place, once per step after ``compute``.
     - ``reset(mask, **args)`` resets the masked worlds' state. Without it, state is set to ``initial``.
+
+    Event terms are ``compute(mask, **args)`` in both backends and write their inputs in place.
     """
 
     compute: Callable
@@ -43,6 +45,7 @@ class Term:
     warp: Implementation | Callable | None = None
     shape: tuple[str | int, ...] = ("worlds",)  # Output shape; names other than "worlds" come from the inputs
     state: dict[str, State] = field(default_factory=dict)
+    random: bool = False  # Pass the use's per-world random stream as ``rng``, see :func:`uniform`
 
     def __post_init__(self):
         if self.torch is not None and not isinstance(self.torch, Implementation):

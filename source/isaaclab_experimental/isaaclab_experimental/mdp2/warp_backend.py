@@ -67,6 +67,45 @@ def _sum_rewards(
     rewards[world] = total
 
 
+@wp.kernel
+def _tick(
+    step_dt: float,
+    low: float,
+    high: float,
+    rng: wp.array(dtype=wp.int32),
+    time_left: wp.array(dtype=wp.float32),
+    due: wp.array(dtype=wp.bool),
+):
+    world = wp.tid()
+    remaining = time_left[world] - step_dt
+    expired = remaining <= 0.0
+    if expired:
+        remaining = wp.randf(wp.rand_init(rng[world], -1), low, high)
+    time_left[world] = remaining
+    due[world] = expired
+
+
+@wp.kernel
+def _restart(
+    mask: wp.array(dtype=wp.bool),
+    low: float,
+    high: float,
+    rng: wp.array(dtype=wp.int32),
+    time_left: wp.array(dtype=wp.float32),
+):
+    world = wp.tid()
+    if mask[world]:
+        time_left[world] = wp.randf(wp.rand_init(rng[world], -1), low, high)
+
+
+@wp.kernel
+def _advance(mask: wp.array(dtype=wp.bool), rng: wp.array2d(dtype=wp.int32)):
+    stream, world = wp.tid()
+    if mask and not mask[world]:
+        return
+    rng[stream, world] = wp.int32(wp.rand_init(rng[stream, world]))
+
+
 def apply_actions(mdp: MDP, state: MDPState, actions: torch.Tensor) -> None:
     actions = wp.from_torch(actions)
     wp.copy(state.actions.warp, actions)
@@ -92,8 +131,15 @@ def evaluate(mdp: MDP, state: MDPState, transition: Transition) -> None:
         _step(op, state, outputs.rewards[i])
     inputs = [outputs.rewards, outputs.reward_scales]
     wp.launch(_sum_rewards, dim=mdp.num_worlds, inputs=inputs, outputs=[transition.rewards.warp], device=mdp.device)
+    for op in mdp.command_ops:
+        if op.timer is not None:
+            _resample(mdp, op, state, _tick_timer(mdp, op, state))
+    for op in mdp.interval_event_ops:
+        op.compute(mask=_tick_timer(mdp, op, state), **_arguments(op, state))
+
     for op in mdp.observation_ops:
         _step(op, state, _columns(transition.observations[op.group].warp, op.columns.start, op.shape))
+    wp.launch(_advance, state.rng.warp.shape, [None], [state.rng.warp], device=mdp.device)
 
 
 def reset(mdp: MDP, state: MDPState, mask: torch.Tensor) -> None:
@@ -104,13 +150,22 @@ def reset(mdp: MDP, state: MDPState, mask: torch.Tensor) -> None:
         memory.make_masked_fill(wp.int32, 1), episode_length.shape, [0, mask, None], [episode_length], device=mdp.device
     )
     wp.launch(fill, actions.shape, [0.0, mask, None], [actions], device=mdp.device)
-    for op in mdp.termination_ops + mdp.reward_ops + mdp.observation_ops:
+    for op in mdp.term_ops:
         if op.reset is not None:
             op.reset(mask=mask, **_arguments(op, state))
             continue
         for name, spec in op.state.items():
             values = state.term_state[op.name][name].warp.reshape((mdp.num_worlds, -1))
             wp.launch(fill, values.shape, [spec.initial, mask, None], [values], device=mdp.device)
+    for op in mdp.interval_event_ops:
+        _restart_timer(mdp, op, state, mask)
+    for op in mdp.reset_event_ops:
+        op.compute(mask=mask, **_arguments(op, state))
+    for op in mdp.command_ops:
+        if op.timer is not None:
+            _restart_timer(mdp, op, state, mask)
+        _resample(mdp, op, state, mask)
+    wp.launch(_advance, state.rng.warp.shape, [mask], [state.rng.warp], device=mdp.device)
 
 
 def observe(mdp: MDP, state: MDPState, observations: dict[str, ProxyArray], mask: torch.Tensor) -> None:
@@ -123,6 +178,30 @@ def observe(mdp: MDP, state: MDPState, observations: dict[str, ProxyArray], mask
         wp.launch(
             memory.make_masked_copy(wp.float32, 2), values.shape, [values, mask, None], outputs, device=mdp.device
         )
+    wp.launch(_advance, state.rng.warp.shape, [mask], [state.rng.warp], device=mdp.device)
+
+
+def _tick_timer(mdp: MDP, op: TermOp, state: MDPState) -> wp.array:
+    """Count down a timer and restart it where it expired. Returns where it expired."""
+    due = state.outputs.due[op.name]
+    inputs = [mdp.step_dt, *op.timer, state.rng.warp[op.stream]]
+    wp.launch(_tick, mdp.num_worlds, inputs, [state.timers[op.name].warp, due], device=mdp.device)
+    return due
+
+
+def _restart_timer(mdp: MDP, op: TermOp, state: MDPState, mask: wp.array) -> None:
+    inputs = [mask, *op.timer, state.rng.warp[op.stream]]
+    wp.launch(_restart, mdp.num_worlds, inputs, [state.timers[op.name].warp], device=mdp.device)
+
+
+def _resample(mdp: MDP, op: TermOp, state: MDPState, mask: wp.array) -> None:
+    """Write fresh command samples to the masked worlds."""
+    samples = state.outputs.commands[op.name]
+    op.compute(out=_columns(samples, 0, op.shape), **_arguments(op, state))
+    command = state.fields[op.target].warp.reshape((mdp.num_worlds, -1))
+    wp.launch(
+        memory.make_masked_copy(wp.float32, 2), samples.shape, [samples, mask, None], [command], device=mdp.device
+    )
 
 
 def _step(op: TermOp, state: MDPState, out: wp.array) -> None:
@@ -136,6 +215,8 @@ def _step(op: TermOp, state: MDPState, out: wp.array) -> None:
 def _arguments(op: TermOp, state: MDPState) -> dict[str, Any]:
     inputs = {arg: state.fields[selector].warp for arg, selector in op.inputs.items()}
     term_state = {name: value.warp for name, value in state.term_state[op.name].items()}
+    if op.random:
+        term_state["rng"] = state.rng.warp[op.stream]
     return {**inputs, **term_state, **op.params}
 
 

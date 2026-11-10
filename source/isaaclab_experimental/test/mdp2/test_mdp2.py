@@ -46,6 +46,32 @@ def _copy_selected_kernel(
         previous[world, j] = value[world, j]
 
 
+@wp.kernel
+def _uniform_kernel(rng: wp.array(dtype=wp.int32), low: float, high: float, out: wp.array(dtype=float)):
+    world = wp.tid()
+    out[world] = wp.randf(wp.rand_init(rng[world], 0), low, high)
+
+
+@wp.kernel
+def _add_noise_kernel(value: wp.array2d(dtype=float), rng: wp.array(dtype=wp.int32), out: wp.array2d(dtype=float)):
+    world, j = wp.tid()
+    out[world, j] = value[world, j] + wp.randf(wp.rand_init(rng[world], j), -0.1, 0.1)
+
+
+@wp.kernel
+def _push_kernel(mask: wp.array(dtype=bool), joint_vel: wp.array2d(dtype=float)):
+    world, j = wp.tid()
+    if mask[world]:
+        joint_vel[world, j] += 1.0
+
+
+@wp.kernel
+def _scatter_kernel(mask: wp.array(dtype=bool), rng: wp.array(dtype=wp.int32), joint_pos: wp.array2d(dtype=float)):
+    world, j = wp.tid()
+    if mask[world]:
+        joint_pos[world, j] = wp.randf(wp.rand_init(rng[world], j), -0.5, 0.5)
+
+
 def position_l2_warp(out, joint_pos):
     wp.launch(_position_l2_kernel, dim=out.shape, inputs=[joint_pos], outputs=[out], device=out.device)
 
@@ -60,6 +86,22 @@ def change_warp(out, value, previous):
 
 def change_reset_warp(mask, value, previous):
     wp.launch(_copy_selected_kernel, dim=value.shape, inputs=[mask, value], outputs=[previous], device=value.device)
+
+
+def target_warp(out, rng):
+    wp.launch(_uniform_kernel, dim=out.shape, inputs=[rng, -1.0, 1.0], outputs=[out], device=out.device)
+
+
+def noisy_warp(out, value, rng):
+    wp.launch(_add_noise_kernel, dim=out.shape, inputs=[value, rng], outputs=[out], device=out.device)
+
+
+def push_warp(mask, joint_vel):
+    wp.launch(_push_kernel, dim=joint_vel.shape, inputs=[mask], outputs=[joint_vel], device=joint_vel.device)
+
+
+def scatter_warp(mask, joint_pos, rng):
+    wp.launch(_scatter_kernel, dim=joint_pos.shape, inputs=[mask, rng], outputs=[joint_pos], device=joint_pos.device)
 
 
 robot = mdp2.Entity("robot")
@@ -84,12 +126,34 @@ change = mdp2.Term(
     state={"previous": mdp2.State(("worlds", "joints"))},
 )
 """Change of a field since the last step, zero after a reset."""
+identity = mdp2.Term(torch=lambda value: value, warp=lambda out, value: wp.copy(out, value))
+target = mdp2.Term(torch=lambda rng: mdp2.uniform(rng, -1.0, 1.0), warp=target_warp, random=True)
+noisy = mdp2.Term(
+    torch=lambda value, rng: value + mdp2.uniform(rng, -0.1, 0.1, value.shape[1:]),
+    warp=noisy_warp,
+    shape=("worlds", "joints"),
+    random=True,
+)
+push = mdp2.Term(torch=lambda mask, joint_vel: joint_vel.add_(mask[:, None].float()), warp=push_warp)
+"""Add one to the velocity of the masked worlds."""
+scatter = mdp2.Term(
+    torch=lambda mask, joint_pos, rng: joint_pos.copy_(
+        torch.where(mask[:, None], mdp2.uniform(rng, -0.5, 0.5, joint_pos.shape[1:]), joint_pos)
+    ),
+    warp=scatter_warp,
+    random=True,
+)
+"""Place the masked worlds at random positions."""
+push_every_two_steps = mdp2.Event(
+    push, inputs={"joint_vel": robot.joint_vel}, mode=mdp2.EventMode.INTERVAL, interval=(0.04, 0.04)
+)
 
 
 def make_task(
-    scene: mdp2.PointMassScene, backend: str = "torch", seconds: float = 1.0
+    scene: mdp2.PointMassScene, backend: str = "torch", seconds: float = 1.0, random: bool = False
 ) -> tuple[mdp2.MDP, mdp2.MDPState]:
-    cfg = mdp2.TaskCfg(
+    """A point-mass task. With ``random``, it also has a command, noisy observations, and events."""
+    task = mdp2.TaskCfg(
         actions={"effort": mdp2.DirectAction(robot.joint_effort_target, scale=2.0)},
         observations={
             "policy": mdp2.ObservationGroup(
@@ -107,12 +171,20 @@ def make_task(
         terminations={
             "time_limit": mdp2.TimeLimit(seconds=seconds),
             "out_of_bounds": mdp2.Termination(
-                out_of_bounds, inputs={"joint_pos": robot.joint_pos}, params={"limit": 1e-3}
+                out_of_bounds, inputs={"joint_pos": robot.joint_pos}, params={"limit": 0.5 if random else 1e-3}
             ),
         },
     )
     builder = mdp2.MDPBuilder(scene.schema)
-    builder.add_task(cfg)
+    builder.add_task(task)
+    if random:
+        builder.add_command("target", mdp2.Command(target, resampling_time=(0.02, 0.06)))
+        builder.add_reward("target", mdp2.Reward(identity, inputs={"value": mdp2.commands.target}))
+        builder.add_observation("policy", "target", mdp2.Observation(identity, inputs={"value": mdp2.commands.target}))
+        for name in ("noisy_pos", "noisy_pos_again"):
+            builder.add_observation("noisy", name, mdp2.Observation(noisy, inputs={"value": robot.joint_pos}))
+        builder.add_event("push", push_every_two_steps)
+        builder.add_event("scatter", mdp2.Event(scatter, inputs={"joint_pos": robot.joint_pos}))
     mdp = builder.finalize(device=DEVICE, backend=backend)
     return mdp, mdp.state(scene)
 
@@ -148,6 +220,7 @@ def test_finalize_reports_all_errors():
     builder.add_observation(
         "policy", "name_clash", mdp2.Observation(change, inputs={"value": robot.joint_pos, "previous": robot.joint_pos})
     )
+    builder.add_event("no_interval", mdp2.Event(push, mode=mdp2.EventMode.INTERVAL))
 
     with pytest.raises(ValueError) as error:
         builder.finalize()
@@ -156,7 +229,8 @@ def test_finalize_reports_all_errors():
     assert "rewards.unknown_entity: input 'joint_pos' selects unknown entity 'table'" in message
     assert "rewards.unknown_field: input 'joint_pos' selects unknown field 'robot.joint_angle'" in message
     assert "rewards.no_torch: the term has no 'torch' implementation" in message
-    assert "observations.policy.name_clash: inputs, state, and params must have distinct names" in message
+    assert "observations.policy.name_clash: inputs, state, params, and rng must have distinct names" in message
+    assert "events.no_interval: interval events need an interval" in message
 
 
 def test_step_matches_point_mass_dynamics():
@@ -235,12 +309,61 @@ def test_reset_touches_only_selected_worlds():
         assert torch.equal(actual[1:], expected[1:])
 
 
+def test_commands_and_interval_events_follow_their_timers():
+    """Rewards see the command that governed the step, and observations see the resampled one."""
+    scene = mdp2.PointMassScene(num_worlds=8, device=DEVICE)
+    builder = mdp2.MDPBuilder(scene.schema)
+    builder.add_command("target", mdp2.Command(target, resampling_time=(0.02, 0.06)))
+    builder.add_reward("target", mdp2.Reward(identity, inputs={"value": mdp2.commands.target}))
+    builder.add_observation("policy", "target", mdp2.Observation(identity, inputs={"value": mdp2.commands.target}))
+    builder.add_event("push", push_every_two_steps)
+    mdp = builder.finalize(device=DEVICE)
+    state, transition = mdp.state(scene), mdp.transition()
+    env_reset(mdp, state, scene, transition.observations, torch.ones(8, dtype=torch.bool, device=DEVICE))
+
+    resamples = torch.zeros(8, device=DEVICE)
+    for _ in range(6):
+        previous = transition.observations["policy"].torch[:, 0].clone()
+        env_step(mdp, state, scene, torch.zeros(8, 1, device=DEVICE), transition)
+        torch.testing.assert_close(transition.rewards.torch, previous * mdp.step_dt)
+        resamples += transition.observations["policy"].torch[:, 0] != previous
+
+    assert (resamples >= 2).all() and (resamples < 6).any()  # every one to three steps
+    assert torch.equal(scene.data("robot", "joint_vel").torch, torch.full((8, 1), 3.0, device=DEVICE))
+
+
+def test_random_streams_are_independent_per_world_and_use():
+    def noisy_observations(reset_world_0: bool, env: bool) -> torch.Tensor:
+        scene = mdp2.PointMassScene(num_worlds=2, joint_names=("x", "y"), device=DEVICE)
+        mdp, state = make_task(scene, random=True)
+        transition = mdp.transition()
+        samples = []
+        for step in range(3):
+            if reset_world_0 and step == 1:
+                env_reset(mdp, state, scene, transition.observations, torch.tensor([True, False], device=DEVICE))
+            if env:
+                env_step(mdp, state, scene, torch.zeros(2, 1, device=DEVICE), transition)
+            else:
+                scene.step()
+                mdp2.evaluate(mdp, state, transition)
+            samples.append(transition.observations["noisy"].torch.clone())
+        return torch.stack(samples)
+
+    samples = noisy_observations(reset_world_0=False, env=True)
+    assert (samples[..., :2] != samples[..., 2:]).all()  # two uses of one term
+    assert (samples[1:] != samples[:-1]).all()  # every step
+    # Resetting world 0, or resets and observations of no worlds, leave world 1's draws unchanged.
+    assert torch.equal(noisy_observations(reset_world_0=True, env=True)[:, 1], samples[:, 1])
+    assert torch.equal(noisy_observations(reset_world_0=False, env=False)[:, 1], samples[:, 1])
+
+
 def test_warp_matches_torch():
     runs = {}
     for backend in ("torch", "warp"):
         scene = mdp2.PointMassScene(num_worlds=64, joint_names=("x", "y", "z"), device=DEVICE)
-        mdp, state = make_task(scene, backend=backend, seconds=0.2)
+        mdp, state = make_task(scene, backend=backend, seconds=0.2, random=True)
         transition = mdp.transition()
+        env_reset(mdp, state, scene, transition.observations, torch.ones(64, dtype=torch.bool, device=DEVICE))
         generator = torch.Generator(device=DEVICE).manual_seed(0)
         history = []
         for _ in range(30):
@@ -251,10 +374,13 @@ def test_warp_matches_torch():
             history.append(
                 [buffer.torch.clone() for buffer in buffers]
                 + [transition.observations["policy"].torch.clone(), bootstrap["policy"]]
+                + [state.rng.torch.clone(), transition.observations["noisy"].torch.clone()]
             )
         runs[backend] = history
 
     for torch_step, warp_step in zip(runs["torch"], runs["warp"]):
-        for expected, actual in zip(torch_step, warp_step):
+        for expected, actual in zip(torch_step[:-2], warp_step[:-2]):
             torch.testing.assert_close(actual, expected)
+        for expected, actual in zip(torch_step[-2:], warp_step[-2:]):
+            assert torch.equal(actual, expected)  # random draws are bitwise identical
     assert any(step[1].any() for step in runs["torch"]) and any(step[2].any() for step in runs["torch"])

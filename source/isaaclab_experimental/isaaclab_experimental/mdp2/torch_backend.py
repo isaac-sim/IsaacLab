@@ -13,6 +13,7 @@ import torch
 
 from isaaclab.utils.warp import ProxyArray
 
+from . import rng
 from .mdp import MDP, MDPState, TermOp, Transition
 
 
@@ -40,20 +41,36 @@ def evaluate(mdp: MDP, state: MDPState, transition: Transition) -> None:
     for op in mdp.reward_ops:
         rewards += _step(op, state) * (op.weight * mdp.step_dt)
 
+    for op in mdp.command_ops:
+        if op.timer is not None:
+            _resample(op, state, _tick(mdp, op, state))
+    for op in mdp.interval_event_ops:
+        op.compute(mask=_tick(mdp, op, state), **_arguments(op, state))
+
     for op in mdp.observation_ops:
         transition.observations[op.group].torch[:, op.columns] = _step(op, state).reshape(mdp.num_worlds, -1)
+    rng.advance(state.rng.torch)
 
 
 def reset(mdp: MDP, state: MDPState, mask: torch.Tensor) -> None:
     state.episode_length.torch.masked_fill_(mask, 0)
     state.actions.torch.masked_fill_(mask[:, None], 0.0)
-    for op in mdp.termination_ops + mdp.reward_ops + mdp.observation_ops:
+    for op in mdp.term_ops:
         if op.reset is not None:
             op.reset(mask=mask, **_arguments(op, state))
             continue
         for name, spec in op.state.items():
             value = state.term_state[op.name][name].torch
             value.masked_fill_(mask.reshape(-1, *[1] * (value.dim() - 1)), spec.initial)
+    for op in mdp.interval_event_ops:
+        _restart(op, state, mask)
+    for op in mdp.reset_event_ops:
+        op.compute(mask=mask, **_arguments(op, state))
+    for op in mdp.command_ops:
+        if op.timer is not None:
+            _restart(op, state, mask)
+        _resample(op, state, mask)
+    rng.advance(state.rng.torch, mask)
 
 
 def observe(mdp: MDP, state: MDPState, observations: dict[str, ProxyArray], mask: torch.Tensor) -> None:
@@ -61,6 +78,28 @@ def observe(mdp: MDP, state: MDPState, observations: dict[str, ProxyArray], mask
         columns = observations[op.group].torch[:, op.columns]
         value = op.compute(**_arguments(op, state)).reshape(mdp.num_worlds, -1)
         columns.copy_(torch.where(mask[:, None], value, columns))
+    rng.advance(state.rng.torch, mask)
+
+
+def _tick(mdp: MDP, op: TermOp, state: MDPState) -> torch.Tensor:
+    """Count down a timer and restart it where it expired. Returns where it expired."""
+    time_left = state.timers[op.name].torch
+    time_left -= mdp.step_dt
+    due = time_left <= 0.0
+    time_left.copy_(torch.where(due, rng.uniform(state.rng.torch[op.stream], *op.timer, offset=-1), time_left))
+    return due
+
+
+def _restart(op: TermOp, state: MDPState, mask: torch.Tensor) -> None:
+    time_left = state.timers[op.name].torch
+    time_left.copy_(torch.where(mask, rng.uniform(state.rng.torch[op.stream], *op.timer, offset=-1), time_left))
+
+
+def _resample(op: TermOp, state: MDPState, mask: torch.Tensor) -> None:
+    """Write fresh command samples to the masked worlds."""
+    command = state.fields[op.target].torch
+    value = op.compute(**_arguments(op, state)).reshape(command.shape)
+    command.copy_(torch.where(mask.reshape(-1, *[1] * (command.dim() - 1)), value, command))
 
 
 def _step(op: TermOp, state: MDPState) -> torch.Tensor:
@@ -75,4 +114,6 @@ def _step(op: TermOp, state: MDPState) -> torch.Tensor:
 def _arguments(op: TermOp, state: MDPState) -> dict[str, Any]:
     inputs = {arg: state.fields[selector].torch for arg, selector in op.inputs.items()}
     term_state = {name: value.torch for name, value in state.term_state[op.name].items()}
+    if op.random:
+        term_state["rng"] = state.rng.torch[op.stream]
     return {**inputs, **term_state, **op.params}

@@ -20,7 +20,16 @@ class Phase(enum.IntEnum):
     ACTIONS = enum.auto()
     TERMINATIONS = enum.auto()
     REWARDS = enum.auto()
+    COMMANDS = enum.auto()
+    EVENTS = enum.auto()
     OBSERVATIONS = enum.auto()
+
+
+class EventMode(enum.Enum):
+    """When an event runs."""
+
+    RESET = enum.auto()
+    INTERVAL = enum.auto()
 
 
 @dataclass(frozen=True)
@@ -44,6 +53,10 @@ class Entity:
         if name.startswith("_"):
             raise AttributeError(name)
         return FieldSelector(self.name, name)
+
+
+commands = Entity("commands")
+"""Command values, selected by command name: ``mdp2.commands.target``."""
 
 
 @dataclass
@@ -83,6 +96,25 @@ class Termination(TermCfg):
 
 
 @dataclass
+class Command(TermCfg):
+    """A term whose output is sampled into a command value when its timer expires and on reset."""
+
+    phase: ClassVar[Phase] = Phase.COMMANDS
+
+    resampling_time: tuple[float, float] | None = None  # Seconds between resamples, None to resample only on reset
+
+
+@dataclass
+class Event(TermCfg):
+    """A term that writes scene fields of the worlds selected by its ``mask`` argument."""
+
+    phase: ClassVar[Phase] = Phase.EVENTS
+
+    mode: EventMode = EventMode.RESET
+    interval: tuple[float, float] | None = None  # Seconds between interval events
+
+
+@dataclass
 class TimeLimit:
     """Truncates episodes after a fixed duration."""
 
@@ -117,6 +149,8 @@ class TaskCfg:
     """The decision-making part of a task. A term set to ``None`` is disabled."""
 
     actions: dict[str, DirectAction | None] = field(default_factory=dict)
+    commands: dict[str, Command | None] = field(default_factory=dict)
     observations: dict[str, ObservationGroup] = field(default_factory=dict)
     rewards: dict[str, Reward | None] = field(default_factory=dict)
     terminations: dict[str, Termination | TimeLimit | None] = field(default_factory=dict)
+    events: dict[str, Event | None] = field(default_factory=dict)
