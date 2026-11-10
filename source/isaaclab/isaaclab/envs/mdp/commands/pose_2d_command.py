@@ -53,6 +53,8 @@ class UniformPose2dCommand(CommandTerm):
         # crete buffers to store the command
         # -- commands: (x, y, z, heading)
         self.pos_command_w = torch.zeros(self.num_envs, 3, device=self.device)
+        # -- samples for every environment, kept for the resampled ones
+        self._sample = torch.zeros(self.num_envs, device=self.device)
         self.heading_command_w = torch.zeros(self.num_envs, device=self.device)
         self.pos_command_b = torch.zeros_like(self.pos_command_w)
         self.heading_command_b = torch.zeros_like(self.heading_command_w)
@@ -111,7 +113,7 @@ class UniformPose2dCommand(CommandTerm):
         # obtain env origins for all the environments
         pos_command_w = self._env.scene.env_origins.clone()
         # offset the position command by the current root position
-        r = torch.empty(self.num_envs, device=self.device)
+        r = self._sample
         pos_command_w[:, 0] += r.uniform_(*self.cfg.ranges.pos_x)
         pos_command_w[:, 1] += r.uniform_(*self.cfg.ranges.pos_y)
         pos_command_w[:, 2] += self.robot.data.default_root_pose.torch[:, 2]
@@ -214,4 +216,4 @@ class TerrainBasedPose2dCommand(UniformPose2dCommand):
         pos_command_w = self.valid_targets[self.terrain.terrain_levels, self.terrain.terrain_types, ids]
         # offset the position command by the current root height
         pos_command_w[:, 2] += self.robot.data.default_root_pose.torch[:, 2]
-        self._set_resampled_command(env_mask, pos_command_w, torch.empty(self.num_envs, device=self.device))
+        self._set_resampled_command(env_mask, pos_command_w, self._sample)

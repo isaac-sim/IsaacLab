@@ -7,7 +7,8 @@
   reset.
 * Changed :class:`~isaaclab.envs.mdp.randomize_joint_parameters` and
   :class:`~isaaclab.envs.mdp.randomize_fixed_tendon_parameters` to check when created that the configured limit
-  ranges could not sample a lower limit above an upper limit, instead of reading every sample on the host.
+  ranges could not sample a lower limit above an upper limit, and to clamp each sampled lower limit to its upper
+  limit on the device, instead of reading every sample on the host.
 * Changed :func:`~isaaclab.utils.dict.class_to_dict` to keep Warp arrays as they are, like Torch tensors.
 * **Breaking:** Built-in event, command, curriculum, action, observation and reward terms took ``env_mask``, a
   :class:`~isaaclab.utils.warp.ProxyArray` boolean mask of shape ``(num_envs,)``, instead of ``env_ids``, and left

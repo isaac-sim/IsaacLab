@@ -17,7 +17,6 @@ from pxr import Gf, Usd, UsdGeom
 from isaaclab.assets import Articulation, CableObject, RigidObject
 from isaaclab.envs.mdp.events import reset_joints_by_offset
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils import env_mask_from_ids
 from isaaclab.utils.math import quat_mul, sample_uniform
 from isaaclab.utils.warp import ProxyArray
 
@@ -79,9 +78,8 @@ def reset_arm_joints(
     """
     reset_joints_by_offset(env, env_mask, position_range, (0.0, 0.0), asset_cfg)
     robot: Articulation = env.scene[asset_cfg.name]
-    joint_mask = env_mask_from_ids(asset_cfg.joint_ids, robot.num_joints, robot.device).warp
     robot.actuators.target_command.set_position_mask(
-        value=robot.data.joint_pos.torch, joint_mask=joint_mask, env_mask=env_mask.warp
+        value=robot.data.joint_pos.torch, joint_mask=asset_cfg.joint_mask, env_mask=env_mask.warp
     )
 
 

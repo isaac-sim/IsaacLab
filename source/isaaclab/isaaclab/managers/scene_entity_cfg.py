@@ -61,12 +61,6 @@ class SceneEntityCfg:
     manager.
     """
 
-    joint_mask: wp.array | None = field(default=None, metadata={"copy": False})
-    """Boolean mask of :attr:`joint_ids` over the entity's joints. Shape is (num_joints,).
-
-    Filled by :meth:`finalize`. None when every joint is selected.
-    """
-
     fixed_tendon_names: str | list[str] | None = None
     """The names of the fixed tendons from the scene entity. Defaults to None.
 
@@ -84,12 +78,6 @@ class SceneEntityCfg:
     manager.
     """
 
-    fixed_tendon_mask: wp.array | None = field(default=None, metadata={"copy": False})
-    """Boolean mask of :attr:`fixed_tendon_ids` over the entity's fixed tendons. Shape is (num_fixed_tendons,).
-
-    Filled by :meth:`finalize`. None when every fixed tendon is selected.
-    """
-
     body_names: str | list[str] | None = None
     """The names of the bodies from the asset required by the term. Defaults to None.
 
@@ -105,12 +93,6 @@ class SceneEntityCfg:
 
     If :attr:`body_names` is specified, this is filled in automatically on initialization of the
     manager.
-    """
-
-    body_mask: wp.array | None = field(default=None, metadata={"copy": False})
-    """Boolean mask of :attr:`body_ids` over the entity's bodies. Shape is (num_bodies,).
-
-    Filled by :meth:`finalize`. None when every body is selected.
     """
 
     object_collection_names: str | list[str] | None = None
@@ -143,6 +125,24 @@ class SceneEntityCfg:
         This attribute is only used when :attr:`joint_names`, :attr:`body_names`, or :attr:`object_collection_names`
         are specified.
 
+    """
+
+    joint_mask: wp.array | None = field(default=None, metadata={"copy": False})
+    """Boolean mask of :attr:`joint_ids` over the entity's joints. Shape is (num_joints,).
+
+    Filled by :meth:`finalize`. None when every joint is selected.
+    """
+
+    fixed_tendon_mask: wp.array | None = field(default=None, metadata={"copy": False})
+    """Boolean mask of :attr:`fixed_tendon_ids` over the entity's fixed tendons. Shape is (num_fixed_tendons,).
+
+    Filled by :meth:`finalize`. None when every fixed tendon is selected.
+    """
+
+    body_mask: wp.array | None = field(default=None, metadata={"copy": False})
+    """Boolean mask of :attr:`body_ids` over the entity's bodies. Shape is (num_bodies,).
+
+    Filled by :meth:`finalize`. None when every body is selected.
     """
 
     def resolve(self, scene: InteractiveScene):

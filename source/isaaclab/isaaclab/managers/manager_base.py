@@ -213,6 +213,11 @@ class ManagerBase(ABC):
         """Name of active terms."""
         raise NotImplementedError
 
+    @property
+    def takes_env_ids(self) -> bool:
+        """Whether a reset passes environment indices to a term, which synchronizes the device to compute them."""
+        return False
+
     """
     Operations.
     """
@@ -230,46 +235,6 @@ class ManagerBase(ABC):
             Dictionary containing the logging information.
         """
         return {}
-
-    @property
-    def takes_env_ids(self) -> bool:
-        """Whether a reset passes environment indices to a term, which synchronizes the device to compute them."""
-        return False
-
-    def _env_selection(
-        self, env_ids: Sequence[int] | torch.Tensor | slice | None, env_mask: ProxyArray | None
-    ) -> tuple[ProxyArray, Sequence[int] | torch.Tensor | slice | None]:
-        """Resolve a reset selection.
-
-        Args:
-            env_ids: Indices or a slice. None selects every environment. With ``env_mask``, the indices it selects.
-            env_mask: Boolean mask. Shape is (num_envs,). Takes precedence over ``env_ids``.
-
-        Returns:
-            The boolean mask, and the indices for index-based terms, or None when only ``env_mask`` was given.
-        """
-        if env_mask is not None:
-            return env_mask, env_ids
-        env_ids = slice(None) if env_ids is None else env_ids
-        return env_mask_from_ids(env_ids, self.num_envs, self.device), env_ids
-
-    def _reset_term(
-        self, term: Any, env_mask: ProxyArray, env_ids: Sequence[int] | torch.Tensor | slice | None = None
-    ) -> Any:
-        """Reset a term (or modifier) with the selection its ``reset`` takes.
-
-        See :func:`~isaaclab.utils.env_selection_kwargs`.
-
-        Args:
-            term: Object with a ``reset`` method.
-            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
-            env_ids: The caller's indices that ``env_mask`` was built from, if any.
-
-        Returns:
-            What ``reset`` returns, or None when it was skipped because no environment was selected.
-        """
-        selection = env_selection_kwargs(term.reset, env_mask, env_ids)
-        return None if selection is None else term.reset(**selection)
 
     def find_terms(self, name_keys: str | Sequence[str]) -> list[str]:
         """Find terms in the manager based on the names.
@@ -348,6 +313,41 @@ class ManagerBase(ABC):
     """
     Internal functions.
     """
+
+    def _env_selection(
+        self, env_ids: Sequence[int] | torch.Tensor | slice | None, env_mask: ProxyArray | None
+    ) -> tuple[ProxyArray, Sequence[int] | torch.Tensor | slice | None]:
+        """Resolve a reset selection.
+
+        Args:
+            env_ids: Indices or a slice. None selects every environment. With ``env_mask``, the indices it selects.
+            env_mask: Boolean mask. Shape is (num_envs,). Takes precedence over ``env_ids``.
+
+        Returns:
+            The boolean mask, and the indices for index-based terms, or None when only ``env_mask`` was given.
+        """
+        if env_mask is not None:
+            return env_mask, env_ids
+        env_ids = slice(None) if env_ids is None else env_ids
+        return env_mask_from_ids(env_ids, self.num_envs, self.device), env_ids
+
+    def _reset_term(
+        self, term: Any, env_mask: ProxyArray, env_ids: Sequence[int] | torch.Tensor | slice | None = None
+    ) -> Any:
+        """Reset a term (or modifier) with the selection its ``reset`` takes.
+
+        See :func:`~isaaclab.utils.env_selection_kwargs`.
+
+        Args:
+            term: Object with a ``reset`` method.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
+            env_ids: The caller's indices that ``env_mask`` was built from, if any.
+
+        Returns:
+            What ``reset`` returns, or None when it was skipped because no environment was selected.
+        """
+        selection = env_selection_kwargs(term.reset, env_mask, env_ids)
+        return None if selection is None else term.reset(**selection)
 
     def _resolve_common_term_cfg(self, term_name: str, term_cfg: ManagerTermBaseCfg, min_argc: int = 1):
         """Resolve common attributes of the term configuration.

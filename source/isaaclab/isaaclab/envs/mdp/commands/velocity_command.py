@@ -79,6 +79,9 @@ class UniformVelocityCommand(CommandTerm):
         # crete buffers to store the command
         # -- command: x vel, y vel, yaw vel, heading
         self.vel_command_b = torch.zeros(self.num_envs, 3, device=self.device)
+        # -- samples for every environment, kept for the resampled ones
+        self._sample = torch.zeros(self.num_envs, device=self.device)
+        self._vel_command_sample = torch.zeros_like(self.vel_command_b)
         self.heading_target = torch.zeros(self.num_envs, device=self.device)
         self.is_heading_env = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         self.is_standing_env = torch.zeros_like(self.is_heading_env)
@@ -159,8 +162,7 @@ class UniformVelocityCommand(CommandTerm):
 
     def _resample_command(self, env_mask: ProxyArray):
         # sample velocity commands for all environments and keep them only for the selected ones
-        r = torch.empty(self.num_envs, device=self.device)
-        vel_command_b = torch.empty_like(self.vel_command_b)
+        r, vel_command_b = self._sample, self._vel_command_sample
         # -- linear velocity - x direction
         vel_command_b[:, 0] = r.uniform_(*self.cfg.ranges.lin_vel_x)
         # -- linear velocity - y direction
@@ -306,8 +308,7 @@ class NormalVelocityCommand(UniformVelocityCommand):
 
     def _resample_command(self, env_mask: ProxyArray):
         # sample velocity commands for all environments and keep them only for the selected ones
-        r = torch.empty(self.num_envs, device=self.device)
-        vel_command_b = torch.empty_like(self.vel_command_b)
+        r, vel_command_b = self._sample, self._vel_command_sample
         # -- linear velocity - x direction
         vel_command_b[:, 0] = r.normal_(mean=self.cfg.ranges.mean_vel[0], std=self.cfg.ranges.std_vel[0])
         vel_command_b[:, 0] *= torch.where(r.uniform_(0.0, 1.0) <= 0.5, 1.0, -1.0)

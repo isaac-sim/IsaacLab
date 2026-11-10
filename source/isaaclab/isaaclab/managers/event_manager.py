@@ -132,7 +132,7 @@ class EventManager(ManagerBase):
         return any(not takes_env_mask(fn) for fn in reset_fns)
 
     def reset(
-        self, env_ids: torch.Tensor | slice | None = slice(None), env_mask: ProxyArray | None = None
+        self, env_ids: torch.Tensor | slice | None = None, env_mask: ProxyArray | None = None
     ) -> dict[str, float]:
         """Reset event state for the selected environments, defaulting to all environments.
 

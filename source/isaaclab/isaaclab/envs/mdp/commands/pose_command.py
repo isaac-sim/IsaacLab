@@ -62,6 +62,9 @@ class UniformPoseCommand(CommandTerm):
         # create buffers
         # -- commands: (x, y, z, qx, qy, qz, qw) in root frame
         self.pose_command_b = torch.zeros(self.num_envs, 7, device=self.device)
+        # -- samples for every environment, kept for the resampled ones
+        self._pose_command_sample = torch.zeros_like(self.pose_command_b)
+        self._euler_sample = torch.zeros(self.num_envs, 3, device=self.device)
         self.pose_command_b[:, 3] = 1.0
         self.pose_command_w = torch.zeros_like(self.pose_command_b)
         # -- metrics
@@ -162,13 +165,12 @@ class UniformPoseCommand(CommandTerm):
 
     def _resample_command(self, env_mask: ProxyArray):
         # sample new pose targets for all the environments and keep them only for the selected ones
-        pose_command_b = torch.empty_like(self.pose_command_b)
+        pose_command_b, euler_angles = self._pose_command_sample, self._euler_sample
         # -- position
         pose_command_b[:, 0].uniform_(*self.cfg.ranges.pos_x)
         pose_command_b[:, 1].uniform_(*self.cfg.ranges.pos_y)
         pose_command_b[:, 2].uniform_(*self.cfg.ranges.pos_z)
         # -- orientation
-        euler_angles = torch.zeros_like(self.pose_command_b[:, :3])
         euler_angles[:, 0].uniform_(*self.cfg.ranges.roll)
         euler_angles[:, 1].uniform_(*self.cfg.ranges.pitch)
         euler_angles[:, 2].uniform_(*self.cfg.ranges.yaw)

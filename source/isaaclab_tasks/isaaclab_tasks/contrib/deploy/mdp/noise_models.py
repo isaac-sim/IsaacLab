@@ -18,11 +18,11 @@ from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 from isaaclab.utils import configclass
 from isaaclab.utils.math import quat_from_euler_xyz, quat_mul
 from isaaclab.utils.noise import ConstantNoiseCfg, NoiseModel, NoiseModelCfg
-from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from isaaclab.utils.noise import NoiseCfg
@@ -48,19 +48,19 @@ class ResetSampledConstantNoiseModel(NoiseModel):
         self._sampled_noise = torch.zeros((num_envs, 1), device=self._device)
         self._num_components: int | None = None
 
-    def reset(self, env_mask: ProxyArray):
+    def reset(self, env_mask: wp.array) -> None:
         """Reset the noise model by sampling NEW noise values.
 
         This method samples new noise for the specified environments using the configured noise function.
         The sampled noise will remain constant until the next reset.
 
         Args:
-            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
+            env_mask: Boolean mask of the environments to reset, dtype ``wp.bool``. Shape is (num_envs,).
         """
         # sample noise for all environments and keep it for the selected ones
         dummy_data = torch.zeros((self._num_envs, 1), device=self._device)
         sampled_noise = self._noise_model_cfg.noise_cfg.func(dummy_data, self._noise_model_cfg.noise_cfg)
-        self._sampled_noise = torch.where(env_mask.torch[:, None], sampled_noise, self._sampled_noise)
+        self._sampled_noise = torch.where(wp.to_torch(env_mask)[:, None], sampled_noise, self._sampled_noise)
 
     def __call__(self, data: torch.Tensor) -> torch.Tensor:
         """Apply the pre-sampled noise to the data.
@@ -124,18 +124,18 @@ class ResetSampledQuaternionNoiseModel(NoiseModel):
         self._perturbation_quat = torch.zeros((num_envs, 4), device=device)
         self._perturbation_quat[:, 3] = 1.0
 
-    def reset(self, env_mask: ProxyArray):
+    def reset(self, env_mask: wp.array) -> None:
         """Sample new rotation perturbations for the specified environments.
 
         Args:
-            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
+            env_mask: Boolean mask of the environments to reset, dtype ``wp.bool``. Shape is (num_envs,).
         """
         # sample perturbations for all environments and keep them for the selected ones
         roll = torch.empty(self._num_envs, device=self._device).uniform_(*self._roll_range)
         pitch = torch.empty(self._num_envs, device=self._device).uniform_(*self._pitch_range)
         yaw = torch.empty(self._num_envs, device=self._device).uniform_(*self._yaw_range)
         quat = quat_from_euler_xyz(roll, pitch, yaw)
-        torch.where(env_mask.torch[:, None], quat, self._perturbation_quat, out=self._perturbation_quat)
+        torch.where(wp.to_torch(env_mask)[:, None], quat, self._perturbation_quat, out=self._perturbation_quat)
 
     def __call__(self, data: torch.Tensor) -> torch.Tensor:
         """Apply the pre-sampled rotation perturbation to the quaternion data.

@@ -189,6 +189,9 @@ def test_class_terms_are_initialized_with_defaults_and_reset(env, monkeypatch, m
     selected = slice(1, None, 2)
     event_man.reset(selected)
     assert reset_calls[-1] is selected
+    # a partial mask passes only its indices to an index-based term
+    event_man.reset(env_mask=env_mask_from_ids([1, 3], env.num_envs, env.device))
+    assert reset_calls[-1].tolist() == [1, 3]
 
 
 def test_config_empty(env):
@@ -488,9 +491,14 @@ def test_apply_reset_mode_with_mask_terms(env):
 
 def test_apply_interval_mode_with_mask_term(env):
     """A mask term is called on every interval update with the environments whose interval elapsed."""
+    calls = []
+
+    def increment(env, env_mask: ProxyArray):
+        calls.append(env_mask.torch.tolist())
+        increment_dummy1_by_one_masked(env, env_mask)
+
     event_man = EventManager(
-        {"term_1": EventTermCfg(func=increment_dummy1_by_one_masked, mode="interval", interval_range_s=(0.1, 0.1))},
-        env,
+        {"term_1": EventTermCfg(func=increment, mode="interval", interval_range_s=(0.1, 0.1))}, env
     )
     for _ in range(5):
         event_man.apply("interval", dt=0.01)
@@ -498,6 +506,8 @@ def test_apply_interval_mode_with_mask_term(env):
     event_man.reset(env_mask=env_mask_from_ids([2, 3], env.num_envs, env.device))
     for _ in range(5):
         event_man.apply("interval", dt=0.01)
+    # updates without an elapsed interval still call the term, with an empty mask
+    assert calls == [[False] * 4] * 9 + [[True, True, False, False]]
     expected = torch.tensor([1.0, 1.0, 0.0, 0.0], device=env.device)[:, None].expand_as(env.dummy1)
     torch.testing.assert_close(env.dummy1, expected.to(env.dummy1.dtype))
 

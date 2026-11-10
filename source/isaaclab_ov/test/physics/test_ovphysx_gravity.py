@@ -22,6 +22,7 @@ from isaaclab.managers import EventTermCfg
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.test.utils import DeviceScope, test_devices
+from isaaclab.utils import env_mask_from_ids
 
 pytestmark = pytest.mark.ov
 
@@ -67,7 +68,7 @@ def test_gravity_event_changes_rigid_body_motion(device):
         def set_gravity(gravity: tuple[float, float, float]) -> None:
             gravity_event(
                 env,
-                env_mask=torch.ones(1, dtype=torch.bool, device=sim.device),
+                env_mask=env_mask_from_ids(None, 1, sim.device),
                 gravity_distribution_params=(gravity, (0.0, 0.0, 0.0)),
                 operation="abs",
             )

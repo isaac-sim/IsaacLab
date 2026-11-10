@@ -980,6 +980,8 @@ class randomize_joint_parameters(ManagerTermBase):
                     distribution=distribution,
                 )
 
+            # unbounded (Gaussian) or overridden ranges can still cross; keep each lower limit at most its upper one
+            joint_pos_limits[..., 0] = torch.minimum(joint_pos_limits[..., 0], joint_pos_limits[..., 1])
             self.asset.write_joint_position_limit_to_sim_mask(
                 limits=joint_pos_limits, joint_mask=joint_mask, env_mask=env_mask.warp, warn_limit_violation=False
             )
@@ -1129,6 +1131,8 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
                     distribution=distribution,
                 )
 
+            # unbounded (Gaussian) or overridden ranges can still cross; keep each lower limit at most its upper one
+            limit[..., 0] = torch.minimum(limit[..., 0], limit[..., 1])
             self.asset.set_fixed_tendon_position_limit_mask(
                 limit=limit, fixed_tendon_mask=tendon_mask, env_mask=env_mask.warp
             )
@@ -1817,7 +1821,8 @@ Internal helper functions.
 def _validate_limit_ranges(cfg: EventTermCfg, limits: torch.Tensor, ids: list[int] | slice, kind: str) -> None:
     """Raise if the configured ranges can sample a lower limit above an upper limit, checked once at creation.
 
-    Checking each sample would read the device on every reset. Gaussian samples are unbounded and not checked.
+    Checking each sample would read the device on every reset. Gaussian samples are unbounded and not checked
+    here; the terms clamp each sampled lower limit to its upper limit on the device instead.
 
     Args:
         cfg: The event term configuration with the limit distribution parameters.

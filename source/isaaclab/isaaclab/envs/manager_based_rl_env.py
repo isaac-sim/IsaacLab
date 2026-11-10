@@ -252,12 +252,9 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         if self.cfg.compute_final_obs:
             # expose the terminal observation before reset for Same-Step autoreset
             self.extras["final_obs"] = self.observation_manager.compute()
-        self._reset_terminated_envs(self.reset_buf)
-        # if sensors are added to the scene, make sure we render to reflect changes in reset
-        if self.render_enabled and is_rendering and self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
-            if self.reset_buf.any():
-                for _ in range(self.cfg.num_rerenders_on_reset):
-                    self.sim.render()
+        # if sensors are added to the scene, render after the reset to reflect its changes
+        rerender = self.render_enabled and is_rendering and self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0
+        self._reset_terminated_envs(self.reset_buf, rerender=rerender)
 
         # -- handle episode reset requested from visualizer UI controls
         if self.sim.consume_reset_request():
@@ -375,13 +372,14 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.observation_space = gym.vector.utils.batch_space(self.single_observation_space, self.num_envs)
         self.action_space = gym.vector.utils.batch_space(self.single_action_space, self.num_envs)
 
-    def _reset_terminated_envs(self, reset: torch.Tensor):
+    def _reset_terminated_envs(self, reset: torch.Tensor, rerender: bool = False):
         """Reset the environments selected by ``reset`` within :meth:`step`.
 
         Subclasses that override :meth:`_reset_idx` keep receiving indices, which waits on the device.
 
         Args:
             reset: Boolean flags of the environments to reset. Shape is (num_envs,).
+            rerender: Whether to re-render the RTX sensors after a reset, before the post-reset recording.
         """
         env_mask = self._step_reset_mask
         env_mask.torch.copy_(reset)
@@ -392,9 +390,16 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
                 return
             self.recorder_manager.record_pre_reset(env_ids)
             self._reset_idx(env_ids)
-            self.recorder_manager.record_post_reset(env_ids)
         else:
             self._reset_mask(env_mask)
+            # rendering waits on the host anyway, so reading the mask costs nothing extra
+            if not rerender or not reset.any():
+                return
+        if rerender:
+            for _ in range(self.cfg.num_rerenders_on_reset):
+                self.sim.render()
+        if recording:
+            self.recorder_manager.record_post_reset(env_ids)
 
     def _reset_mask(self, env_mask: ProxyArray, env_ids: torch.Tensor | slice | None = None):
         """Reset the environments selected by a boolean mask.
