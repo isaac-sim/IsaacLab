@@ -275,14 +275,8 @@ class ManagerBasedEnvWarp:
 
     @property
     def env_origins_wp(self) -> wp.array:
-        """Scene env origins as a warp ``vec3f`` array. Cached on first access."""
-        if not hasattr(self, "_env_origins_wp"):
-            origins = self.scene.env_origins
-            if isinstance(origins, wp.array):
-                self._env_origins_wp = origins
-            else:
-                self._env_origins_wp = wp.from_torch(origins, dtype=wp.vec3f)
-        return self._env_origins_wp
+        """Scene env origins as a warp ``vec3f`` array."""
+        return self.scene.env_origins.warp
 
     def resolve_env_mask(
         self,
