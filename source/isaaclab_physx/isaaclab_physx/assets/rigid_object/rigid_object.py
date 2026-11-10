@@ -1086,7 +1086,7 @@ class RigidObject(BaseRigidObject):
 
         Args:
             body_ids: Body indices. If None, then all indices are used.
-            body_mask: Boolean mask; takes precedence over ``body_ids``.
+            body_mask: Boolean mask, converted to ids only when ``body_ids`` is not given.
 
         Returns:
             A warp array of body indices or a tensor of body indices.
