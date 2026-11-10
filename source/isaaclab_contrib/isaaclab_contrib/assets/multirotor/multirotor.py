@@ -51,6 +51,9 @@ class _ThrusterCollection(dict):
             env_ids: Environment indices to reset. Defaults to None (all environments).
             env_mask: Environment mask. Shape is (num_instances,). Defaults to None.
         """
+        # None selects all environments, as in ActuatorCollection.reset; a slice(None) would hide the mask
+        if isinstance(env_ids, slice) and env_ids == slice(None):
+            env_ids = None
         for actuator in self.values():
             actuator.reset(env_ids=env_ids, env_mask=env_mask)
 
