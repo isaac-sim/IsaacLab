@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 import torch
 from prettytable import PrettyTable
 
+from ..utils import takes_env_mask
 from ..utils.warp import ProxyArray
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import TerminationTermCfg
@@ -126,6 +127,11 @@ class TerminationManager(ManagerBase):
     """
     Operations.
     """
+
+    @property
+    def takes_env_ids(self) -> bool:
+        """Whether a reset passes environment indices to a term, which synchronizes the device to compute them."""
+        return any(not takes_env_mask(term_cfg.func.reset) for term_cfg in self._class_term_cfgs)
 
     def reset(
         self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None

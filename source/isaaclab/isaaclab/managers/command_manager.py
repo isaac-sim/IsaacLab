@@ -16,7 +16,7 @@ import torch
 import warp as wp
 from prettytable import PrettyTable
 
-from ..utils import env_mask_from_ids, env_selection_kwargs, instantiate
+from ..utils import env_selection_kwargs, instantiate, takes_env_mask
 from ..utils.warp import ProxyArray
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import CommandTermCfg
@@ -56,6 +56,8 @@ class CommandTerm(ManagerTermBase):
         self.command_counter = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
         # -- environments whose command expired this step
         self._expired = ProxyArray(wp.zeros(self.num_envs, dtype=wp.bool, device=self.device))
+        # -- resampled times, kept for the selected environments
+        self._time_left_sample = torch.zeros_like(self.time_left)
 
         # add handle for debug visualization (this is set to a valid handle inside set_debug_vis)
         self._debug_vis_handle = None
@@ -116,28 +118,19 @@ class CommandTerm(ManagerTermBase):
         # return success
         return True
 
-    def reset(
-        self, env_ids: Sequence[int] | slice | None = None, env_mask: ProxyArray | None = None
-    ) -> dict[str, torch.Tensor]:
+    def reset(self, env_mask: ProxyArray) -> dict[str, torch.Tensor]:
         """Reset the command generator and log metrics.
 
         This function resets the command counter and resamples the command. It should be called
         at the beginning of each episode.
 
         Args:
-            env_ids: The list of environment IDs to reset. Defaults to None.
-            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Takes precedence over
-                ``env_ids``.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
 
         Returns:
             A dictionary containing the information to log under the "{name}" key. Metrics are averaged over the
             reset environments, and are zero when no environment is selected.
         """
-        if env_mask is None:
-            env_ids = slice(None) if env_ids is None else env_ids
-            env_mask = env_mask_from_ids(env_ids, self.num_envs, self.device)
-        else:
-            env_ids = None
         mask = env_mask.torch
         num_selected = mask.sum().clamp_min(1)
 
@@ -152,7 +145,7 @@ class CommandTerm(ManagerTermBase):
         # set the command counter to zero
         self.command_counter.masked_fill_(mask, 0)
         # resample the command
-        self._resample(env_mask, env_ids)
+        self._resample(env_mask)
 
         return extras
 
@@ -176,22 +169,21 @@ class CommandTerm(ManagerTermBase):
     Helper functions.
     """
 
-    def _resample(self, env_mask: ProxyArray, env_ids: Sequence[int] | slice | None = None):
+    def _resample(self, env_mask: ProxyArray):
         """Resample the command and the time for which it is applied in the selected environments.
 
         Terms whose :meth:`_resample_command` takes ``env_mask`` resample without synchronizing the device. Terms
-        that take ``env_ids`` resample only when an environment is selected.
+        that take ``env_ids`` wait on the device for the selected indices and resample only when one is selected.
 
         Args:
             env_mask: Boolean mask of the environments to resample. Shape is (num_envs,).
-            env_ids: The indices ``env_mask`` was selected with, if any, passed to index-based terms.
         """
-        selection = env_selection_kwargs(self._resample_command, env_mask, env_ids)
+        selection = env_selection_kwargs(self._resample_command, env_mask)
         if selection is None:
             return
         # resample the time left before resampling
-        time_left = torch.empty_like(self.time_left).uniform_(*self.cfg.resampling_time_range)
-        torch.where(env_mask.torch, time_left, self.time_left, out=self.time_left)
+        self._time_left_sample.uniform_(*self.cfg.resampling_time_range)
+        torch.where(env_mask.torch, self._time_left_sample, self.time_left, out=self.time_left)
         # resample the command
         self._resample_command(**selection)
         # increment the command counter
@@ -346,6 +338,11 @@ class CommandManager(ManagerBase):
         """
         for term in self._terms.values():
             term.set_debug_vis(debug_vis)
+
+    @property
+    def takes_env_ids(self) -> bool:
+        """Whether a reset passes environment indices to a term, which synchronizes the device to compute them."""
+        return any(not takes_env_mask(term.reset) for term in self._terms.values())
 
     def reset(
         self, env_ids: Sequence[int] | slice | None = None, env_mask: ProxyArray | None = None

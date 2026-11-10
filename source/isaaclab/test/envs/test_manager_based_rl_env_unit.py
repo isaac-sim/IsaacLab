@@ -12,8 +12,10 @@ from types import SimpleNamespace
 import gymnasium as gym
 import numpy as np
 import pytest
+import torch
 
 from isaaclab.envs import ManagerBasedRLEnv
+from isaaclab.utils import env_mask_from_ids
 
 pytestmark = pytest.mark.unit
 
@@ -102,3 +104,49 @@ def test_obs_space_follows_clip_constraint():
             assert term_space.shape == expected_shapes[term_name]
             assert np.all(term_space.low == low)
             assert np.all(term_space.high == high)
+
+
+class _Manager:
+    """Records the indices each reset receives."""
+
+    def __init__(self, takes_env_ids: bool = False):
+        self.takes_env_ids = takes_env_ids
+        self.active_terms = ["term"] if takes_env_ids else []
+        self.received = []
+
+    def reset(self, env_ids=None, env_mask=None):
+        self.received.append(env_ids)
+        return {}
+
+    def compute(self, env_ids=None, env_mask=None):
+        pass
+
+    record_pre_reset = record_post_reset = compute
+
+
+@pytest.mark.parametrize("index_manager", [None, "reward_manager", "recorder_manager"])
+def test_step_resets_compute_indices_once_and_only_when_needed(index_manager):
+    """Resets pass a mask; indices are computed once and shared only when a term or a recorder takes them."""
+    env = object.__new__(ManagerBasedRLEnv)
+    names = ("observation", "action", "reward", "curriculum", "command", "event", "termination", "recorder")
+    managers = {f"{name}_manager": _Manager(f"{name}_manager" == index_manager) for name in names}
+    env.__dict__.update(
+        managers,
+        extras={},
+        sim=SimpleNamespace(device="cpu"),
+        scene=SimpleNamespace(num_envs=4, reset=lambda **_: None),
+        episode_length_buf=torch.ones(4, dtype=torch.long),
+        _step_reset_mask=env_mask_from_ids([], 4, "cpu"),
+        _reset_takes_env_ids=None,
+    )
+    for reset in ([False, True, False, True], [False] * 4):
+        env._reset_terminated_envs(torch.tensor(reset))
+    received = [manager.received for manager in managers.values()]
+    if index_manager is None:
+        # every reset runs on the mask, also an empty one, and never computes indices
+        assert received == [[None, None]] * len(names)
+    else:
+        # the indices are computed once per reset and shared, and an empty reset is skipped
+        assert all(len(calls) == 1 and torch.equal(calls[0], torch.tensor([1, 3])) for calls in received)
+        assert all(calls[0] is received[0][0] for calls in received)
+    torch.testing.assert_close(env.episode_length_buf, torch.tensor([1, 0, 1, 0]))

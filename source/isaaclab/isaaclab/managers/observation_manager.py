@@ -16,7 +16,7 @@ import torch
 from prettytable import PrettyTable
 
 from ..envs.utils.io_descriptors import _warn_io_descriptors_deprecated
-from ..utils import instantiate, noise, tensor_processors, to_dict
+from ..utils import instantiate, noise, takes_env_mask, tensor_processors, to_dict
 from ..utils.buffers import CircularBuffer, DelayBuffer
 from ..utils.warp import ProxyArray
 from .manager_base import ManagerBase, ManagerTermBase
@@ -331,6 +331,13 @@ class ObservationManager(ManagerBase):
     Operations.
     """
 
+    @property
+    def takes_env_ids(self) -> bool:
+        """Whether a reset passes environment indices to a term, which synchronizes the device to compute them."""
+        reset_fns = [term_cfg.func.reset for cfgs in self._group_obs_class_term_cfgs.values() for term_cfg in cfgs]
+        reset_fns += [processor.reset for processor in self._group_obs_class_instances]
+        return any(not takes_env_mask(fn) for fn in reset_fns)
+
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None) -> dict[str, float]:
         """Resets the class terms, modifiers, and the delay and history buffers of the selected environments.
 
@@ -355,7 +362,11 @@ class ObservationManager(ManagerBase):
                     self._group_obs_term_history_buffer[group_name][term_name].reset(batch_ids=env_mask.torch)
         # call all tensor processors that are classes
         for tensor_processor in self._group_obs_class_instances:
-            self._reset_term(tensor_processor, env_mask, env_ids)
+            # tensor processors and noise models take a Warp mask
+            if takes_env_mask(tensor_processor.reset):
+                tensor_processor.reset(env_mask=env_mask.warp)
+            else:
+                self._reset_term(tensor_processor, env_mask, env_ids)
 
         # nothing to log here
         return {}
@@ -798,7 +809,7 @@ class ObservationManager(ManagerBase):
                 if isinstance(term_cfg.func, ManagerTermBase):
                     self._group_obs_class_term_cfgs[group_name].append(term_cfg)
                     # call reset (in-case above call to get obs dims changed the state)
-                    term_cfg.func.reset()
+                    self._reset_term(term_cfg.func, *self._env_selection(None, None))
             # time-major output joins terms per history index, so all terms must share the direction
             directions = {cfg.history_newest_first for cfg in self._group_obs_term_cfgs[group_name]}
             if self._group_obs_time_major[group_name] and len(directions) > 1:

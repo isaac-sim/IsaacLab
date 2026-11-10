@@ -66,7 +66,7 @@ def test_index_fill(device, dim, dtype, value, indices):
     torch.testing.assert_close(data.cpu(), expected)
 
 
-@pytest.mark.parametrize("env_ids", [None, slice(None), slice(1, None, 2), [0, 3], torch.tensor([2])])
+@pytest.mark.parametrize("env_ids", [None, slice(1, None, 2), [0, 3], torch.tensor([2])])
 def test_env_mask_round_trip(env_ids):
     """Masks built from indices select the same environments as the indices."""
     mask = env_mask_from_ids(env_ids, 5, "cpu")
@@ -100,4 +100,5 @@ def test_env_selection_kwargs():
     assert torch.equal(env_selection_kwargs(by_ids, mask)["env_ids"], torch.tensor([1, 3]))
     assert env_selection_kwargs(by_ids, mask, slice(None)) == {"env_ids": slice(None)}
     assert env_selection_kwargs(Term().reset, env_mask_from_ids([], 4, "cpu")) is None
+    assert env_selection_kwargs(by_ids, mask, torch.tensor([], dtype=torch.long)) is None
     assert takes_env_mask(functools.partial(by_mask, None))

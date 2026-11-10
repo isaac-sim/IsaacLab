@@ -1671,8 +1671,8 @@ def reset_scene_to_default(env: ManagerBasedEnv, env_mask: ProxyArray, reset_joi
         default_root_vel = rigid_object.data.default_root_vel.torch
         default_root_pose[:, :3] += env.scene.env_origins
         # set into the physics simulation
-        rigid_object.write_root_pose_to_sim_mask(root_pose=default_root_pose, env_mask=env_mask.warp)
-        rigid_object.write_root_velocity_to_sim_mask(root_velocity=default_root_vel, env_mask=env_mask.warp)
+        rigid_object.write_root_pose_to_sim_mask(root_pose=default_root_pose, env_mask=env_mask_wp)
+        rigid_object.write_root_velocity_to_sim_mask(root_velocity=default_root_vel, env_mask=env_mask_wp)
     # articulations
     for articulation_asset in env.scene.articulations.values():
         # obtain default and deal with the offset for env origins
@@ -1680,14 +1680,14 @@ def reset_scene_to_default(env: ManagerBasedEnv, env_mask: ProxyArray, reset_joi
         default_root_vel = articulation_asset.data.default_root_vel.torch
         default_root_pose[:, :3] += env.scene.env_origins
         # set into the physics simulation
-        articulation_asset.write_root_pose_to_sim_mask(root_pose=default_root_pose, env_mask=env_mask.warp)
-        articulation_asset.write_root_velocity_to_sim_mask(root_velocity=default_root_vel, env_mask=env_mask.warp)
+        articulation_asset.write_root_pose_to_sim_mask(root_pose=default_root_pose, env_mask=env_mask_wp)
+        articulation_asset.write_root_velocity_to_sim_mask(root_velocity=default_root_vel, env_mask=env_mask_wp)
         # obtain default joint positions
         default_joint_pos = articulation_asset.data.default_joint_pos.torch
         default_joint_vel = articulation_asset.data.default_joint_vel.torch
         # set into the physics simulation
-        articulation_asset.write_joint_position_to_sim_mask(position=default_joint_pos, env_mask=env_mask.warp)
-        articulation_asset.write_joint_velocity_to_sim_mask(velocity=default_joint_vel, env_mask=env_mask.warp)
+        articulation_asset.write_joint_position_to_sim_mask(position=default_joint_pos, env_mask=env_mask_wp)
+        articulation_asset.write_joint_velocity_to_sim_mask(velocity=default_joint_vel, env_mask=env_mask_wp)
         # reset joint targets if required
         if reset_joint_targets:
             articulation_asset.actuators.target_command.set_position_mask(value=default_joint_pos, env_mask=env_mask_wp)

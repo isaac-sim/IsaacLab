@@ -17,7 +17,7 @@ import torch
 from prettytable import PrettyTable
 
 from ..envs.utils.io_descriptors import GenericActionIODescriptor, _warn_io_descriptors_deprecated
-from ..utils import index_fill_, instantiate
+from ..utils import index_fill_, instantiate, takes_env_mask
 from ..utils.warp import ProxyArray
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ActionTermCfg
@@ -384,6 +384,11 @@ class ActionManager(ManagerBase):
         """
         for term in self._terms.values():
             term.set_debug_vis(debug_vis)
+
+    @property
+    def takes_env_ids(self) -> bool:
+        """Whether a reset passes environment indices to a term, which synchronizes the device to compute them."""
+        return any(not takes_env_mask(term.reset) for term in self._terms.values())
 
     def reset(
         self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None

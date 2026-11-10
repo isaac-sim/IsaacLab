@@ -15,7 +15,7 @@ import torch
 import warp as wp
 
 from ..managers import CommandManager, CurriculumManager, RewardManager, TerminationManager
-from ..utils import env_ids_from_mask, env_mask_from_ids
+from ..utils import env_ids_from_mask
 from ..utils.warp import ProxyArray
 from .common import VecEnvStepReturn
 from .manager_based_env import ManagerBasedEnv
@@ -376,7 +376,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.action_space = gym.vector.utils.batch_space(self.single_action_space, self.num_envs)
 
     def _reset_terminated_envs(self, reset: torch.Tensor):
-        """Reset the environments selected by ``env_mask`` within :meth:`step`.
+        """Reset the environments selected by ``reset`` within :meth:`step`.
 
         Subclasses that override :meth:`_reset_idx` keep receiving indices, which waits on the device.
 
@@ -386,7 +386,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         env_mask = self._step_reset_mask
         env_mask.torch.copy_(reset)
         recording = len(self.recorder_manager.active_terms) > 0
-        if recording or type(self)._reset_idx is not ManagerBasedRLEnv._reset_idx:
+        if recording or type(self)._reset_idx is not ManagerBasedEnv._reset_idx:
             env_ids = env_ids_from_mask(env_mask)
             if len(env_ids) == 0:
                 return
@@ -396,31 +396,13 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         else:
             self._reset_mask(env_mask)
 
-    def _reset_idx(self, env_ids: torch.Tensor | slice):
-        """Reset environments based on specified indices.
-
-        Args:
-            env_ids: A slice or environment indices on the environment device.
-        """
-        self._reset_mask(env_mask_from_ids(env_ids, self.num_envs, self.device))
-
-    def _reset_mask(self, env_mask: ProxyArray):
+    def _reset_mask(self, env_mask: ProxyArray, env_ids: torch.Tensor | slice | None = None):
         """Reset the environments selected by a boolean mask.
 
         Args:
             env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
+            env_ids: The indices ``env_mask`` selects, if the caller has them. Defaults to None.
         """
-        # update the curriculum for environments that need a reset
-        self.curriculum_manager.compute(env_mask=env_mask)
-        # reset the internal buffers of the scene elements
-        self.scene.reset(env_mask=env_mask.warp)
-        # apply events such as randomizations for environments that need a reset
-        if "reset" in self.event_manager.active_terms:
-            env_step_count = self._sim_step_counter // self.cfg.decimation
-            self.event_manager.apply(mode="reset", env_mask=env_mask, global_env_step_count=env_step_count)
-
-        # iterate over all managers and reset them
-        # this returns a dictionary of information which is stored in the extras
         # note: This is order-sensitive! Certain things need be reset before others.
         managers = (
             self.observation_manager,
@@ -432,6 +414,23 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             self.termination_manager,
             self.recorder_manager,
         )
-        self._reset_managers(env_mask, managers)
+        env_ids = self._reset_env_ids(env_mask, env_ids, managers)
+        if env_ids is not None and not isinstance(env_ids, slice) and len(env_ids) == 0:
+            return
+
+        # update the curriculum for environments that need a reset
+        self.curriculum_manager.compute(env_ids=env_ids, env_mask=env_mask)
+        # reset the internal buffers of the scene elements
+        self.scene.reset(env_mask=env_mask.warp)
+        # apply events such as randomizations for environments that need a reset
+        if "reset" in self.event_manager.active_terms:
+            env_step_count = self._sim_step_counter // self.cfg.decimation
+            self.event_manager.apply(
+                mode="reset", env_ids=env_ids, env_mask=env_mask, global_env_step_count=env_step_count
+            )
+
+        # iterate over all managers and reset them
+        # this returns a dictionary of information which is stored in the extras
+        self._reset_managers(env_mask, env_ids, managers)
 
         self.episode_length_buf.masked_fill_(env_mask.torch, 0)

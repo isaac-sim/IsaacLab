@@ -124,6 +124,13 @@ class EventManager(ManagerBase):
     Operations.
     """
 
+    @property
+    def takes_env_ids(self) -> bool:
+        """Whether a reset passes environment indices to a term, which synchronizes the device to compute them."""
+        reset_fns = [term_cfg.func for term_cfg in self._mode_term_cfgs.get("reset", [])]
+        reset_fns += [term_cfg.func.reset for cfgs in self._mode_class_term_cfgs.values() for term_cfg in cfgs]
+        return any(not takes_env_mask(fn) for fn in reset_fns)
+
     def reset(
         self, env_ids: torch.Tensor | slice | None = slice(None), env_mask: ProxyArray | None = None
     ) -> dict[str, float]:
@@ -152,7 +159,7 @@ class EventManager(ManagerBase):
                 #   counter across resets, so we do not resample them either
                 if not term_cfg.is_global_time and term_cfg.resample_interval_on_reset:
                     time_left = self._interval_term_time_left[index]
-                    torch.where(env_mask.torch, self._sample_interval(term_cfg, time_left), time_left, out=time_left)
+                    torch.where(env_mask.torch, self._sample_interval(term_cfg), time_left, out=time_left)
 
         # nothing to log here
         return {}
@@ -239,7 +246,7 @@ class EventManager(ManagerBase):
                 if term_cfg.is_global_time:
                     # the global timer lives on the host
                     if time_left < 1e-6:
-                        time_left[:] = self._sample_interval(term_cfg, time_left)
+                        time_left.uniform_(*term_cfg.interval_range_s)
                         # call the event term on every environment (index-based terms receive None)
                         if takes_env_mask(term_cfg.func):
                             term_cfg.func(self._env, self._env_selection(None, None)[0], **term_cfg.params)
@@ -248,7 +255,7 @@ class EventManager(ManagerBase):
                 else:
                     due = self._interval_term_due[index]
                     torch.lt(time_left, 1e-6, out=due.torch)
-                    torch.where(due.torch, self._sample_interval(term_cfg, time_left), time_left, out=time_left)
+                    torch.where(due.torch, self._sample_interval(term_cfg), time_left, out=time_left)
                     self._call_term(term_cfg, due)
             elif mode == "reset":
                 valid = env_mask
@@ -280,11 +287,9 @@ class EventManager(ManagerBase):
         if selection is not None:
             term_cfg.func(self._env, *selection.values(), **term_cfg.params)
 
-    @staticmethod
-    def _sample_interval(term_cfg: EventTermCfg, like: torch.Tensor) -> torch.Tensor:
-        """Sample the time [s] until the next interval event, shaped like ``like``."""
-        lower, upper = term_cfg.interval_range_s
-        return torch.rand_like(like) * (upper - lower) + lower
+    def _sample_interval(self, term_cfg: EventTermCfg) -> torch.Tensor:
+        """Sample the time [s] until the next interval event for every environment, into a reused buffer."""
+        return self._interval_sample.uniform_(*term_cfg.interval_range_s)
 
     """
     Operations - Term settings.
@@ -342,6 +347,8 @@ class EventManager(ManagerBase):
         self._interval_term_time_left: list[torch.Tensor] = list()
         # boolean masks of the environments due for each interval term (None for global-time terms)
         self._interval_term_due: list[ProxyArray | None] = list()
+        # times sampled for every environment, kept for the selected ones
+        self._interval_sample = torch.zeros(self.num_envs, device=self.device)
         # buffer to store the step count when the term was last triggered for each environment for "reset" mode
         self._reset_term_last_triggered_step_id: list[torch.Tensor] = list()
         self._reset_term_last_triggered_once: list[torch.Tensor] = list()

@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -17,7 +16,7 @@ import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation
 from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
-from isaaclab.utils import env_mask_from_ids, index_fill_
+from isaaclab.utils import index_fill_
 from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
@@ -131,15 +130,11 @@ class UniformVelocityCommand(CommandTerm):
         self._error_yaw_sum += error_yaw
         self._step_count += 1.0
 
-    def reset(
-        self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None
-    ) -> dict[str, torch.Tensor]:
+    def reset(self, env_mask: ProxyArray) -> dict[str, torch.Tensor]:
         # Finalize the just-ended episode's metrics into ``self.metrics`` BEFORE the base
         # class reads them. ``success_rate`` is per-env binary: the *episode-mean* error
         # is below both thresholds. Then super().reset() logs and zeros ``self.metrics``;
         # we zero the running sums for the reset envs afterwards so the next episode starts clean.
-        if env_mask is None:
-            env_mask = env_mask_from_ids(env_ids, self.num_envs, self.device)
         denom = self._step_count.clamp_min(1.0)
         mean_error_xy = self._error_xy_sum / denom
         mean_error_yaw = self._error_yaw_sum / denom

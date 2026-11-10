@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from isaaclab.managers import CommandTerm
@@ -50,7 +49,7 @@ class NullCommand(CommandTerm):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None) -> dict[str, float]:
+    def reset(self, env_mask: ProxyArray) -> dict[str, float]:
         return {}
 
     def compute(self, dt: float):

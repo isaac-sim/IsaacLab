@@ -18,6 +18,7 @@ from isaaclab.managers import CommandTerm, CommandTermCfg
 from isaaclab.utils import env_mask_from_ids
 from isaaclab.utils import math as math_utils
 from isaaclab.utils.configclass import configclass
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -162,11 +163,10 @@ class MicroDuckRoughVelocityCommand(MicroDuckVelocityCommand):
         super()._update_metrics()
         self.record_terrain_progress()
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
+    def reset(self, env_mask: ProxyArray) -> dict[str, float]:
         """Clear progress after the curriculum has consumed the completed episodes."""
-        extras = super().reset(env_ids)
-        ids = slice(None) if env_ids is None else env_ids
+        extras = super().reset(env_mask)
         for value in self.terrain_progress.values():
-            value[ids] = 0.0
-        self._last_progress_step[ids] = 0
+            value.masked_fill_(env_mask.torch, 0.0)
+        self._last_progress_step.masked_fill_(env_mask.torch, 0)
         return extras

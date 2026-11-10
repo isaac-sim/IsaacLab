@@ -76,6 +76,14 @@ class RecorderTerm(ManagerTermBase):
           it runs after rewards and terminations, before automatic reset and the policy observation update.
     """
 
+    def reset(self, env_ids: Sequence[int] | slice | None = None) -> None:
+        """Resets the recorder term. Recorded episodes live on the host, so recorder terms take indices.
+
+        Args:
+            env_ids: The environment ids. Defaults to None, in which case all environments are considered.
+        """
+        pass
+
     """
     User-defined callbacks.
     """
@@ -239,6 +247,12 @@ class RecorderManager(ManagerBase):
     Operations.
     """
 
+    @property
+    def takes_env_ids(self) -> bool:
+        """Whether a reset passes environment indices to a term, which synchronizes the device to compute them."""
+        # recorded episodes live on the host
+        return len(self.active_terms) > 0
+
     def reset(
         self, env_ids: Sequence[int] | slice | None = None, env_mask: ProxyArray | None = None
     ) -> dict[str, torch.Tensor]:
@@ -249,8 +263,8 @@ class RecorderManager(ManagerBase):
         Args:
             env_ids: The environment ids. Defaults to None, in which case
                 all environments are considered.
-            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Takes precedence over
-                ``env_ids``.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Used when ``env_ids`` is
+                None.
 
         Returns:
             An empty dictionary.
@@ -258,7 +272,7 @@ class RecorderManager(ManagerBase):
         # Do nothing if no active recorder terms are provided
         if len(self.active_terms) == 0:
             return {}
-        if env_mask is not None:
+        if env_ids is None and env_mask is not None:
             env_ids = env_ids_from_mask(env_mask)
         if isinstance(env_ids, Sequence):
             env_ids = list(env_ids)

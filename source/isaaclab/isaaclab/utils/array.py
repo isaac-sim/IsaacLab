@@ -180,7 +180,7 @@ def env_selection_kwargs(
     Callables that declare an ``env_mask`` parameter receive the boolean mask and must leave unselected
     environments unchanged. They run on every reset, so the environment step never waits on the device. Other
     callables receive indices as ``env_ids``: the caller's ``env_ids`` when given, else the indices selected by
-    ``env_mask``. Computing those synchronizes the device, and the call is skipped when none are selected.
+    ``env_mask``, which synchronizes the device. They are skipped when none are selected.
 
     Args:
         fn: Term function, term instance, or term method.
@@ -195,8 +195,8 @@ def env_selection_kwargs(
         return {"env_mask": env_mask}
     if env_ids is None:
         env_ids = env_ids_from_mask(env_mask)
-        if len(env_ids) == 0:
-            return None
+    if isinstance(env_ids, torch.Tensor) and len(env_ids) == 0:
+        return None
     return {"env_ids": env_ids}
 
 

@@ -71,9 +71,10 @@ class modify_env_param(ManagerTermBase):
     .. code-block:: python
 
         def modify_fn(env, env_mask, old_value, **modify_params) -> new_value | modify_env_param.NO_CHANGE:
-            # modify the value based on the old value and the modify parameters
-            new_value = old_value + modify_params["value"]
-            return new_value
+            # switch to the new value once training has run long enough
+            if env.common_step_counter < modify_params["num_steps"]:
+                return modify_env_param.NO_CHANGE
+            return modify_params["value"]
 
     where ``env`` is the learning environment, ``env_mask`` is the boolean mask of the environments being
     reset with shape (num_envs,), ``old_value`` is the current value of the target attribute, and
@@ -82,9 +83,10 @@ class modify_env_param(ManagerTermBase):
     to indicate that the value should not be changed.
 
     A ``modify_fn`` that names its second parameter ``env_mask`` is called on every curriculum update, including
-    updates where no environment is reset, without synchronizing the device. Otherwise the function receives the
-    selected environment indices, which synchronizes the device, and is called only when an environment is
-    selected.
+    updates where no environment is reset, without synchronizing the device. It must therefore give the same
+    result when called again in the same state, as above. Otherwise the function receives the selected
+    environment indices, which synchronizes the device, and is called only when an environment is selected, as
+    in the example below.
 
     At the first call to the term after initialization, it compiles getter and setter functions
     for the target attribute specified by the ``address`` parameter. The getter retrieves the
@@ -100,7 +102,7 @@ class modify_env_param(ManagerTermBase):
         .. code-block:: python
 
             def resample_bucket_range(
-                env, env_mask, data, static_friction_range, dynamic_friction_range, restitution_range, num_steps
+                env, env_ids, data, static_friction_range, dynamic_friction_range, restitution_range, num_steps
             ):
                 if env.common_step_counter > num_steps:
                     range_list = [static_friction_range, dynamic_friction_range, restitution_range]

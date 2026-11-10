@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -16,7 +15,6 @@ import warp as wp
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
-from isaaclab.utils import env_mask_from_ids
 from isaaclab.utils.leapp import POSE7_ELEMENT_NAMES
 from isaaclab.utils.warp import ProxyArray
 
@@ -119,9 +117,7 @@ class ReorientCommand(CommandTerm):
         successes = self.metrics["orientation_error"] < self.cfg.orientation_success_threshold
         self.metrics["consecutive_success"] += successes.float()
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None) -> dict[str, float]:
-        if env_mask is None:
-            env_mask = env_mask_from_ids(env_ids, self.num_envs, self.device)
+    def reset(self, env_mask: ProxyArray) -> dict[str, float]:
         # snapshot the goal count before the base class logs and zeros the metrics
         # Reaching a goal draws a replacement, so exactly one goal is outstanding when
         # the episode ends: the episode presented ``goals + 1`` and completed ``goals``.

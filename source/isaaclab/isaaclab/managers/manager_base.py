@@ -93,16 +93,16 @@ class ManagerTermBase(ABC):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None) -> None:
+    def reset(self, env_mask: ProxyArray) -> None:
         """Resets the manager term.
 
-        Managers pass ``env_mask`` to terms whose ``reset`` declares it, and indices otherwise. See
+        Managers call ``reset`` on every environment reset and leave it to the term to change only the selected
+        environments. A term may instead take ``env_ids``: it then receives the selected indices, which
+        synchronizes the device, and is skipped when none are selected. See
         :func:`~isaaclab.utils.env_selection_kwargs`.
 
         Args:
-            env_ids: The environment ids. Defaults to None, in which case all environments are considered.
-            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Defaults to None, in which
-                case all environments are considered. Takes precedence over ``env_ids``.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
         """
         pass
 
@@ -231,20 +231,25 @@ class ManagerBase(ABC):
         """
         return {}
 
+    @property
+    def takes_env_ids(self) -> bool:
+        """Whether a reset passes environment indices to a term, which synchronizes the device to compute them."""
+        return False
+
     def _env_selection(
         self, env_ids: Sequence[int] | torch.Tensor | slice | None, env_mask: ProxyArray | None
     ) -> tuple[ProxyArray, Sequence[int] | torch.Tensor | slice | None]:
         """Resolve a reset selection.
 
         Args:
-            env_ids: Indices or a slice. None selects every environment.
+            env_ids: Indices or a slice. None selects every environment. With ``env_mask``, the indices it selects.
             env_mask: Boolean mask. Shape is (num_envs,). Takes precedence over ``env_ids``.
 
         Returns:
-            The boolean mask, and the caller's indices for index-based terms, or None when ``env_mask`` was given.
+            The boolean mask, and the indices for index-based terms, or None when only ``env_mask`` was given.
         """
         if env_mask is not None:
-            return env_mask, None
+            return env_mask, env_ids
         env_ids = slice(None) if env_ids is None else env_ids
         return env_mask_from_ids(env_ids, self.num_envs, self.device), env_ids
 

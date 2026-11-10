@@ -8,7 +8,7 @@ from collections import namedtuple
 import pytest
 
 from isaaclab.envs.mdp import NullCommandCfg
-from isaaclab.utils import instantiate
+from isaaclab.utils import env_mask_from_ids, instantiate
 
 pytestmark = pytest.mark.unit
 
@@ -32,7 +32,7 @@ def test_compute(env):
     command_term = instantiate(cfg, env)
 
     # test the reset function
-    command_term.reset()
+    command_term.reset(env_mask_from_ids(None, env.num_envs, env.device))
     # test the compute function
     command_term.compute(dt=env.dt)
     # expect error

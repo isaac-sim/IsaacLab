@@ -14,7 +14,7 @@ import torch
 
 from isaaclab.envs import DirectRLEnv
 from isaaclab.envs.mdp.actions import EMAJointPositionToLimitsAction
-from isaaclab.utils import index_fill_
+from isaaclab.utils import env_mask_from_ids, index_fill_
 from isaaclab.utils.math import combine_frame_transforms, matrix_from_quat
 
 if TYPE_CHECKING:
@@ -230,7 +230,7 @@ class CabinetDirectEnv(DirectRLEnv):
             index_fill_(episode_sum, env_ids, 0.0)
 
         super()._reset_idx(env_ids)
-        self._arm_action.reset(env_ids)
+        self._arm_action.reset(env_mask_from_ids(env_ids, self.num_envs, self.device))
 
         index_fill_(self.actions, env_ids, 0.0)
         index_fill_(self.previous_actions, env_ids, 0.0)

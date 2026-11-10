@@ -487,41 +487,34 @@ def test_apply_reset_mode_with_mask_terms(env):
 
 
 def test_apply_interval_mode_with_mask_term(env):
-    """A mask term is called every interval update with the environments whose interval elapsed."""
+    """A mask term is called on every interval update with the environments whose interval elapsed."""
     event_man = EventManager(
         {"term_1": EventTermCfg(func=increment_dummy1_by_one_masked, mode="interval", interval_range_s=(0.1, 0.1))},
         env,
     )
-    # stagger the timers so that the environments fire on different updates
-    event_man._interval_term_time_left[0][:] = torch.tensor([0.01, 0.02, 0.03, 0.04], device=env.device)
-    for _ in range(4):
+    for _ in range(5):
         event_man.apply("interval", dt=0.01)
-    torch.testing.assert_close(env.dummy1, torch.ones_like(env.dummy1))
-    torch.testing.assert_close(
-        event_man._interval_term_time_left[0], torch.tensor([0.07, 0.08, 0.09, 0.1], device=env.device)
-    )
-
-
-def test_apply_startup_mode_with_mask_term(env):
-    """A mask term in startup mode receives an all-True mask."""
-    event_man = EventManager(
-        {"term_1": EventTermCfg(func=increment_dummy1_by_one_masked, mode="startup")},
-        env,
-    )
-    event_man.apply("startup")
-    torch.testing.assert_close(env.dummy1, torch.ones_like(env.dummy1))
-
-
-def test_apply_interval_mode_with_global_time_mask_term(env):
-    """A mask term on a global-time interval receives an all-True mask."""
-    event_man = EventManager(
-        {
-            "term_1": EventTermCfg(
-                func=increment_dummy1_by_one_masked, mode="interval", interval_range_s=(0.1, 0.1), is_global_time=True
-            )
-        },
-        env,
-    )
-    for _ in range(10):
+    # restart the timers of the last two environments halfway through their interval
+    event_man.reset(env_mask=env_mask_from_ids([2, 3], env.num_envs, env.device))
+    for _ in range(5):
         event_man.apply("interval", dt=0.01)
+    expected = torch.tensor([1.0, 1.0, 0.0, 0.0], device=env.device)[:, None].expand_as(env.dummy1)
+    torch.testing.assert_close(env.dummy1, expected.to(env.dummy1.dtype))
+
+
+@pytest.mark.parametrize(
+    "term_cfg",
+    [
+        EventTermCfg(func=increment_dummy1_by_one_masked, mode="startup"),
+        EventTermCfg(
+            func=increment_dummy1_by_one_masked, mode="interval", interval_range_s=(0.1, 0.1), is_global_time=True
+        ),
+    ],
+    ids=["startup", "global-interval"],
+)
+def test_mask_term_outside_reset_selects_every_environment(env, term_cfg):
+    """Startup and global-time interval mask terms receive an all-True mask."""
+    event_man = EventManager({"term_1": term_cfg}, env)
+    for _ in range(10 if term_cfg.mode == "interval" else 1):
+        event_man.apply(term_cfg.mode, dt=0.01 if term_cfg.mode == "interval" else None)
     torch.testing.assert_close(env.dummy1, torch.ones_like(env.dummy1))

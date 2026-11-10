@@ -10,7 +10,6 @@ from __future__ import annotations
 import inspect
 import math
 import re
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -764,7 +763,7 @@ class LetterTypingCommand(CommandTerm):
         first_mismatch = torch.where(mismatch, pos, self.max_len).min(dim=1).values
         return torch.minimum(first_mismatch, torch.minimum(self.typed_len, self.target_len))
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None) -> dict[str, float]:
+    def reset(self, env_mask: ProxyArray) -> dict[str, float]:
         """Resample the target word and snap the arm above its first key (see :meth:`_solve_reset_pose`).
 
         Runs only on episode reset (not on the mid-episode resampling timer), so the IK snap never
@@ -772,8 +771,6 @@ class LetterTypingCommand(CommandTerm):
         are host-side, so this resolves the selected indices (synchronizing the device) and returns no metrics
         when no environment is selected.
         """
-        if env_mask is None:
-            env_mask = env_mask_from_ids(env_ids, self.num_envs, self.device)
         ids = env_ids_from_mask(env_mask)
         if ids.numel() == 0:
             return {}

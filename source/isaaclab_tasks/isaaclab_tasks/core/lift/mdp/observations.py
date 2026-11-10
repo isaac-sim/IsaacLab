@@ -15,7 +15,7 @@ import torch
 from isaaclab.managers import ManagerTermBase, ObservationTermCfg, SceneEntityCfg
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import RAY_CASTER_MARKER_CFG
-from isaaclab.utils import replace
+from isaaclab.utils import env_mask_from_ids, replace
 from isaaclab.utils.images import CameraFrameStack, is_depth_like, normalize_depth, normalize_rgb
 from isaaclab.utils.math import quat_apply, quat_apply_inverse, quat_inv, quat_mul, subtract_frame_transforms
 from isaaclab.utils.warp import ProxyArray
@@ -256,14 +256,13 @@ class DeformableSampledPointsInRobotRootFrame(ManagerTermBase):
         asset: DeformableObject = env.scene[self.asset_cfg.name]
         self.num_nodes = asset.data.nodal_pos_w.shape[1]
         self.node_ids = torch.empty(env.num_envs, self.num_points, dtype=torch.long, device=env.device)
-        self.reset()
+        self.reset(env_mask_from_ids(None, env.num_envs, env.device))
 
-    def reset(self, env_mask: ProxyArray | None = None) -> None:
+    def reset(self, env_mask: ProxyArray) -> None:
         """Resample observed deformable nodes for the selected environments.
 
         Args:
-            env_mask: Boolean mask of the environments to resample. Shape is (num_envs,). Defaults to None,
-                which resamples every environment.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
         """
         # sample for every environment and keep the unselected ones
         if self.num_points <= self.num_nodes:
@@ -271,10 +270,7 @@ class DeformableSampledPointsInRobotRootFrame(ManagerTermBase):
             node_ids = node_ids.indices
         else:
             node_ids = torch.randint(self.num_nodes, (self.num_envs, self.num_points), device=self.device)
-        if env_mask is None:
-            self.node_ids.copy_(node_ids)
-        else:
-            torch.where(env_mask.torch.unsqueeze(-1), node_ids, self.node_ids, out=self.node_ids)
+        torch.where(env_mask.torch.unsqueeze(-1), node_ids, self.node_ids, out=self.node_ids)
 
     def __call__(
         self,

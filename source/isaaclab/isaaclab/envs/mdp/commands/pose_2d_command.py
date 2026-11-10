@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -16,7 +15,6 @@ from isaaclab.assets import Articulation
 from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.terrains import TerrainImporter
-from isaaclab.utils import env_mask_from_ids
 from isaaclab.utils.math import quat_apply_inverse, quat_from_euler_xyz, wrap_to_pi, yaw_quat
 from isaaclab.utils.warp import ProxyArray
 
@@ -99,11 +97,7 @@ class UniformPose2dCommand(CommandTerm):
         if self._track_success:
             self._succeeded |= self.metrics["error_pos"] < self.cfg.position_success_threshold
 
-    def reset(
-        self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None
-    ) -> dict[str, torch.Tensor]:
-        if env_mask is None:
-            env_mask = env_mask_from_ids(env_ids, self.num_envs, self.device)
+    def reset(self, env_mask: ProxyArray) -> dict[str, torch.Tensor]:
         extras = super().reset(env_mask=env_mask)
         if self._track_success:
             # Write the unified ``Metrics/success_rate`` directly to env extras so it shares
