@@ -12,7 +12,7 @@ import warp as wp
 from isaaclab.sensors.camera import Camera
 from isaaclab.utils.warp import ProxyArray
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
 
 def test_pose_input_accepts_proxy_array():
