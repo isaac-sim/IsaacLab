@@ -43,7 +43,7 @@ def scene():
 
 @pytest.mark.parametrize("device", test_devices())
 def test_finalize_moves_resolved_selections_to_device(scene, device):
-    """Ordering, slices, and empty selections survive finalization and copies."""
+    """Ordering, slices, and empty selections survive finalization and copies, and masks match the selections."""
     cfg = SceneEntityCfg(
         "robot",
         joint_names=["part_2", "part_0"],
@@ -56,10 +56,13 @@ def test_finalize_moves_resolved_selections_to_device(scene, device):
     assert cfg.joint_ids == [2, 0]
     assert cfg.body_ids == [3, 1]
 
-    cfg.finalize(device)
+    cfg.finalize(device, scene)
     joint_ids = cfg.joint_ids
-    cfg.finalize(device)
+    cfg.finalize(device, scene)
     assert cfg.joint_ids is joint_ids
+    assert cfg.joint_mask.numpy().tolist() == [True, False, True, False]
+    assert cfg.body_mask.numpy().tolist() == [False, True, False, True]
+    assert cfg.fixed_tendon_mask is None
     assert isinstance(cfg.body_ids, torch.Tensor)
     assert cfg.body_ids.dtype == torch.long
     assert cfg.body_ids.device == torch.device(device)
@@ -79,7 +82,7 @@ def test_finalized_indices_do_not_upload_or_read_back(scene, device):
     """A real MDP consumer and a device gather for one selected joint run without CUDA synchronization."""
     cfg = SceneEntityCfg("robot", joint_ids=[2, 0])
     cfg.resolve(scene)
-    cfg.finalize(device)
+    cfg.finalize(device, scene)
     values = torch.arange(16, dtype=torch.float, device=device).reshape(4, 4)
     scene["robot"].data = SimpleNamespace(joint_pos=SimpleNamespace(torch=values))
     env = SimpleNamespace(scene=scene)
@@ -96,12 +99,11 @@ def test_finalized_indices_do_not_upload_or_read_back(scene, device):
     torch.testing.assert_close(first, expected[:, 0])
 
 
-def test_external_force_uses_selected_body_count(scene):
-    """A finalized subset must write forces for that subset, rather than every body."""
-    wp.init()
+def test_external_force_writes_only_the_selected_bodies(scene):
+    """A finalized body subset masks the force write, rather than writing every body."""
     cfg = SceneEntityCfg("robot", body_ids=[3, 1])
     cfg.resolve(scene)
-    cfg.finalize("cpu")
+    cfg.finalize("cpu", scene)
     asset = scene["robot"]
     asset.device = "cpu"
     asset.permanent_wrench_composer = SimpleNamespace(set_forces_and_torques_mask=Mock())

@@ -28,6 +28,7 @@ from isaaclab.utils import configclass, tensor_processors, to_dict, update_from_
 
 pytestmark = pytest.mark.unit
 
+
 DummyEnv = namedtuple("ManagerBasedRLEnv", ["num_envs", "dt", "device", "sim", "dummy1", "dummy2"])
 """Dummy environment for testing."""
 
@@ -199,7 +200,7 @@ def test_string_func_in_nested_term_cfg(env):
 
 def test_resolution_walks_declared_term_fields_outside_params(env):
     """Resolve processor parameters and nested terms while preserving opaque configs."""
-    env = SimpleNamespace(**env._asdict(), scene=dict(robot=SimpleNamespace(joint_names=["a", "b", "c"])))
+    env = SimpleNamespace(**env._asdict(), scene=dict(robot=SimpleNamespace(joint_names=["a", "b", "c"], num_joints=3)))
     outer_cfg = NestedFieldTermCfg(
         func=increment_dummy1_by_one,
         nested_term=ManagerTermBaseCfg(func=f"{__name__}:reset_dummy2_to_zero"),
@@ -330,7 +331,7 @@ def test_terms_resolve_when_physics_is_ready_if_created_before_play(env):
 def test_scene_entities_finalize_after_class_terms_are_constructed(env, playing):
     """Class terms read host selections during construction; term calls receive device selections."""
     env.sim.is_playing.return_value = playing
-    env = SimpleNamespace(**env._asdict(), scene=dict(robot=SimpleNamespace(joint_names=["a", "b", "c"])))
+    env = SimpleNamespace(**env._asdict(), scene=dict(robot=SimpleNamespace(joint_names=["a", "b", "c"], num_joints=3)))
     cfg = {"term": ManagerTermBaseCfg(func=record_joint_selection_class)}
     manager = SimpleManager(cfg, env)
     if not playing:

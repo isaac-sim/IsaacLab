@@ -375,7 +375,7 @@ def test_mask_resets_write_only_selected_environments_without_sync(event_env: Ma
     env_mask = env_mask_from_ids([1, 3], env.num_envs, env.device)
     asset_cfg = SceneEntityCfg("robot", joint_ids=[0, 2])
     asset_cfg.resolve(env.scene)
-    asset_cfg.finalize(env.device)
+    asset_cfg.finalize(env.device, env.scene)
     joint_pos = robot.data.joint_pos.torch.clone()
     root_pose = robot.data.root_pose_w.torch.clone()
     pose_range = {"x": (0.1, 0.1), "yaw": (0.5, 0.5)}

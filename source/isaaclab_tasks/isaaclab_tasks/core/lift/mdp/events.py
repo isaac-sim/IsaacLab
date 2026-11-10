@@ -17,7 +17,7 @@ from tqdm import tqdm
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.managers import EventTermCfg, ManagerTermBase, ManagerTermBaseCfg, SceneEntityCfg
-from isaaclab.utils import env_selection_kwargs, instantiate
+from isaaclab.utils import env_mask_from_ids, env_selection_kwargs, instantiate
 from isaaclab.utils.math import quat_apply, quat_mul, random_orientation, sample_uniform, sample_uniform_from_ranges
 from isaaclab.utils.warp import ProxyArray
 
@@ -33,8 +33,6 @@ from .utils import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
-
     from isaaclab.assets import Articulation, CableObject, DeformableObject, RigidObject
     from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
 
@@ -68,23 +66,11 @@ def reset_joints_shared_offset(
     limits = asset.data.soft_joint_pos_limits.torch
     offset = sample_uniform(position_range[0], position_range[1], (default.shape[0], 1), device=default.device)
     positions = (default + offset).clamp(limits[..., 0], limits[..., 1])
-    joint_mask = _joint_mask(asset, asset_cfg.joint_ids)
+    joint_mask = asset_cfg.joint_mask
     asset.write_joint_position_to_sim_mask(position=positions, joint_mask=joint_mask, env_mask=env_mask.warp)
     asset.write_joint_velocity_to_sim_mask(
         velocity=torch.zeros_like(positions), joint_mask=joint_mask, env_mask=env_mask.warp
     )
-
-
-def _joint_mask(asset: Articulation, joint_ids: Sequence[int] | torch.Tensor | slice) -> wp.array | None:
-    """Return a joint mask that selects ``joint_ids``, or None for all joints."""
-    if isinstance(joint_ids, slice) and joint_ids == slice(None):
-        return None
-    mask = torch.zeros(asset.num_joints, dtype=torch.bool, device=asset.device)
-    if isinstance(joint_ids, slice):
-        joint_ids = torch.arange(asset.num_joints, device=asset.device)[joint_ids]
-    # index_fill_ with device indices does not wait on the device, unlike index assignment
-    mask.index_fill_(0, torch.as_tensor(joint_ids, dtype=torch.long, device=asset.device), True)
-    return wp.from_torch(mask, dtype=wp.bool)
 
 
 def reset_cable_state_uniform(
@@ -219,7 +205,9 @@ class reset_to_grasp(ManagerTermBase):
         self._offset_ranges = torch.tensor(
             [cfg.params["pose_range"].get(axis, (0.0, 0.0)) for axis in ("x", "y", "z")], device=env.device
         )
-        self._gripper_joint_mask = _joint_mask(self._gripper, self._gripper_joint_ids)
+        self._gripper_joint_mask = env_mask_from_ids(
+            self._gripper_joint_ids, self._gripper.num_joints, self._gripper.device
+        ).warp
         self._joint_positions = torch.zeros((env.num_envs, self._gripper.num_joints), device=env.device)
         self._zero_joint_velocities = torch.zeros_like(self._joint_positions)
         self._zero_root_velocities = torch.zeros((env.num_envs, 6), device=env.device)

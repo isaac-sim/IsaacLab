@@ -11,7 +11,6 @@ from collections.abc import Generator
 from typing import TYPE_CHECKING
 
 import torch
-import warp as wp
 
 from isaaclab.controllers import DifferentialIKControllerCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
@@ -216,18 +215,7 @@ def grasp_held_asset(
     else:
         joint_pos[:, robot_cfg.joint_ids] = min_angle
 
-    robot.write_joint_position_to_sim_mask(
-        position=joint_pos, joint_mask=_joint_mask(robot, robot_cfg.joint_ids), env_mask=env_mask.warp
-    )
-
-
-def _joint_mask(robot: Articulation, joint_ids: list[int] | slice) -> wp.array | None:
-    """Return a joint mask that selects ``joint_ids``, or None for all joints."""
-    if isinstance(joint_ids, slice) and joint_ids == slice(None):
-        return None
-    mask = torch.zeros(robot.num_joints, dtype=torch.bool, device=robot.device)
-    mask[joint_ids] = True
-    return wp.from_torch(mask, dtype=wp.bool)
+    robot.write_joint_position_to_sim_mask(position=joint_pos, joint_mask=robot_cfg.joint_mask, env_mask=env_mask.warp)
 
 
 class reset_end_effector_around_asset(ManagerTermBase):

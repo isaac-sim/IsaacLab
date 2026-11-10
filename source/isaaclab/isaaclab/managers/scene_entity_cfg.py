@@ -7,10 +7,12 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING
+import copy
+from dataclasses import MISSING, field
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 from ..utils import configclass
 
@@ -31,6 +33,8 @@ class SceneEntityCfg:
     list with a ``torch.long`` tensor on the device. Slices stay slices. Managers finalize their term
     configurations once all terms are constructed, so term calls index with device selections directly.
     Tensors are only produced by :meth:`finalize`; configure selections with names, integer lists, or slices.
+    :meth:`finalize` also fills the ``*_mask`` fields, so mask-based writers select joints, fixed tendons and
+    bodies without allocating.
     """
 
     name: str = MISSING
@@ -57,6 +61,12 @@ class SceneEntityCfg:
     manager.
     """
 
+    joint_mask: wp.array | None = field(default=None, metadata={"copy": False})
+    """Boolean mask of :attr:`joint_ids` over the entity's joints. Shape is (num_joints,).
+
+    Filled by :meth:`finalize`. None when every joint is selected.
+    """
+
     fixed_tendon_names: str | list[str] | None = None
     """The names of the fixed tendons from the scene entity. Defaults to None.
 
@@ -74,6 +84,12 @@ class SceneEntityCfg:
     manager.
     """
 
+    fixed_tendon_mask: wp.array | None = field(default=None, metadata={"copy": False})
+    """Boolean mask of :attr:`fixed_tendon_ids` over the entity's fixed tendons. Shape is (num_fixed_tendons,).
+
+    Filled by :meth:`finalize`. None when every fixed tendon is selected.
+    """
+
     body_names: str | list[str] | None = None
     """The names of the bodies from the asset required by the term. Defaults to None.
 
@@ -89,6 +105,12 @@ class SceneEntityCfg:
 
     If :attr:`body_names` is specified, this is filled in automatically on initialization of the
     manager.
+    """
+
+    body_mask: wp.array | None = field(default=None, metadata={"copy": False})
+    """Boolean mask of :attr:`body_ids` over the entity's bodies. Shape is (num_bodies,).
+
+    Filled by :meth:`finalize`. None when every body is selected.
     """
 
     object_collection_names: str | list[str] | None = None
@@ -156,21 +178,40 @@ class SceneEntityCfg:
         # convert object collection names to indices based on regex
         self._resolve_object_collection_names(scene)
 
-    def finalize(self, device: str) -> None:
-        """Move resolved index selections to the device.
+    def __deepcopy__(self, memo: dict) -> SceneEntityCfg:
+        # copies share the masks: they are read-only selections, and Warp arrays cannot be deep-copied
+        for mask in (self.joint_mask, self.fixed_tendon_mask, self.body_mask):
+            memo[id(mask)] = mask
+        copied = copy.copy(self)
+        memo[id(self)] = copied
+        for name, value in vars(self).items():
+            setattr(copied, name, copy.deepcopy(value, memo))
+        return copied
+
+    def finalize(self, device: str, scene: InteractiveScene) -> None:
+        """Move resolved index selections to the device and build the matching masks.
 
         Each non-slice ``*_ids`` selection becomes a ``torch.long`` tensor, so indexing and asset write
         methods use it without a host-to-device upload. Terms share the tensor, so callers must not modify
-        it in place. Slices are kept. Finalization is one-way and
-        must follow :meth:`resolve`; calling it again is a no-op.
+        it in place. Slices are kept. The ``*_mask`` fields select the same joints, fixed tendons and bodies.
+        Finalization must follow :meth:`resolve`; calling it again builds the same selections.
 
         Args:
-            device: Device on which to allocate the index tensors.
+            device: Device on which to allocate the index tensors and masks.
+            scene: The interactive scene holding the entity.
         """
         for name in ("joint_ids", "fixed_tendon_ids", "body_ids", "object_collection_ids"):
             indices = getattr(self, name)
             if not isinstance(indices, (slice, torch.Tensor)):
                 setattr(self, name, torch.tensor(indices, dtype=torch.long, device=device))
+        entity = scene[self.name]
+        for name, count in (("joint", "num_joints"), ("fixed_tendon", "num_fixed_tendons"), ("body", "num_bodies")):
+            indices = getattr(self, f"{name}_ids")
+            if isinstance(indices, slice) and indices == slice(None):
+                continue
+            mask = torch.zeros(getattr(entity, count), dtype=torch.bool, device=device)
+            mask[indices] = True
+            setattr(self, f"{name}_mask", wp.from_torch(mask, dtype=wp.bool))
 
     def _resolve_joint_names(self, scene: InteractiveScene):
         # convert joint names to indices based on regex

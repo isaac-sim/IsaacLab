@@ -462,7 +462,7 @@ class ManagerBase(ABC):
         device selections. See :meth:`SceneEntityCfg.finalize`.
         """
         for scene_entity_cfg in self._scene_entity_cfgs:
-            scene_entity_cfg.finalize(self.device)
+            scene_entity_cfg.finalize(self.device, self._env.scene)
 
     def _resolve_param_value(
         self, term_name: str, key: str | int, value: Any, *, resolve_callable: bool = False

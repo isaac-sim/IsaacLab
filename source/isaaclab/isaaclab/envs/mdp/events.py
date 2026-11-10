@@ -307,7 +307,7 @@ class randomize_rigid_body_mass(ManagerTermBase):
             self.default_inertia = self.asset.data.body_inertia.torch.clone()
         # resolve body indices
         body_ids = self.asset_cfg.body_ids
-        body_mask = _index_mask(body_ids, self.asset.num_bodies, self.asset.device)
+        body_mask = self.asset_cfg.body_mask
 
         # apply randomization on default values
         # this is to make sure when calling the function multiple times, the randomization is applied on the
@@ -422,7 +422,7 @@ class randomize_rigid_body_inertia(ManagerTermBase):
             self.default_inertia = self.asset.data.body_inertia.torch.clone()
 
         # resolve body indices
-        body_mask = _index_mask(self.asset_cfg.body_ids, self.default_inertia.shape[1], self.asset.device)
+        body_mask = self.asset_cfg.body_mask
 
         # start from the default inertias of all environments and bodies; only the selected ones are written
         # shape: (num_envs, num_bodies, 9)
@@ -495,7 +495,7 @@ class randomize_rigid_body_com(ManagerTermBase):
             self.default_com = self.asset.data.body_com_pose_b.torch.clone()
 
         # resolve body indices
-        body_mask = _index_mask(self.asset_cfg.body_ids, self.default_com.shape[1], self.asset.device)
+        body_mask = self.asset_cfg.body_mask
 
         # sample random CoM values, one offset per environment shared by its bodies
         rand_samples = math_utils.sample_uniform_from_ranges(
@@ -727,7 +727,11 @@ class randomize_actuator_gains(ManagerTermBase):
             # keep indices on the device so that the writes do not copy them from the host
             if not isinstance(actuator_indices, slice):
                 actuator_indices = torch.as_tensor(actuator_indices, dtype=torch.long, device=self.asset.device)
-            writer_joint_mask = _index_mask(global_indices, self.asset.num_joints, self.asset.device)
+            writer_joint_mask = (
+                None
+                if isinstance(global_indices, slice) and global_indices == slice(None)
+                else env_mask_from_ids(global_indices, self.asset.num_joints, self.asset.device).warp
+            )
             if not isinstance(global_indices, slice):
                 global_indices = torch.as_tensor(global_indices, dtype=torch.long, device=self.asset.device)
             # Native group writes are group-targeted: they take positions within the group's joints.
@@ -885,7 +889,7 @@ class randomize_joint_parameters(ManagerTermBase):
     ):
         # resolve joint indices
         joint_ids = self.asset_cfg.joint_ids
-        joint_mask = _index_mask(joint_ids, self.asset.num_joints, self.asset.device)
+        joint_mask = self.asset_cfg.joint_mask
 
         # sample joint properties from the given ranges for all environments and set the selected environments
         # and joints into the physics simulation
@@ -1062,7 +1066,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
     ):
         # resolve tendon indices
         tendon_ids = self.asset_cfg.fixed_tendon_ids
-        tendon_mask = _index_mask(tendon_ids, self.asset.num_fixed_tendons, self.asset.device)
+        tendon_mask = self.asset_cfg.fixed_tendon_mask
 
         # sample tendon properties from the given ranges for all environments and set the selected environments
         # and tendons into the physics simulation
@@ -1196,7 +1200,7 @@ def apply_external_force_torque(
     forces = math_utils.sample_uniform(*force_range, size, asset.device)
     torques = math_utils.sample_uniform(*torque_range, size, asset.device)
     # resolve the selected bodies
-    body_mask = _index_mask(asset_cfg.body_ids, asset.num_bodies, asset.device)
+    body_mask = asset_cfg.body_mask
     # set the forces and torques of the selected environments and bodies into the buffers
     # note: these are only applied when you call: `asset.write_data_to_sim()`
     asset.permanent_wrench_composer.set_forces_and_torques_mask(
@@ -1431,7 +1435,7 @@ def reset_joints_by_scale(
     joint_vel = joint_vel.clamp_(-joint_vel_limits, joint_vel_limits)
 
     # set into the physics simulation
-    joint_mask = _index_mask(asset_cfg.joint_ids, asset.num_joints, asset.device)
+    joint_mask = asset_cfg.joint_mask
     asset.write_joint_position_to_sim_mask(position=joint_pos, joint_mask=joint_mask, env_mask=env_mask.warp)
     asset.write_joint_velocity_to_sim_mask(velocity=joint_vel, joint_mask=joint_mask, env_mask=env_mask.warp)
 
@@ -1467,7 +1471,7 @@ def reset_joints_by_offset(
     joint_vel = joint_vel.clamp_(-joint_vel_limits, joint_vel_limits)
 
     # set into the physics simulation
-    joint_mask = _index_mask(asset_cfg.joint_ids, asset.num_joints, asset.device)
+    joint_mask = asset_cfg.joint_mask
     asset.write_joint_position_to_sim_mask(position=joint_pos, joint_mask=joint_mask, env_mask=env_mask.warp)
     asset.write_joint_velocity_to_sim_mask(velocity=joint_vel, joint_mask=joint_mask, env_mask=env_mask.warp)
 

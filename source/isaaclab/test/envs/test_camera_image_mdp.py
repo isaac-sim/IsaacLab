@@ -30,6 +30,7 @@ from isaaclab.envs.mdp.observations import (
     stacked_image,
 )
 from isaaclab.managers import ObservationGroupCfg, ObservationManager, ObservationTermCfg, SceneEntityCfg
+from isaaclab.utils import env_mask_from_ids
 from isaaclab.utils.warp import ProxyArray
 
 NUM_ENVS = 4
@@ -44,9 +45,13 @@ def _make_env(outputs: dict[str, torch.Tensor], device: str = "cpu") -> SimpleNa
     camera = SimpleNamespace(
         data=SimpleNamespace(output={name: ProxyArray(wp.from_torch(buf)) for name, buf in outputs.items()})
     )
-    sensors = {"tiled_camera": camera}
-    scene = SimpleNamespace(sensors=sensors, keys=sensors.keys)
+    scene = _Scene(tiled_camera=camera)
+    scene.sensors = dict(scene)
     return SimpleNamespace(num_envs=NUM_ENVS, device=device, scene=scene)
+
+
+class _Scene(dict):
+    """Scene stand-in: entities by name, like :class:`~isaaclab.scene.InteractiveScene`."""
 
 
 def _make_term(term_cls, env: SimpleNamespace, **params):
@@ -88,7 +93,7 @@ class TestFrameStacking:
         observe()
         camera.fill_(2)
         observe()
-        term.reset(torch.tensor([0]))
+        term.reset(env_mask_from_ids([0], NUM_ENVS, "cpu"))
         camera.fill_(9)
         out = observe()
         assert torch.all(out[0] == 9)
