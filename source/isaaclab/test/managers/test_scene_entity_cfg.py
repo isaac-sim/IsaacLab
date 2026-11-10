@@ -24,11 +24,17 @@ from isaaclab.utils.string import resolve_matching_names
 pytestmark = pytest.mark.unit
 
 
+class _Scene(dict):
+    """Entity lookup and device of :class:`~isaaclab.scene.InteractiveScene`."""
+
+    device = "cpu"
+
+
 @pytest.fixture
 def scene():
     names = ["part_0", "part_1", "part_2", "part_3"]
     find = partial(resolve_matching_names, list_of_strings=names)
-    return dict(
+    return _Scene(
         robot=SimpleNamespace(
             joint_names=names,
             body_names=names,
@@ -112,12 +118,6 @@ def test_external_force_uses_selected_body_count(scene):
     assert kwargs["body_ids"].tolist() == [3, 1]
 
 
-class _Scene(dict):
-    """Entity lookup and device of :class:`~isaaclab.scene.InteractiveScene`."""
-
-    device = "cpu"
-
-
 def test_resolve_fills_the_warp_ids_in_the_selection_order(scene):
     """Warp ids keep the resolved order and repeats, expand slices, and count the bodies of a contact sensor."""
     scene = _Scene(scene, sensor=SimpleNamespace(num_sensors=2, num_bodies=5))
@@ -146,6 +146,6 @@ def test_copies_share_the_warp_ids(scene):
     cfg = SceneEntityCfg("robot", joint_names=["part_1"])
     cfg.resolve(scene)
 
-    for copied in (cfg.copy(), clone(cfg), replace(cfg, name="robot")):
+    for copied in (cfg.copy(), clone(cfg), replace(cfg, name="robot"), copy.deepcopy(cfg)):
         assert copied.joint_ids_wp is cfg.joint_ids_wp
         assert copied.body_ids_wp is cfg.body_ids_wp

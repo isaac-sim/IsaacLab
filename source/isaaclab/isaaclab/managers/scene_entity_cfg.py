@@ -129,7 +129,7 @@ class SceneEntityCfg:
     Defaults to None.
 
     Filled by :meth:`resolve` for the Warp terms; torch terms read :attr:`joint_ids`.
-    :func:`~isaaclab.utils.clone` and :func:`~isaaclab.utils.replace` share it.
+    :func:`~isaaclab.utils.clone`, :func:`~isaaclab.utils.replace` and :func:`copy.deepcopy` share it.
     """
 
     body_ids_wp: wp.array | None = field(default=None, metadata={"copy": False})
@@ -137,7 +137,7 @@ class SceneEntityCfg:
     Defaults to None.
 
     Filled by :meth:`resolve` for the Warp terms; torch terms read :attr:`body_ids`.
-    :func:`~isaaclab.utils.clone` and :func:`~isaaclab.utils.replace` share it.
+    :func:`~isaaclab.utils.clone`, :func:`~isaaclab.utils.replace` and :func:`copy.deepcopy` share it.
     """
 
     def resolve(self, scene: InteractiveScene):
@@ -192,30 +192,23 @@ class SceneEntityCfg:
             if not isinstance(indices, (slice, torch.Tensor)):
                 setattr(self, name, torch.tensor(indices, dtype=torch.long, device=device))
 
+    def __deepcopy__(self, memo: dict) -> SceneEntityCfg:
+        """Copy as :meth:`copy` does, sharing the Warp ids: a Warp array cannot be deep-copied."""
+        memo[id(self)] = copied = self.copy()
+        return copied
+
     def _resolve_warp_ids(self, scene: InteractiveScene):
-        """Fill :attr:`joint_ids_wp` and :attr:`body_ids_wp` from the resolved selections.
+        """Fill :attr:`joint_ids_wp` and :attr:`body_ids_wp` with the selected indices, in selection order.
 
-        A slice expands to its indices over the entity's joints, or its bodies (the sensor bodies of a contact
-        sensor), negative indices become nonnegative, and the order and repeats of the selection are kept. A scene
-        and entity without a device, such as a test double, get no Warp ids.
-
-        Args:
-            scene: The interactive scene instance.
+        A slice expands over the entity's joints or bodies (the sensors of a contact sensor) and a negative index
+        wraps, as in torch indexing.
         """
         entity = scene[self.name]
-        device = getattr(scene, "device", None) or getattr(entity, "device", None)
-        if device is None:
-            return
-        counts = {
-            "joint_ids": getattr(entity, "num_joints", None),
-            "body_ids": entity.num_sensors if hasattr(entity, "num_sensors") else getattr(entity, "num_bodies", None),
-        }
-        for name, count in counts.items():
-            if count is None:
-                continue
-            ids, items = getattr(self, name), range(count)
-            indices = items[ids] if isinstance(ids, slice) else [items[i] for i in ids]
-            setattr(self, f"{name}_wp", wp.array(list(indices), dtype=wp.int32, device=device))
+        if hasattr(entity, "num_joints"):
+            self.joint_ids_wp = _warp_indices(self.joint_ids, entity.num_joints, scene.device)
+        num_bodies = entity.num_sensors if hasattr(entity, "num_sensors") else getattr(entity, "num_bodies", None)
+        if num_bodies is not None:
+            self.body_ids_wp = _warp_indices(self.body_ids, num_bodies, scene.device)
 
     def _resolve_joint_names(self, scene: InteractiveScene):
         # convert joint names to indices based on regex
@@ -361,3 +354,11 @@ class SceneEntityCfg:
                 if isinstance(self.object_collection_ids, int):
                     self.object_collection_ids = [self.object_collection_ids]
                 self.object_collection_names = [entity.object_names[i] for i in self.object_collection_ids]
+
+
+def _warp_indices(ids: list[int] | slice, count: int, device: str) -> wp.array:
+    """The selected indices of ``count`` items as an ``int32`` Warp array: a slice expands, a negative index wraps."""
+    items = range(count)
+    return wp.array(
+        list(items[ids]) if isinstance(ids, slice) else [items[i] for i in ids], dtype=wp.int32, device=device
+    )
