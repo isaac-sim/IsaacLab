@@ -16,7 +16,7 @@ from rendering_runner import run_rendering_case  # noqa: E402
 pytestmark = pytest.mark.isaacsim_ci
 
 
-@pytest.mark.parametrize("case", KIT_RENDERING_CASES, ids=[case.id for case in KIT_RENDERING_CASES])
+@pytest.mark.parametrize("case", [pytest.param(case, id=case.id, marks=case.marks) for case in KIT_RENDERING_CASES])
 def test_rendering(case: RenderCase, request: pytest.FixtureRequest) -> None:
     """Compare every compatible camera output from one scene construction."""
     run_rendering_case(case, request)

@@ -139,10 +139,7 @@ def run_rendering_case(
                 robot.actuators.target_command.set_position_index(value=targets)
             render_interval = 2 if case.scene == "mpm" else 4
             runtime.step(render=(step + 1) % render_interval == 0)
-        if case.scene in ("rendering_scene", "kuka_materials") or (
-            case.scene == "gaussian_splats_valiant_1env" and case.renderer == "isaac_rtx"
-        ):
-            # Valiant's PPISP RGB can still be a flat shader warm-up frame while its depth is already populated.
+        if case.scene in ("rendering_scene", "kuka_materials"):
             runtime.stabilize_camera()
         if case.scene == "kuka_materials":
             before = runtime.camera.data.output["rgb"].torch.clone()
