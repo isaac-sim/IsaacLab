@@ -10,12 +10,9 @@ import torch
 import warp as wp
 
 from isaaclab.actuators import ActuatorNetLSTMCfg, ActuatorNetMLPCfg
+from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import instantiate
 from isaaclab.utils.types import ArticulationActions
-
-pytestmark = pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA device required")
-
-DEVICE = "cuda:0"
 
 
 class _ZeroTorqueLSTM(torch.nn.Module):
@@ -38,7 +35,7 @@ class _ZeroTorqueMLP(torch.nn.Module):
         return torch.zeros(x.shape[0], 1, device=x.device)
 
 
-def _actuator(cfg_class, network: torch.nn.Module, tmp_path, **cfg):
+def _actuator(cfg_class, network: torch.nn.Module, tmp_path, device: str, **cfg):
     network_file = tmp_path / "network.pt"
     torch.jit.script(network).save(str(network_file))
     cfg = cfg_class(
@@ -49,26 +46,27 @@ def _actuator(cfg_class, network: torch.nn.Module, tmp_path, **cfg):
         actuator_velocity_limit=7.5,
         **cfg,
     )
-    return instantiate(cfg, joint_names=["joint_0", "joint_1"], joint_ids=[0, 1], num_envs=3, device=DEVICE)
+    return instantiate(cfg, joint_names=["joint_0", "joint_1"], joint_ids=[0, 1], num_envs=3, device=device)
 
 
 def _record_masked_reset(actuator, mask: wp.array) -> wp.Graph:
     """A CUDA graph of the actuator's reset of the masked environments; the graph reads ``mask`` when it replays."""
-    with wp.ScopedCapture(DEVICE) as capture:
+    with wp.ScopedCapture(mask.device) as capture:
         actuator.reset(env_mask=mask)
     return capture.graph
 
 
 def _assert_masked_zero(state: torch.Tensor, env_dim: int):
     """Environments 0 and 2 (masked) are zero and environment 1 keeps its value of one."""
-    masked, kept = state.index_select(env_dim, torch.tensor([0, 2], device=DEVICE)), state.select(env_dim, 1)
+    masked, kept = state.index_select(env_dim, torch.tensor([0, 2], device=state.device)), state.select(env_dim, 1)
     assert torch.equal(masked, torch.zeros_like(masked))
     assert torch.equal(kept, torch.ones_like(kept))
 
 
-def test_lstm_masked_reset_replays_from_a_cuda_graph(tmp_path):
-    actuator = _actuator(ActuatorNetLSTMCfg, _ZeroTorqueLSTM(), tmp_path)
-    mask = wp.array([True, False, True], dtype=wp.bool, device=DEVICE)
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_lstm_masked_reset_replays_from_a_cuda_graph(tmp_path, device):
+    actuator = _actuator(ActuatorNetLSTMCfg, _ZeroTorqueLSTM(), tmp_path, device)
+    mask = wp.array([True, False, True], dtype=wp.bool, device=device)
     graph = _record_masked_reset(actuator, mask)
     for _ in range(3):
         actuator.sea_hidden_state.fill_(1.0)
@@ -78,21 +76,23 @@ def test_lstm_masked_reset_replays_from_a_cuda_graph(tmp_path):
         _assert_masked_zero(actuator.sea_cell_state_per_env, env_dim=1)
 
 
-def test_mlp_masked_reset_replays_from_a_cuda_graph_while_the_history_moves(tmp_path):
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_mlp_masked_reset_replays_from_a_cuda_graph_while_the_history_moves(tmp_path, device):
     """The history shifts into a spare buffer every compute; the recorded reset clears it in either buffer."""
     actuator = _actuator(
         ActuatorNetMLPCfg,
         _ZeroTorqueMLP(),
         tmp_path,
+        device,
         input_idx=[0, 1, 2],
         pos_scale=1.0,
         vel_scale=1.0,
         torque_scale=1.0,
         input_order="pos_vel",
     )
-    mask = wp.array([True, False, True], dtype=wp.bool, device=DEVICE)
+    mask = wp.array([True, False, True], dtype=wp.bool, device=device)
     graph = _record_masked_reset(actuator, mask)
-    zeros = torch.zeros(3, 2, device=DEVICE)
+    zeros = torch.zeros(3, 2, device=device)
     for _ in range(3):
         actuator.compute(ArticulationActions(joint_positions=zeros), zeros, zeros)
         actuator._joint_pos_error_history.fill_(1.0)
