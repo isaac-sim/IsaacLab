@@ -41,7 +41,7 @@ def test_kinematic_rigid_object_scale_and_pose_are_rendered() -> None:
             name="newton_warp (PhysX)",
             simulation_context_factory=lambda: build_simulation_context(device="cuda:0", gravity_enabled=False),
             renderer_cfg=NewtonWarpRendererCfg(),
-            with_zoom_camera=True,
+            with_second_camera=True,
         )
     )
 
