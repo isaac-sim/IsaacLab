@@ -895,7 +895,7 @@ class RigidObjectData(BaseRigidObjectData):
         self._root_com_pose_w = TimestampedBuffer(wp.empty(num_instances, dtype=wp.transformf, device=device))
         self._root_com_vel_w = TimestampedBuffer(wp.zeros(num_instances, dtype=wp.spatial_vectorf, device=device))
         self._body_com_acc_w = TimestampedBuffer(
-            wp.zeros(body_shape, dtype=wp.spatial_vectorf, device=device), refresh_in_recordings=False
+            wp.zeros(body_shape, dtype=wp.spatial_vectorf, device=device), update_in_graph=False
         )
         # -- combined state (these are cached as they concatenate)
         self._root_state_w = TimestampedBuffer(wp.empty(num_instances, dtype=vec13f, device=device))

@@ -1713,7 +1713,7 @@ class ArticulationData(BaseArticulationData):
         self._body_link_pose_w_backend: TimestampedBuffer | None = None
         self._body_link_vel_w = TimestampedBuffer(wp.empty(body_shape, dtype=wp.spatial_vectorf, device=device))
         self._body_com_pose_b = TimestampedBuffer(
-            wp.zeros(body_shape, dtype=wp.transformf, device=device), refresh_in_recordings=False
+            wp.zeros(body_shape, dtype=wp.transformf, device=device), update_in_graph=False
         )
         self._body_com_pose_b_backend: TimestampedBuffer | None = None
         self._body_com_pose_w = TimestampedBuffer(wp.empty(body_shape, dtype=wp.transformf, device=device))
@@ -1727,7 +1727,7 @@ class ArticulationData(BaseArticulationData):
         self._joint_vel_buf = TimestampedBuffer(wp.zeros(joint_shape, dtype=wp.float32, device=device))
         self._joint_vel_backend: TimestampedBuffer | None = None
         self._joint_acc = TimestampedBuffer(
-            wp.zeros(joint_shape, dtype=wp.float32, device=device), refresh_in_recordings=False
+            wp.zeros(joint_shape, dtype=wp.float32, device=device), update_in_graph=False
         )
         self._previous_joint_vel = wp.zeros(joint_shape, dtype=wp.float32, device=device)
 
@@ -1744,22 +1744,22 @@ class ArticulationData(BaseArticulationData):
 
         # -- Joint properties (CPU-only; timestamped so they can be re-read after writes)
         self._joint_stiffness = TimestampedBuffer(
-            wp.zeros(joint_shape, dtype=wp.float32, device=device), refresh_in_recordings=False
+            wp.zeros(joint_shape, dtype=wp.float32, device=device), update_in_graph=False
         )
         self._joint_damping = TimestampedBuffer(
-            wp.zeros(joint_shape, dtype=wp.float32, device=device), refresh_in_recordings=False
+            wp.zeros(joint_shape, dtype=wp.float32, device=device), update_in_graph=False
         )
         self._joint_armature = TimestampedBuffer(
-            wp.zeros(joint_shape, dtype=wp.float32, device=device), refresh_in_recordings=False
+            wp.zeros(joint_shape, dtype=wp.float32, device=device), update_in_graph=False
         )
         self._joint_pos_limits = TimestampedBuffer(
-            wp.zeros(joint_shape, dtype=wp.vec2f, device=device), refresh_in_recordings=False
+            wp.zeros(joint_shape, dtype=wp.vec2f, device=device), update_in_graph=False
         )
         self._joint_vel_limits = TimestampedBuffer(
-            wp.zeros(joint_shape, dtype=wp.float32, device=device), refresh_in_recordings=False
+            wp.zeros(joint_shape, dtype=wp.float32, device=device), update_in_graph=False
         )
         self._joint_effort_limits = TimestampedBuffer(
-            wp.zeros(joint_shape, dtype=wp.float32, device=device), refresh_in_recordings=False
+            wp.zeros(joint_shape, dtype=wp.float32, device=device), update_in_graph=False
         )
         self._joint_stiffness_backend: TimestampedBuffer | None = None
         self._joint_damping_backend: TimestampedBuffer | None = None
@@ -1769,7 +1769,7 @@ class ArticulationData(BaseArticulationData):
         self._joint_effort_limits_backend: TimestampedBuffer | None = None
         # Friction: one buffer with three coefficients per joint; component views are created lazily.
         self._joint_friction_props_buf = TimestampedBuffer(
-            wp.zeros((*joint_shape, 3), dtype=wp.float32, device=device), refresh_in_recordings=False
+            wp.zeros((*joint_shape, 3), dtype=wp.float32, device=device), update_in_graph=False
         )
         self._joint_friction_props_backend: TimestampedBuffer | None = None
         # Strided views into _joint_friction_props_buf.data, initialized below after
@@ -1780,11 +1780,11 @@ class ArticulationData(BaseArticulationData):
 
         # -- Body properties (CPU-only; read once at init, re-read via _read_scalar_binding)
         self._body_mass = TimestampedBuffer(
-            wp.zeros(body_shape, dtype=wp.float32, device=device), refresh_in_recordings=False
+            wp.zeros(body_shape, dtype=wp.float32, device=device), update_in_graph=False
         )
         self._body_mass_backend: TimestampedBuffer | None = None
         self._body_inertia = TimestampedBuffer(
-            wp.zeros((*body_shape, 9), dtype=wp.float32, device=device), refresh_in_recordings=False
+            wp.zeros((*body_shape, 9), dtype=wp.float32, device=device), update_in_graph=False
         )
         self._body_inertia_backend: TimestampedBuffer | None = None
 
@@ -2255,7 +2255,7 @@ class ArticulationData(BaseArticulationData):
                 user_buffer.timestamp = backend_buffer.timestamp
 
             self._joint_friction_props_backend = TimestampedBuffer(
-                wp.zeros((*joint_shape, 3), wp.float32, device), refresh_in_recordings=False
+                wp.zeros((*joint_shape, 3), wp.float32, device), update_in_graph=False
             )
             self._joint_friction_props_backend.data.assign(self._joint_friction_props_buf.data)
             self._joint_friction_props_backend.timestamp = self._joint_friction_props_buf.timestamp
@@ -2291,7 +2291,7 @@ class ArticulationData(BaseArticulationData):
             body_shape = (self.num_instances, self.num_bodies)
             self._body_link_pose_w_backend = TimestampedBuffer(wp.zeros(body_shape, dtype=wp.transformf, device=device))
             self._body_com_pose_b_backend = TimestampedBuffer(
-                wp.zeros(body_shape, dtype=wp.transformf, device=device), refresh_in_recordings=False
+                wp.zeros(body_shape, dtype=wp.transformf, device=device), update_in_graph=False
             )
             self._body_com_vel_w_backend = TimestampedBuffer(wp.zeros(body_shape, wp.spatial_vectorf, device))
             self._body_com_acc_w_backend = TimestampedBuffer(wp.zeros(body_shape, wp.spatial_vectorf, device))
@@ -2300,12 +2300,12 @@ class ArticulationData(BaseArticulationData):
             # selected cells into both buffers and push full backend rows to the simulation,
             # so a stale or divergent staging silently corrupts the unselected cells.
             self._body_mass_backend = TimestampedBuffer(
-                wp.zeros(body_shape, dtype=wp.float32, device=device), refresh_in_recordings=False
+                wp.zeros(body_shape, dtype=wp.float32, device=device), update_in_graph=False
             )
             self._body_mass_backend.data.assign(self._body_mass.data)
             self._body_mass_backend.timestamp = self._body_mass.timestamp
             self._body_inertia_backend = TimestampedBuffer(
-                wp.zeros((*body_shape, 9), dtype=wp.float32, device=device), refresh_in_recordings=False
+                wp.zeros((*body_shape, 9), dtype=wp.float32, device=device), update_in_graph=False
             )
             self._body_inertia_backend.data.assign(self._body_inertia.data)
             self._body_inertia_backend.timestamp = self._body_inertia.timestamp

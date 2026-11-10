@@ -57,7 +57,7 @@ class ImageView:
         self.camera = camera
         self.render: Callable[[wp.array | None], wp.array] | None = None
         self.aspect = 1.0
-        self.frame = TimestampedBuffer(refresh_in_recordings=False)
+        self.frame = TimestampedBuffer(update_in_graph=False)
         self._host_frame: np.ndarray | None = None
         self._env_ids: wp.array | None = None
         self._depth_colors: wp.array | None = None

@@ -28,25 +28,25 @@ class TimestampedBuffer:
 
     While Warp records a CUDA graph, :attr:`timestamp` reads -1 (stale) until the data is updated in that recording:
     a graph replays without the owner's timestamp check, so a recording that reads the data must hold its update for
-    every replay to recompute it. Data that must not be updated where it is read, such as a finite difference advanced
-    once per physics step or a value fetched once from the host, opts out with ``refresh_in_recordings=False``.
+    every replay to recompute it. Data whose update a recording must not hold, such as a value its owner fetches
+    through a host call or a cache that records its own graph, opts out with ``update_in_graph=False``.
     """
 
-    __slots__ = ("data", "refresh_in_recordings", "_timestamp", "_recording")
+    __slots__ = ("data", "update_in_graph", "_timestamp", "_recording")
 
     _captures: dict | None = None
     """Warp's table of the graph recordings in progress (see :func:`~isaaclab.utils.warp.utils.recordings`)."""
 
-    def __init__(self, data: Any = None, timestamp: float = -1.0, *, refresh_in_recordings: bool = True):
+    def __init__(self, data: Any = None, timestamp: float = -1.0, *, update_in_graph: bool = True):
         """Initialize the buffer.
 
         Args:
             data: Cached array, native-format struct, or grouped data. Defaults to None, before allocation.
             timestamp: Source timestamp represented by the data. Defaults to -1, which marks it stale.
-            refresh_in_recordings: Whether a CUDA graph recording that reads the data updates it. Defaults to True.
+            update_in_graph: Whether a CUDA graph recording that reads the data updates it. Defaults to True.
         """
         self.data = data
-        self.refresh_in_recordings = refresh_in_recordings
+        self.update_in_graph = update_in_graph
         self._timestamp = timestamp
         self._recording: object = None
         if TimestampedBuffer._captures is None:
@@ -57,7 +57,7 @@ class TimestampedBuffer:
     def timestamp(self) -> float:
         """Source timestamp represented by the data; -1 marks it stale."""
         captures = self._captures
-        if captures and self.refresh_in_recordings and self._recording != recording_key(captures):
+        if captures and self.update_in_graph and self._recording != recording_key(captures):
             return -1.0
         return self._timestamp
 

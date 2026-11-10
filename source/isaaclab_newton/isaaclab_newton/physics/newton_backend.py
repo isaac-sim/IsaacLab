@@ -156,7 +156,7 @@ class NewtonBackend:
             {} if simulation else {path: bounds[0] for path, bounds in self.deformable_ranges.items()}
         )
         """First particle index per deformable label on a render-only backend; empty on a simulation backend."""
-        self.bvh_refit = TimestampedBuffer(refresh_in_recordings=False)
+        self.bvh_refit = TimestampedBuffer(update_in_graph=False)
         """Timestamp of the last BVH refit, shared by ray casters and cameras."""
         self.cfg: NewtonCfg | None = physics_cfg if simulation else None
         """Newton physics settings, or ``None`` for a render-only backend."""
@@ -240,7 +240,7 @@ class NewtonBackend:
         """Drop native handles after consumers release their bindings."""
         self.model = self.state_0 = self.state_1 = self.control = None
         self.particle_ranges, self.deformable_ranges, self.geometry_offsets = {}, {}, {}
-        self.bvh_refit = TimestampedBuffer(refresh_in_recordings=False)
+        self.bvh_refit = TimestampedBuffer(update_in_graph=False)
         if self.cfg is not None:
             self.solver = self.solver_ops = self.collision_pipeline = self.contacts = self.contact_observables = None
             self.actuators = None

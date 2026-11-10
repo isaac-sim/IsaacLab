@@ -24,11 +24,11 @@ def _count_update(updates: wp.array(dtype=wp.int32)):
 class _LazyValue:
     """A lazily updated value counting its updates on the device."""
 
-    def __init__(self, device: str, refresh_in_recordings: bool = True):
+    def __init__(self, device: str, update_in_graph: bool = True):
         self.device = device
         self.timestamp = 0.0
         self.updates = wp.zeros(1, dtype=wp.int32, device=device)
-        self._value = TimestampedBuffer(self.updates, refresh_in_recordings=refresh_in_recordings)
+        self._value = TimestampedBuffer(self.updates, update_in_graph=update_in_graph)
 
     def read(self) -> None:
         if self._value.timestamp < self.timestamp:
@@ -87,7 +87,7 @@ def test_each_recording_holds_its_own_update(device):
 @pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
 def test_an_opted_out_buffer_keeps_the_timestamp_rule_while_recording(device):
     """A buffer opting out records its update only when it is stale by timestamp, as outside a recording."""
-    value = _LazyValue(device, refresh_in_recordings=False)
+    value = _LazyValue(device, update_in_graph=False)
     value.read()
     with wp.ScopedCapture(device=device) as capture:
         value.read()
