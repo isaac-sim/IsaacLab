@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Cosmos on camera tasks: ``apply_cosmos`` for an unmodified task, and the Shadow Hand Cosmos tasks."""
+"""Cosmos on camera tasks: ``apply_cosmos`` for an unmodified task, and the registered Cosmos tasks."""
 
 import logging
 import subprocess
@@ -50,7 +50,7 @@ def _idle_service(monkeypatch):
 
 
 def test_core_tasks_do_not_import_cosmos_and_registration_imports_no_task_code():
-    """The core Shadow Hand camera tasks load without experimental code, and naming the Cosmos tasks is cheap.
+    """The core tasks load without experimental code, and naming the Cosmos tasks is cheap.
 
     Run in a new process, because this test session has already imported both packages.
     """
@@ -60,7 +60,11 @@ def test_core_tasks_do_not_import_cosmos_and_registration_imports_no_task_code()
         import isaaclab_tasks  # noqa: F401
         from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
-        for task in ("Isaac-Reorient-Cube-Shadow-Camera-Direct", "Isaac-Reorient-Cube-Shadow-Camera"):
+        for task in (
+            "Isaac-Reorient-Cube-Shadow-Camera-Direct",
+            "Isaac-Reorient-Cube-Shadow-Camera",
+            "IsaacContrib-PickPlace-Apple-G1-Dex3",
+        ):
             load_cfg_from_registry(task, "env_cfg_entry_point")
         assert not [name for name in sys.modules if name.startswith("isaaclab_experimental")]
 
@@ -68,7 +72,7 @@ def test_core_tasks_do_not_import_cosmos_and_registration_imports_no_task_code()
         import isaaclab_experimental.cosmos.tasks  # noqa: F401
 
         added = set(sys.modules) - before
-        assert not [name for name in added if "shadow_hand" in name or ".client" in name or ".server" in name], added
+        assert not [n for n in added if "shadow_hand" in n or "apple" in n or ".client" in n or ".server" in n], added
         load_cfg_from_registry("Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct", "env_cfg_entry_point")
         assert "isaaclab_experimental.cosmos.client" in sys.modules
     """)
@@ -332,3 +336,47 @@ def test_cosmos_task_rejects_overrides_exceeding_service_limits_before_simulatio
 
     with pytest.raises(ValueError, match=error):
         env_cfg.validate()
+
+
+APPLE_TASK = "IsaacContrib-PickPlace-Apple-G1-Dex3-Cosmos"
+
+
+def test_apple_cosmos_task_generates_the_head_camera_image_for_whole_episodes():
+    from isaaclab_experimental.cosmos import CosmosTransferProcessorCfg, read_prompt_files
+    from isaaclab_experimental.cosmos.tasks.apple_pick_place_cosmos_env_cfg import G1ApplePickPlaceCosmosEnvCfg
+
+    cfg = parse_env_cfg(APPLE_TASK, overrides=())
+    assert isinstance(cfg, G1ApplePickPlaceCosmosEnvCfg)
+    cfg.validate()
+    camera = cfg.scene.head_camera
+    # Cosmos renders depth on its 4:3 canvas; the policy still reads a 640 x 480 rgb image.
+    assert (camera.width, camera.height) == (736, 544)
+    assert camera.tensor_processors[-1].outputs == ["rgb"]
+    assert cfg.observations.policy.ego_view.params["sensor_cfg"].name == "head_camera"
+    model = next(p.backend for p in camera.tensor_processors if isinstance(p, CosmosTransferProcessorCfg))
+    # One frame per 30 Hz step for a 20 s episode, plus the first frame, in the service's 1 + 4*k budget.
+    assert model.max_episode_frames >= 601 and (model.max_episode_frames - 1) % 4 == 0
+    # A longer episode gets a larger budget.
+    longer = parse_env_cfg(APPLE_TASK, overrides=("env.episode_length_s=30.0",))
+    longer.validate()
+    longer_model = next(
+        p.backend for p in longer.scene.head_camera.tensor_processors if isinstance(p, CosmosTransferProcessorCfg)
+    )
+    assert longer_model.max_episode_frames >= 901
+    # The prompt describes the real demonstrations' appearance.
+    assert "apple" in read_prompt_files([model.prompt_files])[0]
+    # The core task keeps the rendered image.
+    assert not parse_env_cfg("IsaacContrib-PickPlace-Apple-G1-Dex3", overrides=()).scene.head_camera.tensor_processors
+
+
+@pytest.mark.parametrize(
+    "overrides, physics, renderer",
+    (
+        (("physics=ovphysx", "renderer=ovrtx"), "OvPhysxCfg", "OVRTXRendererCfg"),
+        (("physics=newton_mjwarp", "renderer=newton_renderer"), "NewtonCfg", "NewtonWarpRendererCfg"),
+    ),
+)
+def test_apple_cosmos_task_keeps_the_backend_presets(overrides, physics, renderer):
+    cfg = parse_env_cfg(APPLE_TASK, overrides=overrides)
+    assert type(cfg.sim.physics).__name__ == physics
+    assert type(cfg.scene.head_camera.renderer_cfg).__name__ == renderer

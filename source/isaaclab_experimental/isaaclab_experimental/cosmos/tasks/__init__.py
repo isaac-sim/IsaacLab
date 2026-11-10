@@ -37,3 +37,12 @@ gym.register(
         "default_agent": "rsl_rl",
     },
 )
+
+gym.register(
+    id="IsaacContrib-PickPlace-Apple-G1-Dex3-Cosmos",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.apple_pick_place_cosmos_env_cfg:G1ApplePickPlaceCosmosEnvCfg",
+    },
+)

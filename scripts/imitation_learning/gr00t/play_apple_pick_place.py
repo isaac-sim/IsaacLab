@@ -14,8 +14,8 @@ checkout of the GR00T repository (with its submodules) and with the downloaded c
         --model-path /path/to/GR00T-N1.7-AppleToPlate-cosine40k-checkpoint-15000 --port 5555
 
 Then run the task, here on Newton, which the default install includes. No window opens unless
-a visualizer is selected with ``--viz``. Add ``presets=cosmos`` to generate the head camera image
-with Cosmos:
+a visualizer is selected with ``--viz``. Add ``--task IsaacContrib-PickPlace-Apple-G1-Dex3-Cosmos`` to
+generate the head camera image with Cosmos:
 
 .. code-block:: bash
 
@@ -56,7 +56,12 @@ import numpy as np
 import torch
 from PIL import Image
 
+from isaaclab.cli import load_external_tasks
+
 import isaaclab_tasks  # noqa: F401
+
+# the Cosmos version of the task is registered by isaaclab_experimental
+load_external_tasks()
 
 # the GR00T client from the locomanipulation example, which does not import GR00T
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "locomanipulation_sdg", "gr00t"))

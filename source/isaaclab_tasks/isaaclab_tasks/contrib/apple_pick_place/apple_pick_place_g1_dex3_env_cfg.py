@@ -7,14 +7,12 @@
 
 The scene, start pose, actuator gains and timing reproduce the evaluation of a GR00T N1.7 policy fine-tuned on
 real demonstrations of this task. The observation and action terms are named and ordered like that policy's
-inputs and outputs, so its exported pipeline can read and write them by name. ``presets=cosmos`` replaces the
-head camera's rendered image with one Cosmos generates from its depth.
+inputs and outputs, so its exported pipeline can read and write them by name.
 """
 
 import json
 import os
 
-from isaaclab_experimental.cosmos import CosmosModelCfg, CosmosTransferProcessorCfg, cosmos_camera, episode_frame_budget
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg, NewtonSDFCollisionCfg
 from isaaclab_ov.physics import OvPhysxCfg
@@ -109,7 +107,7 @@ START_JOINT_POS = dict(zip(_start_states["joint_names"], _start["joint_positions
 G1_DEX3_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/G1_29DOF_Dex3/G1_29DOF_Dex3.usd",
-        rigid_props=[PhysxRigidBodyCfg(disable_gravity=False)],
+        rigid_props=PhysxRigidBodyCfg(disable_gravity=False),
         # Newton's self-collisions push the thighs at the hips, so only PhysX, as evaluated, keeps them.
         articulation_props=[
             PhysxArticulationCfg(enabled_self_collisions=True),
@@ -264,7 +262,7 @@ class ApplePickPlaceSceneCfg(InteractiveSceneCfg):
         ),
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Objects/Apple002/apple.usd",
-            rigid_props=[PhysxRigidBodyCfg(solver_position_iteration_count=16, solver_velocity_iteration_count=8)],
+            rigid_props=PhysxRigidBodyCfg(solver_position_iteration_count=16, solver_velocity_iteration_count=8),
             mass_props=sim_utils.MassCfg(mass=0.05),
             mesh_collision_props=NEWTON_CONVEX_HULLS,
             activate_contact_sensors=True,
@@ -279,7 +277,7 @@ class ApplePickPlaceSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Objects/Clay_Plate/clay_plate.usd",
             scale=(0.7, 0.7, 0.7),
-            rigid_props=[PhysxRigidBodyCfg(solver_position_iteration_count=16, solver_velocity_iteration_count=8)],
+            rigid_props=PhysxRigidBodyCfg(solver_position_iteration_count=16, solver_velocity_iteration_count=8),
             mass_props=sim_utils.MassCfg(mass=0.2),
             mesh_collision_props=NEWTON_CONVEX_HULLS,
         ),
@@ -429,39 +427,3 @@ class G1ApplePickPlaceEnvCfg(ManagerBasedRLEnvCfg):
         self.episode_length_s = 20.0
         # The policy's first image after a reset must show the new start, from the head camera's new pose.
         self.num_rerenders_on_reset = 1
-
-
-# Appearance of the real demonstrations, so the generated images look like the images the policy was trained on.
-APPLE_COSMOS_PROMPT_FILE = os.path.join(os.path.dirname(__file__), "prompts", "apple_pick_place.json")
-
-# The hands, apple and plate lie between 0.15 m and 0.9 m from the head camera.
-APPLE_COSMOS_HEAD_CAMERA_CFG = cosmos_camera(
-    HEAD_CAMERA_CFG, CosmosModelCfg(prompt_files=APPLE_COSMOS_PROMPT_FILE), near=0.15, far=0.9, name="head_camera"
-)
-
-
-@configclass
-class G1ApplePickPlaceCosmosEnvCfg(G1ApplePickPlaceEnvCfg):
-    """The apple task with Cosmos generating the head camera's image, selected with ``presets=cosmos``.
-
-    Start the Cosmos service first.
-    """
-
-    scene: ApplePickPlaceSceneCfg = ApplePickPlaceSceneCfg(
-        num_envs=1, env_spacing=3.0, head_camera=APPLE_COSMOS_HEAD_CAMERA_CFG
-    )
-
-    def validate_config(self):
-        """Size the Cosmos episode to the task's final duration and capture rate."""
-        processors = self.scene.head_camera.tensor_processors
-        model = next(cfg.backend for cfg in processors if isinstance(cfg, CosmosTransferProcessorCfg))
-        if model.max_episode_frames is None:
-            model.max_episode_frames = episode_frame_budget(self, self.scene.head_camera.update_period)[2]
-
-
-@configclass
-class G1ApplePickPlaceEnvPresetCfg(PresetCfg):
-    """Select the rendered head camera image or a Cosmos-generated one with ``presets=cosmos``."""
-
-    default: G1ApplePickPlaceEnvCfg = G1ApplePickPlaceEnvCfg()
-    cosmos: G1ApplePickPlaceCosmosEnvCfg = G1ApplePickPlaceCosmosEnvCfg()
