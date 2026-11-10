@@ -3,6 +3,33 @@ Changelog
 
 .. towncrier release notes start
 
+4.1.4 (2026-11-07)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the Newton visualizer to read picking support from ``NewtonBackend.solver_ops``.
+
+
+4.1.3 (2026-10-31)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton viewer object dragging after a hard reset by registering the picking forces with the new backend.
+
+
+4.1.2 (2026-10-28)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the Newton visualizer to ask the solver configuration's ``class_type`` whether the solver accepts applied body forces.
+
+
 4.1.1 (2026-10-27)
 ~~~~~~~~~~~~~~~~~~
 

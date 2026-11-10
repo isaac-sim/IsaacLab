@@ -30,7 +30,8 @@ import pytest
 import torch
 import warp as wp
 from flaky import flaky
-from isaaclab_newton.physics.newton_manager import _compile_label_pattern
+from isaaclab_newton.physics import KaminoPADMMSolverCfg, VBDSolverCfg, XPBDSolverCfg
+from isaaclab_newton.physics.newton_backend import _compile_label_pattern
 from isaaclab_newton.sensors.contact_sensor import ContactSensorCfg as NewtonContactSensorCfg
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 from newton._src.utils.selection import match_labels
@@ -353,14 +354,24 @@ def test_horizontal_collision_detects_contact(device: str, use_mujoco_contacts: 
 
 # The pipelines select distinct contact paths; the device selects none, so it rotates across them.
 @pytest.mark.parametrize(
-    "device, use_mujoco_contacts",
+    "device, use_mujoco_contacts, solver_cfg",
     [
-        pytest.param(device, pipeline.values[0], id=f"{pipeline.id}-{device}")
+        pytest.param(device, pipeline.values[0], None, id=f"{pipeline.id}-{device}")
         for device, pipeline in zip(test_devices() * len(COLLISION_PIPELINES), COLLISION_PIPELINES)
+    ]
+    + [
+        pytest.param(device, False, solver_cfg, id=f"{name}-{device}")
+        for device in test_devices(DeviceScope.CUDA)
+        for name, solver_cfg in (
+            ("xpbd", XPBDSolverCfg()),
+            ("vbd", VBDSolverCfg()),
+            ("kamino", KaminoPADMMSolverCfg()),
+            ("kamino_native", KaminoPADMMSolverCfg(use_collision_detector=True)),
+        )
     ],
 )
-def test_resting_object_contact_force(device: str, use_mujoco_contacts: bool):
-    """Test that resting object contact force equals weight and points upward.
+def test_resting_object_contact_force(device: str, use_mujoco_contacts: bool, solver_cfg):
+    """Test that each supported solver reports upward resting contact forces.
 
     Two objects (light=2kg and heavy=4kg) rest on ground.
 
@@ -379,6 +390,8 @@ def test_resting_object_contact_force(device: str, use_mujoco_contacts: bool):
     sim_cfg = make_sim_cfg(
         use_mujoco_contacts=use_mujoco_contacts, device=device, gravity=(0.0, 0.0, -gravity_magnitude)
     )
+    if solver_cfg is not None:
+        sim_cfg.physics.solver_cfg = solver_cfg
 
     with build_simulation_context(sim_cfg=sim_cfg, auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
@@ -443,11 +456,12 @@ def test_resting_object_contact_force(device: str, use_mujoco_contacts: bool):
             fa = force_mags_a[env_idx].max().item()
             fb = force_mags_b[env_idx].max().item()
 
-            if abs(fa - expected_force_a) >= 0.02 * expected_force_a:
+            tolerance = 0.02 if solver_cfg is None else 0.3
+            if abs(fa - expected_force_a) >= tolerance * expected_force_a:
                 errs.append(
                     f"Env {env_idx}: BoxA ({mass_a}kg) force should be ~{expected_force_a:.2f} N. Got {fa:.2f} N"
                 )
-            if abs(fb - expected_force_b) >= 0.02 * expected_force_b:
+            if abs(fb - expected_force_b) >= tolerance * expected_force_b:
                 errs.append(
                     f"Env {env_idx}: BoxB ({mass_b}kg) force should be ~{expected_force_b:.2f} N. Got {fb:.2f} N"
                 )
@@ -904,6 +918,9 @@ def _make_two_box_scene_cfg(num_envs: int) -> ContactSensorTestSceneCfg:
 def test_sensor_metadata(device: str):
     """Verify sensor_names and filter_object_names match the underlying sensing and
     counterpart configuration across body-mode, body-mode-with-filter, and shape-mode.
+
+    Newton does not track the sensor pose, so reading pose data raises when it is requested,
+    and ``pos_w`` and ``quat_w`` are None otherwise.
     """
     num_envs = 4
     sim_cfg = make_sim_cfg(use_mujoco_contacts=False, device=device, gravity=(0.0, 0.0, -9.81))
@@ -916,6 +933,7 @@ def test_sensor_metadata(device: str):
             prim_path="{ENV_REGEX_NS}/Box[^/]*",
             update_period=0.0,
             history_length=1,
+            track_pose=True,
         )
         # Body-mode, with filter: one body matches the sensor pattern, one matches the filter pattern.
         scene_cfg.contact_sensor_b = ContactSensorCfg(
@@ -932,7 +950,8 @@ def test_sensor_metadata(device: str):
             update_period=0.0,
             history_length=1,
         )
-        scene = InteractiveScene(scene_cfg)
+        with pytest.warns(UserWarning, match="'track_pose' is not supported by the Newton backend"):
+            scene = InteractiveScene(scene_cfg)
         sim.reset()
         scene.reset()
 
@@ -940,12 +959,17 @@ def test_sensor_metadata(device: str):
         assert body_sensor.num_sensors == 2
         assert body_sensor.sensor_names == ["BoxA", "BoxB"]
         assert body_sensor.filter_object_names == []
+        for name in ("pos_w", "quat_w", "pose_w"):
+            with pytest.raises(NotImplementedError, match=f"{name} is not supported"):
+                getattr(body_sensor.data, name)
 
         filtered_sensor: ContactSensor = scene["contact_sensor_b"]
         assert filtered_sensor.num_sensors == 1
         assert filtered_sensor.sensor_names == ["BoxA"]
         assert filtered_sensor.num_filter_objects == 1
         assert filtered_sensor.filter_object_names == ["BoxB"]
+        assert filtered_sensor.data.pos_w is None
+        assert filtered_sensor.data.quat_w is None
 
         shape_sensor: ContactSensor = scene["contact_sensor_c"]
         assert shape_sensor.num_sensors == 2

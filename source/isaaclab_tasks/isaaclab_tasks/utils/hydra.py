@@ -492,7 +492,7 @@ def resolve_task_config(
     resolved = {}
     original_argv, sys.argv = sys.argv, [sys.argv[0]] + hydra_args
 
-    @hydra.main(config_path=None, config_name=task, version_base="1.3")
+    @hydra.main(config_path=None, config_name=task)
     def hydra_main(hydra_cfg, env_cfg=env_cfg, agent_cfg=agent_cfg):
         env_cfg, agent_cfg = _apply_resolved_config(env_cfg, agent_cfg, hydra_cfg)
         resolved.update(env_cfg=replace_strings_with_env_cfg_spaces(env_cfg), agent_cfg=agent_cfg)
@@ -688,7 +688,7 @@ def register_task(
         return env_cfg, agent_cfg, hydra_args
 
     # Register plain config (no groups) - Hydra only handles global scalars
-    ConfigStore.instance().store(name=task_name, node=hydra_cfg)
+    ConfigStore.instance().store(name=task_name, node=hydra_cfg, replace=True)
     return env_cfg, agent_cfg, hydra_args
 
 
@@ -708,6 +708,13 @@ def _setattr(obj, path: str, val):
     *parts, leaf = path.split(".")
     for p in parts:
         obj = obj[p] if isinstance(obj, Mapping) else getattr(obj, p)
+    if not isinstance(obj, dict) and not hasattr(obj, leaf):
+        # A misspelled field is added beside the intended one, which keeps its value.
+        warnings.warn(
+            f"Override {path!r}: {type(obj).__name__} has no field {leaf!r}; it is added as a new attribute.",
+            UserWarning,
+            stacklevel=user_stacklevel(),
+        )
     if isinstance(obj, dict):
         obj[leaf] = val
     else:

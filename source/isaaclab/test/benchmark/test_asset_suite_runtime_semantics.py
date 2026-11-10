@@ -131,7 +131,9 @@ def test_physx_collection_refresh_uses_flattened_body_count(monkeypatch) -> None
 def test_newton_rigid_object_refresh_regenerates_kinematics_and_mass_properties(monkeypatch) -> None:
     """Newton rigid-object preparation should refresh sources with consistent root/body kinematics."""
     view = _RecordingView()
-    data = SimpleNamespace(_sim_timestamp=0.0)
+    data = SimpleNamespace(
+        _sim_timestamp=0.0, _backend_manager=SimpleNamespace(backend=SimpleNamespace(state_version=0))
+    )
     monkeypatch.setattr(newton_runtime, "np", np, raising=False)
     monkeypatch.setattr(newton_runtime, "wp", wp, raising=False)
     refresh = getattr(newton_runtime, "_refresh_rigid_object_data", None)
@@ -151,12 +153,15 @@ def test_newton_rigid_object_refresh_regenerates_kinematics_and_mass_properties(
     assert data._sim_timestamp == 1.0
     np.testing.assert_array_equal(view._attributes["root_transforms"], view._attributes["link_transforms"][:, :, 0])
     np.testing.assert_array_equal(view._attributes["root_velocities"], view._attributes["link_velocities"][:, :, 0])
+    assert data._backend_manager.backend.state_version == 1
 
 
 def test_newton_collection_refresh_regenerates_kinematics_and_mass_properties(monkeypatch) -> None:
     """Newton collection preparation should refresh every source buffer."""
     view = _RecordingView()
-    data = SimpleNamespace(_sim_timestamp=0.0)
+    data = SimpleNamespace(
+        _sim_timestamp=0.0, _backend_manager=SimpleNamespace(backend=SimpleNamespace(state_version=0))
+    )
     monkeypatch.setattr(newton_runtime, "np", np, raising=False)
     monkeypatch.setattr(newton_runtime, "wp", wp, raising=False)
     refresh = getattr(newton_runtime, "_refresh_collection_data", None)
@@ -172,8 +177,10 @@ def test_newton_collection_refresh_regenerates_kinematics_and_mass_properties(mo
         "inertias": (2, 3, 1),
     }
     assert data._sim_timestamp == 1.0
+    assert data._backend_manager.backend.state_version == 1
 
 
+@pytest.mark.ov
 def test_ovphysx_data_targets_are_independent_and_properties_preflight_when_available() -> None:
     """OVPhysX property targets should be independent and expose every declared runtime property."""
     if not torch.cuda.is_available():

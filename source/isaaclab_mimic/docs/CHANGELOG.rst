@@ -3,6 +3,16 @@ Changelog
 
 .. towncrier release notes start
 
+2.1.7 (2026-10-29)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed ``isaaclab_mimic.ui.instruction_display``. Its only user, ``record_demos.py``, now ships its
+  instruction display in :mod:`isaaclab_teleop.entrypoints`.
+
+
 2.1.6 (2026-10-25)
 ~~~~~~~~~~~~~~~~~~
 

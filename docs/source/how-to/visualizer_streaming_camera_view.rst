@@ -280,11 +280,11 @@ normal sensor lifecycle. Of the 256 environments, 36 are sampled for display.
 .. raw:: html
 
    <video autoplay loop muted playsinline controls preload="auto" style="width:100%; display:block;">
-     <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/streaming_kit_anymal_interactive.mp4" type="video/mp4">
+     <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/visualizers/streaming_kit_anymal_interactive.mp4" type="video/mp4">
    </video>
    <p class="viz-cap">Kit visualizer: interactive viewport</p>
    <video autoplay loop muted playsinline controls preload="auto" style="width:100%; display:block; margin-top:1em;">
-     <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/streaming_kit_anymal_tiled.mp4" type="video/mp4">
+     <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/visualizers/streaming_kit_anymal_tiled.mp4" type="video/mp4">
    </video>
    <p class="viz-cap">Kit visualizer: streaming camera view</p>
 
@@ -320,11 +320,11 @@ feeds are shown by default.
 .. raw:: html
 
    <video autoplay loop muted playsinline controls preload="auto" style="width:100%; display:block;">
-     <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/streaming_newton_galbot_interactive.mp4" type="video/mp4">
+     <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/visualizers/streaming_newton_galbot_interactive.mp4" type="video/mp4">
    </video>
    <p class="viz-cap">Newton visualizer: interactive viewport</p>
    <video autoplay loop muted playsinline controls preload="auto" style="width:100%; display:block; margin-top:1em;">
-     <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/streaming_newton_galbot_tiled.mp4" type="video/mp4">
+     <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/visualizers/streaming_newton_galbot_tiled.mp4" type="video/mp4">
    </video>
    <p class="viz-cap">Newton visualizer: streaming camera view</p>
 

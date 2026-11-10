@@ -8,7 +8,7 @@
 import pytest
 import torch
 import warp as wp
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonMJWarpManager
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonManager
 from isaaclab_newton.sensors.frame_transformer.frame_transformer import FrameTransformer
 from newton import ModelBuilder
 
@@ -21,25 +21,6 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import configclass
-from isaaclab.utils.warp.math_ops import transform_to_vec_quat
-
-# ---------------------------------------------------------------------------
-# transform_to_vec_quat
-# ---------------------------------------------------------------------------
-
-
-class TestTransformToVecQuat:
-    """Error paths of the zero-copy view split utility; values are covered by the frame-transformer tests."""
-
-    def test_invalid_ndim_raises(self):
-        """Passing a 4D array raises the documented ValueError rather than a Warp view error."""
-        with pytest.raises(ValueError, match="ndim=4"):
-            transform_to_vec_quat(wp.zeros((1, 1, 1, 1), dtype=wp.transformf, device="cpu"))
-
-    def test_wrong_dtype_raises(self):
-        """Passing wrong dtype raises TypeError."""
-        with pytest.raises(TypeError):
-            transform_to_vec_quat(wp.zeros(3, dtype=wp.vec3f, device="cpu"))
 
 
 @pytest.mark.parametrize("replicated", [False, True])
@@ -48,7 +29,7 @@ def test_sites_bind_once_to_clone_sources_or_explicit_builder(replicated):
     source = ModelBuilder() if replicated else main
     for leg in ("FL", "FR", "RL", "RR"):
         source.add_body(label=f"Robot/{leg}_foot")
-    manager = NewtonMJWarpManager(NewtonCfg())
+    manager = NewtonManager(NewtonCfg())
     xform = wp.transform((1.0, 2.0, 3.0), wp.quat_identity())
     global_label = manager.register_site(None, xform)
     local_label = manager.register_site("Robot/.*_foot", xform)

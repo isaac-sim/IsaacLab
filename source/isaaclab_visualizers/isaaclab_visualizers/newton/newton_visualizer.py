@@ -846,7 +846,12 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._transform_mapping = sim.get_scene_data_provider().create_mapping(list(self.backend.model.body_label))
         scene_data_provider = self._sim.get_scene_data_provider()
         newton_backend_active = self.physics_backend == "newton"
-        picking_supported = newton_backend_active and sim.backend_manager._supports_rigid_body_force_input
+        physics_backend = sim.backend_manager.backend if newton_backend_active else None
+        picking_supported = (
+            physics_backend is not None
+            and physics_backend.solver_ops is not None
+            and physics_backend.solver_ops.applies_body_forces()
+        )
         num_envs = scene_data_provider.num_envs
         if self._runtime_headless and not self.cfg.headless:
             logger.warning(
@@ -963,6 +968,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._viewer.picking_enabled = self._picking_enabled
         if self._picking_enabled:
             self._viewer_picking_binding.bind(self._viewer)
+            self._sim.backend_manager.register_state_force_callback(self._viewer_picking_binding.apply)
 
     def close(self) -> None:
         """Release picking and scene references without destroying Kit's shared GL context."""

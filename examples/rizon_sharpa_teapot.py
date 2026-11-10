@@ -38,16 +38,13 @@ import numpy as np
 import warp as wp
 from filelock import FileLock
 from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg
+from isaaclab_newton.physics.coupling import CouplerEntryCfg, CouplerProxyCfg
 from scipy.interpolate import CubicSpline
 from scipy.spatial.transform import Rotation
 
 from isaaclab.utils import configclass
 
-from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg
-
 if TYPE_CHECKING:
-    from _rizon_sharpa_teapot_coupler import _NewtonTeapotCouplerManager
-
     from isaaclab.assets import Articulation, ArticulationCfg, RigidObject
 
 TABLETOP_CONTAINER_POS = (-0.355, 0.0, 0.90041)
@@ -923,7 +920,7 @@ def _interpolate_joints(
 class TeapotSolverCfg(CouplerProxyCfg):
     """Select convex rigid contacts and the exact MPM shell after simulation launch."""
 
-    class_type: type[_NewtonTeapotCouplerManager] | str = "_rizon_sharpa_teapot_coupler:_NewtonTeapotCouplerManager"
+    class_type: type | str = "_rizon_sharpa_teapot_coupler:TeapotSolver"
 
 
 def make_solver_cfg(mpm_cfg: MPMSolverCfg) -> TeapotSolverCfg:

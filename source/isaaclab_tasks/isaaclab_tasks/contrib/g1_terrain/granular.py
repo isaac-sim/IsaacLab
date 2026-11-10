@@ -14,14 +14,13 @@ import numpy as np
 import torch
 from isaaclab_newton.assets import MPMObjectCfg
 from isaaclab_newton.physics import MPMSolverCfg
+from isaaclab_newton.physics.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 from isaaclab_newton.sim.spawners.mpm import MPMGridCfg, MPMParticleMaterialCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.spawners.materials import spawn_physics_material
 from isaaclab.terrains import TerrainImporter
-
-from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
 from .sonic_parameters import DAMPING, JOINT_NAMES, STIFFNESS
 
@@ -97,7 +96,6 @@ def configure_granular(cfg, is_physx: bool):
         iterations=1,
     )
     cfg.sim.physics.solver_cfg = coupled
-    cfg.sim.physics.class_type = coupled.class_type
     cfg.sim.physics.collision_cfg.soft_contact_max = 0
     top = cfg.course.granular_top
     cfg.scene.sand = MPMObjectCfg(

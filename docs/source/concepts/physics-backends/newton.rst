@@ -173,11 +173,10 @@ coordinates instead require forward-kinematics synchronization through
 Ownership, synchronization, and invalidation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Direct writes bypass Isaac Lab caches and shape/order validation. Some Newton solvers swap current
-and next state buffers, so read ``backend.state_0`` again when code needs the current authoritative
-state on a later step. A selection can survive state-buffer swaps because it describes model indices.
-A hard reset closes the backend and builds a new one, so reacquire ``sim.backend_manager.backend`` and
-its buffers, and recreate selections, after a model rebuild. Solver-specific generalized- and
+Direct writes bypass Isaac Lab caches and shape/order validation. Every physics step ends with the
+current state in ``backend.state_0``; ``backend.state_1`` is solver scratch. A hard reset closes the
+backend and builds a new one, so reacquire ``sim.backend_manager.backend`` and its buffers, and
+recreate selections, after a model rebuild. Solver-specific generalized- and
 maximal-coordinate conventions remain authoritative.
 
 Authoritative references

@@ -10,6 +10,7 @@ All tests are pure-Python mocks — no simulation context or Kit app required.
 
 from __future__ import annotations
 
+import sys
 import warnings
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -32,15 +33,14 @@ _FRAME = np.ones((8, 12, 3), dtype=np.uint8) * 128
 
 
 @pytest.fixture(autouse=True)
-def _patch_moviepy():
+def _patch_moviepy(monkeypatch):
     """Stub out ImageSequenceClip so tests run without moviepy installed.
 
-    Missing-dependency coverage blocks the module import in its own context.
+    Missing-dependency coverage blocks the module import in its own test.
     """
-    with patch.dict(
-        "sys.modules", {"moviepy.video.io.ImageSequenceClip": SimpleNamespace(ImageSequenceClip=MagicMock())}
-    ):
-        yield
+    monkeypatch.setitem(
+        sys.modules, "moviepy.video.io.ImageSequenceClip", SimpleNamespace(ImageSequenceClip=MagicMock())
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -129,10 +129,10 @@ def test_parse_video_source(source, expected):
 # ---------------------------------------------------------------------------
 
 
-def test_init_raises_import_error_when_moviepy_missing():
-    with patch.dict("sys.modules", {"moviepy.video.io.ImageSequenceClip": None}):
-        with pytest.raises(ImportError, match="moviepy"):
-            VideoRecorder(_cfg(), _make_env())
+def test_init_raises_import_error_when_moviepy_missing(monkeypatch):
+    monkeypatch.setitem(sys.modules, "moviepy.video.io.ImageSequenceClip", None)
+    with pytest.raises(ImportError, match="moviepy"):
+        VideoRecorder(_cfg(), _make_env())
 
 
 @pytest.mark.parametrize(

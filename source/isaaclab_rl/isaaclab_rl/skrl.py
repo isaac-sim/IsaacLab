@@ -11,14 +11,15 @@ The following example shows how to wrap an environment for skrl:
 
     from isaaclab_rl.skrl import SkrlVecEnvWrapper
 
-    env = SkrlVecEnvWrapper(env, ml_framework="torch")  # or ml_framework="jax"
+    env = SkrlVecEnvWrapper(env, ml_framework="torch")  # or "jax", or "warp"
 
 Or, equivalently, by directly calling the skrl library API as follows:
 
 .. code-block:: python
 
-    from skrl.envs.torch.wrappers import wrap_env  # for PyTorch, or...
-    from skrl.envs.jax.wrappers import wrap_env  # for JAX
+    from skrl.envs.wrappers.torch import wrap_env  # for PyTorch, or...
+    from skrl.envs.wrappers.jax import wrap_env  # for JAX, or...
+    from skrl.envs.wrappers.warp import wrap_env  # for Warp
 
     env = wrap_env(env, wrapper="isaaclab")
 
@@ -36,7 +37,7 @@ from .utils.env_types import check_env_type
 if TYPE_CHECKING:
     from isaaclab.envs import DirectMARLEnv, DirectRLEnv, ManagerBasedRLEnv
 
-SKRL_MIN_VERSION = "2.1.0"
+SKRL_MIN_VERSION = "2.1.1"
 """Oldest skrl release supported by the entrypoints."""
 
 
@@ -57,7 +58,7 @@ def check_skrl_version() -> None:
         raise SystemExit(1)
 
 
-def import_skrl_runner(ml_framework: Literal["torch", "jax"]) -> type:
+def import_skrl_runner(ml_framework: Literal["torch", "jax", "warp"]) -> type:
     """Return the skrl :class:`Runner` implementation of the selected ML framework.
 
     Args:
@@ -70,8 +71,12 @@ def import_skrl_runner(ml_framework: Literal["torch", "jax"]) -> type:
         from skrl.utils.runner.torch import Runner
     elif ml_framework == "jax":
         from skrl.utils.runner.jax import Runner
+    elif ml_framework == "warp":
+        from skrl.utils.runner.warp import Runner
     else:
-        raise ValueError(f"Invalid ML framework for the skrl runner: {ml_framework}. Available options: 'torch', 'jax'")
+        raise ValueError(
+            f"Invalid ML framework for the skrl runner: {ml_framework}. Available options: 'torch', 'jax', 'warp'"
+        )
     return Runner
 
 
