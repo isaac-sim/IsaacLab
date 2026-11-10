@@ -361,13 +361,16 @@ def resolve_1d_mask(
     storage. Host sequences and device transfers are eager-only and may allocate.
     Temporary CUDA index uploads synchronize their stream before releasing storage;
     preallocated device selectors avoid this synchronization.
-    Integer widths and strides are preserved. Masks must have the destination shape
-    and boolean dtype. The returned scratch storage is reused, so this is not reentrant.
-    Callers that never select by ids may omit ``scratch_mask``; their masks are then
-    returned as given, and the callers launch over the mask lengths.
+    Integer widths and strides are preserved. Masks use the boolean dtype and are never
+    longer than ``all_mask``; with a ``scratch_mask`` they have its exact shape. The returned
+    scratch storage is reused, so this is not reentrant.
+    Callers that never select by ids may omit ``scratch_mask``; their masks, which may be
+    shorter than ``all_mask``, are then returned as given, and the callers launch over the
+    mask lengths, so a short mask writes only the rows it covers.
 
     Raises:
-        ValueError: If ids or a slice select a subset of elements and no ``scratch_mask`` is given.
+        ValueError: If ids or a slice select a subset of elements and no ``scratch_mask`` is given,
+            or a boolean mask is longer than ``all_mask`` or differs from a given ``scratch_mask`` shape.
     """
     device = all_mask.device
     if scratch_mask is not None:
@@ -421,8 +424,10 @@ def resolve_1d_mask(
     if selection.ndim != 1:
         raise ValueError("Selectors must be rank-1 arrays")
     if mask is not None or selection.dtype == wp.bool:
-        if selection.dtype != wp.bool or (scratch_mask is not None and selection.shape != scratch_mask.shape):
-            raise ValueError("Boolean masks must match the destination shape and dtype")
+        size = all_mask.shape[0]  # the scratch_mask length when one is given
+        fits = selection.shape[0] == size if scratch_mask is not None else selection.shape[0] <= size
+        if selection.dtype != wp.bool or not fits:
+            raise ValueError("Boolean masks must fit the destination shape and use the boolean dtype")
         return selection
     if selection.dtype not in (wp.int32, wp.int64):
         raise TypeError("Index arrays must use signed int32 or int64 values")
@@ -443,8 +448,8 @@ def resolve_ids(
     *,
     ids: "Sequence[int] | slice | torch.Tensor | wp.array | None" = None,
     mask: "wp.array | torch.Tensor | None" = None,
-    all_ids: "wp.array | slice",
-) -> "wp.array | torch.Tensor | slice":
+    all_ids: wp.array,
+) -> "wp.array | torch.Tensor":
     """Resolve ids/mask into ids on the device of ``all_ids``. Given ids are used as given: a consumer of ids takes
     them without converting the mask, which happens only when no ids (or ``slice(None)``) are given.
 
@@ -456,29 +461,23 @@ def resolve_ids(
         mask: Boolean mask. Its ids are found with :func:`torch.nonzero`, which waits for
             the device.
         all_ids: Pre-allocated ids of every element, returned as-is when *ids* and *mask*
-            select every element. ``slice(None)`` for a consumer that indexes torch tensors: every element stays a
-            slice and given ids are returned as given.
+            select every element.
 
     Returns:
         ``all_ids``, a ``torch.Tensor`` or a ``wp.array`` of ids on the device of ``all_ids``.
-        A mask resolves to an int64 ``torch.Tensor`` (on the mask's device with a ``slice(None)`` *all_ids*);
-        lists and slices resolve to ``wp.int32``.
+        A mask resolves to an int64 ``torch.Tensor``; lists and slices resolve to ``wp.int32``.
 
     Raises:
         TypeError: If *ids* is a :class:`ProxyArray`, which is output-only, or *mask* is
             neither a ``wp.array`` nor a ``torch.Tensor``.
     """
+    device = all_ids.device
     if mask is not None and (ids is None or (isinstance(ids, slice) and ids == slice(None))):
         if isinstance(mask, wp.array):
             mask = wp.to_torch(mask)
         elif not isinstance(mask, torch.Tensor):
             raise TypeError(f"Unsupported mask type: {type(mask)}")
-        if not isinstance(all_ids, slice):
-            mask = mask.to(wp.device_to_torch(all_ids.device))
-        return torch.nonzero(mask).squeeze(-1)
-    if isinstance(all_ids, slice):
-        return all_ids if ids is None else ids
-    device = all_ids.device
+        return torch.nonzero(mask.to(wp.device_to_torch(device))).squeeze(-1)
     if isinstance(ids, torch.Tensor):
         return ids if str(ids.device) == str(device) else ids.to(wp.device_to_torch(device))
     if ids is None:
