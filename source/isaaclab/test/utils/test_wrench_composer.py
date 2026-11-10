@@ -543,6 +543,47 @@ def test_generated_writers_replay_changed_inputs_under_cuda_capture(device):
         )
 
 
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_recorded_wrench_work_applies_wrenches_written_after_capture(device):
+    """Once used, a recorded merge, composition and reset no longer depend on host flags, as in a captured step."""
+    com, quat = _poses(quat={(0, 0): _HALF_TURN_Z})
+    asset = SimpleNamespace(
+        num_instances=2, num_bodies=2, device=device, data=_AssetData(com.to(device), quat.to(device))
+    )
+    first_uses = []
+    instantaneous = WrenchComposer(asset, on_first_use=lambda: first_uses.append("instantaneous"))
+    permanent = WrenchComposer(asset, on_first_use=lambda: first_uses.append("permanent"))
+    merged = WrenchComposer(asset, on_first_use=lambda: first_uses.append("merged"))
+    with wp.ScopedDevice(device):
+        local = wp.array([[[1.0, 0.0, 0.0]]], dtype=wp.vec3f)
+        instantaneous.add_forces_and_torques_index(local, env_ids=[0], body_ids=[0])
+        instantaneous.reset()
+        permanent.add_forces_and_torques_index(
+            wp.array([[[0.0, 2.0, 0.0]]], dtype=wp.vec3f), env_ids=[0], body_ids=[0], is_global=True
+        )
+        # a merge is a first use too, called once
+        merged.add_raw_buffers_from(permanent)
+        merged.add_raw_buffers_from(permanent)
+        force = wp.zeros((2, 2), dtype=wp.vec3f)
+        assert not instantaneous.active and instantaneous.pending is False
+
+        def write():
+            if instantaneous.pending:
+                instantaneous.add_raw_buffers_from(permanent)
+            wp.copy(force, instantaneous.get_forces_and_torques()[0])
+            instantaneous.reset()
+
+        with wp.ScopedCapture(device=device) as capture:
+            write()
+        # A wrench written after the capture reaches the next replay, and the replay clears it.
+        instantaneous.add_forces_and_torques_index(local, env_ids=[0], body_ids=[0])
+        wp.capture_launch(capture.graph)
+        _assert_vectors(force, _grid({(0, 0): (1.0, -2.0, 0.0)}).to(device))
+        wp.capture_launch(capture.graph)
+        _assert_vectors(force, _grid({(0, 0): (0.0, -2.0, 0.0)}).to(device))
+    assert first_uses == ["instantaneous", "permanent", "merged"]
+
+
 @pytest.mark.parametrize(
     "name",
     [

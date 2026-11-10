@@ -411,6 +411,19 @@ class InteractiveScene:
         """
         return self.get_state(is_relative=False)
 
+    @property
+    def is_graphable(self) -> bool:
+        """Whether :meth:`write_data_to_sim` can be recorded into a CUDA graph."""
+        writers = (
+            self._articulations,
+            self._cable_objects,
+            self._deformable_objects,
+            self._rigid_objects,
+            self._surface_grippers,
+            self._rigid_object_collections,
+        )
+        return all(asset.is_graphable for assets in writers for asset in assets.values())
+
     """
     Operations.
     """

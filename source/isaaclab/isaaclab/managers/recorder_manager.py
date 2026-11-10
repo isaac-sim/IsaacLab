@@ -219,6 +219,12 @@ class RecorderManager(ManagerBase):
         return self._term_names
 
     @property
+    def records_physics_steps(self) -> bool:
+        """Whether a term records after every physics step of the decimation loop."""
+        hook = RecorderTerm.record_post_physics_decimation_step
+        return any(type(term).record_post_physics_decimation_step is not hook for term in self._terms.values())
+
+    @property
     def exported_successful_episode_count(self) -> int:
         """Number of successful episodes."""
         return int(self._exported_counts[1].item()) if self.active_terms else 0

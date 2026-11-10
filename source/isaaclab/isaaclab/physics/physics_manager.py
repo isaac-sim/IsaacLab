@@ -21,6 +21,8 @@ from ..sim.utils.stage import get_current_stage
 
 if TYPE_CHECKING:
     from ..cloner import ReplicateContext
+    from ..managers import ActionManager
+    from ..scene import InteractiveScene
     from ..scene_data import SceneDataBackend
     from ..sim.simulation_context import SimulationContext
     from .physics_manager_cfg import PhysicsCfg
@@ -666,6 +668,20 @@ class PhysicsManager(metaclass=_PhysicsManagerMeta):
 
         When this returns ``True`` the environment should call :meth:`step`
         once per policy step instead of looping ``decimation`` times.
+        """
+        return False
+
+    def handle_actions(self, actions: ActionManager, scene: InteractiveScene) -> bool:
+        """Run the environment's actions and asset writes inside :meth:`step`, before every physics step.
+
+        The default implementation handles nothing.
+
+        Args:
+            actions: Environment action manager.
+            scene: Scene whose assets write to the simulation.
+
+        Returns:
+            Whether :meth:`step` now applies the actions and writes the assets.
         """
         return False
 
