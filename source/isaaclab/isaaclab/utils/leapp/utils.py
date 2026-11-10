@@ -31,7 +31,7 @@ class TracedProxyArray(ProxyArray):
         task_name: str,
     ) -> None:
         super().__init__(proxy_array.warp)
-        astorch = proxy_array.torch
+        astorch = super().torch
         sem = TensorSemantics(
             name=input_name,
             ref=astorch,
