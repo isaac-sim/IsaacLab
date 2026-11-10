@@ -206,8 +206,10 @@ def test_simple_shading_configures_its_render_product(
 
     import isaaclab.sim.utils.stage as stage_utils
 
+    values = {"/isaaclab/has_gui": False}
     settings = MagicMock()
-    settings.get.return_value = False
+    settings.get.side_effect = values.get
+    settings.set.side_effect = values.__setitem__
 
     rp = MagicMock()
     rp.path = "/Render/OmniverseKit/HydraTextures/rp_test"
@@ -281,64 +283,159 @@ def test_simple_shading_configures_its_render_product(
     global_setting_calls = [
         setting_call
         for setting_call in settings.set.call_args_list
-        if setting_call.args
-        and setting_call.args[0] in ("/rtx/minimal/mode", "/rtx/rendermode", "/rtx/sdg/force/disableColorRender")
+        if setting_call.args and setting_call.args[0] in ("/rtx/minimal/mode", "/rtx/rendermode")
     ]
     assert global_setting_calls == []
 
+    assert all(
+        setting_call.args[1] is False
+        for setting_call in settings.set.call_args_list
+        if setting_call.args and setting_call.args[0] == "/rtx/sdg/force/disableColorRender"
+    )
 
-@pytest.mark.parametrize(
-    ("has_gui", "camera_data_types", "expected_disable_color_render"),
-    [
-        pytest.param(True, [["depth"]], False, id="gui-keeps-color-rendering"),
-        pytest.param(False, [["depth"]], True, id="headless-uses-depth-only-rendering"),
-        pytest.param(False, [["rgb"], ["depth"]], False, id="color-then-depth-only-keeps-color-rendering"),
-        pytest.param(False, [["depth"], ["rgb"]], False, id="depth-only-then-color-keeps-color-rendering"),
-    ],
-)
-def test_depth_only_camera_color_render_setting(monkeypatch, has_gui, camera_data_types, expected_disable_color_render):
-    """Depth-only cameras must not disable color rendering for an active GUI or a color camera.
 
-    ``disableColorRender`` is a global RTX setting, so enabling it for a depth-only
-    camera also blacks out the viewport and every color camera in the process,
-    whichever camera is created first. Headless execution with only depth-only
-    cameras should retain the depth-only optimization.
-    """
-    _, syntheticdata_module = _install_omni_stubs(monkeypatch)
+@pytest.fixture
+def rtx_camera_setup(monkeypatch):
+    """Exercise successful render-product construction with USD cameras and stubbed Kit services."""
+    replicator_core_module, syntheticdata_module = _install_omni_stubs(monkeypatch)
     monkeypatch.setattr(syntheticdata_module, "SyntheticData", MagicMock(), raising=False)
 
     import isaaclab_physx.renderers.isaac_rtx_renderer as rtx_renderer
     from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
 
+    from pxr import Usd, UsdGeom
+
     import isaaclab.sim.utils.stage as stage_utils
 
-    values = {"/isaaclab/has_gui": has_gui}
+    stage = Usd.Stage.CreateInMemory()
+    camera_path = "/World/envs/env_0/Camera"
+    UsdGeom.Camera.Define(stage, camera_path)
+    fabric_stage = MagicMock()
+    fabric_stage.SelectPrims.return_value.GetCount.return_value = 1
+
+    values = {"/isaaclab/has_gui": False, "/rtx/sdg/force/disableColorRender": False}
     settings = MagicMock()
     settings.get.side_effect = values.get
     settings.set.side_effect = values.__setitem__
 
-    # Camera validation terminates create_render_data immediately after the
-    # color-render setting is selected, keeping this a lightweight unit test.
-    stage = MagicMock()
-    stage.SelectPrims.return_value.GetCount.return_value = 1
-    stage.GetPrimAtPath.return_value.IsA.return_value = False
-    renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)
-    renderer.cfg = IsaacRtxRendererCfg()
+    def _create_tiled_render_product(*, cameras, tile_resolution, name):
+        path = f"/Render/{name}"
+        stage.DefinePrim(path, "RenderProduct")
+        return MagicMock(path=path)
 
-    for data_types in camera_data_types:
-        spec = SimpleNamespace(
-            camera_prim_paths=["/World/NotACamera"],
-            cfg=SimpleNamespace(data_types=data_types),
+    replicator_core_module.create = SimpleNamespace(render_product_tiled=_create_tiled_render_product)
+    replicator_core_module.AnnotatorRegistry = MagicMock()
+    monkeypatch.setattr(rtx_renderer, "get_settings_manager", lambda: settings)
+    monkeypatch.setattr(rtx_renderer, "get_isaac_sim_version", lambda: version.parse("6.0"))
+    monkeypatch.setattr(stage_utils, "get_current_stage", lambda *, fabric=False: fabric_stage if fabric else stage)
+
+    def _make_renderer():
+        renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)
+        renderer.cfg = IsaacRtxRendererCfg()
+        return renderer
+
+    def _make_spec(data_types):
+        return SimpleNamespace(
+            camera_prim_paths=[camera_path],
+            device="cpu",
+            cfg=SimpleNamespace(
+                data_types=data_types,
+                width=64,
+                height=64,
+                isp_cfg=None,
+                colorize_semantic_segmentation=False,
+                colorize_instance_segmentation=False,
+                colorize_instance_id_segmentation=False,
+            ),
         )
-        with (
-            patch.object(rtx_renderer, "get_settings_manager", return_value=settings),
-            patch.object(rtx_renderer, "get_isaac_sim_version", return_value=version.parse("6.0")),
-            patch.object(stage_utils, "get_current_stage", return_value=stage),
-            pytest.raises(RuntimeError, match="is not a Camera"),
-        ):
-            renderer.create_render_data(spec)
 
-    assert values["/rtx/sdg/force/disableColorRender"] is expected_disable_color_render
+    return SimpleNamespace(
+        renderer=_make_renderer(),
+        make_renderer=_make_renderer,
+        make_spec=_make_spec,
+        values=values,
+        fabric=fabric_stage,
+    )
+
+
+@pytest.mark.parametrize(
+    ("has_gui", "camera_data_types", "expected_disable_color_render"),
+    [
+        pytest.param(True, [["depth"]], [False], id="gui-keeps-color-rendering"),
+        pytest.param(False, [["depth"]], [True], id="headless-uses-depth-only-rendering"),
+        pytest.param(False, [["rgb"], ["depth"]], [False, False], id="color-then-depth-only-keeps-color-rendering"),
+        pytest.param(False, [["depth"], ["rgba"]], [True, False], id="depth-only-then-color-keeps-color-rendering"),
+        pytest.param(
+            False,
+            [["rgb", "simple_shading_full_mdl"], ["depth"]],
+            [False, False],
+            id="mixed-color-shading-then-depth-keeps-color-rendering",
+        ),
+        pytest.param(
+            False,
+            [["depth"], ["rgb_hdr", "simple_shading_full_mdl"]],
+            [True, False],
+            id="depth-then-mixed-hdr-shading-keeps-color-rendering",
+        ),
+        pytest.param(
+            False,
+            [["simple_shading_constant_diffuse"], ["depth"]],
+            [False, False],
+            id="simple-shading-then-depth-keeps-color-rendering",
+        ),
+    ],
+)
+def test_depth_only_camera_color_render_setting(
+    rtx_camera_setup, has_gui, camera_data_types, expected_disable_color_render
+):
+    """Successful cameras preserve color demand in either creation order, including simple shading."""
+    setup = rtx_camera_setup
+    setup.values["/isaaclab/has_gui"] = has_gui
+
+    for data_types, expected_disabled in zip(camera_data_types, expected_disable_color_render, strict=True):
+        render_data = setup.renderer.create_render_data(setup.make_spec(data_types))
+
+        assert render_data.render_product is not None
+        assert setup.values["/rtx/sdg/force/disableColorRender"] is expected_disabled
+
+
+def test_color_rendering_tracks_live_products_across_renderer_instances(rtx_camera_setup):
+    """Releasing the last color product restores depth-only rendering, even with repeated cleanup."""
+    setup = rtx_camera_setup
+    second_renderer = setup.make_renderer()
+    setup.renderer.create_render_data(setup.make_spec(["depth"]))
+    assert setup.values["/rtx/sdg/force/disableColorRender"] is True
+
+    first_color = setup.renderer.create_render_data(setup.make_spec(["rgb"]))
+    second_color = second_renderer.create_render_data(setup.make_spec(["rgba"]))
+    assert setup.values["/rtx/sdg/force/disableColorRender"] is False
+
+    setup.renderer.cleanup(first_color)
+    assert setup.values["/rtx/sdg/force/disableColorRender"] is False
+    setup.renderer.cleanup(first_color)
+    assert setup.values["/rtx/sdg/force/disableColorRender"] is False
+
+    second_renderer.cleanup(second_color)
+    assert setup.values["/rtx/sdg/force/disableColorRender"] is True
+    second_renderer.cleanup(second_color)
+    assert setup.values["/rtx/sdg/force/disableColorRender"] is True
+
+
+def test_failed_color_camera_creation_preserves_depth_only_rendering(rtx_camera_setup):
+    """A failure during final Fabric calibration cannot leave color rendering enabled."""
+    setup = rtx_camera_setup
+    setup.renderer.create_render_data(setup.make_spec(["depth"]))
+    assert setup.values["/rtx/sdg/force/disableColorRender"] is True
+
+    # Fail after the product and annotators exist, during IsaacRtxRenderData initialization.
+    setup.fabric.SelectPrims.return_value.GetCount.return_value = 0
+    with pytest.raises(RuntimeError, match="Fabric camera calibration selection does not match"):
+        setup.renderer.create_render_data(setup.make_spec(["rgb"]))
+    assert setup.values["/rtx/sdg/force/disableColorRender"] is True
+
+    setup.fabric.SelectPrims.return_value.GetCount.return_value = 1
+    setup.renderer.create_render_data(setup.make_spec(["depth"]))
+    assert setup.values["/rtx/sdg/force/disableColorRender"] is True
 
 
 _MISSING = object()

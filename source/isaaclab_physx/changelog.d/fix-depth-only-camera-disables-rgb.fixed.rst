@@ -1,2 +1,4 @@
-* Fixed headless Isaac RTX color cameras rendering black when a depth-only camera exists in the same process,
-  by enabling the process-wide ``/rtx/sdg/force/disableColorRender`` only while no camera renders color.
+* Fixed headless Isaac RTX color cameras rendering black beside depth-only cameras, including
+  mixed RGB and simple-shading requests, by tracking active color render products across renderer instances.
+  Restored the depth-only optimization after the last color product is cleaned up without retaining
+  color demand from failed camera initialization.
