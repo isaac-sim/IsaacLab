@@ -7,9 +7,14 @@
 
 from __future__ import annotations
 
+import inspect
 import math
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 
+import warp as wp
+
+from . import warp_backend
 from .config import (
     Command,
     DirectAction,
@@ -125,7 +130,7 @@ class MDPBuilder:
             errors.append(f"Only one time limit is allowed, found {', '.join(map(str, time_limits))}.")
         if errors:
             raise ValueError("Invalid MDP:\n  " + "\n  ".join(errors))
-        return MDP(
+        mdp = MDP(
             schema=self.schema,
             device=device,
             backend=backend,
@@ -138,9 +143,12 @@ class MDPBuilder:
             observation_ops=tuple(ops[Phase.OBSERVATIONS]),
             action_dim=action_dim,
             observation_dims=observation_dims,
-            max_episode_length=math.ceil(time_limits[0].cfg.seconds / self.schema.step_dt) if time_limits else None,
+            max_episode_length=math.ceil(time_limits[0].cfg.episode_length_s / self.schema.step_dt)
+            if time_limits
+            else None,
             streams=tuple(streams),
         )
+        return replace(mdp, program=warp_backend.compile_program(mdp)) if backend is Backend.WARP else mdp
 
     def _add(self, entry: ScheduleEntry) -> ScheduleEntry:
         if entry.path in self._entries:
@@ -184,16 +192,27 @@ class MDPBuilder:
             errors.append(f"{entry}: inputs, state, params, and rng must have distinct names, got {names}.")
         if isinstance(cfg, (Command, Event)) and cfg.term.state:
             errors.append(f"{entry}: commands and events cannot keep state.")
-        if isinstance(cfg, Event) and (cfg.mode is EventMode.INTERVAL) != (cfg.interval is not None):
-            errors.append(f"{entry}: interval events need an interval, and other events cannot have one.")
+        if isinstance(cfg, Event) and (cfg.mode is EventMode.INTERVAL) != (cfg.interval_range_s is not None):
+            errors.append(f"{entry}: interval events need an interval_range_s, and other events cannot have one.")
+        if implementation is not None and output_shape is not None:
+            # Events take the mask of the worlds to write; other Warp functions take the output to write.
+            if isinstance(cfg, Event):
+                self._check_hook(entry, implementation.compute, names, errors, extra="mask")
+            else:
+                extra = "out" if backend is Backend.WARP else None
+                self._check_hook(entry, implementation.compute, names, errors, len(output_shape), extra)
+            self._check_hook(entry, implementation.update, names, errors)
+            self._check_hook(entry, implementation.reset, names, errors, extra="mask")
         if len(errors) > num_errors:
             return None
 
-        timer = None
-        if isinstance(cfg, Command):
-            timer = cfg.resampling_time
-        elif isinstance(cfg, Event):
-            timer = cfg.interval
+        timer = (
+            cfg.resampling_time_range
+            if isinstance(cfg, Command)
+            else cfg.interval_range_s
+            if isinstance(cfg, Event)
+            else None
+        )
         stream = None
         if timer is not None or cfg.term.random:
             stream = len(streams)
@@ -218,15 +237,39 @@ class MDPBuilder:
                 for name, spec in cfg.term.state.items()
             },
             weight=cfg.weight if isinstance(cfg, Reward) else 1.0,
-            truncation=cfg.truncation if isinstance(cfg, Termination) else False,
+            time_out=cfg.time_out if isinstance(cfg, Termination) else False,
             group=group,
             columns=columns,
             target=FieldSelector("commands", entry.path[1]) if isinstance(cfg, Command) else None,
             shape=output_shape,
+            dtype=wp.bool if isinstance(cfg, Termination) else wp.float32,
             timer=timer,
             stream=stream,
             random=cfg.term.random,
         )
+
+    def _check_hook(
+        self,
+        entry: ScheduleEntry,
+        hook: Callable | None,
+        names: list[str],
+        errors: list[str],
+        indices: int = 0,
+        extra: str | None = None,
+    ) -> None:
+        """Check that a func takes the world, output indices, and ``names``, and a function ``names`` and ``extra``."""
+        if isinstance(hook, wp.Function):
+            if set(list(hook.input_types)[1 + indices :]) != set(names):
+                errors.append(
+                    f"{entry}: wp.func {hook.key!r} must take the world, {indices} output indices, and"
+                    f" {sorted(names)}, got {list(hook.input_types)}."
+                )
+        elif hook is not None:
+            names = sorted({*names, extra} - {None})
+            try:
+                inspect.signature(hook).bind(**dict.fromkeys(names))
+            except TypeError as error:
+                errors.append(f"{entry}: {hook.__name__!r} is called with {names}: {error}.")
 
     def _resolve_shape(
         self, entry: ScheduleEntry, role: str, shape: tuple[str | int, ...], sizes: dict[str, int], errors: list[str]

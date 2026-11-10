@@ -8,10 +8,9 @@
 from __future__ import annotations
 
 import enum
-import math
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import warp as wp
 
@@ -21,6 +20,9 @@ from . import rng
 from .config import FieldSelector
 from .scene import SceneData, SceneSchema
 from .terms import State
+
+if TYPE_CHECKING:
+    from .warp_backend import Program
 
 
 class Backend(enum.Enum):
@@ -53,27 +55,15 @@ class TermOp:
     params: Mapping[str, Any]
     state: Mapping[str, State]  # Shapes resolved to sizes, including the world dimension
     weight: float = 1.0  # Rewards only
-    truncation: bool = False  # Terminations only
+    time_out: bool = False  # Terminations only
     group: str = ""  # Observations only
     columns: slice = slice(None)  # Columns of the observation group
     target: FieldSelector | None = None  # Commands only
     shape: tuple[int, ...] = ()  # Output dimensions after the world dimension
+    dtype: type = wp.float32  # Output element type
     timer: tuple[float, float] | None = None  # Seconds between command resamples or interval events
     stream: int | None = None  # Row of MDPState.rng, for timers and random terms
     random: bool = False  # Whether the term draws from its stream
-
-
-@dataclass(frozen=True)
-class TermOutputs:
-    """Stacked outputs of the reward and termination terms, one row per op, for the Warp backend."""
-
-    terminations: wp.array  # (num_termination_ops, num_worlds)
-    is_truncation: wp.array  # (num_termination_ops,)
-    rewards: wp.array  # (num_reward_ops, num_worlds)
-    reward_scales: wp.array  # (num_reward_ops,), weight * step_dt
-    observations: dict[str, wp.array]  # Scratch for observe(), (num_worlds, group_dim) per group
-    commands: dict[str, wp.array]  # Scratch for samples, (num_worlds, command_dim) per command op
-    due: dict[str, wp.array]  # (num_worlds,) per timed op, whose timer expired this step
 
 
 @dataclass
@@ -86,7 +76,8 @@ class MDPState:
     term_state: dict[str, dict[str, ProxyArray]]  # By op name, then state name
     rng: ProxyArray  # (num_streams, num_worlds), see rng.py
     timers: dict[str, ProxyArray]  # (num_worlds,) seconds left per timed op
-    outputs: TermOutputs | None = None  # Warp backend only
+    scratch: dict[str, wp.array]  # (num_worlds, *shape) outputs of the Warp functions that launch their own kernels
+    due: dict[str, wp.array]  # (num_worlds,) per timed op, whether its timer expired, for those functions
 
 
 @dataclass
@@ -117,6 +108,7 @@ class MDP:
     observation_dims: Mapping[str, int]
     max_episode_length: int | None  # Control steps until truncation, None without a time limit
     streams: tuple[str, ...]  # Op names of the rows of MDPState.rng
+    program: Program | None = None  # Warp backend only
 
     @property
     def num_worlds(self) -> int:
@@ -162,8 +154,6 @@ class MDP:
         }
         for op in self.command_ops:
             fields[op.target] = ProxyArray(wp.zeros((self.num_worlds, *op.shape), dtype=wp.float32, device=self.device))
-        streams = wp.zeros((len(self.streams), self.num_worlds), dtype=wp.int32, device=self.device)
-        wp.to_torch(streams).copy_(rng.streams(seed, self.streams, self.num_worlds, self.device))
         return MDPState(
             episode_length=ProxyArray(wp.zeros(self.num_worlds, dtype=wp.int32, device=self.device)),
             actions=ProxyArray(wp.zeros((self.num_worlds, self.action_dim), dtype=wp.float32, device=self.device)),
@@ -175,13 +165,22 @@ class MDP:
                 }
                 for op in self.term_ops
             },
-            rng=ProxyArray(streams),
+            rng=ProxyArray(wp.from_torch(rng.streams(seed, self.streams, self.num_worlds, self.device))),
             timers={
                 op.name: ProxyArray(wp.zeros(self.num_worlds, dtype=wp.float32, device=self.device))
                 for op in self.term_ops
                 if op.timer is not None
             },
-            outputs=self._term_outputs() if self.backend is Backend.WARP else None,
+            scratch={
+                op.name: wp.zeros((self.num_worlds, *op.shape), dtype=op.dtype, device=self.device)
+                for op in self.term_ops
+                if self.backend is Backend.WARP and not isinstance(op.compute, wp.Function)
+            },
+            due={
+                op.name: wp.zeros(self.num_worlds, dtype=wp.bool, device=self.device)
+                for op in self.term_ops
+                if op.timer is not None
+            },
         )
 
     def observations(self) -> dict[str, ProxyArray]:
@@ -196,27 +195,4 @@ class MDP:
             terminated=ProxyArray(wp.zeros(self.num_worlds, dtype=wp.bool, device=self.device)),
             truncated=ProxyArray(wp.zeros(self.num_worlds, dtype=wp.bool, device=self.device)),
             observations=self.observations(),
-        )
-
-    def _term_outputs(self) -> TermOutputs:
-        truncation = [op.truncation for op in self.termination_ops]
-        reward_scales = [op.weight * self.step_dt for op in self.reward_ops]
-        return TermOutputs(
-            terminations=wp.zeros((len(truncation), self.num_worlds), dtype=wp.bool, device=self.device),
-            is_truncation=wp.array(truncation, dtype=wp.bool, shape=len(truncation), device=self.device),
-            rewards=wp.zeros((len(reward_scales), self.num_worlds), dtype=wp.float32, device=self.device),
-            reward_scales=wp.array(reward_scales, dtype=wp.float32, shape=len(reward_scales), device=self.device),
-            observations={
-                group: wp.zeros((self.num_worlds, dim), dtype=wp.float32, device=self.device)
-                for group, dim in self.observation_dims.items()
-            },
-            commands={
-                op.name: wp.zeros((self.num_worlds, math.prod(op.shape)), dtype=wp.float32, device=self.device)
-                for op in self.command_ops
-            },
-            due={
-                op.name: wp.zeros(self.num_worlds, dtype=wp.bool, device=self.device)
-                for op in self.term_ops
-                if op.timer is not None
-            },
         )

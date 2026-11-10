@@ -23,7 +23,7 @@ def apply_actions(mdp: MDP, state: MDPState, actions: torch.Tensor) -> None:
 
 
 def evaluate(mdp: MDP, state: MDPState, transition: Transition) -> None:
-    """Write endings and rewards, then resample due commands, run due interval events, and observe successors."""
+    """Write terminations and rewards, then resample due commands, run due interval events, and observe successors."""
     _BACKENDS[mdp.backend].evaluate(mdp, state, transition)
 
 
@@ -33,5 +33,5 @@ def reset(mdp: MDP, state: MDPState, mask: torch.Tensor) -> None:
 
 
 def observe(mdp: MDP, state: MDPState, observations: dict[str, ProxyArray], mask: torch.Tensor) -> None:
-    """Write fresh observations of the masked worlds; other worlds keep their successor sample."""
+    """Write the observations of the masked worlds, and leave the others. It changes no state of the MDP."""
     _BACKENDS[mdp.backend].observe(mdp, state, observations, mask)

@@ -6,8 +6,9 @@
 """Per-world random streams, bitwise identical to Warp's ``rand_init`` and ``randf``.
 
 A stream holds one ``int32`` seed per world. Draw ``j`` of a step is ``wp.randf(wp.rand_init(rng[world], j), low,
-high)`` in Warp and element ``j`` of :func:`uniform` in Torch. The MDP advances a world's streams after each call
-that draws for it, and draws its timers at offset ``-1``.
+high)`` in Warp and element ``j`` of :func:`uniform` in Torch. ``evaluate`` and ``reset`` advance the streams of
+their worlds before they draw, and ``observe`` draws without advancing, so it repeats a world's last sample until
+the world is stepped or reset. Timers draw at offset ``-1``.
 """
 
 from __future__ import annotations

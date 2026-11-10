@@ -92,7 +92,7 @@ class Termination(TermCfg):
 
     phase: ClassVar[Phase] = Phase.TERMINATIONS
 
-    truncation: bool = False  # Whether the ending is a truncation rather than a termination
+    time_out: bool = False  # Whether a true output is a time-out (truncation) rather than a termination
 
 
 @dataclass
@@ -101,7 +101,7 @@ class Command(TermCfg):
 
     phase: ClassVar[Phase] = Phase.COMMANDS
 
-    resampling_time: tuple[float, float] | None = None  # Seconds between resamples, None to resample only on reset
+    resampling_time_range: tuple[float, float] | None = None  # Seconds between resamples, None for only on reset
 
 
 @dataclass
@@ -111,7 +111,7 @@ class Event(TermCfg):
     phase: ClassVar[Phase] = Phase.EVENTS
 
     mode: EventMode = EventMode.RESET
-    interval: tuple[float, float] | None = None  # Seconds between interval events
+    interval_range_s: tuple[float, float] | None = None  # Seconds between interval events
 
 
 @dataclass
@@ -120,7 +120,7 @@ class TimeLimit:
 
     phase: ClassVar[Phase] = Phase.TERMINATIONS
 
-    seconds: float
+    episode_length_s: float  # Episode duration [s]
 
 
 @dataclass

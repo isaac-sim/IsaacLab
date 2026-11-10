@@ -24,6 +24,7 @@ def apply_actions(mdp: MDP, state: MDPState, actions: torch.Tensor) -> None:
 
 
 def evaluate(mdp: MDP, state: MDPState, transition: Transition) -> None:
+    rng.advance(state.rng.torch)
     episode_length = state.episode_length.torch
     episode_length += 1
 
@@ -33,7 +34,7 @@ def evaluate(mdp: MDP, state: MDPState, transition: Transition) -> None:
     if mdp.max_episode_length is not None:
         truncated |= episode_length >= mdp.max_episode_length
     for op in mdp.termination_ops:
-        flags = truncated if op.truncation else terminated
+        flags = truncated if op.time_out else terminated
         flags |= _step(op, state).bool()
 
     rewards = transition.rewards.torch
@@ -43,16 +44,16 @@ def evaluate(mdp: MDP, state: MDPState, transition: Transition) -> None:
 
     for op in mdp.command_ops:
         if op.timer is not None:
-            _resample(op, state, _tick(mdp, op, state))
+            _resample(mdp, op, state, _tick(mdp, op, state))
     for op in mdp.interval_event_ops:
         op.compute(mask=_tick(mdp, op, state), **_arguments(op, state))
 
     for op in mdp.observation_ops:
         transition.observations[op.group].torch[:, op.columns] = _step(op, state).reshape(mdp.num_worlds, -1)
-    rng.advance(state.rng.torch)
 
 
 def reset(mdp: MDP, state: MDPState, mask: torch.Tensor) -> None:
+    rng.advance(state.rng.torch, mask)
     state.episode_length.torch.masked_fill_(mask, 0)
     state.actions.torch.masked_fill_(mask[:, None], 0.0)
     for op in mdp.term_ops:
@@ -60,17 +61,14 @@ def reset(mdp: MDP, state: MDPState, mask: torch.Tensor) -> None:
             op.reset(mask=mask, **_arguments(op, state))
             continue
         for name, spec in op.state.items():
-            value = state.term_state[op.name][name].torch
-            value.masked_fill_(mask.reshape(-1, *[1] * (value.dim() - 1)), spec.initial)
-    for op in mdp.interval_event_ops:
-        _restart(op, state, mask)
+            state.term_state[op.name][name].torch.view(mdp.num_worlds, -1).masked_fill_(mask[:, None], spec.initial)
+    for op in mdp.interval_event_ops + mdp.command_ops:
+        if op.timer is not None:
+            _restart(op, state, mask)
     for op in mdp.reset_event_ops:
         op.compute(mask=mask, **_arguments(op, state))
     for op in mdp.command_ops:
-        if op.timer is not None:
-            _restart(op, state, mask)
-        _resample(op, state, mask)
-    rng.advance(state.rng.torch, mask)
+        _resample(mdp, op, state, mask)
 
 
 def observe(mdp: MDP, state: MDPState, observations: dict[str, ProxyArray], mask: torch.Tensor) -> None:
@@ -78,7 +76,6 @@ def observe(mdp: MDP, state: MDPState, observations: dict[str, ProxyArray], mask
         columns = observations[op.group].torch[:, op.columns]
         value = op.compute(**_arguments(op, state)).reshape(mdp.num_worlds, -1)
         columns.copy_(torch.where(mask[:, None], value, columns))
-    rng.advance(state.rng.torch, mask)
 
 
 def _tick(mdp: MDP, op: TermOp, state: MDPState) -> torch.Tensor:
@@ -86,7 +83,7 @@ def _tick(mdp: MDP, op: TermOp, state: MDPState) -> torch.Tensor:
     time_left = state.timers[op.name].torch
     time_left -= mdp.step_dt
     due = time_left <= 0.0
-    time_left.copy_(torch.where(due, rng.uniform(state.rng.torch[op.stream], *op.timer, offset=-1), time_left))
+    _restart(op, state, due)
     return due
 
 
@@ -95,11 +92,11 @@ def _restart(op: TermOp, state: MDPState, mask: torch.Tensor) -> None:
     time_left.copy_(torch.where(mask, rng.uniform(state.rng.torch[op.stream], *op.timer, offset=-1), time_left))
 
 
-def _resample(op: TermOp, state: MDPState, mask: torch.Tensor) -> None:
+def _resample(mdp: MDP, op: TermOp, state: MDPState, mask: torch.Tensor) -> None:
     """Write fresh command samples to the masked worlds."""
-    command = state.fields[op.target].torch
+    command = state.fields[op.target].torch.view(mdp.num_worlds, -1)
     value = op.compute(**_arguments(op, state)).reshape(command.shape)
-    command.copy_(torch.where(mask.reshape(-1, *[1] * (command.dim() - 1)), value, command))
+    command.copy_(torch.where(mask[:, None], value, command))
 
 
 def _step(op: TermOp, state: MDPState) -> torch.Tensor:

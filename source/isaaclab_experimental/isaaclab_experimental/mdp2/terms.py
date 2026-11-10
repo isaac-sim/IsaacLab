@@ -21,15 +21,29 @@ class State:
 
 @dataclass(frozen=True)
 class Implementation:
-    """Backend hooks of a term. Hooks take the term's inputs, state, and params as keyword arguments.
+    """Backend hooks of a term. Hooks take the term's inputs, state, params, and ``rng`` by name.
 
-    - ``compute(**args)`` returns a tensor batched over worlds (Torch), or ``compute(out, **args)`` writes the
-      output into ``out``, ``bool`` for terminations and ``float32`` otherwise (Warp). It must not change state:
-      observations are computed again after a reset, and continuing worlds must get the same sample.
+    Torch hooks are batched over worlds:
+
+    - ``compute(**args)`` returns the output. It must not change state: observations are computed again after a
+      reset, and continuing worlds must get the same sample.
     - ``update(**args)`` advances state in place, once per step after ``compute``.
     - ``reset(mask, **args)`` resets the masked worlds' state. Without it, state is set to ``initial``.
 
-    Event terms are ``compute(mask, **args)`` in both backends and write their inputs in place.
+    Warp hooks are ``wp.func`` s that handle one world, called from the kernels generated for the MDP:
+
+    - ``compute(world, *indices, **args)`` returns one output element, with one index per output dimension after
+      ``"worlds"``; ``bool`` for terminations and ``float32`` otherwise.
+    - ``update(world, **args)`` and ``reset(world, **args)`` act on one world; ``reset`` runs for reset worlds only.
+    - A func gets ``rng`` as its world's ``int32`` seed. It must only write its own world, and may read other
+      worlds only where no term writes.
+
+    A Warp hook can instead be a function that launches kernels itself, with the Torch arguments plus ``out`` for
+    ``compute``, an array of the output shape to fill for every world, and ``rng`` as the stream of every world.
+    It runs between the generated kernels.
+
+    Event terms are ``compute(mask, **args)``, or a func ``compute(world, **args)`` run for the selected worlds, and
+    write their inputs in place.
     """
 
     compute: Callable
@@ -45,7 +59,7 @@ class Term:
     warp: Implementation | Callable | None = None
     shape: tuple[str | int, ...] = ("worlds",)  # Output shape; names other than "worlds" come from the inputs
     state: dict[str, State] = field(default_factory=dict)
-    random: bool = False  # Pass the use's per-world random stream as ``rng``, see :func:`uniform`
+    random: bool = False  # Pass the use's per-world random stream as ``rng``, see :mod:`.rng`
 
     def __post_init__(self):
         if self.torch is not None and not isinstance(self.torch, Implementation):
