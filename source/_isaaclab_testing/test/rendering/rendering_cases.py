@@ -187,10 +187,9 @@ SPECIALIZED_KITLESS_CASES = tuple(
 _CABLE_AOVS = (RenderBufferKind.RGB, RenderBufferKind.ALBEDO, RenderBufferKind.DEPTH, RenderBufferKind.NORMALS)
 # Gaussian-splat scenes (see ``rendering_scene_cfgs``).
 _GAUSSIAN_RGB_DEPTH = (RenderBufferKind.RGB, RenderBufferKind.DISTANCE_TO_IMAGE_PLANE)
-# https://nvbugspro.nvidia.com/bug/7071342
 _VALIANT_ISAAC_RTX_MARKS = (
     pytest.mark.xfail(
-        reason="NVBUG 7071342: Valiant's RTX RGB can fall below the golden's SSIM gate or show a teal frame.",
+        reason="NVBUG 7071342: Valiant RTX RGB can mismatch the golden.",
         raises=AssertionError,
         strict=False,
     ),
