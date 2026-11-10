@@ -160,7 +160,10 @@ def test_set_thrust_target_env_slice_unit():
 
 
 def test_thruster_collection_passes_ids_and_mask_unit():
-    """Resets by ids and by mask, as the articulation forwards them, pass both selections to every thruster."""
+    """Resets by ids and by mask, as the articulation forwards them, pass both selections to every thruster.
+
+    The articulation forwards a mask-only reset with ``env_ids=slice(None)``, which reaches the thrusters as ``None``
+    so they reset the masked environments only."""
     resets = []
     thrusters = _ThrusterCollection(
         thrusters=types.SimpleNamespace(reset=lambda env_ids=None, env_mask=None: resets.append((env_ids, env_mask)))
@@ -168,9 +171,10 @@ def test_thruster_collection_passes_ids_and_mask_unit():
     env_mask = wp.array([True, False, True, False], dtype=wp.bool, device="cpu")
 
     thrusters.reset(env_mask=env_mask)
+    thrusters.reset(slice(None), env_mask)
     thrusters.reset([1])
 
-    assert resets == [(None, env_mask), ([1], None)]
+    assert resets == [(None, env_mask), (None, env_mask), ([1], None)]
 
 
 @pytest.mark.parametrize("selection", ["ids", "mask"])

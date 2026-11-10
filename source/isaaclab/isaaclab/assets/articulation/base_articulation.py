@@ -2065,8 +2065,9 @@ class BaseArticulation(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            limit: Fixed tendon position limits ``[lower, upper]`` [m]. Shape is (len(env_ids), len(fixed_tendon_ids))
-                with dtype wp.vec2f. A torch tensor has a trailing dimension of 2.
+            limit: Fixed tendon position limits ``[lower, upper]`` [m or rad, depending on the spanned joints'
+                type]. Shape is (len(env_ids), len(fixed_tendon_ids)) with dtype wp.vec2f. A torch tensor has a trailing
+                dimension of 2.
             fixed_tendon_ids: The tendon indices to set the limit for. Defaults to None (all fixed tendons).
             env_ids: The environment indices to set the limit for. Defaults to None (all instances).
         """
@@ -2094,8 +2095,9 @@ class BaseArticulation(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            limit: Fixed tendon position limits ``[lower, upper]`` [m]. Shape is (num_instances, num_fixed_tendons)
-                with dtype wp.vec2f. A torch tensor has a trailing dimension of 2.
+            limit: Fixed tendon position limits ``[lower, upper]`` [m or rad, depending on the spanned joints'
+                type]. Shape is (num_instances, num_fixed_tendons) with dtype wp.vec2f. A torch tensor has a trailing
+                dimension of 2.
             fixed_tendon_mask: Fixed tendon mask. If None, then all the fixed tendons are updated.
                 Shape is (num_fixed_tendons,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).

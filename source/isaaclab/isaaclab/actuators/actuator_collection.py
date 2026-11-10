@@ -199,7 +199,11 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
         for actuator in self._groups.values():
             # Newton-executed groups are reset through the backend below.
             if isinstance(actuator, ActuatorBase):
-                actuator.reset(env_ids=group_env_ids, env_mask=env_mask)
+                # actuator models written to main's reset(env_ids) take no mask
+                if env_mask is None:
+                    actuator.reset(env_ids=group_env_ids)
+                else:
+                    actuator.reset(env_ids=group_env_ids, env_mask=env_mask)
         self._control.reset_native_actuators(slice(None) if group_env_ids is None else group_env_ids, env_mask)
 
     def compute(self, dt: float = 0.0) -> None:
