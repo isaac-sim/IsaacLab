@@ -10,13 +10,12 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
-import torch
 import warp as wp
 
-from isaaclab.utils.warp.capture import SYNC_DEBUG_ENV_VAR, GraphedCallable, eager, eager_method
+from isaaclab.utils.warp.capture import GraphedCallable, eager, eager_method
 
 wp.init()
-pytestmark = pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA device required")
+pytestmark = [pytest.mark.kitless, pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA device required")]
 
 DEVICE = "cuda:0"
 
@@ -54,7 +53,6 @@ def _read(values: wp.array) -> list[int]:
 
 @pytest.fixture(autouse=True)
 def enabled(monkeypatch):
-    monkeypatch.delenv(SYNC_DEBUG_ENV_VAR, raising=False)
     monkeypatch.setattr(GraphedCallable, "enabled", True)
 
 
@@ -208,17 +206,6 @@ def test_callable_raising_while_recording_ends_the_capture():
     graphed(values)
     # the failed recording ran its first graph and the eager call: 1 * 2 + 10 = 12, then 12 * 2 + 10 = 34
     assert (_read(values), _num_graphs(graphed)) == ([34], 2)
-
-
-def test_sync_debug_trap_raises_on_a_hidden_host_sync(monkeypatch):
-    monkeypatch.setattr(GraphedCallable, "enabled", False)
-    monkeypatch.setenv(SYNC_DEBUG_ENV_VAR, "1")
-    flags = torch.ones(4, dtype=torch.bool, device=DEVICE)
-    graphed = GraphedCallable(lambda: flags.any().item(), DEVICE)
-
-    with pytest.raises(RuntimeError, match="synchroniz"):
-        graphed()
-    assert torch.cuda.get_sync_debug_mode() == 0, "the trap must be released after the call"
 
 
 class _ChangeRegistry:

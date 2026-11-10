@@ -197,16 +197,17 @@ class _DeviceRefreshSensor(_RefreshLogSensor):
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
-def test_recorded_read_refreshes_on_every_replay(device):
+def test_recorded_read_refreshes_on_every_replay(device, monkeypatch):
     """A read recorded while the sensor is not dirty, as after a reset, still refreshes the sensor on each replay."""
+    monkeypatch.setattr(GraphedCallable, "enabled", True)
     sensor = _DeviceRefreshSensor(device)
     sensor.update(0.005)
     _ = sensor.data  # the sensor is clean when the read is recorded
-    with wp.ScopedCapture(device=device) as capture:
-        _ = sensor.data
+    read = GraphedCallable(lambda: sensor.data, device)
+    read()  # records the refresh of the outdated environments, none yet
     for _ in range(3):
         sensor.update(0.005)
-        wp.capture_launch(capture.graph)
+        read()
     # one eager refresh, then one per replay
     assert sensor.device_refreshes.numpy().tolist() == [4, 4]
 

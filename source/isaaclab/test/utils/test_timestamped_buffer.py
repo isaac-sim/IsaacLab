@@ -12,6 +12,7 @@ import warp as wp
 
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.buffers import TimestampedBuffer, reset_timestamps
+from isaaclab.utils.warp.capture import GraphedCallable
 
 pytestmark = pytest.mark.unit
 
@@ -51,47 +52,73 @@ def test_eager_reads_update_once_per_timestamp():
     assert value.num_updates == 3
 
 
+@pytest.fixture
+def enabled(monkeypatch):
+    monkeypatch.setattr(GraphedCallable, "enabled", True)
+
+
 @pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
-def test_recorded_read_updates_on_every_replay(device):
+def test_recorded_read_updates_on_every_replay(device, enabled):
     """A read recorded while the data is current still updates it on each replay, once per recording."""
     value = _LazyValue(device)
     value.read()  # the data is current when the read is recorded
-    with wp.ScopedCapture(device=device) as capture:
+
+    def read_twice():
         value.read()
         value.read()
+
+    graphed = GraphedCallable(read_twice, device)
+    graphed()  # records the update and runs it once
     for _ in range(3):
         value.timestamp += 0.01
-        wp.capture_launch(capture.graph)
-    # one eager update, then one per replay
-    assert value.num_updates == 4
+        graphed()
+    # one eager update, one when recording, then one per replay
+    assert value.num_updates == 5
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
-def test_each_recording_holds_its_own_update(device):
+def test_each_recording_holds_its_own_update(device, enabled):
     """An invalidation inside a recording records the update again, and a later recording records its own."""
     value = _LazyValue(device)
     value.read()
-    with wp.ScopedCapture(device=device) as invalidated:
+
+    def read_invalidate_read():
         value.read()
         reset_timestamps([value._value])
         value.read()
-    with wp.ScopedCapture(device=device) as later:
-        value.read()
+
+    invalidated = GraphedCallable(read_invalidate_read, device)
+    later = GraphedCallable(value.read, device)
+    invalidated()
+    later()
     value.read()  # an eager read after the recordings keeps the eager rule
-    assert value.num_updates == 1
-    wp.capture_launch(invalidated.graph)
-    wp.capture_launch(later.graph)
     assert value.num_updates == 4
+    invalidated()
+    later()
+    assert value.num_updates == 7
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
-def test_an_opted_out_buffer_keeps_the_timestamp_rule_while_recording(device):
+def test_an_opted_out_buffer_keeps_the_timestamp_rule_while_recording(device, enabled):
     """A buffer opting out records its update only when it is stale by timestamp, as outside a recording."""
     value = _LazyValue(device, update_in_graph=False)
+    value.read()
+    graphed = GraphedCallable(value.read, device)
+    graphed()
+    assert value._value.timestamp == value.timestamp
+    graphed()
+    assert value.num_updates == 1
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+def test_a_raw_capture_keeps_the_timestamp_rule(device):
+    """A graph captured without :class:`GraphedCallable` holds the update only when the data is stale by timestamp."""
+    value = _LazyValue(device)
     value.read()
     with wp.ScopedCapture(device=device) as capture:
         value.read()
     assert value._value.timestamp == value.timestamp
     for _ in range(2):
+        value.timestamp += 0.01
         wp.capture_launch(capture.graph)
     assert value.num_updates == 1

@@ -12,7 +12,6 @@ from __future__ import annotations
 import contextlib
 import functools
 import gc
-import os
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -25,38 +24,15 @@ from ..version import has_kit
 if TYPE_CHECKING:
     from ...physics import PhysicsManager
 
-SYNC_DEBUG_ENV_VAR = "ISAACLAB_SYNC_DEBUG"
-"""Set ``ISAACLAB_SYNC_DEBUG=1`` to run eager calls under ``torch.cuda.set_sync_debug_mode("error")``, so a hidden
-GPU-to-host synchronization inside a recorded part raises instead of stalling silently."""
-
-
-def recordings() -> dict | None:
-    """Warp's table of the CUDA graph recordings in progress, keyed by capture id, or None before Warp initializes.
-
-    The table is empty while nothing records. Reading it costs ~20x less than ``Device.is_capturing``, which also asks
-    CUDA about recordings Warp did not start; every recording in Isaac Lab starts through Warp.
-    """
-    runtime = _warp_context.runtime
-    return None if runtime is None else runtime.captures
-
 
 def capturing(device: wp.Device | str | None = None) -> bool:
     """Whether a CUDA graph is being recorded on ``device`` (the current device by default).
 
-    It reads :func:`recordings` first, so outside a recording the check spares the CUDA query of
-    ``Device.is_capturing``.
+    It reads Warp's table of the recordings in progress first, which costs ~20x less than ``Device.is_capturing``, so
+    outside a recording the check spares the CUDA query; every recording in Isaac Lab starts through Warp.
     """
-    return bool(recordings()) and wp.get_device(device).is_capturing
-
-
-def recording_key(captures: dict) -> object:
-    """The identity of the recording in progress, given a non-empty :func:`recordings` table.
-
-    A :class:`GraphedCallable` recording spans the graphs it splits around eager calls, so it is the identity while one
-    records; any other recording is identified by its captures.
-    """
-    recording = GraphedCallable._recording
-    return tuple(captures) if recording is None else recording.token
+    runtime = _warp_context.runtime
+    return runtime is not None and bool(runtime.captures) and wp.get_device(device).is_capturing
 
 
 def is_recording() -> bool:
@@ -168,7 +144,6 @@ class GraphedCallable:
         """
         self._fn = fn
         self._device = wp.get_device(device)
-        self._sync_debug = os.environ.get(SYNC_DEBUG_ENV_VAR, "0") == "1"
         self._recordings: dict[tuple, tuple[list, Any]] = {}
         self._generation = GraphedCallable.generation
 
@@ -177,7 +152,7 @@ class GraphedCallable:
         if capturing(self._device):
             return self._fn(*args, **kwargs)
         if not (GraphedCallable.enabled and self._device.is_cuda):
-            return self._run_eager(self._fn, args, kwargs)
+            return self._fn(*args, **kwargs)
         if self._generation != GraphedCallable.generation:
             self.reset()
             self._generation = GraphedCallable.generation
@@ -187,7 +162,7 @@ class GraphedCallable:
             self._recordings[key] = recorded = self._record(args, kwargs)
             return recorded[1]
         steps, result = recorded
-        _replay(steps, self._run_eager)
+        _replay(steps)
         return result
 
     def reset(self) -> None:
@@ -231,17 +206,13 @@ class GraphedCallable:
 
     def _record(self, args: tuple, kwargs: dict[str, Any]) -> tuple[list, Any]:
         """Record the callable as its first run and return the recorded steps and the result."""
-        with _record_calls(self._device, self._run_eager) as recording:
+        with _record_calls(self._device) as recording:
             result = self._fn(*args, **kwargs)
         return recording.steps, result
 
-    def _run_eager(self, fn: Callable[..., Any], args: tuple, kwargs: dict[str, Any]) -> Any:
-        """Run eagerly, under the synchronization trap when requested."""
-        return _run_eager(fn, args, kwargs, self._sync_debug)
-
 
 @contextlib.contextmanager
-def _record_calls(device: wp.Device, run_eager: Callable[[Callable[..., Any], tuple, dict], Any]):
+def _record_calls(device: wp.Device):
     """Record the calls made inside as CUDA graphs split around :func:`eager` calls; the recording is their first run.
 
     Yields:
@@ -250,7 +221,7 @@ def _record_calls(device: wp.Device, run_eager: Callable[[Callable[..., Any], tu
     if GraphedCallable._settle is not None:
         # physics work queued before the recording runs now, once, instead of on every replay
         GraphedCallable._settle()
-    recording = _Recording(device, run_eager)
+    recording = _Recording(device)
     enclosing, GraphedCallable._recording = GraphedCallable._recording, recording
     try:
         with _paused_gc(), wp.ScopedStream(recording.capture_stream):
@@ -267,35 +238,20 @@ def _record_calls(device: wp.Device, run_eager: Callable[[Callable[..., Any], tu
         GraphedCallable._recording = enclosing
 
 
-def _replay(steps: list, run_eager: Callable[[Callable[..., Any], tuple, dict], Any]) -> None:
+def _replay(steps: list) -> None:
     """Launch the graphs of a recording and repeat its eager calls, in the recorded order."""
     for step in steps:
         if isinstance(step, wp.Graph):
             wp.capture_launch(step)
         else:
-            run_eager(*step)
-
-
-def _run_eager(fn: Callable[..., Any], args: tuple, kwargs: dict[str, Any], sync_debug: bool = False) -> Any:
-    """Run eagerly, under the synchronization trap when requested."""
-    if not sync_debug:
-        return fn(*args, **kwargs)
-    previous = torch.cuda.get_sync_debug_mode()
-    torch.cuda.set_sync_debug_mode("error")
-    try:
-        return fn(*args, **kwargs)
-    finally:
-        torch.cuda.set_sync_debug_mode(previous)
+            fn, args, kwargs = step
+            fn(*args, **kwargs)
 
 
 class _Recording:
     """The steps of one recording: CUDA graphs split around :func:`eager` calls, launched as they end."""
 
-    def __init__(
-        self,
-        device: wp.Device,
-        run_eager: Callable[[Callable[..., Any], tuple, dict], Any],
-    ):
+    def __init__(self, device: wp.Device):
         # graphs are captured on the capture stream and launched on the stream the callable runs on
         self.stream = wp.get_stream(device)
         self.capture_stream = self.stream
@@ -310,7 +266,6 @@ class _Recording:
         self.capturing = False
         # identifies the recording to the buffers it refreshes, without keeping its graphs alive
         self.token = object()
-        self._run_eager = run_eager
 
     def begin(self) -> None:
         """Start the next graph."""
@@ -335,7 +290,7 @@ class _Recording:
         """Run a call that cannot be recorded between the current graph and the next one."""
         self.end()
         with wp.ScopedStream(self.stream, sync_enter=False):
-            result = self._run_eager(fn, args, kwargs)
+            result = fn(*args, **kwargs)
         self.steps.append((fn, args, kwargs))
         self.begin()
         return result

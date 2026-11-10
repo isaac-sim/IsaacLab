@@ -6,5 +6,3 @@
   repeats the call at the same place with the same arguments.
 * Added :func:`~isaaclab.utils.warp.capture.record_at_end` to record a call once at the end of the
   :class:`~isaaclab.utils.warp.capture.GraphedCallable` being recorded.
-* Added the ``ISAACLAB_SYNC_DEBUG`` environment variable: ``ISAACLAB_SYNC_DEBUG=1`` raises on a hidden
-  GPU-to-host synchronization inside an eager call of a recorded part.
