@@ -56,3 +56,30 @@ def test_standalone_course(layout):
         mesh = UsdGeom.Mesh(stage.GetPrimAtPath(path))
         np.testing.assert_array_equal(mesh.GetPointsAttr().Get(), points)
         np.testing.assert_array_equal(mesh.GetFaceVertexIndicesAttr().Get(), indices)
+
+
+def test_physx_particle_asset_references_remap_without_duplicate_tray_contacts():
+    """The saved PBD scene stays dynamic and self-contained when imported below the terrain root."""
+    path = ASSET_DIR / "granular_physx.usdc"
+    layers, assets, unresolved = UsdUtils.ComputeAllDependencies(str(path))
+    assert len(layers) == 1 and not assets and not unresolved
+    stage = Usd.Stage.CreateInMemory()
+    root = "/World/ground/terrain"
+    stage.DefinePrim(root, "Xform").GetReferences().AddReference(str(path))
+    assert not stage.GetPrimAtPath(f"{root}/granular_container/mesh").HasAPI(UsdPhysics.CollisionAPI)
+    assert sum(prim.HasAPI(UsdPhysics.CollisionAPI) for prim in stage.Traverse()) == 8
+    for name, count in (("gravel", 116222), ("sand", 930666)):
+        points = UsdGeom.Points(stage.GetPrimAtPath(f"{root}/{name}_particles"))
+        assert len(points.GetPointsAttr().Get()) == count
+        assert len(points.GetWidthsAttr().Get()) == count
+        assert len(points.GetDisplayColorAttr().Get()) == count
+        assert points.GetPointsAttr().GetNumTimeSamples() == 0
+        assert not np.any(np.asarray(points.GetVelocitiesAttr().Get()))
+        assert UsdPhysics.MassAPI(points).GetMassAttr().Get() > 0
+        system_path = f"{root}/{name}_ParticleSystem"
+        targets = points.GetPrim().GetRelationship("physxParticle:particleSystem").GetTargets()
+        assert [str(target) for target in targets] == [system_path]
+        system = stage.GetPrimAtPath(system_path)
+        assert system.GetTypeName() == "PhysxParticleSystem"
+        material, _ = UsdShade.MaterialBindingAPI(system).ComputeBoundMaterial("physics")
+        assert str(material.GetPath()) == f"{root}/PBDMaterial"

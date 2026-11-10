@@ -25,18 +25,14 @@ class G1TerrainEnv(ManagerBasedRLEnv):
     """A fixed course with explicit resets and absolute joint position actions."""
 
     def __init__(self, cfg: G1PlatformsEnvCfg, **kwargs):
+        """Use host buffers for PhysX particles only after the launcher selects the CUDA device."""
         if cfg.scene.num_envs != 1:
             raise ValueError("The reconstructed courses support one robot per scene.")
         is_physx = isinstance(cfg.sim.physics, PhysxCfg)
         if not is_physx and not isinstance(cfg.sim.physics, NewtonCfg):
             raise ValueError("Select physics=isaacsim_physx or physics=newton_mjwarp.")
-        cfg.sim.dt = 0.0025 if is_physx else 0.005
-        cfg.decimation = 8 if is_physx else 4
-        cfg.sim.render_interval = cfg.decimation
-        if cfg.terrain_name == "granular":
-            from .granular import configure_granular  # noqa: PLC0415
-
-            configure_granular(cfg, is_physx)
+        if cfg.terrain_name == "granular" and is_physx:
+            cfg.sim.device = "cpu"
         super().__init__(cfg, **kwargs)
         if cfg.terrain_name == "granular" and is_physx:
             self.sim.set_setting("/physics/updateParticlesToUsd", True)
