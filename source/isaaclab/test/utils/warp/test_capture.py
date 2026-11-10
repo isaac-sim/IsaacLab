@@ -32,14 +32,18 @@ def _num_graphs(graphed: GraphedCallable) -> int:
 
 
 class _Affine:
-    """Callable that applies ``x * scale + shift`` on the device and counts its Python invocations."""
+    """Callable that applies ``x * scale + shift`` on the device and counts its Python invocations.
+
+    A ``shift`` passed to the call replaces the configured one for that call.
+    """
 
     def __init__(self, scale: int = 1, shift: int = 1):
         self.scale, self.shift, self.calls = scale, shift, 0
 
-    def __call__(self, values: wp.array, *args) -> wp.array:
+    def __call__(self, values: wp.array, shift: int | None = None) -> wp.array:
         self.calls += 1
-        wp.launch(_affine, dim=values.shape[0], inputs=[values, self.scale, self.shift], device=values.device)
+        shift = self.shift if shift is None else shift
+        wp.launch(_affine, dim=values.shape[0], inputs=[values, self.scale, shift], device=values.device)
         return values
 
 
@@ -77,7 +81,21 @@ def test_changed_argument_records_the_callable_again():
     graphed(new)
     graphed(new)
     graphed(new, 5)
-    assert (_read(old), _read(new), fn.calls, _num_graphs(graphed)) == ([1], [3], 3, 3)
+    graphed(new, 5)
+    # replays of the shift-5 recording add 5 each: 0 -> 1 -> 2 -> 7 -> 12
+    assert (_read(old), _read(new), fn.calls, _num_graphs(graphed)) == ([1], [12], 3, 3)
+
+
+def test_views_of_one_array_record_their_own_graphs():
+    """Views that share an address but differ in length record their own graphs, each replaying over its length."""
+    fn = _Affine()
+    graphed = GraphedCallable(fn, DEVICE)
+    values = wp.zeros(4, dtype=wp.int32, device=DEVICE)
+
+    graphed(values[:2])
+    graphed(values[:4])
+    graphed(values[:4])
+    assert (_read(values), fn.calls, _num_graphs(graphed)) == ([3, 3, 2, 2], 2, 2)
 
 
 def test_physics_rebind_records_the_callable_again():

@@ -132,7 +132,10 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         self._sim_timestamp += dt
         # Replaying an outer capture of the step skips the backend's version increments, so invalidate here.
         self._backend_manager.backend.state_version += 1
-        # finite differences advance once per physics step: computed here over the step, then read as they are
+        # finite differences advance once per physics step: computed here over the step, then read as they are;
+        # a zero step (the update at initialization) has no difference to take, so they keep their values
+        if dt == 0.0:
+            return
         wp.launch(
             shared_kernels.derive_body_acceleration_from_body_com_velocities,
             dim=(self.num_instances, self.num_bodies),

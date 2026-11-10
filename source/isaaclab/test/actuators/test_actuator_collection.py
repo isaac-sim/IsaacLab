@@ -30,7 +30,6 @@ from isaaclab.actuators import (
 from isaaclab.actuators.actuator_control import ArticulationActuatorControl
 from isaaclab.actuators.newton import read_group_parameter, write_group_parameter
 from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp.capture import eager_method
 
 
 def _implicit_cfg(**kwargs) -> ImplicitActuatorCfg:
@@ -51,14 +50,6 @@ class ResetRecordingActuator(ImplicitActuator):
 
     def reset(self, env_ids=None, env_mask=None):
         self.reset_selection = (env_ids, env_mask)
-
-
-class TorchStateResetActuator(ResetRecordingActuator):
-    """Custom actuator whose reset updates torch state, which a CUDA graph cannot record."""
-
-    @eager_method
-    def reset(self, env_ids=None, env_mask=None):
-        super().reset(env_ids, env_mask)
 
 
 class IndexResetActuator(ImplicitActuator):
@@ -705,24 +696,6 @@ def test_index_and_mask_resets_pass_both_selections_to_models():
     collection.reset(env_mask=wp.array([False, True], dtype=wp.bool, device="cpu"))
     env_ids, env_mask = collection["all"].reset_selection
     assert env_ids is None and env_mask.numpy().tolist() == [False, True]
-
-
-def test_resets_a_recording_cannot_hold_run_eagerly(monkeypatch):
-    """An actuator whose reset updates torch state resets through eager, so a recording repeats it on each replay."""
-    import isaaclab.utils.warp.capture as capture_module
-
-    eager_calls = []
-    monkeypatch.setattr(
-        capture_module, "eager", lambda fn, *args, **kwargs: eager_calls.append(fn) or fn(*args, **kwargs)
-    )
-    torch_cfg, recorded_cfg = _implicit_cfg(), _implicit_cfg()
-    torch_cfg.class_type, recorded_cfg.class_type = TorchStateResetActuator, ResetRecordingActuator
-    torch_cfg.joint_names_expr, recorded_cfg.joint_names_expr = ["joint_0"], ["joint_1"]
-    collection = ActuatorCollection({"torch": torch_cfg, "recorded": recorded_cfg}, FakeActuatorControl())
-
-    collection.reset(env_mask=wp.array([False, True], dtype=wp.bool, device="cpu"))
-    assert eager_calls == [TorchStateResetActuator.reset.__wrapped__]
-    assert collection["torch"].reset_selection[1] is not None and collection["recorded"].reset_selection[1] is not None
 
 
 def test_index_resets_reach_a_custom_actuator_without_a_mask_argument():

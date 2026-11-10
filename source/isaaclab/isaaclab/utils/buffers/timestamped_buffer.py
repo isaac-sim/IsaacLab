@@ -35,7 +35,7 @@ class TimestampedBuffer:
     __slots__ = ("data", "update_in_graph", "_timestamp", "_recording")
 
     _captures: dict | None = None
-    """Warp's table of the graph recordings in progress (see :func:`~isaaclab.utils.warp.utils.recordings`)."""
+    """Warp's table of the graph recordings in progress (see :func:`~isaaclab.utils.warp.capture.recordings`)."""
 
     def __init__(self, data: Any = None, timestamp: float = -1.0, *, update_in_graph: bool = True):
         """Initialize the buffer.

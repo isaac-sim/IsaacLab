@@ -14,14 +14,16 @@ import functools
 import gc
 import os
 from collections.abc import Callable
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import torch
 import warp as wp
 import warp._src.context as _warp_context
 
-from ...physics import PhysicsEvent, PhysicsManager
 from ..version import has_kit
+
+if TYPE_CHECKING:
+    from ...physics import PhysicsManager
 
 SYNC_DEBUG_ENV_VAR = "ISAACLAB_SYNC_DEBUG"
 """Set ``ISAACLAB_SYNC_DEBUG=1`` to run eager calls under ``torch.cuda.set_sync_debug_mode("error")``, so a hidden
@@ -204,6 +206,9 @@ class GraphedCallable:
         Args:
             backend_manager: Physics manager that dispatches the lifecycle events.
         """
+        # imported here so that the utilities do not load the physics package
+        from ...physics import PhysicsEvent
+
         cls.unwatch()
         cls._settle = backend_manager.forward
         cls._callback_handles = [
@@ -354,17 +359,18 @@ def _paused_gc():
 
 
 def _argument_key(args: tuple, kwargs: dict[str, Any]) -> tuple:
-    """Key a call by the pointers of its arrays and the values of its scalars."""
+    """Key a call by the pointer, shape, strides, dtype and device of its arrays and the values of its scalars."""
     return tuple(_value_key(value) for value in args) + tuple(
         (name, _value_key(value)) for name, value in kwargs.items()
     )
 
 
 def _value_key(value: Any) -> Any:
+    # views of one allocation share a pointer, so the layout tells them apart
     if isinstance(value, wp.array):
-        return value.ptr
+        return value.ptr, value.shape, value.strides, value.dtype, str(value.device)
     if isinstance(value, torch.Tensor):
-        return value.data_ptr()
+        return value.data_ptr(), value.shape, value.stride(), value.dtype, value.device
     if value is None or isinstance(value, (bool, int, float, str)):
         return value
     if isinstance(value, (list, tuple)):

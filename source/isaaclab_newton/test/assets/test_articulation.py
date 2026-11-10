@@ -976,6 +976,22 @@ def scene(composite_scene: _Scene) -> _Scene:
     return composite_scene
 
 
+def test_zero_step_update_keeps_the_accelerations(scene: _Scene) -> None:
+    """``update(0.0)``, which an articulation runs at initialization, takes no finite difference (a division by zero).
+
+    The joint and body accelerations keep their values, as main's lazy finite difference gives no NaN before the first
+    step either.
+    """
+    articulation = scene.articulations["floating"]
+    scene.step("floating")
+    joint_acc = articulation.data.joint_acc.torch.clone()
+    body_com_acc_w = articulation.data.body_com_acc_w.torch.clone()
+
+    articulation.update(0.0)
+    torch.testing.assert_close(articulation.data.joint_acc.torch, joint_acc)
+    torch.testing.assert_close(articulation.data.body_com_acc_w.torch, body_com_acc_w)
+
+
 def _model_attribute(articulation: Articulation, name: str) -> torch.Tensor:
     """Read one live Newton model attribute through the articulation's view, in backend order."""
     return wp.to_torch(articulation.root_view.get_attribute(name, articulation._backend_manager.backend.model))[:, 0]

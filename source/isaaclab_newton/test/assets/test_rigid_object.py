@@ -420,6 +420,19 @@ def scene(shared_scene: _Scene) -> _Scene:
     return shared_scene
 
 
+def test_zero_step_update_keeps_the_accelerations(scene: _Scene) -> None:
+    """``update(0.0)``, which the assets run at initialization, takes no finite difference (a division by zero).
+
+    The body accelerations keep their values, as main's lazy finite difference gives no NaN before the first step
+    either.
+    """
+    scene.step()
+    for asset in (scene.cube, scene.collection):
+        body_com_acc_w = asset.data.body_com_acc_w.torch.clone()
+        asset.update(0.0)
+        torch.testing.assert_close(asset.data.body_com_acc_w.torch, body_com_acc_w)
+
+
 @pytest.mark.isaacsim_ci
 def test_external_force_on_single_body(scene: _Scene) -> None:
     """A permanent wrench reaches the solver in the local and the global frame, and a reset clears it.
