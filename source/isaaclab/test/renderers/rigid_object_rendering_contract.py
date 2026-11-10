@@ -28,7 +28,7 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.schemas import UsdPhysicsRigidBodyCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 __all__ = ["RigidObjectRenderingBackend", "run_rigid_object_scale_and_pose_rendering_contract"]
@@ -44,6 +44,10 @@ _MIN_OBJECT_DEPTH = 0.05
 _MAX_OBJECT_DEPTH = 10.0
 _MIN_OBJECT_PIXELS = 50
 _MIN_CENTROID_SHIFT = 10.0
+# Focal-length ratio of the co-located zoom camera; the shifted objects stay inside its narrower view.
+_ZOOM = 1.5
+_ZOOM_PIXEL_TOLERANCE = 3.0
+_ZOOM_CAMERA_RETREAT = 1.0
 
 
 @dataclass(frozen=True)
@@ -54,6 +58,7 @@ class RigidObjectRenderingBackend:
     simulation_context_factory: Callable[[], AbstractContextManager[SimulationContext]]
     renderer_cfg: RendererCfg
     with_articulation: bool = False
+    with_zoom_camera: bool = False
     cleanup: Callable[[], None] | None = None
 
 
@@ -85,6 +90,12 @@ def _make_scene_cfg(backend: RigidObjectRenderingBackend) -> InteractiveSceneCfg
                 clipping_range=(_MIN_OBJECT_DEPTH, 100.0),
             ),
         )
+        if backend.with_zoom_camera:
+            zoom_camera: CameraCfg = replace(
+                camera,
+                prim_path="{ENV_REGEX_NS}/ZoomCamera",
+                spawn=replace(camera.spawn, focal_length=camera.spawn.focal_length * _ZOOM),
+            )
         if backend.with_articulation:
             articulation: ArticulationCfg = ArticulationCfg(
                 prim_path="{ENV_REGEX_NS}/Articulation",
@@ -106,12 +117,23 @@ def _require(condition: torch.Tensor | bool, message: str) -> None:
         raise AssertionError(message)
 
 
+def _object_mask(depth: torch.Tensor) -> torch.Tensor:
+    """Return the pixels that hit the object for every camera."""
+    depth_image = depth[..., 0]
+    return torch.isfinite(depth_image) & (depth_image > _MIN_OBJECT_DEPTH) & (depth_image < _MAX_OBJECT_DEPTH)
+
+
+def _nearest_object_depth(depth: torch.Tensor) -> torch.Tensor:
+    """Return the nearest object depth [m] for every camera."""
+    return torch.where(_object_mask(depth), depth[..., 0], torch.inf).amin(dim=(1, 2))
+
+
 def _measure_depth_mask(
     depth: torch.Tensor, backend_name: str, camera: Camera
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Return silhouette height, width, and horizontal centroid for every camera."""
     depth_image = depth[..., 0]
-    valid = torch.isfinite(depth_image) & (depth_image > _MIN_OBJECT_DEPTH) & (depth_image < _MAX_OBJECT_DEPTH)
+    valid = _object_mask(depth)
     pixel_counts = valid.sum(dim=(1, 2))
     finite = torch.where(torch.isfinite(depth_image), depth_image, torch.zeros_like(depth_image))
     diagnostics = (
@@ -132,6 +154,29 @@ def _measure_depth_mask(
     return silhouette_heights, silhouette_widths, centroids_x
 
 
+def _require_zoom_consistency(
+    backend_name: str, heights: torch.Tensor, centroids: torch.Tensor, zoom_camera: Camera | None
+) -> None:
+    """Assert that the co-located zoom camera, if any, renders the same frame magnified by :data:`_ZOOM`."""
+    if zoom_camera is None:
+        return
+    zoom_depth = zoom_camera.data.output["depth"].torch
+    zoom_heights, _, zoom_centroids = _measure_depth_mask(zoom_depth, backend_name, zoom_camera)
+    expected_heights = heights * _ZOOM
+    image_center_x = (_CAMERA_WIDTH - 1) / 2
+    expected_centroids = image_center_x + (centroids - image_center_x) * _ZOOM
+    _require(
+        torch.all(torch.abs(zoom_heights - expected_heights) <= _ZOOM_PIXEL_TOLERANCE),
+        f"[{backend_name}] Expected zoomed silhouette heights near {expected_heights.tolist()}, "
+        f"got {zoom_heights.tolist()}.",
+    )
+    _require(
+        torch.all(torch.abs(zoom_centroids - expected_centroids) <= _ZOOM_PIXEL_TOLERANCE),
+        f"[{backend_name}] Expected zoomed silhouette centroids near {expected_centroids.tolist()}, "
+        f"got {zoom_centroids.tolist()}.",
+    )
+
+
 def _write_pose_and_render(
     sim: SimulationContext,
     scene: InteractiveScene,
@@ -149,13 +194,14 @@ def _write_pose_and_render(
 
 
 def run_rigid_object_scale_and_pose_rendering_contract(backend: RigidObjectRenderingBackend) -> None:
-    """Assert root-scale preservation and pose/calibration changes in rendered pixels."""
+    """Assert root-scale preservation, pose/calibration changes, and the optional zoom-camera agreement."""
     with backend.simulation_context_factory() as sim:
         sim._app_control_on_stop_handle = None
         scene = InteractiveScene(_make_scene_cfg(backend))
         sim.register_interactive_scene(scene)
         rigid_object = scene["rigid_object"]
         camera = scene["camera"]
+        zoom_camera = scene["zoom_camera"] if backend.with_zoom_camera else None
 
         try:
             sim.reset()
@@ -167,6 +213,12 @@ def run_rigid_object_scale_and_pose_rendering_contract(backend: RigidObjectRende
             camera_eyes = scene.env_origins.clone()
             camera_eyes[:, 1] -= _CAMERA_DISTANCE
             camera.set_world_poses_from_view(camera_eyes, scene.env_origins)
+            if zoom_camera is not None:
+                _require(
+                    zoom_camera._renderer is camera._renderer,  # noqa: SLF001
+                    f"[{backend.name}] Expected both cameras to share one renderer instance.",
+                )
+                zoom_camera.set_world_poses_from_view(camera_eyes, scene.env_origins)
 
             center_poses = torch.zeros((_NUM_ENVS, 7), device=rigid_object.device)
             center_poses[:, :3] = scene.env_origins
@@ -188,6 +240,7 @@ def run_rigid_object_scale_and_pose_rendering_contract(backend: RigidObjectRende
                 torch.all(torch.abs(center_centroids - (_CAMERA_WIDTH - 1) / 2) < 8.0),
                 f"[{backend.name}] Expected centered silhouettes, got centroids={center_centroids.tolist()}.",
             )
+            _require_zoom_consistency(backend.name, center_heights, center_centroids, zoom_camera)
 
             intrinsics = camera.data.intrinsic_matrices.torch.clone()
             pointer = camera.data.intrinsic_matrices.warp.ptr
@@ -221,7 +274,8 @@ def run_rigid_object_scale_and_pose_rendering_contract(backend: RigidObjectRende
             negative_poses = center_poses.clone()
             negative_poses[:, 0] -= _OBJECT_SHIFT
             negative_depth = _write_pose_and_render(sim, scene, rigid_object, camera, negative_poses)
-            _, _, negative_centroids = _measure_depth_mask(negative_depth, backend.name, camera)
+            negative_heights, _, negative_centroids = _measure_depth_mask(negative_depth, backend.name, camera)
+            _require_zoom_consistency(backend.name, negative_heights, negative_centroids, zoom_camera)
 
             positive_poses = center_poses.clone()
             positive_poses[:, 0] += _OBJECT_SHIFT
@@ -243,11 +297,27 @@ def run_rigid_object_scale_and_pose_rendering_contract(backend: RigidObjectRende
                 f"[{backend.name}] Opposite translations must move silhouettes in opposite directions, got "
                 f"deltas {negative_delta.tolist()} and {positive_delta.tolist()}.",
             )
+
+            if zoom_camera is not None:
+                zoom_eyes = camera_eyes.clone()
+                zoom_eyes[:, 1] -= _ZOOM_CAMERA_RETREAT
+                zoom_camera.set_world_poses_from_view(zoom_eyes, scene.env_origins)
+                depth = _write_pose_and_render(sim, scene, rigid_object, camera, center_poses)
+                torch.testing.assert_close(depth, center_depth)
+                expected_zoom_depth = _nearest_object_depth(center_depth) + _ZOOM_CAMERA_RETREAT
+                zoom_depth = _nearest_object_depth(zoom_camera.data.output["depth"].torch)
+                _require(
+                    torch.all(torch.abs(zoom_depth - expected_zoom_depth) < 1.0e-3),
+                    f"[{backend.name}] Expected the retreated zoom camera's nearest depth near "
+                    f"{expected_zoom_depth.tolist()}, got {zoom_depth.tolist()}.",
+                )
         finally:
             sim.register_interactive_scene(None)
             # Release camera-owned render products before another parametrized case creates a stage.
             camera._invalidate_initialize_callback(None)  # noqa: SLF001
-            del camera, rigid_object, scene
+            if zoom_camera is not None:
+                zoom_camera._invalidate_initialize_callback(None)  # noqa: SLF001
+            del camera, zoom_camera, rigid_object, scene
             gc.collect()
             if backend.cleanup is not None:
                 backend.cleanup()
