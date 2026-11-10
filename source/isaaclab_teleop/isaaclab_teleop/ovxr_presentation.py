@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""OVXR session lifecycle shared by the live and replay OVXR entrypoints."""
+"""OVXR scene publication and resource retirement shared by playback and teleoperation."""
 
 from __future__ import annotations
 
@@ -14,8 +14,8 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from isaaclab_ov.renderers import OVRTXRendererCfg
 
-    from ..ov_libraries_xr import OvLibrariesXrSession
-    from ..ovxr_cfg import OvLibrariesXrCameraCfg
+    from .ov_libraries_xr import OvLibrariesXrSession
+    from .ovxr_cfg import OvLibrariesXrCameraCfg
 
 
 class OvxrPresentation:
@@ -67,7 +67,7 @@ class OvxrPresentation:
         """
         from isaaclab_ov.renderers import OVRTXRendererCfg
 
-        from .. import OvLibrariesXrCfg, OvLibrariesXrSession
+        from . import OvLibrariesXrCfg, OvLibrariesXrSession
 
         if auxiliary_cameras:
             # Camera selection assigned one OVRTX configuration to every panel; the session shares it.
@@ -152,6 +152,28 @@ class OvxrPresentation:
         if report_timing:
             self.session.report_host_timing(env.sim.get_physics_step_count(), env.sim.get_physics_dt())
         return self._pending is None
+
+    def wait_ready(self, env: Any) -> bool:
+        """Commit pending reset state before the host accepts another input sample.
+
+        The render worker runs independently of simulation. This fence waits for
+        publication admission, not for a rendered frame. Ordinary scene updates
+        remain demand driven and do not block the control loop.
+
+        Args:
+            env: Environment whose reset state is waiting for publication.
+
+        Returns:
+            Whether input may resume. ``False`` means XR requested shutdown;
+            worker failures propagate without accepting another sample.
+        """
+        while self._force:
+            if self.session.shutdown_requested:
+                return False
+            self.publish(env, report_timing=False)
+            if self._force:
+                self.session.wait_for_shutdown(min(env.step_dt, 0.05))
+        return not self.session.shutdown_requested
 
     def close(self) -> None:
         """Close the session once :attr:`input_device` drained; otherwise only request shutdown.

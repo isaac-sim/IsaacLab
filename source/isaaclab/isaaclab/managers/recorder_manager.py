@@ -54,6 +54,15 @@ class RecorderManagerBaseCfg:
     export_in_close: bool = False
     """Whether to export episodes in the close call."""
 
+    min_episode_steps: int = 0
+    """Minimum completed environment steps required to export an episode.
+
+    Steps are counted by :meth:`RecorderManager.record_post_step`, independently of the
+    configured recorder terms. Zero preserves export of manually populated episodes and
+    reset-only data. One excludes initial states and reset annotations without a physical transition.
+    Episodes below the threshold are discarded when exported.
+    """
+
     buffer_initial_capacity: int = 64
     """Initial sample capacity per environment and field; grows as needed. Must be positive."""
 
@@ -168,8 +177,11 @@ class RecorderManager(ManagerBase):
 
         if cfg.buffer_initial_capacity < 1:
             raise ValueError("buffer_initial_capacity must be positive.")
+        if cfg.min_episode_steps < 0:
+            raise ValueError("min_episode_steps must be non-negative.")
         self._fields: list[_RecorderField] = []
         self._env_ids = torch.arange(env.num_envs, device=env.device)
+        self._episode_steps = torch.zeros(env.num_envs, dtype=torch.long, device=env.device)
         # -1 denotes an episode whose success has not been set.
         self._success = torch.full((env.num_envs,), -1, dtype=torch.int8, device=env.device)
         self._exported_counts = torch.zeros(2, dtype=torch.long, device=env.device)
@@ -354,6 +366,8 @@ class RecorderManager(ManagerBase):
         for term in self._terms.values():
             key, value = term.record_post_step()
             self.add_to_episodes(key, value)
+        if self.cfg.min_episode_steps > 0 and self.active_terms:
+            self._episode_steps += 1
 
     def record_post_physics_decimation_step(self) -> None:
         """Trigger recorder terms for post-physics step functions in the decimation loop."""
@@ -465,6 +479,8 @@ class RecorderManager(ManagerBase):
         present = torch.zeros(self._env.num_envs, dtype=torch.bool, device=self._env_ids.device)
         for field in self._fields:
             present |= (field.lengths > 0).to(present.device)
+        if self.cfg.min_episode_steps > 0:
+            present &= self._episode_steps >= self.cfg.min_episode_steps
         succeeded = self._success == 1
 
         # Only file export materializes per-world snapshots. EXPORT_NONE stays batched.
@@ -521,6 +537,8 @@ class RecorderManager(ManagerBase):
         for field in self._fields:
             field.reset(env_ids)
         self._success[slice(None) if env_ids is None else env_ids] = -1
+        if self.cfg.min_episode_steps > 0:
+            self._episode_steps[slice(None) if env_ids is None else env_ids] = 0
 
     def _prepare_terms(self):
         """Prepares a list of recorder terms."""
@@ -538,6 +556,7 @@ class RecorderManager(ManagerBase):
                 "dataset_export_mode",
                 "export_in_record_pre_reset",
                 "export_in_close",
+                "min_episode_steps",
                 "dataset_compression",
                 "buffer_initial_capacity",
             ]:

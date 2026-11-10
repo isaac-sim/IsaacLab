@@ -13,3 +13,9 @@
   of the leased XR renderer and closing native Lab windows on their owning thread.
 * Added optional ``TeleopInputCfg`` on existing task controllers, preserving their concrete types,
   configuration, and public APIs during policy and interactive playback.
+* Acquired Capture samples through action input preparation and reused OVXR presentation
+  publication at the next control-step boundary. Reset state must be admitted before
+  accepting fresh input; the XR renderer continues on its independent thread.
+* Added explicit host-owned environment teardown for task playback: Capture input drains
+  first, the XR worker proves native retirement, then Lab closes the environment and windows.
+  Legacy entrypoints retain their existing worker-owned environment teardown.

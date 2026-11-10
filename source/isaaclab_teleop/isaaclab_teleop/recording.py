@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -23,9 +22,7 @@ from isaaclab.utils import clone, configclass
 from .input_cfg import TeleopInputCfg
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg
-
-logger = logging.getLogger(__name__)
+    from isaaclab.envs import ManagerBasedRLEnvCfg
 
 
 @dataclass(frozen=True)
@@ -138,50 +135,7 @@ def prepare_demo_recording(
     )
     recorder_cfg.export_in_record_pre_reset = True
     recorder_cfg.export_in_close = False
+    recorder_cfg.min_episode_steps = max(1, recorder_cfg.min_episode_steps)
     env_cfg.env_name = task_name.split(":")[-1]
     env_cfg.recorders = recorder_cfg
     return replace(cfg, dataset_file=str(output))
-
-
-class DemoRecording:
-    """Track physical episodes and completion while the environment owns HDF5 export."""
-
-    def __init__(self, cfg: DemoRecordingCfg) -> None:
-        self._cfg = cfg
-        self._episode_steps = 0
-        self._exported = 0
-        self._reset_export_setting: bool | None = None
-
-    @property
-    def complete(self) -> bool:
-        """Whether the requested number of exported demonstrations has been reached."""
-        return self._cfg.num_demos > 0 and self._exported >= self._cfg.num_demos
-
-    def before_explicit_reset(self, env: ManagerBasedRLEnv) -> None:
-        """Suppress empty episodes; pair with ``after_explicit_reset`` in a finally block."""
-        recorder = env.recorder_manager
-        self._reset_export_setting = recorder.cfg.export_in_record_pre_reset
-        if self._episode_steps == 0:
-            recorder.reset()
-            recorder.cfg.export_in_record_pre_reset = False
-        self._episode_steps = 0
-
-    def after_explicit_reset(self, env: ManagerBasedRLEnv) -> None:
-        """Restore normal automatic exports and count a completed manual-reset episode."""
-        if self._reset_export_setting is not None:
-            env.recorder_manager.cfg.export_in_record_pre_reset = self._reset_export_setting
-            self._reset_export_setting = None
-        self._report_progress(env)
-
-    def after_step(self, env: ManagerBasedRLEnv, done: torch.Tensor) -> None:
-        """Observe one real environment step, after any automatic episode export/reset."""
-        self._episode_steps = 0 if bool(done.any()) else self._episode_steps + 1
-        self._report_progress(env)
-
-    def _report_progress(self, env: ManagerBasedRLEnv) -> None:
-        count = env.recorder_manager.exported_successful_episode_count
-        if self._cfg.export_mode == "all":
-            count += env.recorder_manager.exported_failed_episode_count
-        if count != self._exported:
-            self._exported = count
-            logger.info("Recorded %d demonstrations to %s", count, self._cfg.dataset_file)

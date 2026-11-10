@@ -124,7 +124,7 @@ def _run(args_cli: argparse.Namespace) -> None:
         pre_launch_video_config(env_cfg, args_cli)
         apply_env_overrides(args_cli, env_cfg)
         screen.stage("Launching simulation")
-        with launch_playback(env_cfg, args_cli) as playback_session, contextlib.ExitStack() as cleanup:
+        with launch_playback(env_cfg, args_cli) as configure_inputs, contextlib.ExitStack() as cleanup:
             show_run_summary(screen, args_cli, env_cfg, library=f"skrl ({args_cli.ml_framework})", action="play")
             runner_cls = import_skrl_runner(args_cli.ml_framework)
             args_cli.seed = resolve_seed(args_cli.seed)
@@ -153,7 +153,7 @@ def _run(args_cli: argparse.Namespace) -> None:
                 env_cfg,
                 args_cli,
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg) and algorithm == "ppo",
-                playback_session=playback_session,
+                configure_inputs=configure_inputs,
             )
             cleanup.callback(lambda: close_env(env))
             dt = env.unwrapped.step_dt
@@ -185,4 +185,4 @@ def _run(args_cli: argparse.Namespace) -> None:
                 states = env.state()
 
             screen.close()
-            run_playback(step, dt=dt, args_cli=args_cli, env_cfg=env_cfg, playback_session=playback_session)
+            run_playback(step, dt=dt, args_cli=args_cli, env_cfg=env_cfg, env=env)

@@ -8,3 +8,5 @@
 * Added ``--dataset_file``, ``--num_demos``, and ``--demo_export_mode`` to local playback for
   collecting HDF5 demonstrations through the same task configuration as policy playback,
   rejecting explicitly blank output paths before startup.
+* Kept playback stepping and reset semantics in the existing environment, activating
+  Capture resources without an additional Gym wrapper or Capture playback coordinator.

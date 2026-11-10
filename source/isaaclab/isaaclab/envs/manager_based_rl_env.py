@@ -77,6 +77,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # initialize the episode length buffer BEFORE loading the managers to use it in mdp functions.
         self.episode_length_buf = torch.zeros(cfg.scene.num_envs, device=cfg.sim.device, dtype=torch.long)
         self.reset_buf = torch.zeros(cfg.scene.num_envs, device=cfg.sim.device, dtype=torch.bool)
+        self._requested_reset_buf: torch.Tensor | None = None
 
         # initialize the base class to setup the scene.
         super().__init__(cfg=cfg)
@@ -174,6 +175,23 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
     Operations - MDP
     """
 
+    def request_reset(self, env_ids: torch.Tensor | slice | None = slice(None)) -> None:
+        """Queue an operator reset for the next completed environment step.
+
+        Requests join task terminations in the normal reset and recorder lifecycle.
+        Physics and rewards still advance for every environment. Requested rows
+        that did not otherwise finish are marked terminated, matching viewer resets;
+        individual task termination terms are unchanged. Repeated requests coalesce.
+        An explicit reset also consumes requests for the rows it resets.
+
+        Args:
+            env_ids: Environment indices on the environment device, or a positive-step
+                slice. Defaults to all environments; ``None`` also selects all rows.
+        """
+        if self._requested_reset_buf is None:
+            self._requested_reset_buf = torch.zeros_like(self.reset_buf)
+        index_fill_(self._requested_reset_buf, env_ids, True)
+
     def step(self, action: torch.Tensor) -> VecEnvStepReturn:
         """Execute one time-step of the environment's dynamics and reset terminated environments.
 
@@ -238,6 +256,15 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
 
         self.recorder_manager.record_post_step()
 
+        # Merge operator requests with task terminations before the shared reset
+        # boundary. Preserve task timeout/success signals for rows already done.
+        if self.sim.consume_reset_request():
+            self.request_reset()
+        if self._requested_reset_buf is not None:
+            self.reset_terminated |= self._requested_reset_buf & ~self.reset_buf
+            self.reset_buf |= self._requested_reset_buf
+            self._requested_reset_buf = None
+
         # -- reset envs that terminated/timed-out and log the episode information
         reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1).int()
         if len(reset_env_ids) > 0:
@@ -253,20 +280,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
                 for _ in range(self.cfg.num_rerenders_on_reset):
                     self.sim.render()
             self.recorder_manager.record_post_reset(reset_env_ids)
-
-        # -- handle episode reset requested from visualizer UI controls
-        if self.sim.consume_reset_request():
-            # Only reset envs not already reset this step to avoid redundant resets.
-            not_yet_reset = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
-            index_fill_(not_yet_reset, reset_env_ids, False)
-            manual_reset_ids = not_yet_reset.nonzero(as_tuple=False).squeeze(-1).int()
-            if len(manual_reset_ids) > 0:
-                # mark as terminated so RL wrappers observe the episode boundary
-                index_fill_(self.reset_terminated, manual_reset_ids, True)
-                # mirror the recorder lifecycle used for normal resets
-                self.recorder_manager.record_pre_reset(manual_reset_ids)
-                self._reset_idx(manual_reset_ids)
-                self.recorder_manager.record_post_reset(manual_reset_ids)
 
         self.command_manager.compute(dt=self.step_dt)
         if "interval" in self.event_manager.active_terms:
@@ -424,3 +437,5 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.extras["log"].update(info)
 
         index_fill_(self.episode_length_buf, env_ids, 0)
+        if self._requested_reset_buf is not None:
+            index_fill_(self._requested_reset_buf, env_ids, False)

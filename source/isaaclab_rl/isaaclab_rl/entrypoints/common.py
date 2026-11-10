@@ -22,7 +22,7 @@ from contextlib import ExitStack, contextmanager
 from datetime import datetime, timezone
 from importlib.util import find_spec
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import gymnasium as gym
 import torch
@@ -38,10 +38,6 @@ from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.images import make_camera_output_grid, normalize_camera_output_for_display
 from isaaclab.utils.io import dump_yaml
-
-if TYPE_CHECKING:
-    from isaaclab_teleop.playback import CapturePlaySession
-
 
 logger = logging.getLogger(__name__)
 
@@ -567,13 +563,12 @@ def has_play_teleop(env_cfg: Any) -> bool:
 @contextmanager
 def launch_playback(
     env_cfg: Any, args_cli: argparse.Namespace, *, enable_teleop: bool = True
-) -> Iterator[CapturePlaySession | None]:
-    """Launch playback and own Capture/XR resources across environment construction.
+) -> Iterator[Callable[[gym.Env], None] | None]:
+    """Launch playback and yield optional task input activation after construction.
 
-    Training uses :func:`launch_simulation` directly. Action terms retain their
-    concrete controllers; this interactive scope activates their optional input.
+    Training uses :func:`launch_simulation` directly. Playback installs resources
+    on the existing action manager; environment stepping and resets stay in Lab.
     """
-    session = None
     dataset_file = getattr(args_cli, "dataset_file", None)
     if dataset_file is not None and not dataset_file.strip():
         raise ValueError("--dataset_file must be a non-empty path.")
@@ -581,57 +576,56 @@ def launch_playback(
         getattr(args_cli, "num_demos", 0) or getattr(args_cli, "demo_export_mode", "succeeded") != "succeeded"
     ):
         raise ValueError("Demonstration collection options require --dataset_file.")
-    if dataset_file is not None and (not enable_teleop or args_cli.teleop is False or not has_play_teleop(env_cfg)):
+    use_capture = enable_teleop and args_cli.teleop is not False and has_play_teleop(env_cfg)
+    if dataset_file is not None and not use_capture:
         raise ValueError("--dataset_file requires playback with task-configured Capture input enabled.")
-    if enable_teleop and args_cli.teleop is not False:
-        if has_play_teleop(env_cfg):
-            if args_cli.frontend != "torch":
-                raise ValueError("Active TeleopInputCfg requires --frontend torch; use --no-teleop for Warp playback.")
-            from isaaclab_teleop.playback import CapturePlaySession, PlaybackStopped
+    if enable_teleop and args_cli.teleop is True and not use_capture:
+        raise ValueError("--teleop requires a TeleopInputCfg on a task action's input field.")
+    launch_cfg = env_cfg
+    if use_capture:
+        if args_cli.frontend != "torch":
+            raise ValueError("Active TeleopInputCfg requires --frontend torch; use --no-teleop for Warp playback.")
+        from isaaclab_teleop.playback import (
+            activate_capture,
+            capture_input_config,
+            prepare_playback_config,
+            validate_playback,
+        )
+        from isaaclab_teleop.source import PlaybackStopped
 
-            session = CapturePlaySession(env_cfg)
-            session.prepare_environment()
-            if dataset_file is not None:
-                from isaaclab_teleop.recording import DemoRecordingCfg
+        launch_cfg = prepare_playback_config(env_cfg)
+        if dataset_file is not None:
+            from isaaclab_teleop.recording import DemoRecordingCfg, prepare_demo_recording
 
-                session.configure_recording(
-                    DemoRecordingCfg(
-                        dataset_file=dataset_file,
-                        num_demos=getattr(args_cli, "num_demos", 0),
-                        export_mode=getattr(args_cli, "demo_export_mode", "succeeded"),
-                    ),
-                    task_name=args_cli.task,
-                )
-            from isaaclab.app.sim_launcher import validate_launch
+            _, input_cfg = capture_input_config(env_cfg)
+            prepare_demo_recording(
+                env_cfg,
+                DemoRecordingCfg(
+                    dataset_file=dataset_file,
+                    num_demos=getattr(args_cli, "num_demos", 0),
+                    export_mode=getattr(args_cli, "demo_export_mode", "succeeded"),
+                ),
+                args_cli.task,
+                input_cfg.env_ids,
+            )
+        from isaaclab.app.sim_launcher import validate_launch
 
-            _, kit_sources = validate_launch(session.launch_config, args_cli)
-            if kit_sources:
-                raise ValueError(
-                    "Task teleoperation requires a kitless runtime. "
-                    f"This configuration requires Kit for: {', '.join(kit_sources)}. "
-                    "Use --no-teleop for policy playback."
-                )
-            session.validate()
-        elif args_cli.teleop is True:
-            raise ValueError("--teleop requires a TeleopInputCfg on a task action's input field.")
-    launch_cfg = env_cfg if session is None else session.launch_config
-    with launch_simulation(launch_cfg, args_cli, cleanup_context=session is None):
-        if session is None:
-            yield None
+        _, kit_sources = validate_launch(launch_cfg, args_cli)
+        if kit_sources:
+            raise ValueError(
+                "Task teleoperation requires a kitless runtime. "
+                f"This configuration requires Kit for: {', '.join(kit_sources)}. "
+                "Use --no-teleop for policy playback."
+            )
+        validate_playback(env_cfg)
+    with launch_simulation(launch_cfg, args_cli, cleanup_context=not use_capture):
+        if use_capture:
+            # Suppress only operator exit; the outer scope's drain failures
+            # must propagate before any dependent environment resources close.
+            with activate_capture(env_cfg) as configure_inputs, contextlib.suppress(PlaybackStopped):
+                yield configure_inputs
         else:
-            try:
-                session.prepare()
-                yield session
-            except PlaybackStopped:
-                session.close()
-            except BaseException as error:
-                try:
-                    session.close()
-                except BaseException as cleanup_error:
-                    error.add_note(f"Capture cleanup also failed: {cleanup_error!r}")
-                raise
-            else:
-                session.close()
+            yield None
 
 
 def create_isaaclab_env(
@@ -640,7 +634,7 @@ def create_isaaclab_env(
     args_cli: argparse.Namespace,
     *,
     convert_marl_to_single_agent: bool,
-    playback_session: CapturePlaySession | None = None,
+    configure_inputs: Callable[[gym.Env], None] | None = None,
 ) -> gym.Env:
     """Create the Isaac Lab Gymnasium environment.
 
@@ -649,7 +643,7 @@ def create_isaaclab_env(
         env_cfg: Isaac Lab environment config.
         args_cli: Parsed command-line arguments.
         convert_marl_to_single_agent: Whether to convert direct MARL environments to single-agent environments.
-        playback_session: Prepared interactive session, or None for training and policy-only playback.
+        configure_inputs: Optional resource activation after constructing the environment.
 
     Returns:
         The created Gymnasium environment.
@@ -662,21 +656,21 @@ def create_isaaclab_env(
 
         env = WarpFrontend.build_env(env_cfg, task)
     try:
-        if playback_session is not None:
-            env = playback_session.attach(env)
+        if configure_inputs is not None:
+            configure_inputs(env)
         if convert_marl_to_single_agent and isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
             # Import the environment runtime only after simulation launch.
             from isaaclab.envs import multi_agent_to_single_agent
 
             env = multi_agent_to_single_agent(env)
     except BaseException:
-        try:
-            if playback_session is not None:
-                playback_session.close()
-            else:
+        # Input setup may already hold a renderer lease before its source owns
+        # it. Let that construction scope retire resources before closing Lab.
+        if configure_inputs is None:
+            try:
                 env.close()
-        except BaseException:
-            logger.exception("Failed to close the environment after wrapper setup failed.")
+            except BaseException:
+                logger.exception("Failed to close the environment after wrapper setup failed.")
         raise
     return env
 
@@ -1173,7 +1167,7 @@ def run_playback(
     dt: float,
     args_cli: argparse.Namespace,
     env_cfg: Any,
-    playback_session: CapturePlaySession | None = None,
+    env: gym.Env | None = None,
 ) -> None:
     """Step a policy until interrupted, or until the requested video clip is complete.
 
@@ -1184,7 +1178,7 @@ def run_playback(
         args_cli: Parsed command-line arguments providing ``video``, ``video_length``, ``real_time``
             and the optional ``max_steps`` limit.
         env_cfg: Environment config whose first video recorder bounds the clip when ``--video_length`` is omitted.
-        playback_session: Optional input/presentation session whose shutdown ends playback.
+        env: Environment whose recorder counts can bound demonstration collection.
     """
     budgets = [n for n in (args_cli.max_steps, video_playback_steps(args_cli, env_cfg)) if n is not None]
     max_steps = min(budgets, default=None)
@@ -1192,7 +1186,7 @@ def run_playback(
     step_count = 0
     with contextlib.suppress(KeyboardInterrupt):
         while max_steps is None or step_count < max_steps:
-            if playback_session is not None and playback_session.shutdown_requested:
+            if env is not None and demo_collection_complete(env, args_cli):
                 break
             start_time = time.time()
             with torch.inference_mode():
@@ -1201,6 +1195,18 @@ def run_playback(
             sleep_time = dt - (time.time() - start_time)
             if args_cli.real_time and sleep_time > 0:
                 time.sleep(sleep_time)
+
+
+def demo_collection_complete(env: gym.Env, args_cli: argparse.Namespace) -> bool:
+    """Read the recorder's exported episode count without owning recording state."""
+    limit = getattr(args_cli, "num_demos", 0)
+    if not limit:
+        return False
+    recorder = env.unwrapped.recorder_manager
+    count = recorder.exported_successful_episode_count
+    if getattr(args_cli, "demo_export_mode", "succeeded") == "all":
+        count += recorder.exported_failed_episode_count
+    return count >= limit
 
 
 def video_playback_steps(args_cli: argparse.Namespace, env_cfg: Any) -> int | None:

@@ -20,6 +20,7 @@ import torch
 from isaaclab_newton.physics import NewtonCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_teleop import CaptureTeleopSourceCfg, TeleopInputCfg, TeleopSample, TeleopSource, se3_keyboard_teleop_cfg
+from isaaclab_teleop.source import PlaybackStopped
 
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import (
@@ -46,7 +47,7 @@ pytestmark = pytest.mark.kitless
 class _InputSource(TeleopSource):
     """Supply one input sample, then release control to the baseline policy."""
 
-    def __init__(self, cfg, env, *, env_ids, xr_session=None):
+    def __init__(self, cfg, env, *, env_ids, presentation=None, startup_timeout_s=30.0):
         self.polls = 0
         self.close_calls = 0
         self.closed = False
@@ -351,6 +352,89 @@ def test_play_cli_exports_requested_demos_with_applied_actions_and_provenance(pl
         )
 
 
+@pytest.mark.parametrize("drain_fails", [False, True])
+def test_operator_shutdown_does_not_hide_failed_input_drain(playback_task, drain_fails):
+    """A normal XR exit must not suppress a teardown failure or release its dependencies."""
+    task, created = playback_task
+
+    class StoppingSource(_InputSource):
+        def advance(self):
+            raise PlaybackStopped("operator exited")
+
+        def close(self):
+            if drain_fails:
+                raise RuntimeError("input still borrows XR")
+            super().close()
+
+    cfg = _PlaybackCfg()
+    cfg.actions.controlled.input.source.class_type = StoppingSource
+    args = argparse.Namespace(task=task, frontend="torch", teleop=True)
+    expected = (
+        pytest.raises(RuntimeError, match="Failed to close 1 action input") if drain_fails else contextlib.nullcontext()
+    )
+    with expected:
+        with launch_playback(cfg, args) as configure_inputs:
+            env = create_isaaclab_env(
+                task, cfg, args, convert_marl_to_single_agent=False, configure_inputs=configure_inputs
+            )
+            env.step(torch.zeros(3, 3))
+            pytest.fail("operator shutdown advanced physics")
+
+    assert not created[0].applied
+    assert created[0].closed is not drain_fails
+    if drain_fails:
+        # Complete cleanup after checking the failure retained the environment.
+        drain_fails = False
+        created[0].close()
+
+
+def test_activation_failure_retires_prepared_xr_before_environment(playback_task, monkeypatch):
+    """A source constructor failure leaves the factory scope responsible for the borrowed XR lease."""
+    from isaaclab_teleop import TeleopObservationCfg
+    from isaaclab_teleop.playback import activate_capture
+
+    task, created = playback_task
+    events = []
+    lease = SimpleNamespace(active=False)
+
+    class XrSession:
+        @classmethod
+        def prepare(cls, *args, **kwargs):
+            events.append("prepare_xr")
+            lease.active = True
+            return cls()
+
+        def close(self):
+            events.append("close_xr")
+            lease.active = False
+
+    class FailingSource(_InputSource):
+        def __init__(self, *args, **kwargs):
+            events.append("construct_source")
+            raise RuntimeError("source construction failed")
+
+    close_env = _ActionSink.close
+
+    def close_after_xr(env):
+        events.append("close_env")
+        assert not lease.active, "environment closed while the prepared XR lease was still borrowed"
+        close_env(env)
+
+    monkeypatch.setitem(sys.modules, "isaaclab_teleop.ov_libraries_xr", SimpleNamespace(OvLibrariesXrSession=XrSession))
+    monkeypatch.setattr(_ActionSink, "close", close_after_xr)
+    cfg = _PlaybackCfg()
+    cfg.observations["operator"] = TeleopObservationCfg()
+    cfg.actions.controlled.input.source.class_type = FailingSource
+    args = argparse.Namespace(frontend="torch")
+
+    with pytest.raises(RuntimeError, match="source construction failed"):
+        with activate_capture(cfg) as configure_inputs:
+            create_isaaclab_env(task, cfg, args, convert_marl_to_single_agent=False, configure_inputs=configure_inputs)
+
+    assert events == ["prepare_xr", "construct_source", "close_xr", "close_env"]
+    assert len(created) == 1 and created[0].closed
+
+
 @pytest.mark.parametrize("activation", ["unconfigured", "disabled"])
 def test_collection_rejects_missing_capture_before_launch(playback_task, monkeypatch, tmp_path, activation):
     """A dataset request cannot silently become policy-only playback with no collection session."""
@@ -503,7 +587,7 @@ def test_env_factory_activates_input_only_for_enabled_playback(playback_task, ac
     args = argparse.Namespace(frontend="torch", teleop=False if activation == "disabled" else None)
     cfg = _PlaybackCfg()
     with launch_playback(cfg, args, enable_teleop=activation != "training") as session:
-        env = create_isaaclab_env(task, cfg, args, convert_marl_to_single_agent=False, playback_session=session)
+        env = create_isaaclab_env(task, cfg, args, convert_marl_to_single_agent=False, configure_inputs=session)
         try:
             env.reset()
             assert (env.unwrapped.action_manager.get_input("controlled") is not None) == (activation == "policy")

@@ -49,6 +49,14 @@ class ActionInput(ManagerTermBase):
         """Dimension of the original controller's raw actions."""
         return self._action_dim
 
+    def prepare_actions(self) -> None:
+        """Acquire input once per control step, before any input resolves actions.
+
+        Inputs sharing a device can distribute one sample here regardless of
+        controller order. This host-side phase must not advance physics.
+        """
+        pass
+
     @abstractmethod
     def resolve_actions(self, actions: torch.Tensor) -> torch.Tensor:
         """Select raw actions without modifying the supplied policy tensor.
@@ -463,6 +471,10 @@ class ActionManager(ManagerBase):
                 term.process_actions(action[:, idx : idx + term.action_dim])
                 idx += term.action_dim
             return
+
+        # Acquire shared inputs before resolving any controller's actions.
+        for action_input in self._inputs.values():
+            action_input.prepare_actions()
 
         # Resolve all inputs before processing so observations, rewards, and
         # recorders see the same raw actions that the controllers consume.

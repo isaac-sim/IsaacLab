@@ -21,6 +21,8 @@ from types import ModuleType, SimpleNamespace
 import pytest
 from isaaclab_teleop.ovxr_cfg import OvLibrariesXrCfg
 
+pytestmark = [pytest.mark.kitless, pytest.mark.ov]
+
 
 class _FakeLease:
     def __init__(self):
@@ -686,13 +688,14 @@ def test_publication_retains_primary_cause_when_abandon_fails(xr_module, monkeyp
     assert any("abandon failed" in note for note in caught.value.__notes__)
 
 
-@pytest.mark.parametrize("camera_enabled", [False, True])
-def test_session_delegates_lifecycle_to_isaacteleop_owner(xr_module, monkeypatch, camera_enabled):
+@pytest.mark.parametrize("camera_enabled,environment_owner", [(False, "render_worker"), (True, "host")])
+def test_session_delegates_lifecycle_to_isaacteleop_owner(xr_module, monkeypatch, camera_enabled, environment_owner):
     calls = []
 
     class FakeOwner:
         owns_environment = True
         shutdown_requested = False
+        retirement_complete = False
 
         def __init__(self, host, config, **kwargs):
             calls.append(("init", host, config, kwargs))
@@ -719,6 +722,9 @@ def test_session_delegates_lifecycle_to_isaacteleop_owner(xr_module, monkeypatch
 
         def close(self):
             calls.append(("close",))
+            self.host.close_on_render_thread()
+            self.host.close_environment_on_render_thread()
+            self.retirement_complete = True
 
     class FakeMirror:
         status = SimpleNamespace(main_thread_fps=30.0, render_thread_fps=40.0)
@@ -750,8 +756,12 @@ def test_session_delegates_lifecycle_to_isaacteleop_owner(xr_module, monkeypatch
             if camera_enabled
             else (),
         ),
+        environment_owner=environment_owner,
     )
-    env = SimpleNamespace(scene=SimpleNamespace(stage=None, sensors={"robot_pov_cam": object()}))
+    env = SimpleNamespace(
+        scene=SimpleNamespace(stage=None, sensors={"robot_pov_cam": object()}),
+        close=lambda: calls.append(("environment-close",)),
+    )
     env.unwrapped = env
     bootstrap.lease.auxiliary_render_product_paths = ("/Render/robot_pov_cam",)
     monkeypatch.setattr(xr_module, "_StageOrdinalLedger", _FakeOrdinalLedger)
@@ -790,7 +800,8 @@ def test_session_delegates_lifecycle_to_isaacteleop_owner(xr_module, monkeypatch
         ("status", "Main  30.0 FPS   Physics 114.7/120 Hz (0.96× RT)   Render  40.0 FPS"),
     ]
     assert session.get_target_frame_T_world("/target") == ("target", "/target")
-    assert session.async_worker_owns_environment
+    assert session.async_worker_owns_environment is (environment_owner == "render_worker")
+    assert not session.retirement_complete
     assert not session.shutdown_requested
     session.request_shutdown()
     assert calls[-1] == ("request_shutdown",)
@@ -798,7 +809,36 @@ def test_session_delegates_lifecycle_to_isaacteleop_owner(xr_module, monkeypatch
     session._owner.shutdown_requested = True
     assert session.shutdown_requested
     session.close()
-    assert calls[-1] == ("close",)
+    assert session.retirement_complete
+    if environment_owner == "render_worker":
+        assert calls[-2:] == [("close",), ("environment-close",)]
+    else:
+        assert calls[-1] == ("close",)
+        assert ("environment-close",) not in calls
+        env.close()
+        assert calls[-1] == ("environment-close",)
+
+
+@pytest.mark.parametrize("close_raises", [False, True])
+def test_host_owned_session_retains_environment_when_worker_retirement_fails(xr_module, close_raises):
+    """A joined worker cannot authorize Lab teardown when native retirement remains unproved."""
+    session = xr_module.OvLibrariesXrSession(_FakeBootstrap(), xr_module.OvLibrariesXrCfg(), environment_owner="host")
+    error = RuntimeError("XR consumer drain failed")
+
+    def close():
+        if close_raises:
+            raise error
+
+    session._owner = SimpleNamespace(close=close, owns_environment=True, retirement_complete=False)
+    with pytest.raises(RuntimeError, match="XR consumer drain failed" if close_raises else "retirement is unproved"):
+        session.close()
+    assert not session.retirement_complete
+    assert not session.async_worker_owns_environment
+    # A failed close must not claim completion or turn the next close into a no-op.
+    session._owner.retirement_complete = True
+    session._owner.close = lambda: None
+    session.close()
+    assert session.retirement_complete
 
 
 @pytest.fixture

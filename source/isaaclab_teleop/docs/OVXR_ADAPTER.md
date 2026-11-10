@@ -18,6 +18,10 @@ renderer and OVStage through `isaaclab_ov.renderers.OvLibrariesRenderLease`.
   anchor updates, transfers render-thread ownership and coordinates shutdown.
 - Isaac Capture owns the OVXR session and render worker. Its borrowed OpenXR
   handles are available to the teleoperation input session.
+- Environment ownership is explicit. Shared `isaaclab play` selects
+  `environment_owner="host"`; the render worker retires XR resources and the
+  renderer lease, then Lab closes the environment on its host thread. Legacy
+  entrypoints retain `environment_owner="render_worker"`, the default.
 
 ## Lifecycle
 
@@ -29,6 +33,14 @@ and retire the lease before destroying the simulation's renderer or stage.
 If startup fails before the worker takes ownership, the caller closes the
 environment after releasing the lease. If input retirement fails, request
 shutdown and retain the borrowed resources until their retirement is proved.
+
+With host-owned environments, `close()` must complete successfully and
+`retirement_complete` must be true before the host destroys the environment.
+Capture still invokes the adapter's `close_environment_on_render_thread()`
+callback; in this mode it validates that scene-write, anchor, and lease
+retirement completed and leaves environment destruction to the host. A worker
+that merely stopped or joined does not prove retirement. The legacy mode
+validates the same barrier and then closes the environment on the worker.
 
 The lease currently requires one environment and a private rendering OVStage.
 Ownership transfer is single-use. Failed retirement must preserve resources
@@ -42,11 +54,49 @@ A failed scene write or seal stops further publication. Recreate the session
 after retiring the failed pair; retrying the same generation cannot return an
 older scene as if the failed update succeeded. The failure poisons producer
 publication only: the render-owner lane stays available so Capture can destroy
-its OVXR context and the adapter can release the lease and close the
-environment. After a poisoned lease is released, the renderer keeps rejecting
-ordinary use (except closing it) because its write ordinal was not rebased.
+its OVXR context and the adapter can release the lease. The selected owner can
+then close the environment. After a poisoned lease is released, the renderer
+keeps rejecting ordinary use (except closing it) because its write ordinal was not rebased.
 During shutdown, publication storage drains before lease guards are removed.
 The adapter retains the environment if lease retirement cannot establish completion.
+
+## Shared playback integration
+
+`isaaclab play` uses the task's original environment and action controllers.
+Its construction context reserves XR before environment creation and then
+activates configured action inputs. It does not install a teleop environment
+wrapper or retain a separate step/reset coordinator.
+
+The action manager calls `ActionInput.prepare_actions()` for all active inputs
+before resolving any controller's action. The source-owning `TeleopInput`
+polls once and shares that sample with the participating inputs. Its Capture
+source publishes the preceding completed environment state before each poll.
+`OvxrPresentation` owns pending publication generations and reset fences for
+both shared playback and legacy callers; it does not own physics stepping.
+Ordinary publication follows render demand, while the worker continues
+headset rendering independently of physics and policy inference.
+
+Task resets notify the source through the existing action-manager reset.
+The source clears retargeting state and marks a reset publication pending.
+At the next control boundary, it publishes the completed scene and anchors,
+and waits for publication admission before accepting another input sample.
+This wait does not wait for the corresponding image to render. XR stays
+connected across task resets.
+
+Operator requests use the environment's normal reset boundary. The current
+physical step, reward computation, and post-step recording finish first;
+the selected row is then reset and reported as terminated if it did not
+already finish through the task's own terms. Other rows continue stepping.
+RecorderManager exports the completed attempt according to the task's success
+signal and configured export mode. Its `min_episode_steps` filter excludes
+initial-state-only attempts during demo collection. No reset jump is recorded
+as a physical transition, and a manual reset does not imply task success.
+
+On close, the action manager closes its inputs before controllers or other
+environment resources. The owning source first drains Capture input, then
+retires the optional XR presentation and render lease. Lab closes the
+environment and native Lab windows on the host thread afterward. Any failed
+drain stops that destruction sequence, preserving dependencies for cleanup.
 
 ## Environment requirements
 

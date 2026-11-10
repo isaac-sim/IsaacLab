@@ -53,6 +53,7 @@ from .. import (
 )
 from ..action_policy import initial_hand_tracking_issue, prepare_teleop_action
 from ..device_selection import create_teleop_device, select_teleop_cfg
+from ..ovxr_presentation import OvxrPresentation
 from ._ovxr_launch import (
     add_ovxr_presentation_args,
     prepare_ovxr_launch,
@@ -60,7 +61,6 @@ from ._ovxr_launch import (
     resolve_ovxr_pip_cameras,
     validate_ovxr_presentation_args,
 )
-from ._ovxr_presentation import OvxrPresentation
 
 logger = logging.getLogger(__name__)
 

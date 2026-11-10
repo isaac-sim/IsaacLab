@@ -12,8 +12,10 @@ from types import SimpleNamespace
 import gymnasium as gym
 import numpy as np
 import pytest
+import torch
 
 from isaaclab.envs import ManagerBasedRLEnv
+from isaaclab.managers import TerminationManager, TerminationTermCfg
 
 pytestmark = pytest.mark.unit
 
@@ -145,3 +147,132 @@ def test_close_retains_borrowed_resources_until_action_terms_release_them():
     env.close()
     assert events == ["actions", "actions", "stop", "clear"]
     assert env.action_space is None
+
+
+def _make_stepping_env() -> tuple[ManagerBasedRLEnv, list]:
+    """Exercise the real environment step/reset with deterministic scalar dynamics."""
+    env = object.__new__(ManagerBasedRLEnv)
+    env._is_closed = True
+    env.cfg = SimpleNamespace(
+        decimation=2, sim=SimpleNamespace(dt=0.1, render_interval=2), compute_final_obs=True, wait_for_textures=False
+    )
+    env._physics_handles_decimation = False
+    env._sim_step_counter = 0
+    env.common_step_counter = 0
+    env.episode_length_buf = torch.zeros(4, dtype=torch.long)
+    env.reset_buf = torch.zeros(4, dtype=torch.bool)
+    env._requested_reset_buf = None
+    env.extras = {}
+    env.render_enabled = True
+    env.has_rtx_sensors = False
+    env.video_recorders = []
+    events = []
+
+    def scene_reset(env_ids):
+        events.append(("scene_reset", torch.arange(4)[env_ids].tolist()))
+        env.scene.state[env_ids] = 0.0
+
+    env.scene = SimpleNamespace(
+        num_envs=4,
+        state=torch.zeros(4),
+        reset=scene_reset,
+        write_data_to_sim=lambda: None,
+        update=lambda dt: None,
+    )
+
+    def physics_step(render):
+        env.scene.state.add_(env.action_manager.action)
+        events.append(("physics", env.scene.state.tolist()))
+
+    def consume_reset_request():
+        requested = env.sim.reset_requested
+        env.sim.reset_requested = False
+        return requested
+
+    env.sim = SimpleNamespace(
+        device="cpu",
+        is_playing=lambda: True,
+        is_rendering=False,
+        step=physics_step,
+        forward=lambda: None,
+        reset_requested=False,
+        consume_reset_request=consume_reset_request,
+    )
+
+    def process_action(action):
+        env.action_manager.action = action[:, 0].clone()
+
+    env.action_manager = SimpleNamespace(process_action=process_action, apply_action=lambda: None, reset=lambda ids: {})
+    env.observation_manager = SimpleNamespace(
+        compute=lambda update_history=False: {"policy": env.scene.state.clone()}, reset=lambda ids: {}
+    )
+    env.reward_manager = SimpleNamespace(compute=lambda dt: env.scene.state.clone(), reset=lambda ids: {})
+    env.curriculum_manager = SimpleNamespace(compute=lambda env_ids: None, reset=lambda ids: {})
+    env.command_manager = SimpleNamespace(compute=lambda dt: None, reset=lambda ids: {})
+    env.event_manager = SimpleNamespace(active_terms=[], reset=lambda ids: {})
+    env.termination_manager = TerminationManager(
+        {
+            "success": TerminationTermCfg(func=lambda env: env.scene.state == 6.0),
+            "time_out": TerminationTermCfg(func=lambda env: env.scene.state >= 8.0, time_out=True),
+        },
+        env,
+    )
+    env.recorder_manager = SimpleNamespace(
+        record_pre_step=lambda: None,
+        record_post_physics_decimation_step=lambda: None,
+        record_post_step=lambda: events.append(("post_step", env.scene.state.tolist())),
+        record_pre_reset=lambda ids: events.append(("pre_reset", env.scene.state.tolist())),
+        record_post_reset=lambda ids: events.append(("post_reset", env.scene.state.tolist())),
+        reset=lambda ids: {},
+    )
+    return env, events
+
+
+@pytest.mark.kitless
+@pytest.mark.parametrize(
+    "viewer_reset, reset_ids, expected_observation",
+    [(False, [0, 2, 3], [0.0, 4.0, 0.0, 0.0]), (True, [0, 1, 2, 3], [0.0, 0.0, 0.0, 0.0])],
+)
+def test_requested_resets_join_real_step_and_autoreset(viewer_reset, reset_ids, expected_observation):
+    """Queued operator and viewer requests share one reset boundary without fabricating transitions."""
+    env, events = _make_stepping_env()
+    env.request_reset(torch.tensor([0, 2, 3]))
+    env.request_reset(torch.tensor([0]))
+    env.sim.reset_requested = viewer_reset
+
+    observations, rewards, terminated, truncated, extras = env.step(torch.tensor([[1.0], [2.0], [3.0], [4.0]]))
+
+    assert env._sim_step_counter == 2
+    assert env.common_step_counter == 1
+    assert rewards.tolist() == [2.0, 4.0, 6.0, 8.0]
+    assert terminated.tolist() == ([True, True, True, False] if viewer_reset else [True, False, True, False])
+    assert truncated.tolist() == [False, False, False, True]
+    assert observations["policy"].tolist() == expected_observation
+    assert extras["final_obs"]["policy"].tolist() == [2.0, 4.0, 6.0, 8.0]
+    assert env.termination_manager.get_term("success").tolist() == [False, False, True, False]
+    assert events == [
+        ("physics", [1.0, 2.0, 3.0, 4.0]),
+        ("physics", [2.0, 4.0, 6.0, 8.0]),
+        ("post_step", [2.0, 4.0, 6.0, 8.0]),
+        ("pre_reset", [2.0, 4.0, 6.0, 8.0]),
+        ("scene_reset", reset_ids),
+        ("post_reset", expected_observation),
+    ]
+
+    events.clear()
+    _, _, terminated, truncated, _ = env.step(torch.zeros((4, 1)))
+    assert not terminated.any() and not truncated.any()
+    assert all(name != "scene_reset" for name, _ in events)
+
+
+@pytest.mark.kitless
+def test_explicit_reset_consumes_only_its_queued_rows():
+    """An explicit reset satisfies pending requests without discarding requests for other rows."""
+    env, events = _make_stepping_env()
+    env.request_reset(slice(0, 2))
+    env.reset(env_ids=torch.tensor([0]))
+    events.clear()
+
+    _, _, terminated, _, _ = env.step(torch.zeros((4, 1)))
+    assert terminated.tolist() == [False, True, False, False]
+    assert [value for name, value in events if name == "scene_reset"] == [[1]]

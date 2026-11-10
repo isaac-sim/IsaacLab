@@ -227,6 +227,33 @@ def test_export_batched_episodes(tmp_path, mode):
             assert not bool(file["data/demo_10"].attrs["success"])
 
 
+def test_minimum_episode_steps_survives_partial_reset_and_export(tmp_path):
+    """Explicit export and close omit short rows without discarding another row's history."""
+    cfg = DummyRecorderManagerCfg(dataset_export_dir_path=str(tmp_path), min_episode_steps=2, export_in_close=True)
+    manager = RecorderManager(cfg, create_dummy_env(num_envs=3))
+    try:
+        manager.record_post_reset(None)
+        manager.record_pre_step()
+        manager.record_post_step()
+        manager.reset([1])
+        manager.record_post_reset([1])
+        manager.record_pre_step()
+        manager.record_post_step()
+
+        manager.export_episodes([2, 1], [20, 10])
+        assert manager.exported_failed_episode_count == 1
+        manager.record_pre_step()
+        manager.record_post_step()
+    finally:
+        manager.close()
+
+    assert manager.exported_failed_episode_count == 2
+    with h5py.File(tmp_path / "dataset.hdf5") as dataset:
+        assert set(dataset["data"]) == {"demo_20", "demo_0"}
+        assert dataset["data/demo_20/record_pre_step"].shape == (2, 4)
+        assert dataset["data/demo_0/record_pre_step"].shape == (3, 4)
+
+
 def test_recorder_storage_boundary():
     """Keep storage independent of consumers, with batched ownership and no Python world loops."""
     import isaaclab.managers.recorder_manager as module

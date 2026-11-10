@@ -69,7 +69,7 @@ def test_ovxr_presentation_preserves_camera_layout(monkeypatch, layout_mode):
     cameras = resolve_ovxr_pip_cameras(config, args, OVRTXRendererCfg())
     prepare = Mock()
     monkeypatch.setattr(isaaclab_teleop.OvLibrariesXrSession, "prepare", prepare)
-    from isaaclab_teleop.entrypoints._ovxr_presentation import OvxrPresentation
+    from isaaclab_teleop.ovxr_presentation import OvxrPresentation
 
     presentation = OvxrPresentation.prepare(config, args, application_name="replay", auxiliary_cameras=cameras)
     assert presentation.session is prepare.return_value
@@ -188,7 +188,7 @@ def test_replay_bootstrap_waits_only_for_an_active_kit_application(
         monkeypatch.setattr(replay, name, value, raising=False)
     presentation = None
     if viewer:
-        from isaaclab_teleop.entrypoints._ovxr_presentation import OvxrPresentation
+        from isaaclab_teleop.ovxr_presentation import OvxrPresentation
 
         session = SimpleNamespace(
             start_render_worker=lambda *_args, **_kwargs: calls.append("viewer-start") or True,

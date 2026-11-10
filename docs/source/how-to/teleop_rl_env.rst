@@ -38,11 +38,19 @@ uses the original controller directly:
    # Its concrete type, cfg, custom methods, and attributes are preserved.
 
 Playback activates input adapters separately after the environment is constructed.
-The action manager selects raw input before controller processing and records the selected
-actions in its history. Capture polling and XR resources belong to the playback session;
-the core manager uses a generic input interface without importing Capture. Normal task
-resets reset the controllers before notifying their active inputs. Input resources drain
-before controllers and simulation resources close.
+Before resolving any controller input, the action manager calls
+:meth:`~isaaclab.managers.ActionInput.prepare_actions` on every active input. The source-owning
+``TeleopInput`` polls Capture once and shares the sample with the other participating inputs.
+The manager then selects raw input, records it in its history, and runs the original
+controllers. The core manager uses a generic input interface without importing Capture.
+
+The Capture source owns its input device and optional XR presentation. Ordinary environment
+steps, resets, and close calls drive these resources through the action manager; playback
+does not install a separate environment wrapper or step/reset coordinator. A construction
+context prepares optional XR resources and activates inputs after the scene exists. It also
+handles cleanup if construction or activation fails before the environment takes ownership.
+Normal task resets reset the controllers before notifying their active inputs. Input and XR
+resources drain before controllers, other managers, and simulation resources close.
 
 Sharing input across action terms
 ---------------------------------
@@ -241,8 +249,22 @@ camera is strictly the operator's point of view. Use separate task cameras for v
 
 Playback reserves Hougant's OVXR renderer before constructing the environment, starts its
 worker after the scene and Capture input are ready, and publishes complete scene states.
-The worker renders the headset independently of physics and policy inference. Input drains
-before XR shutdown; the render worker owns teardown after it takes ownership of the scene.
+The worker renders the headset independently of physics and policy inference. At the start
+of the next action-input preparation, the source publishes the preceding completed environment
+step before polling Capture. Ordinary updates are admitted according to render demand; they
+do not require the host to wait for a rendered frame.
+
+An environment reset marks presentation state as changed while the managers reset. The next
+input poll publishes the completed reset scene and anchors, and waits for that publication to
+be admitted before accepting fresh input. This fence protects scene and input consistency;
+it does not couple headset rendering frequency to the physics loop.
+
+Shared playback selects host ownership of the environment. During normal close, the source
+drains Capture's input borrowers, then closes XR and waits for native resources and the render
+lease to retire on the render worker. Lab then closes the controllers, environment, native
+desktop windows, and remaining simulation resources on the host thread. A failed input drain
+or unproved XR retirement raises and retains the borrowed dependencies for cleanup; a stopped
+worker alone does not establish safe retirement.
 
 Use the Capture 1.7.93a1 installation described in :doc:`kitless_xr_source` and the prepared
 ``ovxr`` dependency selection. The repository's default ``teleop`` extra still selects the
@@ -252,8 +274,8 @@ XR-capable source declared in the task, use the same ``isaaclab play`` command u
 disabled by default. A Lab visualizer may show a separate view, for example with
 ``--viz newton_gl``; it does not have to match the headset camera. Use ``--viz none``
 when no Lab viewer is wanted. Lab views cannot consume XR-owned cameras or the renderer
-leased by XR. Native Lab windows close on their host thread after input drains and before
-XR releases the environment. No legacy ``--xr`` or ``--ovxr`` flag is needed on this path.
+leased by XR. Native Lab windows close on their host thread after input and XR retirement.
+No legacy ``--xr`` or ``--ovxr`` flag is needed on this path.
 
 Learning cameras remain configured. A camera that resolves to the renderer leased by XR
 is rejected before startup unless it is an explicitly configured operator panel. Cameras
@@ -300,25 +322,40 @@ learning observation. Independent learning cameras and task recorder terms remai
 
 The output must be a new dataset: existing files are rejected before launch. Completed
 episodes are flushed as they export. An unfinished episode is discarded on exit, and resets
-without any physical steps do not create empty demonstrations.
+without any physical steps do not create empty demonstrations. The recorder manager owns
+this filtering through ``min_episode_steps``: collection requires at least one completed
+environment step, preserving a task's larger configured minimum. Initial states and custom
+reset annotations alone do not count as completed steps. The playback loop reads the
+recorder's exported episode counts directly to enforce ``--num_demos``.
 
 Reset semantics and migration
 -----------------------------
 
-An operator reset interrupts the controlled row, resets it, and returns a zero-reward
-truncation boundary without advancing physics. Other rows pause for that one call. Normal
-task terminations continue to reset their own rows and notify the source when its row resets.
-``R`` resets and disengages Capture; ``B`` resumes. This does not rewind a demonstration.
+An operator reset queues a request for the controlled row through
+:meth:`~isaaclab.envs.ManagerBasedRLEnv.request_reset`. The current environment step completes
+normally: physics, rewards, terminations, and post-step recording run for every row. The
+requested row joins the task's ordinary reset boundary. If it did not already terminate or
+time out, it is reported as terminated, matching a Lab viewer reset; the task's individual
+success and timeout terms remain unchanged. Other rows continue stepping normally.
+
+``R`` resets and disengages Capture; ``B`` resumes. The reset sample yields to the policy or
+checkpoint-free baseline for that last physical step. The reset restores or randomizes task
+state and clears episode buffers and teleop calibration; it does not restart XR or rewind a
+demonstration. Normal task terminations use the same reset path and notify the source when
+its row resets.
+
 After a host reset, pipelined Capture actions are withheld until a result from a request
 submitted after the notification is available. Playback uses policy input in the meantime;
 operator control events continue to be processed.
 
 The action manager stores the selected raw action before controller processing, so
 ``last_action`` and configured action recorders see Capture's command during takeover.
-The operator-reset boundary does not create an artificial recorded physics transition.
+The last physical transition before an operator reset is included in the recorded episode,
+and the step returns its computed reward. The reset jump itself is not a physical transition.
 An operator reset exports the preceding nonempty episode only when it passes the selected
-export mode; in successful-only mode, an unsuccessful attempt is discarded. Adding an
-input configuration alone does not open a dataset: collection requires ``--dataset_file``.
+export mode. A manual reset does not mark the task successful; in successful-only mode, an
+unsuccessful attempt is discarded. Adding an input configuration alone does not open a dataset:
+collection requires ``--dataset_file``.
 
 Use ``isaaclab play --dataset_file ...`` for tasks declaring ``TeleopInputCfg``. Existing
 teleop environments, ``isaaclab teleop`` commands, and ``record_demos.py`` remain available

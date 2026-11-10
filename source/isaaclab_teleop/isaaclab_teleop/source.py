@@ -14,12 +14,16 @@ from dataclasses import dataclass
 import torch
 
 
+class PlaybackStopped(Exception):
+    """Interactive presentation requested an orderly exit from playback."""
+
+
 @dataclass
 class TeleopSample:
     """One non-blocking source poll in the task action term's conventions.
 
     ``active=False`` or ``actions=None`` yields control to the policy.
-    ``reset=True`` requests an episode reset through the playback owner;
+    ``reset=True`` queues an episode reset through the environment;
     the action input discards that sample's actions.
     """
 
@@ -34,7 +38,8 @@ class TeleopSource(ABC):
     Playback constructs sources after the environment and activates the task's
     action inputs. Sources may borrow scene and visualizer resources but release
     those resources on :meth:`close`, including after partially failed startup.
-    Polling must not step, render, or reset the environment.
+    Polling must not step, render, or reset the environment. An XR source may
+    publish completed scene state to its independent presentation worker.
     """
 
     @abstractmethod

@@ -646,7 +646,7 @@ def test_ovxr_presentation_starts_once_and_adopts_later_input_anchors():
     """A failed start leaves the worker unstarted; a started worker adopts each later device's anchor."""
     from unittest.mock import Mock
 
-    from isaaclab_teleop.entrypoints._ovxr_presentation import OvxrPresentation
+    from isaaclab_teleop.ovxr_presentation import OvxrPresentation
 
     session = Mock()
     session.start_render_worker.return_value = False
@@ -672,12 +672,13 @@ def test_ovxr_presentation_starts_once_and_adopts_later_input_anchors():
 
 
 def test_ovxr_presentation_retains_a_forced_reset_until_admitted():
-    """A reset publication stays forced across declined requests; later changes publish unforced."""
-    from isaaclab_teleop.entrypoints._ovxr_presentation import OvxrPresentation
+    """Reset admission fences input; ordinary updates do not block and shutdown leaves the reset pending."""
+    from isaaclab_teleop.ovxr_presentation import OvxrPresentation
 
     requests = []
     reports = []
-    admissions = iter([None, 1, None, 2])
+    waits = []
+    admissions = iter([None, None, 1, None, 2])
     step = 0
 
     def request(identity, *, force):
@@ -685,20 +686,32 @@ def test_ovxr_presentation_retains_a_forced_reset_until_admitted():
         return next(admissions)
 
     presentation = OvxrPresentation(
-        SimpleNamespace(request_render=request, report_host_timing=lambda step, _dt: reports.append(step))
+        SimpleNamespace(
+            request_render=request,
+            report_host_timing=lambda step, _dt: reports.append(step),
+            shutdown_requested=False,
+            wait_for_shutdown=waits.append,
+        )
     )
-    env = SimpleNamespace(sim=SimpleNamespace(get_physics_step_count=lambda: step, get_physics_dt=lambda: 0.005))
+    env = SimpleNamespace(
+        sim=SimpleNamespace(get_physics_step_count=lambda: step, get_physics_dt=lambda: 0.005), step_dt=0.01
+    )
     presentation.mark_changed(env, reset=True)
     assert requests == [] and presentation.reset_pending
     assert not presentation.publish(env, report_timing=False)
-    assert presentation.publish(env, report_timing=False)
+    assert presentation.wait_ready(env)
+    assert waits == [0.01]
     assert not presentation.reset_pending
     step = 1
     assert not presentation.publish(env, changed=True)
     assert presentation.publish(env)
     assert presentation.publish(env)  # Nothing pending, so nothing is requested.
-    assert requests == [((1, 0), True), ((1, 0), True), ((1, 1), False), ((1, 1), False)]
+    assert requests == [((1, 0), True), ((1, 0), True), ((1, 0), True), ((1, 1), False), ((1, 1), False)]
     assert reports == [1, 1, 1]  # Only completed host frames report the physics rate.
+    presentation.mark_changed(env, reset=True)
+    presentation.session.shutdown_requested = True
+    assert not presentation.wait_ready(env)
+    assert presentation.reset_pending
 
 
 @pytest.mark.parametrize("shutdown_fails", [False, True])
@@ -707,7 +720,7 @@ def test_ovxr_presentation_closes_only_after_input_drain(drained, shutdown_fails
     """An undrained input device keeps the session and environment borrowed and only requests shutdown."""
     from unittest.mock import Mock
 
-    from isaaclab_teleop.entrypoints._ovxr_presentation import OvxrPresentation
+    from isaaclab_teleop.ovxr_presentation import OvxrPresentation
 
     session = Mock()
     if shutdown_fails:
