@@ -45,7 +45,8 @@ class _ThrusterCollection(dict):
         """Reset every thruster actuator for the given environments.
 
         .. caution::
-            If both ``env_ids`` and ``env_mask`` are provided, the mask is used: the masked write measured faster.
+            If both ``env_ids`` and ``env_mask`` are provided, ``env_ids`` is used, as in
+            :meth:`~isaaclab_contrib.actuators.Thruster.reset`.
 
         Args:
             env_ids: Environment indices to reset. Defaults to None (all environments).
