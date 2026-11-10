@@ -14,6 +14,8 @@ from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import instantiate
 from isaaclab.utils.types import ArticulationActions
 
+pytestmark = pytest.mark.kitless
+
 
 class _ZeroTorqueLSTM(torch.nn.Module):
     """LSTM-shaped network that requests no torque and keeps its state."""
