@@ -161,6 +161,11 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
         return self._control.device
 
     @property
+    def is_graphable(self) -> bool:
+        """Whether :meth:`compute` can be recorded into a CUDA graph: no Isaac Lab actuator model runs in Torch."""
+        return not self._execution_actuators
+
+    @property
     def has_implicit_actuators(self) -> bool:
         """Whether any configured actuator group is implicit."""
         return self._has_implicit_actuators
