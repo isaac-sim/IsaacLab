@@ -38,23 +38,27 @@ class NewtonSceneDataBackend(SceneDataBackend):
         self.geometry_timestamp = 0
         self._geometry_batches = []
 
-    def initialize_geometry(self, geometry_batches: list, cable_bindings: dict[str, list[int]]) -> None:
+    def initialize_geometry(self, geometry_batches: list, cable_bindings: dict[str, tuple[list[int], bool]]) -> None:
         """Bind imported geometry paths to native particle ranges and capsule endpoints.
 
         Args:
             geometry_batches: Deformable and particle geometry recorded by replication.
-            cable_bindings: Native capsule shape indices of each open cable.
+            cable_bindings: Native capsule shape indices and closed flag of each cable.
         """
         self._geometry_batches = list(geometry_batches)
         endpoints, ranges = [], {}
         offset = 0
-        for path, shapes in cable_bindings.items():
+        for path, (shapes, closed) in cable_bindings.items():
             ids = np.asarray(shapes, dtype=np.int32)
-            left = np.concatenate((ids[:1], ids))
-            right = np.concatenate((ids, ids[-1:]))
+            if closed:
+                left, right = np.roll(ids, 1), ids
+            else:
+                left = np.concatenate((ids[:1], ids))
+                right = np.concatenate((ids, ids[-1:]))
             left_sign = np.ones(len(left), dtype=np.int32)
             right_sign = -np.ones(len(right), dtype=np.int32)
-            left_sign[0], right_sign[-1] = -1, 1
+            if not closed:
+                left_sign[0], right_sign[-1] = -1, 1
             endpoints.append(np.column_stack((left, left_sign, right, right_sign)))
             ranges[path] = (offset, len(left))
             offset += len(left)

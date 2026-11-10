@@ -52,6 +52,31 @@ from isaaclab.test.utils import DeviceScope, test_devices
 # ----- Configuration and lifecycle -------------------------------------------------------
 
 
+def test_cable_geometry_preserves_open_ends_and_closes_periodic_seam():
+    """Periodic curves publish N averaged joints, including last-to-first; open curves retain N+1 points."""
+    poses = wp.array(
+        [[1, 2, 3, 0, 0, 0, 1], [5, 7, 11, 0, 0, 0, 1], [13, 17, 19, 0, 0, 0, 1]],
+        dtype=wp.transformf,
+        device="cpu",
+    )
+    model = SimpleNamespace(
+        device=wp.get_device("cpu"),
+        shape_body=wp.array([0, 1, 2], dtype=wp.int32, device="cpu"),
+        shape_transform=wp.array([wp.transform_identity()] * 3, dtype=wp.transformf, device="cpu"),
+        shape_scale=wp.array([[0.1, 1, 0.1], [0.1, 2, 0.1], [0.1, 3, 0.1]], dtype=wp.vec3f, device="cpu"),
+    )
+    manager = SimpleNamespace(
+        backend=SimpleNamespace(
+            model=model, state_0=SimpleNamespace(body_q=poses), solver=None, transforms_may_change_on_graph_replay=False
+        )
+    )
+    backend = NewtonSceneDataBackend(manager)
+    backend.initialize_geometry([], {"/Closed": ([2, 0, 1], True), "/Open": ([2, 0, 1], False)})
+    points = SceneDataProvider(backend).get_geometry_points()
+    np.testing.assert_allclose(points["/Closed"].numpy(), [[9, 12, 14.5], [7, 9.5, 12], [3, 4.5, 6.5]])
+    np.testing.assert_allclose(points["/Open"].numpy(), [[13, 17, 16], [7, 9.5, 12], [3, 4.5, 6.5], [5, 7, 13]])
+
+
 @pytest.mark.parametrize(
     "num_substeps, collision_decimation, should_warn",
     [(8, 0, False), (8, 7, False), (8, 8, True), (8, 16, True)],
