@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -163,7 +162,7 @@ class FixedTendonPositionAction(ActionTerm):
             target=self._processed_actions, fixed_tendon_ids=self._tendon_ids
         )
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None) -> None:
-        env_selection = env_ids if env_mask is None else env_mask.torch
+    def reset(self, env_mask: ProxyArray) -> None:
+        env_selection = env_mask.torch
         index_fill_(self._raw_actions, env_selection, 0.0)
         index_fill_(self._processed_actions, env_selection, 0.0)

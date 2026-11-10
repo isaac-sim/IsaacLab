@@ -171,11 +171,7 @@ def test_apply_actions_holds_joints_for_uninitialized_frame(ee_quat, ik_offset):
         cfg=SimpleNamespace(controller=SimpleNamespace(joint_limit_avoidance_gain=0.0)),
         _asset=SimpleNamespace(
             data=SimpleNamespace(joint_pos=SimpleNamespace(torch=joint_pos)),
-            actuators=SimpleNamespace(
-                target_command=SimpleNamespace(
-                    set_position_index=lambda value, joint_ids: written.update(target=value),
-                )
-            ),
+            set_joint_position_target_index=lambda target, joint_ids: written.update(target=target),
         ),
         _joint_ids=slice(None),
         _limits_injected=True,

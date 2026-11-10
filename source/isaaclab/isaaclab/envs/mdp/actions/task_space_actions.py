@@ -8,7 +8,6 @@ from __future__ import annotations
 import logging
 import re
 from collections import Counter
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -239,10 +238,10 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         joint_pos_des = self._ik_controller.compute(ee_pos_curr, ee_quat_curr, jacobian, joint_pos)
         joint_pos_des = torch.where(ee_quat_curr.norm() != 0, joint_pos_des, joint_pos)
         # set the joint position command
-        self._asset.actuators.target_command.set_position_index(value=joint_pos_des, joint_ids=self._joint_ids)
+        self._asset.set_joint_position_target_index(target=joint_pos_des, joint_ids=self._joint_ids)
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None) -> None:
-        index_fill_(self._raw_actions, env_ids if env_mask is None else env_mask.torch, 0.0)
+    def reset(self, env_mask: ProxyArray) -> None:
+        index_fill_(self._raw_actions, env_mask.torch, 0.0)
 
     """
     Helper functions.
@@ -589,26 +588,19 @@ class OperationalSpaceControllerAction(ActionTerm):
             current_joint_vel=self._joint_vel,
             nullspace_joint_pos_target=self._nullspace_joint_pos_target,
         )
-        self._asset.actuators.target_command.set_effort_index(value=self._joint_efforts, joint_ids=self._joint_ids)
+        self._asset.set_joint_effort_target_index(target=self._joint_efforts, joint_ids=self._joint_ids)
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None) -> None:
+    def reset(self, env_mask: ProxyArray) -> None:
         """Resets the raw actions and the sensors if available.
 
         Args:
-            env_ids (Sequence[int] | None): The environment indices to reset. If ``None``, all environments are reset.
-            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Takes precedence over
-                ``env_ids``.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
         """
-        if env_mask is None:
-            index_fill_(self._raw_actions, env_ids, 0.0)
-            sensor_selection = {"env_ids": env_ids}
-        else:
-            index_fill_(self._raw_actions, env_mask.torch, 0.0)
-            sensor_selection = {"env_mask": env_mask.warp}
+        index_fill_(self._raw_actions, env_mask.torch, 0.0)
         if self._contact_sensor is not None:
-            self._contact_sensor.reset(**sensor_selection)
+            self._contact_sensor.reset(env_mask=env_mask.warp)
         if self._task_frame_transformer is not None:
-            self._task_frame_transformer.reset(**sensor_selection)
+            self._task_frame_transformer.reset(env_mask=env_mask.warp)
 
     """
     Helper functions.

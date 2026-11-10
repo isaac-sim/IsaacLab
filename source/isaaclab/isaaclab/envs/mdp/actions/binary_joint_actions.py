@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -142,8 +141,8 @@ class BinaryJointAction(ActionTerm):
         if self.cfg.clip is not None:
             self._processed_actions.clamp_(min=self._clip[:, :, 0], max=self._clip[:, :, 1])
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None) -> None:
-        index_fill_(self._raw_actions, env_ids if env_mask is None else env_mask.torch, 0.0)
+    def reset(self, env_mask: ProxyArray) -> None:
+        index_fill_(self._raw_actions, env_mask.torch, 0.0)
 
 
 class BinaryJointPositionAction(BinaryJointAction):
@@ -155,9 +154,7 @@ class BinaryJointPositionAction(BinaryJointAction):
     """The configuration of the action term."""
 
     def apply_actions(self):
-        self._asset.actuators.target_command.set_position_index(
-            value=self._processed_actions, joint_ids=self._joint_ids
-        )
+        self._asset.set_joint_position_target_index(target=self._processed_actions, joint_ids=self._joint_ids)
 
 
 class BinaryJointVelocityAction(BinaryJointAction):
@@ -169,9 +166,7 @@ class BinaryJointVelocityAction(BinaryJointAction):
     """The configuration of the action term."""
 
     def apply_actions(self):
-        self._asset.actuators.target_command.set_velocity_index(
-            value=self._processed_actions, joint_ids=self._joint_ids
-        )
+        self._asset.set_joint_velocity_target_index(target=self._processed_actions, joint_ids=self._joint_ids)
 
 
 class AbsBinaryJointPositionAction(BinaryJointAction):
@@ -204,6 +199,4 @@ class AbsBinaryJointPositionAction(BinaryJointAction):
             self._processed_actions.clamp_(min=self._clip[:, :, 0], max=self._clip[:, :, 1])
 
     def apply_actions(self):
-        self._asset.actuators.target_command.set_position_index(
-            value=self._processed_actions, joint_ids=self._joint_ids
-        )
+        self._asset.set_joint_position_target_index(target=self._processed_actions, joint_ids=self._joint_ids)

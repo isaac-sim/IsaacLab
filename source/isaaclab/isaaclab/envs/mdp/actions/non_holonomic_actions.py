@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -191,9 +190,7 @@ class NonHolonomicAction(ActionTerm):
         self._joint_vel_command[:, 1] = torch.sin(yaw_w) * self.processed_actions[:, 0]  # y
         self._joint_vel_command[:, 2] = self.processed_actions[:, 1]  # yaw
         # set the joint velocity targets
-        self._asset.actuators.target_command.set_velocity_index(
-            value=self._joint_vel_command, joint_ids=self._joint_ids
-        )
+        self._asset.set_joint_velocity_target_index(target=self._joint_vel_command, joint_ids=self._joint_ids)
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None) -> None:
-        index_fill_(self._raw_actions, env_ids if env_mask is None else env_mask.torch, 0.0)
+    def reset(self, env_mask: ProxyArray) -> None:
+        index_fill_(self._raw_actions, env_mask.torch, 0.0)

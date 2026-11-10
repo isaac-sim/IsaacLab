@@ -324,10 +324,10 @@ class NewtonInverseKinematicsAction(ActionTerm):
             inputs=[solved, self._controlled_ids, self._joint_pos_des],
             device=self.device,
         )
-        self._asset.actuators.target_command.set_position_index(value=self._joint_pos_des, joint_ids=self._joint_ids)
+        self._asset.set_joint_position_target_index(target=self._joint_pos_des, joint_ids=self._joint_ids)
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None) -> None:
-        index_fill_(self._raw_actions, env_ids if env_mask is None else env_mask.torch, 0.0)
+    def reset(self, env_mask: ProxyArray) -> None:
+        index_fill_(self._raw_actions, env_mask.torch, 0.0)
 
     def _validate_matching_root_orientations(self) -> None:
         """Guard the prototype-frame IK assumption for replicated fixed-base roots."""
