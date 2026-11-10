@@ -861,9 +861,9 @@ class Camera(SensorBase):
                 " Please update your CameraCfg.data_types and any camera.data.output / camera.data.info key"
                 " lookups to use 'instance_segmentation'."
             )
-        # check if there is any intersection in unsupported types
+        # check if there is any intersection in unsupported types requested from the renderer
         # reason: these use np structured data types which are not compatible with the camera buffer contract
-        common_elements = set(cfg.data_types) & Camera.UNSUPPORTED_TYPES
+        common_elements = set(_render_data_types(cfg)) & Camera.UNSUPPORTED_TYPES
         if common_elements:
             # provide alternative fast counterparts
             fast_common_elements = []
