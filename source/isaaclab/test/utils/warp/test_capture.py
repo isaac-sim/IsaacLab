@@ -13,7 +13,7 @@ import pytest
 import torch
 import warp as wp
 
-from isaaclab.utils.warp.capture import SYNC_DEBUG_ENV_VAR, GraphedCallable, GraphedCalls, eager, eager_method
+from isaaclab.utils.warp.capture import SYNC_DEBUG_ENV_VAR, GraphedCallable, eager, eager_method
 
 wp.init()
 pytestmark = pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA device required")
@@ -24,11 +24,6 @@ DEVICE = "cuda:0"
 @wp.kernel
 def _affine(values: wp.array(dtype=wp.int32), scale: wp.int32, shift: wp.int32):
     values[wp.tid()] = values[wp.tid()] * scale + shift
-
-
-@wp.kernel
-def _add(into: wp.array(dtype=wp.int32), values: wp.array(dtype=wp.int32)):
-    into[wp.tid()] = into[wp.tid()] + values[wp.tid()]
 
 
 def _num_graphs(graphed: GraphedCallable) -> int:
@@ -235,129 +230,6 @@ def test_eager_method_repeats_host_work_on_every_replay():
     assert (registry.changes, _read(values), fn.calls) == ([7, 7, 7], [3], 1)
 
 
-def test_calls_record_a_call_once_and_replay_it():
-    fn = _Affine()
-    calls = GraphedCalls(DEVICE, True)
-    values = wp.zeros(2, dtype=wp.int32, device=DEVICE)
-
-    calls(fn, values)
-    assert calls(fn, values) is values
-    assert (fn.calls, _read(values)) == (1, [2, 2])
-
-
-def test_calls_copy_a_staged_input_into_the_array_the_recording_reads():
-    """A call staging a new array each time, like the actions of each step, replays one recording reading a copy."""
-    total = wp.zeros(2, dtype=wp.int32, device=DEVICE)
-    runs = []
-
-    def add(values):
-        runs.append(values)
-        wp.launch(_add, dim=2, inputs=[total, values], device=DEVICE)
-
-    calls = GraphedCalls(DEVICE, True)
-    inputs = [wp.full(2, step + 1, dtype=wp.int32, device=DEVICE) for step in range(4)]
-    for values in inputs:
-        calls(add, calls.staged(values))
-    assert _read(total) == [10, 10]
-    assert len(runs) == 1, "the recording reads the staged buffer, so the call records once"
-    assert _num_graphs(calls._graphed[add][0]) == 1
-    assert GraphedCalls(DEVICE, False).staged(inputs[0]) is inputs[0]
-
-
-def test_calls_reject_another_array_than_recorded():
-    """An array argument that is not staged must be the array the recording read."""
-    fn = _Affine()
-    calls = GraphedCalls(DEVICE, True)
-    recorded = wp.zeros(2, dtype=wp.int32, device=DEVICE)
-    calls(fn, recorded)
-    with pytest.raises(ValueError, match="staged"):
-        calls(fn, wp.zeros(2, dtype=wp.int32, device=DEVICE))
-
-
-def test_block_records_its_calls_as_one_graph():
-    first, second = _Affine(scale=2, shift=0), _Affine(scale=1, shift=3)
-    calls = GraphedCalls(DEVICE, True)
-    values = wp.ones(2, dtype=wp.int32, device=DEVICE)
-
-    for _ in range(3):
-        with calls.block("both"):
-            assert calls(first, values) is values
-            calls(second, values)
-    assert _read(values) == [29, 29]
-    assert (first.calls, second.calls) == (1, 1)
-    steps = calls._blocks["both"]._steps
-    assert len(steps) == 1 and isinstance(steps[0], wp.Graph)
-
-
-def test_block_splits_its_graph_only_at_an_eager_call():
-    first, second = _Affine(), _Affine()
-    calls = GraphedCalls(DEVICE, True)
-    values = wp.zeros(1, dtype=wp.int32, device=DEVICE)
-    host = []
-
-    for _ in range(2):
-        with calls.block("split"):
-            calls(first, values)
-            eager(host.append, 7)
-            calls(second, values)
-    assert [isinstance(step, wp.Graph) for step in calls._blocks["split"]._steps] == [True, False, True]
-    assert host == [7, 7], "a replay repeats the eager call once, from the recording"
-    assert _read(values) == [4]
-
-
-def test_block_replay_answers_its_calls_from_the_recording_and_runs_at_its_end():
-    fn = _Affine()
-    calls = GraphedCalls(DEVICE, True)
-    values = wp.zeros(1, dtype=wp.int32, device=DEVICE)
-
-    with calls.block("b"):
-        calls(fn, values)
-    with calls.block("b"):
-        assert calls(fn, values) is values
-        assert fn.calls == 1, "a replay does not run the calls inside the block"
-    assert _read(values) == [2]
-
-
-def test_block_making_other_calls_than_recorded_raises():
-    first, second = _Affine(), _Affine()
-    calls = GraphedCalls(DEVICE, True)
-    values = wp.zeros(1, dtype=wp.int32, device=DEVICE)
-
-    with calls.block("b"):
-        calls(first, values)
-    with pytest.raises(RuntimeError, match="other calls"), calls.block("b"):
-        calls(second, values)
-
-
-def test_block_on_other_arrays_runs_eagerly_and_records_again():
-    fn = _Affine()
-    calls = GraphedCalls(DEVICE, True)
-    old, new = wp.zeros(1, dtype=wp.int32, device=DEVICE), wp.zeros(1, dtype=wp.int32, device=DEVICE)
-
-    with calls.block("b"):
-        calls(fn, old)
-    for _ in range(3):
-        with calls.block("b"):
-            calls(fn, new)
-    assert (_read(old), _read(new), fn.calls) == ([1], [3], 3)
-
-
-def test_block_records_only_its_own_calls():
-    """A call that a call of the block makes is part of that call, not a call of the block."""
-    inner = _Affine()
-    calls = GraphedCalls(DEVICE, True)
-    values = wp.zeros(1, dtype=wp.int32, device=DEVICE)
-
-    def outer(values):
-        return calls(inner, values)
-
-    for _ in range(2):
-        with calls.block("b"):
-            calls(outer, values)
-    assert [fn for fn, _, _ in calls._blocks["b"]._made] == [outer]
-    assert (inner.calls, _read(values)) == (1, [2])
-
-
 def test_recording_settles_the_watched_backend_first():
     """Work the physics backend queued before a recording runs once, before it, not on every replay."""
     values = wp.zeros(1, dtype=wp.int32, device=DEVICE)
@@ -382,14 +254,3 @@ def test_recording_settles_the_watched_backend_first():
     finally:
         GraphedCallable.unwatch()
     assert _read(values) == [1]
-
-
-def test_calls_without_recording_are_plain_calls():
-    fn = _Affine()
-    calls = GraphedCalls(DEVICE, False)
-    values = wp.zeros(1, dtype=wp.int32, device=DEVICE)
-
-    with calls.block("b"):
-        calls(fn, values)
-    calls(fn, values)
-    assert (fn.calls, _read(values), calls._graphed, calls._blocks) == (2, [2], {}, {})

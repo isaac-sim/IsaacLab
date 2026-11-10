@@ -3,19 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""CUDA graph recording of the Warp frontend: an environment calls the steps of its step through
-:class:`GraphedCalls`, which records each call as CUDA graphs (see :class:`GraphedCallable`) and replays it, and
-records the consecutive calls of a block as one graph. :func:`eager` runs a call that cannot be recorded at its place
-in the recording.
-
-.. code-block:: python
-
-    # on the torch frontend the calls are plain calls and the block does nothing
-    self._capture = GraphedCalls(self.device, self.frontend.captures, self.sim.backend_manager)
-    self._capture(self.action_manager.apply_action)  # the first call records, later calls replay
-    with self._capture.block("post_physics"):  # the calls inside replay as one graph
-        self.reset_buf = self._capture(self.termination_manager.compute)
-        self.reward_buf = self._capture(self.reward_manager.compute, dt=self.step_dt)
+"""CUDA graph recording of the Warp frontend: :class:`GraphedCallable` records a call as CUDA graphs and replays it,
+and :func:`eager` runs a call that cannot be recorded at its place in the recording.
 """
 
 from __future__ import annotations
@@ -109,9 +98,6 @@ def eager(fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
     recording = GraphedCallable._recording
     if recording is not None and recording.capturing:
         return recording.split(fn, args, kwargs)
-    if GraphedCallable._replaying:
-        # a block replaying its recording runs the call from the recording when it ends
-        return None
     if capturing():
         name = getattr(fn, "__qualname__", type(fn).__name__)
         raise RuntimeError(
@@ -143,9 +129,6 @@ def eager_method(method: Callable[..., Any]) -> Callable[..., Any]:
 class GraphedCallable:
     """A callable recorded as CUDA graphs on its first call with a given argument layout and replayed after.
 
-    :class:`GraphedCalls` keeps one per call an environment makes in its step, so the graph boundaries of a step are
-    in the environment; the managers and terms it calls are plain code.
-
     * The first call with a given argument layout records without an eager warm-up: the recording is its first
       execution. Later calls with the same array pointers and scalar values replay that recording and return the
       result of the recording call, so the callable returns buffers its owner keeps.
@@ -173,9 +156,6 @@ class GraphedCallable:
 
     _recording: ClassVar[_Recording | None] = None
     """The recording in progress, which :func:`eager` calls split."""
-
-    _replaying: ClassVar[bool] = False
-    """Whether a :class:`GraphedCalls` block replays, so that the calls made inside it run when it ends."""
 
     def __init__(self, fn: Callable[..., Any], device: wp.DeviceLike):
         """Initialize the callable.
@@ -253,216 +233,6 @@ class GraphedCallable:
     def _run_eager(self, fn: Callable[..., Any], args: tuple, kwargs: dict[str, Any]) -> Any:
         """Run eagerly, under the synchronization trap when requested."""
         return _run_eager(fn, args, kwargs, self._sync_debug)
-
-
-class GraphedCalls:
-    """The calls an environment makes in its step, recorded as CUDA graphs when recording is on.
-
-    ``calls(fn, *args, **kwargs)`` returns ``fn(*args, **kwargs)``. With recording on (the Warp frontend on a CUDA
-    device), the first call of ``fn`` with given scalar arguments records it (see :class:`GraphedCallable`) and later
-    calls replay it. An array argument must be the array the recording read; an array the caller hands anew on each
-    call, such as the actions of a step, is passed as :meth:`staged` and copied into a buffer the recording reads.
-
-    Inside ``with calls.block(name):`` the calls are recorded together, so a replay launches one graph for them, split
-    only where a call cannot be recorded (see :func:`eager`). A replay runs the block when the block ends: inside it,
-    each call returns its result from the recording, so the code of a block does its GPU work only through the calls
-    and does not read their results on the host. A block called with other arrays than recorded runs its calls
-    eagerly and records again on its next run.
-    """
-
-    def __init__(self, device: wp.DeviceLike, enabled: bool, backend_manager: PhysicsManager | None = None):
-        """Initialize the calls.
-
-        Args:
-            device: Device the calls run on.
-            enabled: Whether to record; without it every call is a plain call.
-            backend_manager: Physics manager whose rebinds and stops make the calls record again (see
-                :meth:`GraphedCallable.watch`).
-        """
-        self._device = wp.get_device(device)
-        self._enabled = enabled and self._device.is_cuda
-        self._sync_debug = os.environ.get(SYNC_DEBUG_ENV_VAR, "0") == "1"
-        self._graphed: dict = {}
-        """The recorded calls: callable -> (its :class:`GraphedCallable`, its input buffers by argument)."""
-        self._blocks: dict[str, _Block] = {}
-        self._block: _Block | None = None
-        """The block running."""
-        self._watching = self._enabled and backend_manager is not None
-        if self._watching:
-            GraphedCallable.watch(backend_manager)
-
-    def __call__(self, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
-        """Call ``fn``: recorded on its first call and replayed after when recording is on.
-
-        Args:
-            fn: The function to call.
-            *args: Positional arguments of the call.
-            **kwargs: Keyword arguments of the call.
-
-        Returns:
-            The result of the call.
-        """
-        if not self._enabled:
-            return fn(*args, **kwargs)
-        if self._block is not None:
-            return self._block.call(fn, args, kwargs)
-        entry = self._graphed.get(fn)
-        if entry is None:
-            entry = self._graphed[fn] = (GraphedCallable(fn, self._device), {})
-        graphed, inputs = entry
-        args = tuple(self._input(fn, inputs, index, value) for index, value in enumerate(args))
-        kwargs = {name: self._input(fn, inputs, name, value) for name, value in kwargs.items()}
-        return graphed(*args, **kwargs)
-
-    def block(self, name: str) -> contextlib.AbstractContextManager:
-        """The calls made inside, recorded as one graph; a block inside a block is part of it.
-
-        Args:
-            name: Name of the block, which keys its recording.
-
-        Returns:
-            The context of the block.
-        """
-        if not self._enabled or self._block is not None:
-            return _NO_BLOCK
-        block = self._blocks.get(name)
-        if block is None:
-            block = self._blocks[name] = _Block(self)
-        return block
-
-    def staged(self, array: torch.Tensor | wp.array) -> Any:
-        """Mark an array argument the caller hands anew on each call, such as the actions of a step.
-
-        The call copies it into a buffer of its own, which the recording reads. Without recording it is the array.
-        """
-        return _Staged(array) if self._enabled else array
-
-    def close(self):
-        """Drop the recordings and stop following the physics backend."""
-        if self._watching:
-            GraphedCallable.unwatch()
-            self._watching = False
-        if self._graphed or self._blocks:
-            # graphs may still be executing; drain the device before releasing them
-            wp.synchronize_device(self._device)
-        self._graphed.clear()
-        self._blocks.clear()
-
-    def _input(self, fn: Callable[..., Any], inputs: dict, slot: int | str, value: Any) -> Any:
-        """The array the recording reads for an argument: a staged array is copied into the call's buffer for it, any
-        other array must be the one recorded.
-
-        Raises:
-            ValueError: If an array argument that is not staged is another array than the recording read.
-        """
-        if isinstance(value, _Staged):
-            buffer = inputs.get(slot)
-            if buffer is None:
-                array = value.array
-                buffer = inputs[slot] = array.clone() if isinstance(array, torch.Tensor) else wp.clone(array)
-            elif isinstance(buffer, torch.Tensor):
-                buffer.copy_(value.array)
-            else:
-                wp.copy(buffer, value.array)
-            return buffer
-        if not isinstance(value, (torch.Tensor, wp.array)):
-            return value
-        if inputs.setdefault(slot, _value_key(value)) != _value_key(value):
-            raise ValueError(
-                f"{getattr(fn, '__qualname__', fn)}: argument {slot!r} is another array than the recording read. Pass"
-                " the same array on each call, or stage it with GraphedCalls.staged()."
-            )
-        return value
-
-
-class _Staged:
-    """An array argument a :class:`GraphedCalls` call copies into a buffer the recording reads (see
-    :meth:`GraphedCalls.staged`)."""
-
-    __slots__ = ("array",)
-
-    def __init__(self, array: torch.Tensor | wp.array):
-        self.array = array
-
-
-class _Block:
-    """A :meth:`GraphedCalls.block`: its recording and the calls it made, replayed when the block ends."""
-
-    def __init__(self, calls: GraphedCalls):
-        self._calls = calls
-        self._steps: list | None = None
-        self._generation = GraphedCallable.generation
-        self._made: list = []
-        """The calls of the recording, as (callable, argument key, result), in order."""
-        self._recording = None
-        """The context of the recording in progress, and the recording."""
-        self._replayed: list | None = None
-        """The calls of the replay in progress, as (callable, args, kwargs), in order."""
-        self._depth = 0
-
-    def __enter__(self) -> _Block:
-        if not GraphedCallable.enabled:
-            return self
-        calls = self._calls
-        calls._block = self
-        if self._steps is not None and self._generation == GraphedCallable.generation:
-            self._replayed = []
-            GraphedCallable._replaying = True
-            return self
-        if self._steps is not None:
-            wp.synchronize_device(calls._device)
-        self._steps, self._made, self._generation = None, [], GraphedCallable.generation
-        context = _record_calls(calls._device, functools.partial(_run_eager, sync_debug=calls._sync_debug))
-        self._recording = (context, context.__enter__())
-        return self
-
-    def call(self, fn: Callable[..., Any], args: tuple, kwargs: dict[str, Any]) -> Any:
-        """Make a call of the block: recorded inline, or, in a replay, answered from the recording."""
-        if self._replayed is not None:
-            index = len(self._replayed)
-            self._replayed.append((fn, args, kwargs))
-            return self._made[index][2] if index < len(self._made) else None
-        if self._depth:
-            # a call that a call of the block makes is part of that call
-            return fn(*args, **kwargs)
-        self._depth += 1
-        try:
-            result = fn(*args, **kwargs)
-        finally:
-            self._depth -= 1
-        self._made.append((fn, _argument_key(args, kwargs), result))
-        return result
-
-    def __exit__(self, exc_type, exc, traceback) -> bool:
-        calls = self._calls
-        calls._block = None
-        if self._recording is not None:
-            (context, recording), self._recording = self._recording, None
-            context.__exit__(exc_type, exc, traceback)
-            if exc_type is None:
-                self._steps = recording.steps
-            return False
-        if self._replayed is None:
-            return False
-        replayed, self._replayed = self._replayed, None
-        GraphedCallable._replaying = False
-        if exc_type is not None:
-            return False
-        made = [(fn, key) for fn, key, _ in self._made]
-        if made == [(fn, _argument_key(args, kwargs)) for fn, args, kwargs in replayed]:
-            _replay(self._steps, functools.partial(_run_eager, sync_debug=calls._sync_debug))
-            return False
-        self._steps = None
-        if [fn for fn, _ in made] != [fn for fn, _, _ in replayed]:
-            raise RuntimeError("A block of recorded calls made other calls than its recording.")
-        # the same calls on other arrays: run them now, and record the block again on its next run
-        for fn, args, kwargs in replayed:
-            fn(*args, **kwargs)
-        return False
-
-
-_NO_BLOCK = contextlib.nullcontext()
-"""The block of calls that are not recorded, or that are part of an enclosing block."""
 
 
 @contextlib.contextmanager
