@@ -53,6 +53,7 @@ class ShadowHandCameraEnv(ShadowHandDirectEnv):
         pose_loss, embeddings = self.feature_extractor.step(
             self._tiled_camera.data.output,
             object_pose,
+            preview=self.is_observation_preview,
         )
 
         self.embeddings = embeddings.clone().detach()

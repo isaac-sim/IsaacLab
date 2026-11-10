@@ -80,20 +80,18 @@ class DirectRLEnvCfg:
     """
 
     compute_final_obs: bool = False
-    """Whether to capture the terminal observation before a Same-Step autoreset and expose it.
+    """Whether to preview terminal observations before Same-Step autoreset. Defaults to False.
 
-    Under Same-Step autoreset (see :attr:`~isaaclab.envs.DirectRLEnv.metadata`), an environment that
-    terminates is reset within the same :meth:`~isaaclab.envs.DirectRLEnv.step` call, so the returned
-    observation belongs to the *new* episode. When this flag is True, the observation is computed once
-    more *before* the reset and stored under ``extras["final_obs"]`` (with the same observation noise
-    as the returned observation applied), so wrappers can report it as the true terminal observation
-    for value bootstrapping.
+    When any environment terminates, times out or is manually reset, capture every observation
+    group once before reset and interval events in ``extras["final_obs"]``. The tensors live on
+    ``env.device`` and own their storage. Only rows for environments that reset are valid for
+    bootstrapping. The key is absent on steps without resets.
 
-    Defaults to False, which preserves the previous behavior: no terminal observation is captured,
-    ``extras["final_obs"]`` is not populated, and the extra observation computation is skipped.
-
-    Note:
-        Currently consumed by the :class:`~isaaclab_rl.sb3.Sb3VecEnvWrapper` wrapper.
+    Observation history and other state are managed by the task's observation hooks. During this
+    extra observation read, ``env.is_observation_preview`` is True. Stateful hooks must check this
+    flag and return a prospective sample without committing their state. Observation noise is
+    evaluated as in ordinary observations.
+    Warp environments do not support terminal capture.
     """
 
     episode_length_s: float = MISSING
@@ -258,6 +256,8 @@ class DirectRLEnvCfg:
     * When this is greater than 0, the specified number of extra render steps will be performed to update the
       sensor data to reflect the latest states from the reset. This comes at a cost of performance as additional
       render steps will be performed after each time an environment is reset.
+
+    During stepping, this applies to both automatic and visualizer UI resets when RTX rendering is enabled.
     """
 
     wait_for_textures: bool = True

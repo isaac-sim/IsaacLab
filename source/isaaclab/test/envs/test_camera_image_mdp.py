@@ -20,6 +20,7 @@ import warp as wp
 
 pytestmark = pytest.mark.unit
 
+from isaaclab.envs import ManagerBasedEnv
 from isaaclab.envs.mdp.observations import (
     CameraImageBase,
     image_depth,
@@ -39,6 +40,11 @@ CHANNELS = 3
 SENSOR_CFG = SceneEntityCfg("tiled_camera")
 
 
+class _CameraEnv(SimpleNamespace):
+    _is_observation_preview = False
+    is_observation_preview = ManagerBasedEnv.is_observation_preview
+
+
 def _make_env(outputs: dict[str, torch.Tensor], device: str = "cpu") -> SimpleNamespace:
     """Mock env exposing ``env.scene.sensors["tiled_camera"].data.output`` over ``outputs``."""
     camera = SimpleNamespace(
@@ -46,7 +52,7 @@ def _make_env(outputs: dict[str, torch.Tensor], device: str = "cpu") -> SimpleNa
     )
     sensors = {"tiled_camera": camera}
     scene = SimpleNamespace(sensors=sensors, keys=sensors.keys)
-    return SimpleNamespace(num_envs=NUM_ENVS, device=device, scene=scene)
+    return _CameraEnv(num_envs=NUM_ENVS, device=device, scene=scene)
 
 
 def _make_term(term_cls, env: SimpleNamespace, **params):
@@ -231,10 +237,11 @@ def test_image_features_flattens_encoder_output():
         (2, True, True, torch.uint8),
         (1, True, False, torch.uint8),
         (2, False, True, torch.float32),
+        (2, False, False, torch.uint8),
     ],
 )
 def test_rgb_manager_destination(frame_stack, channel_first, normalize, dtype):
-    """Manager destinations preserve RGB math, layout, frame order and snapshot lifetime."""
+    """Manager destinations and terminal previews preserve frame order, reset state and storage."""
     camera = _random_rgb().to(dtype)
     env = _make_env({"rgb": camera})
     env.sim = SimpleNamespace(is_playing=lambda: True)
@@ -253,8 +260,25 @@ def test_rgb_manager_destination(frame_stack, channel_first, normalize, dtype):
         expected = expected.permute(0, 3, 1, 2)
     result = manager.compute()["policy"]
     torch.testing.assert_close(result, expected, atol=1e-5, rtol=1e-5)
+
+    previous = camera.clone()
+    camera.copy_(_random_rgb())
+    successor = camera.clone()
+    terminal = manager.compute(preview=True)["policy"]
+    manager.reset(torch.tensor([0]))
+    camera[0].zero_()
+    live = manager.compute(update_history=True)["policy"]
+
+    frames = [successor] if frame_stack == 1 else [previous, successor]
+    terminal_expected = torch.cat([_rgb_reference(frame) if normalize else frame for frame in frames], dim=-1)
+    if channel_first:
+        terminal_expected = terminal_expected.permute(0, 3, 1, 2)
+    torch.testing.assert_close(terminal, terminal_expected, atol=1e-5, rtol=1e-5)
+    torch.testing.assert_close(live[1:], terminal_expected[1:], atol=1e-5, rtol=1e-5)
+    assert not live[0].any()
     camera.zero_()
-    manager.compute()
+    manager.compute(update_history=True)
     manager.reset()
     manager.compute()
     torch.testing.assert_close(result, expected, atol=1e-5, rtol=1e-5)
+    torch.testing.assert_close(terminal, terminal_expected, atol=1e-5, rtol=1e-5)

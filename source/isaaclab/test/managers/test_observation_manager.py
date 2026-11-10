@@ -69,6 +69,8 @@ class complex_function_class(ManagerTermBase):
         self._time_passed[env_ids] = 0.0
 
     def __call__(self, env: object, interval: float) -> torch.Tensor:
+        if env.is_observation_preview:
+            return (self._time_passed + interval).unsqueeze(-1)
         self._time_passed += interval
         return self._time_passed.clone().unsqueeze(-1)
 
@@ -544,9 +546,9 @@ def test_invalid_observation_config(setup_env):
         ObservationManager(cfg, env)
 
 
-def test_callable_class_term(setup_env):
-    env = setup_env
-    """Test the observation computation with callable class term."""
+def test_callable_class_term():
+    """Stateful terms preview without advancing their state or replacing cached observations."""
+    env = DummyEnv(num_envs=20)
 
     @configclass
     class MyObservationManagerCfg:
@@ -569,6 +571,12 @@ def test_callable_class_term(setup_env):
     # check the observation
     assert observations["policy"].shape == (env.num_envs, 5)
     assert observations["policy"][0, -1].item() == pytest.approx(0.2 * 0.5)
+    preview = obs_man.compute(preview=True)
+    assert preview["policy"][0, -1].item() == pytest.approx(0.2)
+    assert obs_man.get_active_iterable_terms(0)[-1][1] == pytest.approx([0.1])
+    assert not env.is_observation_preview
+    with pytest.raises(ValueError, match="preview"):
+        obs_man.compute(update_history=True, preview=True)
 
     # check memory in term
     num_exec_count = 10
@@ -834,6 +842,12 @@ class DummyEnv:
         self.device = "cpu"
         self.sim = DummySimulation()
         self.observation = torch.arange(num_envs, dtype=torch.float32).unsqueeze(-1)
+        self._is_observation_preview = False
+
+    @property
+    def is_observation_preview(self) -> bool:
+        """Expose the preview signal to stateful terms."""
+        return self._is_observation_preview
 
 
 class StatefulBiasTensorProcessor(tensor_processors.TensorProcessor):
@@ -897,6 +911,8 @@ def test_class_tensor_processor_roundtrip_preserves_func_and_params():
     assert isinstance(prepared_tensor_processor_cfg.func, StatefulBiasTensorProcessor)
     observations = manager.compute()["policy"]
     torch.testing.assert_close(observations, env.observation + 2.0)
+
+    torch.testing.assert_close(manager.compute(preview=True)["policy"], observations)
 
     manager.reset()
     assert prepared_tensor_processor_cfg.func.reset_count == 1
@@ -996,8 +1012,8 @@ def test_compute_updates_history_only_when_requested(lag, history_length, term_h
     if history:
         assert torch.all(history.current_length == 0)
 
-    def compute_output(update_history=False):
-        output = manager.compute(update_history=update_history)["policy"]
+    def compute_output(update_history=False, *, preview=False):
+        output = manager.compute(update_history=update_history, preview=preview)["policy"]
         return output["dummy"] if term_history else output
 
     outputs = []
@@ -1007,13 +1023,15 @@ def test_compute_updates_history_only_when_requested(lag, history_length, term_h
         env.observation.fill_(step)
         # Delay retains each sample's noise; history stacks the delayed, scaled outputs.
         manager.cfg.policy.dummy.noise.bias = float(step)
-        output = compute_output(update_history=True)
         sample_steps = torch.arange(step - max(1, history_length) + 1, step + 1)
         expected = 4.0 * (sample_steps - lag).clamp_min(0).expand(env.num_envs, -1).clone()
         if step >= 3:
             expected[1].clamp_(min=12.0)
+        preview = compute_output(preview=True)
+        torch.testing.assert_close(preview, expected)
+        output = compute_output(update_history=True)
         torch.testing.assert_close(output, expected)
-        outputs.append((output, expected))
+        outputs.extend(((preview, expected), (output, expected)))
         env.observation.fill_(-100.0)
         rng_state = torch.get_rng_state()
         torch.testing.assert_close(compute_output(), expected)
@@ -1040,6 +1058,55 @@ def test_observation_delay_config_validation(params, error):
     cfg = ObservationTermCfg(func=dummy_observation, **params)
     with pytest.raises(error, match="delay"):
         validate(cfg)
+
+
+@pytest.mark.parametrize(
+    ("processor_cfg", "dtype", "expected_preview", "expected_live", "expected_following"),
+    [
+        (tensor_processors.IntegratorCfg(dt=1.0), torch.float64, [45.0, 45.0], [45.0, 15.0], [80.0, 50.0]),
+        (
+            tensor_processors.DigitalFilterCfg(A=[-0.5], B=[0.25, 0.25]),
+            torch.float32,
+            [16.875, 16.875],
+            [16.875, 7.5],
+            [25.9375, 21.25],
+        ),
+    ],
+    ids=["integrator_float64_input", "digital_filter"],
+)
+def test_preview_preserves_tensor_processors_across_partial_reset(
+    processor_cfg, dtype, expected_preview, expected_live, expected_following
+):
+    """Terminal reads must not advance a surviving environment's filter or integrator."""
+    cfg = HistoryObservationsCfg()
+    cfg.policy.history_length = None
+    cfg.policy.dummy.tensor_processors = [
+        processor_cfg,
+        tensor_processors.TensorProcessorCfg(func=lambda data: data @ torch.ones(1, 1, dtype=torch.float32)),
+    ]
+    env = DummyEnv()
+    env.observation = env.observation.to(dtype)
+    manager = ObservationManager(cfg, cast("ManagerBasedEnv", env))
+    outer_group = ObservationGroupCfg()
+    outer_group.full = ObservationTermCfg(func=lambda env: manager.compute()["policy"])
+    outer_group.group = ObservationTermCfg(func=lambda env: manager.compute_group("policy"))
+    outer = ObservationManager({"policy": outer_group}, env)
+    manager.reset()
+    for value in (10.0, 20.0):
+        env.observation.fill_(value)
+        manager.compute(update_history=True)
+    env.observation.fill_(30.0)
+    cached = manager.get_active_iterable_terms(0)
+    terminal = outer.compute(preview=True)["policy"]
+    torch.testing.assert_close(terminal, torch.tensor(expected_preview).unsqueeze(-1).expand(-1, 2))
+    assert manager.get_active_iterable_terms(0) == cached
+    manager.reset([1])
+    live = manager.compute(update_history=True)["policy"]
+    torch.testing.assert_close(live[:, 0], torch.tensor(expected_live))
+    env.observation.fill_(40.0)
+    following = manager.compute(update_history=True)["policy"]
+    torch.testing.assert_close(following[:, 0], torch.tensor(expected_following))
+    torch.testing.assert_close(terminal[:, 0], torch.tensor(expected_preview))
 
 
 @pytest.mark.parametrize("invalid_default", [False, True])

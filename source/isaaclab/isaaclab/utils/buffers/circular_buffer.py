@@ -207,13 +207,33 @@ class CircularBuffer:
 
         self._num_pushes += 1
 
-    def _allocate_buffer(self, data: torch.Tensor) -> None:
-        """Allocate the internal buffer and finalize the storage layout on first append."""
-        if self._stack_dim_arg is None:
-            self._buffer = torch.empty((self._max_len_int, *data.shape), dtype=data.dtype, device=self._device)
-            return
+    def peek_append(self, data: torch.Tensor) -> torch.Tensor:
+        """Return history as if ``data`` were appended, without changing live storage or counters.
 
-        ndim = data.ndim
+        Like :attr:`buffer`, the result has shape ``(batch_size, max_length, ...)`` with
+        the newest sample last. Batches without history are filled with the current sample,
+        including before the first append and after a partial reset. The result owns its storage.
+
+        Args:
+            data: Prospective sample with shape ``(batch_size, ...)``.
+
+        Returns:
+            The prospective buffer contents, independent of live storage and input data.
+        """
+        if data.shape[0] != self.batch_size:
+            raise ValueError(f"The input data has '{data.shape[0]}' batch size while expecting '{self.batch_size}'")
+        data = data.to(self.device)
+        if self._buffer is None:
+            if self._stack_dim_arg is not None:
+                self._resolve_stack_dim(data.ndim)
+            return data.unsqueeze(1).expand(-1, self.max_length, *data.shape[1:]).clone()
+        data = data.to(dtype=self._buffer.dtype)
+        history = torch.cat((self.buffer[:, 1:], data.unsqueeze(1)), dim=1)
+        fresh = (self._num_pushes == 0).view(self.batch_size, *([1] * data.ndim))
+        return torch.where(fresh, data.unsqueeze(1), history)
+
+    def _resolve_stack_dim(self, ndim: int) -> int:
+        """Validate and resolve the configured stack dimension for a frame rank."""
         k_pos = self._stack_dim_arg
         if k_pos < 0:
             k_pos += ndim
@@ -222,6 +242,15 @@ class CircularBuffer:
                 f"stack_dim={self._stack_dim_arg} resolves to position {k_pos} for data with"
                 f" ndim={ndim}; must be in [1, {ndim - 1}] or [-{ndim - 1}, -1]."
             )
+        return k_pos
+
+    def _allocate_buffer(self, data: torch.Tensor) -> None:
+        """Allocate the internal buffer and finalize the storage layout on first append."""
+        if self._stack_dim_arg is None:
+            self._buffer = torch.empty((self._max_len_int, *data.shape), dtype=data.dtype, device=self._device)
+            return
+
+        k_pos = self._resolve_stack_dim(data.ndim)
         self._stack_dim_internal = k_pos
         self._buffer = torch.empty(
             (*data.shape[:k_pos], self._max_len_int, *data.shape[k_pos:]),

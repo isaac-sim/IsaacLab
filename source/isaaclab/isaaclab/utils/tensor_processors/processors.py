@@ -176,17 +176,26 @@ class DigitalFilter(TensorProcessor):
         Returns:
             Filtered data. Shape is the same as data.
         """
+        return self._compute(data, update_state=True)
+
+    def preview(self, data: torch.Tensor) -> torch.Tensor:
+        """Filter a prospective sample without advancing input or output history."""
+        return self._compute(data, update_state=False)
+
+    def _compute(self, data: torch.Tensor, *, update_state: bool) -> torch.Tensor:
         # move history window for input
-        self.x_n = torch.roll(self.x_n, shifts=1, dims=-1)
-        self.x_n[..., 0] = data
+        x_n = torch.roll(self.x_n, shifts=1, dims=-1)
+        x_n[..., 0] = data
 
         # calculate current filter value: y[i] = Y*A - X*B
-        y_i = torch.matmul(self.x_n, self.B) - torch.matmul(self.y_n, self.A)
+        y_i = torch.matmul(x_n, self.B) - torch.matmul(self.y_n, self.A)
         y_i.squeeze_(-1)
 
         # move history window for output and add current filter value to history
-        self.y_n = torch.roll(self.y_n, shifts=1, dims=-1)
-        self.y_n[..., 0] = y_i
+        if update_state:
+            self.x_n = x_n
+            self.y_n = torch.roll(self.y_n, shifts=1, dims=-1)
+            self.y_n[..., 0] = y_i
 
         return y_i
 
@@ -255,3 +264,7 @@ class Integrator(TensorProcessor):
         self.y_prev[:] = data
 
         return self.integral
+
+    def preview(self, data: torch.Tensor) -> torch.Tensor:
+        """Integrate a prospective sample without changing the integral or previous sample."""
+        return (self.integral + (data + self.y_prev) / 2 * self._cfg.dt).to(self.integral.dtype)

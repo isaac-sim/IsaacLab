@@ -49,3 +49,32 @@ def test_newton_renderer_accepts_supported_data_types(cfg_cls):
     """The guard must not reject data types the Newton Warp renderer does publish."""
     cfg = resolve_presets(cfg_cls(), {"newton_renderer", "rgb"})
     validate(cfg)  # must not raise
+
+
+def test_direct_camera_observation_forwards_preview(monkeypatch):
+    """A task preview must leave the next live camera frame stack unchanged."""
+    from types import SimpleNamespace
+
+    import torch
+
+    from isaaclab.utils.images import CameraFrameStack
+
+    from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
+    from isaaclab_tasks.core.cartpole.cartpole_direct_env import CartpoleEnv
+
+    monkeypatch.setattr(CartpoleEnv, "_get_observations", lambda self: {"policy": torch.empty(0)})
+    env = object.__new__(CartpoleCameraEnv)
+    env._is_closed = True
+    env.cfg = SimpleNamespace(
+        scene=SimpleNamespace(tiled_camera=SimpleNamespace(data_types=["depth"])),
+        write_image_to_file=False,
+    )
+    camera = torch.ones(1, 1, 1, 1)
+    env._tiled_camera = SimpleNamespace(data=SimpleNamespace(output={"depth": SimpleNamespace(torch=camera)}))
+    env._frames = CameraFrameStack(1, "cpu", 2, channel_first=True)
+    env._get_observations()
+    camera.fill_(2)
+    env._is_observation_preview = True
+    env._get_observations()
+    env._is_observation_preview = False
+    assert env._get_observations()["policy"].flatten().tolist() == [1, 2]

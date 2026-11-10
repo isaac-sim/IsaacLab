@@ -101,6 +101,8 @@ class ManagerBasedEnv:
     querying the :attr:`physics_dt` and the :attr:`step_dt` properties respectively.
     """
 
+    _is_observation_preview: bool = False
+
     def __init__(self, cfg: ManagerBasedEnvCfg):
         """Initialize the environment.
 
@@ -277,6 +279,15 @@ class ManagerBasedEnv:
     """
     Properties.
     """
+
+    @property
+    def is_observation_preview(self) -> bool:
+        """Whether observations are being read without committing stateful observation history.
+
+        Stateful observation terms should return a prospective sample without updating their
+        internal state while this is True. It is False during ordinary observation computation.
+        """
+        return self._is_observation_preview
 
     @property
     def num_envs(self) -> int:

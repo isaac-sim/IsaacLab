@@ -53,15 +53,20 @@ def test_reset_subset(circular_buffer, batch_ids):
     circular_buffer.reset(batch_ids=batch_ids)
     # check that correct batch is reset
     assert circular_buffer.current_length.tolist()[reset_batch_id] == 0
+    before = circular_buffer.buffer.clone()
+    preview = circular_buffer.peek_append(data3.double())
+    expected_history = torch.tensor([1.0, 1.0, 1.0, 2.0, 3.0]).view(1, -1, 1).repeat(3, 1, 2)
+    expected_history[reset_batch_id].fill_(3.0)
+    torch.testing.assert_close(preview, expected_history)
+    preview.zero_()
+    torch.testing.assert_close(circular_buffer.buffer, before)
     # Append new set of data
     circular_buffer.append(data3)
+    torch.testing.assert_close(circular_buffer.buffer, expected_history)
     # check if the correct number of entries are in each batch
     expected_length = [3, 3, 3]
     expected_length[reset_batch_id] = 1
     assert circular_buffer.current_length.tolist() == expected_length
-    # check that all entries of the recently reset and appended batch are equal
-    for i in range(circular_buffer.max_length):
-        torch.testing.assert_close(circular_buffer.buffer[reset_batch_id, 0], circular_buffer.buffer[reset_batch_id, i])
 
 
 def test_buffer_overflow(circular_buffer):
@@ -110,6 +115,12 @@ def test_buffer_overflow(circular_buffer):
 
 def test_empty_buffer_access(circular_buffer):
     """Test accessing an empty buffer."""
+    data = torch.ones((circular_buffer.batch_size, 2))
+    preview = circular_buffer.peek_append(data)
+    torch.testing.assert_close(preview, data.unsqueeze(1).expand(-1, circular_buffer.max_length, -1))
+    preview.zero_()
+    torch.testing.assert_close(data, torch.ones_like(data))
+    assert circular_buffer.current_length.tolist() == [0, 0, 0]
     with pytest.raises(RuntimeError):
         circular_buffer[torch.tensor([0, 0, 0], device=circular_buffer.device)]
 

@@ -46,7 +46,9 @@ def env_with_sim():
     camera = SimpleNamespace(data=SimpleNamespace(output={"rgb": ProxyArray(wp.from_torch(camera_buf))}))
     sensors = {"tiled_camera": camera}
     scene = SimpleNamespace(sensors=sensors, keys=sensors.keys)
-    env = namedtuple("Env", ["num_envs", "device", "sim", "scene"])(NUM_ENVS, DEVICE, sim, scene)
+    env = namedtuple("Env", ["num_envs", "device", "sim", "scene", "is_observation_preview"])(
+        NUM_ENVS, DEVICE, sim, scene, False
+    )
     env.sim._app_control_on_stop_handle = None
     env.sim.reset()
     yield env
