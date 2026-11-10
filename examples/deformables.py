@@ -55,7 +55,6 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import clone, configclass, instantiate
 
 from isaaclab.assets import DeformableObjectCfg  # isort:skip
-from isaaclab.physics import PhysicsCfg  # isort:skip
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR  # isort:skip
 
 if TYPE_CHECKING:
@@ -63,15 +62,17 @@ if TYPE_CHECKING:
 
 if args_cli.physics == "newton_vbd":
     from isaaclab_newton.physics import NewtonSoftContactCfg  # isort:skip
-    from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg as DeformableBodyPropertiesCfg
     from isaaclab_newton.sim.spawners.materials import (
         NewtonDeformableBodyMaterialCfg as VolumeDeformableMaterialCfg,
     )
     from isaaclab_newton.sim.spawners.materials import (
         NewtonSurfaceDeformableBodyMaterialCfg as SurfaceDeformableMaterialCfg,
     )
+
+    # Newton needs no deformable-body attributes; an empty slot still creates the deformable body
+    DEFORMABLE_BODY_PROPS = []
 else:
-    from isaaclab_physx.sim.schemas import PhysxDeformableBodyPropertiesCfg as DeformableBodyPropertiesCfg
+    from isaaclab_physx.sim.schemas import PhysxDeformableBodyCfg
     from isaaclab_physx.sim.spawners.materials import (
         PhysxDeformableBodyMaterialCfg as VolumeDeformableMaterialCfg,
     )
@@ -79,51 +80,59 @@ else:
         PhysxSurfaceDeformableBodyMaterialCfg as SurfaceDeformableMaterialCfg,
     )
 
+    from isaaclab.sim.schemas import OmniPhysicsDeformableBodyCfg
+
+    # deformable-body schema fragments, shared by the volume and surface slots
+    DEFORMABLE_BODY_PROPS = [
+        OmniPhysicsDeformableBodyCfg(kinematic_enabled=False),
+        PhysxDeformableBodyCfg(solver_position_iteration_count=16),
+    ]
+
 
 OBJECT_CFGS = {
     "sphere": sim_utils.MeshSphereCfg(
         radius=0.4,
-        deformable_props=DeformableBodyPropertiesCfg(),
+        volume_deformable_props=DEFORMABLE_BODY_PROPS,
         visual_material=sim_utils.PreviewSurfaceCfg(),
         physics_material=VolumeDeformableMaterialCfg(),
     ),
     "cuboid": sim_utils.MeshCuboidCfg(
         size=(0.6, 0.6, 0.6),
-        deformable_props=DeformableBodyPropertiesCfg(),
+        volume_deformable_props=DEFORMABLE_BODY_PROPS,
         visual_material=sim_utils.PreviewSurfaceCfg(),
         physics_material=VolumeDeformableMaterialCfg(),
     ),
     "cylinder": sim_utils.MeshCylinderCfg(
         radius=0.25,
         height=0.5,
-        deformable_props=DeformableBodyPropertiesCfg(),
+        volume_deformable_props=DEFORMABLE_BODY_PROPS,
         visual_material=sim_utils.PreviewSurfaceCfg(),
         physics_material=VolumeDeformableMaterialCfg(),
     ),
     "capsule": sim_utils.MeshCapsuleCfg(
         radius=0.35,
         height=0.5,
-        deformable_props=DeformableBodyPropertiesCfg(),
+        volume_deformable_props=DEFORMABLE_BODY_PROPS,
         visual_material=sim_utils.PreviewSurfaceCfg(),
         physics_material=VolumeDeformableMaterialCfg(),
     ),
     "cone": sim_utils.MeshConeCfg(
         radius=0.35,
         height=0.75,
-        deformable_props=DeformableBodyPropertiesCfg(),
+        volume_deformable_props=DEFORMABLE_BODY_PROPS,
         visual_material=sim_utils.PreviewSurfaceCfg(),
         physics_material=VolumeDeformableMaterialCfg(),
     ),
     "cloth": sim_utils.MeshRectangleCfg(
         size=(1.5, 1.0),
         edge_refinement=21,
-        deformable_props=DeformableBodyPropertiesCfg(),
+        surface_deformable_props=DEFORMABLE_BODY_PROPS,
         visual_material=sim_utils.PreviewSurfaceCfg(),
         physics_material=SurfaceDeformableMaterialCfg(),
     ),
     "usd": sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Objects/Teddy_Bear/teddy_bear.usd",
-        deformable_props=DeformableBodyPropertiesCfg(),
+        volume_deformable_props=DEFORMABLE_BODY_PROPS,
         visual_material=sim_utils.PreviewSurfaceCfg(),
         physics_material=VolumeDeformableMaterialCfg(),
         scale=[0.05, 0.05, 0.05],
@@ -233,7 +242,8 @@ def run_simulator(sim: "sim_utils.SimulationContext", entities: dict[str, "Defor
 
 def main():
     """Main function."""
-    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
+    sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device)
+    with launch_simulation(sim_cfg, args_cli) as physics_cfg:
         # Tune the CLI-selected backend for this example.
         if args_cli.physics == "newton_vbd":
             physics_cfg.solver_cfg.iterations = 20
@@ -247,7 +257,6 @@ def main():
                 soft_contact_kd=1.0e0,
                 soft_contact_mu=0.01,
             )
-        sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, physics=physics_cfg)
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
         sim.set_camera_view([4.0, 4.0, 3.0], [0.5, 0.5, 0.0])

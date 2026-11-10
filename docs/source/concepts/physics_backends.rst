@@ -3,59 +3,43 @@
 ..
 .. SPDX-License-Identifier: BSD-3-Clause
 
+.. _native-physics-api:
 .. _physics-backends:
 
 Physics Backends
 ================
 
-Isaac Lab supports three physics backends behind its common asset, sensor, and
-scene APIs. Choose the backend that matches the runtime and solver family you
-need, then choose a preset that the target task exposes. See
-:ref:`backends-and-presets` for preset selection and
-:ref:`backend-architecture` for the implementation architecture.
-
-
-Backend and solver terminology
-------------------------------
-
-A **backend** integrates a physics runtime with Isaac Lab and owns simulation
-lifecycle and data exchange. A **solver** is the numerical method that advances
-the physical state within that backend. Newton is therefore not synonymous
-with MJWarp: Newton hosts MJWarp, Kamino, VBD, MPM, and other solver paths.
-
-A **physics preset** is a task-supported configuration that selects a backend
-and, when applicable, one of its solvers. Solver settings and behavior are not
-numerically portable between solver families. Expect to retune a task when
-changing solvers; see :ref:`solver-differences`.
+Isaac Lab supports PhysX, Newton, and OvPhysX through shared asset, sensor, and
+scene APIs. Choose a backend for the runtime and solvers you need, then select a
+preset supported by your task. See :ref:`backends-and-presets` for launch commands.
 
 
 Choose a backend
 ----------------
 
-.. list-table::
-   :header-rows: 1
-   :widths: 13 23 13 21 30
+.. grid:: 1 1 3 3
+   :gutter: 3
 
-   * - Backend
-     - Runtime requirement
-     - Maturity
-     - Solver family
-     - Intended use
-   * - PhysX
-     - Isaac Sim and Omniverse Kit
-     - Established reference
-     - PhysX TGS by default; PGS available
-     - Broadly validated Isaac Lab workflows and behavior-parity reference
-   * - Newton
-     - Warp-native; Isaac Sim is not required for kit-less execution
-     - Beta
-     - Multiple solvers, with MJWarp as the primary validated path
-     - Kit-less simulation and workflows that need Newton solver choices
-   * - OvPhysX
-     - Optional ``ovphysx`` runtime extra; no Omniverse Kit
-     - Experimental
-     - PhysX, configured primarily through USD
-     - Experimental kit-less PhysX workflows
+   .. grid-item-card:: Isaac Sim PhysX
+      :link: /source/concepts/physics-backends/physx
+      :link-type: doc
+
+      PhysX simulation through Isaac Sim and Omniverse Kit, with TGS and PGS
+      solvers.
+
+   .. grid-item-card:: Newton
+      :link: /source/concepts/physics-backends/newton
+      :link-type: doc
+
+      Warp-native simulation without Isaac Sim. Choose from MJWarp, Kamino,
+      VBD, and MPM solvers.
+
+   .. grid-item-card:: OvPhysX
+      :link: /source/concepts/physics-backends/ovphysx
+      :link-type: doc
+
+      PhysX simulation without Omniverse Kit, configured through USD. Install
+      with the ``ovphysx`` extra.
 
 Follow :ref:`isaaclab-installation-root` for the supported installation paths
 and current optional extras. Do not combine OvPhysX with a Kit runtime in the
@@ -64,30 +48,22 @@ same process.
 For the general PhysX--Newton policy validation workflow, see
 :doc:`/source/how-to/transfer_policies_between_physx_and_newton`. When a
 checkpoint's joint or body ordering differs from the target backend, use the
-:doc:`articulation ordering guide
-</source/concepts/joint_and_body_ordering>`.
+:ref:`articulation ordering guide <joint-and-body-ordering>`.
 
 
 .. _physics-backends-physx:
 
-PhysX
------
+Isaac Sim PhysX
+---------------
 
-PhysX is Isaac Lab's established reference backend. It runs through Isaac Sim,
-uses the Temporal Gauss-Seidel (TGS) solver by default, and also offers the
-Projective Gauss-Seidel (PGS) solver. Its GPU scene capacities are static, so
-contact-rich or large vectorized scenes may require explicit buffer sizing.
-Keep TGS as the starting point for articulated robots; evaluate PGS when a
-stiff legacy asset behaves poorly with TGS. The generated API remains the
-source of truth for solver selection values and defaults.
+Isaac Sim PhysX runs through Isaac Sim and Omniverse Kit. It uses the Temporal
+Gauss-Seidel (TGS) solver by default, with Projective Gauss-Seidel (PGS) also
+available. Configure scene settings through :class:`~isaaclab_physx.physics.PhysxCfg`
+and asset properties through :doc:`schema_cfgs`. Large or contact-rich scenes may
+need additional GPU buffer capacity.
 
-Configure scene-level fields with
-:class:`~isaaclab_physx.physics.PhysxCfg`; the generated API reference is the
-authoritative field list. Per-actor physical properties remain on the USD
-schema configuration described in
-:doc:`/source/concepts/schema_cfgs`.
-For a diagnose-first workflow covering solver selection, iterations, contacts,
-stability, and GPU capacities, see :ref:`physx-solver-tuning`.
+See :doc:`the Isaac Sim PhysX guide <physics-backends/physx>` for runtime details
+and :ref:`physx-solver-tuning` for solver and buffer settings.
 
 
 .. _physics-backends-newton:
@@ -95,47 +71,35 @@ stability, and GPU capacities, see :ref:`physx-solver-tuning`.
 Newton
 ------
 
-Newton is a Warp-native backend that can run without Isaac Sim. Its Isaac Lab
-integration is beta and supports multiple solver families rather than one
-fixed solver. Configure the backend with
-:class:`~isaaclab_newton.physics.NewtonCfg` and select a solver configuration
-such as :class:`~isaaclab_newton.physics.MJWarpSolverCfg`.
+Newton runs on Warp without requiring Isaac Sim. Its solvers cover different
+simulation needs: MJWarp and Kamino for rigid robots, VBD for cloth and soft bodies,
+and MPM for particle materials. Configure the backend with
+:class:`~isaaclab_newton.physics.NewtonCfg` and select a solver through
+``solver_cfg``. Native Warp arrays are available for custom simulation code.
 
-Task and component coverage is narrower and task-specific. Check task
-``--help`` and :doc:`the environment catalog </source/setup/environments>`
-for current presets, the generated configuration APIs for available symbols,
-and the specialist guides below for solver-specific workflows and limitations.
-
-Start with :doc:`/source/how-to/prepare_asset_for_newton`, then use
-:doc:`/source/concepts/solver-tuning/tune_mjwarp` for the primary validated solver path or
-:doc:`/source/concepts/solver-tuning/tune_kamino` for the beta Kamino path. Experimental
-specialist guides cover :ref:`newton-using-vbd`, :ref:`newton-using-mpm`,
-:ref:`deformables`, :ref:`warp-environments`, and
-:ref:`warp-env-migration`. Backend developers can also read
-:doc:`/source/developer-tools/extending_newton_solvers`.
+See :doc:`the Newton guide <physics-backends/newton>` for solver choices, tuning
+guides, and native data access.
 
 
 .. _physics-backends-ovphysx:
 
 OvPhysX
--------
+--------
 
-OvPhysX is an experimental kit-less PhysX path. It drives PhysX without
-Omniverse Kit, while scene-level solver settings primarily come from the USD
-``PhysicsScene`` prim. Only settings that are not represented in USD live on
-:class:`~isaaclab_ov.physics.OvPhysxCfg`; consult its generated API reference
-for those fields.
+OvPhysX runs PhysX without Isaac Sim or Omniverse Kit. It supports rigid objects,
+articulations, contact and motion sensors, and CUDA-based deformables, and can
+pair with OVRTX for rendering. Scene-level solver settings come primarily from
+USD's ``PhysicsScene``; :class:`~isaaclab_ov.physics.OvPhysxCfg` holds additional
+settings such as GPU buffer capacities. It cannot share a process with Kit.
 
-Feature coverage is still evolving. See the
-:doc:`OvPhysX specialist page
-</source/concepts/ovphysx>` for current
-limitations and runtime constraints.
+See :doc:`the OvPhysX guide <physics-backends/ovphysx>` for installation, supported
+features, and their configuration limits.
 
 
 Find supported tasks and APIs
 -----------------------------
 
-Backend support is task-specific. Use :doc:`/source/setup/environments` to
+Backend support is task-specific. Use :doc:`/source/isaaclab/environments` to
 browse registered environments and presets, or ask a task for its current
 choices:
 
@@ -145,8 +109,9 @@ choices:
       --task Isaac-Cartpole-Direct --help
 
 The help output is the source of truth for that task's ``physics=`` choices.
-For native solver data and views, see
-:doc:`/source/concepts/native-physics-api/index`. For field-level configuration,
+For native solver data and views, see the :ref:`PhysX <physx-native-access>`,
+:ref:`Newton <newton-native-access>`, and :ref:`OvPhysX <ovphysx-native-access>`
+access guides. For field-level configuration,
 follow the generated API links for :class:`~isaaclab_physx.physics.PhysxCfg`,
 :class:`~isaaclab_newton.physics.NewtonCfg`, its solver configurations, and
 :class:`~isaaclab_ov.physics.OvPhysxCfg`.
@@ -155,8 +120,6 @@ follow the generated API links for :class:`~isaaclab_physx.physics.PhysxCfg`,
 .. toctree::
    :hidden:
 
-   /source/concepts/joint_and_body_ordering
-   /source/concepts/ovphysx
-   /source/concepts/using_mpm
-   /source/concepts/warp_environments
-   /source/concepts/warp_environment_migration
+   /source/concepts/physics-backends/physx
+   /source/concepts/physics-backends/newton
+   /source/concepts/physics-backends/ovphysx

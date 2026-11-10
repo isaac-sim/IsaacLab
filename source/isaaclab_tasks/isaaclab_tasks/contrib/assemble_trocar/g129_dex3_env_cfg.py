@@ -369,7 +369,6 @@ class G1AssembleTrocarEnvCfg(ManagerBasedRLEnvCfg):
     scene: AssembleTrocarSceneCfg = AssembleTrocarSceneCfg(
         num_envs=1,
         env_spacing=6.0,
-        replicate_physics=True,
     )
     # basic settings
     observations: ObservationsCfg = ObservationsCfg()
@@ -392,7 +391,7 @@ class G1AssembleTrocarEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = 1 / 200
         self.sim.render_interval = self.decimation
         self.sim.physics = PhysxCfg(bounce_threshold_velocity=0.01)
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(-0.5, 2.4, 1.6), lookat=(-5.4, 0.2, -1.2))
+        self.sim.visualizer_cfgs = VisualizerCfg(eye=(-0.5, 2.4, 1.6), lookat=(-5.4, 0.2, -1.2))
         for camera_cfg in (
             self.scene.front_camera,
             self.scene.left_wrist_camera,

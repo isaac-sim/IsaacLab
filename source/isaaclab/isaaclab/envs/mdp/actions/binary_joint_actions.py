@@ -92,7 +92,7 @@ class BinaryJointAction(ActionTerm):
         if self.cfg.clip is not None:
             if isinstance(cfg.clip, dict):
                 self._clip = torch.tensor([[-float("inf"), float("inf")]], device=self.device).repeat(
-                    self.num_envs, self.action_dim, 1
+                    self.num_envs, self._num_joints, 1
                 )
                 index_list, _, value_list = string_utils.resolve_matching_names_values(self.cfg.clip, self._joint_names)
                 self._clip[:, index_list] = torch.tensor(value_list, device=self.device)
@@ -136,12 +136,10 @@ class BinaryJointAction(ActionTerm):
             close_mask = ~actions
         else:
             close_mask = actions < 0
-        # compute the command
-        self._processed_actions = torch.where(close_mask, self._close_command, self._open_command)
+        # compute the command in place: a recorded apply_actions reads this buffer
+        self._processed_actions[:] = torch.where(close_mask, self._close_command, self._open_command)
         if self.cfg.clip is not None:
-            self._processed_actions = torch.clamp(
-                self._processed_actions, min=self._clip[:, :, 0], max=self._clip[:, :, 1]
-            )
+            self._processed_actions.clamp_(min=self._clip[:, :, 0], max=self._clip[:, :, 1])
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         index_fill_(self._raw_actions, env_ids, 0.0)
@@ -149,6 +147,8 @@ class BinaryJointAction(ActionTerm):
 
 class BinaryJointPositionAction(BinaryJointAction):
     """Binary joint action that sets the binary action into joint position targets."""
+
+    is_graphable = True
 
     cfg: actions_cfg.BinaryJointPositionActionCfg
     """The configuration of the action term."""
@@ -159,6 +159,8 @@ class BinaryJointPositionAction(BinaryJointAction):
 
 class BinaryJointVelocityAction(BinaryJointAction):
     """Binary joint action that sets the binary action into joint velocity targets."""
+
+    is_graphable = True
 
     cfg: actions_cfg.BinaryJointVelocityActionCfg
     """The configuration of the action term."""
@@ -176,6 +178,8 @@ class AbsBinaryJointPositionAction(BinaryJointAction):
     closed joint-position target.
     """
 
+    is_graphable = True
+
     cfg: actions_cfg.AbsBinaryJointPositionActionCfg
     """The configuration of the action term."""
 
@@ -189,12 +193,10 @@ class AbsBinaryJointPositionAction(BinaryJointAction):
         else:
             # true: close 0.0, false: open 0.785
             binary_mask = actions < self.cfg.threshold
-        # compute the command
-        self._processed_actions = torch.where(binary_mask, self._open_command, self._close_command)
+        # compute the command in place: a recorded apply_actions reads this buffer
+        self._processed_actions[:] = torch.where(binary_mask, self._open_command, self._close_command)
         if self.cfg.clip is not None:
-            self._processed_actions = torch.clamp(
-                self._processed_actions, min=self._clip[:, :, 0], max=self._clip[:, :, 1]
-            )
+            self._processed_actions.clamp_(min=self._clip[:, :, 0], max=self._clip[:, :, 1])
 
     def apply_actions(self):
         self._asset.set_joint_position_target_index(target=self._processed_actions, joint_ids=self._joint_ids)

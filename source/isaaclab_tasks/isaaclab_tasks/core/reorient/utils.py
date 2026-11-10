@@ -19,9 +19,20 @@ import torch
 import isaaclab.utils.math as math_utils
 from isaaclab.utils import index_fill_
 from isaaclab.utils.math import quat_from_angle_axis, quat_mul
+from isaaclab.visualizers import VisualizerCfg
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
+
+
+GOAL_MARKER_OFFSET = (-0.08, -0.09, 0.06)
+"""Goal-cube display offset from the in-hand position [m], beside the hand in the recording view."""
+
+VISUALIZER_CFG = VisualizerCfg(eye=(0.995, -0.80, 0.85), lookat=(0.375, -0.28, 0.53), focal_length=35.0)
+"""Recording view of an environment in the 50-environment play grid."""
+
+CAMERA_VISUALIZER_CFG = VisualizerCfg(eye=(1.62, -1.80, 0.85), lookat=(1.0, -1.28, 0.53), focal_length=35.0)
+"""Recording view of an environment in the camera tasks' 64-environment play grid."""
 
 
 class EpisodeErrorRecorder:
@@ -135,13 +146,24 @@ class SuccessTracker:
         self._goals_reached = torch.zeros(num_envs, device=device)
         self._skip_update = torch.zeros(num_envs, dtype=torch.bool, device=device)
 
-    def record_goal_reached(self, env_ids: Sequence[int] | torch.Tensor) -> None:
+    def record_goal_reached(
+        self, env_ids: Sequence[int] | torch.Tensor | None = None, env_mask: torch.Tensor | None = None
+    ) -> None:
         """Count one reached goal for the given environments.
 
         Args:
-            env_ids: Environments whose goal was just resampled.
+            env_ids: Indices of the environments whose goal was just resampled.
+            env_mask: Boolean mask of those environments, counted without a device synchronization.
+
+        Raises:
+            ValueError: If not exactly one of ``env_ids`` and ``env_mask`` is given.
         """
-        self._goals_reached[env_ids] += 1.0
+        if (env_ids is None) == (env_mask is None):
+            raise ValueError("Pass exactly one of env_ids and env_mask.")
+        if env_mask is not None:
+            self._goals_reached += env_mask
+        else:
+            self._goals_reached[env_ids] += 1.0
 
     def earned(self, reached: torch.Tensor) -> torch.Tensor:
         """Drop the goals a reset handed out, and release the guard.

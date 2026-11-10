@@ -44,9 +44,9 @@ if TYPE_CHECKING:
 
 def define_sensor() -> "RayCaster":
     """Defines the ray-caster sensor to add to the scene."""
-    # Create a ray-caster sensor
+    # Keep the origin wildcard within one path segment so descendants are not counted as environments.
     ray_caster_cfg = RayCasterCfg(
-        prim_path="/World/Origin.*/ball",
+        prim_path="/World/Origin[^/]+/ball",
         mesh_prim_paths=["/World/ground"],
         pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=(2.0, 2.0)),
         ray_alignment="yaw",
@@ -75,7 +75,7 @@ def design_scene() -> dict:
         sim_utils.create_prim(f"/World/Origin{i}", "Xform", translation=origin)
     # -- Balls
     cfg = RigidObjectCfg(
-        prim_path="/World/Origin.*/ball",
+        prim_path="/World/Origin[^/]+/ball",
         spawn=sim_utils.SphereCfg(
             radius=0.25,
             rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),

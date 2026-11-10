@@ -19,7 +19,8 @@ from isaaclab_newton.assets.articulation.joint_coordinates import (
     gather_joint_coordinates,
     scatter_joint_coordinates,
 )
-from isaaclab_newton.physics import NewtonManager
+from isaaclab_newton.physics import NewtonCfg, NewtonManager
+from isaaclab_newton.test.fixtures.mock_newton import backend_stub
 from newton.selection import ArticulationView
 from scipy.spatial.transform import Rotation
 
@@ -83,7 +84,7 @@ def test_identity_quaternion_gathers_to_zero_rotation_vector(sign: float) -> Non
 
 
 @pytest.mark.parametrize("ball_joint", [False, True])
-def test_joint_commands_preserve_coordinate_layout(monkeypatch, ball_joint):
+def test_joint_commands_preserve_coordinate_layout(ball_joint):
     """DOF commands reach native coordinate targets without touching either world's free root."""
     source = newton.ModelBuilder()
     base, middle, tip = [source.add_link(mass=1.0, inertia=wp.mat33(np.eye(3))) for _ in range(3)]
@@ -98,11 +99,21 @@ def test_joint_commands_preserve_coordinate_layout(monkeypatch, ball_joint):
     state, control = model.state(), model.control()
     assert model.joint_coord_count != model.joint_dof_count
     assert control.joint_target_q.shape == state.joint_q.shape
-    monkeypatch.setattr(NewtonManager, "get_model", lambda: model)
-    monkeypatch.setattr(NewtonManager, "get_state_0", lambda: state)
-    monkeypatch.setattr(NewtonManager, "get_control", lambda: control)
+    backend_manager = NewtonManager(NewtonCfg())
+    backend_manager.backend = backend_stub(
+        model_changes=set(),
+        model=model,
+        state_0=state,
+        control=control,
+        solver=None,
+        actuators=None,
+        kinematics_dirty=False,
+        state_version=0,
+        device=model.device,
+        transforms_may_change_on_graph_replay=False,
+    )
     view = ArticulationView(model, "Robot", exclude_joint_types=[newton.JointType.FREE])
-    data = ArticulationData(view, "cpu")
+    data = ArticulationData(view, "cpu", backend_manager=backend_manager)
     data._apply_ordering_maps_after_resolve()
     num_dofs = 4 if ball_joint else 2
     assert data.joint_pos.shape == (2, num_dofs)
@@ -120,7 +131,9 @@ def test_joint_commands_preserve_coordinate_layout(monkeypatch, ball_joint):
         _joint_vel_target_sim=wp.zeros((2, num_dofs), device="cpu"),
         _joint_effort_target_sim=wp.zeros((2, num_dofs), device="cpu"),
     )
-    articulation = SimpleNamespace(data=data, _ALL_ENV_MASK=wp.array([True, True], dtype=wp.bool, device="cpu"))
+    articulation = SimpleNamespace(
+        data=data, _backend_manager=backend_manager, _ALL_ENV_MASK=wp.array([True, True], dtype=wp.bool, device="cpu")
+    )
     NewtonActuatorControl(articulation).submit_commands(collection)
     np.testing.assert_allclose(control.joint_target_q.numpy().reshape(2, -1), expected, atol=1e-6)
 

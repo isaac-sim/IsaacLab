@@ -164,8 +164,10 @@ def test_invalid_reward_func_module(env):
         "term_2": RewardTermCfg(func=grilled_chicken_with_bbq, weight=5, params={"bbq": True}),
         "term_3": RewardTermCfg(func="a:grilled_chicken_with_no_bbq", weight=0.1, params={"hot": False}),
     }
-    with pytest.raises(ValueError):
+    with pytest.raises(ModuleNotFoundError) as error:
         RewardManager(cfg, env)
+
+    assert error.value.name == "a"
 
 
 def test_invalid_reward_config(env):

@@ -6,6 +6,8 @@
 from __future__ import annotations
 
 import logging
+import re
+from collections import Counter
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -31,18 +33,27 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+# Task-space action component names, in the order of the action vector. These are the keys that
+# :attr:`~isaaclab.managers.ActionTermCfg.clip` is matched against for task-space action terms.
+_POSITION_NAMES = ("pos_x", "pos_y", "pos_z")
+_ROTATION_NAMES = ("rot_x", "rot_y", "rot_z")
+_QUATERNION_NAMES = ("quat_x", "quat_y", "quat_z", "quat_w")
+_WRENCH_NAMES = ("force_x", "force_y", "force_z", "torque_x", "torque_y", "torque_z")
+_TASK_AXES = ("x", "y", "z", "rx", "ry", "rz")
+
+
 class DifferentialInverseKinematicsAction(ActionTerm):
     r"""Inverse Kinematics action term.
 
-    This action term performs pre-processing of the raw actions using scaling transformation.
+    This action term pre-processes raw actions using an affine transformation.
 
     .. math::
-        \text{action} = \text{scaling} \times \text{input action}
+        \text{action} = \text{offset} + \text{scaling} \times \text{input action}
         \text{joint position} = J^{-} \times \text{action}
 
-    where :math:`\text{scaling}` is the scaling applied to the input action, and :math:`\text{input action}`
-    is the input action from the user, :math:`J` is the Jacobian over the articulation's actuated joints,
-    and \text{joint position} is the desired joint position command for the articulation's joints.
+    where :math:`\text{offset}` and :math:`\text{scaling}` define the affine transformation,
+    :math:`\text{input action}` is the input action from the user, :math:`J` is the Jacobian over the
+    articulation's actuated joints, and \text{joint position} is the desired joint position command.
     """
 
     cfg: actions_cfg.DifferentialInverseKinematicsActionCfg
@@ -50,7 +61,9 @@ class DifferentialInverseKinematicsAction(ActionTerm):
     _asset: Articulation
     """The articulation asset on which the action term is applied."""
     _scale: torch.Tensor
-    """The scaling factor applied to the input action. Shape is (1, action_dim)."""
+    """The scaling factor applied to the input action. Shape is (num_envs, action_dim)."""
+    _offset: torch.Tensor
+    """The offset applied to the scaled action. Shape is (num_envs, action_dim)."""
     _clip: torch.Tensor
     """The clip applied to the input action."""
 
@@ -100,9 +113,11 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         # owned buffer; _compute_frame_jacobian mutates this, not the data-layer view.
         self._jacobian_b = torch.zeros(self.num_envs, 6, len(self._jacobi_joint_ids), device=self.device)
 
-        # save the scale as tensors
+        # save the affine transform as tensors
         self._scale = torch.zeros((self.num_envs, self.action_dim), device=self.device)
         self._scale[:] = torch.tensor(self.cfg.scale, device=self.device)
+        self._offset = torch.zeros((self.num_envs, self.action_dim), device=self.device)
+        self._offset[:] = torch.tensor(self.cfg.offset, device=self.device)
 
         # convert the fixed offsets to torch tensors of batched shape
         if self.cfg.body_offset is not None:
@@ -111,16 +126,9 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         else:
             self._offset_pos, self._offset_rot = None, None
 
-        # parse clip
+        # parse clip against the task-space action names (not the joint names)
         if self.cfg.clip is not None:
-            if isinstance(cfg.clip, dict):
-                self._clip = torch.tensor([[-float("inf"), float("inf")]], device=self.device).repeat(
-                    self.num_envs, self.action_dim, 1
-                )
-                index_list, _, value_list = string_utils.resolve_matching_names_values(self.cfg.clip, self._joint_names)
-                self._clip[:, index_list] = torch.tensor(value_list, device=self.device)
-            else:
-                raise ValueError(f"Unsupported clip type: {type(cfg.clip)}. Supported types are dict.")
+            self._clip = _resolve_task_space_clip(self.cfg.clip, self.action_names, self.num_envs, self.device)
 
     """
     Properties.
@@ -129,6 +137,19 @@ class DifferentialInverseKinematicsAction(ActionTerm):
     @property
     def action_dim(self) -> int:
         return self._ik_controller.action_dim
+
+    @property
+    def action_names(self) -> list[str]:
+        """Names of the action components, in the order of the action vector.
+
+        ``pos_x``, ``pos_y``, ``pos_z`` for the position, followed by ``rot_x``, ``rot_y``, ``rot_z``
+        (axis-angle) for relative pose commands or ``quat_x``, ``quat_y``, ``quat_z``, ``quat_w`` for
+        absolute pose commands. :attr:`cfg.clip` is matched against these names.
+        """
+        names = list(_POSITION_NAMES)
+        if self.cfg.controller.command_type == "pose":
+            names += list(_ROTATION_NAMES if self.cfg.controller.use_relative_mode else _QUATERNION_NAMES)
+        return names
 
     @property
     def raw_actions(self) -> torch.Tensor:
@@ -160,6 +181,7 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         - body_name: The name of the body.
         - joint_names: The names of the joints.
         - scale: The scale of the action term.
+        - offset: The offset of the action term.
         - clip: The clip of the action term.
         - controller_cfg: The configuration of the controller.
         - body_offset: The offset of the body.
@@ -174,11 +196,13 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         self._IO_descriptor.body_name = self._body_name
         self._IO_descriptor.joint_names = self._joint_names
         self._IO_descriptor.scale = self._scale
+        self._IO_descriptor.offset = self._offset
         if self.cfg.clip is not None:
             self._IO_descriptor.clip = self.cfg.clip
         else:
             self._IO_descriptor.clip = None
         self._IO_descriptor.extras["controller_cfg"] = self.cfg.controller.__dict__
+        self._IO_descriptor.extras["action_names"] = self.action_names
         self._IO_descriptor.extras["body_offset"] = self.cfg.body_offset.__dict__
         return self._IO_descriptor
 
@@ -189,7 +213,7 @@ class DifferentialInverseKinematicsAction(ActionTerm):
     def process_actions(self, actions: torch.Tensor):
         # store the raw actions
         self._raw_actions[:] = actions
-        self._processed_actions[:] = self.raw_actions * self._scale
+        self._processed_actions[:] = self.raw_actions * self._scale + self._offset
         if self.cfg.clip is not None:
             self._processed_actions = torch.clamp(
                 self._processed_actions, min=self._clip[:, :, 0], max=self._clip[:, :, 1]
@@ -259,9 +283,7 @@ class DifferentialInverseKinematicsAction(ActionTerm):
                 self._asset.data.body_quat_w.torch[:, self._body_idx],
             )
             offset_pos_b = math_utils.quat_apply(body_quat_b, self._offset_pos)
-            self._jacobian_b[:, 0:3, :] += torch.bmm(
-                -math_utils.skew_symmetric_matrix(offset_pos_b), self._jacobian_b[:, 3:, :]
-            )
+            self._jacobian_b[:, :3] += torch.linalg.cross(self._jacobian_b[:, 3:], offset_pos_b[:, :, None], dim=1)
 
         return self._jacobian_b
 
@@ -419,6 +441,9 @@ class OperationalSpaceControllerAction(ActionTerm):
         self._stiffness_idx = None
         self._damping_ratio_idx = None
         self._resolve_command_indexes()
+        # parse clip against the task-space action names (not the joint names)
+        if self.cfg.clip is not None:
+            self._clip = _resolve_task_space_clip(self.cfg.clip, self.action_names, self.num_envs, self.device)
 
         # Nullspace position control joint targets
         self._nullspace_joint_pos_target = None
@@ -432,6 +457,17 @@ class OperationalSpaceControllerAction(ActionTerm):
     def action_dim(self) -> int:
         """Dimension of the action space of operational space control."""
         return self._osc.action_dim
+
+    @property
+    def action_names(self) -> list[str]:
+        """Names of the action components, in the order of the action vector.
+
+        The components of each target type in order (``pos_x``, ``rot_x``, ``quat_x``, ``force_x``, ...),
+        followed by ``stiffness_<axis>`` and ``damping_ratio_<axis>`` for the variable impedance modes. With
+        both ``pose_abs`` and ``pose_rel`` targets, the pose components are prefixed with their target type
+        (``pose_abs_pos_x``, ``pose_rel_pos_x``, ...). :attr:`cfg.clip` is matched against these names.
+        """
+        return self._action_names
 
     @property
     def raw_actions(self) -> torch.Tensor:
@@ -495,6 +531,7 @@ class OperationalSpaceControllerAction(ActionTerm):
             self._IO_descriptor.clip = None
         self._IO_descriptor.extras["controller_cfg"] = self.cfg.controller_cfg.__dict__
         self._IO_descriptor.extras["body_offset"] = self.cfg.body_offset.__dict__
+        self._IO_descriptor.extras["action_names"] = self.action_names
         return self._IO_descriptor
 
     """
@@ -571,39 +608,57 @@ class OperationalSpaceControllerAction(ActionTerm):
     """
 
     def _resolve_command_indexes(self):
-        """Resolves the indexes for the various command elements within the command tensor.
+        """Resolves the indexes and the names of the various command elements within the command tensor.
+
+        Each target type contributes its components (``pos_x``, ``rot_x``, ``quat_x``, ``force_x``, ...),
+        followed by ``stiffness_<axis>`` and ``damping_ratio_<axis>`` for the variable impedance modes.
+        Blocks that share a component name with another block (``pose_abs`` and ``pose_rel`` both have
+        ``pos_x``) are prefixed with their name, so every action component has a unique name.
 
         Raises:
             ValueError: If any command index is left unresolved.
         """
         # First iterate over the target types to find the indexes of the different command elements
+        blocks: list[tuple[str, tuple[str, ...]]] = []
         cmd_idx = 0
         for target_type in self.cfg.controller_cfg.target_types:
             if target_type == "pose_abs":
                 self._pose_abs_idx = cmd_idx
-                cmd_idx += 7
+                names = _POSITION_NAMES + _QUATERNION_NAMES
             elif target_type == "pose_rel":
                 self._pose_rel_idx = cmd_idx
-                cmd_idx += 6
+                names = _POSITION_NAMES + _ROTATION_NAMES
             elif target_type == "wrench_abs":
                 self._wrench_abs_idx = cmd_idx
-                cmd_idx += 6
+                names = _WRENCH_NAMES
             else:
                 raise ValueError("Undefined target_type for OSC within OperationalSpaceControllerAction.")
+            blocks.append((target_type, names))
+            cmd_idx += len(names)
         # Then iterate over the impedance parameters depending on the impedance mode
         if (
             self.cfg.controller_cfg.impedance_mode == "variable_kp"
             or self.cfg.controller_cfg.impedance_mode == "variable"
         ):
             self._stiffness_idx = cmd_idx
+            blocks.append(("stiffness", tuple(f"stiffness_{axis}" for axis in _TASK_AXES)))
             cmd_idx += 6
             if self.cfg.controller_cfg.impedance_mode == "variable":
                 self._damping_ratio_idx = cmd_idx
+                blocks.append(("damping_ratio", tuple(f"damping_ratio_{axis}" for axis in _TASK_AXES)))
                 cmd_idx += 6
 
         # Check if any command is left unresolved
         if self.action_dim != cmd_idx:
             raise ValueError("Not all command indexes have been resolved.")
+
+        # Name the components. A block whose names collide with another block's is prefixed with its name.
+        counts = Counter(name for _, names in blocks for name in names)
+        self._action_names = [
+            f"{block}_{name}" if any(counts[n] > 1 for n in names) else name
+            for block, names in blocks
+            for name in names
+        ]
 
     def _resolve_nullspace_joint_pos_targets(self):
         """Resolves the nullspace joint pos targets for the operational space controller.
@@ -674,9 +729,7 @@ class OperationalSpaceControllerAction(ActionTerm):
                 self._asset.data.body_quat_w.torch[:, self._ee_body_idx],
             )
             offset_pos_b = math_utils.quat_apply(body_quat_b, self._offset_pos)
-            self._jacobian_b[:, 0:3, :] += torch.bmm(
-                -math_utils.skew_symmetric_matrix(offset_pos_b), self._jacobian_b[:, 3:, :]
-            )
+            self._jacobian_b[:, :3] += torch.linalg.cross(self._jacobian_b[:, 3:], offset_pos_b[:, :, None], dim=1)
 
     def _compute_ee_pose(self):
         """Computes the pose of the ee frame in root frame."""
@@ -769,17 +822,68 @@ class OperationalSpaceControllerAction(ActionTerm):
             self._processed_actions[:, self._wrench_abs_idx : self._wrench_abs_idx + 6] *= self._wrench_scale
         if self._stiffness_idx is not None:
             self._processed_actions[:, self._stiffness_idx : self._stiffness_idx + 6] *= self._stiffness_scale
+        if self._damping_ratio_idx is not None:
+            self._processed_actions[:, self._damping_ratio_idx : self._damping_ratio_idx + 6] *= (
+                self._damping_ratio_scale
+            )
+        # Clip the scaled actions. The controller limits below are applied afterwards, so a clip range
+        # cannot move the impedance parameters outside of them.
+        if self.cfg.clip is not None:
+            self._processed_actions[:] = torch.clamp(
+                self._processed_actions, min=self._clip[:, :, 0], max=self._clip[:, :, 1]
+            )
+        # Keep the impedance parameters within the controller limits.
+        if self._stiffness_idx is not None:
             self._processed_actions[:, self._stiffness_idx : self._stiffness_idx + 6] = torch.clamp(
                 self._processed_actions[:, self._stiffness_idx : self._stiffness_idx + 6],
                 min=self.cfg.controller_cfg.motion_stiffness_limits_task[0],
                 max=self.cfg.controller_cfg.motion_stiffness_limits_task[1],
             )
         if self._damping_ratio_idx is not None:
-            self._processed_actions[:, self._damping_ratio_idx : self._damping_ratio_idx + 6] *= (
-                self._damping_ratio_scale
-            )
             self._processed_actions[:, self._damping_ratio_idx : self._damping_ratio_idx + 6] = torch.clamp(
                 self._processed_actions[:, self._damping_ratio_idx : self._damping_ratio_idx + 6],
                 min=self.cfg.controller_cfg.motion_damping_ratio_limits_task[0],
                 max=self.cfg.controller_cfg.motion_damping_ratio_limits_task[1],
             )
+
+
+def _resolve_task_space_clip(
+    clip: dict[str, tuple], action_names: list[str], num_envs: int, device: str
+) -> torch.Tensor:
+    """Resolve a clip dictionary against task-space action names.
+
+    Args:
+        clip: Regular expressions mapped to ``(min, max)`` ranges.
+        action_names: Names of the action components, in the order of the action vector.
+        num_envs: Number of environments.
+        device: Device to create the tensor on.
+
+    Returns:
+        The clip ranges with shape (``num_envs``, ``len(action_names)``, 2). Components that no key
+        matches keep the range ``(-inf, inf)``.
+
+    Raises:
+        ValueError: If :attr:`clip` is not a dictionary, if a key matches none of the action names, or if a
+            key matches a quaternion component (clamping quaternion components does not give a valid
+            orientation).
+    """
+    if not isinstance(clip, dict):
+        raise ValueError(f"Unsupported clip type: {type(clip)}. Supported types are dict.")
+    unmatched = [key for key in clip if not any(re.fullmatch(key, name) for name in action_names)]
+    if unmatched:
+        raise ValueError(
+            f"The clip keys {unmatched} match none of the action names {action_names}. The clip of a task-space"
+            " action term is matched against its action names, not against the joint names."
+        )
+    index_list, matched_names, value_list = string_utils.resolve_matching_names_values(clip, action_names)
+    # the quaternion components keep their block prefix (``pose_abs_quat_x``), so match the suffix
+    quat_names = [name for name in matched_names if name.endswith(_QUATERNION_NAMES)]
+    if quat_names:
+        raise ValueError(
+            f"Clipping the quaternion components {quat_names} is not supported. Use a relative pose command"
+            " or clip the raw actions in the RL wrapper instead."
+        )
+    clip_tensor = torch.tensor([[-float("inf"), float("inf")]], device=device).repeat(num_envs, len(action_names), 1)
+    if index_list:
+        clip_tensor[:, index_list] = torch.tensor(value_list, device=device)
+    return clip_tensor

@@ -24,12 +24,15 @@ def joint_position_setpoints(env: ManagerBasedEnv, action_term_name: str = "join
     return action_term.processed_actions.clone()
 
 
-def gait_phase(env: ManagerBasedRLEnv, period: float = 1.0) -> torch.Tensor:
-    """Cyclic gait clock encoded as ``(sin(2*pi*phi), cos(2*pi*phi))``.
+def gait_phase(env: ManagerBasedRLEnv, period: float = 1.0, num_harmonics: int = 1) -> torch.Tensor:
+    """Cyclic gait clock encoded with sine and cosine harmonics.
 
     ``phi`` is the episode time wrapped to ``period`` and normalized to ``[0, 1)``.
     """
     episode_time_s = env.episode_length_buf.float() * env.step_dt
     phase = (episode_time_s % period) / period
     two_pi = 2.0 * math.pi
-    return torch.stack([torch.sin(two_pi * phase), torch.cos(two_pi * phase)], dim=-1)
+    components = []
+    for harmonic in range(1, num_harmonics + 1):
+        components.extend([torch.sin(harmonic * two_pi * phase), torch.cos(harmonic * two_pi * phase)])
+    return torch.stack(components, dim=-1)

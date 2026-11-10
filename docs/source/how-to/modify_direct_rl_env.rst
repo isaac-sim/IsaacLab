@@ -34,14 +34,14 @@ For this tutorial, we start from the direct workflow Humanoid environment define
 The Changes Explained
 ~~~~~~~~~~~~~~~~~~~~~
 
-Duplicating the file and registering a new task
------------------------------------------------
+Deriving and registering a new task
+-----------------------------------
 
 To avoid modifying the existing task, create an ``h1_env.py`` file in the Isaac Lab project
 ``source/isaaclab_tasks/isaaclab_tasks/core/locomotion/humanoid``
 folder. The new classes below inherit the existing environment and configuration, changing only the robot-specific data.
 
-Once the name change has been made, we proceed to add a new entry to register the task under the name ``Isaac-H1-Direct-v0``.
+Register the derived task under the name ``Isaac-H1-Direct-v0``.
 To do this, we modify the ``__init__.py`` file in the same working folder and add the following entry.
 Refer to the :ref:`tutorial-register-rl-env-gym` tutorial for more details about environment registrations.
 
@@ -96,6 +96,11 @@ The robot changed, and with it the number of joints to control or the number of 
 Therefore, define the derived environment configuration and adjust the values that depend on the robot, such as the action and
 observation spaces. The environment implementation itself remains unchanged.
 
+The H1 has 19 controlled joints. The inherited observation function combines 12 root and target
+values, 19 joint positions, 19 joint velocities, 19 actions, and 12 wrench values from its two feet,
+for 81 values. Set ``feet_body_names`` to match H1's ankle links so the joint-wrench sensor selects
+the correct bodies instead of the base Humanoid's foot names.
+
 .. literalinclude:: ../refs/snippets/tutorial_modify_direct_rl_env.py
    :language: python
    :start-after: [start-h1_env-spaces]
@@ -114,12 +119,6 @@ After the minor modification has been done, and similar to the previous tutorial
 
         uv run --extra rl-games isaaclab train --rl_library rl_games --task Isaac-H1-Direct-v0
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-        ./isaaclab.sh train --rl_library rl_games --task Isaac-H1-Direct-v0
-
 When the training is finished, we can visualize the result with the following command.
 To stop the simulation, you can either close the window, or press ``Ctrl+C`` in the terminal
 where you started the simulation.
@@ -132,19 +131,11 @@ where you started the simulation.
 
         uv run --extra rl-games isaaclab play --rl_library rl_games --task Isaac-H1-Direct-v0 --num_envs 64 --viz kit
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-        ./isaaclab.sh play --rl_library rl_games --task Isaac-H1-Direct-v0 --num_envs 64 --viz kit
-
 .. figure:: ../_static/tutorials/tutorial_modify_direct_rl_env.jpg
     :align: center
     :figwidth: 100%
     :alt: result of training Isaac-H1-Direct-v0 task
 
-In this tutorial, we learnt how to make minor modifications to an existing environment without affecting the original code.
-
-It is important to note, however, that while the changes to be made may be small, they may not always work on the first try,
-as there may be deeper dependencies on the original assets in the environment being modified.
-In these cases, it is advisable to analyze the code of the available examples in detail in order to make an appropriate adjustment.
+When replacing an asset, check the task's joint names, action dimensions, observation
+layout, and reward terms. These may depend on the original robot even when the
+scene change is small.

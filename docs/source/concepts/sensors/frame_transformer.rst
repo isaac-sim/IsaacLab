@@ -6,9 +6,9 @@
 Frame Transformer
 =================
 
-A :class:`~sensors.FrameTransformer` tracks the pose of one or more target frames relative to a
-source frame. It provides the same batched interface across cloned environments, avoiding repeated
-USD traversal or per-environment transform calculations.
+A :class:`~sensors.FrameTransformer` measures target poses relative to a source
+frame across all environments. Use it to track a hand, foot, or object without
+calculating each transform yourself.
 
 .. figure:: ../../_static/overview/sensors/frame_transformer.jpg
    :align: center

@@ -6,8 +6,7 @@
 Inertial Measurement Unit (IMU)
 ===============================
 
-A :class:`~sensors.Imu` models the two quantities produced by a conventional inertial measurement
-unit:
+An :class:`~sensors.Imu` measures:
 
 * :attr:`~sensors.ImuData.ang_vel_b`: angular velocity [rad/s] relative to the world, expressed in
   the IMU frame.

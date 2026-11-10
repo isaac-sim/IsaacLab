@@ -6,35 +6,49 @@
  */
 
 .demo-command-row {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    flex-wrap: wrap;
+}
+
+.demo-command-row .environment-command-prefix {
+    white-space: normal;
 }
 
 .demo-command-selection {
     min-width: 0;
     color: var(--pst-color-text-base);
+    font-family: var(--pst-font-family-monospace);
     font-size: 1.05rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
 }
 
-.demo-command-row .environment-selector select {
+.demo-command-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr));
+    margin-top: 1rem;
+}
+
+.demo-command-options .environment-selector {
+    display: flex;
+}
+
+.demo-command-options select {
     min-width: 0;
-}
-
-.demo-command-row .environment-selector-physics select {
-    width: 10.5rem;
-}
-
-.demo-command-row .environment-selector-renderer select {
-    width: 8.5rem;
+    width: 100%;
 }
 
 .demo-command-description {
     min-height: 1.5rem;
     margin: 0.9rem 0 0;
     color: var(--environment-muted);
+}
+
+.demo-command-note {
+    margin: 1rem 0 0;
+}
+
+.demo-command-note[hidden],
+.demo-command-note [hidden] {
+    display: none;
 }
 
 .demo-card-grid {

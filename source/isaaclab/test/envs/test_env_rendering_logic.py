@@ -4,14 +4,16 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 # need to set "enable_cameras" true to be able to do rendering tests
+
 from isaaclab.test.utils import launch_test_simulation
+from isaaclab.visualizers import VisualizerCfg
 
 launch_test_simulation(enable_cameras=True)
 
 import pytest
 import torch
 from isaaclab_physx.physics import IsaacEvents
-from isaaclab_visualizers.kit import KitVisualizer, KitVisualizerCfg
+from isaaclab_visualizers.kit import KitBackendCfg, KitVisualizer
 
 import isaaclab.sim as sim_utils
 from isaaclab.envs import (
@@ -46,7 +48,7 @@ def create_manager_based_env(render_interval: int):
         decimation: int = 4
         episode_length_s: float = 100.0
         sim: SimulationCfg = SimulationCfg(
-            dt=0.005, render_interval=render_interval, visualizer_cfgs=KitVisualizerCfg()
+            dt=0.005, render_interval=render_interval, visualizer_cfgs=VisualizerCfg(backend=KitBackendCfg())
         )
         scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1, env_spacing=1.0)
         actions: EmptyManagerCfg = EmptyManagerCfg()
@@ -65,7 +67,7 @@ def create_manager_based_rl_env(render_interval: int):
         decimation: int = 4
         episode_length_s: float = 100.0
         sim: SimulationCfg = SimulationCfg(
-            dt=0.005, render_interval=render_interval, visualizer_cfgs=KitVisualizerCfg()
+            dt=0.005, render_interval=render_interval, visualizer_cfgs=VisualizerCfg(backend=KitBackendCfg())
         )
         scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1, env_spacing=1.0)
         actions: EmptyManagerCfg = EmptyManagerCfg()
@@ -98,7 +100,9 @@ def create_direct_rl_env(render_interval: int, episode_length_steps: int | None 
         action_space: int = 0
         observation_space: int = 0
         episode_length_s: float = _episode_length_s
-        sim: SimulationCfg = SimulationCfg(dt=_dt, render_interval=render_interval, visualizer_cfgs=KitVisualizerCfg())
+        sim: SimulationCfg = SimulationCfg(
+            dt=_dt, render_interval=render_interval, visualizer_cfgs=VisualizerCfg(backend=KitBackendCfg())
+        )
         scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1, env_spacing=1.0)
 
     class Env(DirectRLEnv):
@@ -195,7 +199,7 @@ def test_env_rendering_logic(env_type, render_interval, physics_callback, render
         assert isinstance(env.sim.visualizers[0], KitVisualizer)
 
         # add physics callback via physics manager (IsaacEvents is PhysX-specific)
-        physics_handle = env.sim.physics_manager.register_callback(
+        physics_handle = env.sim.backend_manager.register_callback(
             physics_cb, IsaacEvents.POST_PHYSICS_STEP, name="physics_step"
         )
 
@@ -366,7 +370,7 @@ def test_env_render_false_with_resets(physics_callback, render_callback):
         env.reset()
         assert isinstance(env.sim.visualizers[0], KitVisualizer)
 
-        physics_handle = env.sim.physics_manager.register_callback(
+        physics_handle = env.sim.backend_manager.register_callback(
             physics_cb, IsaacEvents.POST_PHYSICS_STEP, name="physics_step"
         )
 

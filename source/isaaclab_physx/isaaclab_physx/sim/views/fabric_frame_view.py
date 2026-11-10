@@ -14,9 +14,10 @@ import sys
 import torch
 import warp as wp
 
-from pxr import Gf, Usd, UsdGeom
+from pxr import Usd
 
 from isaaclab.app.settings_manager import get_settings_manager
+from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
 from isaaclab.sim.views.base_frame_view import BaseFrameView
 from isaaclab.sim.views.fabric_xform_selection import FabricXformSelection
 from isaaclab.sim.views.usd_frame_view import UsdFrameView
@@ -160,15 +161,13 @@ class FabricFrameView(BaseFrameView):
     accept :class:`wp.array`.
     """
 
-    _WORLD_MATRIX_NAME = "omni:fabric:worldMatrix"
-    _LOCAL_MATRIX_NAME = "omni:fabric:localMatrix"
-
     def __init__(
         self,
         prim_path: str,
         device: str = "cpu",
         validate_xform_ops: bool = True,
         stage: Usd.Stage | None = None,
+        scene_data_backend: SceneDataBackend | None = None,
         **kwargs,
     ):
         """Initialize the view.
@@ -180,6 +179,7 @@ class FabricFrameView(BaseFrameView):
                 acceleration is supported on every CUDA index.
             validate_xform_ops: Whether to validate prim xform-ops.
             stage: USD stage; defaults to the current sim context's stage.
+            scene_data_backend: Native scene publication owner for views attached to a running simulation.
             **kwargs: Additional keyword arguments (ignored). Matches the signature of
                 :class:`~isaaclab.sim.views.UsdFrameView` so that the top-level
                 :class:`~isaaclab.sim.views.FrameView` factory can forward backend-agnostic
@@ -187,6 +187,7 @@ class FabricFrameView(BaseFrameView):
         """
         self._usd_view = UsdFrameView(prim_path, device=device, validate_xform_ops=validate_xform_ops, stage=stage)
         self._device = device
+        self._scene_data_backend = scene_data_backend
 
         settings = get_settings_manager()
         self._use_fabric = bool(settings.get("/physics/fabricEnabled", False))
@@ -197,7 +198,7 @@ class FabricFrameView(BaseFrameView):
         self._fabric_initialized = False
 
         # Prim tagging, the persistent selections, and the view->fabric slot mapping all live in the
-        # shared helper, authored once in ``_initialize_fabric``.
+        # shared selection, initialized once in ``_update_fabric``.
         self._fabric_sel: FabricXformSelection | None = None
 
         # Sentinel passed to compose/decompose kernels for unused slots.
@@ -289,14 +290,13 @@ class FabricFrameView(BaseFrameView):
         return _FabricLocalSpaceWriter(self)
 
     # ------------------------------------------------------------------
-    # Getter hooks -- read directly from Fabric (no lazy sync)
+    # Getter hooks -- read current Fabric transforms
     # ------------------------------------------------------------------
     def _get_world_poses_impl(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
         if not self._use_fabric:
             return self._usd_view._get_world_poses_impl(indices)
 
-        if not self._fabric_initialized:
-            self._initialize_fabric()
+        self._update_fabric()
 
         indices_wp = self._resolve_indices_wp(indices)
         count = indices_wp.shape[0]
@@ -336,8 +336,7 @@ class FabricFrameView(BaseFrameView):
         if not self._use_fabric:
             return self._usd_view._get_local_poses_impl(indices)
 
-        if not self._fabric_initialized:
-            self._initialize_fabric()
+        self._update_fabric()
 
         indices_wp = self._resolve_indices_wp(indices)
         count = indices_wp.shape[0]
@@ -373,8 +372,7 @@ class FabricFrameView(BaseFrameView):
         if not self._use_fabric:
             return self._usd_view._get_world_scales_impl(indices)
 
-        if not self._fabric_initialized:
-            self._initialize_fabric()
+        self._update_fabric()
 
         return self._decompose_scales(self._fabric_sel.world_ifa(), indices)
 
@@ -382,8 +380,7 @@ class FabricFrameView(BaseFrameView):
         if not self._use_fabric:
             return self._usd_view._get_local_scales_impl(indices)
 
-        if not self._fabric_initialized:
-            self._initialize_fabric()
+        self._update_fabric()
 
         return self._decompose_scales(self._fabric_sel.local_ifa(), indices)
 
@@ -431,7 +428,7 @@ class FabricFrameView(BaseFrameView):
             writer.set_scales(scales, indices)
 
     # ------------------------------------------------------------------
-    # Internal -- helpers shared by writers + initialization
+    # Internal -- writer helpers
     # ------------------------------------------------------------------
 
     def _to_float32_2d_or_empty(self, data):
@@ -461,8 +458,7 @@ class FabricFrameView(BaseFrameView):
     def _recompute_world_from_local_all(self) -> None:
         """Derive ``worldMatrix = parent * localMatrix`` for every prim in the view.
 
-        Called from :class:`_FabricLocalSpaceWriter` ``__exit__`` and from
-        :meth:`_sync_fabric_from_usd_initial` after seeding local matrices.
+        Called from :class:`_FabricLocalSpaceWriter` ``__exit__``.
         Storage convention: see
         :func:`isaaclab.utils.warp.fabric.update_indexed_world_matrix_from_local`.
         """
@@ -496,14 +492,20 @@ class FabricFrameView(BaseFrameView):
     # ------------------------------------------------------------------
     # Internal -- Fabric initialization
     # ------------------------------------------------------------------
-    def _initialize_fabric(self) -> None:
-        """One-time Fabric setup: tagged selections (see :class:`FabricXformSelection`) plus buffers."""
+    def _update_fabric(self) -> None:
+        """Publish current native poses and initialize this view's selections once."""
+        if self._scene_data_backend is not None:
+            self._scene_data_backend.get_transforms(SceneDataFormat.FabricMatrix44)
+        if self._fabric_initialized:
+            return
         self._fabric_sel = FabricXformSelection(
             list(self.prim_paths),
             self._device,
             owner=type(self).__name__,
-            seed_from_usd=True,
         )
+        if self._scene_data_backend is not None and self._fabric_sel.fabric_hierarchy is not None:
+            # New mounts need their world matrices derived from the published native parent poses.
+            self._fabric_sel.fabric_hierarchy.update_world_xforms()
 
         # Pre-allocated reusable output buffers (world + local + scales).
         self._fabric_positions_buf = wp.zeros((self.count, 3), dtype=wp.float32, device=self._device)
@@ -520,107 +522,6 @@ class FabricFrameView(BaseFrameView):
         self._fabric_local_orientations_ta = ProxyArray(self._fabric_local_orientations_buf)
 
         self._fabric_initialized = True
-
-        # Seed Fabric matrices from USD authoritatively.  The seed writes, so
-        # flip onto the RW selection for its duration; flip back afterwards so
-        # steady-state getters use the RO selection.
-        self._fabric_sel.read_write = True
-        try:
-            self._sync_fabric_from_usd_initial()
-        finally:
-            self._fabric_sel.read_write = False
-
-    def _sync_fabric_from_usd_initial(self) -> None:
-        """Populate Fabric world+local matrices for children and parents from USD.
-
-        Performed once during ``_initialize_fabric``.  Without this step Fabric's
-        matrices are identity for stages that haven't been rendered yet, and our
-        getters (which read from Fabric) would return wrong values.
-        """
-        # --- Children: compose child localMatrix from USD-authored local transforms.
-        scales_wp = _to_float32_2d(self._usd_view.get_local_scales().warp)
-        local_pos_ta, local_ori_ta = self._usd_view.get_local_poses()
-        wp.launch(
-            kernel=fabric_utils.compose_indexed_fabric_transforms,
-            dim=self.count,
-            inputs=[
-                self._fabric_sel.local_ifa(),  # caller holds ``read_write=True``: init-time write, no scope yet
-                _to_float32_2d(local_pos_ta.warp),
-                _to_float32_2d(local_ori_ta.warp),
-                _to_float32_2d(scales_wp),
-                False,
-                False,
-                False,
-                self._fabric_sel.view_indices,
-            ],
-            device=self._device,
-        )
-
-        # --- Parents (one entry per unique parent path) ---
-        unique_parent_paths = self._fabric_sel.unique_parent_paths
-        if unique_parent_paths:
-            from isaaclab.sim.utils import get_current_stage  # noqa: PLC0415
-
-            usd_stage = get_current_stage()
-            xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
-            world_pos_rows: list[list[float]] = []
-            world_ori_rows: list[list[float]] = []
-            world_scale_rows: list[list[float]] = []
-            decomposer = Gf.Transform()
-            warned_shear = False
-            for path in unique_parent_paths:
-                prim = usd_stage.GetPrimAtPath(path)
-                tf = xform_cache.GetLocalToWorldTransform(prim)
-                decomposer.SetMatrix(tf)
-                s = decomposer.GetScale()
-                if not warned_shear:
-                    row0 = Gf.Vec3d(tf[0][0], tf[0][1], tf[0][2]).GetNormalized()
-                    row1 = Gf.Vec3d(tf[1][0], tf[1][1], tf[1][2]).GetNormalized()
-                    row2 = Gf.Vec3d(tf[2][0], tf[2][1], tf[2][2]).GetNormalized()
-                    if (
-                        abs(Gf.Dot(row0, row1)) > 1e-3
-                        or abs(Gf.Dot(row0, row2)) > 1e-3
-                        or abs(Gf.Dot(row1, row2)) > 1e-3
-                    ):
-                        warned_shear = True
-                        logger.warning(
-                            "FabricFrameView: parent prim '%s' has a sheared/skewed world "
-                            "transform. TRS decomposition (used by scale getters and world<->local "
-                            "propagation) does not support shear -- extracted scales and rotations "
-                            "will be approximate. Avoid shear in parent transforms for correct results.",
-                            path,
-                        )
-                tf.Orthonormalize()
-                t = tf.ExtractTranslation()
-                q = tf.ExtractRotationQuat()
-                img, real = q.GetImaginary(), q.GetReal()
-                world_pos_rows.append([float(t[0]), float(t[1]), float(t[2])])
-                world_ori_rows.append([float(img[0]), float(img[1]), float(img[2]), float(real)])
-                world_scale_rows.append([float(s[0]), float(s[1]), float(s[2])])
-            parent_pos_wp = wp.array(world_pos_rows, dtype=wp.float32, device=self._device)
-            parent_ori_wp = wp.array(world_ori_rows, dtype=wp.float32, device=self._device)
-            parent_scale_wp = wp.array(world_scale_rows, dtype=wp.float32, device=self._device)
-            wp.launch(
-                kernel=fabric_utils.compose_indexed_fabric_transforms,
-                dim=len(unique_parent_paths),
-                inputs=[
-                    self._fabric_sel.parent_world_rw_ifa(),
-                    parent_pos_wp,
-                    parent_ori_wp,
-                    parent_scale_wp,
-                    False,
-                    False,
-                    False,
-                    self._fabric_sel.parent_view_indices,
-                ],
-                device=self._device,
-            )
-        wp.synchronize()
-
-        # After seeding local matrices from USD, recompute world matrices so
-        # the view starts with consistent state.
-        self._recompute_world_from_local_all()
-        wp.synchronize()
 
 
 # ----------------------------------------------------------------------
@@ -657,8 +558,7 @@ class _FabricWriterMixin:
 
     def _enter_impl(self) -> None:
         view: FabricFrameView = self._view  # type: ignore[assignment]
-        if not view._fabric_initialized:
-            view._initialize_fabric()
+        view._update_fabric()
         self._wrote_anything = False
         h = view._fabric_sel.fabric_hierarchy
         self._was_tracking_local = h is not None and h.tracking_local_xform_changes

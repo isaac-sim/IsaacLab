@@ -57,7 +57,6 @@ import torch
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.benchmark import BaseIsaacLabBenchmark, SingleMeasurement
-from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass, replace
 
@@ -158,7 +157,7 @@ def run_simulator(sim: "SimulationContext", scene: "InteractiveScene", benchmark
 
 def main(
     scene_cfg: RobotSceneCfg,
-    physics_cfg: PhysicsCfg,
+    sim_cfg: sim_utils.SimulationCfg,
     app_start_time_ms: float,
     benchmark: BaseIsaacLabBenchmark,
 ):
@@ -168,6 +167,7 @@ def main(
     from isaaclab.scene import InteractiveScene
     from isaaclab.sim import SimulationContext
 
+    physics_cfg = sim_cfg.physics
     # The default MJWarp configuration needs additional constraint capacity and solver tuning for bipeds.
     if (
         args_cli.robot in ("h1", "g1")
@@ -183,7 +183,6 @@ def main(
         physics_cfg.solver_cfg.integrator = "implicitfast"
         physics_cfg.num_substeps = 2
 
-    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device, physics=physics_cfg)
     sim = SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view([2.5, 0.0, 4.0], [0.0, 0.0, 2.0])
@@ -237,13 +236,12 @@ if __name__ == "__main__":
 
     # Build the scene configuration before measuring app startup so scene-config imports are measured separately.
     scene_cfg = RobotSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
+    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device)
 
     # Start the timer for app start
     app_start_time_begin = time.perf_counter_ns()
     # Launch the selected physics backend in the benchmark's Kit experience.
-    with launch_simulation(PhysicsCfg(), args_cli) as physics_cfg:
-        if physics_cfg is None:
-            raise RuntimeError("No physics backend was selected.")
+    with launch_simulation(sim_cfg, args_cli):
         # End the timer for app start
         app_start_time_end = time.perf_counter_ns()
         app_start_time_ms = (app_start_time_end - app_start_time_begin) / 1e6
@@ -268,4 +266,4 @@ if __name__ == "__main__":
                 ]
             },
         )
-        main(scene_cfg, physics_cfg, app_start_time_ms, benchmark)
+        main(scene_cfg, sim_cfg, app_start_time_ms, benchmark)

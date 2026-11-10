@@ -10,7 +10,7 @@ from __future__ import annotations
 import argparse
 import os
 
-from isaaclab.app import add_launcher_args, launch_simulation, scan
+from isaaclab.app import add_launcher_args, launch_simulation
 
 parser = argparse.ArgumentParser(description="Locomanipulation SDG")
 parser.add_argument("--task", type=str, help="The Isaac Lab locomanipulation SDG task to load for data generation.")
@@ -129,7 +129,7 @@ add_launcher_args(parser)
 args_cli, hydra_overrides = parser.parse_known_args()
 
 args_cli.enable_cameras = True
-# the task config imports USD and the script uses Kit APIs directly, so the Kit runtime is always launched
+# The script uses Kit APIs directly, so it always requires the Kit runtime.
 args_cli.require_kit = True
 
 import enum
@@ -304,16 +304,6 @@ def sync_simulation_state(env: LocomanipulationSDGEnv):
     env.scene.write_data_to_sim()
     env.sim.step(render=False)
     env.scene.update(dt=env.physics_dt)
-
-
-def _set_sensor_camera_view():
-    """Set the Sim GUI viewport to display the robot_pov_cam sensor view."""
-    import omni.kit.viewport.utility
-
-    viewport = omni.kit.viewport.utility.get_active_viewport()
-    if viewport is not None:
-        cam_prim_path = "/World/envs/env_0/Robot/torso_link/d435_link/camera"
-        viewport.set_active_camera(cam_prim_path)
 
 
 def project_robot_state_into_env(env: LocomanipulationSDGEnv, input_episode_data: EpisodeData) -> torch.Tensor:
@@ -919,7 +909,11 @@ def replay(
     env.recorder_manager.record_post_reset(env_ids=[0])
 
     if sensor_camera_view:
-        _set_sensor_camera_view()
+        import omni.kit.viewport.utility
+
+        viewport = omni.kit.viewport.utility.get_active_viewport()
+        if viewport is not None:
+            viewport.set_active_camera(str(env.scene["robot_pov_cam"]._view.prims[0].GetPath()))
 
     # Initialize state machine
     output_data = LocomanipulationSDGOutputData()
@@ -1006,17 +1000,12 @@ def replay(
 
 
 if __name__ == "__main__":
-    # the task config module imports USD, so the Kit runtime is launched before the config is parsed
-    with torch.no_grad(), launch_simulation(None, args_cli):
-        # Create environment
-        if args_cli.task is not None:
-            env_name = args_cli.task.split(":")[-1]
-        if env_name is None:
-            raise ValueError("Task/env name was not specified nor found in the dataset.")
-
-        env_cfg = parse_env_cfg(env_name, device=args_cli.device, num_envs=1, overrides=hydra_overrides)
-        # resolve the config's automatic physics and renderer selections for the launched runtime
-        scan(env_cfg, args_cli)
+    if args_cli.task is not None:
+        env_name = args_cli.task.split(":")[-1]
+    if env_name is None:
+        raise ValueError("Task/env name was not specified nor found in the dataset.")
+    env_cfg = parse_env_cfg(env_name, device=args_cli.device, num_envs=1, overrides=hydra_overrides)
+    with torch.no_grad(), launch_simulation(env_cfg, args_cli):
         env_cfg.sim.device = "cpu"
         env_cfg.recorders.dataset_export_dir_path = os.path.dirname(args_cli.output_file)
         env_cfg.recorders.dataset_filename = os.path.basename(args_cli.output_file)

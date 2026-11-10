@@ -634,7 +634,6 @@ class SyntheticGaussianSceneCfg(InteractiveSceneCfg):
             rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
             mass_props=sim_utils.MassCfg(mass=0.001),
             collision_props=sim_utils.UsdPhysicsCollisionCfg(),
-            physics_material=sim_utils.RigidBodyMaterialCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0)),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, -100.0)),
@@ -757,9 +756,8 @@ def render_synthetic_gaussian_scene_with_static_ppisp_attrs(
 ) -> dict[str, torch.Tensor]:
     """Render the synthesised gaussian asset through authored static PPISP camera attributes.
 
-    The camera uses :class:`CameraISPMode.AUTO_CAMERA`; renderer backends must
-    discover the camera-authored PPISP attributes and route them through their
-    PPISP workflow.
+    Camera construction uses :class:`CameraISPMode.AUTO_CAMERA` to discover the authored PPISP
+    attributes before the renderer creates its image-processing pipeline.
     """
     with fresh_synthetic_gaussian_interactive_scene(usd_path, sim_cfg, num_envs=num_envs) as sim:
         author_static_ppisp_camera_attrs(sim.stage, ppisp_cfg=ppisp_cfg)

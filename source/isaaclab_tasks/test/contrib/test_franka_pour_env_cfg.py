@@ -5,13 +5,19 @@
 
 """Tests for the single-stage Franka Pour task configuration."""
 
+from types import SimpleNamespace
+
 import pytest
+import torch
+import warp as wp
 
 from isaaclab.utils import update_from_dict, validate
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_tasks.contrib.franka_pour import pour_env
 from isaaclab_tasks.contrib.franka_pour.geometry import SOURCE_CUP_GEOMETRY
+from isaaclab_tasks.contrib.franka_pour.mdp.actions import CurriculumGripperPositionAction
+from isaaclab_tasks.contrib.franka_pour.mdp.actions_cfg import CurriculumGripperPositionActionCfg
 from isaaclab_tasks.contrib.franka_pour.media import media_particle_count
 from isaaclab_tasks.contrib.franka_pour.pour_env_cfg import (
     _MEDIA_FILL_RESOLUTION,
@@ -46,15 +52,25 @@ def test_source_fill_level_controls_height_and_particle_count():
     """The fill setting raises the free surface and is resolved after command-line overrides."""
     cfg = FrankaPourResetDatasetEnvCfg()
     media = cfg.scene.media
+    reset_contract = _reset_dataset_task_contract(cfg)
+    voxel_size = media.spawn.voxel_size
+    particles_per_cell = media.spawn.particles_per_cell
+    assert cfg.source_fill_level == 0.70
+    default_particle_count = media_particle_count(media)
 
-    assert media_particle_count(media) == 7 * 7 * 15
+    cfg.scene.num_envs = 1
+    cfg.source_fill_level = 0.30
+    configure_mpm_capacities(cfg)
+    low_particle_count = media_particle_count(media)
+    low_cell_capacity = _resolve_pour_solver_tree(cfg).media_solver.max_active_cell_count
+    assert 0 < low_particle_count < default_particle_count
+    assert low_cell_capacity >= low_particle_count
 
     cfg.source_fill_level = 0.50
-    cfg.scene.num_envs = 1
     configure_mpm_capacities(cfg)
 
     assert cfg.scene.media is media
-    assert media_particle_count(media) == 7 * 7 * 11
+    assert low_particle_count < media_particle_count(media) < default_particle_count
     requested_waterline = SOURCE_CUP_GEOMETRY.bottom_thickness + 0.50 * SOURCE_CUP_GEOMETRY.cavity_depth
     assert float(media.spawn.upper[2]) == pytest.approx(
         requested_waterline,
@@ -63,7 +79,14 @@ def test_source_fill_level_controls_height_and_particle_count():
 
     cfg.source_fill_level = 1.0
     configure_mpm_capacities(cfg)
-    assert media_particle_count(media) == 7 * 7 * 21
+    full_particle_count = media_particle_count(media)
+    full_cell_capacity = _resolve_pour_solver_tree(cfg).media_solver.max_active_cell_count
+    assert full_particle_count > default_particle_count
+    assert full_cell_capacity >= full_particle_count
+    assert full_cell_capacity > low_cell_capacity
+    assert media.spawn.voxel_size == voxel_size
+    assert media.spawn.particles_per_cell == particles_per_cell
+    assert _reset_dataset_task_contract(cfg) == reset_contract
 
 
 @pytest.mark.parametrize("fill_level", [0.0, 1.1, float("nan")])
@@ -126,12 +149,12 @@ def test_capacity_resolution_only_updates_world_dependent_solver_limits():
 
     cfg.scene.num_envs = 1
     configure_mpm_capacities(cfg)
-    assert solver.max_active_cell_count == 1024
+    assert solver.max_active_cell_count == 512
     assert (solver.max_leaf_node_count, solver.max_lower_node_count, solver.max_upper_node_count) == (-1, -1, -1)
 
     cfg.scene.num_envs = 7
     configure_mpm_capacities(cfg)
-    assert solver.max_active_cell_count == 7168
+    assert solver.max_active_cell_count == 3584
     assert (solver.max_leaf_node_count, solver.max_lower_node_count, solver.max_upper_node_count) == (-1, -1, -1)
 
     cfg.mpm_cell_cap_override = 16
@@ -170,3 +193,20 @@ def test_constant_mdp_parameters_are_validated_before_stepping(term_path, parame
 
     with pytest.raises((TypeError, ValueError), match=message):
         validate(cfg)
+
+
+def test_gripper_target_moves_a_fraction_of_the_way_to_each_command():
+    """The filtered finger target keeps its history although the binary command is processed in place."""
+
+    class JointIds(list):
+        warp = wp.array([0, 1], dtype=wp.int32, device="cpu")
+        torch = wp.to_torch(warp)
+
+    robot = SimpleNamespace(num_joints=2, find_joints=lambda *_a, **_k: (JointIds([0, 1]), ["finger_l", "finger_r"]))
+    env = SimpleNamespace(num_envs=1, device="cpu", scene={"robot": robot})
+    cfg = CurriculumGripperPositionActionCfg(asset_name="robot", joint_names=["finger_.*"], alpha=0.5)
+    action = CurriculumGripperPositionAction(cfg, env)
+
+    for expected in (0.0125, 0.01875):
+        action.process_actions(torch.ones(1, 1))
+        torch.testing.assert_close(action.processed_actions, torch.full((1, 2), expected))

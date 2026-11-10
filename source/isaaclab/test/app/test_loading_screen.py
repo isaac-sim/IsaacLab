@@ -5,12 +5,21 @@
 
 """Tests for the responsive console loading screen."""
 
+import builtins
+import errno
+import os
+import select
+import subprocess
+import sys
+import textwrap
+import time
 from io import StringIO
 from unittest.mock import Mock
 
 import pytest
 from rich.cells import cell_len
 from rich.console import Console, RenderableType
+from rich.text import Text
 
 from isaaclab.app import loading_screen
 
@@ -18,9 +27,19 @@ _ALT_SCREEN_ON = "\x1b[?1049h"
 _ALT_SCREEN_OFF = "\x1b[?1049l"
 
 
-def _render(display: RenderableType, width: int) -> str:
+@pytest.fixture(autouse=True)
+def _local_greetings(monkeypatch):
+    # These tests own console behavior; network and cache contracts are tested separately.
+    greeting = Mock(logos=None)
+    monkeypatch.setattr(loading_screen, "RemoteGreetings", lambda **kwargs: greeting)
+    return greeting
+
+
+def _render(display: RenderableType, width: int, color_system=None) -> str:
     stream = StringIO()
-    Console(file=stream, width=width, color_system=None).print(display)
+    Console(
+        file=stream, width=width, color_system=color_system, force_terminal=color_system is not None, no_color=False
+    ).print(display)
     return stream.getvalue()
 
 
@@ -83,15 +102,28 @@ def _prepare_redirect(screen: loading_screen.LoadingScreen, monkeypatch: pytest.
     return output
 
 
-def test_live_lifecycle_restores_normal_screen(monkeypatch: pytest.MonkeyPatch):
+def test_live_lifecycle_restores_normal_screen(monkeypatch: pytest.MonkeyPatch, _local_greetings):
     screen = loading_screen.LoadingScreen(2, enabled=True)
+    screen._ascii_only = False
     output = _prepare_redirect(screen, monkeypatch)
+    original_input = builtins.input
 
     with screen:
         screen.summary("Run", {"Task": "Cartpole"})
         screen.stage("Loading task")
         assert screen._rich_console is not None
         assert screen._rich_console.color_system == "truecolor"
+        # A color continuing across artwork rows must not leak into the run summary.
+        _local_greetings.logos = tuple(
+            "\x1b[48;2;255;0;0m" + "\n".join([label.ljust(cols)] * 12) + "\x1b[0m"
+            for label, cols in (("NARROW HOLIDAY", 24), ("WIDE HOLIDAY", 74))
+        )
+        for width, label in ((80, "NARROW HOLIDAY"), (130, "WIDE HOLIDAY")):
+            text = Text.from_ansi(_render(screen._display, width, color_system="truecolor"))
+            assert label in text.plain
+            assert text.get_style_at_offset(Console(), text.plain.index("Task")).bgcolor is None
+            for offset in (text.plain.index(label), text.plain.rindex(label)):
+                assert text.get_style_at_offset(Console(), offset).bgcolor.get_truecolor() == (255, 0, 0)
         screen.close()
 
     rendered = output.getvalue()
@@ -101,23 +133,114 @@ def test_live_lifecycle_restores_normal_screen(monkeypatch: pytest.MonkeyPatch):
     assert "Loading task" in rendered[:normal_screen]
     assert "%" in rendered[:normal_screen]
     assert rendered.rindex("Run") > normal_screen
+    assert "NARROW HOLIDAY" in rendered[normal_screen:]
     assert "hidden diagnostic" not in rendered
     assert "Ready in" in rendered
+    assert builtins.input is original_input
+
+
+@pytest.mark.parametrize(("enabled", "logo"), [(True, False), (False, True)])
+def test_hidden_greetings_do_not_start_remote_loading(monkeypatch: pytest.MonkeyPatch, enabled, logo):
+    monkeypatch.setattr(
+        loading_screen, "RemoteGreetings", Mock(side_effect=AssertionError("A hidden greeting started remote loading"))
+    )
+    screen = loading_screen.LoadingScreen(1, enabled=enabled, logo=logo)
+    _prepare_redirect(screen, monkeypatch)
+    with screen:
+        screen.summary("Local run", {"Task": "Cartpole"})
+        screen.close()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Pseudo-terminals require POSIX.")
+def test_interactive_input_shows_captured_context_before_waiting_for_answer():
+    import pty
+
+    script = textwrap.dedent("""\
+        import builtins
+        from isaaclab.app.loading_screen import LoadingScreen
+
+        original_input = builtins.input
+        with LoadingScreen(1, logo=False) as screen:
+            screen.summary("Input QA", {"Task": "Terminal"})
+            screen.stage("Launching")
+            print("License context before the question.", flush=True)
+            with LoadingScreen(1, enabled=False):
+                answer = input("Accept terms? ")
+            assert builtins.input is original_input
+            print(f"Answer: {answer}", flush=True)
+            screen.stage("Loading policy after answer")
+            screen.summary("Post-prompt QA", {"Task": "Terminal"})
+            screen.close()
+        assert builtins.input is original_input
+        print("Normal output restored.", flush=True)
+        """)
+    master, slave = pty.openpty()
+    process = subprocess.Popen(
+        [sys.executable, "-u", "-c", script],
+        stdin=slave,
+        stdout=slave,
+        stderr=slave,
+        env={**os.environ, "TERM": "xterm-256color"},
+    )
+    os.close(slave)
+    output = bytearray()
+    try:
+        deadline = time.monotonic() + 10.0
+        while b"Accept terms? " not in output and process.poll() is None and time.monotonic() < deadline:
+            if select.select([master], [], [], 0.1)[0]:
+                try:
+                    chunk = os.read(master, 65536)
+                except OSError as error:
+                    if error.errno == errno.EIO:
+                        break
+                    raise
+                output.extend(chunk)
+        assert b"Accept terms? " in output, output[-1000:].decode(errors="replace")
+        assert output.index(b"License context before the question.") < output.index(b"Accept terms? ")
+
+        os.write(master, b"NO\n")
+        assert process.wait(timeout=10.0) == 0
+        while select.select([master], [], [], 0.1)[0]:
+            try:
+                chunk = os.read(master, 65536)
+            except OSError as error:
+                if error.errno == errno.EIO:
+                    break
+                raise
+            if not chunk:
+                break
+            output.extend(chunk)
+        assert b"Answer: NO" in output
+        assert output.index(b"Loading policy after answer") > output.index(b"Answer: NO")
+        assert output.index(b"Post-prompt QA") > output.index(b"Answer: NO")
+        assert b"Normal output restored." in output
+    finally:
+        if process.poll() is None:
+            process.terminate()
+            process.wait(timeout=10.0)
+        os.close(master)
 
 
 def test_shutdown_restores_output_when_live_rendering_fails(monkeypatch: pytest.MonkeyPatch):
     screen = loading_screen.LoadingScreen(1, enabled=True)
-    screen._live = Mock()
-    screen._live.stop.side_effect = RuntimeError("render failed")
-    screen._saved_fds = (-1, -1)
-    screen._console = Mock()
-    restore = Mock(return_value="")
+    _prepare_redirect(screen, monkeypatch)
+    original_input = builtins.input
+    restore = Mock(wraps=screen._restore)
     monkeypatch.setattr(screen, "_restore", restore)
 
     with pytest.raises(RuntimeError, match="render failed"):
-        screen.close()
+        with screen:
+            stop = screen._live.stop
+
+            def fail_after_stop() -> None:
+                stop()
+                raise RuntimeError("render failed")
+
+            monkeypatch.setattr(screen._live, "stop", fail_after_stop)
+            screen.close()
 
     restore.assert_called_once_with()
+    assert builtins.input is original_input
 
 
 def test_redirect_uses_stream_swapping_on_platforms_without_descriptor_redirection(monkeypatch: pytest.MonkeyPatch):

@@ -42,8 +42,9 @@ def test_resolvable_string_dunder_introspection_stays_lazy():
     # dunder attribute probe should not attempt import/resolve
     assert hasattr(ref, "__dataclass_fields__") is False
     # runtime use should still attempt resolve and fail
-    with pytest.raises(ValueError):
+    with pytest.raises(ModuleNotFoundError) as error:
         ref()
+    assert error.value.name == "not_a_real_module"
 
 
 def test_case_conversion():

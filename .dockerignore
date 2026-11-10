@@ -31,4 +31,7 @@ docker/.isaac-lab-docker-history
 # ignore uv environment
 env_isaaclab
 .venv/
+.venv-*/
+.pretrained_checkpoints/
+tests/
 tools/wheel_builder/build/

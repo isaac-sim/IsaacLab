@@ -168,7 +168,7 @@ class PhysxActuatorRuntime:
         graphs = []
         try:
             for _ in range(2):
-                with wp.ScopedCapture(device=self._articulation.device, force_module_load=True) as capture:
+                with wp.ScopedCapture(device=self._articulation.device) as capture:
                     self._run_native_actuator_kernels(collection, dt)
                 graphs.append(capture.graph)
         except Exception as exc:

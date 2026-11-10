@@ -217,14 +217,13 @@ def test_quat_error_magnitude(device):
 @pytest.mark.parametrize("device", test_devices())
 def test_quat_unique(device):
     """Test quat_unique method."""
-    # Define test cases
-    quats = math_utils.random_orientation(num=1024, device=device)
+    # Include positive, negative, and zero scalar parts (a half-turn).
+    quats = torch.tensor([[0.6, 0.0, 0.0, 0.8], [-0.6, 0.0, 0.0, -0.8], [1.0, 0.0, 0.0, 0.0]], device=device)
 
-    # Test positive real quaternion
     pos_real_quats = math_utils.quat_unique(quats)
 
-    # Test that the real part (w, at index 3 in xyzw format) is positive
-    assert torch.all(pos_real_quats[:, 3] > 0).item()
+    # The real part (w, at index 3 in xyzw format) must be nonnegative.
+    assert torch.all(pos_real_quats[:, 3] >= 0).item()
 
     non_pos_indices = quats[:, 3] < 0
     # Check quaternion is negated if real part was negative
@@ -289,57 +288,38 @@ def test_quat_error_mag_with_quat_unique(device):
 
 
 @pytest.mark.parametrize("device", test_devices())
-def test_convention_converter(device):
-    """Test convert_camera_frame_orientation_convention to and from ros, opengl, and world conventions."""
-    # Quaternions in xyzw format (converted from original wxyz test values)
-    quat_ros = torch.tensor([[0.33985114, 0.82047325, -0.42470819, -0.17591989]], device=device)
-    quat_opengl = torch.tensor([[0.17591988, 0.42470818, 0.82047324, 0.33985113]], device=device)
-    quat_world = torch.tensor([[-0.27984815, -0.1159169, 0.88047623, -0.3647052]], device=device)
-
-    # from ROS
-    torch.testing.assert_close(
-        math_utils.convert_camera_frame_orientation_convention(quat_ros, "ros", "opengl"), quat_opengl
-    )
-    torch.testing.assert_close(
-        math_utils.convert_camera_frame_orientation_convention(quat_ros, "ros", "world"), quat_world
-    )
-    torch.testing.assert_close(math_utils.convert_camera_frame_orientation_convention(quat_ros, "ros", "ros"), quat_ros)
-    # from OpenGL
-    torch.testing.assert_close(
-        math_utils.convert_camera_frame_orientation_convention(quat_opengl, "opengl", "ros"), quat_ros
-    )
-    torch.testing.assert_close(
-        math_utils.convert_camera_frame_orientation_convention(quat_opengl, "opengl", "world"), quat_world
-    )
-    torch.testing.assert_close(
-        math_utils.convert_camera_frame_orientation_convention(quat_opengl, "opengl", "opengl"), quat_opengl
-    )
-    # from World
-    torch.testing.assert_close(
-        math_utils.convert_camera_frame_orientation_convention(quat_world, "world", "ros"), quat_ros
-    )
-    torch.testing.assert_close(
-        math_utils.convert_camera_frame_orientation_convention(quat_world, "world", "opengl"), quat_opengl
-    )
-    torch.testing.assert_close(
-        math_utils.convert_camera_frame_orientation_convention(quat_world, "world", "world"), quat_world
-    )
-
-
-@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("origin", ["opengl", "ros", "world"])
 @pytest.mark.parametrize("target", ["opengl", "ros", "world"])
-def test_convention_converter_leading_dims(device, origin, target):
-    """Test convert_camera_frame_orientation_convention on (..., 4) inputs other than (N, 4)."""
-    quat = math_utils.random_orientation(6, device)
-    expected = math_utils.convert_camera_frame_orientation_convention(quat, origin, target)
-
-    # multiple leading dimensions (A, B, 4) match the flat (N, 4) result
-    nested = math_utils.convert_camera_frame_orientation_convention(quat.view(2, 3, 4), origin, target)
-    torch.testing.assert_close(nested, expected.view(2, 3, 4))
-    # a single (4,) quaternion matches the corresponding row
-    single = math_utils.convert_camera_frame_orientation_convention(quat[0], origin, target)
-    torch.testing.assert_close(single, expected[0])
+def test_convention_converter(device, origin, target):
+    """Check camera conventions and input shapes against known rotations, including native CUDA TF32."""
+    previous_precision = torch.backends.cuda.matmul.fp32_precision
+    try:
+        torch.backends.cuda.matmul.fp32_precision = "tf32"
+        # Each convention describes the same two rotations; the second is the identity in ROS.
+        quats = {
+            "ros": torch.tensor(
+                [[0.33985114, 0.82047325, -0.42470819, -0.17591989], [0.0, 0.0, 0.0, 1.0]], device=device
+            ),
+            "opengl": torch.tensor(
+                [[0.17591988, 0.42470818, 0.82047324, 0.33985113], [1.0, 0.0, 0.0, 0.0]], device=device
+            ),
+            "world": torch.tensor(
+                [[-0.27984815, -0.1159169, 0.88047623, -0.3647052], [0.5, -0.5, 0.5, 0.5]], device=device
+            ),
+        }
+        # An asymmetric batch makes row-order errors visible across leading dimensions.
+        indices = [0, 1, 0, 0, 1, 1, 0, 1]
+        quat = quats[origin][indices]
+        expected = quats[target][indices]
+        for orientation, expected_orientation in (
+            (quat, expected),
+            (quat.reshape(2, 4, 4), expected.reshape(2, 4, 4)),
+            (quat[0], expected[0]),
+        ):
+            actual = math_utils.convert_camera_frame_orientation_convention(orientation, origin, target)
+            torch.testing.assert_close(actual, expected_orientation)
+    finally:
+        torch.backends.cuda.matmul.fp32_precision = previous_precision
 
 
 @pytest.mark.parametrize("device", test_devices())
@@ -996,7 +976,8 @@ def test_quat_apply(device, inverse, quat_shape, vec_shape):
     vec_np = np.broadcast_to(vec.cpu().numpy(), shape).reshape(-1, 3)
     expected = scipy_tf.Rotation.from_quat(quat_np).apply(vec_np, inverse=inverse).reshape(shape)
     result = apply(quat, vec)
-    torch.testing.assert_close(result, torch.tensor(expected, device=device, dtype=vec.dtype), atol=2e-4, rtol=2e-4)
+    # Float32 rotation of vectors up to 1000 can accumulate a few 1e-4 of absolute error.
+    torch.testing.assert_close(result, torch.tensor(expected, device=device, dtype=vec.dtype), atol=5e-4, rtol=2e-4)
 
 
 @pytest.mark.parametrize("device", test_devices())
@@ -1229,6 +1210,23 @@ def test_sample_gaussian_parameters():
     for mean, std, match in ((torch.zeros(4), 1.0, "expand"), (0.0, torch.zeros(4), "expand"), (0.0, -1.0, "std")):
         with pytest.raises(RuntimeError, match=match):
             math_utils.sample_gaussian(mean, std, (3,), "cpu")
+
+
+def test_sample_triangle_distribution():
+    """Samples follow the symmetric triangular distribution on ``[lower, upper]`` with its mode at the midpoint."""
+    lower, upper, num_bins = -2.0, 3.0, 10
+    torch.manual_seed(0)
+    samples = math_utils.sample_triangle(lower, upper, (500, 400), "cpu")
+    assert samples.shape == (500, 400)
+    assert samples.min() >= lower and samples.max() <= upper
+    # compare bin masses with the analytic CDF: F(u) = 2u^2 for u <= 0.5 and 1 - 2(1 - u)^2 above,
+    # where u is the sample normalized to [0, 1]
+    edges = torch.linspace(0.0, 1.0, num_bins + 1, dtype=torch.float64)
+    cdf = torch.where(edges <= 0.5, 2.0 * edges**2, 1.0 - 2.0 * (1.0 - edges) ** 2)
+    expected_mass = cdf[1:] - cdf[:-1]
+    normalized = ((samples - lower) / (upper - lower)).to(torch.float64).flatten()
+    actual_mass = torch.histc(normalized, bins=num_bins, min=0.0, max=1.0) / normalized.numel()
+    torch.testing.assert_close(actual_mass, expected_mass, atol=0.005, rtol=0.0)
 
 
 def test_apply_delta_pose_zero_rotation_gradients():

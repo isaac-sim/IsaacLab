@@ -31,9 +31,11 @@ from ...utils import (
     select_usd_variants,
     set_prim_visibility,
 )
-from ..materials import SurfaceDeformableBodyMaterialBaseCfg
+from ..materials import PreviewSurfaceCfg, SurfaceDeformableBodyMaterialBaseCfg
 from ..materials.physics_materials import spawn_physics_material
+from ..materials.visual_materials import _author_material_inputs
 from ..utils import (
+    apply_mesh_collision_props,
     apply_schema_props,
     bare_fragments,
     fragment_mapping,
@@ -80,7 +82,6 @@ def spawn_from_usd(
             case the translation specified in the USD file is used.
         orientation: The orientation in (x, y, z, w) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case the orientation specified in the USD file is used.
-        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
     Returns:
         The prim of the spawned asset.
@@ -122,7 +123,6 @@ def spawn_from_urdf(
             case the translation specified in the generated USD file is used.
         orientation: The orientation in (x, y, z, w) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case the orientation specified in the generated USD file is used.
-        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
     Returns:
         The prim of the spawned asset.
@@ -262,7 +262,6 @@ def spawn_ground_plane(
             case the translation specified in the USD file is used.
         orientation: The orientation in (x, y, z, w) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case the orientation specified in the USD file is used.
-        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
     Returns:
         The prim of the spawned asset.
@@ -365,7 +364,7 @@ def _body_family_targeting(value, prim_path: str, api_type) -> tuple[dict | None
 
 
 def _apply_body_schema_properties(prim_path: str, cfg: from_files_cfg.FileCfg) -> None:
-    """Author the rigid-body, collision, and mass schema families on the spawned asset.
+    """Author the rigid-body, collision, mesh-collision, and mass schema families on the spawned asset.
 
     Fragment mappings apply one writer call per entry, in insertion order (later entries override
     earlier ones per attribute); legacy single cfgs route to the legacy nested writers.
@@ -400,6 +399,9 @@ def _apply_body_schema_properties(prim_path: str, cfg: from_files_cfg.FileCfg) -
                 )
         else:
             schemas.modify_collision_properties(prim_path, cfg.collision_props)
+    # modify mesh-collision properties on the colliders, including any created by collision_props above
+    if cfg.mesh_collision_props is not None:
+        apply_mesh_collision_props(cfg.mesh_collision_props, prim_path, "(/.*)?", get_current_stage())
     # modify mass properties
     if cfg.mass_props is not None:
         mass_props_mapping, mass_props_create = _body_family_targeting(cfg.mass_props, prim_path, UsdPhysics.MassAPI)
@@ -608,13 +610,7 @@ def _spawn_mesh_data(
             stage,
         )
         if cfg.mesh_collision_props is not None:
-            if bare_fragments(cfg.mesh_collision_props):
-                fragments = cfg.mesh_collision_props
-                if not isinstance(fragments, (list, tuple)):
-                    fragments = [fragments]
-                schemas.apply_mesh_collision_properties(mesh_prim_path, fragments, stage=stage)
-            else:
-                schemas.define_mesh_collision_properties(mesh_prim_path, cfg.mesh_collision_props, stage=stage)
+            apply_mesh_collision_props(cfg.mesh_collision_props, mesh_prim_path, "", stage)
 
     if cfg.visual_material is not None:
         material_path = (
@@ -669,14 +665,18 @@ def spawn_from_usd_file(
             case the translation specified in the generated USD file is used.
         orientation: The orientation in (x, y, z, w) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case the orientation specified in the generated USD file is used.
-        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
     Returns:
         The prim of the spawned asset.
 
     Raises:
         FileNotFoundError: If the USD file does not exist at the given path.
+        ValueError: If deformable properties are used with mesh-collision properties.
     """
+    # deformable bodies collide through their simulation mesh, which the mesh-collision slot would cook
+    deformable_values = (cfg.deformable_props, cfg.volume_deformable_props, cfg.surface_deformable_props)
+    if cfg.mesh_collision_props is not None and any(value is not None for value in deformable_values):
+        raise ValueError("Deformable bodies collide through their simulation mesh and take no 'mesh_collision_props'.")
     # In distributed training, serialize asset download and USD stage composition
     # across ranks to prevent file I/O races. Concurrent mmap reads/writes on
     # the same cached USD files cause segfaults in Sdf_CrateFile::_MmapStream::Read.
@@ -746,9 +746,17 @@ def spawn_from_usd_file(
 
     # apply visual material
     if cfg.visual_material is not None:
-        if not has_kit():
-            logger.warning("Skipping visual material application for '%s' in kitless mode.", prim_path)
-        else:
+        if cfg.visual_material_path is None:
+            from pxr import Usd, UsdShade  # noqa: PLC0415
+
+            # Author existing surface inputs with or without Kit, before cloning the prototype.
+            context = "" if isinstance(cfg.visual_material, PreviewSurfaceCfg) else "mdl"
+            for prim in Usd.PrimRange(stage.GetPrimAtPath(prim_path)):
+                if prim.IsA(UsdShade.Material) and UsdShade.Material(prim).GetSurfaceOutput(context):
+                    shader, _, _ = UsdShade.Material(prim).ComputeSurfaceSource(context)
+                    if shader:
+                        _author_material_inputs(shader.GetPrim(), cfg.visual_material)
+        elif has_kit():
             material_path = (
                 cfg.visual_material_path
                 if cfg.visual_material_path.startswith("/")
@@ -756,6 +764,8 @@ def spawn_from_usd_file(
             )
             cfg.visual_material.func(material_path, cfg.visual_material)
             bind_visual_material(prim_path, material_path, stage=stage)
+        else:
+            logger.warning("Skipping visual material application for '%s' in kitless mode.", prim_path)
 
     for part_path, material_path in cfg.visual_material_bindings.items():
         from pxr import UsdShade  # noqa: PLC0415
@@ -803,7 +813,6 @@ def spawn_from_usd_with_compliant_contact_material(
             case the translation specified in the USD file is used.
         orientation: The orientation in (x, y, z, w) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case the orientation specified in the USD file is used.
-        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
     Returns:
         The prim of the spawned asset with the physics material applied to the specified prims.

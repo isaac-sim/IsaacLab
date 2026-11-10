@@ -27,6 +27,8 @@ class MeshCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     - Deformable body properties: Applied to the parent prim: ``{prim_path}``.
     - Collision properties: Applied to the simulation mesh ``{prim_path}/sim_mesh`` for deformable bodies,
       and to the mesh prim ``{prim_path}/geometry/mesh`` otherwise.
+    - Mesh-collision properties: Applied to the mesh prim ``{prim_path}/geometry/mesh`` of rigid bodies,
+      overriding the default approximation the spawner picks for the shape. Not supported for deformable bodies.
     - Rigid body properties: Applied to the parent prim: ``{prim_path}``.
 
     where ``{prim_path}`` is the path to the prim in the USD stage and ``{prim_path}/geometry/mesh``

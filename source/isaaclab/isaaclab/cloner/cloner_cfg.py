@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Callable
 from dataclasses import MISSING
 
@@ -73,12 +74,12 @@ class CloneCfg:
     ``clone_template.format("[^/]+")``, which confines the slot to one path segment.
     """
 
-    replicate_physics: bool = True
-    """Whether physics replication clones each environment. Default is True.
+    replicate_physics: bool | None = None
+    """Deprecated and ignored. Clone contexts are selected per asset."""
 
-    If False, cloning is USD-only: the physics engine parses the per-env USD prims directly
-    instead of replicating env_0's parsed structure. Applied by :func:`~isaaclab.cloner.replicate`.
-    """
+    def __post_init__(self) -> None:
+        if self.replicate_physics is not None:
+            warnings.warn("CloneCfg.replicate_physics is deprecated and ignored.", DeprecationWarning, stacklevel=2)
 
 
 def add(this: CloneCfg, other: InclusionSet) -> CloneCfg:

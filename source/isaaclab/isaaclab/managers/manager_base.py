@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any
 from ..physics import PhysicsEvent, PhysicsManager
 from ..utils import string as string_utils
 from ..utils import string_to_callable, to_dict
-from ..utils.modifiers import ModifierCfg
+from ..utils.tensor_processors import TensorProcessorCfg
 from .manager_term_cfg import ManagerTermBaseCfg
 from .scene_entity_cfg import SceneEntityCfg
 
@@ -161,12 +161,12 @@ class ManagerBase(ABC):
             # is called. The order is set to 20 to allow asset/sensor initialization to complete before the
             # scene entities are resolved. Those have the order 10.
 
-            physics_mgr_cls = self._env.sim.physics_manager
+            physics_mgr = self._env.sim.backend_manager
             obj_ref = weakref.proxy(self)
 
-            self._resolve_terms_handle = physics_mgr_cls.register_callback(
+            self._resolve_terms_handle = physics_mgr.register_callback(
                 lambda payload: PhysicsManager.safe_callback_invoke(
-                    obj_ref._resolve_terms_callback, None, physics_manager=physics_mgr_cls
+                    obj_ref._resolve_terms_callback, None, backend_manager=physics_mgr
                 ),
                 PhysicsEvent.PHYSICS_READY,
                 order=20,
@@ -434,7 +434,7 @@ class ManagerBase(ABC):
             self._scene_entity_cfgs.append(value)
         elif isinstance(value, ManagerTermBaseCfg):
             self._process_term_cfg_at_play(f"{term_name}.{key}", value)
-        elif isinstance(value, ModifierCfg):
+        elif isinstance(value, TensorProcessorCfg):
             for field in fields(value):
                 field_value = getattr(value, field.name)
                 resolved_value = self._resolve_param_value(

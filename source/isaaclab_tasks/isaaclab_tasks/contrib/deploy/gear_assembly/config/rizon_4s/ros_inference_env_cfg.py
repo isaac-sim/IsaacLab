@@ -34,7 +34,7 @@ class Rizon4sGearAssemblyROSInferenceEnvCfg(Rizon4sGearAssemblyEnvCfg):
     To debug a specific real-world scenario, edit the constants below to match
     the physical setup, then run::
 
-        ./isaaclab.sh play --rl_library rsl_rl \\
+        uv run isaaclab play --rl_library rsl_rl \\
             --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference \\
             --num_envs 1 --checkpoint <path_to_model.pt>
 

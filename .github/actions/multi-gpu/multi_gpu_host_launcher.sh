@@ -8,6 +8,8 @@
 #   IMAGE_TAG      — per-commit CI image to ``docker run``
 #   INCLUDE_FILES  — comma-sep test basenames (conftest include filter)
 #   PATHS          — comma-sep relative test paths (seed the work queue)
+#   TEST_JOBS      — test files each shard runs at once (tools/conftest.py); empty = serial
+#   WARP_CACHE_HOST_DIR — restored Warp kernel cache shared by every shard; empty = none
 # plus the runner built-ins GITHUB_RUN_ID / GITHUB_RUN_ATTEMPT (container name)
 # and GITHUB_ENV (exports MGPU_RUNTIME_DIR for the downstream summary step).
 #
@@ -85,12 +87,22 @@ else
   echo "::notice::discrete GPU mode — relying on --gpus all"
 fi
 
+# Same mount point and variable as .github/actions/run-tests/run_tests.sh, so kernels the
+# single-GPU jobs compiled are reused here instead of rebuilt per shard.
+warp_args=()
+if [ -n "${WARP_CACHE_HOST_DIR:-}" ]; then
+  mkdir -p "$WARP_CACHE_HOST_DIR"
+  warp_args=(-v "${WARP_CACHE_HOST_DIR}:/tmp/isaaclab-warp-cache:rw" -e WARP_CACHE_PATH=/tmp/isaaclab-warp-cache)
+fi
+
 # "${cvd_args[@]}" expands to the CUDA_VISIBLE_DEVICES flag on MIG hosts, nothing otherwise.
+# .git is hidden as the images do: the checkout's config requires Git LFS, which they do not ship.
 docker run --rm --gpus all --network=host \
   --entrypoint bash \
   --user "${host_uid}:${host_gid}" \
   --name "isaac-lab-mgpu-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
   -v "$PWD:/workspace/isaaclab:rw" \
+  --tmpfs /workspace/isaaclab/.git \
   -v "$queue_root:/mgpu:rw" \
   -v "$logs_dir:/shard-logs:rw" \
   -e USER="${host_user}" \
@@ -104,10 +116,12 @@ docker run --rm --gpus all --network=host \
   -e PYTHONIOENCODING=utf-8 \
   -e ISAACLAB_TEST_QUEUE=/mgpu \
   -e TEST_INCLUDE_FILES="$INCLUDE_FILES" \
+  -e TEST_JOBS="${TEST_JOBS:-}" \
   -e ISAACLAB_FABRIC_USE_GPU_INTEROP=0 \
   -e HOME=/tmp/mgpu-base-home \
   -e PYTHONUSERBASE=/tmp/mgpu-pyuserbase \
   "${cvd_args[@]}" \
+  "${warp_args[@]}" \
   -v "$PWD/.github/actions/multi-gpu/multi_gpu_shard_runner.sh:/multi_gpu_shard_runner.sh:ro" \
   "$IMAGE_TAG" \
   /multi_gpu_shard_runner.sh

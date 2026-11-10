@@ -24,7 +24,6 @@ from ..utils.warp.launch_cache import _WarpLaunchCache
 from . import actuator_kernels
 from .actuator_base import ActuatorBase, resolve_joint_parameter
 from .actuator_base_cfg import ActuatorBaseCfg, _is_implicit_actuator_cfg
-from .actuator_compat import resolve_limit_aliases
 from .actuator_control import _JOINT_PROPERTY_KEYS, ActuatorControl
 from .actuator_pd import IdealPDActuator, ImplicitActuator
 
@@ -88,8 +87,6 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
         self._allocate_buffers()
         self._target_command = ActuatorTargetCommand(self)
         self._output_command = ActuatorOutputCommand(self)
-        for name, cfg in resolved_cfgs.items():
-            resolve_limit_aliases(name, cfg, resolved_group_joints[name][1])
         self._native_group_names = self._control.prepare_native_actuators(self, resolved_cfgs)
         self._build_groups(resolved_cfgs, resolved_group_joints)
         self._newton_selection = self._control.finalize_native_actuators(self)
@@ -162,6 +159,11 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
     def device(self) -> str:
         """Warp/Torch device string."""
         return self._control.device
+
+    @property
+    def is_graphable(self) -> bool:
+        """Whether :meth:`compute` can be recorded into a CUDA graph: no Isaac Lab actuator model runs in Torch."""
+        return not self._execution_actuators
 
     @property
     def has_implicit_actuators(self) -> bool:
@@ -503,16 +505,6 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
             _ImplicitExecutor(self, tuple(implicit_names), tuple(implicit_groups)) if implicit_groups else None
         )
 
-    def _rebind_state_inputs(self) -> None:
-        """Rebind the implicit executor after backend state storage is replaced.
-
-        Per-group execution reads backend state through the control object on every
-        :meth:`compute` call, so only the cached implicit launch holds state references
-        that need rebinding.
-        """
-        if self._implicit_executor is not None:
-            self._implicit_executor.rebind(self)
-
     def _scatter_actuator_output(
         self,
         actuator: ActuatorBase,
@@ -600,9 +592,29 @@ class _ImplicitExecutor:
             joint_indices = torch.cat([collection._joint_indices_as_torch(group) for group in groups])
             self.actuator = self._build_shadow_actuator(groups, joint_indices)
         self.joint_indices_wp = wp.from_torch(joint_indices, dtype=wp.int32)
-        self.kernel_inputs: list[wp.array] | None = None
-        self.kernel_outputs: list[wp.array] | None = None
-        self._assemble_kernel_arrays(collection)
+        control = collection._control
+        self.kernel_inputs = [
+            collection._joint_pos_target,
+            collection._joint_vel_target,
+            collection._joint_effort_target,
+            control.joint_pos.warp,
+            control.joint_vel.warp,
+            control.joint_stiffness.warp,
+            control.joint_damping.warp,
+            control.joint_effort_limits.warp,
+            wp.from_torch(self.actuator.actuator_velocity_limit, dtype=wp.float32),
+            self.joint_indices_wp,
+        ]
+        self.kernel_outputs = [
+            wp.from_torch(self.actuator.computed_effort, dtype=wp.float32),
+            wp.from_torch(self.actuator.applied_effort, dtype=wp.float32),
+            collection._joint_pos_target_sim,
+            collection._joint_vel_target_sim,
+            collection._joint_effort_target_sim,
+            collection._computed_effort,
+            collection._applied_effort,
+            collection._soft_joint_vel_limits,
+        ]
 
     @staticmethod
     def _build_shadow_actuator(groups: tuple[ImplicitActuator, ...], joint_indices: torch.Tensor) -> ImplicitActuator:
@@ -626,56 +638,16 @@ class _ImplicitExecutor:
             group.applied_effort = shadow.applied_effort[:, group_slice]
         return shadow
 
-    def _assemble_kernel_arrays(self, collection: ActuatorCollection) -> None:
-        """Assemble the implicit kernel argument arrays.
-
-        Existing argument lists are updated in place so holders of the list objects
-        observe rebound backend state.
-        """
-        control = collection._control
-        inputs = [
-            collection._joint_pos_target,
-            collection._joint_vel_target,
-            collection._joint_effort_target,
-            control.joint_pos.warp,
-            control.joint_vel.warp,
-            control.joint_stiffness.warp,
-            control.joint_damping.warp,
-            control.joint_effort_limits.warp,
-            wp.from_torch(self.actuator.actuator_velocity_limit, dtype=wp.float32),
-            self.joint_indices_wp,
-        ]
-        outputs = [
-            wp.from_torch(self.actuator.computed_effort, dtype=wp.float32),
-            wp.from_torch(self.actuator.applied_effort, dtype=wp.float32),
-            collection._joint_pos_target_sim,
-            collection._joint_vel_target_sim,
-            collection._joint_effort_target_sim,
-            collection._computed_effort,
-            collection._applied_effort,
-            collection._soft_joint_vel_limits,
-        ]
-        if self.kernel_inputs is None:
-            self.kernel_inputs = inputs
-            self.kernel_outputs = outputs
-        else:
-            self.kernel_inputs[:] = inputs
-            self.kernel_outputs[:] = outputs
-
     def launch(self, collection: ActuatorCollection) -> None:
         """Compute all the executor's joints through the cached Warp launch."""
         collection._launch_cache.launch(
             self._cache_key,
+            wp.launch,
             actuator_kernels.compute_implicit_actuator_batch,
             dim=(collection.num_instances, self.joint_indices_wp.shape[0]),
             inputs=self.kernel_inputs,
             outputs=self.kernel_outputs,
         )
-
-    def rebind(self, collection: ActuatorCollection) -> None:
-        """Reassemble the kernel arguments after backend state storage is replaced."""
-        self._assemble_kernel_arrays(collection)
-        collection._launch_cache.clear(self._cache_key)
 
 
 class ActuatorTargetCommand:

@@ -9,7 +9,7 @@ Five ANYmal-C appearance styles are assigned round-robin by heterogeneous clonin
 robot binds scene-declared :class:`~isaaclab.assets.VisualMaterial` assets for its body, legs, and
 feet, so the three part groups and every environment randomize independently on partial resets.
 
-The surface, glass, and solid styles exercise their numeric shader channels. Newton currently
+The surface, glass, and solid styles exercise their numeric shader channels. Newton GL currently
 mirrors material color only, so the example randomizes tint and per-shape colors while leaving the
 other optical channels to RTX renderers.
 
@@ -22,6 +22,10 @@ other optical channels to RTX renderers.
     # Newton physics and Newton GL visualizer.
     uvx isaaclab example visual-color-randomization \
         --physics newton_mjwarp --visualizer newton_gl
+
+    # Newton physics and scene-camera RTX rendering.
+    uv run --extra ov isaaclab example visual-color-randomization \
+        --physics newton_mjwarp --visualizer newton_rtx
 
 """
 
@@ -238,41 +242,35 @@ class VisualMaterialEnvCfg(ManagerBasedEnvCfg):
     actions: ActionsCfg = ActionsCfg()
     observations: ObservationsCfg = ObservationsCfg()
     events: EventCfg = EventCfg()
-
-    def __post_init__(self):
-        self.decimation = 4
-        self.sim.dt = 0.005
+    sim: sim_utils.SimulationCfg = sim_utils.SimulationCfg(dt=0.005, physics=PhysicsCfg())
+    decimation: int = 4
 
 
 def main() -> None:
     """Launch the selected backends and run the randomization scene."""
-    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
-        from isaaclab.envs import ManagerBasedEnv  # noqa: PLC0415
+    env_cfg = VisualMaterialEnvCfg()
+    env_cfg.scene.num_envs = args_cli.num_envs
+    if "newton_gl" in args_cli.visualizer:
+        for material in (
+            env_cfg.scene.surface_body,
+            env_cfg.scene.surface_leg,
+            env_cfg.scene.surface_foot,
+            env_cfg.scene.glass_body,
+            env_cfg.scene.glass_leg,
+            env_cfg.scene.glass_foot,
+        ):
+            material.channels = ("color",)
+        env_cfg.events.randomize_surface_style.params["channels"] = {
+            "color": {"r": (0.05, 1.0), "g": (0.05, 1.0), "b": (0.05, 1.0)}
+        }
+        env_cfg.events.randomize_glass_style.params["channels"] = {
+            "color": {"r": (0.05, 1.0), "g": (0.05, 1.0), "b": (0.05, 1.0)}
+        }
+    if args_cli.visualizer != ["newton_gl"]:
+        env_cfg.events.randomize_parts_per_env = None
 
-        env_cfg = VisualMaterialEnvCfg()
-        env_cfg.scene.num_envs = args_cli.num_envs
-        env_cfg.sim.device = args_cli.device
-        env_cfg.sim.physics = physics_cfg
-        visualizers = set(args_cli.visualizer or ())
-        newton_only = bool(visualizers) and visualizers <= {"newton_gl", "newton_rtx"}
-        if newton_only:
-            for name in (
-                "surface_body",
-                "surface_leg",
-                "surface_foot",
-                "glass_body",
-                "glass_leg",
-                "glass_foot",
-            ):
-                getattr(env_cfg.scene, name).channels = ("color",)
-            env_cfg.events.randomize_surface_style.params["channels"] = {
-                "color": {"r": (0.05, 1.0), "g": (0.05, 1.0), "b": (0.05, 1.0)}
-            }
-            env_cfg.events.randomize_glass_style.params["channels"] = {
-                "color": {"r": (0.05, 1.0), "g": (0.05, 1.0), "b": (0.05, 1.0)}
-            }
-        if not newton_only:
-            env_cfg.events.randomize_parts_per_env = None
+    with launch_simulation(env_cfg, args_cli):
+        from isaaclab.envs import ManagerBasedEnv  # noqa: PLC0415
 
         env = ManagerBasedEnv(cfg=env_cfg)
         actions = torch.zeros((env.num_envs, env.action_manager.total_action_dim), device=env.device)

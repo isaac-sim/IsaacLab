@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import logging
 import os
 
 import torch
@@ -38,6 +39,8 @@ from ..common import (
     show_run_summary,
     startup_screen,
 )
+
+logger = logging.getLogger(__name__)
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 with contextlib.suppress(ImportError):
@@ -106,7 +109,7 @@ def run(argv: list[str]) -> None:
             env_cfg.seed = agent_cfg.seed
 
             log_root_path = os.path.abspath(os.path.join("logs", "torchrl", agent_cfg.experiment_name))
-            print(f"[INFO] Loading experiment from directory: {log_root_path}")
+            logger.info(f"Loading experiment from directory: {log_root_path}")
             checkpoint_path = _resolve_checkpoint(args_cli, log_root_path)
             log_dir = os.path.dirname(checkpoint_path)
             env_cfg.log_dir = log_dir
@@ -123,7 +126,7 @@ def run(argv: list[str]) -> None:
             env = IsaacLabTorchRLWrapper(env, clip_actions=agent_cfg.clip_actions)
 
             screen.stage("Loading policy")
-            print(f"[INFO] Loading model checkpoint from: {checkpoint_path}")
+            logger.info(f"Loading model checkpoint from: {checkpoint_path}")
             actor = make_actor(env, agent_cfg).to(env.device).eval()
             actor.load_state_dict(torch.load(checkpoint_path, map_location=env.device, weights_only=True))
             if args_cli.deterministic:

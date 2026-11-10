@@ -13,9 +13,13 @@ launch_test_simulation()
 
 # Define a fixture to replace setUpClass
 import pytest
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 
-from isaaclab.assets import AssetBase, AssetBaseCfg
-from isaaclab.sim import build_simulation_context
+import isaaclab.sim as sim_utils
+from isaaclab.actuators import BamActuatorCfg
+from isaaclab.assets import ArticulationCfg, AssetBase, AssetBaseCfg
+from isaaclab.cloner import CloneCfg, clone_plan_from_env_0, replicate
+from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.test.utils import DeviceScope, test_devices
 
 import isaaclab_assets as lab_assets  # noqa: F401
@@ -43,14 +47,32 @@ def test_asset_configs(registered_entities, device):
     # iterate over all registered assets
     for asset_name, entity_cfg in registered_entities.items():
         # Use pytest's subtests
-        with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+        # BAM actuators run only on Newton MJWarp, which builds articulations from a clone plan
+        uses_bam = (
+            isinstance(entity_cfg, ArticulationCfg)
+            and isinstance(entity_cfg.actuators, dict)
+            and any(isinstance(actuator, BamActuatorCfg) for actuator in entity_cfg.actuators.values())
+        )
+        sim_cfg = None
+        if uses_bam:
+            sim_cfg = SimulationCfg(
+                device=device, use_newton_actuators=True, physics=NewtonCfg(solver_cfg=MJWarpSolverCfg())
+            )
+        with build_simulation_context(device=device, auto_add_lighting=True, sim_cfg=sim_cfg) as sim:
             sim._app_control_on_stop_handle = None
             # print the asset name
             print(f">>> Testing entity {asset_name} on device {device}")
-            # name the prim path
-            entity_cfg.prim_path = "/World/asset"
-            # create the asset / sensors
-            entity: AssetBase = instantiate(entity_cfg)  # type: ignore
+            if uses_bam:
+                sim_utils.create_prim("/World/Env_0", "Xform")
+                entity_cfg.prim_path = "/World/Env_[^/]*/asset"
+                entity: AssetBase = instantiate(entity_cfg)  # type: ignore
+                clone_plan_from_env_0(CloneCfg(clone_template="/World/Env_{}"), [entity_cfg], 1, 1.0)
+                replicate(sim.get_clone_plan())
+            else:
+                # name the prim path
+                entity_cfg.prim_path = "/World/asset"
+                # create the asset / sensors
+                entity: AssetBase = instantiate(entity_cfg)  # type: ignore
 
             # play the sim
             sim.reset()

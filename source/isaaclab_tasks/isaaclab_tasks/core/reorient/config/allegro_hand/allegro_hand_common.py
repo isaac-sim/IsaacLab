@@ -23,7 +23,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_tasks.utils import PresetCfg
 
-from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
+from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG, ALLEGRO_HAND_FRICTION_REPLACEMENTS
 
 ALLEGRO_HAND_ROBOT_CFG = replace(ALLEGRO_HAND_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
@@ -52,6 +52,9 @@ CUBE_CFG = RigidObjectCfg(
     init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.17, 0.56), rot=(0.0, 0.0, 0.0, 1.0)),
 )
 """In-hand cube for the Allegro reorientation task."""
+
+GOAL_MARKER_OFFSET = (-0.12, -0.14, 0.06)
+"""Goal-cube display offset from the in-hand position [m], wider than the shared one to clear the larger hand."""
 
 GOAL_OBJECT_CFG = VisualizationMarkersCfg(
     prim_path="/Visuals/goal_marker",
@@ -83,6 +86,9 @@ class PhysicsCfg(PresetCfg):
         ),
         num_substeps=2,
     )
-    ovphysx = OvPhysxCfg()
+    ovphysx = OvPhysxCfg(
+        # Match the measured 0.6 runtime actuator efforts, not the USD coefficient (0.035).
+        legacy_joint_friction_replacements=ALLEGRO_HAND_FRICTION_REPLACEMENTS,
+    )
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
     default = newton_mjwarp

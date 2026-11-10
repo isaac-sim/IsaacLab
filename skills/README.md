@@ -11,9 +11,9 @@ but they are not part of the externally published catalog:
 - `_internal/changelog-fragments/`: add and validate package changelog fragments.
 - `_internal/coding-style/`: apply Isaac Lab coding style, API design, docstring, type-hint, lazy export, and contribution conventions.
 - `_internal/test-audit/`: gate new tests and audit existing ones for low-value, implementation-coupled, or duplicated coverage.
-- `_internal/issue-audit/`: audit one open GitHub issue against current code to decide close or keep-open.
-- `_internal/issue-backlog-triage/`: triage many open GitHub issues at once into close or keep-open.
-- `_internal/isaaclab-updating-environment-docs/`: keep the generated environment browser synchronized with task registrations and preset selectors.
+- `_internal/issue-audit/`: check one issue against current code and draft an evidence-backed resolution.
+- `_internal/issue-backlog-triage/`: triage multiple issues and draft closing comments.
+- `_internal/isaaclab-updating-environment-docs/`: synchronize the environment browser with registrations and presets.
 - `_internal/install-isaac-lab/`: install Isaac Lab following the current install docs — automatic uv setup, downloaded Isaac Sim package, source build, Isaac Lab wheel, legacy isaaclab.sh installer, or Docker — across Linux (x86_64, aarch64) and Windows 11.
 - `_internal/setup-troubleshooting/`: route installation, verification, and setup issues to official docs and canonical commands.
 - `_internal/migrate-2x-to-3x/`: migrate Isaac Lab 2.x projects to Isaac Lab 3.0 using the official migration guide.
@@ -35,7 +35,7 @@ User skills (`user/`) are published in the external catalog:
 - `user/isaaclab-preparing-assets-for-newton/`: prepare assets for Newton and migrate PhysX-authored assets without losing their physical contract.
 - `user/isaaclab-transferring-policies-sim-to-sim/`: validate bidirectional PhysX/Newton policy transfer and diagnose transfer gaps.
 
-Planned user skills:
+Planned user skills (paths without descriptions are excluded from maintained-catalog validation):
 
 - `user/import-robot-urdf-mjcf/`
 

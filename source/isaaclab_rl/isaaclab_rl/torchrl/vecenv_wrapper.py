@@ -137,7 +137,7 @@ class IsaacLabTorchRLWrapper(EnvBase):
             # finite-horizon tasks treat the time limit as terminal (same convention as the RSL-RL wrapper)
             terminated |= truncated
             truncated.zero_()
-        done = terminated | truncated
+        done = (terminated | truncated).to(self.device)
 
         obs = TensorDict(obs_dict, batch_size=self.batch_size, device=self.device)
         out = self._terminal_observations(obs, extras, done)

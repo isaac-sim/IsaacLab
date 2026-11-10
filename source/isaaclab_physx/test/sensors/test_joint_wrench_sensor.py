@@ -22,7 +22,11 @@ from isaaclab_physx.sensors.joint_wrench import joint_wrench_sensor as joint_wre
 from isaaclab_physx.sensors.joint_wrench.joint_wrench_sensor import JointWrenchSensor as PhysxJointWrenchSensor
 from isaaclab_physx.sensors.joint_wrench.joint_wrench_sensor_data import JointWrenchSensorData
 from isaaclab_physx.sim.schemas import PhysxJointCfg
-from joint_wrench_contract import test_joint_wrench_frame  # noqa: F401
+from joint_wrench_contract import (  # noqa: F401
+    assert_sensors_reject_partial_environment_coverage,
+    test_joint_wrench_body_ordering,
+    test_joint_wrench_frame,
+)
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -89,19 +93,14 @@ def sim():
         yield sim_ctx
 
 
-def _physx_incoming_joint_wrench(sensor: JointWrenchSensor) -> torch.Tensor:
-    """Read the raw PhysX incoming joint wrench tensor.
-
-    PhysX reports spatial vectors as force followed by torque. Shape is
-    ``(num_envs, num_bodies, 6)``.
-    """
-    raw_wrench = sensor._root_view.get_link_incoming_joint_force().view(wp.spatial_vectorf)
-    return wp.to_torch(raw_wrench)
+def test_sensors_reject_partial_environment_coverage(sim):
+    """Native bindings must cover the scene's environment rows before sensors allocate/index data."""
+    assert_sensors_reject_partial_environment_coverage(sim, _SingleJointSceneCfg(num_envs=4))
 
 
 def _assert_sensor_matches_physx_tensor(sensor: JointWrenchSensor) -> None:
     """The sensor exposes the PhysX tensor's existing child-joint-frame components."""
-    raw_wrench = _physx_incoming_joint_wrench(sensor)
+    raw_wrench = wp.to_torch(sensor._root_view.get_link_incoming_joint_force().view(wp.spatial_vectorf))
     torch.testing.assert_close(sensor.data.force.torch, raw_wrench[..., :3])
     torch.testing.assert_close(sensor.data.torque.torch, raw_wrench[..., 3:])
 
@@ -171,7 +170,7 @@ def test_nested_articulation_root_resolution(sim):
 
 
 def test_reset_with_env_ids_only_zeros_selected_envs(sim):
-    """Partial reset via env_ids should zero the selected envs and preserve the others; a full reset zeros all."""
+    """Sensor and scene resets clear selected wrenches without lazy reads refetching stale PhysX data (#4970)."""
     scene = InteractiveScene(_SingleJointSceneCfg(num_envs=4))
     sim.reset()
 
@@ -181,54 +180,32 @@ def test_reset_with_env_ids_only_zeros_selected_envs(sim):
         scene.update(sim.get_physics_dt())
 
     force_before = sensor.data.force.torch.clone()
+    torque_before = sensor.data.torque.torch.clone()
     assert torch.any(force_before != 0), "Expected non-zero data before reset"
 
     sensor.reset(env_ids=[0, 2])
 
-    force_after = wp.to_torch(sensor._data._force)
-    torch.testing.assert_close(force_after[0], torch.zeros_like(force_after[0]))
-    torch.testing.assert_close(force_after[2], torch.zeros_like(force_after[2]))
-    torch.testing.assert_close(force_after[1], force_before[1])
-    torch.testing.assert_close(force_after[3], force_before[3])
-
-    sensor.reset()
-
-    # Access raw buffers to skip lazy re-population from the PhysX view on the next data read.
-    force_after = wp.to_torch(sensor._data._force)
-    torque_after = wp.to_torch(sensor._data._torque)
-    torch.testing.assert_close(force_after, torch.zeros_like(force_after))
-    torch.testing.assert_close(torque_after, torch.zeros_like(torque_after))
-
-
-def test_no_stale_data_after_scene_reset(sim):
-    """Regression for #4970: ``scene.reset(env_ids)`` must not surface pre-reset wrenches.
-
-    Reproduces the manager-based RL flow where an environment terminates,
-    ``_reset_idx`` runs, and the next observation read happens before any further physics
-    step. The joint-wrench sensor's lazy refetch via :attr:`data` must not return PhysX's
-    stale post-step buffer for the reset env.
-    """
-    scene = InteractiveScene(_SingleJointSceneCfg(num_envs=1))
-    sim.reset()
-
-    sensor: JointWrenchSensor = scene["wrench"]
-    for _ in range(100):
-        sim.step()
-        scene.update(sim.get_physics_dt())
-
-    # Sanity: wrench is non-zero (joint resists gravity on the arm).
-    pre_reset_force = sensor.data.force.torch.clone()
-    pre_reset_torque = sensor.data.torque.torch.clone()
-    assert torch.any(pre_reset_force != 0) or torch.any(pre_reset_torque != 0), "Expected non-zero wrench before reset"
+    force_after = sensor.data.force.torch
+    torque_after = sensor.data.torque.torch
+    torch.testing.assert_close(force_after[[0, 2]], torch.zeros_like(force_after[[0, 2]]))
+    torch.testing.assert_close(torque_after[[0, 2]], torch.zeros_like(torque_after[[0, 2]]))
+    torch.testing.assert_close(force_after[[1, 3]], force_before[[1, 3]])
+    torch.testing.assert_close(torque_after[[1, 3]], torque_before[[1, 3]])
 
     # Reset via the scene (mirrors what ``ManagerBasedRLEnv._reset_idx`` does).
-    scene.reset(env_ids=torch.tensor([0], device=sensor.device))
+    scene.reset(env_ids=torch.tensor([1], device=sensor.device))
 
     # The lazy public ``data`` accessor must not refetch a stale PhysX buffer here.
-    post_reset_force = sensor.data.force.torch
-    post_reset_torque = sensor.data.torque.torch
-    torch.testing.assert_close(post_reset_force, torch.zeros_like(post_reset_force))
-    torch.testing.assert_close(post_reset_torque, torch.zeros_like(post_reset_torque))
+    force_after = sensor.data.force.torch
+    torque_after = sensor.data.torque.torch
+    torch.testing.assert_close(force_after[:3], torch.zeros_like(force_after[:3]))
+    torch.testing.assert_close(torque_after[:3], torch.zeros_like(torque_after[:3]))
+    torch.testing.assert_close(force_after[3], force_before[3])
+    torch.testing.assert_close(torque_after[3], torque_before[3])
+
+    sensor.reset()
+    torch.testing.assert_close(sensor.data.force.torch, torch.zeros_like(force_after))
+    torch.testing.assert_close(sensor.data.torque.torch, torch.zeros_like(torque_after))
 
 
 class _FakeArticulationView:
@@ -265,8 +242,8 @@ def _make_joint_wrench_sensor(use_recorded_launch: bool = True, num_envs: int = 
     sensor._device = device
     sensor._num_envs = num_envs
     sensor._num_bodies = 1
+    sensor._body_ordering = None
     sensor._root_view = root_view
-    sensor._timestamp = wp.ones(num_envs, dtype=wp.float32, device=device)
     sensor._data = JointWrenchSensorData()
     sensor._data.create_buffers(num_envs=num_envs, num_bodies=1, device=device)
     sensor._raw_incoming_joint_wrench = None

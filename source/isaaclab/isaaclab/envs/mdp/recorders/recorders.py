@@ -14,7 +14,7 @@ from isaaclab.managers.recorder_manager import RecorderTerm
 class InitialStateRecorder(RecorderTerm):
     """Recorder term that records the initial state of the environment after reset."""
 
-    def record_post_reset(self, env_ids: Sequence[int] | None):
+    def record_post_reset(self, env_ids: Sequence[int] | slice | None):
         def extract_env_ids_values(value):
             nonlocal env_ids
             if isinstance(value, dict):

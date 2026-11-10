@@ -42,10 +42,10 @@ Action width and order still belong to the exact checkpoint contract and must ma
 
 PhysX and MJWarp traverse the same USD articulation differently, so a branched robot's joint and body tensor axes are permutations of each other. A checkpoint stores column positions, not names, so an uncorrected cross-backend replay routes each joint's observation to a different joint's action.
 
-Set both fields to the **source** checkpoint's convention; `physics=` still selects the target backend:
+Set both fields to one convention for training and every replay; `physics=` still selects the backend. Train in PhysX with `physx` and keep it on PP and PN. A Newton-trained checkpoint already uses `mjwarp` order, so only the PhysX replay sets it:
 
 ```bash
-# PN: PhysX-trained checkpoint replayed in Newton.
+# PN: checkpoint trained in PhysX with physx set, replayed in Newton.
 uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
   --checkpoint /absolute/path/to/physx_checkpoint.pt physics=newton_mjwarp \
   env.scene.robot.joint_ordering=physx env.scene.robot.body_ordering=physx
@@ -58,13 +58,15 @@ uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
 
 Setting only `joint_ordering` leaves bodies in backend order and mismatches any body-indexed observation.
 
+A checkpoint trained in PhysX without `physx` uses Isaac Sim PhysX's own order, which can differ from `physx`. Replay it with explicit `joint_ordering` and `body_ordering` lists recorded from a PhysX run without an ordering, on the same asset and Isaac Sim version. The lists must match the target backend's names exactly; Humanoid-AMP's multi-axis joints and body names repeated on Newton cannot be replayed this way.
+
 | Task | Override needed | Native order |
 | --- | --- | --- |
 | `Isaac-Lift-Franka` | No | Identical joint and body order in both backends. |
 | `Isaac-Velocity-Rough-G1` | Yes | PhysX groups by tree depth; MJWarp emits each limb depth-first. |
 | `Isaac-Velocity-Rough-AnymalD` | Yes | PhysX yields `LF_HAA, LH_HAA, RF_HAA, ...`; MJWarp yields `LF_HAA, LF_HFE, LF_KFE, ...`. |
 
-Confirm the resolved axes by comparing `joint_names` with `backend_joint_names` (and the body equivalents). An override that already matches the backend's native order normalizes to the zero-conversion identity, so it is free where unnecessary. Full contract: [joint and body ordering](../../../docs/source/concepts/joint_and_body_ordering.rst).
+Confirm the resolved axes by comparing `joint_names` with `backend_joint_names` (and the body equivalents). An override that already matches the backend's native order normalizes to the zero-conversion identity, so it is free where unnecessary. Full contract: [joint and body ordering](../../../docs/source/how-to/transfer_policies_between_physx_and_newton.rst#joint-and-body-ordering).
 
 ## Transferring Control Behavior
 
@@ -105,9 +107,11 @@ Use plausible ranges around a corrected nominal model. Use curriculum only when 
 Generic command pattern:
 
 ```bash
-uv run isaaclab train --rl_library rsl_rl --task TRAIN_TASK physics=isaacsim_physx
+uv run isaaclab train --rl_library rsl_rl --task TRAIN_TASK physics=isaacsim_physx \
+  env.scene.robot.joint_ordering=physx env.scene.robot.body_ordering=physx
 uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
-  --checkpoint /absolute/path/to/physx_checkpoint.pt physics=isaacsim_physx
+  --checkpoint /absolute/path/to/physx_checkpoint.pt physics=isaacsim_physx \
+  env.scene.robot.joint_ordering=physx env.scene.robot.body_ordering=physx
 uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
   --checkpoint /absolute/path/to/physx_checkpoint.pt physics=newton_mjwarp \
   env.scene.robot.joint_ordering=physx env.scene.robot.body_ordering=physx

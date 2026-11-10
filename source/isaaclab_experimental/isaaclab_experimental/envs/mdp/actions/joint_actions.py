@@ -15,7 +15,7 @@ import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation import Articulation
 
 from isaaclab_experimental.managers.action_manager import ActionTerm
-from isaaclab_experimental.utils.warp import resolve_1d_mask, zero_masked_2d
+from isaaclab_experimental.utils.warp import zero_masked_2d
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -87,8 +87,6 @@ class JointAction(ActionTerm):
     """The offset applied to the input action."""
     _clip: wp.array
     """The clip applied to the input action."""
-    _joint_mask: wp.array
-    """A persistent joint mask for capturable action application."""
 
     def __init__(self, cfg: actions_cfg.JointActionCfg, env: ManagerBasedEnv) -> None:
         # initialize the action term
@@ -108,20 +106,6 @@ class JointAction(ActionTerm):
         # Avoid indexing across all joints for efficiency
         if self._num_joints == self._asset.num_joints and not self.cfg.preserve_order:
             self._joint_ids = slice(None)
-
-        # FIXME: ArticulationData.resolve_joint_mask is not available on this branch.
-        #  Port resolve_*_mask methods from dev/newton when articulation_data is aligned.
-        _all_joint_mask = wp.ones((self._asset.num_joints,), dtype=wp.bool, device=self.device)
-        _scratch_joint_mask = wp.zeros((self._asset.num_joints,), dtype=wp.bool, device=self.device)
-        self._joint_mask = wp.clone(
-            resolve_1d_mask(
-                ids=self._joint_ids,
-                mask=None,
-                all_mask=_all_joint_mask,
-                scratch_mask=_scratch_joint_mask,
-                device=self.device,
-            )
-        )
 
         # create tensors for raw and processed actions (Warp)
         self._raw_actions = wp.zeros((self.num_envs, self.action_dim), dtype=wp.float32, device=self.device)

@@ -295,6 +295,10 @@ class NonHolonomicActionCfg(ActionTermCfg):
 class DifferentialInverseKinematicsActionCfg(ActionTermCfg):
     """Configuration for inverse differential kinematics action term.
 
+    The :attr:`clip` ranges are matched against the task-space action names ``pos_x``, ``pos_y``,
+    ``pos_z`` and, for relative pose commands, ``rot_x``, ``rot_y``, ``rot_z``. The quaternion components
+    of absolute pose commands cannot be clipped.
+
     See :class:`DifferentialInverseKinematicsAction` for more details.
     """
 
@@ -325,6 +329,8 @@ class DifferentialInverseKinematicsActionCfg(ActionTermCfg):
     """Offset of target frame w.r.t. to the body frame. Defaults to None, in which case no offset is applied."""
     scale: float | tuple[float, ...] = 1.0
     """Scale factor for the action. Defaults to 1.0."""
+    offset: float | tuple[float, ...] = 0.0
+    """Offset applied to the scaled action in controller-specific units. Defaults to 0.0."""
     controller: DifferentialIKControllerCfg = MISSING
     """The configuration for the differential IK controller."""
 
@@ -332,6 +338,14 @@ class DifferentialInverseKinematicsActionCfg(ActionTermCfg):
 @configclass
 class OperationalSpaceControllerActionCfg(ActionTermCfg):
     """Configuration for operational space controller action term.
+
+    The :attr:`clip` ranges are matched against the task-space action names: ``pos_x``, ``pos_y``, ``pos_z``
+    and ``rot_x``, ``rot_y``, ``rot_z`` for a ``pose_rel`` target, ``force_x``, ``force_y``, ``force_z``,
+    ``torque_x``, ``torque_y``, ``torque_z`` for a ``wrench_abs`` target, and ``stiffness_<axis>`` and
+    ``damping_ratio_<axis>`` (``x``, ``y``, ``z``, ``rx``, ``ry``, ``rz``) for the variable impedance modes.
+    With both ``pose_abs`` and ``pose_rel`` targets, the pose components are prefixed with their target type
+    (``pose_abs_pos_x``, ``pose_rel_pos_x``, ...). The quaternion components of a ``pose_abs`` target cannot
+    be clipped. The controller limits on the impedance parameters are applied after clipping.
 
     See :class:`OperationalSpaceControllerAction` for more details.
     """

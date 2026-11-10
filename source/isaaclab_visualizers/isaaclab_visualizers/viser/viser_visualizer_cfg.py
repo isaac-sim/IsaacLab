@@ -7,20 +7,17 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
-from isaaclab_newton.renderers import NewtonWarpRendererCfg
-
-from isaaclab.renderers import RendererCfg
 from isaaclab.utils import configclass
-from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
+from isaaclab.visualizers.visualizer_cfg import VisualizerBackendCfg, VisualizerCfg
 
 if TYPE_CHECKING:
     from .viser_visualizer import ViserVisualizer
 
 
 @configclass
-class ViserVisualizerCfg(VisualizerCfg):
+class ViserBackendCfg(VisualizerBackendCfg):
     """Configuration for Viser visualizer (web-based visualization)."""
 
     class_type: type[ViserVisualizer] | str = "{DIR}.viser_visualizer:ViserVisualizer"
@@ -29,10 +26,7 @@ class ViserVisualizerCfg(VisualizerCfg):
     visualizer_type: str = "viser"
     """Type identifier for Viser visualizer."""
 
-    cloning_contexts: tuple[type | str, ...] = ("isaaclab_newton.cloner:NewtonReplicateContext",)
-
-    streaming_cam_renderer_cfg: RendererCfg = NewtonWarpRendererCfg()
-    """Renderer configuration for the auto-created streaming camera."""
+    cloning_contexts: ClassVar[tuple[type | str, ...]] = ("isaaclab_newton.cloner:NewtonReplicateContext",)
 
     port: int = 8080
     """Port of the local viser web server."""
@@ -71,3 +65,13 @@ class ViserVisualizerCfg(VisualizerCfg):
     visible on startup.  Can also be toggled at runtime via the Visualization Markers
     panel in the Viser sidebar.
     """
+
+
+@configclass
+class ViserVisualizerCfg(ViserBackendCfg, VisualizerCfg):
+    """Deprecated combined configuration; use ``VisualizerCfg(backend=ViserBackendCfg())``.
+
+    Simulation launch translates this declaration before constructing visualizers.
+    """
+
+    backend: ViserBackendCfg = ViserBackendCfg()

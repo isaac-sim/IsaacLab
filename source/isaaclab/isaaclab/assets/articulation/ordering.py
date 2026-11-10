@@ -51,7 +51,7 @@ class ArticulationOrderingConvention(str, Enum):
     """Built-in non-default public articulation name-ordering conventions.
 
     Attributes:
-        PHYSX: Active PhysX or OVPhysX tensor-view order.
+        PHYSX: OVPhysX tensor-view order, resolved on every backend.
         MJWARP: Newton or MJWarp articulation-view order.
         ROBOT_SCHEMA: Authored target order of the ``isaac:physics:robotJoints``
             and ``isaac:physics:robotLinks`` relationships.

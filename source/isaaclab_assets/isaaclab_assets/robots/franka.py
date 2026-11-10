@@ -8,6 +8,7 @@
 The following configurations are available:
 
 * :obj:`FRANKA_PANDA_CFG`: Shared flat asset for maintained Franka tasks
+* :obj:`FRANKA_MINIMAL_CFG`: Shared asset with gripper-only colliders
 * :obj:`FRANKA_PANDA_HIGH_PD_CFG`: Flat asset with stiffer PD control
 * :obj:`FRANKA_PANDA_LEGACY_CFG`: Legacy asset and actuators
 * :obj:`FRANKA_PANDA_LEGACY_HIGH_PD_CFG`: Legacy high-PD configuration
@@ -98,7 +99,7 @@ for actuator in ("panda_shoulder", "panda_forearm"):
 FRANKA_PANDA_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/franka_panda.usda",
-        variants={"Physics": "physx", "Colliders": "gripper_only"},
+        variants={"Physics": "physx", "Colliders": "primitives"},
         activate_contact_sensors=False,
         rigid_props=PhysxRigidBodyCfg(disable_gravity=False, max_depenetration_velocity=5.0),
         articulation_props=[
@@ -138,10 +139,20 @@ FRANKA_PANDA_CFG = ArticulationCfg(
 """Configuration of the Franka Emika Panda robot.
 
 The flat asset contains PhysX and MuJoCo physics variants and gripper-only, primitive, and convex-hull
-collider variants. The gripper-only collider variant is the default. Explicit solver properties keep
+collider variants. Full primitive arm and gripper collisions are enabled by default. Explicit solver properties keep
 the actuator contract consistent across physics payloads. Only the leading finger has an active drive;
 the authored mimic constraint moves the passive follower. The standalone configuration selects the PhysX
 payload by default; direct Newton consumers must select the ``mujoco`` physics variant explicitly.
+"""
+
+
+FRANKA_MINIMAL_CFG = clone(FRANKA_PANDA_CFG)
+FRANKA_MINIMAL_CFG.spawn.variants["Colliders"] = "gripper_only"
+"""Configuration of Franka with only hand and fingertip collision geometry.
+
+This configuration shares the main USD, inertial properties, actuators, and backend payloads.
+Use it when arm contacts are not required to reduce collision-processing cost. Policies must be
+qualified for the selected collision scope.
 """
 
 

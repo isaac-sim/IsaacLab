@@ -7,12 +7,15 @@ from isaaclab.utils import configclass
 
 from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg
 
+from isaaclab_tasks.utils import PresetCfg
+
 
 @configclass
 class DrLegsHoldPosePPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
     max_iterations = 3000
     save_interval = 100
+    clip_actions = 1.0
     experiment_name = "dr_legs_hold_pose"
     obs_groups = {"actor": ["policy"], "critic": ["policy", "critic"]}
     actor = RslRlMLPModelCfg(
@@ -42,9 +45,19 @@ class DrLegsHoldPosePPORunnerCfg(RslRlOnPolicyRunnerCfg):
     )
 
 
+def _walk_runner_cfg(init_std: float) -> DrLegsHoldPosePPORunnerCfg:
+    """Return a DR Legs walking runner configuration."""
+    cfg = DrLegsHoldPosePPORunnerCfg()
+    cfg.experiment_name = "dr_legs_walk"
+    cfg.actor.distribution_cfg.init_std = init_std
+    return cfg
+
+
 @configclass
-class DrLegsWalkPPORunnerCfg(DrLegsHoldPosePPORunnerCfg):
-    def __post_init__(self):
-        super().__post_init__()
-        self.experiment_name = "dr_legs_walk"
-        self.max_iterations = 3000
+class DrLegsWalkPPORunnerCfg(PresetCfg):
+    """Backend-specific DR Legs walking runner configurations."""
+
+    default = _walk_runner_cfg(init_std=0.2)
+    newton_kamino = default
+    physx = _walk_runner_cfg(init_std=0.5)
+    isaacsim_physx = physx

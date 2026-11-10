@@ -219,11 +219,20 @@ def test_generator_registers_single_agent_rl_config_entry_points_for_all_librari
         _unregister(task_id)
 
 
-def test_generated_manager_amp_environment_preserves_terminal_observations():
+@pytest.mark.parametrize("initial_content", ["cartpole", "stubbed"])
+def test_generated_manager_amp_environment_preserves_terminal_observations(tmp_path, initial_content):
     """AMP transitions must end with the terminal observation before same-step autoreset."""
-    env_source = generator.jinja_env.get_template("tasks/manager-based_single-agent/env").render(
-        task={"classname": "Test", "env_cfg_filename": "test_env_cfg"}
-    )
+    specification = {
+        "external": True,
+        "name": "test",
+        "task_name": "test",
+        "initial_content": initial_content,
+        "workflows": [{"name": "manager-based", "type": "single-agent"}],
+        "rl_libraries": [{"name": "skrl", "algorithms": ["amp"]}],
+    }
+    generated = generator._generate_tasks(specification, str(tmp_path))
+    task = generated[0]["task"]
+    env_source = (Path(task["dir"]) / f"{task['env_filename']}.py").read_text()
     module = ast.parse(env_source)
     env_class_node = next(node for node in module.body if isinstance(node, ast.ClassDef))
 
@@ -378,19 +387,28 @@ def test_generator_registers_sole_non_ppo_algorithm_as_canonical(
     _unregister(task_id)
 
 
-@pytest.mark.parametrize("algorithm", ["bogus", "ippo"])
-def test_generator_rejects_algorithms_unsupported_by_selected_workflows(tmp_path, monkeypatch, algorithm):
-    """Unknown and cross-workflow algorithms must not silently produce an agentless task."""
+@pytest.mark.parametrize(
+    ("workflow", "algorithm", "error"),
+    [
+        ("direct:single-agent", "bogus", "not supported by the selected workflows"),
+        ("direct:single-agent", "ippo", "not supported by the selected workflows"),
+        ("manager-based:multi-agent", "mappo", "Manager-based workflows only support single-agent tasks"),
+    ],
+)
+def test_generator_rejects_unsupported_workflows_and_algorithms(tmp_path, monkeypatch, workflow, algorithm, error):
+    """Unsupported selections must fail before generating unusable task files."""
     monkeypatch.setattr(generator, "TASKS_DIR", str(tmp_path))
-    with pytest.raises(ValueError, match="not supported by the selected workflows"):
+    workflow_name, workflow_type = workflow.split(":")
+    with pytest.raises(ValueError, match=error):
         generate(
             {
                 "external": False,
                 "name": "template_invalid_algorithm",
-                "workflows": [{"name": "direct", "type": "single-agent"}],
+                "workflows": [{"name": workflow_name, "type": workflow_type}],
                 "rl_libraries": [{"name": "skrl", "algorithms": [algorithm]}],
             }
         )
+    assert not list(tmp_path.iterdir())
 
 
 def test_external_project_uses_src_layout_and_installed_isaaclab_commands(tmp_path, monkeypatch):
@@ -528,11 +546,21 @@ def _top_level_imported_roots(source: str) -> set[str]:
     return roots
 
 
-@pytest.mark.parametrize("external", [True, False])
-def test_generated_files_cover_requested_agents_and_compile(tmp_path, monkeypatch, external):
+@pytest.mark.parametrize(
+    ("external", "initial_content", "amp_selected"),
+    [
+        (True, "cartpole", True),
+        (False, "cartpole", True),
+        (True, "stubbed", True),
+        (True, "stubbed", False),
+    ],
+)
+def test_generated_files_cover_requested_agents_and_compile(
+    tmp_path, monkeypatch, external, initial_content, amp_selected
+):
     """Generated workflows contain valid agent files and defer runtime imports.
 
-    External projects are also imported with ``omni``/``pxr`` blocked (NVBug 6251247): the generated package
+    The external Cartpole case is also imported with ``omni``/``pxr`` blocked (NVBug 6251247): the generated package
     ``__init__`` must stay passive, including when the omni-dependent example UI extension is generated.
     """
     project_name = f"template_imports_{'external' if external else 'internal'}"
@@ -541,18 +569,26 @@ def test_generated_files_cover_requested_agents_and_compile(tmp_path, monkeypatc
     if not external:
         monkeypatch.setattr(generator, "TASKS_DIR", str(root_dir))
 
+    robot_name = "so101" if initial_content == "stubbed" else "cartpole"
+    rl_libraries = _all_libraries()
+    if not amp_selected:
+        for library in rl_libraries:
+            library["algorithms"] = [algorithm for algorithm in library["algorithms"] if algorithm != "amp"]
+
     specification = {
         "external": external,
         "name": project_name,
+        "initial_content": initial_content,
         "workflows": [
             {"name": "direct", "type": "single-agent"},
             {"name": "manager-based", "type": "single-agent"},
             {"name": "direct", "type": "multi-agent"},
         ],
-        "rl_libraries": _all_libraries(),
+        "rl_libraries": rl_libraries,
     }
     if external:
         specification["path"] = str(root_dir)
+        specification["robot_name"] = robot_name
         specification["include_ui_extension"] = True
 
     generate(specification)
@@ -568,15 +604,29 @@ def test_generated_files_cover_requested_agents_and_compile(tmp_path, monkeypatc
 
     for workflow in specification["workflows"]:
         libraries = _MULTI_AGENT_RL_LIBRARIES if workflow["type"] == "multi-agent" else _SINGLE_AGENT_RL_LIBRARIES
-        agents_dir = _task_dir(root_dir, project_name, workflow["name"], workflow["type"], external) / "agents"
+        task_dir = _task_dir(root_dir, project_name, workflow["name"], workflow["type"], external).parent / robot_name
+        filename = _task_folder(project_name, workflow["type"], external)
+        env_cfg_filename = "env_cfg.py" if external else f"{filename}_env_cfg.py"
+        env_filename = "env.py" if external else f"{filename}_env.py"
+        assert (task_dir / "__init__.py").is_file()
+        assert (task_dir / env_cfg_filename).is_file()
+        assert (task_dir / env_filename).is_file() == (workflow["name"] == "direct" or amp_selected)
+        if initial_content == "stubbed" and workflow["name"] == "manager-based":
+            mdp_dir = task_dir.parents[1] / "mdp"
+            assert all(
+                (mdp_dir / f"{term}.py").is_file() for term in ("observations", "events", "rewards", "terminations")
+            )
+        agents_dir = task_dir / "agents"
         expected_files = set()
         for library in libraries:
             for algorithm in library["algorithms"]:
+                if algorithm == "amp" and not amp_selected:
+                    continue
                 extension = ".py" if library["name"] == "rsl_rl" else ".yaml"
                 expected_files.add(f"{library['name']}_{algorithm}_cfg{extension}")
         assert {path.name for path in agents_dir.glob("*_cfg.*")} == expected_files
 
-    if not external:
+    if not external or initial_content == "stubbed":
         return
 
     project_dir = root_dir / project_name
@@ -668,7 +718,8 @@ def test_generated_manager_based_env_cfg_resolution_is_omni_and_pxr_free(tmp_pat
     )
 
 
-def test_generated_external_project_registers_tasks_on_tasks_import(tmp_path, monkeypatch):
+@pytest.mark.parametrize("initial_content", ["cartpole", "stubbed"])
+def test_generated_external_project_registers_tasks_on_tasks_import(tmp_path, monkeypatch, initial_content):
     """A freshly generated external project must register all tasks when its task package is imported.
 
     The project root is intentionally passive; importing its task entry point performs registration.
@@ -681,12 +732,13 @@ def test_generated_external_project_registers_tasks_on_tasks_import(tmp_path, mo
             "external": True,
             "path": str(root_dir),
             "name": project_name,
+            "initial_content": initial_content,
             "workflows": [
                 {"name": "manager-based", "type": "single-agent"},
                 {"name": "direct", "type": "single-agent"},
                 {"name": "direct", "type": "multi-agent"},
             ],
-            "rl_libraries": [{"name": "skrl", "algorithms": ["ppo", "ippo", "mappo"]}],
+            "rl_libraries": [{"name": "skrl", "algorithms": ["ppo", "amp", "ippo", "mappo"]}],
         }
     )
     source_dir = root_dir / project_name / "src"
@@ -705,16 +757,35 @@ def test_generated_external_project_registers_tasks_on_tasks_import(tmp_path, mo
         sys.path.insert(0, {str(source_dir)!r})
         import {project_name}.tasks  # noqa: F401  (registration runs through the task entry point)
         import gymnasium as gym
+        import importlib
+        import pytest
         from isaaclab_tasks.utils import load_cfg_from_registry
 
         want = {expected!r}
         missing = [task_id for task_id in want if task_id not in gym.registry]
         assert not missing, f"not registered on import: {{missing}}"
+        for task_id in want:
+            spec = gym.spec(task_id)
+            assert callable(gym.envs.registration.load_env_creator(spec.entry_point))
+            if {initial_content!r} == "stubbed":
+                with pytest.raises(NotImplementedError, match="Configure simulation"):
+                    load_cfg_from_registry(task_id, "env_cfg_entry_point")
+        if {initial_content!r} == "stubbed":
+            from {project_name}.tasks.balance import mdp
+            from isaaclab.envs.mdp import time_out
+
+            assert mdp.time_out is time_out
+            with pytest.raises(NotImplementedError, match="Implement the reward term"):
+                mdp.reward(None)
         assert load_cfg_from_registry({multi_task!r}, "skrl_cfg_entry_point")["agent"]["class"] == "MAPPO"
+        registration_tests = importlib.import_module("test_registration")
+        registration_tests.test_task_registrations()
         print("OK")
         """
     )
-    result = subprocess.run([sys.executable, "-c", program], capture_output=True, text=True)
+    result = subprocess.run(
+        [sys.executable, "-c", program], capture_output=True, text=True, cwd=root_dir / project_name / "tests"
+    )
     assert result.returncode == 0, (
         f"external project did not register tasks on import:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
     )

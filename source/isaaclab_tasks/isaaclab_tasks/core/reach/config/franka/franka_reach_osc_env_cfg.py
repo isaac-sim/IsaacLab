@@ -42,13 +42,18 @@ class FrankaReachEnvCfg(franka_reach_env_cfg.FrankaReachEnvCfg):
         super().__post_init__()
 
         # Use an explicit actuator to enforce the USD-authored effort limits for effort control. Keep the
-        # asset's solver velocity limit: the Menagerie USD authors none, so dropping it leaves the arm unbounded.
+        # asset's solver velocity limit: the canonical USD authors none, so dropping it leaves the arm unbounded.
         arm_actuator = self.scene.robot.actuators["panda_arm"]
         self.scene.robot.actuators["panda_arm"] = IdealPDActuatorCfg(
             joint_names_expr=arm_actuator.joint_names_expr,
+            joint_effort_limit=arm_actuator.joint_effort_limit,
             joint_velocity_limit=arm_actuator.joint_velocity_limit,
             stiffness=0.0,
             damping=0.0,
+            armature=arm_actuator.armature,
+            friction=arm_actuator.friction,
+            dynamic_friction=arm_actuator.dynamic_friction,
+            viscous_friction=arm_actuator.viscous_friction,
         )
         for rigid_props in self.scene.robot.spawn.rigid_props:
             if isinstance(rigid_props, PhysxRigidBodyCfg):
@@ -64,6 +69,13 @@ class FrankaReachEnvCfg(franka_reach_env_cfg.FrankaReachEnvCfg):
         self.rewards.action_magnitude.weight = preset(
             default=default_weight, diffik_abs=_DeprecatedDiffIKAbsWeight(default_weight)
         )
+        # Holding is trained for joint-position actions; OSC offers only its own domain presets.
+        self.observations.policy.ee_target_error = self.observations.policy.ee_target_error.default
+        self.commands.ee_pose.resampling_time_range = self.commands.ee_pose.resampling_time_range.default
+        self.terminations.success = self.terminations.success.default
+        self.rewards.success = self.rewards.success.default
+        self.rewards.action_rate.weight = self.rewards.action_rate.weight.default
+        self.curriculum.action_rate.params["weight"] = self.curriculum.action_rate.params["weight"].default
 
         # closed-loop contact force control would additionally need contact sensors on the robot
         self.actions.arm_action = OperationalSpaceControllerActionCfg(

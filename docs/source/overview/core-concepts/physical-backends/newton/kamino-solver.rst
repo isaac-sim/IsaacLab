@@ -1,10 +1,10 @@
 :orphan:
 
 .. meta::
-   :http-equiv=refresh: 0; url=../../../../concepts/solver-tuning/tune_kamino.html
+   :http-equiv=refresh: 0; url=../../../../how-to/solver_tuning_kamino.html
    :name=robots: noindex
 
 Page Moved
 ==========
 
-This page moved to :doc:`/source/concepts/solver-tuning/tune_kamino`.
+This page moved to :doc:`/source/how-to/solver_tuning_kamino`.

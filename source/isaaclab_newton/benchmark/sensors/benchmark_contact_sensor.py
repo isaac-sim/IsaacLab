@@ -12,11 +12,11 @@ updates.
 
 Usage:
     # Lazy update once per environment step
-    ./isaaclab.sh -p source/isaaclab_newton/benchmark/sensors/benchmark_contact_sensor.py
+    uv run python source/isaaclab_newton/benchmark/sensors/benchmark_contact_sensor.py
         --num_envs 4096 --history_length 0
 
     # History update at each of four physics steps
-    ./isaaclab.sh -p source/isaaclab_newton/benchmark/sensors/benchmark_contact_sensor.py
+    uv run python source/isaaclab_newton/benchmark/sensors/benchmark_contact_sensor.py
         --num_envs 4096 --history_length 3 --decimation 4
 """
 

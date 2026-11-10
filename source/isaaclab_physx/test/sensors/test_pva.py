@@ -5,7 +5,7 @@
 
 from isaaclab.test.utils import launch_test_simulation
 
-launch_test_simulation(enable_cameras=True)
+launch_test_simulation()
 
 import pathlib
 
@@ -85,6 +85,8 @@ class MySceneCfg(InteractiveSceneCfg):
     # created programmatically in the test fixture (see setup_sim).
     pendulum = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/pendulum",
+        # The converted root joint has no body relationship; PhysX's native clone changes its dynamics.
+        cloning_contexts=("isaaclab.cloner:UsdReplicateContext",),
         spawn=sim_utils.UrdfFileCfg(
             fix_base=True,
             merge_fixed_joints=True,
@@ -168,7 +170,7 @@ def setup_sim():
     with sim_utils.build_simulation_context(sim_cfg=sim_cfg) as sim:
         sim._app_control_on_stop_handle = None
         # construct scene
-        scene_cfg = MySceneCfg(num_envs=2, env_spacing=5.0, lazy_sensor_update=False, replicate_physics=False)
+        scene_cfg = MySceneCfg(num_envs=2, env_spacing=5.0, lazy_sensor_update=False)
         scene = InteractiveScene(scene_cfg)
         # The pendulum uses merge_fixed_joints=True, so the fixed-joint child link
         # imu_link is removed from the URDF before USD conversion.  Recreate it as a

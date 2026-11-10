@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Callable
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
@@ -100,28 +101,14 @@ class InteractiveSceneCfg:
     data is updated every time sensors are updated.
     """
 
-    replicate_physics: bool = True
-    """Enable/disable replication of physics schemas when using the Cloner APIs. Default is True.
+    replicate_physics: bool | None = None
+    """Deprecated and ignored. Clone contexts are selected per asset."""
 
-    If True, the simulation will have the same asset instances (USD prims) in all the cloned environments.
-    Internally, this ensures optimization in setting up the scene and parsing it via the physics stage parser.
-
-    If False, the simulation allows having separate asset instances (USD prims) in each environment.
-    This flexibility comes at a cost of slowdowns in setting up and parsing the scene.
-
-    .. note::
-        Optimized parsing of certain prim types (such as deformable objects) is not currently supported
-        by the physics engine. In these cases, this flag needs to be set to False.
-
-    .. attention::
-        Setting this flag to False is currently not supported on the Newton physics backend:
-        Newton discovers the scene through its replication path, which stage parsing cannot
-        replace for cloned environments.
-
-    .. note::
-        The scene pipes this flag into :attr:`~isaaclab.cloner.CloneCfg.replicate_physics`;
-        the policy is applied by :func:`~isaaclab.cloner.replicate`.
-    """
+    def __post_init__(self) -> None:
+        if self.replicate_physics is not None:
+            warnings.warn(
+                "InteractiveSceneCfg.replicate_physics is deprecated and ignored.", DeprecationWarning, stacklevel=2
+            )
 
     filter_collisions: bool = True
     """Enable/disable collision filtering between cloned environments. Default is True.
@@ -131,16 +118,8 @@ class InteractiveSceneCfg:
     If False, the simulation will generate collisions between environments.
 
     .. note::
-        Collisions can only be filtered automatically in direct workflows when physics replication is enabled.
-        If :attr:`replicated_physics` is ``False`` and collision filtering is desired, make sure to call
-        ``scene.filter_collisions()``.
-    """
-
-    clone_in_fabric: bool = False
-    """Deprecated legacy Fabric cloning flag. Default is False.
-
-    Clone-plan replication does not forward this flag to the PhysX replicator;
-    ``useFabricForReplication`` is always ``False``.
+        Direct workflows that add assets after scene construction must call ``scene.filter_collisions()``
+        to filter those assets.
     """
 
     clone_cfg: CloneCfg = CloneCfg()

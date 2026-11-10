@@ -390,11 +390,10 @@ class CameraImageBase(ManagerTermBase):
     """Base for camera image terms: validates the data type and owns the frame stack.
 
     Subclasses read their sensor output and pass it with a normalizer from
-    :mod:`isaaclab.utils.images` to :attr:`_frames`.
+    :mod:`isaaclab.utils.images` to :attr:`_frames`. Each subclass declares a
+    ``data_type`` argument with a default in ``__call__``, which the manager
+    resolves into the term parameters before construction.
     """
-
-    default_data_type: str
-    """Legacy data-type alias. Defaults are resolved from the subclass's ``__call__`` signature."""
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
@@ -439,8 +438,6 @@ class image_rgb(CameraImageBase):
     Returns:
         The image, or ``out`` when supplied. Shape is ``(num_envs, H, W, 3 * frame_stack)``, or channel-first.
     """
-
-    default_data_type = "rgb"
 
     @staticmethod
     def _accepts(data_type: str) -> bool:
@@ -491,8 +488,6 @@ class image_depth(CameraImageBase):
         or channel-first.
     """
 
-    default_data_type = "distance_to_image_plane"
-
     @staticmethod
     def _accepts(data_type: str) -> bool:
         return is_depth_like(data_type)
@@ -530,12 +525,11 @@ class image_normals(CameraImageBase):
         normalize: Whether to normalize the image. Defaults to True.
         channel_first: Whether to return ``(num_envs, C, H, W)``. Defaults to False.
         frame_stack: Number of recent frames to stack along the channel axis. Defaults to 1.
+        data_type: The surface-normal camera data type. Defaults to "normals".
 
     Returns:
         The normals image. Shape is ``(num_envs, H, W, 3 * frame_stack)``, or channel-first.
     """
-
-    default_data_type = "normals"
 
     @staticmethod
     def _accepts(data_type: str) -> bool:
@@ -548,8 +542,10 @@ class image_normals(CameraImageBase):
         normalize: bool = True,
         channel_first: bool = False,
         frame_stack: int = 1,
+        *,
+        data_type: str = "normals",
     ) -> torch.Tensor:
-        images = _read_camera_output(env, sensor_cfg, "normals")
+        images = _read_camera_output(env, sensor_cfg, data_type)
         return self._frames(images, normalize_normals if normalize else None)
 
 
@@ -569,8 +565,6 @@ class image_segmentation(CameraImageBase):
     Returns:
         The segmentation image. Shape is ``(num_envs, H, W, C * frame_stack)``, or channel-first.
     """
-
-    default_data_type = "semantic_segmentation"
 
     @staticmethod
     def _accepts(data_type: str) -> bool:

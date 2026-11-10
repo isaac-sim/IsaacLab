@@ -288,7 +288,9 @@ def farthest_point_sampling(
 
 
 def collect_collision_meshes(root_prim, owner_frame_fn: Callable) -> dict[int, trimesh.Trimesh]:
-    """Collect collision meshes under ``root_prim``, grouped in caller-selected frames.
+    """Collect enabled collision meshes under ``root_prim``, grouped in caller-selected frames.
+
+    Disabled colliders and visual-only geometry are excluded from reset clearance checks.
 
     Args:
         root_prim: Prim whose subtree is searched for collision meshes.
@@ -311,7 +313,11 @@ def collect_collision_meshes(root_prim, owner_frame_fn: Callable) -> dict[int, t
     mesh_types = PRIMITIVE_MESH_TYPES + ["Mesh"]
     mesh_prims = sim_utils.get_all_matching_child_prims(
         root_prim.GetPath(),
-        lambda prim: prim.GetTypeName() in mesh_types and prim.HasAPI(UsdPhysics.CollisionAPI),
+        lambda prim: (
+            prim.GetTypeName() in mesh_types
+            and prim.HasAPI(UsdPhysics.CollisionAPI)
+            and UsdPhysics.CollisionAPI(prim).GetCollisionEnabledAttr().Get()
+        ),
     )
 
     meshes_by_owner: dict[int, list[trimesh.Trimesh]] = {}
@@ -425,10 +431,11 @@ def set_reset_state(
         if name in reset_assets:
             write_root(articulation)
             num_joints = articulation.num_joints
-            articulation.write_joint_state_to_sim_index(
-                position=states[:, offset : offset + num_joints].contiguous(),
-                velocity=states[:, offset + num_joints : offset + 2 * num_joints].contiguous(),
-                env_ids=env_ids,
+            articulation.write_joint_position_to_sim_index(
+                position=states[:, offset : offset + num_joints].contiguous(), env_ids=env_ids
+            )
+            articulation.write_joint_velocity_to_sim_index(
+                velocity=states[:, offset + num_joints : offset + 2 * num_joints].contiguous(), env_ids=env_ids
             )
             offset += 2 * num_joints
     for name, rigid_object in env.scene.rigid_objects.items():

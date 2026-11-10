@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import logging
 import math
 from typing import Any, ClassVar
 
@@ -17,6 +18,8 @@ from ..utils import index_fill_
 from .common import VecEnvStepReturn
 from .manager_based_env import ManagerBasedEnv
 from .manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
+
+logger = logging.getLogger(__name__)
 
 
 class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
@@ -85,7 +88,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         #    produced video matches the simulation
         self.metadata["render_fps"] = 1 / self.step_dt
         self.has_rtx_sensors = self.sim.get_setting("/isaaclab/render/rtx_sensors")
-        print("[INFO]: Completed setting up the environment...")
+        logger.info("Completed setting up the environment...")
 
     """
     Properties.
@@ -110,7 +113,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # and the reward manager needs to know the termination manager
         # -- command manager
         self.command_manager: CommandManager = CommandManager(self.cfg.commands, self)
-        print("[INFO] Command Manager: ", self.command_manager)
+        logger.info(f"Command Manager: {self.command_manager}")
 
         # call the parent class to load the managers for observations and actions.
         super().load_managers()
@@ -118,13 +121,13 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # prepare the managers
         # -- termination manager
         self.termination_manager = TerminationManager(self.cfg.terminations, self)
-        print("[INFO] Termination Manager: ", self.termination_manager)
+        logger.info(f"Termination Manager: {self.termination_manager}")
         # -- reward manager
         self.reward_manager = RewardManager(self.cfg.rewards, self)
-        print("[INFO] Reward Manager: ", self.reward_manager)
+        logger.info(f"Reward Manager: {self.reward_manager}")
         # -- curriculum manager
         self.curriculum_manager = CurriculumManager(self.cfg.curriculum, self)
-        print("[INFO] Curriculum Manager: ", self.curriculum_manager)
+        logger.info(f"Curriculum Manager: {self.curriculum_manager}")
 
         # setup the action and observation spaces for Gym
         self._configure_gym_env_spaces()
@@ -203,6 +206,8 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             A tuple containing the observations, rewards, resets (terminated and truncated) and extras.
         """
         self.action_manager.process_action(action.to(self.device))
+        if self._physics_handles_actions is None:
+            self._handle_physics_actions()
 
         self.recorder_manager.record_pre_step()
 
@@ -214,8 +219,9 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         steps_per_call = self.cfg.decimation if self._physics_handles_decimation else 1
         for _ in range(self.cfg.decimation // steps_per_call):
             self._sim_step_counter += steps_per_call
-            self.action_manager.apply_action()
-            self.scene.write_data_to_sim()
+            if not self._physics_handles_actions:
+                self.action_manager.apply_action()
+                self.scene.write_data_to_sim()
             self.sim.step(render=False)
             self.recorder_manager.record_post_physics_decimation_step()
             # render_enabled=False skips Kit (camera/GUI); standalone visualizers still update
@@ -233,10 +239,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.reset_time_outs = self.termination_manager.time_outs
         self.reward_buf = self.reward_manager.compute(dt=self.step_dt)
 
-        if len(self.recorder_manager.active_terms) > 0:
-            # update observations for recording if needed
-            self.obs_buf = self.observation_manager.compute()
-            self.recorder_manager.record_post_step()
+        self.recorder_manager.record_post_step()
 
         # -- reset envs that terminated/timed-out and log the episode information
         reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1).int()

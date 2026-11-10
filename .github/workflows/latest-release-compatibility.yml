@@ -1,0 +1,31 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Run main's post-merge Docker and test pipeline with the Isaac Sim image pins
+# maintained by the active release branch. This catches compatibility regressions
+# while keeping the release image version and digest owned in one place.
+
+name: Latest Released Isaac Sim Compatibility
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+  issues: read
+
+jobs:
+  docker-tests:
+    name: Docker + Tests
+    uses: ./.github/workflows/build.yaml
+    with:
+      config_ref: release/3.0.0
+      ci_image_repository: isaac-lab-release-compat
+    secrets: inherit

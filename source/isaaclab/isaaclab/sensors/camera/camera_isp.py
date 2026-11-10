@@ -5,10 +5,8 @@
 
 """Sentinel enum for :attr:`~isaaclab.sensors.camera.CameraCfg.isp_cfg`.
 
-The renderer backend (which depends on the appropriate ISP implementation
-package) is responsible for resolving these sentinels to a concrete cfg and
-applying the ISP pipeline. :mod:`isaaclab.sensors.camera` carries the sentinel
-through to the renderer without knowing about any specific ISP implementation.
+Camera construction resolves these sentinels before scene import. Renderer backends
+receive the prepared configuration and apply the ISP pipeline to their HDR output.
 """
 
 from __future__ import annotations
@@ -19,7 +17,7 @@ from enum import StrEnum
 class CameraISPMode(StrEnum):
     """Sentinel modes for :attr:`~isaaclab.sensors.camera.CameraCfg.isp_cfg`.
 
-    Selects how the renderer backend discovers the ISP configuration from the
+    Selects how camera construction discovers the ISP configuration from the
     USD stage at camera initialization time. Discovery resolves one cfg for
     the whole Camera sensor batch, using the first matched camera prim as the
     camera-bound lookup target. ``isp_cfg=None`` disables ISP entirely; this

@@ -12,7 +12,7 @@
 *.jit filter=lfs diff=lfs merge=lfs -text
 *.hdf5 filter=lfs diff=lfs merge=lfs -text
 
-source/isaaclab_tasks/test/golden_images/**/*.png filter=lfs diff=lfs merge=lfs -text
+source/_isaaclab_testing/test/rendering/golden_images/**/*.png filter=lfs diff=lfs merge=lfs -text
 
 # Generated actuator plots are reviewed as rendered images rather than XML.
 docs/source/_static/actuators/*.png binary linguist-generated

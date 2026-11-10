@@ -45,8 +45,10 @@ class TestReplicateBuilderMapping(unittest.TestCase):
         builder = newton.ModelBuilder()
         with mock.patch.object(builder, "replicate", wraps=builder.replicate) as replicate:
             replicate_builder_mapping(
-                builder, plan, plan.positions, np.tile([0, 0, 0, 1], (20, 1)), assets, env_ids=np.arange(20)
-            )
+                builder, plan, plan.positions, np.tile([0, 0, 0, 1], (20, 1)), assets,
+                source_inverse={path: np.asarray(wp.transform()) for path in assets},
+                env_ids=np.arange(20),
+            )  # fmt: skip
         self.assertEqual(replicate.call_count, 5)
         self.assertEqual(builder.world_count, 20)
         self.assertEqual(builder.body_count, 36)
@@ -84,8 +86,10 @@ class TestReplicateBuilderMapping(unittest.TestCase):
         plan = make_clone_plan(tuple(AssetBaseCfg(prim_path=path) for path in (source_path, other_path)), ((0, 1),), 3)
         with mock.patch.object(builder, "replicate", wraps=builder.replicate) as replicate:
             local_site_map, _ = replicate_builder_mapping(
-                builder, plan, positions, quaternions, assets, env_ids=np.arange(3, dtype=np.int64), **sites
-            )
+                builder, plan, positions, quaternions, assets,
+                source_inverse={path: np.array([-2, 0, 0, 0, 0, 0, 1], dtype=np.float32) for path in assets},
+                env_ids=np.arange(3, dtype=np.int64), **sites,
+            )  # fmt: skip
 
         replicate.assert_called_once()
         for name, index in (("ee", site_idx), ("origin", root_site_idx)):
@@ -105,7 +109,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
     def setUp(self):
         self.sim = object.__new__(SimulationContext)
         self.sim.cfg = SimpleNamespace(physics=object(), device="cpu")
-        self.sim.physics_manager = SimpleNamespace(get_device=lambda: "cpu")
+        self.sim.backend_manager = SimpleNamespace(get_device=lambda: "cpu")
         self.sim.stage, self.sim._backend_registry = None, []
         patch = mock.patch.object(SimulationContext, "instance", return_value=self.sim)
         patch.start()
@@ -140,13 +144,14 @@ class TestVisualizationClonePlan(unittest.TestCase):
         for _, resource in tuple(self.sim._backend_registry):
             self.sim.close_backend(resource)
 
-        # A non-cloning sensor must not exclude the body selected from its owner's subtree.
-        cfgs = AssetBaseCfg(prim_path="/World"), SensorBaseCfg(prim_path="/World/Declared")
-        plan = make_clone_plan(cfgs, ((),), 1, shared_assets=(0, 1))
-        builder, _, _ = NewtonReplicateContext(self.sim).replicate(plan, (0,))
-        self.assertCountEqual(builder.body_label, ["/World/Declared", "/World/Undeclared", "/World/Excluded"])
-        for _, resource in tuple(self.sim._backend_registry):
-            self.sim.close_backend(resource)
+        # A separately declared descendant cannot remove a body already owned by /World.
+        for child in (SensorBaseCfg(prim_path="/World/Declared"), AssetBaseCfg(prim_path="/World/Declared")):
+            cfgs = AssetBaseCfg(prim_path="/World"), child
+            plan = make_clone_plan(cfgs, ((),), 1, shared_assets=(0, 1))
+            builder, _, _ = NewtonReplicateContext(self.sim).replicate(plan, (0,))
+            self.assertCountEqual(builder.body_label, ["/World/Declared", "/World/Undeclared", "/World/Excluded"])
+            for _, resource in tuple(self.sim._backend_registry):
+                self.sim.close_backend(resource)
 
         assets = (
             AssetBaseCfg(prim_path="/Copies/env_[^/]+/Body", spawn=SpawnerCfg(spawn_path="/World/Declared")),
@@ -159,9 +164,16 @@ class TestVisualizationClonePlan(unittest.TestCase):
                 )
 
                 builder, _, _ = NewtonReplicateContext(self.sim).replicate(plan, (0, 1))
+                # /World still owns its authored child; the relocated clone is another body.
                 self.assertCountEqual(
                     builder.body_label,
-                    ["/World/Undeclared", "/World/Excluded", "/Copies/env_0/Body", "/Copies/env_1/Body"],
+                    [
+                        "/World/Declared",
+                        "/World/Undeclared",
+                        "/World/Excluded",
+                        "/Copies/env_0/Body",
+                        "/Copies/env_1/Body",
+                    ],
                 )
                 source_position = np.asarray(builder.body_q[builder.body_label.index("/Copies/env_0/Body")])[:3]
                 target_position = np.asarray(builder.body_q[builder.body_label.index("/Copies/env_1/Body")])[:3]
@@ -170,6 +182,17 @@ class TestVisualizationClonePlan(unittest.TestCase):
                 np.testing.assert_allclose(target_position - source_position, offset)
                 for _, resource in tuple(self.sim._backend_registry):
                     self.sim.close_backend(resource)
+
+        robot = UsdGeom.Cube.Define(stage, "/World/envs/env_0/Robot")
+        UsdPhysics.RigidBodyAPI.Apply(robot.GetPrim())
+        plan = make_clone_plan(
+            (AssetBaseCfg(prim_path="/World"), AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot")),
+            ((1,),),
+            2,
+            shared_assets=(0,),
+        )
+        with self.assertRaisesRegex(ValueError, "Shared Newton source .* overlaps the environment namespace"):
+            NewtonReplicateContext(self.sim).replicate(plan, (0, 1))
 
         # The same definition can also be shared and appear twice in each replicated world.
         plan = make_clone_plan((AssetBaseCfg(prim_path="/World/Declared"),), ((0, 0),), 2, shared_assets=(0,))
@@ -208,15 +231,15 @@ class TestVisualizationClonePlan(unittest.TestCase):
         assets += tuple(AssetBaseCfg(prim_path=path) for path in shared)
         plan = make_clone_plan(assets, ((0, 1),), 2, shared_assets=range(2, len(assets)), env_template="/Scene/copy_{}")
         bindings = {"/PhysicsOwned": [0]}
-        with mock.patch.object(replicate_module.NewtonManager, "_cable_bindings", bindings):
+        with mock.patch.object(self.sim.backend_manager, "_cable_bindings", bindings, create=True):
             builder, _, _ = NewtonReplicateContext(self.sim).replicate(plan, (0, *range(2, len(shared) + 2)))
-            self.assertIs(replicate_module.NewtonManager._cable_bindings, bindings)
+            self.assertIs(self.sim.backend_manager._cable_bindings, bindings)
         for path in ("/Scene/SharedRope", "/Scene/copy_0/Rope", "/Scene/copy_1/Rope"):
             self.assertTrue(all(f"{path}_edge_capsule_{index}" in builder.shape_label for index in range(2)))
         self.assertFalse(any("OtherRope" in path for path in builder.shape_label))
         self.assertFalse(stage.GetPrimAtPath("/Scene/copy_1/Rope"))
 
-    def test_visualization_builder_disables_collision_pairs(self):
+    def test_visualization_builder_preserves_nested_attachment_and_disables_collision_pairs(self):
         stage = Usd.Stage.CreateInMemory()
         self.sim.stage = stage
         robot_path = "/World/envs/env_0/Robot"
@@ -238,18 +261,43 @@ class TestVisualizationClonePlan(unittest.TestCase):
         joint = UsdPhysics.RevoluteJoint.Define(stage, f"{robot_path}/Joint")
         joint.CreateBody0Rel().SetTargets([Sdf.Path(f"{robot_path}/A")])
         joint.CreateBody1Rel().SetTargets([Sdf.Path(f"{robot_path}/B")])
+        attachment_path = f"{robot_path}/Attachment"
+        attachment = UsdGeom.Xform.Define(stage, attachment_path)
+        UsdPhysics.RigidBodyAPI.Apply(attachment.GetPrim())
+        shape = UsdGeom.Cube.Define(stage, f"{attachment_path}/Collision")
+        UsdPhysics.CollisionAPI.Apply(shape.GetPrim())
+        fixed = UsdPhysics.FixedJoint.Define(stage, f"{attachment_path}/Fixed")
+        fixed.CreateBody0Rel().SetTargets([Sdf.Path(f"{robot_path}/B")])
+        fixed.CreateBody1Rel().SetTargets([Sdf.Path(attachment_path)])
 
         asset = AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot", spawn=SpawnerCfg(spawn_path=robot_path))
-        plan = make_clone_plan((asset,), ((0,),), 2, positions=np.asarray(((0, 0, 0), (2, 0, 0)), dtype=np.float32))
-        builder, _, _ = NewtonReplicateContext(self.sim).replicate(plan, (0,))
+        child = AssetBaseCfg(prim_path=f"{asset.prim_path}/Attachment", spawn=SpawnerCfg(spawn_path=attachment_path))
+        positions = np.asarray(((0, 0, 0), (2, 0, 0)), dtype=np.float32)
+        plan = make_clone_plan((asset, child), ((0, 1), (0,)), 2, positions=positions)
+        with mock.patch.object(
+            newton.ModelBuilder, "add_usd", autospec=True, side_effect=newton.ModelBuilder.add_usd
+        ) as add_usd:
+            builder, _, _ = NewtonReplicateContext(self.sim).replicate(plan, (0, 1))
+        self.assertEqual(add_usd.call_count, 1)
         model = builder.finalize(device="cpu")
 
-        self.assertEqual(model.shape_count, 4)
+        self.assertEqual(model.shape_count, 6)
         self.assertEqual(len(model.shape_collision_filter_pairs), 0)
         self.assertEqual(
-            model.body_label, [f"/World/envs/env_{env}/Robot/{body}" for env in range(2) for body in ("A", "B")]
+            model.body_label,
+            [f"/World/envs/env_{env}/Robot/{body}" for env in range(2) for body in ("A", "B", "Attachment")],
         )
+        for env in range(2):
+            path = f"/World/envs/env_{env}/Robot/Attachment"
+            joint_id = model.joint_label.index(f"{path}/Fixed")
+            self.assertEqual(model.body_label[model.joint_parent.numpy()[joint_id]], f"/World/envs/env_{env}/Robot/B")
+            self.assertEqual(model.body_label[model.joint_child.numpy()[joint_id]], path)
         self.assertEqual(model.shape_contact_pair_count, 0)
+
+        unrelated = AssetBaseCfg(prim_path=child.prim_path, spawn=SpawnerCfg(spawn_path="/Other/Attachment"))
+        overlapping = make_clone_plan((asset, unrelated), ((0, 1),), 2, positions=positions)
+        with self.assertRaisesRegex(ValueError, "A nested Newton source must be '/World/envs/env_0/Robot/Attachment'"):
+            NewtonReplicateContext(self.sim).replicate(overlapping, (0, 1))
 
     def test_visualization_builder_uses_clone_plan_sources_and_rewrites_labels(self):
         stage = Usd.Stage.CreateInMemory()
@@ -278,9 +326,11 @@ class TestVisualizationClonePlan(unittest.TestCase):
                 for _, path in env_paths
             )
             + (AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Material", cloning_contexts=()),),
-            positions=np.asarray(((0, 0, 0), (3, 0, 0), (6, 0, 0)), dtype=np.float32),
+            positions=np.asarray(((4, 1, 0), (7, 1, 0), (10, 1, 0)), dtype=np.float32),
         )
         builder, _, _ = NewtonReplicateContext(self.sim).replicate(plan, (0, 1))
+        # Authored source placement and planned destination placement are independent.
+        np.testing.assert_allclose(np.asarray(builder.body_q)[:, :3], plan.positions)
         self.assertEqual(builder.body_label, [f"/World/envs/env_{i}/Object" for i in range(3)])
         self.assertEqual(
             builder.shape_label,
@@ -324,7 +374,10 @@ class TestVisualizationClonePlan(unittest.TestCase):
         assets = tuple(
             AssetBaseCfg(prim_path="/Scene/copy_[^/]+/" + name, spawn=SpawnerCfg(spawn_path=source))
             for name, source in zip(("Parent", "Volume", "Tet"), sources[:3], strict=True)
-        ) + (AssetBaseCfg(prim_path="/Shared"),)
+        ) + (
+            AssetBaseCfg(prim_path="/Shared"),
+            AssetBaseCfg(prim_path="/Scene/copy_[^/]+/Parent/Cloth", spawn=SpawnerCfg(spawn_path=roots[0])),
+        )
         env_ids = np.array([7, 9, 12])
         quaternions = np.asarray([[0, 0, 0, 1], [0, 0, 0, 1], [0, 0, 2**-0.5, 2**-0.5]], dtype=np.float32)
         for positions in (np.array([[10, 0, 0], [20, 0, 0], [30, 0, 0]], dtype=np.float32), None):
@@ -333,25 +386,25 @@ class TestVisualizationClonePlan(unittest.TestCase):
                     self.sim.close_backend(resource)
                 options = dict(shared_assets=(3,), env_template="/Scene/copy_{}")
                 options.update(clone_strategy=lambda _weights, _count: np.array([0, 1, 0]), positions=positions)
-                plan = make_clone_plan(assets, ((0,), (1, 1, 2)), 3, **options)
+                plan = make_clone_plan(assets, ((0,), (1, 1, 2, 4)), 3, **options)
                 with mock.patch.object(
                     newton.ModelBuilder, "add_cloth_mesh", autospec=True, side_effect=newton.ModelBuilder.add_cloth_mesh
                 ) as add_cloth:
-                    options = dict(plan=plan, asset_prototype_ids=range(4))
+                    options = dict(plan=plan, asset_prototype_ids=range(5))
                     options.update(positions=positions, quaternions=quaternions)
                     builder, _, _ = replicate_module._replicate_newton(stage, env_ids, self.sim, **options)
                 cfg = NewtonBackendCfg(physics_cfg=self.sim.cfg.physics, device=self.sim.device)
                 backend = self.sim.get_or_create_backend(cfg)
                 offsets = backend.geometry_offsets
-                self.assertEqual(add_cloth.call_count, 3)  # Three prototypes, not five destination meshes.
-                np.testing.assert_array_equal(np.bincount(np.asarray(builder.particle_world) + 1), [3, 3, 16, 3])
+                self.assertEqual(add_cloth.call_count, 4)  # One copy for each source builder that needs the cloth.
+                np.testing.assert_array_equal(np.bincount(np.asarray(builder.particle_world) + 1), [3, 3, 19, 3])
                 expected = {"/Shared/sim": vertices[:3]}
                 origins = np.zeros((3, 3)) if positions is None else positions
                 for world, env_id in enumerate(env_ids):
                     xform = wp.transform(origins[world], quaternions[world])
-                    meshes = {"Volume/vis": visual, "Volume_1/vis": visual, "Tet/sim": vertices}
-                    if world != 1:
-                        meshes = {"Parent/Cloth/sim": vertices[:3] + [15, 0, 0] - origins[0]}
+                    meshes = {"Parent/Cloth/sim": vertices[:3] + [5, 0, 0]}
+                    if world == 1:
+                        meshes.update({"Volume/vis": visual, "Volume_1/vis": visual, "Tet/sim": vertices})
                     for suffix, points in meshes.items():
                         expected[f"/Scene/copy_{env_id}/{suffix}"] = np.asarray(
                             [wp.transform_point(xform, wp.vec3(point)) for point in points]
@@ -435,7 +488,10 @@ class TestReplicationNamesItsCopies(unittest.TestCase):
             return add_builder(destination, asset, **kwargs)
 
         with mock.patch.object(newton.ModelBuilder, "add_builder", append_copy):
-            replicate_builder_mapping(builder, plan, positions, quaternions, assets, env_ids=env_ids)
+            replicate_builder_mapping(
+                builder, plan, positions, quaternions, assets,
+                source_inverse={path: np.asarray(wp.transform()) for path in assets}, env_ids=env_ids,
+            )  # fmt: skip
         for name, source_labels in original.items():
             expected = [
                 label.replace(self._SRC, f"{self._ENV.format(i)}/Robot", 1) for i in env_ids for label in source_labels
@@ -460,7 +516,10 @@ class TestReplicationNamesItsCopies(unittest.TestCase):
         root = self._ENV.format(0)
         plan = make_clone_plan((AssetBaseCfg(prim_path=root),), ((0,),), len(env_ids))
         rooted = newton.ModelBuilder()
-        replicate_builder_mapping(rooted, plan, positions, quaternions, {root: source}, env_ids=env_ids)
+        replicate_builder_mapping(
+            rooted, plan, positions, quaternions, {root: source},
+            source_inverse={root: np.asarray(wp.transform())}, env_ids=env_ids,
+        )  # fmt: skip
         for name in label_names:
             self.assertEqual(getattr(rooted, name), getattr(builder, name))
         for name in source_paths:
@@ -479,8 +538,9 @@ class TestReplicationNamesItsCopies(unittest.TestCase):
         positions = np.zeros((2, 3), dtype=np.float32)
         rotations = np.array([[0.0, 0.0, 0.0, 1.0]] * 2, dtype=np.float32)
         replicate_builder_mapping(
-            builder, plan, positions, rotations, {self._SRC: source}, env_ids=env_ids, per_world_builder_hooks=(hook,)
-        )
+            builder, plan, positions, rotations, {self._SRC: source},
+            source_inverse={self._SRC: np.asarray(wp.transform())}, env_ids=env_ids, per_world_builder_hooks=(hook,),
+        )  # fmt: skip
         self.assertEqual(
             builder.body_label,
             [f"/World/envs/env_{env_id}/Robot/{label}" for env_id in env_ids for label in ("base", "hook")],

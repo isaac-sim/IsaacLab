@@ -17,7 +17,7 @@ from isaaclab.assets.articulation.ordering_kernels import (
     reorder_joint_state_backend_to_user,
     write_2d_user_to_backend_with_indices,
     write_2d_user_to_backend_with_mask,
-    write_3d_user_to_backend_with_indices,
+    write_3d_user_to_backend_with_indices_and_sim_ids,
     write_3d_user_to_backend_with_mask,
     write_float_user_to_backend_with_indices,
     write_float_user_to_backend_with_mask,
@@ -514,7 +514,8 @@ def test_write_3d_user_to_backend_updates_component_buffers(selection: str) -> N
     if selection == "indices":
         env_ids = wp.array(np.asarray([0], dtype=np.int32), dtype=wp.int32, device="cpu")
         user_ids = wp.array(np.asarray([0, 2], dtype=np.int32), dtype=wp.int32, device="cpu")
-        write_3d_user_to_backend_with_indices(
+        sim_env_ids = wp.full(env_ids.shape, -1, dtype=wp.int32, device="cpu")
+        write_3d_user_to_backend_with_indices_and_sim_ids(
             input_data,
             env_ids,
             user_ids,
@@ -523,9 +524,11 @@ def test_write_3d_user_to_backend_updates_component_buffers(selection: str) -> N
             True,
             user_data,
             backend_data,
+            sim_env_ids=sim_env_ids,
             dtype=wp.float32,
             device="cpu",
         )
+        np.testing.assert_array_equal(sim_env_ids.numpy(), [0])
     else:
         env_mask = wp.array(np.asarray([True, False]), dtype=wp.bool, device="cpu")
         user_mask = wp.array(np.asarray([True, False, True]), dtype=wp.bool, device="cpu")

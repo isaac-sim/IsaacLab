@@ -359,6 +359,7 @@ class KitSceneUiCameraFeedPanel:
         viewer_start_anchor: KitSceneUiViewerStartAnchor | None = None,
         head_locked_anchor: KitSceneUiHeadLockedAnchor | None = None,
         presenter: _KitSceneUiCameraFeedPresenter | None = None,
+        env_prim_path: str | None = None,
     ):
         """Create the image provider and attach its panel to the XR scene."""
         self._closed = False
@@ -370,6 +371,7 @@ class KitSceneUiCameraFeedPanel:
         )
         self._pose_registration = None
         self._presenter = presenter
+        self._env_prim_path = env_prim_path
         self._pose_ready = descriptor.placement == "world"
         self._partition_ready = presenter is None
 
@@ -669,7 +671,9 @@ class _KitSceneUiCameraFeedPresenter:
         )
         return torch.empty_like(image, device=previous_source.device, memory_format=torch.contiguous_format)
 
-    def create_panel(self, descriptor: Any, width: int, height: int) -> KitSceneUiCameraFeedPanel:
+    def create_panel(
+        self, descriptor: Any, width: int, height: int, *, env_prim_path: str | None = None
+    ) -> KitSceneUiCameraFeedPanel:
         viewer_start_anchor = None
         head_locked_anchor = None
         if descriptor.placement == "viewer_start":
@@ -687,6 +691,7 @@ class _KitSceneUiCameraFeedPresenter:
             viewer_start_anchor=viewer_start_anchor,
             head_locked_anchor=head_locked_anchor,
             presenter=self if descriptor.use_scene_partition else None,
+            env_prim_path=env_prim_path,
         )
 
     @staticmethod
@@ -757,13 +762,14 @@ class _KitSceneUiCameraFeedPresenter:
         try:
             if get_settings_manager().get(ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING) is not False:
                 raise RuntimeError("Isolated XR PiP requires showAllPartitionsByDefault=False.")
-            env_root = stage.GetPrimAtPath("/World/envs/env_0")
-            env_partition = env_root.GetAttribute("primvars:omni:scenePartition") if env_root else None
-            if env_partition and env_partition.Get() not in (None, ""):
-                raise RuntimeError(
-                    "Isolated XR PiP requires an unpartitioned environment before camera creation; "
-                    "late partition changes can hide instanced geometry."
-                )
+            for env_path in {panel._env_prim_path for panel in cls._partition_panels} - {None}:
+                env_root = stage.GetPrimAtPath(env_path)
+                env_partition = env_root.GetAttribute("primvars:omni:scenePartition") if env_root else None
+                if env_partition and env_partition.Get() not in (None, ""):
+                    raise RuntimeError(
+                        "Isolated XR PiP requires an unpartitioned environment before camera creation; "
+                        "late partition changes can hide instanced geometry."
+                    )
             camera = stage.GetPrimAtPath(_XR_CAMERA_PATH)
             if camera:
                 cls._author_scene_partition(camera, "omni:scenePartition", _XR_CAMERA_PIP_PARTITION)

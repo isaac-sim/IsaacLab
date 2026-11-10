@@ -14,6 +14,7 @@ from isaaclab_newton.physics import (
     NewtonSoftContactCfg,
     VBDSolverCfg,
 )
+from isaaclab_newton.physics.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonDeformableBodyMaterialCfg
 from isaaclab_physx.physics import PhysxCfg
@@ -21,7 +22,6 @@ from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxDeformableBodyPro
 from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, VisualMaterialCfg
 from isaaclab.assets.deformable_object import DeformableObjectCfg
 from isaaclab.controllers import DifferentialIKControllerCfg
@@ -42,12 +42,10 @@ from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.visualizers import VisualizerCfg
 
-from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
-
 from isaaclab_tasks.utils import PresetCfg, preset
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
-from isaaclab_assets.robots.franka import FRANKA_PANDA_MENAGERIE_CFG
+from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG
 
 from ... import mdp
 
@@ -55,7 +53,7 @@ from ... import mdp
 # Scene assets
 ##
 
-# shared volume material parameters; the Newton configuration uses the equivalent Lame parameters
+# Shared volume material parameters. The Newton config below uses the equivalent Lame parameters.
 YOUNGS_MODULUS = 2e5
 POISSONS_RATIO = 0.3
 
@@ -105,6 +103,7 @@ class DeformableCfg(PresetCfg):
 
     physx: DeformableObjectCfg = DeformableObjectCfg(
         prim_path="{ENV_REGEX_NS}/Deformable",
+        cloning_contexts=("isaaclab.cloner:UsdReplicateContext",),
         init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.05)),
         spawn=sim_utils.MeshCuboidCfg(
             size=(0.3, 0.04, 0.04),
@@ -140,7 +139,7 @@ class PhysicsCfg(PresetCfg):
                         ls_iterations=50,
                         integrator="implicitfast",
                     ),
-                    bodies=[r"/World/envs/env_[^/]+/Robot"],
+                    bodies=[r"{ENV_REGEX_NS}/Robot"],
                 ),
                 CouplerEntryCfg(
                     name="soft",
@@ -154,8 +153,8 @@ class PhysicsCfg(PresetCfg):
                     source="rigid",
                     destination="soft",
                     bodies=[
-                        r"/World/envs/env_[^/]+/Robot/Geometry/.*panda_hand",
-                        r"/World/envs/env_[^/]+/Robot/Geometry/.*panda_(left|right)finger",
+                        r"{ENV_REGEX_NS}/Robot/Geometry/.*panda_hand",
+                        r"{ENV_REGEX_NS}/Robot/Geometry/.*panda_(left|right)finger",
                     ],
                     collide_interval=1,
                     collision_pipeline=NewtonCollisionPipelineCfg(
@@ -189,12 +188,8 @@ class PhysicsCfg(PresetCfg):
 class FrankaSoftBaseSceneCfg(InteractiveSceneCfg):
     """Scene for the Franka deformable environment, also the base of the cloth and cable scenes."""
 
-    robot: ArticulationCfg = replace(FRANKA_PANDA_MENAGERIE_CFG, prim_path="{ENV_REGEX_NS}/Robot")
-    robot.spawn.variants = preset(
-        default={"Physics": "mujoco"},
-        isaacsim_physx={"Physics": "physx"},
-        physx={"Physics": "physx"},
-    )
+    robot: ArticulationCfg = replace(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+    robot.spawn.variants["Physics"] = preset(default="mujoco", isaacsim_physx="physx", physx="physx", ovphysx="physx")
 
     # end-effector frame for reward shaping
     ee_frame: FrameTransformerCfg = FrameTransformerCfg(
@@ -241,11 +236,11 @@ class FrankaSoftBaseSceneCfg(InteractiveSceneCfg):
     )
 
     def __post_init__(self):
+        # Inherit shared joint properties and override the checkpoint's task-specific gains and limits.
         self.robot.actuators = {
             # inspired by libfranka's joint_impedance_control.cpp
-            "panda_arm": ImplicitActuatorCfg(
-                joint_names_expr=["panda_joint[1-7]"],
-                joint_effort_limit={"panda_joint[1-4]": 87.0, "panda_joint[5-7]": 12.0},
+            "panda_arm": replace(
+                FRANKA_PANDA_CFG.actuators["panda_arm"],
                 joint_velocity_limit={"panda_joint[1-4]": 2.175, "panda_joint[5-7]": 2.61},
                 stiffness={
                     "panda_joint[1-4]": 600.0,
@@ -265,22 +260,20 @@ class FrankaSoftBaseSceneCfg(InteractiveSceneCfg):
                     "panda_joint[5-7]": 0.2055,
                 },
             ),
-            "panda_hand": ImplicitActuatorCfg(
-                joint_names_expr=["panda_finger_joint1"],
-                joint_effort_limit=70.0,
+            "panda_hand": replace(
+                FRANKA_PANDA_CFG.actuators["panda_hand"],
+                joint_effort_limit=500.0,
                 actuator_velocity_limit=0.2,
                 joint_velocity_limit=2.0,
-                stiffness=350.0,
-                damping=175.0,
+                stiffness=1000.0,
+                damping=100.0,
                 armature=0.1,
             ),
-            "panda_finger2_passive": ImplicitActuatorCfg(
-                joint_names_expr=["panda_finger_joint2"],
+            "panda_finger2_passive": replace(
+                FRANKA_PANDA_CFG.actuators["panda_finger2_passive"],
                 joint_effort_limit=1.0,
                 actuator_velocity_limit=0.2,
                 joint_velocity_limit=2.0,
-                stiffness=0.0,
-                damping=0.0,
                 armature=0.1,
             ),
         }
@@ -288,11 +281,6 @@ class FrankaSoftBaseSceneCfg(InteractiveSceneCfg):
         # disable gravity on the arm so the low-gain actuators do not fight gravity sag, the dominant
         # source of steady-state IK tracking error
         self.robot.spawn.rigid_props.disable_gravity = True
-
-        # increase franka gripper stiffness
-        self.robot.actuators["panda_hand"].joint_effort_limit = 500.0
-        self.robot.actuators["panda_hand"].stiffness = 1000.0
-        self.robot.actuators["panda_hand"].damping = 100.0
 
 
 @configclass
@@ -324,7 +312,6 @@ class CommandsCfg:
             pitch=(0.0, 0.0),
             yaw=(0.0, 0.0),
         ),
-        success_vis_material_name="table_material",
         success_vis_colors=((0.8, 0.5, 0.5), (0.5, 0.8, 0.5)),
     )
 
@@ -600,12 +587,10 @@ class TerminationsCfg:
 class FrankaSoftSceneCfg(PresetCfg):
     """Scene presets for soft-beam lifting."""
 
-    newton_mjwarp_vbd_proxy: FrankaSoftBaseSceneCfg = FrankaSoftBaseSceneCfg(
-        num_envs=2048, env_spacing=2.0, replicate_physics=True
-    )
+    newton_mjwarp_vbd_proxy: FrankaSoftBaseSceneCfg = FrankaSoftBaseSceneCfg(num_envs=2048, env_spacing=2.0)
 
-    # Isaac Sim PhysX does not support replicating physics for deformable objects
-    physx: FrankaSoftBaseSceneCfg = FrankaSoftBaseSceneCfg(num_envs=2048, env_spacing=2.0, replicate_physics=False)
+    # The PhysX deformable asset uses USD replication; other scene assets keep their backend route.
+    physx: FrankaSoftBaseSceneCfg = FrankaSoftBaseSceneCfg(num_envs=2048, env_spacing=2.0)
     isaacsim_physx = physx
 
     default = newton_mjwarp_vbd_proxy
@@ -615,12 +600,8 @@ class FrankaSoftSceneCfg(PresetCfg):
 class FrankaSoftCameraSceneCfg(PresetCfg):
     """Scene presets for visual Franka soft lifting."""
 
-    newton_mjwarp_vbd_proxy: FrankaSoftBaseCameraSceneCfg = FrankaSoftBaseCameraSceneCfg(
-        num_envs=128, env_spacing=2.0, replicate_physics=True
-    )
-    physx: FrankaSoftBaseCameraSceneCfg = FrankaSoftBaseCameraSceneCfg(
-        num_envs=128, env_spacing=2.0, replicate_physics=False
-    )
+    newton_mjwarp_vbd_proxy: FrankaSoftBaseCameraSceneCfg = FrankaSoftBaseCameraSceneCfg(num_envs=128, env_spacing=2.0)
+    physx: FrankaSoftBaseCameraSceneCfg = FrankaSoftBaseCameraSceneCfg(num_envs=128, env_spacing=2.0)
     isaacsim_physx = physx
     default = newton_mjwarp_vbd_proxy
 
@@ -651,10 +632,13 @@ class FrankaSoftEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.render_interval = self.decimation
         self.sim.physics = PhysicsCfg()
         # visualizer settings
-        self.sim.default_visualizer_cfg = _FrankaSoftVisualizerCfg(eye=(0.75, 0.25, 0.65), lookat=(0.0, 0.75, 0.4))
+        self.sim.visualizer_cfgs = VisualizerCfg(eye=(0.75, 0.25, 0.65), lookat=(0.0, 0.75, 0.4))
 
     def play_mode(self):
         super().play_mode()
+        for command_cfg in vars(self.commands).values():
+            if isinstance(command_cfg, mdp.ObjectUniformPoseCommandCfg):
+                command_cfg.success_vis_material_name = "table_material"
         if self.curriculum is not None:
             self.curriculum.gravity = None
 
@@ -670,11 +654,3 @@ class FrankaSoftCameraEnvCfg(FrankaSoftEnvCfg):
         super().__post_init__()
         # warm up the RTX render product and annotator; Newton skips the PhysX asset-loading render loop
         self.num_rerenders_on_reset = 2
-
-
-@configclass
-class _FrankaSoftVisualizerCfg(VisualizerCfg):
-    """Visualizer with a full-HD window for the soft-body environments."""
-
-    window_width: int = 1920
-    window_height: int = 1080

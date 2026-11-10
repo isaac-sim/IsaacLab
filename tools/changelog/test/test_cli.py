@@ -48,7 +48,7 @@ def commit(repo, message):
 
 @pytest.fixture
 def repo(tmp_path, monkeypatch):
-    """Packages ``pkg`` and ``other`` at version 1.0.0, locked, with ``origin/develop`` at ``HEAD``."""
+    """Packages ``pkg`` and ``other`` at version 1.0.0, locked, with ``origin/main`` at ``HEAD``."""
     for pkg in ("pkg", "other"):
         write(
             tmp_path,
@@ -60,38 +60,49 @@ def repo(tmp_path, monkeypatch):
             },
         )
     write(tmp_path, {"uv.lock": lock(), "pyproject.toml": SOURCES})
-    git(tmp_path, "init", "-q", "-b", "develop")
+    git(tmp_path, "init", "-q", "-b", "main")
     commit(tmp_path, "base")
-    git(tmp_path, "update-ref", "refs/remotes/origin/develop", "HEAD")
+    git(tmp_path, "update-ref", "refs/remotes/origin/main", "HEAD")
     monkeypatch.setattr(cli, "REPO_ROOT", tmp_path)
     return tmp_path
 
 
-def check(include_worktree=False):
-    return cli.cmd_check(argparse.Namespace(base_ref="develop", include_worktree=include_worktree))
+def check(include_worktree=False, base_ref="main"):
+    return cli.cmd_check(argparse.Namespace(base_ref=base_ref, include_worktree=include_worktree))
 
 
 @pytest.mark.parametrize(
-    ("files", "status"),
+    ("files", "status", "base_ref"),
     [
-        ({FRAGMENTS + "a.fixed.rst": "* Fixed x.\n  More on x.\n", FRAGMENTS + "a.major": ""}, 0),
-        ({FRAGMENTS + "a.skip": ""}, 0),
-        ({FRAGMENTS + "a.minor.rst": "* Added x.\n"}, 1),  # pre-towncrier name
-        ({FRAGMENTS + "a.minor": ""}, 1),  # a tier file alone is not an entry
-        ({FRAGMENTS + "a.fixed.rst": ""}, 1),
-        ({FRAGMENTS + "a.fixed.rst": "* Fixed x.\nFlush-left paragraph.\n"}, 1),
+        ({FRAGMENTS + "a.fixed.rst": "* Fixed x.\n  More on x.\n", FRAGMENTS + "a.major": ""}, 0, "main"),
+        ({FRAGMENTS + "a.skip": ""}, 0, "upstream/main"),
+        ({FRAGMENTS + "a.minor.rst": "* Added x.\n"}, 1, "upstream/main"),  # pre-towncrier name
+        ({FRAGMENTS + "a.minor": ""}, 1, "refs/heads/main"),  # a tier file alone is not an entry
+        ({FRAGMENTS + "a.fixed.rst": ""}, 1, "commit"),
+        ({FRAGMENTS + "a.fixed.rst": "* Fixed x.\nFlush-left paragraph.\n"}, 1, "main"),
     ],
 )
-def test_check_requires_a_valid_fragment_for_a_changed_package(repo, files, status):
+def test_check_requires_a_valid_fragment_for_a_changed_package(repo, files, status, base_ref):
+    # Rotate supported base forms across existing cases without multiplying Git fixtures.
+    git(repo, "update-ref", "refs/remotes/upstream/main", "HEAD")
+    if base_ref == "commit":
+        base_ref = git(repo, "rev-parse", "HEAD").strip()
+    git(repo, "switch", "-qc", "feature")
     write(repo, {"source/pkg/code.py": "x = 1\n", **files})
     commit(repo, "change")
-    assert check() == status
+    # Misleading origin branches must not override an explicit ref or SHA.
+    if base_ref != "main":
+        git(repo, "update-ref", f"refs/remotes/origin/{base_ref}", "HEAD")
+    assert check(base_ref=base_ref) == status
+    if base_ref == "refs/heads/main":
+        git(repo, "update-ref", "refs/remotes/origin/HEAD", "HEAD~1")
+        assert check(base_ref="HEAD") == 0
 
 
 def test_check_rejects_editing_or_deleting_a_pending_fragment(repo, capsys):
     write(repo, {FRAGMENTS + "a.fixed.rst": "* Fixed x.\n", FRAGMENTS + "b.fixed.rst": "* Fixed y.\n"})
     commit(repo, "pending fragments")
-    git(repo, "update-ref", "refs/remotes/origin/develop", "HEAD")
+    git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
     write(repo, {FRAGMENTS + "a.fixed.rst": "* Fixed x differently.\n"})
     (repo / FRAGMENTS / "b.fixed.rst").unlink()
     git(repo, "add", "-A")
@@ -139,7 +150,7 @@ def fake_tools(repo, monkeypatch, relocked, stray=False, lock_fails=False):
             write(repo, {"source/pkg/docs/CHANGELOG.rst": CHANGELOG + "\n1.0.1 (today)\n"})
             if stray:
                 write(repo, {"notes.txt": "a file no compile output should touch"})
-            (repo / FRAGMENTS / "a.fixed.rst").unlink()
+            git(repo, "rm", "-q", FRAGMENTS + "a.fixed.rst")
             return ""
         if cmd[:2] == ("uv", "lock"):
             write(repo, {"uv.lock": relocked})
@@ -179,16 +190,30 @@ ROOT = '\n[[package]]\nname = "root"\nversion = "{}"\nsource = {{ virtual = "." 
 
 
 @pytest.mark.parametrize(
-    ("base", "relocked", "lock_fails"),
+    ("base", "relocked", "lock_fails", "package_without_fragments"),
     [
-        (lock(), lock(header="version = 1\nrevision = 3\n"), False),
-        (lock() + ROOT.format("0.1.0"), lock(pkg="1.0.1") + ROOT.format("0.2.0"), False),  # only versions move
-        (lock(), lock(pkg="1.0.1"), True),
+        (lock(), lock(header="version = 1\nrevision = 3\n"), False, True),
+        (
+            lock() + ROOT.format("0.1.0"),
+            lock(pkg="1.0.1") + ROOT.format("0.2.0"),
+            False,
+            False,
+        ),  # only versions move
+        (lock(), lock(pkg="1.0.1"), True, False),
     ],
     ids=["re-serialized", "non-local-version-moved", "uv-lock-failed"],
 )
-def test_compile_aborts_when_the_relock_fails(repo, monkeypatch, base, relocked, lock_fails):
+def test_compile_aborts_when_the_relock_fails(repo, monkeypatch, base, relocked, lock_fails, package_without_fragments):
     write(repo, {"uv.lock": base, FRAGMENTS + "a.fixed.rst": "* Fixed x.\n", "source/other/changelog.d/b.skip": ""})
+    (repo / FRAGMENTS / ".gitkeep").unlink()
+    if package_without_fragments:
+        write(
+            repo,
+            {
+                "source/no-fragments/docs/CHANGELOG.rst": CHANGELOG,
+                "source/no-fragments/pyproject.toml": '[project]\nname = "no-fragments"\nversion = "1.0.0"\n',
+            },
+        )
     commit(repo, "fragments")
     fake_tools(repo, monkeypatch, relocked, lock_fails=lock_fails)
     assert cli.cmd_compile(argparse.Namespace()) == 1

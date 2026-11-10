@@ -3,22 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_teleop import IsaacTeleopCfg
-
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 from isaaclab.utils import configclass, replace
 
-# Marker consumed by ``env_test_utils._is_teleop_env`` to bucket teleop
-# environments in the test suite.
-_TELEOP_AVAILABLE = True
+from isaaclab_tasks.contrib import ISAACLAB_TELEOP_AVAILABLE
 
 from . import stack_joint_pos_env_cfg
 
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets.robots.franka import FRANKA_PANDA_LEGACY_HIGH_PD_CFG  # isort: skip
+from isaaclab_assets.robots.franka import FRANKA_PANDA_HIGH_PD_CFG  # isort: skip
 
 
 def _build_franka_stack_pipeline():
@@ -114,7 +110,9 @@ class FrankaCubeStackEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
 
         # Set Franka as robot
         # We switch here to a stiffer PD controller for IK tracking to be better.
-        self.scene.robot = replace(FRANKA_PANDA_LEGACY_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+        robot_variants = self.scene.robot.spawn.variants
+        self.scene.robot = replace(FRANKA_PANDA_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot.spawn.variants = robot_variants
 
         # Set actions for the specific robot type (franka)
         self.actions.arm_action = DifferentialInverseKinematicsActionCfg(
@@ -125,8 +123,11 @@ class FrankaCubeStackEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
         )
 
         # Isaac Capture-based teleoperation pipeline
-        self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=_build_franka_stack_pipeline,
-            sim_device=self.sim.device,
-            xr_cfg=self.xr,
-        )
+        if ISAACLAB_TELEOP_AVAILABLE:
+            from isaaclab_teleop import IsaacTeleopCfg
+
+            self.isaac_teleop = IsaacTeleopCfg(
+                pipeline_builder=_build_franka_stack_pipeline,
+                sim_device=self.sim.device,
+                **({"xr_cfg": self.xr} if self.xr is not None else {}),
+            )

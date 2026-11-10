@@ -11,11 +11,11 @@ from isaaclab.sim.spawners.materials import CableMaterialCfg
 from isaaclab.sim.spawners.shapes import CableCfg
 
 # Cable joint degrees of freedom, in the order Newton lays them out.
-_STRETCH, _SHEAR, _BEND, _TWIST = range(4)
+_SHEAR_X, _SHEAR_Y, _STRETCH, _BEND_X, _BEND_Y, _TWIST = range(6)
 
 
 def _import_cable_joint_stiffness(**material_kwargs) -> list[float]:
-    """Spawn a cable, import it into Newton, and return its first joint's per-DOF stiffness."""
+    """Spawn a cable, import it into Newton, and return its first cable joint's per-DOF stiffness."""
     sim_utils.create_new_stage()
     stage = sim_utils.get_current_stage()
     cfg = CableCfg(
@@ -28,33 +28,37 @@ def _import_cable_joint_stiffness(**material_kwargs) -> list[float]:
 
     builder = newton.ModelBuilder()
     builder.add_usd(stage, root_path="/World/Cable")
-    dof0 = builder.joint_qd_start[0]
-    return [builder.joint_target_ke[dof0 + offset] for offset in range(4)]
+    dof0 = builder.joint_qd_start[builder.joint_type.index(newton.JointType.ROD)]
+    return builder.joint_target_ke[dof0 : dof0 + 6]
 
 
 def test_newton_cable_authored_shear_and_twist_override_fallbacks():
     """Test that unset shear/twist reuse stretch/bend and authored moduli decouple them."""
     fallback = _import_cable_joint_stiffness()
-    assert fallback[_SHEAR] == pytest.approx(fallback[_STRETCH])
-    assert fallback[_TWIST] == pytest.approx(fallback[_BEND])
+    for shear, bend in ((_SHEAR_X, _BEND_X), (_SHEAR_Y, _BEND_Y)):
+        assert fallback[shear] == pytest.approx(fallback[_STRETCH])
+        assert fallback[_TWIST] == pytest.approx(fallback[bend])
     stiffness = _import_cable_joint_stiffness(shear_stiffness=9.0e9, twist_stiffness=7.0e7)
 
     # Stretch and bend are untouched; only the newly authored degrees of freedom move.
     assert stiffness[_STRETCH] == pytest.approx(fallback[_STRETCH])
-    assert stiffness[_BEND] == pytest.approx(fallback[_BEND])
-    assert stiffness[_SHEAR] > 100.0 * stiffness[_STRETCH]
-    assert stiffness[_TWIST] > 100.0 * stiffness[_BEND]
+    for shear, bend in ((_SHEAR_X, _BEND_X), (_SHEAR_Y, _BEND_Y)):
+        assert stiffness[bend] == pytest.approx(fallback[bend])
+        assert stiffness[shear] > 100.0 * stiffness[_STRETCH]
+        assert stiffness[_TWIST] > 100.0 * stiffness[bend]
 
 
 def test_newton_cable_partial_and_zero_shear_twist():
     """Test that one authored modulus leaves the other's fallback intact and an authored zero is kept."""
     only_shear = _import_cable_joint_stiffness(shear_stiffness=9.0e9)
-    assert only_shear[_SHEAR] > 100.0 * only_shear[_STRETCH]
-    assert only_shear[_TWIST] == pytest.approx(only_shear[_BEND])
+    for shear, bend in ((_SHEAR_X, _BEND_X), (_SHEAR_Y, _BEND_Y)):
+        assert only_shear[shear] > 100.0 * only_shear[_STRETCH]
+        assert only_shear[_TWIST] == pytest.approx(only_shear[bend])
 
     zero_twist = _import_cable_joint_stiffness(twist_stiffness=0.0)
     assert zero_twist[_TWIST] == pytest.approx(0.0)
-    assert zero_twist[_BEND] > 0.0
+    for bend in (_BEND_X, _BEND_Y):
+        assert zero_twist[bend] > 0.0
 
 
 def test_newton_imports_cable_without_registry():
@@ -81,9 +85,9 @@ def test_newton_imports_cable_without_registry():
     cable_attrs = import_result["path_cable_attrs"][cable_path]
 
     assert builder.body_count == 2
-    assert builder.joint_count == 1
+    assert builder.joint_type == [newton.JointType.FREE, newton.JointType.ROD]
     assert builder.shape_count == 2
-    assert import_result["path_cable_map"][cable_path] == ([0, 1], [0])
+    assert import_result["path_cable_map"][cable_path] == ([0, 1], [1])
     assert cable_attrs["closed"] is False
     assert cable_attrs["material"]["thickness"] == pytest.approx(material.thickness)
     assert cable_attrs["material"]["density"] == pytest.approx(material.density)

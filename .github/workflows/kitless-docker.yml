@@ -6,7 +6,7 @@
 # Builds and validates the kit-less training image
 # (docker/Dockerfile.kitless). This is an install/build test of the shipped
 # container artifact: broader library coverage remains in the build.yaml test
-# matrix, and documented native install paths remain in Installation Tests.
+# matrix. Fresh native and wheel installs can be checked with tools/run_install_ci.py.
 
 name: Kit-less Docker Image
 
@@ -51,7 +51,6 @@ jobs:
           ^docker/test/test_dockerfile_nonroot\.py$ :: Dockerfile contract tests
           ^docker/test/test_security_dependencies\.py$ :: Container dependency tests
           ^docker/test/requirements\.txt$ :: Locked container test dependencies
-          ^docker/scripts/install_git_lfs\.sh$ :: Verified Git LFS installer
           ^docker/utils/container_interface\.py$ :: Container profile implementation
           ^docker/utils/volume_mounts\.py$ :: Container volume helper
           ^isaaclab\.sh$ :: Install CLI wrapper

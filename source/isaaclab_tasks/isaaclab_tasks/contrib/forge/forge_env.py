@@ -201,9 +201,11 @@ class ForgeEnv(FactoryEnv):
         # clipping yaw will effectively cause slow motions. When we clip, we also need to make
         # sure we avoid the joint limit.
 
-        # (2.b.i) Get current and desired Euler angles.
-        curr_roll, curr_pitch, curr_yaw = euler_xyz_from_quat(self.fingertip_midpoint_quat)
-        desired_roll, desired_pitch, desired_yaw = euler_xyz_from_quat(ctrl_target_fingertip_preclipped_quat)
+        # (2.b.i) Get current and desired Euler angles in the positive range expected by roll and yaw clipping.
+        curr_roll, curr_pitch, curr_yaw = euler_xyz_from_quat(self.fingertip_midpoint_quat, wrap_to_2pi=True)
+        desired_roll, desired_pitch, desired_yaw = euler_xyz_from_quat(
+            ctrl_target_fingertip_preclipped_quat, wrap_to_2pi=True
+        )
         desired_xyz = torch.stack([desired_roll, desired_pitch, desired_yaw], dim=1)
 
         # (2.b.ii) Correct the direction of motion to avoid joint limit.

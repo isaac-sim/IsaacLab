@@ -16,9 +16,7 @@ ovphysx.types is pure Python with zero native dependencies, so this module is
 always safe to import regardless of USD state or native library loading.
 """
 
-from isaaclab_ov._runtime import import_ovphysx
-
-TensorType = import_ovphysx("ovphysx.types").TensorType
+from ovphysx.types import TensorType
 
 _TT = TensorType  # shorter reference for alias block
 

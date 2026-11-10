@@ -450,7 +450,9 @@ class BaseArticulation(AssetBase):
 
         A floating-base articulation can translate and rotate freely in space, so
         its base contributes 6 DoFs (3 linear, 3 angular). A fixed-base articulation
-        is bolted to the world and contributes 0.
+        is bolted to the world and contributes 0. A backend may also report 0 for a base
+        that is not fixed: Newton does for a root link jointed to the world by a non-free
+        joint (for example, a revolute joint), whose DoFs are regular joints.
 
         Use this to map an actuated-joint index ``j`` to its column in the Jacobian
         / mass matrix / gravity vector: ``column = j + num_base_dofs``.
@@ -1673,50 +1675,6 @@ class BaseArticulation(AssetBase):
         self.actuators.target_command.set_position_index(
             value=target, joint_ids=joint_ids, env_ids=env_ids, full_data=full_data
         )
-
-    def _write_deprecated_native_actuator_gain(
-        self,
-        writer_name: Literal["write_actuator_stiffness_to_sim", "write_actuator_damping_to_sim"],
-        gain_name: Literal["kp", "kd"],
-        values: torch.Tensor,
-        env_ids: torch.Tensor,
-        joint_ids: torch.Tensor,
-    ) -> None:
-        """Warn and forward a legacy native-controller gain write."""
-        from ...actuators.newton import write_group_parameter  # noqa: PLC0415
-
-        warnings.warn(
-            f"{writer_name} is deprecated in 3.x and will be removed in 3.1. Use "
-            "randomize_actuator_gains for managed randomization or "
-            "isaaclab.actuators.newton.write_group_parameter for direct controller writes.",
-            DeprecationWarning,
-            stacklevel=3,
-        )
-        # Split the articulation-level joint selection into per-group columns.
-        joint_ids_long = joint_ids.to(self.device, dtype=torch.long)
-        for group_name in getattr(self.actuators, "_native_group_names", ()):
-            group_joints = self.actuators._group_joint_indices[group_name]
-            if isinstance(group_joints, slice):
-                in_group = torch.ones_like(joint_ids_long, dtype=torch.bool)
-                group_columns = joint_ids_long
-            else:
-                column_of_joint = torch.full((self.num_joints,), -1, dtype=torch.long, device=self.device)
-                group_joints = group_joints.to(self.device, dtype=torch.long)
-                column_of_joint[group_joints] = torch.arange(group_joints.numel(), device=self.device)
-                columns = column_of_joint[joint_ids_long]
-                in_group = columns >= 0
-                group_columns = columns[in_group]
-            if not bool(in_group.any()):
-                continue
-            write_group_parameter(
-                self.actuators,
-                group_name,
-                "controller",
-                gain_name,
-                values[:, in_group],
-                env_ids=env_ids,
-                joint_ids=group_columns,
-            )
 
     @leapp_tensor_semantics(kind=OutputKindEnum.JOINT_POSITION, element_names_resolver=joint_names_resolver)
     def set_joint_position_target_mask(

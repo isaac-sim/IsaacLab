@@ -25,10 +25,10 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils import PresetCfg, preset
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
-from isaaclab_assets.robots.franka import FRANKA_PANDA_LEGACY_HIGH_PD_CFG
+from isaaclab_assets.robots.franka import FRANKA_PANDA_HIGH_PD_CFG
 
 BenchmarkMode = Literal["render", "physics_render"]
 """Animation mode used by the render benchmark.
@@ -144,10 +144,11 @@ class RenderBenchmarkSceneCfg(InteractiveSceneCfg):
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, -0.05)),
     )
     robot: ArticulationCfg = replace(
-        FRANKA_PANDA_LEGACY_HIGH_PD_CFG,
+        FRANKA_PANDA_HIGH_PD_CFG,
         prim_path="{ENV_REGEX_NS}/Robot",
-        init_state=replace(FRANKA_PANDA_LEGACY_HIGH_PD_CFG.init_state, pos=(1.0, 0.0, 0.0), rot=(0.0, 0.0, 1.0, 0.0)),
+        init_state=replace(FRANKA_PANDA_HIGH_PD_CFG.init_state, pos=(1.0, 0.0, 0.0), rot=(0.0, 0.0, 1.0, 0.0)),
     )
+    robot.spawn.variants["Physics"] = preset(default="mujoco", isaacsim_physx="physx", ovphysx="physx", physx="physx")
     cabinet: ArticulationCfg = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/Cabinet",
         spawn=sim_utils.UsdFileCfg(
@@ -217,7 +218,7 @@ class RenderBenchmarkFrankaCabinetEnvCfg(DirectRLEnvCfg):
 
     sim: SimulationCfg = SimulationCfg(dt=1.0 / 120.0, render_interval=2, physics=RenderBenchmarkPhysicsCfg())
 
-    scene: RenderBenchmarkSceneCfg = RenderBenchmarkSceneCfg(num_envs=4, env_spacing=3.0, replicate_physics=True)
+    scene: RenderBenchmarkSceneCfg = RenderBenchmarkSceneCfg(num_envs=4, env_spacing=3.0)
 
     joint_animation_amplitude: float = 0.4
     """Peak sinusoidal offset from each joint's default position [m or rad, depending on joint type].

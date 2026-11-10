@@ -100,6 +100,8 @@ deps = _dedup(
         if not _is_workspace_member(d) and _requirement_name(d) not in _WHEEL_EXCLUDED_DEPENDENCIES
     ]
 )
+# Keep the Torch pins index-resolvable. PyPI rejects direct URL requirements in
+# uploaded distributions, so consumers select the CUDA index during installation.
 
 # Optional dependencies: per extra, strip workspace members and unpublished integrations, then dedup.
 opt_deps = {}
@@ -134,7 +136,7 @@ lines.append("")
 lines.append("[project]")
 lines.append('name = "isaaclab"')
 lines.append(f'version = "{version}"')
-lines.append('requires-python = ">=3.12"')
+lines.append(f'requires-python = "{project["requires-python"]}"')
 lines.append('description = "Isaac Lab"')
 lines.append('license = {text = "BSD-3-Clause"}')
 lines.append("dependencies = [")

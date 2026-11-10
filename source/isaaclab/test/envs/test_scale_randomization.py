@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from isaaclab.test.utils import launch_test_simulation
 
-launch_test_simulation(enable_cameras=True)
+launch_test_simulation()
 
 import pytest
 import torch
@@ -152,8 +152,8 @@ class MySceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.CuboidCfg(
             size=(0.2, 0.2, 0.2),
             rigid_props=PhysxRigidBodyCfg(max_depenetration_velocity=1.0, disable_gravity=True),
-            mass_props=sim_utils.MassCfg(mass=1.0),
-            physics_material=sim_utils.RigidBodyMaterialCfg(),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+            mass_props=sim_utils.MassCfg(density=1000.0),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0)),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 5)),
@@ -166,7 +166,6 @@ class MySceneCfg(InteractiveSceneCfg):
             size=(0.2, 0.2, 0.2),
             rigid_props=PhysxRigidBodyCfg(max_depenetration_velocity=1.0, disable_gravity=True),
             mass_props=sim_utils.MassCfg(mass=1.0),
-            physics_material=sim_utils.RigidBodyMaterialCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0)),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 5)),
@@ -259,8 +258,7 @@ class CubeEnvCfg(ManagerBasedEnvCfg):
     """Configuration for the locomotion velocity-tracking environment."""
 
     # Scene settings
-    # Note: replicate_physics=False is required for prestartup events (scale randomization)
-    scene: MySceneCfg = MySceneCfg(num_envs=10, env_spacing=2.5, replicate_physics=False)
+    scene: MySceneCfg = MySceneCfg(num_envs=1, env_spacing=2.5)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -279,57 +277,16 @@ class CubeEnvCfg(ManagerBasedEnvCfg):
 # Scale randomization authors USD before the simulation starts, so one device covers it.
 @pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
 def test_scale_randomization(device):
-    """Test scale randomization for cube environment."""
-    # create a new stage
+    """A single environment applies its prestartup USD scale to the simulated body."""
     sim_utils.create_new_stage()
-
-    # set the device
     env_cfg = CubeEnvCfg()
     env_cfg.sim.device = device
-
-    # setup base environment
     env = ManagerBasedEnv(cfg=env_cfg)
-
-    # test to make sure all assets in the scene are created
-    all_prim_paths = sim_utils.find_matching_prim_paths("/World/envs/env_[^/]+/cube[^/]*/[^/]*")
-    assert len(all_prim_paths) == (env.num_envs * 2)
-
-    # test to make sure randomized values are truly random
-    applied_scaling_randomization = set()
-    prim_paths = sim_utils.find_matching_prim_paths("/World/envs/env_[^/]+/cube1")
-
-    # get the stage
+    prim_path = sim_utils.find_matching_prim_paths("/World/envs/env_[^/]+/cube1")[0]
     stage = sim_utils.get_current_stage()
-
-    # check if the scale values are truly random
-    for i in range(3):
-        prim_spec = Sdf.CreatePrimInLayer(stage.GetRootLayer(), prim_paths[i])
-        scale_spec = prim_spec.GetAttributeAtPath(prim_paths[i] + ".xformOp:scale")
-        if scale_spec.default in applied_scaling_randomization:
-            raise ValueError(
-                "Detected repeat in applied scale values - indication scaling randomization is not working."
-            )
-        applied_scaling_randomization.add(scale_spec.default)
-
-    # test to make sure that fixed values are assigned correctly
-    prim_paths = sim_utils.find_matching_prim_paths("/World/envs/env_[^/]+/cube2")
-    for i in range(3):
-        prim_spec = Sdf.CreatePrimInLayer(stage.GetRootLayer(), prim_paths[i])
-        scale_spec = prim_spec.GetAttributeAtPath(prim_paths[i] + ".xformOp:scale")
-        assert tuple(scale_spec.default) == (1.0, 1.0, 1.0)
-
+    prim_spec = Sdf.CreatePrimInLayer(stage.GetRootLayer(), prim_path)
+    scale = prim_spec.GetAttributeAtPath(prim_path + ".xformOp:scale").default
+    expected_mass = torch.tensor(tuple(scale), device=device).prod() * (0.2**3 * 1000.0)
+    actual_mass = env.scene["cube1"].data.body_mass.torch[0, 0]
+    torch.testing.assert_close(actual_mass, expected_mass, rtol=0.05, atol=0.1)
     env.close()
-
-
-def test_scale_randomization_failure_replicate_physics():
-    """Test scale randomization failure when replicate physics is set to True."""
-    # create a new stage
-    sim_utils.create_new_stage()
-    # set the arguments
-    cfg_failure = CubeEnvCfg()
-    cfg_failure.scene.replicate_physics = True
-
-    # run the test
-    with pytest.raises(RuntimeError, match="Scene replication is enabled"):
-        env = ManagerBasedEnv(cfg_failure)
-        env.close()

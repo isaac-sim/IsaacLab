@@ -139,7 +139,7 @@ class DeformableBodyMaterialCfg(PhysxDeformableBodyMaterialCfg):
     .. deprecated:: 3.1
         ``DeformableBodyMaterialCfg`` has moved to
         :class:`PhysxDeformableBodyMaterialCfg` for PhysX-specific deformable materials
-        and is scheduled for removal in 4.0.
+        and is scheduled for removal in 3.2.
     """
 
     def __post_init__(self):
@@ -159,7 +159,7 @@ class SurfaceDeformableBodyMaterialCfg(PhysxSurfaceDeformableBodyMaterialCfg):
     .. deprecated:: 3.1
         ``SurfaceDeformableBodyMaterialCfg`` has moved to
         :class:`PhysxSurfaceDeformableBodyMaterialCfg` for PhysX-specific surface
-        deformable materials and is scheduled for removal in 4.0.
+        deformable materials and is scheduled for removal in 3.2.
     """
 
     def __post_init__(self):
@@ -314,7 +314,7 @@ class RigidBodyMaterialCfg(PhysxRigidBodyMaterialCfg):
         :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg` (solver-common) and
         :class:`PhysxRigidBodyMaterialCfg` (PhysX-specific) and relocated to
         :mod:`isaaclab_physx.sim.spawners.materials`. This alias preserves backwards compatibility
-        and is scheduled for removal in 4.0.
+        and is scheduled for removal in 3.2.
     """
 
     def __post_init__(self):

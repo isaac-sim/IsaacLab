@@ -3,105 +3,30 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for :class:`NewtonVisualizer` viewer release.
+"""Presentation teardown closes the native viewer and preserves borrowed sensor lifetimes."""
 
-The RTX viewer owns GPU resources that it releases in a fixed order when
-``close()`` is called. Both paths that give up the viewer -- ``close()`` and
-the ``step()`` handler that permanently disables it after an unrecoverable
-failure -- must go through :meth:`NewtonVisualizer._release_viewer` so that
-ordering is honoured instead of being left to the garbage collector. The GL
-viewer must keep its established reference-drop behavior because closing its
-renderer prevents reliable in-process recreation.
-
-These tests assert the behavior (the RTX viewer's ``close()`` runs before the
-reference is dropped, while the GL viewer is not closed) rather than the
-absence of a backend log message. The message is emitted for only one of
-several valid finalization orders, so asserting on it would pass against
-unfixed code most of the time.
-
-They also pin the error semantics, which differ by caller.  ``_release_viewer``
-propagates a teardown failure while still clearing the reference.  ``close()``
-lets it propagate to ``SimulationContext``, which already logs it, but finishes
-its own cleanup first.  ``step()`` contains it, because that handler exists so
-an unusable viewer disables itself instead of aborting training.
-"""
-
-from __future__ import annotations
-
-from types import SimpleNamespace
+from unittest.mock import Mock
 
 import isaaclab_visualizers.newton.newton_visualizer as newton_visualizer
 import pytest
-from isaaclab_visualizers.newton.newton_visualizer import NewtonVisualizer
+from isaaclab_visualizers.newton import (
+    NewtonGLBackendCfg,
+    NewtonGLVisualizer,
+    NewtonRTXBackendCfg,
+    NewtonRTXVisualizer,
+)
+
+from isaaclab.visualizers import VisualizerCfg
 
 pytestmark = [pytest.mark.unit]
 
 
-class _SpyRTXViewer(newton_visualizer.NewtonViewerRTX):
-    """RTX viewer double that records how and when it was closed."""
-
-    def __init__(self, raises: bool = False) -> None:
-        self.close_calls = 0
-        self.referenced_by_owner_at_close: list[bool] = []
-        self.referenced_by_picking_at_close: list[bool] = []
-        self.apply_forces_calls = 0
-        self.owner: NewtonVisualizer | None = None
-        self._raises = raises
-
-    def close(self) -> None:
-        self.close_calls += 1
-        # Record whether the visualizer still pointed at us while we were being
-        # closed.  The reference must outlive the teardown call.
-        self.referenced_by_owner_at_close.append(getattr(self.owner, "_viewer", None) is self)
-        binding = getattr(self.owner, "_viewer_picking_binding", None)
-        self.referenced_by_picking_at_close.append(getattr(binding, "_viewer", None) is self)
-        if self._raises:
-            raise RuntimeError("Failed to create window")
-
-    def apply_forces(self, _state: object) -> None:
-        """Record a picking callback reaching this viewer."""
-        self.apply_forces_calls += 1
-
-
-class _SpyGLViewer(newton_visualizer.NewtonViewerGL):
-    """GL viewer double that records whether ``close()`` was called."""
-
-    def __init__(self) -> None:
-        self.close_calls = 0
-        self.owner: NewtonVisualizer | None = None
-
-    def close(self) -> None:
-        self.close_calls += 1
-
-
-def _make_visualizer(viewer: _SpyRTXViewer | _SpyGLViewer | None) -> NewtonVisualizer:
-    """Build the minimal visualizer state that the release paths read.
-
-    ``__init__`` is bypassed deliberately: a real visualizer requires a Newton
-    model, a scene data provider and a GPU, none of which this behaviour
-    depends on.
-    """
-    visualizer = object.__new__(NewtonVisualizer)
-    visualizer._is_closed = False
-    visualizer._picking_enabled = False
-    visualizer._viewer_picking_binding = NewtonVisualizer._ViewerPickingBinding()
-    visualizer._viewer = viewer
-    visualizer._camera_sensor = None
-    visualizer._camera_is_owned = False
-    visualizer._pending_mesh_submissions = {}
-    if viewer is not None:
-        viewer.owner = visualizer
-    return visualizer
-
-
-def test_release_viewer_does_not_close_gl_viewer() -> None:
+def test_close_does_not_destroy_shared_gl_context() -> None:
     """GL teardown must not prevent another viewer from starting in the same process."""
-    viewer = _SpyGLViewer()
-    visualizer = _make_visualizer(viewer)
-
-    visualizer._release_viewer()
-
-    assert viewer.close_calls == 0
+    visualizer = NewtonGLVisualizer(VisualizerCfg(backend=NewtonGLBackendCfg()))
+    viewer = visualizer._viewer = Mock()
+    visualizer.close()
+    viewer.close.assert_not_called()
     assert visualizer._viewer is None
 
 
@@ -110,135 +35,83 @@ def test_gl_close_request_closes_after_frame(monkeypatch: pytest.MonkeyPatch, re
     """A close request must not destroy the GL context inside the UI render callback."""
     events: list[str] = []
     monkeypatch.setattr(newton_visualizer.ViewerGL, "end_frame", lambda self: events.append("frame"))
+    monkeypatch.setattr(newton_visualizer.ViewerGL, "close", lambda self: events.append("close"))
     viewer = object.__new__(newton_visualizer.NewtonViewerGL)
     viewer._close_requested = False
+    viewer.keyboard_frame_hook = lambda: events.append("keyboard")
     if requested:
         viewer.request_close()
-    viewer.renderer = type("Renderer", (), {"close": lambda self: events.append("close")})()
+    viewer.renderer = Mock()
+    viewer.renderer.window.switch_to.side_effect = lambda: events.append("context")
 
     viewer.end_frame()
 
-    assert events == (["frame", "close"] if requested else ["frame"])
+    assert events == (["frame", "keyboard", "context", "close"] if requested else ["frame", "keyboard"])
 
 
-def test_close_releases_the_viewer() -> None:
-    """``close()`` must release the viewer through the shared path."""
-    viewer = _SpyRTXViewer()
-    visualizer = _make_visualizer(viewer)
-    visualizer._pending_mesh_submissions["/surface"] = object()
-
-    visualizer.close()
-
-    assert viewer.close_calls == 1
-    assert viewer.referenced_by_owner_at_close == [True]
-    assert visualizer._viewer is None
-    assert visualizer._pending_mesh_submissions == {}
-    assert visualizer._is_closed is True
-
-
-def test_close_is_idempotent() -> None:
-    """A second ``close()`` must not close the viewer again."""
-    viewer = _SpyRTXViewer()
-    visualizer = _make_visualizer(viewer)
-
-    visualizer.close()
-    visualizer.close()
-
-    assert viewer.close_calls == 1
-
-
-def test_close_completes_cleanup_when_viewer_teardown_fails(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A failing viewer must not strand the owned camera or the closed flag.
-
-    ``SimulationContext`` already logs an exception raised by ``close()``, so
-    it is allowed to propagate -- but the rest of the teardown still has to
-    run, otherwise a viewer failure silently leaks the generated camera prims.
-    """
-    evicted: list[object] = []
-    removed: list[object] = []
-    monkeypatch.setattr(newton_visualizer, "evict_visualizer_camera", evicted.append, raising=False)
-    monkeypatch.setattr(newton_visualizer, "remove_generated_prims", removed.append, raising=False)
-
-    viewer = _SpyRTXViewer(raises=True)
-    visualizer = _make_visualizer(viewer)
-    visualizer._camera_sensor = object()
-    visualizer._camera_is_owned = True
-    visualizer._streaming_camera_key = "camera-key"
-    visualizer._generated_camera_prim_paths = ["/World/generated"]
-
-    with pytest.raises(RuntimeError, match="Failed to create window"):
+@pytest.mark.parametrize("failure", [False, True])
+def test_close_releases_owned_resources_even_on_failure(failure):
+    """Teardown is idempotent and leaves borrowed sensor references untouched, even when one release fails."""
+    visualizer = NewtonRTXVisualizer(VisualizerCfg(backend=NewtonRTXBackendCfg()))
+    viewer = visualizer._viewer = Mock()
+    camera = Mock()
+    visualizer.current_image_view = Mock(camera=camera)
+    visualizer._image_views = [visualizer.current_image_view]
+    visualizer._sim = Mock()
+    if failure:
+        viewer.close.side_effect = RuntimeError("release failed")
+    if not failure:
         visualizer.close()
-
-    assert viewer.close_calls == 1
-    assert visualizer._viewer is None
-    assert visualizer._camera_sensor is None
-    assert visualizer._is_closed is True
-    assert evicted == ["camera-key"]
-    assert removed == [["/World/generated"]]
-
-
-def _arm_for_step_failure(visualizer: NewtonVisualizer, viewer: _SpyRTXViewer) -> None:
-    """Drive ``step()`` far enough to reach its viewer-failure handler."""
-    visualizer._is_initialized = True
-    visualizer._runtime_headless = False
-    visualizer._disable_viewer_on_step_exception = True
-    visualizer._sim_time = 0.0
-    visualizer._step_counter = 0
-    visualizer.backend = SimpleNamespace(model=SimpleNamespace(num_envs=1))
-    visualizer._scene_data_provider = None
-    visualizer._update_frequency = 1
-    viewer._update_frequency = 1
-
-    def _unrecoverable() -> bool:
-        raise RuntimeError("Failed to create window")
-
-    viewer.is_paused = _unrecoverable  # type: ignore[method-assign]
-
-
-def test_step_failure_releases_the_viewer(monkeypatch: pytest.MonkeyPatch) -> None:
-    """An unrecoverable viewer failure during ``step()`` must release the viewer.
-
-    ``NewtonRTXVisualizer`` sets ``_disable_viewer_on_step_exception`` so the
-    viewer is given up after the first failure -- for example when OVRTX cannot
-    create its window.  That path must close the viewer rather than only
-    dropping the reference to it.
-    """
-    viewer = _SpyRTXViewer()
-    visualizer = _make_visualizer(viewer)
-    visualizer._picking_enabled = True
-    visualizer._viewer_picking_binding.bind(viewer)  # type: ignore[arg-type]
-    _arm_for_step_failure(visualizer, viewer)
-
-    NewtonVisualizer.step(visualizer, dt=0.01)  # must not raise
-
-    assert viewer.close_calls == 1
-    assert viewer.referenced_by_owner_at_close == [True]
-    assert viewer.referenced_by_picking_at_close == [False]
-    assert visualizer._viewer is None
-
-    # The callback remains registered with NewtonManager for CUDA graph
-    # stability, but it must be inert after the viewer is released.
-    visualizer._viewer_picking_binding.apply(None)  # type: ignore[arg-type]
-    assert viewer.apply_forces_calls == 0
-
-    # The later ``close()`` must not close the already-released viewer again.
+    else:
+        with pytest.raises(RuntimeError, match="release failed"):
+            visualizer.close()
     visualizer.close()
-    assert viewer.close_calls == 1
+
+    viewer.close.assert_called_once()
+    camera.close.assert_not_called()
+    assert visualizer._viewer is visualizer.backend is None
+    assert visualizer._sim is visualizer.current_image_view is None
+    assert not visualizer._image_views
+    assert visualizer._is_closed
 
 
-def test_step_contains_a_failing_viewer_teardown(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A viewer that fails to close must not abort training from ``step()``.
+@pytest.mark.parametrize(
+    ("visualizer_type", "backend_cfg"),
+    [(NewtonGLVisualizer, NewtonGLBackendCfg), (NewtonRTXVisualizer, NewtonRTXBackendCfg)],
+)
+@pytest.mark.parametrize("failure", [False, True])
+def test_close_unhooks_keyboard_before_releasing_the_viewer(visualizer_type, backend_cfg, failure, caplog):
+    """Keyboard input closes while the window is open, and a failure there must not leak the viewer."""
+    visualizer = visualizer_type(VisualizerCfg(backend=backend_cfg()))
+    viewer = visualizer._viewer = Mock()
+    events: list[str] = []
+    key_event_source = visualizer._key_event_source = Mock()
 
-    This is the whole purpose of the ``_disable_viewer_on_step_exception``
-    handler: the viewer is already known to be broken, so its teardown failure
-    has to be contained rather than replacing the original failure and
-    propagating out of the simulation loop.
-    """
-    viewer = _SpyRTXViewer(raises=True)
-    visualizer = _make_visualizer(viewer)
-    _arm_for_step_failure(visualizer, viewer)
+    def close_keys() -> None:
+        events.append(f"keys closed, viewer bound: {visualizer._viewer is viewer}")
+        if failure:
+            raise RuntimeError("keyboard cleanup failed")
 
-    NewtonVisualizer.step(visualizer, dt=0.01)  # must not raise
+    key_event_source.close.side_effect = close_keys
 
-    assert viewer.close_calls == 1
+    visualizer.close()
+
+    assert events == ["keys closed, viewer bound: True"]
+    assert ("Keyboard input cleanup failed" in caplog.text) == failure
     assert visualizer._viewer is None
+    assert visualizer._key_event_source is None
+    assert visualizer.key_event_source is None
+    assert visualizer._is_closed
+
+
+def test_keyboard_camera_movement_can_be_disabled(monkeypatch):
+    moved = []
+    monkeypatch.setattr(newton_visualizer.ViewerGL, "_update_camera", lambda self, dt: moved.append(dt))
+    viewer = object.__new__(newton_visualizer.NewtonViewerGL)
+    visualizer = NewtonGLVisualizer(VisualizerCfg(backend=NewtonGLBackendCfg()))
+    visualizer._viewer = viewer
+    visualizer.set_camera_keys_enabled(False)
+    viewer._update_camera(0.1)
+    visualizer.set_camera_keys_enabled(True)
+    viewer._update_camera(0.2)
+    assert moved == [0.2]

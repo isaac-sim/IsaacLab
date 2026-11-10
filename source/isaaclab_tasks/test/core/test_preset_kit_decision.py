@@ -23,10 +23,14 @@ from isaaclab.utils.string import string_to_callable
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
-from isaaclab_tasks.utils.hydra import collect_presets
+from isaaclab_tasks.utils.hydra import (
+    PresetTarget,
+    collect_presets,
+    enumerate_task_presets,
+    resolve_presets,
+    resolve_task_runs,
+)
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
-from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
-from isaaclab_tasks.utils.preset_target import PresetTarget
 
 _CAMERA_PRESETS_TASK = "Isaac-Cartpole-Camera-Direct"
 
@@ -127,6 +131,16 @@ def test_registered_task_physx_presets_keep_auto_selection_explicit():
                 assert fields.get("isaacsim_physx") == fields["physx"], location
 
 
+@pytest.mark.parametrize(
+    "task_id", ["IsaacContrib-Open-Drawer-Franka-IK-Abs", "IsaacContrib-Open-Drawer-Franka-IK-Rel"]
+)
+def test_franka_cabinet_ik_preserves_newton_asset_variant(task_id):
+    """The IK robot override retains the cabinet task's backend-aware asset selection."""
+    cfg = resolve_presets(load_cfg_from_registry(task_id, "env_cfg_entry_point"), selected=("newton_mjwarp",))
+
+    assert cfg.scene.robot.spawn.variants["Physics"] == "mujoco"
+
+
 def test_registered_manager_based_configs_name_their_env_class():
     """A manager-based task's ``class_type`` constructs the env class its registration names."""
 
@@ -142,3 +156,16 @@ def test_physx_and_isaacsim_physx_presets_conflict():
     """``physx`` and ``isaacsim_physx`` are distinct choices even when both use PhysxCfg."""
     with pytest.raises(ValueError, match="Conflicting global presets"):
         _resolve_with_presets("physx,isaacsim_physx")
+
+
+def test_resolve_task_runs_lists_each_launchable_combination_once():
+    """OvPhysX and OVRTX never pair with Kit, env-config checks apply, and a selector folds into its target."""
+    runs = resolve_task_runs(_CAMERA_PRESETS_TASK)
+
+    pairs = {(physics, renderer) for physics, renderer, _ in runs}
+    assert {("ovphysx", "ovrtx"), ("isaacsim_physx", "isaacsim_rtx")} <= pairs
+    assert not {("isaacsim_physx", "ovrtx"), ("ovphysx", "isaacsim_rtx")} & pairs
+    # The Warp renderer cannot produce shaded images; the env config rejects that pairing.
+    assert ("newton_mjwarp", "newton_renderer", "simple_shading_full_mdl") not in runs
+    # ``physx`` and ``rtx`` select a concrete backend, so they resolve to a run already listed.
+    assert not {"physx", "rtx"} & {name for physics, renderer, _ in runs for name in (physics, renderer)}

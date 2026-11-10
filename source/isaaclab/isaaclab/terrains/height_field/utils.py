@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import copy
 import functools
+import math
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
@@ -31,6 +32,10 @@ def height_field_to_mesh(func: Callable) -> Callable:
     Returns:
         The mesh function. The mesh function returns a tuple containing a list of ``trimesh``
         mesh objects and the origin of the terrain.
+
+    Raises:
+        ValueError: When the border width is positive but smaller than the horizontal scale.
+        TypeError: When the height field function does not return the height field and the origin.
     """
 
     @functools.wraps(func)
@@ -42,22 +47,33 @@ def height_field_to_mesh(func: Callable) -> Callable:
                 f" horizontal scale ({cfg.horizontal_scale})."
             )
         # allocate buffer for height field (with border)
-        width_pixels = int(cfg.size[0] / cfg.horizontal_scale) + 1
-        length_pixels = int(cfg.size[1] / cfg.horizontal_scale) + 1
-        border_pixels = int(cfg.border_width / cfg.horizontal_scale) + 1
+        width_pixels = to_discrete_units(cfg.size[0], cfg.horizontal_scale) + 1
+        length_pixels = to_discrete_units(cfg.size[1], cfg.horizontal_scale) + 1
+        border_pixels = to_discrete_units(cfg.border_width, cfg.horizontal_scale) + 1
         heights = np.zeros((width_pixels, length_pixels), dtype=np.int16)
         # override size of the terrain to account for the border
+        # note: generators must recover the pixel count with to_discrete_units(), since this size divided back by the
+        #   horizontal scale can land just below the integer (e.g. 91 * 0.1 / 0.1 = 90.99999999999999)
         sub_terrain_size = [width_pixels - 2 * border_pixels, length_pixels - 2 * border_pixels]
         sub_terrain_size = [dim * cfg.horizontal_scale for dim in sub_terrain_size]
         # update the config
         terrain_size = copy.deepcopy(cfg.size)
         cfg.size = tuple(sub_terrain_size)
-        # generate the height field
-        z_gen, origin = func(difficulty, cfg)
-        # handle the border for the terrain
-        heights[border_pixels:-border_pixels, border_pixels:-border_pixels] = z_gen
-        # set terrain size back to config
-        cfg.size = terrain_size
+        try:
+            # generate the height field
+            result = func(difficulty, cfg)
+            try:
+                z_gen, origin = result
+            except (TypeError, ValueError) as err:
+                raise TypeError(
+                    f"The height-field generator '{func.__name__}' must return (height_field, origin),"
+                    f" got {type(result).__name__}."
+                ) from err
+            # handle the border for the terrain
+            heights[border_pixels:-border_pixels, border_pixels:-border_pixels] = z_gen
+        finally:
+            # set terrain size back to config
+            cfg.size = terrain_size
 
         # convert to trimesh
         vertices, triangles = convert_height_field_to_mesh(
@@ -69,6 +85,28 @@ def height_field_to_mesh(func: Callable) -> Callable:
         return [mesh], origin
 
     return wrapper
+
+
+def to_discrete_units(value: float, scale: float) -> int:
+    """Convert a length into a signed whole number of discretization steps.
+
+    The quotient is truncated toward zero like :func:`int`, except when it lies within a relative tolerance of 1e-9
+    of an integer (the :func:`math.isclose` default), in which case it snaps to that integer. A plain :func:`int` drops
+    a whole step for lengths that are multiples of the scale but do not divide exactly in floating point, such as
+    ``int(0.3 / 0.1) == 2``.
+
+    Args:
+        value: The length to convert [m]. It can be negative.
+        scale: The length of one discretization step [m].
+
+    Returns:
+        The number of discretization steps, with the sign of the value.
+    """
+    # divide in the inputs' own precision, then convert so that NumPy and Torch scalars (e.g. a difficulty passed as a
+    # 0-d tensor) are rounded as Python floats
+    quotient = float(value / scale)
+    nearest = round(quotient)
+    return nearest if math.isclose(quotient, nearest) else int(quotient)
 
 
 def convert_height_field_to_mesh(

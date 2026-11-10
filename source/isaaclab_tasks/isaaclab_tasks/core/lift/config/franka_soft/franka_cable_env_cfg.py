@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonShapeCfg, VBDSolverCfg
+from isaaclab_newton.physics.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, CableObjectCfg
@@ -20,8 +21,6 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils import configclass, replace
-
-from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -51,12 +50,12 @@ class PhysicsCfg(PresetCfg):
                         ls_iterations=50,
                         integrator="implicitfast",
                     ),
-                    bodies=[r"/World/envs/env_.*/Robot"],
+                    bodies=[r"{ENV_REGEX_NS}/Robot"],
                 ),
                 CouplerEntryCfg(
                     name="cable",
                     solver_cfg=VBDSolverCfg(iterations=10),
-                    bodies=[r"/World/envs/env_.*/Cable"],
+                    bodies=[r"{ENV_REGEX_NS}/Cable"],
                     include_static_shapes=True,
                 ),
             ],
@@ -65,8 +64,8 @@ class PhysicsCfg(PresetCfg):
                     source="rigid",
                     destination="cable",
                     bodies=[
-                        r"/World/envs/env_.*/Robot/Geometry/.*panda_hand",
-                        r"/World/envs/env_.*/Robot/Geometry/.*panda_(left|right)finger",
+                        r"{ENV_REGEX_NS}/Robot/Geometry/.*panda_hand",
+                        r"{ENV_REGEX_NS}/Robot/Geometry/.*panda_(left|right)finger",
                     ],
                     collide_interval=1,
                 )
@@ -150,7 +149,6 @@ class CommandsCfg:
             pitch=(0.0, 0.0),
             yaw=(0.0, 0.0),
         ),
-        success_vis_material_name="table_material",
         success_vis_colors=((0.8, 0.5, 0.5), (0.5, 0.8, 0.5)),
     )
 
@@ -307,7 +305,7 @@ class TerminationsCfg:
 class FrankaCableEnvCfg(soft.FrankaSoftEnvCfg):
     """Manager-based RL environment for lifting a 12-segment cable."""
 
-    scene: FrankaCableSceneCfg = FrankaCableSceneCfg(num_envs=8192, env_spacing=2.0, replicate_physics=True)
+    scene: FrankaCableSceneCfg = FrankaCableSceneCfg(num_envs=8192, env_spacing=2.0)
     observations: ObservationsCfg = ObservationsCfg()
     commands: CommandsCfg = CommandsCfg()
     rewards: RewardsCfg = RewardsCfg()
@@ -325,7 +323,7 @@ class FrankaCableEnvCfg(soft.FrankaSoftEnvCfg):
 class FrankaCableCameraEnvCfg(FrankaCableEnvCfg):
     """Visual Franka cable lifting environment."""
 
-    scene: FrankaCableCameraSceneCfg = FrankaCableCameraSceneCfg(num_envs=128, env_spacing=2.0, replicate_physics=True)
+    scene: FrankaCableCameraSceneCfg = FrankaCableCameraSceneCfg(num_envs=128, env_spacing=2.0)
     observations: FrankaCableCameraObservationsCfg = FrankaCableCameraObservationsCfg()
 
     def __post_init__(self):

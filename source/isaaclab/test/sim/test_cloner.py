@@ -244,44 +244,47 @@ def test_clone_decorator_wildcard_patterns(
 @pytest.mark.parametrize("with_clone_plan", [True, False])
 def test_resolve_matching_prims_from_source(sim, with_clone_plan):
     """Discovery returns unique source prims, preserving order and multi-instance expressions."""
+    env_template = "/Lab/Cells/Cell{}" if with_clone_plan else "/World/envs/env_{}"
     stage = sim_utils.get_current_stage()
     for path in (
-        "/World/envs/env_0/Robot/foo",
-        "/World/envs/env_0/Robot/foo/bar",
-        "/World/envs/env_0/Robot/other",
-        "/World/envs/env_0/Robot/other/bar",
-        "/World/envs/env_1/Robot/clone_only",
+        env_template.format(0) + "/Robot/foo",
+        env_template.format(0) + "/Robot/foo/bar",
+        env_template.format(0) + "/Robot/other",
+        env_template.format(0) + "/Robot/other/bar",
+        env_template.format(1) + "/Robot/clone_only",
     ):
         stage.DefinePrim(path, "Xform")
     if with_clone_plan:
-        assets = (AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot"),)
-        cloner.clone_plan_from_env_0(cloner.CloneCfg(), assets, 2, 0.0)
+        assets = (AssetBaseCfg(prim_path=env_template.format("[^/]+") + "/Robot"),)
+        cloner.clone_plan_from_env_0(cloner.CloneCfg(clone_template=env_template), assets, 2, 0.0)
 
-    matches = queries.resolve_matching_prims_from_source(r"/World/envs/env_[^/]+/Robot/[^A]+")
+    matches = queries.resolve_matching_prims_from_source(env_template.format("[^/]+") + r"/Robot/[^A]+")
 
     # the clone-only prim under env_1 would match the expression if cloned destinations were traversed
     assert [prim.GetPath().pathString for prim, _ in matches] == [
-        "/World/envs/env_0/Robot/foo",
-        "/World/envs/env_0/Robot/foo/bar",
-        "/World/envs/env_0/Robot/other",
-        "/World/envs/env_0/Robot/other/bar",
+        env_template.format(0) + "/Robot/foo",
+        env_template.format(0) + "/Robot/foo/bar",
+        env_template.format(0) + "/Robot/other",
+        env_template.format(0) + "/Robot/other/bar",
     ]
     assert [path_expr for _, path_expr in matches] == [
-        "/World/envs/env_[^/]+/Robot/foo",
-        "/World/envs/env_[^/]+/Robot/foo/bar",
-        "/World/envs/env_[^/]+/Robot/other",
-        "/World/envs/env_[^/]+/Robot/other/bar",
+        env_template.format("[^/]+") + "/Robot/foo",
+        env_template.format("[^/]+") + "/Robot/foo/bar",
+        env_template.format("[^/]+") + "/Robot/other",
+        env_template.format("[^/]+") + "/Robot/other/bar",
     ]
 
     # Each bar is reachable through two matching roots; distinct paths with the same name remain distinct.
     matches = queries.resolve_matching_prims_from_source(
-        r"/World/envs/env_[^/]+/Robot/.*", predicate=lambda prim: prim.GetName() == "bar", expected_num_matches=2
+        env_template.format("[^/]+") + r"/Robot/.*",
+        predicate=lambda prim: prim.GetName() == "bar",
+        expected_num_matches=2,
     )
     assert [prim.GetPath().pathString for prim, _ in matches] == [
-        "/World/envs/env_0/Robot/foo/bar",
-        "/World/envs/env_0/Robot/other/bar",
+        env_template.format(0) + "/Robot/foo/bar",
+        env_template.format(0) + "/Robot/other/bar",
     ]
     assert [path_expr for _, path_expr in matches] == [
-        "/World/envs/env_[^/]+/Robot/foo/bar",
-        "/World/envs/env_[^/]+/Robot/other/bar",
+        env_template.format("[^/]+") + "/Robot/foo/bar",
+        env_template.format("[^/]+") + "/Robot/other/bar",
     ]

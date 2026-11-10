@@ -8,14 +8,14 @@ Wrapping environments
 
 .. currentmodule:: isaaclab
 
-Environment wrappers are a way to modify the behavior of an environment without modifying the environment itself.
-This can be used to apply functions to modify observations or rewards, record videos, enforce time limits, etc.
-A detailed description of the API is available in the :class:`gymnasium.Wrapper` class.
+A :class:`gymnasium.Wrapper` changes an environment's observations, rewards, or
+execution without changing the environment implementation. Common uses include
+recording videos and enforcing time limits.
 
-At present, all RL environments inheriting from the :class:`~envs.ManagerBasedRLEnv` or :class:`~envs.DirectRLEnv` classes
-are compatible with :class:`gymnasium.Wrapper`, since the base class implements the :class:`gymnasium.Env` interface.
-In order to wrap an environment, you need to first initialize the base environment. After that, you can
-wrap it with as many wrappers as you want by calling ``env = wrapper(env, *args, **kwargs)`` repeatedly.
+Both :class:`~envs.ManagerBasedRLEnv` and :class:`~envs.DirectRLEnv` implement
+:class:`gymnasium.Env`. Create the environment first, then apply each wrapper with
+``env = wrapper(env, *args, **kwargs)``. The order matters: each wrapper receives
+the output of the one inside it.
 
 For example, here is how you would wrap an environment to enforce that reset is called before step or render:
 
@@ -89,13 +89,13 @@ sources and clip options.
 
     import gymnasium as gym
 
-    from isaaclab_visualizers.kit import KitVisualizerCfg
+    from isaaclab_visualizers.kit import KitBackendCfg
 
     from isaaclab.app import launch_simulation
     from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 
     # record from a Kit visualizer with this camera pose
-    env_cfg.sim.visualizer_cfgs = KitVisualizerCfg(eye=(1.0, 1.0, 1.0), lookat=(0.0, 0.0, 0.0))
+    env_cfg.sim.visualizer_cfgs = KitBackendCfg(eye=(1.0, 1.0, 1.0), lookat=(0.0, 0.0, 0.0))
     env_cfg.video_recorders = [
         VideoRecorderCfg(source="viz:kit", output_dir="videos/train", video_length=200, video_interval=1500)
     ]

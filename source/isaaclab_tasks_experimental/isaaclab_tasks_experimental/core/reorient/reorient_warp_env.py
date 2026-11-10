@@ -13,6 +13,8 @@ import torch
 import warp as wp
 from isaaclab_experimental.envs import DirectRLEnvWarp
 
+from isaaclab.utils.warp.math import quat_error_magnitude
+
 if TYPE_CHECKING:
     from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_direct_env_cfg import AllegroHandEnvCfg
 
@@ -258,7 +260,7 @@ def get_dones(
     max_success_reached = False
     if max_consecutive_success > 0:
         # Reset progress (episode length buf) on goal envs if max_consecutive_success > 0
-        rot_dist = rotation_distance(object_rot, goal_rot[env_id])
+        rot_dist = quat_error_magnitude(object_rot, goal_rot[env_id])
         if wp.abs(rot_dist) <= success_tolerance:
             episode_length_buf[env_id] = 0
         max_success_reached = successes[env_id] >= wp.float32(max_consecutive_success)
@@ -464,7 +466,7 @@ def compute_rewards(
     obj_rot = wp.transform_get_rotation(object_pose[env_id])
 
     goal_dist = wp.length(obj_pos - target_pos[env_id])
-    rot_dist = rotation_distance(obj_rot, target_rot[env_id])
+    rot_dist = quat_error_magnitude(obj_rot, target_rot[env_id])
 
     dist_rew = goal_dist * dist_reward_scale
     rot_rew = wp.float32(1.0) / (wp.abs(rot_dist) + rot_eps) * rot_reward_scale
@@ -531,16 +533,6 @@ def unscale(x: wp.float32, lower: wp.float32, upper: wp.float32) -> wp.float32:
 @wp.func
 def randomize_rotation(rand0: wp.float32, rand1: wp.float32, x_axis: wp.vec3f, y_axis: wp.vec3f) -> wp.quatf:
     return wp.quat_from_axis_angle(x_axis, rand0 * wp.pi) * wp.quat_from_axis_angle(y_axis, rand1 * wp.pi)
-
-
-@wp.func
-def rotation_distance(object_rot: wp.quatf, target_rot: wp.quatf) -> wp.float32:
-    # Orientation alignment for the cube in hand and goal cube
-    quat_diff = object_rot * wp.quat_inverse(target_rot)
-    # Match Torch env convention: uses indices [1:4] for the vector part (see `rotation_distance` in Torch env).
-    v_norm = wp.sqrt(quat_diff[1] * quat_diff[1] + quat_diff[2] * quat_diff[2] + quat_diff[3] * quat_diff[3])
-    v_norm = wp.min(v_norm, wp.float32(1.0))
-    return wp.float32(2.0) * wp.asin(v_norm)
 
 
 class ReorientDirectWarpEnv(DirectRLEnvWarp):

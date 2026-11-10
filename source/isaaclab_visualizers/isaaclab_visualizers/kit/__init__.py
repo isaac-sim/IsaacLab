@@ -13,12 +13,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .kit_visualizer_cfg import KitVisualizerCfg
+from .kit_visualizer_cfg import KitBackendCfg, KitVisualizerCfg
 
 if TYPE_CHECKING:
     from .kit_visualizer import KitVisualizer
 
-__all__ = ["KitVisualizer", "KitVisualizerCfg"]
+__all__ = ["KitVisualizer", "KitBackendCfg", "KitVisualizerCfg"]
 
 
 def __getattr__(name: str):

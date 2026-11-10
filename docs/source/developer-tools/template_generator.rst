@@ -4,12 +4,10 @@
 Build your own project or task
 ==============================
 
-The template generator bootstraps the package structure and, when requested,
-task registration and agent configurations for an Isaac Lab task. Use it to
-create either a standalone project outside Isaac Lab or a task intended for
-contribution to the Isaac Lab repository. An external project can start with a
-working Cartpole example or an empty task package. Internal tasks start from the
-Cartpole example.
+The template generator creates a standalone project or a task inside Isaac Lab,
+including package structure, task registration, and agent configurations. External
+projects can start with Cartpole, a task stub, or an empty task package. Internal
+tasks start with Cartpole.
 
 Choose what to generate
 -----------------------
@@ -46,14 +44,17 @@ content:
    * - Cartpole
      - A runnable example with the selected workflows, task registration, and
        agent configurations.
+   * - Stubbed
+     - The same task structure and agent configurations, with task functions
+       raising ``NotImplementedError`` and required config values set to ``MISSING``.
    * - Blank
      - Package structure, project-owned asset paths, task discovery, tests, and
        development tooling without example task or agent files.
 
 The selected authors are written to ``pyproject.toml``, the project extension
 metadata when selected, and the BSD-3-Clause ``LICENSE`` used by Isaac Lab. A
-Blank project skips task family, robot, workflow, and RL prompts. A Cartpole
-project next asks for one or more task workflows. See :ref:`feature-workflows`
+Blank project skips task family, robot, workflow, and RL prompts. Cartpole and
+Stubbed projects next ask for one or more task workflows. See :ref:`feature-workflows`
 for the complete comparison.
 
 .. list-table::
@@ -72,7 +73,7 @@ for the complete comparison.
      - Tasks with multiple policies or agent-specific observation and action
        spaces.
 
-For Cartpole content, finally choose the RL libraries and algorithms whose
+For Cartpole and Stubbed content, finally choose the RL libraries and algorithms whose
 configuration files you want created. The prompt adapts the available choices
 to the selected workflow. See :ref:`rl-frameworks` for the framework comparison.
 
@@ -87,17 +88,14 @@ installed Isaac Lab package:
 
    uv run isaaclab --new
 
-The command uses the dependencies from the active Isaac Lab environment. It
-does not invoke ``pip`` or install another set of template dependencies, so it
-also works in the pip-less virtual environments created by ``uv``.
-When invoked from an installed wheel, the generated ``pyproject.toml`` pins
-Isaac Lab and its optional extras to that exact version so ``uv sync`` cannot
-silently resolve an older release. When invoked from a source checkout, it
-instead records editable paths to that checkout and its workspace packages.
-This lets development and release branches work before their version is
-published while preserving the code that generated the project.
-The source paths are relative to the generated project; regenerate the project
-or update ``[tool.uv.sources]`` if either directory moves.
+The generator uses the active Isaac Lab environment, including pip-less ``uv``
+environments. It does not install separate template dependencies.
+
+When run from an installed wheel, it requires a compatible release of that Isaac Lab
+version (for example ``isaaclab~=3.0.0``), which accepts its patch releases. From a source
+checkout, it records editable paths to the checkout and its workspace packages, so
+unpublished branches work too. These paths are relative; regenerate the project or update
+``[tool.uv.sources]`` if either directory moves.
 
 The short form is equivalent:
 
@@ -123,6 +121,21 @@ selections when more than one choice is allowed. The generator creates the
 project under ``<parent-directory>/<project-name>`` and initializes a Git
 repository there.
 
+Task template sources
+~~~~~~~~~~~~~~~~~~~~~
+
+Each initial-content type keeps its task modules in one Jinja template:
+``tools/template/templates/tasks/cartpole.jinja`` or
+``tools/template/templates/tasks/stubbed.jinja``. Each file contains the
+environment, configuration, and manager-based MDP modules for all supported
+workflows, including AMP variants. Jinja macros render the modules, and a
+``files`` mapping associates relative task-family paths with their contents.
+The generator writes these files into the generated package structure.
+
+Shared project infrastructure, task registrations, and agent configurations
+remain separate templates. Blank projects use the shared infrastructure without
+generating task modules.
+
 Automate project generation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -139,6 +152,7 @@ external Cartpole command is:
 
 This uses the ``cartpole`` content, ``balance`` task family, ``cartpole`` robot
 configuration, manager-based single-agent workflow, RSL-RL, and PPO defaults.
+Create a Stubbed project by adding ``--initial_content stubbed``.
 Create a Blank project by adding ``--initial_content blank``. Blank projects do
 not accept task, workflow, library, or algorithm options because they contain no
 example task.
@@ -163,10 +177,10 @@ Use the following arguments to override the defaults:
    * - ``--author NAME``
      - External project author. Required; repeat the argument for multiple
        authors.
-   * - ``--initial_content blank|cartpole``
+   * - ``--initial_content blank|cartpole|stubbed``
      - External project content. The default is ``cartpole``.
    * - ``--task_name NAME`` and ``--robot_name NAME``
-     - Cartpole task family and robot/config names. The defaults are ``balance``
+     - Task family and robot/config names. The defaults are ``balance``
        and ``cartpole``.
    * - ``--include_ui_extension``
      - Include files for loading the project through the Isaac Sim Extension
@@ -232,7 +246,7 @@ Copy the task name from the output, then run a quick smoke test:
 
 .. code-block:: bash
 
-   uv run isaaclab random_agent --task <TASK_NAME> --num_envs 16 --viz newton
+   uv run isaaclab random_agent --task <TASK_NAME> --num_envs 16 --viz newton_gl
 
 If the environment launches and the cart moves, the project is ready to edit.
 You can then train and play a policy with the same command surface used by
@@ -241,7 +255,7 @@ Isaac Lab itself:
 .. code-block:: bash
 
    uv run isaaclab train --rl_library rsl_rl --task <TASK_NAME>
-   uv run isaaclab play --rl_library rsl_rl --task <TASK_NAME> --checkpoint latest --viz newton
+   uv run isaaclab play --rl_library rsl_rl --task <TASK_NAME> --checkpoint latest --viz newton_gl
 
 Choose optional features and a simulation backend
 -------------------------------------------------

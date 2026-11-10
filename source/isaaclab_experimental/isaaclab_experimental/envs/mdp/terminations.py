@@ -19,6 +19,8 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 
+from isaaclab.utils.warp.math import quat_error_magnitude
+
 from isaaclab_experimental.managers import ManagerTermBase, SceneEntityCfg
 
 if TYPE_CHECKING:
@@ -83,12 +85,7 @@ def _pose_command_success_kernel(
     if check_orientation:
         des_q_b = wp.quatf(cmd[i, 3], cmd[i, 4], cmd[i, 5], cmd[i, 6])
         des_q_w = root_quat_w[i] * des_q_b
-        q_err = wp.quat_inverse(body_quat_w[i, body_idx]) * des_q_w
-        # 2*atan2(|xyz|, |w|), matching the stable axis-angle magnitude. Both arguments scale
-        # with the quaternion, so this is norm-invariant, where 2*acos(|w|) would understate
-        # the error for a non-unit input. |w| takes the shortest path, as stable's sign flip does.
-        axis = wp.vec3f(q_err[0], q_err[1], q_err[2])
-        angle = 2.0 * wp.atan2(wp.length(axis), wp.abs(q_err[3]))
+        angle = quat_error_magnitude(body_quat_w[i, body_idx], des_q_w)
         success = success and (angle < orientation_threshold)
     out[i] = success
     # sticky per-episode tracker, mirroring the stable term's ``self._succeeded |= success``.

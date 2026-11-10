@@ -8,25 +8,14 @@ Creating a Manager-Based RL Environment
 
 .. currentmodule:: isaaclab
 
-Having learnt how to create a base environment in :ref:`tutorial-create-manager-base-env`, we will now look at how to create a manager-based
-task environment for reinforcement learning.
+Extend the Cartpole environment from :ref:`tutorial-create-manager-base-env`
+into an RL task using :class:`envs.ManagerBasedRLEnvCfg`. Add rewards and termination
+conditions to define what the agent should learn and when each episode ends.
+The configuration can also include commands and a curriculum.
 
-The base environment is designed as an sense-act environment where the agent can send commands to the environment
-and receive observations from the environment. This minimal interface is sufficient for many applications such as
-traditional motion planning and controls. However, many applications require a task-specification which often
-serves as the learning objective for the agent. For instance, in a navigation task, the agent may be required to
-reach a goal location. To this end, we use the :class:`envs.ManagerBasedRLEnv` class which extends the base environment
-to include a task specification.
-
-Similar to other components in Isaac Lab, instead of directly modifying the base class :class:`envs.ManagerBasedRLEnv`, we
-encourage users to simply implement a configuration :class:`envs.ManagerBasedRLEnvCfg` for their task environment.
-This practice allows us to separate the task specification from the environment implementation, making it easier
-to reuse components of the same environment for different tasks.
-
-In this tutorial, we will configure the cartpole environment using the :class:`envs.ManagerBasedRLEnvCfg` to create a manager-based task
-for balancing the pole upright. We will learn how to specify the task using reward terms, termination criteria,
-curriculum and commands.
-
+The environment class executes these terms, so you can change the task through
+configuration. See :ref:`feature-workflows` for how manager-based environments
+organize task logic.
 
 The Code
 ~~~~~~~~

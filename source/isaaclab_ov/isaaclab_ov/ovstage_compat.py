@@ -3,89 +3,155 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Version compatibility between the public OVStage 0.1 API and OVStage 0.2 and later.
+"""OVStage population and clone compatibility without loading the native runtime."""
 
-OVStage computes world transforms from the prim hierarchy either on the host or on the
-device. The host model costs CPU work proportional to the number of prims, which the
-barrier in the OVRTX ovstage write path then waits on, so the device model is preferred
-wherever it is available. ``GPU_INCREMENTAL`` leaves objects out of place on OVStage 0.1
-and is corrected in 0.2, so the model is chosen from the installed version rather than
-hard-coded.
+from functools import cache
+from importlib.metadata import PackageNotFoundError, version
+from typing import TYPE_CHECKING
 
-The installed version cannot change while the process runs, so the model is resolved once
-at import and published as :data:`HIERARCHY_COMPUTATION_MODEL`.
+from packaging.version import Version
 
-The published name is resolved against :class:`ovstage.HierarchyComputationModel` by the
-caller, which keeps this module free of an ``ovstage`` import and therefore importable
-wherever the version policy needs to be inspected or tested.
+if TYPE_CHECKING:
+    import ovstage
 
-Missing or invalid version metadata selects ``CPU_INCREMENTAL``.
-"""
+try:
+    OVSTAGE_VERSION = Version(version("ovstage"))
+except PackageNotFoundError:
+    OVSTAGE_VERSION = None
 
-from __future__ import annotations
-
-import importlib.metadata
-import logging
-
-from packaging.version import InvalidVersion, Version
-
-logger = logging.getLogger(__name__)
-
-# First OVStage version whose GPU_INCREMENTAL hierarchy model places objects correctly.
-_GPU_HIERARCHY_VERSION = Version("0.2")
+# The 0.4 release line needs CPU transform propagation before cloning, including development builds.
+OVSTAGE_REQUIRES_CPU_HIERARCHY_BEFORE_CLONE = OVSTAGE_VERSION is not None and OVSTAGE_VERSION.release[:2] == (0, 4)
 
 
-def detect_ovstage_version() -> Version | None:
-    """Return the installed ``ovstage`` version.
+def populate_stage(
+    stage: "ovstage.Stage", usda: str, *, ordinal: int, domains: "ovstage.PopulationDomain", physics: bool = False
+) -> None:
+    """Populate rendering and optional physics data across the OVStage 0.4 API transition.
 
-    Read from distribution metadata rather than importing ``ovstage`` so the version
-    policy can be inspected without loading the runtime. An unparsable version is logged
-    and reported as missing, which keeps the OVStage 0.1 behavior.
-
-    Returns:
-        The installed version, or ``None`` when ``ovstage`` is absent or its version
-        string cannot be parsed.
-    """
-    try:
-        raw = importlib.metadata.version("ovstage")
-    except importlib.metadata.PackageNotFoundError:
-        return None
-    try:
-        return Version(raw)
-    except InvalidVersion:
-        logger.warning("Could not parse ovstage version %r; assuming the OVStage 0.1 hierarchy model.", raw)
-        return None
-
-
-def supports_gpu_hierarchy_computation(version: Version | None) -> bool:
-    """Return whether ``version`` computes the prim hierarchy correctly on the device.
+    Older builds expose a physics domain bit; newer 0.4 builds require selectors.
+    Detect the capability because both APIs shipped under the same release version.
 
     Args:
-        version: OVStage version to classify, or ``None`` when OVStage is unavailable.
-
-    Returns:
-        Whether ``version`` is OVStage 0.2 or newer.
+        stage: Native stage to populate.
+        usda: Exported USD scene.
+        ordinal: Population write ordinal, sealed by the caller after cloning.
+        domains: Native population domains, normally rendering.
+        physics: Whether an OVPhysX consumer also needs physics data.
     """
-    return version is not None and version >= _GPU_HIERARCHY_VERSION
+    import ovstage
+
+    if physics:
+        physics_domain = getattr(ovstage.PopulationDomain, "PHYSICS", None)
+        if physics_domain is None:
+            ovstage.population.open_usd_from_string_with_desc(
+                stage, usda, ordinal=ordinal, time=ovstage.population.DEFAULT_TIME,
+                descs=(ovstage.population.Desc(domains=domains), _physics_population_desc()),
+            )  # fmt: skip
+            return
+        domains |= physics_domain
+    ovstage.population.open_usd_from_string(stage, usda, ordinal=ordinal, domains=domains)
 
 
-def resolve_hierarchy_computation_model(version: Version | None) -> str:
-    """Return the :class:`ovstage.HierarchyComputationModel` member name for ``version``.
+@cache
+def _physics_population_desc() -> "ovstage.population.Desc":
+    """Preserve physics properties and the USD producer defaults documented by OVPhysX.
 
-    Args:
-        version: OVStage version the model is chosen for, or ``None`` when OVStage is
-            unavailable.
-
-    Returns:
-        ``"GPU_INCREMENTAL"`` on OVStage 0.2 and later, otherwise ``"CPU_INCREMENTAL"``.
+    Copying schema fallbacks alone loses unit scaling and resolved bindings from the legacy physics domain.
     """
-    if supports_gpu_hierarchy_computation(version):
-        return "GPU_INCREMENTAL"
-    return "CPU_INCREMENTAL"
+    import ovstage
+    from ovstage.population import (
+        DerivedProperty,
+        DeriveWhen,
+        Desc,
+        Expression,
+        PrimPredicate,
+        PropertyPredicate,
+        Selector,
+    )
 
-
-OVSTAGE_VERSION: Version | None = detect_ovstage_version()
-"""Installed OVStage version, or ``None`` when it is unavailable or unparsable."""
-
-HIERARCHY_COMPUTATION_MODEL: str = resolve_hierarchy_computation_model(OVSTAGE_VERSION)
-"""Name of the hierarchy computation model to request for the installed OVStage."""
+    scene = PrimPredicate.is_a_type("PhysicsScene")
+    body = PrimPredicate.has_applied_schema("PhysicsRigidBodyAPI")
+    collider = PrimPredicate.has_applied_schema("PhysicsCollisionAPI")
+    meters_per_unit = Expression.stage_metadata("metersPerUnit")
+    speed = Expression.divide(Expression.number(10.0), meters_per_unit)
+    speed_squared = Expression.multiply(speed, speed)
+    float_dtype = ovstage.DLDataType(code=ovstage.DLDataTypeCode.kDLFloat, bits=32, lanes=1)
+    float_max = Expression.number(3.4028234663852886e38)
+    defaults = (
+        ("physics:gravityMagnitude", scene, Expression.divide(Expression.number(9.81), meters_per_unit)),
+        ("physxScene:frictionOffsetThreshold", scene, Expression.divide(Expression.number(0.04), meters_per_unit)),
+        ("physxScene:frictionCorrelationDistance", scene, Expression.divide(Expression.number(0.025), meters_per_unit)),
+        ("physxRigidBody:sleepThreshold", body, Expression.multiply(Expression.number(5e-5), speed_squared)),
+        ("physxRigidBody:stabilizationThreshold", body, Expression.multiply(Expression.number(1e-5), speed_squared)),
+        ("physxRigidBody:maxDepenetrationVelocity", body, Expression.divide(Expression.number(3.0), meters_per_unit)),
+        ("physxRigidBody:maxLinearVelocity", body, Expression.number(1e16)),
+        ("physxRigidBody:maxContactImpulse", body, float_max),
+        (
+            "physxCollision:contactOffset",
+            PrimPredicate.and_(collider, PrimPredicate.is_a_type("Plane")),
+            Expression.divide(Expression.number(0.02), meters_per_unit),
+        ),
+        (
+            "physxConvexGeometry:margin",
+            PrimPredicate.and_(collider, PrimPredicate.is_a_type("Cylinder", "Cone")),
+            Expression.number(0.0),
+        ),
+    )
+    derived = [
+        DerivedProperty(name, value, prim_predicate=predicate, when=DeriveWhen.WHEN_UNAUTHORED, dtype=float_dtype)
+        for name, predicate, value in defaults
+    ]
+    for family, name in (
+        ("PhysxJointAxisAPI", "physxJointAxis:__INSTANCE_NAME__:maxJointVelocity"),
+        ("PhysxDrivePerformanceEnvelopeAPI", "physxDrivePerformanceEnvelope:__INSTANCE_NAME__:maxActuatorVelocity"),
+    ):
+        derived.append(
+            DerivedProperty(
+                name, float_max, when=DeriveWhen.WHEN_UNAUTHORED, dtype=float_dtype, multi_apply_schema_family=family
+            )
+        )
+    derived.append(
+        DerivedProperty(
+            "physics:gravityDirection",
+            Expression.multiply(Expression.number(-1.0), Expression.up_axis()),
+            prim_predicate=scene,
+            when=DeriveWhen.WHEN_UNAUTHORED,
+            dtype=ovstage.DLDataType(code=ovstage.DLDataTypeCode.kDLFloat, bits=32, lanes=3),
+            semantic=ovstage.AttributeSemantic.VECTOR,
+        )
+    )
+    derived.append(
+        DerivedProperty(
+            "material:binding:physics",
+            Expression.resolved_bound_material(
+                "physics",
+                PrimPredicate.has_applied_schema(
+                    "PhysicsMaterialAPI",
+                    "PhysxPBDMaterialAPI",
+                    "OmniPhysicsBaseMaterialAPI",
+                    "PhysxDeformableMaterialAPI",
+                ),
+            ),
+            prim_predicate=PrimPredicate.or_(
+                collider,
+                body,
+                PrimPredicate.has_applied_schema("OmniPhysicsBodyAPI", "OmniPhysicsDeformableBodyAPI"),
+                PrimPredicate.is_a_type("GeomSubset"),
+            ),
+            dtype=ovstage.DLDataType(code=ovstage.DLDataTypeCode.kDLUInt, bits=64, lanes=1),
+            is_array=True,
+            semantic=ovstage.AttributeSemantic.RELATIONSHIP_PATH_ID,
+        )
+    )
+    return Desc(
+        selectors=(
+            Selector(
+                prim_predicate=PrimPredicate.all(),
+                property_predicate=PropertyPredicate.all(),
+                prim_metadata_paths=("customData:physics:localSpaceVelocities", "inactiveIds"),
+                property_metadata_paths=("bindMaterialAs",),
+                derived_properties=derived,
+            ),
+        ),
+        stage_metadata_paths=("metersPerUnit", "kilogramsPerUnit", "upAxis"),
+    )

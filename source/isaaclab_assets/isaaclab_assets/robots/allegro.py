@@ -101,3 +101,9 @@ ALLEGRO_ACTUATED_JOINT_NAMES: list[str] = [
     "thumb_joint_3",
 ]
 """Allegro Hand actuated joint names, in the Direct task's actuation order."""
+
+
+ALLEGRO_HAND_FRICTION_REPLACEMENTS = {
+    "(index|middle|ring|thumb)_joint_[0-3]": (ALLEGRO_HAND_CFG.actuators["fingers"].friction, 0.0, 0.0)
+}
+"""OVPhysX legacy friction replacements matching the robot actuator efforts, in SI units."""

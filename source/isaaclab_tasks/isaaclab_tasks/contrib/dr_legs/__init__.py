@@ -12,7 +12,7 @@ from . import agents
 
 gym.register(
     id="IsaacContrib-DrLegs-HoldPose",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point=f"{__name__}.dr_legs_env:DrLegsRLEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.hold_pose_env_cfg:DrLegsHoldPoseEnvCfg",
@@ -25,7 +25,7 @@ registry.update(
     {
         "Isaac-DrLegs-HoldPose-v0": EnvSpec(
             id="Isaac-DrLegs-HoldPose-v0",
-            entry_point="isaaclab.envs:ManagerBasedRLEnv",
+            entry_point=f"{__name__}.dr_legs_env:DrLegsRLEnv",
             disable_env_checker=True,
             kwargs={
                 "env_cfg_entry_point": f"{__name__}.hold_pose_env_cfg:DrLegsHoldPoseEnvCfg",
@@ -38,7 +38,7 @@ registry.update(
 
 gym.register(
     id="IsaacContrib-DrLegs-Walk",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point=f"{__name__}.dr_legs_env:DrLegsRLEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.walk_env_cfg:DrLegsWalkEnvCfg",
@@ -50,7 +50,7 @@ registry.update(
     {
         "Isaac-DrLegs-Walk-v0": EnvSpec(
             id="Isaac-DrLegs-Walk-v0",
-            entry_point="isaaclab.envs:ManagerBasedRLEnv",
+            entry_point=f"{__name__}.dr_legs_env:DrLegsRLEnv",
             disable_env_checker=True,
             kwargs={
                 "env_cfg_entry_point": f"{__name__}.walk_env_cfg:DrLegsWalkEnvCfg",

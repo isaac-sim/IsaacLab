@@ -39,8 +39,6 @@ class ShadowHandCameraEnv(ShadowHandDirectEnv):
             height=self.cfg.scene.tiled_camera.height,
             width=self.cfg.scene.tiled_camera.width,
         )
-        # hide goal cubes
-        self.goal_pos[:, :] = torch.tensor((-0.2, 0.1, 0.6), device=self.device)  # inside the tiled camera frustum
         # keypoints buffer
         self.gt_keypoints = torch.ones(self.num_envs, 8, 3, dtype=torch.float32, device=self.device)
         self.goal_keypoints = torch.ones(self.num_envs, 8, 3, dtype=torch.float32, device=self.device)

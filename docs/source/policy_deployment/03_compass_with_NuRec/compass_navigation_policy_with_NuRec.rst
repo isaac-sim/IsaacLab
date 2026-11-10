@@ -13,10 +13,9 @@ installation, asset registration, training, evaluation, export, and ROS 2 deploy
 NuRec Assets for COMPASS
 ------------------------
 
-NuRec assets matter for COMPASS because they allow navigation policies to train in simulation on realistic
-geometry, visual appearance, and obstacle layouts. This, in turn, should reduce the sim-to-real gap between
-training scenes and real operating environments and improve zero-shot transfer. They also make it possible
-to evaluate policies in reconstructed simulation scenes that better reflect target deployment spaces.
+NuRec assets reconstruct the geometry, appearance, and obstacles of real spaces.
+Use them to train and evaluate COMPASS policies in scenes based on the deployment
+environment.
 
 Some sample assets compatible with COMPASS training are available in the
 `PhysicalAI-Robotics-NuRec dataset on Hugging Face <https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-NuRec>`_.
@@ -34,7 +33,7 @@ scenes produced with this workflow; two examples are shown below.
    :widths: 50 50
    :class: nurec-gif-grid
 
-   * - .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/nurec_real2sim_galileo.gif
+   * - .. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/policy_deployment/compass_nurec/nurec_real2sim_galileo.gif
           :alt: Galileo Real2Sim NuRec asset
           :class: nurec-gif-cover
           :align: center
@@ -43,7 +42,7 @@ scenes produced with this workflow; two examples are shown below.
 
           | Embodiment: `Nova Carter [wheeled robot] <https://robotics.segway.com/nova-carter/>`_
           | Sensor Rig: 4 x `Stereo Camera <https://leopardimaging.com/wp-content/uploads/2024/07/LI-AR0234CS-STEREO-GMSL2-30_Datasheet_V1.8.pdf>`_
-     - .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/nurec_real2sim_living_room.gif
+     - .. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/policy_deployment/compass_nurec/nurec_real2sim_living_room.gif
           :alt: Living Room Real2Sim NuRec asset
           :class: nurec-gif-cover
           :align: center
@@ -64,7 +63,7 @@ assets available in Isaac Sim.
    :widths: 100
    :class: nurec-gif-grid nurec-gif-grid-single
 
-   * - .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/xgrid_wormhole_with_sim_objects.gif
+   * - .. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/policy_deployment/compass_nurec/xgrid_wormhole_with_sim_objects.gif
           :alt: Wormhole XGRIDS reconstruction
           :class: nurec-gif-cover
           :align: center
@@ -96,13 +95,13 @@ The following clips show COMPASS training with different robot embodiments in Nu
    :widths: 50 50
    :class: nurec-gif-grid
 
-   * - .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/compass_galileo_g1_training.gif
+   * - .. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/policy_deployment/compass_nurec/compass_galileo_g1_training.gif
           :alt: COMPASS training with a G1 robot in the Galileo scene
           :class: nurec-gif-contain
           :align: center
 
           **Galileo** with G1
-     - .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/compass_xgrid_wormhole_carter_training.gif
+     - .. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/policy_deployment/compass_nurec/compass_xgrid_wormhole_carter_training.gif
           :alt: COMPASS training with a Carter robot in the XGRIDS Wormhole scene
           :class: nurec-gif-contain
           :align: center

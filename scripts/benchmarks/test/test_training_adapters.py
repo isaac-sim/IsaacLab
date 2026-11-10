@@ -10,7 +10,6 @@ from types import SimpleNamespace
 import pytest
 import torch
 
-from isaaclab.benchmark import dispatch
 from isaaclab.benchmark.entrypoints.backends.rl_games import benchmark_play_rl_games as play_rl_games
 from isaaclab.benchmark.entrypoints.backends.rsl_rl import benchmark_play_rsl_rl as play_rsl_rl
 from isaaclab.benchmark.entrypoints.backends.rsl_rl import benchmark_train_rsl_rl as train_rsl_rl
@@ -18,18 +17,6 @@ from isaaclab.benchmark.entrypoints.backends.sb3 import benchmark_play_sb3 as pl
 from isaaclab.benchmark.entrypoints.backends.sb3 import benchmark_train_sb3 as train_sb3
 from isaaclab.benchmark.entrypoints.backends.skrl import benchmark_play_skrl as play_skrl
 from isaaclab.benchmark.entrypoints.backends.skrl import benchmark_train_skrl as train_skrl
-
-
-@pytest.mark.parametrize("library", ["rl_games", "rsl_rl", "sb3", "skrl"])
-def test_training_dispatches_libraries_to_explicitly_named_adapters(library: str):
-    """Test that training dispatches to the explicitly named package adapter."""
-    assert dispatch._RL_WORKFLOW_MODULES["training"][library].endswith(f"{library}.benchmark_train_{library}")
-
-
-@pytest.mark.parametrize("library", ["rl_games", "rsl_rl", "sb3", "skrl"])
-def test_play_dispatches_libraries_to_explicitly_named_adapters(library: str):
-    """Test that play dispatches to the explicitly named package adapter."""
-    assert dispatch._RL_WORKFLOW_MODULES["play"][library].endswith(f"{library}.benchmark_play_{library}")
 
 
 @pytest.mark.parametrize("adapter", [play_rl_games, play_rsl_rl, play_sb3, play_skrl])

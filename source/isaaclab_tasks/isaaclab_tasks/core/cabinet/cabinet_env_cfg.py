@@ -108,7 +108,7 @@ class CabinetSimCfg(PresetCfg):
         dt=1 / 60,
         render_interval=1,
         physics=PhysxCfg(bounce_threshold_velocity=0.01, friction_correlation_distance=0.00625),
-        default_visualizer_cfg=VisualizerCfg(eye=(-2.0, 2.0, 2.0), lookat=(0.8, 0.0, 0.5)),
+        visualizer_cfgs=VisualizerCfg(eye=(-2.0, 2.0, 2.0), lookat=(0.8, 0.0, 0.5)),
     )
     ovphysx: SimulationCfg = replace(isaacsim_physx, physics=OvPhysxCfg())
     physx: SimulationCfg = replace(
@@ -117,7 +117,7 @@ class CabinetSimCfg(PresetCfg):
     newton_mjwarp: SimulationCfg = SimulationCfg(
         dt=1 / 600,
         render_interval=1,
-        default_visualizer_cfg=VisualizerCfg(eye=(-2.0, 2.0, 2.0), lookat=(0.8, 0.0, 0.5)),
+        visualizer_cfgs=VisualizerCfg(eye=(-2.0, 2.0, 2.0), lookat=(0.8, 0.0, 0.5)),
         physics=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
                 njmax=90,

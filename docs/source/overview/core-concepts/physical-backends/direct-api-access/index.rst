@@ -1,10 +1,10 @@
 :orphan:
 
 .. meta::
-   :http-equiv=refresh: 0; url=../../../../concepts/native-physics-api/index.html
+   :http-equiv=refresh: 0; url=../../../../concepts/physics_backends.html
    :name=robots: noindex
 
 Page Moved
 ==========
 
-This page moved to :doc:`/source/concepts/native-physics-api/index`.
+This page moved to :doc:`/source/concepts/physics_backends`.

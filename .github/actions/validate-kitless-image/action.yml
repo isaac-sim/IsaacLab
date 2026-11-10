@@ -46,7 +46,7 @@ runs:
       # Nothing else in this action runs ``uv run``, the documented entry point -- every other
       # step calls ``python`` directly, which is how nvbugs 6732972 stayed green here.
       docker run --rm "${mount_args[@]}" "$IMAGE_TAG" \
-        bash -lc '
+        bash -c '
       set -euo pipefail
       prefix="$(uv run --extra ov python -c "import sys; print(sys.prefix)" | tail -n 1)"
       test "$prefix" = "$VIRTUAL_ENV" || {
@@ -74,7 +74,7 @@ runs:
       docker run --rm --gpus all --network host \
         "${mount_args[@]}" \
         "$IMAGE_TAG" \
-        bash -lc '
+        bash -c '
       set -euo pipefail
       bash /with-python-package-retries.sh uv pip install --python "$VIRTUAL_ENV/bin/python" pytest
       python -m pytest \
@@ -86,7 +86,7 @@ runs:
       '
 
       runtime_identity="$(docker run --rm --entrypoint bash "$IMAGE_TAG" \
-        -lc 'printf "%s %s %s\n" "$(id -u)" "$(id -g)" "$(id -un 2>/dev/null || true)"')"
+        -c 'printf "%s %s %s\n" "$(id -u)" "$(id -g)" "$(id -un 2>/dev/null || true)"')"
       read -r runtime_uid runtime_gid runtime_user <<< "$runtime_identity"
       echo "Kit-less runtime identity: uid=${runtime_uid} gid=${runtime_gid} user=${runtime_user}"
       if [ "$runtime_uid" = "0" ]; then

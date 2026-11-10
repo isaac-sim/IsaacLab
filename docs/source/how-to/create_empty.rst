@@ -115,7 +115,7 @@ properly.
 .. note::
 
    :meth:`sim.SimulationContext.reset` is different from :meth:`sim.SimulationContext.play` method as the latter
-   only plays the timeline and does not initializes the physics handles.
+   only plays the timeline and does not initialize the physics handles.
 
 After playing the simulation timeline, we set up a simple simulation loop where the simulator is stepped repeatedly.
 The loop condition :meth:`sim.SimulationContext.is_running` keeps it running
