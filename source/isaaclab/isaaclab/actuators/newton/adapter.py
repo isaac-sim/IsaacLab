@@ -106,8 +106,11 @@ class NewtonActuatorAdapter:
 
         self._states_a = [act.state() for act in actuators]
         self._states_b = [act.state() for act in actuators]
-        # per-DOF reset masks, rewritten by every partial reset so a reset does not allocate
-        self._reset_dof_masks = [wp.zeros(act.indices.shape[0], dtype=wp.bool, device=device) for act in actuators]
+        # per-DOF reset masks of the stateful actuators, rewritten by every partial reset so a reset does not allocate
+        self._reset_dof_masks = [
+            None if state is None else wp.zeros(act.indices.shape[0], dtype=wp.bool, device=device)
+            for act, state in zip(actuators, self._states_a)
+        ]
 
         # Pre-clamp computed effort buffer. Each Newton actuator scatter-adds
         # its raw drive output to ``sim_control.joint_computed_f`` when
@@ -224,16 +227,16 @@ class NewtonActuatorAdapter:
     def _reset_states(self, env_mask: wp.array) -> None:
         """Reset the actuator states of the environments selected by a boolean mask of shape (num_envs,)."""
         for act, sa, sb, per_dof_mask in zip(self.actuators, self._states_a, self._states_b, self._reset_dof_masks):
+            if per_dof_mask is None:
+                continue
             wp.launch(
                 build_per_dof_env_mask_kernel,
                 dim=act.indices.shape[0],
                 inputs=[act.indices, env_mask, self._dof_offset, self.num_joints, per_dof_mask],
                 device=self._device,
             )
-            if sa is not None:
-                sa.reset(per_dof_mask)
-            if sb is not None:
-                sb.reset(per_dof_mask)
+            sa.reset(per_dof_mask)
+            sb.reset(per_dof_mask)
 
     def bind_articulation(
         self,
