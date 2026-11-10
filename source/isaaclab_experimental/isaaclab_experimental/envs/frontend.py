@@ -169,7 +169,7 @@ class WarpFrontend:
         Idempotent: re-running on an already-adapted cfg is a no-op (the steps
         below skip warp-origin symbols).
 
-        Two steps, each independently testable:
+        Three steps, each independently testable:
 
         1. :meth:`_require_newton_physics` — hard check that ``cfg.sim.physics``
            is :class:`~isaaclab_newton.physics.NewtonCfg`.
@@ -179,6 +179,8 @@ class WarpFrontend:
            ``func`` *or* ``class_type`` with its same-named warp twin. A missing
            twin raises :class:`FrontendIncompatibleError` — partial coverage is
            unsafe under the warp managers' kernel-only signature.
+        3. :meth:`_swap_noise_cfgs` — replace every stable observation-noise
+           cfg with its warp-native twin; a noise cfg without a twin raises.
         """
         label = type(cfg).__name__
         cls._require_newton_physics(cfg, label)

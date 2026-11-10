@@ -34,7 +34,7 @@ class _Scene(dict):
 def scene():
     names = ["part_0", "part_1", "part_2", "part_3"]
     find = partial(resolve_matching_names, list_of_strings=names)
-    return _Scene(
+    return dict(
         robot=SimpleNamespace(
             joint_names=names,
             body_names=names,
@@ -118,14 +118,19 @@ def test_external_force_uses_selected_body_count(scene):
     assert kwargs["body_ids"].tolist() == [3, 1]
 
 
-def test_resolve_fills_the_warp_ids_in_the_selection_order(scene):
-    """Warp ids keep the resolved order and repeats, expand slices, and count the bodies of a contact sensor."""
-    scene = _Scene(scene, sensor=SimpleNamespace(num_sensors=2, num_bodies=5))
+def test_resolve_warp_ids_fills_the_selection_order(scene):
+    """Warp ids keep the resolved order and repeats, expand slices, and count the bodies of a contact sensor.
+
+    :meth:`resolve` does no Warp work, so a scene without a device resolves the torch selections as on main.
+    """
+    sensor_entity = SimpleNamespace(num_sensors=2, num_bodies=5)
     subset = SceneEntityCfg("robot", joint_names=["part_2", "part_0"], preserve_order=True, body_ids=[3, 3, -1])
     full = SceneEntityCfg("robot")
     sensor = SceneEntityCfg("sensor")
     for cfg in (subset, full, sensor):
-        cfg.resolve(scene)
+        cfg.resolve(dict(scene, sensor=sensor_entity))
+        assert cfg.joint_ids_wp is None and cfg.body_ids_wp is None
+        cfg.resolve_warp_ids(_Scene(scene, sensor=sensor_entity))
 
     assert subset.joint_ids_wp.dtype == wp.int32
     assert subset.joint_ids_wp.numpy().tolist() == [2, 0]
@@ -141,10 +146,11 @@ def test_resolve_fills_the_warp_ids_in_the_selection_order(scene):
 
 
 def test_copies_share_the_warp_ids(scene):
-    """Configuration copies made after :meth:`resolve` share the Warp ids instead of copying device memory."""
+    """Configuration copies made after :meth:`resolve_warp_ids` share the Warp ids instead of copying device memory."""
     scene = _Scene(scene)
     cfg = SceneEntityCfg("robot", joint_names=["part_1"])
     cfg.resolve(scene)
+    cfg.resolve_warp_ids(scene)
 
     for copied in (cfg.copy(), clone(cfg), replace(cfg, name="robot"), copy.deepcopy(cfg)):
         assert copied.joint_ids_wp is cfg.joint_ids_wp

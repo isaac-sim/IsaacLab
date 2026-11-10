@@ -19,7 +19,7 @@ These Warp-first implementations avoid that by writing directly into the sim-bou
 
 Notes:
 - These terms assume the Newton/Warp backend (Warp arrays are available for joint state and defaults).
-- For best performance, pass :class:`isaaclab_experimental.managers.SceneEntityCfg` so `joint_ids_wp` is cached.
+- Pass :class:`isaaclab.managers.SceneEntityCfg`; the Warp managers fill its `joint_ids_wp` once at resolution.
 """
 
 from __future__ import annotations
@@ -466,9 +466,9 @@ def reset_joints_by_offset(
     # Assume cfg params are already resolved by the manager stack (Warp-first workflow).
     if asset_cfg.joint_ids_wp is None:
         raise ValueError(
-            f"reset_joints_by_offset requires an experimental SceneEntityCfg with resolved joint_ids_wp, "
+            f"reset_joints_by_offset requires a SceneEntityCfg with resolved joint_ids_wp, "
             f"but got None for asset '{asset_cfg.name}'. "
-            "Use isaaclab_experimental.managers.SceneEntityCfg and ensure joint_names are set."
+            "Pass it as a term parameter, which the Warp managers resolve, and ensure joint_names are set."
         )
     if not hasattr(env, "rng_state_wp") or env.rng_state_wp is None:
         raise AttributeError(
@@ -557,9 +557,9 @@ def reset_joints_by_scale(
 
     if asset_cfg.joint_ids_wp is None:
         raise ValueError(
-            f"reset_joints_by_scale requires an experimental SceneEntityCfg with resolved joint_ids_wp, "
+            f"reset_joints_by_scale requires a SceneEntityCfg with resolved joint_ids_wp, "
             f"but got None for asset '{asset_cfg.name}'. "
-            "Use isaaclab_experimental.managers.SceneEntityCfg and ensure joint_names are set."
+            "Pass it as a term parameter, which the Warp managers resolve, and ensure joint_names are set."
         )
     if not hasattr(env, "rng_state_wp") or env.rng_state_wp is None:
         raise AttributeError(
