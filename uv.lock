@@ -2154,7 +2154,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-newton"
-version = "9.1.4"
+version = "9.1.5"
 source = { editable = "source/isaaclab_newton" }
 dependencies = [
     { name = "isaaclab" },
