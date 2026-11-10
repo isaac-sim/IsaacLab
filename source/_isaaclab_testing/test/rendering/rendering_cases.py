@@ -276,3 +276,15 @@ KITLESS_RENDERING_CASES = (
         ),
     )
 )
+
+
+def kitless_rendering_cases(physics: str, renderer: str) -> tuple[tuple[str, RenderCase], ...]:
+    """Return the kitless cases of one physics/renderer pair; each pair runs from its own test file and CI process.
+
+    OVStage builds its process-wide USD schema definitions the first time it populates or exports a stage. A case run
+    after another pair's case could find them built without the schemas it needs: OVPhysX then fails to register the
+    PhysX schemas (NVBUG#6889309), and OVRTX misses its render-settings schemas.
+    """
+    return tuple(
+        (stage, case) for stage, case in KITLESS_RENDERING_CASES if (case.physics, case.renderer) == (physics, renderer)
+    )
