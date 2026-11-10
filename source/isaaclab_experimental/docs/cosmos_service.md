@@ -146,7 +146,7 @@ In a second terminal, use the Isaac Lab environment and its checkout:
 
 ```bash
 cd /absolute/path/to/IsaacLab
-uv run isaaclab cosmos status
+uv run python -m isaaclab_experimental.cosmos.client.cli status
 ```
 
 A ready service reports `"ready": true`. Before connecting a camera, check that

@@ -92,7 +92,7 @@ Set the path variables to the same absolute paths as in terminal 1, then run:
 
 ```bash
 cd "$ISAAC_LAB"
-uv run isaaclab cosmos status
+uv run python -m isaaclab_experimental.cosmos.client.cli status
 ```
 
 Check for `"ready": true` and `"session_active": false`, then start the demo:

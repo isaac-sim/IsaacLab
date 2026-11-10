@@ -19,4 +19,6 @@
   tasks: the Shadow Hand camera tasks with a camera image that Cosmos generates from depth, one prompt per
   environment. ``env.cosmos`` holds the camera's Cosmos settings, so overrides such as ``env.cosmos.prompt=...``
   set them. The package registers them through the ``isaaclab.tasks`` entry point.
+* Added ``python -m isaaclab_experimental.cosmos.client.cli status``, which reports whether a running Cosmos
+  service is ready and has an active camera session.
 * Added the Cosmos service setup guide, the camera integration guide, and a demo walkthrough.

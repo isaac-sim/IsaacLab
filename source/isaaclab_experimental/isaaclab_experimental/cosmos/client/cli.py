@@ -3,7 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Inspect an independently running Cosmos service."""
+"""Inspect an independently running Cosmos service.
+
+python -m isaaclab_experimental.cosmos.client.cli status
+"""
 
 from __future__ import annotations
 
@@ -15,8 +18,12 @@ from isaaclab_experimental.cosmos._protocol import DEFAULT_ENDPOINT, request
 
 
 def main(args: list[str] | None = None) -> int:
-    """Run the ``isaaclab cosmos status`` command."""
-    parser = argparse.ArgumentParser(description=__doc__, prog="isaaclab cosmos")
+    """Run the ``status`` command."""
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        prog="python -m isaaclab_experimental.cosmos.client.cli",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     commands = parser.add_subparsers(dest="command", required=True)
     status = commands.add_parser("status", help="Inspect the service.")
     status.add_argument(

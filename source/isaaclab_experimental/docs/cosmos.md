@@ -24,7 +24,7 @@ Check readiness:
 
 ```bash
 cd /absolute/path/to/IsaacLab
-uv run isaaclab cosmos status
+uv run python -m isaaclab_experimental.cosmos.client.cli status
 ```
 
 A successful response contains `"ready": true` and the model's capabilities. Check
