@@ -24,7 +24,7 @@ Check readiness:
 
 ```bash
 cd /absolute/path/to/IsaacLab
-uv run isaaclab cosmos status
+uv run python -m isaaclab_experimental.cosmos.client.cli status
 ```
 
 A successful response contains `"ready": true` and the model's capabilities. Check
@@ -36,8 +36,8 @@ For a different endpoint, pass `--endpoint unix:///path/to/socket` or `--endpoin
 
 ## Put Cosmos on a camera task
 
-Cosmos goes on a camera through the task's configuration. The Shadow Hand tasks have a `cosmos` preset (see
-"Run the Shadow Hand camera task"), and its options are ordinary Isaac Lab overrides of `env.cosmos`.
+Cosmos goes on a camera through the task's configuration. The Shadow Hand camera tasks have Cosmos versions (see
+"Run the Shadow Hand camera task"), and their options are ordinary Isaac Lab overrides of `env.cosmos`.
 For any other compatible camera task, call `apply_cosmos(env_cfg, prompt=...)` on its configuration in code, or build a
 preset with `cosmos_camera` (see "Configure another camera task").
 
@@ -78,8 +78,8 @@ Limits of `apply_cosmos`:
   such as `Isaac-Cartpole-Camera-Direct`, are not supported; Isaac Lab warns for Direct tasks.
 - Without a `prompt`, Cosmos runs without a scene description and Isaac Lab warns.
 
-Tasks that train an image encoder from a pretrained checkpoint may need their own preset, as the Shadow Hand tasks
-below do, because the encoder sees new images.
+Tasks that train an image encoder from a pretrained checkpoint may need their own configuration, as the Shadow Hand
+Cosmos tasks below do, because the encoder sees new images.
 
 ## Depth control and prompts
 
@@ -93,20 +93,22 @@ lighting, and camera usually follows the control more closely).
 
 ## Run the Shadow Hand camera task
 
-The Direct task `Isaac-Reorient-Cube-Shadow-Camera-Direct` and the Manager-based task
-`Isaac-Reorient-Cube-Shadow-Camera` both offer `presets=cosmos`, with the same Cosmos camera.
+`Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct` and `Isaac-Reorient-Cube-Shadow-Camera-Cosmos` are the Direct
+task `Isaac-Reorient-Cube-Shadow-Camera-Direct` and the Manager-based task `Isaac-Reorient-Cube-Shadow-Camera`
+with the same Cosmos camera. They live in `isaaclab_experimental.cosmos.tasks` and reuse the core tasks, which do
+not import Cosmos. The package registers them through the `isaaclab.tasks` entry point, so `isaaclab train` and
+`isaaclab play` find them by name; reinstall the environment (`uv sync`) once if the names are not found.
 
-Both presets use one environment unless `--num_envs` sets more; see [Several environments](#several-environments).
+Both tasks use one environment unless `--num_envs` sets more; see [Several environments](#several-environments).
 
-After `status` reports readiness, run a task with its Cosmos preset:
+After `status` reports readiness, run a Cosmos task:
 
 ```bash
 uv run isaaclab train \
-  --task Isaac-Reorient-Cube-Shadow-Camera-Direct \
+  --task Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct \
   --rl_library rsl_rl \
   --num_envs 1 \
-  --max_iterations 100 \
-  presets=cosmos
+  --max_iterations 100
 ```
 
 This runs 100 training iterations. Use `--max_iterations 1` for a short training
@@ -115,19 +117,18 @@ the `video` extra:
 
 ```bash
 uv run --extra video isaaclab train \
-  --task Isaac-Reorient-Cube-Shadow-Camera-Direct \
+  --task Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct \
   --rl_library rsl_rl \
   --num_envs 1 \
   --max_iterations 100 \
   --video sensor:tiled_camera:rgb \
-  --video_length 100 \
-  presets=cosmos
+  --video_length 100
 ```
 
 The recording reads the camera's generated RGB, including held frames between
 Cosmos updates.
 
-The preset selects a `640 x 640` RGB camera and depth controls
+The task selects a `640 x 640` RGB camera and depth controls
 covering `0.1` to `1.5` meters. Its prompt describes a Shadow Hand manipulating a
 cube, and it connects to the default endpoint. Like the task's other cameras, it
 captures every environment step, 60 times per second of simulation time. After the
@@ -139,32 +140,31 @@ For fewer Cosmos requests with one environment, capture less often, for example
 `env.scene.tiled_camera.update_period=0.1` (10 Hz, 101 frames); generated images then change less often. Training
 with several environments needs a capture every step: environments that reset at different times would otherwise
 capture on different steps, and the feature extractor pairs each new image with the current cube pose.
-The preset requires `scene.lazy_sensor_update=True` and synchronous rendering so
+The task requires `scene.lazy_sensor_update=True` and synchronous rendering so
 each image remains aligned with its simulation state. With OVRTX, set
 `env.scene.tiled_camera.renderer_cfg.async_rendering=False` on the command line.
 
-The Cosmos preset trains its feature extractor from generated RGB. While an image
+The Cosmos task trains its feature extractor from generated RGB. While an image
 is held, its supervised cube-pose target is held too: each environment's target is
 the cube pose of the step its image appeared, kept until that image changes. An
 environment showing black after a reset is left out of the loss until its next image. Published
 feature-extractor checkpoints for the default `120 x 120`, seven-channel camera
-are incompatible with this `640 x 640`, three-channel input, so the preset disables
+are incompatible with this `640 x 640`, three-channel input, so the task disables
 that pretrained fallback. For playback, use a policy checkpoint from a Cosmos
 training run and keep its corresponding `cnn_*.pth` feature-extractor checkpoint
 in the run's log directory.
 
 ```bash
 uv run isaaclab play \
-  --task Isaac-Reorient-Cube-Shadow-Camera-Direct \
+  --task Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct \
   --rl_library rsl_rl \
   --checkpoint /path/to/cosmos-run/model_99.pt \
-  --num_envs 1 \
-  presets=cosmos
+  --num_envs 1
 ```
 
-Without a Cosmos preset, the task uses its existing camera configuration.
+The core tasks without `-Cosmos` in their names keep their existing camera configuration.
 
-The preset's Cosmos settings are `env.cosmos`, the camera's own `CosmosModelCfg`, and they are set with ordinary
+The task's Cosmos settings are `env.cosmos`, the camera's own `CosmosModelCfg`, and they are set with ordinary
 Isaac Lab overrides:
 
 | Option | Override |
@@ -174,8 +174,8 @@ Isaac Lab overrides:
 | Service endpoint | `env.cosmos.endpoint=<url>` |
 | Transport | `env.cosmos.transport=socket` |
 
-For example, `isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Direct presets=cosmos
-env.cosmos.prompt="A Shadow Hand turning a red cube."`. Omitted options preserve the preset's values, and the overrides keep its
+For example, `isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct
+env.cosmos.prompt="A Shadow Hand turning a red cube."`. Omitted options preserve the task's values, and the overrides keep its
 image size, tensor processors, and feature-extractor supervision.
 
 ## Client and server packages
@@ -267,8 +267,8 @@ Prompts can also come from files. `prompt` is always text; file paths go in `pro
 mistaken for a path:
 
 ```bash
-uv run isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Direct --rl_library rsl_rl --num_envs 2 \
-  presets=cosmos env.cosmos.prompt_files="['prompts/*.json']"
+uv run isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct --rl_library rsl_rl --num_envs 2 \
+  env.cosmos.prompt_files="['prompts/*.json']"
 ```
 
 Each file is one prompt and patterns expand in sorted order, so two matching files give each of the two environments
@@ -333,12 +333,11 @@ not establish that a full episode fits.
 Ask for the environments with `--num_envs`, and give one prompt per environment as a list:
 
 ```bash
-uv run isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Direct --rl_library rsl_rl --num_envs 2 \
-  presets=cosmos \
+uv run isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct --rl_library rsl_rl --num_envs 2 \
   env.cosmos.prompt="['A close-up overhead view of a robotic Shadow Hand turning a red cube on a wooden workbench.', 'A close-up overhead view of a robotic Shadow Hand turning a blue cube in a bright white lab.']"
 ```
 
-For a task without a preset, set `env_cfg.scene.num_envs = 2` and call `apply_cosmos(env_cfg, prompt=[...])`.
+For a task without a Cosmos version, set `env_cfg.scene.num_envs = 2` and call `apply_cosmos(env_cfg, prompt=[...])`.
 
 - With several environments, environment `v` uses `prompt[v % len(prompt)]` for all its episodes; the batch keeps
   each environment's prompt across its resets. With one environment, a prompt list changes per episode.
@@ -348,7 +347,7 @@ For a task without a preset, set `env_cfg.scene.num_envs = 2` and call `apply_co
   resets; Cosmos receives a frame only for the environments a capture covers, so each environment's frames and
   budget follow its own captures.
 - Independent resets of several environments need compiled inference and per-view VAE caches in the Framework
-  runtime. `apply_cosmos` checks this before training; with a preset, a service without them stops the run with an
+  runtime. `apply_cosmos` checks this before training; with a Cosmos task, a service without them stops the run with an
   error at the first independent reset.
 - With the socket transport, one step's image message carries at most 16 environments.
 - Each environment's history (30 latent frames) takes GPU memory. On a 48 GB GPU that Isaac Sim shares, one
@@ -361,10 +360,9 @@ For a task without a preset, set `env_cfg.scene.num_envs = 2` and call `apply_co
 output, the generated images, across environments; record it to see every environment side by side:
 
 ```bash
-uv run --extra video isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Direct --rl_library rsl_rl --num_envs 2 \
+uv run --extra video isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct --rl_library rsl_rl --num_envs 2 \
   --max_iterations 20 \
   --viz newton_gl --video viz:newton_gl:streaming_view --video_length 600 \
-  presets=cosmos \
   env.cosmos.prompt="['A close-up overhead view of a robotic Shadow Hand turning a red cube on a wooden workbench.', 'A close-up overhead view of a robotic Shadow Hand turning a blue cube in a bright white lab.']"
 ```
 
@@ -382,7 +380,7 @@ does not end the episode. Training also starts environments at random points of 
 ## Several cameras
 
 Several cameras, such as a base and a wrist camera, can share one session: each capture generates all their
-environments as one batch. This is set up in a task's configuration code; no registered preset provides it yet. Pass
+environments as one batch. This is set up in a task's configuration code; no registered task provides it yet. Pass
 the cameras to `apply_cosmos` as a list of names, and set the shared prompt, endpoint, and transport there: each
 camera receives its own copy of these settings, and the cameras share a session only while the copies match.
 
@@ -478,8 +476,7 @@ Start the second with `--device cuda:2 --endpoint unix:///tmp/isaaclab-cosmos-gp
 endpoint with the list of both:
 
 ```bash
-uv run isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Direct --rl_library rsl_rl --num_envs 4 \
-  presets=cosmos \
+uv run isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct --rl_library rsl_rl --num_envs 4 \
   env.cosmos.endpoint="['unix:///tmp/isaaclab-cosmos-gpu1.sock', 'unix:///tmp/isaaclab-cosmos-gpu2.sock']" \
   env.cosmos.transport=cuda_ipc
 ```
@@ -497,7 +494,7 @@ session. In a configuration, set `CosmosModelCfg.endpoint` to the list of endpoi
 ## Episode frame budget
 
 Each session requests a frame budget, `1 + 4*k` frames per episode; the server sets no limit of its own. The
-service tells the model the episode's duration from this budget. `apply_cosmos` and the Shadow Hand presets derive it
+service tells the model the episode's duration from this budget. `apply_cosmos` and the Shadow Hand Cosmos tasks derive it
 from the task's episode duration and actual capture cadence, including the initial capture and rounding up to
 `1 + 4*k`. Hand-written camera processors must set `CosmosModelCfg.max_episode_frames` explicitly. Reset the environment
 before that budget is exhausted; the service rejects further generation rather than silently resetting the episode.

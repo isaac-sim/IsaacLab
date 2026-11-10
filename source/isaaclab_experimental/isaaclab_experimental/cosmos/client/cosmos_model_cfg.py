@@ -86,7 +86,7 @@ class CosmosModelCfg(BackendCfg):
 
     max_episode_frames: int | None = None
     """Image-frame budget per episode, including the initial frame: ``1 + 4*k``. ``apply_cosmos`` and the
-    Shadow Hand presets derive it from the task duration and capture rate with :func:`episode_frame_budget`.
+    Shadow Hand Cosmos tasks derive it from the task duration and capture rate with :func:`episode_frame_budget`.
     Low-level callers must set it before creating the client. The service tells the model the episode's duration
     from it and rejects frames beyond it.
     """

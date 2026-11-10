@@ -172,17 +172,6 @@ def microbenchmark(args: list[str] | None = None) -> None:
     _exit_on_error(run_microbenchmark_cli(args))
 
 
-def cosmos(args: list[str] | None = None) -> None:
-    """Inspect a Cosmos camera service.
-
-    Args:
-        args: Command-line arguments. Uses sys.argv when omitted.
-    """
-    from isaaclab_experimental.cosmos.client.cli import main
-
-    _exit_on_error(main(args))
-
-
 def cli() -> None:
     """Parse CLI arguments and run the requested command."""
     subcommands = {
@@ -220,9 +209,6 @@ def cli() -> None:
     if len(sys.argv) > 1 and sys.argv[1] == "example":
         example(sys.argv[2:])
         return
-    if len(sys.argv) > 1 and sys.argv[1] == "cosmos":
-        cosmos(sys.argv[2:])
-        return
     if len(sys.argv) > 1 and sys.argv[1] in subcommands:
         load_external_tasks()
         subcommands[sys.argv[1]](sys.argv[2:])
@@ -239,7 +225,6 @@ def cli() -> None:
         formatter_class=argparse.RawTextHelpFormatter,
         epilog=(
             "commands:\n"
-            "  cosmos          Inspect a Cosmos camera service\n"
             "  benchmark       Run a runtime, startup, training, or play benchmark\n"
             "                  (append _multigpu to a workflow to run it across GPUs)\n"
             "  microbenchmark  Run a component micro-benchmark\n"

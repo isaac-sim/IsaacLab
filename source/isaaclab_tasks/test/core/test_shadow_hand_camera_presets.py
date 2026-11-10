@@ -40,7 +40,6 @@ from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_manager_
 from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import (
     ShadowHandCameraEnvCfg,
 )
-from isaaclab_tasks.utils import parse_env_cfg, resolve_task_config
 from isaaclab_tasks.utils.hydra import collect_presets, resolve_presets
 
 # ---------------------------------------------------------------------------
@@ -258,30 +257,6 @@ def test_task_presets_select_published_feature_extractor_checkpoint(
     assert env_cfg.feature_extractor.pretrained_checkpoint == expected_path
 
 
-def test_registered_cosmos_preset_composes_rgb_observations_and_local_checkpoint_playback():
-    """The training task composes depth-guided RGB, and playback retains its own trained CNN."""
-    task_name = "Isaac-Reorient-Cube-Shadow-Camera-Direct"
-    env_cfg = parse_env_cfg(task_name, overrides=("presets=cosmos", "env.episode_length_s=30.0"))
-    env_cfg.validate()
-    camera = env_cfg.scene.tiled_camera
-    transfer = camera.tensor_processors[-1]
-
-    assert env_cfg.scene.num_envs == 1
-    assert camera.data_types == ["rgb"] and transfer.outputs == ["rgb"]
-    assert transfer.backend.max_episode_frames == 1801
-    assert camera.update_period == 0.0
-    assert env_cfg.feature_extractor.enabled and env_cfg.feature_extractor.train
-    assert env_cfg.feature_extractor.pretrained_checkpoint is None
-
-    play_cfg, _ = resolve_task_config(task_name, None, play_mode=True, overrides=("presets=cosmos",))
-    play_cfg.validate()
-
-    assert play_cfg.scene.num_envs == 1
-    assert not play_cfg.feature_extractor.train
-    assert play_cfg.feature_extractor.load_checkpoint
-    assert play_cfg.feature_extractor.pretrained_checkpoint is None
-
-
 def test_manager_camera_term_steps_the_feature_extractor_and_resets_held_images(monkeypatch):
     """The Manager term feeds the camera output to the feature extractor and forwards resets."""
     from isaaclab_tasks.core.reorient import mdp
@@ -330,48 +305,6 @@ def test_manager_camera_term_steps_the_feature_extractor_and_resets_held_images(
 
     assert calls[0] == ("reset", [0])
     assert calls[1][0] == "step" and calls[1][1] is rgb
-
-
-def test_manager_cosmos_preset_feeds_generated_rgb_to_the_camera_observation_term():
-    """The Manager task uses the Direct task's Cosmos camera; its observation term reads the generated rgb."""
-    env_cfg = parse_env_cfg("Isaac-Reorient-Cube-Shadow-Camera", overrides=("presets=cosmos",))
-    env_cfg.validate()
-    camera = env_cfg.scene.tiled_camera
-
-    assert env_cfg.scene.num_envs == 1 and (camera.width, camera.height) == (640, 640)
-    processors = camera.tensor_processors
-    assert processors[0].inputs == ["distance_to_image_plane"] and processors[-1].outputs == ["rgb"]
-    assert env_cfg.observations.policy.camera_features.params["feature_extractor_cfg"] == env_cfg.feature_extractor
-    assert env_cfg.feature_extractor.image_update_frames == 4
-    assert env_cfg.feature_extractor.pretrained_checkpoint is None
-
-
-@pytest.mark.parametrize("task", ["Isaac-Reorient-Cube-Shadow-Camera-Direct", "Isaac-Reorient-Cube-Shadow-Camera"])
-def test_cosmos_presets_accept_several_environments(task):
-    """Both Shadow Hand Cosmos presets run several environments, one Cosmos view each."""
-    env_cfg = parse_env_cfg(task, overrides=("presets=cosmos", "env.scene.num_envs=2"))
-    env_cfg.validate()
-
-    assert env_cfg.scene.num_envs == 2
-
-
-@pytest.mark.parametrize(
-    "overrides,error",
-    [
-        (("env.max_consecutive_success=1",), "max_consecutive_success=0"),
-        (("env.scene.lazy_sensor_update=False",), "lazy_sensor_update"),
-        (("renderer=ovrtx", "env.scene.tiled_camera.renderer_cfg.async_rendering=True"), "synchronous"),
-        (("env.feature_extractor.image_update_frames=1",), "image_update_frames"),
-        # Staggered captures would pair a generated image with a later step's pose.
-        (("env.scene.num_envs=2", "env.scene.tiled_camera.update_period=0.1"), "capture every step"),
-    ],
-)
-def test_cosmos_task_rejects_overrides_exceeding_service_limits_before_simulation(overrides, error):
-    """CLI overrides must preserve the service limits and camera supervision timing."""
-    env_cfg = parse_env_cfg("Isaac-Reorient-Cube-Shadow-Camera-Direct", overrides=("presets=cosmos", *overrides))
-
-    with pytest.raises(ValueError, match=error):
-        env_cfg.validate()
 
 
 def _held_image_extractor(log_dir) -> FeatureExtractor:

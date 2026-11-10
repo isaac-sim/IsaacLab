@@ -105,7 +105,7 @@ def service_capabilities(endpoint: str = DEFAULT_ENDPOINT, timeout: float = 5.0)
         timeout: Connection and response timeout [s].
 
     Returns:
-        The capabilities reported by ``isaaclab cosmos status``.
+        The capabilities in the service's status reply.
 
     Raises:
         RuntimeError: If the service is unavailable or already has a camera session.
