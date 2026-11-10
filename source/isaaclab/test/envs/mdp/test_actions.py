@@ -15,9 +15,13 @@ from isaaclab.envs.mdp.actions.actions_cfg import (
     AbsBinaryJointPositionActionCfg,
     BinaryJointPositionActionCfg,
     DifferentialInverseKinematicsActionCfg,
+    JointEffortActionCfg,
+    JointPositionToLimitsActionCfg,
     OperationalSpaceControllerActionCfg,
 )
 from isaaclab.envs.mdp.actions.binary_joint_actions import AbsBinaryJointPositionAction, BinaryJointPositionAction
+from isaaclab.envs.mdp.actions.joint_actions import JointEffortAction
+from isaaclab.envs.mdp.actions.joint_actions_to_limits import JointPositionToLimitsAction
 from isaaclab.envs.mdp.actions.task_space_actions import (
     DifferentialInverseKinematicsAction,
     OperationalSpaceControllerAction,
@@ -33,7 +37,7 @@ class _JointIds:
     """Stand-in for the proxy returned by ``find_joints(..., as_proxy=True)``."""
 
     def __init__(self, count: int):
-        self.warp = torch.arange(count, dtype=torch.int32)
+        self.warp = self.torch = torch.arange(count, dtype=torch.int32)
 
     def __len__(self) -> int:
         return len(self.warp)
@@ -44,7 +48,7 @@ def _make_env(joint_names: list[str] | None = None, num_envs: int = NUM_ENVS) ->
     if joint_names is None:
         joint_names = JOINT_NAMES
 
-    def find_joints(_names, *, as_proxy: bool = False):
+    def find_joints(_names, *, as_proxy: bool = False, **_kwargs):
         joint_ids = _JointIds(len(joint_names)) if as_proxy else list(range(len(joint_names)))
         return joint_ids, list(joint_names)
 
@@ -231,3 +235,47 @@ def test_osc_controller_limits_bound_clip() -> None:
     action._preprocess_actions(raw)
 
     torch.testing.assert_close(action.processed_actions[:, 6:12], torch.full((NUM_ENVS, 6), 500.0))
+
+
+@pytest.mark.parametrize(
+    "action_cls, cfg",
+    [
+        (
+            BinaryJointPositionAction,
+            BinaryJointPositionActionCfg(open_command_expr={".*": 1.0}, close_command_expr={".*": -1.0}),
+        ),
+        (JointEffortAction, JointEffortActionCfg(scale=2.0, clip={".*": (-1.0, 1.0)})),
+        (JointPositionToLimitsAction, JointPositionToLimitsActionCfg(scale=2.0, rescale_to_limits=False)),
+    ],
+)
+def test_recordable_joint_actions_process_into_the_same_buffer(action_cls, cfg) -> None:
+    """A step that records ``apply_actions`` reads the processed buffer, so processing writes it in place."""
+    cfg.asset_name, cfg.joint_names = "robot", [".*"]
+    action = action_cls(cfg, _make_env(["a", "b"]))
+    processed = action.processed_actions
+
+    action.process_actions(torch.full((2, action.action_dim), -0.25))
+
+    assert action.processed_actions is processed
+    assert torch.all(processed < 0.0)
+
+
+def test_subclass_overriding_action_methods_does_not_inherit_is_graphable() -> None:
+    """A subclass with its own ``process_actions`` or ``apply_actions`` is not recorded unless it says so."""
+
+    class Processes(JointEffortAction):
+        def process_actions(self, actions):
+            self._processed_actions = actions.clamp(-1.0, 1.0)
+
+    class Declares(Processes):
+        is_graphable = True
+
+        def process_actions(self, actions):
+            super().process_actions(actions)
+
+    class Inherits(JointEffortAction):
+        pass
+
+    assert not Processes.is_graphable
+    assert Declares.is_graphable
+    assert Inherits.is_graphable
