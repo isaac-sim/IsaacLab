@@ -17,6 +17,7 @@ from unittest.mock import Mock, call
 
 import numpy as np
 import pytest
+import torch
 
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import ClonePlan, PrototypeWorldTopology, make_clone_plan
@@ -236,6 +237,8 @@ def test_default_native_replication_keeps_stdout_quiet(capfd) -> None:
 
     A slow stdout consumer blocks the native writer, so per-clone output stalls large scenes.
     """
+    if not torch.cuda.is_available():
+        pytest.skip("OVRTX rendering requires CUDA")
     from isaaclab_ov.renderers.ovrtx_renderer import OVRTXBackend
     from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg
 
