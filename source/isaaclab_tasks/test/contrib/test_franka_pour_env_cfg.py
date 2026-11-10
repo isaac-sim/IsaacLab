@@ -5,13 +5,19 @@
 
 """Tests for the single-stage Franka Pour task configuration."""
 
+from types import SimpleNamespace
+
 import pytest
+import torch
+import warp as wp
 
 from isaaclab.utils import update_from_dict, validate
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_tasks.contrib.franka_pour import pour_env
 from isaaclab_tasks.contrib.franka_pour.geometry import SOURCE_CUP_GEOMETRY
+from isaaclab_tasks.contrib.franka_pour.mdp.actions import CurriculumGripperPositionAction
+from isaaclab_tasks.contrib.franka_pour.mdp.actions_cfg import CurriculumGripperPositionActionCfg
 from isaaclab_tasks.contrib.franka_pour.media import media_particle_count
 from isaaclab_tasks.contrib.franka_pour.pour_env_cfg import (
     _MEDIA_FILL_RESOLUTION,
@@ -187,3 +193,20 @@ def test_constant_mdp_parameters_are_validated_before_stepping(term_path, parame
 
     with pytest.raises((TypeError, ValueError), match=message):
         validate(cfg)
+
+
+def test_gripper_target_moves_a_fraction_of_the_way_to_each_command():
+    """The filtered finger target keeps its history although the binary command is processed in place."""
+
+    class JointIds(list):
+        warp = wp.array([0, 1], dtype=wp.int32, device="cpu")
+        torch = wp.to_torch(warp)
+
+    robot = SimpleNamespace(num_joints=2, find_joints=lambda *_a, **_k: (JointIds([0, 1]), ["finger_l", "finger_r"]))
+    env = SimpleNamespace(num_envs=1, device="cpu", scene={"robot": robot})
+    cfg = CurriculumGripperPositionActionCfg(asset_name="robot", joint_names=["finger_.*"], alpha=0.5)
+    action = CurriculumGripperPositionAction(cfg, env)
+
+    for expected in (0.0125, 0.01875):
+        action.process_actions(torch.ones(1, 1))
+        torch.testing.assert_close(action.processed_actions, torch.full((1, 2), expected))
