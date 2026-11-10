@@ -28,11 +28,10 @@ import warp as wp
 import isaaclab.utils.string as string_utils
 from isaaclab.managers.manager_base import _populate_term_defaults
 from isaaclab.managers.manager_term_cfg import ManagerTermBaseCfg
+from isaaclab.managers.scene_entity_cfg import SceneEntityCfg
 from isaaclab.utils import string_to_callable, to_dict
 
 from isaaclab_experimental.utils.warp import is_warp_capturable
-
-from .scene_entity_cfg import SceneEntityCfg
 
 # import omni.timeline
 

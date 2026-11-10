@@ -31,9 +31,9 @@ import warp as wp
 
 from isaaclab.envs.mdp.events import randomize_rigid_body_mass as _StableRandomizeRigidBodyMass
 from isaaclab.envs.mdp.events import randomize_rigid_body_material as _StableRandomizeRigidBodyMaterial
+from isaaclab.managers import SceneEntityCfg
 
 from isaaclab_experimental.managers import ManagerTermBase as _WarpManagerTermBase
-from isaaclab_experimental.managers import SceneEntityCfg
 from isaaclab_experimental.utils.warp import WarpCapturable
 
 if TYPE_CHECKING:

@@ -15,8 +15,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import warp as wp
-from isaaclab_experimental.managers import SceneEntityCfg
 
+from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.warp.math import yaw_quat
 
 if TYPE_CHECKING:
