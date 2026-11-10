@@ -34,6 +34,8 @@ from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 from isaaclab_visualizers.newton_adapter import log_geo_with_expanded_plane_scale
 
+from .lidar_points import lidar_world_points
+
 if TYPE_CHECKING:
     from isaaclab.sensors.camera import Camera
 
@@ -45,6 +47,10 @@ _BACKEND_DISPLAY_NAMES = {
     "ovphysx": "OVPhysX",
     "newton": "Newton MJWarp",
 }
+
+# Same radius and color as the ray-caster hit marker.
+_LIDAR_POINT_RADIUS = 0.02
+_LIDAR_POINT_COLOR = (1.0, 0.0, 0.0)
 
 
 class NewtonViewerRerun(ViewerRerun):
@@ -61,23 +67,57 @@ class NewtonViewerRerun(ViewerRerun):
         self._instance_appearance: dict[str, tuple[np.ndarray | None, np.ndarray | None]] = {}
         self._camera_pose: tuple | None = None
         self._streaming_view_active = streaming_view
-        if open_browser:
-            super().__init__(*args, **kwargs)
-        else:
-            original_serve_web_viewer = rr.serve_web_viewer
+        self._rerun_server_recording = None
+        # rr.save() and rr.serve_grpc() each replace the active sink. Saving and then
+        # starting the viewer leaves the .rrd containing only the blueprint. Host the
+        # gRPC server on a side recording, then tee this recording to the file and that server.
+        record_to_rrd = kwargs.pop("record_to_rrd", None)
+        address = kwargs.get("address")
+        serve_web_viewer = kwargs.get("serve_web_viewer", True)
+        grpc_port = kwargs.get("grpc_port", 9876)
+        server_recording: rr.RecordingStream | None = None
+        server_uri: str | None = None
 
-            # Rerun Viewer launches a browser automatically, so here we suppress that behavior
-            def _serve_web_viewer_without_browser(*serve_args, **serve_kwargs):
-                with contextlib.suppress(TypeError, ValueError):
-                    supports_open_browser = "open_browser" in inspect.signature(original_serve_web_viewer).parameters
-                    if supports_open_browser:
-                        serve_kwargs.setdefault("open_browser", False)
-                return original_serve_web_viewer(*serve_args, **serve_kwargs)
+        def _serve_on_side_recording(*_serve_args, **serve_kwargs):
+            nonlocal server_recording, server_uri
+            server_recording = rr.RecordingStream(kwargs.get("app_id") or "newton-viewer")
+            server_uri = server_recording.serve_grpc(
+                grpc_port=serve_kwargs.get("grpc_port", grpc_port),
+                default_blueprint=serve_kwargs.get("default_blueprint"),
+                server_memory_limit=serve_kwargs.get("server_memory_limit", "1GiB"),
+                newest_first=serve_kwargs.get("newest_first", False),
+            )
+            return server_uri
 
-            with contextlib.ExitStack() as stack:
+        original_serve_web_viewer = rr.serve_web_viewer
+        original_serve_grpc = rr.serve_grpc
+
+        # Rerun Viewer launches a browser automatically, so here we suppress that behavior
+        def _serve_web_viewer_without_browser(*serve_args, **serve_kwargs):
+            with contextlib.suppress(TypeError, ValueError):
+                supports_open_browser = "open_browser" in inspect.signature(original_serve_web_viewer).parameters
+                if supports_open_browser:
+                    serve_kwargs.setdefault("open_browser", False)
+            return original_serve_web_viewer(*serve_args, **serve_kwargs)
+
+        with contextlib.ExitStack() as stack:
+            if not open_browser:
                 rr.serve_web_viewer = _serve_web_viewer_without_browser
                 stack.callback(setattr, rr, "serve_web_viewer", original_serve_web_viewer)
-                super().__init__(*args, **kwargs)
+            if record_to_rrd is not None and address is None and serve_web_viewer:
+                rr.serve_grpc = _serve_on_side_recording
+                stack.callback(setattr, rr, "serve_grpc", original_serve_grpc)
+            super().__init__(*args, record_to_rrd=None, **kwargs)
+
+        self._rerun_server_recording = server_recording
+        if record_to_rrd is not None:
+            grpc_url = server_uri or address
+            if grpc_url is None and not serve_web_viewer:
+                grpc_url = f"rerun+http://127.0.0.1:{grpc_port}/proxy"
+            sinks = [rr.FileSink(str(record_to_rrd))]
+            if grpc_url:
+                sinks.append(rr.GrpcSink(grpc_url))
+            rr.set_sinks(*sinks, default_blueprint=self._get_blueprint())
         self._paused_rendering = False
         self._reset_requested = False
 
@@ -138,6 +178,18 @@ class NewtonViewerRerun(ViewerRerun):
                 self._paused_rendering = not self._paused_rendering
             if imgui.button("Reset Episode"):
                 self._reset_requested = True
+
+    def close(self):
+        """Flush the recording, then shut down a gRPC server hosted on the side recording."""
+        super().close()
+        recording = self._rerun_server_recording
+        self._rerun_server_recording = None
+        if recording is None:
+            return
+        try:
+            recording.disconnect()
+        except Exception:
+            logger.warning("[RerunVisualizer] Failed while closing the recording server.", exc_info=True)
 
     def log_geo(
         self,
@@ -357,6 +409,7 @@ class RerunVisualizer(BaseVisualizer):
                     self._viewer.log_state(backend.state_0)
                     if self.cfg.enable_markers:
                         render_newton_visualization_markers(self._viewer, self._env_ids, num_envs=num_envs)
+                self._log_lidar_points()
                 self._render_live_plots()
             finally:
                 self._viewer.end_frame()
@@ -514,6 +567,26 @@ class RerunVisualizer(BaseVisualizer):
             else:
                 names.append(source.manager_name)
         self._viewer._live_plot_manager_names = names
+
+    def _log_lidar_points(self) -> None:
+        """Log each lidar's finite world hits into the current Rerun frame."""
+        if self._viewer is None:
+            return
+        scene = self._sim.get_scene_data_provider().get_interactive_scene()
+        if scene is None:
+            return
+        from isaaclab.sensors.lidar.lidar import Lidar
+
+        for name, sensor in scene.sensors.items():
+            if not isinstance(sensor, Lidar):
+                continue
+            points = lidar_world_points(sensor, self._env_ids)
+            self._viewer.log_points(
+                f"lidar/{name}",
+                wp.array(points, dtype=wp.vec3, device="cpu"),
+                radii=_LIDAR_POINT_RADIUS,
+                colors=_LIDAR_POINT_COLOR,
+            )
 
     def _render_live_plots(self) -> None:
         """Push manager-term scalars to Rerun as time-series scalars."""
