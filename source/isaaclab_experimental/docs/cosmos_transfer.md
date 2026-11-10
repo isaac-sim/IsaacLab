@@ -99,14 +99,13 @@ Check for `"ready": true` and `"session_active": false`, then start the demo:
 
 ```bash
 uv run isaaclab train \
-  --task Isaac-Reorient-Cube-Shadow-Camera-Direct \
+  --task Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct \
   --rl_library rsl_rl \
   --max_iterations 20 \
-  --num_envs 1 \
-  presets=cosmos
+  --num_envs 1
 ```
 
-The `cosmos` preset sends camera depth to the service and uses the generated RGB
+The Cosmos task sends camera depth to the service and uses the generated RGB
 images for training. This command runs 20 training iterations with one environment. With more
 environments, `env.cosmos.prompt` takes one prompt per environment; see
 [Several environments](cosmos.md#several-environments).
@@ -119,14 +118,13 @@ terminal to train again while recording 300 steps of the Newton GL streaming vie
 ```bash
 cd "$ISAAC_LAB"
 uv run --extra video isaaclab train \
-  --task Isaac-Reorient-Cube-Shadow-Camera-Direct \
+  --task Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct \
   --rl_library rsl_rl \
   --max_iterations 20 \
   --num_envs 1 \
   --viz newton_gl \
   --video viz:newton_gl:streaming_view \
-  --video_length 300 \
-  presets=cosmos
+  --video_length 300
 ```
 
 Without a screen, run `unset DISPLAY` before the recording command. The training

@@ -134,8 +134,9 @@ class FeatureExtractorCfg:
 
     Training only distinguishes one from more than one. Values greater than one hold each view's pose target
     from the step its image appears until that image changes, and skip views whose image is black, such as a
-    view waiting for its first generated image after a reset. Views may update at different captures. The
-    Cosmos presets require it to equal the Cosmos ``update_frames``. Default is 1.
+    view waiting for its first generated image after a reset. Views may update at different captures. An
+    image transfer that publishes several frames per update needs it equal to its ``update_frames``.
+    Default is 1.
     """
 
     load_checkpoint: bool = False

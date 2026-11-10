@@ -28,6 +28,10 @@ isaaclab = { path = "../isaaclab", editable = true }
 Homepage = "https://github.com/isaac-sim/IsaacLab"
 Repository = "https://github.com/isaac-sim/IsaacLab"
 
+# Task names that ``isaaclab train`` and ``isaaclab play`` find; the module only registers them.
+[project.entry-points."isaaclab.tasks"]
+isaaclab_experimental_cosmos = "isaaclab_experimental.cosmos.tasks"
+
 [tool.setuptools]
 include-package-data = true
 
