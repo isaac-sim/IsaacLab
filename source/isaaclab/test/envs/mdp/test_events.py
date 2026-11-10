@@ -13,6 +13,7 @@ import torch
 
 from isaaclab.envs.mdp import reset_joints_within_limits_range
 from isaaclab.managers import EventTermCfg, SceneEntityCfg
+from isaaclab.utils import env_mask_from_ids
 
 JOINT_NAMES = ["j0", "j1", "j2", "j3"]
 # Joints with distinct limits, so applying one joint's limits to another moves its value.
@@ -42,8 +43,8 @@ def test_reset_joints_within_limits_range_clamps_only_listed_joints(position_ran
         device="cpu",
         data=data,
         find_joints=lambda keys: ([i for i, name in enumerate(JOINT_NAMES) if re.fullmatch(keys, name)], None),
-        write_joint_position_to_sim_index=lambda position, env_ids: written.update(pos=position),
-        write_joint_velocity_to_sim_index=lambda velocity, env_ids: written.update(vel=velocity),
+        write_joint_position_to_sim_mask=lambda position, env_mask: written.update(pos=position),
+        write_joint_velocity_to_sim_mask=lambda velocity, env_mask: written.update(vel=velocity),
     )
     env = SimpleNamespace(num_envs=num_envs, device="cpu", scene={"robot": robot})
     params = {
@@ -55,7 +56,7 @@ def test_reset_joints_within_limits_range_clamps_only_listed_joints(position_ran
     }
     term = reset_joints_within_limits_range(EventTermCfg(func=reset_joints_within_limits_range, params=params), env)
 
-    term(env, torch.arange(num_envs), **params)
+    term(env, env_mask_from_ids(None, num_envs, env.device), **params)
 
     sampled = [JOINT_NAMES.index(name) for name in WIDE_RANGE]
     other = [i for i in range(len(JOINT_NAMES)) if i not in sampled]

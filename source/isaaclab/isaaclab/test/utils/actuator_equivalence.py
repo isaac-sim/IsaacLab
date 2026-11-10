@@ -295,5 +295,5 @@ def build_dr_term(env, asset_name, joint_ids=None):
     term = randomize_actuator_gains(cfg, env)
     # term configs copy their params; finalize the term's selection as managers do after construction
     asset_cfg = cfg.params["asset_cfg"]
-    asset_cfg.finalize(env.device)
+    asset_cfg.finalize(env.device, env.scene)
     return term, asset_cfg
