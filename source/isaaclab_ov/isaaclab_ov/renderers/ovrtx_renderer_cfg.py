@@ -84,10 +84,7 @@ class OVRTXRendererCfg(RendererCfg):
     """
 
     log_level: str = "error"
-    """OVRTX carb log level: "verbose", "info", "warn", "error". Defaults to "error".
-
-    Lower levels print OVRTX warnings to stdout, including one per attribute of every native clone.
-    """
+    """OVRTX carb log level: "verbose", "info", "warn", "error"."""
 
     log_file_path: str = os.path.join(tempfile.gettempdir(), "ovrtx_renderer.log")
     """Path for OVRTX log file. Defaults to ``<system temp>/ovrtx_renderer.log``."""

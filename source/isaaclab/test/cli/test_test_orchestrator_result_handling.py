@@ -11,6 +11,7 @@ import contextlib
 import importlib.util
 import json
 import os
+import shutil
 import signal
 import sys
 from pathlib import Path
@@ -203,8 +204,8 @@ def test_passing_test_over_output_budget_fails_and_names_the_repeated_line(monke
     """A passing test that floods its output must fail its file, although pytest prints none of that output."""
     orchestrator = _load_orchestrator_module()
     (tmp_path / "pyproject.toml").write_text("", encoding="utf-8")
-    # The repo-root conftest.py registers the plugin by the same name.
-    (tmp_path / "conftest.py").write_text('pytest_plugins = ["tools.captured_output"]\n', encoding="utf-8")
+    # The repo-root conftest.py is what hands the runner the output pytest captured.
+    shutil.copy(TOOLS_DIR.parent / "conftest.py", tmp_path / "conftest.py")
     test_file = tmp_path / "test_sample.py"
     test_file.write_text(
         "import os\n\n"

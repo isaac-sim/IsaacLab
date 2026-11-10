@@ -26,7 +26,6 @@ from prettytable import PrettyTable
 from isaaclab.test.utils import resolve_test_sim_device
 
 # Local imports
-import captured_output  # isort: skip
 import hang_dump  # isort: skip
 import ovrtx_log  # isort: skip
 import test_settings as test_settings  # isort: skip
@@ -98,6 +97,12 @@ OUTPUT_BUDGET_BYTES = 5 * 1024 * 1024
 
 Test files print at most a few hundred kilobytes. Output that grows with environment or step count stalls
 any reader slower than the test, such as a benchmark harness relaying it line by line.
+"""
+
+CAPTURED_OUTPUT_ENV_VAR = "ISAACLAB_TEST_CAPTURED_OUTPUT"
+"""Environment variable naming the file the repo-root ``conftest.py`` appends passing tests' captured output to.
+
+pytest prints that output only for a failing test, so it never reaches the streams this runner reads.
 """
 
 OUTPUT_EXCERPT_BYTES = 64 * 1024
@@ -1062,7 +1067,7 @@ def _run_one_pass(
         **ctx.env,
         JOURNAL_ENV_VAR: journal_file,
         hang_dump.DUMP_PATH_ENV_VAR: hang_dump_file,
-        captured_output.PATH_ENV_VAR: captured_output_file,
+        CAPTURED_OUTPUT_ENV_VAR: captured_output_file,
         # Absolute for the same reason as the journal: the test process saves its renderer log from
         # inside a fixture, so a test that changed directory would leave the artifact under the
         # temporary cwd.

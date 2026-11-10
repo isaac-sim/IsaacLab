@@ -388,7 +388,7 @@ def test_ovrtx_render_batch_empty_sequence_does_not_require_initialized_backend(
     ],
     ids=["legacy", "ovstage", "async-mesh", "async-particles", "async-cable"],
 )
-def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstage, asynchronous, geometry):
+def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, capfd, use_ovstage, asynchronous, geometry):
     """Cameras preserve independent captures, GPU input lifetimes, and reset/cleanup boundaries."""
     from ovrtx import PrimMode
 
@@ -648,6 +648,9 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
         SimulationContext.instance().close_backend(renderer.backend)
         if use_ovstage:
             SimulationContext.instance().close_backend(renderer.scene)
+    # The default log level keeps native cloning quiet; lower levels print a warning per attribute of every cloned
+    # environment, over a million lines at 8192 environments.
+    assert "has no valid data" not in capfd.readouterr().out
 
 
 @pytest.mark.parametrize("batch", [False, True], ids=["lazy", "batched"])

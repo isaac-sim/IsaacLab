@@ -17,7 +17,6 @@ from unittest.mock import Mock, call
 
 import numpy as np
 import pytest
-import torch
 
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import ClonePlan, PrototypeWorldTopology, make_clone_plan
@@ -229,44 +228,6 @@ def test_native_replication_applies_compositions_then_positions(
     expected = np.tile(np.eye(4, dtype=np.float64), (4, 1, 1))
     expected[:, 3, :3] = positions
     np.testing.assert_array_equal(actual, expected)
-
-
-@pytest.mark.rendering
-def test_default_native_replication_keeps_stdout_quiet(capfd) -> None:
-    """Default logging prints no OVRTX warning per attribute of each native clone.
-
-    A slow stdout consumer blocks the native writer, so per-clone output stalls large scenes.
-    """
-    if not torch.cuda.is_available():
-        pytest.skip("OVRTX rendering requires CUDA")
-    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXBackend
-    from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg
-
-    stage = Usd.Stage.CreateInMemory()
-    cube = UsdGeom.Cube.Define(stage, "/World/envs/env_0/Object")
-    material = UsdShade.Material.Define(stage, "/World/envs/env_0/Object/material")
-    shader = UsdShade.Shader.Define(stage, "/World/envs/env_0/Object/material/Shader")
-    shader.CreateIdAttr("UsdPreviewSurface")
-    material.CreateSurfaceOutput().ConnectToSource(shader.ConnectableAPI(), "surface")
-    UsdShade.MaterialBindingAPI.Apply(cube.GetPrim()).Bind(material)
-    renderer_cfg = OVRTXRendererCfg()
-    backend = OVRTXBackend(
-        OVRTXBackendCfg(
-            scene_key=renderer_cfg,
-            log_file_path=renderer_cfg.log_file_path,
-            log_level=renderer_cfg.log_level,
-            use_ovstage=False,
-            read_gpu_transforms=True,
-            device="cuda:0",
-        )
-    )
-    try:
-        backend.renderer.open_usd_from_string(stage.GetRootLayer().ExportToString())
-        ovrtx_replicate(backend.renderer, [("/World/envs/env_0", [f"/World/envs/env_{i}" for i in range(1, 9)])], [])
-    finally:
-        backend.close()
-
-    assert "has no valid data" not in capfd.readouterr().out
 
 
 @pytest.mark.parametrize("copies", [[], [("/World/Source", [])]], ids=["no-copies", "no-targets"])
