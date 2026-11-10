@@ -18,6 +18,7 @@ import torch
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim import FisheyeCameraCfg
 from isaaclab.utils import replace
+from isaaclab.utils.tensor_processors import TensorProcessorCfg
 
 from isaaclab_experimental.image_transfer import FunctionProcessorCfg
 
@@ -25,6 +26,7 @@ from .._protocol import CANVAS_ASPECT_RATIOS, DEFAULT_ENDPOINT, request
 from .control_profiles import DEPTH_FAR, DEPTH_NEAR, depth_processor
 from .cosmos_model import service_endpoints, split_views
 from .cosmos_model_cfg import CosmosModelCfg, episode_frame_budget
+from .cosmos_processor_cfg import CosmosTransferProcessorCfg
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +38,7 @@ def cosmos_camera(
     camera: CameraCfg,
     model: CosmosModelCfg,
     *,
+    control: Sequence[TensorProcessorCfg] | None = None,
     near: float = DEPTH_NEAR,
     far: float = DEPTH_FAR,
     canvas: tuple[int, int] | None = None,
@@ -45,16 +48,22 @@ def cosmos_camera(
 
     The copy renders the control input at a Cosmos canvas, by default the one closest to the camera's aspect ratio,
     widening the lens aperture so the camera's original view is the canvas's center crop. Its tensor processors
-    prepare the depth control with :func:`depth_processor`, generate with Cosmos, and scale the result back to the
-    camera's width and height. Observation terms that read ``rgb`` keep their image shape; the camera's
-    ``image_shape`` and intrinsics describe the canvas. The copy drops the camera's ``isp_cfg``, which processes the
-    rendered image that Cosmos replaces.
+    prepare the control, generate with Cosmos, and scale the result back to the camera's width and height. The
+    control is depth unless ``control`` gives other processors; the checkpoint accepts depth, segmentation, edge
+    and blur controls, one kind per session, and the service is not told which kind it receives.
+
+    Observation terms that read ``rgb`` keep their image shape; the camera's ``image_shape`` and intrinsics describe
+    the canvas. The copy drops the camera's ``isp_cfg``, which processes the rendered image that Cosmos replaces.
 
     Args:
         camera: Pinhole camera publishing only ``rgb``, for example a task's policy camera.
         model: Cosmos service connection and prompt.
-        near: Depth rendered white [m].
-        far: Depth rendered black [m].
+        control: Processors that write the ``control`` buffer from the camera's render outputs: uint8 images of
+            shape (N, H, W, 3) at the canvas size, for example a
+            :class:`~isaaclab_experimental.image_transfer.FunctionProcessorCfg` reading ``semantic_segmentation``
+            or the rendered ``rgb``. Defaults to None, which uses the depth control of :func:`depth_processor`.
+        near: Depth rendered white [m], for the default depth control.
+        far: Depth rendered black [m], for the default depth control.
         canvas: Cosmos canvas ``(height, width)`` from the service's supported canvases. Defaults to None, which
             selects the canvas closest to the camera's aspect ratio. Cameras sharing a session need one canvas.
         name: Scene name of the camera, one of :attr:`CosmosModelCfg.cameras` when cameras share a session.
@@ -64,7 +73,7 @@ def cosmos_camera(
 
     Raises:
         ValueError: If the camera publishes outputs other than ``rgb``, already has tensor processors, uses a
-            fisheye lens, or the canvas is unsupported.
+            fisheye lens, the canvas is unsupported, or ``control`` writes no ``control`` buffer.
     """
     if list(camera.data_types) != ["rgb"]:
         raise ValueError(
@@ -76,7 +85,13 @@ def cosmos_camera(
     if canvas is not None and tuple(canvas) not in COSMOS_CANVASES:
         raise ValueError(f"Cosmos canvases are {list(COSMOS_CANVASES)}, got {canvas}.")
     canvas_height, canvas_width = tuple(canvas) if canvas is not None else _closest_canvas(camera)
-    processors = depth_processor(model, near=near, far=far, camera=name)
+    if control is None:
+        processors = depth_processor(model, near=near, far=far, camera=name)
+    else:
+        transfer = CosmosTransferProcessorCfg(backend=model, camera=name)
+        if not any(transfer.inputs[0] in cfg.outputs for cfg in control):
+            raise ValueError(f"The control processors must write the {transfer.inputs[0]!r} buffer Cosmos reads.")
+        processors = [*control, transfer]
     if (camera.height, camera.width) != (canvas_height, canvas_width):
         processors.append(
             FunctionProcessorCfg(
@@ -130,6 +145,7 @@ def apply_cosmos(
     *,
     prompt: str | list[str] | None = None,
     camera: str | Sequence[str] | None = None,
+    control: Sequence[TensorProcessorCfg] | None = None,
     near: float = DEPTH_NEAR,
     far: float = DEPTH_FAR,
     endpoint: str | list[str] = DEFAULT_ENDPOINT,
@@ -154,8 +170,10 @@ def apply_cosmos(
             environments or cameras (see :attr:`CosmosModelCfg.prompt`). None runs without a scene description.
         camera: Scene camera name, or a list of names whose cameras share one session. Defaults to None, which
             selects the only rgb camera.
-        near: Depth rendered white [m].
-        far: Depth rendered black [m].
+        control: Processors that write the ``control`` buffer, as for :func:`cosmos_camera`. Defaults to None,
+            which uses the depth control.
+        near: Depth rendered white [m], for the default depth control.
+        far: Depth rendered black [m], for the default depth control.
         endpoint: Cosmos service endpoint, or a list of services, for example one per GPU, that split the
             environments into contiguous shares.
         transport: How images move to and from the service.
@@ -215,7 +233,7 @@ def apply_cosmos(
     # Cameras sharing a session render at one canvas; each keeps its own output size.
     canvas = _closest_canvas(camera_cfg) if len(names) > 1 else None
     cosmos_cameras = {
-        name: cosmos_camera(cfg, model, near=near, far=far, canvas=canvas, name=name)
+        name: cosmos_camera(cfg, model, control=control, near=near, far=far, canvas=canvas, name=name)
         for name, cfg in zip(names, camera_cfgs)
     }
     for name, cosmos_cfg in cosmos_cameras.items():
