@@ -267,16 +267,18 @@ class Camera(SensorBase):
 
             msg = "CameraCfg.isp_cfg is deprecated. Add isaaclab_ppisp.PpispProcessorCfg to tensor_processors."
             warnings.warn(msg, FutureWarning, stacklevel=2)
-            self.cfg.tensor_processors = [PpispProcessorCfg(isp_cfg=self.cfg.isp_cfg), *self.cfg.tensor_processors]
-            # PPISP applies its own exposure, so isp_cfg neutralized the exposure of cameras PPISP applied to; a
-            # discovery mode that finds no PPISP attributes left the exposure unchanged.
+            # isp_cfg keeps its behavior: a discovery mode that finds no PPISP attributes changes nothing, and
+            # where PPISP applies, the renderers that apply the camera's exposure (Isaac RTX and OVRTX) get neutral
+            # exposure, because PPISP applies its own.
             first_prim = sim_utils.find_first_matching_prim(self.cfg.prim_path, self.stage)
             first_path = str(first_prim.GetPath()) if first_prim else None
             if (
                 not isinstance(self.cfg.isp_cfg, CameraISPMode)
                 or resolve_and_normalize(self.cfg.isp_cfg, self.stage, first_path) is not None
             ):
-                self.cfg.exposure = ExposureCfg(mode="neutral")
+                self.cfg.tensor_processors = [PpispProcessorCfg(isp_cfg=self.cfg.isp_cfg), *self.cfg.tensor_processors]
+                if self.cfg.renderer_cfg.renderer_type in ("isaac_rtx", "ovrtx"):
+                    self.cfg.exposure = ExposureCfg(mode="neutral")
             # The processor now owns the value, so a camera built from this cfg does not forward it again.
             self.cfg.isp_cfg = None
         # Complete camera authoring before cloning or importing the scene into a native backend.

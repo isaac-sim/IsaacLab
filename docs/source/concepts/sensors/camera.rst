@@ -373,8 +373,10 @@ discover ``ppisp:*`` attributes on a camera prim.
 
 ``AUTO_CAMERA`` checks the first matched camera prim. ``AUTO_ANY`` falls back to the first PPISP
 camera anywhere on the stage. Discovery happens once during camera construction; if it finds no
-PPISP attributes, the camera keeps the renderer's color output. ``CameraCfg.isp_cfg`` is deprecated
-and forwards its value to this processor, with neutral exposure.
+PPISP attributes, the camera logs a warning and runs without PPISP. It then keeps the renderer's
+color output, and ``CameraCfg.exposure`` still applies. ``CameraCfg.isp_cfg`` is deprecated and
+forwards its value to this processor; with Isaac RTX and OVRTX it also sets neutral exposure, and a
+discovery mode that finds no PPISP attributes changes nothing.
 
 A static configuration is shared by all cloned views in one camera batch; controller weights may
 predict per-view exposure and color parameters, while the remaining coefficients stay shared. ISP

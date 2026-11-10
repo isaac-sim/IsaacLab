@@ -61,7 +61,7 @@ class _ScaleProcessor(TensorProcessor):
         _ScaleProcessor.events.append(("close", self._cfg.outputs[0]))
 
 
-def test_camera_isp_is_resolved_during_construction():
+def test_camera_isp_is_resolved_during_construction(caplog, monkeypatch):
     """Authored, explicit, and deprecated ISP configurations are ready before physics or renderer initialization."""
     pytest.importorskip("isaaclab_newton")
     pytest.importorskip("newton")
@@ -71,6 +71,7 @@ def test_camera_isp_is_resolved_during_construction():
 
     from pxr import Sdf, UsdGeom
 
+    from isaaclab.renderers import RendererCfg
     from isaaclab.sensors.camera.camera_exposure import has_neutral_exposure
 
     sim_cfg = sim_utils.SimulationCfg(device="cpu", physics=NewtonCfg())
@@ -98,17 +99,32 @@ def test_camera_isp_is_resolved_during_construction():
                 cfg, prim_path="/World/DiscoveredPlainCamera", tensor_processors=[], isp_cfg=CameraISPMode.AUTO_CAMERA,
             ))  # fmt: skip
         rebuilt = instantiate(spawned.cfg)
+        # Isaac RTX applies the camera's exposure, so there the deprecated path neutralizes it. The renderer
+        # itself is not needed to author the camera.
+        with monkeypatch.context() as patched, pytest.warns(FutureWarning, match="isp_cfg is deprecated"):
+            patched.setattr(
+                type(sim), "get_or_create_backend", lambda self, cfg: SimpleNamespace(cleanup=lambda render_data: None)
+            )
+            rtx = instantiate(replace(
+                cfg, prim_path="/World/RtxCamera", spawn=_SPAWN, tensor_processors=[],
+                isp_cfg=PpispCfg(inputs={"exposureOffset": 2.0}), renderer_cfg=RendererCfg(renderer_type="isaac_rtx"),
+            ))  # fmt: skip
 
         assert authored.cfg.tensor_processors[0].isp_cfg.inputs["responsivity"] == 3.0
         assert spawned.cfg.tensor_processors[0].isp_cfg.inputs["exposureOffset"] == 2.0
         assert spawned.cfg.tensor_processors[0].isp_cfg.inputs["responsivity"] == 1.0
         assert len(rebuilt.cfg.tensor_processors) == 1  # the deprecated value is forwarded once
         assert without_isp.cfg.tensor_processors == []  # discovery found no PPISP attributes
+        # Removing a configured processor is reported; the deprecated discovery stays silent, as it was.
+        removed = [record.getMessage() for record in caplog.records if "runs without PPISP" in record.getMessage()]
+        assert len(removed) == 1 and "/World/PlainCamera" in removed[0]
         assert cfg.tensor_processors[0].isp_cfg is CameraISPMode.AUTO_CAMERA
         assert prim.GetAttribute("exposure").Get() == 2.0  # The default exposure keeps the authored value.
-        # PPISP applies its own exposure, so the deprecated path keeps neutralizing the camera's exposure.
-        assert spawned.cfg.exposure.mode == "neutral"
-        assert has_neutral_exposure(sim.stage.GetPrimAtPath("/World/SpawnedCamera"))
+        # Newton applies no camera exposure, so the deprecated path leaves it alone, as it did before.
+        assert spawned.cfg.exposure.mode == "default"
+        assert not has_neutral_exposure(sim.stage.GetPrimAtPath("/World/SpawnedCamera"))
+        assert rtx.cfg.exposure.mode == "neutral"
+        assert has_neutral_exposure(sim.stage.GetPrimAtPath("/World/RtxCamera"))
         assert discovered_plain.cfg.exposure.mode == "default" and discovered_plain.cfg.tensor_processors == []
         assert plain.GetAttribute("exposure").Get() == 2.0
         assert all(not camera.is_initialized for camera in (authored, spawned, without_isp))

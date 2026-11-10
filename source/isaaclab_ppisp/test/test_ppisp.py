@@ -309,7 +309,7 @@ def test_apply_rtx_exposure_overrides_resets_authored_exposure_values():
 
 
 @pytest.mark.parametrize("renderer_type", ["isaac_rtx", "ovrtx", "newton_warp"])
-def test_ppisp_processor_requires_neutral_camera_exposure_on_rtx(renderer_type):
+def test_ppisp_processor_requires_neutral_camera_exposure_on_rtx(renderer_type, caplog):
     """Camera preparation resolves discovery and, on RTX, requires neutral exposure instead of authoring it."""
     from isaaclab.renderers import RendererCfg
     from isaaclab.sensors.camera import CameraISPMode
@@ -322,6 +322,7 @@ def test_ppisp_processor_requires_neutral_camera_exposure_on_rtx(renderer_type):
     cfg, renderer_cfg = PpispProcessorCfg(isp_cfg=CameraISPMode.AUTO_CAMERA), RendererCfg(renderer_type=renderer_type)
 
     assert PpispProcessor.prepare_camera(cfg, stage, ["/World/Plain"], renderer_cfg) is None
+    assert "/World/Plain" in caplog.text and "runs without PPISP" in caplog.text  # the removal is reported
     if renderer_type != "newton_warp":
         with pytest.raises(ValueError, match=r'ExposureCfg\(mode="neutral"\)'):
             PpispProcessor.prepare_camera(cfg, stage, ["/World/Camera"], renderer_cfg)

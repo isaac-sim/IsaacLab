@@ -18,7 +18,7 @@ class CameraISPMode(StrEnum):
 
     The PPISP processor resolves the mode during camera construction, once for the whole Camera sensor
     batch, using the first matched camera prim. When discovery finds no PPISP attributes, the camera
-    removes the processor and the renderer produces the requested outputs directly.
+    removes the processor with a logged warning and the renderer produces the requested outputs directly.
     """
 
     AUTO_CAMERA = "auto_camera"

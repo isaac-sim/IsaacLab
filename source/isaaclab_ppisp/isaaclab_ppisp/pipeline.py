@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 import warp as wp
@@ -31,6 +32,8 @@ if TYPE_CHECKING:
     from isaaclab.renderers import RendererCfg
 
     from .cfg import PpispProcessorCfg
+
+logger = logging.getLogger(__name__)
 
 
 class PpispPipeline:
@@ -108,13 +111,19 @@ class PpispProcessor(TensorProcessor):
 
         PPISP applies its own exposure to scene-linear HDR. Isaac RTX and OVRTX apply the camera prim's exposure
         to their HDR output, so on them the camera needs ``CameraCfg.exposure = ExposureCfg(mode="neutral")``.
-        Returns None when discovery finds no PPISP camera attributes.
+        Returns None, with a logged warning, when discovery finds no PPISP camera attributes.
 
         Raises:
             ValueError: If the renderer is Isaac RTX or OVRTX and a camera prim's exposure is not neutral.
         """
         isp_cfg = resolve_and_normalize(cfg.isp_cfg, stage, camera_prim_paths[0])
         if isp_cfg is None:
+            logger.warning(
+                "PPISP found no camera attributes for %s (isp_cfg=%s), so the camera runs without PPISP and keeps"
+                " the renderer's color output. The camera's exposure setting still applies.",
+                camera_prim_paths[0],
+                cfg.isp_cfg,
+            )
             return None
         if renderer_cfg.renderer_type in ("isaac_rtx", "ovrtx") and not all(
             has_neutral_exposure(stage.GetPrimAtPath(path)) for path in camera_prim_paths
