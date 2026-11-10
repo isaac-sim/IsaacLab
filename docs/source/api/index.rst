@@ -85,8 +85,6 @@ The following modules are available in the ``isaaclab_contrib`` extension:
    actuators
    assets
    controllers
-   coupling
-   custom_coupling
    mdp
    rl
    sensors
@@ -156,6 +154,7 @@ The following modules are available in the ``isaaclab_newton`` extension:
    cloner
    controllers
    physics
+   physics.coupling
    renderers
    sensors
    sim.schemas

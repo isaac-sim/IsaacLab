@@ -17,14 +17,6 @@ from dataclasses import dataclass, replace
 from functools import partial
 
 import warp as wp
-from isaaclab_newton.physics import (
-    MPMSolverCfg,
-    NewtonCollisionPipelineCfg,
-    NewtonSolver,
-    NewtonSolverCfg,
-    VBDSolverCfg,
-)
-from isaaclab_newton.physics.newton_solver import solver_kwargs
 from newton import CollisionPipeline, Model, ModelBuilder, ShapeFlags, State
 from newton.solvers import SolverBase
 from newton.solvers.experimental.coupled import SolverCoupled, SolverCoupledADMM, SolverCoupledProxy
@@ -33,6 +25,11 @@ from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE, expand_env_regex_ns
 from isaaclab.utils import instantiate
 from isaaclab.utils.string import resolve_matching_names
 
+from ..mpm_solver_cfg import MPMSolverCfg
+from ..newton_collision_cfg import NewtonCollisionPipelineCfg
+from ..newton_manager_cfg import NewtonSolverCfg
+from ..newton_solver import NewtonSolver, solver_kwargs
+from ..vbd_solver_cfg import VBDSolverCfg
 from .coupler_cfg import (
     CouplerAdmmCfg,
     CouplerCfg,

@@ -1773,7 +1773,7 @@ ui = [
 
 [[package]]
 name = "isaaclab"
-version = "45.0.0"
+version = "45.0.1"
 source = { editable = "source/isaaclab" }
 
 [[package]]
