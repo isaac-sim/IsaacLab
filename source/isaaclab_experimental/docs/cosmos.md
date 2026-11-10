@@ -38,45 +38,51 @@ For a different endpoint, pass `--endpoint unix:///path/to/socket` or `--endpoin
 
 Cosmos goes on a camera through the task's configuration. The Shadow Hand camera tasks have Cosmos versions (see
 "Run the Shadow Hand camera task"), and their options are ordinary Isaac Lab overrides of `env.cosmos`.
-For any other compatible camera task, call `apply_cosmos(env_cfg, prompt=...)` on its configuration in code, or build a
-preset with `cosmos_camera` (see "Configure another camera task").
+For any other compatible camera task, replace its camera with `cosmos_camera` in the task's configuration.
 
-`apply_cosmos` finds the task's camera that publishes only `rgb`, renders it at a Cosmos canvas with the same aspect
+`cosmos_camera` takes the task's camera that publishes only `rgb`, renders it at a Cosmos canvas with the same aspect
 ratio and view, generates with Cosmos, and scales the result back to the camera's size, so the policy's observation
 keeps its shape. Cosmos generates the task's environments together, so set `env_cfg.scene.num_envs` (or
-`--num_envs`) to what the GPU holds, usually one or two (see "Several environments"). The task's
-episode length and capture rate determine the requested frame budget; capture timing is preserved. Start the service
-first: `apply_cosmos` checks that it is running and idle before the simulation is created.
+`--num_envs`) to what the GPU holds, usually one or two (see "Several environments"). The task's episode length and
+capture rate determine the frame budget, which `episode_frame_budget` computes; capture timing is preserved. Start
+the service before the task.
 
 ```python
-from isaaclab_experimental.cosmos import apply_cosmos
+from isaaclab_experimental.cosmos import CosmosModelCfg, cosmos_camera, episode_frame_budget
 
 env_cfg.scene.num_envs = 1
-apply_cosmos(env_cfg, prompt="A KUKA arm with an Allegro hand turning a cube in a bright lab.", near=0.6, far=1.9)
+camera = env_cfg.scene.base_camera
+model = CosmosModelCfg(
+    prompt="A KUKA arm with an Allegro hand turning a cube in a bright lab.",
+    # The initial capture plus the episode's captures at the camera's rate, rounded up to 1 + 4*k.
+    max_episode_frames=episode_frame_budget(env_cfg, camera.update_period)[2],
+)
+env_cfg.scene.base_camera = cosmos_camera(camera, model, near=0.6, far=1.9)
 ```
 
-| Argument | Meaning |
+| Setting | Meaning |
 |---|---|
-| `prompt` | Scene description: text, or a list for a different prompt per episode (one environment) or per environment (several) |
-| `camera` | Scene camera to use, when the task has several rgb cameras |
+| `CosmosModelCfg.prompt` | Scene description: text, or a list for a different prompt per episode (one environment) or per environment (several) |
 | `near`, `far` | Depth shown white and black [m] (defaults 0.1 and 2.0) |
-| `endpoint` | Service endpoint, `unix:///path` or `tcp://host:port` (default: the service's default) |
-| `transport` | `"auto"`, `"cuda_ipc"` or `"socket"`: how images move to the service; see "Endpoints and transports" (default `"auto"`) |
+| `control` | Other control processors instead of depth; see "Other controls" |
+| `CosmosModelCfg.endpoint` | Service endpoint, `unix:///path` or `tcp://host:port` (default: the service's default) |
+| `CosmosModelCfg.transport` | `"auto"`, `"cuda_ipc"` or `"socket"`: how images move to the service; see "Endpoints and transports" (default `"auto"`) |
 
 Choose `near` and `far` to cover the scene: the Kuka Allegro base camera sees the cube,
 hand and table between about 0.7 m and 1.8 m.
 
-Limits of `apply_cosmos`:
+Requirements:
 
 - The environment count is limited by GPU memory and the transport. Agent configurations with
   fixed minibatch sizes larger than the rollout (some rl_games configurations) need adjusting; RSL-RL works as
   configured.
 - The camera must publish only `rgb`, use a pinhole lens, and have no existing tensor processors. Rendering must be
-  synchronous and the scene must use lazy sensor updates.
+  synchronous and the scene must use lazy sensor updates (`scene.lazy_sensor_update=True`), so each image matches
+  its simulation state.
 - The camera renders at the Cosmos canvas, so its `image_shape` and intrinsics describe the canvas, while its `rgb`
   output keeps the original size. Direct tasks that size their observation space from the camera configuration,
-  such as `Isaac-Cartpole-Camera-Direct`, are not supported; Isaac Lab warns for Direct tasks.
-- Without a `prompt`, Cosmos runs without a scene description and Isaac Lab warns.
+  such as `Isaac-Cartpole-Camera-Direct`, are not supported.
+- Without a `prompt`, Cosmos runs without a scene description.
 
 Tasks that train an image encoder from a pretrained checkpoint may need their own configuration, as the Shadow Hand
 Cosmos tasks below do, because the encoder sees new images.
@@ -245,7 +251,7 @@ need a Cosmos demo runner or model initialization code.
 
 The checkpoint accepts four kinds of control: depth, segmentation, edge and blur, one kind per session. The service is
 not told which kind it receives, so any processors that write the `control` buffer work: uint8 images of shape
-`(N, H, W, 3)` at the canvas size. Pass them to `cosmos_camera` (or `apply_cosmos`) as `control`:
+`(N, H, W, 3)` at the canvas size. Pass them to `cosmos_camera` as `control`:
 
 ```python
 import torch
@@ -312,7 +318,7 @@ Each file is one prompt and patterns expand in sorted order, so two matching fil
 its own prompt. The files replace `prompt`. A `.txt` file is used without leading and trailing whitespace. A `.json` file is a
 structured caption, the format the model was trained on: it is parsed and serialized once into the prompt string,
 keeping its structure rather than flattening it into prose. The service does not upsample prompts, so prepared
-captions reach the model unchanged. In code, `read_prompt_files([...])` returns the same prompts for `apply_cosmos`.
+captions reach the model unchanged. In code, `read_prompt_files([...])` returns the same prompts for `CosmosModelCfg.prompt`.
 
 ## Runtime and resets
 
@@ -374,7 +380,7 @@ uv run isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct --r
   env.cosmos.prompt="['A close-up overhead view of a robotic Shadow Hand turning a red cube on a wooden workbench.', 'A close-up overhead view of a robotic Shadow Hand turning a blue cube in a bright white lab.']"
 ```
 
-For a task without a Cosmos version, set `env_cfg.scene.num_envs = 2` and call `apply_cosmos(env_cfg, prompt=[...])`.
+For a task without a Cosmos version, set `env_cfg.scene.num_envs = 2` and give `CosmosModelCfg.prompt` a list.
 
 - With several environments, environment `v` uses `prompt[v % len(prompt)]` for all its episodes; the batch keeps
   each environment's prompt across its resets. With one environment, a prompt list changes per episode.
@@ -384,8 +390,7 @@ For a task without a Cosmos version, set `env_cfg.scene.num_envs = 2` and call `
   resets; Cosmos receives a frame only for the environments a capture covers, so each environment's frames and
   budget follow its own captures.
 - Independent resets of several environments need compiled inference and per-view VAE caches in the Framework
-  runtime. `apply_cosmos` checks this before training; with a Cosmos task, a service without them stops the run with an
-  error at the first independent reset.
+  runtime. A service without them stops the run with an error at the first independent reset.
 - With the socket transport, one step's image message carries at most 16 environments.
 - Each environment's history (30 latent frames) takes GPU memory. On a 48 GB GPU that Isaac Sim shares, one
   environment fits; for more, give the service its own GPU (`--device cuda:1`) or a larger one, or let
@@ -417,30 +422,33 @@ does not end the episode. Training also starts environments at random points of 
 ## Several cameras
 
 Several cameras, such as a base and a wrist camera, can share one session: each capture generates all their
-environments as one batch. This is set up in a task's configuration code; no registered task provides it yet. Pass
-the cameras to `apply_cosmos` as a list of names, and set the shared prompt, endpoint, and transport there: each
-camera receives its own copy of these settings, and the cameras share a session only while the copies match.
+environments as one batch. This is set up in a task's configuration code; no registered task provides it yet. Name
+the cameras in `CosmosModelCfg.cameras`, and give each camera that model, one canvas and its scene name: each camera
+receives its own copy of the settings, and the cameras share a session only while the copies match.
 
 ```python
-from isaaclab_experimental.cosmos import apply_cosmos
+from isaaclab_experimental.cosmos import CosmosModelCfg, cosmos_camera, episode_frame_budget
 
-apply_cosmos(
-    env_cfg,
-    camera=["base_camera", "wrist_camera"],
+names = ("base_camera", "wrist_camera")
+model = CosmosModelCfg(
+    cameras=names,
     prompt=[
         "A KUKA arm with an Allegro hand turning a cube in a bright lab, seen from the side.",
         "A close-up of an Allegro hand turning a cube in a bright lab, seen from its wrist.",
     ],
+    max_episode_frames=episode_frame_budget(env_cfg, env_cfg.scene.base_camera.update_period)[2],
 )
+for name in names:
+    # One canvas (height, width) for the session; square cameras use 640 x 640.
+    setattr(env_cfg.scene, name, cosmos_camera(getattr(env_cfg.scene, name), model, canvas=(640, 640), name=name))
 ```
 
 - Camera `k`'s environment `v` is view `k * num_envs + v`, with the cameras in the order given. A prompt list assigns `prompt[view % len(prompt)]`, so the example's prompts go to the base and
   the wrist camera.
-- Each camera keeps its own output size. One session has one canvas, so every camera renders at the canvas closest
-  to the first camera's aspect ratio; each camera's view is the canvas's center crop, scaled back to its size.
-- The cameras share the depth range and update period. `near` and `far` apply to
-  every camera, so choose a range that covers all of them. Each camera must be read at every capture, as observation
-  terms do; a camera that misses a shared capture stops the session with an error.
+- Each camera keeps its own output size. One session has one canvas, so pass the same `canvas` for every camera;
+  each camera's view is the canvas's center crop, scaled back to its size.
+- The cameras need the same update period, so they capture together. Each camera must be read at every capture,
+  as observation terms do; a camera that misses a shared capture stops the session with an error.
 - An environment's cameras share its seed and reset together. Cosmos generates each view on its own, so the images
   of different cameras need not agree, for example on colors and materials.
 - The batch holds `num_cameras * num_envs` views, which need GPU memory like as many environments. With several
@@ -494,8 +502,8 @@ cd "$COSMOS_FRAMEWORK_ROOT"
 uv run --no-sync isaaclab-cosmos-server --checkpoint "$COSMOS_CHECKPOINT" --device cuda:1
 ```
 
-Isaac Lab keeps its own device, `cuda:0` by default. Set `env.cosmos.transport=cuda_ipc` (or `transport="cuda_ipc"`
-in `apply_cosmos`) to require GPU-to-GPU transfer instead of a socket fallback. Each process also creates a CUDA
+Isaac Lab keeps its own device, `cuda:0` by default. Set `env.cosmos.transport=cuda_ipc` (or
+`CosmosModelCfg.transport="cuda_ipc"` in a configuration) to require GPU-to-GPU transfer instead of a socket fallback. Each process also creates a CUDA
 context on the other GPU, which takes some memory there.
 
 ### Several GPUs
@@ -524,16 +532,16 @@ keeps its generation history, and keeps its prompt: environment `v` uses `prompt
 Every step sends each service its share before waiting for any reply, so the services generate at the same time,
 and a step lasts as long as the slowest service.
 
-`apply_cosmos` checks that every service is running and idle and that a service with several environments runs
-compiled; there must be at least one environment per service. If one service fails, the camera closes every
-session. In a configuration, set `CosmosModelCfg.endpoint` to the list of endpoints.
+There must be at least one environment per service, and a service with several environments must run compiled.
+If one service fails, the camera closes every session. In a configuration, set `CosmosModelCfg.endpoint` to the
+list of endpoints.
 
 ## Episode frame budget
 
 Each session requests a frame budget, `1 + 4*k` frames per episode; the server sets no limit of its own. The
-service tells the model the episode's duration from this budget. `apply_cosmos` and the Shadow Hand Cosmos tasks derive it
-from the task's episode duration and actual capture cadence, including the initial capture and rounding up to
-`1 + 4*k`. Hand-written camera processors must set `CosmosModelCfg.max_episode_frames` explicitly. Reset the environment
+service tells the model the episode's duration from this budget. The Shadow Hand Cosmos tasks derive it with
+`episode_frame_budget` from the task's episode duration and actual capture cadence, including the initial capture
+and rounding up to `1 + 4*k`. Hand-written camera processors must set `CosmosModelCfg.max_episode_frames` explicitly. Reset the environment
 before that budget is exhausted; the service rejects further generation rather than silently resetting the episode.
 
 Startup logs show the budget and the captures and generated updates per second of simulation time. The model uses

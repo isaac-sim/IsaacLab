@@ -33,7 +33,6 @@ import warp as wp
 from isaaclab_experimental.cosmos import CosmosModelCfg, CosmosTransferProcessorCfg, _protocol, depth_processor
 from isaaclab_experimental.cosmos.client import CosmosModel
 from isaaclab_experimental.cosmos.client import cosmos_model as cosmos_model_module
-from isaaclab_experimental.cosmos.client.camera import service_capabilities
 from isaaclab_experimental.cosmos.client.cosmos_model import split_views
 from isaaclab_experimental.cosmos.server import serve
 from isaaclab_experimental.image_transfer import processor as processor_module
@@ -261,8 +260,8 @@ def test_camera_client_closes_sessions_and_keeps_the_model_resident(cosmos_servi
     assert resident_stream.settings["prompt"] == "A camera view"
     assert resident_stream.settings["height"] == 2 and resident_stream.settings["width"] == 3
     assert resident_stream.settings["seeds"] == (7,)
-    with pytest.raises(RuntimeError, match="active camera session"):
-        service_capabilities(cosmos_service.endpoint)
+    reply, _ = _protocol.request(cosmos_service.endpoint, {"op": "status"}, timeout=0.5)
+    assert reply["session_active"]
 
     cosmos_service.resource.step_entered.clear()
     cosmos_service.resource.resume_step.clear()
@@ -282,7 +281,8 @@ def test_camera_client_closes_sessions_and_keeps_the_model_resident(cosmos_servi
     client.close()
     assert resident_stream.closed.wait(2)
     assert not cosmos_service.resource.closed.is_set()
-    assert service_capabilities(cosmos_service.endpoint)["transports"]
+    reply, _ = _protocol.request(cosmos_service.endpoint, {"op": "status"}, timeout=0.5)
+    assert not reply["session_active"] and reply["capabilities"]["transports"]
 
     replacement = _client(cosmos_service.endpoint)
     try:

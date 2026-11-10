@@ -81,12 +81,13 @@ class CosmosModelCfg(BackendCfg):
     gives each camera its own session. With several, every capture generates all their environments as one batch:
     camera ``k``'s environment ``v`` is view ``k * num_envs + v``, which selects its prompt as above; a camera's view
     takes its environment's seed, so all cameras of an environment share it. Views of different cameras are generated
-    independently and need not agree with each other. The cameras need the same canvas and capture rate;
-    :func:`~isaaclab_experimental.cosmos.apply_cosmos` sets them up."""
+    independently and need not agree with each other. The cameras need the same canvas and capture rate: pass
+    each to :func:`~isaaclab_experimental.cosmos.cosmos_camera` with this model, one ``canvas`` and its scene
+    name."""
 
     max_episode_frames: int | None = None
-    """Image-frame budget per episode, including the initial frame: ``1 + 4*k``. ``apply_cosmos`` and the
-    Shadow Hand Cosmos tasks derive it from the task duration and capture rate with :func:`episode_frame_budget`.
+    """Image-frame budget per episode, including the initial frame: ``1 + 4*k``. The Shadow Hand Cosmos tasks
+    derive it from the task duration and capture rate with :func:`episode_frame_budget`.
     Low-level callers must set it before creating the client. The service tells the model the episode's duration
     from it and rejects frames beyond it.
     """

@@ -67,7 +67,7 @@ class CosmosModel:
         if type(cfg.max_episode_frames) is not int or cfg.max_episode_frames < 1 or (cfg.max_episode_frames - 1) % 4:
             raise ValueError(
                 "Set CosmosModelCfg.max_episode_frames to the episode's camera-frame budget (1 + 4*k), "
-                "or use apply_cosmos to derive it from the task."
+                "for example episode_frame_budget(env_cfg, camera.update_period)[2]."
             )
         if cfg.transport not in ("auto", "cuda_ipc", "socket"):
             raise ValueError("Cosmos transport must be auto, cuda_ipc, or socket.")

@@ -8,14 +8,13 @@ __all__ = [
     "CosmosModelCfg",
     "CosmosTransferProcessor",
     "CosmosTransferProcessorCfg",
-    "apply_cosmos",
     "cosmos_camera",
     "depth_processor",
     "episode_frame_budget",
     "read_prompt_files",
 ]
 
-from .camera import apply_cosmos, cosmos_camera
+from .camera import cosmos_camera
 from .control_profiles import depth_processor
 from .cosmos_model import CosmosModel
 from .cosmos_model_cfg import CosmosModelCfg, episode_frame_budget
