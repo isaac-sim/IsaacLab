@@ -70,6 +70,7 @@ SIMPLE_SHADING_AOV = "SimpleShadingSD"
 RTX_RENDER_MODE_ATTR = "omni:rtx:rendermode"
 RTX_MINIMAL_MODE_ATTR = "omni:rtx:minimal:mode"
 RTX_MINIMAL_RENDER_MODE = "Minimal"
+RTX_COLOR_CAMERAS_SETTING = "/isaaclab/render/rtx_color_cameras"
 
 _CAMERA_INTRINSIC_ATTRIBUTES = (
     "focalLength",
@@ -281,9 +282,8 @@ class IsaacRtxRenderer(BaseRenderer):
             needs_color_render = any(
                 data_type in spec.cfg.data_types for data_type in ("rgb", "rgba", str(RenderBufferKind.RGB_HDR))
             )
-            has_gui = settings.get("/isaaclab/has_gui")
-            if simple_shading_mode is None and (not needs_color_render or has_gui):
-                settings.set("/rtx/sdg/force/disableColorRender", not needs_color_render and not has_gui)
+            if simple_shading_mode is None:
+                self._update_color_render_setting(settings, needs_color_render)
         else:
             unsupported = []
             if "albedo" in spec.cfg.data_types:
@@ -467,6 +467,13 @@ class IsaacRtxRenderer(BaseRenderer):
             spec=spec,
             ppisp_pipeline=ppisp_pipeline,
         )
+
+    def _update_color_render_setting(self, settings: Any, needs_color_render: bool) -> None:
+        """Disable the process-wide color rendering only while no GUI and no color camera needs it."""
+        if needs_color_render:
+            settings.set(RTX_COLOR_CAMERAS_SETTING, True)
+        color_needed = settings.get("/isaaclab/has_gui") or settings.get(RTX_COLOR_CAMERAS_SETTING)
+        settings.set("/rtx/sdg/force/disableColorRender", not color_needed)
 
     def _apply_simple_shading_settings(
         self,

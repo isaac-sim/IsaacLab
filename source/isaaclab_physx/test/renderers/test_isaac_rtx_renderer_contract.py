@@ -288,18 +288,21 @@ def test_simple_shading_configures_its_render_product(
 
 
 @pytest.mark.parametrize(
-    ("has_gui", "expected_disable_color_render"),
+    ("has_gui", "camera_data_types", "expected_disable_color_render"),
     [
-        pytest.param(True, False, id="gui-keeps-color-rendering"),
-        pytest.param(False, True, id="headless-uses-depth-only-rendering"),
+        pytest.param(True, [["depth"]], False, id="gui-keeps-color-rendering"),
+        pytest.param(False, [["depth"]], True, id="headless-uses-depth-only-rendering"),
+        pytest.param(False, [["rgb"], ["depth"]], False, id="color-then-depth-only-keeps-color-rendering"),
+        pytest.param(False, [["depth"], ["rgb"]], False, id="depth-only-then-color-keeps-color-rendering"),
     ],
 )
-def test_depth_only_camera_color_render_setting(monkeypatch, has_gui, expected_disable_color_render):
-    """Depth-only cameras must not disable color rendering for an active GUI.
+def test_depth_only_camera_color_render_setting(monkeypatch, has_gui, camera_data_types, expected_disable_color_render):
+    """Depth-only cameras must not disable color rendering for an active GUI or a color camera.
 
     ``disableColorRender`` is a global RTX setting, so enabling it for a depth-only
-    camera also blacks out the viewport. Headless execution should retain the
-    depth-only optimization.
+    camera also blacks out the viewport and every color camera in the process,
+    whichever camera is created first. Headless execution with only depth-only
+    cameras should retain the depth-only optimization.
     """
     _, syntheticdata_module = _install_omni_stubs(monkeypatch)
     monkeypatch.setattr(syntheticdata_module, "SyntheticData", MagicMock(), raising=False)
@@ -309,35 +312,33 @@ def test_depth_only_camera_color_render_setting(monkeypatch, has_gui, expected_d
 
     import isaaclab.sim.utils.stage as stage_utils
 
+    values = {"/isaaclab/has_gui": has_gui}
     settings = MagicMock()
-    settings.get.return_value = has_gui
+    settings.get.side_effect = values.get
+    settings.set.side_effect = values.__setitem__
 
     # Camera validation terminates create_render_data immediately after the
     # color-render setting is selected, keeping this a lightweight unit test.
     stage = MagicMock()
     stage.SelectPrims.return_value.GetCount.return_value = 1
     stage.GetPrimAtPath.return_value.IsA.return_value = False
-    spec = SimpleNamespace(
-        camera_prim_paths=["/World/NotACamera"],
-        cfg=SimpleNamespace(data_types=["depth"]),
-    )
     renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)
     renderer.cfg = IsaacRtxRendererCfg()
 
-    with (
-        patch.object(rtx_renderer, "get_settings_manager", return_value=settings),
-        patch.object(rtx_renderer, "get_isaac_sim_version", return_value=version.parse("6.0")),
-        patch.object(stage_utils, "get_current_stage", return_value=stage),
-        pytest.raises(RuntimeError, match="is not a Camera"),
-    ):
-        renderer.create_render_data(spec)
+    for data_types in camera_data_types:
+        spec = SimpleNamespace(
+            camera_prim_paths=["/World/NotACamera"],
+            cfg=SimpleNamespace(data_types=data_types),
+        )
+        with (
+            patch.object(rtx_renderer, "get_settings_manager", return_value=settings),
+            patch.object(rtx_renderer, "get_isaac_sim_version", return_value=version.parse("6.0")),
+            patch.object(stage_utils, "get_current_stage", return_value=stage),
+            pytest.raises(RuntimeError, match="is not a Camera"),
+        ):
+            renderer.create_render_data(spec)
 
-    color_render_calls = [
-        setting_call
-        for setting_call in settings.set.call_args_list
-        if setting_call.args[0] == "/rtx/sdg/force/disableColorRender"
-    ]
-    assert color_render_calls[-1] == call("/rtx/sdg/force/disableColorRender", expected_disable_color_render)
+    assert values["/rtx/sdg/force/disableColorRender"] is expected_disable_color_render
 
 
 _MISSING = object()
