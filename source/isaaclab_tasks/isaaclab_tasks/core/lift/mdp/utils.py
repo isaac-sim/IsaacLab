@@ -18,6 +18,7 @@ import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
+from isaaclab.utils import env_mask_from_ids
 
 if TYPE_CHECKING:
     import trimesh
@@ -410,38 +411,15 @@ def set_reset_state(
     reset_assets: Sequence[str],
     is_relative: bool = False,
 ):
-    """Split :paramref:`states` by scene asset and write the reset-state slices.
+    """Write the reset-state slices of :paramref:`states` to the environments ``env_ids``.
 
     Inverse of :func:`get_reset_state`; the layout and :paramref:`is_relative` convention
-    must match the call that produced :paramref:`states`.
+    must match the call that produced :paramref:`states`. See :func:`set_reset_state_mask`.
     """
-    offset = 0
-
-    def write_root(asset):
-        nonlocal offset
-        pose = states[:, offset : offset + 7].clone()
-        if is_relative:
-            pose[:, :3] += env.scene.env_origins[env_ids]
-        asset.write_root_link_pose_to_sim_index(root_pose=pose, env_ids=env_ids)
-        asset.write_root_com_velocity_to_sim_index(
-            root_velocity=states[:, offset + 7 : offset + 13].contiguous(), env_ids=env_ids
-        )
-        offset += 13
-
-    for name, articulation in env.scene.articulations.items():
-        if name in reset_assets:
-            write_root(articulation)
-            num_joints = articulation.num_joints
-            articulation.write_joint_position_to_sim_index(
-                position=states[:, offset : offset + num_joints].contiguous(), env_ids=env_ids
-            )
-            articulation.write_joint_velocity_to_sim_index(
-                velocity=states[:, offset + num_joints : offset + 2 * num_joints].contiguous(), env_ids=env_ids
-            )
-            offset += 2 * num_joints
-    for name, rigid_object in env.scene.rigid_objects.items():
-        if name in reset_assets:
-            write_root(rigid_object)
+    rows = states.new_zeros(env.num_envs, states.shape[-1])
+    rows[env_ids] = states
+    env_mask = env_mask_from_ids(env_ids, env.num_envs, env.device).warp
+    set_reset_state_mask(env, rows, env_mask, reset_assets, is_relative)
 
 
 def set_reset_state_mask(

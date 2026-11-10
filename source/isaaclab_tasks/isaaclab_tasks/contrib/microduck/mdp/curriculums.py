@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 import torch
 
 from isaaclab.envs.mdp import modify_term_cfg
+from isaaclab.utils import env_mask_from_ids
 
 from .commands import MicroDuckRoughVelocityCommand
 
@@ -85,7 +86,10 @@ def microduck_terrain_levels(
         & ~move_up
     )
     terrain = env.scene.terrain
-    terrain.update_env_origins(env_ids, move_up, move_down)
+    # the terrain takes moves for every environment and a mask of the reset ones
+    moves = torch.zeros(2, env.num_envs, dtype=torch.bool, device=env.device)
+    moves[0, env_ids], moves[1, env_ids] = move_up, move_down
+    terrain.update_env_origins(env_mask_from_ids(env_ids, env.num_envs, env.device).warp, *moves)
     return {
         "mean": terrain.terrain_levels.float().mean(),
         "promoted": move_up.float().mean(),

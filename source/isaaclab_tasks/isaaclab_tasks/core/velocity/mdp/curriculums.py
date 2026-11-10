@@ -52,6 +52,6 @@ def terrain_levels_vel(
     move_down = distance < torch.linalg.norm(command[:, :2], dim=1) * env.max_episode_length_s * 0.5
     move_down *= ~move_up
     # update terrain levels of the reset environments
-    terrain.update_env_origins_mask(env_mask.warp, move_up, move_down)
+    terrain.update_env_origins(env_mask.warp, move_up, move_down)
     # return the mean terrain level
     return torch.mean(terrain.terrain_levels.float())
