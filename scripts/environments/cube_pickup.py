@@ -27,6 +27,7 @@ import torch
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.app.logging_utils import configure_console_logging
 from isaaclab.utils import to_dict
+from isaaclab.utils.math import combine_frame_transforms
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.contrib.cube_pickup import mdp
@@ -158,6 +159,12 @@ def _rollout(env: gym.Env, agent_cfg, args: argparse.Namespace) -> dict:
                 target = torch.cat((cube_start, orientation), dim=-1)
                 target[:, 2] += torch.where(elapsed < 5.0, 0.10, 0.0)
                 goal = task.command_manager.get_command("object_pose")[:, :3]
+                goal, _ = combine_frame_transforms(
+                    task.scene["robot"].data.root_pos_w.torch,
+                    task.scene["robot"].data.root_quat_w.torch,
+                    goal,
+                )
+                goal -= task.scene.env_origins
                 target[:, :3] = torch.where((elapsed >= 7.6)[:, None], goal, target[:, :3])
                 action = task.scripted_action(target, close=False)
                 action[:, 6] = torch.where(elapsed >= 7.0, -1.0, 1.0)
