@@ -40,6 +40,7 @@ from .common import (
     apply_video_recording,
     close_env,
     create_isaaclab_env,
+    demo_collection_complete,
     enable_cameras_for_video,
     has_play_teleop,
     launch_playback,
@@ -137,13 +138,13 @@ def _run_environment(
         raise SystemExit(f"Invalid environment configuration: {exc}") from None
 
     with (
-        launch_playback(env_cfg, args_cli, enable_teleop=enable_teleop) as playback_session,
+        launch_playback(env_cfg, args_cli, enable_teleop=enable_teleop) as configure_inputs,
         contextlib.ExitStack() as cleanup,
     ):
         log_dir = os.path.abspath(os.path.join("logs", f"{policy}_agent", normalize_task_name(args_cli.task)))
         apply_video_recording(env_cfg, log_dir, args_cli, subdir="play")
         env = create_isaaclab_env(
-            args_cli.task, env_cfg, args_cli, convert_marl_to_single_agent=False, playback_session=playback_session
+            args_cli.task, env_cfg, args_cli, convert_marl_to_single_agent=False, configure_inputs=configure_inputs
         )
         cleanup.callback(lambda: close_env(env))
         logger.info(f"Gym observation space: {env.observation_space}")
@@ -162,7 +163,7 @@ def _run_environment(
         sim = env.unwrapped.sim
         step = 0
         while sim.is_running():
-            if playback_session is not None and playback_session.shutdown_requested:
+            if demo_collection_complete(env, args_cli):
                 break
             if max_steps is not None and step >= max_steps:
                 break

@@ -6,8 +6,6 @@
 """Playback ownership across task actions, episode resets, and the external XR renderer."""
 
 import sys
-import threading
-from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 
 import gymnasium as gym
@@ -19,7 +17,12 @@ from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg
 from isaaclab_teleop.observation_cfg import TeleopObservationCfg
 from isaaclab_teleop.ovxr_cfg import OvLibrariesXrCameraCfg, OvLibrariesXrCfg
 from isaaclab_teleop.play_source_cfg import CaptureTeleopSourceCfg
-from isaaclab_teleop.playback import CapturePlaySession, PlaybackStopped, configured_teleop_inputs
+from isaaclab_teleop.playback import (
+    activate_capture,
+    configured_teleop_inputs,
+    prepare_playback_config,
+    validate_playback,
+)
 from isaaclab_teleop.source import TeleopSample, TeleopSource
 from isaaclab_visualizers.newton import NewtonGLBackendCfg, NewtonRTXBackendCfg
 
@@ -39,7 +42,7 @@ from isaaclab.sensors import CameraCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.visualizers import ImageViewCfg, SceneCameraCfg, VisualizerCfg
 
-pytestmark = [pytest.mark.unit, pytest.mark.kitless]
+pytestmark = [pytest.mark.unit, pytest.mark.kitless, pytest.mark.ov]
 
 
 class _Controller(ActionTerm):
@@ -67,16 +70,14 @@ class _Controller(ActionTerm):
 
 
 class _Source(TeleopSource):
-    def __init__(self, cfg, env, *, env_ids, xr_session):
+    def __init__(self, cfg, env, *, env_ids, presentation, startup_timeout_s):
         self.env = env
         env.source = self
+        self.presentation = presentation
+        self.startup_timeout_s = startup_timeout_s
         self.sample = TeleopSample(torch.tensor([0.5]))
         self.fail_close = False
         self.closed = False
-        self.session_cleanup_failed = False
-        self.device = SimpleNamespace(
-            xr_render_anchor_path="/anchor", required_openxr_extensions=(), external_anchor_state=None
-        )
 
     def start(self):
         self.env.events.append("source_open")
@@ -101,39 +102,14 @@ class _Env(gym.Env):
     def __init__(self, cfg, events):
         self.cfg, self.events = cfg, events
         self.num_envs, self.device = cfg.scene.num_envs, "cpu"
-        self.scene = {"robot": object()}
-        self.steps = 0
-        self.step_dt = 0.01
-        self.auto_reset = False
+        self.scene = {"robot": object(), "other_robot": object()}
         self.closed = False
         self.sim = SimpleNamespace(
-            visualizers=[],
             is_playing=lambda: True,
-            get_physics_step_count=lambda: self.steps,
-            get_physics_dt=lambda: 0.01,
             vis_marker_registry=SimpleNamespace(clear_debug_vis_callback=lambda _: None),
         )
         self.action_manager = ActionManager(cfg.actions, self)
-        self.obs_buf = {"policy": torch.ones(self.num_envs, 1)}
-        self.action_space = gym.spaces.Box(-1, 1, (self.num_envs, 1))
-        self.observation_space = gym.spaces.Dict(policy=self.action_space)
         events.append("env_open")
-
-    def reset(self, env_ids=None, **kwargs):
-        self.events.append("env_reset")
-        self.action_manager.reset(env_ids)
-        self.obs_buf["policy"][slice(None) if env_ids is None else env_ids] = 0
-        return self.obs_buf, {}
-
-    def step(self, actions):
-        self.events.append("step")
-        self.action_manager.process_action(actions)
-        self.steps += 1
-        done = torch.zeros(self.num_envs, dtype=torch.bool)
-        if self.auto_reset:
-            self.reset(torch.tensor([0]))
-            done[0] = True
-        return self.obs_buf, torch.ones(self.num_envs), done, torch.zeros_like(done), {}
 
     def close(self):
         if not self.closed:
@@ -166,49 +142,35 @@ def _config(*, xr=False, num_envs=1):
 
 @pytest.fixture
 def xr_runtime(monkeypatch):
+    """Isolate XR construction while exercising the real setup scope and its ownership transfer."""
     events, sessions = [], []
-    context = SimpleNamespace(clear_instance=lambda: events.append("context_close"))
-    monkeypatch.setattr(SimulationContext, "instance", lambda: context)
+    current_context = None
+
+    def clear_context():
+        nonlocal current_context
+        events.append("context_close")
+        current_context = None
+
+    monkeypatch.setattr(SimulationContext, "instance", lambda: current_context)
 
     class Xr:
-        async_worker_owns_environment = False
-        shutdown_requested = False
-
-        def __init__(self):
-            self.env = None
-            self.admissions = []
+        def __init__(self, environment_owner):
+            self.environment_owner = environment_owner
+            self.closed = False
 
         @classmethod
-        def prepare(cls, *args, **kwargs):
+        def prepare(cls, *args, environment_owner, **kwargs):
+            nonlocal current_context
             events.append("xr_prepare")
-            result = cls()
+            current_context = SimpleNamespace(clear_instance=clear_context)
+            result = cls(environment_owner)
             sessions.append(result)
             return result
 
-        def start_render_worker(self, env, **kwargs):
-            self.env = env
-            self.async_worker_owns_environment = True
-            events.append("xr_start")
-            return True
-
-        def request_render(self, generation, *, force):
-            events.append(("publish", generation, force))
-            return self.admissions.pop(0) if self.admissions else 1
-
-        def report_host_timing(self, *args):
-            pass
-
-        def wait_for_shutdown(self, timeout):
-            events.append("xr_wait")
-
-        def request_shutdown(self):
-            events.append("shutdown")
-            self.shutdown_requested = True
-
         def close(self):
-            events.append("xr_close")
-            if self.async_worker_owns_environment:
-                self.env.close()
+            if not self.closed:
+                events.append("xr_close")
+                self.closed = True
 
     monkeypatch.setitem(sys.modules, "isaaclab_teleop.ov_libraries_xr", SimpleNamespace(OvLibrariesXrSession=Xr))
     return events, sessions
@@ -229,245 +191,148 @@ def test_shared_input_rejects_multiple_sources_or_rows_before_resource_start(vio
         cfg.actions.gripper.input.env_ids = [1]
     else:
         cfg.actions.gripper.input.source = cfg.actions.robot.input.source.copy()
-    monkeypatch.setattr(_Env, "__init__", lambda *args: pytest.fail("invalid session constructed an environment"))
-    monkeypatch.setattr(_Source, "start", lambda *args: pytest.fail("invalid session started Capture"))
-
+    monkeypatch.setattr(_Source, "start", lambda *args: pytest.fail("invalid configuration started Capture"))
     with pytest.raises(ValueError, match=message):
-        session = CapturePlaySession(cfg)
-        session.prepare()
-        session.attach(_Env(cfg, []))
+        validate_playback(cfg)
 
 
-def test_operator_reset_is_an_interruption_without_a_physics_or_recorder_step():
-    """A selected reset works through Gym wrapping and preserves other rows and terminal observations."""
+def test_activation_shares_one_sample_without_replacing_controllers_or_environment():
+    """Task inputs use the ordinary ActionManager even when the source-owning controller comes last."""
     cfg, events = _config(num_envs=2), []
-    assert list(configured_teleop_inputs(cfg)) == ["robot"]
-    session = CapturePlaySession(cfg)
-    session.prepare()
-    env = _Env(cfg, events)
-    wrapped = session.attach(gym.wrappers.OrderEnforcing(env))
-    wrapped.reset()
-    env.obs_buf["policy"].fill_(1)
-    events.clear()
-    env.source.sample = TeleopSample(reset=True)
-    obs, reward, terminated, truncated, extras = wrapped.step(torch.ones(2, 1))
-    assert env.steps == 0 and "step" not in events
-    assert events.count("input") == 1 and events.count("input_reset") == 1
-    torch.testing.assert_close(obs["policy"], torch.tensor([[0.0], [1.0]]))
-    torch.testing.assert_close(extras["final_obs"]["policy"], torch.ones(2, 1))
-    assert not terminated.any() and truncated.tolist() == [True, False]
-    assert reward.tolist() == [0.0, 0.0] and extras["teleop_reset"].tolist() == [0]
-    # The ordinary reset must initialize Gym's lifecycle so playback can resume.
-    env.source.sample = TeleopSample(torch.tensor([0.5]))
-    wrapped.step(torch.ones(2, 1))
-    assert env.steps == 1
-    wrapped.close()
-    session.close()
+    owner_cfg = cfg.actions.robot
+    cfg.actions = SimpleNamespace(
+        follower=ActionTermCfg(class_type=_Controller, asset_name="other_robot", input=TeleopInputCfg()),
+        robot=owner_cfg,
+    )
+    assert list(configured_teleop_inputs(cfg)) == ["follower", "robot"]
+    validate_playback(cfg)
+    with activate_capture(cfg) as activate:
+        env = _Env(cfg, events)
+        original_controllers = [env.action_manager.get_term(name) for name in ("follower", "robot")]
+        assert activate(env) is None
+        policy = torch.ones(2, 2)
+        env.action_manager.process_action(policy)
+        assert events.count("input") == 1
+        torch.testing.assert_close(env.action_manager.action, torch.tensor([[0.5, 0.5], [1.0, 1.0]]))
+        torch.testing.assert_close(policy, torch.ones(2, 2))
+        assert [env.action_manager.get_term(name) for name in ("follower", "robot")] == original_controllers
+        for controller in original_controllers:
+            torch.testing.assert_close(controller.processed_actions, torch.tensor([[0.5], [1.0]]))
+        env.source.sample = TeleopSample(active=False)
+        env.action_manager.process_action(policy)
+        torch.testing.assert_close(env.action_manager.action, policy)
+        with pytest.raises(RuntimeError, match="only one environment"):
+            activate(env)
     assert events[-2:] == ["source_close", "env_close"]
 
 
-def test_xr_prepares_before_environment_and_publishes_resets_before_next_input(xr_runtime):
-    """The renderer and input remain separate owners, including deferred reset publication."""
-    events, instances = xr_runtime
+def test_xr_preparation_is_transferred_to_source_before_environment_teardown(xr_runtime):
+    """Setup reserves XR before scene construction and gives the source the presentation owner."""
+    events, sessions = xr_runtime
     cfg = _config(xr=True)
-    session = CapturePlaySession(cfg)
-    session.prepare()
-    env = _Env(cfg, events)
-    wrapped = session.attach(env)
-    assert events[:4] == ["xr_prepare", "env_open", "source_open", "xr_start"]
-    xr = instances[0]
-    xr.admissions = [None, None, 12]
-    wrapped.reset()
-    wrapped.step(torch.zeros(1, 1))
-    retry_index = events.index("xr_wait")
-    assert events[retry_index + 1] == ("publish", (2, 0), True)
-    assert events[retry_index + 2] == "input"
-    assert events.count("input") == 1 and env.steps == 1
-    env.auto_reset = True
-    wrapped.step(torch.zeros(1, 1))
-    assert events[-1] == ("publish", (3, 2), True)
-    wrapped.close()
-    session.close()
+    cfg.observations.operator.startup_timeout_s = 123.0
+    with activate_capture(cfg) as activate:
+        assert events == ["xr_prepare"]
+        env = _Env(cfg, events)
+        activate(env)
+        assert env.source.presentation.session is sessions[0]
+        assert env.source.startup_timeout_s == 123.0
+        assert sessions[0].environment_owner == "host"
+        assert events == ["xr_prepare", "env_open", "source_open"]
     assert events[-3:] == ["source_close", "xr_close", "env_close"]
-    assert events.count("env_close") == 1
 
 
-def test_failed_input_drain_keeps_xr_and_environment_alive_for_retry(xr_runtime):
-    events, instances = xr_runtime
-    cfg = _config(xr=True)
-    session = CapturePlaySession(cfg)
-    session.prepare()
-    env = _Env(cfg, events)
-    wrapped = session.attach(env)
-    env.source.fail_close = True
-    with pytest.raises(RuntimeError, match="Failed to close 1 action input"):
-        wrapped.close()
-    assert not env.closed and "xr_close" not in events
-    assert instances[0].shutdown_requested
-    env.source.fail_close = False
-    session.close()
-    assert events[-3:] == ["source_close", "xr_close", "env_close"]
+def test_failed_input_drain_retains_environment_for_retry():
+    """Action input cleanup fails before controllers or the owning environment retire."""
+    cfg, events = _config(), []
+    with activate_capture(cfg) as activate:
+        env = _Env(cfg, events)
+        activate(env)
+        env.source.fail_close = True
+        with pytest.raises(RuntimeError, match="Failed to close 1 action input"):
+            env.close()
+        assert not env.closed and not env.source.closed
+        env.source.fail_close = False
+    assert events[-2:] == ["source_close", "env_close"]
 
 
 def test_failed_controller_close_can_retry_after_other_action_terms_close(monkeypatch):
     """Partially retired action terms must not block a later environment cleanup attempt."""
     cfg, events = _config(), []
     cfg.actions.gripper = ActionTermCfg(class_type=_Controller, asset_name="robot", input=TeleopInputCfg())
-    session = CapturePlaySession(cfg)
-    session.prepare()
-    env = _Env(cfg, events)
-    wrapped = session.attach(env)
-    controller = env.action_manager.get_term("robot")
-    close_controller = controller.close
-    fail_close = True
-
-    def close():
-        if fail_close:
-            raise RuntimeError("controller cleanup failed")
-        close_controller()
-
-    monkeypatch.setattr(controller, "close", close)
-    with pytest.raises(RuntimeError, match="Failed to close 1 action term"):
-        wrapped.close()
-    assert env.source.closed and not env.closed
-
-    fail_close = False
-    session.close()
-    wrapped.close()
-    assert env.closed
-    assert events.count("source_close") == events.count("env_close") == 1
-
-
-def test_xr_closes_native_windows_on_host_after_input_drains_and_retries_failures(xr_runtime, monkeypatch):
-    """Borrowed windows outlive input, but retire before worker-owned scene teardown."""
-    events, instances = xr_runtime
-    cfg = _config(xr=True)
-    session = CapturePlaySession(cfg)
-    session.prepare()
-    env = _Env(cfg, events)
-    wrapped = session.attach(env)
-    host_thread = threading.get_ident()
-    window_threads, environment_threads = [], []
-
-    class NativeWindow:
-        closed = False
+    with activate_capture(cfg) as activate:
+        env = _Env(cfg, events)
+        activate(env)
+        controller = env.action_manager.get_term("robot")
+        close_controller = controller.close
         fail_close = True
 
-        def close(self):
-            if self.closed:
-                return
-            window_threads.append(threading.get_ident())
-            assert env.source.closed, "Capture must release its borrowed window before window teardown"
-            assert threading.get_ident() == host_thread, "Native windows must close on their owning host thread"
-            if self.fail_close:
-                raise RuntimeError("native window close failed")
-            events.append("window_close")
-            self.closed = True
+        def close():
+            if fail_close:
+                raise RuntimeError("controller cleanup failed")
+            close_controller()
 
-    window = NativeWindow()
-    env.sim.visualizers.append(window)
-    close_environment = env.close
-
-    def close_environment_on_worker():
-        environment_threads.append(threading.get_ident())
-        # SimulationContext retires its visualizers again during environment close.
-        for visualizer in env.sim.visualizers:
-            visualizer.close()
-        close_environment()
-
-    def close_xr():
-        events.append("xr_close")
-        with ThreadPoolExecutor(max_workers=1) as render_worker:
-            render_worker.submit(env.close).result()
-
-    monkeypatch.setattr(env, "close", close_environment_on_worker)
-    monkeypatch.setattr(instances[0], "close", close_xr)
-    env.source.fail_close = True
-    with pytest.raises(RuntimeError, match="Failed to close 1 action input"):
-        wrapped.close()
-    assert not env.source.closed and not window.closed and not env.closed
-    assert not window_threads and not environment_threads and "xr_close" not in events
-
-    env.source.fail_close = False
-    with pytest.raises(RuntimeError, match="native window close failed"):
-        session.close()
-    assert env.source.closed and not window.closed and not env.closed
-    assert window_threads == [host_thread]
-    assert not environment_threads and "xr_close" not in events
-
-    window.fail_close = False
-    session.close()
-    wrapped.close()
-    assert window.closed and env.closed
-    assert window_threads == [host_thread, host_thread]
-    assert len(environment_threads) == 1 and environment_threads[0] != host_thread
-    assert events[-4:] == ["source_close", "window_close", "xr_close", "env_close"]
+        monkeypatch.setattr(controller, "close", close)
+        with pytest.raises(RuntimeError, match="Failed to close 1 action term"):
+            env.close()
+        assert env.source.closed and not env.closed
+        fail_close = False
+    assert env.closed
     assert events.count("source_close") == events.count("env_close") == 1
 
 
 def test_prepared_xr_context_is_released_when_environment_construction_fails(xr_runtime):
     events, _ = xr_runtime
-    session = CapturePlaySession(_config(xr=True))
-    session.prepare()
-    session.close()
-    session.close()
+    with pytest.raises(RuntimeError, match="construction failed"):
+        with activate_capture(_config(xr=True)):
+            raise RuntimeError("environment construction failed")
     assert events == ["xr_prepare", "xr_close", "context_close"]
 
 
 def test_desktop_failed_construction_closes_only_a_new_context(monkeypatch):
-    """The playback owner cleans partial startup without destroying an embedding host's context."""
+    """The preparation scope cleans partial startup without destroying an embedding host's context."""
     closed = []
     existing = SimpleNamespace(clear_instance=lambda: closed.append("existing"))
     current = existing
     monkeypatch.setattr(SimulationContext, "instance", lambda: current)
-    session = CapturePlaySession(_config())
-    session.prepare()
-    session.close()
+    with activate_capture(_config()):
+        pass
     assert not closed
-    session = CapturePlaySession(_config())
-    session.prepare()
-    current = SimpleNamespace(clear_instance=lambda: closed.append("new"))
-    session.close()
+    with activate_capture(_config()):
+        current = SimpleNamespace(clear_instance=lambda: closed.append("new"))
     assert closed == ["new"]
 
 
-def test_failed_input_start_retains_its_handle_until_cleanup_succeeds(xr_runtime, monkeypatch):
-    """Partially started input may borrow the scene even before the XR worker starts."""
-    events, _ = xr_runtime
+def test_failed_input_start_preserves_error_and_live_dependencies(xr_runtime, monkeypatch):
+    """Failed startup keeps borrowed scene/XR alive if its cleanup also fails."""
+    events, sessions = xr_runtime
     cfg = _config(xr=True)
-    session = CapturePlaySession(cfg)
-    session.prepare()
-    env = _Env(cfg, events)
 
     def fail_start(source):
         source.fail_close = True
         raise RuntimeError("input startup failed")
 
     monkeypatch.setattr(_Source, "start", fail_start)
-    with pytest.raises(RuntimeError, match="input startup failed"):
-        session.attach(env)
-    with pytest.raises(RuntimeError, match="Failed to close 1 action input"):
-        session.close()
-    assert not env.closed and "xr_close" not in events
+    with pytest.raises(RuntimeError, match="input startup failed") as caught:
+        with activate_capture(cfg) as activate:
+            env = _Env(cfg, events)
+            activate(env)
+    assert any("Failed to close 1 action input" in note for note in caught.value.__notes__)
+    assert not env.closed and not sessions[0].closed
     env.source.fail_close = False
-    session.close()
-    assert events[-3:] == ["source_close", "xr_close", "env_close"]
+    env.action_manager.close_inputs()
+    sessions[0].close()
+    env.close()
 
 
-def test_xr_shutdown_during_pending_reset_stops_without_polling_input(xr_runtime):
-    events, instances = xr_runtime
-    cfg = _config(xr=True)
-    session = CapturePlaySession(cfg)
-    session.prepare()
-    env = _Env(cfg, events)
-    wrapped = session.attach(env)
-    instances[0].admissions = [None]
-    wrapped.reset()
-    instances[0].request_shutdown()
-    with pytest.raises(PlaybackStopped):
-        wrapped.step(torch.zeros(1, 1))
-    assert "input" not in events and env.steps == 0
-    session.close()
+def test_task_preparation_runs_before_renderer_selection():
+    """The device's task preparation hook can install the operator view that launch must resolve."""
+    cfg = _config()
+    view = TeleopObservationCfg()
+    cfg.actions.robot.input.source.device.prepare_environment = lambda env_cfg: setattr(
+        env_cfg.observations, "operator", view
+    )
+    assert prepare_playback_config(cfg) == (cfg, view.renderer)
 
 
 def test_xr_preserves_learning_cameras_and_rejects_shared_renderer_consumers():
@@ -478,12 +343,11 @@ def test_xr_preserves_learning_cameras_and_rejects_shared_renderer_consumers():
         prim_path="/World/learning", width=8, height=8, spawn=None, renderer_cfg=RendererCfg(class_type=object)
     )
     original = cfg.scene.learning_camera
-    session = CapturePlaySession(cfg)
-    session.validate()
+    validate_playback(cfg)
     assert cfg.scene.learning_camera is original
     original.renderer_cfg = OVRTXRendererCfg()
     with pytest.raises(ValueError, match="Learning camera.*shares"):
-        session.validate()
+        validate_playback(cfg)
     original.renderer_cfg = RendererCfg(class_type=object)
     panel = CameraCfg(prim_path="/World/panel", width=8, height=8, spawn=None, renderer_cfg=view.renderer)
     cfg.scene.panel = panel
@@ -493,16 +357,16 @@ def test_xr_preserves_learning_cameras_and_rejects_shared_renderer_consumers():
         func=lambda env, nested: torch.zeros(1, 1), params={"nested": {"camera": [SceneEntityCfg("panel")]}}
     )
     with pytest.raises(ValueError, match="critic/image"):
-        session.validate()
+        validate_playback(cfg)
     cfg.observations.critic.image = None
     cfg.video_recorders = [VideoRecorderCfg(source="sensor:panel")]
     with pytest.raises(ValueError, match="Video recording"):
-        session.validate()
+        validate_playback(cfg)
     cfg.video_recorders = []
-    session.validate()
+    validate_playback(cfg)
     assert cfg.scene.learning_camera is original and cfg.scene.panel is panel
     cfg.sim.visualizer_cfgs = VisualizerCfg(backend=NewtonGLBackendCfg())
-    session.validate()
+    validate_playback(cfg)
 
 
 def test_xr_allows_independent_lab_views_and_rejects_consumers_of_leased_cameras():
@@ -512,40 +376,39 @@ def test_xr_allows_independent_lab_views_and_rejects_consumers_of_leased_cameras
     cfg.scene.learning_camera = CameraCfg(
         prim_path="/World/learning", width=8, height=8, spawn=None, renderer_cfg=RendererCfg(class_type=object)
     )
-    session = CapturePlaySession(cfg)
     cfg.sim.visualizer_cfgs = VisualizerCfg(backend=NewtonGLBackendCfg(), eye=(1.0, 2.0, 3.0))
-    session.validate()
+    validate_playback(cfg)
     assert not view.presentation.desktop_mirror_enabled
     assert cfg.sim.visualizer_cfgs.eye == (1.0, 2.0, 3.0)
 
     cfg.sim.visualizer_cfgs = VisualizerCfg(backend=NewtonRTXBackendCfg())
     with pytest.raises(ValueError, match="perspective view shares"):
-        session.validate()
+        validate_playback(cfg)
     cfg.sim.visualizer_cfgs.backend.renderer_cfg = OVRTXRendererCfg(log_file_path="/tmp/independent-viewer.log")
-    session.validate()
+    validate_playback(cfg)
 
     # An RTX viewer borrowing an independent sensor never uses its default
     # perspective renderer, so that unused default must not reject the view.
     cfg.sim.visualizer_cfgs = VisualizerCfg(backend=NewtonRTXBackendCfg(), view=ImageViewCfg(source="learning_camera"))
-    session.validate()
+    validate_playback(cfg)
     panel = CameraCfg(prim_path="{ENV_REGEX_NS}/HeadCamera", width=8, height=8, spawn=None, renderer_cfg=view.renderer)
     cfg.scene.panel = panel
     view.presentation = OvLibrariesXrCfg(auxiliary_cameras=(OvLibrariesXrCameraCfg(name="panel", camera_cfg=panel),))
     cfg.sim.visualizer_cfgs.view.source = "panel"
     with pytest.raises(ValueError, match="XR-owned panel cameras"):
-        session.validate()
+        validate_playback(cfg)
     cfg.sim.visualizer_cfgs = VisualizerCfg(
         backend=NewtonGLBackendCfg(),
         cameras=[SceneCameraCfg(prim_path="/World/envs/env_0/HeadCamera")],
         streaming_view=True,
     )
     with pytest.raises(ValueError, match="XR-owned panel cameras"):
-        session.validate()
+        validate_playback(cfg)
     cfg.sim.visualizer_cfgs.cameras = [SceneCameraCfg(prim_path="/World/learning")]
-    session.validate()
+    validate_playback(cfg)
     cfg.sim.visualizer_cfgs.cameras = None
     with pytest.raises(ValueError, match="XR-owned panel cameras"):
-        session.validate()
+        validate_playback(cfg)
     # Automatic selection only binds cameras that supply all requested channels.
     cfg.sim.visualizer_cfgs.streaming_gt_types = ("depth",)
-    session.validate()
+    validate_playback(cfg)

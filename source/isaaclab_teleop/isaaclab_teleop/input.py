@@ -26,10 +26,10 @@ if TYPE_CHECKING:
 class TeleopInput(ActionInput):
     """Select human or policy input while preserving the task controller.
 
-    Input acquisition belongs to interactive playback, which activates a source
-    on one input and distributes its sample across the task's teleop inputs
-    before each environment step. Only the declaring input owns the source's
-    lifetime. Inputs never step, render, or reset the simulation themselves.
+    Playback activates a source on one input. The action manager then prepares
+    all inputs before resolving actions, so every participating controller sees
+    the same sample. Only the declaring input owns the source's lifetime.
+    Inputs may request an episode reset but never perform it or advance physics.
     """
 
     cfg: TeleopInputCfg
@@ -41,19 +41,20 @@ class TeleopInput(ActionInput):
         super().__init__(cfg, env, action_dim=action_dim)
         self._source: TeleopSource | None = None
         self._sample: TeleopSample | None = None
+        self._followers: tuple[TeleopInput, ...] = ()
         self._closed = False
         self._env_ids = torch.tensor(cfg.env_ids, device=env.device, dtype=torch.long)
 
     @property
     def sample(self) -> TeleopSample | None:
-        """Latest cached input for distribution by the playback owner.
+        """Latest shared sample used by participating controllers and recorders.
 
         Treat this sample and its action tensor as read-only. Each input's action
         adapter receives a separate copy when resolving its controller inputs.
         """
         return self._sample
 
-    def activate(self, source: TeleopSource) -> None:
+    def activate(self, source: TeleopSource, *, followers: Sequence[TeleopInput] = ()) -> None:
         """Take ownership of a source created after the full environment is ready."""
         if self._closed:
             raise RuntimeError("Cannot activate a closed teleop input.")
@@ -61,6 +62,7 @@ class TeleopInput(ActionInput):
             raise RuntimeError("The teleop input already has an active source.")
         self._source = source
         self._sample = None
+        self._followers = tuple(followers)
 
     def deactivate(self) -> None:
         """Release the source before borrowed XR or visualizer resources close."""
@@ -68,11 +70,19 @@ class TeleopInput(ActionInput):
         if self._source is not None:
             self._source.close()
             self._source = None
+        for follower in self._followers:
+            follower.reset()
+        self._followers = ()
 
-    def poll_source(self) -> bool:
-        """Cache one input sample and report its simulation-wide reset request."""
-        self._sample = self._source.advance() if self._source is not None else None
-        return self._sample is not None and self._sample.reset
+    def prepare_actions(self) -> None:
+        """Poll once, share the sample, and queue operator resets with the environment."""
+        if self._source is None:
+            return
+        self._sample = self._source.advance()
+        for follower in self._followers:
+            follower.set_sample(self._sample)
+        if self._sample.reset:
+            self._env.request_reset(self._env_ids)
 
     def set_sample(self, sample: TeleopSample | None) -> None:
         """Receive a shared input sample without owning or polling its source."""

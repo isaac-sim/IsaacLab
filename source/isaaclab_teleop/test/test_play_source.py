@@ -13,7 +13,9 @@ import pytest
 import torch
 from isaaclab_teleop import CaptureTeleopSourceCfg, IsaacTeleopCfg
 from isaaclab_teleop.control_events import ControlEvents
+from isaaclab_teleop.ovxr_presentation import OvxrPresentation
 from isaaclab_teleop.play_source import CaptureTeleopSource, _desktop_pipeline
+from isaaclab_teleop.source import PlaybackStopped
 
 from isaaclab.utils import instantiate
 
@@ -34,6 +36,9 @@ def capture(monkeypatch):
         last_control_events=ControlEvents(),
         session_cleanup_failed=False,
         target_frame_prim_path=None,
+        xr_render_anchor_path="/Anchor",
+        external_anchor_state=None,
+        required_openxr_extensions=(),
     )
     create = Mock(return_value=device)
     monkeypatch.setattr(device_selection, "create_teleop_device", create)
@@ -42,7 +47,13 @@ def capture(monkeypatch):
         num_envs=4,
         device="cpu",
         scene=SimpleNamespace(env_prim_paths=[f"/World/envs/env_{i}" for i in range(4)]),
-        sim=SimpleNamespace(visualizers=[object()], get_setting=lambda _: False),
+        sim=SimpleNamespace(
+            visualizers=[object()],
+            get_setting=lambda _: False,
+            get_physics_step_count=lambda: 0,
+            get_physics_dt=lambda: 0.005,
+        ),
+        step_dt=0.01,
     )
     return device, create, env
 
@@ -113,46 +124,83 @@ def test_host_and_operator_resets_are_independent(capture):
 
 
 def test_xr_borrows_presentation_handles_and_target_frame(capture, monkeypatch):
-    """XR uses the owner's handles and physics transform without starting another runtime."""
+    """XR publishes completed reset state before input and drains borrowers before closing presentation."""
     from isaaclab_teleop import play_source
 
     device, create, env = capture
+    events = []
+    device.__enter__.side_effect = lambda: events.append("input-start")
+    device.__exit__.side_effect = lambda *_: events.append("input-close")
+    device.advance.side_effect = lambda _: events.append("input-poll")
+    device.notify_reset.side_effect = lambda: events.append("input-reset")
     device.target_frame_prim_path = "/World/envs/env_2/robot/base"
     transform = object()
-    session = SimpleNamespace(external_oxr_handles=Mock(), get_target_frame_T_world=Mock(return_value=transform))
+    admissions = iter([1, None, 2, None])
+
+    def publish(identity, *, force):
+        events.append(("publish", identity, force))
+        return next(admissions)
+
+    session = SimpleNamespace(
+        external_oxr_handles=Mock(),
+        get_target_frame_T_world=Mock(return_value=transform),
+        start_render_worker=Mock(side_effect=lambda *_args, **_kwargs: events.append("xr-start") or True),
+        request_render=publish,
+        report_host_timing=Mock(),
+        shutdown_requested=False,
+        wait_for_shutdown=Mock(),
+        close=Mock(side_effect=lambda: events.append("xr-close")),
+    )
     monkeypatch.setattr(play_source, "_desktop_pipeline", Mock(side_effect=AssertionError("desktop validation")))
     cfg = CaptureTeleopSourceCfg(device=IsaacTeleopCfg(), start_active=False)
-    source = CaptureTeleopSource(cfg, env, env_ids=[2], xr_session=session)
+    source = CaptureTeleopSource(cfg, env, env_ids=[2], presentation=OvxrPresentation(session), startup_timeout_s=12.0)
     source.start()
     try:
-        assert source.device is device
         assert create.call_args.kwargs["external_oxr_handles_provider"] is session.external_oxr_handles
         assert create.call_args.kwargs["cloudxr_env_file"] is None
         assert not create.call_args.kwargs["auto_launch_cloudxr"]
         assert not create.call_args.kwargs["use_kit_xr_bridge"]
         device.request_start.assert_not_called()
+        assert events == ["input-start", "xr-start", ("publish", (1, 0), True)]
+        assert session.start_render_worker.call_args.kwargs["timeout_s"] == 12.0
+        source.reset([2])
+        assert events[-1] == "input-reset"  # Reset marks dirty; it does not publish partial task state.
         source.advance()
+        assert events[-3:] == [("publish", (2, 0), True), ("publish", (2, 0), True), "input-poll"]
         session.get_target_frame_T_world.assert_called_once_with("/World/envs/env_2/robot/base")
         device.advance.assert_called_once_with(transform)
+        session.shutdown_requested = True
+        with pytest.raises(PlaybackStopped):
+            source.advance()
+        device.advance.assert_called_once()
     finally:
         source.close()
+    assert events[-2:] == ["input-close", "xr-close"]
 
 
-def test_failed_input_drain_can_be_retried(capture):
-    """A close failure stays observable so playback retains the borrowed XR environment."""
+@pytest.mark.parametrize("failure", ["input", "presentation"])
+def test_failed_input_drain_can_be_retried(capture, failure):
+    """A failed input or XR drain retains its owners; cleanup can resume in dependency order."""
     device, _, env = capture
-    source = CaptureTeleopSource(CaptureTeleopSourceCfg(device=IsaacTeleopCfg()), env, env_ids=[0])
-    source.start()
-    device.__exit__.side_effect = [RuntimeError("input did not drain"), None]
-    device.session_cleanup_failed = True
-    with pytest.raises(RuntimeError, match="input did not drain"):
+    session = SimpleNamespace(external_oxr_handles=Mock(), close=Mock(), request_shutdown=Mock())
+    source = CaptureTeleopSource(
+        CaptureTeleopSourceCfg(device=IsaacTeleopCfg()), env, env_ids=[0], presentation=OvxrPresentation(session)
+    )
+    if failure == "input":
+        device.__exit__.side_effect = [RuntimeError("input did not drain"), None]
+        device.session_cleanup_failed = True
+    else:
+        session.close.side_effect = [RuntimeError("XR did not drain"), None]
+    with pytest.raises(RuntimeError, match="did not drain"):
         source.close()
-    assert source.session_cleanup_failed
+    if failure == "input":
+        session.close.assert_not_called()
+        session.request_shutdown.assert_called_once()
     device.session_cleanup_failed = False
     source.close()
     source.close()
     assert device.__exit__.call_count == 2
-    assert not source.session_cleanup_failed
+    assert session.close.call_count == (1 if failure == "input" else 2)
 
 
 def test_start_failure_retains_input_for_owner_cleanup(capture):

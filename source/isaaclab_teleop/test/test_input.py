@@ -68,6 +68,7 @@ class _Source(TeleopSource):
 
     def reset(self, env_ids=None):
         self.resets.append(env_ids.tolist())
+        self.sample = TeleopSample(active=False)
 
     def close(self):
         self.env.events.append("source_closed")
@@ -91,6 +92,8 @@ def _build(*, terms=None, activate=True, **kwargs):
         events=[],
         applied=None,
     )
+    env.reset_requests = []
+    env.request_reset = lambda env_ids: env.reset_requests.append(env_ids.tolist())
     if terms is None:
         terms = {
             "robot": ActionTermCfg(
@@ -120,7 +123,6 @@ def test_optional_input_preserves_controller_and_policy_until_capture_takes_cont
     source = _Source(env)
     term.activate(source)
     source.sample = TeleopSample(torch.tensor([[4.0, 3.0], [-2.0, -1.0]]))
-    assert not term.poll_source()
     manager.process_action(policy)
     manager.apply_action()
     torch.testing.assert_close(env.applied, torch.tensor([[-4.0, -2.0], [6.0, 8.0], [8.0, 6.0]]))
@@ -129,7 +131,6 @@ def test_optional_input_preserves_controller_and_policy_until_capture_takes_cont
     assert source.polls == 1
 
     source.sample.active = False
-    term.poll_source()
     manager.process_action(policy)
     torch.testing.assert_close(manager.action, policy)
     manager.close()
@@ -145,7 +146,6 @@ def test_adapter_reset_selection_and_stale_sample_handling():
     source = _Source(env)
     term.activate(source)
     source.sample = TeleopSample(torch.tensor([1.0, 2.0]))
-    term.poll_source()
     env.action_manager.process_action(torch.zeros(3, 2))
     torch.testing.assert_close(env.action_manager.action[1], torch.tensor([5.0, 6.0]))
 
@@ -159,9 +159,9 @@ def test_adapter_reset_selection_and_stale_sample_handling():
     assert source.resets == [[1], [1]]
 
     source.sample = TeleopSample(torch.full((2,), float("nan")), reset=True)
-    assert term.poll_source()
     env.action_manager.process_action(torch.ones(3, 2))
     torch.testing.assert_close(env.action_manager.action, torch.ones(3, 2))
+    assert env.reset_requests == [[1]]
     env.action_manager.close()
 
 
@@ -193,9 +193,7 @@ def test_one_sample_drives_arm_and_gripper_without_duplicate_source_lifecycle():
     gripper = manager.activate_input("gripper")
     source = _Source(env)
     source.sample = TeleopSample(torch.tensor([1.0, 2.0, 0.25]))
-    arm.activate(source)
-    assert not arm.poll_source()
-    gripper.set_sample(arm.sample)
+    arm.activate(source, followers=[gripper])
     policy = torch.ones(3, 3)
     manager.process_action(policy)
 
@@ -215,8 +213,12 @@ def test_one_sample_drives_arm_and_gripper_without_duplicate_source_lifecycle():
     torch.testing.assert_close(manager.action, policy)
 
     source.sample.active = False
-    arm.poll_source()
-    gripper.set_sample(arm.sample)
+    manager.process_action(policy)
+    torch.testing.assert_close(manager.action, policy)
+
+    source.sample = TeleopSample(torch.tensor([3.0, 4.0, 0.75]))
+    manager.process_action(policy)
+    arm.deactivate()
     manager.process_action(policy)
     torch.testing.assert_close(manager.action, policy)
     manager.close()
@@ -236,7 +238,6 @@ def test_invalid_capture_actions_do_not_reach_controller(values, error, message)
     source = _Source(env)
     term.activate(source)
     source.sample = TeleopSample(values)
-    term.poll_source()
     with pytest.raises(error, match=message):
         env.action_manager.process_action(torch.ones(3, 2))
     torch.testing.assert_close(env.action_manager.get_term("robot").processed_actions, torch.zeros(3, 2))
@@ -254,7 +255,6 @@ def test_source_failure_preserves_ownership_for_retry_and_deactivation_yields_to
     source = _Source(env)
     term.activate(source)
     source.sample = TeleopSample(torch.tensor([8.0, 9.0]))
-    term.poll_source()
     term.deactivate()
     env.action_manager.process_action(torch.ones(3, 2))
     torch.testing.assert_close(env.action_manager.action, torch.ones(3, 2))

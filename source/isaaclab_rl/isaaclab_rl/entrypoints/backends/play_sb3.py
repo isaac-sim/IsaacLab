@@ -104,7 +104,7 @@ def run(argv: list[str]) -> None:
         pre_launch_video_config(env_cfg, args_cli)
         apply_env_overrides(args_cli, env_cfg)
         screen.stage("Launching simulation")
-        with launch_playback(env_cfg, args_cli) as playback_session, contextlib.ExitStack() as cleanup:
+        with launch_playback(env_cfg, args_cli) as configure_inputs, contextlib.ExitStack() as cleanup:
             show_run_summary(screen, args_cli, env_cfg, library="sb3", action="play")
             agent_cfg = cli_args.update_sb3_cfg(agent_cfg, args_cli)
             env_cfg.seed = agent_cfg["seed"]
@@ -124,7 +124,7 @@ def run(argv: list[str]) -> None:
                 env_cfg,
                 args_cli,
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
-                playback_session=playback_session,
+                configure_inputs=configure_inputs,
             )
             cleanup.callback(lambda: close_env(env))
             agent_cfg = process_sb3_cfg(agent_cfg, env.unwrapped.num_envs)
@@ -160,6 +160,4 @@ def run(argv: list[str]) -> None:
                 obs, _, _, _ = env.step(actions)
 
             screen.close()
-            run_playback(
-                step, dt=env.unwrapped.step_dt, args_cli=args_cli, env_cfg=env_cfg, playback_session=playback_session
-            )
+            run_playback(step, dt=env.unwrapped.step_dt, args_cli=args_cli, env_cfg=env_cfg, env=env)

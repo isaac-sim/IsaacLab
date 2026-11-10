@@ -12,7 +12,7 @@ import h5py
 import pytest
 import torch
 from isaaclab_teleop.input_cfg import TeleopInputCfg
-from isaaclab_teleop.recording import DemoRecording, DemoRecordingCfg, prepare_demo_recording
+from isaaclab_teleop.recording import DemoRecordingCfg, prepare_demo_recording
 from isaaclab_teleop.source import TeleopSample
 from isaaclab_teleop.source_cfg import TeleopSourceCfg
 
@@ -137,19 +137,12 @@ def test_reset_boundaries_export_only_physical_episodes_and_drop_partial_close(t
         action=torch.tensor([[0.0]]),
     )
     env.recorder_manager = RecorderManager(env_cfg.recorders, env)
-    recording = DemoRecording(cfg)
 
-    def reset(*, explicit):
-        if explicit:
-            recording.before_explicit_reset(env)
-        try:
-            env.recorder_manager.record_pre_reset(None)
-            env.recorder_manager.reset()
-            success.fill_(False)
-            env.recorder_manager.record_post_reset(None)
-        finally:
-            if explicit:
-                recording.after_explicit_reset(env)
+    def reset():
+        env.recorder_manager.record_pre_reset(None)
+        env.recorder_manager.reset()
+        success.fill_(False)
+        env.recorder_manager.record_post_reset(None)
 
     def step(value, *, active, done=False):
         env.action.fill_(value)
@@ -157,24 +150,24 @@ def test_reset_boundaries_export_only_physical_episodes_and_drop_partial_close(t
         env.recorder_manager.record_pre_step()
         env.recorder_manager.record_post_step()
         if done:
-            reset(explicit=False)
-        recording.after_step(env, torch.tensor([done]))
+            reset()
 
     try:
-        reset(explicit=True)
-        reset(explicit=True)
+        reset()
+        reset()
         assert env.recorder_manager.exported_failed_episode_count == 0
         step(1.0, active=True)
         step(2.0, active=False)
-        reset(explicit=True)  # A nonempty operator interruption is an unsuccessful attempt.
-        assert not recording.complete
+        reset()  # A nonempty operator interruption is an unsuccessful attempt.
+        assert env.recorder_manager.exported_failed_episode_count == 1
+        assert env.recorder_manager.exported_successful_episode_count == 0
         success.fill_(True)
         step(3.0, active=True, done=True)
-        assert recording.complete == (mode == "all")
-        reset(explicit=True)  # An immediate reset after auto-reset must not export its initial state.
+        assert env.recorder_manager.exported_successful_episode_count == 1
+        reset()  # An immediate reset after auto-reset must not export its initial state.
         success.fill_(True)
         step(4.0, active=False, done=True)
-        assert recording.complete
+        assert env.recorder_manager.exported_successful_episode_count == 2
         step(99.0, active=True)  # An unfinished final attempt is deliberately dropped.
     finally:
         env.recorder_manager.close()

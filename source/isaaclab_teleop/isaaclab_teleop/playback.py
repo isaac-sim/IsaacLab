@@ -3,21 +3,20 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Capture playback lifecycle for task-owned actions and operator presentation."""
+"""Configure and activate task-owned Capture resources for shared playback."""
 
 from __future__ import annotations
 
 import os
 import re
-from collections.abc import ItemsView, Iterator, Mapping
-from typing import TYPE_CHECKING, Any
+from collections.abc import Callable, ItemsView, Iterator, Mapping
+from contextlib import contextmanager
+from typing import Any
 
 import gymnasium as gym
-import torch
 
 from isaaclab.cloner import expand_env_regex_ns, path
 from isaaclab.envs import ManagerBasedRLEnvCfg
-from isaaclab.envs.common import VecEnvStepReturn
 from isaaclab.managers import ActionTermCfg, ObservationPresentationCfg, SceneEntityCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.utils import instantiate, validate
@@ -28,15 +27,6 @@ from .input import TeleopInput
 from .input_cfg import TeleopInputCfg
 from .observation_cfg import TeleopObservationCfg
 from .play_source_cfg import CaptureTeleopSourceCfg
-
-if TYPE_CHECKING:
-    from .ov_libraries_xr import OvLibrariesXrSession
-    from .play_source import CaptureTeleopSource
-    from .recording import DemoRecording, DemoRecordingCfg
-
-
-class PlaybackStopped(Exception):
-    """The operator closed presentation while playback was waiting for a frame."""
 
 
 def _items(config: Any) -> ItemsView[str, Any]:
@@ -177,299 +167,142 @@ def _validate_presentation_cameras(env_cfg: Any, view: TeleopObservationCfg) -> 
     _validate_presentation_viewers(env_cfg, view, cameras)
 
 
-class CapturePlaySession:
-    """Own Capture input and optional XR presentation around one manager-based task.
+def capture_input_config(env_cfg: ManagerBasedRLEnvCfg) -> tuple[str, TeleopInputCfg]:
+    """Find the single Capture source shared by the task's participating inputs."""
+    sources = {name: cfg for name, cfg in configured_teleop_inputs(env_cfg).items() if cfg.source is not None}
+    if len(sources) != 1:
+        raise ValueError("Capture playback currently requires exactly one TeleopInputCfg owning input.")
+    return next(iter(sources.items()))
 
-    Construct and validate before launch, call :meth:`prepare` inside the launch
-    context before constructing the environment, then :meth:`attach` before RL
-    library wrappers. :meth:`close` also covers failures between these stages.
-    The action manager applies each optional input; this class owns resource order,
-    operator resets, and complete-scene publication to the independent XR worker.
+
+def presentation_config(env_cfg: ManagerBasedRLEnvCfg) -> TeleopObservationCfg | None:
+    """Find the optional operator view without constructing a presentation runtime."""
+    views = [cfg for _, cfg in _items(env_cfg.observations) if isinstance(cfg, TeleopObservationCfg)]
+    if len(views) > 1:
+        raise ValueError("Capture playback supports one operator presentation per process.")
+    return views[0] if views else None
+
+
+def prepare_playback_config(env_cfg: ManagerBasedRLEnvCfg) -> Any:
+    """Apply the task's device preparation hook and expose the active XR renderer to launch."""
+    _, input_cfg = capture_input_config(env_cfg)
+    source_cfg = input_cfg.source
+    if isinstance(source_cfg, CaptureTeleopSourceCfg) and source_cfg.device.prepare_environment is not None:
+        source_cfg.device.prepare_environment(env_cfg)
+    view = presentation_config(env_cfg)
+    return (env_cfg, view.renderer) if view is not None else env_cfg
+
+
+def validate_playback(env_cfg: ManagerBasedRLEnvCfg) -> None:
+    """Reject unsupported input and rendering combinations after launch resolution."""
+    if not isinstance(env_cfg, ManagerBasedRLEnvCfg):
+        raise ValueError("Task-owned Capture playback requires a ManagerBasedRLEnvCfg.")
+    owner_name, input_cfg = capture_input_config(env_cfg)
+    for name, cfg in configured_teleop_inputs(env_cfg).items():
+        validate(cfg)
+        if cfg.env_ids != input_cfg.env_ids:
+            raise ValueError(f"Teleop input {name!r} must control the same environment row as {owner_name!r}.")
+    if not isinstance(input_cfg.source, CaptureTeleopSourceCfg):
+        raise TypeError("Capture playback requires a CaptureTeleopSourceCfg input source.")
+    if len(input_cfg.env_ids) != 1:
+        raise ValueError("Capture playback controls exactly one environment row.")
+    if input_cfg.env_ids[0] >= env_cfg.scene.num_envs:
+        raise ValueError("Capture playback environment selection exceeds scene.num_envs.")
+    view = presentation_config(env_cfg)
+    if view is None:
+        return
+    validate(view)
+    if env_cfg.scene.num_envs != 1 or list(input_cfg.env_ids) != [0]:
+        raise ValueError("XR playback currently requires num_envs=1 and env_ids=[0].")
+    if env_cfg.sim.physics is None:
+        raise ValueError("XR playback requires a task with non-Kit physics.")
+    if os.environ.get("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1").strip() != "1":
+        raise ValueError("XR playback requires ISAAC_LAB_OVRTX_USE_OVSTAGE=1.")
+    _validate_presentation_cameras(env_cfg, view)
+
+
+@contextmanager
+def activate_capture(env_cfg: ManagerBasedRLEnvCfg) -> Iterator[Callable[[gym.Env], None]]:
+    """Prepare optional XR, then activate inputs on a constructed environment.
+
+    The yielded function installs resources, without wrapping the environment.
+    ActionManager subsequently owns input polling and teardown; the source owns
+    its optional presentation. This construction scope covers failures before
+    that ownership transfer, including a partially constructed environment.
     """
+    from isaaclab.sim import SimulationContext
 
-    def __init__(self, env_cfg: ManagerBasedRLEnvCfg) -> None:
-        self._cfg = env_cfg
-        self._inputs = configured_teleop_inputs(env_cfg)
-        sources = {name: cfg for name, cfg in self._inputs.items() if cfg.source is not None}
-        if len(sources) != 1:
-            raise ValueError("Capture playback currently requires exactly one TeleopInputCfg owning input.")
-        self._owner_name, self._input_cfg = next(iter(sources.items()))
-        views = [cfg for _, cfg in _items(env_cfg.observations) if isinstance(cfg, TeleopObservationCfg)]
-        if len(views) > 1:
-            raise ValueError("Capture playback supports one operator presentation per process.")
-        self._view = views[0] if views else None
-        self._xr: OvLibrariesXrSession | None = None
-        self._env: gym.Env | None = None
-        self._input: TeleopInput | None = None
-        self._followers: list[TeleopInput] = []
-        self._source: CaptureTeleopSource | None = None
-        self._recording_cfg: DemoRecordingCfg | None = None
-        self._recording: DemoRecording | None = None
-        self._prepared_context = None
-        self._context_before_prepare = None
-        self._prepared = False
-        self._closed = False
-        self._generation = 0
-        self._pending: tuple[int, int] | None = None
-        self._force_publication = False
+    owner_name, input_cfg = capture_input_config(env_cfg)
+    view = presentation_config(env_cfg)
+    previous_context = SimulationContext.instance()
+    presentation = None
+    env = None
+    source = None
+    source_owned = False
 
-    @property
-    def uses_xr(self) -> bool:
-        """Whether launch cleanup must defer to Capture's XR owner."""
-        return self._view is not None
-
-    @property
-    def launch_config(self) -> Any:
-        """Expose the active XR renderer to launch resolution only during playback."""
-        return (self._cfg, self._view.renderer) if self._view is not None else self._cfg
-
-    @property
-    def shutdown_requested(self) -> bool:
-        """Whether XR closed or the requested demonstration count has been reached."""
-        return (self._xr is not None and self._xr.shutdown_requested) or (
-            self._recording is not None and self._recording.complete
-        )
-
-    def configure_recording(self, cfg: DemoRecordingCfg, *, task_name: str) -> None:
-        """Prepare episode collection before launching simulation or opening a dataset."""
-        if self._prepared or self._closed or self._recording_cfg is not None:
-            raise RuntimeError("Configure demonstration recording once, before preparing playback.")
-        from .recording import prepare_demo_recording
-
-        self._recording_cfg = prepare_demo_recording(self._cfg, cfg, task_name, self._input_cfg.env_ids)
-
-    def prepare_environment(self) -> None:
-        """Apply the task's optional configuration hook before creating resources.
-
-        The hook must preserve runtime selections and learning observations.
-        Call :meth:`validate` after launch resolution to check the final cameras.
-        """
-        source_cfg = self._input_cfg.source
-        if isinstance(source_cfg, CaptureTeleopSourceCfg) and source_cfg.device.prepare_environment is not None:
-            source_cfg.device.prepare_environment(self._cfg)
-
-    def validate(self) -> None:
-        """Reject unsupported task and rendering combinations before startup."""
-        if not isinstance(self._cfg, ManagerBasedRLEnvCfg):
-            raise ValueError("Task-owned Capture playback requires a ManagerBasedRLEnvCfg.")
-        for name, term in self._inputs.items():
-            validate(term)
-            if term.env_ids != self._input_cfg.env_ids:
-                raise ValueError(
-                    f"Teleop input {name!r} must control the same environment row as {self._owner_name!r}."
-                )
-        if not isinstance(self._input_cfg.source, CaptureTeleopSourceCfg):
-            raise TypeError("Capture playback requires a CaptureTeleopSourceCfg input source.")
-        if len(self._input_cfg.env_ids) != 1:
-            raise ValueError("Capture playback controls exactly one environment row.")
-        if self._input_cfg.env_ids[0] >= self._cfg.scene.num_envs:
-            raise ValueError("Capture playback environment selection exceeds scene.num_envs.")
-        if not self.uses_xr:
-            return
-        assert self._view is not None
-        validate(self._view)
-        if self._cfg.scene.num_envs != 1 or list(self._input_cfg.env_ids) != [0]:
-            raise ValueError("XR playback currently requires num_envs=1 and env_ids=[0].")
-        if self._cfg.sim.physics is None:
-            raise ValueError("XR playback requires a task with non-Kit physics.")
-        if os.environ.get("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1").strip() != "1":
-            raise ValueError("XR playback requires ISAAC_LAB_OVRTX_USE_OVSTAGE=1.")
-        _validate_presentation_cameras(self._cfg, self._view)
-
-    def prepare(self) -> None:
-        """Reserve the XR renderer before environment construction, if requested."""
-        from isaaclab.sim import SimulationContext
-
-        if self._closed or self._prepared:
-            raise RuntimeError("Capture playback preparation requires a new session.")
-        self.validate()
-        self._context_before_prepare = SimulationContext.instance()
-        if self._view is not None:
-            from .ov_libraries_xr import OvLibrariesXrSession
-
-            self._xr = OvLibrariesXrSession.prepare(
-                self._cfg.sim, self._view.presentation, renderer_cfg=self._view.renderer
-            )
-            # The public bootstrap creates this context before an environment
-            # can borrow it. Retain it for cleanup if gym.make subsequently fails.
-            self._prepared_context = SimulationContext.instance()
-        self._prepared = True
-
-    def attach(self, env: gym.Env) -> gym.Wrapper:
-        """Activate task inputs and one Capture source, then wrap playback lifecycle."""
-        if not self._prepared or self._closed or self._env is not None:
-            raise RuntimeError("Capture playback must be prepared and attached exactly once.")
-        self._env = env
+    def activate(created_env: gym.Env) -> None:
+        nonlocal env, source, source_owned
+        owner = None
+        if env is not None:
+            raise RuntimeError("Capture inputs can be activated on only one environment per launch.")
+        env = created_env
         manager = env.unwrapped.action_manager
-        owner: TeleopInput | None = None
-        for name in self._inputs:
+        followers = []
+        for name in configured_teleop_inputs(env_cfg):
             action_input = manager.activate_input(name)
             if not isinstance(action_input, TeleopInput):
                 raise TypeError(f"TeleopInputCfg for {name!r} must construct a TeleopInput.")
-            if name == self._owner_name:
+            if name == owner_name:
                 owner = action_input
             else:
-                self._followers.append(action_input)
-        if self._recording_cfg is not None:
-            from .recording import DemoRecording
-
-            self._recording = DemoRecording(self._recording_cfg)
-        self._source = instantiate(
-            self._input_cfg.source, env.unwrapped, env_ids=list(self._input_cfg.env_ids), xr_session=self._xr
+                followers.append(action_input)
+        source = instantiate(
+            input_cfg.source,
+            env.unwrapped,
+            env_ids=list(input_cfg.env_ids),
+            presentation=presentation,
+            startup_timeout_s=view.startup_timeout_s if view is not None else 30.0,
         )
         assert owner is not None
-        owner.activate(self._source)
-        self._input = owner
-        self._source.start()
-        if self._xr is not None:
-            assert self._view is not None
-            device = self._source.device
-            started = self._xr.start_render_worker(
-                env,
-                tracking_anchor_path=device.xr_render_anchor_path,
-                required_openxr_extensions=device.required_openxr_extensions,
-                excluded_visual_meshes=self._input_cfg.source.device.xr_cfg.excluded_visual_meshes,
-                external_anchor_state=device.external_anchor_state,
-                timeout_s=self._view.startup_timeout_s,
-            )
-            if not started:
-                raise PlaybackStopped("XR presentation closed during startup.")
-            self._publish(reset=True)
-        return _CapturePlaybackEnv(env, self)
+        owner.activate(source, followers=followers)
+        source_owned = True
+        source.start()
 
-    def close(self) -> None:
-        """Drain input, then XR, then release any environment still owned by the host.
-
-        A failed drain retains the borrowed environment and session for a later
-        cleanup attempt. Releasing them while Capture still uses them is unsafe.
-        """
-        if self._closed:
-            return
-        try:
-            if self._env is not None:
-                self._env.unwrapped.action_manager.close_inputs()
-            if self._source is not None and self._input is None:
-                # Also cover source construction followed by failed activation.
-                self._source.close()
-            if self._source is not None and self._source.session_cleanup_failed:
-                raise RuntimeError("Capture input did not drain; retaining its XR session and environment.")
-        except BaseException as input_error:
-            if self._xr is not None:
-                try:
-                    self._xr.request_shutdown()
-                except BaseException as shutdown_error:
-                    input_error.add_note(f"Requesting XR shutdown also failed: {shutdown_error!r}")
-            raise
-        if self._xr is not None:
-            if self._env is not None:
-                # Native Lab windows belong to the host thread. Input has released
-                # them before XR delegates environment teardown to its render worker.
-                for visualizer in self._env.unwrapped.sim.visualizers:
-                    visualizer.close()
-            self._xr.close()
-        if self._env is not None:
-            if self._xr is None or not self._xr.async_worker_owns_environment:
-                self._env.close()
-        elif self._prepared_context is not None:
-            self._prepared_context.clear_instance()
-        elif self._prepared:
-            from isaaclab.sim import SimulationContext
-
-            # A desktop task may construct its context and fail before attach.
-            # Retire only that new context, never one supplied by an embedding host.
+    def close() -> None:
+        # Close inputs before controllers/managers; on failure retain every
+        # dependency. The XR worker retires rendering, never the environment.
+        if env is not None:
+            manager = getattr(env.unwrapped, "action_manager", None)
+            if manager is not None:
+                manager.close_inputs()
+        if source is not None and not source_owned:
+            source.close()
+        if presentation is not None:
+            presentation.close()
+        if env is not None:
+            env.close()
+        else:
             context = SimulationContext.instance()
-            if context is not None and context is not self._context_before_prepare:
+            if context is not None and context is not previous_context:
                 context.clear_instance()
-        self._closed = True
 
-    def _publish(self, *, reset: bool = False, changed: bool = True) -> None:
-        if self._xr is None:
-            return
-        assert self._env is not None
-        sim = self._env.unwrapped.sim
-        if reset:
-            self._generation += 1
-            self._force_publication = True
-        if changed or reset:
-            self._pending = self._generation, sim.get_physics_step_count()
-        if self._pending is not None:
-            admitted = self._xr.request_render(self._pending, force=self._force_publication)
-            if admitted is not None:
-                self._pending = None
-                self._force_publication = False
-        self._xr.report_host_timing(sim.get_physics_step_count(), sim.get_physics_dt())
+    try:
+        if view is not None:
+            from .ov_libraries_xr import OvLibrariesXrSession
+            from .ovxr_presentation import OvxrPresentation
 
-    def _before_step(self) -> bool:
-        """Commit pending reset anchors before reading Capture input."""
-        if self._closed:
-            raise RuntimeError("Capture playback is closed.")
-        while self._force_publication:
-            if self.shutdown_requested:
-                raise PlaybackStopped("XR presentation closed while publishing a reset.")
-            self._publish(changed=False)
-            if self._force_publication:
-                assert self._xr is not None and self._env is not None
-                self._xr.wait_for_shutdown(min(self._env.unwrapped.step_dt, 0.05))
-        if self.shutdown_requested:
-            raise PlaybackStopped("XR presentation closed.")
-        assert self._input is not None
-        reset = self._input.poll_source()
-        for term in self._followers:
-            term.set_sample(self._input.sample)
-        return reset
-
-
-def _copy_observations(observations: dict | torch.Tensor) -> dict | torch.Tensor:
-    if isinstance(observations, dict):
-        return {name: _copy_observations(value) for name, value in observations.items()}
-    return observations.clone()
-
-
-class _CapturePlaybackEnv(gym.Wrapper):
-    """Route lifecycle only; the action manager resolves every applied action."""
-
-    def __init__(self, env: gym.Env, session: CapturePlaySession) -> None:
-        super().__init__(env)
-        self._session = session
-        self._env_ids = torch.tensor(session._input_cfg.env_ids, device=env.unwrapped.device, dtype=torch.long)
-
-    def reset(self, *, env_ids: torch.Tensor | None = None, **kwargs: Any) -> tuple[dict, dict]:
-        recording = self._session._recording
-        if recording is not None:
-            recording.before_explicit_reset(self.unwrapped)
+            session = OvLibrariesXrSession.prepare(
+                env_cfg.sim, view.presentation, renderer_cfg=view.renderer, environment_owner="host"
+            )
+            presentation = OvxrPresentation(
+                session, excluded_visual_meshes=input_cfg.source.device.xr_cfg.excluded_visual_meshes
+            )
+        yield activate
+    except BaseException as error:
         try:
-            if env_ids is None:
-                result = self.env.reset(**kwargs)
-            else:
-                # Selected-row reset is a Lab extension, unsupported by Gym's
-                # reset signature. Ordinary resets still initialize Gym wrappers.
-                result = self.unwrapped.reset(env_ids=env_ids, **kwargs)
-        finally:
-            if recording is not None:
-                recording.after_explicit_reset(self.unwrapped)
-        self._session._publish(reset=True)
-        return result
-
-    def step(self, actions: torch.Tensor) -> VecEnvStepReturn:
-        if self._session._before_step():
-            # An operator interruption is a reset boundary, not a task action.
-            # No physics/recorder step occurs and other rows pause for this call.
-            raw = self.unwrapped
-            final_obs = _copy_observations(raw.obs_buf)
-            obs, extras = self.reset(env_ids=self._env_ids)
-            terminated = torch.zeros(raw.num_envs, dtype=torch.bool, device=raw.device)
-            truncated = torch.zeros_like(terminated)
-            truncated[self._env_ids] = True
-            extras = {**extras, "final_obs": final_obs, "teleop_reset": self._env_ids.clone()}
-            return obs, torch.zeros(raw.num_envs, device=raw.device), terminated, truncated, extras
-        result = self.env.step(actions)
-        if self._session._recording is not None:
-            self._session._recording.after_step(self.unwrapped, result[2] | result[3])
-        # The action manager notifies the source as part of environment reset.
-        # Publication follows all reset/physics work before the next input read.
-        reset = bool(torch.any(result[2] | result[3]))
-        self._session._publish(reset=reset)
-        return result
-
-    def close(self) -> None:
-        self._session.close()
+            close()
+        except BaseException as cleanup_error:
+            error.add_note(f"Capture cleanup also failed: {cleanup_error!r}")
+        raise
+    else:
+        close()
