@@ -136,6 +136,9 @@ class ManagerTermBase(ABC):
 class ManagerBase(ABC):
     """Base class for all managers."""
 
+    _all_env_ids: slice | None = slice(None)
+    """The ``env_ids`` that index-based terms receive when every environment is reset."""
+
     def __init__(self, cfg: object, env: ManagerBasedEnv):
         """Initialize the manager.
 
@@ -347,7 +350,11 @@ class ManagerBase(ABC):
             What ``reset`` returns, or None when it was skipped because no environment was selected.
         """
         selection = env_selection_kwargs(term.reset, env_mask, env_ids)
-        return None if selection is None else term.reset(**selection)
+        if selection is None:
+            return None
+        if selection.get("env_ids") == slice(None):
+            selection["env_ids"] = self._all_env_ids
+        return term.reset(**selection)
 
     def _resolve_common_term_cfg(self, term_name: str, term_cfg: ManagerTermBaseCfg, min_argc: int = 1):
         """Resolve common attributes of the term configuration.

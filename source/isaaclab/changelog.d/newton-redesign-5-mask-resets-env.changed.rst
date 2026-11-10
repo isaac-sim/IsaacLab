@@ -14,10 +14,12 @@
   :class:`~isaaclab.utils.warp.ProxyArray` boolean mask of shape ``(num_envs,)``, instead of ``env_ids``, and left
   unselected environments unchanged. Code that calls them directly must pass a mask, for example from
   :func:`~isaaclab.utils.env_mask_from_ids`.
-* **Breaking:** :meth:`~isaaclab.managers.ManagerTermBase.reset` and :meth:`~isaaclab.managers.CommandTerm.reset`
-  took only ``env_mask``, and :meth:`~isaaclab.managers.CommandTerm._resample` took ``env_mask``. Terms whose
-  function, ``reset`` or ``_resample_command`` declares ``env_mask`` ran on every reset or update; terms that take
-  ``env_ids`` kept working.
+* **Breaking:** :meth:`~isaaclab.managers.ManagerTermBase.reset` took only ``env_mask``.
+  :meth:`~isaaclab.managers.CommandTerm.reset` and :meth:`~isaaclab.managers.CommandTerm._resample` took
+  ``env_mask``, plus the indices it selects when the caller resolved them, which an index-based
+  ``_resample_command`` received. Terms whose function, ``reset`` or ``_resample_command`` declares ``env_mask`` ran
+  on every reset or update; terms that take ``env_ids`` kept working and received the same full-reset selection as
+  before.
 * **Breaking:** :meth:`~isaaclab.managers.SceneEntityCfg.finalize` took the scene next to the device.
 * **Breaking:** :meth:`~isaaclab.terrains.TerrainImporter.update_env_origins` took a Warp mask of the environments
   to update and moves for every environment, instead of indices and moves for the selected environments.

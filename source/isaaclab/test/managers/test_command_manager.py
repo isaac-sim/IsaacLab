@@ -10,8 +10,8 @@ from types import SimpleNamespace
 import pytest
 import torch
 
-from isaaclab.managers import CommandTerm, CommandTermCfg
-from isaaclab.utils import env_mask_from_ids
+from isaaclab.managers import CommandManager, CommandTerm, CommandTermCfg
+from isaaclab.utils import configclass, env_mask_from_ids
 
 pytestmark = pytest.mark.unit
 
@@ -59,3 +59,26 @@ def test_reset_and_expiry_resample_only_the_selected_environments():
     torch.testing.assert_close(term.metrics["steps"], torch.tensor([0.0, 1.0, 1.0, 1.0]))
     torch.testing.assert_close(term.command_counter, torch.ones(4, dtype=torch.long))
     torch.testing.assert_close(term.command, torch.tensor([2.0, 1.0, 1.0, 1.0]))
+
+
+class _IndexCommand(_CountingCommand):
+    """Records the indices it resamples."""
+
+    def _resample_command(self, env_ids):
+        self.resampled = env_ids
+
+
+@configclass
+class _IndexCommandsCfg:
+    cmd = CommandTermCfg(class_type=_IndexCommand, resampling_time_range=(1.0, 1.0))
+
+
+def test_index_resampling_reuses_the_reset_indices():
+    """A term resampling from indices makes resets compute them, and receives the ones the reset was given."""
+    env = SimpleNamespace(num_envs=4, device="cpu", sim=SimpleNamespace(is_playing=lambda: True))
+    manager = CommandManager(_IndexCommandsCfg(), env)
+    assert manager.takes_env_ids
+
+    env_ids = torch.tensor([1, 3])
+    manager.reset(env_ids, env_mask_from_ids(env_ids, env.num_envs, env.device))
+    assert manager.get_term("cmd").resampled is env_ids

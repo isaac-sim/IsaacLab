@@ -71,6 +71,9 @@ class ObservationManager(ManagerBase):
     independent storage when needed, allowing subsequent processing to reuse that storage.
     """
 
+    _all_env_ids = None
+    """Index-based terms receive None when every environment is reset."""
+
     def __init__(self, cfg: object, env: ManagerBasedEnv):
         """Initialize observation manager.
 

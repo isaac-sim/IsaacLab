@@ -210,6 +210,9 @@ class ActionManager(ManagerBase):
       scene (such as robots). It should be called before every simulation step.
     """
 
+    _all_env_ids = None
+    """Index-based terms receive None when every environment is reset."""
+
     def __init__(self, cfg: object, env: ManagerBasedEnv):
         """Initialize the action manager.
 
