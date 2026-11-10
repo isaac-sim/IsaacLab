@@ -18,6 +18,7 @@ from isaaclab.utils.warp import ProxyArray
 
 from .config import FieldSelector
 from .scene import SceneData, SceneSchema
+from .terms import State
 
 
 class Backend(enum.Enum):
@@ -33,7 +34,7 @@ class ActionOp:
 
     name: str
     target: FieldSelector
-    columns: slice
+    columns: slice  # Columns of the action
     scale: float
     offset: float
 
@@ -44,52 +45,48 @@ class TermOp:
 
     name: str
     compute: Callable
+    update: Callable | None
+    reset: Callable | None
     inputs: Mapping[str, FieldSelector]
     params: Mapping[str, Any]
-    weight: float = 1.0
-    truncation: bool = False
-    group: str = ""
-    columns: slice = slice(None)
-    shape: tuple[int, ...] = ()
-    """Output dimensions after the world dimension."""
+    state: Mapping[str, State]  # Shapes resolved to sizes, including the world dimension
+    weight: float = 1.0  # Rewards only
+    truncation: bool = False  # Terminations only
+    group: str = ""  # Observations only
+    columns: slice = slice(None)  # Columns of the observation group
+    shape: tuple[int, ...] = ()  # Output dimensions after the world dimension
 
 
 @dataclass(frozen=True)
-class TermBuffers:
+class TermOutputs:
     """Stacked outputs of the reward and termination terms, one row per op, for the Warp backend."""
 
-    terminations: wp.array
-    """Shape ``(num_termination_ops, num_worlds)``."""
-    truncation: wp.array
-    rewards: wp.array
-    """Shape ``(num_reward_ops, num_worlds)``."""
-    reward_scales: wp.array
-    """``weight * step_dt`` of each reward op."""
+    terminations: wp.array  # (num_termination_ops, num_worlds)
+    is_truncation: wp.array  # (num_termination_ops,)
+    rewards: wp.array  # (num_reward_ops, num_worlds)
+    reward_scales: wp.array  # (num_reward_ops,), weight * step_dt
+    observations: dict[str, wp.array]  # Scratch for observe(), (num_worlds, group_dim) per group
 
 
 @dataclass
 class MDPState:
     """Data that changes while an MDP runs on a scene."""
 
-    episode_length: ProxyArray
-    """Control steps since the last reset, shape ``(num_worlds,)``."""
-    actions: ProxyArray
-    """Last actions, shape ``(num_worlds, action_dim)``."""
-    views: dict[FieldSelector, ProxyArray]
-    """Scene data views of every selected field."""
-    terms: TermBuffers | None = None
-    """Output buffers of the Warp backend's reward and termination terms."""
+    episode_length: ProxyArray  # (num_worlds,), control steps since the last reset
+    actions: ProxyArray  # (num_worlds, action_dim), last actions
+    fields: dict[FieldSelector, ProxyArray]  # Scene data of every selected field
+    term_state: dict[str, dict[str, ProxyArray]]  # By op name, then state name
+    outputs: TermOutputs | None = None  # Warp backend only
 
 
 @dataclass
 class Transition:
-    """Results of one step, owned by the caller. Rewards and flags have shape ``(num_worlds,)``."""
+    """Results of one step, owned by the caller."""
 
-    rewards: ProxyArray
-    terminated: ProxyArray
-    truncated: ProxyArray
-    observations: dict[str, ProxyArray]
-    """Buffers by observation group, each of shape ``(num_worlds, group_dim)``."""
+    rewards: ProxyArray  # (num_worlds,)
+    terminated: ProxyArray  # (num_worlds,)
+    truncated: ProxyArray  # (num_worlds,)
+    observations: dict[str, ProxyArray]  # Successor observations before resets, (num_worlds, group_dim) per group
 
 
 @dataclass(frozen=True)
@@ -105,8 +102,7 @@ class MDP:
     observation_ops: tuple[TermOp, ...]
     action_dim: int
     observation_dims: Mapping[str, int]
-    max_episode_length: int | None
-    """Control steps until truncation, if the task has a time limit."""
+    max_episode_length: int | None  # Control steps until truncation, None without a time limit
 
     @property
     def num_worlds(self) -> int:
@@ -137,8 +133,15 @@ class MDP:
         return MDPState(
             episode_length=ProxyArray(wp.zeros(self.num_worlds, dtype=wp.int32, device=self.device)),
             actions=ProxyArray(wp.zeros((self.num_worlds, self.action_dim), dtype=wp.float32, device=self.device)),
-            views={selector: scene_data.data(selector.entity, selector.field) for selector in self.selectors},
-            terms=self._term_buffers() if self.backend is Backend.WARP else None,
+            fields={selector: scene_data.data(selector.entity, selector.field) for selector in self.selectors},
+            term_state={
+                op.name: {
+                    name: ProxyArray(wp.full(spec.shape, spec.initial, dtype=wp.float32, device=self.device))
+                    for name, spec in op.state.items()
+                }
+                for op in self.termination_ops + self.reward_ops + self.observation_ops
+            },
+            outputs=self._term_outputs() if self.backend is Backend.WARP else None,
         )
 
     def observations(self) -> dict[str, ProxyArray]:
@@ -155,12 +158,16 @@ class MDP:
             observations=self.observations(),
         )
 
-    def _term_buffers(self) -> TermBuffers:
+    def _term_outputs(self) -> TermOutputs:
         truncation = [op.truncation for op in self.termination_ops]
         reward_scales = [op.weight * self.step_dt for op in self.reward_ops]
-        return TermBuffers(
+        return TermOutputs(
             terminations=wp.zeros((len(truncation), self.num_worlds), dtype=wp.bool, device=self.device),
-            truncation=wp.array(truncation, dtype=wp.bool, shape=len(truncation), device=self.device),
+            is_truncation=wp.array(truncation, dtype=wp.bool, shape=len(truncation), device=self.device),
             rewards=wp.zeros((len(reward_scales), self.num_worlds), dtype=wp.float32, device=self.device),
             reward_scales=wp.array(reward_scales, dtype=wp.float32, shape=len(reward_scales), device=self.device),
+            observations={
+                group: wp.zeros((self.num_worlds, dim), dtype=wp.float32, device=self.device)
+                for group, dim in self.observation_dims.items()
+            },
         )

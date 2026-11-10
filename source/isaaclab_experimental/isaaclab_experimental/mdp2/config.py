@@ -53,12 +53,8 @@ class TermCfg:
     phase: ClassVar[Phase]
 
     term: Term
-
-    inputs: dict[str, FieldSelector] = field(default_factory=dict)
-    """Entity fields bound to the term's input arguments."""
-
-    params: dict[str, Any] = field(default_factory=dict)
-    """Constant keyword arguments of the term."""
+    inputs: dict[str, FieldSelector] = field(default_factory=dict)  # Entity fields bound to input arguments
+    params: dict[str, Any] = field(default_factory=dict)  # Constant keyword arguments
 
 
 @dataclass
@@ -83,8 +79,7 @@ class Termination(TermCfg):
 
     phase: ClassVar[Phase] = Phase.TERMINATIONS
 
-    truncation: bool = False
-    """Whether the ending is a truncation rather than a termination."""
+    truncation: bool = False  # Whether the ending is a truncation rather than a termination
 
 
 @dataclass

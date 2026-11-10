@@ -31,6 +31,21 @@ def _out_of_bounds_kernel(joint_pos: wp.array2d(dtype=float), limit: float, out:
             out[world] = True
 
 
+@wp.kernel
+def _subtract_kernel(value: wp.array2d(dtype=float), previous: wp.array2d(dtype=float), out: wp.array2d(dtype=float)):
+    world, j = wp.tid()
+    out[world, j] = value[world, j] - previous[world, j]
+
+
+@wp.kernel
+def _copy_selected_kernel(
+    mask: wp.array(dtype=bool), value: wp.array2d(dtype=float), previous: wp.array2d(dtype=float)
+):
+    world, j = wp.tid()
+    if mask[world]:
+        previous[world, j] = value[world, j]
+
+
 def position_l2_warp(out, joint_pos):
     wp.launch(_position_l2_kernel, dim=out.shape, inputs=[joint_pos], outputs=[out], device=out.device)
 
@@ -39,19 +54,40 @@ def out_of_bounds_warp(out, joint_pos, *, limit):
     wp.launch(_out_of_bounds_kernel, dim=out.shape, inputs=[joint_pos, limit], outputs=[out], device=out.device)
 
 
+def change_warp(out, value, previous):
+    wp.launch(_subtract_kernel, dim=out.shape, inputs=[value, previous], outputs=[out], device=out.device)
+
+
+def change_reset_warp(mask, value, previous):
+    wp.launch(_copy_selected_kernel, dim=value.shape, inputs=[mask, value], outputs=[previous], device=value.device)
+
+
 robot = mdp2.Entity("robot")
 joint_state = mdp2.Term(
-    torch=lambda value: value, warp=lambda out, value: wp.copy(out, value), output=mdp2.TensorSpec(("worlds", "joints"))
+    torch=lambda value: value, warp=lambda out, value: wp.copy(out, value), shape=("worlds", "joints")
 )
 alive = mdp2.Term(torch=lambda joint_pos: torch.ones_like(joint_pos[:, 0]), warp=lambda out, joint_pos: out.fill_(1.0))
 position_l2 = mdp2.Term(torch=lambda joint_pos: joint_pos.square().sum(dim=-1), warp=position_l2_warp)
 out_of_bounds = mdp2.Term(
     torch=lambda joint_pos, *, limit: (joint_pos.abs() > limit).any(dim=-1), warp=out_of_bounds_warp
 )
+change = mdp2.Term(
+    torch=mdp2.Implementation(
+        compute=lambda value, previous: value - previous,
+        update=lambda value, previous: previous.copy_(value),
+        reset=lambda mask, value, previous: previous.copy_(torch.where(mask[:, None], value, previous)),
+    ),
+    warp=mdp2.Implementation(
+        compute=change_warp, update=lambda value, previous: wp.copy(previous, value), reset=change_reset_warp
+    ),
+    shape=("worlds", "joints"),
+    state={"previous": mdp2.State(("worlds", "joints"))},
+)
+"""Change of a field since the last step, zero after a reset."""
 
 
 def make_task(
-    scene: mdp2.PointMassScene, backend: str = "torch", seconds: float = 1.0, weight: float = -10.0
+    scene: mdp2.PointMassScene, backend: str = "torch", seconds: float = 1.0
 ) -> tuple[mdp2.MDP, mdp2.MDPState]:
     cfg = mdp2.TaskCfg(
         actions={"effort": mdp2.DirectAction(robot.joint_effort_target, scale=2.0)},
@@ -59,11 +95,13 @@ def make_task(
             "policy": mdp2.ObservationGroup(
                 joint_pos=mdp2.Observation(joint_state, inputs={"value": robot.joint_pos}),
                 joint_vel=mdp2.Observation(joint_state, inputs={"value": robot.joint_vel}),
+                joint_pos_change=mdp2.Observation(change, inputs={"value": robot.joint_pos}),
+                joint_vel_change=mdp2.Observation(change, inputs={"value": robot.joint_vel}),
             )
         },
         rewards={
             "alive": mdp2.Reward(alive, inputs={"joint_pos": robot.joint_pos}),
-            "position": mdp2.Reward(position_l2, inputs={"joint_pos": robot.joint_pos}, weight=weight),
+            "position": mdp2.Reward(position_l2, inputs={"joint_pos": robot.joint_pos}, weight=-10.0),
             "disabled": None,
         },
         terminations={
@@ -74,28 +112,32 @@ def make_task(
         },
     )
     builder = mdp2.MDPBuilder(scene.schema)
-    builder.add_config(cfg)
+    builder.add_task(cfg)
     mdp = builder.finalize(device=DEVICE, backend=backend)
     return mdp, mdp.state(scene)
 
 
-def env_step(mdp, state, scene, actions, transition):
-    """The phase order of ``MDP2RLEnv.step``, with the analytic scene standing in for the simulation."""
+def env_step(mdp, state, scene, actions, transition) -> dict[str, torch.Tensor]:
+    """The phase order of ``MDP2RLEnv.step``, with the analytic scene standing in for the simulation.
+
+    Returns the bootstrap observations: the successor observations before ended worlds are reset.
+    """
     mdp2.apply_actions(mdp, state, actions)
     scene.step()
     mdp2.evaluate(mdp, state, transition)
+    bootstrap = {group: values.torch.clone() for group, values in transition.observations.items()}
     ended = transition.terminated.torch | transition.truncated.torch
     scene.reset(ended)
     mdp2.reset(mdp, state, ended)
-    mdp2.observe(mdp, state, transition.observations)
+    mdp2.observe(mdp, state, transition.observations, ended)
+    return bootstrap
 
 
-def env_reset(mdp, state, scene, observations):
-    """The phase order of ``MDP2RLEnv.reset`` for all worlds."""
-    every_world = torch.ones(mdp.num_worlds, dtype=torch.bool, device=DEVICE)
-    scene.reset(every_world)
-    mdp2.reset(mdp, state, every_world)
-    mdp2.observe(mdp, state, observations)
+def env_reset(mdp, state, scene, observations, mask):
+    """The phase order of ``MDP2RLEnv.reset``."""
+    scene.reset(mask)
+    mdp2.reset(mdp, state, mask)
+    mdp2.observe(mdp, state, observations, mask)
 
 
 def test_finalize_reports_all_errors():
@@ -103,6 +145,9 @@ def test_finalize_reports_all_errors():
     builder.add_reward("unknown_entity", mdp2.Reward(alive, inputs={"joint_pos": mdp2.Entity("table").joint_pos}))
     builder.add_reward("unknown_field", mdp2.Reward(alive, inputs={"joint_pos": robot.joint_angle}))
     builder.add_reward("no_torch", mdp2.Reward(mdp2.Term(), inputs={"joint_pos": robot.joint_pos}))
+    builder.add_observation(
+        "policy", "name_clash", mdp2.Observation(change, inputs={"value": robot.joint_pos, "previous": robot.joint_pos})
+    )
 
     with pytest.raises(ValueError) as error:
         builder.finalize()
@@ -111,6 +156,7 @@ def test_finalize_reports_all_errors():
     assert "rewards.unknown_entity: input 'joint_pos' selects unknown entity 'table'" in message
     assert "rewards.unknown_field: input 'joint_pos' selects unknown field 'robot.joint_angle'" in message
     assert "rewards.no_torch: the term has no 'torch' implementation" in message
+    assert "observations.policy.name_clash: inputs, state, and params must have distinct names" in message
 
 
 def test_step_matches_point_mass_dynamics():
@@ -125,51 +171,68 @@ def test_step_matches_point_mass_dynamics():
         "rewards.position",
         "observations.policy.joint_pos",
         "observations.policy.joint_vel",
+        "observations.policy.joint_pos_change",
+        "observations.policy.joint_vel_change",
     )
-    assert (mdp.action_dim, mdp.observation_dims["policy"], mdp.max_episode_length) == (2, 4, 50)
+    assert (mdp.action_dim, mdp.observation_dims["policy"], mdp.max_episode_length) == (2, 8, 50)
 
-    actions = torch.tensor([[0.5, -0.5], [0.1, 0.0]], device=DEVICE)
+    actions = torch.tensor([[0.25, -0.25], [0.1, 0.0]], device=DEVICE)
+    env_step(mdp, state, scene, actions, transition)
     env_step(mdp, state, scene, actions, transition)
 
-    # Two substeps of semi-implicit Euler: v = 2 a dt, p = 3 a dt^2.
-    effort = 2.0 * actions
-    joint_pos, joint_vel = 3.0 * effort * 0.01**2, 2.0 * effort * 0.01
-    torch.testing.assert_close(transition.observations["policy"].torch, torch.cat([joint_pos, joint_vel], dim=-1))
+    # Four substeps of semi-implicit Euler: v = 4 a dt, p = 10 a dt^2. The second step added 2 a dt and 7 a dt^2,
+    # which the change observations report only if their state advanced exactly once per step.
+    effort, dt = 2.0 * actions, 0.01
+    joint_pos, joint_vel = 10.0 * effort * dt**2, 4.0 * effort * dt
+    expected = torch.cat([joint_pos, joint_vel, 7.0 * effort * dt**2, 2.0 * effort * dt], dim=-1)
+    torch.testing.assert_close(transition.observations["policy"].torch, expected)
     torch.testing.assert_close(transition.rewards.torch, (1.0 - 10.0 * joint_pos.square().sum(dim=-1)) * 0.02)
     assert not transition.terminated.torch.any() and not transition.truncated.torch.any()
-    assert state.episode_length.torch.tolist() == [1, 1]
+    assert state.episode_length.torch.tolist() == [2, 2]
 
 
-def test_step_resets_ended_worlds():
+def test_step_ends_and_bootstraps_worlds():
+    """In one step, world 0 continues, world 1 reaches the time limit, and world 2 leaves the bounds."""
     scene = mdp2.PointMassScene(num_worlds=3, device=DEVICE)
-    mdp, state = make_task(scene, seconds=0.04)
+    mdp, state = make_task(scene, seconds=0.2)
     transition = mdp.transition()
-    actions = torch.tensor([[0.0], [0.0], [100.0]], device=DEVICE)
+    state.episode_length.torch[1] = mdp.max_episode_length - 1
 
-    env_step(mdp, state, scene, actions, transition)
+    bootstrap = env_step(mdp, state, scene, torch.tensor([[0.1], [0.1], [100.0]], device=DEVICE), transition)
 
     assert transition.terminated.torch.tolist() == [False, False, True]
-    assert transition.observations["policy"].torch[2].abs().sum() == 0.0
-    assert state.episode_length.torch.tolist() == [1, 1, 0]
+    assert transition.truncated.torch.tolist() == [False, True, False]
+    assert state.episode_length.torch.tolist() == [1, 0, 0]
+    observations, bootstrap = transition.observations["policy"].torch, bootstrap["policy"]
+    assert torch.equal(observations[0], bootstrap[0])  # continuing worlds keep their successor sample
+    assert torch.equal(bootstrap[1], bootstrap[0])  # truncated worlds bootstrap from the pre-reset sample
+    assert bootstrap[0].abs().sum() > 0.0 and bootstrap[2].isfinite().all()
+    assert observations[1:].abs().sum() == 0.0  # ended worlds observe their new episode
 
-    env_step(mdp, state, scene, torch.zeros(3, 1, device=DEVICE), transition)
 
-    assert transition.truncated.torch.tolist() == [True, True, False]
-    assert state.episode_length.torch.tolist() == [0, 0, 1]
-
-
-def test_reset_restores_all_worlds():
-    scene = mdp2.PointMassScene(num_worlds=2, device=DEVICE)
+def test_reset_touches_only_selected_worlds():
+    scene = mdp2.PointMassScene(num_worlds=3, device=DEVICE)
     mdp, state = make_task(scene)
     observations = mdp.observations()
-    env_step(mdp, state, scene, torch.full((2, 1), 0.01, device=DEVICE), mdp.transition())
+    env_reset(mdp, state, scene, observations, torch.ones(3, dtype=torch.bool, device=DEVICE))
+    for _ in range(2):
+        env_step(mdp, state, scene, torch.full((3, 1), 0.01, device=DEVICE), mdp.transition())
+    mdp2.observe(mdp, state, observations, torch.ones(3, dtype=torch.bool, device=DEVICE))
 
-    env_reset(mdp, state, scene, observations)
+    def snapshot():
+        buffers = [state.episode_length, state.actions, observations["policy"], scene.data("robot", "joint_pos")]
+        buffers += [value for term in state.term_state.values() for value in term.values()]
+        return [buffer.torch.clone() for buffer in buffers]
 
-    assert observations["policy"].torch.abs().sum() == 0.0
-    assert state.actions.torch.abs().sum() == 0.0
-    assert scene.data("robot", "joint_effort_target").torch.abs().sum() == 0.0
-    assert state.episode_length.torch.tolist() == [0, 0]
+    before = snapshot()
+    env_reset(mdp, state, scene, observations, torch.zeros(3, dtype=torch.bool, device=DEVICE))
+    for expected, actual in zip(before, snapshot()):
+        assert torch.equal(actual, expected)
+
+    env_reset(mdp, state, scene, observations, torch.tensor([True, False, False], device=DEVICE))
+    for expected, actual in zip(before, snapshot()):
+        assert expected[0].abs().sum() > 0.0 and actual[0].abs().sum() == 0.0
+        assert torch.equal(actual[1:], expected[1:])
 
 
 def test_warp_matches_torch():
@@ -183,10 +246,11 @@ def test_warp_matches_torch():
         for _ in range(30):
             actions = torch.randn(64, 3, device=DEVICE, generator=generator) * 2.0
             actions[:32] *= 0.01  # these worlds stay in bounds until the time limit
-            env_step(mdp, state, scene, actions, transition)
+            bootstrap = env_step(mdp, state, scene, actions, transition)
             buffers = (transition.rewards, transition.terminated, transition.truncated, state.episode_length)
             history.append(
-                [buffer.torch.clone() for buffer in buffers] + [transition.observations["policy"].torch.clone()]
+                [buffer.torch.clone() for buffer in buffers]
+                + [transition.observations["policy"].torch.clone(), bootstrap["policy"]]
             )
         runs[backend] = history
 

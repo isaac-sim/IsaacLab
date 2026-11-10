@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from .config import DirectAction, FieldSelector, Observation, Phase, Reward, TaskCfg, Termination, TimeLimit
 from .mdp import MDP, ActionOp, Backend, TermOp
@@ -19,8 +19,7 @@ from .scene import SceneSchema
 class ScheduleEntry:
     """A term use placed in the schedule. Returned by the ``add_*`` methods as a handle to it."""
 
-    path: tuple[str, ...]
-    """Location in the task, for example ``("observations", "policy", "joint_pos")``."""
+    path: tuple[str, ...]  # Location in the task, e.g. ("observations", "policy", "joint_pos")
     cfg: DirectAction | Observation | Reward | Termination | TimeLimit
 
     def __str__(self) -> str:
@@ -28,28 +27,25 @@ class ScheduleEntry:
 
 
 class MDPBuilder:
-    """Collects schedule entries against a scene schema, then compiles them with :meth:`finalize`.
-
-    Actions and observations take columns in the order they are added.
-    """
+    """Collects schedule entries and compiles them with :meth:`finalize`; columns follow insertion order."""
 
     def __init__(self, schema: SceneSchema):
         self.schema = schema
         self._entries: dict[tuple[str, ...], ScheduleEntry] = {}
 
-    def add_config(self, cfg: TaskCfg) -> None:
-        """Add every term use of a task config, in declaration order. Uses set to ``None`` are skipped."""
-        for name, action in cfg.actions.items():
+    def add_task(self, task: TaskCfg) -> None:
+        """Add every term use of a task, in declaration order. Uses set to ``None`` are skipped."""
+        for name, action in task.actions.items():
             if action is not None:
                 self.add_action(name, action)
-        for group, observations in cfg.observations.items():
+        for group, observations in task.observations.items():
             for name, observation in observations.terms.items():
                 if observation is not None:
                     self.add_observation(group, name, observation)
-        for name, reward in cfg.rewards.items():
+        for name, reward in task.rewards.items():
             if reward is not None:
                 self.add_reward(name, reward)
-        for name, termination in cfg.terminations.items():
+        for name, termination in task.terminations.items():
             if termination is not None:
                 self.add_termination(name, termination)
 
@@ -86,7 +82,7 @@ class MDPBuilder:
             if isinstance(cfg, TimeLimit):
                 time_limits.append(entry)
             elif isinstance(cfg, DirectAction):
-                dims = self._resolve(entry, "target", cfg.target, errors)
+                dims = self._field_dims(entry, "target", cfg.target, errors)
                 if dims is not None:
                     columns = slice(action_dim, action_dim + math.prod(dims.values()))
                     action_dim = columns.stop
@@ -127,22 +123,23 @@ class MDPBuilder:
             errors.append(f"{entry}: the term has no '{backend.value}' implementation.")
         sizes: dict[str, int] = {}
         for arg, selector in cfg.inputs.items():
-            dims = self._resolve(entry, f"input {arg!r}", selector, errors)
+            dims = self._field_dims(entry, f"input {arg!r}", selector, errors)
             for dim, size in (dims or {}).items():
                 if sizes.setdefault(dim, size) != size:
                     errors.append(f"{entry}: inputs disagree on the size of {dim!r} ({sizes[dim]} and {size}).")
-        shape = cfg.term.output.shape
-        unknown = [dim for dim in shape if isinstance(dim, str) and dim != "worlds" and dim not in sizes]
-        if shape[:1] != ("worlds",) or "worlds" in shape[1:]:
-            errors.append(f"{entry}: the output shape {shape} must start with 'worlds' and contain it once.")
-        elif unknown:
-            errors.append(f"{entry}: the output dimensions {unknown} are not dimensions of the term's inputs.")
-        elif not isinstance(cfg, Observation) and len(shape) != 1:
-            errors.append(f"{entry}: {type(cfg).__name__} outputs must have shape ('worlds',), got {shape}.")
+        output_shape = self._resolve_shape(entry, "output", cfg.term.shape, sizes, errors)
+        if output_shape and not isinstance(cfg, Observation):
+            errors.append(f"{entry}: {type(cfg).__name__} outputs must have shape ('worlds',), got {output_shape}.")
+        state_shapes = {
+            name: self._resolve_shape(entry, f"state {name!r}", spec.shape, sizes, errors)
+            for name, spec in cfg.term.state.items()
+        }
+        names = [*cfg.inputs, *cfg.term.state, *cfg.params]
+        if len(set(names)) != len(names):
+            errors.append(f"{entry}: inputs, state, and params must have distinct names, got {names}.")
         if len(errors) > num_errors:
             return None
 
-        output_shape = tuple(sizes.get(dim, dim) for dim in shape[1:])
         group = ""
         columns = slice(None)
         if isinstance(cfg, Observation):
@@ -153,8 +150,14 @@ class MDPBuilder:
         return TermOp(
             name=str(entry),
             compute=implementation.compute,
+            update=implementation.update,
+            reset=implementation.reset,
             inputs=cfg.inputs,
             params=cfg.params,
+            state={
+                name: replace(spec, shape=(self.schema.num_worlds, *state_shapes[name]))
+                for name, spec in cfg.term.state.items()
+            },
             weight=cfg.weight if isinstance(cfg, Reward) else 1.0,
             truncation=cfg.truncation if isinstance(cfg, Termination) else False,
             group=group,
@@ -162,7 +165,20 @@ class MDPBuilder:
             shape=output_shape,
         )
 
-    def _resolve(
+    def _resolve_shape(
+        self, entry: ScheduleEntry, role: str, shape: tuple[str | int, ...], sizes: dict[str, int], errors: list[str]
+    ) -> tuple[int, ...] | None:
+        """Sizes of a symbolic shape's dimensions after ``"worlds"``, or ``None`` with an error."""
+        if shape[:1] != ("worlds",) or "worlds" in shape[1:]:
+            errors.append(f"{entry}: the {role} shape {shape} must start with 'worlds' and contain it once.")
+            return None
+        unknown = [dim for dim in shape[1:] if isinstance(dim, str) and dim not in sizes]
+        if unknown:
+            errors.append(f"{entry}: the {role} dimensions {unknown} are not dimensions of the term's inputs.")
+            return None
+        return tuple(sizes.get(dim, dim) for dim in shape[1:])
+
+    def _field_dims(
         self, entry: ScheduleEntry, role: str, selector: FieldSelector, errors: list[str]
     ) -> dict[str, int] | None:
         """Sizes of a selected field's dimensions after the world dimension, or ``None`` with an error."""

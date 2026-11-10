@@ -21,14 +21,8 @@ from isaaclab.utils.warp import ProxyArray
 class EntitySchema:
     """Names and fields of one scene entity."""
 
-    names: Mapping[str, tuple[str, ...]]
-    """Element names per dimension, for example ``{"joints": ("x", "y")}``."""
-
-    fields: Mapping[str, tuple[str, ...]]
-    """Dimensions of each field after the world dimension, for example ``{"joint_pos": ("joints",)}``.
-
-    Fields are ``float32``.
-    """
+    names: Mapping[str, tuple[str, ...]]  # Element names per dimension, e.g. {"joints": ("x", "y")}
+    fields: Mapping[str, tuple[str, ...]]  # float32 field dimensions after worlds, e.g. {"joint_pos": ("joints",)}
 
 
 @dataclass(frozen=True)
@@ -36,9 +30,7 @@ class SceneSchema:
     """What a scene provides to an MDP. Builders resolve selectors against it."""
 
     num_worlds: int
-    step_dt: float
-    """Duration of one control step [s]."""
-
+    step_dt: float  # Duration of one control step [s]
     entities: Mapping[str, EntitySchema]
 
 

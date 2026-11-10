@@ -3,4 +3,5 @@
   :class:`~isaaclab_experimental.mdp2.MDPBuilder`, and runs it through the functional
   :func:`~isaaclab_experimental.mdp2.apply_actions`, :func:`~isaaclab_experimental.mdp2.evaluate`,
   :func:`~isaaclab_experimental.mdp2.reset`, and :func:`~isaaclab_experimental.mdp2.observe`. Terms provide
-  batched Torch implementations and Warp implementations that write into output buffers.
+  batched Torch implementations and Warp implementations that write into output buffers, and may keep
+  per-world :class:`~isaaclab_experimental.mdp2.State` that advances once per step.

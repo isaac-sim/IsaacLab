@@ -23,7 +23,7 @@ def apply_actions(mdp: MDP, state: MDPState, actions: torch.Tensor) -> None:
 
 
 def evaluate(mdp: MDP, state: MDPState, transition: Transition) -> None:
-    """Advance episode lengths and write endings and rewards, ``sum(weight * value) * step_dt``."""
+    """Advance episode lengths and term state, then write endings, rewards, and successor observations."""
     _BACKENDS[mdp.backend].evaluate(mdp, state, transition)
 
 
@@ -32,6 +32,6 @@ def reset(mdp: MDP, state: MDPState, mask: torch.Tensor) -> None:
     _BACKENDS[mdp.backend].reset(mdp, state, mask)
 
 
-def observe(mdp: MDP, state: MDPState, observations: dict[str, ProxyArray]) -> None:
-    """Write the observations of every group."""
-    _BACKENDS[mdp.backend].observe(mdp, state, observations)
+def observe(mdp: MDP, state: MDPState, observations: dict[str, ProxyArray], mask: torch.Tensor) -> None:
+    """Write fresh observations of the masked worlds; other worlds keep their successor sample."""
+    _BACKENDS[mdp.backend].observe(mdp, state, observations, mask)

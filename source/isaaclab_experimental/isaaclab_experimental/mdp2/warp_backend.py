@@ -3,20 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Warp backend: each term writes its output buffer, then one kernel each combines the terminations and rewards.
-
-Reward and termination terms write rows of stacked buffers, and observation terms write strided views of their
-columns, so a step launches the term kernels plus two fixed kernels and copies nothing.
-"""
+"""Warp backend: terms write into output buffers, then fixed kernels combine terminations and rewards."""
 
 from __future__ import annotations
 
 import math
+from typing import Any
 
 import torch
 import warp as wp
 
-from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp import ProxyArray, memory
 
 from .mdp import MDP, MDPState, TermOp, Transition
 
@@ -38,7 +35,7 @@ def _write_action(
 @wp.kernel
 def _end_episodes(
     values: wp.array2d(dtype=wp.bool),
-    truncation: wp.array(dtype=wp.bool),
+    is_truncation: wp.array(dtype=wp.bool),
     max_episode_length: int,
     episode_length: wp.array(dtype=wp.int32),
     terminated: wp.array(dtype=wp.bool),
@@ -51,7 +48,7 @@ def _end_episodes(
     is_truncated = length >= max_episode_length
     for i in range(values.shape[0]):
         if values[i, world]:
-            if truncation[i]:
+            if is_truncation[i]:
                 is_truncated = True
             else:
                 is_terminated = True
@@ -70,57 +67,76 @@ def _sum_rewards(
     rewards[world] = total
 
 
-@wp.kernel
-def _reset(
-    mask: wp.array(dtype=wp.bool), episode_length: wp.array(dtype=wp.int32), actions: wp.array2d(dtype=wp.float32)
-):
-    world = wp.tid()
-    if mask[world]:
-        episode_length[world] = 0
-        for i in range(actions.shape[1]):
-            actions[world, i] = 0.0
-
-
 def apply_actions(mdp: MDP, state: MDPState, actions: torch.Tensor) -> None:
     actions = wp.from_torch(actions)
     wp.copy(state.actions.warp, actions)
     for op in mdp.action_ops:
-        target = state.views[op.target].warp.reshape((mdp.num_worlds, -1))
+        target = state.fields[op.target].warp.reshape((mdp.num_worlds, -1))
         inputs = [actions, op.columns.start, op.scale, op.offset]
         wp.launch(_write_action, dim=target.shape, inputs=inputs, outputs=[target], device=mdp.device)
 
 
 def evaluate(mdp: MDP, state: MDPState, transition: Transition) -> None:
-    terms = state.terms
+    outputs = state.outputs
     for i, op in enumerate(mdp.termination_ops):
-        _compute(op, state, terms.terminations[i])
+        _step(op, state, outputs.terminations[i])
     max_episode_length = _NO_LIMIT if mdp.max_episode_length is None else mdp.max_episode_length
     wp.launch(
         _end_episodes,
         dim=mdp.num_worlds,
-        inputs=[terms.terminations, terms.truncation, max_episode_length],
+        inputs=[outputs.terminations, outputs.is_truncation, max_episode_length],
         outputs=[state.episode_length.warp, transition.terminated.warp, transition.truncated.warp],
         device=mdp.device,
     )
     for i, op in enumerate(mdp.reward_ops):
-        _compute(op, state, terms.rewards[i])
-    inputs = [terms.rewards, terms.reward_scales]
+        _step(op, state, outputs.rewards[i])
+    inputs = [outputs.rewards, outputs.reward_scales]
     wp.launch(_sum_rewards, dim=mdp.num_worlds, inputs=inputs, outputs=[transition.rewards.warp], device=mdp.device)
+    for op in mdp.observation_ops:
+        _step(op, state, _columns(transition.observations[op.group].warp, op.columns.start, op.shape))
 
 
 def reset(mdp: MDP, state: MDPState, mask: torch.Tensor) -> None:
-    inputs = [wp.from_torch(mask)]
-    outputs = [state.episode_length.warp, state.actions.warp]
-    wp.launch(_reset, dim=mdp.num_worlds, inputs=inputs, outputs=outputs, device=mdp.device)
+    mask = wp.from_torch(mask)
+    episode_length, actions = state.episode_length.warp, state.actions.warp
+    fill = memory.make_masked_fill(wp.float32, 2)
+    wp.launch(
+        memory.make_masked_fill(wp.int32, 1), episode_length.shape, [0, mask, None], [episode_length], device=mdp.device
+    )
+    wp.launch(fill, actions.shape, [0.0, mask, None], [actions], device=mdp.device)
+    for op in mdp.termination_ops + mdp.reward_ops + mdp.observation_ops:
+        if op.reset is not None:
+            op.reset(mask=mask, **_arguments(op, state))
+            continue
+        for name, spec in op.state.items():
+            values = state.term_state[op.name][name].warp.reshape((mdp.num_worlds, -1))
+            wp.launch(fill, values.shape, [spec.initial, mask, None], [values], device=mdp.device)
 
 
-def observe(mdp: MDP, state: MDPState, observations: dict[str, ProxyArray]) -> None:
+def observe(mdp: MDP, state: MDPState, observations: dict[str, ProxyArray], mask: torch.Tensor) -> None:
+    fresh = state.outputs.observations
     for op in mdp.observation_ops:
-        _compute(op, state, _columns(observations[op.group].warp, op.columns.start, op.shape))
+        op.compute(out=_columns(fresh[op.group], op.columns.start, op.shape), **_arguments(op, state))
+    mask = wp.from_torch(mask)
+    for group, values in fresh.items():
+        outputs = [observations[group].warp]
+        wp.launch(
+            memory.make_masked_copy(wp.float32, 2), values.shape, [values, mask, None], outputs, device=mdp.device
+        )
 
 
-def _compute(op: TermOp, state: MDPState, out: wp.array) -> None:
-    op.compute(out=out, **{arg: state.views[selector].warp for arg, selector in op.inputs.items()}, **op.params)
+def _step(op: TermOp, state: MDPState, out: wp.array) -> None:
+    """Compute a term into ``out``, then advance its state."""
+    arguments = _arguments(op, state)
+    op.compute(out=out, **arguments)
+    if op.update is not None:
+        op.update(**arguments)
+
+
+def _arguments(op: TermOp, state: MDPState) -> dict[str, Any]:
+    inputs = {arg: state.fields[selector].warp for arg, selector in op.inputs.items()}
+    term_state = {name: value.warp for name, value in state.term_state[op.name].items()}
+    return {**inputs, **term_state, **op.params}
 
 
 def _columns(buffer: wp.array, start: int, shape: tuple[int, ...]) -> wp.array:

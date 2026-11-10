@@ -21,8 +21,8 @@ __all__ = [
     "ScheduleEntry",
     "SceneData",
     "SceneSchema",
+    "State",
     "TaskCfg",
-    "TensorSpec",
     "Term",
     "TermCfg",
     "Termination",
@@ -51,4 +51,4 @@ from .config import (
 from .mdp import MDP, Backend, MDPState, Transition
 from .scene import EntitySchema, PointMassScene, SceneData, SceneSchema
 from .runtime import apply_actions, evaluate, observe, reset
-from .terms import Implementation, TensorSpec, Term
+from .terms import Implementation, State, Term
