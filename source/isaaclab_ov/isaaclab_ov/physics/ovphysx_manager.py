@@ -718,9 +718,6 @@ class OvPhysxManager(PhysicsManager):
 
         ovphysx_device = "gpu" if "cuda" in self._device else "cpu"
 
-        scene_prim = sim.stage.GetPrimAtPath(sim.cfg.physics_prim_path)
-        if scene_prim.IsValid() and self._clone_recipes:
-            scene_prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
         self._configure_physics_scenes(sim.stage, sim.cfg.physics_prim_path, self._cfg, ovphysx_device)
 
         if shared_scene is not None:
