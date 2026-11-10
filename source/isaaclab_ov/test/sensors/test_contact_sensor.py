@@ -21,6 +21,7 @@ once per device.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import MISSING
 from enum import Enum
 
@@ -282,7 +283,7 @@ _TERRAINS = [FLAT_TERRAIN_CFG, COBBLESTONE_TERRAIN_CFG]
 
 
 @pytest.fixture
-def timing_terrain_seed():
+def timing_terrain_seed() -> Iterator[None]:
     """Make the rough mesh reproducible without changing other tests' random state."""
     # Height-field sampling uses the global RNG, independently of TerrainGeneratorCfg.seed.
     state = np.random.get_state()
