@@ -1087,12 +1087,19 @@ def test_preview_preserves_tensor_processors_across_partial_reset(
     env = DummyEnv()
     env.observation = env.observation.to(dtype)
     manager = ObservationManager(cfg, cast("ManagerBasedEnv", env))
+    outer_group = ObservationGroupCfg()
+    outer_group.full = ObservationTermCfg(func=lambda env: manager.compute()["policy"])
+    outer_group.group = ObservationTermCfg(func=lambda env: manager.compute_group("policy"))
+    outer = ObservationManager({"policy": outer_group}, env)
+    manager.reset()
     for value in (10.0, 20.0):
         env.observation.fill_(value)
         manager.compute(update_history=True)
     env.observation.fill_(30.0)
-    terminal = manager.compute(preview=True)["policy"]
-    torch.testing.assert_close(terminal[:, 0], torch.tensor(expected_preview))
+    cached = manager.get_active_iterable_terms(0)
+    terminal = outer.compute(preview=True)["policy"]
+    torch.testing.assert_close(terminal, torch.tensor(expected_preview).unsqueeze(-1).expand(-1, 2))
+    assert manager.get_active_iterable_terms(0) == cached
     manager.reset([1])
     live = manager.compute(update_history=True)["policy"]
     torch.testing.assert_close(live[:, 0], torch.tensor(expected_live))

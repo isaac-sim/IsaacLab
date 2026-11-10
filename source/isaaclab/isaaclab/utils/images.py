@@ -319,8 +319,8 @@ class CameraFrameStack:
             stacked = self._buffer.stacked
         if defer_normalize:
             return normalize(stacked, channel_dim=self._channel_dim, output_channel_dim=None)
-        # ``stacked`` views the ring buffer, which the next step overwrites
-        return stacked.clone()
+        # Ordinary stacks view the ring buffer; previews already own their storage.
+        return stacked if preview else stacked.clone()
 
 
 """

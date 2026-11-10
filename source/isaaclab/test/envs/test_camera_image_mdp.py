@@ -20,7 +20,7 @@ import warp as wp
 
 pytestmark = pytest.mark.unit
 
-from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
+from isaaclab.envs import ManagerBasedEnv
 from isaaclab.envs.mdp.observations import (
     CameraImageBase,
     image_depth,
@@ -264,10 +264,7 @@ def test_rgb_manager_destination(frame_stack, channel_first, normalize, dtype):
     previous = camera.clone()
     camera.copy_(_random_rgb())
     successor = camera.clone()
-    env.observation_manager = manager
-    env.extras = {}
-    ManagerBasedRLEnv._capture_final_obs(env)
-    terminal = env.extras["final_obs"]["policy"]
+    terminal = manager.compute(preview=True)["policy"]
     manager.reset(torch.tensor([0]))
     camera[0].zero_()
     live = manager.compute(update_history=True)["policy"]

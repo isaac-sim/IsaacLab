@@ -70,8 +70,6 @@ class ObservationManager(ManagerBase):
     independent storage when needed, allowing subsequent processing to reuse that storage.
     """
 
-    _is_preview: bool = False
-
     def __init__(self, cfg: object, env: ManagerBasedEnv):
         """Initialize observation manager.
 
@@ -366,18 +364,21 @@ class ObservationManager(ManagerBase):
                 state or replacing cached observations. Requires ``update_history=False``. Noise is still
                 evaluated. Custom stateful terms should check ``env.is_observation_preview``, and stateful
                 tensor processors should override their ``preview`` method. Defaults to False.
+                Nested calls inherit an active environment preview.
 
         Returns:
             A dictionary with keys as the group names and values as the computed observations.
             The observations are either concatenated into a single tensor or returned as a dictionary
             with keys corresponding to the term's name.
+
+        Raises:
+            ValueError: If ``update_history`` is True during an observation preview.
         """
+        was_preview = getattr(self._env, "_is_observation_preview", False)
+        preview = preview or was_preview
         if preview and update_history:
             raise ValueError("An observation preview cannot also update history")
-        was_preview = self._is_preview
-        self._is_preview = preview
         if preview:
-            was_env_preview = getattr(self._env, "_is_observation_preview", False)
             self._env._is_observation_preview = True
         try:
             obs_buffer = {
@@ -388,9 +389,8 @@ class ObservationManager(ManagerBase):
                 self._obs_buffer = obs_buffer
             return obs_buffer
         finally:
-            self._is_preview = was_preview
             if preview:
-                self._env._is_observation_preview = was_env_preview
+                self._env._is_observation_preview = was_preview
 
     def compute_group(self, group_name: str, update_history: bool = False) -> torch.Tensor | dict[str, torch.Tensor]:
         """Computes the observations for a given group.
@@ -414,6 +414,9 @@ class ObservationManager(ManagerBase):
         could be artificially constrained or amplified, which might misrepresent how noise naturally occurs
         in the data.
 
+        Calls within an active environment preview include the prospective sample without updating
+        observation state. ``update_history`` must remain False during a preview.
+
         Args:
             group_name: The name of the group for which to compute the observations. Defaults to None,
                 in which case observations for all the groups are computed and returned.
@@ -427,14 +430,17 @@ class ObservationManager(ManagerBase):
             a dictionary with keys corresponding to the term's name.
 
         Raises:
-            ValueError: If input ``group_name`` is not a valid group handled by the manager.
+            ValueError: If ``group_name`` is not handled by the manager or ``update_history`` is True
+                during an observation preview.
         """
-        preview = self._is_preview
+        preview = getattr(self._env, "_is_observation_preview", False)
         if group_name not in self._group_obs_term_names:
             raise ValueError(
                 f"Unable to find the group '{group_name}' in the observation manager."
                 f" Available groups are: {list(self._group_obs_term_names.keys())}"
             )
+        if preview and update_history:
+            raise ValueError("An observation preview cannot also update history")
         group_term_names = self._group_obs_term_names[group_name]
         group_obs = dict.fromkeys(group_term_names, None)
         term_cfgs = self._group_obs_term_cfgs[group_name]

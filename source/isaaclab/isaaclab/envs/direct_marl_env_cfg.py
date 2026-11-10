@@ -83,16 +83,15 @@ class DirectMARLEnvCfg:
     compute_final_obs: bool = False
     """Whether to preview terminal observations before Same-Step autoreset. Defaults to False.
 
-    When any environment terminates, times out or is manually reset, capture every observation
-    group once before reset, command updates and interval events in ``extras[agent]["final_obs"]``.
-    The tensors live on ``env.device`` and own their storage. Only rows for environments that
-    reset are valid for bootstrapping; they use the command from before this step's command update.
-    The key is absent on steps without resets.
+    When any environment terminates, times out or is manually reset, capture the per-agent
+    observations once before reset and interval events in ``extras[agent]["final_obs"]``. The tensors
+    live on ``env.device`` and own their storage. Only rows for environments that reset are valid
+    for bootstrapping. The key is absent on steps without resets.
 
-    Preview reads include the current sample in delay and observation history without committing
-    it. Custom stateful observation terms should check ``env.is_observation_preview``; stateful
-    tensor processors should override their ``preview`` method. Observation noise is evaluated as
-    in ordinary observations. Extra reads from active recorder terms remain outside this guarantee.
+    Observation history and other state are managed by the task's observation hooks. During this
+    extra observation read, ``env.is_observation_preview`` is True. Stateful hooks must check this
+    flag and return a prospective sample without committing their state. Observation noise is
+    evaluated as in ordinary observations.
     Warp environments do not support terminal capture.
     """
 

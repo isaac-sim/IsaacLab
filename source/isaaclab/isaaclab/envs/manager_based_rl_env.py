@@ -249,7 +249,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         if len(reset_env_ids) > 0:
             # capture the terminal observation before reset and expose it for Same-Step autoreset.
             if self.cfg.compute_final_obs:
-                self._capture_final_obs()
+                self.extras["final_obs"] = self.observation_manager.compute(preview=True)
             self.recorder_manager.record_pre_reset(reset_env_ids)
 
             self._reset_idx(reset_env_ids)
@@ -271,10 +271,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.obs_buf = self.observation_manager.compute(update_history=True)
 
         return self.obs_buf, self.reward_buf, self.reset_terminated, self.reset_time_outs, self.extras
-
-    def _capture_final_obs(self) -> None:
-        """Capture owned observations before reset, command updates and interval events."""
-        self.extras["final_obs"] = self.observation_manager.compute(preview=True)
 
     def render(self, recompute: bool = False) -> np.ndarray | None:
         """Run rendering without stepping through the physics.

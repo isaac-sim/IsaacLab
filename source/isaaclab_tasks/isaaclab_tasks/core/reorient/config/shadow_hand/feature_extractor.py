@@ -285,8 +285,8 @@ class FeatureExtractor:
     ) -> tuple[torch.Tensor | None, torch.Tensor]:
         """Extracts features and optionally trains the CNN.
 
-        Image saving (when :attr:`FeatureExtractorCfg.write_image_to_file` is ``True``) always
-        runs first, regardless of whether the network is enabled.  When
+        During ordinary calls, image saving (when :attr:`FeatureExtractorCfg.write_image_to_file` is ``True``)
+        runs first, regardless of whether the network is enabled. When
         :attr:`FeatureExtractorCfg.enabled` is ``False``, the network is then bypassed and
         zero embeddings are returned without any further image preprocessing.
 
