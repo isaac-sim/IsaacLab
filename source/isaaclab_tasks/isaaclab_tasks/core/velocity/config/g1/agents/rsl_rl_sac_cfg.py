@@ -31,7 +31,7 @@ class G1FlatSACRunnerCfg(RslRlSacRunnerCfg):
     save_interval = 50
     experiment_name = "g1_flat_sac"
     clip_actions = None
-    obs_groups = {"actor": ["policy"], "critic": ["policy"]}
+    obs_groups = {"actor": ["proprio"], "critic": ["proprio"]}
     actor = RslRlResidualMLPModelCfg(
         hidden_dims=[],
         activation="relu",
