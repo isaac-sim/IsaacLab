@@ -1,12 +1,14 @@
 * Changed masked :meth:`~isaaclab.sensors.ray_caster.BaseRayCaster.reset` to resample drift in a Warp kernel from
-  per-environment random states seeded from torch's global generator, so it neither synchronizes the host nor
-  allocates and can be captured in a CUDA graph. When both ``env_ids`` and ``env_mask`` are given, the mask selects
+  per-environment random states, so it neither synchronizes the host nor allocates and can be captured in a CUDA
+  graph. The states are seeded from torch's global generator by the first reset that samples drift, which therefore
+  must not run during a capture; a ray caster without drift draws nothing from it, as before. When both ``env_ids`` and ``env_mask`` are given, the mask selects
   the resampled environments, matching :meth:`~isaaclab.sensors.SensorBase.reset`.
 * Changed :meth:`~isaaclab.actuators.newton.NewtonActuatorAdapter.reset` to reuse preallocated per-DOF masks, so
   masked resets of Newton-native actuator state do not allocate and can be captured in a CUDA graph.
-* **Breaking:** Changed :meth:`~isaaclab.actuators.ActuatorBase.reset` to take an ``env_mask`` argument, the
-  boolean ``wp.array`` of the environments to reset that masked resets pass instead of indices.
-  :meth:`~isaaclab.actuators.ActuatorCollection.reset` passes it on every reset, so custom actuator models must accept
+* Changed :meth:`~isaaclab.actuators.ActuatorBase.reset` to take an ``env_mask`` argument, the boolean ``wp.array``
+  of the environments to reset that masked resets pass instead of indices.
+  :meth:`~isaaclab.actuators.ActuatorCollection.reset` passes it only when a mask is given, so custom actuator models
+  with the index-only ``reset(env_ids)`` keep working for index resets. To support masked resets they accept
   ``env_mask`` and reset from it without synchronizing the host, for example through
   :func:`~isaaclab.utils.array.index_fill_` or :func:`torch.where` on its :func:`warp.to_torch` view.
 * **Breaking:** Changed :meth:`~isaaclab.scene.InteractiveScene.reset` to pass ``env_mask`` to the ``reset`` of every

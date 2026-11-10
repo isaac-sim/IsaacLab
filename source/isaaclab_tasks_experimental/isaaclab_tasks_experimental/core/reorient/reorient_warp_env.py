@@ -581,7 +581,7 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
         self.y_unit_vec = wp.vec3f(0.0, 1.0, 0.0)
         self.z_unit_vec = wp.vec3f(0.0, 0.0, 1.0)
 
-        # Per-env origins (Warp view for kernels; Torch env uses `self.scene.env_origins` directly).
+        # Per-env origins (Warp view for kernels; the Torch env uses `self.scene.env_origins.torch`).
         self.env_origins = self.scene.env_origins.warp
 
         # ---------------------------------------------------------------------

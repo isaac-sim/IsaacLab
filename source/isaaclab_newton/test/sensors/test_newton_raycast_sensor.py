@@ -267,6 +267,30 @@ def test_partial_reset_resamples_drift_of_selected_envs_only(sim, monkeypatch):
     assert not torch.allclose(sensor.drift.torch[1], drift[1])
 
 
+@pytest.mark.parametrize("sim", [pytest.param(False, id="eager")], indirect=True)
+def test_torch_generator_is_drawn_only_when_drift_is_sampled(sim):
+    """Without drift, creating and resetting the sensor leaves torch's global generator untouched, as on main.
+
+    The first reset that samples drift draws the seed of the masked-reset random states, and masked resets then
+    draw from those states only.
+    """
+    scene = InteractiveScene(RaycastTestSceneCfg(num_envs=2))
+    state = torch.get_rng_state()
+    sim.reset()
+    sensor: NewtonRaycastSensor = scene["raycast"]
+    sensor.reset()
+    assert torch.equal(torch.get_rng_state(), state)
+
+    sensor.cfg.drift_range = (0.01, 0.05)
+    sensor.reset(env_mask=wp.array([True, False], dtype=wp.bool, device=sensor.device))
+    assert not torch.equal(torch.get_rng_state(), state)
+    assert ((sensor.drift.torch[0] >= 0.01) & (sensor.drift.torch[0] <= 0.05)).all()
+    state = torch.get_rng_state()
+    sensor.reset(env_mask=wp.array([False, True], dtype=wp.bool, device=sensor.device))
+    assert torch.equal(torch.get_rng_state(), state)
+    assert ((sensor.drift.torch[1] >= 0.01) & (sensor.drift.torch[1] <= 0.05)).all()
+
+
 @configclass
 class MultiMeshTargetSceneCfg(RaycastTestSceneCfg):
     """Read the same box through a static target and a tracked target."""

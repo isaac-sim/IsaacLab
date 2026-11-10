@@ -438,6 +438,7 @@ class ManagerBase(ABC):
                 # load the entity
                 try:
                     value.resolve(self._env.scene)
+                    value.resolve_warp_ids(self._env.scene)
                 except ValueError as e:
                     raise ValueError(f"Error while parsing '{term_name}:{key}'. {e}")
                 # log the entity for checking later
