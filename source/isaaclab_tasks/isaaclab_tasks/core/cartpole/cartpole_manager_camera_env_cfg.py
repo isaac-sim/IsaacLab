@@ -8,8 +8,6 @@
 import math
 from pathlib import Path
 
-from isaaclab_ov.renderers import OVRTXRendererCfg
-
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -22,7 +20,7 @@ from isaaclab.visualizers import VisualizerCfg
 from isaaclab_tasks.utils import PresetCfg
 
 from . import mdp
-from .cartpole_common import CartpoleTiledCameraCfg
+from .cartpole_common import CartpoleTiledCameraCfg, cartpole_lidar_camera_cfg, cartpole_lidar_cfg
 from .cartpole_manager_env_cfg import CartpoleEnvCfg, CartpoleSceneCfg, ObservationsCfg
 
 ##
@@ -35,22 +33,6 @@ class CartpoleCameraSceneCfg(CartpoleSceneCfg):
     """Cartpole scene with a selectable tiled camera."""
 
     tiled_camera: CartpoleTiledCameraCfg = CartpoleTiledCameraCfg()
-
-
-def _cartpole_lidar_pattern() -> tuple[list[float], list[float], list[int], list[int]]:
-    """Build one solid-state grid aimed at the cartpole from the side camera.
-
-    Azimuth runs along the rail. Elevation is symmetric about the horizon because the pole
-    can hang below the slider as well as stand above it. Both angles use a 0.5° step, from
-    -40° to 40° in azimuth and from -12° to 12° in elevation.
-    """
-    azimuths = [round(-40.0 + index * 0.5, 1) for index in range(161)]
-    elevations = [round(-12.0 + index * 0.5, 1) for index in range(49)]
-    azimuth_deg = [azimuth for elevation in elevations for azimuth in azimuths]
-    elevation_deg = [elevation for elevation in elevations for _azimuth in azimuths]
-    fire_time_ns = [index * 1000 for index in range(len(azimuth_deg))]
-    channel_id = [index + 1 for index in range(len(azimuth_deg))]
-    return azimuth_deg, elevation_deg, fire_time_ns, channel_id
 
 
 def export_lidar_stage_before_sim(env, env_ids) -> None:
@@ -67,32 +49,12 @@ def export_lidar_stage_before_sim(env, env_ids) -> None:
     print(f"WROTE {output}", flush=True)
 
 
-_CARTPOLE_LIDAR_AZIMUTH, _CARTPOLE_LIDAR_ELEVATION, _CARTPOLE_LIDAR_TIME, _CARTPOLE_LIDAR_CHANNEL = (
-    _cartpole_lidar_pattern()
-)
-
-
 @configclass
 class CartpoleLidarSceneCfg(CartpoleCameraSceneCfg):
     """Side camera plus one solid-state lidar, both captured by the same OVRTX renderer."""
 
-    # The cartpole camera presets keep a selectable renderer. This concrete camera is pinned so
-    # the lidar preset does not fall through to the Newton Warp renderer.
-    tiled_camera: CameraCfg = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(
-        data_types=["rgb"],
-        renderer_cfg=OVRTXRendererCfg(motion_bvh="auto"),
-    )
-    lidar: LidarCfg = LidarCfg(
-        prim_path="{ENV_REGEX_NS}/Lidar",
-        # Same position as the side camera. This quaternion aims the lidar boresight along
-        # world +X, at the cartpole: azimuth 0 and elevation 0 look at the rail center.
-        offset=LidarCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(0.5, -0.5, -0.5, 0.5)),
-        azimuth_deg=_CARTPOLE_LIDAR_AZIMUTH,
-        elevation_deg=_CARTPOLE_LIDAR_ELEVATION,
-        fire_time_ns=_CARTPOLE_LIDAR_TIME,
-        channel_id=_CARTPOLE_LIDAR_CHANNEL,
-        renderer_cfg=OVRTXRendererCfg(motion_bvh="auto"),
-    )
+    tiled_camera: CameraCfg = cartpole_lidar_camera_cfg()
+    lidar: LidarCfg = cartpole_lidar_cfg()
 
 
 ##

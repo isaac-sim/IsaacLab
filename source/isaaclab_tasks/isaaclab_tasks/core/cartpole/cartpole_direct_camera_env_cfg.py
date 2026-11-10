@@ -9,12 +9,18 @@ from __future__ import annotations
 
 import math
 
+from isaaclab.sensors import CameraCfg, LidarCfg
 from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
-from .cartpole_common import CartpoleTiledCameraCfg
+from .cartpole_common import (
+    CARTPOLE_LIDAR_RAY_COUNT,
+    CartpoleTiledCameraCfg,
+    cartpole_lidar_camera_cfg,
+    cartpole_lidar_cfg,
+)
 from .cartpole_direct_env_cfg import CartpoleEnvCfg, CartpoleSceneCfg
 
 
@@ -27,11 +33,21 @@ class CartpoleCameraSceneCfg(CartpoleSceneCfg):
 
 
 @configclass
+class CartpoleLidarSceneCfg(CartpoleCameraSceneCfg):
+    """Side camera plus one solid-state lidar, both captured by the same OVRTX renderer."""
+
+    tiled_camera: CameraCfg = cartpole_lidar_camera_cfg()
+    lidar: LidarCfg = cartpole_lidar_cfg()
+
+
+@configclass
 class CartpoleCameraEnvCfg(PresetCfg):
     """Cartpole camera environment with a selectable camera data type.
 
     The selector also picks the matching tiled camera preset and its rendering backend through
-    :attr:`CartpoleCameraSceneCfg.tiled_camera`.
+    :attr:`CartpoleCameraSceneCfg.tiled_camera`. The ``lidar`` variant keeps the side RGB camera and
+    adds a tiled OVRTX lidar; both are pinned to OVRTX with motion BVH enabled. Its policy observation
+    is the joint state plus the point cloud.
     """
 
     @configclass
@@ -63,7 +79,20 @@ class CartpoleCameraEnvCfg(PresetCfg):
             # the base sets the proprioceptive camera view; widen it to see the camera environments
             self.sim.visualizer_cfgs = VisualizerCfg(eye=(20.0, 20.0, 20.0))
 
+    @configclass
+    class LidarCartpoleCameraEnvCfg(BaseCartpoleCameraEnvCfg):
+        """Lidar variant viewed close enough to check hits against one cart and pole."""
+
+        scene: CartpoleLidarSceneCfg = CartpoleLidarSceneCfg(num_envs=512, env_spacing=20.0)
+        # Joint state plus one Cartesian point per ray. Misses stay in the vector as zeros.
+        observation_space = 4 + CARTPOLE_LIDAR_RAY_COUNT * 3
+
+        def __post_init__(self):
+            super().__post_init__()
+            self.sim.visualizer_cfgs = VisualizerCfg(eye=(3.0, -3.0, 2.5), lookat=(0.0, 0.0, 1.0))
+
     default = BaseCartpoleCameraEnvCfg()
+    lidar = LidarCartpoleCameraEnvCfg()
     depth = BaseCartpoleCameraEnvCfg(observation_space=[1, 96, 96])
     albedo = BaseCartpoleCameraEnvCfg()
     semantic_segmentation = BaseCartpoleCameraEnvCfg(observation_space=[4, 96, 96])

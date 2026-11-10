@@ -21,10 +21,11 @@ The sensor requires :class:`~isaaclab_ov.renderers.OVRTXRendererCfg`. Set
 Cameras that use the same renderer configuration are submitted in that step.
 Camera-only scenes leave ``motion_bvh`` unset and do not build a lidar product.
 
-The manager-based cartpole camera task demonstrates the sensor. ``presets=lidar``
-keeps the side RGB camera, adds the lidar, and appends the point cloud to the
-policy observation. The other camera presets are unchanged:
+The cartpole camera tasks demonstrate the sensor. ``presets=lidar`` keeps the
+side RGB camera, adds the lidar, and appends the point cloud to the policy
+observation. The other camera presets are unchanged:
 
 .. code-block:: bash
 
    uv run python scripts/environments/random_agent.py --task Isaac-Cartpole-Camera --num_envs 4 presets=lidar
+   uv run python scripts/environments/random_agent.py --task Isaac-Cartpole-Camera-Direct --num_envs 4 presets=lidar
