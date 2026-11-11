@@ -38,7 +38,11 @@ def _apply_actions(mdp: MDP, call: Call) -> None:
         target = call.state.fields[op.target].torch.view(mdp.num_worlds, -1)
         value = actions[:, op.columns] * op.scale + op.offset
         active = call.state.active.get(op.name)
-        target.copy_(value if active is None else torch.where(active.torch[:, None], value, target))
+        if op.subset is None:
+            target.copy_(value if active is None else torch.where(active.torch[:, None], value, target))
+            continue
+        ids = call.state.fields[op.subset].torch.long()
+        target[:, ids] = value if active is None else torch.where(active.torch[:, None], value, target[:, ids])
 
 
 def _begin_evaluate(mdp: MDP, call: Call) -> None:

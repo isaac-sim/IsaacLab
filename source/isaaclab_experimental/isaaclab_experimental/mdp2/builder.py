@@ -349,15 +349,26 @@ class MDPBuilder:
         target = self._resolve(entry, "target", cfg.target, context)
         if target is None:
             return
-        for op in context.ops[Phase.ACTIONS]:
-            if op.target == cfg.target:
-                context.errors.append(f"{entry}: '{cfg.target}' is already the target of '{op.name}'.")
         if target.dtype is not wp.float32:
             context.errors.append(f"{entry}: the target '{cfg.target}' must be a float32 field.")
-        columns = slice(context.action_dim, context.action_dim + math.prod(target.sizes.values()))
+        elements = set(range(math.prod(target.sizes.values())))
+        if cfg.subset is not None:
+            dims = list(target.sizes)
+            if cfg.subset.entity != cfg.target.entity or dims != [cfg.subset.dim]:
+                context.errors.append(f"{entry}: the subset '{cfg.subset}' must select elements of '{cfg.target}'.")
+                return
+            if self._resolve(entry, "subset", cfg.subset, context) is None:
+                return
+            elements = set(context.subsets[cfg.subset])
+        for op in context.ops[Phase.ACTIONS]:
+            written = set(context.subsets[op.subset]) if op.subset is not None else elements
+            if op.target == cfg.target and (op.subset is None or elements & written):
+                context.errors.append(f"{entry}: '{cfg.target}' is already written by '{op.name}'.")
+        columns = slice(context.action_dim, context.action_dim + len(elements))
         context.action_dim = columns.stop
         context.mdp_fields[last_action] = ArrayLayout(wp.float32, 2, {"actions": context.action_dim})
-        context.ops[Phase.ACTIONS].append(ActionOp(str(entry), cfg.target, columns, cfg.scale, cfg.offset))
+        action = ActionOp(str(entry), cfg.target, columns, cfg.scale, cfg.offset, subset=cfg.subset)
+        context.ops[Phase.ACTIONS].append(action)
 
     def _compile_term(self, entry: ScheduleEntry, context: CompileContext) -> None:
         """Compile a term use into an op, or record why it cannot be compiled."""

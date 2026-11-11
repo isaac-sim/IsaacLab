@@ -170,6 +170,7 @@ class DirectAction:
     target: FieldSelector
     scale: float = 1.0
     offset: float = 0.0
+    subset: SubsetSelector | None = None  # Elements of the target to write, like robot.joints("slider_to_cart")
 
 
 @dataclass(init=False)

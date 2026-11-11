@@ -68,6 +68,10 @@ class Term:
     )
     capturable: bool = True  # False for Torch or Warp hooks that cannot run inside a CUDA graph
 
+    def __deepcopy__(self, memo: dict) -> Term:
+        # A term is immutable and holds functions and Warp funcs, which cannot be copied: copies share it.
+        return self
+
     def __post_init__(self):
         if self.torch is not None and not isinstance(self.torch, Implementation):
             object.__setattr__(self, "torch", Implementation(compute=self.torch))

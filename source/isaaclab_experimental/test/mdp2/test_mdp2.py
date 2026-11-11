@@ -375,9 +375,7 @@ def test_finalize_reports_all_errors():
     assert "rewards.unknown_field: unknown field 'robot.joint_angle'" in message
     assert "rewards.unknown_command: unknown field 'commands.typo'. Fields of the MDP:" in message
     assert "rewards.unmatched_subset: 'robot.joints('x', 'elbow')' matches no name with ['elbow']" in message
-    assert (
-        "actions.second_writer: 'robot.joint_effort_target' is already the target of 'actions.joint_effort'" in message
-    )
+    assert "actions.second_writer: 'robot.joint_effort_target' is already written by 'actions.joint_effort'" in message
     assert "rewards.array_type: wp.func 'generated_commands_warp' takes 'command' as a 1-dimensional array" in message
     assert "terminations.return_type: wp.func 'is_alive_warp' must return bool" in message
     assert "rewards.no_warp: the term has no 'warp' implementation" in message
@@ -545,7 +543,9 @@ def test_mdp_fields_subsets_weights_and_diagnostics():
     for backend in ("torch", "warp"):
         scene = mdp2.PointMassScene(num_worlds=2, joint_names=("x", "y", "z"), device=DEVICE)
         builder = mdp2.MDPBuilder(scene.schema)
-        builder.add_action("joint_effort", mdp2.DirectAction(robot.joint_effort_target))
+        # The actions drive the joints in the order z, x, y.
+        builder.add_action("effort_z", mdp2.DirectAction(robot.joint_effort_target, subset=robot.joints("z")))
+        builder.add_action("effort_xy", mdp2.DirectAction(robot.joint_effort_target, subset=robot.joints("[xy]")))
         for name, observation in mdp_observations.items():
             builder.add_observation("policy", name, observation)
         builder.add_reward("alive", mdp2.Reward(is_alive, inputs={"joint_pos": robot.joint_pos}))
@@ -564,6 +564,7 @@ def test_mdp_fields_subsets_weights_and_diagnostics():
         mdp2.evaluate(mdp, state, transition)
 
         joint_pos = scene.data("robot", "joint_pos").torch
+        assert torch.equal(scene.data("robot", "joint_effort_target").torch, actions[:, [1, 2, 0]])
         expected = torch.cat([actions, torch.ones(2, 1, device=DEVICE), joint_pos[:, [0, 2]]], dim=-1)
         torch.testing.assert_close(transition.observations["policy"].torch, expected)
         assert transition.terminated.torch.tolist() == transition.done.torch.tolist() == [False, True]

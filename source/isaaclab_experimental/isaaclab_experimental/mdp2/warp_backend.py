@@ -90,9 +90,10 @@ def _apply_actions(mdp: MDP) -> tuple[Callable[[Call], None], ...]:
             lambda call, op=op: call.state.fields[op.target].warp.reshape((mdp.num_worlds, -1)),
         )
         value = f"{actions}[world, {op.columns.start} + element] * {code.constant(float, op.scale)}"
+        index = "element" if op.subset is None else f"{_field(code, op.subset, wp.array(dtype=wp.int32))}[element]"
         code.elements(
             (op.columns.stop - op.columns.start,),
-            *_under(_active(code, op), f"{target}[world, element] = {value} + {code.constant(float, op.offset)}"),
+            *_under(_active(code, op), f"{target}[world, {index}] = {value} + {code.constant(float, op.offset)}"),
             writes=[op.target],
         )
     return code.steps()

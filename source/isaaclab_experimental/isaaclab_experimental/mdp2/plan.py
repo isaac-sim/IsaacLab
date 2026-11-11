@@ -37,6 +37,7 @@ class ActionOp:
     scale: float
     offset: float
     worlds: tuple[int, ...] | None = None  # Worlds where the op is active, None for every world
+    subset: SubsetSelector | None = None  # Elements of the target it writes, None for all of them
 
 
 @dataclass(frozen=True)

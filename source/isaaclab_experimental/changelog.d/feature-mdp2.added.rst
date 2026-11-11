@@ -20,3 +20,6 @@
   :meth:`~isaaclab_experimental.mdp2.MDPBuilder.replicate`, one MDP runs different task configs in different
   worlds of one scene: uses the configs share run once, the others only in their worlds, and actions and
   observations are padded to the widest config.
+* Added :class:`~isaaclab_experimental.envs.MDP2Env` and :class:`~isaaclab_experimental.envs.MDP2RLEnv`, which run
+  an MDP2 task on a Newton interactive scene with the Gym interface of the manager-based environments. Resets are
+  masks over the worlds, so with the Warp backend each control step, physics included, replays as one CUDA graph.
