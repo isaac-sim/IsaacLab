@@ -82,6 +82,5 @@ class SuctionSortingPPORunnerCfg(ConveyorFrankaPPORunnerCfg):
         # must not acquire near-zero variance that amplifies new fixture geometry.
         self.actor.obs_normalization = False
         self.critic.obs_normalization = False
-        self.algorithm.learning_rate = 0.0001
         self.algorithm.num_mini_batches = 8
         self.algorithm.lam = 0.99

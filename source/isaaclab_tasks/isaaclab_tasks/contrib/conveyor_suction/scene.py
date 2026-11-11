@@ -383,7 +383,7 @@ def _outfeed_sections(
     for name, bounds in ((f"ReceivingDeck{index}", RECEIVING_PAD_RADIAL_BOUNDS), (f"Outfeed{index}", (0.815, 1.95))):
         sections.append(
             ConveyorSectionSpec(
-                _deck(name, 0.0, *bounds, 0.24, 0.24, BELT_TOP_Z, BELT_TOP_Z),
+                _flat_deck(name, *bounds),
                 SurfaceVelocitySpec(
                     prim_path=f"{{ENV_REGEX_NS}}/Outfeeds/{name}",
                     velocity=velocity,
@@ -411,27 +411,15 @@ def _arc(
     return MeshSpec(name, vertices, _prism_faces(len(angles), closed=False))
 
 
-def _deck(
-    name: str,
-    angle: float,
-    start: float,
-    end: float,
-    width_start: float,
-    width_end: float,
-    z_start: float,
-    z_end: float,
-) -> MeshSpec:
-    """Build a tapered receiving deck or flat outfeed in environment coordinates."""
+def _flat_deck(name: str, start: float, end: float) -> MeshSpec:
+    """Build a flat 24 cm-wide receiving deck or outfeed in lane coordinates."""
     corners = (
-        (start, -width_start / 2.0, z_start),
-        (end, -width_end / 2.0, z_end),
-        (end, width_end / 2.0, z_end),
-        (start, width_start / 2.0, z_start),
+        (start, -0.12),
+        (end, -0.12),
+        (end, 0.12),
+        (start, 0.12),
     )
-    cosine, sine = math.cos(angle), math.sin(angle)
-    vertices = tuple(
-        (x * cosine - y * sine, x * sine + y * cosine, z - depth) for depth in (0.0, 0.025) for x, y, z in corners
-    )
+    vertices = tuple((x, y, BELT_TOP_Z - depth) for depth in (0.0, 0.025) for x, y in corners)
     faces = (
         (0, 1, 2),
         (0, 2, 3),

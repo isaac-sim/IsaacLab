@@ -18,7 +18,6 @@ from isaaclab.test.utils import DeviceScope, test_devices
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_box_acquisition_lift_release_and_rebind(device):
     """A vacuum command needs a fitting face; sealed payloads lift and reset independently."""
-    pytest.importorskip("newton.surface_gripper", reason="Requires the optional Newton surface-gripper prototype.")
     from isaaclab_contrib.surface_gripper.newton import SurfaceGripper
 
     cfg = SimulationCfg(

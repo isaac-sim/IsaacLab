@@ -13,24 +13,11 @@ Every full episode starts with all parcels spaced around the racetrack; there is
 
 ![Suction sorting](../../../../../docs/source/_static/environment-previews/conveyor_suction_sorting.jpg)
 
-## Experimental prerequisite
+## Setup
 
-The belt model comes from stock Newton. Suction additionally requires the unmerged
-[Newton surface-gripper prototype](https://github.com/newton-physics/newton/pull/3974).
-The normal Isaac Lab dependency pins remain unchanged. Use the
-[validated Newton 1.9 extraction](https://github.com/maxkra15/newton/commit/718f0b1dbbc2e5a800dd1ed6e56f1d0008e54e52)
-in a separate environment:
-
-```bash
-export UV_PROJECT_ENVIRONMENT=.venv-suction
-uv sync
-uv pip install --no-config --python "$UV_PROJECT_ENVIRONMENT" --no-deps --reinstall-package newton \
-  "newton @ git+https://github.com/maxkra15/newton.git@718f0b1dbbc2e5a800dd1ed6e56f1d0008e54e52"
-```
-
-Use `uv run --no-sync` for suction commands so synchronization does not replace the prototype
-with stock Newton. The extraction preserves the upstream force implementation; the task
-never attaches parcels by writing their poses.
+Use the standard repository environment (`uv sync`). The pinned upstream Newton revision
+provides both conveyor forces and the
+[surface-gripper model](https://github.com/newton-physics/newton/pull/3974).
 
 ## Train and play
 
@@ -40,10 +27,10 @@ A delivery selects the next incoming parcel without resetting the robot. The bat
 parcels arrive, an unsorted parcel is lost, the robot collides, or the episode times out.
 
 ```bash
-uv run --no-sync isaaclab train --task IsaacContrib-Conveyor-Suction-Sorting \
+uv run isaaclab train --task IsaacContrib-Conveyor-Suction-Sorting \
   --rl_library rsl_rl --num_envs 512 --device cuda:0
 
-uv run --no-sync isaaclab play --task IsaacContrib-Conveyor-Suction-Sorting \
+uv run isaaclab play --task IsaacContrib-Conveyor-Suction-Sorting \
   --rl_library rsl_rl --checkpoint /path/to/model.pt \
   --num_envs 1 --device cuda:0 --viz newton_gl --real-time
 ```
@@ -51,6 +38,7 @@ uv run --no-sync isaaclab play --task IsaacContrib-Conveyor-Suction-Sorting \
 Use `--viz kit` in an Isaac Sim environment. `env.parcel_count` supports up to twelve fixed
 parcel assets across five size classes. The default routes each class to its outlet;
 `env.commands.sort.randomize_destination=true` instead samples independent target outlets.
+Suction training remains experimental; a policy that solves full-start sorting has not been validated.
 
 ## Policy and reset sampling
 

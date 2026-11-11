@@ -137,7 +137,6 @@ def _check_full_batch_receipts(env, rows, actions, hold_at_goal, place_in_bin, p
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_receipts_record_success_and_continue_without_reset(device, monkeypatch):
     """Receipts reward once, record the sampled row once, and preserve history through handoffs and failures."""
-    pytest.importorskip("newton.surface_gripper", reason="Requires the optional Newton surface-gripper prototype.")
     task = "IsaacContrib-Conveyor-Suction-Sorting"
     cfg = parse_env_cfg(task, device=device, num_envs=2)
     cfg.sim.visualizer_cfgs = []

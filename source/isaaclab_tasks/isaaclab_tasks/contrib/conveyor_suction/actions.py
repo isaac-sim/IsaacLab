@@ -33,7 +33,6 @@ class CartesianSuctionArm(DifferentialInverseKinematicsAction):
     def __init__(self, cfg: CartesianSuctionArmCfg, env: ManagerBasedEnv) -> None:
         super().__init__(cfg, env)
         self.invalid_actions = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
-        self.previous_actions = torch.zeros_like(self._raw_actions)
         self._needs_reference = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
         self._down = torch.tensor(DOWN_QUATERNION, device=self.device).expand(self.num_envs, -1)
         self._lower = torch.tensor((-0.68, -0.95, 0.045), device=self.device)
@@ -46,7 +45,6 @@ class CartesianSuctionArm(DifferentialInverseKinematicsAction):
 
     def process_actions(self, actions: torch.Tensor) -> None:
         self.invalid_actions[:] = ~torch.isfinite(actions).all(dim=-1)
-        self.previous_actions.copy_(self._raw_actions)
         self._raw_actions[:] = torch.nan_to_num(actions).clamp(-1.0, 1.0)
         self._processed_actions[:] = self._raw_actions * self._scale
         position, rotation = self._compute_frame_pose()
@@ -64,7 +62,6 @@ class CartesianSuctionArm(DifferentialInverseKinematicsAction):
     def reset(self, env_ids: Sequence[int] | torch.Tensor | None = None) -> None:
         super().reset(env_ids)
         self.invalid_actions[slice(None) if env_ids is None else env_ids] = False
-        self.previous_actions[slice(None) if env_ids is None else env_ids] = 0.0
         self._needs_reference[slice(None) if env_ids is None else env_ids] = True
 
 
@@ -75,7 +72,6 @@ class VacuumAction(ActionTerm):
         super().__init__(cfg, env)
         self._raw_actions = torch.zeros(self.num_envs, 1, device=self.device)
         self._processed_actions = torch.zeros_like(self._raw_actions)
-        self.previous_actions = torch.zeros_like(self._raw_actions)
         self.invalid_actions = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
 
     @property
@@ -92,7 +88,6 @@ class VacuumAction(ActionTerm):
 
     def process_actions(self, actions: torch.Tensor) -> None:
         self.invalid_actions[:] = ~torch.isfinite(actions).all(dim=-1)
-        self.previous_actions.copy_(self._raw_actions)
         self._raw_actions[:] = torch.nan_to_num(actions).clamp(-1.0, 1.0)
         self._processed_actions[:] = torch.where(self._raw_actions < 0.0, -1.0, 1.0)
         self._env.command_manager.get_term("sort").record_release(self._processed_actions[:, 0] > 0.0)
@@ -105,7 +100,6 @@ class VacuumAction(ActionTerm):
         self._raw_actions[ids] = 0.0
         self._processed_actions[ids] = 1.0
         self.invalid_actions[ids] = False
-        self.previous_actions[ids] = 0.0
 
 
 def solve_tool_ik(positions: torch.Tensor) -> torch.Tensor:

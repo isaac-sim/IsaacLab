@@ -142,6 +142,13 @@ def test_checkpoint_interface_and_invalid_action_recovery(monkeypatch):
         _environment(fixed_recipe=int(ConveyorResetRecipe.BELT), fixed_target_cube_id=2, fixed_source_side_id=0)
     ) as env:
         term = env.event_manager.get_term_cfg("reset_from_state_table")
+        fixed_controls = {key: value for key, value in term.params.items() if key.startswith("fixed_")}
+        term.params.update({key: None for key in fixed_controls})
+        try:
+            _check_reset_outcome_attribution(env)
+        finally:
+            term.params.update(fixed_controls)
+        env.reset()
         rows = reset_events.build_reset_rows()
         for invalid, condition in (
             (replace(rows[-1], belt_range_fraction=float("nan")), "finite"),
@@ -202,18 +209,17 @@ def test_checkpoint_interface_and_invalid_action_recovery(monkeypatch):
         robot.write_joint_position_to_sim_index(position=joints)
         env.sim.forward()
         env.scene.update(env.step_dt)
-        if env.spec.id == _BASE:
-            # Differentiate the independent reset FK rather than repeating the velocity shift.
-            rates = torch.tensor([0.5, -0.4, 0.3, -0.2, 0.4, -0.5, 0.2]).repeat(2, 1)
-            velocity = torch.zeros_like(robot.data.joint_vel.torch)
-            velocity[:, joint_ids] = rates
-            robot.write_joint_velocity_to_sim_index(velocity=velocity)
-            env.sim.forward()
-            env.scene.update(env.step_dt)
-            expected_velocity = (
-                franka_tool_position(initial + 1e-3 * rates) - franka_tool_position(initial - 1e-3 * rates)
-            ) / 2e-3
-            torch.testing.assert_close(tool_velocity(env)[:, :3], expected_velocity, atol=1e-4, rtol=1e-3)
+        # Differentiate the independent reset FK rather than repeating the velocity shift.
+        rates = torch.tensor([0.5, -0.4, 0.3, -0.2, 0.4, -0.5, 0.2]).repeat(2, 1)
+        velocity = torch.zeros_like(robot.data.joint_vel.torch)
+        velocity[:, joint_ids] = rates
+        robot.write_joint_velocity_to_sim_index(velocity=velocity)
+        env.sim.forward()
+        env.scene.update(env.step_dt)
+        expected_velocity = (
+            franka_tool_position(initial + 1e-3 * rates) - franka_tool_position(initial - 1e-3 * rates)
+        ) / 2e-3
+        torch.testing.assert_close(tool_velocity(env)[:, :3], expected_velocity, atol=1e-4, rtol=1e-3)
         env.action_manager.process_action(bad)
         torch.testing.assert_close(
             arm.processed_actions, initial + torch.tensor([[0, 0.12, -0.12, 0.12, -0.12, 0.06, -0.06], [0.06] * 7])
@@ -424,34 +430,33 @@ def test_sorter_dispatch_inventory_and_selected_resets():
         ]
 
 
-def test_success_guided_sampling_records_completed_selected_episodes():
-    """Real resets credit the previous row once and practice intermediate-success starts more often."""
-    with closing(_environment()) as env:
-        env.reset()
-        command = env.command_manager.get_term("transfer")
-        curriculum = env.curriculum_manager.cfg.reset_sampling.func
-        monitor = curriculum.success_monitor
-        table = env.event_manager.get_term_cfg("reset_from_state_table").func
-        # Repeated startup resets have no episode to credit.
-        env.reset()
-        assert monitor.success_size.sum() == 0
-        for succeeded in (True, False):
-            table.row_ids[:] = torch.tensor([0, 1])
-            env.episode_length_buf[:] = 5
-            command.ever_success[:] = torch.tensor([succeeded, True])
-            untouched_row = table.row_ids[1].clone()
-            env.reset(env_ids=torch.tensor([0]))
-            assert table.row_ids[1] == untouched_row
-            assert monitor.success_size[1] == 0
-        assert monitor.success_size.sum() == monitor.success_size[0] == 2
-        assert monitor.success_rate[0] == 0.5
-        # A genuine unsuccessful episode is counted; a zero-step manual reset is not.
+def _check_reset_outcome_attribution(env):
+    """Native resets credit previous rows once and preserve untouched environments."""
+    env.reset()
+    command = env.command_manager.get_term("transfer")
+    curriculum = env.curriculum_manager.cfg.reset_sampling.func
+    monitor = curriculum.success_monitor
+    table = env.event_manager.get_term_cfg("reset_from_state_table").func
+    # Repeated startup resets have no episode to credit.
+    env.reset()
+    assert monitor.success_size.sum() == 0
+    for succeeded in (True, False):
         table.row_ids[:] = torch.tensor([0, 1])
-        command.ever_success[1] = False
-        env.reset(env_ids=torch.tensor([1]))
-        assert monitor.success_size[1] == 1 and monitor.success_rate[1] == 0
-        env.reset(env_ids=torch.tensor([1]))
-        assert monitor.success_size.sum() == 3
+        env.episode_length_buf[:] = 5
+        command.ever_success[:] = torch.tensor([succeeded, True])
+        untouched_row = table.row_ids[1].clone()
+        env.reset(env_ids=torch.tensor([0]))
+        assert table.row_ids[1] == untouched_row
+        assert monitor.success_size[1] == 0
+    assert monitor.success_size.sum() == monitor.success_size[0] == 2
+    assert monitor.success_rate[0] == 0.5
+    # A genuine unsuccessful episode is counted; a zero-step manual reset is not.
+    table.row_ids[:] = torch.tensor([0, 1])
+    command.ever_success[1] = False
+    env.reset(env_ids=torch.tensor([1]))
+    assert monitor.success_size[1] == 1 and monitor.success_rate[1] == 0
+    env.reset(env_ids=torch.tensor([1]))
+    assert monitor.success_size.sum() == 3
 
 
 def test_binary_policy_likelihoods():

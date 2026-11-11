@@ -462,9 +462,6 @@ class ResetParcels(ManagerTermBase):
         )
         self.row_ids = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
         self.held_rows = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
-        self._initial_poses = torch.stack(
-            [env.scene[f"parcel_{index}"].data.default_root_pose.torch[0] for index in range(env.cfg.parcel_count)]
-        )
         self._arm_ids = env.scene["robot"].find_joints([f"panda_joint{i}" for i in range(1, 8)], preserve_order=True)[0]
         self.reset_buffer = ResetStateBuffer(ResetStateBufferCfg(size=self.row_count, max_batches=1, seed=env.cfg.seed))
         candidates: dict[str, torch.Tensor] = {}
@@ -488,9 +485,10 @@ class ResetParcels(ManagerTermBase):
                 ).all(dim=-1),
             },
         )
-        # Command and outcome consumers borrow metadata owned by the buffer.
+        # Retain command metadata from one snapshot; the public state accessor copies the catalog.
+        metadata = self.reset_buffer.state
         for name in ("layout_ids", "destination_ids", "parcel_ids", "phase_ids", "goal_positions", "lifted_rows"):
-            setattr(self, name, self.reset_buffer.state[name])
+            setattr(self, name, metadata[name])
 
     def _generate_recipes(self, rows: torch.Tensor) -> dict[str, torch.Tensor]:
         """Construct the complete procedural catalog without stepping or writing the scene."""
@@ -710,7 +708,7 @@ class ResetParcels(ManagerTermBase):
         parcel_velocities = torch.zeros((len(ids), len(env.parcels), 6), device=self.device)
         parcel_velocities[batch, active] = state["parcel_velocities"]
         for index, parcel in enumerate(env.parcels):
-            pose = self._initial_poses[index].expand(len(ids), -1).clone()
+            pose = parcel.data.default_root_pose.torch[ids].clone()
             pose[:, :3] = positions[:, index]
             pose[:, 5], pose[:, 6] = torch.sin(0.5 * yaw[:, index]), torch.cos(0.5 * yaw[:, index])
             pose[:, :3] += env.scene.env_origins[ids]

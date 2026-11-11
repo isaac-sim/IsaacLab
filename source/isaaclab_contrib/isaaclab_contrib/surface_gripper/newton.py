@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Bind Newton's experimental suction seal to replicated robot tools and box parcels."""
+"""Bind Newton's surface-gripper example model to replicated robot tools and box parcels."""
 
 from __future__ import annotations
 
@@ -16,10 +16,10 @@ import torch
 import warp as wp
 from isaaclab_newton.physics import NewtonManager
 from newton import GeoType, ShapeFlags, State
-from newton.surface_gripper import (
+from newton.examples.surface_gripper.surface_gripper import (
     SurfaceGripper as NewtonSurfaceGripper,
 )
-from newton.surface_gripper import (
+from newton.examples.surface_gripper.surface_gripper import (
     SurfaceGripperBuilder,
     attach_seal,
     evaluate_gripper_force,

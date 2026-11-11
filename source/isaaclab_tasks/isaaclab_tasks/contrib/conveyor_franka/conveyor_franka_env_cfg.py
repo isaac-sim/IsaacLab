@@ -76,17 +76,6 @@ _ROBOT_INITIAL_STATE = ArticulationCfg.InitialStateCfg(
 )
 
 
-def _validate_common_config(cfg: ConveyorFrankaEnvCfg) -> None:
-    """Validate backend-independent timing and policy tensor contracts."""
-    if not cfg.sim.use_newton_actuators:
-        raise ValueError("The conveyor Franka requires the shared Newton-actuator execution path.")
-    if not math.isfinite(cfg.sim.dt) or cfg.sim.dt <= 0.0 or cfg.decimation <= 0:
-        raise ValueError("Simulation dt and environment decimation must be positive.")
-    arm_action = cfg.actions.arm_action
-    if arm_action.joint_names != list(_ARM_JOINT_NAMES) or not arm_action.preserve_order:
-        raise ValueError("Arm actions must preserve the explicit panda_joint1-to-panda_joint7 ordering.")
-
-
 def _collision_properties(contact_margin: float = 0.0, mujoco_priority: int = 0) -> list[CollisionFragment]:
     """Build explicit Newton and MuJoCo contact properties for one collider."""
     return [
@@ -524,7 +513,13 @@ class ConveyorFrankaEnvCfg(ManagerBasedRLEnvCfg):
 
     def validate_config(self) -> None:
         """Validate the final task configuration after command-line overrides are applied."""
-        _validate_common_config(self)
+        if not self.sim.use_newton_actuators:
+            raise ValueError("The conveyor Franka requires the shared Newton-actuator execution path.")
+        if not math.isfinite(self.sim.dt) or self.sim.dt <= 0.0 or self.decimation <= 0:
+            raise ValueError("Simulation dt and environment decimation must be positive.")
+        arm_action = self.actions.arm_action
+        if arm_action.joint_names != list(_ARM_JOINT_NAMES) or not arm_action.preserve_order:
+            raise ValueError("Arm actions must preserve the explicit panda_joint1-to-panda_joint7 ordering.")
         physics = self.sim.physics
         if not isinstance(physics, NewtonCfg) or not isinstance(physics.solver_cfg, MJWarpSolverCfg):
             raise ValueError("The conveyor force driver requires the Newton MJWarp backend.")
