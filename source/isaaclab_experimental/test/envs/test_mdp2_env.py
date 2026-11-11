@@ -32,6 +32,7 @@ cart, pole, joints = robot.joints("slider_to_cart"), robot.joints("cart_to_pole"
 
 
 def reset_joints(subset: mdp2.SubsetSelector, position_range: tuple, velocity_range: tuple) -> mdp2.Event:
+    """Return an event that offsets the subset's joint state from its default by uniform samples."""
     return mdp2.Event(
         mdp.reset_joints_by_offset,
         inputs={
@@ -61,6 +62,7 @@ def cartpole_cfg(backend: str = "warp", capture: bool = True) -> MDP2RLEnvCfg:
             ),
         },
     )
+
     terminated = {"terminated": mdp2.terminated}
     task = mdp2.TaskCfg(
         actions={"joint_effort": mdp2.DirectAction(robot.joint_effort_target, subset=cart, scale=100.0)},
@@ -115,6 +117,7 @@ def cartpole_cfg(backend: str = "warp", capture: bool = True) -> MDP2RLEnvCfg:
             ),
         },
     )
+
     return MDP2RLEnvCfg(
         sim=SimulationCfg(dt=1 / 120, device="cuda:0", physics=NewtonCfg(solver_cfg=MJWarpSolverCfg())),
         scene=scene,
@@ -126,17 +129,17 @@ def cartpole_cfg(backend: str = "warp", capture: bool = True) -> MDP2RLEnvCfg:
     )
 
 
-def rollout(cfg: MDP2RLEnvCfg, num_steps: int) -> tuple[MDP2RLEnv | None, list[dict[str, torch.Tensor]]]:
-    """Reset, then step random actions, recording the step results. Closes the environment."""
+def rollout(cfg: MDP2RLEnvCfg, num_steps: int) -> tuple[bool, list[dict[str, torch.Tensor]]]:
+    """Reset, step random actions, and close; return whether the steps were captured and the step results."""
     env = MDP2RLEnv(cfg)
     try:
         generator = torch.Generator(device=env.device).manual_seed(0)
-        history = []
-        observations, _ = env.reset()
-        history.append({"policy": observations["policy"].clone()})
         # Half the carts are pushed each way, so that they leave their bounds.
         direction = torch.ones(env.num_envs, 1, device=env.device)
         direction[::2] = -1.0
+
+        observations, _ = env.reset()
+        history = [{"policy": observations["policy"].clone()}]
         for _ in range(num_steps):
             actions = direction * (torch.rand(env.num_envs, 1, device=env.device, generator=generator) + 0.5)
             observations, rewards, terminated, truncated, _ = env.step(actions)
@@ -148,6 +151,7 @@ def rollout(cfg: MDP2RLEnvCfg, num_steps: int) -> tuple[MDP2RLEnv | None, list[d
                     "truncated": truncated.clone(),
                 }
             )
+
         is_captured = env.is_captured
     finally:
         env.close()
@@ -157,13 +161,14 @@ def rollout(cfg: MDP2RLEnvCfg, num_steps: int) -> tuple[MDP2RLEnv | None, list[d
 def test_env_follows_the_gym_interface_and_commits_resets():
     env = MDP2RLEnv(cartpole_cfg())
     try:
+        robot_data = env.scene["robot"].data
         assert env.single_observation_space["policy"].shape == (4,)
         assert env.single_action_space.shape == (1,)
         assert env.max_episode_length == 60
 
         observations, extras = env.reset()
+
         assert observations["policy"].shape == (NUM_ENVS, 4) and extras == {}
-        robot_data = env.scene["robot"].data
         assert (robot_data.joint_pos.torch[:, 0].abs() <= 1.0).all() and robot_data.joint_pos.torch.std(0).min() > 0
 
         ended = torch.zeros(NUM_ENVS, dtype=torch.bool, device=env.device)
@@ -172,9 +177,11 @@ def test_env_follows_the_gym_interface_and_commits_resets():
             assert rewards.dtype == torch.float32 and terminated.dtype == truncated.dtype == torch.bool
             assert (env.scene["robot"].actuators.target_command.effort.torch[:, 0] == 100.0).all()
             ended |= terminated | truncated
+
             # Reset worlds start from their new joint state, which the solver's body poses follow.
             cart_x = robot_data.body_pos_w.torch[:, 1, 0] - robot_data.body_pos_w.torch[:, 0, 0]
             torch.testing.assert_close(cart_x, robot_data.joint_pos.torch[:, 0], atol=1e-5, rtol=0.0)
+
         assert env.is_captured and ended.all()
         assert torch.equal(observations["policy"][:, :2], robot_data.joint_pos.torch)
     finally:
@@ -182,7 +189,7 @@ def test_env_follows_the_gym_interface_and_commits_resets():
 
 
 def test_captured_steps_match_eager_steps_and_the_torch_backend():
-    num_steps = 80  # past the time-out of every world
+    num_steps = 80  # Past the time-out of every world.
     captured, captured_run = rollout(cartpole_cfg(), num_steps)
     eager, eager_run = rollout(cartpole_cfg(capture=False), num_steps)
     _, torch_run = rollout(cartpole_cfg(backend="torch"), num_steps)

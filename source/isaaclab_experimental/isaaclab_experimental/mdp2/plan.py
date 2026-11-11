@@ -109,9 +109,8 @@ class Segment:
 
 def segments(steps: Sequence[Step]) -> tuple[Segment, ...]:
     """Split the steps of a runtime function into runs of capturable and non-capturable steps."""
-    return tuple(
-        Segment(capturable, tuple(group)) for capturable, group in itertools.groupby(steps, lambda s: s.capturable)
-    )
+    groups = itertools.groupby(steps, lambda step: step.capturable)
+    return tuple(Segment(capturable, tuple(group)) for capturable, group in groups)
 
 
 @dataclass(frozen=True)
@@ -129,11 +128,13 @@ def build_plan(ops: Mapping[Phase, tuple]) -> ExecutionPlan:
     timed = [op for op in ops[Phase.COMMANDS] + ops[Phase.INTERVAL_EVENTS] if op.timer is not None]
     observations = tuple(Step(StepKind.COMPUTE, op) for op in ops[Phase.OBSERVATIONS])
     stateful = [op for phase in Phase if phase is not Phase.ACTIONS for op in ops[phase] if op.state]
+
     terminations_and_rewards = []
     for op in ops[Phase.TERMINATIONS] + ops[Phase.REWARDS]:
         terminations_and_rewards.append(Step(StepKind.COMPUTE, op))
         if op.update is not None:
             terminations_and_rewards.append(Step(StepKind.UPDATE_STATE, op))
+
     return ExecutionPlan(
         apply_actions=tuple(Step(StepKind.COMPUTE, op) for op in ops[Phase.ACTIONS]),
         evaluate=(

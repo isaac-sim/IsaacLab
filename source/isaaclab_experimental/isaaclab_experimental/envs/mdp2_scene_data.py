@@ -27,8 +27,8 @@ class InteractiveSceneData:
 
     Articulations also provide ``joint_pos``, ``joint_vel``, ``default_joint_pos``, ``default_joint_vel``,
     ``joint_effort_target``, ``soft_joint_vel_limits``, and ``soft_joint_pos_limits`` (``wp.vec2f``), per world
-    and joint. The ``scene`` entity
-    provides ``env_origins`` and ``gravity_w`` (``wp.vec3f``, with magnitude) per world.
+    and joint. The ``scene`` entity provides ``env_origins`` and ``gravity_w`` (``wp.vec3f``, with magnitude) per
+    world.
 
     Contact sensors provide ``net_forces_w`` and their histories ``net_forces_w_history`` and
     ``net_normal_forces_w_history`` (``wp.vec3f``, most recent first), and the air and contact times
@@ -43,6 +43,7 @@ class InteractiveSceneData:
         entities: dict[str, EntitySchema] = {}
         self._views: dict[str, dict[str, ProxyArray]] = {}
 
+        # Articulations and rigid objects.
         for name, asset in assets.items():
             data = asset.data
             views = {
@@ -90,9 +91,11 @@ class InteractiveSceneData:
             entities[name] = EntitySchema(names=names, fields=fields)
             self._views[name] = views
 
+        # Contact sensors.
         for name, sensor in scene.sensors.items():
             if not isinstance(sensor, BaseContactSensor):
                 continue
+
             data = sensor.data
             forces = {
                 "net_forces_w": data.net_forces_w,
@@ -111,6 +114,7 @@ class InteractiveSceneData:
                 "net_normal_forces_w_history": FieldSchema(("history", "bodies"), wp.vec3f),
                 **dict.fromkeys(times, FieldSchema(("bodies",))),
             }
+
             # Fields the sensor does not track, like air times without ``track_air_time``, are left out.
             views = {field: view for field, view in {**forces, **times}.items() if view is not None}
             history = tuple(str(step) for step in range(data.net_forces_w_history.shape[1]))
@@ -120,6 +124,7 @@ class InteractiveSceneData:
             )
             self._views[name] = views
 
+        # Scene-wide fields.
         self._views["scene"] = {
             "env_origins": ProxyArray(wp.from_torch(scene.env_origins.contiguous(), dtype=wp.vec3f))
         }

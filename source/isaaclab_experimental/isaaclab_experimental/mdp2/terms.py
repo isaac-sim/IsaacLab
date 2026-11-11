@@ -63,17 +63,15 @@ class Term:
     shape: tuple[str | int, ...] = ("worlds",)  # Output shape; names other than "worlds" come from the inputs
     state: dict[str, State] = field(default_factory=dict)
     random: bool = False  # Pass the use's per-world random stream as ``rng``, see :mod:`.rng`
-    eager: Callable | None = (
-        None  # ``fn(ctx, **params)``, run eagerly on every backend instead of hooks, see :mod:`.eager`
-    )
+    eager: Callable | None = None  # ``fn(ctx, **params)`` run eagerly instead of the hooks, see :mod:`.eager`
     capturable: bool = True  # False for Torch or Warp hooks that cannot run inside a CUDA graph
-
-    def __deepcopy__(self, memo: dict) -> Term:
-        # A term is immutable and holds functions and Warp funcs, which cannot be copied: copies share it.
-        return self
 
     def __post_init__(self):
         if self.torch is not None and not isinstance(self.torch, Implementation):
             object.__setattr__(self, "torch", Implementation(compute=self.torch))
         if self.warp is not None and not isinstance(self.warp, Implementation):
             object.__setattr__(self, "warp", Implementation(compute=self.warp))
+
+    def __deepcopy__(self, memo: dict) -> Term:
+        # Functions and Warp funcs cannot be copied, and a term is immutable, so copies share it.
+        return self

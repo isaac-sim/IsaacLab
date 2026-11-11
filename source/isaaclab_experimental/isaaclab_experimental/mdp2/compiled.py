@@ -40,7 +40,7 @@ class MDPState:
     fields: dict[FieldSelector | SubsetSelector, ProxyArray]  # Every selected field of the scene and of the MDP
     term_state: dict[str, dict[str, ProxyArray]]  # By op name, then state name
     reward_weights: ProxyArray  # (num_rewards,), can be changed at runtime, also under graph capture
-    rng: ProxyArray  # (num_streams, num_worlds), see rng.py
+    rng: ProxyArray  # (num_streams, num_worlds), see :mod:`.rng`
     timers: dict[str, ProxyArray]  # (num_worlds,) seconds left per timed op
     arguments: dict[str, dict[str, Any]]  # By op name: the hook arguments, as arrays of the MDP's backend
     scratch: dict[str, ProxyArray]  # (num_worlds, *shape) outputs of eager terms and of Warp kernel launchers
@@ -99,6 +99,7 @@ class MDP:
 
     @property
     def term_ops(self) -> tuple[TermOp, ...]:
+        """Ops of every phase except actions, in schedule order."""
         return tuple(op for phase, ops in self.ops.items() if phase is not Phase.ACTIONS for op in ops)
 
     @property
@@ -127,8 +128,10 @@ class MDP:
             f" max_episode_length {self.max_episode_length}"
         ]
         width = max((len(name) for name in self.schedule), default=0)
+
         for phase, ops in self.ops.items():
-            lines += [phase.name.lower().replace("_", " ")] if ops else []
+            if ops:
+                lines.append(phase.name.lower().replace("_", " "))
             for op in ops:
                 if phase is Phase.ACTIONS:
                     details = [f"columns {op.columns.start}:{op.columns.stop} -> {op.target}"]
@@ -144,38 +147,44 @@ class MDP:
                     details += [f"state {', '.join(op.state)}"] if op.state else []
                     details += [f"stream {op.stream}"] if op.stream is not None else []
                 if op.worlds is not None:
-                    contiguous = op.worlds == tuple(range(op.worlds[0], op.worlds[-1] + 1))
-                    details.append(
-                        f"worlds {op.worlds[0]}-{op.worlds[-1]}" if contiguous else f"worlds {list(op.worlds)}"
-                    )
+                    first, last = op.worlds[0], op.worlds[-1]
+                    contiguous = op.worlds == tuple(range(first, last + 1))
+                    details.append(f"worlds {first}-{last}" if contiguous else f"worlds {list(op.worlds)}")
                 lines.append(f"  {op.name:{width}}  {', '.join(details)}")
+
         for function, function_segments in self.segments.items():
-            lines += [f"{function} steps"] if function_segments else []
+            if function_segments:
+                lines.append(f"{function} steps")
             for segment in function_segments:
                 lines.append(f"  {'graph' if segment.capturable else 'eager'}")
                 for step in segment.steps:
                     lines.append(f"    {step.kind.name.lower().replace('_', ' '):14}  {step.op.name}")
+
         return "\n".join(lines)
 
     def state(self, scene_data: SceneData, seed: int = 0) -> MDPState:
         """Create the runtime state, bound to the data views of a scene with the same schema."""
         if scene_data.schema != self.schema:
             raise ValueError("The scene schema does not match the schema this MDP was built against.")
+
+        # Fields the MDP owns, then the scene fields that actions and terms select.
         fields = {
             last_action: self._zeros(self.num_worlds, self.action_dim),
             episode_length: self._zeros(self.num_worlds, dtype=wp.int32),
             terminated: self._zeros(self.num_worlds, dtype=wp.bool),
-            **{op.writes[0]: self._zeros(self.num_worlds, *op.shape) for op in self.ops[Phase.COMMANDS]},
-            **{
-                subset: ProxyArray(wp.array(indices, dtype=wp.int32, device=self.device))
-                for subset, indices in self.subsets.items()
-            },
         }
+        for op in self.ops[Phase.COMMANDS]:
+            fields[op.writes[0]] = self._zeros(self.num_worlds, *op.shape)
+        for subset, indices in self.subsets.items():
+            fields[subset] = ProxyArray(wp.array(indices, dtype=wp.int32, device=self.device))
+
         selectors = [op.target for op in self.ops[Phase.ACTIONS]]
         selectors += [selector for op in self.term_ops for selector in op.inputs.values()]
         for selector in selectors:
             if selector not in fields:
                 fields[selector] = scene_data.data(selector.entity, selector.field)
+
+        # Term state, random streams, and the hook arguments that view them.
         term_state = {
             op.name: {
                 name: ProxyArray(wp.full(spec.shape, spec.initial, dtype=wp.float32, device=self.device))
@@ -184,26 +193,27 @@ class MDP:
             for op in self.term_ops
         }
         streams = ProxyArray(wp.from_torch(rng.streams(seed, self.streams, self.num_worlds, self.device)))
-        timed = [op for op in self.term_ops if op.timer is not None]
+        weights = [op.weight for op in self.ops[Phase.REWARDS]]
+
+        arguments = {
+            op.name: {
+                **{arg: self._view(fields[selector]) for arg, selector in op.inputs.items()},
+                **{name: self._view(value) for name, value in term_state[op.name].items()},
+                **({"rng": self._view(streams)[op.stream]} if op.random else {}),
+                **op.params,
+            }
+            for op in self.term_ops
+        }
+
         return MDPState(
             episode_length=fields[episode_length],
             actions=fields[last_action],
             fields=fields,
             term_state=term_state,
-            reward_weights=ProxyArray(
-                wp.array([op.weight for op in self.ops[Phase.REWARDS]], dtype=wp.float32, device=self.device)
-            ),
+            reward_weights=ProxyArray(wp.array(weights, dtype=wp.float32, device=self.device)),
             rng=streams,
-            timers={op.name: self._zeros(self.num_worlds) for op in timed},
-            arguments={
-                op.name: {
-                    **{arg: self._view(fields[selector]) for arg, selector in op.inputs.items()},
-                    **{name: self._view(value) for name, value in term_state[op.name].items()},
-                    **({"rng": self._view(streams)[op.stream]} if op.random else {}),
-                    **op.params,
-                }
-                for op in self.term_ops
-            },
+            timers={op.name: self._zeros(self.num_worlds) for op in self.term_ops if op.timer is not None},
+            arguments=arguments,
             histories={
                 op.name: self._zeros(self.num_worlds, op.history_length, math.prod(op.shape))
                 for op in self.ops[Phase.OBSERVATIONS]
@@ -231,20 +241,24 @@ class MDP:
         )
 
     def observations(self) -> dict[str, ProxyArray]:
+        """Allocate one zeroed observation buffer per group, of shape ``(num_worlds, group_dim)``."""
         return {group: self._zeros(self.num_worlds, dim) for group, dim in self.observation_dims.items()}
 
     def transition(self) -> Transition:
-        num_rewards, num_terminations = len(self.ops[Phase.REWARDS]), len(self.ops[Phase.TERMINATIONS])
+        """Allocate the zeroed buffers of a transition, with per-term buffers only with diagnostics."""
+        reward_terms = termination_terms = None
+        if self.diagnostics:
+            reward_terms = self._zeros(self.num_worlds, len(self.ops[Phase.REWARDS]))
+            termination_terms = self._zeros(self.num_worlds, len(self.ops[Phase.TERMINATIONS]), dtype=wp.bool)
+
         return Transition(
             rewards=self._zeros(self.num_worlds),
             terminated=self._zeros(self.num_worlds, dtype=wp.bool),
             truncated=self._zeros(self.num_worlds, dtype=wp.bool),
             done=self._zeros(self.num_worlds, dtype=wp.bool),
             observations=self.observations(),
-            reward_terms=self._zeros(self.num_worlds, num_rewards) if self.diagnostics else None,
-            termination_terms=self._zeros(self.num_worlds, num_terminations, dtype=wp.bool)
-            if self.diagnostics
-            else None,
+            reward_terms=reward_terms,
+            termination_terms=termination_terms,
         )
 
     def _zeros(self, *shape: int, dtype: type = wp.float32) -> ProxyArray:

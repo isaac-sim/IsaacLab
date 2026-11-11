@@ -14,7 +14,9 @@ import warp as wp
 
 from ..terms import Term
 from .observations import projected_gravity_b, projected_gravity_torch
-from .rewards import contact_count, contacts_torch
+from .rewards import contact_count, contact_mask_torch
+
+# Joint state.
 
 
 @wp.func
@@ -28,11 +30,30 @@ def _joint_pos_out_of_manual_limit(
     return outside
 
 
+def _joint_pos_out_of_manual_limit_torch(joint_pos, joint_ids, *, bounds):
+    position = joint_pos[:, joint_ids]
+    return ((position < bounds[0]) | (position > bounds[1])).any(-1)
+
+
+joint_pos_out_of_manual_limit = Term(torch=_joint_pos_out_of_manual_limit_torch, warp=_joint_pos_out_of_manual_limit)
+"""Whether a joint position is outside ``bounds``, a ``(lower, upper)`` pair."""
+
+
+# Root state.
+
+
 @wp.func
 def _root_height_below_minimum(
     world: int, root_link_pose_w: wp.array(dtype=wp.transformf), minimum_height: float
 ) -> bool:
     return wp.transform_get_translation(root_link_pose_w[world])[2] < minimum_height
+
+
+root_height_below_minimum = Term(
+    torch=lambda root_link_pose_w, *, minimum_height: root_link_pose_w[:, 2] < minimum_height,
+    warp=_root_height_below_minimum,
+)
+"""Whether the root is lower than ``minimum_height`` in the world frame."""
 
 
 @wp.func
@@ -46,27 +67,16 @@ def _bad_orientation(
     return wp.abs(wp.acos(-gravity[2])) > limit_angle
 
 
-def _joint_pos_out_of_manual_limit_torch(joint_pos, joint_ids, *, bounds):
-    position = joint_pos[:, joint_ids]
-    return ((position < bounds[0]) | (position > bounds[1])).any(-1)
+def _bad_orientation_torch(root_link_pose_w, gravity_w, *, limit_angle):
+    gravity = projected_gravity_torch(root_link_pose_w, gravity_w)
+    return gravity[:, 2].neg().acos().abs() > limit_angle
 
 
-joint_pos_out_of_manual_limit = Term(torch=_joint_pos_out_of_manual_limit_torch, warp=_joint_pos_out_of_manual_limit)
-"""Whether a joint position is outside ``bounds``, a ``(lower, upper)`` pair."""
-
-root_height_below_minimum = Term(
-    torch=lambda root_link_pose_w, *, minimum_height: root_link_pose_w[:, 2] < minimum_height,
-    warp=_root_height_below_minimum,
-)
-"""Whether the root is lower than ``minimum_height`` in the world frame."""
-
-bad_orientation = Term(
-    torch=lambda root_link_pose_w, gravity_w, *, limit_angle: (
-        projected_gravity_torch(root_link_pose_w, gravity_w)[:, 2].neg().acos().abs() > limit_angle
-    ),
-    warp=_bad_orientation,
-)
+bad_orientation = Term(torch=_bad_orientation_torch, warp=_bad_orientation)
 """Whether the root is tilted more than ``limit_angle`` radians from upright."""
+
+
+# Contacts.
 
 
 @wp.func
@@ -79,10 +89,9 @@ def _illegal_contact(
     return contact_count(world, net_normal_forces_w_history, body_ids, threshold) > 0
 
 
-illegal_contact = Term(
-    torch=lambda net_normal_forces_w_history, body_ids, *, threshold: contacts_torch(
-        net_normal_forces_w_history, body_ids, threshold
-    ).any(-1),
-    warp=_illegal_contact,
-)
+def _illegal_contact_torch(net_normal_forces_w_history, body_ids, *, threshold):
+    return contact_mask_torch(net_normal_forces_w_history, body_ids, threshold).any(-1)
+
+
+illegal_contact = Term(torch=_illegal_contact_torch, warp=_illegal_contact)
 """Whether a normal contact force on the ``body_ids`` bodies exceeded ``threshold`` in the sensor history."""

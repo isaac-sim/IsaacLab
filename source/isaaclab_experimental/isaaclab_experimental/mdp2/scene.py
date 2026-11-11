@@ -64,6 +64,7 @@ class PointMassScene:
         device: str = "cpu",
     ):
         fields = dict.fromkeys(("joint_pos", "joint_vel", "joint_effort_target"), FieldSchema(("joints",)))
+
         self.schema = SceneSchema(
             num_worlds=num_worlds,
             step_dt=dt * decimation,
@@ -71,6 +72,7 @@ class PointMassScene:
         )
         self.dt = dt
         self.decimation = decimation
+
         shape = (num_worlds, len(joint_names))
         self._data = {"robot": {name: ProxyArray(wp.zeros(shape, dtype=wp.float32, device=device)) for name in fields}}
 

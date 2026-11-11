@@ -36,15 +36,18 @@ class TermContext:
 
 def call_eager(mdp: MDP, op: TermOp, state: MDPState, mask: torch.Tensor | None = None) -> None:
     """Call an eager term with a context bound to the MDP state, and write its output to the op's scratch buffer."""
+    inputs = {arg: state.fields[selector].torch for arg, selector in op.inputs.items() if selector not in op.writes}
     outputs = {arg: state.fields[selector].torch for arg, selector in op.inputs.items() if selector in op.writes}
+
     context = TermContext(
         num_worlds=mdp.num_worlds,
         step_dt=mdp.step_dt,
-        inputs={arg: state.fields[selector].torch for arg, selector in op.inputs.items() if selector not in op.writes},
+        inputs=inputs,
         outputs=outputs,
         state={name: value.torch for name, value in state.term_state[op.name].items()},
         rng=state.rng.torch[op.stream] if op.random else None,
         mask=mask,
         out=state.scratch[op.name].torch if op.name in state.scratch else None,
     )
+
     op.compute(context, **op.params)

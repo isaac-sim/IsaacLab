@@ -35,6 +35,7 @@ def _uniform_velocity_command(
 ) -> float:
     if wp.randf(wp.rand_init(rng, 3)) <= rel_standing_envs:
         return 0.0
+
     bounds = lin_vel_x
     if axis == 1:
         bounds = lin_vel_y
@@ -44,9 +45,8 @@ def _uniform_velocity_command(
 
 
 def _uniform_velocity_command_torch(rng, *, lin_vel_x, lin_vel_y, ang_vel_z, rel_standing_envs):
-    velocity = torch.stack(
-        [uniform(rng, *bounds, offset=axis) for axis, bounds in enumerate((lin_vel_x, lin_vel_y, ang_vel_z))], dim=-1
-    )
+    ranges = (lin_vel_x, lin_vel_y, ang_vel_z)
+    velocity = torch.stack([uniform(rng, *bounds, offset=axis) for axis, bounds in enumerate(ranges)], dim=-1)
     standing = uniform(rng, 0.0, 1.0, offset=3) <= rel_standing_envs
     return torch.where(standing[:, None], torch.zeros_like(velocity), velocity)
 
@@ -54,9 +54,11 @@ def _uniform_velocity_command_torch(rng, *, lin_vel_x, lin_vel_y, ang_vel_z, rel
 uniform_velocity_command = Term(
     torch=_uniform_velocity_command_torch, warp=_uniform_velocity_command, shape=("worlds", 3), random=True
 )
-"""Base velocity ``(lin_vel_x, lin_vel_y, ang_vel_z)`` drawn uniformly from the given ranges, or zero for a fraction
-``rel_standing_envs`` of the samples. Without heading control, unlike MDP1's ``UniformVelocityCommand`` with
-``heading_command``."""
+"""Base velocity ``(lin_vel_x, lin_vel_y, ang_vel_z)`` drawn uniformly from the given ranges.
+
+The velocity is zero for a fraction ``rel_standing_envs`` of the samples. Without heading control, unlike MDP1's
+``UniformVelocityCommand`` with ``heading_command``.
+"""
 
 
 # Pose.
@@ -93,5 +95,8 @@ def _uniform_pose_command_torch(rng, *, pose_range, make_quat_unique):
 uniform_pose_command = Term(
     torch=_uniform_pose_command_torch, warp=_uniform_pose_command, shape=("worlds", 7), random=True
 )
-"""Pose ``(x, y, z, qx, qy, qz, qw)`` in the robot's base frame, drawn uniformly from ``pose_range``, six ``(low,
-high)`` pairs in the order x, y, z, roll, pitch, yaw. With ``make_quat_unique``, the real part is non-negative."""
+"""Pose ``(x, y, z, qx, qy, qz, qw)`` in the robot's base frame, drawn uniformly from ``pose_range``.
+
+``pose_range`` holds six ``(low, high)`` pairs in the order x, y, z, roll, pitch, yaw. With ``make_quat_unique``, the
+real part is non-negative.
+"""

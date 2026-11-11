@@ -30,9 +30,11 @@ pytestmark = pytest.mark.skipif(not torch.cuda.is_available(), reason="Newton ne
 
 ROBOT_USD = Path(__file__).parents[3] / "isaaclab_newton/test/assets/data/floating_two_leg.usda"
 NUM_ENVS = 8
+LEG_NAMES = ("LF_.*", "RH_KFE")
+
 robot = mdp2.Entity("robot")
 scene = mdp2.Entity("scene")
-legs = robot.joints("LF_.*", "RH_KFE")
+legs = robot.joints(*LEG_NAMES)
 
 
 @pytest.fixture(scope="module")
@@ -45,6 +47,7 @@ def env() -> Iterator[MDP2Env]:
         init_state=ArticulationCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0), joint_pos={".*HFE": 0.4, ".*KFE": -0.8}),
         actuators={"legs": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=0.0)},
     )
+
     task = mdp2.TaskCfg(actions={"joint_effort": mdp2.DirectAction(robot.joint_effort_target)})
     cfg = MDP2EnvCfg(
         sim=SimulationCfg(dt=0.01, device="cuda:0", physics=NewtonCfg(solver_cfg=MJWarpSolverCfg())),
@@ -53,6 +56,7 @@ def env() -> Iterator[MDP2Env]:
         decimation=1,
         seed=0,
     )
+
     env = MDP2Env(cfg)
     try:
         articulation = env.scene["robot"]
@@ -69,6 +73,7 @@ def env() -> Iterator[MDP2Env]:
         articulation.write_root_velocity_to_sim_index(root_velocity=rand(NUM_ENVS, 6, scale=3.0))
         env.sim.forward()
         env.scene.update(dt=0.0)
+
         yield env
     finally:
         env.close()
@@ -81,8 +86,9 @@ class MDP1Env:
         self.scene = env.scene
 
 
-def asset_cfg(env: MDP2Env, joint_names: list[str] | None = None) -> SceneEntityCfg:
-    cfg = SceneEntityCfg("robot", joint_names=joint_names or [".*"]) if joint_names else SceneEntityCfg("robot")
+def robot_cfg(env: MDP2Env, joint_names: tuple[str, ...] | None = None) -> SceneEntityCfg:
+    """Return the resolved MDP1 configuration of the robot, or of the named joints of the robot."""
+    cfg = SceneEntityCfg("robot", joint_names=list(joint_names)) if joint_names else SceneEntityCfg("robot")
     cfg.resolve(env.scene)
     return cfg
 
@@ -96,8 +102,10 @@ def mdp2_values(env: MDP2Env, backend: str, uses: dict[str, mdp2.Observation | m
         else:
             builder.add_observation(name, name, use)
     model = builder.finalize(device=env.device, backend=backend, diagnostics=True)
+
     state, transition = model.state(env.scene_data), model.transition()
     mdp2.evaluate(model, state, transition)
+
     values = {group: buffer.torch.clone() for group, buffer in transition.observations.items()}
     for op in model.ops[mdp2.Phase.TERMINATIONS]:
         values[op.name.split(".")[-1]] = transition.termination_terms.torch[:, op.index].clone()
@@ -142,11 +150,11 @@ def test_observations_and_rewards_match_mdp1(env: MDP2Env, backend: str):
             mdp.joint_pos_limits, inputs={**joint_pos, "soft_joint_pos_limits": robot.soft_joint_pos_limits}
         ),
     }
+
     values = mdp2_values(env, backend, uses)
 
     mdp1_env = MDP1Env(env)
-    leg_cfg = asset_cfg(env, ["LF_.*", "RH_KFE"])
-    root_cfg = asset_cfg(env)
+    leg_cfg, root_cfg = robot_cfg(env, LEG_NAMES), robot_cfg(env)
     expected = {
         "joint_pos": mdp1.joint_pos(mdp1_env, leg_cfg),
         "joint_pos_rel": mdp1.joint_pos_rel(mdp1_env, leg_cfg),
@@ -167,7 +175,8 @@ def test_observations_and_rewards_match_mdp1(env: MDP2Env, backend: str):
         "joint_pos_target_l2": mdp1.joint_pos_target_l2(mdp1_env, target=0.3, asset_cfg=leg_cfg),
         "joint_pos_limits": mdp1.joint_pos_limits(mdp1_env, leg_cfg),
     }
-    assert values["joint_pos_limits"].abs().sum() > 0.0  # some joints are beyond their limits
+
+    assert values["joint_pos_limits"].abs().sum() > 0.0  # Some joints are beyond their limits.
     for name, value in expected.items():
         torch.testing.assert_close(values[name], value.reshape(NUM_ENVS, -1), msg=name)
 
@@ -188,17 +197,19 @@ def test_terminations_match_mdp1(env: MDP2Env, backend: str):
             mdp.bad_orientation, inputs={**root_pose, "gravity_w": scene.gravity_w}, params={"limit_angle": 1.0}
         ),
     }
+
     values = mdp2_values(env, backend, uses)
 
     mdp1_env = MDP1Env(env)
-    leg_cfg, root_cfg = asset_cfg(env, ["LF_.*", "RH_KFE"]), asset_cfg(env)
+    leg_cfg, root_cfg = robot_cfg(env, LEG_NAMES), robot_cfg(env)
     expected = {
         "joint_pos_out_of_manual_limit": mdp1.joint_pos_out_of_manual_limit(mdp1_env, (-1.5, 1.5), leg_cfg),
         "root_height_below_minimum": mdp1.root_height_below_minimum(mdp1_env, 0.5, root_cfg),
         "bad_orientation": mdp1.bad_orientation(mdp1_env, 1.0, root_cfg),
     }
+
     for name, value in expected.items():
-        assert value.any() and not value.all(), name  # the states cover both outcomes
+        assert value.any() and not value.all(), name  # The states cover both outcomes.
         assert torch.equal(values[name], value), name
 
 
@@ -206,56 +217,52 @@ def test_events_agree_across_backends_and_respect_ranges(env: MDP2Env):
     """Events draw the same samples on both backends, write only the selected worlds, and stay in their ranges."""
     pose_range = ((-0.2, 0.2), (-0.2, 0.2), (0.0, 0.1), (-0.3, 0.3), (-0.3, 0.3), (-math.pi, math.pi))
     velocity_range = ((-0.5, 0.5),) * 6
-    articulation = env.scene["robot"]
+    events = {
+        "reset_base": mdp2.Event(
+            mdp.reset_root_state_uniform,
+            inputs={
+                "default_root_pose": robot.default_root_pose,
+                "default_root_vel": robot.default_root_vel,
+                "env_origins": scene.env_origins,
+            },
+            outputs={"root_link_pose_w": robot.root_link_pose_w, "root_com_vel_w": robot.root_com_vel_w},
+            params={"pose_range": pose_range, "velocity_range": velocity_range},
+        ),
+        "push": mdp2.Event(
+            mdp.push_by_setting_velocity,
+            outputs={"root_com_vel_w": robot.root_com_vel_w},
+            params={"velocity_range": velocity_range},
+        ),
+        "reset_legs": mdp2.Event(
+            mdp.reset_joints_by_offset,
+            inputs={
+                "default_joint_pos": robot.default_joint_pos,
+                "default_joint_vel": robot.default_joint_vel,
+                "soft_joint_pos_limits": robot.soft_joint_pos_limits,
+                "soft_joint_vel_limits": robot.soft_joint_vel_limits,
+                "joint_ids": legs,
+            },
+            outputs={"joint_pos": robot.joint_pos, "joint_vel": robot.joint_vel},
+            params={"position_range": (-0.1, 0.1), "velocity_range": (-0.2, 0.2)},
+        ),
+    }
     mask = torch.arange(NUM_ENVS, device=env.device) % 2 == 0
 
     results = {}
     for backend in ("torch", "warp"):
         builder = mdp2.MDPBuilder(env.scene_data.schema)
-        builder.add_event(
-            "reset_base",
-            mdp2.Event(
-                mdp.reset_root_state_uniform,
-                inputs={
-                    "default_root_pose": robot.default_root_pose,
-                    "default_root_vel": robot.default_root_vel,
-                    "env_origins": scene.env_origins,
-                },
-                outputs={"root_link_pose_w": robot.root_link_pose_w, "root_com_vel_w": robot.root_com_vel_w},
-                params={"pose_range": pose_range, "velocity_range": velocity_range},
-            ),
-        )
-        builder.add_event(
-            "push",
-            mdp2.Event(
-                mdp.push_by_setting_velocity,
-                outputs={"root_com_vel_w": robot.root_com_vel_w},
-                params={"velocity_range": velocity_range},
-            ),
-        )
-        builder.add_event(
-            "reset_legs",
-            mdp2.Event(
-                mdp.reset_joints_by_offset,
-                inputs={
-                    "default_joint_pos": robot.default_joint_pos,
-                    "default_joint_vel": robot.default_joint_vel,
-                    "soft_joint_pos_limits": robot.soft_joint_pos_limits,
-                    "soft_joint_vel_limits": robot.soft_joint_vel_limits,
-                    "joint_ids": legs,
-                },
-                outputs={"joint_pos": robot.joint_pos, "joint_vel": robot.joint_vel},
-                params={"position_range": (-0.1, 0.1), "velocity_range": (-0.2, 0.2)},
-            ),
-        )
+        for name, event in events.items():
+            builder.add_event(name, event)
         model = builder.finalize(device=env.device, backend=backend)
         state = model.state(env.scene_data, seed=3)
+
         before = {name: env.scene_data.data("robot", name).torch.clone() for name in ("root_link_pose_w", "joint_pos")}
         mdp2.reset(model, state, ProxyArray(wp.from_torch(mask)))
         results[backend] = {
             name: env.scene_data.data("robot", name).torch.clone()
             for name in ("root_link_pose_w", "root_com_vel_w", "joint_pos", "joint_vel")
         }
+
         for name, value in before.items():
             assert torch.equal(results[backend][name][~mask], value[~mask]), name
             env.scene_data.data("robot", name).torch.copy_(value)
@@ -263,7 +270,7 @@ def test_events_agree_across_backends_and_respect_ranges(env: MDP2Env):
     for name, value in results["warp"].items():
         torch.testing.assert_close(value, results["torch"][name], msg=name)
 
-    data = articulation.data
+    data = env.scene["robot"].data
     offset = (
         results["warp"]["root_link_pose_w"][mask, :3]
         - env.scene.env_origins[mask]
@@ -273,11 +280,10 @@ def test_events_agree_across_backends_and_respect_ranges(env: MDP2Env):
     torch.testing.assert_close(
         results["warp"]["root_link_pose_w"][mask, 3:].norm(dim=-1), torch.ones(NUM_ENVS // 2, device=env.device)
     )
+
     # The push adds to the reset velocity, so each component moves at most twice the range.
     assert ((results["warp"]["root_com_vel_w"][mask] - data.default_root_vel.torch[mask]).abs() <= 1.0).all()
+
+    leg_ids = env.scene["robot"].find_joints(list(LEG_NAMES), preserve_order=True)[0]
     joint_offset = results["warp"]["joint_pos"][mask] - data.default_joint_pos.torch[mask]
-    assert (joint_offset[:, legs_ids(env)].abs() <= 0.1 + 1e-6).all()
-
-
-def legs_ids(env: MDP2Env) -> list[int]:
-    return env.scene["robot"].find_joints(["LF_.*", "RH_KFE"], preserve_order=True)[0]
+    assert (joint_offset[:, leg_ids].abs() <= 0.1 + 1e-6).all()

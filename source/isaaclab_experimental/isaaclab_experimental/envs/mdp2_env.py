@@ -43,6 +43,7 @@ class MDP2Env:
             configure_seed(cfg.seed)
         if SimulationContext.instance() is not None:
             raise RuntimeError("A simulation context already exists. Close the environment that created it first.")
+
         self.sim = SimulationContext(cfg.sim)
         try:
             self._init_sim()
@@ -52,7 +53,9 @@ class MDP2Env:
         self._is_closed = False
 
     def _init_sim(self) -> None:
+        """Build the scene and the MDP; on failure, the caller clears the simulation context."""
         cfg, sim = self.cfg, self.sim
+
         # Terms read sensor data in kernels, so sensors refresh every step rather than when their data is read.
         cfg.scene.lazy_sensor_update = False
         with use_stage(sim.stage):
@@ -61,6 +64,7 @@ class MDP2Env:
         with use_stage(sim.stage):
             sim.reset()
         self.scene.update(dt=self.physics_dt)
+
         sim.backend_manager.set_decimation(cfg.decimation)
         # Newton-native actuators step all substeps in one call.
         self._substeps = cfg.decimation if sim.backend_manager.handles_decimation() else 1
@@ -71,8 +75,12 @@ class MDP2Env:
         self.mdp = builder.finalize(device=self.device, backend=cfg.backend)
         self.state = self.mdp.state(self.scene_data, seed=cfg.seed or 0)
         self.transition = self.mdp.transition()
+
         self.actions = ProxyArray(wp.zeros((self.num_envs, self.mdp.action_dim), dtype=wp.float32, device=self.device))
         self._all_envs = ProxyArray(wp.ones(self.num_envs, dtype=wp.bool, device=self.device))
+        self.common_step_counter = 0
+        self.extras: dict[str, Any] = {}
+
         self._capturable = (
             cfg.capture
             and cfg.backend is mdp2.Backend.WARP
@@ -81,8 +89,6 @@ class MDP2Env:
         )
         self._graph = None
         self._stepped = False
-        self.common_step_counter = 0
-        self.extras: dict[str, Any] = {}
 
     @property
     def num_envs(self) -> int:
@@ -132,6 +138,7 @@ class MDP2Env:
     def _step_or_replay(self, action: torch.Tensor) -> None:
         """Run a control step: eagerly the first time, then as a CUDA graph if the MDP allows it."""
         self.actions.torch.copy_(action)
+
         if self._graph is None and self._capturable and self._stepped:
             # The first step loaded every kernel module, so the capture records launches only.
             self._graph = capture_graph(self.device, self._step)
@@ -139,15 +146,18 @@ class MDP2Env:
             wp.capture_launch(self._graph)
         else:
             self._step()
+
         self._stepped = True
         self.common_step_counter += 1
 
     def _step(self) -> None:
         mdp2.apply_actions(self.mdp, self.state, self.actions)
+
         for _ in range(self.cfg.decimation // self._substeps):
             self.scene.write_data_to_sim()
             self.sim.step(render=False)
             self.scene.update(dt=self.physics_dt * self._substeps)
+
         mdp2.evaluate(self.mdp, self.state, self.transition)
         self._reset(self.transition.done)
 
@@ -164,6 +174,7 @@ class MDP2Env:
                 env_mask=mask.warp, articulation_ids=asset.root_view.articulation_ids
             )
         self.sim.forward()
+
         mdp2.observe(self.mdp, self.state, self.transition.observations, mask)
 
 
@@ -183,6 +194,7 @@ class MDP2RLEnv(MDP2Env, gym.Env):
         super().__init__(cfg)
         self.render_mode = render_mode
         self.metadata = {**self.metadata, "render_fps": 1 / self.step_dt}
+
         self.single_observation_space = gym.spaces.Dict(
             {
                 group: gym.spaces.Box(low=-np.inf, high=np.inf, shape=(dim,))
@@ -194,7 +206,7 @@ class MDP2RLEnv(MDP2Env, gym.Env):
         self.action_space = gym.vector.utils.batch_space(self.single_action_space, self.num_envs)
 
     @property
-    def max_episode_length(self) -> int:
+    def max_episode_length(self) -> int | float:
         """Control steps until a time-out, from the task's time limit."""
         return self.mdp.max_episode_length or math.inf
 
@@ -219,6 +231,7 @@ class MDP2RLEnv(MDP2Env, gym.Env):
     def step(self, action: torch.Tensor) -> VecEnvStepReturn:
         """Apply the actions, step the physics, evaluate the MDP, reset the worlds that ended, and observe."""
         self._step_or_replay(action)
+
         transition = self.transition
         return (
             self.observations,

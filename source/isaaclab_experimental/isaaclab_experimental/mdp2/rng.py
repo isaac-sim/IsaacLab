@@ -27,12 +27,14 @@ def uniform(rng: torch.Tensor, low: float, high: float, shape: tuple[int, ...] =
     offsets = torch.arange(offset, offset + math.prod(shape), device=rng.device) & _UINT32
     state = _pcg(((rng.long()[:, None] & _UINT32) + _pcg(offsets)) & _UINT32)
     values = (_pcg(state) >> 8).float() * (1.0 / 16777216.0)
+
     low, span = np.float32(low), np.float32(high) - np.float32(low)
     # Warp contracts ``span * value + low`` to a fused multiply-add on CUDA only.
     if values.is_cuda:
         values = torch.addcmul(torch.full_like(values, low), torch.full_like(values, span), values)
     else:
         values = values * float(span) + float(low)
+
     return values.reshape(-1, *shape)
 
 
@@ -46,9 +48,8 @@ def advance(rng: torch.Tensor, mask: torch.Tensor | None = None) -> None:
 
 def streams(seed: int, names: tuple[str, ...], num_worlds: int, device: str) -> torch.Tensor:
     """Create initial streams of shape ``(len(names), num_worlds)``, seeded from each name and world index."""
-    keys = torch.tensor(
-        [(seed + zlib.crc32(name.encode())) & _UINT32 for name in names], dtype=torch.int64, device=device
-    )
+    name_seeds = [(seed + zlib.crc32(name.encode())) & _UINT32 for name in names]
+    keys = torch.tensor(name_seeds, dtype=torch.int64, device=device)
     worlds = torch.arange(num_worlds, device=device)
     return _int32(_pcg((keys[:, None] + _pcg(worlds)[None, :]) & _UINT32))
 
@@ -61,4 +62,5 @@ def _pcg(x: torch.Tensor) -> torch.Tensor:
 
 
 def _int32(x: torch.Tensor) -> torch.Tensor:
+    """Reinterpret ``uint32`` values held in ``int64`` as ``int32``."""
     return (((x + 2**31) & _UINT32) - 2**31).to(torch.int32)

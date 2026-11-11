@@ -19,7 +19,7 @@ import warp as wp
 
 from .plan import Launch
 
-_ARGUMENT = re.compile(r"\ba\d+\b")
+_ARGUMENT = re.compile(r"\ba\d+\b")  # Source names of kernel arguments, see Fusion.argument
 
 
 @dataclass(frozen=True)
@@ -72,6 +72,7 @@ class Fusion:
         self._mask = None if mask is None else self.argument(mask, wp.array(dtype=wp.bool), mask)
         self._blocks: list[tuple[tuple[int, ...], list[str]]] = []
         self._world: list[str] | None = None
+
         # Arguments that the world thread and the element threads touch and write in the current kernel.
         self._world_access = ThreadAccess()
         self._element_access = ThreadAccess()
@@ -105,17 +106,6 @@ class Fusion:
         self._join(self._element_access, [self._world_access, self._element_access], lines, writes)
         self._blocks.append((shape, list(lines)))
 
-    def _join(
-        self, access: ThreadAccess, others: list[ThreadAccess], lines: Iterable[str], writes: Iterable[Hashable]
-    ) -> None:
-        """Record what a statement reads and writes, starting a new kernel first if it would race with ``others``."""
-        touched = set(_ARGUMENT.findall("\n".join(lines)))
-        written = {self._arguments[key][0] for key in writes}
-        if any(touched & other.written or written & other.touched for other in others):
-            self._cut()
-        access.touched |= touched
-        access.written |= written
-
     def call(
         self,
         step: Callable[[Any], None],
@@ -128,22 +118,36 @@ class Fusion:
             self._cut()
         self._steps.append(Launch(step, capturable))
 
-    def _depends(self, reads: Iterable[Hashable], writes: Iterable[Hashable]) -> bool:
-        """Whether a hook and the statements of the current kernel read or write each other's arguments."""
-        read = {self._arguments[key][0] for key in reads if key in self._arguments}
-        written = {self._arguments[key][0] for key in writes if key in self._arguments}
-        accesses = (self._world_access, self._element_access)
-        return any(read & access.written or written & access.touched for access in accesses)
-
     def steps(self) -> tuple[Callable[[Any], None], ...]:
         """Return the generated kernels and hooks in launch order."""
         self._cut()
         return tuple(self._steps)
 
+    def _join(
+        self, access: ThreadAccess, others: list[ThreadAccess], lines: Iterable[str], writes: Iterable[Hashable]
+    ) -> None:
+        """Record what a statement reads and writes, starting a new kernel first if it would race with ``others``."""
+        touched = set(_ARGUMENT.findall("\n".join(lines)))
+        written = {self._arguments[key][0] for key in writes}
+        if any(touched & other.written or written & other.touched for other in others):
+            self._cut()
+
+        access.touched |= touched
+        access.written |= written
+
+    def _depends(self, reads: Iterable[Hashable], writes: Iterable[Hashable]) -> bool:
+        """Return whether a hook and the statements of the current kernel read or write each other's arguments."""
+        read = {self._arguments[key][0] for key in reads if key in self._arguments}
+        written = {self._arguments[key][0] for key in writes if key in self._arguments}
+        accesses = (self._world_access, self._element_access)
+        return any(read & access.written or written & access.touched for access in accesses)
+
     def _cut(self) -> None:
         """Generate a kernel from the pending blocks, and start a new one."""
         if not self._blocks:
             return
+
+        # Each block runs in a contiguous range of threads, ordered by world, then element.
         body, begin = [], 0
         for shape, lines in self._blocks:
             size = math.prod(shape)
@@ -152,23 +156,29 @@ class Fusion:
                 f"    local = thread - {begin} * worlds",
                 f"    world = local // {size}",
                 f"    element = local % {size}",
-                *(f"    i{d} = element // {math.prod(shape[d + 1 :])} % {n}" for d, n in enumerate(shape)),
+                *(
+                    f"    i{d} = element // {math.prod(shape[d + 1 :])} % {dim_size}"
+                    for d, dim_size in enumerate(shape)
+                ),
                 *([f"    if not {self._mask}[world]:", "        return"] if self._mask else []),
                 *(f"    {line}" for line in lines),
             ]
             begin += size
+
         used = set(_ARGUMENT.findall("\n".join(body)))
         arguments = [argument for argument in self._arguments.values() if argument[0] in used]
         signature = ", ".join(["worlds", *(name for name, _, _ in arguments)])
         source = "\n".join(
             [f"def {self.name}({signature}):", "    thread = wp.tid()", *(f"    {line}" for line in body), ""]
         )
+
         # Warp reads kernel source through linecache.
         filename = f"<mdp2 {hashlib.sha256(source.encode()).hexdigest()[:16]}>"
         linecache.cache[filename] = (len(source), None, source.splitlines(True), filename)
         exec(compile(source, filename, "exec"), self._namespace)
         function = self._namespace[self.name]
         function.__annotations__ = {"worlds": int, **{name: annotation for name, annotation, _ in arguments}}
+
         num_worlds = self.num_worlds
         self._steps.append(
             FusedKernel(
@@ -178,6 +188,7 @@ class Fusion:
                 device=self.device,
             )
         )
+
         self._blocks, self._world = [], None
         for access in (self._world_access, self._element_access):
             access.touched.clear()

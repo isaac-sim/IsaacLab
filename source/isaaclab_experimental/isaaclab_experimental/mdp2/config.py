@@ -37,6 +37,7 @@ class Constant(enum.Enum):
 
 
 step_dt = Constant.STEP_DT
+"""Duration of one control step [s], resolved by the builder."""
 
 
 class EventMode(enum.Enum):
@@ -87,9 +88,11 @@ class Entity:
         return FieldSelector(self.name, name, self.scene)
 
     def joints(self, *patterns: str) -> SubsetSelector:
+        """Select the joints whose names match any of the patterns."""
         return SubsetSelector(self.name, "joints", patterns)
 
     def bodies(self, *patterns: str) -> SubsetSelector:
+        """Select the bodies whose names match any of the patterns."""
         return SubsetSelector(self.name, "bodies", patterns)
 
 

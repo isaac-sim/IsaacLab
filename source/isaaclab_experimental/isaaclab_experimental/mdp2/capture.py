@@ -32,7 +32,9 @@ class CapturedMDP:
     def __init__(self, mdp: MDP, state: MDPState, transition: Transition, actions: ProxyArray, mask: ProxyArray):
         self.mdp = mdp
         self.num_graphs = 0  # CUDA graphs replayed by one call of each runtime function, summed over the functions
+        self._on_cuda = wp.get_device(mdp.device).is_cuda
         self._pool = torch.cuda.graph_pool_handle() if self._on_cuda and mdp.backend is Backend.TORCH else None
+
         launches = mdp.launches
         self._apply_actions = self._capture(launches.apply_actions, Call(state, actions=actions))
         self._evaluate = self._capture(
@@ -61,10 +63,6 @@ class CapturedMDP:
         for run in self._observe:
             run()
 
-    @property
-    def _on_cuda(self) -> bool:
-        return wp.get_device(self.mdp.device).is_cuda
-
     def _capture(self, launches: Sequence[Callable[[Call], None]], call: Call) -> list[Callable[[], None]]:
         """Capture each run of consecutive capturable launches as a graph, and bind the others to the call."""
         runs = []
@@ -72,7 +70,9 @@ class CapturedMDP:
             group = list(group)
             if not (capturable and self._on_cuda):
                 runs += [functools.partial(launch, call) for launch in group]
-            elif self.mdp.backend is Backend.WARP:
+                continue
+
+            if self.mdp.backend is Backend.WARP:
                 with wp.ScopedCapture(self.mdp.device) as capture:
                     for launch in group:
                         launch(call)
@@ -83,5 +83,6 @@ class CapturedMDP:
                     for launch in group:
                         launch(call)
                 runs.append(graph.replay)
-            self.num_graphs += capturable and self._on_cuda
+            self.num_graphs += 1
+
         return runs
