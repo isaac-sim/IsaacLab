@@ -39,6 +39,7 @@ __all__ = [
     "Termination",
     "TimeLimit",
     "Transition",
+    "WorldConfig",
     "apply_actions",
     "commands",
     "episode_length",
@@ -71,7 +72,7 @@ from .config import (
     episode_length,
     last_action,
 )
-from .mdp import MDP, Backend, MDPState, Transition
+from .mdp import MDP, Backend, MDPState, Transition, WorldConfig
 from .eager import TermContext
 from .plan import ExecutionPlan, Segment, Step, StepKind
 from .scene import EntitySchema, FieldSchema, PointMassScene, SceneData, SceneSchema

@@ -53,6 +53,12 @@ def _tick(
     return True
 
 
+@wp.kernel
+def _select(mask: wp.array(dtype=wp.bool), active: wp.array(dtype=wp.bool), selected: wp.array(dtype=wp.bool)):
+    world = wp.tid()
+    selected[world] = mask[world] and active[world]
+
+
 _RESULTS = {
     "rewards": (wp.array(dtype=wp.float32), lambda call: call.transition.rewards.warp),
     "terminated": (wp.array(dtype=wp.bool), lambda call: call.transition.terminated.warp),
@@ -86,7 +92,7 @@ def _apply_actions(mdp: MDP) -> tuple[Callable[[Call], None], ...]:
         value = f"{actions}[world, {op.columns.start} + element] * {code.constant(float, op.scale)}"
         code.elements(
             (op.columns.stop - op.columns.start,),
-            f"{target}[world, element] = {value} + {code.constant(float, op.offset)}",
+            *_under(_active(code, op), f"{target}[world, element] = {value} + {code.constant(float, op.offset)}"),
             writes=[op.target],
         )
     return code.steps()
@@ -139,17 +145,19 @@ def _emit(code: Fusion, mdp: MDP, steps: Iterable[Step]) -> None:
     for step in steps:
         op = step.op
         state = [(op.name, name) for name in op.state]
+        active = _active(code, op)
         match step.kind:
             case StepKind.COMPUTE:
-                _compute(code, mdp, op)
+                _compute(code, mdp, op, active)
             case StepKind.COMPUTE_IF_DUE:
-                _compute(code, mdp, op, [f"if {_due(code, mdp, op)}:"])
+                _compute(code, mdp, op, [*active, f"if {_due(code, mdp, op, active)}:"])
             case StepKind.UPDATE_STATE:
-                _run(code, mdp, op, op.update, state)
+                _run(code, mdp, op, op.update, state, active)
             case StepKind.RESET_TIMER:
-                code.world(f"{code.function(_restart)}({_timer(code, op)})", writes=[("timer", op.name)])
+                restart = f"{code.function(_restart)}({_timer(code, op)})"
+                code.world(*_under(active, restart), writes=[("timer", op.name)])
             case StepKind.RESET_STATE if op.reset is not None:
-                _run(code, mdp, op, op.reset, state, mask=_mask)
+                _run(code, mdp, op, op.reset, state, active, mask=_mask)
             case StepKind.RESET_STATE:
                 for name, spec in op.state.items():
                     values = code.argument(
@@ -160,11 +168,16 @@ def _emit(code: Fusion, mdp: MDP, steps: Iterable[Step]) -> None:
                         ),
                     )
                     fill = f"{code.function(_fill)}(world, {values}, {code.constant(float, spec.initial)})"
-                    code.world(fill, writes=[(op.name, name)])
+                    code.world(*_under(active, fill), writes=[(op.name, name)])
 
 
 def _compute(code: Fusion, mdp: MDP, op: TermOp, conditions: Sequence[str] = ()) -> None:
     """Compute an op into its destination, nested under ``conditions``."""
+    if op.worlds is not None and op.phase is Phase.RESET_EVENTS and not isinstance(op.compute, wp.Function):
+        # The hook gets the reset worlds where the op is active.
+        selected = lambda call: _selected(mdp, op, call)  # noqa: E731
+        _run(code, mdp, op, op.compute, op.writes, mask=selected)
+        return
     match op.phase:
         case Phase.TERMINATIONS:
             writes = ["truncated" if op.time_out else "terminated", "done"]
@@ -173,7 +186,7 @@ def _compute(code: Fusion, mdp: MDP, op: TermOp, conditions: Sequence[str] = ())
             if mdp.diagnostics:
                 lines.append(f"{_result(code, 'termination_terms')}[world, {op.index}] = ended")
                 writes.append("termination_terms")
-            code.world(*lines, writes=writes)
+            code.world(*_under(conditions, *lines), writes=writes)
         case Phase.REWARDS:
             weights = code.argument(
                 "reward_weights", wp.array(dtype=wp.float32), lambda call: call.state.reward_weights.warp
@@ -185,23 +198,24 @@ def _compute(code: Fusion, mdp: MDP, op: TermOp, conditions: Sequence[str] = ())
             if mdp.diagnostics:
                 lines.append(f"{_result(code, 'reward_terms')}[world, {op.index}] = reward")
                 writes.append("reward_terms")
-            code.world(*lines, writes=writes)
+            code.world(*_under(conditions, *lines), writes=writes)
         case Phase.COMMANDS:
             target = _field(code, op.writes[0], wp.array(dtype=wp.float32, ndim=1 + len(op.shape)))
             value = _value(code, mdp, op)
             loops = [f"for i{d} in range({n}):" for d, n in enumerate(op.shape)]
             code.world(*_under([*conditions, *loops], f"{target}[{_index(op.shape)}] = {value}"), writes=op.writes)
         case Phase.INTERVAL_EVENTS:
-            _run(code, mdp, op, op.compute, op.writes, conditions, lambda call: call.state.due[op.name])
+            _run(code, mdp, op, op.compute, op.writes, conditions, lambda call: call.state.selected[op.name])
         case Phase.RESET_EVENTS:
-            _run(code, mdp, op, op.compute, op.writes, mask=_mask)
+            _run(code, mdp, op, op.compute, op.writes, conditions, mask=_mask)
         case Phase.OBSERVATIONS:
             out = code.argument(
                 ("observations", op.group),
                 wp.array2d(dtype=wp.float32),
                 lambda call: call.observations[op.group].warp,
             )
-            code.elements(op.shape, f"{out}[world, {op.columns.start} + element] = {_value(code, mdp, op)}")
+            line = f"{out}[world, {op.columns.start} + element] = {_value(code, mdp, op)}"
+            code.elements(op.shape, *_under(conditions, line))
 
 
 def _run(
@@ -266,14 +280,30 @@ def _call(code: Fusion, op: TermOp, hook: wp.Function, shape: tuple[int, ...] = 
     return f"{code.function(hook)}({', '.join(values)})"
 
 
-def _due(code: Fusion, mdp: MDP, op: TermOp) -> str:
+def _due(code: Fusion, mdp: MDP, op: TermOp, active: Sequence[str]) -> str:
     """Return source that counts down an op's timer and is true where it expired. Function hooks get a mask."""
     tick = f"{code.function(_tick)}({_timer(code, op)}, {code.constant(float, mdp.step_dt)})"
     if isinstance(op.compute, wp.Function):
         return tick
-    due = code.argument(("due", op.name), wp.array(dtype=wp.bool), lambda call: call.state.due[op.name])
-    code.world(f"{due}[world] = {tick}", writes=[("timer", op.name), ("due", op.name)])
+    due = code.argument(("selected", op.name), wp.array(dtype=wp.bool), lambda call: call.state.selected[op.name])
+    code.world(*_under(active, f"{due}[world] = {tick}"), writes=[("timer", op.name), ("selected", op.name)])
     return f"{due}[world]"
+
+
+def _active(code: Fusion, op: TermOp) -> list[str]:
+    """Return the condition under which an op's statements run, if it is active in only some worlds."""
+    if op.worlds is None:
+        return []
+    active = code.argument(("active", op.name), wp.array(dtype=wp.bool), lambda call: call.state.active[op.name].warp)
+    return [f"if {active}[world]:"]
+
+
+def _selected(mdp: MDP, op: TermOp, call: Call) -> wp.array:
+    """Write the reset worlds where an op is active to its selected buffer, and return the buffer."""
+    selected = call.state.selected[op.name]
+    inputs = [call.mask.warp, call.state.active[op.name].warp]
+    wp.launch(_select, dim=mdp.num_worlds, inputs=inputs, outputs=[selected], device=mdp.device)
+    return selected
 
 
 def _timer(code: Fusion, op: TermOp) -> str:
@@ -296,7 +326,7 @@ def _result(code: Fusion, key: str) -> str:
 def _accesses(op: TermOp) -> tuple[set[Hashable], set[Hashable]]:
     """Keys of the kernel arguments that a hook of an op may read and write, for :meth:`Fusion.call`."""
     state = {(op.name, name) for name in op.state}
-    reads = {*op.inputs.values(), *state, ("due", op.name), *(["rng"] if op.random else [])}
+    reads = {*op.inputs.values(), *state, ("selected", op.name), *(["rng"] if op.random else [])}
     return reads, {*op.writes, *state, ("scratch", op.name)}
 
 

@@ -12,6 +12,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
+import numpy as np
 import warp as wp
 
 from isaaclab.utils.warp import ProxyArray
@@ -44,7 +45,8 @@ class MDPState:
     scratch: dict[
         str, ProxyArray
     ]  # (num_worlds, *shape) outputs of eager terms, and of Warp functions that launch kernels
-    due: dict[str, wp.array]  # (num_worlds,) per timed op, whether its timer expired this step
+    selected: dict[str, wp.array]  # (num_worlds,) per timed or masked event op: the worlds its hook acts on
+    active: dict[str, ProxyArray]  # (num_worlds,) per op active in only some worlds: where it is active
 
 
 @dataclass
@@ -58,6 +60,15 @@ class Transition:
     observations: dict[str, ProxyArray]  # Successor observations before resets, (num_worlds, group_dim) per group
     reward_terms: ProxyArray | None = None  # (num_worlds, num_rewards) weighted rewards, only with diagnostics
     termination_terms: ProxyArray | None = None  # (num_worlds, num_terminations) flags, only with diagnostics
+
+
+@dataclass(frozen=True)
+class WorldConfig:
+    """Worlds that run one task config, and the columns of the padded buffers that its terms use."""
+
+    worlds: range
+    action_dim: int  # Columns of the actions it uses, from the first; the others are padding
+    observation_dims: Mapping[str, int]  # Columns of each observation group it uses, from the first
 
 
 @dataclass(frozen=True)
@@ -75,6 +86,7 @@ class MDP:
     streams: tuple[str, ...]  # Op names of the rows of MDPState.rng
     subsets: Mapping[SubsetSelector, tuple[int, ...]]  # Indices of every selected subset
     diagnostics: bool  # Whether evaluate also writes the reward and termination of every term
+    world_configs: tuple[WorldConfig, ...]  # One per replicated builder, or one for every world
     launches: Launches | None = None  # Set by finalize, None for an MDP that was only validated
 
     @property
@@ -131,6 +143,11 @@ class MDP:
                     details += [f"every {op.timer[0]}-{op.timer[1]} s"] if op.timer is not None else []
                     details += [f"state {', '.join(op.state)}"] if op.state else []
                     details += [f"stream {op.stream}"] if op.stream is not None else []
+                if op.worlds is not None:
+                    contiguous = op.worlds == tuple(range(op.worlds[0], op.worlds[-1] + 1))
+                    details.append(
+                        f"worlds {op.worlds[0]}-{op.worlds[-1]}" if contiguous else f"worlds {list(op.worlds)}"
+                    )
                 lines.append(f"  {op.name:{width}}  {', '.join(details)}")
         for function, function_segments in self.segments.items():
             lines += [f"{function} steps"] if function_segments else []
@@ -192,7 +209,19 @@ class MDP:
                 if op.phase not in (Phase.INTERVAL_EVENTS, Phase.RESET_EVENTS)
                 and (op.eager or self.backend is Backend.WARP and not isinstance(op.compute, wp.Function))
             },
-            due={op.name: wp.zeros(self.num_worlds, dtype=wp.bool, device=self.device) for op in timed},
+            selected={
+                op.name: wp.zeros(self.num_worlds, dtype=wp.bool, device=self.device)
+                for op in self.term_ops
+                if op.timer is not None or (op.worlds is not None and op.phase is Phase.RESET_EVENTS)
+            },
+            active={
+                op.name: ProxyArray(
+                    wp.array(np.isin(np.arange(self.num_worlds), op.worlds), dtype=wp.bool, device=self.device)
+                )
+                for ops in self.ops.values()
+                for op in ops
+                if op.worlds is not None
+            },
         )
 
     def observations(self) -> dict[str, ProxyArray]:

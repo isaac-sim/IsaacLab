@@ -252,6 +252,18 @@ def make_task(
     random: bool = False,
     eager: bool = False,
 ) -> tuple[mdp2.MDP, mdp2.MDPState]:
+    """Finalize the task of :func:`make_builder` and create its state."""
+    mdp = make_builder(scene.schema, episode_length_s, random, eager).finalize(device=DEVICE, backend=backend)
+    return mdp, mdp.state(scene)
+
+
+def make_builder(
+    schema: mdp2.SceneSchema,
+    episode_length_s: float = 1.0,
+    random: bool = False,
+    eager: bool = False,
+    joint_pos_weight: float = -10.0,
+) -> mdp2.MDPBuilder:
     """A point-mass task. With ``random``, it also has a command, noisy observations, and events.
 
     With ``eager``, the joint position penalty and the reset event are eager terms.
@@ -269,7 +281,9 @@ def make_task(
         rewards={
             "alive": mdp2.Reward(is_alive, inputs={"joint_pos": robot.joint_pos}),
             "joint_pos_l2": mdp2.Reward(
-                eager_joint_pos_l2 if eager else joint_pos_l2, inputs={"joint_pos": robot.joint_pos}, weight=-10.0
+                eager_joint_pos_l2 if eager else joint_pos_l2,
+                inputs={"joint_pos": robot.joint_pos},
+                weight=joint_pos_weight,
             ),
             "disabled": None,
         },
@@ -282,7 +296,7 @@ def make_task(
             ),
         },
     )
-    builder = mdp2.MDPBuilder(scene.schema)
+    builder = mdp2.MDPBuilder(schema)
     builder.add_task(task)
     if random:
         builder.add_command("target", mdp2.Command(uniform_command, resampling_time_range=(0.02, 0.06)))
@@ -305,8 +319,7 @@ def make_task(
                 outputs={"joint_pos": robot.joint_pos},
             ),
         )
-    mdp = builder.finalize(device=DEVICE, backend=backend)
-    return mdp, mdp.state(scene)
+    return builder
 
 
 def env_step(mdp, state, scene, actions, transition) -> dict[str, torch.Tensor]:
@@ -736,3 +749,75 @@ def test_captured_mdp_replays_like_eager_calls():
         num_segments = sum(segment.capturable for function in mdp.segments.values() for segment in function)
         assert captured.num_graphs == num_segments if backend == "torch" else captured.num_graphs < num_segments
         assert torch.equal(runs[1], runs[0])
+
+
+def test_world_configs_report_errors():
+    schema = mdp2.PointMassScene(num_worlds=4).schema
+    builder = mdp2.MDPBuilder(schema)
+    builder.replicate(make_builder(schema, episode_length_s=1.0), 2)
+    builder.replicate(make_builder(schema, episode_length_s=2.0), 1)
+    builder.add_reward("alive", mdp2.Reward(is_alive, inputs={"joint_pos": robot.joint_pos}))
+
+    with pytest.raises(ValueError) as error:
+        builder.validate()
+
+    message = str(error.value)
+    assert "Add term uses to the replicated builders" in message
+    assert "The world configs cover 3 of 4 worlds" in message
+    assert "The world configs must share one time limit" in message
+
+
+def test_world_configs_match_single_config_runs():
+    """Each world of a mixed MDP gives bitwise the results of its config's MDP run alone, with zero padding."""
+    num_worlds, split = 6, 3
+    for backend in ("torch", "warp"):
+        scene = mdp2.PointMassScene(num_worlds=num_worlds, joint_names=("x", "y"), device=DEVICE)
+        configs = [
+            make_builder(scene.schema, episode_length_s=0.2, random=True),
+            make_builder(scene.schema, episode_length_s=0.2, joint_pos_weight=-1.0),
+        ]
+        mixed = mdp2.MDPBuilder(scene.schema)
+        mixed.replicate(configs[0], split)
+        mixed.replicate(configs[1], num_worlds - split)
+        builders = [*configs, mixed]
+
+        runs = []
+        for builder in builders:
+            scene = mdp2.PointMassScene(num_worlds=num_worlds, joint_names=("x", "y"), device=DEVICE)
+            mdp = builder.finalize(device=DEVICE, backend=backend)
+            state, transition = mdp.state(scene), mdp.transition()
+            env_reset(
+                mdp, state, scene, transition.observations, torch.ones(num_worlds, dtype=torch.bool, device=DEVICE)
+            )
+            generator = torch.Generator(device=DEVICE).manual_seed(0)
+            history = []
+            for _ in range(15):
+                actions = torch.randn(num_worlds, 2, device=DEVICE, generator=generator) * 0.5
+                env_step(mdp, state, scene, actions, transition)
+                history.append(
+                    {
+                        "results": torch.stack(
+                            [transition.rewards.torch, transition.terminated.torch, transition.truncated.torch], 1
+                        ),
+                        **{group: values.torch.clone() for group, values in transition.observations.items()},
+                    }
+                )
+            runs.append((mdp, history))
+
+        (first, first_run), (second, second_run), (mixed_mdp, mixed_run) = runs
+        names = {op.name: op.worlds for ops in mixed_mdp.ops.values() for op in ops}
+        assert names["rewards.alive"] is None  # a use both configs share runs once, in every world
+        assert names["rewards.joint_pos_l2[0]"] == (0, 1, 2) and names["rewards.joint_pos_l2[1]"] == (3, 4, 5)
+        assert [config.observation_dims["policy"] for config in mixed_mdp.world_configs] == [
+            first.observation_dims["policy"],
+            second.observation_dims["policy"],
+        ]
+        width = second.observation_dims["policy"]
+        for alone, worlds, mixed_step in [
+            *((step, slice(0, split), mixed_step) for step, mixed_step in zip(first_run, mixed_run)),
+            *((step, slice(split, None), mixed_step) for step, mixed_step in zip(second_run, mixed_run)),
+        ]:
+            for key, values in alone.items():
+                assert torch.equal(mixed_step[key][worlds, : values.shape[1]], values[worlds])
+        for mixed_step in mixed_run:
+            assert (mixed_step["policy"][split:, width:] == 0.0).all() and (mixed_step["noisy"][split:] == 0.0).all()

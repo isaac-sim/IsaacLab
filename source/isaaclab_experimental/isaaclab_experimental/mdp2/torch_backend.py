@@ -35,7 +35,10 @@ def _apply_actions(mdp: MDP, call: Call) -> None:
     call.state.actions.torch.copy_(actions)
     for step in mdp.plan.apply_actions:
         op = step.op
-        call.state.fields[op.target].torch.copy_(actions[:, op.columns] * op.scale + op.offset)
+        target = call.state.fields[op.target].torch.view(mdp.num_worlds, -1)
+        value = actions[:, op.columns] * op.scale + op.offset
+        active = call.state.active.get(op.name)
+        target.copy_(value if active is None else torch.where(active.torch[:, None], value, target))
 
 
 def _begin_evaluate(mdp: MDP, call: Call) -> None:
@@ -60,14 +63,18 @@ def _begin_reset(call: Call) -> None:
 
 
 def _run(mdp: MDP, step: Step, call: Call) -> None:
-    """Run one step, for the masked worlds if the call has a mask."""
+    """Run one step, for the masked worlds if the call has a mask, and only where the op is active."""
     op, state = step.op, call.state
     mask = None if call.mask is None else call.mask.torch
+    active = state.active.get(op.name)
+    if active is not None:
+        mask = active.torch if mask is None else mask & active.torch
     match step.kind:
         case StepKind.COMPUTE:
             _compute(mdp, op, call, mask)
         case StepKind.COMPUTE_IF_DUE:
-            _compute(mdp, op, call, _tick(mdp, op, state))
+            due = _tick(mdp, op, state)
+            _compute(mdp, op, call, due if active is None else due & active.torch)
         case StepKind.UPDATE_STATE:
             op.update(**state.arguments[op.name])
         case StepKind.RESET_TIMER:
@@ -94,6 +101,8 @@ def _compute(mdp: MDP, op: TermOp, call: Call, mask: torch.Tensor | None) -> Non
         value = state.scratch[op.name].torch
     else:
         value = op.compute(**state.arguments[op.name])
+    if mask is not None and op.phase in (Phase.TERMINATIONS, Phase.REWARDS):
+        value = torch.where(mask, value, torch.zeros_like(value))
     match op.phase:
         case Phase.TERMINATIONS:
             flags = transition.truncated if op.time_out else transition.terminated

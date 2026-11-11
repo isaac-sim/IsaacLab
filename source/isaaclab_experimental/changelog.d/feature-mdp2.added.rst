@@ -16,4 +16,7 @@
   runs, and ``finalize(diagnostics=True)`` also reports the reward and termination of every term. Terms that cannot
   run inside a CUDA graph are eager terms, ``Term(eager=fn)``, or set ``capturable=False``;
   :class:`~isaaclab_experimental.mdp2.CapturedMDP` replays the runtime functions as CUDA graphs and runs those
-  terms between the graphs.
+  terms between the graphs. With
+  :meth:`~isaaclab_experimental.mdp2.MDPBuilder.replicate`, one MDP runs different task configs in different
+  worlds of one scene: uses the configs share run once, the others only in their worlds, and actions and
+  observations are padded to the widest config.

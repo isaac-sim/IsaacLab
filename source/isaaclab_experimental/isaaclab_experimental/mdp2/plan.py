@@ -36,13 +36,15 @@ class ActionOp:
     columns: slice  # Columns of the action
     scale: float
     offset: float
+    worlds: tuple[int, ...] | None = None  # Worlds where the op is active, None for every world
 
 
 @dataclass(frozen=True)
 class TermOp:
     """Compiled term use for one backend."""
 
-    name: str
+    name: str  # Unique among the ops; the use's name, with a suffix if other world configs define it differently
+    use: str  # Name of the term use, such as "rewards.alive", which keys its random stream
     phase: Phase
     index: int  # Position among the ops of its phase
     compute: Callable
@@ -63,6 +65,7 @@ class TermOp:
     random: bool = False  # Whether the term draws from its stream
     capturable: bool = True  # Whether its hooks may run inside a CUDA graph
     eager: bool = False  # Whether ``compute`` is an eager term's ``fn(ctx, **params)``, see :mod:`.eager`
+    worlds: tuple[int, ...] | None = None  # Worlds where the op is active, None for every world
 
 
 class StepKind(enum.Enum):

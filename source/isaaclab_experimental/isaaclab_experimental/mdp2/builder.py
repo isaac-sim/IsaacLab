@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import collections
 import inspect
 import itertools
 import math
@@ -37,7 +38,7 @@ from .config import (
     episode_length,
     last_action,
 )
-from .mdp import MDP, Backend
+from .mdp import MDP, Backend, WorldConfig
 from .plan import ActionOp, Segment, TermOp, build_plan
 from .scene import SceneSchema
 from .terms import Implementation
@@ -114,6 +115,18 @@ class MDPBuilder:
     def __init__(self, schema: SceneSchema):
         self.schema = schema
         self._entries: dict[tuple[str, ...], ScheduleEntry] = {}
+        self._world_configs: list[tuple[tuple[ScheduleEntry, ...], range]] = []  # Schedules of replicated builders
+
+    def replicate(self, builder: MDPBuilder, num_worlds: int) -> None:
+        """Run the task of another builder in the next ``num_worlds`` worlds.
+
+        The builder's schedule is copied, so later edits to it do not apply. Once worlds are assigned, every world
+        must be, and term uses are added to the replicated builders rather than to this one.
+        """
+        if builder.schema != self.schema:
+            raise ValueError("A replicated builder must be built against the same scene schema.")
+        start = self._world_configs[-1][1].stop if self._world_configs else 0
+        self._world_configs.append((builder.schedule(), range(start, start + num_worlds)))
 
     def add_task(self, task: TaskCfg) -> None:
         """Add all term uses of a task in declaration order, skipping uses set to ``None``."""
@@ -223,10 +236,81 @@ class MDPBuilder:
         return replace(mdp, launches=backend_module.compile_launches(mdp))
 
     def _compile(self, device: str, backend: Backend, diagnostics: bool = False) -> MDP:
-        context = CompileContext(backend, _dependency_errors(self.schedule()))
+        """Compile the schedule of each world config, then merge their ops, sharing the ones they have in common."""
+        configs = self._world_configs or [(self.schedule(), range(self.schema.num_worlds))]
+        errors = []
+        if self._world_configs and self._entries:
+            errors.append("Add term uses to the replicated builders, not to the builder that replicates them.")
+        if configs[-1][1].stop != self.schema.num_worlds:
+            errors.append(f"The world configs cover {configs[-1][1].stop} of {self.schema.num_worlds} worlds.")
+        contexts = []
+        for index, (schedule, worlds) in enumerate(configs):
+            context, time_limit = self._compile_schedule(schedule, backend)
+            prefix = f"world config {index} ({worlds.start}-{worlds.stop - 1}): " if len(configs) > 1 else ""
+            errors += [prefix + error for error in context.errors]
+            contexts.append((context, time_limit, worlds))
+        time_limits = {time_limit for _, time_limit, _ in contexts}
+        if len(time_limits) > 1:
+            errors.append(f"The world configs must share one time limit, found {sorted(map(str, time_limits))} s.")
+        command_shapes = {}
+        for context, _, _ in contexts:
+            for op in context.ops[Phase.COMMANDS]:
+                if command_shapes.setdefault(op.writes[0], op.shape) != op.shape:
+                    errors.append(f"The world configs give '{op.writes[0]}' different shapes.")
+        if errors:
+            raise ValueError("Invalid MDP:\n  " + "\n  ".join(errors))
+        ops = MappingProxyType(_merge_ops([(context.ops, worlds) for context, _, worlds in contexts], self.schema))
+        streams = tuple(
+            dict.fromkeys(
+                op.use
+                for phase, phase_ops in ops.items()
+                if phase is not Phase.ACTIONS
+                for op in phase_ops
+                if op.stream is not None
+            )
+        )
+        ops = MappingProxyType(
+            {
+                phase: tuple(
+                    op if phase is Phase.ACTIONS or op.stream is None else replace(op, stream=streams.index(op.use))
+                    for op in phase_ops
+                )
+                for phase, phase_ops in ops.items()
+            }
+        )
+        time_limit = time_limits.pop()
+        return MDP(
+            schema=self.schema,
+            device=device,
+            backend=backend,
+            ops=ops,
+            plan=build_plan(ops),
+            action_dim=max(context.action_dim for context, _, _ in contexts),
+            observation_dims=MappingProxyType(
+                {
+                    group: max(context.observation_dims.get(group, 0) for context, _, _ in contexts)
+                    for context, _, _ in contexts
+                    for group in context.observation_dims
+                }
+            ),
+            max_episode_length=None if time_limit is None else math.ceil(time_limit / self.schema.step_dt),
+            streams=streams,
+            subsets=MappingProxyType({k: v for context, _, _ in contexts for k, v in context.subsets.items()}),
+            diagnostics=diagnostics,
+            world_configs=tuple(
+                WorldConfig(worlds, context.action_dim, MappingProxyType(context.observation_dims))
+                for context, _, worlds in contexts
+            ),
+        )
+
+    def _compile_schedule(
+        self, schedule: tuple[ScheduleEntry, ...], backend: Backend
+    ) -> tuple[CompileContext, float | None]:
+        """Compile the ops of one world config, and return them with its episode length in seconds."""
+        context = CompileContext(backend, _dependency_errors(schedule))
         time_limits = []
         # Actions and commands compile first, so that terms of earlier phases can read them.
-        for entry in sorted(self.schedule(), key=lambda entry: entry.phase not in (Phase.ACTIONS, Phase.COMMANDS)):
+        for entry in sorted(schedule, key=lambda entry: entry.phase not in (Phase.ACTIONS, Phase.COMMANDS)):
             if isinstance(entry.cfg, TimeLimit):
                 time_limits.append(entry)
             elif isinstance(entry.cfg, DirectAction):
@@ -235,24 +319,7 @@ class MDPBuilder:
                 self._compile_term(entry, context)
         if len(time_limits) > 1:
             context.errors.append(f"Only one time limit is allowed, found {', '.join(map(str, time_limits))}.")
-        if context.errors:
-            raise ValueError("Invalid MDP:\n  " + "\n  ".join(context.errors))
-        ops = MappingProxyType({phase: tuple(ops) for phase, ops in context.ops.items()})
-        return MDP(
-            schema=self.schema,
-            device=device,
-            backend=backend,
-            ops=ops,
-            plan=build_plan(ops),
-            action_dim=context.action_dim,
-            observation_dims=MappingProxyType(context.observation_dims),
-            max_episode_length=math.ceil(time_limits[0].cfg.episode_length_s / self.schema.step_dt)
-            if time_limits
-            else None,
-            streams=tuple(context.streams),
-            subsets=MappingProxyType(context.subsets),
-            diagnostics=diagnostics,
-        )
+        return context, time_limits[0].cfg.episode_length_s if time_limits else None
 
     def _add(self, entry: ScheduleEntry) -> ScheduleEntry:
         if entry.path in self._entries:
@@ -384,6 +451,7 @@ class MDPBuilder:
         context.ops[cfg.phase].append(
             TermOp(
                 name=str(entry),
+                use=str(entry),
                 phase=cfg.phase,
                 index=len(context.ops[cfg.phase]),
                 compute=implementation.compute,
@@ -511,3 +579,42 @@ def _dependency_errors(schedule: tuple[ScheduleEntry, ...] | list[ScheduleEntry]
                 if selector in writer.writes:
                     errors.append(f"'{reader}' reads '{selector}', so it must run after '{writer}', which writes it.")
     return errors
+
+
+def _merge_ops(
+    configs: list[tuple[dict[Phase, list], range]], schema: SceneSchema
+) -> dict[Phase, tuple[ActionOp | TermOp, ...]]:
+    """Merge the ops of the world configs, phase by phase, keeping the order of each config.
+
+    An op equal to one of another config that is still ahead in the merged order becomes one op active in the worlds
+    of both. Other ops with the same name get a suffix with the index of their config.
+    """
+    merged: dict[Phase, list[list]] = {phase: [] for phase in Phase}  # Per phase: [op, worlds, config index]
+    for index, (ops, worlds) in enumerate(configs):
+        for phase in Phase:
+            phase_ops, cursor, unshared = merged[phase], 0, []
+            for op in ops[phase]:
+                key = op if phase is Phase.ACTIONS else replace(op, index=0, stream=op.stream is not None)
+                match = next((i for i in range(cursor, len(phase_ops)) if phase_ops[i][0] == key), None)
+                if match is None:
+                    unshared.append([key, list(worlds), index])
+                    continue
+                # Ops of this config that no other config shares go just before its next shared op.
+                phase_ops[match:match] = unshared
+                match += len(unshared)
+                phase_ops[match][1] += worlds
+                cursor, unshared = match + 1, []
+            phase_ops += unshared
+    result = {}
+    for phase, phase_ops in merged.items():
+        counts = collections.Counter(op.name for op, _, _ in phase_ops)
+        result[phase] = tuple(
+            replace(
+                op,
+                **({} if phase is Phase.ACTIONS else {"index": position, "stream": 0 if op.stream else None}),
+                name=op.name if counts[op.name] == 1 else f"{op.name}[{index}]",
+                worlds=None if len(worlds) == schema.num_worlds else tuple(sorted(worlds)),
+            )
+            for position, (op, worlds, index) in enumerate(phase_ops)
+        )
+    return result
