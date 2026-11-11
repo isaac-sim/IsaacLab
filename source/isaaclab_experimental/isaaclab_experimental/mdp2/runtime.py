@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from isaaclab.utils.warp import ProxyArray
 
-from .mdp import MDP, MDPState, Transition
+from .compiled import MDP, MDPState, Transition
 from .plan import Call
 
 

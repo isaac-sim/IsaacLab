@@ -10,9 +10,9 @@ from pathlib import Path
 
 import pytest
 import torch
-import warp as wp
 from isaaclab_experimental import mdp2
 from isaaclab_experimental.envs import MDP2RLEnv, MDP2RLEnvCfg
+from isaaclab_experimental.mdp2 import mdp
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 
 import isaaclab.sim as sim_utils
@@ -27,111 +27,19 @@ CARTPOLE_USD = Path(__file__).parents[3] / "isaaclab_newton/test/assets/data/fix
 NUM_ENVS = 16
 
 
-@wp.func
-def joint_pos_rel_warp(
-    world: int, joint: int, joint_pos: wp.array2d(dtype=float), default_joint_pos: wp.array2d(dtype=float)
-) -> float:
-    return joint_pos[world, joint] - default_joint_pos[world, joint]
-
-
-@wp.func
-def is_alive_warp(world: int, joint_pos: wp.array2d(dtype=float)) -> float:
-    return 1.0
-
-
-@wp.func
-def joint_pos_target_l2_warp(
-    world: int, joint_pos: wp.array2d(dtype=float), joint_ids: wp.array(dtype=wp.int32), target: float
-) -> float:
-    total = float(0.0)
-    for k in range(joint_ids.shape[0]):
-        error = joint_pos[world, joint_ids[k]] - target
-        total += error * error
-    return total
-
-
-@wp.func
-def joint_vel_l1_warp(world: int, joint_vel: wp.array2d(dtype=float), joint_ids: wp.array(dtype=wp.int32)) -> float:
-    total = float(0.0)
-    for k in range(joint_ids.shape[0]):
-        total += wp.abs(joint_vel[world, joint_ids[k]])
-    return total
-
-
-@wp.func
-def joint_pos_out_of_manual_limit_warp(
-    world: int, joint_pos: wp.array2d(dtype=float), joint_ids: wp.array(dtype=wp.int32), bounds: wp.vec2
-) -> bool:
-    outside = bool(False)
-    for k in range(joint_ids.shape[0]):
-        value = joint_pos[world, joint_ids[k]]
-        outside = outside or value < bounds[0] or value > bounds[1]
-    return outside
-
-
-@wp.func
-def reset_joints_by_offset_warp(
-    world: int,
-    joint_pos: wp.array2d(dtype=float),
-    joint_vel: wp.array2d(dtype=float),
-    default_joint_pos: wp.array2d(dtype=float),
-    default_joint_vel: wp.array2d(dtype=float),
-    joint_ids: wp.array(dtype=wp.int32),
-    position_range: wp.vec2,
-    velocity_range: wp.vec2,
-    rng: wp.int32,
-):
-    count = joint_ids.shape[0]
-    for k in range(count):
-        joint = joint_ids[k]
-        position = wp.randf(wp.rand_init(rng, k), position_range[0], position_range[1])
-        velocity = wp.randf(wp.rand_init(rng, count + k), velocity_range[0], velocity_range[1])
-        joint_pos[world, joint] = default_joint_pos[world, joint] + position
-        joint_vel[world, joint] = default_joint_vel[world, joint] + velocity
-
-
-def reset_joints_by_offset_torch(
-    mask, joint_pos, joint_vel, default_joint_pos, default_joint_vel, joint_ids, rng, *, position_range, velocity_range
-):
-    ids = joint_ids.long()
-    position = mdp2.uniform(rng, *position_range, ids.shape)
-    velocity = mdp2.uniform(rng, *velocity_range, ids.shape, offset=len(ids))
-    joint_pos[:, ids] = torch.where(mask[:, None], default_joint_pos[:, ids] + position, joint_pos[:, ids])
-    joint_vel[:, ids] = torch.where(mask[:, None], default_joint_vel[:, ids] + velocity, joint_vel[:, ids])
-
-
-joint_pos_rel = mdp2.Term(
-    torch=lambda joint_pos, default_joint_pos: joint_pos - default_joint_pos,
-    warp=joint_pos_rel_warp,
-    shape=("worlds", "joints"),
-)
-is_alive = mdp2.Term(torch=lambda joint_pos: torch.ones_like(joint_pos[:, 0]), warp=is_alive_warp)
-joint_pos_target_l2 = mdp2.Term(
-    torch=lambda joint_pos, joint_ids, *, target: (joint_pos[:, joint_ids.long()] - target).square().sum(-1),
-    warp=joint_pos_target_l2_warp,
-)
-joint_vel_l1 = mdp2.Term(
-    torch=lambda joint_vel, joint_ids: joint_vel[:, joint_ids.long()].abs().sum(-1), warp=joint_vel_l1_warp
-)
-joint_pos_out_of_manual_limit = mdp2.Term(
-    torch=lambda joint_pos, joint_ids, *, bounds: (
-        (joint_pos[:, joint_ids.long()] < bounds[0]) | (joint_pos[:, joint_ids.long()] > bounds[1])
-    ).any(-1),
-    warp=joint_pos_out_of_manual_limit_warp,
-)
-reset_joints_by_offset = mdp2.Term(torch=reset_joints_by_offset_torch, warp=reset_joints_by_offset_warp, random=True)
-
 robot = mdp2.Entity("robot")
-cart, pole = robot.joints("slider_to_cart"), robot.joints("cart_to_pole")
+cart, pole, joints = robot.joints("slider_to_cart"), robot.joints("cart_to_pole"), robot.joints(".*")
 
 
-def reset_joints(joints: mdp2.SubsetSelector, position_range: tuple, velocity_range: tuple) -> mdp2.Event:
+def reset_joints(subset: mdp2.SubsetSelector, position_range: tuple, velocity_range: tuple) -> mdp2.Event:
     return mdp2.Event(
-        reset_joints_by_offset,
+        mdp.reset_joints_by_offset,
         inputs={
             "default_joint_pos": robot.default_joint_pos,
             "default_joint_vel": robot.default_joint_vel,
-            "joint_ids": joints,
+            "soft_joint_pos_limits": robot.soft_joint_pos_limits,
+            "soft_joint_vel_limits": robot.soft_joint_vel_limits,
+            "joint_ids": subset,
         },
         outputs={"joint_pos": robot.joint_pos, "joint_vel": robot.joint_vel},
         params={"position_range": position_range, "velocity_range": velocity_range},
@@ -139,7 +47,7 @@ def reset_joints(joints: mdp2.SubsetSelector, position_range: tuple, velocity_ra
 
 
 def cartpole_cfg(backend: str = "warp", capture: bool = True) -> MDP2RLEnvCfg:
-    """The Cartpole task of ``Isaac-Cartpole``, on the fixed Cartpole of the Newton tests."""
+    """The Cartpole task of ``Isaac-Cartpole``, on the fixed Cartpole of the Newton tests, with a 1 s episode."""
     scene = InteractiveSceneCfg(num_envs=NUM_ENVS, env_spacing=4.0)
     scene.robot = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/Robot",
@@ -153,37 +61,49 @@ def cartpole_cfg(backend: str = "warp", capture: bool = True) -> MDP2RLEnvCfg:
             ),
         },
     )
-    joint_state = {"default_joint_pos": robot.default_joint_pos}
+    terminated = {"terminated": mdp2.terminated}
     task = mdp2.TaskCfg(
         actions={"joint_effort": mdp2.DirectAction(robot.joint_effort_target, subset=cart, scale=100.0)},
         observations={
             "policy": mdp2.ObservationGroup(
-                joint_pos_rel=mdp2.Observation(joint_pos_rel, inputs={"joint_pos": robot.joint_pos, **joint_state}),
+                joint_pos_rel=mdp2.Observation(
+                    mdp.joint_pos_rel,
+                    inputs={
+                        "joint_pos": robot.joint_pos,
+                        "default_joint_pos": robot.default_joint_pos,
+                        "joint_ids": joints,
+                    },
+                ),
                 joint_vel_rel=mdp2.Observation(
-                    joint_pos_rel,
-                    inputs={"joint_pos": robot.joint_vel, "default_joint_pos": robot.default_joint_vel},
+                    mdp.joint_vel_rel,
+                    inputs={
+                        "joint_vel": robot.joint_vel,
+                        "default_joint_vel": robot.default_joint_vel,
+                        "joint_ids": joints,
+                    },
                 ),
             )
         },
         rewards={
-            "alive": mdp2.Reward(is_alive, inputs={"joint_pos": robot.joint_pos}),
+            "alive": mdp2.Reward(mdp.is_alive, inputs=terminated),
+            "terminating": mdp2.Reward(mdp.is_terminated, inputs=terminated, weight=-2.0),
             "pole_pos": mdp2.Reward(
-                joint_pos_target_l2,
+                mdp.joint_pos_target_l2,
                 inputs={"joint_pos": robot.joint_pos, "joint_ids": pole},
                 params={"target": 0.0},
                 weight=-1.0,
             ),
             "cart_vel": mdp2.Reward(
-                joint_vel_l1, inputs={"joint_vel": robot.joint_vel, "joint_ids": cart}, weight=-0.01
+                mdp.joint_vel_l1, inputs={"joint_vel": robot.joint_vel, "joint_ids": cart}, weight=-0.01
             ),
             "pole_vel": mdp2.Reward(
-                joint_vel_l1, inputs={"joint_vel": robot.joint_vel, "joint_ids": pole}, weight=-0.005
+                mdp.joint_vel_l1, inputs={"joint_vel": robot.joint_vel, "joint_ids": pole}, weight=-0.005
             ),
         },
         terminations={
             "time_out": mdp2.TimeLimit(episode_length_s=1.0),
             "cart_out_of_bounds": mdp2.Termination(
-                joint_pos_out_of_manual_limit,
+                mdp.joint_pos_out_of_manual_limit,
                 inputs={"joint_pos": robot.joint_pos, "joint_ids": cart},
                 params={"bounds": (-1.5, 1.5)},
             ),

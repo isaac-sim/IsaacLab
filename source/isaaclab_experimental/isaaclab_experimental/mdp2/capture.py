@@ -16,7 +16,7 @@ import warp as wp
 
 from isaaclab.utils.warp import ProxyArray
 
-from .mdp import MDP, Backend, MDPState, Transition
+from .compiled import MDP, Backend, MDPState, Transition
 from .plan import Call
 
 

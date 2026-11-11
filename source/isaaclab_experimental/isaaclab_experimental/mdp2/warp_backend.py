@@ -13,14 +13,15 @@ write into scratch buffers, which the next kernel reads like a func's result.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable, Hashable, Iterable, Sequence
 
 import warp as wp
 
-from .config import Phase, episode_length, last_action
+from .compiled import MDP
+from .config import Phase, episode_length, last_action, terminated
 from .eager import call_eager
 from .fusion import Fusion
-from .mdp import MDP
 from .plan import Call, Launches, Step, StepKind, TermOp
 
 
@@ -102,7 +103,8 @@ def _apply_actions(mdp: MDP) -> tuple[Callable[[Call], None], ...]:
 def _evaluate(mdp: MDP) -> tuple[Callable[[Call], None], ...]:
     code = Fusion("evaluate", mdp.num_worlds, mdp.device)
     length = _field(code, episode_length, wp.array(dtype=wp.int32))
-    terminated, truncated, done, rewards = (
+    ended = _field(code, terminated, wp.array(dtype=wp.bool))
+    terminated_result, truncated, done, rewards = (
         _result(code, key) for key in ("terminated", "truncated", "done", "rewards")
     )
     time_out = "False"
@@ -111,11 +113,12 @@ def _evaluate(mdp: MDP) -> tuple[Callable[[Call], None], ...]:
     code.world(
         f"{code.function(_advance)}(world, {_rng(code)})",
         f"{length}[world] = {length}[world] + 1",
-        f"{terminated}[world] = False",
+        f"{terminated_result}[world] = False",
+        f"{ended}[world] = False",
         f"{truncated}[world] = {time_out}",
         f"{done}[world] = {truncated}[world]",
         f"{rewards}[world] = 0.0",
-        writes=["rng", episode_length, "terminated", "truncated", "done", "rewards"],
+        writes=["rng", episode_length, terminated, "terminated", "truncated", "done", "rewards"],
     )
     _emit(code, mdp, mdp.plan.evaluate)
     return code.steps()
@@ -182,8 +185,11 @@ def _compute(code: Fusion, mdp: MDP, op: TermOp, conditions: Sequence[str] = ())
     match op.phase:
         case Phase.TERMINATIONS:
             writes = ["truncated" if op.time_out else "terminated", "done"]
-            lines = [f"ended = {_value(code, mdp, op)}"]
-            lines += _under(["if ended:"], *(f"{_result(code, key)}[world] = True" for key in writes))
+            flags = [f"{_result(code, key)}[world] = True" for key in writes]
+            if not op.time_out:
+                flags.append(f"{_field(code, terminated, wp.array(dtype=wp.bool))}[world] = True")
+                writes.append(terminated)
+            lines = [f"ended = {_value(code, mdp, op)}", *_under(["if ended:"], *flags)]
             if mdp.diagnostics:
                 lines.append(f"{_result(code, 'termination_terms')}[world, {op.index}] = ended")
                 writes.append("termination_terms")
@@ -215,8 +221,45 @@ def _compute(code: Fusion, mdp: MDP, op: TermOp, conditions: Sequence[str] = ())
                 wp.array2d(dtype=wp.float32),
                 lambda call: call.observations[op.group].warp,
             )
-            line = f"{out}[world, {op.columns.start} + element] = {_value(code, mdp, op)}"
-            code.elements(op.shape, *_under(conditions, line))
+            value = _value(code, mdp, op)
+            if op.noise is not None:
+                low, high = code.constant(float, op.noise.n_min), code.constant(float, op.noise.n_max)
+                seed = f"{_rng(code)}[{op.noise_stream}, world]"
+                value = f"({value} + wp.randf(wp.rand_init({seed}, element), {low}, {high}))"
+            if op.clip is not None:
+                low, high = (code.constant(float, bound) for bound in op.clip)
+                value = f"wp.clamp({value}, {low}, {high})"
+            if op.scale is not None:
+                value = f"{value} * {code.constant(float, op.scale)}"
+            if not op.history_length:
+                code.elements(op.shape, *_under(conditions, f"{out}[world, {op.columns.start} + element] = {value}"))
+                return
+
+            # Each thread keeps the history of its element: stepping shifts it and appends the value, observing
+            # fills it for new episodes. The group holds the history oldest first.
+            history = code.argument(
+                ("history", op.name), wp.array3d(dtype=wp.float32), lambda call: call.state.histories[op.name].warp
+            )
+            size, last = math.prod(op.shape), op.history_length - 1
+            if code.name == "evaluate":
+                update = [
+                    f"for h in range({last}):",
+                    f"    {history}[world, h, element] = {history}[world, h + 1, element]",
+                    f"{history}[world, {last}, element] = {value}",
+                ]
+            else:
+                length = _field(code, episode_length, wp.array(dtype=wp.int32))
+                update = [
+                    f"if {length}[world] == 0:",
+                    "    value = " + value,
+                    f"    for h in range({op.history_length}):",
+                    f"        {history}[world, h, element] = value",
+                ]
+            write = [
+                f"for h in range({op.history_length}):",
+                f"    {out}[world, {op.columns.start} + h * {size} + element] = {history}[world, h, element]",
+            ]
+            code.elements(op.shape, *_under(conditions, *update, *write))
 
 
 def _run(

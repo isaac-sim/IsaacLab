@@ -23,3 +23,8 @@
 * Added :class:`~isaaclab_experimental.envs.MDP2Env` and :class:`~isaaclab_experimental.envs.MDP2RLEnv`, which run
   an MDP2 task on a Newton interactive scene with the Gym interface of the manager-based environments. Resets are
   masks over the worlds, so with the Warp backend each control step, physics included, replays as one CUDA graph.
+* Added :mod:`isaaclab_experimental.mdp2.mdp`, built-in MDP2 terms with the names of their MDP1 functions: joint and
+  root observations, rewards, terminations, contact rewards and terminations, velocity and pose commands, and joint
+  and root reset and push events, on both backends. Observations take uniform noise, clipping, scaling, and history,
+  and the scene data of :class:`~isaaclab_experimental.envs.MDP2Env` covers rigid objects, the root and body state
+  of articulations, and contact sensors.

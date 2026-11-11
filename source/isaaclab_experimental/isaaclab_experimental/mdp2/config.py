@@ -30,6 +30,15 @@ class Phase(enum.IntEnum):
     RESET_EVENTS = enum.auto()
 
 
+class Constant(enum.Enum):
+    """A param value that the builder resolves, such as ``params={"step_dt": mdp2.step_dt}``."""
+
+    STEP_DT = enum.auto()  # Duration of one control step [s]
+
+
+step_dt = Constant.STEP_DT
+
+
 class EventMode(enum.Enum):
     """When an event runs: on reset, or at random intervals."""
 
@@ -93,6 +102,20 @@ last_action = FieldSelector("mdp", "last_action", scene=False)
 episode_length = FieldSelector("mdp", "episode_length", scene=False)
 """Control steps since the last reset, ``int32`` of shape ``(num_worlds,)``."""
 
+terminated = FieldSelector("mdp", "terminated", scene=False)
+"""Whether a termination, not a time-out, ended the episode this step, ``bool`` of shape ``(num_worlds,)``.
+
+Terminations run before rewards, so rewards can read it, like MDP1's ``is_terminated``.
+"""
+
+
+@dataclass(frozen=True)
+class UniformNoise:
+    """Noise drawn uniformly from ``[n_min, n_max]`` for each element, like MDP1's ``UniformNoiseCfg``."""
+
+    n_min: float
+    n_max: float
+
 
 @dataclass
 class TermCfg:
@@ -107,9 +130,18 @@ class TermCfg:
 
 @dataclass
 class Observation(TermCfg):
-    """Configuration for an observation term, whose output is flattened per world into its group's buffer."""
+    """Configuration for an observation term, whose output is flattened per world into its group's buffer.
+
+    As in MDP1, the noise is added first, then the value is clipped, then scaled. With a history, the group holds the
+    last ``history_length`` values, oldest first, and a new episode starts with its first value repeated.
+    """
 
     phase: ClassVar[Phase] = Phase.OBSERVATIONS
+
+    noise: UniformNoise | None = None
+    clip: tuple[float, float] | None = None  # Bounds of the noisy value
+    scale: float | None = None
+    history_length: int = 0  # Steps of history to observe, 0 for the latest value only
 
 
 @dataclass

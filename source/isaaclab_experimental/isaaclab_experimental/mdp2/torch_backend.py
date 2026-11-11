@@ -10,9 +10,9 @@ from __future__ import annotations
 import torch
 
 from . import rng
-from .config import Phase
+from .compiled import MDP, MDPState
+from .config import Phase, terminated
 from .eager import call_eager
-from .mdp import MDP, MDPState
 from .plan import Call, Launch, Launches, Step, StepKind, TermOp
 
 
@@ -55,6 +55,7 @@ def _begin_evaluate(mdp: MDP, call: Call) -> None:
     if mdp.max_episode_length is not None:
         transition.truncated.torch.copy_(state.episode_length.torch >= mdp.max_episode_length)
     transition.done.torch.copy_(transition.truncated.torch)
+    state.fields[terminated].torch.zero_()
     transition.rewards.torch.zero_()
 
 
@@ -112,6 +113,8 @@ def _compute(mdp: MDP, op: TermOp, call: Call, mask: torch.Tensor | None) -> Non
             flags = transition.truncated if op.time_out else transition.terminated
             flags.torch.logical_or_(value)
             transition.done.torch.logical_or_(value)
+            if not op.time_out:
+                state.fields[terminated].torch.logical_or_(value)
             if mdp.diagnostics:
                 transition.termination_terms.torch[:, op.index] = value
         case Phase.REWARDS:
@@ -124,8 +127,34 @@ def _compute(mdp: MDP, op: TermOp, call: Call, mask: torch.Tensor | None) -> Non
                 destination = state.fields[op.writes[0]].torch.view(mdp.num_worlds, -1)
             else:
                 destination = call.observations[op.group].torch[:, op.columns]
+                if op.noise is not None:
+                    value = value + rng.uniform(
+                        state.rng.torch[op.noise_stream], op.noise.n_min, op.noise.n_max, op.shape
+                    )
+                if op.clip is not None:
+                    value = value.clamp(*op.clip)
+                if op.scale is not None:
+                    value = value * op.scale
+                if op.history_length:
+                    value = _history(op, state, value.reshape(mdp.num_worlds, -1), mask, call.transition is not None)
             value = value.reshape(destination.shape)
             destination.copy_(value if mask is None else torch.where(mask[:, None], value, destination))
+
+
+def _history(op: TermOp, state: MDPState, value: torch.Tensor, mask: torch.Tensor | None, push: bool) -> torch.Tensor:
+    """Add a value to an observation's history when stepping, or fill it for new episodes when observing.
+
+    Returns the history, oldest first, flattened per world.
+    """
+    history = state.histories[op.name].torch
+    selected = torch.ones_like(value[:, 0], dtype=torch.bool) if mask is None else mask
+    if push:
+        shifted = torch.cat([history[:, 1:], value[:, None]], dim=1)
+    else:
+        selected = selected & (state.episode_length.torch == 0)
+        shifted = value[:, None].expand_as(history)
+    history.copy_(torch.where(selected[:, None, None], shifted, history))
+    return history.flatten(1)
 
 
 def _tick(mdp: MDP, op: TermOp, state: MDPState) -> torch.Tensor:

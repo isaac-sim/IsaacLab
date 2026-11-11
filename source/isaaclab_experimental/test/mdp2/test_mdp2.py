@@ -5,6 +5,8 @@
 
 """Tests for building and running MDP2 tasks on an analytic point-mass scene."""
 
+import math
+
 import pytest
 import torch
 import warp as wp
@@ -306,6 +308,21 @@ def make_builder(
         for name in ("joint_pos", "joint_pos_again"):
             observation = mdp2.Observation(noisy_joint_pos, inputs={"joint_pos": robot.joint_pos})
             builder.add_observation("noisy", name, observation)
+        modified_joint_vel = mdp2.Observation(
+            joint_vel,
+            inputs={"joint_vel": robot.joint_vel},
+            noise=mdp2.UniformNoise(-0.05, 0.05),
+            clip=(-1.5, 1.5),
+            scale=0.5,
+        )
+        builder.add_observation("noisy", "joint_vel", modified_joint_vel)
+        noisy_history = mdp2.Observation(
+            noisy_joint_pos,
+            inputs={"joint_pos": robot.joint_pos},
+            noise=mdp2.UniformNoise(-0.01, 0.01),
+            history_length=3,
+        )
+        builder.add_observation("noisy", "joint_pos_history", noisy_history)
         builder.add_observation(
             "policy", "target", mdp2.Observation(generated_commands, inputs={"command": mdp2.commands.target})
         )
@@ -632,8 +649,9 @@ def test_random_streams_are_independent_per_world_and_use():
         return torch.stack(samples)
 
     samples = noisy_observations(reset_world_0=False, env=True)
-    assert (samples[..., :2] != samples[..., 2:]).all()  # two uses of one term
-    assert (samples[1:] != samples[:-1]).all()  # every step
+    assert (samples[..., :2] != samples[..., 2:4]).all()  # two uses of one term
+    assert (samples[..., 4:].abs() <= 0.75).all() and (samples[1:, :, 4:] != samples[:-1, :, 4:]).any()
+    assert (samples[1:, ..., :4] != samples[:-1, ..., :4]).all()  # every step
     # Resetting world 0, or resets and observations of no worlds, leave world 1's draws unchanged.
     assert torch.equal(noisy_observations(reset_world_0=True, env=True)[:, 1], samples[:, 1])
     assert torch.equal(noisy_observations(reset_world_0=False, env=False)[:, 1], samples[:, 1])
@@ -822,3 +840,112 @@ def test_world_configs_match_single_config_runs():
                 assert torch.equal(mixed_step[key][worlds, : values.shape[1]], values[worlds])
         for mixed_step in mixed_run:
             assert (mixed_step["policy"][split:, width:] == 0.0).all() and (mixed_step["noisy"][split:] == 0.0).all()
+
+
+def test_action_and_episode_terms():
+    """The library's action and episode terms, which read MDP fields rather than the scene."""
+    for backend in ("torch", "warp"):
+        scene = mdp2.PointMassScene(num_worlds=2, joint_names=("x", "y"), device=DEVICE)
+        builder = mdp2.MDPBuilder(scene.schema)
+        builder.add_action("joint_effort", mdp2.DirectAction(robot.joint_effort_target))
+        actions = {"actions": mdp2.last_action}
+        builder.add_observation("policy", "last_action", mdp2.Observation(mdp2.mdp.last_action, inputs=actions))
+        builder.add_observation("policy", "action_l2", mdp2.Observation(mdp2.mdp.action_l2, inputs=actions))
+        builder.add_observation("policy", "action_rate_l2", mdp2.Observation(mdp2.mdp.action_rate_l2, inputs=actions))
+        terminated = {"terminated": mdp2.terminated}
+        builder.add_observation("policy", "is_alive", mdp2.Observation(mdp2.mdp.is_alive, inputs=terminated))
+        builder.add_observation("policy", "is_terminated", mdp2.Observation(mdp2.mdp.is_terminated, inputs=terminated))
+        builder.add_termination(
+            "out_of_bounds",
+            mdp2.Termination(
+                joint_pos_out_of_manual_limit, inputs={"joint_pos": robot.joint_pos}, params={"limit": 0.1}
+            ),
+        )
+        model = builder.finalize(device=DEVICE, backend=backend)
+        state, transition = model.state(scene), model.transition()
+
+        steps = [
+            torch.tensor([[1.0, 2.0], [0.0, 0.0]], device=DEVICE),
+            torch.tensor([[0.0, 2.0], [500.0, 0.0]], device=DEVICE),
+        ]
+        for actions_now in steps:
+            mdp2.apply_actions(model, state, ProxyArray(wp.from_torch(actions_now)))
+            scene.step()
+            mdp2.evaluate(model, state, transition)
+        policy = transition.observations["policy"].torch
+        torch.testing.assert_close(policy[:, :2], steps[1])
+        torch.testing.assert_close(policy[:, 2], steps[1].square().sum(-1))
+        torch.testing.assert_close(policy[:, 3], (steps[1] - steps[0]).square().sum(-1))
+        assert policy[:, 4].tolist() == [1.0, 0.0] and policy[:, 5].tolist() == [0.0, 1.0]
+
+
+def test_observation_history():
+    """The group holds the last values oldest first, and a new episode starts with its first value repeated."""
+    for backend in ("torch", "warp"):
+        scene = mdp2.PointMassScene(num_worlds=2, device=DEVICE)
+        builder = mdp2.MDPBuilder(scene.schema)
+        builder.add_action("joint_effort", mdp2.DirectAction(robot.joint_effort_target))
+        history = mdp2.Observation(joint_pos, inputs={"joint_pos": robot.joint_pos}, history_length=3)
+        builder.add_observation("policy", "joint_pos", history)
+        model = builder.finalize(device=DEVICE, backend=backend)
+        state, transition = model.state(scene), model.transition()
+        assert model.observation_dims["policy"] == 3
+
+        scene.data("robot", "joint_pos").torch.fill_(0.5)
+        env_reset(model, state, scene, transition.observations, torch.tensor([False, True], device=DEVICE))
+        assert transition.observations["policy"].torch[1].tolist() == [0.0, 0.0, 0.0]  # the reset world's start
+        positions = []
+        for _ in range(2):
+            env_step(model, state, scene, torch.ones(2, 1, device=DEVICE), transition)
+            positions.append(scene.data("robot", "joint_pos").torch[:, 0].clone())
+        expected = torch.stack([torch.tensor([0.0, 0.0], device=DEVICE), *positions], dim=1)
+        expected[0, 0] = 0.0  # world 0 was never reset, so its history started at zero
+        torch.testing.assert_close(transition.observations["policy"].torch, expected)
+
+
+def test_library_commands():
+    """Commands stay in their ranges, agree across backends, and generated_commands observes them."""
+    pose_range = ((0.4, 0.6), (-0.2, 0.2), (0.1, 0.3), (-0.5, 0.5), (-0.5, 0.5), (-math.pi, math.pi))
+    commands = {
+        "base_velocity": mdp2.Command(
+            mdp2.mdp.uniform_velocity_command,
+            params={
+                "lin_vel_x": (-1.0, 1.0),
+                "lin_vel_y": (-0.5, 0.5),
+                "ang_vel_z": (-0.3, 0.3),
+                "rel_standing_envs": 0.25,
+            },
+        ),
+        "object_pose": mdp2.Command(
+            mdp2.mdp.uniform_pose_command, params={"pose_range": pose_range, "make_quat_unique": True}
+        ),
+    }
+    results = {}
+    for backend in ("torch", "warp"):
+        scene = mdp2.PointMassScene(num_worlds=256, device=DEVICE)
+        builder = mdp2.MDPBuilder(scene.schema)
+        for name, command in commands.items():
+            builder.add_command(name, command)
+            observation = mdp2.Observation(
+                mdp2.mdp.generated_commands, inputs={"command": mdp2.FieldSelector("commands", name, scene=False)}
+            )
+            builder.add_observation("policy", name, observation)
+        model = builder.finalize(device=DEVICE, backend=backend)
+        state, observations = model.state(scene), model.observations()
+        env_reset(model, state, scene, observations, torch.ones(256, dtype=torch.bool, device=DEVICE))
+        results[backend] = observations["policy"].torch.clone()
+
+    assert torch.equal(results["warp"][:, :3], results["torch"][:, :3])
+    torch.testing.assert_close(results["warp"], results["torch"])
+    velocity, pose = results["warp"][:, :3], results["warp"][:, 3:]
+    standing = (velocity == 0.0).all(-1)
+    assert 0.1 < standing.float().mean() < 0.4
+    assert (
+        (velocity[:, 0].abs() <= 1.0).all()
+        and (velocity[:, 1].abs() <= 0.5).all()
+        and (velocity[:, 2].abs() <= 0.3).all()
+    )
+    for axis, (low, high) in enumerate(pose_range[:3]):
+        assert ((pose[:, axis] >= low) & (pose[:, axis] <= high)).all()
+    torch.testing.assert_close(pose[:, 3:].norm(dim=-1), torch.ones(256, device=DEVICE))
+    assert (pose[:, 6] >= 0.0).all()

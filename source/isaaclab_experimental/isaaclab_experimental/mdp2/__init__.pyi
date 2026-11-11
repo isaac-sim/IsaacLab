@@ -8,6 +8,7 @@ __all__ = [
     "CapturedMDP",
     "Backend",
     "Command",
+    "Constant",
     "DirectAction",
     "Entity",
     "Event",
@@ -38,6 +39,7 @@ __all__ = [
     "TermContext",
     "Termination",
     "TimeLimit",
+    "UniformNoise",
     "Transition",
     "WorldConfig",
     "apply_actions",
@@ -47,13 +49,18 @@ __all__ = [
     "last_action",
     "observe",
     "reset",
+    "step_dt",
+    "terminated",
     "uniform",
+    "mdp",
 ]
 
 from .capture import CapturedMDP
+from . import mdp
 from .builder import MDPBuilder, ScheduleEntry
 from .config import (
     Command,
+    Constant,
     DirectAction,
     Entity,
     Event,
@@ -68,11 +75,14 @@ from .config import (
     TermCfg,
     Termination,
     TimeLimit,
+    UniformNoise,
     commands,
     episode_length,
     last_action,
+    step_dt,
+    terminated,
 )
-from .mdp import MDP, Backend, MDPState, Transition, WorldConfig
+from .compiled import MDP, Backend, MDPState, Transition, WorldConfig
 from .eager import TermContext
 from .plan import ExecutionPlan, Segment, Step, StepKind
 from .scene import EntitySchema, FieldSchema, PointMassScene, SceneData, SceneSchema

@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import enum
+import math
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
@@ -18,7 +19,7 @@ import warp as wp
 from isaaclab.utils.warp import ProxyArray
 
 from . import rng
-from .config import FieldSelector, Phase, SubsetSelector, episode_length, last_action
+from .config import FieldSelector, Phase, SubsetSelector, episode_length, last_action, terminated
 from .plan import ActionOp, ExecutionPlan, Launches, Segment, TermOp, segments
 from .scene import SceneData, SceneSchema
 
@@ -42,9 +43,8 @@ class MDPState:
     rng: ProxyArray  # (num_streams, num_worlds), see rng.py
     timers: dict[str, ProxyArray]  # (num_worlds,) seconds left per timed op
     arguments: dict[str, dict[str, Any]]  # By op name: the hook arguments, as arrays of the MDP's backend
-    scratch: dict[
-        str, ProxyArray
-    ]  # (num_worlds, *shape) outputs of eager terms, and of Warp functions that launch kernels
+    scratch: dict[str, ProxyArray]  # (num_worlds, *shape) outputs of eager terms and of Warp kernel launchers
+    histories: dict[str, ProxyArray]  # (num_worlds, history_length, size) per observation with a history
     selected: dict[str, wp.array]  # (num_worlds,) per timed or masked event op: the worlds its hook acts on
     active: dict[str, ProxyArray]  # (num_worlds,) per op active in only some worlds: where it is active
 
@@ -164,6 +164,7 @@ class MDP:
         fields = {
             last_action: self._zeros(self.num_worlds, self.action_dim),
             episode_length: self._zeros(self.num_worlds, dtype=wp.int32),
+            terminated: self._zeros(self.num_worlds, dtype=wp.bool),
             **{op.writes[0]: self._zeros(self.num_worlds, *op.shape) for op in self.ops[Phase.COMMANDS]},
             **{
                 subset: ProxyArray(wp.array(indices, dtype=wp.int32, device=self.device))
@@ -202,6 +203,11 @@ class MDP:
                     **op.params,
                 }
                 for op in self.term_ops
+            },
+            histories={
+                op.name: self._zeros(self.num_worlds, op.history_length, math.prod(op.shape))
+                for op in self.ops[Phase.OBSERVATIONS]
+                if op.history_length
             },
             scratch={
                 op.name: self._zeros(self.num_worlds, *op.shape, dtype=op.dtype)

@@ -53,6 +53,8 @@ class MDP2Env:
 
     def _init_sim(self) -> None:
         cfg, sim = self.cfg, self.sim
+        # Terms read sensor data in kernels, so sensors refresh every step rather than when their data is read.
+        cfg.scene.lazy_sensor_update = False
         with use_stage(sim.stage):
             self.scene = InteractiveScene(cfg.scene)
         sim.register_interactive_scene(self.scene)
@@ -151,12 +153,16 @@ class MDP2Env:
 
     def _reset(self, mask: ProxyArray) -> None:
         """Reset the masked worlds, commit their new state to the solver, and observe them."""
-        for articulation in self.scene.articulations.values():
-            articulation.reset(env_mask=mask.warp)
+        assets = [*self.scene.articulations.values(), *self.scene.rigid_objects.values()]
+        for asset in assets:
+            asset.reset(env_mask=mask.warp)
         mdp2.reset(self.mdp, self.state, mask)
-        for articulation in self.scene.articulations.values():
-            articulation_ids = articulation.root_view.articulation_ids
-            self.sim.backend_manager.invalidate_fk(env_mask=mask.warp, articulation_ids=articulation_ids)
+
+        # Reset events wrote joint and root state in place: recompute the body poses of the masked worlds.
+        for asset in assets:
+            self.sim.backend_manager.invalidate_fk(
+                env_mask=mask.warp, articulation_ids=asset.root_view.articulation_ids
+            )
         self.sim.forward()
         mdp2.observe(self.mdp, self.state, self.transition.observations, mask)
 

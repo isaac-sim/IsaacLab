@@ -18,13 +18,13 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from .config import FieldSelector, Phase, SubsetSelector
+from .config import FieldSelector, Phase, SubsetSelector, UniformNoise
 from .terms import State
 
 if TYPE_CHECKING:
     from isaaclab.utils.warp import ProxyArray
 
-    from .mdp import MDPState, Transition
+    from .compiled import MDPState, Transition
 
 
 @dataclass(frozen=True)
@@ -61,6 +61,11 @@ class TermOp:
     time_out: bool = False  # Terminations: whether a true output truncates
     group: str = ""  # Observations: name of the observation group
     columns: slice = slice(None)  # Observations: columns of the group
+    noise: UniformNoise | None = None  # Observations
+    clip: tuple[float, float] | None = None  # Observations
+    scale: float | None = None  # Observations
+    history_length: int = 0  # Observations: steps of history in the group, 0 for the latest value only
+    noise_stream: int | None = None  # Observations: row of MDPState.rng for the noise
     timer: tuple[float, float] | None = None  # Seconds between command resamples or interval events
     stream: int | None = None  # Row of MDPState.rng, for timers and random terms
     random: bool = False  # Whether the term draws from its stream

@@ -16,7 +16,7 @@ from dataclasses import dataclass
 
 import torch
 
-from .mdp import MDP, MDPState
+from .compiled import MDP, MDPState
 from .plan import TermOp
 
 

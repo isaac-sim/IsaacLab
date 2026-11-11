@@ -20,6 +20,7 @@ from types import MappingProxyType
 import warp as wp
 
 from . import torch_backend, warp_backend
+from .compiled import MDP, Backend, WorldConfig
 from .config import (
     Command,
     DirectAction,
@@ -37,8 +38,9 @@ from .config import (
     commands,
     episode_length,
     last_action,
+    step_dt,
+    terminated,
 )
-from .mdp import MDP, Backend, WorldConfig
 from .plan import ActionOp, Segment, TermOp, build_plan
 from .scene import SceneSchema
 from .terms import Implementation
@@ -77,11 +79,12 @@ class ScheduleEntry:
 
 @dataclass(frozen=True)
 class ArrayLayout:
-    """Element type, number of dimensions, and named dimension sizes of an array passed to a hook."""
+    """Element type, number of dimensions, and dimension sizes of an array passed to a hook."""
 
     dtype: type
     ndim: int
-    sizes: Mapping[str, int]
+    sizes: Mapping[str, int]  # Sizes of the named dimensions
+    shape: tuple[int, ...] = ()  # Sizes of the dimensions after the world dimension, named or not
 
 
 @dataclass
@@ -93,8 +96,9 @@ class CompileContext:
     ops: dict[Phase, list] = field(default_factory=lambda: {phase: [] for phase in Phase})
     mdp_fields: dict[FieldSelector, ArrayLayout] = field(  # Fields owned by the MDP; commands are added as they compile
         default_factory=lambda: {
-            last_action: ArrayLayout(wp.float32, 2, {"actions": 0}),
+            last_action: ArrayLayout(wp.float32, 2, {"actions": 0}, (0,)),
             episode_length: ArrayLayout(wp.int32, 1, {}),
+            terminated: ArrayLayout(wp.bool, 1, {}),
         }
     )
     subsets: dict[SubsetSelector, tuple[int, ...]] = field(default_factory=dict)
@@ -259,25 +263,22 @@ class MDPBuilder:
                     errors.append(f"The world configs give '{op.writes[0]}' different shapes.")
         if errors:
             raise ValueError("Invalid MDP:\n  " + "\n  ".join(errors))
-        ops = MappingProxyType(_merge_ops([(context.ops, worlds) for context, _, worlds in contexts], self.schema))
-        streams = tuple(
-            dict.fromkeys(
-                op.use
-                for phase, phase_ops in ops.items()
-                if phase is not Phase.ACTIONS
-                for op in phase_ops
-                if op.stream is not None
-            )
-        )
-        ops = MappingProxyType(
-            {
-                phase: tuple(
-                    op if phase is Phase.ACTIONS or op.stream is None else replace(op, stream=streams.index(op.use))
-                    for op in phase_ops
+        ops = _merge_ops([(context.ops, worlds) for context, _, worlds in contexts], self.schema)
+
+        # Random streams are keyed by use name, so that every world draws what it would in its config alone.
+        streams: dict[str, int] = {}
+        for phase in Phase:
+            if phase is Phase.ACTIONS:
+                continue
+            ops[phase] = tuple(
+                replace(
+                    op,
+                    stream=None if op.stream is None else streams.setdefault(op.use, len(streams)),
+                    noise_stream=None if op.noise is None else streams.setdefault(f"{op.use}/noise", len(streams)),
                 )
-                for phase, phase_ops in ops.items()
-            }
-        )
+                for op in ops[phase]
+            )
+        ops = MappingProxyType(ops)
         time_limit = time_limits.pop()
         return MDP(
             schema=self.schema,
@@ -294,7 +295,7 @@ class MDPBuilder:
                 }
             ),
             max_episode_length=None if time_limit is None else math.ceil(time_limit / self.schema.step_dt),
-            streams=streams,
+            streams=tuple(streams),
             subsets=MappingProxyType({k: v for context, _, _ in contexts for k, v in context.subsets.items()}),
             diagnostics=diagnostics,
             world_configs=tuple(
@@ -366,7 +367,9 @@ class MDPBuilder:
                 context.errors.append(f"{entry}: '{cfg.target}' is already written by '{op.name}'.")
         columns = slice(context.action_dim, context.action_dim + len(elements))
         context.action_dim = columns.stop
-        context.mdp_fields[last_action] = ArrayLayout(wp.float32, 2, {"actions": context.action_dim})
+        context.mdp_fields[last_action] = ArrayLayout(
+            wp.float32, 2, {"actions": context.action_dim}, (context.action_dim,)
+        )
         action = ActionOp(str(entry), cfg.target, columns, cfg.scale, cfg.offset, subset=cfg.subset)
         context.ops[Phase.ACTIONS].append(action)
 
@@ -394,9 +397,15 @@ class MDPBuilder:
         fields = {
             arg: self._resolve(entry, arg, selector, context) for arg, selector in {**cfg.inputs, **outputs}.items()
         }
+        # The argument name of a subset, or of a field with one dimension after the worlds, is also a dimension.
         sizes: dict[str, int] = {}
-        for resolved in filter(None, fields.values()):
-            for dim, size in resolved.sizes.items():
+        for arg, resolved in fields.items():
+            if resolved is None:
+                continue
+            named = dict(resolved.sizes)
+            if len(resolved.shape) == 1:
+                named[arg] = resolved.shape[0]
+            for dim, size in named.items():
                 if sizes.setdefault(dim, size) != size:
                     errors.append(f"{entry}: inputs disagree on the size of {dim!r} ({sizes[dim]} and {size}).")
         output_shape = _resolve_shape(entry, "output", cfg.term.shape, sizes, errors)
@@ -453,12 +462,12 @@ class MDPBuilder:
         if isinstance(cfg, Observation):
             group = entry.path[1]
             start = context.observation_dims.get(group, 0)
-            columns = slice(start, start + math.prod(output_shape))
+            columns = slice(start, start + math.prod(output_shape) * max(cfg.history_length, 1))
             context.observation_dims[group] = columns.stop
         if isinstance(cfg, Command):
             dims = zip(cfg.term.shape[1:], output_shape)
             named = {dim: size for dim, size in dims if isinstance(dim, str)}
-            context.mdp_fields[entry.writes[0]] = ArrayLayout(wp.float32, 1 + len(output_shape), named)
+            context.mdp_fields[entry.writes[0]] = ArrayLayout(wp.float32, 1 + len(output_shape), named, output_shape)
         context.ops[cfg.phase].append(
             TermOp(
                 name=str(entry),
@@ -469,7 +478,9 @@ class MDPBuilder:
                 update=implementation.update,
                 reset=implementation.reset,
                 inputs=MappingProxyType({**cfg.inputs, **outputs}),
-                params=MappingProxyType(dict(cfg.params)),
+                params=MappingProxyType(
+                    {name: self.schema.step_dt if value is step_dt else value for name, value in cfg.params.items()}
+                ),
                 state=MappingProxyType(
                     {
                         name: replace(spec, shape=(self.schema.num_worlds, *state_shapes[name]))
@@ -483,6 +494,10 @@ class MDPBuilder:
                 time_out=cfg.time_out if isinstance(cfg, Termination) else False,
                 group=group,
                 columns=columns,
+                noise=cfg.noise if isinstance(cfg, Observation) else None,
+                clip=cfg.clip if isinstance(cfg, Observation) else None,
+                scale=cfg.scale if isinstance(cfg, Observation) else None,
+                history_length=cfg.history_length if isinstance(cfg, Observation) else 0,
                 timer=timer,
                 stream=stream,
                 random=cfg.term.random,
@@ -509,7 +524,8 @@ class MDPBuilder:
                 context.errors.append(f"{entry}: unknown field '{selector}'. Fields: {sorted(entity.fields)}.")
                 return None
             schema = entity.fields[selector.field]
-            return ArrayLayout(schema.dtype, 1 + len(schema.dims), {dim: len(entity.names[dim]) for dim in schema.dims})
+            sizes = {dim: len(entity.names[dim]) for dim in schema.dims}
+            return ArrayLayout(schema.dtype, 1 + len(schema.dims), sizes, tuple(sizes.values()))
         names = entity.names.get(selector.dim, ())
         unmatched = [pattern for pattern in selector.patterns if not any(re.fullmatch(pattern, name) for name in names)]
         if unmatched or not selector.patterns:
