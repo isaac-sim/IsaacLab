@@ -33,6 +33,7 @@ __all__ = [
     # GL backend
     "NewtonGLVisualizer",
     "NewtonGLBackendCfg",
+    "NewtonGLVisualizerCfg",
     # RTX backend
     "NewtonRTXVisualizer",
     "NewtonRTXBackendCfg",
