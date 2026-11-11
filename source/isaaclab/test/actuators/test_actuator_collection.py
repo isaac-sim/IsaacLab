@@ -754,7 +754,6 @@ def test_lab_executed_explicit_groups_warn_once():
             damping=1.0,
             actuator_effort_limit=10.0,
             actuator_velocity_limit=10.0,
-            max_delay=0,
         ),
     }
     with warnings.catch_warnings(record=True) as caught_warnings:
@@ -887,15 +886,23 @@ def test_write_command_mask_uses_full_sized_value(command_name):
         )
 
 
-@pytest.mark.parametrize("device", test_devices())
-def test_masked_reset_leaves_unselected_envs_untouched(device):
+@pytest.mark.parametrize(
+    ("device", "delay"),
+    [(device, 2) for device in test_devices()] + [pytest.param("cpu", None, id="cpu-default-delay")],
+)
+def test_masked_reset_leaves_unselected_envs_untouched(device, delay):
     """A mask reset redraws the masked environments' delays without a device sync and keeps the others."""
     control = FakeActuatorControl(num_envs=4, device=device)
-    cfg = DelayedPDActuatorCfg(joint_names_expr=[".*"], stiffness=1.0, damping=0.0, min_delay=2, max_delay=2)
+    cfg = DelayedPDActuatorCfg(joint_names_expr=[".*"], stiffness=1.0, damping=0.0)
+    if delay is not None:
+        cfg.min_delay = delay
+        cfg.max_delay = delay
+    initial_delay = 0 if delay is None else 1
+    expected_delay = 0 if delay is None else delay
     collection = ActuatorCollection({"delayed": cfg}, control)
     buffers = collection["delayed"]._delay_buffers
     for delay_buffer in buffers:
-        delay_buffer.set_time_lag(1)
+        delay_buffer.set_time_lag(initial_delay)
     for _ in range(3):
         collection.compute()
     env_mask = torch.tensor([False, True, False, True], device=device)
@@ -909,5 +916,14 @@ def test_masked_reset_leaves_unselected_envs_untouched(device):
         torch.cuda.set_sync_debug_mode("default")
 
     for delay_buffer in buffers:
-        torch.testing.assert_close(delay_buffer.time_lags, torch.where(env_mask, 2, 1).to(torch.int))
+        torch.testing.assert_close(
+            delay_buffer.time_lags, torch.where(env_mask, expected_delay, initial_delay).to(torch.int)
+        )
         torch.testing.assert_close(delay_buffer.num_pushes, torch.where(env_mask, 0, 3))
+
+
+def test_delayed_actuator_rejects_minimum_above_default_maximum():
+    cfg = DelayedPDActuatorCfg(joint_names_expr=[".*"], stiffness=1.0, damping=0.0, min_delay=1)
+
+    with pytest.raises(ValueError, match="min_delay <= max_delay"):
+        ActuatorCollection({"delayed": cfg}, FakeActuatorControl())
