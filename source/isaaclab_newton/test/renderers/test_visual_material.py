@@ -5,20 +5,25 @@
 
 """Tests for Newton's compiled visual-material writers."""
 
+from types import SimpleNamespace
+
+import pytest
 import torch
 import warp as wp
-from isaaclab_newton.physics import NewtonBackendCfg, NewtonBuilderCfg
+from isaaclab_newton.physics import NewtonBackendCfg, NewtonBuilderCfg, NewtonCfg
 from isaaclab_newton.renderers.newton_warp_renderer import NewtonWarpRenderer
+from isaaclab_newton.renderers.newton_warp_renderer_cfg import NewtonWarpRendererCfg
 from isaaclab_newton.renderers.visual_material import (
     VisualShapeColorWriter,
     import_builder_visual_material_paths,
 )
-from newton import ModelBuilder
+from newton import Mesh, ModelBuilder
 from newton.selection import ArticulationView
 
 from pxr import Sdf, Usd, UsdGeom, UsdShade
 
 from isaaclab.renderers.base_renderer import VisualMaterialBatch
+from isaaclab.scene_data import SceneDataProvider
 from isaaclab.sim import SimulationContext
 
 
@@ -146,3 +151,38 @@ def test_shape_writer_samples_each_body_and_selected_environment_independently()
     torch.testing.assert_close(actual[1], original.reshape(3, 3, 3)[1])
     torch.testing.assert_close(actual[2, :2], expected[1, 0].expand(2, 3))
     torch.testing.assert_close(actual[2, 2], expected[1, 1])
+
+
+@pytest.mark.unit
+@pytest.mark.kitless
+@pytest.mark.windows_ci
+def test_renderer_disabling_textures_skips_loading_unavailable_mesh_texture(tmp_path) -> None:
+    """An untextured renderer initializes a real native sensor without opening a missing UDIM image."""
+    mesh = Mesh.create_box(0.1)
+    mesh.texture = str(tmp_path / "robot_diffuse.<UDIM>.png")
+    builder = ModelBuilder()
+    builder.begin_world()
+    builder.add_shape_mesh(-1, mesh=mesh, label="/World/mesh")
+    builder.end_world()
+    model = builder.finalize(device="cpu")
+    backend = SimpleNamespace(model=model)
+    provider = SceneDataProvider(SimpleNamespace(transform_paths=[]))
+    sim = SimpleNamespace(
+        cfg=SimpleNamespace(physics=NewtonCfg()),
+        device="cpu",
+        requires_usd_stage=False,
+        requires_newton_model=False,
+        get_or_create_backend=lambda cfg: backend,
+        get_scene_data_provider=lambda: provider,
+    )
+    renderer = NewtonWarpRenderer(NewtonWarpRendererCfg(enable_textures=True, create_default_light=False), sim=sim)
+    with pytest.raises(ValueError, match="Failed to load texture"):
+        renderer.initialize()
+    renderer.close()
+    renderer = NewtonWarpRenderer(NewtonWarpRendererCfg(enable_textures=False, create_default_light=False), sim=sim)
+    try:
+        renderer.initialize()
+        assert renderer.newton_sensor.model is model
+        assert not renderer.newton_sensor.default_render_config.enable_textures
+    finally:
+        renderer.close()
