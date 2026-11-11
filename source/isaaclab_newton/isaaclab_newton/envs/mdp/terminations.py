@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 
 def solver_fault(env: ManagerBasedRLEnv) -> torch.Tensor:
-    """Terminate the environments whose solver produced a body pose or velocity that is not finite.
+    """Terminate the environments whose body pose or velocity is not finite after the last step.
 
     See :meth:`~isaaclab_newton.physics.NewtonManager.get_non_finite_worlds`. Resetting such an environment
     restores a valid state while the other environments keep running.
