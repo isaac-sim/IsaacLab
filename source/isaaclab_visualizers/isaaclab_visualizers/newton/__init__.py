@@ -13,7 +13,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .newton_visualizer_cfg import NewtonGLBackendCfg, NewtonGLVisualizerCfg, NewtonVisualizerCfg
+from .newton_visualizer_cfg import (
+    NewtonGLBackendCfg,
+    NewtonGLVisualizerCfg,
+    NewtonRecordingCfg,
+    NewtonVisualizerCfg,
+)
 
 if TYPE_CHECKING:
     from .newton_visualizer import NewtonGLVisualizer
@@ -26,6 +31,7 @@ __all__ = [
     # GL backend
     "NewtonGLVisualizer",
     "NewtonGLBackendCfg",
+    "NewtonRecordingCfg",
     # MPM particle-surface rendering
     "ParticleSurfaceRenderer",
 ]

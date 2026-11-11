@@ -39,6 +39,7 @@ from ..common import (
     describe_run,
     dump_train_configs,
     enable_cameras_for_video,
+    offer_checkpoint_saver,
     pre_launch_video_config,
     resolve_checkpoint_selector,
     scoped_torch_backend_flags,
@@ -196,6 +197,7 @@ def _run(args_cli: argparse.Namespace) -> None:
                     map_location=agent_cfg.device,
                 )
             dump_train_configs(rank_dir, env_cfg, agent_cfg)
+            offer_checkpoint_saver(env, runner.save)
 
             if agent_cfg.logger == "wandb":
                 announce_new_run(agent_cfg.wandb_project, resolve_wandb_entity())
