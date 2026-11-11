@@ -225,7 +225,7 @@ class modify_env_param(ManagerTermBase):
                     container = getattr(container, container_path)
 
         self._container = container
-        self._last_path = path_parts[-1]  # for "a.b[2].c", this is "c", while for "a.b[2]" it is ("b", 2)
+        self._last_path = path_parts[-1]
 
         if isinstance(self._last_path, tuple):
             # the address ends at a sequence element: read the sequence from its owner on every access so that
@@ -233,20 +233,21 @@ class modify_env_param(ManagerTermBase):
             name, idx = self._last_path
             if isinstance(self._container, dict):
                 get_sequence = lambda: self._container[name]  # noqa: E731
-                set_sequence = lambda seq: self._container.__setitem__(name, seq)  # noqa: E731
             else:
                 get_sequence = lambda: getattr(self._container, name)  # noqa: E731
-                set_sequence = lambda seq: setattr(self._container, name, seq)  # noqa: E731
             get_value = lambda: get_sequence()[idx]  # noqa: E731
 
             def set_value(val):
                 sequence = get_sequence()
-                if isinstance(sequence, tuple):
-                    items = list(sequence)
-                    items[idx] = val
-                    set_sequence(tuple(items))
-                else:
+                if not isinstance(sequence, tuple):
                     sequence[idx] = val
+                    return
+                items = list(sequence)
+                items[idx] = val
+                if isinstance(self._container, dict):
+                    self._container[name] = tuple(items)
+                else:
+                    setattr(self._container, name, tuple(items))
 
         elif isinstance(self._container, (list, dict)):
             get_value = lambda: self._container[self._last_path]  # noqa: E731
