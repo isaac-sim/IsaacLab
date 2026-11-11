@@ -527,7 +527,14 @@ def make_camera_output_grid(images: torch.Tensor) -> torch.Tensor:
 
 
 _CAMERA_CHANNEL_KEYS = {
-    "rgb": ("rgb", "rgba", "simple_shading_full_mdl"),
+    "rgb": (
+        "rgb",
+        "rgba",
+        "albedo",
+        "simple_shading_full_mdl",
+        "simple_shading_diffuse_mdl",
+        "simple_shading_constant_diffuse",
+    ),
     "depth": ("depth", "distance_to_image_plane"),
     "segmentation": ("semantic_segmentation", "instance_segmentation"),
     "normals": ("normals",),
@@ -562,6 +569,37 @@ def sensor_key_for_gt_type(
     if not required:
         return None
     raise KeyError(f"No sensor output found for GT type {gt_type!r}. Tried {keys}; available: {sorted(available_keys)}")
+
+
+DISPLAY_CHANNELS = ("rgb", "depth", "normals", "segmentation")
+"""Display channels in the order a viewer lists them; each has a colorizing kernel in :func:`compose_image`."""
+
+
+def display_channels(available_keys) -> tuple[str, ...]:
+    """Return the display channels a sensor can show, in :data:`DISPLAY_CHANNELS` order.
+
+    Args:
+        available_keys: Output names of the sensor, such as its ``data_types``.
+
+    Returns:
+        The channels among rgb, depth, normals, and segmentation that the sensor provides.
+    """
+    keys = frozenset(available_keys)
+    return tuple(c for c in DISPLAY_CHANNELS if sensor_key_for_gt_type(c, keys, required=False) is not None)
+
+
+def resolve_display_channels(requested, available_keys) -> tuple[str, ...]:
+    """Choose the channels to show for a sensor: the requested ones it provides, else its first channel.
+
+    Args:
+        requested: Channels asked for, in display order.
+        available_keys: Output names of the sensor, such as its ``data_types``.
+
+    Returns:
+        The channels to show, or an empty tuple when the sensor provides nothing a viewer can display.
+    """
+    provided = display_channels(available_keys)
+    return tuple(c for c in requested if c in provided) or provided[:1]
 
 
 def compose_image(

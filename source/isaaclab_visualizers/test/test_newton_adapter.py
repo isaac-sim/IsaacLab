@@ -40,7 +40,7 @@ from isaaclab.sim import SimulationContext
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import validate
 from isaaclab.utils.warp import ProxyArray
-from isaaclab.visualizers import PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg, WindowCfg
+from isaaclab.visualizers import PerspectiveCameraCfg, SceneCameraCfg, TrackingCameraCfg, VisualizerCfg, WindowCfg
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 
@@ -402,7 +402,10 @@ class _FakeTrainingControlsImgui:
     def slider_float(self, _label, value, _min_value, _max_value, _format):
         return False, value
 
-    def is_item_hovered(self):
+    class HoveredFlags_:
+        allow_when_disabled = 1
+
+    def is_item_hovered(self, *_flags):
         return False
 
     def set_tooltip(self, _text):
@@ -456,6 +459,12 @@ def test_newton_gl_viewer_skips_picking_only_while_a_fullscreen_image_is_shown(m
 
     viewer.end_frame()
     assert picks == [(1, 2, 4, 0)]
+
+    viewer.picking_enabled = False
+    viewer.image_matches_camera = True  # The image comes from the picking camera, e.g. the OVRTX viewer camera.
+    viewer.log_image("Streaming View", np.zeros((2, 2, 3), dtype=np.uint8), fullscreen=True)
+    viewer.end_frame()
+    assert picks == [(1, 2, 4, 0)] * 2
 
 
 def test_newton_viewer_particle_color_override(monkeypatch):
@@ -729,7 +738,8 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     sim.get_scene_data_provider = visualizer._sim.get_scene_data_provider
     visualizer._sim = sim
     cfg = visualizer.newton_cfg = NewtonBackendCfg(physics_cfg=object(), device="cpu")
-    visualizer._env_ids = [1, 3]
+    visualizer._env_ids = visualizer._cfg_visible_env_ids = [1, 3]
+    visualizer._visible_env_count = None
     visualizer._picking_enabled = picking
     visualizer.cfg.backend.world_spacing = (2.0, 0.0, 0.0)
     visualizer.cfg.backend.show_contacts = True
@@ -740,9 +750,9 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     assert visualizer.backend is backend
     sim.get_or_create_backend.assert_called_with(cfg)
     viewer.set_model.assert_called_once_with(new_model)
+    assert viewer._view_controls == visualizer._draw_streaming_view_controls
     assert viewer.register_ui_callback.call_args_list == [
         call(viewer._render_training_controls, position="side"),
-        call(visualizer._draw_streaming_view_controls, position="side"),
     ]
     viewer.set_visible_worlds.assert_called_once_with([1, 3])
     viewer.set_world_offsets.assert_called_once_with((2.0, 0.0, 0.0))
@@ -948,13 +958,17 @@ def test_newton_scene_camera_controls_apply_uniformly_to_active_copies(monkeypat
             back_frame = back.frame.torch.clone()
             assert visualizer.current_image_view.camera is None
             assert isinstance(visualizer._image_views[0].cfg.source, PerspectiveCameraCfg)
-            # the task's own tracking camera comes after the scene cameras
-            assert [view.camera.cfg.prim_path for view in visualizer._image_views[1:] if view.camera is not None] == [
+            # A depth-only sensor is listed too, showing its own channel.
+            assert [view.camera.cfg.prim_path for view in visualizer._image_views[1:]] == [
+                depth.cfg.prim_path,
                 color.cfg.prim_path,
                 back.cfg.prim_path,
             ]
+            assert visualizer._image_views[1].cfg.channels == ("depth",)
 
-            visualizer._select_camera(1)
+            visualizer._select_camera(2)
+            assert visualizer._image_views[2].cfg.envs == (0, 1)  # Both environments are tiled by default.
+            visualizer._image_views[2].cfg.envs = (0,)
             torch.testing.assert_close(color.frame.torch, color_frame)
             image = visualizer.render_tiled_rgb_array()
             np.testing.assert_array_equal(image, color.data.output["rgb"].torch[0].cpu().numpy())
@@ -1005,7 +1019,7 @@ def test_newton_scene_camera_controls_apply_uniformly_to_active_copies(monkeypat
                 color_frame = color.frame.torch.clone()
                 back.update(cfg.sim.dt)
                 viewer.paused = True
-                visualizer._select_camera(2)
+                visualizer._select_camera(3)
                 torch.testing.assert_close(back.frame.torch, back_frame)
                 viewer.camera.get_view_matrix = Mock(return_value=after)
                 visualizer.step(0.0)
@@ -1345,3 +1359,97 @@ def test_newton_rtx_visualizer_rejects_kit_physics_backend():
 
     with pytest.raises(RuntimeError, match="Newton RTX"):
         visualizer.initialize(sim, cameras=[])
+
+
+def test_marker_tooltip_describes_known_markers_and_falls_back():
+    from isaaclab_visualizers.newton.newton_visualizer import marker_tooltip
+
+    assert marker_tooltip("/Visuals/Command/velocity_goal") == "Commanded base velocity"
+    assert marker_tooltip("/Visuals/Brand_New_Marker") == "Show or hide this marker group"
+
+
+def test_term_summary_reads_the_first_docstring_line_of_a_term_function():
+    from isaaclab_visualizers.newton.newton_visualizer import term_summary
+
+    def track_velocity(env):
+        """Reward tracking of the commanded velocity.
+
+        More detail that the tooltip leaves out.
+        """
+
+    def undocumented(env):
+        pass
+
+    class Manager:
+        terms = {"track": SimpleNamespace(func=track_velocity), "plain": SimpleNamespace(func=undocumented)}
+
+        def get_term_cfg(self, name):
+            return self.terms[name]
+
+    manager = Manager()
+    assert term_summary(manager, "track") == "Reward tracking of the commanded velocity."
+    assert term_summary(manager, "plain") == ""
+    assert term_summary(manager, "missing") == ""
+    assert term_summary(object(), "anything") == ""  # Managers without a term accessor.
+
+
+def test_the_rtx_view_keeps_following_the_tracking_camera_and_returns_to_it():
+    from isaaclab.visualizers import PerspectiveCameraCfg
+
+    def view(source, camera=None):
+        return SimpleNamespace(camera=camera, cfg=SimpleNamespace(source=source), invalidate=Mock())
+
+    rtx_camera = SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/viewer_camera_0"))
+    free, rtx, tracking = (
+        view(PerspectiveCameraCfg()),
+        view(PerspectiveCameraCfg(), rtx_camera),
+        view(TrackingCameraCfg(env_index=0)),
+    )
+    visualizer = object.__new__(NewtonGLVisualizer)
+    visualizer._image_views = [free, rtx, tracking]
+    visualizer.current_image_view = tracking
+    visualizer._rtx_pose_view = None
+
+    def select(index, keep_pose=False):
+        visualizer.current_image_view = visualizer._image_views[index]
+        if index != visualizer.rtx_view_index:
+            visualizer._rtx_pose_view = None
+
+    visualizer._select_camera = select
+
+    visualizer.set_rtx_rendering(True)
+
+    assert visualizer.rtx_rendering and visualizer._pose_source_view() is tracking
+
+    visualizer.set_rtx_rendering(False)
+
+    assert visualizer.current_image_view is tracking and visualizer._rtx_pose_view is None
+
+
+def test_sensor_labels_name_the_outputs_of_the_sensor():
+    label = NewtonGLVisualizer._sensor_label
+    assert label("/World/envs/env_[^/]+/Camera", ["rgb", "depth"]) == "Camera (RGB + depth sensor)"
+    assert label("/World/envs/env_[^/]+/Camera", ["rgba"]) == "Camera (RGB sensor)"
+    assert label("/World/Camera/", ["semantic_segmentation"]) == "Camera (semantic seg sensor)"
+    assert label("/World/Camera", ["distance_to_image_plane", "normals"]) == "Camera (depth + normals sensor)"
+    assert label("/World/Camera", ["motion_vectors"]) == "Camera (sensor)"
+    assert label("/World/Camera") == "Camera (sensor)"
+
+
+def test_a_scene_sensor_view_is_not_an_opengl_or_rtx_view():
+    visualizer = object.__new__(NewtonGLVisualizer)
+    free, sensor = (
+        SimpleNamespace(camera=None),
+        SimpleNamespace(camera=SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/envs/env_0/Camera"))),
+    )
+    rtx = SimpleNamespace(camera=SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/viewer_camera_0_rtx")))
+    visualizer._image_views = [free, sensor, rtx]
+    for view, selected in ((free, False), (sensor, True), (rtx, False)):
+        visualizer.current_image_view = view
+        assert visualizer.sensor_view_selected is selected
+
+
+def test_the_statistics_overlay_starts_closed():
+    from isaaclab_visualizers.newton.newton_visualizer import NewtonViewerGL
+
+    assert NewtonViewerGL._show_stats is False
