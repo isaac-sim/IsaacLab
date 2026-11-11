@@ -14,37 +14,14 @@ write into scratch buffers, which the next kernel reads like a func's result.
 from __future__ import annotations
 
 from collections.abc import Callable, Hashable, Iterable, Sequence
-from dataclasses import dataclass
 
 import warp as wp
 
-from isaaclab.utils.warp import ProxyArray
-
 from .config import Phase, episode_length, last_action
+from .eager import call_eager
 from .fusion import Fusion
-from .mdp import MDP, MDPState, Transition
-from .plan import Step, StepKind, TermOp
-
-
-@dataclass
-class Call:
-    """Arguments of one runtime function call, from which the kernel arguments are read."""
-
-    state: MDPState
-    actions: wp.array | None = None
-    mask: wp.array | None = None
-    transition: Transition | None = None
-    observations: dict[str, ProxyArray] | None = None
-
-
-@dataclass(frozen=True)
-class Kernels:
-    """Launches of each runtime function in order: generated kernels, and hooks that launch their own."""
-
-    apply_actions: tuple[Callable[[Call], None], ...]
-    evaluate: tuple[Callable[[Call], None], ...]
-    reset: tuple[Callable[[Call], None], ...]
-    observe: tuple[Callable[[Call], None], ...]
+from .mdp import MDP
+from .plan import Call, Launches, Step, StepKind, TermOp
 
 
 @wp.func
@@ -87,37 +64,14 @@ _RESULTS = {
 """Kernel arguments read from the transition of a call, by key."""
 
 
-def compile_kernels(mdp: MDP) -> Kernels:
-    return Kernels(_apply_actions(mdp), _evaluate(mdp), _reset(mdp), _observe(mdp))
-
-
-def apply_actions(mdp: MDP, state: MDPState, actions: ProxyArray) -> None:
-    call = Call(state, actions=actions.warp)
-    for launch in mdp.kernels.apply_actions:
-        launch(call)
-
-
-def evaluate(mdp: MDP, state: MDPState, transition: Transition) -> None:
-    call = Call(state, transition=transition, observations=transition.observations)
-    for launch in mdp.kernels.evaluate:
-        launch(call)
-
-
-def reset(mdp: MDP, state: MDPState, mask: ProxyArray) -> None:
-    call = Call(state, mask=mask.warp)
-    for launch in mdp.kernels.reset:
-        launch(call)
-
-
-def observe(mdp: MDP, state: MDPState, observations: dict[str, ProxyArray], mask: ProxyArray) -> None:
-    call = Call(state, mask=mask.warp, observations=observations)
-    for launch in mdp.kernels.observe:
-        launch(call)
+def compile_launches(mdp: MDP) -> Launches:
+    """Generate the kernels of every runtime function, with the hooks that launch their own work between them."""
+    return Launches(_apply_actions(mdp), _evaluate(mdp), _reset(mdp), _observe(mdp))
 
 
 def _apply_actions(mdp: MDP) -> tuple[Callable[[Call], None], ...]:
     code = Fusion("apply_actions", mdp.num_worlds, mdp.device)
-    actions = code.argument("actions", wp.array2d(dtype=wp.float32), lambda call: call.actions)
+    actions = code.argument("actions", wp.array2d(dtype=wp.float32), lambda call: call.actions.warp)
     last_actions = _field(code, last_action, wp.array2d(dtype=wp.float32))
     code.elements(
         (mdp.action_dim,), f"{last_actions}[world, element] = {actions}[world, element]", writes=[last_action]
@@ -191,11 +145,11 @@ def _emit(code: Fusion, mdp: MDP, steps: Iterable[Step]) -> None:
             case StepKind.COMPUTE_IF_DUE:
                 _compute(code, mdp, op, [f"if {_due(code, mdp, op)}:"])
             case StepKind.UPDATE_STATE:
-                _run(code, op, op.update, state)
+                _run(code, mdp, op, op.update, state)
             case StepKind.RESET_TIMER:
                 code.world(f"{code.function(_restart)}({_timer(code, op)})", writes=[("timer", op.name)])
             case StepKind.RESET_STATE if op.reset is not None:
-                _run(code, op, op.reset, state, mask=_mask)
+                _run(code, mdp, op, op.reset, state, mask=_mask)
             case StepKind.RESET_STATE:
                 for name, spec in op.state.items():
                     values = code.argument(
@@ -214,7 +168,7 @@ def _compute(code: Fusion, mdp: MDP, op: TermOp, conditions: Sequence[str] = ())
     match op.phase:
         case Phase.TERMINATIONS:
             writes = ["truncated" if op.time_out else "terminated", "done"]
-            lines = [f"ended = {_value(code, op)}"]
+            lines = [f"ended = {_value(code, mdp, op)}"]
             lines += _under(["if ended:"], *(f"{_result(code, key)}[world] = True" for key in writes))
             if mdp.diagnostics:
                 lines.append(f"{_result(code, 'termination_terms')}[world, {op.index}] = ended")
@@ -226,7 +180,7 @@ def _compute(code: Fusion, mdp: MDP, op: TermOp, conditions: Sequence[str] = ())
             )
             scale = f"{weights}[{op.index}] * {code.constant(float, mdp.step_dt)}"
             rewards = _result(code, "rewards")
-            lines = [f"reward = {scale} * {_value(code, op)}", f"{rewards}[world] = {rewards}[world] + reward"]
+            lines = [f"reward = {scale} * {_value(code, mdp, op)}", f"{rewards}[world] = {rewards}[world] + reward"]
             writes = ["rewards"]
             if mdp.diagnostics:
                 lines.append(f"{_result(code, 'reward_terms')}[world, {op.index}] = reward")
@@ -234,24 +188,25 @@ def _compute(code: Fusion, mdp: MDP, op: TermOp, conditions: Sequence[str] = ())
             code.world(*lines, writes=writes)
         case Phase.COMMANDS:
             target = _field(code, op.writes[0], wp.array(dtype=wp.float32, ndim=1 + len(op.shape)))
-            value = _value(code, op)
+            value = _value(code, mdp, op)
             loops = [f"for i{d} in range({n}):" for d, n in enumerate(op.shape)]
             code.world(*_under([*conditions, *loops], f"{target}[{_index(op.shape)}] = {value}"), writes=op.writes)
         case Phase.INTERVAL_EVENTS:
-            _run(code, op, op.compute, op.writes, conditions, lambda call: call.state.due[op.name])
+            _run(code, mdp, op, op.compute, op.writes, conditions, lambda call: call.state.due[op.name])
         case Phase.RESET_EVENTS:
-            _run(code, op, op.compute, op.writes, mask=_mask)
+            _run(code, mdp, op, op.compute, op.writes, mask=_mask)
         case Phase.OBSERVATIONS:
             out = code.argument(
                 ("observations", op.group),
                 wp.array2d(dtype=wp.float32),
                 lambda call: call.observations[op.group].warp,
             )
-            code.elements(op.shape, f"{out}[world, {op.columns.start} + element] = {_value(code, op)}")
+            code.elements(op.shape, f"{out}[world, {op.columns.start} + element] = {_value(code, mdp, op)}")
 
 
 def _run(
     code: Fusion,
+    mdp: MDP,
     op: TermOp,
     hook: Callable,
     writes: Iterable[Hashable],
@@ -261,28 +216,38 @@ def _run(
     """Run a hook that has no output.
 
     A func runs in the world thread under ``conditions``, and ``writes`` are the keys of the arguments it writes.
-    A function that launches its own kernels runs on its own, and takes ``mask(call)`` if it has a mask.
+    A function that launches its own kernels, or an eager term, runs on its own, and gets ``mask(call)`` if given.
     """
     if isinstance(hook, wp.Function):
         code.world(*_under(conditions, _call(code, op, hook)), writes=writes)
+    elif op.eager:
+        code.call(lambda call: call_eager(mdp, op, call.state, wp.to_torch(mask(call))), False, *_accesses(op))
     elif mask is None:
-        code.call(lambda call: hook(**call.state.arguments[op.name]))
+        code.call(lambda call: hook(**call.state.arguments[op.name]), op.capturable, *_accesses(op))
     else:
-        code.call(lambda call: hook(mask=mask(call), **call.state.arguments[op.name]))
+        code.call(lambda call: hook(mask=mask(call), **call.state.arguments[op.name]), op.capturable, *_accesses(op))
 
 
-def _value(code: Fusion, op: TermOp) -> str:
+def _value(code: Fusion, mdp: MDP, op: TermOp) -> str:
     """Return source for an op's output at the thread's world and element.
 
-    A compute hook that launches its own kernels runs first, and the source reads its scratch buffer.
+    A compute hook that launches its own kernels, or an eager term, runs first, and the source reads its scratch
+    buffer.
     """
     if isinstance(op.compute, wp.Function):
         return _call(code, op, op.compute, op.shape)
-    code.call(lambda call: op.compute(out=call.state.scratch[op.name], **call.state.arguments[op.name]))
+    if op.eager:
+        code.call(lambda call: call_eager(mdp, op, call.state), False, *_accesses(op))
+    else:
+        code.call(
+            lambda call: op.compute(out=call.state.scratch[op.name].warp, **call.state.arguments[op.name]),
+            op.capturable,
+            *_accesses(op),
+        )
     scratch = code.argument(
         ("scratch", op.name),
         wp.array(dtype=op.dtype, ndim=1 + len(op.shape)),
-        lambda call: call.state.scratch[op.name],
+        lambda call: call.state.scratch[op.name].warp,
     )
     return f"{scratch}[{_index(op.shape)}]"
 
@@ -328,12 +293,19 @@ def _result(code: Fusion, key: str) -> str:
     return code.argument(key, *_RESULTS[key])
 
 
+def _accesses(op: TermOp) -> tuple[set[Hashable], set[Hashable]]:
+    """Keys of the kernel arguments that a hook of an op may read and write, for :meth:`Fusion.call`."""
+    state = {(op.name, name) for name in op.state}
+    reads = {*op.inputs.values(), *state, ("due", op.name), *(["rng"] if op.random else [])}
+    return reads, {*op.writes, *state, ("scratch", op.name)}
+
+
 def _rng(code: Fusion) -> str:
     return code.argument("rng", wp.array2d(dtype=wp.int32), lambda call: call.state.rng.warp)
 
 
 def _mask(call: Call) -> wp.array:
-    return call.mask
+    return call.mask.warp
 
 
 def _index(shape: tuple[int, ...]) -> str:

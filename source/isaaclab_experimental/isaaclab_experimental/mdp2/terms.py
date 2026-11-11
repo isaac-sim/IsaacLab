@@ -63,6 +63,10 @@ class Term:
     shape: tuple[str | int, ...] = ("worlds",)  # Output shape; names other than "worlds" come from the inputs
     state: dict[str, State] = field(default_factory=dict)
     random: bool = False  # Pass the use's per-world random stream as ``rng``, see :mod:`.rng`
+    eager: Callable | None = (
+        None  # ``fn(ctx, **params)``, run eagerly on every backend instead of hooks, see :mod:`.eager`
+    )
+    capturable: bool = True  # False for Torch or Warp hooks that cannot run inside a CUDA graph
 
     def __post_init__(self):
         if self.torch is not None and not isinstance(self.torch, Implementation):

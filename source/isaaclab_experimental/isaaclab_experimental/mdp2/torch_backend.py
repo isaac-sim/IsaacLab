@@ -3,98 +3,102 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Torch backend: runs batched term functions eagerly, one step at a time."""
+"""Torch backend: runs batched term functions, one launch per step of the execution plan."""
 
 from __future__ import annotations
 
-from collections.abc import Iterable
-
 import torch
-
-from isaaclab.utils.warp import ProxyArray
 
 from . import rng
 from .config import Phase
-from .mdp import MDP, MDPState, Transition
-from .plan import Step, StepKind, TermOp
+from .eager import call_eager
+from .mdp import MDP, MDPState
+from .plan import Call, Launch, Launches, Step, StepKind, TermOp
 
 
-def apply_actions(mdp: MDP, state: MDPState, actions: ProxyArray) -> None:
-    state.actions.torch.copy_(actions.torch)
+def compile_launches(mdp: MDP) -> Launches:
+    """Turn every step of the execution plan into a launch, after the bookkeeping that starts each function."""
+    return Launches(
+        apply_actions=(Launch(lambda call: _apply_actions(mdp, call)),),
+        evaluate=(Launch(lambda call: _begin_evaluate(mdp, call)), *_launches(mdp, mdp.plan.evaluate)),
+        reset=(Launch(_begin_reset), *_launches(mdp, mdp.plan.reset)),
+        observe=_launches(mdp, mdp.plan.observe),
+    )
+
+
+def _launches(mdp: MDP, steps: tuple[Step, ...]) -> tuple[Launch, ...]:
+    return tuple(Launch(lambda call, step=step: _run(mdp, step, call), step.capturable) for step in steps)
+
+
+def _apply_actions(mdp: MDP, call: Call) -> None:
+    actions = call.actions.torch
+    call.state.actions.torch.copy_(actions)
     for step in mdp.plan.apply_actions:
         op = step.op
-        state.fields[op.target].torch.copy_(actions.torch[:, op.columns] * op.scale + op.offset)
+        call.state.fields[op.target].torch.copy_(actions[:, op.columns] * op.scale + op.offset)
 
 
-def evaluate(mdp: MDP, state: MDPState, transition: Transition) -> None:
+def _begin_evaluate(mdp: MDP, call: Call) -> None:
+    """Advance the random streams and episode lengths, and clear the results of the last step."""
+    state, transition = call.state, call.transition
     rng.advance(state.rng.torch)
     state.episode_length.torch.add_(1)
     transition.terminated.torch.zero_()
     transition.truncated.torch.zero_()
     if mdp.max_episode_length is not None:
         transition.truncated.torch.copy_(state.episode_length.torch >= mdp.max_episode_length)
+    transition.done.torch.copy_(transition.truncated.torch)
     transition.rewards.torch.zero_()
-    _run(mdp, mdp.plan.evaluate, state, None, transition, transition.observations)
-    transition.done.torch.copy_(transition.terminated.torch | transition.truncated.torch)
 
 
-def reset(mdp: MDP, state: MDPState, mask: ProxyArray) -> None:
-    rng.advance(state.rng.torch, mask.torch)
-    state.episode_length.torch.masked_fill_(mask.torch, 0)
-    state.actions.torch.masked_fill_(mask.torch[:, None], 0.0)
-    _run(mdp, mdp.plan.reset, state, mask.torch)
+def _begin_reset(call: Call) -> None:
+    """Advance the random streams of the masked worlds, and clear their episode lengths and last actions."""
+    mask = call.mask.torch
+    rng.advance(call.state.rng.torch, mask)
+    call.state.episode_length.torch.masked_fill_(mask, 0)
+    call.state.actions.torch.masked_fill_(mask[:, None], 0.0)
 
 
-def observe(mdp: MDP, state: MDPState, observations: dict[str, ProxyArray], mask: ProxyArray) -> None:
-    _run(mdp, mdp.plan.observe, state, mask.torch, observations=observations)
+def _run(mdp: MDP, step: Step, call: Call) -> None:
+    """Run one step, for the masked worlds if the call has a mask."""
+    op, state = step.op, call.state
+    mask = None if call.mask is None else call.mask.torch
+    match step.kind:
+        case StepKind.COMPUTE:
+            _compute(mdp, op, call, mask)
+        case StepKind.COMPUTE_IF_DUE:
+            _compute(mdp, op, call, _tick(mdp, op, state))
+        case StepKind.UPDATE_STATE:
+            op.update(**state.arguments[op.name])
+        case StepKind.RESET_TIMER:
+            _restart(op, state, mask)
+        case StepKind.RESET_STATE if op.reset is not None:
+            op.reset(mask=mask, **state.arguments[op.name])
+        case StepKind.RESET_STATE:
+            for name, spec in op.state.items():
+                values = state.term_state[op.name][name].torch.view(mdp.num_worlds, -1)
+                values.masked_fill_(mask[:, None], spec.initial)
 
 
-def _run(
-    mdp: MDP,
-    steps: Iterable[Step],
-    state: MDPState,
-    mask: torch.Tensor | None,
-    transition: Transition | None = None,
-    observations: dict[str, ProxyArray] | None = None,
-) -> None:
-    """Run the steps of a runtime function, for the masked worlds if a mask is given."""
-    for step in steps:
-        op, arguments = step.op, state.arguments[step.op.name]
-        match step.kind:
-            case StepKind.COMPUTE:
-                _compute(mdp, op, state, mask, transition, observations)
-            case StepKind.COMPUTE_IF_DUE:
-                _compute(mdp, op, state, _tick(mdp, op, state), transition, observations)
-            case StepKind.UPDATE_STATE:
-                op.update(**arguments)
-            case StepKind.RESET_TIMER:
-                _restart(op, state, mask)
-            case StepKind.RESET_STATE if op.reset is not None:
-                op.reset(mask=mask, **arguments)
-            case StepKind.RESET_STATE:
-                for name, spec in op.state.items():
-                    values = state.term_state[op.name][name].torch.view(mdp.num_worlds, -1)
-                    values.masked_fill_(mask[:, None], spec.initial)
-
-
-def _compute(
-    mdp: MDP,
-    op: TermOp,
-    state: MDPState,
-    mask: torch.Tensor | None,
-    transition: Transition | None,
-    observations: dict[str, ProxyArray] | None,
-) -> None:
+def _compute(mdp: MDP, op: TermOp, call: Call, mask: torch.Tensor | None) -> None:
     """Compute an op and write the result to its destination, for the masked worlds if a mask is given."""
-    arguments = state.arguments[op.name]
+    state, transition = call.state, call.transition
     if op.phase in (Phase.INTERVAL_EVENTS, Phase.RESET_EVENTS):
-        op.compute(mask=mask, **arguments)
+        if op.eager:
+            call_eager(mdp, op, state, mask)
+        else:
+            op.compute(mask=mask, **state.arguments[op.name])
         return
-    value = op.compute(**arguments)
+    if op.eager:
+        call_eager(mdp, op, state)
+        value = state.scratch[op.name].torch
+    else:
+        value = op.compute(**state.arguments[op.name])
     match op.phase:
         case Phase.TERMINATIONS:
             flags = transition.truncated if op.time_out else transition.terminated
             flags.torch.logical_or_(value)
+            transition.done.torch.logical_or_(value)
             if mdp.diagnostics:
                 transition.termination_terms.torch[:, op.index] = value
         case Phase.REWARDS:
@@ -106,7 +110,7 @@ def _compute(
             if op.phase is Phase.COMMANDS:
                 destination = state.fields[op.writes[0]].torch.view(mdp.num_worlds, -1)
             else:
-                destination = observations[op.group].torch[:, op.columns]
+                destination = call.observations[op.group].torch[:, op.columns]
             value = value.reshape(destination.shape)
             destination.copy_(value if mask is None else torch.where(mask[:, None], value, destination))
 

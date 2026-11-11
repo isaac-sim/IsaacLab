@@ -17,6 +17,8 @@ from typing import Any
 
 import warp as wp
 
+from .plan import Launch
+
 _ARGUMENT = re.compile(r"\ba\d+\b")
 
 
@@ -28,6 +30,7 @@ class FusedKernel:
     dim: int
     arguments: tuple[Callable[[Any], Any], ...]
     device: str
+    capturable: bool = True
 
     def __call__(self, call: Any) -> None:
         wp.launch(self.kernel, self.dim, [get(call) for get in self.arguments], device=self.device)
@@ -51,8 +54,10 @@ class Fusion:
       block, then world, then element, so neighboring threads run the same statement and write adjacent memory.
 
     All threads of a kernel run concurrently, so a new kernel starts whenever a statement would read or write an
-    argument that another thread writes, and before every hook that launches its own kernels. Statements declare the
-    arguments they write, except their own output elements.
+    argument that another thread writes. Statements declare the arguments they write, except their own output
+    elements. Hooks that launch their own work run between kernels: a hook that declares what it reads and writes
+    runs before the statements of the current kernel if they do not depend on each other, so that consecutive hooks
+    do not split it; any other hook ends the current kernel.
     """
 
     def __init__(self, name: str, num_worlds: int, device: str, mask: Callable[[Any], wp.array] | None = None):
@@ -111,10 +116,24 @@ class Fusion:
         access.touched |= touched
         access.written |= written
 
-    def call(self, step: Callable[[Any], None]) -> None:
-        """Append a hook that launches its own kernels, after the statements added so far."""
-        self._cut()
-        self._steps.append(step)
+    def call(
+        self,
+        step: Callable[[Any], None],
+        capturable: bool = True,
+        reads: Iterable[Hashable] | None = None,
+        writes: Iterable[Hashable] | None = None,
+    ) -> None:
+        """Append a hook that launches its own work. ``reads`` and ``writes`` are the keys of the arguments it uses."""
+        if reads is None or writes is None or self._depends(reads, writes):
+            self._cut()
+        self._steps.append(Launch(step, capturable))
+
+    def _depends(self, reads: Iterable[Hashable], writes: Iterable[Hashable]) -> bool:
+        """Whether a hook and the statements of the current kernel read or write each other's arguments."""
+        read = {self._arguments[key][0] for key in reads if key in self._arguments}
+        written = {self._arguments[key][0] for key in writes if key in self._arguments}
+        accesses = (self._world_access, self._element_access)
+        return any(read & access.written or written & access.touched for access in accesses)
 
     def steps(self) -> tuple[Callable[[Any], None], ...]:
         """Return the generated kernels and hooks in launch order."""

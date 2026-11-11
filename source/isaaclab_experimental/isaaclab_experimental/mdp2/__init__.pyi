@@ -5,6 +5,7 @@
 
 __all__ = [
     "MDP",
+    "CapturedMDP",
     "Backend",
     "Command",
     "DirectAction",
@@ -26,6 +27,7 @@ __all__ = [
     "ScheduleEntry",
     "SceneData",
     "SceneSchema",
+    "Segment",
     "State",
     "Step",
     "StepKind",
@@ -33,6 +35,7 @@ __all__ = [
     "TaskCfg",
     "Term",
     "TermCfg",
+    "TermContext",
     "Termination",
     "TimeLimit",
     "Transition",
@@ -46,6 +49,7 @@ __all__ = [
     "uniform",
 ]
 
+from .capture import CapturedMDP
 from .builder import MDPBuilder, ScheduleEntry
 from .config import (
     Command,
@@ -68,7 +72,8 @@ from .config import (
     last_action,
 )
 from .mdp import MDP, Backend, MDPState, Transition
-from .plan import ExecutionPlan, Step, StepKind
+from .eager import TermContext
+from .plan import ExecutionPlan, Segment, Step, StepKind
 from .scene import EntitySchema, FieldSchema, PointMassScene, SceneData, SceneSchema
 from .rng import uniform
 from .runtime import apply_actions, evaluate, observe, reset

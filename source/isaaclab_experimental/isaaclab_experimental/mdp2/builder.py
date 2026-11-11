@@ -18,7 +18,7 @@ from types import MappingProxyType
 
 import warp as wp
 
-from . import warp_backend
+from . import torch_backend, warp_backend
 from .config import (
     Command,
     DirectAction,
@@ -38,8 +38,9 @@ from .config import (
     last_action,
 )
 from .mdp import MDP, Backend
-from .plan import ActionOp, TermOp, build_plan
+from .plan import ActionOp, Segment, TermOp, build_plan
 from .scene import SceneSchema
+from .terms import Implementation
 
 
 @dataclass(frozen=True)
@@ -203,6 +204,10 @@ class MDPBuilder:
         mdp = self._compile("cpu", Backend(backend))
         return {op.name: op for ops in mdp.ops.values() for op in ops}.get(str(entry))
 
+    def preview_segments(self, backend: Backend | str = Backend.TORCH) -> dict[str, tuple[Segment, ...]]:
+        """Return how the current order splits each runtime function into CUDA graphs and eager steps."""
+        return self._compile("cpu", Backend(backend)).segments
+
     def validate(self, backend: Backend | str = Backend.TORCH) -> None:
         """Run all checks of :meth:`finalize` without generating kernels."""
         self._compile("cpu", Backend(backend))
@@ -214,7 +219,8 @@ class MDPBuilder:
         returned MDP. With ``diagnostics``, :func:`evaluate` also writes the reward and termination flag of each term.
         """
         mdp = self._compile(device, Backend(backend), diagnostics)
-        return replace(mdp, kernels=warp_backend.compile_kernels(mdp)) if mdp.backend is Backend.WARP else mdp
+        backend_module = warp_backend if mdp.backend is Backend.WARP else torch_backend
+        return replace(mdp, launches=backend_module.compile_launches(mdp))
 
     def _compile(self, device: str, backend: Backend, diagnostics: bool = False) -> MDP:
         context = CompileContext(backend, _dependency_errors(self.schedule()))
@@ -290,9 +296,19 @@ class MDPBuilder:
         """Compile a term use into an op, or record why it cannot be compiled."""
         cfg, errors = entry.cfg, context.errors
         num_errors = len(errors)
-        implementation = cfg.term.torch if context.backend is Backend.TORCH else cfg.term.warp
-        if implementation is None:
-            errors.append(f"{entry}: the term has no '{context.backend.value}' implementation.")
+        term = cfg.term
+        if term.eager is not None:
+            implementation = Implementation(compute=term.eager)
+            if term.torch is not None or term.warp is not None:
+                errors.append(f"{entry}: an eager term cannot also have Torch or Warp implementations.")
+        else:
+            implementation = term.torch if context.backend is Backend.TORCH else term.warp
+            if implementation is None:
+                errors.append(f"{entry}: the term has no '{context.backend.value}' implementation.")
+            elif not term.capturable and any(isinstance(hook, wp.Function) for hook in vars(implementation).values()):
+                errors.append(
+                    f"{entry}: wp.func hooks always run inside generated kernels and cannot be non-capturable."
+                )
         outputs = cfg.outputs if isinstance(cfg, Event) else {}
         names = [*cfg.inputs, *outputs, *cfg.term.state, *cfg.params, *(["rng"] if cfg.term.random else [])]
         if len(set(names)) != len(names):
@@ -325,7 +341,14 @@ class MDPBuilder:
                 **{name: ArrayLayout(wp.float32, 1 + len(shape), {}) for name, shape in state_shapes.items()},
             }
             # Events take the mask of the worlds to write; other Warp functions take the output to write.
-            if isinstance(cfg, Event):
+            if term.eager is not None:
+                try:
+                    inspect.signature(term.eager).bind(None, **dict.fromkeys(cfg.params))
+                except TypeError as error:
+                    errors.append(
+                        f"{entry}: eager term {term.eager.__name__!r} is called with (ctx, **params): {error}."
+                    )
+            elif isinstance(cfg, Event):
                 _check_hook(entry, implementation.compute, arguments, errors, extra="mask")
             else:
                 extra = "out" if context.backend is Backend.WARP else None
@@ -384,6 +407,8 @@ class MDPBuilder:
                 timer=timer,
                 stream=stream,
                 random=cfg.term.random,
+                capturable=cfg.term.capturable and cfg.term.eager is None,
+                eager=cfg.term.eager is not None,
             )
         )
 

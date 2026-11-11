@@ -220,6 +220,23 @@ reset_joints_by_offset = mdp2.Term(
     random=True,
 )
 """Offset the joint positions of the masked worlds by uniform samples."""
+
+
+def eager_joint_pos_l2_fn(ctx: mdp2.TermContext):
+    joint_pos = ctx.inputs["joint_pos"]
+    # Reading a value on the host fails inside a CUDA graph, which eager terms never run in.
+    if joint_pos.isfinite().all().item():
+        ctx.out.copy_(joint_pos.square().sum(dim=-1))
+
+
+def eager_reset_joints_by_offset_fn(ctx: mdp2.TermContext):
+    joint_pos = ctx.outputs["joint_pos"]
+    joint_pos.add_(ctx.mask[:, None] * mdp2.uniform(ctx.rng, -0.5, 0.5, joint_pos.shape[1:]))
+
+
+eager_joint_pos_l2 = mdp2.Term(eager=eager_joint_pos_l2_fn)
+eager_reset_joints_by_offset = mdp2.Term(eager=eager_reset_joints_by_offset_fn, random=True)
+"""Eager versions of joint_pos_l2 and reset_joints_by_offset."""
 push_robot = mdp2.Event(
     push_by_adding_velocity,
     outputs={"joint_vel": robot.joint_vel},
@@ -229,9 +246,16 @@ push_robot = mdp2.Event(
 
 
 def make_task(
-    scene: mdp2.PointMassScene, backend: str = "torch", episode_length_s: float = 1.0, random: bool = False
+    scene: mdp2.PointMassScene,
+    backend: str = "torch",
+    episode_length_s: float = 1.0,
+    random: bool = False,
+    eager: bool = False,
 ) -> tuple[mdp2.MDP, mdp2.MDPState]:
-    """A point-mass task. With ``random``, it also has a command, noisy observations, and events."""
+    """A point-mass task. With ``random``, it also has a command, noisy observations, and events.
+
+    With ``eager``, the joint position penalty and the reset event are eager terms.
+    """
     task = mdp2.TaskCfg(
         actions={"joint_effort": mdp2.DirectAction(robot.joint_effort_target, scale=2.0)},
         observations={
@@ -244,7 +268,9 @@ def make_task(
         },
         rewards={
             "alive": mdp2.Reward(is_alive, inputs={"joint_pos": robot.joint_pos}),
-            "joint_pos_l2": mdp2.Reward(joint_pos_l2, inputs={"joint_pos": robot.joint_pos}, weight=-10.0),
+            "joint_pos_l2": mdp2.Reward(
+                eager_joint_pos_l2 if eager else joint_pos_l2, inputs={"joint_pos": robot.joint_pos}, weight=-10.0
+            ),
             "disabled": None,
         },
         terminations={
@@ -273,7 +299,11 @@ def make_task(
             builder.add_observation("policy", name, observation)
         builder.add_event("push_robot", push_robot)
         builder.add_event(
-            "reset_robot_joints", mdp2.Event(reset_joints_by_offset, outputs={"joint_pos": robot.joint_pos})
+            "reset_robot_joints",
+            mdp2.Event(
+                eager_reset_joints_by_offset if eager else reset_joints_by_offset,
+                outputs={"joint_pos": robot.joint_pos},
+            ),
         )
     mdp = builder.finalize(device=DEVICE, backend=backend)
     return mdp, mdp.state(scene)
@@ -599,8 +629,8 @@ def test_warp_fuses_functions_into_few_kernels():
     mdp, _ = make_task(mdp2.PointMassScene(num_worlds=2, device=DEVICE), backend="warp")
 
     # Observations share the kernel of the terminations and rewards. The state updates wait for them in a second one.
-    kernels = mdp.kernels
-    assert [len(launches) for launches in (kernels.apply_actions, kernels.evaluate, kernels.observe)] == [1, 2, 1]
+    launches = mdp.launches
+    assert [len(launches) for launches in (launches.apply_actions, launches.evaluate, launches.observe)] == [1, 2, 1]
 
 
 def test_warp_matches_torch():
@@ -630,3 +660,79 @@ def test_warp_matches_torch():
         for expected, actual in zip(torch_step[-2:], warp_step[-2:]):
             assert torch.equal(actual, expected)  # random draws are bitwise identical
     assert any(step[1].any() for step in runs["torch"]) and any(step[2].any() for step in runs["torch"])
+
+
+def test_eager_terms_split_segments():
+    builder = mdp2.MDPBuilder(mdp2.PointMassScene(num_worlds=1).schema)
+    builder.add_reward("alive", mdp2.Reward(is_alive, inputs={"joint_pos": robot.joint_pos}))
+    eager = builder.add_reward("eager_l2", mdp2.Reward(eager_joint_pos_l2, inputs={"joint_pos": robot.joint_pos}))
+    l2 = builder.add_reward("joint_pos_l2", mdp2.Reward(joint_pos_l2, inputs={"joint_pos": robot.joint_pos}))
+
+    def evaluate_segments():
+        segments = builder.preview_segments()["evaluate"]
+        return [(segment.capturable, [step.op.name for step in segment.steps]) for segment in segments]
+
+    assert evaluate_segments() == [
+        (True, ["rewards.alive"]),
+        (False, ["rewards.eager_l2"]),
+        (True, ["rewards.joint_pos_l2"]),
+    ]
+    builder.move_after(eager, l2)
+    assert evaluate_segments() == [(True, ["rewards.alive", "rewards.joint_pos_l2"]), (False, ["rewards.eager_l2"])]
+    assert not builder.finalize().is_fully_capturable
+    builder.remove(eager)
+    assert builder.finalize().is_fully_capturable
+
+
+def test_eager_terms_match_compiled_terms():
+    """Eager terms see the same data and draw from the same streams as compiled terms, for their worlds only."""
+    for backend in ("torch", "warp"):
+        runs = []
+        for eager in (False, True):
+            scene = mdp2.PointMassScene(num_worlds=4, joint_names=("x", "y"), device=DEVICE)
+            mdp, state = make_task(scene, backend=backend, random=True, eager=eager)
+            transition = mdp.transition()
+            env_reset(
+                mdp, state, scene, transition.observations, torch.tensor([True, True, False, True], device=DEVICE)
+            )
+            joint_pos = scene.data("robot", "joint_pos").torch.clone()
+            env_step(mdp, state, scene, torch.full((4, 1), 0.1, device=DEVICE), transition)
+            runs.append((joint_pos, transition.rewards.torch.clone()))
+        (compiled_pos, compiled_rewards), (eager_pos, eager_rewards) = runs
+        assert torch.equal(eager_pos, compiled_pos) and (eager_pos[2] == 0.0).all()
+        torch.testing.assert_close(eager_rewards, compiled_rewards)
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA graphs need a GPU")
+def test_captured_mdp_replays_like_eager_calls():
+    """Graph replay, with eager terms between the graphs, gives bitwise the same results as eager calls."""
+    for backend in ("torch", "warp"):
+        runs = []
+        for capture in (False, True):
+            scene = mdp2.PointMassScene(num_worlds=64, joint_names=("x", "y", "z"), device=DEVICE)
+            mdp, state = make_task(scene, backend=backend, episode_length_s=0.2, random=True, eager=True)
+            transition = mdp.transition()
+            actions = ProxyArray(wp.zeros((64, mdp.action_dim), dtype=wp.float32, device=DEVICE))
+            captured = mdp2.CapturedMDP(mdp, state, transition, actions, transition.done) if capture else None
+            env_reset(mdp, state, scene, transition.observations, torch.ones(64, dtype=torch.bool, device=DEVICE))
+            generator = torch.Generator(device=DEVICE).manual_seed(0)
+            history = []
+            for _ in range(20):
+                actions.torch.copy_(torch.randn(64, 3, device=DEVICE, generator=generator))
+                if captured is None:
+                    env_step(mdp, state, scene, actions.torch, transition)
+                else:
+                    captured.apply_actions()
+                    scene.step()
+                    captured.evaluate()
+                    scene.reset(transition.done.torch)
+                    captured.reset()
+                    captured.observe()
+                history.append(
+                    torch.cat([transition.rewards.torch[:, None], transition.observations["policy"].torch], 1)
+                )
+            runs.append(torch.stack(history))
+        # Warp runs hooks ahead of the kernel statements they do not depend on, which can merge graphs.
+        num_segments = sum(segment.capturable for function in mdp.segments.values() for segment in function)
+        assert captured.num_graphs == num_segments if backend == "torch" else captured.num_graphs < num_segments
+        assert torch.equal(runs[1], runs[0])

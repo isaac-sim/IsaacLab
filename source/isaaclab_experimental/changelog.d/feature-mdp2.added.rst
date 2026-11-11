@@ -13,4 +13,7 @@
   fields (:attr:`~isaaclab_experimental.mdp2.commands`, :attr:`~isaaclab_experimental.mdp2.last_action`,
   :attr:`~isaaclab_experimental.mdp2.episode_length`) and index fields with subsets of joints or bodies selected
   by name. Reward weights live in :class:`~isaaclab_experimental.mdp2.MDPState` and may change while the MDP
-  runs, and ``finalize(diagnostics=True)`` also reports the reward and termination of every term.
+  runs, and ``finalize(diagnostics=True)`` also reports the reward and termination of every term. Terms that cannot
+  run inside a CUDA graph are eager terms, ``Term(eager=fn)``, or set ``capturable=False``;
+  :class:`~isaaclab_experimental.mdp2.CapturedMDP` replays the runtime functions as CUDA graphs and runs those
+  terms between the graphs.

@@ -3,17 +3,28 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Compiled ops and the execution plan, which lists the steps each runtime function runs, in order."""
+"""Compiled ops, the execution plan that lists the steps each runtime function runs, and the launches that run them.
+
+A backend compiles the plan into launches: kernels, and hooks that launch their own work. Consecutive capturable
+launches form a segment that can be captured as one CUDA graph; eager terms and other non-capturable hooks run
+between the graphs.
+"""
 
 from __future__ import annotations
 
 import enum
-from collections.abc import Callable, Mapping
+import itertools
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .config import FieldSelector, Phase, SubsetSelector
 from .terms import State
+
+if TYPE_CHECKING:
+    from isaaclab.utils.warp import ProxyArray
+
+    from .mdp import MDPState, Transition
 
 
 @dataclass(frozen=True)
@@ -50,6 +61,8 @@ class TermOp:
     timer: tuple[float, float] | None = None  # Seconds between command resamples or interval events
     stream: int | None = None  # Row of MDPState.rng, for timers and random terms
     random: bool = False  # Whether the term draws from its stream
+    capturable: bool = True  # Whether its hooks may run inside a CUDA graph
+    eager: bool = False  # Whether ``compute`` is an eager term's ``fn(ctx, **params)``, see :mod:`.eager`
 
 
 class StepKind(enum.Enum):
@@ -68,6 +81,28 @@ class Step:
 
     kind: StepKind
     op: ActionOp | TermOp
+
+    @property
+    def capturable(self) -> bool:
+        """Whether the step may run inside a CUDA graph. Only steps that call a non-capturable hook may not."""
+        if isinstance(self.op, ActionOp) or self.op.capturable or self.kind is StepKind.RESET_TIMER:
+            return True
+        return self.kind is StepKind.RESET_STATE and self.op.reset is None
+
+
+@dataclass(frozen=True)
+class Segment:
+    """Consecutive steps of a runtime function that run as one CUDA graph, or eagerly between graphs."""
+
+    capturable: bool
+    steps: tuple[Step, ...]
+
+
+def segments(steps: Sequence[Step]) -> tuple[Segment, ...]:
+    """Split the steps of a runtime function into runs of capturable and non-capturable steps."""
+    return tuple(
+        Segment(capturable, tuple(group)) for capturable, group in itertools.groupby(steps, lambda s: s.capturable)
+    )
 
 
 @dataclass(frozen=True)
@@ -108,3 +143,35 @@ def build_plan(ops: Mapping[Phase, tuple]) -> ExecutionPlan:
         ),
         observe=observations,
     )
+
+
+@dataclass
+class Call:
+    """Arguments of one runtime function call, from which launches read their arguments."""
+
+    state: MDPState
+    actions: ProxyArray | None = None
+    mask: ProxyArray | None = None
+    transition: Transition | None = None
+    observations: dict[str, ProxyArray] | None = None
+
+
+@dataclass(frozen=True)
+class Launch:
+    """Work that a backend runs as one unit: a kernel, or a hook that launches its own work."""
+
+    run: Callable[[Call], None]
+    capturable: bool = True
+
+    def __call__(self, call: Call) -> None:
+        self.run(call)
+
+
+@dataclass(frozen=True)
+class Launches:
+    """Launches of each runtime function, in order, compiled from the execution plan by a backend."""
+
+    apply_actions: tuple[Callable[[Call], None], ...]
+    evaluate: tuple[Callable[[Call], None], ...]
+    reset: tuple[Callable[[Call], None], ...]
+    observe: tuple[Callable[[Call], None], ...]

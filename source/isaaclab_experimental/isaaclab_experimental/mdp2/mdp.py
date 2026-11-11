@@ -10,7 +10,7 @@ from __future__ import annotations
 import enum
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import warp as wp
 
@@ -18,11 +18,8 @@ from isaaclab.utils.warp import ProxyArray
 
 from . import rng
 from .config import FieldSelector, Phase, SubsetSelector, episode_length, last_action
-from .plan import ActionOp, ExecutionPlan, TermOp
+from .plan import ActionOp, ExecutionPlan, Launches, Segment, TermOp, segments
 from .scene import SceneData, SceneSchema
-
-if TYPE_CHECKING:
-    from .warp_backend import Kernels
 
 
 class Backend(enum.Enum):
@@ -44,7 +41,9 @@ class MDPState:
     rng: ProxyArray  # (num_streams, num_worlds), see rng.py
     timers: dict[str, ProxyArray]  # (num_worlds,) seconds left per timed op
     arguments: dict[str, dict[str, Any]]  # By op name: the hook arguments, as arrays of the MDP's backend
-    scratch: dict[str, wp.array]  # (num_worlds, *shape) outputs of Warp hooks that launch their own kernels
+    scratch: dict[
+        str, ProxyArray
+    ]  # (num_worlds, *shape) outputs of eager terms, and of Warp functions that launch kernels
     due: dict[str, wp.array]  # (num_worlds,) per timed op, whether its timer expired this step
 
 
@@ -76,7 +75,7 @@ class MDP:
     streams: tuple[str, ...]  # Op names of the rows of MDPState.rng
     subsets: Mapping[SubsetSelector, tuple[int, ...]]  # Indices of every selected subset
     diagnostics: bool  # Whether evaluate also writes the reward and termination of every term
-    kernels: Kernels | None = None  # Warp backend only
+    launches: Launches | None = None  # Set by finalize, None for an MDP that was only validated
 
     @property
     def num_worlds(self) -> int:
@@ -94,6 +93,19 @@ class MDP:
     def schedule(self) -> tuple[str, ...]:
         """Names of all ops in schedule order."""
         return tuple(op.name for ops in self.ops.values() for op in ops)
+
+    @property
+    def segments(self) -> dict[str, tuple[Segment, ...]]:
+        """Segments of each runtime function: runs of steps that are captured as one CUDA graph, or run eagerly.
+
+        The Warp backend may need fewer graphs: it runs a hook early when nothing between depends on it.
+        """
+        return {function: segments(steps) for function, steps in vars(self.plan).items()}
+
+    @property
+    def is_fully_capturable(self) -> bool:
+        """Whether every runtime function can be captured as a single CUDA graph."""
+        return all(segment.capturable for function in self.segments.values() for segment in function)
 
     def describe(self) -> str:
         """Return the compiled MDP as readable text: ops by phase with their layout, then each function's steps."""
@@ -120,9 +132,12 @@ class MDP:
                     details += [f"state {', '.join(op.state)}"] if op.state else []
                     details += [f"stream {op.stream}"] if op.stream is not None else []
                 lines.append(f"  {op.name:{width}}  {', '.join(details)}")
-        for function, steps in vars(self.plan).items():
-            lines += [f"{function} steps"] if steps else []
-            lines += [f"  {step.kind.name.lower().replace('_', ' '):14}  {step.op.name}" for step in steps]
+        for function, function_segments in self.segments.items():
+            lines += [f"{function} steps"] if function_segments else []
+            for segment in function_segments:
+                lines.append(f"  {'graph' if segment.capturable else 'eager'}")
+                for step in segment.steps:
+                    lines.append(f"    {step.kind.name.lower().replace('_', ' '):14}  {step.op.name}")
         return "\n".join(lines)
 
     def state(self, scene_data: SceneData, seed: int = 0) -> MDPState:
@@ -172,9 +187,10 @@ class MDP:
                 for op in self.term_ops
             },
             scratch={
-                op.name: wp.zeros((self.num_worlds, *op.shape), dtype=op.dtype, device=self.device)
+                op.name: self._zeros(self.num_worlds, *op.shape, dtype=op.dtype)
                 for op in self.term_ops
-                if self.backend is Backend.WARP and not isinstance(op.compute, wp.Function)
+                if op.phase not in (Phase.INTERVAL_EVENTS, Phase.RESET_EVENTS)
+                and (op.eager or self.backend is Backend.WARP and not isinstance(op.compute, wp.Function))
             },
             due={op.name: wp.zeros(self.num_worlds, dtype=wp.bool, device=self.device) for op in timed},
         )
