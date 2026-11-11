@@ -6,7 +6,7 @@
 .. _real-backend-rfc:
 
 RFC: A Real Robot Backend
-========================
+=========================
 
 .. note::
 
