@@ -264,6 +264,9 @@ class NewtonBackend:
                 f"Newton deterministic mode {mode.name} is not supported by {type(solver_cfg).__name__}."
                 " Use MJWarp on the GPU, XPBD, or Featherstone, or disable deterministic mode."
             )
+        if self.cfg.collision_cfg is not None and (contact_max := self.cfg.collision_cfg.rigid_contact_max) is not None:
+            # Solver scratch and the collision pipeline must agree on the explicit contact capacity.
+            self.model.rigid_contact_max = contact_max
         ops = self.solver_ops = instantiate(solver_cfg, self.model, mode, env_template)
         solver = self.solver = ops.native
         if not ops.single_state:
