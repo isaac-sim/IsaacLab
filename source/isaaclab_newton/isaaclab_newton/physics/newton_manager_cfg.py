@@ -157,7 +157,7 @@ class NewtonCfg(PhysicsCfg):
        overhead therefore grow with contact capacity. Enable this mode only
        when its reproducibility guarantee is required.
 
-    MJWarp on the GPU (built with its sensor stage disabled), XPBD, and
+    MJWarp on the GPU (built with its sensor stage disabled), XPBD, Steel, and
     Featherstone support this setting. Newton raises an error during solver
     initialization for unsupported solvers rather than silently running them
     without the requested guarantee.
@@ -183,6 +183,7 @@ class NewtonCfg(PhysicsCfg):
       ``use_collision_detector=False``,
     - :class:`XPBDSolverCfg` (always),
     - :class:`VBDSolverCfg` (always),
+    - :class:`SteelSolverCfg` (always),
     - :class:`FeatherstoneSolverCfg` (always).
 
     :class:`~isaaclab_newton.physics.MPMSolverCfg` does not use this pipeline;

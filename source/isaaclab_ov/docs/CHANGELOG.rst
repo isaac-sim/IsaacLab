@@ -3,6 +3,16 @@ Changelog
 
 .. towncrier release notes start
 
+9.0.2 (2026-11-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed reduced OVPhysX training throughput with cloned environments and shared ground by no longer forcing
+  ``physxScene:envIdInBoundsBitCount`` during scene initialization.
+
+
 9.0.1 (2026-11-06)
 ~~~~~~~~~~~~~~~~~~
 
