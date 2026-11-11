@@ -26,7 +26,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     cli_args.add_rlinf_args(parser)
     parser.add_argument("--max_iterations", type=int, default=None, help="RL policy training iterations.")
     parser.add_argument("--list_tasks", action="store_true", default=False, help="List all available tasks and exit.")
-    args_cli = parser.parse_args(argv)
+    args_cli = parser.parse_intermixed_args(argv)
     if not args_cli.list_tasks and not args_cli.config_name:
         parser.error("--config_name is required (e.g. --config_name isaaclab_ppo_gr00t_assemble_trocar)")
     return args_cli
@@ -105,6 +105,8 @@ def run(argv: list[str]) -> None:
             cfg.rollout.model.model_path = args_cli.model_path
         if args_cli.only_eval:
             cfg.runner.only_eval = True
+        if args_cli.env_overrides:
+            cli_args.set_env_overrides(cfg, args_cli.env_overrides)
         if args_cli.checkpoint:
             checkpoint_path = cli_args.resolve_rlinf_checkpoint(
                 args_cli.checkpoint,
@@ -135,6 +137,7 @@ def run(argv: list[str]) -> None:
             "Max iterations": cfg.runner.max_epochs,
             "Model": cfg.actor.model.model_path,
             "Algorithm": cfg.algorithm.loss_type,
+            "Env overrides": list(args_cli.env_overrides),
             "Log dir": log_dir,
         },
     )

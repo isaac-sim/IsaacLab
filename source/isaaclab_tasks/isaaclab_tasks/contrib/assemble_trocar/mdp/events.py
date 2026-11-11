@@ -12,17 +12,19 @@ import math
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
-from isaaclab.managers import SceneEntityCfg
+from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.utils import index_fill_
 from isaaclab.utils.math import quat_apply, quat_mul
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedRLEnv
+    from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
 
 logger = logging.getLogger(__name__)
 
 __all__ = [
+    "remap_newton_shape_friction",
     "reset_tray_with_random_rotation",
     "reset_robot_to_default_joint_positions",
     "reset_task_stage",
@@ -255,3 +257,50 @@ def reset_robot_to_default_joint_positions(
     default_root_vel = robot.data.default_root_vel.torch[env_ids].clone()
     robot.write_root_pose_to_sim_index(root_pose=default_root_pose, env_ids=env_ids)
     robot.write_root_velocity_to_sim_index(root_velocity=default_root_vel, env_ids=env_ids)
+
+
+class remap_newton_shape_friction(ManagerTermBase):
+    """Replace one friction coefficient on an asset's shapes when running on Newton.
+
+    Newton combines a contact pair's friction with ``max`` while PhysX averages it, so a pair with very different
+    coefficients grips much harder on Newton. Remapping only the shapes whose coefficient equals ``source_mu`` lets one
+    pair match its PhysX value while the asset's other materials stay untouched. Other backends are left unchanged.
+    """
+
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+        super().__init__(cfg, env)
+        self._binding = None
+        physics_modules = {cls.__module__.split(".")[0] for cls in type(env.sim.cfg.physics).__mro__}
+        if "isaaclab_newton" not in physics_modules:
+            return
+        asset = env.scene[cfg.params["asset_cfg"].name]
+        self._newton_manager = env.sim.backend_manager
+        model = self._newton_manager.backend.model
+        self._binding = asset._root_view.get_attribute("shape_material_mu", model)[:, 0]
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        env_ids: torch.Tensor | None,
+        asset_cfg: SceneEntityCfg,
+        source_mu: float,
+        target_mu: float,
+    ) -> None:
+        """Set every selected-environment shape with friction ``source_mu`` to ``target_mu``.
+
+        Args:
+            env: Environment owning this term.
+            env_ids: Environments to update. None selects all environments.
+            asset_cfg: Asset whose shapes are remapped.
+            source_mu: Friction coefficient to replace.
+            target_mu: Friction coefficient written in its place.
+        """
+        if self._binding is None:
+            return
+        from newton import ModelFlags
+
+        mu = wp.to_torch(self._binding)
+        rows = torch.arange(env.num_envs, device=mu.device) if env_ids is None else env_ids.to(mu.device)
+        current = mu[rows]
+        mu[rows] = torch.where((current - source_mu).abs() < 1e-4, torch.full_like(current, target_mu), current)
+        self._newton_manager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
