@@ -37,6 +37,8 @@ class MDP2Env:
     a fully capturable MDP, every step after the first replays as one CUDA graph, physics included. Newton only.
     """
 
+    diagnostics: ClassVar[bool] = False  # Whether evaluate writes the reward and termination of every term
+
     def __init__(self, cfg: MDP2EnvCfg):
         self.cfg = cfg
         if cfg.seed is not None:
@@ -72,7 +74,7 @@ class MDP2Env:
         self.scene_data = InteractiveSceneData(self.scene, self.step_dt)
         builder = mdp2.MDPBuilder(self.scene_data.schema)
         builder.add_task(cfg.task)
-        self.mdp = builder.finalize(device=self.device, backend=cfg.backend)
+        self.mdp = builder.finalize(device=self.device, backend=cfg.backend, diagnostics=self.diagnostics)
         self.state = self.mdp.state(self.scene_data, seed=cfg.seed or 0)
         self.transition = self.mdp.transition()
 
@@ -181,11 +183,13 @@ class MDP2Env:
 class MDP2RLEnv(MDP2Env, gym.Env):
     """A Gym environment driven by an MDP2 task, like a :class:`~isaaclab.envs.ManagerBasedRLEnv` without managers.
 
-    :meth:`step` returns the observations after resets, the rewards, and the terminated and truncated flags of the
-    step, as Torch views of buffers that the next step overwrites.
+    :meth:`step` returns copies of the observations after resets, and the rewards and the terminated and truncated
+    flags of the step as Torch views of buffers that the next step overwrites. ``extras["log"]`` holds, per term, the
+    average over worlds of their last finished episode: the reward sum per second, and whether the term ended it.
     """
 
     is_vector_env: ClassVar[bool] = True
+    diagnostics: ClassVar[bool] = True
     metadata: ClassVar[dict[str, Any]] = {"render_modes": [None]}
 
     cfg: MDP2RLEnvCfg
@@ -204,6 +208,14 @@ class MDP2RLEnv(MDP2Env, gym.Env):
         self.single_action_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(self.mdp.action_dim,))
         self.observation_space = gym.vector.utils.batch_space(self.single_observation_space, self.num_envs)
         self.action_space = gym.vector.utils.batch_space(self.single_action_space, self.num_envs)
+
+        # Per-term episode statistics, kept on the device so that logging needs no host sync.
+        self._reward_names = [op.name.split(".", 1)[1] for op in self.mdp.ops[mdp2.Phase.REWARDS]]
+        self._termination_names = [op.name.split(".", 1)[1] for op in self.mdp.ops[mdp2.Phase.TERMINATIONS]]
+        self._episode_rewards = torch.zeros(self.num_envs, len(self._reward_names), device=self.device)
+        self._last_episode_rewards = torch.zeros_like(self._episode_rewards)
+        self._last_terminations = torch.zeros(self.num_envs, len(self._termination_names), device=self.device)
+        self.obs_buf: VecEnvObs = {}
 
     @property
     def max_episode_length(self) -> int | float:
@@ -228,15 +240,43 @@ class MDP2RLEnv(MDP2Env, gym.Env):
     def seed(seed: int = -1) -> int:
         return configure_seed(seed)
 
+    def reset(self, seed: int | None = None, options: dict[str, Any] | None = None) -> tuple[VecEnvObs, dict]:
+        """Reset every world and return copies of their observations."""
+        super().reset(seed, options)
+        self._episode_rewards.zero_()
+
+        # Learners keep the observations across the next step, which overwrites the buffers.
+        self.obs_buf = {group: values.clone() for group, values in self.observations.items()}
+        return self.obs_buf, self.extras
+
     def step(self, action: torch.Tensor) -> VecEnvStepReturn:
         """Apply the actions, step the physics, evaluate the MDP, reset the worlds that ended, and observe."""
         self._step_or_replay(action)
+        self._log_episodes()
+        self.obs_buf = {group: values.clone() for group, values in self.observations.items()}
 
         transition = self.transition
         return (
-            self.observations,
+            self.obs_buf,
             transition.rewards.torch,
             transition.terminated.torch,
             transition.truncated.torch,
             self.extras,
         )
+
+    def _log_episodes(self) -> None:
+        """Add the step's term rewards to the episode sums, and record the episodes that ended in ``extras["log"]``."""
+        transition = self.transition
+        ended = transition.done.torch[:, None]
+        self._episode_rewards += transition.reward_terms.torch
+
+        self._last_episode_rewards = torch.where(ended, self._episode_rewards, self._last_episode_rewards)
+        terminations = transition.termination_terms.torch.float()
+        self._last_terminations = torch.where(ended, terminations, self._last_terminations)
+        self._episode_rewards = torch.where(ended, 0.0, self._episode_rewards)
+
+        rewards = self._last_episode_rewards.mean(dim=0) / self.max_episode_length_s
+        terminations = self._last_terminations.mean(dim=0)
+        log = {f"Episode_Reward/{name}": rewards[k] for k, name in enumerate(self._reward_names)}
+        log |= {f"Episode_Termination/{name}": terminations[k] for k, name in enumerate(self._termination_names)}
+        self.extras["log"] = log

@@ -12,8 +12,6 @@ draws on both backends.
 
 from __future__ import annotations
 
-import functools
-
 import torch
 import warp as wp
 
@@ -81,7 +79,28 @@ def _reset_joints_by_scale(
         joint_vel[world, j] = wp.clamp(velocity, -velocity_limit, velocity_limit)
 
 
-def _reset_joints_torch(
+def _joint_samples(rng, joint_ids, position_range, velocity_range):
+    """Uniform position and velocity samples per world and joint, at the draws of the Warp funcs."""
+    num_joints = len(joint_ids)
+    position = uniform(rng, *position_range, (num_joints,))
+    velocity = uniform(rng, *velocity_range, (num_joints,), offset=num_joints)
+    return position, velocity
+
+
+def _write_joint_state(
+    mask, joint_pos, joint_vel, position, velocity, soft_joint_pos_limits, soft_joint_vel_limits, joint_ids
+):
+    """Write a joint state, clamped to the soft limits, to the masked worlds."""
+    limits = soft_joint_pos_limits[:, joint_ids]
+    velocity_limits = soft_joint_vel_limits[:, joint_ids]
+    position = position.clamp(limits[..., 0], limits[..., 1])
+    velocity = velocity.clamp(-velocity_limits, velocity_limits)
+
+    joint_pos[:, joint_ids] = torch.where(mask[:, None], position, joint_pos[:, joint_ids])
+    joint_vel[:, joint_ids] = torch.where(mask[:, None], velocity, joint_vel[:, joint_ids])
+
+
+def _reset_joints_by_offset_torch(
     mask,
     joint_pos,
     joint_vel,
@@ -94,41 +113,41 @@ def _reset_joints_torch(
     *,
     position_range,
     velocity_range,
-    scale: bool,
 ):
-    """Offset or scale the default joint state by uniform samples, clamped to the soft limits."""
-    num_joints = len(joint_ids)
-    position_samples = uniform(rng, *position_range, (num_joints,))
-    velocity_samples = uniform(rng, *velocity_range, (num_joints,), offset=num_joints)
-
-    if scale:
-        position = default_joint_pos[:, joint_ids] * position_samples
-        velocity = default_joint_vel[:, joint_ids] * velocity_samples
-    else:
-        position = default_joint_pos[:, joint_ids] + position_samples
-        velocity = default_joint_vel[:, joint_ids] + velocity_samples
-
-    limits = soft_joint_pos_limits[:, joint_ids]
-    velocity_limits = soft_joint_vel_limits[:, joint_ids]
-    position = position.clamp(limits[..., 0], limits[..., 1])
-    velocity = velocity.clamp(-velocity_limits, velocity_limits)
-
-    joint_pos[:, joint_ids] = torch.where(mask[:, None], position, joint_pos[:, joint_ids])
-    joint_vel[:, joint_ids] = torch.where(mask[:, None], velocity, joint_vel[:, joint_ids])
+    position, velocity = _joint_samples(rng, joint_ids, position_range, velocity_range)
+    position = default_joint_pos[:, joint_ids] + position
+    velocity = default_joint_vel[:, joint_ids] + velocity
+    _write_joint_state(
+        mask, joint_pos, joint_vel, position, velocity, soft_joint_pos_limits, soft_joint_vel_limits, joint_ids
+    )
 
 
-reset_joints_by_offset = Term(
-    torch=functools.partial(_reset_joints_torch, scale=False),
-    warp=_reset_joints_by_offset,
-    random=True,
-)
+def _reset_joints_by_scale_torch(
+    mask,
+    joint_pos,
+    joint_vel,
+    default_joint_pos,
+    default_joint_vel,
+    soft_joint_pos_limits,
+    soft_joint_vel_limits,
+    joint_ids,
+    rng,
+    *,
+    position_range,
+    velocity_range,
+):
+    position, velocity = _joint_samples(rng, joint_ids, position_range, velocity_range)
+    position = default_joint_pos[:, joint_ids] * position
+    velocity = default_joint_vel[:, joint_ids] * velocity
+    _write_joint_state(
+        mask, joint_pos, joint_vel, position, velocity, soft_joint_pos_limits, soft_joint_vel_limits, joint_ids
+    )
+
+
+reset_joints_by_offset = Term(torch=_reset_joints_by_offset_torch, warp=_reset_joints_by_offset, random=True)
 """Set the joint state to the default plus uniform offsets from ``position_range`` and ``velocity_range``."""
 
-reset_joints_by_scale = Term(
-    torch=functools.partial(_reset_joints_torch, scale=True),
-    warp=_reset_joints_by_scale,
-    random=True,
-)
+reset_joints_by_scale = Term(torch=_reset_joints_by_scale_torch, warp=_reset_joints_by_scale, random=True)
 """Set the joint state to the default scaled by uniform factors from ``position_range`` and ``velocity_range``."""
 
 

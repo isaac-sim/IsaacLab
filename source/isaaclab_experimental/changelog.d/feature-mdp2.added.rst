@@ -28,3 +28,5 @@
   and root reset and push events, on both backends. Observations take uniform noise, clipping, scaling, and history,
   and the scene data of :class:`~isaaclab_experimental.envs.MDP2Env` covers rigid objects, the root and body state
   of articulations, and contact sensors.
+* Added per-term episode statistics to ``extras["log"]`` of :class:`~isaaclab_experimental.envs.MDP2RLEnv`, and the
+  ``obs_buf``, ``log_dir``, and ``video_recorders`` members that the training scripts use.

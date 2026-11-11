@@ -34,3 +34,5 @@ class MDP2RLEnvCfg(MDP2EnvCfg):
     """Configuration for :class:`~isaaclab_experimental.envs.MDP2RLEnv`."""
 
     is_finite_horizon: bool = False  # Whether time-outs are terminal states rather than truncations
+    log_dir: str | None = None  # Set by the training scripts
+    video_recorders: list = []  # Not supported yet; kept for the training scripts
