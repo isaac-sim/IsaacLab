@@ -27,7 +27,7 @@ Choosing a renderer backend
 
    .. grid-item-card:: Newton Warp :bdg-info:`Lightweight`
 
-      .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-newton.webp
+      .. image:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/renderers/camera_renderer_newton.webp
          :alt: Six material spheres falling onto a table in Newton Warp RGB output.
          :width: 100%
 
@@ -38,7 +38,7 @@ Choosing a renderer backend
 
    .. grid-item-card:: OVRTX :bdg-success:`Recommended`
 
-      .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-ovrtx.webp
+      .. image:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/renderers/camera_renderer_ovrtx.webp
          :alt: Six material spheres falling onto a table in OVRTX RGB output.
          :width: 100%
 
@@ -49,7 +49,7 @@ Choosing a renderer backend
 
    .. grid-item-card:: Isaac RTX :bdg-warning:`Legacy`
 
-      .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-isaac-rtx.webp
+      .. image:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/renderers/camera_renderer_isaac_rtx.webp
          :alt: Six material spheres falling onto a table in Isaac RTX RGB output.
          :width: 100%
 
@@ -172,7 +172,7 @@ documentation for the renderer-level settings and limitations.
 
          .. grid-item::
 
-            .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-newton-shadows-disabled.png
+            .. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/renderers/camera_renderer_newton_shadows_disabled.png
                :width: 100%
                :alt: Newton Warp RGB output with directional-light shadows disabled.
 
@@ -180,7 +180,7 @@ documentation for the renderer-level settings and limitations.
 
          .. grid-item::
 
-            .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-newton-shadows-enabled.png
+            .. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/renderers/camera_renderer_newton_shadows_enabled.png
                :width: 100%
                :alt: Newton Warp RGB output with directional-light shadows enabled.
 
@@ -355,6 +355,11 @@ selected environment.
 This setting does not affect OVRTX, which always partitions multi-environment scenes.
 
 Prims outside the environment hierarchies remain in the shared background partition.
+Non-instanced lights inside an environment hierarchy receive its matching scene-partition selector.
+Lights inside USD instances do not receive a selector; make their light-containing ancestors
+non-instanceable to partition them. Isaac RTX dome backgrounds may remain shared across tiled
+views even when selectors match, so use analytic lights for independent per-environment illumination.
+Keep a light outside the environment hierarchies to illuminate shared or viewport cameras.
 Environment-owned ``PointInstancer`` markers can carry one matching scene-partition
 token per instance; markers without that ownership information remain shared.
 

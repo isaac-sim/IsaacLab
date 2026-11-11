@@ -166,7 +166,7 @@ def test_several_instances_per_world_is_refused_rather_than_mispaired():
         MjWarpTendonControl(articulation, _pair([1, 2], [0, 1]), articulation.root_view)
 
 
-def test_the_mask_command_writes_only_the_selected_cells():
+def test_commands_write_only_selected_cells():
     """The mask form must reach the same buffer as the index form, honouring both masks.
 
     Newton exposes masks so the write can be captured in a CUDA graph, so this path resolves
@@ -191,3 +191,13 @@ def test_the_mask_command_writes_only_the_selected_cells():
 
     # Only envs 0 and 2, and only tendon 1, are selected.
     np.testing.assert_array_equal(buffer.numpy(), [[0.0, 7.0], [0.0, 0.0], [0.0, 7.0]])
+
+    # Indexed commands normalize strided Torch/int64 selectors and preserve ordering.
+    articulation._resolve_env_ids = lambda ids: ids
+    articulation._resolve_fixed_tendon_ids = lambda ids: ids
+    control.set_position_target_index(
+        target=wp.to_torch(wp.array([[3.0], [5.0]], dtype=wp.float32, device="cpu")),
+        env_ids=wp.to_torch(wp.array([2, 99, 1, 99], dtype=wp.int64, device="cpu")[::2]),
+        fixed_tendon_ids=wp.array([0, 99], dtype=wp.int32, device="cpu")[::2],
+    )
+    np.testing.assert_array_equal(buffer.numpy(), [[0.0, 7.0], [5.0, 0.0], [3.0, 7.0]])

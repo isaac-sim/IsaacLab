@@ -145,6 +145,7 @@ def _run(args_cli: argparse.Namespace) -> None:
                     task=args_cli.task,
                     checkpoint_pattern=r".*",
                     other_dirs=["checkpoints"],
+                    latest_checkpoint_pattern=r"agent_.*",
                     metadata=manifest_metadata,
                 )
             else:

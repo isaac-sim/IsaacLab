@@ -91,6 +91,7 @@ def _resolve_checkpoint(
             task=normalize_task_name(args_cli.task),
             checkpoint_pattern=r".*",
             other_dirs=["checkpoints"],
+            latest_checkpoint_pattern=r"agent_.*",
             metadata=metadata,
         )
     if args_cli.checkpoint:

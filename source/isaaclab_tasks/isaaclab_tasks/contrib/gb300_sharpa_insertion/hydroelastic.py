@@ -12,8 +12,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import warp as wp
 from isaaclab_newton.physics import HydroelasticSDFCfg, NewtonCfg, NewtonCollisionPipelineCfg
-
-from isaaclab_contrib.coupling import CouplerProxyCfg, CouplerProxyMappingCfg
+from isaaclab_newton.physics.coupling import CouplerProxyCfg, CouplerProxyMappingCfg
 
 if TYPE_CHECKING:
     import newton
@@ -34,10 +33,13 @@ def configure_hydroelastic_physics(physics: NewtonCfg) -> None:
     # The fixture proxy includes the pedestal and rack; only the ground needs static ownership.
     cable.include_static_shapes = False
     cable.shape_label_patterns = [r"/World/GroundPlane/.*"]
-    cable.solver_cfg.class_type = "isaaclab_tasks.contrib.gb300_sharpa_insertion.endpoint:NewtonEndpointVBDManager"
+    cable.solver_cfg = cable.solver_cfg.replace(
+        class_type="isaaclab_tasks.contrib.gb300_sharpa_insertion.endpoint:EndpointVBDSolver"
+    )
     physics.solver_cfg = CouplerProxyCfg(
-        class_type="isaaclab_tasks.contrib.gb300_sharpa_insertion.endpoint:NewtonEndpointCouplerManager",
         entries=[rigid, cable],
+        # The cable runs its own post-transfer pipeline; the outer pipeline collides rigid pairs once.
+        outer_contact_entry="rigid",
         iterations=1,
         proxies=[
             CouplerProxyMappingCfg(
@@ -49,7 +51,6 @@ def configure_hydroelastic_physics(physics: NewtonCfg) -> None:
             )
         ],
     )
-    physics.class_type = physics.solver_cfg.class_type
     physics.collision_cfg = NewtonCollisionPipelineCfg(
         sdf_hydroelastic_config=HydroelasticSDFCfg(
             output_contact_surface=True,

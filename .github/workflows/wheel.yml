@@ -26,7 +26,7 @@ jobs:
   build-wheel:
     name: Build Wheel
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 40
 
     steps:
       - name: Detect wheel-relevant changes
@@ -45,10 +45,13 @@ jobs:
           patterns=(
             $'^apps/\tStandalone apps packaged in the wheel'
             $'^examples/\tDemos and examples packaged in the wheel'
+            $'^scripts/\tScripts packaged in the wheel'
             $'^pyproject\.toml$\tWheel dependency metadata and resolver overrides'
+            $'^uv\.lock$\tWorkspace lock consistency'
             $'^VERSION$\tPackage version'
             $'^source/\tPython packages'
             $'^tools/wheel_builder/\tWheel build tooling'
+            $'^tools/template/\tTemplate packaged in the wheel'
             $'^\.github/workflows/wheel\.yml$\tThis workflow file'
           )
 
@@ -137,7 +140,7 @@ jobs:
           python-version: "3.12"
           architecture: x64
 
-      # Wheel building and extras resolution both use uv's cache.
+      # Wheel building, resolution, and installation share uv's cache.
       - name: Set up uv
         if: steps.changes.outputs.run_build == 'true'
         uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
@@ -147,6 +150,16 @@ jobs:
           # on the same `-unknown-` cache key and only one can save. This job
           # caches the wheel's full extras resolution; keep it separate.
           cache-suffix: wheel-extras
+
+      - name: Check workspace lock consistency
+        if: steps.changes.outputs.run_build == 'true'
+        run: uv lock --check
+
+      - name: Test workspace dependency resolution
+        if: steps.changes.outputs.run_build == 'true'
+        run: >-
+          uv run --no-project --python 3.12 --with pytest python -m pytest -v
+          source/isaaclab/test/install_ci/test_resolution.py
 
       # Compose Docker-image-style metadata for the artifact. The artifact
       # name is what QA sees in `gh run download`, so we make it scannable:
@@ -224,7 +237,21 @@ jobs:
             --python-platform windows \
             --target /tmp/isaaclab-wheel-windows \
             --torch-backend cu130 \
-            "$wheel"
+            --overrides "$overrides" \
+            --extra-index-url https://pypi.nvidia.com \
+            --index-strategy unsafe-best-match \
+            "${wheel}[isaacsim]"
+
+          # Ubuntu 22.04's glibc 2.35 also supports warp-lang's aarch64 wheels (>= 2.34).
+          bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" uv pip install \
+            --dry-run \
+            --python-platform aarch64-manylinux_2_35 \
+            --target /tmp/isaaclab-wheel-aarch64 \
+            --overrides "$overrides" \
+            --extra-index-url https://pypi.nvidia.com \
+            --torch-backend cu130 \
+            --index-strategy unsafe-best-match \
+            "${wheel}[isaacsim]"
 
           bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" uv pip install \
             --dry-run \
@@ -239,3 +266,16 @@ jobs:
             --torch-backend cu130 \
             --index-strategy unsafe-best-match \
             "${wheel}[isaacsim]"
+
+      - name: Test installed base wheel
+        if: steps.changes.outputs.run_build == 'true'
+        run: |
+          set -euo pipefail
+          wheels=(/tmp/isaaclab-wheel-artifact/isaaclab-*.whl)
+          if [ "${#wheels[@]}" -ne 1 ] || [ ! -f "${wheels[0]}" ]; then
+            echo "Expected exactly one downloaded wheel" >&2
+            exit 1
+          fi
+          export ISAACLAB_WHEEL="${wheels[0]}"
+          uv run --no-project --python 3.12 --with pytest python -m pytest -v \
+            'source/isaaclab/test/install_ci/test_wheel.py::test_installed_wheel[base]'

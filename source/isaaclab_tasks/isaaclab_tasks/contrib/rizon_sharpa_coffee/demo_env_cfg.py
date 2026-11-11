@@ -14,6 +14,7 @@ from typing import Literal
 import numpy as np
 from isaaclab_newton.assets import MPMObjectCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
+from isaaclab_newton.physics.coupling import CouplerEntryCfg, CouplerProxyCfg
 from isaaclab_newton.sim.spawners.mpm import MPMParticleMaterialCfg, MPMPointsCfg
 from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
 from isaaclab_visualizers.kit import KitBackendCfg
@@ -27,8 +28,6 @@ from isaaclab.envs import ManagerBasedEnvCfg
 from isaaclab.managers import EventTermCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
-
-from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg
 
 from .assets import BOWL_POSITION, COFFEE_ASSET_DIR, CUP_HEIGHT, CUP_INNER_RADIUS, CUP_POSITION, coffee_cavity_radius
 from .robot import (
@@ -45,7 +44,8 @@ from .robot import (
 class CoffeeMPMSolverCfg(MPMSolverCfg):
     """Native MPM with optional passive rendering grains."""
 
-    class_type: str = "isaaclab_tasks.contrib.rizon_sharpa_coffee.physics:CoffeeMPMManager"
+    class_type: type | str = "{DIR}.physics:CoffeeMPMSolver"
+
     solver: str | tuple[str, ...] | None = None
     """Pressure solver; ``None`` selects the final wet or dry task profile."""
     max_iterations: int | None = None
@@ -60,7 +60,6 @@ def make_physics_cfg(voxel_size: float) -> NewtonCfg:
     """Configure coupling with material defaults resolved after scene overrides."""
     return NewtonCfg(
         solver_cfg=CouplerProxyCfg(
-            class_type="isaaclab_tasks.contrib.rizon_sharpa_coffee.physics:NewtonCoffeeCouplerManager",
             entries=[
                 CouplerEntryCfg(
                     name="robot",

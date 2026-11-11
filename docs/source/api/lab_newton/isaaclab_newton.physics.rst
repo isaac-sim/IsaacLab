@@ -16,18 +16,21 @@
     NewtonBuilderCfg
     NewtonSoftContactCfg
     NewtonCollisionPipelineCfg
-    NewtonFeatherstoneManager
-    NewtonKaminoManager
-    NewtonMPMManager
-    NewtonMJWarpManager
-    NewtonVBDManager
     NewtonShapeCfg
+    NewtonSolver
+    MJWarpSolver
+    VBDSolver
+    XPBDSolver
+    FeatherstoneSolver
+    SteelSolver
+    KaminoSolver
+    MPMSolver
     NewtonSolverCfg
-    NewtonXPBDManager
     MJWarpSolverCfg
     VBDSolverCfg
     XPBDSolverCfg
     FeatherstoneSolverCfg
+    SteelSolverCfg
     KaminoCollisionDetectorCfg
     KaminoConstraintsCfg
     KaminoDVICfg
@@ -50,12 +53,46 @@ Physics Manager
   :inherited-members:
   :show-inheritance:
 
+.. autofunction:: create_builder
+
 .. autoclass:: NewtonBackend
   :members:
   :exclude-members: __init__
 
 .. autoclass:: NewtonCloneRecord
   :members:
+
+.. automodule:: isaaclab_newton.physics.newton_backend
+  :members: capture_graph
+
+.. currentmodule:: isaaclab_newton.physics
+
+Solvers
+-------
+
+.. autoclass:: NewtonSolver
+  :members:
+
+.. autoclass:: MJWarpSolver
+  :show-inheritance:
+
+.. autoclass:: VBDSolver
+  :show-inheritance:
+
+.. autoclass:: XPBDSolver
+  :show-inheritance:
+
+.. autoclass:: FeatherstoneSolver
+  :show-inheritance:
+
+.. autoclass:: SteelSolver
+  :show-inheritance:
+
+.. autoclass:: KaminoSolver
+  :show-inheritance:
+
+.. autoclass:: MPMSolver
+  :show-inheritance:
 
 Actuator Solver Access
 ----------------------
@@ -110,6 +147,11 @@ Physics Configuration
   :exclude-members: __init__
 
 .. autoclass:: FeatherstoneSolverCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: SteelSolverCfg
   :members:
   :show-inheritance:
   :exclude-members: __init__
@@ -179,35 +221,7 @@ Physics Configuration
   :show-inheritance:
   :exclude-members: __init__
 
-Solver Managers
----------------
+MPM Solver State
+----------------
 
-.. autoclass:: NewtonMJWarpManager
-  :members:
-  :inherited-members:
-  :show-inheritance:
-
-.. autoclass:: NewtonVBDManager
-  :members:
-  :inherited-members:
-  :show-inheritance:
-
-.. autoclass:: NewtonXPBDManager
-  :members:
-  :inherited-members:
-  :show-inheritance:
-
-.. autoclass:: NewtonFeatherstoneManager
-  :members:
-  :inherited-members:
-  :show-inheritance:
-
-.. autoclass:: NewtonKaminoManager
-  :members:
-  :inherited-members:
-  :show-inheritance:
-
-.. autoclass:: NewtonMPMManager
-  :members:
-  :inherited-members:
-  :show-inheritance:
+.. autofunction:: reset_mpm_solver_state

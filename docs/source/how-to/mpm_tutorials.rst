@@ -48,7 +48,7 @@ Elastic stiffness with ``--press_spheres``:
 .. raw:: html
 
    <video autoplay loop muted playsinline preload="metadata" aria-label="MPM elastic stiffness comparison under compression" style="width:100%; max-width:960px;">
-     <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_elastic_stiffness.mp4" type="video/mp4">
+     <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/mpm/mpm_elastic_stiffness.mp4" type="video/mp4">
    </video>
 
 Start with the elastic stiffness comparison:
@@ -136,7 +136,7 @@ total mass.
 .. raw:: html
 
    <video autoplay loop muted playsinline preload="metadata" aria-label="Rigid bodies and MPM objects descending identical inclines" style="width:100%; max-width:960px;">
-     <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_rigid_limit.mp4" type="video/mp4">
+     <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/mpm/mpm_rigid_limit.mp4" type="video/mp4">
    </video>
 
 .. code-block:: bash
@@ -166,7 +166,7 @@ for rendering, while leaving the particle simulation unchanged.
 .. raw:: html
 
    <video autoplay loop muted playsinline preload="metadata" aria-label="Reconstructed water surface falling into a shallow pool" style="width:100%; max-width:960px;">
-     <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_surface_reconstruction.mp4" type="video/mp4">
+     <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/mpm/mpm_surface_reconstruction.mp4" type="video/mp4">
    </video>
 
 .. code-block:: bash

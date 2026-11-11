@@ -23,6 +23,9 @@ from ...utils.leapp import (
 from ...utils.warp import ProxyArray
 from ...utils.warp.launch_cache import _WarpLaunchCache
 
+# Public state layout: position, xyzw quaternion, linear velocity, angular velocity.
+vec13f = wp.types.vector(length=13, dtype=wp.float32)
+
 
 class BaseRigidObjectData(ABC):
     """Data container for a rigid object.

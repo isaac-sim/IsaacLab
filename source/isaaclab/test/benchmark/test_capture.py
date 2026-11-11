@@ -15,9 +15,11 @@ from isaaclab_newton.physics import (
     MPMSolverCfg,
     NewtonCfg,
     NewtonSolverCfg,
+    SteelSolverCfg,
     VBDSolverCfg,
     XPBDSolverCfg,
 )
+from isaaclab_newton.physics.coupling import CouplerAdmmCfg, CouplerEntryCfg, CouplerProxyCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
@@ -37,9 +39,6 @@ from isaaclab.benchmark.measurements import (
     StringMetadata,
 )
 from isaaclab.benchmark.schema import Hardware, Resources, Versions
-
-from isaaclab_contrib.coupling import CouplerAdmmCfg, CouplerEntryCfg, CouplerProxyCfg
-from isaaclab_contrib.custom_coupling.newton_manager_cfg import CoupledMJWarpVBDSolverCfg
 
 
 class _Rec:
@@ -235,6 +234,7 @@ def test_synth_run_id():
         (PhysxCfg(), "physx", ["physx"], None),
         (OvPhysxCfg(), "ovphysx", ["ovphysx"], None),
         (NewtonCfg(solver_cfg=FeatherstoneSolverCfg()), "newton_featherstone", ["newton_featherstone"], None),
+        (NewtonCfg(solver_cfg=SteelSolverCfg()), "newton_steel", ["newton_steel"], None),
         (NewtonCfg(solver_cfg=XPBDSolverCfg()), "newton_xpbd", ["newton_xpbd"], None),
         (NewtonCfg(solver_cfg=VBDSolverCfg()), "newton_vbd", ["newton_vbd"], None),
         (NewtonCfg(solver_cfg=MPMSolverCfg()), "newton_mpm", ["newton_mpm"], None),
@@ -264,12 +264,6 @@ def test_synth_run_id():
             "newton_kamino",
             ["newton_kamino", "newton_mjwarp"],
             "admm",
-        ),
-        (
-            NewtonCfg(solver_cfg=CoupledMJWarpVBDSolverCfg(coupling_mode="one_way")),
-            "newton_mjwarp",
-            ["newton_mjwarp", "newton_vbd"],
-            "custom_one_way",
         ),
     ],
 )

@@ -33,6 +33,9 @@ list configuration fields and defaults.
      - Workflow
    * - :class:`~isaaclab_newton.physics.MJWarpSolverCfg`
      - :ref:`mjwarp-solver-tuning` for the primary validated solver path
+   * - :class:`~isaaclab_newton.physics.SteelSolverCfg`
+     - Experimental reduced-coordinate rigid-body solver with projected
+       Gauss-Seidel constraints; select ``presets=newton_steel`` on supported tasks
    * - :class:`~isaaclab_newton.physics.KaminoPADMMSolverCfg` and
        :class:`~isaaclab_newton.physics.KaminoDVISolverCfg`
      - :ref:`kamino-solver-tuning` for Kamino configuration
@@ -47,6 +50,13 @@ Additional solver configurations are
 :class:`~isaaclab_newton.physics.FeatherstoneSolverCfg`. Use their generated
 API references and the Newton solver guide when evaluating a task-specific
 preset.
+
+Steel uses Newton's collision pipeline and point friction by default
+(``friction_anchor_beta=0``). Its ``solve_mode="matrix_free"`` requires CUDA,
+and fixed-tendon tasks do not offer a Steel preset. For a
+runtime comparison at each task's configured environment count, run
+``isaaclab benchmark runtime --task TASK presets=newton_steel`` and repeat with
+``presets=newton_mjwarp`` without passing ``--num_envs``.
 
 Related workflows
 -----------------
@@ -173,11 +183,10 @@ coordinates instead require forward-kinematics synchronization through
 Ownership, synchronization, and invalidation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Direct writes bypass Isaac Lab caches and shape/order validation. Some Newton solvers swap current
-and next state buffers, so read ``backend.state_0`` again when code needs the current authoritative
-state on a later step. A selection can survive state-buffer swaps because it describes model indices.
-A hard reset closes the backend and builds a new one, so reacquire ``sim.backend_manager.backend`` and
-its buffers, and recreate selections, after a model rebuild. Solver-specific generalized- and
+Direct writes bypass Isaac Lab caches and shape/order validation. Every physics step ends with the
+current state in ``backend.state_0``; ``backend.state_1`` is solver scratch. A hard reset closes the
+backend and builds a new one, so reacquire ``sim.backend_manager.backend`` and its buffers, and
+recreate selections, after a model rebuild. Solver-specific generalized- and
 maximal-coordinate conventions remain authoritative.
 
 Authoritative references

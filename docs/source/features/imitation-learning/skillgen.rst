@@ -290,7 +290,7 @@ Generate demonstrations for the standard Isaac Lab Mimic cube stacking task. In 
 2. Pick up the green cube and place it on the red cube
 3. Final stack order: blue (bottom), red (middle), green (top).
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/cube_stack_data_gen_skillgen.gif
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/imitation_learning/skillgen/cube_stack_data_gen_skillgen.gif
    :width: 75%
    :align: center
    :alt: Cube stacking task generated with SkillGen
@@ -351,7 +351,7 @@ Task 2: Adaptive Cube Stacking in a Bin
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 SkillGen can also be used to generate datasets for adaptive tasks. In this example, we generate a dataset for adaptive cube stacking in a narrow bin. The bin is placed at a fixed position and orientation in the workspace and a blue cube is placed at the center of the bin. The robot must generate successful demonstrations for stacking the red and green cubes on the blue cube without colliding with the bin.
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/bin_cube_stack_data_gen_skillgen.gif
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/imitation_learning/skillgen/bin_cube_stack_data_gen_skillgen.gif
    :width: 75%
    :align: center
    :alt: Adaptive bin cube stacking task generated with SkillGen
@@ -549,13 +549,13 @@ cuRobo Planner (GPU, collision-aware)
    :widths: 50 50
    :header-rows: 0
 
-   * - .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/cube_stack_end_to_end_curobo.gif
+   * - .. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/imitation_learning/skillgen/cube_stack_end_to_end_curobo.gif
          :height: 260px
          :align: center
          :alt: cuRobo planner test on cube stack using Franka Panda robot
 
          Cube stack planner test.
-     - .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/obstacle_avoidance_curobo.gif
+     - .. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/imitation_learning/skillgen/obstacle_avoidance_curobo.gif
          :height: 260px
          :align: center
          :alt: cuRobo planner test on obstacle avoidance using Franka Panda robot
@@ -596,7 +596,7 @@ Visualization and Debugging
 
 Users can visualize the planned trajectories and debug for collisions using Rerun-based plan visualizer. This can be enabled by setting ``visualize_plan = True`` in the cuRobo planner configuration. Note that rerun needs to be installed to visualize the planned trajectories. Refer to Step 3 in :ref:`skillgen-installation` for installation instructions.
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/rerun_cube_stack.gif
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/imitation_learning/skillgen/rerun_cube_stack.gif
    :width: 80%
    :align: center
    :alt: Rerun visualization of planned trajectories and collisions

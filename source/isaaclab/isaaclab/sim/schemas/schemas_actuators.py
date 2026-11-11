@@ -36,7 +36,6 @@ from pxr import Sdf, Usd, UsdPhysics
 from ...actuators.actuator_bam_cfg import _BAM_MOTOR_DEFAULTS, BAM_DRIVE_API, BAM_MODEL_FLAGS, BamActuatorCfg
 from ...actuators.actuator_base import ActuatorBase
 from ...actuators.actuator_base_cfg import ActuatorBaseCfg, _is_implicit_actuator_cfg
-from ...actuators.actuator_compat import resolve_limit_aliases
 from ...actuators.actuator_net import ActuatorNetLSTM, ActuatorNetMLP
 from ...actuators.actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg
 from ...actuators.actuator_pd import DCMotor, DelayedPDActuator, IdealPDActuator, RemotizedPDActuator
@@ -47,7 +46,7 @@ from ...actuators.actuator_pd_cfg import (
     IdealPDActuatorCfg,
     RemotizedPDActuatorCfg,
 )
-from ...utils import clone, validate
+from ...utils import validate
 from ...utils.assets import retrieve_file_path
 from ...utils.backend_utils import FactoryBase
 from ...utils.string import (
@@ -249,13 +248,9 @@ def author_actuator_prims(
         if not joint_names:
             continue
 
-        resolved_cfg = clone(cfg)
-        # Collection construction emits the deprecation warning later in the
-        # normal asset lifecycle. Authoring only needs the normalized value.
-        resolve_limit_aliases(group_name, resolved_cfg, joint_names, warn_deprecated=False)
-        validate(resolved_cfg)
+        validate(cfg)
         joints = {name: stage.GetPrimAtPath(joint_inventory[name]) for name in joint_names}
-        _author_group(stage, articulation_prim_path, group_name, resolved_cfg, joints, actuator_prims)
+        _author_group(stage, articulation_prim_path, group_name, cfg, joints, actuator_prims)
 
 
 """

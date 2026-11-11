@@ -116,11 +116,14 @@ class NewtonSceneDataBackend(SceneDataBackend):
         backend = manager.backend
         if backend is None:
             return None
-        if manager.transforms_may_change_on_graph_replay:
+        if backend.transforms_may_change_on_graph_replay:
             # Raw external graph replays bypass Python invalidation, so these reads must stay conservative.
             self.transforms_timestamp += 1
             self.geometry_timestamp += 1
-        # Recording a graph must leave pending FK/reset work for the next eager read.
-        if backend.solver is not None and not wp.get_device(manager.get_device()).is_capturing:
-            manager.forward()
+        if backend.solver is not None:
+            # Recording a graph must leave pending FK/reset work for the next eager read.
+            if backend.device.is_capturing:
+                backend.notify_model_changes()
+            else:
+                manager.forward()
         return backend.state_0

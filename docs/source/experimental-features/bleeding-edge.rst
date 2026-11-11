@@ -54,15 +54,12 @@ The following features are currently available in ``isaaclab_contrib``:
      - Geometric controllers for multirotor attitude, velocity, acceleration, and position tracking
        on SO(3) (Lee et al.). Suitable for both trajectory following and RL baselines.
      - API reference: :mod:`~isaaclab_contrib.controllers`
-   * - **Newton Solver Coupling**
-     - Proxy coupling between MJWarp and VBD. Deformable assets are implemented in
-       :mod:`isaaclab_newton.assets`.
-     - API reference: :mod:`~isaaclab_contrib.coupling`
 
 Contributing
 ------------
 
-We welcome contributions to ``isaaclab_contrib``! If you have developed specialized robot assets, novel actuator
-models, custom MDP components, or domain-specific utilities, please follow the Isaac Lab contribution guidelines
-and open a pull request. See the `contributing guide <https://isaac-sim.github.io/IsaacLab/main/source/refs/contributing.html>`_
-for more information.
+We welcome contributions to ``isaaclab_contrib`` that demonstrate a framework capability missing from current
+examples and have a support owner and an exit plan. Follow the
+:ref:`asset and environment contribution guidelines <contributing-assets-and-environments>` before opening a pull
+request. Robot ports, task variants, and application-specific workflows that reuse existing framework capabilities
+are usually best maintained in a community-owned external project.
