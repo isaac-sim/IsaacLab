@@ -80,6 +80,17 @@ class KaminoSolver(NewtonSolver):
         """Initialize the output state's persistent Kamino buffers; FK initializes the input state."""
         self.native.reset(state, config=self.native.ResetConfig.preserve())
 
+    def supports_capture(self) -> bool:
+        """On the CPU, P-ADMM captures only with a direct linear solver.
+
+        Kamino's iterative linear solvers (selected explicitly or by sparse dynamics) copy strided views on the CPU,
+        which Warp's CPU graph capture rejects.
+        """
+        config = self.native._config
+        if self.native.model.device.is_cuda or config.dynamics_solver != "padmm":
+            return True
+        return not config.sparse_dynamics and config.dynamics.linear_solver_type in ("LLTB", "LLTBRCM", "LLTS")
+
     def uses_collision_pipeline(self) -> bool:
         return not self.cfg.use_collision_detector
 

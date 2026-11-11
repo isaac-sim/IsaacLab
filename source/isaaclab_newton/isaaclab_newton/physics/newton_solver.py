@@ -121,7 +121,13 @@ class NewtonSolver:
         return True
 
     def supports_capture(self) -> bool:
-        """Whether the solver can be recorded into a CUDA graph."""
+        """Whether the solver's step can be recorded into a graph and replayed on the solver's device.
+
+        On the CPU, Warp's graph capture records only Warp kernel launches and memory operations. Other work in the
+        step, such as :meth:`warp.Mesh.refit`, a nested :func:`warp.capture_launch`, torch operations, or host
+        reads, runs once at capture time and never on replay, so a solver whose step does such work on the CPU must
+        return False there.
+        """
         return True
 
     # ----- Contacts -----
