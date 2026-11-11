@@ -7,8 +7,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+import functools
+import inspect
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -21,7 +24,7 @@ class State:
 
 @dataclass(frozen=True)
 class Implementation:
-    """Backend hooks of a term. Hooks take the term's inputs, state, params, and ``rng`` by name.
+    """Backend hooks of a term. Hooks take any of the term's inputs, state, params, and ``rng`` by name.
 
     Fields arrive as arrays of shape ``(num_worlds, ...)``, and subsets as ``int32`` index arrays.
 
@@ -45,8 +48,9 @@ class Implementation:
     ``compute``, an array of the output shape to fill for every world, and ``rng`` as the stream of every world.
     It runs between the generated kernels.
 
-    Event terms are ``compute(mask, **args)``, or a func ``compute(world, **args)`` run for the selected worlds, and
-    write their outputs in place.
+    Event and command terms are ``compute(mask, **args)``, or a func ``compute(world, **args)`` run for the selected
+    worlds, and write their outputs in place. A command gets its value as ``command``: ``compute`` resamples it and
+    writes the command's state, ``update`` may change it every step, and commands have no ``reset`` hook.
     """
 
     compute: Callable
@@ -75,3 +79,17 @@ class Term:
     def __deepcopy__(self, memo: dict) -> Term:
         # Functions and Warp funcs cannot be copied, and a term is immutable, so copies share it.
         return self
+
+
+def hook_arguments(hook: Callable, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """Return the arguments that a Python hook names, or all of them if it takes ``**kwargs``."""
+    names = _keyword_names(hook)
+    return dict(arguments) if names is None else {name: arguments[name] for name in names if name in arguments}
+
+
+@functools.cache
+def _keyword_names(hook: Callable) -> frozenset[str] | None:
+    parameters = inspect.signature(hook).parameters.values()
+    if any(parameter.kind is inspect.Parameter.VAR_KEYWORD for parameter in parameters):
+        return None
+    return frozenset(parameter.name for parameter in parameters)

@@ -11,6 +11,7 @@ input, ``joint_ids=robot.joints(".*")``.
 
 from __future__ import annotations
 
+import torch
 import warp as wp
 
 from isaaclab.utils import math as math_utils
@@ -69,6 +70,36 @@ def _joint_vel_l2(world: int, joint_vel: wp.array2d(dtype=float), joint_ids: wp.
 
 joint_vel_l2 = Term(torch=lambda joint_vel, joint_ids: joint_vel[:, joint_ids].square().sum(-1), warp=_joint_vel_l2)
 """Sum of the squared joint velocities."""
+
+
+@wp.func
+def _joint_torques_l2(
+    world: int, applied_effort: wp.array2d(dtype=float), joint_ids: wp.array(dtype=wp.int32)
+) -> float:
+    total = float(0.0)
+    for k in range(joint_ids.shape[0]):
+        effort = applied_effort[world, joint_ids[k]]
+        total += effort * effort
+    return total
+
+
+joint_torques_l2 = Term(
+    torch=lambda applied_effort, joint_ids: applied_effort[:, joint_ids].square().sum(-1), warp=_joint_torques_l2
+)
+"""Sum of the squared efforts the actuators applied, bound to ``robot.applied_effort``."""
+
+
+@wp.func
+def _joint_acc_l2(world: int, joint_acc: wp.array2d(dtype=float), joint_ids: wp.array(dtype=wp.int32)) -> float:
+    total = float(0.0)
+    for k in range(joint_ids.shape[0]):
+        acceleration = joint_acc[world, joint_ids[k]]
+        total += acceleration * acceleration
+    return total
+
+
+joint_acc_l2 = Term(torch=lambda joint_acc, joint_ids: joint_acc[:, joint_ids].square().sum(-1), warp=_joint_acc_l2)
+"""Sum of the squared joint accelerations."""
 
 
 @wp.func
@@ -195,6 +226,72 @@ def _flat_orientation_l2_torch(root_link_pose_w, gravity_w):
 
 flat_orientation_l2 = Term(torch=_flat_orientation_l2_torch, warp=_flat_orientation_l2)
 """Squared horizontal components of the gravity direction in the root frame: zero when the root is level."""
+
+
+@wp.func
+def _base_height_l2(world: int, root_link_pose_w: wp.array(dtype=wp.transformf), target_height: float) -> float:
+    error = wp.transform_get_translation(root_link_pose_w[world])[2] - target_height
+    return error * error
+
+
+base_height_l2 = Term(
+    torch=lambda root_link_pose_w, *, target_height: (root_link_pose_w[:, 2] - target_height).square(),
+    warp=_base_height_l2,
+)
+"""Squared error of the root height from ``target_height``, in the world frame: for flat ground at height zero."""
+
+
+# Velocity tracking.
+
+
+@wp.func
+def _track_lin_vel_xy_exp(
+    world: int,
+    command: wp.array2d(dtype=float),
+    root_link_pose_w: wp.array(dtype=wp.transformf),
+    root_com_vel_w: wp.array(dtype=wp.spatial_vectorf),
+    std: float,
+) -> float:
+    quat = wp.transform_get_rotation(root_link_pose_w[world])
+    velocity = wp.quat_rotate_inv(quat, wp.spatial_top(root_com_vel_w[world]))
+
+    error_x = command[world, 0] - velocity[0]
+    error_y = command[world, 1] - velocity[1]
+    return wp.exp(-(error_x * error_x + error_y * error_y) / (std * std))
+
+
+def _track_lin_vel_xy_exp_torch(command, root_link_pose_w, root_com_vel_w, *, std):
+    velocity = math_utils.quat_apply_inverse(root_link_pose_w[:, 3:7], root_com_vel_w[:, :3])
+    error = (command[:, :2] - velocity[:, :2]).square().sum(-1)
+    return torch.exp(-error / std**2)
+
+
+track_lin_vel_xy_exp = Term(torch=_track_lin_vel_xy_exp_torch, warp=_track_lin_vel_xy_exp)
+"""Exponential kernel of the squared error of the root's horizontal velocity, in the root frame, from the command."""
+
+
+@wp.func
+def _track_ang_vel_z_exp(
+    world: int,
+    command: wp.array2d(dtype=float),
+    root_link_pose_w: wp.array(dtype=wp.transformf),
+    root_com_vel_w: wp.array(dtype=wp.spatial_vectorf),
+    std: float,
+) -> float:
+    quat = wp.transform_get_rotation(root_link_pose_w[world])
+    velocity = wp.quat_rotate_inv(quat, wp.spatial_bottom(root_com_vel_w[world]))
+
+    error = command[world, 2] - velocity[2]
+    return wp.exp(-(error * error) / (std * std))
+
+
+def _track_ang_vel_z_exp_torch(command, root_link_pose_w, root_com_vel_w, *, std):
+    velocity = math_utils.quat_apply_inverse(root_link_pose_w[:, 3:7], root_com_vel_w[:, 3:6])
+    return torch.exp(-(command[:, 2] - velocity[:, 2]).square() / std**2)
+
+
+track_ang_vel_z_exp = Term(torch=_track_ang_vel_z_exp_torch, warp=_track_ang_vel_z_exp)
+"""Exponential kernel of the squared error of the root's yaw rate, in the root frame, from the command."""
 
 
 # Actions.

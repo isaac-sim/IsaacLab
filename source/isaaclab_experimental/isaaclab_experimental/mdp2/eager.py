@@ -12,12 +12,16 @@ runtime function it belongs to. It gets Torch views of its data through a :class
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import Any
 
 import torch
 
 from .compiled import MDP, MDPState
+from .config import FieldSelector, SubsetSelector
 from .plan import TermOp
+from .scene import SceneData
 
 
 @dataclass(frozen=True)
@@ -32,6 +36,12 @@ class TermContext:
     rng: torch.Tensor | None  # (num_worlds,) the use's random stream, for random terms, see :mod:`.rng`
     mask: torch.Tensor | None  # Events: (num_worlds,) the worlds to act on
     out: torch.Tensor | None  # (num_worlds, *shape) output to fill for every world, except for events
+    selectors: Mapping[str, FieldSelector | SubsetSelector]  # The selectors bound to the inputs, by argument name
+    scene_data: SceneData  # The scene, whose entity objects eager events may change directly
+
+    def entity(self, argument: str) -> Any:
+        """Return the scene object, such as an articulation, of the entity that an input selects."""
+        return self.scene_data.entity(self.selectors[argument].entity)
 
 
 def call_eager(mdp: MDP, op: TermOp, state: MDPState, mask: torch.Tensor | None = None) -> None:
@@ -48,6 +58,8 @@ def call_eager(mdp: MDP, op: TermOp, state: MDPState, mask: torch.Tensor | None 
         rng=state.rng.torch[op.stream] if op.random else None,
         mask=mask,
         out=state.scratch[op.name].torch if op.name in state.scratch else None,
+        selectors=op.inputs,
+        scene_data=state.scene_data,
     )
 
     op.compute(context, **op.params)

@@ -49,6 +49,7 @@ __all__ = [
     "last_action",
     "observe",
     "reset",
+    "startup",
     "step_dt",
     "terminated",
     "uniform",
@@ -87,5 +88,5 @@ from .eager import TermContext
 from .plan import ExecutionPlan, Segment, Step, StepKind
 from .scene import EntitySchema, FieldSchema, PointMassScene, SceneData, SceneSchema
 from .rng import uniform
-from .runtime import apply_actions, evaluate, observe, reset
+from .runtime import apply_actions, evaluate, observe, reset, startup
 from .terms import Implementation, State, Term

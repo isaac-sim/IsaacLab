@@ -76,6 +76,7 @@ class MDP2Env:
         builder.add_task(cfg.task)
         self.mdp = builder.finalize(device=self.device, backend=cfg.backend, diagnostics=self.diagnostics)
         self.state = self.mdp.state(self.scene_data, seed=cfg.seed or 0)
+        mdp2.startup(self.mdp, self.state)
         self.transition = self.mdp.transition()
 
         self.actions = ProxyArray(wp.zeros((self.num_envs, self.mdp.action_dim), dtype=wp.float32, device=self.device))
@@ -168,6 +169,9 @@ class MDP2Env:
         assets = [*self.scene.articulations.values(), *self.scene.rigid_objects.values()]
         for asset in assets:
             asset.reset(env_mask=mask.warp)
+        # Clear sensor histories, so that a new episode does not see the contacts that ended the last one.
+        for sensor in self.scene.sensors.values():
+            sensor.reset(env_mask=mask.warp)
         mdp2.reset(self.mdp, self.state, mask)
 
         # Reset events wrote joint and root state in place: recompute the body poses of the masked worlds.

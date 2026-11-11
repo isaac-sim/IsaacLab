@@ -11,14 +11,16 @@ import torch
 
 from . import rng
 from .compiled import MDP, MDPState
-from .config import Phase, terminated
+from .config import FieldSelector, Phase, terminated
 from .eager import call_eager
 from .plan import Call, Launch, Launches, Step, StepKind, TermOp
+from .terms import hook_arguments
 
 
 def compile_launches(mdp: MDP) -> Launches:
     """Turn every step of the execution plan into a launch, after the bookkeeping that starts each function."""
     return Launches(
+        startup=_launches(mdp, mdp.plan.startup),
         apply_actions=(Launch(lambda call: _apply_actions(mdp, call)),),
         evaluate=(Launch(lambda call: _begin_evaluate(mdp, call)), *_launches(mdp, mdp.plan.evaluate, stepping=True)),
         reset=(Launch(_begin_reset), *_launches(mdp, mdp.plan.reset)),
@@ -39,14 +41,16 @@ def _apply_actions(mdp: MDP, call: Call) -> None:
     for step in mdp.plan.apply_actions:
         op = step.op
         target = call.state.fields[op.target].torch.view(mdp.num_worlds, -1)
-        value = actions[:, op.columns] * op.scale + op.offset
-        active = call.state.active.get(op.name)
+        ids = slice(None) if op.subset is None else call.state.fields[op.subset].torch.long()
+        offset = op.offset
+        if isinstance(offset, FieldSelector):
+            offset = call.state.fields[offset].torch.view(mdp.num_worlds, -1)[:, ids]
+        value = actions[:, op.columns] * op.scale + offset
 
-        if op.subset is None:
-            target.copy_(value if active is None else torch.where(active.torch[:, None], value, target))
-            continue
-        ids = call.state.fields[op.subset].torch.long()
-        target[:, ids] = value if active is None else torch.where(active.torch[:, None], value, target[:, ids])
+        active = call.state.active.get(op.name)
+        if active is not None:
+            value = torch.where(active.torch[:, None], value, target[:, ids])
+        target[:, ids] = value
 
 
 def _begin_evaluate(mdp: MDP, call: Call) -> None:
@@ -87,11 +91,11 @@ def _run(mdp: MDP, step: Step, call: Call, stepping: bool) -> None:
             due = _tick(mdp, op, state)
             _compute(mdp, op, call, due if active is None else due & active.torch, stepping)
         case StepKind.UPDATE_STATE:
-            op.update(**state.arguments[op.name])
+            op.update(**hook_arguments(op.update, state.arguments[op.name]))
         case StepKind.RESET_TIMER:
             _restart(op, state, mask)
         case StepKind.RESET_STATE if op.reset is not None:
-            op.reset(mask=mask, **state.arguments[op.name])
+            op.reset(mask=mask, **hook_arguments(op.reset, state.arguments[op.name]))
         case StepKind.RESET_STATE:
             for name, spec in op.state.items():
                 values = state.term_state[op.name][name].torch.view(mdp.num_worlds, -1)
@@ -101,18 +105,19 @@ def _run(mdp: MDP, step: Step, call: Call, stepping: bool) -> None:
 def _compute(mdp: MDP, op: TermOp, call: Call, mask: torch.Tensor | None, stepping: bool) -> None:
     """Compute an op and write the result to its destination, for the masked worlds if a mask is given."""
     state, transition = call.state, call.transition
-    if op.phase in (Phase.INTERVAL_EVENTS, Phase.RESET_EVENTS):
+    # Events and commands write their outputs in place, for the masked worlds.
+    if op.phase in (Phase.STARTUP_EVENTS, Phase.COMMANDS, Phase.INTERVAL_EVENTS, Phase.RESET_EVENTS):
         if op.eager:
             call_eager(mdp, op, state, mask)
         else:
-            op.compute(mask=mask, **state.arguments[op.name])
+            op.compute(mask=mask, **hook_arguments(op.compute, state.arguments[op.name]))
         return
 
     if op.eager:
         call_eager(mdp, op, state)
         value = state.scratch[op.name].torch
     else:
-        value = op.compute(**state.arguments[op.name])
+        value = op.compute(**hook_arguments(op.compute, state.arguments[op.name]))
     if mask is not None and op.phase in (Phase.TERMINATIONS, Phase.REWARDS):
         value = torch.where(mask, value, torch.zeros_like(value))
 
@@ -133,19 +138,16 @@ def _compute(mdp: MDP, op: TermOp, call: Call, mask: torch.Tensor | None, steppi
             transition.reward_terms.torch[:, op.index] = value
         return
 
-    if op.phase is Phase.COMMANDS:
-        destination = state.fields[op.writes[0]].torch.view(mdp.num_worlds, -1)
-    else:
-        destination = call.observations[op.group].torch[:, op.columns]
-        if op.noise is not None:
-            noise = rng.uniform(state.rng.torch[op.noise_stream], op.noise.n_min, op.noise.n_max, op.shape)
-            value = value + noise
-        if op.clip is not None:
-            value = value.clamp(*op.clip)
-        if op.scale is not None:
-            value = value * op.scale
-        if op.history_length:
-            value = _history(op, state, value.reshape(mdp.num_worlds, -1), mask, push=stepping)
+    destination = call.observations[op.group].torch[:, op.columns]
+    if op.noise is not None:
+        noise = rng.uniform(state.rng.torch[op.noise_stream], op.noise.n_min, op.noise.n_max, op.shape)
+        value = value + noise
+    if op.clip is not None:
+        value = value.clamp(*op.clip)
+    if op.scale is not None:
+        value = value * op.scale
+    if op.history_length:
+        value = _history(op, state, value.reshape(mdp.num_worlds, -1), mask, push=stepping)
 
     value = value.reshape(destination.shape)
     destination.copy_(value if mask is None else torch.where(mask[:, None], value, destination))

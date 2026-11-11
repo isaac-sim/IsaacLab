@@ -49,13 +49,12 @@ feet_air_times = {
 
 
 @wp.func
-def unit_command(world: int, axis: int, joint_pos: wp.array2d(dtype=float)) -> float:
-    return 1.0
+def unit_command(world: int, command: wp.array2d(dtype=float)):
+    for axis in range(3):
+        command[world, axis] = 1.0
 
 
-forward_command = mdp2.Term(
-    torch=lambda joint_pos: torch.ones_like(joint_pos[:, :3]), warp=unit_command, shape=("worlds", 3)
-)
+forward_command = mdp2.Term(torch=lambda mask, command: command.fill_(1.0), warp=unit_command, shape=("worlds", 3))
 """A unit command for every world, so that ``feet_air_time`` rewards steps."""
 
 
@@ -110,12 +109,16 @@ def contact_env_cfg(robot_usd: Path, backend: str, capture: bool) -> MDP2EnvCfg:
         actions={"joint_effort": mdp2.DirectAction(robot.joint_effort_target, scale=5.0)},
         commands={
             "base_velocity": mdp2.Command(
-                mdp.uniform_velocity_command,
+                mdp.heading_velocity_command,
+                inputs={"root_link_pose_w": robot.root_link_pose_w},
                 params={
                     "lin_vel_x": (0.5, 1.0),
                     "lin_vel_y": (0.0, 0.0),
-                    "ang_vel_z": (0.0, 0.0),
+                    "ang_vel_z": (-1.0, 1.0),
+                    "heading": (-1.0, 1.0),
                     "rel_standing_envs": 0.0,
+                    "rel_heading_envs": 1.0,
+                    "heading_control_stiffness": 0.5,
                 },
             )
         },
@@ -155,7 +158,7 @@ def test_contact_terms_match_mdp1(robot_with_feet: Path, backend: str):
     try:
         air_time = {**feet_air_times, "command": mdp2.commands.forward}
         builder = mdp2.MDPBuilder(env.scene_data.schema)
-        builder.add_command("forward", mdp2.Command(forward_command, inputs={"joint_pos": robot.joint_pos}))
+        builder.add_command("forward", mdp2.Command(forward_command))
         builder.add_observation(
             "undesired_contacts",
             "value",
@@ -195,6 +198,12 @@ def test_contact_terms_match_mdp1(robot_with_feet: Path, backend: str):
             rewarded |= bool(feet_air_time.abs().sum() > 0.0)
 
         assert rewarded  # The feet landed during the rollout.
+
+        # A reset clears the contacts that ended the last episode.
+        env.reset()
+        scene_data = env.scene_data
+        assert (scene_data.data("contact_forces", "net_normal_forces_w_history").torch == 0.0).all()
+        assert (scene_data.data("contact_forces", "last_air_time").torch == 0.0).all()
     finally:
         env.close()
 

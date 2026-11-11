@@ -20,8 +20,16 @@ Terms keep the names of their MDP1 functions, and bind scene data through inputs
     )
 """
 
-from .commands import uniform_pose_command, uniform_velocity_command
-from .events import push_by_setting_velocity, reset_joints_by_offset, reset_joints_by_scale, reset_root_state_uniform
+from .commands import heading_velocity_command, uniform_pose_command, uniform_velocity_command
+from .events import (
+    push_by_setting_velocity,
+    randomize_rigid_body_com,
+    randomize_rigid_body_mass,
+    randomize_rigid_body_material,
+    reset_joints_by_offset,
+    reset_joints_by_scale,
+    reset_root_state_uniform,
+)
 from .observations import (
     base_ang_vel,
     base_lin_vel,
@@ -40,16 +48,21 @@ from .rewards import (
     action_l2,
     action_rate_l2,
     ang_vel_xy_l2,
+    base_height_l2,
     feet_air_time,
     flat_orientation_l2,
     is_alive,
     is_terminated,
+    joint_acc_l2,
     joint_deviation_l1,
     joint_pos_limits,
     joint_pos_target_l2,
+    joint_torques_l2,
     joint_vel_l1,
     joint_vel_l2,
     lin_vel_z_l2,
+    track_ang_vel_z_exp,
+    track_lin_vel_xy_exp,
     undesired_contacts,
 )
 from .terminations import (

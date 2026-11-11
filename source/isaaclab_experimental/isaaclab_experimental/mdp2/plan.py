@@ -35,7 +35,7 @@ class ActionOp:
     target: FieldSelector
     columns: slice  # Columns of the action
     scale: float
-    offset: float
+    offset: float | FieldSelector  # A field gives an offset per element
     worlds: tuple[int, ...] | None = None  # Worlds where the op is active, None for every world
     subset: SubsetSelector | None = None  # Elements of the target it writes, None for all of them
 
@@ -79,7 +79,7 @@ class StepKind(enum.Enum):
 
     COMPUTE = enum.auto()  # Compute the output and write it to its destination
     COMPUTE_IF_DUE = enum.auto()  # Count down the timer, and compute for the worlds where it expired
-    UPDATE_STATE = enum.auto()  # Advance the term's state, after its compute
+    UPDATE_STATE = enum.auto()  # Advance the term's state after its compute, or a command's value every step
     RESET_TIMER = enum.auto()  # Draw a new time until the command resamples or the interval event runs
     RESET_STATE = enum.auto()  # Run the reset hook, or set the state to its initial value
 
@@ -117,6 +117,7 @@ def segments(steps: Sequence[Step]) -> tuple[Segment, ...]:
 class ExecutionPlan:
     """Ordered steps of each runtime function. ``reset`` and ``observe`` only act on the masked worlds."""
 
+    startup: tuple[Step, ...]
     apply_actions: tuple[Step, ...]
     evaluate: tuple[Step, ...]
     reset: tuple[Step, ...]
@@ -127,7 +128,8 @@ def build_plan(ops: Mapping[Phase, tuple]) -> ExecutionPlan:
     """Order the steps of every runtime function from the ops of each phase. This defines the step contract."""
     timed = [op for op in ops[Phase.COMMANDS] + ops[Phase.INTERVAL_EVENTS] if op.timer is not None]
     observations = tuple(Step(StepKind.COMPUTE, op) for op in ops[Phase.OBSERVATIONS])
-    stateful = [op for phase in Phase if phase is not Phase.ACTIONS for op in ops[phase] if op.state]
+    # Commands write their state when they resample.
+    stateful = [op for phase in Phase if phase not in (Phase.ACTIONS, Phase.COMMANDS) for op in ops[phase] if op.state]
 
     terminations_and_rewards = []
     for op in ops[Phase.TERMINATIONS] + ops[Phase.REWARDS]:
@@ -136,11 +138,15 @@ def build_plan(ops: Mapping[Phase, tuple]) -> ExecutionPlan:
             terminations_and_rewards.append(Step(StepKind.UPDATE_STATE, op))
 
     return ExecutionPlan(
+        startup=tuple(Step(StepKind.COMPUTE, op) for op in ops[Phase.STARTUP_EVENTS]),
         apply_actions=tuple(Step(StepKind.COMPUTE, op) for op in ops[Phase.ACTIONS]),
         evaluate=(
             # Terminations and rewards see the commands that governed the action.
             *terminations_and_rewards,
-            *(Step(StepKind.COMPUTE_IF_DUE, op) for op in timed),
+            *(Step(StepKind.COMPUTE_IF_DUE, op) for op in timed if op.phase is Phase.COMMANDS),
+            # Commands with an update hook track something every step, like a heading.
+            *(Step(StepKind.UPDATE_STATE, op) for op in ops[Phase.COMMANDS] if op.update is not None),
+            *(Step(StepKind.COMPUTE_IF_DUE, op) for op in timed if op.phase is Phase.INTERVAL_EVENTS),
             # Successor observations see the new commands and the events. Their state advances after all of them.
             *observations,
             *(Step(StepKind.UPDATE_STATE, op) for op in ops[Phase.OBSERVATIONS] if op.update is not None),
@@ -181,6 +187,7 @@ class Launch:
 class Launches:
     """Launches of each runtime function, in order, compiled from the execution plan by a backend."""
 
+    startup: tuple[Callable[[Call], None], ...]
     apply_actions: tuple[Callable[[Call], None], ...]
     evaluate: tuple[Callable[[Call], None], ...]
     reset: tuple[Callable[[Call], None], ...]

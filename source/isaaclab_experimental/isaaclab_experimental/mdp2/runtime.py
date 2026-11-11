@@ -11,10 +11,20 @@ Each function runs its launches eagerly. To replay them as CUDA graphs, bind fix
 
 from __future__ import annotations
 
+import warp as wp
+
 from isaaclab.utils.warp import ProxyArray
 
 from .compiled import MDP, MDPState, Transition
 from .plan import Call
+
+
+def startup(mdp: MDP, state: MDPState) -> None:
+    """Run the startup events once, in every world."""
+    mask = ProxyArray(wp.ones(mdp.num_worlds, dtype=wp.bool, device=mdp.device))
+    call = Call(state, mask=mask)
+    for launch in mdp.launches.startup:
+        launch(call)
 
 
 def apply_actions(mdp: MDP, state: MDPState, actions: ProxyArray) -> None:

@@ -19,10 +19,11 @@ from collections.abc import Callable, Hashable, Iterable, Sequence
 import warp as wp
 
 from .compiled import MDP
-from .config import Phase, episode_length, last_action, terminated
+from .config import FieldSelector, Phase, episode_length, last_action, terminated
 from .eager import call_eager
 from .fusion import Fusion
 from .plan import Call, Launches, Step, StepKind, TermOp
+from .terms import hook_arguments
 
 _RESULTS = {
     "rewards": (wp.array(dtype=wp.float32), lambda call: call.transition.rewards.warp),
@@ -73,7 +74,13 @@ def _select(mask: wp.array(dtype=wp.bool), active: wp.array(dtype=wp.bool), sele
 
 def compile_launches(mdp: MDP) -> Launches:
     """Generate the kernels of every runtime function, with the hooks that launch their own work between them."""
-    return Launches(_apply_actions(mdp), _evaluate(mdp), _reset(mdp), _observe(mdp))
+    return Launches(_startup(mdp), _apply_actions(mdp), _evaluate(mdp), _reset(mdp), _observe(mdp))
+
+
+def _startup(mdp: MDP) -> tuple[Callable[[Call], None], ...]:
+    code = Fusion("startup", mdp.num_worlds, mdp.device, _mask)
+    _emit(code, mdp, mdp.plan.startup)
+    return code.steps()
 
 
 def _apply_actions(mdp: MDP) -> tuple[Callable[[Call], None], ...]:
@@ -91,11 +98,19 @@ def _apply_actions(mdp: MDP) -> tuple[Callable[[Call], None], ...]:
             wp.array2d(dtype=wp.float32),
             lambda call, op=op: call.state.fields[op.target].warp.reshape((mdp.num_worlds, -1)),
         )
-        value = f"{actions}[world, {op.columns.start} + element] * {code.constant(float, op.scale)}"
         index = "element" if op.subset is None else f"{_field(code, op.subset, wp.array(dtype=wp.int32))}[element]"
+        offset = code.constant(float, op.offset)
+        if isinstance(op.offset, FieldSelector):
+            offsets = code.argument(
+                op.offset,
+                wp.array2d(dtype=wp.float32),
+                lambda call, op=op: call.state.fields[op.offset].warp.reshape((mdp.num_worlds, -1)),
+            )
+            offset = f"{offsets}[world, {index}]"
+        value = f"{actions}[world, {op.columns.start} + element] * {code.constant(float, op.scale)} + {offset}"
         code.elements(
             (op.columns.stop - op.columns.start,),
-            *_under(_active(code, op), f"{target}[world, {index}] = {value} + {code.constant(float, op.offset)}"),
+            *_under(_active(code, op), f"{target}[world, {index}] = {value}"),
             writes=[op.target],
         )
 
@@ -161,7 +176,7 @@ def _emit(code: Fusion, mdp: MDP, steps: Iterable[Step], stepping: bool = False)
             case StepKind.COMPUTE_IF_DUE:
                 _compute(code, mdp, op, [*active, f"if {_due(code, mdp, op, active)}:"], stepping)
             case StepKind.UPDATE_STATE:
-                _run(code, mdp, op, op.update, state, active)
+                _run(code, mdp, op, op.update, [*state, *op.writes], active)
             case StepKind.RESET_TIMER:
                 restart = f"{code.function(_restart)}({_timer(code, op)})"
                 code.world(*_under(active, restart), writes=[("timer", op.name)])
@@ -186,9 +201,11 @@ def _reset_state(code: Fusion, mdp: MDP, op: TermOp, conditions: Sequence[str]) 
 
 def _compute(code: Fusion, mdp: MDP, op: TermOp, conditions: Sequence[str] = (), stepping: bool = False) -> None:
     """Compute an op into its destination, nested under ``conditions``. Stepping advances observation histories."""
-    if op.worlds is not None and op.phase is Phase.RESET_EVENTS and not isinstance(op.compute, wp.Function):
+    state = [(op.name, name) for name in op.state]
+    reset_like = op.phase in (Phase.STARTUP_EVENTS, Phase.RESET_EVENTS) or op.phase is Phase.COMMANDS and not stepping
+    if op.worlds is not None and reset_like and not isinstance(op.compute, wp.Function):
         # The hook gets the reset worlds where the op is active.
-        _run(code, mdp, op, op.compute, op.writes, mask=lambda call: _selected(mdp, op, call))
+        _run(code, mdp, op, op.compute, [*op.writes, *state], mask=lambda call: _selected(mdp, op, call))
         return
 
     match op.phase:
@@ -215,15 +232,14 @@ def _compute(code: Fusion, mdp: MDP, op: TermOp, conditions: Sequence[str] = (),
                 lines.append(f"{_result(code, 'reward_terms')}[world, {op.index}] = reward")
                 writes.append("reward_terms")
             code.world(*_under(conditions, *lines), writes=writes)
-        case Phase.COMMANDS:
-            target = _field(code, op.writes[0], wp.array(dtype=wp.float32, ndim=1 + len(op.shape)))
-            value = _value(code, mdp, op)
-            loops = [f"for i{d} in range({dim_size}):" for d, dim_size in enumerate(op.shape)]
-            code.world(*_under([*conditions, *loops], f"{target}[{_index(op.shape)}] = {value}"), writes=op.writes)
+        case Phase.COMMANDS if stepping:
+            writes = [*op.writes, *state]
+            _run(code, mdp, op, op.compute, writes, conditions, lambda call: call.state.selected[op.name])
         case Phase.INTERVAL_EVENTS:
-            _run(code, mdp, op, op.compute, op.writes, conditions, lambda call: call.state.selected[op.name])
-        case Phase.RESET_EVENTS:
-            _run(code, mdp, op, op.compute, op.writes, conditions, mask=_mask)
+            writes = [*op.writes, *state]
+            _run(code, mdp, op, op.compute, writes, conditions, lambda call: call.state.selected[op.name])
+        case Phase.STARTUP_EVENTS | Phase.RESET_EVENTS | Phase.COMMANDS:
+            _run(code, mdp, op, op.compute, [*op.writes, *state], conditions, mask=_mask)
         case Phase.OBSERVATIONS:
             _compute_observation(code, mdp, op, conditions, stepping)
 
@@ -295,9 +311,15 @@ def _run(
     elif op.eager:
         code.call(lambda call: call_eager(mdp, op, call.state, wp.to_torch(mask(call))), False, *_accesses(op))
     elif mask is None:
-        code.call(lambda call: hook(**call.state.arguments[op.name]), op.capturable, *_accesses(op))
+        code.call(
+            lambda call: hook(**hook_arguments(hook, call.state.arguments[op.name])), op.capturable, *_accesses(op)
+        )
     else:
-        code.call(lambda call: hook(mask=mask(call), **call.state.arguments[op.name]), op.capturable, *_accesses(op))
+        code.call(
+            lambda call: hook(mask=mask(call), **hook_arguments(hook, call.state.arguments[op.name])),
+            op.capturable,
+            *_accesses(op),
+        )
 
 
 def _value(code: Fusion, mdp: MDP, op: TermOp) -> str:
@@ -313,7 +335,9 @@ def _value(code: Fusion, mdp: MDP, op: TermOp) -> str:
         code.call(lambda call: call_eager(mdp, op, call.state), False, *_accesses(op))
     else:
         code.call(
-            lambda call: op.compute(out=call.state.scratch[op.name].warp, **call.state.arguments[op.name]),
+            lambda call: op.compute(
+                out=call.state.scratch[op.name].warp, **hook_arguments(op.compute, call.state.arguments[op.name])
+            ),
             op.capturable,
             *_accesses(op),
         )

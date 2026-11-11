@@ -12,6 +12,8 @@ draws on both backends.
 
 from __future__ import annotations
 
+import math
+
 import torch
 import warp as wp
 
@@ -241,3 +243,95 @@ def _push_by_setting_velocity_torch(mask, root_com_vel_w, rng, *, velocity_range
 
 push_by_setting_velocity = Term(torch=_push_by_setting_velocity_torch, warp=_push_by_setting_velocity, random=True)
 """Add uniform samples from ``velocity_range`` to the root velocity. Floating bases only."""
+
+
+# Physical properties. These events change the physics model, so they are eager and best run at startup.
+
+
+def _randomize_rigid_body_mass(
+    ctx, *, mass_distribution_params, operation, distribution="uniform", recompute_inertia=True
+):
+    asset = ctx.entity("body_ids")
+    body_ids = ctx.inputs["body_ids"].long()
+    env_ids = ctx.mask.nonzero().squeeze(-1)
+    rows = env_ids[:, None]
+
+    low, high = mass_distribution_params
+    if distribution == "log_uniform":
+        samples = uniform(ctx.rng, math.log(low), math.log(high), (len(body_ids),)).exp()[env_ids]
+    else:
+        samples = uniform(ctx.rng, low, high, (len(body_ids),))[env_ids]
+
+    masses = asset.data.body_mass.torch[rows, body_ids]
+    if operation == "add":
+        new_masses = masses + samples
+    elif operation == "scale":
+        new_masses = masses * samples
+    else:
+        new_masses = samples
+    new_masses = new_masses.clamp(min=1e-6)
+    asset.set_masses_index(masses=new_masses, body_ids=body_ids, env_ids=env_ids)
+
+    # Assume uniform density: the inertia scales with the mass.
+    if recompute_inertia:
+        inertias = asset.data.body_inertia.torch[rows, body_ids] * (new_masses / masses)[..., None]
+        asset.set_inertias_index(inertias=inertias, body_ids=body_ids, env_ids=env_ids)
+
+
+randomize_rigid_body_mass = Term(eager=_randomize_rigid_body_mass, random=True)
+"""Add to, scale, or set (``operation`` ``"add"``, ``"scale"``, ``"abs"``) the masses of the ``body_ids`` bodies.
+
+Samples come from ``mass_distribution_params``, ``"uniform"`` or ``"log_uniform"``. With ``recompute_inertia``, the
+inertias scale with the masses.
+"""
+
+
+def _randomize_rigid_body_com(ctx, *, com_range):
+    asset = ctx.entity("body_ids")
+    body_ids = ctx.inputs["body_ids"].long()
+    env_ids = ctx.mask.nonzero().squeeze(-1)
+
+    offset = torch.stack([uniform(ctx.rng, low, high, offset=axis) for axis, (low, high) in enumerate(com_range)], -1)
+    coms = asset.data.body_com_pos_b.torch[env_ids[:, None], body_ids] + offset[env_ids, None]
+    asset.set_coms_index(coms=coms, body_ids=body_ids, env_ids=env_ids)
+
+
+randomize_rigid_body_com = Term(eager=_randomize_rigid_body_com, random=True)
+"""Offset the centers of mass of the ``body_ids`` bodies by one uniform sample per world from ``com_range``.
+
+``com_range`` holds three ``(low, high)`` pairs in the order x, y, z, where MDP1 takes a dict.
+"""
+
+
+def _randomize_rigid_body_material(ctx, *, friction_range, restitution_range):
+    from newton import ModelFlags  # noqa: PLC0415
+
+    from isaaclab.sim import SimulationContext  # noqa: PLC0415
+
+    asset = ctx.entity("body_ids")
+    manager = SimulationContext.instance().backend_manager
+    if manager.shares_materials:
+        raise ValueError("randomize_rigid_body_material does not support solvers that share materials across worlds.")
+    env_ids = ctx.mask.nonzero().squeeze(-1)
+
+    # The view orders shapes as the model does, not by body, so gather the shapes of each selected body.
+    body_shapes = asset._root_view.body_shapes
+    body_ids = asset.map_body_ids_to_backend(ctx.inputs["body_ids"].tolist())
+    shape_ids = torch.tensor([shape for body in body_ids for shape in body_shapes[body]], device=ctx.mask.device)
+
+    model = manager.backend.model
+    friction = wp.to_torch(asset._root_view.get_attribute("shape_material_mu", model)[:, 0])
+    restitution = wp.to_torch(asset._root_view.get_attribute("shape_material_restitution", model)[:, 0])
+    num_shapes = len(shape_ids)
+    friction[env_ids[:, None], shape_ids] = uniform(ctx.rng, *friction_range, (num_shapes,))[env_ids]
+    restitution_samples = uniform(ctx.rng, *restitution_range, (num_shapes,), offset=num_shapes)
+    restitution[env_ids[:, None], shape_ids] = restitution_samples[env_ids]
+    manager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
+
+
+randomize_rigid_body_material = Term(eager=_randomize_rigid_body_material, random=True)
+"""Draw the friction and restitution of the shapes of the ``body_ids`` bodies uniformly, per world and shape.
+
+Articulations on Newton only. Newton has one friction coefficient, so there is no separate dynamic friction. Solvers
+that share materials across worlds, like Kamino's own collision detection, are not supported.
+"""

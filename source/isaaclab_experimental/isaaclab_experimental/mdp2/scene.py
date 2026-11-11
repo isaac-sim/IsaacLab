@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol
 
 import torch
 import warp as wp
@@ -49,6 +49,10 @@ class SceneData(Protocol):
 
     def data(self, entity: str, field: str) -> ProxyArray:
         """Return a live view of an entity field, of shape ``(num_worlds, ...)``."""
+        ...
+
+    def entity(self, name: str) -> Any:
+        """Return the scene object of an entity, such as an articulation, for eager terms."""
         ...
 
 

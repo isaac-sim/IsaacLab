@@ -21,6 +21,7 @@ class Phase(enum.IntEnum):
     runtime functions.
     """
 
+    STARTUP_EVENTS = enum.auto()
     ACTIONS = enum.auto()
     TERMINATIONS = enum.auto()
     REWARDS = enum.auto()
@@ -41,8 +42,9 @@ step_dt = Constant.STEP_DT
 
 
 class EventMode(enum.Enum):
-    """When an event runs: on reset, or at random intervals."""
+    """When an event runs: once at startup, on reset, or at random intervals."""
 
+    STARTUP = enum.auto()
     RESET = enum.auto()
     INTERVAL = enum.auto()
 
@@ -184,7 +186,12 @@ class Event(TermCfg):
 
     @property
     def phase(self) -> Phase:
-        return Phase.INTERVAL_EVENTS if self.mode is EventMode.INTERVAL else Phase.RESET_EVENTS
+        phases = {
+            EventMode.STARTUP: Phase.STARTUP_EVENTS,
+            EventMode.RESET: Phase.RESET_EVENTS,
+            EventMode.INTERVAL: Phase.INTERVAL_EVENTS,
+        }
+        return phases[self.mode]
 
 
 @dataclass
@@ -204,7 +211,7 @@ class DirectAction:
 
     target: FieldSelector
     scale: float = 1.0
-    offset: float = 0.0
+    offset: float | FieldSelector = 0.0  # A field gives an offset per element, like robot.default_joint_pos
     subset: SubsetSelector | None = None  # Elements of the target to write, like robot.joints("slider_to_cart")
 
 

@@ -47,6 +47,7 @@ class MDPState:
     histories: dict[str, ProxyArray]  # (num_worlds, history_length, size) per observation with a history
     selected: dict[str, wp.array]  # (num_worlds,) per timed or masked event op: the worlds its hook acts on
     active: dict[str, ProxyArray]  # (num_worlds,) per op active in only some worlds: where it is active
+    scene_data: SceneData  # The scene the state is bound to, for eager terms
 
 
 @dataclass
@@ -117,8 +118,9 @@ class MDP:
 
     @property
     def is_fully_capturable(self) -> bool:
-        """Whether every runtime function can be captured as a single CUDA graph."""
-        return all(segment.capturable for function in self.segments.values() for segment in function)
+        """Whether every runtime function can be captured as a single CUDA graph. Startup runs once, uncaptured."""
+        functions = [segments for function, segments in self.segments.items() if function != "startup"]
+        return all(segment.capturable for segments in functions for segment in segments)
 
     def describe(self) -> str:
         """Return the compiled MDP as readable text: ops by phase with their layout, then each function's steps."""
@@ -179,6 +181,7 @@ class MDP:
             fields[subset] = ProxyArray(wp.array(indices, dtype=wp.int32, device=self.device))
 
         selectors = [op.target for op in self.ops[Phase.ACTIONS]]
+        selectors += [op.offset for op in self.ops[Phase.ACTIONS] if isinstance(op.offset, FieldSelector)]
         selectors += [selector for op in self.term_ops for selector in op.inputs.values()]
         for selector in selectors:
             if selector not in fields:
@@ -222,13 +225,14 @@ class MDP:
             scratch={
                 op.name: self._zeros(self.num_worlds, *op.shape, dtype=op.dtype)
                 for op in self.term_ops
-                if op.phase not in (Phase.INTERVAL_EVENTS, Phase.RESET_EVENTS)
+                if op.phase not in (Phase.STARTUP_EVENTS, Phase.INTERVAL_EVENTS, Phase.RESET_EVENTS)
                 and (op.eager or self.backend is Backend.WARP and not isinstance(op.compute, wp.Function))
             },
             selected={
                 op.name: wp.zeros(self.num_worlds, dtype=wp.bool, device=self.device)
                 for op in self.term_ops
-                if op.timer is not None or (op.worlds is not None and op.phase is Phase.RESET_EVENTS)
+                if op.timer is not None
+                or (op.worlds is not None and op.phase in (Phase.STARTUP_EVENTS, Phase.RESET_EVENTS))
             },
             active={
                 op.name: ProxyArray(
@@ -238,6 +242,7 @@ class MDP:
                 for op in ops
                 if op.worlds is not None
             },
+            scene_data=scene_data,
         )
 
     def observations(self) -> dict[str, ProxyArray]:

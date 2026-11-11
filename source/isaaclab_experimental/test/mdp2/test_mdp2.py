@@ -176,11 +176,25 @@ joint_vel_delta = mdp2.Term(
 
 
 @wp.func
-def uniform_command_warp(world: int, rng: wp.int32) -> float:
-    return wp.randf(wp.rand_init(rng, 0), -1.0, 1.0)
+def uniform_command_warp(world: int, command: wp.array(dtype=float), rng: wp.int32):
+    command[world] = wp.randf(wp.rand_init(rng, 0), -1.0, 1.0)
 
 
-uniform_command = mdp2.Term(torch=lambda rng: mdp2.uniform(rng, -1.0, 1.0), warp=uniform_command_warp, random=True)
+def uniform_command_torch(mask, command, rng):
+    command.copy_(torch.where(mask, mdp2.uniform(rng, -1.0, 1.0), command))
+
+
+uniform_command = mdp2.Term(torch=uniform_command_torch, warp=uniform_command_warp, random=True)
+
+
+@wp.func
+def copy_command_warp(world: int, command: wp.array(dtype=float), source: wp.array(dtype=float)):
+    command[world] = source[world]
+
+
+copy_command = mdp2.Term(
+    torch=lambda mask, command, source: command.copy_(torch.where(mask, source, command)), warp=copy_command_warp
+)
 
 
 @wp.kernel
@@ -430,10 +444,13 @@ def test_finalize_reports_all_errors():
     assert "observations.policy.name_clash: inputs, outputs, state, params, and rng must have distinct names" in message
     assert "events.no_interval: interval events need an interval_range_s" in message
     assert (
-        "rewards.func_arguments: wp.func 'joint_pos_l2_warp' must take the world, 0 output indices, and ['pos']"
-        in message
+        "rewards.func_arguments: wp.func 'joint_pos_l2_warp' must take the world, 0 output indices, and any of"
+        " ['pos']" in message
     )
-    assert "events.function_arguments: 'reset_joints_by_offset_warp' is called with ['mask', 'pos', 'rng']" in message
+    assert (
+        "events.function_arguments: 'reset_joints_by_offset_warp' is called with ['mask', 'rng'] of ['pos', 'rng']:"
+        " missing a required argument: 'joint_pos'" in message
+    )
 
 
 def test_schedule_edits_keep_phases_and_dependencies():
@@ -441,7 +458,7 @@ def test_schedule_edits_keep_phases_and_dependencies():
     builder = mdp2.MDPBuilder(mdp2.PointMassScene(num_worlds=1).schema)
     target = builder.add_command("target", mdp2.Command(uniform_command))
     target_copy = builder.add_command(
-        "target_copy", mdp2.Command(generated_commands, inputs={"command": mdp2.commands.target})
+        "target_copy", mdp2.Command(copy_command, inputs={"source": mdp2.commands.target})
     )
     alive = builder.add_reward("alive", mdp2.Reward(is_alive, inputs={"joint_pos": robot.joint_pos}))
     schedule = builder.schedule()
@@ -797,7 +814,7 @@ def test_eager_terms_match_compiled_terms():
             mask = torch.tensor([True, True, False, True], device=DEVICE)
             env_reset(mdp, state, scene, transition.observations, mask)
             joint_pos = scene.data("robot", "joint_pos").torch.clone()
-            env_step(mdp, state, scene, torch.full((4, 1), 0.1, device=DEVICE), transition)
+            env_step(mdp, state, scene, torch.full((4, mdp.action_dim), 0.1, device=DEVICE), transition)
             runs.append((joint_pos, transition.rewards.torch.clone()))
 
         (compiled_pos, compiled_rewards), (eager_pos, eager_rewards) = runs
@@ -976,6 +993,42 @@ def test_observation_history():
         expected = torch.stack([torch.tensor([0.0, 0.0], device=DEVICE), *positions], dim=1)
         expected[0, 0] = 0.0  # World 0 was never reset, so its history started at zero.
         torch.testing.assert_close(transition.observations["policy"].torch, expected)
+
+
+@wp.func
+def count_samples_warp(world: int, command: wp.array(dtype=float), samples: wp.array(dtype=float)):
+    samples[world] = samples[world] + 1.0
+    command[world] = samples[world]
+
+
+def count_samples_torch(mask, command, samples):
+    samples.add_(mask.float())
+    command.copy_(torch.where(mask, samples, command))
+
+
+sample_count = mdp2.Term(torch=count_samples_torch, warp=count_samples_warp, state={"samples": mdp2.State()})
+"""A command whose value counts its samples in its state."""
+
+
+def test_command_resamples_keep_their_state():
+    """A command resamples on episode resets and when its timer expires, and its state outlives episodes."""
+    results = {}
+    for backend in ("torch", "warp"):
+        scene = mdp2.PointMassScene(num_worlds=4, device=DEVICE)
+        builder = mdp2.MDPBuilder(scene.schema)
+        builder.add_command("count", mdp2.Command(sample_count, resampling_time_range=(0.03, 0.03)))
+        mdp = builder.finalize(device=DEVICE, backend=backend)
+        state, transition = mdp.state(scene), mdp.transition()
+
+        mdp2.reset(mdp, state, ProxyArray(wp.ones(4, dtype=wp.bool, device=DEVICE)))
+        for _ in range(4):
+            mdp2.evaluate(mdp, state, transition)
+        mdp2.reset(mdp, state, ProxyArray(wp.ones(4, dtype=wp.bool, device=DEVICE)))
+        results[backend] = state.fields[mdp2.commands.count].torch.clone()
+
+    # The reset samples once, then the 0.03 s timer expires every second 0.02 s step, then the reset samples again.
+    assert torch.equal(results["torch"], torch.full((4,), 4.0, device=DEVICE))
+    assert torch.equal(results["warp"], results["torch"])
 
 
 def test_library_commands():

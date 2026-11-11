@@ -24,6 +24,7 @@ from isaaclab.assets import ArticulationCfg
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
+from isaaclab.utils import math as math_utils
 from isaaclab.utils.warp import ProxyArray
 
 pytestmark = pytest.mark.skipif(not torch.cuda.is_available(), reason="Newton needs a GPU")
@@ -80,10 +81,14 @@ def env() -> Iterator[MDP2Env]:
 
 
 class MDP1Env:
-    """What the MDP1 functions read from an environment."""
+    """What the MDP1 functions read from an environment: the scene, and joint positions as the command."""
 
     def __init__(self, env: MDP2Env):
         self.scene = env.scene
+        self.command_manager = self
+
+    def get_command(self, name: str) -> torch.Tensor:
+        return self.scene["robot"].data.joint_pos.torch
 
 
 def robot_cfg(env: MDP2Env, joint_names: tuple[str, ...] | None = None) -> SceneEntityCfg:
@@ -149,6 +154,18 @@ def test_observations_and_rewards_match_mdp1(env: MDP2Env, backend: str):
         "joint_pos_limits": mdp2.Observation(
             mdp.joint_pos_limits, inputs={**joint_pos, "soft_joint_pos_limits": robot.soft_joint_pos_limits}
         ),
+        "joint_torques_l2": mdp2.Observation(
+            mdp.joint_torques_l2, inputs={"applied_effort": robot.applied_effort, **joints}
+        ),
+        "joint_acc_l2": mdp2.Observation(mdp.joint_acc_l2, inputs={"joint_acc": robot.joint_acc, **joints}),
+        "base_height_l2": mdp2.Observation(mdp.base_height_l2, inputs=root_pose, params={"target_height": 0.4}),
+        # Joint positions stand in for a velocity command.
+        "track_lin_vel_xy_exp": mdp2.Observation(
+            mdp.track_lin_vel_xy_exp, inputs={**root_state, "command": robot.joint_pos}, params={"std": 0.5}
+        ),
+        "track_ang_vel_z_exp": mdp2.Observation(
+            mdp.track_ang_vel_z_exp, inputs={**root_state, "command": robot.joint_pos}, params={"std": 0.5}
+        ),
     }
 
     values = mdp2_values(env, backend, uses)
@@ -174,6 +191,11 @@ def test_observations_and_rewards_match_mdp1(env: MDP2Env, backend: str):
         "joint_deviation_l1": mdp1.joint_deviation_l1(mdp1_env, leg_cfg),
         "joint_pos_target_l2": mdp1.joint_pos_target_l2(mdp1_env, target=0.3, asset_cfg=leg_cfg),
         "joint_pos_limits": mdp1.joint_pos_limits(mdp1_env, leg_cfg),
+        "joint_torques_l2": mdp1.joint_torques_l2(mdp1_env, leg_cfg),
+        "joint_acc_l2": mdp1.joint_acc_l2(mdp1_env, leg_cfg),
+        "base_height_l2": mdp1.base_height_l2(mdp1_env, 0.4, root_cfg),
+        "track_lin_vel_xy_exp": mdp1.track_lin_vel_xy_exp(mdp1_env, 0.5, "velocity", root_cfg),
+        "track_ang_vel_z_exp": mdp1.track_ang_vel_z_exp(mdp1_env, 0.5, "velocity", root_cfg),
     }
 
     assert values["joint_pos_limits"].abs().sum() > 0.0  # Some joints are beyond their limits.
@@ -287,3 +309,98 @@ def test_events_agree_across_backends_and_respect_ranges(env: MDP2Env):
     leg_ids = env.scene["robot"].find_joints(list(LEG_NAMES), preserve_order=True)[0]
     joint_offset = results["warp"]["joint_pos"][mask] - data.default_joint_pos.torch[mask]
     assert (joint_offset[:, leg_ids].abs() <= 0.1 + 1e-6).all()
+
+
+def test_heading_command_steers_towards_its_heading(env: MDP2Env):
+    """Both backends draw the same commands; heading worlds turn towards their heading as MDP1's command does."""
+    command = mdp2.Command(
+        mdp.heading_velocity_command,
+        inputs={"root_link_pose_w": robot.root_link_pose_w},
+        params={
+            "lin_vel_x": (-1.0, 1.0),
+            "lin_vel_y": (-0.5, 0.5),
+            "ang_vel_z": (-1.0, 1.0),
+            "heading": (-math.pi, math.pi),
+            "rel_standing_envs": 0.25,
+            "rel_heading_envs": 0.5,
+            "heading_control_stiffness": 0.5,
+        },
+    )
+
+    results = {}
+    for backend in ("torch", "warp"):
+        builder = mdp2.MDPBuilder(env.scene_data.schema)
+        builder.add_command("base_velocity", command)
+        model = builder.finalize(device=env.device, backend=backend)
+        state, transition = model.state(env.scene_data, seed=1), model.transition()
+
+        mdp2.reset(model, state, ProxyArray(wp.ones(NUM_ENVS, dtype=wp.bool, device=env.device)))
+        sampled = state.fields[mdp2.commands.base_velocity].torch.clone()
+        mdp2.evaluate(model, state, transition)
+        updated = state.fields[mdp2.commands.base_velocity].torch.clone()
+        heading = state.term_state["commands.base_velocity"]["heading_target"].torch.clone()
+        results[backend] = (sampled, updated, heading)
+
+    for value, expected in zip(results["warp"], results["torch"]):
+        torch.testing.assert_close(value, expected, equal_nan=True)
+
+    sampled, updated, heading = results["warp"]
+    standing = (sampled == 0.0).all(-1)
+    controlled = ~heading.isnan()
+    assert standing.any() and controlled.any() and (~standing & ~controlled).any()
+    assert (sampled.abs() <= torch.tensor([1.0, 0.5, 1.0], device=env.device)).all()
+
+    heading_error = math_utils.wrap_to_pi(heading - env.scene["robot"].data.heading_w.torch)
+    expected = torch.where(controlled, (0.5 * heading_error).clip(-1.0, 1.0), sampled[:, 2])
+    torch.testing.assert_close(updated[:, 2], expected)
+    assert heading[standing].isnan().all() and (updated[standing] == 0.0).all()
+
+
+def test_startup_events_randomize_the_model_alike_on_both_backends(env: MDP2Env):
+    """Startup events scale the base mass and offset its center of mass by the same samples on both backends."""
+    base = robot.bodies("base")
+    events = {
+        "base_mass": mdp2.Event(
+            mdp.randomize_rigid_body_mass,
+            mode=mdp2.EventMode.STARTUP,
+            inputs={"body_ids": base},
+            params={
+                "mass_distribution_params": (0.8, 1.25),
+                "operation": "scale",
+                "distribution": "log_uniform",
+            },
+        ),
+        "base_com": mdp2.Event(
+            mdp.randomize_rigid_body_com,
+            mode=mdp2.EventMode.STARTUP,
+            inputs={"body_ids": base},
+            params={"com_range": ((-0.05, 0.05), (-0.05, 0.05), (-0.01, 0.01))},
+        ),
+    }
+    data = env.scene["robot"].data
+    default_mass = data.body_mass.torch.clone()
+    default_com = data.body_com_pos_b.torch.clone()
+    base_id = env.scene["robot"].find_bodies("base")[0][0]
+
+    results = {}
+    for backend in ("torch", "warp"):
+        builder = mdp2.MDPBuilder(env.scene_data.schema)
+        for name, event in events.items():
+            builder.add_event(name, event)
+        model = builder.finalize(device=env.device, backend=backend)
+        assert model.is_fully_capturable  # Eager startup events run once, so they do not prevent capture.
+
+        mdp2.startup(model, model.state(env.scene_data, seed=2))
+        results[backend] = (data.body_mass.torch.clone(), data.body_com_pos_b.torch.clone())
+        env.scene["robot"].set_masses_index(masses=default_mass)
+        env.scene["robot"].set_coms_index(coms=default_com)
+
+    for value, expected in zip(results["warp"], results["torch"]):
+        torch.testing.assert_close(value, expected)
+
+    mass, com = results["warp"]
+    ratio = mass[:, base_id] / default_mass[:, base_id]
+    assert ((ratio >= 0.8 - 1e-6) & (ratio <= 1.25 + 1e-6)).all() and ratio.std() > 0.0
+    assert torch.equal(mass[:, base_id + 1 :], default_mass[:, base_id + 1 :])
+    offset = com[:, base_id] - default_com[:, base_id]
+    assert (offset[:, :2].abs() <= 0.05 + 1e-6).all() and (offset[:, 2].abs() <= 0.01 + 1e-6).all()

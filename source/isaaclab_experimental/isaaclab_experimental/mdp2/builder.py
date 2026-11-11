@@ -43,7 +43,7 @@ from .config import (
 )
 from .plan import ActionOp, Segment, TermOp, build_plan
 from .scene import SceneSchema
-from .terms import Implementation
+from .terms import Implementation, hook_arguments
 
 
 @dataclass(frozen=True)
@@ -381,6 +381,11 @@ class MDPBuilder:
             if op.target == cfg.target and (op.subset is None or elements & written):
                 context.errors.append(f"{entry}: '{cfg.target}' is already written by '{op.name}'.")
 
+        if isinstance(cfg.offset, FieldSelector):
+            offset = self._resolve(entry, "offset", cfg.offset, context)
+            if offset is not None and offset.sizes != target.sizes:
+                context.errors.append(f"{entry}: the offset '{cfg.offset}' must have the shape of '{cfg.target}'.")
+
         columns = slice(context.action_dim, context.action_dim + len(elements))
         context.action_dim = columns.stop
         context.mdp_fields[last_action] = ArrayLayout(
@@ -398,7 +403,9 @@ class MDPBuilder:
         # Check the use, and resolve the shapes of its output and state.
         implementation = _implementation(entry, context.backend, errors)
         outputs = cfg.outputs if isinstance(cfg, Event) else {}
-        names = [*cfg.inputs, *outputs, *term.state, *cfg.params, *(["rng"] if term.random else [])]
+        # A command writes its own field, which every hook gets as ``command``.
+        command = {"command": entry.writes[0]} if isinstance(cfg, Command) else {}
+        names = [*cfg.inputs, *outputs, *command, *term.state, *cfg.params, *(["rng"] if term.random else [])]
         if len(set(names)) != len(names):
             errors.append(f"{entry}: inputs, outputs, state, params, and rng must have distinct names, got {names}.")
 
@@ -413,10 +420,10 @@ class MDPBuilder:
             name: _resolve_shape(entry, f"state {name!r}", spec.shape, sizes, errors)
             for name, spec in term.state.items()
         }
-        if isinstance(cfg, (Command, Event)) and term.state:
-            errors.append(f"{entry}: commands and events cannot keep state.")
         if isinstance(cfg, Event) and (cfg.mode is EventMode.INTERVAL) != (cfg.interval_range_s is not None):
             errors.append(f"{entry}: interval events need an interval_range_s, and other events cannot have one.")
+        if isinstance(cfg, Command) and implementation is not None and implementation.reset is not None:
+            errors.append(f"{entry}: commands write their state when they resample, so they have no reset hook.")
 
         if len(errors) > num_errors:
             return
@@ -427,14 +434,15 @@ class MDPBuilder:
             **dict.fromkeys(names),
             **fields,
             **{name: ArrayLayout(wp.float32, 1 + len(shape), {}) for name, shape in state_shapes.items()},
+            **{name: ArrayLayout(wp.float32, 1 + len(output_shape), {}) for name in command},
         }
-        # Events take the mask of the worlds to write; other Warp functions take the output to write.
+        # Events and commands take the mask of the worlds to write; other Warp functions take the output to write.
         if term.eager is not None:
             try:
                 inspect.signature(term.eager).bind(None, **dict.fromkeys(cfg.params))
             except TypeError as error:
                 errors.append(f"{entry}: eager term {term.eager.__name__!r} is called with (ctx, **params): {error}.")
-        elif isinstance(cfg, Event):
+        elif isinstance(cfg, (Command, Event)):
             _check_hook(entry, implementation.compute, arguments, errors, extra="mask")
         else:
             extra = "out" if context.backend is Backend.WARP else None
@@ -475,7 +483,7 @@ class MDPBuilder:
                 compute=implementation.compute,
                 update=implementation.update,
                 reset=implementation.reset,
-                inputs=MappingProxyType({**cfg.inputs, **outputs}),
+                inputs=MappingProxyType({**cfg.inputs, **outputs, **command}),
                 params=MappingProxyType(
                     {name: self.schema.step_dt if value is step_dt else value for name, value in cfg.params.items()}
                 ),
@@ -587,19 +595,20 @@ def _check_hook(
 ) -> None:
     """Check that a hook's signature matches the arguments it will be called with.
 
-    A ``wp.func`` must take the world index, ``indices`` output indices, and ``arguments`` with matching array types,
-    and return ``returns``. A Python function must accept ``arguments`` and ``extra`` as keywords.
+    A ``wp.func`` must take the world index, ``indices`` output indices, and any of ``arguments`` with matching array
+    types, and return ``returns``. A Python function must accept ``extra`` and the ``arguments`` it names as keywords.
     """
     if isinstance(hook, wp.Function):
         annotations = dict(list(hook.input_types.items())[1 + indices :])
-        if set(annotations) != set(arguments):
+        unknown = sorted(set(annotations) - set(arguments))
+        if len(hook.input_types) < 1 + indices or unknown:
             errors.append(
-                f"{entry}: wp.func {hook.key!r} must take the world, {indices} output indices, and"
+                f"{entry}: wp.func {hook.key!r} must take the world, {indices} output indices, and any of"
                 f" {sorted(arguments)}, got {list(hook.input_types)}."
             )
             return
-        for name, bound in arguments.items():
-            annotation = annotations[name]
+        for name, annotation in annotations.items():
+            bound = arguments[name]
             if bound is None or not isinstance(annotation, wp.array):
                 continue
             if annotation.dtype is not bound.dtype or annotation.ndim != bound.ndim:
@@ -614,11 +623,11 @@ def _check_hook(
         if returns is not None and annotation is not None and wp.array(dtype=annotation).dtype is not returns:
             errors.append(f"{entry}: wp.func {hook.key!r} must return {returns.__name__}.")
     elif hook is not None:
-        names = sorted({*arguments, extra} - {None})
+        names = sorted({*hook_arguments(hook, arguments), extra} - {None})
         try:
             inspect.signature(hook).bind(**dict.fromkeys(names))
         except TypeError as error:
-            errors.append(f"{entry}: {hook.__name__!r} is called with {names}: {error}.")
+            errors.append(f"{entry}: {hook.__name__!r} is called with {names} of {sorted(arguments)}: {error}.")
 
 
 def _resolve_shape(

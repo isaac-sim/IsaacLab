@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import warp as wp
 
 from isaaclab.scene import InteractiveScene
@@ -25,10 +27,10 @@ class InteractiveSceneData:
     - ``root_com_vel_w``, ``default_root_vel``: ``wp.spatial_vectorf`` per world;
     - ``body_link_pose_w``: ``wp.transformf`` per world and body.
 
-    Articulations also provide ``joint_pos``, ``joint_vel``, ``default_joint_pos``, ``default_joint_vel``,
-    ``joint_effort_target``, ``soft_joint_vel_limits``, and ``soft_joint_pos_limits`` (``wp.vec2f``), per world
-    and joint. The ``scene`` entity provides ``env_origins`` and ``gravity_w`` (``wp.vec3f``, with magnitude) per
-    world.
+    Articulations also provide ``joint_pos``, ``joint_vel``, ``joint_acc``, ``default_joint_pos``,
+    ``default_joint_vel``, ``joint_pos_target``, ``joint_effort_target``, ``applied_effort``,
+    ``soft_joint_vel_limits``, and ``soft_joint_pos_limits`` (``wp.vec2f``), per world and joint. The ``scene``
+    entity provides ``env_origins`` and ``gravity_w`` (``wp.vec3f``, with magnitude) per world.
 
     Contact sensors provide ``net_forces_w`` and their histories ``net_forces_w_history`` and
     ``net_normal_forces_w_history`` (``wp.vec3f``, most recent first), and the air and contact times
@@ -39,6 +41,7 @@ class InteractiveSceneData:
     """
 
     def __init__(self, scene: InteractiveScene, step_dt: float):
+        self._scene = scene
         assets = {**scene.articulations, **scene.rigid_objects}
         entities: dict[str, EntitySchema] = {}
         self._views: dict[str, dict[str, ProxyArray]] = {}
@@ -70,7 +73,10 @@ class InteractiveSceneData:
                     "joint_vel": data.joint_vel,
                     "default_joint_pos": data.default_joint_pos,
                     "default_joint_vel": data.default_joint_vel,
+                    "joint_acc": data.joint_acc,
+                    "joint_pos_target": asset.actuators.target_command.position,
                     "joint_effort_target": asset.actuators.target_command.effort,
+                    "applied_effort": asset.actuators.applied_effort,
                     "soft_joint_pos_limits": data.soft_joint_pos_limits,
                     "soft_joint_vel_limits": data.soft_joint_vel_limits,
                 }
@@ -78,9 +84,12 @@ class InteractiveSceneData:
                     (
                         "joint_pos",
                         "joint_vel",
+                        "joint_acc",
                         "default_joint_pos",
                         "default_joint_vel",
+                        "joint_pos_target",
                         "joint_effort_target",
+                        "applied_effort",
                         "soft_joint_vel_limits",
                     ),
                     FieldSchema(("joints",)),
@@ -140,3 +149,7 @@ class InteractiveSceneData:
     def data(self, entity: str, field: str) -> ProxyArray:
         """Return a live view of an entity field, of shape ``(num_envs, ...)``."""
         return self._views[entity][field]
+
+    def entity(self, name: str) -> Any:
+        """Return the scene object of an entity, such as an articulation."""
+        return self._scene[name]
