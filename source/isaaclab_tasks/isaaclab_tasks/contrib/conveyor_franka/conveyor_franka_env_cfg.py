@@ -173,8 +173,6 @@ class EventCfg:
         params={
             "fixed_recipe": None,
             "fixed_variant_id": None,
-            "fixed_target_cube_id": None,
-            "fixed_source_side_id": None,
             "belt_start_x_range": (0.30, 0.82),
             "cube_position_noise": 0.015,
             "arm_joint_noise": 0.015,
@@ -244,7 +242,6 @@ class CurriculumCfg:
         params={
             "command_name": "transfer",
             "sampling": ResetStateSamplerCfg(),
-            "fixed_source_side_id": None,
         },
     )
 

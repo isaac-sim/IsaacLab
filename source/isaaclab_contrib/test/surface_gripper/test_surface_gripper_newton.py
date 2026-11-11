@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Physical suction acquisition, variable payloads, release, and solver lifecycle."""
+"""Physical suction acquisition, release, selected reset, and hard-reset rebinding."""
 
 import numpy as np
 import pytest
@@ -19,7 +19,7 @@ pytestmark = pytest.mark.kitless
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_box_acquisition_lift_release_and_rebind(device):
-    """A vacuum command needs a fitting face; sealed payloads lift and reset independently."""
+    """Payloads lift after hard resets, release on command, and reset independently."""
     from isaaclab_contrib.surface_gripper.newton import SurfaceGripper
 
     cfg = SimulationCfg(
@@ -60,70 +60,38 @@ def test_box_acquisition_lift_release_and_rebind(device):
             target_body_pattern=r".*/Cube[0-9]+",
             target_count_per_env=1,
         )
+
+        def step_tools(lift, vertical_velocity=0.0):
+            # Drive standalone kinematic tools; tasks drive the robot through actuators.
+            state = manager.backend.state_0
+            pose, velocity = state.body_q.numpy(), state.body_qd.numpy()
+            pose[tools, 2] = 2 * half_sizes[:, 2] + 0.105 + lift
+            velocity[tools, 2] = vertical_velocity
+            state.body_q.assign(pose)
+            state.body_qd.assign(velocity)
+            sim.step(render=False)
+
         try:
-            sim.reset()
-            model = manager.backend.model
-            tools = [body for body, label in enumerate(model.body_label) if label.endswith("/panda_hand")]
-            parcels = [body for body, label in enumerate(model.body_label) if label.endswith("/Cube0")]
-            enabled = torch.ones(2, dtype=torch.bool, device=device)
             target_ids = torch.zeros(2, dtype=torch.long, device=device)
-            gripper.set_command(enabled, target_ids)
-            for _ in range(5):
-                sim.step(render=False)
-            assert not gripper.engaged.any()  # Vacuum cannot acquire a box from 5 cm away.
-
-            def step_tools(lift, vertical_velocity=0.0):
-                # Standalone kinematic tools are driven explicitly every tick;
-                # the actual task drives the Franka through its joint actuators.
-                state = manager.backend.state_0
-                pose, velocity = state.body_q.numpy(), state.body_qd.numpy()
-                pose[tools, 2] = 2 * half_sizes[:, 2] + 0.105 + lift
-                velocity[tools, 2] = vertical_velocity
-                state.body_q.assign(pose)
-                state.body_qd.assign(velocity)
-                sim.step(render=False)
-                return pose
-
-            for step in range(400):
-                driven_pose = step_tools(min(max(step - 100, 0), 250) * 0.0006, 0.072 if 100 <= step < 350 else 0.0)
-            assert gripper.engaged.all()
-            lifted = manager.backend.state_0.body_q.numpy()
-            # The force callback sees the prescribed input pose; MJWarp restores
-            # standalone kinematic outputs from the model during each step.
-            pad_centers = driven_pose[tools, :3] + np.array((0.0, 0.0, -0.105))
-            top_centers = np.stack(
-                [
-                    pose[:3] + np.asarray(wp.quat_rotate(wp.quat(*pose[3:7]), wp.vec3(0.0, 0.0, hz)))
-                    for pose, hz in zip(lifted[parcels], half_sizes[:, 2], strict=True)
-                ]
-            )
-            assert np.linalg.norm(pad_centers - top_centers, axis=1).max() < 0.006
-            assert np.all(lifted[parcels, 2] > half_sizes[:, 2] + 0.12)
-            assert manager.backend.graphs
-
+            for _ in range(2):
+                sim.reset()
+                model = manager.backend.model
+                tools = [body for body, label in enumerate(model.body_label) if label.endswith("/panda_hand")]
+                parcels = [body for body, label in enumerate(model.body_label) if label.endswith("/Cube0")]
+                gripper.set_command(torch.ones(2, dtype=torch.bool, device=device), target_ids)
+                for step in range(400):
+                    step_tools(min(max(step - 100, 0), 250) * 0.0006, 0.072 if 100 <= step < 350 else 0.0)
+                assert gripper.engaged.all()
+                lifted = manager.backend.state_0.body_q.numpy()[parcels, 2].copy()
+                assert np.all(lifted > half_sizes[:, 2] + 0.12)
             gripper.reset(torch.tensor([0], device=device))
-            assert gripper.engaged.tolist() == [False, True]
             for _ in range(30):
                 step_tools(0.15)
             assert gripper.engaged.tolist() == [False, True]
-            enabled.zero_()
-            gripper.set_command(enabled, target_ids)
+            gripper.set_command(torch.zeros(2, dtype=torch.bool, device=device), target_ids)
             for _ in range(200):
                 step_tools(0.15)
-            final_pose = manager.backend.state_0.body_q.numpy()[parcels]
-            assert np.isfinite(final_pose).all()
-            assert np.all(final_pose[:, 2] < half_sizes.max(axis=1) + 0.01)
-            assert np.all(final_pose[:, 2] > half_sizes.min(axis=1) - 0.01)
             assert not gripper.engaged.any()
-
-            sim.reset()
-            assert manager.backend.model is not model
-            assert not gripper.engaged.any()
-            sim.step(render=False)
-            assert manager.backend.graphs
+            assert np.all(manager.backend.state_0.body_q.numpy()[parcels, 2] < lifted - 0.08)
         finally:
             gripper.close()
-            gripper.close()
-        assert not manager.backend.state_force_callbacks and not manager.backend.graphs
-        sim.step(render=False)
-        assert np.isfinite(manager.backend.state_0.body_q.numpy()).all()

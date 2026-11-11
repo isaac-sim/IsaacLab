@@ -49,7 +49,6 @@ class ConveyorResetCurriculum(ManagerTermBase):
         env_ids: Sequence[int] | torch.Tensor | slice,
         sampling: ResetStateSamplerCfg,
         command_name: str = "transfer",
-        fixed_source_side_id: int | None = None,
     ) -> dict[str, torch.Tensor]:
         """Record finished episodes and draw rows for only the resetting environments."""
         del sampling
@@ -62,12 +61,7 @@ class ConveyorResetCurriculum(ManagerTermBase):
         completed = (command.command_counter[ids] > 0) & (env.episode_length_buf[ids] > 0)
         completed_ids = ids[completed]
         succeeded = command.ever_success[completed_ids]
-        row_mask = None
-        if fixed_source_side_id is not None:
-            if fixed_source_side_id not in (0, 1):
-                raise ValueError("fixed_source_side_id must be 0 (left) or 1 (right).")
-            row_mask = self._reset_term.source_side_ids == fixed_source_side_id
-        self.reset_sampler.reset(ids, command.ever_success[ids], valid=completed, row_mask=row_mask)
+        self.reset_sampler.reset(ids, command.ever_success[ids], valid=completed)
         probabilities = self.reset_sampler.probabilities
 
         history_size = self.success_monitor.success_size

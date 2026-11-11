@@ -337,8 +337,6 @@ class ConveyorResetStateTable(ManagerTermBase):
         self,
         fixed_recipe: int | None,
         fixed_variant_id: int | None,
-        fixed_target_cube_id: int | None,
-        fixed_source_side_id: int | None,
     ) -> torch.Tensor:
         """Return rows matching optional deterministic evaluation controls."""
         mask = torch.ones(self.row_count, dtype=torch.bool, device=self.device)
@@ -350,14 +348,6 @@ class ConveyorResetStateTable(ManagerTermBase):
             if fixed_variant_id < 0:
                 raise ValueError("fixed_variant_id must be non-negative.")
             mask &= self.variant_ids == fixed_variant_id
-        if fixed_target_cube_id is not None:
-            if not 0 <= fixed_target_cube_id < CUBE_COUNT:
-                raise ValueError(f"fixed_target_cube_id must lie in [0, {CUBE_COUNT - 1}].")
-            mask &= self.target_cube_ids == fixed_target_cube_id
-        if fixed_source_side_id is not None:
-            if fixed_source_side_id not in (LEFT_SIDE, RIGHT_SIDE):
-                raise ValueError("fixed_source_side_id must be 0 (left) or 1 (right).")
-            mask &= self.source_side_ids == fixed_source_side_id
         return torch.nonzero(mask, as_tuple=False).flatten()
 
     def __call__(
@@ -366,8 +356,6 @@ class ConveyorResetStateTable(ManagerTermBase):
         env_ids: torch.Tensor,
         fixed_recipe: int | None = None,
         fixed_variant_id: int | None = None,
-        fixed_target_cube_id: int | None = None,
-        fixed_source_side_id: int | None = None,
         belt_start_x_range: tuple[float, float] = (0.30, 0.82),
         cube_position_noise: float = 0.015,
         arm_joint_noise: float = 0.015,
@@ -380,7 +368,7 @@ class ConveyorResetStateTable(ManagerTermBase):
         if cube_position_noise < 0.0 or arm_joint_noise < 0.0:
             raise ValueError("Reset randomization ranges must be non-negative.")
 
-        fixed_values = (fixed_recipe, fixed_variant_id, fixed_target_cube_id, fixed_source_side_id)
+        fixed_values = (fixed_recipe, fixed_variant_id)
         if any(value is not None for value in fixed_values):
             candidates = self._filtered_rows(*fixed_values)
             if candidates.numel() == 0:
