@@ -317,6 +317,7 @@ def _recording_backend(
         solver_dt=0.002 / num_substeps,
         actuators=None,
         actuators_active=False,
+        lab_actuators_active=False,
         handles_actions=False,
         contact_sensors={},
         imu_sensors=[],
