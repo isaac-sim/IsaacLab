@@ -10,8 +10,21 @@ RFC: A Real Robot Backend
 
 .. note::
 
-   **Status: proposal for discussion.** This RFC introduces no runtime code or hardware support.
-   Names such as ``RealCfg``, ``RealManager``, and ``physics=real`` describe proposed interfaces.
+   **Status: proposal with an exploratory prototype.** No hardware support is claimed.
+   ``RealCfg`` and ``RealManager`` are implemented experimentally; ``physics=real`` remains a
+   proposed task preset, not an available command-line selection.
+
+An accompanying CPU prototype runs an unchanged ``ManagerBasedEnv`` with stock joint actions and
+observations against a fake deployment session. It implements only the interfaces that this path
+uses, with no IsaacDeploy C++ integration, and reports unsupported callers as errors. Run it with:
+
+.. code-block:: bash
+
+   uv run python -m isaaclab_experimental.real.example --steps 30
+
+The prototype and its Python deployment API findings live in
+``source/isaaclab_experimental/isaaclab_experimental/real/README.md``. The architecture below
+describes the broader intended integration; the prototype does not implement all of it.
 
 Motivation and scope
 --------------------
@@ -38,8 +51,9 @@ Existing extension points
 
 Isaac Lab already has most of the public boundary:
 
-* ``Articulation`` and sensors select backend implementations through ``FactoryBase``. A backend key
-  maps to an optional package such as ``isaaclab_real``; the core selector must recognize that key.
+* ``Articulation`` and sensors select backend implementations through ``FactoryBase`` using the
+  active manager's ``backend_name``. A key can use explicit registration, as the prototype does, or
+  map to an optional package such as ``isaaclab_real``. No core backend allowlist change is needed.
 * ``BaseArticulation`` defines state access and buffered position, velocity, and effort targets.
   Existing action terms and observation terms operate on these interfaces.
 * ``PhysicsManager`` owns initialization, stepping, readiness events, and shutdown. It can serve as
