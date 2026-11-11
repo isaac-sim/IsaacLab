@@ -33,6 +33,7 @@ from isaaclab_newton.physics import (
     NewtonShapeCfg,
     NewtonSolver,
     NewtonSolverCfg,
+    SteelSolverCfg,
     VBDSolverCfg,
     XPBDSolverCfg,
     create_builder,
@@ -125,6 +126,7 @@ def test_reset_lets_consumers_bind_each_new_backend_before_the_solver_exists(mon
         pytest.param(XPBDSolverCfg, newton.solvers.SolverXPBD, True, id="xpbd"),
         pytest.param(VBDSolverCfg, SolverVBD, True, id="vbd"),
         pytest.param(FeatherstoneSolverCfg, newton.solvers.SolverFeatherstone, True, id="featherstone"),
+        pytest.param(SteelSolverCfg, newton.solvers.SolverSteel, True, id="steel"),
         pytest.param(P(KaminoPADMMSolverCfg, use_collision_detector=True), SolverKamino, False, id="kamino_internal"),
         pytest.param(P(KaminoPADMMSolverCfg, use_collision_detector=False), SolverKamino, True, id="kamino_pipeline"),
         pytest.param(P(MPMSolverCfg, max_iterations=2, voxel_size=0.05), SolverImplicitMPM, False, id="mpm"),
@@ -166,8 +168,9 @@ def test_reset_builds_the_configured_solver_and_steps(solver_cfg_factory, solver
                 particle_radius=0.01,
             )
         else:
-            body = builder.add_body(mass=1.0)
-            builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
+            body = builder.add_link(mass=1.0)
+            joint = builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
+            builder.add_articulation([joint])
             if solver_cls is SolverKamino and solver_cfg.use_collision_detector:
                 builder.add_shape_sphere(body=body, radius=0.05)
                 builder.add_ground_plane()
