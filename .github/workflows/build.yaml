@@ -102,6 +102,7 @@ jobs:
     outputs:
       should_run: ${{ steps.detect.outputs.should_run }}
       activated: ${{ steps.activation.outputs.activated }}
+      lanes: ${{ steps.suites.outputs.lanes }}
     steps:
     - name: Check PR update activation
       id: activation
@@ -130,8 +131,16 @@ jobs:
     - uses: actions/checkout@v6
       with:
         fetch-depth: 1
-        sparse-checkout: .github/actions/detect-changes
+        sparse-checkout: |
+          .github/actions/detect-changes
+          .github/actions/_lib/select-test-jobs.cjs
         sparse-checkout-cone-mode: false
+    - name: Select owning suites for test-only PRs
+      id: suites
+      uses: actions/github-script@v9
+      with:
+        script: |
+          await require('./.github/actions/_lib/select-test-jobs.cjs')({github, context, core});
     - id: detect
       uses: ./.github/actions/detect-changes
       with:
@@ -282,6 +291,7 @@ jobs:
     needs: [changes, config]
     # Also runs on push so PRs find the cuRobo deps image already built.
     if: >-
+      (contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'all') || contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'curobo')) &&
       needs.changes.outputs.activated == 'true' &&
       needs.changes.outputs.should_run == 'true'
     steps:
@@ -308,9 +318,10 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
-    needs: [build, config]
+    needs: [build, config, changes]
     if: >-
-      github.event_name != 'push' &&
+      (contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'all') || contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'tasks')) &&
+      !contains(fromJSON('["push","schedule"]'), github.event_name) &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -336,9 +347,10 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
-    needs: [build, config]
+    needs: [build, config, changes]
     if: >-
-      github.event_name != 'push' &&
+      (contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'all') || contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'tasks')) &&
+      !contains(fromJSON('["push","schedule"]'), github.event_name) &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -364,9 +376,10 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
-    needs: [build, config]
+    needs: [build, config, changes]
     if: >-
-      github.event_name != 'push' &&
+      (contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'all') || contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'tasks')) &&
+      !contains(fromJSON('["push","schedule"]'), github.event_name) &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -391,9 +404,10 @@ jobs:
     name: isaaclab (core) [1/3]
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: [build, config]
+    needs: [build, config, changes]
     if: >-
-      github.event_name != 'push' &&
+      (contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'all') || contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'core')) &&
+      !contains(fromJSON('["push","schedule"]'), github.event_name) &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -418,9 +432,10 @@ jobs:
     name: isaaclab (core) [2/3]
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: [build, config]
+    needs: [build, config, changes]
     if: >-
-      github.event_name != 'push' &&
+      (contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'all') || contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'core')) &&
+      !contains(fromJSON('["push","schedule"]'), github.event_name) &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -445,9 +460,10 @@ jobs:
     name: isaaclab (core) [3/3]
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: [build, config]
+    needs: [build, config, changes]
     if: >-
-      github.event_name != 'push' &&
+      (contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'all') || contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'core')) &&
+      !contains(fromJSON('["push","schedule"]'), github.event_name) &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -476,9 +492,10 @@ jobs:
     name: standalone demos (headless, Kit)
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: [build, config]
+    needs: [build, config, changes]
     if: >-
-      github.event_name != 'push' &&
+      (contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'all') || contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'demos')) &&
+      !contains(fromJSON('["push","schedule"]'), github.event_name) &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -509,9 +526,10 @@ jobs:
     name: standalone demos (headless, non-Kit)
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: [build, config]
+    needs: [build, config, changes]
     if: >-
-      github.event_name != 'push' &&
+      (contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'all') || contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'demos')) &&
+      !contains(fromJSON('["push","schedule"]'), github.event_name) &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -546,9 +564,10 @@ jobs:
     name: isaaclab_rl
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: [build, config]
+    needs: [build, config, changes]
     if: >-
-      github.event_name != 'push' &&
+      (contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'all') || contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'rl')) &&
+      !contains(fromJSON('["push","schedule"]'), github.event_name) &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -570,9 +589,10 @@ jobs:
     name: isaaclab_visualizers
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: [build, config]
+    needs: [build, config, changes]
     if: >-
-      github.event_name != 'push' &&
+      (contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'all') || contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'visualizers')) &&
+      !contains(fromJSON('["push","schedule"]'), github.event_name) &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -594,9 +614,10 @@ jobs:
     name: isaaclab_assets
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: [build, config]
+    needs: [build, config, changes]
     if: >-
-      github.event_name != 'push' &&
+      (contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'all') || contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'assets')) &&
+      !contains(fromJSON('["push","schedule"]'), github.event_name) &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -664,9 +685,10 @@ jobs:
     name: isaaclab_newton
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: [build, config]
+    needs: [build, config, changes]
     if: >-
-      github.event_name != 'push' &&
+      (contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'all') || contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'newton')) &&
+      !contains(fromJSON('["push","schedule"]'), github.event_name) &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -688,9 +710,10 @@ jobs:
     name: isaaclab_physx
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: [build, config]
+    needs: [build, config, changes]
     if: >-
-      github.event_name != 'push' &&
+      (contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'all') || contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'physx')) &&
+      !contains(fromJSON('["push","schedule"]'), github.event_name) &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -712,9 +735,10 @@ jobs:
     name: isaaclab_ov
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: [build, config]
+    needs: [build, config, changes]
     if: >-
-      github.event_name != 'push' &&
+      (contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'all') || contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'ov')) &&
+      !contains(fromJSON('["push","schedule"]'), github.event_name) &&
       needs.build.result == 'success'
     env:
       USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_image != '' && ((github.event_name == 'pull_request' && github.base_ref == github.event.repository.default_branch && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch)) }}
@@ -761,9 +785,10 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
     continue-on-error: true
-    needs: [build-curobo, config]
+    needs: [build-curobo, config, changes]
     if: >-
-      github.event_name != 'push' &&
+      (contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'all') || contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'curobo')) &&
+      !contains(fromJSON('["push","schedule"]'), github.event_name) &&
       needs.build-curobo.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -806,9 +831,10 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
     continue-on-error: true
-    needs: [build, config]
+    needs: [build, config, changes]
     if: >-
-      github.event_name != 'push' &&
+      (contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'all') || contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'contrib')) &&
+      !contains(fromJSON('["push","schedule"]'), github.event_name) &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -836,9 +862,10 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
-    needs: [build, config]
+    needs: [build, config, changes]
     if: >-
-      github.event_name != 'push' &&
+      (contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'all') || contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'video')) &&
+      !contains(fromJSON('["push","schedule"]'), github.event_name) &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -861,8 +888,10 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
     continue-on-error: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
-    needs: [build, config]
-    if: needs.build.result == 'success'
+    needs: [build, config, changes]
+    if: >-
+      (contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'all') || contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'rendering')) &&
+      needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -879,8 +908,8 @@ jobs:
           test_rendering_kit.py,
           test_rendering_architecture.py,
           test_golden_image.py
-        test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
-        test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness' || '' }}
+        test-node-ids-file: ${{ contains(fromJSON('["push","schedule"]'), github.event_name) && '.github/test-subsets/postmerge-rendering.toml' || '' }}
+        test-node-ids-key: ${{ contains(fromJSON('["push","schedule"]'), github.event_name) && 'rendering-correctness' || '' }}
         ovrtx-shader-cache: restore
         ovrtx-shader-cache-trees: kit
         warp-cache: restore
@@ -897,8 +926,10 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
     continue-on-error: ${{ github.event_name == 'workflow_dispatch' }}
-    needs: [build, config]
-    if: needs.build.result == 'success'
+    needs: [build, config, changes]
+    if: >-
+      (contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'all') || contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'rendering')) &&
+      needs.build.result == 'success'
     env:
       USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_image != '' && ((github.event_name == 'pull_request' && github.base_ref == github.event.repository.default_branch && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch)) }}
     steps:
@@ -923,8 +954,8 @@ jobs:
         include-files: >-
           test_rendering_kitless.py
         test-k-expr: legacy
-        test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
-        test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness-kitless-legacy' || '' }}
+        test-node-ids-file: ${{ contains(fromJSON('["push","schedule"]'), github.event_name) && '.github/test-subsets/postmerge-rendering.toml' || '' }}
+        test-node-ids-key: ${{ contains(fromJSON('["push","schedule"]'), github.event_name) && 'rendering-correctness-kitless-legacy' || '' }}
         ovrtx-shader-cache: restore
         ovrtx-shader-cache-trees: kitless
         warp-cache: restore
@@ -937,8 +968,9 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
     continue-on-error: ${{ github.event_name == 'workflow_dispatch' }}
-    needs: [build, config]
+    needs: [build, config, changes]
     if: >-
+      (contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'all') || contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'rendering')) &&
       github.event_name != 'pull_request' &&
       needs.build.result == 'success'
     env:
@@ -965,8 +997,8 @@ jobs:
         include-files: >-
           test_rendering_kitless.py
         test-k-expr: ovstage
-        test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
-        test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness-kitless-ovstage' || '' }}
+        test-node-ids-file: ${{ contains(fromJSON('["push","schedule"]'), github.event_name) && '.github/test-subsets/postmerge-rendering.toml' || '' }}
+        test-node-ids-key: ${{ contains(fromJSON('["push","schedule"]'), github.event_name) && 'rendering-correctness-kitless-ovstage' || '' }}
         ovrtx-shader-cache: restore
         ovrtx-shader-cache-trees: kitless
         container-name: "isaac-lab-rendering-correctness-kitless-ovstage-test"
@@ -977,11 +1009,12 @@ jobs:
     runs-on: [self-hosted, gpu]
     # Four legs x three samples, including one retry each: 372 minutes + setup/comparison buffer.
     timeout-minutes: 450
-    needs: [build, config]
+    needs: [build, config, changes]
     # Pull requests and manual dispatches run in gate mode. A push runs only on the
     # repository default branch, where it also records a baseline; release pushes skip this job.
     if: >-
-      (github.event_name != 'push' || github.ref_name == github.event.repository.default_branch) &&
+      (contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'all') || contains(fromJSON(needs.changes.outputs.lanes || '["all"]'), 'performance')) &&
+      (!contains(fromJSON('["push","schedule"]'), github.event_name) || github.ref_name == github.event.repository.default_branch) &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -1044,7 +1077,7 @@ jobs:
         exec bash "$GITHUB_WORKSPACE/tools/performance_regression/run_benchmarks.sh"
 
     - name: Save warm JIT cache
-      if: always() && github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
+      if: always() && contains(fromJSON('["push","schedule"]'), github.event_name) && github.ref_name == github.event.repository.default_branch
       uses: actions/cache/save@v4
       with:
         path: ${{ github.workspace }}/jit-cache
@@ -1107,7 +1140,7 @@ jobs:
     # Writes are create-only under a name derived from the commit and run id. Each
     # leg is gated on its own status, so one leg's fault does not skip the rest.
     - name: Record baseline
-      if: ${{ always() && github.event_name == 'push' && github.ref_name == github.event.repository.default_branch }}
+      if: ${{ always() && contains(fromJSON('["push","schedule"]'), github.event_name) && github.ref_name == github.event.repository.default_branch }}
       timeout-minutes: 30
       env:
         ISAACLAB_BLOB_URL: ${{ secrets.ISAACLAB_BLOB_URL }}
@@ -1191,7 +1224,7 @@ jobs:
       group: warp-cache-write-${{ github.ref }}
       cancel-in-progress: false
     if: >-
-      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      (contains(fromJSON('["push","schedule"]'), github.event_name) || github.event_name == 'workflow_dispatch') &&
       needs.build.result == 'success'
     env:
       # Caches are branch-scoped: publishing only helps from a PR base branch
@@ -1243,7 +1276,7 @@ jobs:
       group: ovrtx-cache-write-${{ github.ref }}
       cancel-in-progress: false
     if: >-
-      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      (contains(fromJSON('["push","schedule"]'), github.event_name) || github.event_name == 'workflow_dispatch') &&
       needs.build.result == 'success'
     env:
       PUBLISHES_OVRTX_CACHE: ${{ github.ref_name == github.event.repository.default_branch || startsWith(github.ref_name, 'release/') }}

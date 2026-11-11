@@ -10,9 +10,10 @@
 name: Latest Released Isaac Sim Compatibility
 
 on:
-  push:
-    branches:
-      - main
+  # The current runtime is checked on every merge by build.yaml. Validate the
+  # release runtime daily so merges do not each provision a second full pipeline.
+  schedule:
+    - cron: '23 7 * * *'
   workflow_dispatch:
 
 permissions:
@@ -21,6 +22,8 @@ permissions:
   checks: write
   issues: read
 
+# build.yaml serializes runs by caller workflow and ref, including scheduled and
+# manual runs. Keep that single concurrency owner to avoid waiting on ourselves.
 jobs:
   docker-tests:
     name: Docker + Tests
