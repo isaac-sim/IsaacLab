@@ -159,6 +159,9 @@ def _make_env_cfg(args, video_stride):
     from isaaclab.visualizers import VisualizerCfg, WindowCfg
 
     from isaaclab_tasks.contrib.rizon_sharpa_coffee.demo_env_cfg import (
+        KITCHEN_CAMERA_EYE,
+        KITCHEN_CAMERA_FOCAL_LENGTH,
+        KITCHEN_CAMERA_LOOKAT,
         CoffeeDemoEnvCfg,
         CoffeeKitBackendCfg,
         CoffeeRTXVisualizerCfg,
@@ -200,7 +203,7 @@ def _make_env_cfg(args, video_stride):
         window=WindowCfg(size=(args.width, args.height)),
         eye=(0.95, -0.65, 0.66),
         lookat=(0.52, 0.02, 0.15),
-        focal_length=24.0,
+        focal_length=KITCHEN_CAMERA_FOCAL_LENGTH,
         background_color=(0.008, 0.014, 0.022),
     )
     cfg.sim.visualizer_cfgs = [
@@ -245,7 +248,7 @@ def _make_env_cfg(args, video_stride):
     ]
     if args.backdrop == "kitchen":
         for visualizer in cfg.sim.visualizer_cfgs[1:]:
-            visualizer.eye, visualizer.lookat = (0.86, -0.61, 0.70), (0.53, -0.03, 0.10)
+            visualizer.eye, visualizer.lookat = KITCHEN_CAMERA_EYE, KITCHEN_CAMERA_LOOKAT
     return cfg
 
 

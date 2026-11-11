@@ -1,0 +1,1 @@
+* Changed the coffee demo and benchmark to share kitchen preparation, rigid scene configuration, camera defaults and spoon synchronization. Existing demo entrypoints and material behavior were preserved; new rigid-only consumers can use ``configure_scene_rigid`` without constructing particle fills.

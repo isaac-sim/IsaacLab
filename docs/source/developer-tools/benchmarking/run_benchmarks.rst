@@ -81,6 +81,42 @@ Hydra override on the camera's renderer configuration:
 Only the OVRTX renderer implements asynchronous rendering.
 See :ref:`renderers-async-data-flow` for how states, observations, and frames line up in each mode.
 
+Coffee kitchen camera workload
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``Isaac-RizonSharpa-Coffee-Kitchen-Camera-Benchmark`` reuses the coffee demo's
+robot, props and kitchen setup, with a kitchen and camera in every environment.
+It measures a rigid geometry workload: coffee powder, water and MPM are excluded.
+The existing render-benchmark animation supplies reproducible analytic arm motion;
+the hand keeps its held-spoon pose. No trajectory recording is needed.
+
+.. code-block:: bash
+
+   uv run isaaclab benchmark runtime \
+       --task Isaac-RizonSharpa-Coffee-Kitchen-Camera-Benchmark \
+       --num_envs 256 --warmup_steps 50 --num_steps 1000 --seed 42 \
+       --benchmark_formatter schema,summary \
+       --output_path ./benchmark_results/coffee_kitchen \
+       physics=newton_mjwarp renderer=newton_renderer presets=rgb
+
+The task defaults to ``benchmark_mode=render``. Set
+``env.benchmark_mode=physics_render`` to track the same analytic targets through
+rigid physics. Direct posing evaluates arm kinematics before the shared spoon
+mount and propagates the mounted pose before reading the camera. Both modes step
+physics; neither reproduces the demo's exact coffee-scooping motion.
+
+Set ``BENCHMARK_RENDER_RESOLUTION`` before launch to choose the square image size
+(default: 256 pixels). Select a camera output with ``presets=rgb``, ``depth``,
+``albedo`` or the existing ``simple_shading_*`` names. The kitchen uses the
+scene's dome/key lights; imported kitchen lights are disabled so light count
+does not multiply with the number of environments.
+
+Newton renders this scene without textures because the robot has UDIM textures.
+OVRTX and Isaac RTX use their own material/shading paths. Their timings describe
+different rendering workloads unless equivalent features are deliberately selected;
+do not present these defaults as image-quality-equivalent renderer comparisons.
+The full coffee demo remains the workload for material simulation and rendering.
+
 Read the result
 ~~~~~~~~~~~~~~~
 

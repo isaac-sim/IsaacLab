@@ -10,14 +10,18 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
+import torch
 import warp as wp
 from newton import JointType
 
 from isaaclab.sim import SimulationContext
+from isaaclab.utils import math as math_utils
 
 from .robot import PALM_BODY_NAME
 
 if TYPE_CHECKING:
+    from isaaclab_newton.physics import NewtonManager
+
     from isaaclab.assets import Articulation, RigidObject
 
 
@@ -32,6 +36,16 @@ class MountedSpoonAttachment:
     Construct after the scene and solver are initialized, before the first
     physics graph capture. The task uses one solver substep per physics tick.
     The manager clears callback registrations when the environment closes.
+    Use :meth:`sync_to_sim` after construction, partial resets, or direct robot
+    pose writes to initialize the asset state before rendering.
+
+    Args:
+        robot: Robot carrying the palm frame.
+        spoon: Free-root tool attached to the palm.
+        offset_pos: Spoon link position relative to the palm [m].
+        offset_rot: Spoon link orientation relative to the palm, XYZW.
+        backend_manager: Initialized Newton manager. When omitted, use the
+            current simulation context for compatibility with existing callers.
     """
 
     def __init__(
@@ -40,8 +54,17 @@ class MountedSpoonAttachment:
         spoon: RigidObject,
         offset_pos: tuple[float, float, float],
         offset_rot: tuple[float, float, float, float],
-    ):
-        self._backend_manager = SimulationContext.instance().backend_manager
+        *,
+        backend_manager: NewtonManager | None = None,
+    ) -> None:
+        self._robot = robot
+        self._spoon = spoon
+        self._palm_id = robot.find_bodies(PALM_BODY_NAME)[0][0]
+        self._tool_position = torch.tensor(offset_pos, device=robot.device).expand(robot.num_instances, -1)
+        self._tool_quaternion = torch.tensor(offset_rot, device=robot.device).expand(robot.num_instances, -1)
+        self._backend_manager = (
+            backend_manager if backend_manager is not None else SimulationContext.instance().backend_manager
+        )
         self._model = self._backend_manager.backend.model
         palm_pattern = re.compile(robot.cfg.prim_path + "/" + re.escape(PALM_BODY_NAME))
         spoon_pattern = re.compile(spoon.cfg.prim_path)
@@ -105,6 +128,27 @@ class MountedSpoonAttachment:
             ],
             device=self._model.device,
         )
+
+    def sync_to_sim(self, env_ids: torch.Tensor | slice | None = None) -> None:
+        """Publish the mounted link pose and twist through the asset APIs.
+
+        This is the construction/reset/direct-render path. Physics ticks use
+        :meth:`sync`, which writes native COM velocities in both solver buffers.
+
+        Args:
+            env_ids: Selected environment indices on the asset device, or
+                ``None`` for all environments. Unselected states stay unchanged.
+        """
+        selected = slice(None) if env_ids is None else env_ids
+        data = self._robot.data
+        palm = data.body_link_pose_w.torch[selected, self._palm_id]
+        pos, quat = math_utils.combine_frame_transforms(
+            palm[:, :3], palm[:, 3:], self._tool_position[selected], self._tool_quaternion[selected]
+        )
+        velocity = data.body_link_vel_w.torch[selected, self._palm_id].clone()
+        velocity[:, :3] += torch.cross(velocity[:, 3:], pos - palm[:, :3], dim=-1)
+        self._spoon.write_root_link_pose_to_sim_index(root_pose=torch.cat((pos, quat), dim=-1), env_ids=env_ids)
+        self._spoon.write_root_link_velocity_to_sim_index(root_velocity=velocity, env_ids=env_ids)
 
     def close(self) -> None:
         """Disable captured writes until the manager clears its callback list."""

@@ -69,6 +69,27 @@ The scene owns its lights, geometry and lifetime. Both use the
 authored refracting water material, with local coffee colour driving optical
 absorption. GL uses its native textured surface.
 
+## Shared scene setup and camera benchmark
+
+`configure_scene_rigid` configures the robot and props on a `CoffeeSceneCfg` without
+sampling coffee or water or constructing a material solver. The full demo continues
+to use `configure_scene`, which adds its original material initialization and physics
+settings. `CoffeeKitchenCfg` gives both consumers the same kitchen import preparation;
+its lighting and ceiling overrides allow a replicated camera workload to use one
+scene lighting setup rather than copying every authored kitchen light.
+
+The example and benchmark share the kitchen view and the mounted spoon's pose and
+velocity synchronization. The example keeps its existing IK sequence, material
+behavior, video and follow-camera controls.
+
+`Isaac-RizonSharpa-Coffee-Kitchen-Camera-Benchmark` uses the existing render benchmark's
+deterministic joint animation with the hand held in its default grip. It includes
+one kitchen and camera per environment and deliberately excludes coffee/water and
+MPM. It does not record or replay the demo's exact trajectory. Camera resolution,
+renderer and animation mode follow the runtime benchmark options described in the
+runtime benchmarking guide. Untextured Newton images and textured RTX images have
+different rendering workloads; their timings are not matched-quality comparisons.
+
 ## Assets and runtime
 
 Use Isaac Lab's uv environment, Newton and a CUDA-capable NVIDIA GPU. Standalone

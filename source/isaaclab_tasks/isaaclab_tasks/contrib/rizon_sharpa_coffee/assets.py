@@ -4,13 +4,22 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-"""Hosted coffee props and dimensions used by particle seeding and tool motion."""
+"""Hosted coffee props, kitchen preparation and dimensions shared by scene consumers."""
+
+from __future__ import annotations
 
 import os
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+import isaaclab.sim as sim_utils
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+
+if TYPE_CHECKING:
+    from pxr import Usd
+
+    from .demo_env_cfg import CoffeeKitchenCfg
 
 COFFEE_ASSET_DIR = os.environ.get(
     "ISAACLAB_COFFEE_ASSET_ROOT", f"{ISAACLAB_NUCLEUS_DIR}/Environments/RizonSharpaCoffee"
@@ -41,6 +50,65 @@ _BOWL_INNER_PROFILE = (
     (BOWL_INNER_RADIUS, BOWL_HEIGHT - 0.001),
     (0.066, BOWL_HEIGHT),
 )
+
+
+def spawn_kitchen(
+    prim_path: str,
+    cfg: CoffeeKitchenCfg,
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+    **kwargs: Any,
+) -> Usd.Prim:
+    """Spawn the hosted kitchen as static geometry using its authored placement.
+
+    The kitchen's authored transform aligns it with the coffee table. Appliance bodies and joints
+    are removed so rigid backends can import the same geometry as USD renderers. Malformed normals
+    metadata is repaired without changing normals or materials. The scene's studio floor is hidden
+    only within each spawned kitchen's parent, leaving other environments untouched.
+
+    Args:
+        prim_path: Destination prim path or environment path expression.
+        cfg: Kitchen source and optional lighting and ceiling overrides.
+        translation: Accepted by the spawning interface; the kitchen retains its authored translation [m].
+        orientation: Accepted by the spawning interface; the kitchen retains its authored XYZW orientation.
+        **kwargs: Additional options forwarded to the USD file spawner.
+
+    Returns:
+        The first spawned kitchen prim.
+    """
+    from pxr import Sdf, Usd, UsdGeom, UsdLux, UsdPhysics
+
+    kitchen = sim_utils.spawn_from_usd(prim_path, cfg, translation=None, orientation=None, **kwargs)
+    stage = kitchen.GetStage()
+    for root in sim_utils.find_matching_prims(prim_path, stage=stage):
+        prims = list(Usd.PrimRange(root, Usd.TraverseInstanceProxies()))
+        for prim in prims:
+            disable = (
+                prim.IsA(UsdGeom.Camera)
+                or prim.IsA(UsdPhysics.Joint)
+                or (prim.IsA(UsdGeom.Curves) and prim.GetName().startswith("grasp_identifier_curve"))
+                or (cfg.disable_lights and prim.HasAPI(UsdLux.LightAPI))
+                or (cfg.remove_ceiling and prim.GetPath() == root.GetPath().AppendPath("KitchenRoom/Ceiling"))
+            )
+            normals = prim.GetAttribute("primvars:normals")
+            repair_normals = (
+                prim.IsA(UsdGeom.Mesh) and normals and normals.GetTypeName() == Sdf.ValueTypeNames.TokenArray
+            )
+            rigid_body = prim.HasAPI(UsdPhysics.RigidBodyAPI)
+            if prim.IsInstanceProxy() and (disable or rigid_body or repair_normals):
+                raise ValueError(f"Kitchen prim {prim.GetPath()} is inside an instance and cannot be prepared.")
+            if disable:
+                prim.SetActive(False)
+            if rigid_body:
+                prim.RemoveAPI(UsdPhysics.RigidBodyAPI)
+            if repair_normals:
+                (interpolation,) = normals.Get()
+                UsdGeom.Mesh(prim).SetNormalsInterpolation(interpolation)
+                normals.Block()
+        for prim in Usd.PrimRange(root.GetParent()):
+            if prim.GetName() == "StudioFloor":
+                UsdGeom.Imageable(prim).MakeInvisible()
+    return kitchen
 
 
 def coffee_cavity_radius(height: float | np.ndarray) -> float | np.ndarray:

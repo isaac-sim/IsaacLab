@@ -476,7 +476,8 @@ def spawn_presentation(prim_path: str, cfg: CoffeePresentationCfg, translation=N
     """Spawn the shared RTX backdrop before scene cameras initialize."""
     from pxr import UsdGeom
 
-    from .assets import COFFEE_ASSET_DIR
+    from .assets import spawn_kitchen
+    from .demo_env_cfg import CoffeeKitchenCfg
 
     stage = sim_utils.get_current_stage()
     root = UsdGeom.Xform.Define(stage, prim_path).GetPrim()
@@ -485,8 +486,7 @@ def spawn_presentation(prim_path: str, cfg: CoffeePresentationCfg, translation=N
     _add_coffee_studio_lights(stage, f"{prim_path}/Lights")
     if cfg.backdrop == "kitchen":
         kitchen_path = f"{prim_path}/Kitchen"
-        kitchen_cfg = sim_utils.UsdFileCfg(usd_path=f"{COFFEE_ASSET_DIR}/kitchen.usda")
-        kitchen_cfg.func(kitchen_path, kitchen_cfg)
+        spawn_kitchen(kitchen_path, CoffeeKitchenCfg())
         for prim in stage.Traverse():
             if prim.GetName() == "StudioFloor":
                 UsdGeom.Imageable(prim).MakeInvisible()
