@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from dataclasses import dataclass
 from typing import Literal
 
 from isaaclab.utils.configclass import configclass
@@ -19,6 +20,25 @@ BAM_MODEL_FLAGS: dict[str, dict[str, int]] = {
     "m6": {"stribeck": 1, "load_dependent": 1, "quadratic": 1},
 }
 """Drive flags of the friction terms each BAM model enables."""
+
+
+@dataclass(frozen=True)
+class _BamMotorDefaults:
+    """Creation defaults for optional BAM motor coefficients; existing USD values take precedence."""
+
+    max_pwm: float = 1.0
+    dtheta_stribeck: float = 1.0
+    alpha: float = 1.0
+    friction_stribeck: float = 0.0
+    load_friction_motor: float = 0.0
+    load_friction_external: float = 0.0
+    load_friction_motor_stribeck: float = 0.0
+    load_friction_external_stribeck: float = 0.0
+    load_friction_motor_quad: float = 0.0
+    load_friction_external_quad: float = 0.0
+
+
+_BAM_MOTOR_DEFAULTS = _BamMotorDefaults()
 
 
 @configclass

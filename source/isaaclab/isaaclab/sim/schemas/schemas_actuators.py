@@ -25,7 +25,7 @@ import logging
 import tempfile
 import warnings
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from operator import attrgetter
 from typing import Any
 
@@ -33,14 +33,20 @@ import torch
 
 from pxr import Sdf, Usd, UsdPhysics
 
-from ...actuators.actuator_bam_cfg import BAM_DRIVE_API, BAM_MODEL_FLAGS, BamActuatorCfg
+from ...actuators.actuator_bam_cfg import _BAM_MOTOR_DEFAULTS, BAM_DRIVE_API, BAM_MODEL_FLAGS, BamActuatorCfg
 from ...actuators.actuator_base import ActuatorBase
 from ...actuators.actuator_base_cfg import ActuatorBaseCfg, _is_implicit_actuator_cfg
 from ...actuators.actuator_compat import resolve_limit_aliases
 from ...actuators.actuator_net import ActuatorNetLSTM, ActuatorNetMLP
 from ...actuators.actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg
 from ...actuators.actuator_pd import DCMotor, DelayedPDActuator, IdealPDActuator, RemotizedPDActuator
-from ...actuators.actuator_pd_cfg import DCMotorCfg, DelayedPDActuatorCfg, IdealPDActuatorCfg, RemotizedPDActuatorCfg
+from ...actuators.actuator_pd_cfg import (
+    _PD_ACTUATOR_DEFAULTS,
+    DCMotorCfg,
+    DelayedPDActuatorCfg,
+    IdealPDActuatorCfg,
+    RemotizedPDActuatorCfg,
+)
 from ...utils import clone, validate
 from ...utils.assets import retrieve_file_path
 from ...utils.backend_utils import FactoryBase
@@ -540,8 +546,8 @@ def _bam_effort_limits(cfg: BamActuatorCfg, joint_names: list[str]) -> dict[str,
 
 
 _PD_GAINS = (
-    _ActuatorField("stiffness", _PD_API, "newton:kp", new_prim_default=0.0),
-    _ActuatorField("damping", _PD_API, "newton:kd", new_prim_default=0.0),
+    _ActuatorField("stiffness", _PD_API, "newton:kp", new_prim_default=_PD_ACTUATOR_DEFAULTS.stiffness),
+    _ActuatorField("damping", _PD_API, "newton:kd", new_prim_default=_PD_ACTUATOR_DEFAULTS.damping),
 )
 _MAX_EFFORT = _ActuatorField(
     "actuator_effort_limit", _MAX_EFFORT_API, "newton:maxEffort", new_prim_default=_new_prim_effort_limit
@@ -577,20 +583,10 @@ _NEURAL_MODEL = _ActuatorField(
 # A new prim requires the fit and supply: the drive would silently fall back to m1 friction and no current limit.
 _BAM_FIELDS = (
     *(_bam_value(f"motor.{name}", required=True) for name in ("kt", "resistance", "error_gain")),
-    _bam_value("motor.max_pwm", default=1.0),
     *(_bam_value(f"motor.{name}", required=True) for name in ("max_current", "friction_base")),
-    *(_bam_value(f"motor.{name}", default=1.0) for name in ("dtheta_stribeck", "alpha")),
     *(
-        _bam_value(f"motor.{name}", default=0.0)
-        for name in (
-            "friction_stribeck",
-            "load_friction_motor",
-            "load_friction_external",
-            "load_friction_motor_stribeck",
-            "load_friction_external_stribeck",
-            "load_friction_motor_quad",
-            "load_friction_external_quad",
-        )
+        _bam_value(f"motor.{field.name}", default=getattr(_BAM_MOTOR_DEFAULTS, field.name))
+        for field in fields(_BAM_MOTOR_DEFAULTS)
     ),
     *(_bam_model_flag(flag) for flag in ("stribeck", "load_dependent", "quadratic")),
     *(_bam_value(name, required=True) for name in ("kp_fw", "vin")),

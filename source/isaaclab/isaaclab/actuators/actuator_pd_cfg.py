@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..utils import configclass
@@ -30,6 +31,17 @@ class ImplicitActuatorCfg(ActuatorBaseCfg):
 """
 Explicit Actuator Models.
 """
+
+
+@dataclass(frozen=True)
+class _PDActuatorDefaults:
+    """Creation defaults for PD gains when no compatible USD drive supplies them."""
+
+    stiffness: float = 0.0
+    damping: float = 0.0
+
+
+_PD_ACTUATOR_DEFAULTS = _PDActuatorDefaults()
 
 
 @configclass
