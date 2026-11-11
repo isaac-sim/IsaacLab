@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import collections
+import graphlib
 import inspect
 import itertools
 import math
@@ -86,6 +87,14 @@ class ScheduleEntry:
             return tuple(self.cfg.outputs.values())
         return ()
 
+    @property
+    def provides(self) -> tuple[FieldSelector, ...]:
+        """Fields of the MDP that other uses can read once this one is compiled: its value and its state."""
+        if not isinstance(self.cfg, TermCfg):
+            return ()
+        state = [term_state(str(self), name) for name in self.cfg.term.state]
+        return (*(selector for selector in self.writes if not selector.scene), *state)
+
 
 @dataclass(frozen=True)
 class ArrayLayout:
@@ -113,7 +122,6 @@ class CompileContext:
     )
     subsets: dict[SubsetSelector, tuple[int, ...]] = field(default_factory=dict)
     observation_dims: dict[str, int] = field(default_factory=dict)
-    streams: list[str] = field(default_factory=list)
     action_dim: int = 0
 
 
@@ -321,7 +329,7 @@ class MDPBuilder:
             ops[phase] = tuple(
                 replace(
                     op,
-                    stream=None if op.stream is None else streams.setdefault(op.use, len(streams)),
+                    stream=streams.setdefault(op.use, len(streams)) if op.random or op.timer is not None else None,
                     noise_stream=None if op.noise is None else streams.setdefault(f"{op.use}/noise", len(streams)),
                 )
                 for op in ops[phase]
@@ -359,24 +367,30 @@ class MDPBuilder:
         context = CompileContext(backend, _dependency_errors(schedule))
         time_limits = []
 
-        # Actions compile first, then each use once the commands, quantities, and term state it reads are compiled.
-        pending = sorted(schedule, key=lambda entry: entry.phase is not Phase.ACTIONS)
-        while pending:
-            ready = [
-                entry
-                for entry in pending
-                if all(selector.scene or selector in context.mdp_fields for selector in entry.reads)
-            ]
-            # Uses that read fields nothing provides compile last, and report them.
-            for entry in ready or pending:
-                if isinstance(entry.cfg, TimeLimit):
-                    time_limits.append(entry)
-                elif isinstance(entry.cfg, DirectAction):
-                    self._compile_action(entry, context)
-                else:
-                    self._compile_term(entry, context)
-            compiled = {entry.path for entry in ready or pending}
-            pending = [entry for entry in pending if entry.path not in compiled]
+        # Actions compile first, for the size of the last action. Every other use compiles after the uses that
+        # provide the commands, quantities, and term state it reads.
+        entries = {entry.path: entry for entry in schedule}
+        providers = {selector: entry.path for entry in schedule for selector in entry.provides}
+        reads = {
+            path: {providers[selector] for selector in entry.reads if selector in providers} - {path}
+            for path, entry in entries.items()
+        }
+        try:
+            order = list(graphlib.TopologicalSorter(reads).static_order())
+        except graphlib.CycleError as error:
+            context.errors.append(
+                f"Uses read each other's fields in a cycle: {', '.join(map('.'.join, error.args[1]))}."
+            )
+            order = list(entries)
+
+        actions = [entry for entry in schedule if entry.phase is Phase.ACTIONS]
+        for entry in (*actions, *(entries[path] for path in order if entries[path].phase is not Phase.ACTIONS)):
+            if isinstance(entry.cfg, TimeLimit):
+                time_limits.append(entry)
+            elif isinstance(entry.cfg, DirectAction):
+                self._compile_action(entry, context)
+            else:
+                self._compile_term(entry, context)
 
         # Restore the schedule order within each phase, with the positions and observation columns it gives.
         position = {str(entry): k for k, entry in enumerate(schedule)}
@@ -512,16 +526,12 @@ class MDPBuilder:
         if len(errors) > num_errors:
             return
 
-        # Assign its random stream, observation columns, and command field, then add its op.
+        # Assign its observation columns and its field, then add its op.
         timer = None
         if isinstance(cfg, Command):
             timer = cfg.resampling_time_range
         elif isinstance(cfg, Event):
             timer = cfg.interval_range_s
-        stream = None
-        if timer is not None or term.random:
-            stream = len(context.streams)
-            context.streams.append(str(entry))
 
         group = ""
         columns = slice(None)
@@ -569,7 +579,6 @@ class MDPBuilder:
                 scale=cfg.scale if isinstance(cfg, Observation) else None,
                 history_length=cfg.history_length if isinstance(cfg, Observation) else 0,
                 timer=timer,
-                stream=stream,
                 random=term.random,
                 capturable=term.capturable and term.eager is None,
                 eager=term.eager is not None,
@@ -739,9 +748,9 @@ def _merge_ops(
         for phase in Phase:
             phase_ops, cursor, unshared = merged[phase], 0, []
             for op in ops[phase]:
-                # Ops of different configs match regardless of their index, of which random stream they draw from,
-                # and of their reward weight, which is read per world.
-                key = op if phase is Phase.ACTIONS else replace(op, index=0, stream=op.stream is not None, weights=())
+                # Ops of different configs match regardless of their index and of their reward weight, which is
+                # read per world.
+                key = op if phase is Phase.ACTIONS else replace(op, index=0, weights=())
                 weights = {index: op.weights[0]} if phase is Phase.REWARDS else {}
                 match = next((i for i in range(cursor, len(phase_ops)) if phase_ops[i][0] == key), None)
                 if match is None:
@@ -761,7 +770,7 @@ def _merge_ops(
         result[phase] = tuple(
             replace(
                 op,
-                **({} if phase is Phase.ACTIONS else {"index": position, "stream": 0 if op.stream else None}),
+                **({} if phase is Phase.ACTIONS else {"index": position}),
                 **({"weights": tuple(weights.get(k, 0.0) for k in range(len(configs)))} if weights else {}),
                 name=op.name if counts[op.name] == 1 else f"{op.name}[{index}]",
                 worlds=None if len(worlds) == schema.num_worlds else tuple(sorted(worlds)),

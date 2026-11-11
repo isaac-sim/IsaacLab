@@ -183,25 +183,25 @@ def _emit(code: Fusion, mdp: MDP, steps: Iterable[Step], stepping: bool = False)
             case StepKind.RESET_STATE if op.reset is not None:
                 _run(code, mdp, op, op.reset, state, active, mask=_mask)
             case StepKind.RESET_STATE:
-                _reset_state(code, mdp, op, active)
+                _reset_state(code, op, active)
             case StepKind.COMMIT:
                 code.call(lambda call: call.commit())
 
 
-def _reset_state(code: Fusion, mdp: MDP, op: TermOp, conditions: Sequence[str]) -> None:
+def _reset_state(code: Fusion, op: TermOp, conditions: Sequence[str]) -> None:
     """Fill the state of an op that has no reset hook with its initial values, under ``conditions``."""
-    shape = (mdp.num_worlds, -1)
     for name, spec in op.state.items():
         if spec.persistent:
             continue
-        # The state flattened per world, which is another argument than the state as its hooks take it.
+        key, shape = term_state(op.name, name), spec.shape[1:]
         values = code.argument(
-            ("flat", op.name, name),
-            wp.array2d(dtype=wp.float32),
-            lambda call, name=name: call.state.arguments[op.name][name].reshape(shape),
+            key,
+            wp.array(dtype=wp.float32, ndim=len(spec.shape)),
+            lambda call, name=name: call.state.arguments[op.name][name],
         )
-        fill = f"{code.function(_fill)}(world, {values}, {code.constant(float, spec.initial)})"
-        code.world(*_under(conditions, fill), writes=[("flat", op.name, name)])
+        loops = [f"for i{d} in range({size}):" for d, size in enumerate(shape)]
+        fill = f"{values}[{_index(shape)}] = {code.constant(float, spec.initial)}"
+        code.world(*_under([*conditions, *loops], fill), writes=[key])
 
 
 def _compute(code: Fusion, mdp: MDP, op: TermOp, conditions: Sequence[str] = (), stepping: bool = False) -> None:
