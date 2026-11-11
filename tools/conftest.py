@@ -6,14 +6,17 @@
 import contextlib
 import logging
 import os
+import re
 import select
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 import time
+from collections import Counter
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import pytest
 import tomllib
@@ -88,6 +91,23 @@ and a Kit process has enough threads to exceed that; this is the whole dump.
 
 TIMEOUT_RETRIES = 0
 """Number of times to retry a test that reaches its hard timeout before giving up."""
+
+OUTPUT_BUDGET_BYTES = 5 * 1024 * 1024
+"""Output above which a passing test file fails.
+
+Test files print at most a few hundred kilobytes. Output that grows with environment or step count stalls
+any reader slower than the test, such as a benchmark harness relaying it line by line.
+"""
+
+CAPTURED_OUTPUT_ENV_VAR = "ISAACLAB_TEST_CAPTURED_OUTPUT"
+"""Environment variable naming the file the repo-root ``conftest.py`` appends passing tests' captured output to.
+
+pytest prints that output only for a failing test, so it never reaches the streams this runner reads.
+"""
+
+OUTPUT_EXCERPT_BYTES = 64 * 1024
+"""Bytes printed from each end of a stream when the output is over :data:`OUTPUT_BUDGET_BYTES`, keeping it out of
+the job log."""
 
 SHUTDOWN_GRACE_PERIOD = 30
 """Seconds to wait for clean exit after the JUnit XML report file appears.
@@ -168,6 +188,53 @@ def resolve_exit_code(num_failing: int, num_timeout: int, num_crashed: int, num_
     return 0
 
 
+def _readable(fds, timeout):
+    """Return the pipes in ``fds`` that a read would not block on, waiting up to ``timeout`` seconds for one."""
+    if os.name != "nt":
+        return select.select(fds, [], [], timeout)[0]
+    # Windows cannot select() on pipes, so poll each one instead.
+    deadline = time.monotonic() + timeout
+    while not (ready := [fd for fd in fds if _pipe_readable(fd)]) and time.monotonic() < deadline:
+        time.sleep(0.01)
+    return ready
+
+
+def _pipe_readable(fd):
+    """Return whether the Windows pipe ``fd`` holds output or its writer has closed it."""
+    import ctypes
+    import msvcrt
+    from ctypes import wintypes
+
+    peek = ctypes.windll.kernel32.PeekNamedPipe
+    peek.argtypes = (
+        wintypes.HANDLE,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+        wintypes.LPDWORD,
+        wintypes.LPDWORD,
+        wintypes.LPDWORD,
+    )
+    available = wintypes.DWORD()
+    if not peek(msvcrt.get_osfhandle(fd), None, 0, None, ctypes.byref(available), None):
+        return True  # broken pipe: the read returns EOF at once
+    return available.value > 0
+
+
+def _kill_process_tree(process, pgid):
+    """Kill the test process and every process it started (Kit, Isaac Sim)."""
+    if pgid is None:
+        # Windows has no process groups; taskkill walks the tree from the test process instead.
+        result = subprocess.run(["taskkill", "/F", "/T", "/PID", str(process.pid)], capture_output=True, check=False)
+        if result.returncode != 0:
+            with contextlib.suppress(OSError):
+                process.kill()
+        return
+    try:
+        os.killpg(pgid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError, OSError):
+        process.kill()
+
+
 def _drain_ready_output(process, stdout_fd, stderr_fd, timeout=0.1, echo=True):
     """Read whatever is readable on the child's pipes, echoing it as it arrives.
 
@@ -187,7 +254,7 @@ def _drain_ready_output(process, stdout_fd, stderr_fd, timeout=0.1, echo=True):
     stdout_chunk = b""
     stderr_chunk = b""
     try:
-        ready_fds, _, _ = select.select([stdout_fd, stderr_fd], [], [], timeout)
+        ready_fds = _readable([stdout_fd, stderr_fd], timeout)
 
         for fd in ready_fds:
             with contextlib.suppress(OSError):
@@ -238,10 +305,33 @@ _OUTPUT_LOCK = threading.Lock()
 """Serializes printing whole passes' output, so concurrently finishing files do not interleave in the job log."""
 
 
+def _excerpt(data: bytes) -> bytes:
+    """Return ``data``, or only its two ends around an omission marker when it is longer than both."""
+    if len(data) <= 2 * OUTPUT_EXCERPT_BYTES:
+        return data
+    omitted = len(data) - 2 * OUTPUT_EXCERPT_BYTES
+    return data[:OUTPUT_EXCERPT_BYTES] + f"\n... {omitted} bytes omitted ...\n".encode() + data[-OUTPUT_EXCERPT_BYTES:]
+
+
+def _describe_output_flood(output_size: int, streams: tuple[bytes, ...]) -> str:
+    """Return why output of ``output_size`` bytes fails the budget, quoting its most repeated nonblank line."""
+    counts = Counter()
+    for data in streams:
+        # Digits vary per environment and step; masking them groups one log statement under one line.
+        counts.update(re.sub(rb"\d+", b"N", line) for line in data.splitlines() if line.strip())
+    msg = f"printed {output_size / 2**20:.1f} MiB, over the {OUTPUT_BUDGET_BYTES / 2**20:.0f} MiB output budget"
+    if counts:
+        line, count = counts.most_common(1)[0]
+        msg += f"; most repeated line ({count}x): {line[:300].decode('utf-8', errors='replace')}"
+    return msg
+
+
 def _print_captured_output(label, options, stdout_data, stderr_data):
     """Print one process's captured output in a single block, unless it was already echoed as it arrived."""
     if options.echo:
         return
+    if len(stdout_data) + len(stderr_data) > OUTPUT_BUDGET_BYTES:
+        stdout_data, stderr_data = _excerpt(stdout_data), _excerpt(stderr_data)
     with _OUTPUT_LOCK:
         sys.stdout.write(f"\n{'=' * 30} output of {label} {'=' * 30}\n")
         sys.stdout.flush()
@@ -291,13 +381,13 @@ def _dump_hung_process_stacks(process, stdout_fd, stderr_fd, env, options):
         options: How the child is watched: its ``pytest-xdist`` worker count and whether to echo its output.
 
     Returns:
-        Tuple of ``(dump_section, stdout_bytes, stderr_bytes)``.  *dump_section* is a report section, or
+        Tuple of ``(dump_section, stdout_data, stderr_data)``.  *dump_section* is a report section, or
         ``""`` when the process wrote nothing -- the case when it is wedged somewhere the signal cannot be
-        delivered, or died before it could answer.  The byte strings are whatever the child wrote to its own
+        delivered, or died before it could answer.  The two bytearrays are whatever the child wrote to its own
         streams while being dumped, and belong in the captured output either way.
     """
-    stdout_data = b""
-    stderr_data = b""
+    stdout_data = bytearray()
+    stderr_data = bytearray()
     dumps = []
 
     dump_file = env.get(hang_dump.DUMP_PATH_ENV_VAR, "")
@@ -360,8 +450,9 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
         the test completed but the process hung during shutdown.
     """
     options = options or _CaptureOptions()
-    stdout_data = b""
-    stderr_data = b""
+    # Grown in place: concatenating immutable bytes copies the whole buffer per read, quadratic in the output.
+    stdout_data = bytearray()
+    stderr_data = bytearray()
     process = None
 
     try:
@@ -376,7 +467,7 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
             universal_newlines=False,
             start_new_session=True,
         )
-        pgid = os.getpgid(process.pid)
+        pgid = None if os.name == "nt" else os.getpgid(process.pid)
 
         stdout_fd = process.stdout.fileno()
         stderr_fd = process.stderr.fileno()
@@ -396,6 +487,8 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
 
         while process.poll() is None:
             elapsed = time.time() - start_time
+            # Past the budget, output is still captured but no longer echoed, also while stacks are dumped.
+            echo = options.echo and len(stdout_data) + len(stderr_data) <= OUTPUT_BUDGET_BYTES
 
             if not started and (
                 b"KitLauncher initialization complete" in stderr_data
@@ -425,7 +518,7 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
                 # Ask the process where it is stuck before killing it -- SIGKILL below cannot be caught,
                 # so this is the only chance to get a stack out of it.
                 hang_stacks, dump_stdout, dump_stderr = _dump_hung_process_stacks(
-                    process, stdout_fd, stderr_fd, env, options
+                    process, stdout_fd, stderr_fd, env, replace(options, echo=echo)
                 )
                 stdout_data += dump_stdout
                 stderr_data += dump_stderr
@@ -433,11 +526,7 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
                     # Ahead of the system tables, which _get_diagnostics truncates off the end.
                     pre_kill_diag = f"{hang_stacks}\n\n{pre_kill_diag}"
 
-                # Kill the entire process group (test + any Kit children).
-                try:
-                    os.killpg(pgid, signal.SIGKILL)
-                except (ProcessLookupError, PermissionError, OSError):
-                    process.kill()
+                _kill_process_tree(process, pgid)
                 try:
                     remaining_stdout, remaining_stderr = process.communicate(timeout=5)
                     stdout_data += remaining_stdout
@@ -445,9 +534,9 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
                 except subprocess.TimeoutExpired:
                     pass
                 wall_time = time.time() - start_time
-                return -1, stdout_data, stderr_data, kill_reason, wall_time, pre_kill_diag
+                return -1, bytes(stdout_data), bytes(stderr_data), kill_reason, wall_time, pre_kill_diag
 
-            stdout_chunk, stderr_chunk = _drain_ready_output(process, stdout_fd, stderr_fd, echo=options.echo)
+            stdout_chunk, stderr_chunk = _drain_ready_output(process, stdout_fd, stderr_fd, echo=echo)
             stdout_data += stdout_chunk
             stderr_data += stderr_chunk
 
@@ -459,15 +548,17 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
         except Exception:
             pass
 
-        # Kill any orphaned child processes (Kit, Isaac Sim) left by the test.
-        try:
-            os.killpg(pgid, signal.SIGKILL)
-            time.sleep(1)
-        except (ProcessLookupError, PermissionError, OSError):
-            pass
+        # Kill any orphaned child processes (Kit, Isaac Sim) left by the test. On Windows the
+        # tree is unreachable once its root has exited.
+        if pgid is not None:
+            try:
+                os.killpg(pgid, signal.SIGKILL)
+                time.sleep(1)
+            except (ProcessLookupError, PermissionError, OSError):
+                pass
 
         wall_time = time.time() - start_time
-        return process.returncode, stdout_data, stderr_data, "", wall_time, ""
+        return process.returncode, bytes(stdout_data), bytes(stderr_data), "", wall_time, ""
 
     except Exception as e:
         if process is not None and process.poll() is None:
@@ -477,7 +568,7 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
                 stdout_data += rem_out
                 stderr_data += rem_err
         stdout_data += f"\n[capture error: {e}]\n".encode()
-        return -1, stdout_data, stderr_data, "", 0.0, ""
+        return -1, bytes(stdout_data), bytes(stderr_data), "", 0.0, ""
 
 
 _SIGNAL_DESCRIPTIONS = {
@@ -949,7 +1040,8 @@ def _run_one_pass(
     # ``isaaclab_physx/.../test_articulation.py``) don't write to the same path
     # inside the shared ``/workspace/isaaclab`` mount and trigger false
     # shutdown_hang detections in sibling shards via the report-file existence check.
-    report_slug = str(ctx.test_file).replace("/", "__").replace("\\", "__")
+    # A Windows drive colon would name an alternate data stream instead of a file.
+    report_slug = str(ctx.test_file).replace("/", "__").replace("\\", "__").replace(":", "")
     report_file = f"tests/test-reports-{report_slug}{suffix}.xml"
     # Crash-durable progress log. pytest writes its JUnit XML only at session end, so this is
     # the only record of what passed, failed, and was in flight when a run dies before that.
@@ -969,10 +1061,13 @@ def _run_one_pass(
     hang_dump_file = os.path.abspath(os.path.join(HANG_DUMP_DIR, f"test-hangdump-{report_slug}{suffix}.log"))
     # The child opens this path directly, so the directory has to exist before it starts.
     os.makedirs(os.path.dirname(hang_dump_file), exist_ok=True)
+    # Outside tests/, which CI uploads: it holds every passing test's output, and is removed once read.
+    captured_output_file = os.path.join(tempfile.gettempdir(), f"isaaclab-captured-output-{report_slug}{suffix}.log")
     pass_env = {
         **ctx.env,
         JOURNAL_ENV_VAR: journal_file,
         hang_dump.DUMP_PATH_ENV_VAR: hang_dump_file,
+        CAPTURED_OUTPUT_ENV_VAR: captured_output_file,
         # Absolute for the same reason as the journal: the test process saves its renderer log from
         # inside a fixture, so a test that changed directory would leave the artifact under the
         # temporary cwd.
@@ -1012,7 +1107,7 @@ def _run_one_pass(
     while True:
         # Clear the renderer log too: read after the subprocess dies, it is the only renderer output a
         # crash, hang, or timeout reports, and a leftover would be attributed to the wrong run.
-        for stale_file in (report_file, journal_file, hang_dump_file, ovrtx_log.LOG_PATH):
+        for stale_file in (report_file, journal_file, hang_dump_file, captured_output_file, ovrtx_log.LOG_PATH):
             with contextlib.suppress(FileNotFoundError):
                 os.remove(stale_file)
 
@@ -1026,6 +1121,12 @@ def _run_one_pass(
         )
         _print_captured_output(pass_file_label, ctx.capture, stdout_data, stderr_data)
         total_wall_time += wall_time
+        # Output of passing tests, which pytest captured and never printed to the streams above.
+        captured_data = b""
+        with contextlib.suppress(FileNotFoundError):
+            with open(captured_output_file, "rb") as file:
+                captured_data = file.read()
+            os.remove(captured_output_file)
 
         has_report = os.path.exists(report_file)
 
@@ -1184,6 +1285,25 @@ def _run_one_pass(
         )
 
     has_test_failures = errors > 0 or failures > 0
+
+    output_size = len(stdout_data) + len(stderr_data) + len(captured_data)
+    if output_size > OUTPUT_BUDGET_BYTES:
+        msg = _describe_output_flood(output_size, (stdout_data, stderr_data, captured_data))
+        logger.error(f"{ctx.test_file}{suffix}: {msg}")
+        if not has_test_failures:
+            return _make_failed_pass_result(
+                "output_budget",
+                pass_file_label,
+                msg,
+                report_file,
+                stdout_data,
+                stderr_data,
+                time_elapsed,
+                wall_time,
+                report=report,
+                tests=tests,
+                skipped=skipped,
+            )
 
     shutdown_hanged = kill_reason in ("shutdown_hang", "timeout") and not has_test_failures
     no_tests_collected = returncode == pytest.ExitCode.NO_TESTS_COLLECTED
@@ -1434,7 +1554,7 @@ def _collect_test_files(
 
         for root, _, files in os.walk(source_dir):
             # source/isaaclab/test/install_ci/ has its own pytest config and conftest.
-            # It is run via .github/actions/install-ci-run, never via this collector,
+            # It is run via tools/run_install_ci.py, never via this collector,
             # so skip the whole subtree to keep install_ci tests out of build.yaml jobs.
             if "install_ci" in root.replace("\\", "/").split("/"):
                 continue

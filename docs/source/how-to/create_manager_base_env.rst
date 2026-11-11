@@ -117,6 +117,10 @@ The resulting observation has shape ``(num_envs, history_length * combined_term_
 reshaped to ``(num_envs, history_length, combined_term_dim)``. The default ``"term"`` order keeps
 each term's history together; use it for policies trained with the existing layout.
 
+History is ordered from the oldest to the current step by default. For a policy whose deployment
+runtime expects the current step first, set ``history_newest_first=True`` on the group or on
+individual terms. Index 0 along the history dimension is then the current step, in both orders.
+
 Defining events
 ---------------
 

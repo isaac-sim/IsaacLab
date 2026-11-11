@@ -44,7 +44,7 @@ Training outputs, including checkpoints, are saved under ``logs/``. Add
      <video autoplay loop muted playsinline controls preload="metadata" width="3840" height="720"
             style="width:100%; height:auto; display:block;"
             aria-label="Cartpole, G1 locomotion, and Kuka Allegro manipulation tasks running side by side">
-       <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/task-sampler.mp4" type="video/mp4">
+       <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/quickstart/task_sampler.mp4" type="video/mp4">
      </video>
      <figcaption>
        <p>The same train and play workflow applies across classic control, locomotion,
@@ -90,8 +90,8 @@ and is a good starting point for GPU-based training.
      - PPO, SAC, and A2C workflows
      - ``uv run --extra rl-games isaaclab train --rl_library rl_games ...``
    * - ``skrl``
-     - Broad algorithm support with PyTorch and JAX
-     - ``--extra skrl`` for PyTorch; ``--extra skrl-jax`` for JAX
+     - Broad algorithm support with PyTorch, JAX, and NVIDIA Warp
+     - ``--extra skrl`` for PyTorch and NVIDIA Warp; ``--extra skrl-jax`` for JAX
    * - ``sb3``
      - Stable-Baselines3 and CPU-oriented experiments
      - ``uv run --extra sb3 isaaclab train --rl_library sb3 ...``
@@ -150,7 +150,7 @@ complete training and playback reference.
      <video autoplay loop muted playsinline controls preload="metadata" width="3840" height="720"
             style="width:100%; height:auto; display:block;"
             aria-label="A Franka drawer-opening task controlled by the zero agent, random agent, and a trained policy side by side">
-       <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/agent-comparison.mp4" type="video/mp4">
+       <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/quickstart/agent_comparison.mp4" type="video/mp4">
      </video>
      <figcaption>
        <p>On the same Franka drawer-opening task, <code class="docutils literal notranslate">zero_agent</code>

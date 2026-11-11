@@ -3,6 +3,299 @@ Changelog
 
 .. towncrier release notes start
 
+17.1.0 (2026-11-10)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`NewtonManager.handle_actions <isaaclab_newton.physics.NewtonManager.handle_actions>`. When every action
+  term and written asset could be recorded, the environment's actions and asset writes ran as pre-actuator callbacks
+  before every physics step, and one step advanced the whole decimation loop. Hard resets registered them again.
+* Added ``NewtonBackend.handles_actions``. When the step handled actions, every physics step staged the body forces
+  that the asset writes produced, and reordered or ball-jointed articulations republished their state before writing,
+  so the writes read the current physics step.
+* Added :mod:`isaaclab_newton.physics.coupling`, the named-entry coupler over Newton's proxy and ADMM coupled solvers,
+  moved from ``isaaclab_contrib.coupling``.
+
+Changed
+^^^^^^^
+
+* Changed :meth:`NewtonBackend.handles_decimation <isaaclab_newton.physics.NewtonBackend.handles_decimation>` to also
+  run the decimation loop in one step when it handled the environment's actions.
+* Changed Newton articulations, rigid objects and rigid object collections to record their wrench work into a
+  captured step only once a wrench composer was used, which captured the step again.
+
+Fixed
+^^^^^
+
+* Fixed ``pos_w`` and ``quat_w`` of the Newton contact sensor returning never-written zeros of the wrong shape when
+  ``track_pose`` was enabled. Newton does not track the sensor pose, so reading them now raises
+  ``NotImplementedError`` as documented, and the configuration warns about ``track_pose``.
+
+
+17.0.0 (2026-11-07)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Migrated Newton contact sensors from the deprecated ``Contacts.force`` path to solver observables for MuJoCo, XPBD,
+  VBD, Kamino, and Steel. Featherstone and implicit MPM contact sensors require ``CONTACT_F`` support in Newton.
+* **Breaking:** Changed :class:`~isaaclab_newton.physics.NewtonSolver` from a stateless class of classmethods into a
+  driver built from its configuration and model, so that callers no longer pass the configuration and Newton's solver
+  to every call. :meth:`~isaaclab_newton.physics.NewtonBackend.init_solver` stored it as ``NewtonBackend.solver_ops``,
+  while ``NewtonBackend.solver`` stayed Newton's solver. Configuration-level hooks such as ``prepare_builder`` and
+  ``fixed_tendon_control`` stayed classmethods. Custom solvers override ``build(self, model, mode, env_template)`` and
+  instance methods such as ``pre_step(self, state)``, reading ``self.cfg`` and ``self.native``.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed ``Articulation.write_actuator_stiffness_to_sim`` and
+  ``write_actuator_damping_to_sim``, deprecated in Isaac Lab 3.0 for removal in 3.1. Use
+  ``randomize_actuator_gains`` for managed randomization, or
+  ``isaaclab.actuators.newton.write_group_parameter`` with the ``"drive"`` component and
+  ``"kp"`` or ``"kd"`` for direct native gain writes. The direct writer takes an actuator
+  group name and group-local joint indices.
+
+
+16.0.0 (2026-11-06)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``NewtonBackend.state_version``, advanced after every solver substep, after FK, and by each asset's
+  ``update(dt)``. Derived asset data recomputed on read when the state version advanced, and on every read recorded
+  into a CUDA graph.
+* Added :meth:`NewtonBackend.notify_model_changes <isaaclab_newton.physics.NewtonBackend.notify_model_changes>` to
+  apply queued model-property edits; it ran before ``forward()``, scene-data state reads and steps.
+
+Changed
+^^^^^^^
+
+* Changed backend steps, BVH refits and sensor queries called inside an enclosing CUDA graph capture to record into it
+  instead of starting or replaying their own graph. Recorded BVH refits ran on every replay.
+* Changed :meth:`~isaaclab_newton.physics.NewtonBackend.invalidate_fk` to map articulation-view rows to worlds through
+  ``model.articulation_world``, so views over a subset of worlds flagged the right worlds and global articulations got
+  FK without resetting the global world.
+* Changed derived asset properties to recompute inside a step or capture instead of raising during capture.
+* Changed fixed-root pose writes to queue their model-property edit instead of notifying the solver immediately.
+* **Breaking:** Replaced ``NewtonBackend.graph`` with :attr:`~isaaclab_newton.physics.NewtonBackend.graphs`, the
+  captured parts of the step keyed by part.
+* Changed :meth:`~isaaclab_newton.physics.NewtonManager.handles_decimation` to fold the decimation loop into one step
+  whenever Newton actuators run in the step. Actuators that cannot be captured, such as Torch networks, ran eagerly
+  between captured graphs before and after them instead of disabling the folded loop.
+
+
+15.0.0 (2026-11-05)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Adopted shared PVA output storage and optional output groups; request acceleration state only when enabled, and normalize initialization/STOP defaults.
+* Isolate optional PVA update compilation from other feature subsets and the shared reset path to reduce cold sensor startup time.
+* Reused shared sensor math, packing, and reset operations while retaining native gathering and solver-specific policies.
+
+Deprecated
+^^^^^^^^^^
+
+* Marked direct use of Newton PvaData as deprecated in its API documentation. Imports remain available without warnings; use isaaclab.sensors.PvaData or sensor.data.
+
+
+14.0.1 (2026-11-04)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed :attr:`~isaaclab_newton.physics.NewtonCollisionPipelineCfg.max_triangle_pairs` to default to ``None``
+  so Newton sizes it from the model. The fixed ``1_000_000`` is shared by all worlds and dropped mesh contacts once
+  the world count grew.
+
+Fixed
+^^^^^
+
+* Fixed MJWarp losing authored state writes and environment resets when the next solver substep
+  skipped its periodic Newton-state import. Flagged worlds were synchronized at forward and
+  physics-step boundaries even with sparse or disabled periodic imports, including CUDA graph replay.
+
+
+14.0.0 (2026-11-03)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed :meth:`~isaaclab_newton.physics.NewtonManager.invalidate_fk` and
+  :meth:`~isaaclab_newton.physics.NewtonManager.invalidate_body_state` (and their backend counterparts) to select
+  environments by mask only. Removed their ``env_ids`` argument; pass a boolean ``env_mask`` instead, and
+  ``articulation_mask`` to select view-local articulations.
+* Changed the ``*_index`` state writes of Newton assets to flag the written environments into a scratch mask that
+  the backend clears as it reads it, so the backend's reset and FK flagging is mask-only.
+* Changed asset data classes to invalidate only their derived caches.
+* Changed rigid object collection ``*_mask`` state writes to use dedicated mask kernels instead of converting masks to
+  indices, and limited FK invalidation to the selected objects.
+* Avoided refreshing derived state while obtaining authoritative write destinations.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated ``Articulation.write_joint_state_to_sim_index``. Use ``write_joint_state_to_sim_mask``, or
+  ``write_joint_position_to_sim_index`` and ``write_joint_velocity_to_sim_index``.
+
+
+13.0.0 (2026-10-31)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.physics.NewtonBackend` methods that initialize, step and query one model
+  (:meth:`~isaaclab_newton.physics.NewtonBackend.init_solver`, :meth:`~isaaclab_newton.physics.NewtonBackend.step`,
+  :meth:`~isaaclab_newton.physics.NewtonBackend.forward`, :meth:`~isaaclab_newton.physics.NewtonBackend.invalidate_fk`,
+  :meth:`~isaaclab_newton.physics.NewtonBackend.refit_bvh`,
+  :meth:`~isaaclab_newton.physics.NewtonBackend.state_pointers`, ...), so backends with different solvers can be built and
+  stepped side by side.
+* Added an optional ``builder`` argument to :class:`~isaaclab_newton.physics.NewtonBackend` to finalize a builder
+  other than the simulation's shared one.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Removed ``NewtonQueries``. Refit shared BVHs once per state with
+  :meth:`NewtonBackend.refit_bvh <isaaclab_newton.physics.NewtonBackend.refit_bvh>` and capture queries with
+  :func:`newton_backend.capture_graph <isaaclab_newton.physics.newton_backend.capture_graph>`.
+* **Breaking:** Moved ``NewtonManager.transforms_may_change_on_graph_replay`` to
+  :attr:`NewtonBackend.transforms_may_change_on_graph_replay
+  <isaaclab_newton.physics.NewtonBackend.transforms_may_change_on_graph_replay>`.
+* Changed :class:`~isaaclab_newton.physics.NewtonManager` to delegate stepping, resets and contacts to its
+  :class:`~isaaclab_newton.physics.NewtonBackend`. The backend holds the step callbacks, solver-init callbacks, pending
+  model changes and the captured step, so a hard reset discards them with the model.
+
+
+12.0.2 (2026-10-30)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed graph-replay invalidation from before a hard ``sim.reset()`` carrying over to the rebuilt model, which
+  could make asset pose reads in ``PHYSICS_READY`` callbacks raise a ``RuntimeError`` before the solver is rebuilt.
+
+
+12.0.1 (2026-10-29)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Reused native Warp indexed views and copy/fill for asset and tendon writes, with shared selector normalization and boolean-masked kernels; native solver mappings remain in Newton.
+
+
+12.0.0 (2026-10-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_newton.physics.NewtonManager.shares_materials`, which reports whether contacts read one
+  material table shared by all environments. It is ``True`` only for Kamino with its own collision detector.
+* Added :class:`~isaaclab_newton.physics.NewtonSolver`, whose stateless class methods build Newton's solver
+  from a solver configuration and step, reset and collide it through Newton's :class:`~newton.solvers.SolverBase`
+  API. Each solver configuration's ``class_type`` selects a subclass, e.g.
+  :class:`~isaaclab_newton.physics.MJWarpSolver`, that overrides only where its solver differs.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Removed the per-solver managers ``NewtonMJWarpManager``, ``NewtonXPBDManager``, ``NewtonVBDManager``,
+  ``NewtonFeatherstoneManager``, ``NewtonKaminoManager`` and ``NewtonMPMManager``;
+  :class:`~isaaclab_newton.physics.NewtonManager` runs every solver. Custom solvers subclass the matching
+  :class:`~isaaclab_newton.physics.NewtonSolver`, e.g.
+  :class:`~isaaclab_newton.physics.MJWarpSolver`, instead of overriding manager hooks.
+* **Breaking:** :attr:`~isaaclab_newton.physics.NewtonSolverCfg.class_type` now selects the
+  :class:`~isaaclab_newton.physics.NewtonSolver` instead of a manager class; set
+  :attr:`~isaaclab_newton.physics.NewtonCfg.class_type` to select a manager.
+* **Breaking:** Removed ``NewtonManager.create_builder``, ``create_fixed_tendon_control`` and
+  ``NewtonMPMManager.reset_solver_state``; use :func:`~isaaclab_newton.physics.create_builder`,
+  :meth:`NewtonSolver.fixed_tendon_control
+  <isaaclab_newton.physics.NewtonSolver.fixed_tendon_control>` and
+  :func:`~isaaclab_newton.physics.reset_mpm_solver_state`.
+* **Breaking:** Renamed the ``*_manager`` and ``*_manager_cfg`` solver modules to ``*_solver`` and ``*_solver_cfg``,
+  e.g. ``mjwarp_manager`` to ``mjwarp_solver``; import from ``isaaclab_newton.physics``.
+* Changed VBD to register its Newton custom builder attributes, like the other solvers.
+* Changed the check that rejects :attr:`~isaaclab_newton.physics.NewtonCfg.collision_cfg` with MuJoCo contacts to
+  apply to any solver that does not use Newton's collision pipeline, e.g. Kamino's own collision detector and MPM.
+* Changed :attr:`~isaaclab_newton.physics.NewtonCfg.class_type` to reject ``None``; omit it to use
+  :class:`~isaaclab_newton.physics.NewtonManager`.
+* Changed MJWarp under a determinism request to build with its sensor stage disabled instead of raising when
+  :attr:`~isaaclab_newton.physics.MJWarpSolverCfg.disable_sensors` is ``False``; the configuration is no longer
+  modified. Tasks whose sensors read attributes only that stage fills (IMU/PVA ``body_qdd``, joint wrench
+  ``body_parent_f``) still raise.
+* Changed MJWarp with :attr:`~isaaclab_newton.physics.MJWarpSolverCfg.use_mujoco_cpu` to step eagerly instead of
+  capturing a CUDA graph.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_newton.envs.mdp.randomize_rigid_body_material` sharing sampled materials across all
+  environments for Kamino with Newton's collision pipeline, the default. Only Kamino's own collision detector
+  shares material groups; with Newton's pipeline each environment and shape is sampled as for the other solvers.
+
+
+11.0.0 (2026-10-27)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the :attr:`~isaaclab_newton.physics.NewtonManager.builder` and
+  :attr:`~isaaclab_newton.physics.NewtonManager.backend` attributes: under Newton physics, read the shared builder and
+  the finalized model's data from ``sim.backend_manager``.
+* Added :class:`~isaaclab_newton.physics.NewtonBackend` fields for everything bound to one finalized Newton model under
+  Newton physics: solver, collision pipeline, contacts, sensors, Newton actuators and reset masks. Read them from
+  ``sim.backend_manager.backend``; a hard reset closes the backend and finalizes a new one.
+* Added :meth:`~isaaclab_newton.physics.NewtonManager.register_site` and the replication-output accessors
+  :meth:`~isaaclab_newton.physics.NewtonManager.get_site_index_map`,
+  :meth:`~isaaclab_newton.physics.NewtonManager.get_world_xforms` and
+  :meth:`~isaaclab_newton.physics.NewtonManager.get_clone_source_builders`
+  (:class:`~isaaclab_newton.physics.NewtonCloneRecord`).
+
+Changed
+^^^^^^^
+
+* Changed the Newton dependency pin from ``71eeba16`` to the latest upstream ``main`` revision, ``42f7def1``.
+* Preserved trusted Torch actuator checkpoint loading across Newton's new explicit USD import opt-in.
+* Replaced duplicated heading, quaternion rotation, interval, and Jacobian math with core Warp operations.
+* **Breaking:** Manager internals moved to backend fields: ``_solver``, ``_contacts``, ``_collision_pipeline``,
+  ``_adapter``, ``_world_reset_mask``, ``_fk_reset_mask`` and ``kinematics_dirty`` are now ``backend.solver``,
+  ``backend.contacts``, ``backend.collision_pipeline``, ``backend.actuators``, ``backend.world_mask``,
+  ``backend.fk_mask`` and ``backend.kinematics_dirty``. Solver manager subclasses assign ``self.backend.solver`` in
+  ``_build_solver``.
+* **Breaking:** :meth:`~isaaclab_newton.physics.NewtonManager.add_contact_sensor` and
+  :meth:`~isaaclab_newton.physics.NewtonManager.add_imu_sensor` return the Newton sensor instead of a key or index.
+* **Breaking:** Site requests and extended-attribute requests persist on the shared builder across hard resets, so
+  sensors no longer register them again. Replication outputs are read through the manager's accessors instead of
+  private manager fields.
+* **Breaking:** Removed ``NewtonManager.get_model``, ``get_state_0``, ``get_state_1``, ``get_control`` and
+  ``get_contacts``; read ``manager.backend.model``, ``state_0``, ``state_1``, ``control`` and ``contacts``. Removed
+  ``get_num_envs``, ``get_dt`` and ``get_solver_dt``; read ``backend.model.world_count``, ``backend.dt`` and
+  ``backend.solver_dt``.
+* **Breaking:** Removed ``NewtonManager.cl_register_site``; use
+  :meth:`~isaaclab_newton.physics.NewtonManager.register_site`. Removed ``add_frame_transform_sensor``; construct
+  :class:`newton.sensors.SensorFrameTransform` on ``manager.backend.model``.
+* **Breaking:** :class:`~isaaclab_newton.physics.NewtonManager` takes its :class:`~isaaclab_newton.physics.NewtonCfg`
+  at construction. :class:`~isaaclab_newton.physics.NewtonBackend` no longer takes a builder; it finalizes the
+  simulation's shared builder. The ``_register_builder_attributes(builder, solver_cfg)`` subclass hook receives the
+  solver configuration instead of reading the active simulation.
+* **Breaking:** Moved :class:`~isaaclab_newton.physics.NewtonBackendCfg` to ``newton_backend_cfg`` and
+  :class:`~isaaclab_newton.physics.NewtonBuilderCfg` to ``newton_builder_cfg``; import them from
+  ``isaaclab_newton.physics``.
+
+
 10.1.1 (2026-10-24)
 ~~~~~~~~~~~~~~~~~~~
 

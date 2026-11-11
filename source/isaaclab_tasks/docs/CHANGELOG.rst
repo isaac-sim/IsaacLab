@@ -3,6 +3,173 @@ Changelog
 
 .. towncrier release notes start
 
+30.1.3 (2026-11-10)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the coupled tasks to import their couplers from :mod:`isaaclab_newton.physics.coupling`.
+
+Fixed
+^^^^^
+
+* Fixed the Franka Pour curriculum gripper filtering each command against itself once joint actions processed in
+  place.
+
+
+30.1.2 (2026-11-07)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the Rizon coffee MPM solver to build through the instance :class:`~isaaclab_newton.physics.NewtonSolver` API.
+* Migrated the NIST Franka actuator configurations to the canonical actuator and joint limit
+  fields after the deprecated aliases were removed, preserving the distinct rated and solver limits.
+
+
+30.1.1 (2026-11-05)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed command-line overrides of configuration class fields silently adding a misspelled field and leaving the
+  intended field unchanged. Such an override now warns with the override and the missing field. Keys of
+  dictionaries, such as a dictionary-based agent configuration, are not checked.
+
+
+30.1.0 (2026-11-04)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added optional left/right data augmentation for MicroDuck walking, with servo-axis-aware observation and action reflection and no mirror loss.
+
+Changed
+^^^^^^^
+
+* Promoted the locomotion-first recipe to the default ``IsaacContrib-Velocity-Rough-MicroDuck``
+  task with 16,384 environments, earlier action smoothing, delayed standing, head-pose and
+  center-of-mass curricula, a 0.5 rad/s yaw-tracking reward width, and left/right data augmentation
+  without mirror loss. Kept the flat task's defaults unchanged.
+
+Fixed
+^^^^^
+
+* Resolved MicroDuck symmetry observation columns from the observation manager's term names and dimensions,
+  so same-width term reorderings are reflected correctly and unsupported terms or shapes are rejected.
+
+
+30.0.0 (2026-11-03)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Placed generic reward, clearance termination and step-scheduled curriculum terms in the core MDP,
+  keeping foot-support geometry in the velocity MDP modules.
+* Declared the G1 teacher's static reward settings in ``G1Rewards`` and preserved the flat task's
+  reward settings through explicit configuration overrides.
+* Composed the G1 environments from scene, event, curriculum, termination and observation configurations,
+  nesting the depth-camera configuration in its student scene and leaving environment initialization to supply
+  asset-derived action scales and sole geometry.
+* Moved G1 symmetry helpers alongside the other velocity-task robot symmetry modules.
+* Reused the common depth-image observation with a G1 image-processing modifier, keeping observation
+  group definitions inline in the observations configurations. Named groups by their contents: current
+  proprioception, proprioception history, ray-cast height scans and depth images. Apply student supervision
+  noise and reflected-camera overrides in the observations configuration's post-initialization hook.
+* Declared the teacher's symmetry settings directly in its PPO algorithm configuration.
+* **Breaking:** Renamed the flat G1 observation group from ``policy`` to ``proprio``. Update observation-group
+  references and configuration overrides to use ``proprio``.
+* Moved the G1 mesh-terrain preset into the G1 terrain configuration module.
+* Removed the rough G1 actuator-path override, using the current default shared across physics backends.
+  The configured implicit actuators retain their solver-owned drives.
+* Read G1 sole geometry and reference torques from the asset during environment initialization,
+  reusing configured actuator stiffnesses without loading USD while constructing configurations.
+* **Breaking:** Replaced the legacy rough G1 configuration with the teacher configuration under
+  ``Isaac-Velocity-Rough-G1``. Changed callers of ``Isaac-Velocity-Rough-G1-Teacher`` to use that task ID;
+  callers of ``G1RoughEnvCfg`` and ``G1RoughPPORunnerCfg`` must use ``G1RoughTeacherEnvCfg`` and
+  ``G1RoughTeacherPPORunnerCfg``. Preserved the teacher, depth-student and flat task settings.
+* Changed the lift, locomotion, Franka pour, Rizon coffee and UR10 particle-push resets to write joint positions and
+  velocities with ``write_joint_position_to_sim_index`` and ``write_joint_velocity_to_sim_index`` instead of the
+  deprecated ``write_joint_state_to_sim_index``.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed the SKRL registration and recipe for ``Isaac-Velocity-Flat-G1``. Use
+  ``--rl_library rsl_rl`` to train, play or export this task.
+
+Fixed
+^^^^^
+
+* Updated the G1 teacher/depth-student terrain, rewards, action scales, actuator limits and mirror
+  augmentation, including teacher-only checkpoint loading and per-step normalization.
+
+
+29.1.1 (2026-10-31)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the GB300 insertion IK capture to :func:`newton_backend.capture_graph
+  <isaaclab_newton.physics.newton_backend.capture_graph>`.
+
+Fixed
+^^^^^
+
+* Fixed FORGE orientation clipping to use consistent Euler angle ranges, correcting roll motion near 180 degrees and preserving the yaw joint-limit convention.
+
+
+29.1.0 (2026-10-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added automatic sample-budget scaling for MicroDuck walking with 4,096 environments per GPU, dividing the iteration budget, checkpoint interval, and fixed-step curriculum boundaries by ``WORLD_SIZE``. Added paired ``env.ngpus`` and ``env.nnodes`` Hydra overrides for explicit recipe scaling.
+
+Changed
+^^^^^^^
+
+* Changed MicroDuck flat and rough walking to use the AGILE combined recipe by default, including with backlash.
+  Custom tasks can retain the previous recipe by overriding the tracking rewards and action-rate curriculum
+  and setting ``rewards.pose.params["standing_only"] = False``.
+* Changed the contrib Newton tasks with custom solvers (GB300 insertion, Rizon coffee) to
+  :class:`~isaaclab_newton.physics.NewtonSolver` subclasses selected by their solver configurations, and the
+  MPM tasks to :func:`~isaaclab_newton.physics.reset_mpm_solver_state`.
+
+Fixed
+^^^^^
+
+* Fixed MicroDuck rough-terrain progression for slow commands and direction changes by using accumulated walking and command tracking instead of net displacement.
+* Fixed task interpolation resolution for dictionary agents when no extra Hydra options were supplied.
+* Fixed Hydra 1.4 configuration composition and repeated task registration to avoid migration warnings
+  while preserving replacement with the latest task configuration.
+
+
+29.0.3 (2026-10-27)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the contrib Newton tasks to read Newton state, contacts and replication outputs from the physics manager's
+  backend and replication outputs.
+
+Fixed
+^^^^^
+
+* Fixed the SO-101 stacking pipeline for Isaac Capture 1.7 by removing the retired
+  ``orientation_offset`` argument and calibration constant. Orientation follows the SDK's
+  engage-relative clutch model seeded from the configured home transform, with the existing
+  eight-element pose and analog-gripper action order preserved.
+
+
 29.0.2 (2026-10-25)
 ~~~~~~~~~~~~~~~~~~~
 

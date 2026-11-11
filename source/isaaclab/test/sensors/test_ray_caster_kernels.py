@@ -24,6 +24,8 @@ import pytest
 import trimesh
 import warp as wp
 
+from isaaclab.utils.warp.math import yaw_quat
+
 pytestmark = pytest.mark.unit
 
 from isaaclab.sensors.ray_caster.kernels import (
@@ -31,7 +33,6 @@ from isaaclab.sensors.ray_caster.kernels import (
     compute_distance_to_image_plane_to_image_masked_kernel,
     copy_float2d_to_image1_depth_clipped_masked_kernel,
     fill_ray_hits_distance_inf_kernel,
-    quat_yaw_only,
 )
 from isaaclab.utils.warp.kernels import raycast_dynamic_meshes_kernel, raycast_mesh_masked_kernel
 from isaaclab.utils.warp.ops import convert_to_warp_mesh
@@ -86,17 +87,17 @@ def test_ray_caster_binding_ownership(source_checkout_root):
 
 
 # ---------------------------------------------------------------------------
-# Wrapper kernel for quat_yaw_only (@wp.func cannot be launched directly)
+# Wrapper kernel for yaw_quat (@wp.func cannot be launched directly)
 # ---------------------------------------------------------------------------
 
 
 @wp.kernel(enable_backward=False)
-def _quat_yaw_only_test_kernel(
+def _yaw_quat_test_kernel(
     q_in: wp.array(dtype=wp.quatf),
     q_out: wp.array(dtype=wp.quatf),
 ):
     tid = wp.tid()
-    q_out[tid] = quat_yaw_only(q_in[tid])
+    q_out[tid] = yaw_quat(q_in[tid])
 
 
 # ---------------------------------------------------------------------------
@@ -613,12 +614,12 @@ class TestApplyZDriftKernel:
 
 
 # ---------------------------------------------------------------------------
-# Tests: quat_yaw_only
+# Tests: yaw_quat
 # ---------------------------------------------------------------------------
 
 
 class TestQuatYawOnly:
-    """Tests for :func:`quat_yaw_only` (a ``@wp.func`` tested via wrapper kernel)."""
+    """Tests for :func:`yaw_quat` (a ``@wp.func`` tested via wrapper kernel)."""
 
     def test_gimbal_lock(self):
         """At pitch = +/-pi/2, atan2 is near-degenerate but should produce a
@@ -632,7 +633,7 @@ class TestQuatYawOnly:
         q_out = wp.zeros(2, dtype=wp.quatf, device=DEVICE)
 
         wp.launch(
-            _quat_yaw_only_test_kernel,
+            _yaw_quat_test_kernel,
             dim=2,
             inputs=[q_in],
             outputs=[q_out],
@@ -665,7 +666,7 @@ class TestQuatYawOnly:
         )
         q_out = wp.zeros(len(cases), dtype=wp.quatf, device=DEVICE)
 
-        wp.launch(_quat_yaw_only_test_kernel, dim=len(cases), inputs=[q_in], outputs=[q_out], device=DEVICE)
+        wp.launch(_yaw_quat_test_kernel, dim=len(cases), inputs=[q_in], outputs=[q_out], device=DEVICE)
         wp.synchronize_device(DEVICE)
 
         expected = [[0.0, 0.0, math.sin(yaw / 2), math.cos(yaw / 2)] for _, _, yaw in cases]

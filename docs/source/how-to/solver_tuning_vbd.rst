@@ -19,10 +19,19 @@ general ``newton_vbd`` preset. Deformable-only scenes can use
 :class:`~isaaclab_newton.physics.VBDSolverCfg` directly. For robot or
 rigid-body scenes, the named-entry coupling options are:
 
-* :class:`~isaaclab_contrib.coupling.CouplerProxyCfg` for the proxy coupling
+* :class:`~isaaclab_newton.physics.coupling.CouplerProxyCfg` for the proxy coupling
   used by the core Franka tasks.
-* :class:`~isaaclab_contrib.coupling.CouplerAdmmCfg` for linearized ADMM
+* :class:`~isaaclab_newton.physics.coupling.CouplerAdmmCfg` for linearized ADMM
   coupling between named solver entries.
+
+Explore material stiffness, cloth and cable bending, and pulley loads in these
+compact scenes. The pulley workshop compares an ideal force reference with the
+reaction measured by its VBD cable simulation.
+
+.. isaaclab-demos:: stiffness, cloth_bending, cable_bending, pulley
+   :title: Explore VBD materials and cables
+   :physics: vbd
+   :activity: tuning
 
 Start from a Supported Deformable Task
 --------------------------------------
@@ -60,7 +69,7 @@ For the surface-deformable cloth variant, use:
 
 Both tasks configure MJWarp for the rigid Franka and VBD for the deformable
 object through
-:class:`~isaaclab_contrib.coupling.CouplerProxyCfg`.
+:class:`~isaaclab_newton.physics.coupling.CouplerProxyCfg`.
 Use these tasks as starting points for asset setup, solver coupling, and contact
 tuning.
 
@@ -71,7 +80,7 @@ Tasks that support multiple physics options usually store ``SimulationCfg.physic
 as a :class:`~isaaclab_tasks.utils.hydra.PresetCfg`. For deformable Newton tasks,
 the preset is a plain :class:`~isaaclab_newton.physics.NewtonCfg`. Standalone
 VBD and soft-contact configuration live in :mod:`isaaclab_newton.physics`, while
-proxy and ADMM coupling live in :mod:`isaaclab_contrib.coupling`.
+proxy and ADMM coupling live in :mod:`isaaclab_newton.physics.coupling`.
 
 The Franka soft-body and cloth tasks define task-specific proxy presets.
 
@@ -79,10 +88,10 @@ The important pieces are:
 
 * Add a Newton physics preset whose value is a
   :class:`~isaaclab_newton.physics.NewtonCfg`.
-* Use :class:`~isaaclab_contrib.coupling.CouplerProxyCfg` with named
-  :class:`~isaaclab_contrib.coupling.CouplerEntryCfg` entries to partition the
+* Use :class:`~isaaclab_newton.physics.coupling.CouplerProxyCfg` with named
+  :class:`~isaaclab_newton.physics.coupling.CouplerEntryCfg` entries to partition the
   rigid bodies and deformable particles between MJWarp and VBD.
-* Add :class:`~isaaclab_contrib.coupling.CouplerProxyMappingCfg` entries for the
+* Add :class:`~isaaclab_newton.physics.coupling.CouplerProxyMappingCfg` entries for the
   collidable rigid bodies exposed to VBD. Leave
   ``integrate_with_external_rigid_solver=False`` for proxy-coupled VBD entries.
 * Set the outer :attr:`~isaaclab_newton.physics.NewtonCfg.soft_contact_cfg` to a
@@ -174,7 +183,7 @@ Core Solve
     * - ``rigid_body_particle_contact_buffer_size``
       - Default: ``256``. Per-body capacity for particle, edge, and face soft contacts. Increase it if Newton reports a per-body contact buffer overflow.
     * - ``integrate_with_external_rigid_solver``
-      - Default: ``False``. Set to ``True`` only when a manual manager integrates rigid bodies in the shared model. Proxy-coupled entries use partitioned model views and leave this ``False``.
+      - Default: ``False``. Set to ``True`` only when an external solver integrates rigid bodies in the shared model. Proxy-coupled entries use partitioned model views and leave this ``False``.
 
 Structural joint stiffness keeps rigid links attached; actuator stiffness drives
 the allowed joint coordinates toward their targets. Tune these separately under
@@ -247,56 +256,12 @@ cross the contact band within one substep; increase it only after verifying that
 the cheaper, staler contact set does not cause tunneling or ejection.
 
 
-Custom MJWarp + VBD Parameters
-------------------------------
-
-The opt-in
-:class:`~isaaclab_contrib.custom_coupling.newton_manager_cfg.CoupledMJWarpVBDSolverCfg`
-runs MJWarp and VBD over one shared model. Import
-:mod:`isaaclab_contrib.custom_coupling.tasks` explicitly to register
-``IsaacContrib-Lift-Soft-Franka-Custom-Coupling``, which selects the
-``newton_mjwarp_vbd`` preset.
-
-.. list-table::
-    :header-rows: 1
-    :widths: 30 70
-
-    * - Parameter
-      - Description
-    * - ``rigid_solver_cfg``
-      - MJWarp configuration for rigid bodies.
-    * - ``soft_solver_cfg``
-      - VBD configuration. Set ``integrate_with_external_rigid_solver=True``
-        so VBD advances only particles.
-    * - ``coupling_mode="one_way"``
-      - Advance rigid bodies first, then particles without rigid reaction
-        forces.
-    * - ``coupling_mode="two_way"``
-      - Inject particle reactions before MJWarp, then advance VBD with the same
-        contacts.
-
-MJWarp ``nconmax`` and ``njmax`` must cover the rigid contacts and constraints
-in the scene. ``ccd_iterations`` can affect fast rigid contacts near
-deformables. See :doc:`/source/how-to/solver_tuning_mjwarp` for the rigid-solver
-parameters.
-
-Use the custom manager for direct shared-model substep ordering. Use proxy
-coupling when deformable contact is localized to selected rigid bodies.
-
-Start from ``coupling_mode="two_way"``. With two-way coupling the body-particle
-reaction acts on the arm as well as the deformable, so the gripper is less
-likely to clip through the object than under one-way coupling. If it still
-clips, lower the arm actuator stiffness so the arm can yield to those reactions,
-and command the gripper to close fully, letting the actuator's maximum effort
-limit the squeeze.
-
-
 .. _newton-vbd-proxy-coupling:
 
 Coupled MJWarp + VBD
 --------------------
 
-:class:`~isaaclab_contrib.coupling.CouplerProxyCfg` is the coupling used by
+:class:`~isaaclab_newton.physics.coupling.CouplerProxyCfg` is the coupling used by
 the core Franka tasks. It partitions the model between named solver entries and
 exposes selected source bodies to the destination solver as proxies. Contact
 feedback returns to the source solver as lagged impulses. This keeps deformable
@@ -318,7 +283,7 @@ The core Franka soft-body task demonstrates the proxy configuration:
 What the selectors do:
 
 * ``entries`` contains one
-  :class:`~isaaclab_contrib.coupling.CouplerEntryCfg` per sub-solver. Each
+  :class:`~isaaclab_newton.physics.coupling.CouplerEntryCfg` per sub-solver. Each
   entry has a stable ``name``, its own ``solver_cfg``, and explicit model
   ownership selectors.
 * An entry's ``bodies`` selectors are full Newton body-label regex strings.
@@ -328,7 +293,7 @@ What the selectors do:
   geometry. Bodies, particles, joints, and shapes may be assigned to at most
   one entry; unassigned elements remain outside the nested solver views.
 * ``proxies`` contains directed
-  :class:`~isaaclab_contrib.coupling.CouplerProxyMappingCfg` mappings. Each mapping
+  :class:`~isaaclab_newton.physics.coupling.CouplerProxyMappingCfg` mappings. Each mapping
   names its ``source`` and ``destination`` entries, then uses ``bodies`` to
   select the source bodies that the destination solver should collide against.
   Only bodies that own at least one ``newton.ShapeFlags.COLLIDE_SHAPES`` shape
@@ -385,7 +350,7 @@ Key proxy-specific parameters:
 Body selectors must use full Newton body-label regexes, such as
 ``/World/envs/env_.*/Robot``. Proxy mappings also accept raw Newton body ids.
 
-:class:`~isaaclab_contrib.coupling.CouplerAdmmCfg` provides linearized ADMM
+:class:`~isaaclab_newton.physics.coupling.CouplerAdmmCfg` provides linearized ADMM
 coupling between the same named solver entries. Set ``contact_pairs`` to select
 entry pairs explicitly, or leave it as ``None`` to detect every distinct pair.
 Use ``iterations`` and ``rho`` to tune the ADMM solve.
@@ -458,10 +423,6 @@ for volume deformables:
       - Default: ``0.0`` [Pa*s]. Damping for tetrahedral elements. Increase it to reduce oscillations after deformation, but avoid overdamping if the object should rebound.
 
 
-Try the :ref:`interactive material demo <interactive-demo-stiffness>` to vary
-shear and volume stiffness independently, with fixed reference cubes.
-
-
 Surface Deformable Materials
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -489,10 +450,6 @@ for cloth or surface deformables:
       - Default: ``5.0`` [N*m]. Bending stiffness. Increase it for stiffer cloth folds; decrease it for softer draping.
     * - ``edge_kd``
       - Default: ``1.0e-2`` [N*m*s]. Bending damping. Increase it to damp fold oscillations.
-
-Try the :ref:`interactive cloth demo <interactive-demo-cloth-bending>` to compare
-bending stiffness while three sheets drape over horizontal rollers.
-
 
 Tuning Workflow
 ---------------
@@ -545,5 +502,5 @@ Symptoms and First Parameters to Check
     * - Self-contact is too expensive.
       - Increase ``particle_collision_detection_interval``, reduce mesh resolution, or disable self-contact until the rest of the scene is tuned.
 
-For implementation details of the VBD managers and Newton coupler, see
+For implementation details of the VBD solver adapter and Newton coupler, see
 :ref:`newton-extending-solvers`.

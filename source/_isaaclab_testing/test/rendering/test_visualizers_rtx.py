@@ -44,7 +44,7 @@ from isaaclab.sim import SimulationCfg, SimulationContext  # noqa: E402
 from isaaclab.utils import instantiate  # noqa: E402
 from isaaclab.visualizers import SceneCameraCfg, WindowCfg  # noqa: E402
 
-pytestmark = pytest.mark.isaacsim_ci
+pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.ov]
 
 
 @pytest.mark.rendering

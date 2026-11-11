@@ -57,13 +57,13 @@ repos:
           - --license-filepath
           - .github/LICENSE_HEADER.txt
           - --use-current-year
-        exclude: "source/isaaclab_mimic/|scripts/imitation_learning/isaaclab_mimic/"
-  # Apache 2.0 license for mimic files
+        exclude: "source/isaaclab_mimic/|scripts/imitation_learning/isaaclab_mimic/|source/isaaclab_teleop/isaaclab_teleop/entrypoints/_instruction_display.py"
+  # Apache 2.0 license for mimic files, and the instruction display moved from isaaclab_mimic with its notices
   - repo: https://github.com/Lucas-C/pre-commit-hooks
     rev: v1.5.5
     hooks:
       - id: insert-license
-        files: ^(source/isaaclab_mimic|scripts/imitation_learning/isaaclab_mimic)/.*\.py$
+        files: ^(source/isaaclab_mimic/.*|scripts/imitation_learning/isaaclab_mimic/.*|source/isaaclab_teleop/isaaclab_teleop/entrypoints/_instruction_display)\.py$
         args:
           # - --remove-header    # Remove existing license headers. Useful when updating license.
           - --license-filepath

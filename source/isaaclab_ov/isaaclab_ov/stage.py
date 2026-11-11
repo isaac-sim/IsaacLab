@@ -23,6 +23,8 @@ from pxr import Sdf, Usd, UsdRender, UsdUtils
 from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
 
+from .ovstage_compat import OVSTAGE_REQUIRES_CPU_HIERARCHY_BEFORE_CLONE, populate_stage
+
 logger = logging.getLogger(__name__)
 
 # DLDataType for a 4x4 double matrix (``omni:xform`` column). ovstage stores omni:xform as one
@@ -32,6 +34,15 @@ OVSTAGE_XFORM_DTYPE = ovstage.DLDataType(code=ovstage.DLDataTypeCode.kDLFloat, b
 # DLDataType for a float32 3-vector (``points`` column). ovstage stores ``point3f[] points`` as one
 # 3-lane float32 element per vertex.
 OVSTAGE_POINT_DTYPE = ovstage.DLDataType(code=ovstage.DLDataTypeCode.kDLFloat, bits=32, lanes=3)
+
+
+def _handle_raw_id(handle: object) -> int:
+    """Return a numeric ID from an OVStage integer or typed token/path handle.
+
+    OVStage 0.4 handles reject implicit integer conversion. Extract the ID only at
+    numeric buffer boundaries; native OVStage calls should retain typed handles.
+    """
+    return getattr(handle, "raw_id", handle)
 
 
 def create_ovstage(name: str) -> ovstage.Stage:
@@ -120,6 +131,9 @@ def ovstage_replicate(
 ) -> None:
     """Apply the same prepared copies and placement to an OVStage scene.
 
+    On OVStage 0.4, compute the source hierarchy on CPU at ``ordinal`` before cloning
+    when any destination paths exist. The runtime hierarchy model remains unchanged.
+
     Args:
         stage: Native stage holding the source prims.
         paths: Path dictionary of ``stage``.
@@ -127,8 +141,18 @@ def ovstage_replicate(
             Self-copies must be excluded.
         env_paths: Environment-root paths in placement order.
         positions: Optional environment positions [m], shape ``[len(env_paths), 3]``.
-        ordinal: Write ordinal for the clones and environment placement.
+        ordinal: Input and output ordinal for hierarchy preparation, and write ordinal
+            for the clones and environment placement.
     """
+    if OVSTAGE_REQUIRES_CPU_HIERARCHY_BEFORE_CLONE and any(targets for _, targets in copies):
+        # Propagate source transforms on CPU before cloning to avoid copying
+        # GPU-resident transform columns per clone. Keep the runtime GPU default.
+        # OVSTAGE tracking NVBUG 7027326, when fixed, we can remove this compute call.
+        stage.compute_hierarchy(
+            input_ordinal=ordinal,
+            output_ordinal=ordinal,
+            model=ovstage.HierarchyComputationModel.CPU_INCREMENTAL,
+        )
     for source, targets in copies:
         if targets:
             stage.clone(source, targets, ordinal=ordinal)
@@ -158,7 +182,9 @@ class OvstageBackendCfg(BackendCfg):
     scene_key: BackendCfg | int | None = None
     """None selects the simulation scene; isolated consumers use their configuration or instance identity."""
     population_domains: ovstage.PopulationDomain = ovstage.PopulationDomain.RENDERING
-    """USD domains to populate. Physics consumers require PHYSICS or ALL."""
+    """Native USD domains to populate, independent of the physics population API."""
+    populate_physics: bool = False
+    """Include physics data for OVPhysX, using the population API supported by the installed OVStage."""
 
 
 class OvstageBackend:
@@ -192,7 +218,9 @@ class OvstageBackend:
             return
 
         # Ordinal 0 is the empty state; population and cloning form the first committed write.
-        ovstage.population.open_usd_from_string(self.stage, usda, ordinal=1, domains=self.cfg.population_domains)
+        populate_stage(
+            self.stage, usda, ordinal=1, domains=self.cfg.population_domains, physics=self.cfg.populate_physics
+        )
         ovstage_replicate(
             self.stage, self.paths, self.clone_copies, self.clone_env_paths, self.clone_positions, ordinal=1
         )

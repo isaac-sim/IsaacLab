@@ -316,7 +316,7 @@ position target. Higher stiffness improves tracking but can increase overshoot a
 Too little stiffness leaves steady-state error under load. Tune stiffness together with damping.
 Units are [N·m/rad] for revolute joints and [N/m] for prismatic joints.
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/stiffness-clip.webp
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/actuators/stiffness_clip.webp
     :align: center
     :width: 100%
     :alt: Five pendulums with increasing stiffness stepping to the same target.
@@ -342,7 +342,7 @@ stiff joint to oscillate. More damping reduces overshoot until the joint becomes
 beyond that point, the response becomes sluggish. Damping also sets the tracking gain for velocity
 targets. Units are [N·m·s/rad] for revolute joints and [N·s/m] for prismatic joints.
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/damping-clip.webp
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/actuators/damping_clip.webp
     :align: center
     :width: 100%
     :alt: Five pendulums from underdamped to overdamped stepping to the same target.
@@ -360,10 +360,14 @@ targets. Units are [N·m·s/rad] for revolute joints and [N·s/m] for prismatic 
     :alt: Position step response for a damping sweep.
 
 
-Try the :ref:`interactive PD tuning demo <interactive-demo-joint-pd>` to adjust
-stiffness and damping on a suspended arm with step and sine commands. Its live
-plot compares target and measured angles. Tune a real robot using its own mass,
-actuator model, effort limits, and timestep.
+Adjust stiffness and damping on a suspended arm with step and sine commands.
+The live plot compares target and measured angles. Tune a real robot using its
+own mass, actuator model, effort limits, and timestep.
+
+.. isaaclab-demos:: joint_pd
+   :title: Explore PD gains
+   :physics: rigid
+   :activity: tuning
 
 
 Armature
@@ -381,7 +385,7 @@ convergence. Choose armature from the motor and transmission model. See the `Omn
 <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/dev_guide/guides/articulation_stability_guide.html>`_
 for more information.
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/armature-clip.webp
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/actuators/armature_clip.webp
     :align: center
     :width: 100%
     :alt: Five pendulums with increasing armature responding to the same command.
@@ -417,7 +421,7 @@ stiction and drag, not to stabilize a controller.
     effort and has no separate dynamic-friction value. All three use viscous damping
     [N·s/m or N·m·s/rad, depending on joint type].
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/friction-clip.webp
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/actuators/friction_clip.webp
     :align: center
     :width: 100%
     :alt: Five free-spinning pendulums with increasing joint friction decaying at different rates.
@@ -450,7 +454,7 @@ demand exceeds the limit, the applied torque and damping term are both clipped. 
 therefore oscillate until the demand returns within the limit. An effort limit below the load's
 static demand prevents the controller from damping the joint effectively.
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/effort-limit-clip.webp
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/actuators/effort_limit_clip.webp
     :align: center
     :width: 100%
     :alt: Five pendulums with increasing effort limit holding or failing against gravity.
@@ -612,8 +616,9 @@ properties. Use articulation data and joint writers to read or change them.
 
 The runtime group properties ``effort_limit_sim``, ``velocity_limit_sim``, ``armature``,
 ``friction``, ``dynamic_friction``, and ``viscous_friction`` were removed. Read their live values
-from articulation data and use the corresponding joint writers. The deprecated
-``effort_limit_sim`` and ``velocity_limit_sim`` configuration aliases remain available through 3.x.
+from articulation data and use the corresponding joint writers. The ``effort_limit_sim`` and
+``velocity_limit_sim`` configuration aliases were removed in 3.1; use ``joint_effort_limit`` and
+``joint_velocity_limit`` instead.
 See :ref:`actuators-solver-limit-migration` for replacement data views and writers.
 
 Explicit actuators store model state such as ``actuator_effort_limit``, rated ``actuator_velocity_limit``, gains,
@@ -635,9 +640,7 @@ different values. Explicit models clip output to ``actuator_effort_limit``;
 ``joint_effort_limit`` limits the solver.
 ``actuator_velocity_limit`` is the model's rated joint-side speed, or a soft-limit snapshot for
 implicit actuators. ``joint_velocity_limit`` requests a solver constraint. Because backends
-enforce it differently, solver velocity limits are not portable clamps. ``effort_limit`` and
-``velocity_limit`` are deprecated configuration and runtime group aliases. ``velocity_limit``
-resolves to ``actuator_velocity_limit``; ``effort_limit`` resolves to ``actuator_effort_limit``.
+enforce it differently, solver velocity limits are not portable clamps.
 An implicit group may configure ``actuator_effort_limit`` separately from ``joint_effort_limit``
 to keep a rated model-facing limit distinct from the solver clamp; when unset, it tracks the
 live solver limit.
@@ -930,6 +933,9 @@ Example: MicroDuck walking
 MicroDuck biped to walk on flat ground and on rough terrain, with its 14 servos modeled by BAM on
 Newton MJWarp. Add ``presets=backlash`` to either task to train the robot variant with a passive play
 hinge in series with each servo, bound through ``backlash_joint_template``.
+
+See :doc:`/source/how-to/train_microduck` for the walking recipe, terrain curriculum, and distributed
+training options.
 
 
 Backend submission

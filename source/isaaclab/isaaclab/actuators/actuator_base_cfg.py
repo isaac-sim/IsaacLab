@@ -83,20 +83,6 @@ class ActuatorBaseCfg:
     backend-dependent.
     """
 
-    effort_limit_sim: dict[str, float] | float | None = None
-    """Deprecated alias for :attr:`joint_effort_limit`.
-
-    .. deprecated:: 3.0
-        Use :attr:`joint_effort_limit` instead. This alias will be removed in 3.1.
-    """
-
-    velocity_limit_sim: dict[str, float] | float | None = None
-    """Deprecated alias for :attr:`joint_velocity_limit`.
-
-    .. deprecated:: 3.0
-        Use :attr:`joint_velocity_limit` instead. This alias will be removed in 3.1.
-    """
-
     stiffness: dict[str, float] | float | None = MISSING
     """Stiffness gains (also known as p-gain) of the joints in the group.
 
@@ -157,21 +143,4 @@ class ActuatorBaseCfg:
     The solver applies a resisting effort proportional to the joint velocity with this coefficient.
 
     If None, the joint viscous friction is set to the value from the USD joint prim.
-    """
-
-    effort_limit: dict[str, float] | float | None = None
-    """Deprecated effort limit [N or N·m, depending on joint type].
-
-    .. deprecated:: 3.0
-        For explicit actuators, use :attr:`actuator_effort_limit`. For implicit
-        actuators, use :attr:`joint_effort_limit`. This alias will be removed in 3.1.
-    """
-
-    velocity_limit: dict[str, float] | float | None = None
-    """Deprecated velocity limit [m/s or rad/s, depending on joint type].
-
-    .. deprecated:: 3.0
-        Use :attr:`actuator_velocity_limit` for the actuator-model limit or
-        :attr:`joint_velocity_limit` for the solver limit. This alias will be
-        removed in 3.1.
     """

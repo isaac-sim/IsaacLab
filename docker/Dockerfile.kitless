@@ -61,17 +61,12 @@ COPY source/ source/
 # Install the locked dependency graph and its resolver overrides. The curated all extra
 # excludes Isaac Sim; importers adds the standalone importers. UV_PYTHON pins the
 # environment to the runtime stage's Python ABI.
-# OVRTX caches shaders, textures and derived data inside its own site-packages, and a
-# volume-mounted run executes as the runner's uid rather than the image's, so those paths must be
-# writable by a uid the image cannot know. Widened here rather than bind-mounted: the write targets
-# sit alongside shipped content such as ``cache/shadercache``, which a mount would hide.
 # ``--frozen`` is load-bearing: without it uv re-resolves whenever it judges the lock stale, which
 # would silently defeat the point of installing from it. ``--inexact`` keeps the seeded pip, which
 # is not a lock entry. ``uv sync`` reuses the venv only because UV_PYTHON pins the same interpreter
 # it was created with; otherwise it deletes and rebuilds it.
 RUN uv venv --seed "${VIRTUAL_ENV}" \
  && uv sync --frozen --inexact --extra all --extra importers --extra test \
- && chmod -R a+rwX "${VIRTUAL_ENV}"/lib/python3.*/site-packages/ovrtx \
  && python -c "import importlib.metadata as m; \
       names = {d.metadata['Name'].lower() for d in m.distributions()}; \
       assert 'isaacsim' not in names; \
@@ -127,6 +122,8 @@ ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics
 # but libOpenGL.so.0 and libEGL.so.1 need libopengl0 and libegl1. libxrender1 is
 # for the Newton GL viewer: pyglet's xlib backend resolves libXrender.so.1 via
 # ctypes at import time and nothing else in this list pulls it in transitively.
+# Own the cache parent before creating volume directories below: OVRTX 0.6 creates
+# its runtime caches in HOME/.cache/ovrtx, alongside the uv and Warp volumes.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       ca-certificates \
@@ -149,7 +146,7 @@ RUN apt-get update \
  && if getent group ubuntu >/dev/null; then groupdel ubuntu; fi \
  && groupadd --gid 1000 isaaclab \
  && useradd --uid 1000 --gid 1000 --home-dir "${HOME}" --create-home --shell /bin/bash isaaclab \
- && mkdir -p "${HOME}" \
+ && mkdir -p "${HOME}/.cache" \
  && chown -R isaaclab:isaaclab "${HOME}" \
  && chmod 750 "${HOME}"
 

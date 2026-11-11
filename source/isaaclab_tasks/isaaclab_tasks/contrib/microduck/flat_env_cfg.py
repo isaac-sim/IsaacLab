@@ -6,8 +6,10 @@
 """Flat walking recipe ported from pollen-robotics/microduck_rl and the original Lab task."""
 
 import math
+import os
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
+from omegaconf import OmegaConf
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
@@ -56,6 +58,21 @@ MICRODUCK_SOLE_TO_ANKLE_OFFSET = 0.0225
 """Standing ankle-frame height above the sole [m]."""
 MICRODUCK_FOOT_TARGET_HEIGHT = 0.02 + MICRODUCK_SOLE_TO_ANKLE_OFFSET
 MICRODUCK_STEPS_PER_ITERATION = 24
+
+
+def _scale_multi_gpu(steps: int, ngpus: int | None, nnodes: int | None) -> int:
+    """Scale a sample milestone by total ranks, or an explicit paired GPU/node override."""
+    if ngpus is None and nnodes is None:
+        ngpus, nnodes = int(os.environ.get("WORLD_SIZE", "1")), 1
+    elif ngpus is None or nnodes is None:
+        raise ValueError("Set env.ngpus and env.nnodes together, or leave both unset to use WORLD_SIZE.")
+    for name, count in (("ngpus", ngpus), ("nnodes", nnodes)):
+        if not isinstance(count, int) or isinstance(count, bool) or count < 1:
+            raise ValueError(f"{name} must be a positive integer.")
+    return math.ceil(steps / (ngpus * nnodes))
+
+
+OmegaConf.register_resolver("microduck_scale", _scale_multi_gpu, replace=True)
 
 
 def _backlash_preset(term, func=None, **params):
@@ -288,10 +305,10 @@ class RewardsCfg:
     """Reward terms for the MDP."""
 
     track_lin_vel = RewTerm(
-        func=mdp.track_linear_velocity, weight=2.0, params={"command_name": "base_velocity", "std": math.sqrt(0.1)}
+        func=mdp.track_linear_velocity_heading, weight=4.0, params={"command_name": "base_velocity", "std": 0.15}
     )
     track_ang_vel = RewTerm(
-        func=mdp.track_angular_velocity, weight=2.0, params={"command_name": "base_velocity", "std": math.sqrt(0.5)}
+        func=mdp.track_angular_velocity_world, weight=4.0, params={"command_name": "base_velocity", "std": 0.35}
     )
     upright = RewTerm(func=mdp.upright, weight=2.0, params={"std": math.sqrt(0.05), "asset_cfg": _TRUNK_BODY_CFG})
     pose = RewTerm(
@@ -303,6 +320,7 @@ class RewardsCfg:
             "std_walking": {".*hip_yaw": 0.3, ".*hip_roll": 0.05, ".*hip_pitch": 0.4, ".*knee": 0.4, ".*ankle": 0.25},
             "walking_threshold": 0.01,
             "asset_cfg": SceneEntityCfg("robot", joint_names=MICRODUCK_LEG_JOINT_NAMES, preserve_order=True),
+            "standing_only": True,
         },
     )
     body_ang_vel = RewTerm(func=mdp.body_ang_vel_xy_l2, weight=-0.05, params={"asset_cfg": _TRUNK_BODY_CFG})
@@ -386,13 +404,16 @@ class TerminationsCfg:
 
 def _schedule(address: str, *stages: tuple[int, object]) -> CurrTerm:
     """Step ``address`` through ``(upstream_iteration, value)`` stages after its configured value."""
+    steps = [(iteration * MICRODUCK_STEPS_PER_ITERATION, value) for iteration, value in stages]
     return CurrTerm(
         func=mdp.modify_term_cfg,
         params={
             "address": address,
             "modify_fn": mdp.staged_value,
             "modify_params": {
-                "stages": [(iteration * MICRODUCK_STEPS_PER_ITERATION, value) for iteration, value in stages]
+                "stages": [
+                    (f"${{microduck_scale:{step},${{env.ngpus}},${{env.nnodes}}}}", value) for step, value in steps
+                ]
             },
         },
     )
@@ -403,7 +424,7 @@ class CurriculumCfg:
     """Curriculum terms for the MDP."""
 
     action_rate_weight = _schedule(
-        "rewards.action_rate_l2.weight", (500, -0.2), (750, -0.4), (1000, -0.6), (1250, -0.8), (1500, -1.0)
+        "rewards.action_rate_l2.weight", (3000, -0.2), (4000, -0.4), (5000, -0.6), (6000, -0.8), (7000, -1.0)
     )
     head_pose_bias_weight = _schedule("rewards.head_pose_bias.weight", (600, -1.0), (1000, -2.0), (1500, -3.0))
     standing_envs = _schedule(
@@ -432,6 +453,12 @@ class CurriculumCfg:
 @configclass
 class MicroDuckVelocityFlatEnvCfg(ManagerBasedRLEnvCfg):
     """MicroDuck flat velocity walking with Newton MJWarp and BAM servos."""
+
+    ngpus: int | None = None
+    """Optional GPUs per node for recipe scaling. Set together with :attr:`nnodes` to override ``WORLD_SIZE``."""
+
+    nnodes: int | None = None
+    """Optional node count for recipe scaling. Set together with :attr:`ngpus` to override ``WORLD_SIZE``."""
 
     sim: SimulationCfg = SimulationCfg(
         physics=NewtonCfg(

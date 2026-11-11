@@ -15,7 +15,7 @@ import numpy as np
 import torch
 import warp as wp
 from golden_image import camera_output_image, compare_to_golden
-from isaaclab_newton.physics import NewtonMPMManager
+from isaaclab_newton.physics import reset_mpm_solver_state
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
@@ -86,6 +86,7 @@ def run_rendering_case(
         background_color=case.background_color,
         physics_cfg=scene.physics_cfg,
         dt=scene.dt,
+        on_scene_created=scene.on_scene_created,
     ) as runtime:
         if case.scene == "shadow_hand":
             # A static image tests the declared pose, not contacts during PhysX's initialization steps.
@@ -119,9 +120,11 @@ def run_rendering_case(
             # The MPM reset snapshots the paddle transform after the joint writes.
             runtime.sim.forward()
             world_mask = wp.array([True] * runtime.scene.num_envs + [False], dtype=wp.bool, device=runtime.sim.device)
-            NewtonMPMManager.reset_solver_state(
-                runtime.sim.backend_manager, world_mask=world_mask, flags=StateFlags.BODY | StateFlags.PARTICLE
+            reset_mpm_solver_state(
+                runtime.sim.backend_manager.backend, world_mask=world_mask, flags=StateFlags.BODY | StateFlags.PARTICLE
             )
+        if scene.after_reset is not None:
+            scene.after_reset(runtime)
         for step in range(scene.steps_before_capture):
             if case.scene == "mpm" and step % 2 == 0:
                 robot = runtime.scene["robot"]
@@ -205,11 +208,23 @@ def run_rendering_case(
                 max_diff_pct=image_max_diff_pct,
                 min_ssim=None if aov in _NO_SSIM else min_ssim,
                 alpha_only=aov in _ALPHA_ONLY_AOVS,
+                **(
+                    {"pixel_l2_threshold": scene.pixel_l2_thresholds[case.renderer, aov]}
+                    if (case.renderer, aov) in scene.pixel_l2_thresholds
+                    else {}
+                ),
             )
             comparison.record(request)
             if not comparison.passed:
                 failures.append(f"{aov}: {comparison.error}")
         assert not failures, "\n".join([f"{case.id} failed:", *failures])
+
+
+def run_kitless_rendering_case(stage_variant: str, case: RenderCase, request: Any, monkeypatch: Any) -> None:
+    """Apply the ``stage_variant`` setting and run one kitless rendering case."""
+    monkeypatch.delenv("ISAAC_LAB_SHARE_OVSTAGE", raising=False)
+    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", str(int(stage_variant == "ovstage")))
+    run_rendering_case(case, request, golden_namespace=None, artifact_namespace=stage_variant)
 
 
 def validate_segmentation(

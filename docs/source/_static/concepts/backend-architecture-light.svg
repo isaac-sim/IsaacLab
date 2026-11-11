@@ -54,7 +54,7 @@
 <rect x="312" y="384" width="276" height="128" rx="7" fill="#f3e5f5" stroke="#8e24aa" stroke-width="1.5"/>
 <text x="450.0" y="405" text-anchor="middle" class="mono lbl" font-size="13.5" fill="#4a148c">isaaclab_newton</text>
 <text x="450.0" y="422" text-anchor="middle" class="mono" font-size="11" fill="#1f2328">NewtonManager</text>
-<text x="450.0" y="439" text-anchor="middle" class="body" font-size="11" fill="#57606a">+ solver managers: NewtonMJWarpManager, ...</text>
+<text x="450.0" y="439" text-anchor="middle" class="body" font-size="11" fill="#57606a">+ solvers: MJWarpSolver, ...</text>
 <text x="450.0" y="456" text-anchor="middle" class="mono" font-size="11" fill="#1f2328">assets.Articulation, sensors.Imu, ...</text>
 <text x="450.0" y="473" text-anchor="middle" class="mono" font-size="11" fill="#1f2328">NewtonSceneDataBackend</text>
 <text x="450.0" y="490" text-anchor="middle" class="body" font-size="11" fill="#57606a">physics=newton_mjwarp · newton_kamino</text>

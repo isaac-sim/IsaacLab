@@ -1574,7 +1574,7 @@ class reset_joints_within_limits_range(ManagerTermBase):
                 self._pos_ranges[joint_ids] += default_joint_pos[joint_ids].unsqueeze(1)
 
         # store the joint pos ids (used later to sample the joint positions)
-        self._pos_joint_ids = torch.tensor(pos_joint_ids, device=self._pos_ranges.device)
+        self._pos_joint_ids = torch.tensor(pos_joint_ids, dtype=torch.int32, device=self._pos_ranges.device)
         self._pos_ranges = self._pos_ranges[self._pos_joint_ids]
 
         # create buffers to store the joint velocity range
@@ -1603,7 +1603,7 @@ class reset_joints_within_limits_range(ManagerTermBase):
                 self._vel_ranges[joint_ids] += default_joint_vel[joint_ids].unsqueeze(1)
 
         # store the joint vel ids (used later to sample the joint positions)
-        self._vel_joint_ids = torch.tensor(vel_joint_ids, device=self._vel_ranges.device)
+        self._vel_joint_ids = torch.tensor(vel_joint_ids, dtype=torch.int32, device=self._vel_ranges.device)
         self._vel_ranges = self._vel_ranges[self._vel_joint_ids]
 
     def __call__(
@@ -1622,19 +1622,18 @@ class reset_joints_within_limits_range(ManagerTermBase):
 
         if len(self._pos_joint_ids) > 0:
             joint_pos_shape = (joint_pos.shape[0], len(self._pos_joint_ids))
+            # clamp the samples to the limits of the sampled joints; the other joints keep their default state
+            joint_pos_limits = self._asset.data.soft_joint_pos_limits.torch[0, self._pos_joint_ids]
             joint_pos[:, self._pos_joint_ids] = math_utils.sample_uniform(
                 self._pos_ranges[:, 0], self._pos_ranges[:, 1], joint_pos_shape, device=joint_pos.device
-            )
-            joint_pos_limits = self._asset.data.soft_joint_pos_limits.torch[0, self._pos_joint_ids]
-            joint_pos = joint_pos.clamp(joint_pos_limits[:, 0], joint_pos_limits[:, 1])
+            ).clamp(joint_pos_limits[:, 0], joint_pos_limits[:, 1])
 
         if len(self._vel_joint_ids) > 0:
             joint_vel_shape = (joint_vel.shape[0], len(self._vel_joint_ids))
+            joint_vel_limits = self._asset.data.soft_joint_vel_limits.torch[0, self._vel_joint_ids]
             joint_vel[:, self._vel_joint_ids] = math_utils.sample_uniform(
                 self._vel_ranges[:, 0], self._vel_ranges[:, 1], joint_vel_shape, device=joint_vel.device
-            )
-            joint_vel_limits = self._asset.data.soft_joint_vel_limits.torch[0, self._vel_joint_ids]
-            joint_vel = joint_vel.clamp(-joint_vel_limits, joint_vel_limits)
+            ).clamp(-joint_vel_limits, joint_vel_limits)
 
         self._asset.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
         self._asset.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)

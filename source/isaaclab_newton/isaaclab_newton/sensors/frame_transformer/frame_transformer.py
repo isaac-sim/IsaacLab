@@ -15,7 +15,7 @@ from isaaclab.sensors.frame_transformer.base_frame_transformer import BaseFrameT
 from isaaclab.sim.utils.queries import split_path_expr
 from isaaclab.utils.version import has_kit
 
-from isaaclab_newton.physics import NewtonQueries
+from isaaclab_newton.physics import newton_backend
 
 from .frame_transformer_data import FrameTransformerData
 from .frame_transformer_kernels import copy_from_newton_kernel
@@ -308,7 +308,7 @@ class FrameTransformer(BaseFrameTransformer):
         if device.is_cuda and not device.is_capturing:
             pointers = state.body_q.ptr, env_mask.ptr
             if self._update_graph is None or self._update_graph[0] != pointers:
-                graph = NewtonQueries.capture_graph(
+                graph = newton_backend.capture_graph(
                     self._device, lambda: self._update_buffers_impl(env_mask), relaxed=has_kit()
                 )
                 self._update_graph = pointers, graph

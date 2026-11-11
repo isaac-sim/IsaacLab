@@ -3,6 +3,347 @@ Changelog
 
 .. towncrier release notes start
 
+45.1.0 (2026-11-10)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`PhysicsManager.handle_actions <isaaclab.physics.PhysicsManager.handle_actions>`, which let a physics
+  backend run the environment's actions and asset writes inside its step. :class:`~isaaclab.envs.ManagerBasedEnv`
+  called it on its first step, unless its render interval was not a multiple of the decimation, a recorder term
+  recorded after every physics step, or a sensor sampled at times other than whole environment steps, and skipped the
+  actions and asset writes that the step ran.
+* Added :attr:`RecorderManager.records_physics_steps <isaaclab.managers.RecorderManager.records_physics_steps>`.
+* Added ``is_graphable`` to :class:`~isaaclab.managers.ActionTerm`,
+  :class:`~isaaclab.managers.ActionManager`, :class:`~isaaclab.assets.AssetBase`,
+  :class:`~isaaclab.actuators.ActuatorCollection` and :class:`~isaaclab.scene.InteractiveScene`. Joint, joint-to-limits
+  and binary joint action terms set it. A subclass that overrode :meth:`~isaaclab.managers.ActionTerm.process_actions`
+  or :meth:`~isaaclab.managers.ActionTerm.apply_actions` did not inherit it. Setting
+  :attr:`ActionManager.is_graphable <isaaclab.managers.ActionManager.is_graphable>` to False before the first step
+  kept the actions in the environment's loop, as LEAPP export did for its wrapped ``apply_action``.
+* Added :attr:`WrenchComposer.pending <isaaclab.utils.wrench_composer.WrenchComposer.pending>` and the
+  ``on_first_use`` argument of :class:`~isaaclab.utils.wrench_composer.WrenchComposer`, called at the first force
+  write or :meth:`~isaaclab.utils.wrench_composer.WrenchComposer.add_raw_buffers_from` merge. Once forces were written,
+  wrench work recorded into a CUDA graph no longer depended on host flags.
+
+Changed
+^^^^^^^
+
+* Changed joint, joint-to-limits and binary joint action terms to write their processed actions in place, so a
+  recorded :meth:`~isaaclab.managers.ActionTerm.apply_actions` read the current actions. A reference to
+  :attr:`~isaaclab.managers.ActionTerm.processed_actions` now saw later commands; code that kept the previous
+  command cloned it or copied it into its own buffer before the next
+  :meth:`~isaaclab.managers.ActionTerm.process_actions`.
+* Changed :class:`~isaaclab.envs.ManagerBasedEnv` to set the physics decimation after loading its managers.
+* Changed benchmark capture to label couplers from :mod:`isaaclab_newton.physics.coupling`.
+
+
+45.0.1 (2026-11-09)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :func:`~isaaclab.utils.math.convert_camera_frame_orientation_convention` returning NaN for the ``"world"``
+  convention when TF32 matmuls are enabled. The constant rotation is a signed column permutation and is now applied
+  without a matmul, so the result no longer depends on matmul precision.
+
+
+45.0.0 (2026-11-07)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added server-scheduled seasonal loading greetings from a Hugging Face catalog with offline defaults,
+  validated caching, consistent artwork when resizing the terminal, and an option to disable remote
+  greetings.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed remote asset access in :mod:`isaaclab.utils.assets` from ``omni.client`` to
+  `OVStorage <https://github.com/NVIDIA-Omniverse/ovstorage>`__, which replaces the ``omniverseclient``
+  dependency. Scripts that import ``omni.client`` directly must install ``omniverseclient`` themselves.
+  Each asset region profile's object storage is now read through its CDN, and previously cached
+  assets are downloaded again once.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated :func:`~isaaclab.utils.assets.configure_storage_profile` and
+  :func:`~isaaclab.utils.assets.configure_asset_region_profile`, which configured ``omni.client`` routing.
+  They now have no effect, because Isaac Lab's asset helpers apply the selected profile themselves.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed the actuator limit aliases deprecated in Isaac Lab 3.0 for removal in 3.1,
+  including configuration fields, constructor arguments, and runtime properties. Use
+  ``actuator_effort_limit`` and ``actuator_velocity_limit`` for model limits, and
+  ``joint_effort_limit`` and ``joint_velocity_limit`` for solver limits. For implicit actuator
+  constructors, replace ``effort_limit`` with ``joint_effort_limit``. For implicit configurations
+  that previously supplied only ``effort_limit``, set both ``actuator_effort_limit`` and
+  ``joint_effort_limit`` to preserve both limits; replace a lone ``velocity_limit_sim`` with both
+  ``joint_velocity_limit`` and ``actuator_velocity_limit`` to preserve the solver and soft limits.
+
+Fixed
+^^^^^
+
+* Fixed :attr:`~isaaclab.managers.ActionTermCfg.clip` for the task-space action terms.
+  :class:`~isaaclab.envs.mdp.actions.DifferentialInverseKinematicsAction` resolved the ranges against
+  the joint names and indexed the task-space action vector with joint indices (an index error, or joint
+  limits applied to pose components), and :class:`~isaaclab.envs.mdp.actions.OperationalSpaceControllerAction`
+  ignored the setting. Both now match the keys against task-space action names (``pos_x``, ``rot_x``,
+  ``force_x``, ``stiffness_x``, ...), exposed as :attr:`action_names`, and reject keys that match nothing or
+  a quaternion component.
+* Fixed :func:`~isaaclab.terrains.height_field.utils.height_field_to_mesh` raising an unrelated
+  ``ValueError: too many values to unpack`` when a height-field generator returns only the height field. It now
+  raises a :class:`TypeError` that names the generator and the ``(height_field, origin)`` return contract, and it
+  restores the terrain size it changed for the generator when generation fails.
+* Request Newton's deprecated unsafe Torch-checkpoint import only for USD actuators that reference Torch checkpoints.
+
+
+44.0.1 (2026-11-06)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removed the no-op process-wide Gaussian skip-tonemapping setting and warning for OVRTX in
+  :class:`~isaaclab.sensors.Camera`; the OVRTX renderer now authors the setting on its render product.
+* Delegated Isaac RTX rendering policy from camera construction to the renderer.
+
+
+44.0.0 (2026-11-05)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added capability-aware shared PVA output storage and generated optional-output kernels.
+* Construct and compile optional PVA updates on demand through cached factories. Using one feature subset or resetting a sensor does not construct or compile unused update variants.
+* Shared PVA output storage across backend data classes. Pose and spatial components now share storage; initialize/reset/STOP use common valid defaults.
+* Reused core IMU, frame-transformer, and sensor-reset operations while retaining backend-native acquisition.
+
+Deprecated
+^^^^^^^^^^
+
+* Marked direct use of BasePvaData as deprecated in its API documentation. Imports remain available without warnings; read measurements through the sensor's data property.
+
+Fixed
+^^^^^
+
+* Fixed :func:`~isaaclab.sensors.camera.utils.create_pointcloud_from_depth` and
+  :func:`~isaaclab.sensors.camera.utils.create_pointcloud_from_rgbd` keeping pixels with zero depth as points at
+  the camera position when invalid points are removed. Zero depth now counts as invalid, as documented, and the
+  colors from :func:`~isaaclab.sensors.camera.utils.create_pointcloud_from_rgbd` stay aligned with the kept points.
+* Fixed :class:`~isaaclab.utils.datasets.HDF5DatasetFileHandler` dataset files staying locked after closing when a
+  child process was started while they were open, which made reopening them fail with ``BlockingIOError``.
+
+
+43.0.1 (2026-11-04)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Reduced ray-caster memory use and ray-transform bandwidth by sharing the fixed local ray pattern
+  across sensor instances. The local ``ray_starts`` and ``ray_directions`` arrays became read-only
+  broadcast views; patterns should be configured through ``pattern_cfg`` before initialization.
+
+Fixed
+^^^^^
+
+* Fixed the first reset with PhysX physics taking many minutes on a machine without cached GPU kernels. Capturing the
+  Newton actuator graphs forced Warp to load and compile every imported module; it now loads only the kernels it
+  records.
+
+
+43.0.0 (2026-11-03)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added shared joint-deviation, body angular-velocity, downward root-speed and terrain-clearance
+  MDP terms, together with a curriculum callback that updates parameters after a step threshold.
+
+Changed
+^^^^^^^
+
+* Replaced per-world recorder episode containers with batched field allocations and
+  independent insertion indices, reusing storage across resets and growing without dropping samples.
+* Added :meth:`~isaaclab.managers.RecorderManager.get_term` for direct access to captured batches.
+* Preserve slices through recorder reset callbacks and normalize Python sequences to lists so tuple
+  environment indices work for capture, reset and success updates.
+* **Breaking:** Removed the implicit observation computation before RL post-step recorder callbacks.
+  Physical capture no longer consumes extra observation noise. Custom terms needing observations
+  of the completed transition must call ``env.observation_manager.compute_group(name, update_history=False)``
+  explicitly; ``env.obs_buf`` still contains the preceding policy input. Use a noiseless group without
+  history or delay for current measurements that do not consume policy noise draws.
+* **Breaking:** Changed :meth:`~isaaclab.managers.RecorderManager.get_episode` to return an owned
+  snapshot with tensor leaves. To update live recording, use ``add_to_episodes`` and
+  ``set_success_to_episodes``; do not mutate the snapshot. Set ``buffer_initial_capacity``
+  to control the initial allocation per field.
+* **Breaking:** Removed ``EpisodeData.add()`` and ``pre_export()``. Collection now belongs to
+  ``RecorderManager.add_to_episodes()``; assign nested tensors with leading sample dimensions
+  to ``EpisodeData.data`` when constructing an episode directly. Playback and HDF5 loading remain supported.
+* **Breaking:** Removed the unused ``RecorderTerm.close(file_path)`` hook. Dataset handlers own
+  file finalization; applications must explicitly close any additional resources they own.
+
+* Documented independent capture, retention and export choices, with task-selected schemas and
+  consumer-owned processing. Core recorder storage remains independent of task and learning packages.
+
+Fixed
+^^^^^
+
+* Kept retained recorder allocations writable after leaving PyTorch inference mode, including
+  grown buffers and schema changes, so subsequent reset and export can finalize those episodes.
+
+
+42.3.2 (2026-11-01)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab.envs.mdp.events.reset_joints_within_limits_range` clamping every joint with the soft
+  limits of the listed joints, which moved unlisted joints off their defaults, failed for joint subsets and applied
+  the wrong limits for out-of-order keys. Empty range dictionaries no longer raise an ``IndexError``.
+
+
+42.3.1 (2026-10-31)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``fix_root_link=True`` raising ``NotImplementedError`` for an articulation rooted at the fixed joint that
+  attaches it to the world when the joint's ``body0`` targets the asset prim, a fixed-base layout that UsdPhysics
+  allows. It now enables that joint instead of raising. A fixed joint between two bodies, between a body and a static
+  collider, or between two prims that are not rigid bodies still raises the error.
+  ``fix_root_link=False`` is not supported for an articulation rooted at its fixed world joint; it now logs a warning
+  and leaves the joint enabled. :func:`~isaaclab.sim.utils.find_global_fixed_joint_prim` returns that joint when
+  called on it.
+* Fixed :class:`~isaaclab.utils.noise.NoiseModelWithAdditiveBias` accumulating the bias across resets when
+  ``bias_noise_cfg.operation`` is ``"add"`` (the default). Each reset now samples a fresh bias as documented, which
+  matches the ``"abs"`` operation; configurations that use ``"abs"`` or ``"scale"`` are unchanged.
+
+
+42.3.0 (2026-10-30)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Centralized Warp wrench composition with on-demand writer/reset kernels and one host owner for destination selection.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the wrench entry points in ``isaaclab.utils.warp.kernels`` for removal in Isaac Lab 3.2. Existing imports and launch signatures remain supported with a ``DeprecationWarning``; use ``WrenchComposer`` or ``isaaclab.utils.warp.wrench`` instead. The new writer factory takes selected force/torque destinations rather than five buffers and ``is_global``.
+
+Fixed
+^^^^^
+
+* Fixed ``configclass`` raising ``FrozenInstanceError`` when a field holds a frozen dataclass with no callable
+  strings to wrap.
+
+
+42.2.0 (2026-10-29)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed ``isaaclab teleop`` to call :func:`isaaclab_teleop.entrypoints.run_cli` in process, like
+  ``isaaclab train``, instead of launching the scripts under ``scripts/``.
+* Reused native Warp views/copy/fill for ordinary data movement. Shared memory utilities own selector normalization, component views, boolean-masked updates, and fused packing/splitting. Callers supply layouts and own simulator row-ID bookkeeping. Custom kernels and articulation ordering use cached concrete factories without enumerating unused variants. Warm the execution path before graph capture.
+* Added tiled component concatenation through ``memory.concat(first, second, result)``. The operation owns scalar views and launch dimensions, preserves strided layouts, and supports native recorded launches without rebuilding views on each read.
+
+
+42.1.0 (2026-10-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab.managers.ObservationTermCfg.history_newest_first` and
+  :attr:`~isaaclab.managers.ObservationGroupCfg.history_newest_first` to place the current step first along the
+  history dimension for policies whose deployment runtime builds observation history in that order.
+
+Fixed
+^^^^^
+
+* Fixed ``--checkpoint latest`` in the skrl and rl_games benchmark play entrypoints loading the best-reward
+  checkpoint instead of the newest one, matching the fix in the training and play entrypoints.
+* Fixed :func:`~isaaclab.utils.math.sample_triangle` sampling a V-shaped distribution with the least density at the
+  midpoint and the most at the bounds. It now samples the documented symmetric triangular distribution, with its mode
+  at the midpoint of ``lower`` and ``upper``.
+* Preserved tuple containers when serializing and restoring nested ``slice`` values in dictionary utilities.
+
+
+42.0.0 (2026-10-27)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab.visualizers.add_key_callbacks` for script hotkeys through explicit visualizer
+  windows, without constructing a teleop device or requiring Isaac Capture.
+* Extended ``TensorProcessor`` and ``TensorProcessorCfg`` to support tensors, ``ProxyArray`` values,
+  and nested lists, tuples, and dictionaries through the shared ``TensorProcessorData`` type.
+  Added optional named input/output metadata and lifecycle hooks while preserving single-tensor
+  observation processing. Added manager resolution of nested scene entities and manager terms
+  in processor parameters.
+
+Changed
+^^^^^^^
+
+* Changed the Newton dependency pin from ``71eeba16`` to the latest upstream ``main`` revision, ``42f7def1``.
+* Preserved trusted Torch actuator checkpoint loading across Newton's new explicit USD import opt-in.
+* Added shared Warp quaternion, rigid-body, interval, and Jacobian mathematics with predeclared rank specializations and numerical convention tests.
+* Named shared math entry points by operation without ``_kernel`` suffixes; rank variants use ``quat_rotate_inv[rank]`` and ``heading[rank]``.
+* Used Warp's ``map`` to predeclare elementwise math launches without allocating arrays, replacing the custom mapping factory.
+* **Breaking:** :class:`~isaaclab.physics.PhysicsManager` takes its physics configuration at construction, and
+  :class:`~isaaclab.sim.SimulationContext` builds the manager with ``instantiate(cfg.physics)``. Subclasses accept
+  ``cfg`` in ``__init__`` and pass it to ``super().__init__(cfg)``; ``initialize()`` no longer sets ``_cfg``.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the ``Se2/Se3KeyboardCfg``, ``Se2/Se3GamepadCfg`` and ``Se2/Se3SpaceMouseCfg``
+  configuration records in Isaac Lab 3.2. Existing declarations continue to translate into
+  Isaac Capture configs before device creation. Use the :mod:`isaaclab_teleop` pipeline builders
+  for new configurations; see :ref:`isaac-teleop-keyboard` for migration.
+* Deprecated ``ObservationTermCfg.modifiers`` in favor of ``ObservationTermCfg.tensor_processors``.
+  Retained the legacy field with a targeted warning and forwarding during manager initialization.
+  Setting both fields now raises ``ValueError`` to prevent silently overriding either pipeline.
+* Deprecated ``isaaclab.utils.modifiers``, ``ModifierBase``, and ``ModifierCfg`` in favor of
+  ``isaaclab.utils.tensor_processors``, ``TensorProcessor``, and ``TensorProcessorCfg``. Preserved
+  legacy imports and serialized callable paths with an import-time deprecation warning.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed the ``Se2/Se3Keyboard``, ``Se2/Se3Gamepad`` and ``Se2/Se3SpaceMouse`` input
+  implementations and their HID helpers. Existing configuration records remain available and
+  translate to Isaac Capture configs before launch. Replace direct constructors with the
+  :mod:`isaaclab_teleop` pipeline builders and :func:`~isaaclab_teleop.create_isaac_teleop_device`;
+  see :ref:`isaac-teleop-keyboard` for migration and standalone session setup.
+
+Fixed
+^^^^^
+
+* Fixed :func:`~isaaclab.utils.configure_logging` leaving the root-logger handlers it replaces open. It now
+  closes them, as :func:`logging.basicConfig` does with ``force=True``, so a log file opened by an earlier
+  call is released and can be deleted on Windows.
+* Fixed conversion of legacy HDF5 datasets with an explicit version 0 attribute so the output was marked as XYZW
+  and was not converted again when loaded.
+
+
 41.1.0 (2026-10-25)
 ~~~~~~~~~~~~~~~~~~~
 
