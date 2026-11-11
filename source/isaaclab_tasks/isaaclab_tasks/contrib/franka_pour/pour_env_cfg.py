@@ -40,8 +40,6 @@ from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
 
-from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
-
 from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG
 
 from . import mdp

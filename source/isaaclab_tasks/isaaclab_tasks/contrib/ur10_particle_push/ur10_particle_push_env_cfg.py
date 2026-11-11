@@ -37,8 +37,6 @@ from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
 
-from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
-
 from isaaclab_assets.robots.universal_robots import UR10_CFG
 
 from . import mdp
