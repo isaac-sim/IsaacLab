@@ -58,13 +58,13 @@ the end effector in Manual mode.
    <div class="viz-grid viz-grid-stretch viz-grid-hero-tiles">
      <div class="viz-hero-wrap viz-crop-newton-gl">
        <video autoplay loop muted playsinline preload="auto">
-         <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_newton_gl.mp4" type="video/mp4">
+         <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/visualizers/hero_newton_gl.mp4" type="video/mp4">
        </video>
        <div class="viz-label">Newton GL</div>
      </div>
      <div class="viz-hero-wrap viz-crop-viser">
        <video autoplay loop muted playsinline preload="auto" class="viz-hero-start-1s">
-         <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_viser.mp4" type="video/mp4">
+         <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/visualizers/hero_viser.mp4" type="video/mp4">
        </video>
        <div class="viz-label">Viser</div>
      </div>
@@ -72,19 +72,19 @@ the end effector in Manual mode.
    <div class="viz-grid viz-grid-stretch viz-grid-hero-tiles">
      <div class="viz-hero-wrap viz-crop-newton-rtx">
        <video autoplay loop muted playsinline preload="auto" class="viz-hero-speedup">
-         <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_newton_rtx.mp4" type="video/mp4">
+         <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/visualizers/hero_newton_rtx.mp4" type="video/mp4">
        </video>
        <div class="viz-label">Newton RTX</div>
      </div>
      <div class="viz-hero-wrap viz-crop-kit">
        <video autoplay loop muted playsinline preload="auto" class="viz-crop-x8 viz-hero-speedup">
-         <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_kit.mp4" type="video/mp4">
+         <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/visualizers/hero_kit.mp4" type="video/mp4">
        </video>
        <div class="viz-label">Kit</div>
      </div>
      <div class="viz-hero-wrap viz-crop-rerun">
        <video autoplay loop muted playsinline preload="auto" class="viz-hero-start-1s">
-         <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_rerun.mp4" type="video/mp4">
+         <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/visualizers/hero_rerun.mp4" type="video/mp4">
        </video>
        <div class="viz-label">Rerun</div>
      </div>
@@ -258,7 +258,7 @@ Visualizer Overview
       .. raw:: html
 
          <video autoplay loop muted playsinline controls preload="auto" style="width:100%;">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/showcase_newton_gl_allegro.mp4" type="video/mp4">
+           <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/visualizers/showcase_newton_gl_allegro.mp4" type="video/mp4">
          </video>
          <p class="viz-cap">Isaac-Reorient-Cube-Allegro in Newton GL Visualizer<br>Each Allegro hand reorients
          its cube to match the target shown by the marker above it</p>
@@ -282,7 +282,7 @@ Visualizer Overview
            </div>
            <div>
              <video autoplay loop muted playsinline controls preload="auto" style="width:100%;">
-               <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/showcase_newton_gl_dominoes.mp4" type="video/mp4">
+               <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/visualizers/showcase_newton_gl_dominoes.mp4" type="video/mp4">
              </video>
              <p class="viz-cap">newton-dominoes example<br>Right-click dragging the first domino
              triggers the cascade across an NVIDIA-logo domino layout</p>
@@ -315,7 +315,7 @@ Visualizer Overview
       .. raw:: html
 
          <video autoplay loop muted playsinline controls preload="auto" style="width:100%;">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/showcase_viser_lift_kuka_allegro.mp4" type="video/mp4">
+           <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/visualizers/showcase_viser_lift_kuka_allegro.mp4" type="video/mp4">
          </video>
          <p class="viz-cap">Isaac-Lift-KukaAllegro in Viser Visualizer<br>Each Kuka arm and Allegro hand lifts
          its cube off the table<br>Table color shows success: red until the cube reaches its target pose, green
@@ -380,7 +380,7 @@ Visualizer Overview
       .. raw:: html
 
          <video autoplay loop muted playsinline controls preload="auto" style="width:100%;">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/showcase_newton_rtx_h1_stairs.mp4" type="video/mp4">
+           <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/visualizers/showcase_newton_rtx_h1_stairs.mp4" type="video/mp4">
          </video>
          <p class="viz-cap">Isaac-Velocity-Rough-H1 in Newton RTX Visualizer<br>Each H1 humanoid climbs a
          staircase sub-terrain</p>
@@ -432,7 +432,7 @@ Visualizer Overview
       .. raw:: html
 
          <video autoplay loop muted playsinline controls preload="auto" style="width:100%;">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/showcase_rerun_shadow_reorient.mp4" type="video/mp4">
+           <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/visualizers/showcase_rerun_shadow_reorient.mp4" type="video/mp4">
          </video>
          <p class="viz-cap">Isaac-Reorient-Cube-Shadow-Direct in Rerun Visualizer<br>Each Shadow Hand reorients
          its cube to match the target pose</p>
@@ -500,7 +500,7 @@ Visualizer Overview
       .. raw:: html
 
          <video autoplay loop muted playsinline controls preload="auto" style="width:100%;">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/showcase_kit_franka_reach.mp4" type="video/mp4">
+           <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/visualizers/showcase_kit_franka_reach.mp4" type="video/mp4">
          </video>
          <p class="viz-cap">Isaac-Reach-Franka in Kit Visualizer<br>Each Franka arm reaches its end-effector
          toward a randomized target pose</p>
@@ -550,13 +550,13 @@ Multiple visualizers can display the same sensor with different tile selections.
    <div class="viz-stack-centered">
      <div>
        <video autoplay loop muted playsinline controls preload="auto">
-         <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/streaming_newton_galbot_interactive.mp4" type="video/mp4">
+         <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/visualizers/streaming_newton_galbot_interactive.mp4" type="video/mp4">
        </video>
        <p class="viz-cap">Interactive view of the Galbot cube stacking environment</p>
      </div>
      <div>
        <video autoplay loop muted playsinline controls preload="auto">
-         <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/streaming_newton_galbot_tiled.mp4" type="video/mp4">
+         <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/visualizers/streaming_newton_galbot_tiled.mp4" type="video/mp4">
        </video>
        <p class="viz-cap">Streaming view showing tiled Galbot wrist-camera feeds</p>
      </div>
@@ -632,13 +632,13 @@ Live plots stream per-step scalar data into the visualizer.
    <div class="viz-grid viz-grid-fit">
      <div>
        <video autoplay loop muted playsinline controls preload="auto">
-         <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/liveplot_newton_gl.mp4" type="video/mp4">
+         <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/visualizers/liveplot_newton_gl.mp4" type="video/mp4">
        </video>
        <p class="viz-cap">Newton GL visualizer, with 3 plots opened</p>
      </div>
      <div>
        <video autoplay loop muted playsinline controls preload="auto">
-         <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/liveplot_viser.mp4" type="video/mp4">
+         <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/visualizers/liveplot_viser.mp4" type="video/mp4">
        </video>
        <p class="viz-cap">Viser visualizer, with 1 plot opened</p>
      </div>
@@ -662,13 +662,13 @@ streaming views, and renderer-based sensor data capture.
    <div class="viz-grid viz-grid-record">
      <div>
        <video autoplay loop muted playsinline controls preload="auto">
-         <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/record_video_tiled_kit_viewport.mp4" type="video/mp4">
+         <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/how_to/record_video_tiled_kit_viewport.mp4" type="video/mp4">
        </video>
        <p class="viz-cap">Kit visualizer tiled streaming</p>
      </div>
      <div>
        <video autoplay loop muted playsinline controls preload="auto">
-         <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/record_video_shadow_hand_tiled_gt.mp4" type="video/mp4">
+         <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/how_to/record_video_shadow_hand_tiled_gt.mp4" type="video/mp4">
        </video>
        <p class="viz-cap">Recorded clip with ground-truth sensor views</p>
      </div>

@@ -120,14 +120,14 @@ After converting the demonstrations to MP4 format, you can use a `Cosmos`_ model
 
 We use the RGB, depth and shaded segmentation videos from the previous step as input to the Cosmos model as seen below:
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/cosmos_inputs.gif
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/imitation_learning/augmented/cosmos_inputs.gif
    :width: 100%
    :align: center
    :alt: RGB, depth and segmentation control inputs to Cosmos
 
 We provide an example augmentation output from `Cosmos Transfer1 <https://github.com/nvidia-cosmos/cosmos-transfer1/tree/e4055e39ee9c53165e85275bdab84ed20909714a>`_ below:
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/cosmos_output.gif
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/imitation_learning/augmented/cosmos_output.gif
    :width: 100%
    :align: center
    :alt: Cosmos Transfer1 augmentation output

@@ -232,7 +232,7 @@ class Articulation(BaseArticulation):
             env_ids = slice(None)
         # reset actuators, including backend-native actuator state. None selects all
         # environments; delayed-actuator buffers do not accept a slice.
-        self.actuators.reset(None if env_ids == slice(None) else env_ids)
+        self.actuators.reset(None if env_ids == slice(None) else env_ids, env_mask)
         # reset external wrenches.
         self._instantaneous_wrench_composer.reset(env_ids, env_mask)
         self._permanent_wrench_composer.reset(env_ids, env_mask)
@@ -992,6 +992,10 @@ class Articulation(BaseArticulation):
     ):
         """Write joint positions and velocities in a single fused kernel launch.
 
+        .. deprecated::
+            Use :meth:`write_joint_state_to_sim_mask`, or :meth:`write_joint_position_to_sim_index` and
+            :meth:`write_joint_velocity_to_sim_index`.
+
         .. note::
             This method expects partial data or full data.
 
@@ -1011,6 +1015,32 @@ class Articulation(BaseArticulation):
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
+        warnings.warn(
+            "Articulation.write_joint_state_to_sim_index is deprecated. Use write_joint_state_to_sim_mask, or"
+            " write_joint_position_to_sim_index and write_joint_velocity_to_sim_index.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self._write_joint_state_to_sim_index(
+            position=position,
+            velocity=velocity,
+            joint_ids=joint_ids,
+            env_ids=env_ids,
+            full_data=full_data,
+            skip_forward=skip_forward,
+        )
+
+    def _write_joint_state_to_sim_index(
+        self,
+        *,
+        position: torch.Tensor | wp.array,
+        velocity: torch.Tensor | wp.array,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+        skip_forward: bool = False,
+    ):
+        """Write selected joint positions and velocities; see :meth:`write_joint_state_to_sim_index`."""
         # resolve all indices
         joint_selection_is_partial = joint_ids is not None
         env_ids = self._resolve_env_ids(env_ids)
@@ -1090,7 +1120,7 @@ class Articulation(BaseArticulation):
         # set into simulation
         env_ids = self._resolve_env_mask(env_mask)
         joint_ids = None if joint_mask is None else self._resolve_joint_mask(joint_mask)
-        self.write_joint_state_to_sim_index(
+        self._write_joint_state_to_sim_index(
             position=position,
             velocity=velocity,
             env_ids=env_ids,
@@ -1439,50 +1469,6 @@ class Articulation(BaseArticulation):
             self.data._joint_damping, self.data._joint_damping_backend
         )
         self.root_view.set_dof_dampings(wp.clone(joint_damping_backend, device="cpu"), indices=cpu_env_ids)
-
-    def write_actuator_stiffness_to_sim(
-        self,
-        *,
-        stiffness: torch.Tensor,
-        env_ids: torch.Tensor,
-        joint_ids: torch.Tensor,
-    ) -> None:
-        """Write native actuator stiffness [N/m or N·m/rad, depending on joint type].
-
-        .. deprecated:: 3.0
-            Use :func:`isaaclab.envs.mdp.events.randomize_actuator_gains` for
-            managed randomization. Direct controller-gain writes have no public
-            replacement. This method will be removed in 3.1.
-
-        Args:
-            stiffness: Controller stiffness [N/m or N·m/rad, depending on joint type].
-            env_ids: Articulation instance indices.
-            joint_ids: Articulation-local joint indices.
-        """
-        self._write_deprecated_native_actuator_gain(
-            "write_actuator_stiffness_to_sim", "kp", stiffness, env_ids, joint_ids
-        )
-
-    def write_actuator_damping_to_sim(
-        self,
-        *,
-        damping: torch.Tensor,
-        env_ids: torch.Tensor,
-        joint_ids: torch.Tensor,
-    ) -> None:
-        """Write native actuator damping [N·s/m or N·m·s/rad, depending on joint type].
-
-        .. deprecated:: 3.0
-            Use :func:`isaaclab.envs.mdp.events.randomize_actuator_gains` for
-            managed randomization. Direct controller-gain writes have no public
-            replacement. This method will be removed in 3.1.
-
-        Args:
-            damping: Controller damping [N·s/m or N·m·s/rad, depending on joint type].
-            env_ids: Articulation instance indices.
-            joint_ids: Articulation-local joint indices.
-        """
-        self._write_deprecated_native_actuator_gain("write_actuator_damping_to_sim", "kd", damping, env_ids, joint_ids)
 
     def write_joint_damping_to_sim_mask(
         self,

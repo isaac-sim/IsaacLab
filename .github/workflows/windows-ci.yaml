@@ -118,6 +118,8 @@ jobs:
       - name: Restore Warp kernel cache
         id: restore-warp
         uses: actions/cache/restore@v4
+        env:
+          PATH: ${{ steps.cache-keys.outputs.archive-path }}
         with:
           path: ${{ steps.cache-keys.outputs.warp-dir }}
           key: ${{ steps.cache-keys.outputs.warp-key }}
@@ -126,6 +128,8 @@ jobs:
       - name: Restore Kit shader cache
         id: restore-kit
         uses: actions/cache/restore@v4
+        env:
+          PATH: ${{ steps.cache-keys.outputs.archive-path }}
         with:
           path: ${{ steps.cache-keys.outputs.kit-dir }}
           key: ${{ steps.cache-keys.outputs.kit-key }}
@@ -134,6 +138,8 @@ jobs:
       - name: Restore OVRTX shader cache
         id: restore-kitless
         uses: actions/cache/restore@v4
+        env:
+          PATH: ${{ steps.cache-keys.outputs.archive-path }}
         with:
           path: ${{ steps.cache-keys.outputs.kitless-dir }}
           key: ${{ steps.cache-keys.outputs.kitless-key }}
@@ -174,6 +180,8 @@ jobs:
       - name: Save Warp kernel cache
         if: ${{ !cancelled() && steps.caches-growth.outputs.warp-changed == 'true' }}
         uses: actions/cache/save@v4
+        env:
+          PATH: ${{ steps.cache-keys.outputs.archive-path }}
         with:
           path: ${{ steps.cache-keys.outputs.warp-dir }}
           key: ${{ steps.cache-keys.outputs.warp-key }}
@@ -181,6 +189,8 @@ jobs:
       - name: Save Kit shader cache
         if: ${{ !cancelled() && steps.caches-growth.outputs.kit-changed == 'true' }}
         uses: actions/cache/save@v4
+        env:
+          PATH: ${{ steps.cache-keys.outputs.archive-path }}
         with:
           path: ${{ steps.cache-keys.outputs.kit-dir }}
           key: ${{ steps.cache-keys.outputs.kit-key }}
@@ -188,6 +198,8 @@ jobs:
       - name: Save OVRTX shader cache
         if: ${{ !cancelled() && steps.caches-growth.outputs.kitless-changed == 'true' }}
         uses: actions/cache/save@v4
+        env:
+          PATH: ${{ steps.cache-keys.outputs.archive-path }}
         with:
           path: ${{ steps.cache-keys.outputs.kitless-dir }}
           key: ${{ steps.cache-keys.outputs.kitless-key }}

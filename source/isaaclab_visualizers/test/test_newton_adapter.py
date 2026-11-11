@@ -713,7 +713,7 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     new_model = SimpleNamespace(body_label=["/Object"])
     new_state = object()
     backend = SimpleNamespace(model=new_model, state_0=new_state)
-    sim = SimpleNamespace(get_or_create_backend=Mock(return_value=backend))
+    sim = SimpleNamespace(get_or_create_backend=Mock(return_value=backend), backend_manager=Mock())
     monkeypatch.setattr(SimulationContext, "instance", Mock(side_effect=AssertionError("No global resource lookup")))
 
     viewer = _Viewer()
@@ -749,6 +749,12 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     assert viewer.picking_enabled is picking
     if picking:
         assert viewer.wind is None
+        # The new backend's step must apply picking forces again.
+        sim.backend_manager.register_state_force_callback.assert_called_once_with(
+            visualizer._viewer_picking_binding.apply
+        )
+    else:
+        sim.backend_manager.register_state_force_callback.assert_not_called()
     assert visualizer._viewer_picking_binding._viewer is viewer
 
 

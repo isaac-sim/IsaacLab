@@ -14,6 +14,7 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": f"{__name__}.flat_env_cfg:MicroDuckVelocityFlatEnvCfg",
         "rsl_rl_cfg_entry_point": f"{__name__}.agents.rsl_rl_ppo_cfg:MicroDuckPPORunnerCfg",
+        "rsl_rl_with_symmetry_cfg_entry_point": f"{__name__}.agents.rsl_rl_ppo_cfg:MicroDuckSymmetricPPORunnerCfg",
     },
 )
 
@@ -23,6 +24,7 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.rough_env_cfg:MicroDuckVelocityRoughEnvCfg",
-        "rsl_rl_cfg_entry_point": f"{__name__}.agents.rsl_rl_ppo_cfg:MicroDuckRoughPPORunnerCfg",
+        "rsl_rl_cfg_entry_point": f"{__name__}.agents.rsl_rl_ppo_cfg:MicroDuckRoughSymmetricPPORunnerCfg",
+        "rsl_rl_with_symmetry_cfg_entry_point": f"{__name__}.agents.rsl_rl_ppo_cfg:MicroDuckRoughSymmetricPPORunnerCfg",
     },
 )

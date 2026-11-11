@@ -9,7 +9,11 @@ import torch
 
 
 class EpisodeData:
-    """Class to store episode data."""
+    """An episode's tensor data and playback cursors.
+
+    Data leaves are tensors with a leading sample dimension. Collection belongs to the recorder
+    manager; this container holds snapshots or loaded datasets without accumulating samples.
+    """
 
     def __init__(self) -> None:
         """Initializes episode data class."""
@@ -85,34 +89,6 @@ class EpisodeData:
         """Check if the episode data is empty."""
         return not self._data
 
-    def add(self, key: str, value: torch.Tensor | dict, clone: bool = True):
-        """Add a key-value pair to the dataset.
-
-        The key can be nested by using the "/" character.
-        For example: "obs/joint_pos".
-
-        Args:
-            key: The key name.
-            value: The corresponding value of tensor type or of dict type.
-            clone: Whether to clone the tensor value before storing it in the episode data.
-        """
-        if isinstance(value, dict):
-            for sub_key, sub_value in value.items():
-                self.add(f"{key}/{sub_key}", sub_value, clone=clone)
-            return
-
-        stored = value.clone() if (clone and isinstance(value, torch.Tensor)) else value
-        sub_keys = key.split("/")
-        data = self._data
-        for sub_key in sub_keys[:-1]:
-            if sub_key not in data:
-                data[sub_key] = {}
-            data = data[sub_key]
-        # Accumulate in lists to avoid copying tensors on each append.
-        if sub_keys[-1] not in data:
-            data[sub_keys[-1]] = []
-        data[sub_keys[-1]].append(stored)
-
     def get_initial_state(self) -> torch.Tensor | None:
         """Get the initial state from the dataset."""
         return self._data.get("initial_state")
@@ -157,18 +133,6 @@ class EpisodeData:
         if joint_target is not None:
             self._next_joint_target_index += 1
         return joint_target
-
-    def pre_export(self):
-        """Prepare data for export by converting lists to tensors."""
-
-        def pre_export_helper(data):
-            for key, value in data.items():
-                if isinstance(value, list):
-                    data[key] = torch.stack(value)
-                elif isinstance(value, dict):
-                    pre_export_helper(value)
-
-        pre_export_helper(self._data)
 
 
 def _index_nested(data: dict | torch.Tensor, index: int, keep_dim: bool) -> dict | torch.Tensor | None:

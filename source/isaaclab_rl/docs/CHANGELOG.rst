@@ -3,6 +3,16 @@ Changelog
 
 .. towncrier release notes start
 
+5.3.1 (2026-11-03)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Required a checkpoint for custom distillation algorithms before creating the training environment.
+* Included student observation groups when exporting distilled policies to LEAPP.
+
+
 5.3.0 (2026-10-28)
 ~~~~~~~~~~~~~~~~~~
 

@@ -64,7 +64,7 @@ from ovrtx import (
 )
 from PIL import Image
 
-from pxr import Gf, Sdf, Usd, UsdGeom, UsdShade
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdLux, UsdShade
 
 from isaaclab.markers.visualization_markers_cfg import VisualizationMarkersCfg
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
@@ -101,6 +101,7 @@ from isaaclab_ov.renderers.ovrtx_usd import (
 )
 from isaaclab_ov.renderers.visual_materials import OVRTXVisualMaterialWriter
 from isaaclab_ov.stage import (
+    _handle_raw_id,
     export_stage_to_string,
     points_tensor_from_warp,
     xform_tensor_from_numpy,
@@ -205,6 +206,51 @@ def _write_combined_stage(output_dir: Path, render_product_usd: str) -> None:
     for prim in render_layer.rootPrims:
         Sdf.CopySpec(render_layer, prim.path, scene_layer, prim.path)
     _write_file(output_dir, "ovrtx_renderer_stage.usda", scene_layer.ExportToString())
+
+
+def _resolve_env_light_partitions(
+    stage: Usd.Stage,
+    env_paths: Sequence[str],
+    *,
+    copies: Sequence[tuple[str, Sequence[str]]] = (),
+) -> dict[str, str]:
+    """Resolve scene-partition tokens for environment-owned lights and their copies."""
+    partitions = {Sdf.Path(path): f"env_{index}" for index, path in enumerate(env_paths)}
+    roots: dict[Sdf.Path, list[Sdf.Path]] = {path: [] for path in partitions if stage.GetPrimAtPath(path)}
+    for source, destinations in copies:
+        source_path = Sdf.Path(source)
+        if not stage.GetPrimAtPath(source_path):
+            continue
+        roots.setdefault(source_path, []).extend(map(Sdf.Path, destinations))
+
+    assignments: dict[str, str] = {}
+    has_instance_proxy = False
+    for source_path, destinations in roots.items():
+        for prim in Usd.PrimRange(stage.GetPrimAtPath(source_path), Usd.TraverseInstanceProxies()):
+            if not prim.HasAPI(UsdLux.LightAPI):
+                continue
+            path = prim.GetPath()
+            targets = (path, *(path.ReplacePrefix(source_path, destination) for destination in destinations))
+            resolved = []
+            for target in targets:
+                ancestor = target
+                while ancestor != Sdf.Path.absoluteRootPath:
+                    if ancestor in partitions:
+                        resolved.append((str(target), partitions[ancestor]))
+                        break
+                    ancestor = ancestor.GetParentPath()
+            if prim.IsInstanceProxy():
+                if resolved:
+                    has_instance_proxy = True
+            else:
+                assignments.update(resolved)
+
+    if has_instance_proxy:
+        logger.warning(
+            "Lights inside USD instances cannot be assigned to environment scene partitions and may affect other"
+            " environments."
+        )
+    return assignments
 
 
 class OVRTXBackend:
@@ -379,16 +425,15 @@ class OVRTXRenderer(BaseRenderer):
         """Load, clone, and bind the shared scene before any camera products are registered."""
         logger.info("Preparing stage (%d envs)...", num_envs)
         env_paths = self.scene.clone_env_paths
+        light_partitions = _resolve_env_light_partitions(stage, env_paths, copies=self.scene.clone_copies)
         if self.cfg.temp_usd_dir is not None or not self._use_ovstage or not self.scene.ordinal:
             if self.cfg.temp_usd_dir is not None:
                 _write_file(Path(self.cfg.temp_usd_dir), "pre_ovrtx_renderer_stage.usda", stage.ExportToString())
-            # Shared physics stages need fully composed instance collider data.
+            # Physics population needs fully composed instance collider data.
             usd = export_stage_to_string(
                 stage, self.scene.clone_env_paths, source_paths=tuple(source for source, _ in self.scene.clone_copies),
                 keep_env_roots=False, env_paths=self.scene.population_env_paths,
-                preserve_references=not (
-                    self._use_ovstage and self.scene.cfg.population_domains & ovstage.PopulationDomain.PHYSICS
-                ),
+                preserve_references=not (self._use_ovstage and self.scene.cfg.populate_physics),
             )  # fmt: skip
             if not self._use_ovstage and _OVRTX_VERSION is not None and _OVRTX_VERSION.release[:2] == (0, 7):
                 # Author the camera mode before loading the stage: changing it later
@@ -410,18 +455,25 @@ class OVRTXRenderer(BaseRenderer):
             else:
                 self.backend.renderer.open_usd_from_string(usd)
                 ovrtx_replicate(self.backend.renderer, self.scene.clone_copies, env_paths, self.scene.clone_positions)
-        tokens = [f"env_{i}" for i in range(len(env_paths))]
-        if env_paths:
+        partition_writes = (
+            (env_paths, "primvars:omni:scenePartition", [f"env_{i}" for i in range(len(env_paths))]),
+            (list(light_partitions), "omni:scenePartition", list(light_partitions.values())),
+        )
+        for paths, attribute_name, tokens in partition_writes:
+            if not paths:
+                continue
             if self._use_ovstage:
-                with self.scene.query(env_paths) as query:
+                with self.scene.query(paths) as query:
                     self.scene.stage.write_attribute(
-                        query, "primvars:omni:scenePartition", ordinal=self.scene.ordinal,
-                        tensors=np.array([self.scene.paths.intern_token(token) for token in tokens], np.uint64),
+                        query, attribute_name, ordinal=self.scene.ordinal,
+                        tensors=np.array(
+                            [_handle_raw_id(self.scene.paths.intern_token(token)) for token in tokens], dtype=np.uint64
+                        ),
                         is_array=False, semantic=ovstage.AttributeSemantic.TOKEN_ID,
                     ).wait()  # fmt: skip
             else:
                 self.backend.renderer.write_attribute(
-                    env_paths, "primvars:omni:scenePartition", tokens,
+                    paths, attribute_name, tokens,
                     semantic=Semantic.TOKEN_STRING, prim_mode=PrimMode.CREATE_NEW,
                 )  # fmt: skip
         self._setup_xform_bindings(stage)
@@ -593,7 +645,9 @@ class OVRTXRenderer(BaseRenderer):
                         query,
                         "camera",
                         ordinal=self.scene.ordinal,
-                        tensors=np.array([self.scene.paths.intern_path(p) for p in camera_paths], dtype=np.uint64),
+                        tensors=np.array(
+                            [_handle_raw_id(self.scene.paths.intern_path(p)) for p in camera_paths], dtype=np.uint64
+                        ),
                         is_array=True,
                         semantic=ovstage.AttributeSemantic.RELATIONSHIP_PATH_ID,
                     ).wait()
@@ -611,7 +665,10 @@ class OVRTXRenderer(BaseRenderer):
                         "omni:scenePartition",
                         ordinal=self.scene.ordinal,
                         tensors=np.array(
-                            [self.scene.paths.intern_token(partition) for partition in camera_partitions],
+                            [
+                                _handle_raw_id(self.scene.paths.intern_token(partition))
+                                for partition in camera_partitions
+                            ],
                             dtype=np.uint64,
                         ),
                         is_array=False,
@@ -1413,7 +1470,7 @@ class OVRTXMesh:
                 self.query,
                 "visibility",
                 ordinal=self.renderer.scene.ordinal,
-                tensors=np.array([self.renderer.scene.paths.intern_token(token)], np.uint64),
+                tensors=np.array([_handle_raw_id(self.renderer.scene.paths.intern_token(token))], dtype=np.uint64),
                 is_array=False,
                 semantic=ovstage.AttributeSemantic.TOKEN_ID,
             ).wait()
@@ -1529,7 +1586,7 @@ class OVRTXMarkers:
                     self._root_query,
                     "visibility",
                     ordinal=renderer.scene.ordinal,
-                    tensors=np.array([renderer.scene.paths.intern_token(token)], dtype=np.uint64),
+                    tensors=np.array([_handle_raw_id(renderer.scene.paths.intern_token(token))], dtype=np.uint64),
                     is_array=False,
                     semantic=ovstage.AttributeSemantic.TOKEN_ID,
                 ).wait()

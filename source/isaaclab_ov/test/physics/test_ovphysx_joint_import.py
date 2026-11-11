@@ -21,6 +21,8 @@ from pxr import Gf, Sdf, UsdGeom, UsdPhysics
 
 from isaaclab.sim import SimulationCfg, build_simulation_context
 
+pytestmark = pytest.mark.ov
+
 
 def _build_articulation(stage, root, body_names, body_mass):
     UsdPhysics.ArticulationRootAPI.Apply(UsdGeom.Xform.Define(stage, root).GetPrim())

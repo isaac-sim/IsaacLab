@@ -7,7 +7,7 @@
 
 from dataclasses import MISSING
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, SteelSolverCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
@@ -56,6 +56,17 @@ class ReachPhysicsCfg(PresetCfg):
         num_substeps=2,
         debug_mode=False,
         use_cuda_graph=True,
+    )
+    newton_steel: NewtonCfg = NewtonCfg(
+        solver_cfg=SteelSolverCfg(
+            update_mass_matrix_interval=2,
+            enable_joint_limits=True,
+            enable_joint_velocity_limits=True,
+            joint_limit_activation_gap=0.1,
+            articulation_constraint_max=64,
+            free_body_constraint_max=32,
+        ),
+        num_substeps=2,
     )
     default: NewtonCfg = newton_mjwarp
 
