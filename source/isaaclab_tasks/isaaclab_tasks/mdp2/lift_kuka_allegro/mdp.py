@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import torch
 import warp as wp
-from isaaclab_experimental.mdp2 import Implementation, State, Term
+from isaaclab_experimental.mdp2 import State, Term
 
 from isaaclab.utils import math as math_utils
 
@@ -139,37 +139,17 @@ def _succeeded(
     contact_threshold: float,
 ) -> float:
     if goal_error[world] < distance and _grasped(world, thumb_force, finger_force, contact_threshold):
-        return 1.0
+        succeeded[world] = 1.0
     return succeeded[world]
-
-
-@wp.func
-def _succeeded_update(
-    world: int,
-    goal_error: wp.array(dtype=float),
-    thumb_force: wp.array(dtype=float),
-    finger_force: wp.array(dtype=float),
-    succeeded: wp.array(dtype=float),
-    distance: float,
-    contact_threshold: float,
-):
-    succeeded[world] = _succeeded(world, goal_error, thumb_force, finger_force, succeeded, distance, contact_threshold)
 
 
 def _succeeded_torch(goal_error, thumb_force, finger_force, succeeded, *, distance, contact_threshold):
     reached = (goal_error < distance) & _grasped_torch(thumb_force, finger_force, contact_threshold)
-    return torch.where(reached, 1.0, succeeded)
+    succeeded.copy_(torch.where(reached, 1.0, succeeded))
+    return succeeded
 
 
-def _succeeded_update_torch(succeeded, mask=None, **arguments):
-    succeeded.copy_(_succeeded_torch(succeeded=succeeded, **arguments))
-
-
-succeeded = Term(
-    torch=Implementation(compute=_succeeded_torch, update=_succeeded_update_torch),
-    warp=Implementation(compute=_succeeded, update=_succeeded_update),
-    state={"succeeded": State()},
-)
+succeeded = Term(torch=_succeeded_torch, warp=_succeeded, state={"succeeded": State()})
 """1 once the grasped object has been within ``distance`` of the goal in the episode, else 0.
 
 A quantity that the curriculum and the reset bank read when the episode ends.
@@ -213,32 +193,6 @@ Scaled by 0.1 unless the object is grasped with forces above ``contact_threshold
 
 
 @wp.func
-def _progress(
-    world: int,
-    command: wp.array2d(dtype=float),
-    goal_error: wp.array(dtype=float),
-    thumb_force: wp.array(dtype=float),
-    finger_force: wp.array(dtype=float),
-    best_error: wp.array(dtype=float),
-    last_command: wp.array2d(dtype=float),
-    min_improvement: float,
-    contact_threshold: float,
-) -> wp.vec2f:
-    """Return whether the step is paid, and the best error so far, which restarts when the command changes."""
-    error = goal_error[world]
-    best = best_error[world]
-    for k in range(command.shape[1]):
-        if command[world, k] != last_command[world, k]:
-            best = wp.inf
-    if best == wp.inf:
-        best = error
-
-    if _grasped(world, thumb_force, finger_force, contact_threshold) and error < best - min_improvement:
-        return wp.vec2f(1.0, error)
-    return wp.vec2f(0.0, best)
-
-
-@wp.func
 def _position_command_progress(
     world: int,
     command: wp.array2d(dtype=float),
@@ -250,71 +204,39 @@ def _position_command_progress(
     min_improvement: float,
     contact_threshold: float,
 ) -> float:
-    progress = _progress(
-        world,
-        command,
-        goal_error,
-        thumb_force,
-        finger_force,
-        best_error,
-        last_command,
-        min_improvement,
-        contact_threshold,
-    )
-    return progress[0]
+    error = goal_error[world]
 
-
-@wp.func
-def _position_command_progress_update(
-    world: int,
-    command: wp.array2d(dtype=float),
-    goal_error: wp.array(dtype=float),
-    thumb_force: wp.array(dtype=float),
-    finger_force: wp.array(dtype=float),
-    best_error: wp.array(dtype=float),
-    last_command: wp.array2d(dtype=float),
-    min_improvement: float,
-    contact_threshold: float,
-):
-    progress = _progress(
-        world,
-        command,
-        goal_error,
-        thumb_force,
-        finger_force,
-        best_error,
-        last_command,
-        min_improvement,
-        contact_threshold,
-    )
-    best_error[world] = progress[1]
+    # The best error restarts with a new episode or command.
+    best = best_error[world]
     for k in range(command.shape[1]):
+        if command[world, k] != last_command[world, k]:
+            best = wp.inf
         last_command[world, k] = command[world, k]
+    if best == wp.inf:
+        best = error
+
+    paid = _grasped(world, thumb_force, finger_force, contact_threshold) and error < best - min_improvement
+    if paid:
+        best = error
+    best_error[world] = best
+    return wp.where(paid, 1.0, 0.0)
 
 
-def _progress_torch(
+def _position_command_progress_torch(
     command, goal_error, thumb_force, finger_force, best_error, last_command, *, min_improvement, contact_threshold
 ):
     restart = (command != last_command).any(-1) | best_error.isinf()
     best = torch.where(restart, goal_error, best_error)
     paid = _grasped_torch(thumb_force, finger_force, contact_threshold) & (goal_error < best - min_improvement)
-    return paid, torch.where(paid, goal_error, best)
 
-
-def _position_command_progress_torch(**arguments):
-    paid, _ = _progress_torch(**arguments)
+    best_error.copy_(torch.where(paid, goal_error, best))
+    last_command.copy_(command)
     return paid.float()
 
 
-def _position_command_progress_update_torch(mask=None, **arguments):
-    _, best = _progress_torch(**arguments)
-    arguments["best_error"].copy_(best)
-    arguments["last_command"].copy_(arguments["command"])
-
-
 position_command_progress = Term(
-    torch=Implementation(compute=_position_command_progress_torch, update=_position_command_progress_update_torch),
-    warp=Implementation(compute=_position_command_progress, update=_position_command_progress_update),
+    torch=_position_command_progress_torch,
+    warp=_position_command_progress,
     state={"best_error": State(initial=float("inf")), "last_command": State(shape=("worlds", "command"))},
 )
 """1 each time the grasped object gets ``min_improvement`` closer to the commanded position than ever before.

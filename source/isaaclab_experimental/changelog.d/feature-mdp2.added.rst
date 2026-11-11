@@ -71,6 +71,10 @@
   :class:`~isaaclab_experimental.envs.MDP2RLEnv` as ``Metrics/<name>`` with ``log=True``. The terms
   :data:`~isaaclab_experimental.mdp2.mdp.value` and :data:`~isaaclab_experimental.mdp2.mdp.is_positive` reward and
   end episodes on a quantity.
+* Added :attr:`~isaaclab_experimental.mdp2.MDPState.arrays`, one store of every array of the MDP's state, keyed by
+  field selector, by :func:`~isaaclab_experimental.mdp2.term_state` for term state, and by name for the rest. The
+  ``compute`` hook of a quantity, termination, or reward may advance the term's state, so that such terms need no
+  ``update`` hook.
 * Added :meth:`~isaaclab_experimental.mdp2.SceneData.commit`, with which the environment makes the simulation see
   the fields that reset events wrote, and ``Event(commit=True)``, a reset event before which the scene commits the
   writes of the earlier ones, so that it reads the body poses they gave. The ``gravity_w`` field of the scene data of

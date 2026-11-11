@@ -45,7 +45,7 @@ from .config import (
     term_state,
     terminated,
 )
-from .plan import ActionOp, Segment, TermOp, build_plan
+from .plan import ActionOp, ObservationOutput, Segment, TermOp, build_plan
 from .scene import SceneSchema
 from .terms import Implementation, hook_arguments
 
@@ -330,10 +330,18 @@ class MDPBuilder:
                 replace(
                     op,
                     stream=streams.setdefault(op.use, len(streams)) if op.random or op.timer is not None else None,
-                    noise_stream=None if op.noise is None else streams.setdefault(f"{op.use}/noise", len(streams)),
                 )
                 for op in ops[phase]
             )
+        ops[Phase.OBSERVATIONS] = tuple(
+            replace(
+                op,
+                observation=replace(op.observation, noise_stream=streams.setdefault(f"{op.use}/noise", len(streams))),
+            )
+            if op.observation.noise is not None
+            else op
+            for op in ops[Phase.OBSERVATIONS]
+        )
         ops = MappingProxyType(ops)
 
         groups = dict.fromkeys(group for context in contexts for group in context.observation_dims)
@@ -400,12 +408,13 @@ class MDPBuilder:
             ops.sort(key=lambda op: position[op.name])
             starts = dict.fromkeys(context.observation_dims, 0)
             for k, op in enumerate(ops):
-                columns = op.columns
-                if op.group:
-                    width = columns.stop - columns.start
-                    columns = slice(starts[op.group], starts[op.group] + width)
-                    starts[op.group] = columns.stop
-                ops[k] = replace(op, index=k, columns=columns)
+                observation = op.observation
+                if observation is not None:
+                    start = starts[observation.group]
+                    stop = start + observation.columns.stop - observation.columns.start
+                    starts[observation.group] = stop
+                    observation = replace(observation, columns=slice(start, stop))
+                ops[k] = replace(op, index=k, observation=observation)
 
         if len(time_limits) > 1:
             context.errors.append(f"Only one time limit is allowed, found {', '.join(map(str, time_limits))}.")
@@ -533,13 +542,13 @@ class MDPBuilder:
         elif isinstance(cfg, Event):
             timer = cfg.interval_range_s
 
-        group = ""
-        columns = slice(None)
+        observation = None
         if isinstance(cfg, Observation):
             group = entry.path[1]
             start = context.observation_dims.get(group, 0)
             columns = slice(start, start + math.prod(output_shape) * max(cfg.history_length, 1))
             context.observation_dims[group] = columns.stop
+            observation = ObservationOutput(group, columns, cfg.noise, cfg.clip, cfg.scale, cfg.history_length)
         if isinstance(cfg, (Command, Quantity)):
             named = {dim: size for dim, size in zip(term.shape[1:], output_shape) if isinstance(dim, str)}
             context.mdp_fields[entry.writes[0]] = ArrayLayout(wp.float32, 1 + len(output_shape), named, output_shape)
@@ -572,12 +581,7 @@ class MDPBuilder:
                 writes=entry.writes,
                 weights=(cfg.weight,) if isinstance(cfg, Reward) else (),
                 time_out=cfg.time_out if isinstance(cfg, Termination) else False,
-                group=group,
-                columns=columns,
-                noise=cfg.noise if isinstance(cfg, Observation) else None,
-                clip=cfg.clip if isinstance(cfg, Observation) else None,
-                scale=cfg.scale if isinstance(cfg, Observation) else None,
-                history_length=cfg.history_length if isinstance(cfg, Observation) else 0,
+                observation=observation,
                 timer=timer,
                 random=term.random,
                 capturable=term.capturable and term.eager is None,

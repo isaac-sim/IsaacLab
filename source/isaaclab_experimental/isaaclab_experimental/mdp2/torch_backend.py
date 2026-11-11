@@ -11,7 +11,7 @@ import torch
 
 from . import rng
 from .compiled import MDP, MDPState
-from .config import FieldSelector, Phase, terminated
+from .config import FieldSelector, Phase, term_state, terminated
 from .eager import call_eager
 from .plan import Call, Launch, Launches, Step, StepKind, TermOp
 from .terms import hook_arguments
@@ -40,14 +40,14 @@ def _apply_actions(mdp: MDP, call: Call) -> None:
 
     for step in mdp.plan.apply_actions:
         op = step.op
-        target = call.state.fields[op.target].torch.view(mdp.num_worlds, -1)
-        ids = slice(None) if op.subset is None else call.state.fields[op.subset].torch.long()
+        target = call.state.arrays[op.target].torch.view(mdp.num_worlds, -1)
+        ids = slice(None) if op.subset is None else call.state.arrays[op.subset].torch.long()
         offset = op.offset
         if isinstance(offset, FieldSelector):
-            offset = call.state.fields[offset].torch.view(mdp.num_worlds, -1)[:, ids]
+            offset = call.state.arrays[offset].torch.view(mdp.num_worlds, -1)[:, ids]
         value = actions[:, op.columns] * op.scale + offset
 
-        active = call.state.active.get(op.name)
+        active = call.state.arrays.get(("active", op.name))
         if active is not None:
             value = torch.where(active.torch[:, None], value, target[:, ids])
         target[:, ids] = value
@@ -64,7 +64,7 @@ def _begin_evaluate(mdp: MDP, call: Call) -> None:
     if mdp.max_episode_length is not None:
         transition.truncated.torch.copy_(state.episode_length.torch >= mdp.max_episode_length)
     transition.done.torch.copy_(transition.truncated.torch)
-    state.fields[terminated].torch.zero_()
+    state.arrays[terminated].torch.zero_()
     transition.rewards.torch.zero_()
 
 
@@ -80,7 +80,7 @@ def _run(mdp: MDP, step: Step, call: Call, stepping: bool) -> None:
     """Run one step, for the masked worlds if the call has a mask, and only where the op is active."""
     op, state = step.op, call.state
     mask = None if call.mask is None else call.mask.torch
-    active = state.active.get(op.name)
+    active = state.arrays.get(("active", op.name))
     if active is not None:
         mask = active.torch if mask is None else mask & active.torch
 
@@ -102,7 +102,7 @@ def _run(mdp: MDP, step: Step, call: Call, stepping: bool) -> None:
             for name, spec in op.state.items():
                 if spec.persistent:
                     continue
-                values = state.term_state[op.name][name].torch.view(mdp.num_worlds, -1)
+                values = state.arrays[term_state(op.name, name)].torch.view(mdp.num_worlds, -1)
                 values.masked_fill_(mask[:, None], spec.initial)
 
 
@@ -119,11 +119,11 @@ def _compute(mdp: MDP, op: TermOp, call: Call, mask: torch.Tensor | None, steppi
 
     if op.eager:
         call_eager(mdp, op, state)
-        value = state.scratch[op.name].torch
+        value = state.arrays["scratch", op.name].torch
     else:
         value = op.compute(**hook_arguments(op.compute, state.arguments[op.name]))
     if op.phase is Phase.QUANTITIES:
-        destination = state.fields[op.writes[0]].torch
+        destination = state.arrays[op.writes[0]].torch
         if mask is not None:
             value = torch.where(mask.view(-1, *[1] * len(op.shape)), value, destination)
         destination.copy_(value)
@@ -137,7 +137,7 @@ def _compute(mdp: MDP, op: TermOp, call: Call, mask: torch.Tensor | None, steppi
         flags.torch.logical_or_(value)
         transition.done.torch.logical_or_(value)
         if not op.time_out:
-            state.fields[terminated].torch.logical_or_(value)
+            state.arrays[terminated].torch.logical_or_(value)
         if mdp.diagnostics:
             transition.termination_terms.torch[:, op.index] = value
         return
@@ -149,17 +149,20 @@ def _compute(mdp: MDP, op: TermOp, call: Call, mask: torch.Tensor | None, steppi
             transition.reward_terms.torch[:, op.index] = value
         return
 
-    destination = call.observations[op.group].torch[:, op.columns]
-    if op.noise is not None:
-        noise = rng.uniform(state.rng.torch[op.noise_stream], op.noise.n_min, op.noise.n_max, op.shape)
-        if op.noise.scale is not None:
-            noise = noise * state.fields[op.noise.scale].torch.view(-1, *[1] * len(op.shape))
+    observation = op.observation
+    destination = call.observations[observation.group].torch[:, observation.columns]
+    if observation.noise is not None:
+        noise = rng.uniform(
+            state.rng.torch[observation.noise_stream], observation.noise.n_min, observation.noise.n_max, op.shape
+        )
+        if observation.noise.scale is not None:
+            noise = noise * state.arrays[observation.noise.scale].torch.view(-1, *[1] * len(op.shape))
         value = value + noise
-    if op.clip is not None:
-        value = value.clamp(*op.clip)
-    if op.scale is not None:
-        value = value * op.scale
-    if op.history_length:
+    if observation.clip is not None:
+        value = value.clamp(*observation.clip)
+    if observation.scale is not None:
+        value = value * observation.scale
+    if observation.history_length:
         value = _history(op, state, value.reshape(mdp.num_worlds, -1), mask, push=stepping)
 
     value = value.reshape(destination.shape)
@@ -171,7 +174,7 @@ def _history(op: TermOp, state: MDPState, value: torch.Tensor, mask: torch.Tenso
 
     Returns the history, oldest first, flattened per world.
     """
-    history = state.histories[op.name].torch
+    history = state.arrays["history", op.name].torch
     selected = torch.ones_like(value[:, 0], dtype=torch.bool) if mask is None else mask
 
     if push:
@@ -186,7 +189,7 @@ def _history(op: TermOp, state: MDPState, value: torch.Tensor, mask: torch.Tenso
 
 def _tick(mdp: MDP, op: TermOp, state: MDPState) -> torch.Tensor:
     """Count down a timer and restart it where it expired. Returns where it expired."""
-    time_left = state.timers[op.name].torch
+    time_left = state.arrays["timer", op.name].torch
     time_left -= mdp.step_dt
     due = time_left <= 0.0
     _restart(op, state, due)
@@ -195,5 +198,5 @@ def _tick(mdp: MDP, op: TermOp, state: MDPState) -> torch.Tensor:
 
 def _restart(op: TermOp, state: MDPState, mask: torch.Tensor) -> None:
     """Draw a new interval for the timer of an op in the masked worlds."""
-    time_left = state.timers[op.name].torch
+    time_left = state.arrays["timer", op.name].torch
     time_left.copy_(torch.where(mask, rng.uniform(state.rng.torch[op.stream], *op.timer, offset=-1), time_left))

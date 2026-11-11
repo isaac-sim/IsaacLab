@@ -19,7 +19,7 @@ from typing import Any
 import torch
 
 from .compiled import MDP, MDPState
-from .config import FieldSelector, SubsetSelector
+from .config import FieldSelector, SubsetSelector, term_state
 from .plan import TermOp
 from .scene import SceneData
 
@@ -52,18 +52,19 @@ def call_eager(
 
     An eager term writes its output to the op's scratch buffer.
     """
-    inputs = {arg: state.fields[selector].torch for arg, selector in op.inputs.items() if selector not in op.writes}
-    outputs = {arg: state.fields[selector].torch for arg, selector in op.inputs.items() if selector in op.writes}
+    arrays = state.arrays
+    inputs = {arg: arrays[selector].torch for arg, selector in op.inputs.items() if selector not in op.writes}
+    outputs = {arg: arrays[selector].torch for arg, selector in op.inputs.items() if selector in op.writes}
 
     context = TermContext(
         num_worlds=mdp.num_worlds,
         step_dt=mdp.step_dt,
         inputs=inputs,
         outputs=outputs,
-        state={name: value.torch for name, value in state.term_state[op.name].items()},
+        state={name: arrays[term_state(op.name, name)].torch for name in op.state},
         rng=state.rng.torch[op.stream] if op.random else None,
         mask=mask,
-        out=state.scratch[op.name].torch if op.name in state.scratch else None,
+        out=arrays["scratch", op.name].torch if ("scratch", op.name) in arrays else None,
         selectors=op.inputs,
         scene_data=state.scene_data,
         cache=state.caches.setdefault(op.name, {}),

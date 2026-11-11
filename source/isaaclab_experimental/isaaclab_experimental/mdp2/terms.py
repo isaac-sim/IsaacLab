@@ -33,9 +33,12 @@ class Implementation:
 
     Torch hooks are batched over worlds:
 
-    - ``compute(**args)`` returns the output. It must not change state: observations are computed again after a
-      reset, and continuing worlds must get the same sample.
-    - ``update(**args)`` advances state in place, once per step after ``compute``. A hook that writes a field that
+    - ``compute(**args)`` returns the output. Quantities, terminations, and rewards are computed once per step, so
+      their ``compute`` may also advance the term's state in place. An observation's must not: observations are
+      computed again after a reset, and continuing worlds must get the same sample. Nor may the ``compute`` of a
+      quantity that observations read, unless repeating it leaves the state as it is.
+    - ``update(**args)`` advances state in place, once per step after ``compute``, for terms whose ``compute``
+      must not. A hook that writes a field that
       other world configs share, such as a command, also takes ``mask``, the worlds where its op runs (None for
       every world).
     - ``reset(mask, **args)`` resets the masked worlds' state, after the reset events ran and the commands were

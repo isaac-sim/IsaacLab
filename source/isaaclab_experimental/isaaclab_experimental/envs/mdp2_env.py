@@ -237,7 +237,7 @@ class MDP2RLEnv(MDP2Env, gym.Env):
         self._last_terminations = torch.zeros(self.num_envs, len(self._termination_names), device=self.device)
         self._metrics = {
             op.name.split(".", 1)[1]: (
-                self.state.fields[op.writes[0]].torch,
+                self.state.arrays[op.writes[0]].torch,
                 torch.zeros(self.num_envs, device=self.device),
             )
             for op in self.mdp.ops[mdp2.Phase.QUANTITIES]

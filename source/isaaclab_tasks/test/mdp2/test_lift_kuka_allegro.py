@@ -27,6 +27,8 @@ pytestmark = pytest.mark.skipif(not torch.cuda.is_available(), reason="Newton ne
 
 NUM_ENVS = 16
 FINGERTIPS = ("index_link_3", "middle_link_3", "ring_link_3", "thumb_link_3")
+BANKED = ("playing", "bank_joint_pos", "bank_joint_vel", "bank_object_pose_w", "bank_object_vel_w")
+PROGRESS = mdp2.term_state("events.adr", "progress")
 
 
 @pytest.fixture(scope="module")
@@ -75,8 +77,8 @@ def scenario() -> Iterator[SimpleNamespace]:
 
 def bank_and_scene_state(env: MDP2RLEnv, state: mdp2.MDPState) -> dict[str, tuple[torch.Tensor, torch.Tensor]]:
     """Return, per banked field, the banked state that each world plays and the field's value in the scene."""
-    bank = state.term_state["events.reset"]
-    rows = torch.arange(NUM_ENVS, device=env.device), bank["playing"].torch.long()
+    bank = {name: state.arrays[mdp2.term_state("events.reset", name)].torch for name in BANKED}
+    rows = torch.arange(NUM_ENVS, device=env.device), bank["playing"].long()
     robot, target = env.scene["robot"].data, env.scene["object"].data
     fields = {
         "joint_pos": robot.joint_pos,
@@ -84,7 +86,7 @@ def bank_and_scene_state(env: MDP2RLEnv, state: mdp2.MDPState) -> dict[str, tupl
         "object_pose_w": target.root_link_pose_w,
         "object_vel_w": target.root_com_vel_w,
     }
-    return {name: (bank[f"bank_{name}"].torch[rows].clone(), field.torch.clone()) for name, field in fields.items()}
+    return {name: (bank[f"bank_{name}"][rows].clone(), field.torch.clone()) for name, field in fields.items()}
 
 
 def build(scenario: SimpleNamespace, backend: str) -> tuple[mdp2.MDP, mdp2.MDPState]:
@@ -95,9 +97,10 @@ def build(scenario: SimpleNamespace, backend: str) -> tuple[mdp2.MDP, mdp2.MDPSt
     mdp = builder.finalize(device=env.device, backend=backend, diagnostics=True)
     state = mdp.state(env.scene_data)
 
-    for op_name, values in env.state.term_state.items():
-        for name, value in values.items():
-            state.term_state[op_name][name].torch.copy_(value.torch)
+    for op in mdp.term_ops:
+        for name in op.state:
+            key = mdp2.term_state(op.name, name)
+            state.arrays[key].torch.copy_(env.state.arrays[key].torch)
     return mdp, state
 
 
@@ -107,10 +110,11 @@ def evaluate(scenario: SimpleNamespace, backend: str, progress: float) -> tuple[
     transition = mdp.transition()
 
     # A progress the objects can beat.
-    state.term_state["events.adr"]["progress"].torch.fill_(progress)
-    state.fields[mdp2.commands.object_pose].torch.copy_(scenario.command)
-    state.term_state["rewards.position_tracking"]["last_command"].torch.copy_(scenario.command)
-    state.term_state["rewards.position_tracking"]["best_error"].torch.copy_(scenario.best_error)
+    state.arrays[PROGRESS].torch.fill_(progress)
+    state.arrays[mdp2.commands.object_pose].torch.copy_(scenario.command)
+    tracking = "rewards.position_tracking"
+    state.arrays[mdp2.term_state(tracking, "last_command")].torch.copy_(scenario.command)
+    state.arrays[mdp2.term_state(tracking, "best_error")].torch.copy_(scenario.best_error)
 
     mdp2.evaluate(mdp, state, transition)
     results = {
@@ -188,7 +192,7 @@ def test_terms_match_mdp1(scenario: SimpleNamespace):
     expected = {
         "observations.policy.object_quat_b": lift_mdp1.object_quat_b(mdp1_env, robot, target),
         # Observations see the command that this evaluation resampled; rewards see the scenario's.
-        "observations.policy.target_object_pose_b": state.fields[mdp2.commands.object_pose].torch,
+        "observations.policy.target_object_pose_b": state.arrays[mdp2.commands.object_pose].torch,
         "observations.proprio.joint_pos": env.scene["robot"].data.joint_pos.torch,
         "observations.proprio.joint_vel": env.scene["robot"].data.joint_vel.torch,
         "observations.proprio.hand_tips_state_b": body_state(mdp1_env, hand, robot, include_vel=False).clamp(-2, 2),
@@ -208,7 +212,7 @@ def test_terms_match_mdp1(scenario: SimpleNamespace):
     values = {}
     for op in mdp.ops[mdp2.Phase.OBSERVATIONS]:
         width = math.prod(op.shape)
-        values[op.name] = results[op.group][:, op.columns][:, -width:]
+        values[op.name] = results[op.observation.group][:, op.observation.columns][:, -width:]
     for op in mdp.ops[mdp2.Phase.REWARDS]:
         values[op.name] = results["rewards"][:, op.index] / (op.weights[0] * env.step_dt)
     for op in mdp.ops[mdp2.Phase.TERMINATIONS]:
@@ -219,7 +223,7 @@ def test_terms_match_mdp1(scenario: SimpleNamespace):
     for name, value in expected.items():
         expected_value = value.reshape(NUM_ENVS, -1).squeeze(-1).to(values[name].dtype)
         torch.testing.assert_close(values[name], expected_value, msg=lambda message, name=name: f"{name}: {message}")
-    assert torch.equal(state.fields[mdp2.quantities.success].torch > 0.5, success.succeeded)
+    assert torch.equal(state.arrays[mdp2.quantities.success].torch > 0.5, success.succeeded)
 
 
 def test_step_replays_as_one_graph_with_curriculum_and_bank(scenario: SimpleNamespace):
@@ -234,13 +238,13 @@ def test_step_replays_as_one_graph_with_curriculum_and_bank(scenario: SimpleName
     for backend in ("torch", "warp"):
         mdp, state = build(scenario, backend)
         mdp2.reset(mdp, state, mask)
-        playing[backend] = state.term_state["events.reset"]["playing"].torch.clone()
+        playing[backend] = state.arrays[mdp2.term_state("events.reset", "playing")].torch.clone()
         for name, (banked, restored) in bank_and_scene_state(env, state).items():
             torch.testing.assert_close(restored, banked, atol=1e-5, rtol=0.0, msg=lambda message, name=name: name)
     assert torch.equal(playing["torch"], playing["warp"])
 
     # At full progress, the worlds that the replayed graph resets get the final gravity.
-    env.state.term_state["events.adr"]["progress"].torch.fill_(1.0)
+    env.state.arrays[PROGRESS].torch.fill_(1.0)
     env.episode_length_buf = torch.full_like(env.episode_length_buf, env.max_episode_length)
     env.step(torch.zeros(NUM_ENVS, env.mdp.action_dim, device=env.device))
 

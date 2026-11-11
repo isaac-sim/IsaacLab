@@ -588,7 +588,7 @@ def test_reset_touches_only_selected_worlds():
 
     def snapshot():
         buffers = [state.episode_length, state.actions, observations["policy"], scene.data("robot", "joint_pos")]
-        buffers += [value for term in state.term_state.values() for value in term.values()]
+        buffers += [state.arrays[mdp2.term_state(op.name, name)] for op in mdp.term_ops for name in op.state]
         return [buffer.torch.clone() for buffer in buffers]
 
     before = snapshot()
@@ -1025,7 +1025,7 @@ def test_command_resamples_keep_their_state():
         for _ in range(4):
             mdp2.evaluate(mdp, state, transition)
         mdp2.reset(mdp, state, ProxyArray(wp.ones(4, dtype=wp.bool, device=DEVICE)))
-        results[backend] = state.fields[mdp2.commands.count].torch.clone()
+        results[backend] = state.arrays[mdp2.commands.count].torch.clone()
 
     # The reset samples once, then the 0.03 s timer expires every second 0.02 s step, then the reset samples again.
     assert torch.equal(results["torch"], torch.full((4,), 4.0, device=DEVICE))
@@ -1067,7 +1067,7 @@ def test_command_updates_change_only_their_worlds():
             mdp2.evaluate(mdp, state, transition)
 
         expected = torch.tensor([4.0, 4.0, 7.0, 7.0], device=DEVICE)
-        assert torch.equal(state.fields[mdp2.commands.count].torch, expected)
+        assert torch.equal(state.arrays[mdp2.commands.count].torch, expected)
 
 
 def test_library_commands():
@@ -1116,29 +1116,21 @@ def test_library_commands():
 
 @wp.func
 def reached_warp(world: int, joint_pos: wp.array2d(dtype=float), reached: wp.array(dtype=float)) -> float:
-    return wp.where(joint_pos[world, 0] > 0.0, 1.0, reached[world])
-
-
-@wp.func
-def reached_update_warp(world: int, joint_pos: wp.array2d(dtype=float), reached: wp.array(dtype=float)):
     if joint_pos[world, 0] > 0.0:
         reached[world] = 1.0
+    return reached[world]
 
 
 def reached_torch(joint_pos, reached):
-    return torch.where(joint_pos[:, 0] > 0.0, 1.0, reached)
+    reached.copy_(torch.where(joint_pos[:, 0] > 0.0, 1.0, reached))
+    return reached
 
 
-def reached_update_torch(joint_pos, reached):
-    reached.copy_(reached_torch(joint_pos, reached))
+reached = mdp2.Term(torch=reached_torch, warp=reached_warp, state={"reached": mdp2.State()})
+"""Whether the first joint position was ever positive this episode, sticky like MDP1's success flags.
 
-
-reached = mdp2.Term(
-    torch=mdp2.Implementation(compute=reached_torch, update=reached_update_torch),
-    warp=mdp2.Implementation(compute=reached_warp, update=reached_update_warp),
-    state={"reached": mdp2.State()},
-)
-"""Whether the first joint position was ever positive this episode, sticky like MDP1's success flags."""
+Its compute writes its state, which a quantity may do; repeating it changes nothing, so observations may read it.
+"""
 
 
 def test_curriculum_reads_quantity_and_scales_noise():
@@ -1178,10 +1170,9 @@ def test_curriculum_reads_quantity_and_scales_noise():
         assert (transition.rewards.torch > 0.0).all()
         env_reset(mdp, state, scene, transition.observations, all_worlds)
 
-        curriculum_state = state.term_state["events.curriculum"]
-        assert curriculum_state["progress"].torch.tolist() == [0.5] * 4
+        assert state.arrays[mdp2.term_state("events.curriculum", "progress")].torch.tolist() == [0.5] * 4
         # The sticky state restarts after the curriculum read it, and the new episode's observation sees that.
-        assert state.term_state["quantities.reached"]["reached"].torch.tolist() == [0.0] * 4
+        assert state.arrays[mdp2.term_state("quantities.reached", "reached")].torch.tolist() == [0.0] * 4
         assert transition.observations["policy"].torch[:, 2].tolist() == [0.0] * 4
         noise_values = transition.observations["policy"].torch[:, :2] - joint_positions
         assert (noise_values.abs() <= 0.5).all() and (noise_values != 0.0).any()

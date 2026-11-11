@@ -335,10 +335,10 @@ def test_heading_command_steers_towards_its_heading(env: MDP2Env):
         state, transition = model.state(env.scene_data, seed=1), model.transition()
 
         mdp2.reset(model, state, ProxyArray(wp.ones(NUM_ENVS, dtype=wp.bool, device=env.device)))
-        sampled = state.fields[mdp2.commands.base_velocity].torch.clone()
+        sampled = state.arrays[mdp2.commands.base_velocity].torch.clone()
         mdp2.evaluate(model, state, transition)
-        updated = state.fields[mdp2.commands.base_velocity].torch.clone()
-        heading = state.term_state["commands.base_velocity"]["heading_target"].torch.clone()
+        updated = state.arrays[mdp2.commands.base_velocity].torch.clone()
+        heading = state.arrays[mdp2.term_state("commands.base_velocity", "heading_target")].torch.clone()
         results[backend] = (sampled, updated, heading)
 
     for value, expected in zip(results["warp"], results["torch"]):

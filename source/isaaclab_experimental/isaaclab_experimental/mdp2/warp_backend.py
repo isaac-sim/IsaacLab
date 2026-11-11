@@ -86,7 +86,7 @@ def _startup(mdp: MDP) -> tuple[Callable[[Call], None], ...]:
 def _apply_actions(mdp: MDP) -> tuple[Callable[[Call], None], ...]:
     code = Fusion("apply_actions", mdp.num_worlds, mdp.device)
     actions = code.argument("actions", wp.array2d(dtype=wp.float32), lambda call: call.actions.warp)
-    last_actions = _field(code, last_action, wp.array2d(dtype=wp.float32))
+    last_actions = _array(code, last_action, wp.array2d(dtype=wp.float32))
     code.elements(
         (mdp.action_dim,), f"{last_actions}[world, element] = {actions}[world, element]", writes=[last_action]
     )
@@ -94,13 +94,13 @@ def _apply_actions(mdp: MDP) -> tuple[Callable[[Call], None], ...]:
     # Fields with more dimensions per world are flattened; joint fields are views of the solver state that may be
     # strided, so they are passed as they are.
     def rows(call: Call, selector: FieldSelector) -> wp.array:
-        field = call.state.fields[selector].warp
+        field = call.state.arrays[selector].warp
         return field if field.ndim == 2 else field.reshape((mdp.num_worlds, -1))
 
     for step in mdp.plan.apply_actions:
         op = step.op
         target = code.argument(op.target, wp.array2d(dtype=wp.float32), lambda call, op=op: rows(call, op.target))
-        index = "element" if op.subset is None else f"{_field(code, op.subset, wp.array(dtype=wp.int32))}[element]"
+        index = "element" if op.subset is None else f"{_array(code, op.subset, wp.array(dtype=wp.int32))}[element]"
         offset = code.constant(float, op.offset)
         if isinstance(op.offset, FieldSelector):
             offsets = code.argument(op.offset, wp.array2d(dtype=wp.float32), lambda call, op=op: rows(call, op.offset))
@@ -117,8 +117,8 @@ def _apply_actions(mdp: MDP) -> tuple[Callable[[Call], None], ...]:
 
 def _evaluate(mdp: MDP) -> tuple[Callable[[Call], None], ...]:
     code = Fusion("evaluate", mdp.num_worlds, mdp.device)
-    length = _field(code, episode_length, wp.array(dtype=wp.int32))
-    ended = _field(code, terminated, wp.array(dtype=wp.bool))
+    length = _array(code, episode_length, wp.array(dtype=wp.int32))
+    ended = _array(code, terminated, wp.array(dtype=wp.bool))
     terminated_result, truncated, done, rewards = (
         _result(code, key) for key in ("terminated", "truncated", "done", "rewards")
     )
@@ -143,8 +143,8 @@ def _evaluate(mdp: MDP) -> tuple[Callable[[Call], None], ...]:
 
 def _reset(mdp: MDP) -> tuple[Callable[[Call], None], ...]:
     code = Fusion("reset", mdp.num_worlds, mdp.device, _mask)
-    length = _field(code, episode_length, wp.array(dtype=wp.int32))
-    last_actions = _field(code, last_action, wp.array2d(dtype=wp.float32))
+    length = _array(code, episode_length, wp.array(dtype=wp.int32))
+    last_actions = _array(code, last_action, wp.array2d(dtype=wp.float32))
     code.world(
         f"{code.function(_advance)}(world, {_rng(code)})",
         f"{length}[world] = 0",
@@ -175,7 +175,7 @@ def _emit(code: Fusion, mdp: MDP, steps: Iterable[Step], stepping: bool = False)
                 _compute(code, mdp, op, [*active, f"if {_due(code, mdp, op, active)}:"], stepping)
             case StepKind.UPDATE_STATE:
                 # A function hook gets the worlds where the op runs, None for every world.
-                running = None if op.worlds is None else lambda call, op=op: call.state.active[op.name].warp
+                running = None if op.worlds is None else lambda call, op=op: call.state.arrays["active", op.name].warp
                 _run(code, mdp, op, op.update, [*state, *op.writes], active, running)
             case StepKind.RESET_TIMER:
                 restart = f"{code.function(_restart)}({_timer(code, op)})"
@@ -194,11 +194,7 @@ def _reset_state(code: Fusion, op: TermOp, conditions: Sequence[str]) -> None:
         if spec.persistent:
             continue
         key, shape = term_state(op.name, name), spec.shape[1:]
-        values = code.argument(
-            key,
-            wp.array(dtype=wp.float32, ndim=len(spec.shape)),
-            lambda call, name=name: call.state.arguments[op.name][name],
-        )
+        values = _array(code, key, wp.array(dtype=wp.float32, ndim=len(spec.shape)))
         loops = [f"for i{d} in range({size}):" for d, size in enumerate(shape)]
         fill = f"{values}[{_index(shape)}] = {code.constant(float, spec.initial)}"
         code.world(*_under([*conditions, *loops], fill), writes=[key])
@@ -216,25 +212,23 @@ def _compute(code: Fusion, mdp: MDP, op: TermOp, conditions: Sequence[str] = (),
     match op.phase:
         case Phase.QUANTITIES:
             value = _value(code, mdp, op)
-            field = _field(code, op.writes[0], wp.array(dtype=wp.float32, ndim=1 + len(op.shape)))
+            field = _array(code, op.writes[0], wp.array(dtype=wp.float32, ndim=1 + len(op.shape)))
             loops = [f"for i{d} in range({size}):" for d, size in enumerate(op.shape)]
             assignment = f"{field}[{_index(op.shape)}] = {value}"
-            code.world(*_under([*conditions, *loops], assignment), writes=op.writes)
+            code.world(*_under([*conditions, *loops], assignment), writes=[*op.writes, *_computed_state(op)])
         case Phase.TERMINATIONS:
             writes = ["truncated" if op.time_out else "terminated", "done"]
             flags = [f"{_result(code, key)}[world] = True" for key in writes]
             if not op.time_out:
-                flags.append(f"{_field(code, terminated, wp.array(dtype=wp.bool))}[world] = True")
+                flags.append(f"{_array(code, terminated, wp.array(dtype=wp.bool))}[world] = True")
                 writes.append(terminated)
             lines = [f"ended = {_value(code, mdp, op)}", *_under(["if ended:"], *flags)]
             if mdp.diagnostics:
                 lines.append(f"{_result(code, 'termination_terms')}[world, {op.index}] = ended")
                 writes.append("termination_terms")
-            code.world(*_under(conditions, *lines), writes=writes)
+            code.world(*_under(conditions, *lines), writes=[*writes, *_computed_state(op)])
         case Phase.REWARDS:
-            weights = code.argument(
-                "reward_weights", wp.array2d(dtype=wp.float32), lambda call: call.state.reward_weights.warp
-            )
+            weights = _array(code, "reward_weights", wp.array2d(dtype=wp.float32))
             scale = f"{weights}[world, {op.index}] * {code.constant(float, mdp.step_dt)}"
             rewards = _result(code, "rewards")
             lines = [f"reward = {scale} * {_value(code, mdp, op)}", f"{rewards}[world] = {rewards}[world] + reward"]
@@ -242,13 +236,17 @@ def _compute(code: Fusion, mdp: MDP, op: TermOp, conditions: Sequence[str] = (),
             if mdp.diagnostics:
                 lines.append(f"{_result(code, 'reward_terms')}[world, {op.index}] = reward")
                 writes.append("reward_terms")
-            code.world(*_under(conditions, *lines), writes=writes)
+            code.world(*_under(conditions, *lines), writes=[*writes, *_computed_state(op)])
         case Phase.COMMANDS if stepping:
             writes = [*op.writes, *state]
-            _run(code, mdp, op, op.compute, writes, conditions, lambda call: call.state.selected[op.name])
+            _run(
+                code, mdp, op, op.compute, writes, conditions, lambda call: call.state.arrays["selected", op.name].warp
+            )
         case Phase.INTERVAL_EVENTS:
             writes = [*op.writes, *state]
-            _run(code, mdp, op, op.compute, writes, conditions, lambda call: call.state.selected[op.name])
+            _run(
+                code, mdp, op, op.compute, writes, conditions, lambda call: call.state.arrays["selected", op.name].warp
+            )
         case Phase.STARTUP_EVENTS | Phase.RESET_EVENTS | Phase.COMMANDS:
             _run(code, mdp, op, op.compute, [*op.writes, *state], conditions, mask=_mask)
         case Phase.OBSERVATIONS:
@@ -257,34 +255,34 @@ def _compute(code: Fusion, mdp: MDP, op: TermOp, conditions: Sequence[str] = (),
 
 def _compute_observation(code: Fusion, mdp: MDP, op: TermOp, conditions: Sequence[str], stepping: bool) -> None:
     """Compute an observation with its noise, clip, scale, and history into its columns of the group."""
+    observation = op.observation
+    group, start = observation.group, observation.columns.start
     out = code.argument(
-        ("observations", op.group), wp.array2d(dtype=wp.float32), lambda call: call.observations[op.group].warp
+        ("observations", group), wp.array2d(dtype=wp.float32), lambda call: call.observations[group].warp
     )
 
     value = _value(code, mdp, op)
-    if op.noise is not None:
-        low, high = code.constant(float, op.noise.n_min), code.constant(float, op.noise.n_max)
-        seed = f"{_rng(code)}[{op.noise_stream}, world]"
+    if observation.noise is not None:
+        low, high = code.constant(float, observation.noise.n_min), code.constant(float, observation.noise.n_max)
+        seed = f"{_rng(code)}[{observation.noise_stream}, world]"
         noise = f"wp.randf(wp.rand_init({seed}, element), {low}, {high})"
-        if op.noise.scale is not None:
-            noise = f"{noise} * {_field(code, op.noise.scale, wp.array(dtype=wp.float32))}[world]"
+        if observation.noise.scale is not None:
+            noise = f"{noise} * {_array(code, observation.noise.scale, wp.array(dtype=wp.float32))}[world]"
         value = f"({value} + {noise})"
-    if op.clip is not None:
-        low, high = (code.constant(float, bound) for bound in op.clip)
+    if observation.clip is not None:
+        low, high = (code.constant(float, bound) for bound in observation.clip)
         value = f"wp.clamp({value}, {low}, {high})"
-    if op.scale is not None:
-        value = f"{value} * {code.constant(float, op.scale)}"
+    if observation.scale is not None:
+        value = f"{value} * {code.constant(float, observation.scale)}"
 
-    if not op.history_length:
-        code.elements(op.shape, *_under(conditions, f"{out}[world, {op.columns.start} + element] = {value}"))
+    if not observation.history_length:
+        code.elements(op.shape, *_under(conditions, f"{out}[world, {start} + element] = {value}"))
         return
 
     # Each thread keeps the history of its element: stepping shifts it and appends the value, observing fills it for
     # new episodes. The group holds the history oldest first.
-    history = code.argument(
-        ("history", op.name), wp.array3d(dtype=wp.float32), lambda call: call.state.histories[op.name].warp
-    )
-    size, last = math.prod(op.shape), op.history_length - 1
+    history = _array(code, ("history", op.name), wp.array3d(dtype=wp.float32))
+    size, last = math.prod(op.shape), observation.history_length - 1
     if stepping:
         update = [
             f"for h in range({last}):",
@@ -292,16 +290,16 @@ def _compute_observation(code: Fusion, mdp: MDP, op: TermOp, conditions: Sequenc
             f"{history}[world, {last}, element] = {value}",
         ]
     else:
-        length = _field(code, episode_length, wp.array(dtype=wp.int32))
+        length = _array(code, episode_length, wp.array(dtype=wp.int32))
         update = [
             f"if {length}[world] == 0:",
             "    value = " + value,
-            f"    for h in range({op.history_length}):",
+            f"    for h in range({observation.history_length}):",
             f"        {history}[world, h, element] = value",
         ]
     write = [
-        f"for h in range({op.history_length}):",
-        f"    {out}[world, {op.columns.start} + h * {size} + element] = {history}[world, h, element]",
+        f"for h in range({observation.history_length}):",
+        f"    {out}[world, {start} + h * {size} + element] = {history}[world, h, element]",
     ]
     code.elements(op.shape, *_under(conditions, *update, *write))
 
@@ -349,17 +347,21 @@ def _value(code: Fusion, mdp: MDP, op: TermOp) -> str:
     else:
         code.call(
             lambda call: op.compute(
-                out=call.state.scratch[op.name].warp, **hook_arguments(op.compute, call.state.arguments[op.name])
+                out=call.state.arrays["scratch", op.name].warp,
+                **hook_arguments(op.compute, call.state.arguments[op.name]),
             ),
             op.capturable,
             *_accesses(op),
         )
-    scratch = code.argument(
-        ("scratch", op.name),
-        wp.array(dtype=op.dtype, ndim=1 + len(op.shape)),
-        lambda call: call.state.scratch[op.name].warp,
-    )
+    scratch = _array(code, ("scratch", op.name), wp.array(dtype=op.dtype, ndim=1 + len(op.shape)))
     return f"{scratch}[{_index(op.shape)}]"
+
+
+def _computed_state(op: TermOp) -> list[FieldSelector]:
+    """Return the keys of the state that the compute func of a quantity, termination, or reward may write."""
+    if not isinstance(op.compute, wp.Function):
+        return []
+    return [term_state(op.name, name) for name in op.state if name in op.compute.input_types]
 
 
 def _call(code: Fusion, op: TermOp, hook: wp.Function, shape: tuple[int, ...] = ()) -> str:
@@ -370,7 +372,7 @@ def _call(code: Fusion, op: TermOp, hook: wp.Function, shape: tuple[int, ...] = 
             values.append(code.constant(annotation, op.params[name]))
         elif name in op.inputs or name in op.state:
             key = op.inputs.get(name, term_state(op.name, name))
-            values.append(code.argument(key, annotation, lambda call, name=name: call.state.arguments[op.name][name]))
+            values.append(_array(code, key, annotation))
         else:
             values.append(f"{_rng(code)}[{op.stream}, world]")
     return f"{code.function(hook)}({', '.join(values)})"
@@ -382,7 +384,7 @@ def _due(code: Fusion, mdp: MDP, op: TermOp, active: Sequence[str]) -> str:
     if isinstance(op.compute, wp.Function):
         return tick
 
-    due = code.argument(("selected", op.name), wp.array(dtype=wp.bool), lambda call: call.state.selected[op.name])
+    due = _array(code, ("selected", op.name), wp.array(dtype=wp.bool))
     code.world(*_under(active, f"{due}[world] = {tick}"), writes=[("timer", op.name), ("selected", op.name)])
     return f"{due}[world]"
 
@@ -391,14 +393,14 @@ def _active(code: Fusion, op: TermOp) -> list[str]:
     """Return the condition under which an op's statements run, if it is active in only some worlds."""
     if op.worlds is None:
         return []
-    active = code.argument(("active", op.name), wp.array(dtype=wp.bool), lambda call: call.state.active[op.name].warp)
+    active = _array(code, ("active", op.name), wp.array(dtype=wp.bool))
     return [f"if {active}[world]:"]
 
 
 def _selected(mdp: MDP, op: TermOp, call: Call) -> wp.array:
     """Write the reset worlds where an op is active to its selected buffer, and return the buffer."""
-    selected = call.state.selected[op.name]
-    inputs = [call.mask.warp, call.state.active[op.name].warp]
+    selected = call.state.arrays["selected", op.name].warp
+    inputs = [call.mask.warp, call.state.arrays["active", op.name].warp]
     wp.launch(_select, dim=mdp.num_worlds, inputs=inputs, outputs=[selected], device=mdp.device)
     return selected
 
@@ -406,9 +408,7 @@ def _selected(mdp: MDP, op: TermOp, call: Call) -> wp.array:
 def _timer(code: Fusion, op: TermOp) -> str:
     """Return source for the arguments shared by :func:`_restart` and :func:`_tick`."""
     low, high = (code.constant(float, value) for value in op.timer)
-    time_left = code.argument(
-        ("timer", op.name), wp.array(dtype=wp.float32), lambda call: call.state.timers[op.name].warp
-    )
+    time_left = _array(code, ("timer", op.name), wp.array(dtype=wp.float32))
     return f"world, {low}, {high}, {_rng(code)}[{op.stream}, world], {time_left}"
 
 
@@ -419,9 +419,9 @@ def _accesses(op: TermOp) -> tuple[set[Hashable], set[Hashable]]:
     return reads, {*op.writes, *state, ("scratch", op.name)}
 
 
-def _field(code: Fusion, selector: Hashable, annotation: wp.array) -> str:
-    """Return the source name of a field of the call's state."""
-    return code.argument(selector, annotation, lambda call: call.state.fields[selector].warp)
+def _array(code: Fusion, key: Hashable, annotation: wp.array) -> str:
+    """Return the source name of an array of the call's state, by its key in :attr:`MDPState.arrays`."""
+    return code.argument(key, annotation, lambda call: call.state.arrays[key].warp)
 
 
 def _result(code: Fusion, key: str) -> str:
@@ -431,7 +431,7 @@ def _result(code: Fusion, key: str) -> str:
 
 def _rng(code: Fusion) -> str:
     """Return the source name of the random streams, shaped (num_streams, num_worlds)."""
-    return code.argument("rng", wp.array2d(dtype=wp.int32), lambda call: call.state.rng.warp)
+    return _array(code, "rng", wp.array2d(dtype=wp.int32))
 
 
 def _mask(call: Call) -> wp.array:
