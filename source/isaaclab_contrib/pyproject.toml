@@ -37,3 +37,5 @@ include = ["isaaclab_contrib", "isaaclab_contrib.*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.pyi"]
+
+"isaaclab_contrib.assets" = ["data/**/*.usd", "data/**/*.usda"]

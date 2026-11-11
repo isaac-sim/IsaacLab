@@ -136,6 +136,7 @@ Guidelines for modifications:
 * Jiwen Cai
 * Johnson Sun
 * Juana Du
+* Junnosuke Kamohara
 * Kai Pei
 * Kaixi Bao
 * Kourosh Darvish
