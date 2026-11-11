@@ -108,3 +108,19 @@ def test_hidden_poses_use_one_buffer_per_source_buffer():
     # An asynchronous write may still read the previous frame's copy, so alternating sources must not share one.
     assert first[0].ptr != first[1].ptr
     assert [a.ptr for a in again] == [f.ptr for f in first]
+
+
+def test_offset_poses_use_one_buffer_per_source_buffer():
+    renderer = _renderer(None)
+    renderer._device = "cpu"
+    renderer._body_envs = wp.array([0, 1], dtype=wp.int32, device="cpu")
+    renderer._offset_matrices = {}
+    renderer._env_offsets = wp.array([[1, 0, 0], [0, 1, 0], [0, 0, 0]], dtype=wp.vec3, device="cpu")
+    renderer._sdp = SimpleNamespace(backend=SimpleNamespace(transform_paths=["a", "b"]))
+    sources = [wp.zeros(2, dtype=wp.mat44d, device="cpu") for _ in range(2)]
+
+    first = [renderer._offset_environment_bodies(source, None) for source in sources]
+    again = [renderer._offset_environment_bodies(source, None) for source in sources]
+
+    assert first[0].ptr != first[1].ptr
+    assert [a.ptr for a in again] == [f.ptr for f in first]

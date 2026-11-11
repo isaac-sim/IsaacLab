@@ -759,6 +759,7 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     cfg = visualizer.newton_cfg = NewtonBackendCfg(physics_cfg=object(), device="cpu")
     visualizer._env_ids = visualizer._cfg_visible_env_ids = [1, 3]
     visualizer._visible_env_count = None
+    visualizer._policy_ghost_panel = None
     visualizer._picking_enabled = picking
     visualizer.cfg.backend.world_spacing = (2.0, 0.0, 0.0)
     visualizer.cfg.backend.show_contacts = True
@@ -1391,6 +1392,71 @@ def test_term_summary_reads_the_first_docstring_line_of_a_term_function():
     assert term_summary(object(), "anything") == ""  # Managers without a term accessor.
 
 
+class _RecordingImgui:
+    """Minimal imgui double that records the text of the greyed-out Policy Ghosts section."""
+
+    class Cond_:
+        appearing = 1
+
+    class Col_:
+        text = 1
+
+    class HoveredFlags_:
+        allow_when_disabled = 1
+
+    class ImVec4:
+        def __init__(self, *values):
+            self.values = values
+
+    def __init__(self, expanded: bool):
+        self.expanded, self.texts, self.headers = expanded, [], []
+
+    def set_next_item_open(self, *_args):
+        pass
+
+    def push_style_color(self, *_args):
+        pass
+
+    def pop_style_color(self):
+        pass
+
+    def collapsing_header(self, label):
+        self.headers.append(label)
+        return self.expanded
+
+    def is_item_hovered(self, *_flags):
+        return False
+
+    def set_tooltip(self, _text):
+        pass
+
+    def separator(self):
+        pass
+
+    def text_disabled(self, text):
+        self.texts.append(text)
+
+    def text_wrapped(self, text):
+        self.texts.append(text)
+
+
+@pytest.mark.parametrize("expanded", [True, False])
+def test_policy_ghosts_are_greyed_out_with_an_explanation_in_the_rtx_view(expanded):
+    viewer = NewtonViewerGL.__new__(NewtonViewerGL)
+    imgui = _RecordingImgui(expanded)
+
+    viewer._draw_policy_ghosts_unsupported(imgui)
+
+    assert imgui.headers == ["Policy Ghosts"]
+    assert (
+        any("RTX" in text and "not supported" in text for text in imgui.texts),
+        any("OpenGL" in text for text in imgui.texts),
+    ) == (
+        expanded,
+        expanded,
+    )
+
+
 def test_the_rtx_view_keeps_following_the_tracking_camera_and_returns_to_it():
     from isaaclab.visualizers import PerspectiveCameraCfg
 
@@ -1453,6 +1519,45 @@ def test_a_scene_sensor_view_is_not_an_opengl_or_rtx_view():
         assert visualizer.sensor_view_selected is selected
 
 
+def test_the_statistics_overlay_starts_closed():
+    from isaaclab_visualizers.newton.newton_visualizer import NewtonViewerGL
+
+    assert NewtonViewerGL._show_stats is False
+
+
+def test_ghost_offsets_overlay_each_ghost_by_its_environment_origin():
+    viewer = SimpleNamespace(world_offsets=wp.zeros(3, dtype=wp.vec3, device="cpu"))
+    visualizer = _make_newton_visualizer(viewer)
+    controller = SimpleNamespace(
+        env_origin_offsets=lambda: np.array([[0, 0, 0], [1, 0, 0], [1, 0, 0]], dtype=np.float32)
+    )
+    visualizer._policy_ghost_panel = SimpleNamespace(controller=controller)
+    visualizer._base_world_offsets = np.tile(np.array([0, 2, 0], dtype=np.float32), (3, 1))
+
+    visualizer._apply_ghost_offsets()
+
+    assert viewer.world_offsets.numpy()[:, 0].tolist() == [0.0, 1.0, 1.0]
+    assert viewer.world_offsets.numpy()[:, 1].tolist() == [2.0, 2.0, 2.0]
+
+
+def test_rtx_ghost_offsets_reach_the_renderer_only_when_they_change():
+    viewer = SimpleNamespace()
+    visualizer = _make_newton_visualizer(viewer)
+    renderer = Mock()
+    view = Mock()
+    view.camera = SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/viewer_camera_0", renderer_cfg=object()))
+    visualizer._image_views = [view]
+    visualizer._sim = SimpleNamespace(get_or_create_backend=Mock(return_value=renderer))
+    offsets = np.array([[0, 0, 0], [5, 0, 0]], dtype=np.float32)
+
+    visualizer._apply_rtx_ghost_offsets(offsets)
+    visualizer._apply_rtx_ghost_offsets(offsets.copy())
+    visualizer._apply_rtx_ghost_offsets(offsets + 1)
+
+    assert renderer.set_environment_offsets.call_count == 2
+    assert np.array_equal(renderer.set_environment_offsets.call_args_list[0].args[0], offsets)
+
+
 def test_a_mesh_logged_to_the_rtx_view_refreshes_its_cached_image():
     from isaaclab_visualizers.newton.newton_visualizer import NewtonGLVisualizer
 
@@ -1475,6 +1580,27 @@ def test_a_mesh_logged_to_the_rtx_view_refreshes_its_cached_image():
     visualizer.log_mesh("/m", points=None, indices=None)
 
     camera._invalidate_buffers.assert_called_once_with()
+    view.invalidate.assert_called_once_with()
+
+
+def test_switching_policy_ghosts_off_stops_shifting_environments_in_the_rtx_view():
+    visualizer = _make_newton_visualizer(SimpleNamespace(_policy_ghost_panel=None))
+    renderer = Mock()
+    view = Mock()
+    view.camera = SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/viewer_camera_0_rtx", renderer_cfg=object()))
+    visualizer._image_views = [view]
+    visualizer._sim = SimpleNamespace(get_or_create_backend=Mock(return_value=renderer))
+    visualizer._policy_ghost_panel = SimpleNamespace(restore=Mock())
+    visualizer._viewer._policy_ghost_panel = visualizer._policy_ghost_panel
+    visualizer._visible_env_count_before_ghosts = 2
+    visualizer._rtx_ghost_offsets = np.ones((2, 3), dtype=np.float32)
+    visualizer._apply_visible_worlds = Mock()
+    visualizer.backend = SimpleNamespace(model=object())
+
+    visualizer.detach_policy_ghosts()
+
+    renderer.set_environment_offsets.assert_called_once_with(None)
+    assert visualizer._rtx_ghost_offsets is None
     view.invalidate.assert_called_once_with()
 
 

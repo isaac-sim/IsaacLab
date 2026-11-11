@@ -50,6 +50,23 @@ def hide_environment_bodies_kernel(
     out[i] = pose
 
 
+@wp.kernel(enable_backward=False)
+def offset_environment_bodies_kernel(
+    transforms: wp.array(dtype=wp.mat44d),
+    body_envs: wp.array(dtype=wp.int32),
+    offsets: wp.array(dtype=wp.vec3),
+    out: wp.array(dtype=wp.mat44d),
+):
+    """Copy row-vector body poses, translating the bodies of each environment by its offset [m]."""
+    i = wp.tid()
+    pose = transforms[i]
+    offset = offsets[body_envs[i]]
+    pose[3, 0] = pose[3, 0] + wp.float64(offset[0])
+    pose[3, 1] = pose[3, 1] + wp.float64(offset[1])
+    pose[3, 2] = pose[3, 2] + wp.float64(offset[2])
+    out[i] = pose
+
+
 @wp.kernel
 def create_camera_transforms_kernel(
     positions: wp.array(dtype=wp.vec3),  # type: ignore

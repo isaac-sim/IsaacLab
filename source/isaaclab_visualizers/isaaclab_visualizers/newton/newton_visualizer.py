@@ -53,6 +53,7 @@ from isaaclab.utils.math import quat_apply, quat_from_matrix, quat_mul
 from isaaclab.visualizers.base_visualizer import _VISUALIZER_MAX_TILES as MAX_TILED_ENVS
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.camera_follower import CameraFollower
+from isaaclab.visualizers.policy_ghost import PolicyGhostController
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, TrackingCameraCfg, WindowCfg
 
 from isaaclab_visualizers.desktop_entry import write_desktop_entry
@@ -60,6 +61,7 @@ from isaaclab_visualizers.newton.newton_overlay_meshes import OverlayMeshPublish
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 
 from .newton_key_event_source import NewtonKeyEventSource
+from .newton_policy_ghosts import NewtonPolicyGhostPanel, draw_policy_ghost_launcher, draw_policy_ghost_toggle
 from .newton_recording import NewtonRecordingPanel, hover_tooltip
 from .newton_rtx_appearance import SKY_TEXTURES, RtxAppearance
 
@@ -194,6 +196,9 @@ class NewtonViewerGL(ViewerGL):
     keyboard_frame_hook: Callable[[], object] | None = None
     """Called after every frame while a :class:`NewtonKeyEventSource` listens, to track ImGui keyboard ownership."""
     _owner = None
+    _policy_ghost_panel = None
+    _policy_ghost_restart = None
+    _policy_ghost_toggle = None
     _recording_panel = None
     _show_stats = False
     """Whether the performance and model statistics overlay in the top-right corner is open."""
@@ -327,13 +332,15 @@ class NewtonViewerGL(ViewerGL):
         sections, which are ordered by how often they are used:
 
         1. **Playback** (open) — pause, rendering pause, and reset controls, and any ``"side"`` UI callbacks.
-        2. **Camera View** (closed) — renderer (OpenGL or RTX), camera source, and renderer-specific options.
-        3. **Scene** (closed) — visible environments, visualization markers (a toggle per marker group, shared with Kit
+        2. **Policy Ghosts** (closed) — added by :meth:`~NewtonGLVisualizer.attach_policy_ghosts`; it decides which
+           environments the window shows, so it sits next to the playback controls.
+        3. **Camera View** (closed) — renderer (OpenGL or RTX), camera source, and renderer-specific options.
+        4. **Scene** (closed) — visible environments, visualization markers (a toggle per marker group, shared with Kit
            and Viser), and visual overlays.
-        4. **Recording** (closed) — video, screenshot, and their output settings.
-        5. **Live Plots** (closed) — injected when :meth:`~NewtonGLVisualizer.add_live_plots` is called.
-        6. **Articulation Inspector** (closed) — Newton's articulation selection panel.
-        7. **Control Bindings** (closed) — the camera, keyboard, and mouse controls and what each one does.
+        5. **Recording** (closed) — video, screenshot, and their output settings.
+        6. **Live Plots** (closed) — injected when :meth:`~NewtonGLVisualizer.add_live_plots` is called.
+        7. **Articulation Inspector** (closed) — Newton's articulation selection panel.
+        8. **Control Bindings** (closed) — the camera, keyboard, and mouse controls and what each one does.
 
         The top-level Newton ``Pause / Step`` row is suppressed; pause/resume is handled by the Isaac Lab controls
         inside **Playback**.
@@ -383,6 +390,21 @@ class NewtonViewerGL(ViewerGL):
                 imgui.separator()
                 for callback in _g._ui_callbacks.get("side", []):
                     callback(imgui)
+
+            # --- Policy Ghosts ----------------------------------------------
+            ghosts_offered = (
+                viewer._policy_ghost_panel is not None
+                or viewer._policy_ghost_toggle is not None
+                or viewer._policy_ghost_restart is not None
+            )
+            if ghosts_offered and viewer._owner is not None and viewer._owner.rtx_rendering:
+                viewer._draw_policy_ghosts_unsupported(imgui)
+            elif viewer._policy_ghost_panel is not None:
+                viewer._policy_ghost_panel.draw(imgui)
+            elif viewer._policy_ghost_toggle is not None:
+                draw_policy_ghost_toggle(imgui, viewer._policy_ghost_toggle)
+            elif viewer._policy_ghost_restart is not None:
+                draw_policy_ghost_launcher(imgui, viewer._policy_ghost_restart)
 
             # --- Camera View ------------------------------------------------
             imgui.set_next_item_open(False, imgui.Cond_.appearing)
@@ -508,7 +530,7 @@ class NewtonViewerGL(ViewerGL):
     def _render_environment_controls(self, imgui) -> None:
         """Render the visible-environment count slider."""
         owner = self._owner
-        imgui.text("Visible Envs")
+        imgui.text("Visible Envs (per slot)" if owner._policy_ghost_panel is not None else "Visible Envs")
         following = owner.tracking_env_only
         if following:
             imgui.begin_disabled()
@@ -521,6 +543,22 @@ class NewtonViewerGL(ViewerGL):
             owner.set_visible_env_count(new_count)
         if imgui.is_item_hovered():
             imgui.set_tooltip("Number of environments drawn in the viewer; simulation is unaffected")
+
+    def _draw_policy_ghosts_unsupported(self, imgui) -> None:
+        """Draw the greyed-out Policy Ghosts section shown while the RTX view is active."""
+        imgui.set_next_item_open(False, imgui.Cond_.appearing)
+        imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(0.5, 0.5, 0.5, 1.0))
+        expanded = imgui.collapsing_header("Policy Ghosts")
+        imgui.pop_style_color()
+        hover_tooltip(imgui, "Compare several checkpoints of this task in one window. OpenGL view only")
+        if expanded:
+            imgui.separator()
+            imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(0.5, 0.5, 0.5, 1.0))
+            imgui.text_wrapped(
+                "Policy Ghosts are not supported in the RTX view. "
+                "Switch Camera View > Renderer to OpenGL to compare checkpoints."
+            )
+            imgui.pop_style_color()
 
     def _draw_scene_controls(self, imgui) -> None:
         """Draw what can be shown in the scene: environments, visualization markers, and visual overlays."""
@@ -711,6 +749,9 @@ class NewtonViewerGL(ViewerGL):
         badges = []
         if self._paused_training or self._paused:
             badges.append(("PAUSED", (1.0, 0.8, 0.2, 1.0)))
+        if self._policy_ghost_panel is not None:
+            ghosts = sum(slot.active for slot in self._policy_ghost_panel.layout.slots[1:])
+            badges.append((f"{ghosts} ghost{'s' * (ghosts != 1)}", (0.5, 0.8, 1.0, 1.0)))
         for index, (text, color) in enumerate(badges):
             if index:
                 imgui.same_line()
@@ -1074,7 +1115,7 @@ class NewtonVisualizerBase(BaseVisualizer):
                 self.set_rtx_rendering(False)
             if imgui.is_item_hovered(imgui.HoveredFlags_.allow_when_disabled):
                 imgui.set_tooltip(
-                    "Fast rasterizer with visual overlays and markers"
+                    "Fast rasterizer with visual overlays, markers, and Policy Ghosts"
                     if not sensor
                     else "A scene sensor is rendered by its own renderer. This applies to the free and tracking cameras"
                 )
@@ -1500,8 +1541,12 @@ class NewtonVisualizerBase(BaseVisualizer):
 
     @property
     def tracking_env_only(self) -> bool:
-        """Whether only the selected Tracking Camera's environment is drawn."""
-        return self._track_env_only and self._followers.get(self._pose_source_view()) is not None
+        """Whether only the selected Tracking Camera's environment is drawn; Policy Ghosts need every slot."""
+        return (
+            self._policy_ghost_panel is None
+            and self._track_env_only
+            and self._followers.get(self._pose_source_view()) is not None
+        )
 
     def _sync_tracked_env(self) -> None:
         """Redraw the visible environments after the Tracking Camera changed environment."""
@@ -1944,7 +1989,13 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._picking_enabled = False
         self._cfg_visible_env_ids: list[int] | None = None
         self._visible_env_count: int | None = None
+        self._visible_env_count_before_ghosts: int | None = None
         self._num_envs = 0
+        self._policy_ghost_panel: NewtonPolicyGhostPanel | None = None
+        self._base_world_offsets: np.ndarray | None = None
+        """World offsets without the Policy Ghost overlay, which the overlay is added to every frame it changes."""
+        self._rtx_ghost_offsets: np.ndarray | None = None
+        """Policy Ghost offsets last given to the OVRTX view, to skip rewriting poses when they are unchanged."""
 
     # ------------------------------------------------------------------
     # GL lifecycle
@@ -2056,6 +2107,14 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
     def _render_frame(self) -> None:
         """Render one GL frame for the window or an on-demand capture."""
         viewer = self._viewer
+        if self._policy_ghost_panel is not None:
+            self._policy_ghost_panel.apply_tint(self.backend.model)
+            if self._policy_ghost_panel.consume_slots_changed():
+                self._apply_visible_worlds()
+            if viewer.is_training_paused():
+                # No simulation step runs while paused, so a ghost added now is reset to its spawn pose here.
+                self._policy_ghost_panel.controller.apply_pending_restart()
+            self._policy_ghost_panel.apply_materials(viewer)
         viewer.begin_frame(self._sim_time)
         try:
             viewer.image_matches_camera = self.rtx_rendering
@@ -2229,14 +2288,71 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         if self._viewer is not None:
             self._viewer.set_run_info(task, mode, run)
 
+    def attach_policy_ghost_restart(self, restart: Callable[[bool], None]) -> None:
+        """Offer an Enable Policy Ghosts button in the HUD of a run that started without the feature.
+
+        Args:
+            restart: Callback that restarts playback with Policy Ghosts enabled (``True``) or disabled (``False``).
+        """
+        if self._viewer is not None:
+            self._viewer._policy_ghost_restart = restart
+
+    def attach_policy_ghost_toggle(self, mode: Any) -> None:
+        """Offer an Enable Policy Ghosts button in the HUD of a playback that can switch the feature on in place.
+
+        Args:
+            mode: The playback's Policy Ghost mode, with ``in_place``, ``slice_size``, ``num_slots``, ``message``,
+                ``request_enable`` and ``restart``.
+        """
+        if self._viewer is not None:
+            self._viewer._policy_ghost_toggle = mode
+
+    def detach_policy_ghosts(self) -> None:
+        """Remove the Policy Ghosts HUD section and show the plain environments again."""
+        panel = self._policy_ghost_panel
+        if panel is None:
+            return
+        self._policy_ghost_panel = None
+        self._visible_env_count = self._visible_env_count_before_ghosts
+        if self._viewer is not None:
+            self._viewer._policy_ghost_panel = None
+            panel.restore(self.backend.model, self._viewer)
+            self._clear_rtx_ghost_offsets()
+            self._apply_visible_worlds()
+
+    def attach_policy_ghosts(
+        self,
+        controller: PolicyGhostController,
+        restart: Callable[[bool], None] | None = None,
+        disable: Callable[[], None] | None = None,
+    ) -> None:
+        """Show the Policy Ghosts HUD section for a playback loop that drives several checkpoints.
+
+        Only environments of slots with a checkpoint are visible, and each ghost slot is tinted and overlaid on
+        the reference slot. The visible-environment slider then counts environments per slot.
+
+        Args:
+            controller: Playback-loop side of Policy Ghosts.
+            restart: Callback that restarts playback with Policy Ghosts enabled (``True``) or disabled (``False``).
+                When given, the HUD shows a Disable button that restarts.
+            disable: Callback that switches Policy Ghosts off without a restart; the Disable button uses it.
+        """
+        self._visible_env_count_before_ghosts = self._visible_env_count
+        self._policy_ghost_panel = NewtonPolicyGhostPanel(controller, restart, disable)
+        if self._viewer is not None:
+            self._viewer._policy_ghost_panel = self._policy_ghost_panel
+            self._apply_visible_worlds()
+
     @property
     def visible_env_limit(self) -> int:
-        """Largest value of the visible-environment count: the environments the cfg allows, else all."""
+        """Largest value of the visible-environment count: environments per slot with Policy Ghosts, else all."""
+        if self._policy_ghost_panel is not None:
+            return self._policy_ghost_panel.layout.slice_size
         return len(self._cfg_visible_env_ids) if self._cfg_visible_env_ids is not None else self._num_envs
 
     @property
     def visible_env_count(self) -> int:
-        """Number of environments currently shown."""
+        """Number of environments currently shown (per slot with Policy Ghosts)."""
         if self.tracking_env_only:
             return 1
         if self._visible_env_count is not None:
@@ -2244,7 +2360,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         return self.visible_env_limit
 
     def set_visible_env_count(self, count: int) -> None:
-        """Show only the first ``count`` environments.
+        """Show only the first ``count`` environments (per slot with Policy Ghosts).
 
         Args:
             count: Number of environments to show, clamped to ``[1, visible_env_limit]``.
@@ -2253,7 +2369,10 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._apply_visible_worlds()
 
     def _select_visible_env_ids(self) -> list[int] | None:
-        """Resolve the environments to show from the cfg, the HUD count, and the Tracking Camera."""
+        """Resolve the environments to show from the cfg, the HUD count, the ghost slots, and the Tracking Camera."""
+        panel = self._policy_ghost_panel
+        if panel is not None:
+            return panel.layout.visible_env_ids(self.visible_env_count)
         if self.tracking_env_only:
             return [self._followers[self._pose_source_view()].env]
         if self._visible_env_count is None:
@@ -2287,14 +2406,49 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._image_views.append(view)
 
     def _apply_visible_worlds(self) -> None:
-        """Apply the visible environments."""
+        """Apply the visible environments and, with Policy Ghosts, overlay each ghost on the reference."""
         if self._viewer is None:
             return
         self._env_ids = self._select_visible_env_ids()
         self._drop_shape_instancers()
         self._viewer.set_visible_worlds(self._env_ids)
         self._viewer.set_world_offsets(self.cfg.backend.world_spacing)
+        world_offsets = getattr(self._viewer, "world_offsets", None)
+        self._base_world_offsets = None if world_offsets is None else world_offsets.numpy().copy()
+        self._apply_ghost_offsets()
         self._apply_rtx_visible_envs()
+
+    def _apply_ghost_offsets(self) -> None:
+        """Overlay each ghost on the reference by the offset between their environment origins."""
+        panel, viewer = self._policy_ghost_panel, self._viewer
+        if panel is None or self._base_world_offsets is None or getattr(viewer, "world_offsets", None) is None:
+            return
+        controller = panel.controller
+        ghost = controller.env_origin_offsets()
+        viewer.world_offsets = wp.array(
+            self._base_world_offsets + ghost, dtype=wp.vec3, device=viewer.world_offsets.device
+        )
+        self._apply_rtx_ghost_offsets(ghost)
+
+    def _clear_rtx_ghost_offsets(self) -> None:
+        """Stop shifting environments in the OVRTX view, and forget the offsets it was last given."""
+        self._rtx_ghost_offsets = None
+        index = self.rtx_view_index
+        if index is None:
+            return
+        renderer = self._sim.get_or_create_backend(self._image_views[index].camera.cfg.renderer_cfg)
+        renderer.set_environment_offsets(None)
+        self._image_views[index].invalidate()
+
+    def _apply_rtx_ghost_offsets(self, offsets: np.ndarray) -> None:
+        """Overlay the ghosts in the OVRTX view, which draws every environment at its simulated position."""
+        index = self.rtx_view_index
+        if index is None or (self._rtx_ghost_offsets is not None and np.array_equal(self._rtx_ghost_offsets, offsets)):
+            return
+        renderer = self._sim.get_or_create_backend(self._image_views[index].camera.cfg.renderer_cfg)
+        renderer.set_environment_offsets(offsets)
+        self._rtx_ghost_offsets = offsets.copy()
+        self._image_views[index].invalidate()
 
     def _apply_rtx_visible_envs(self) -> None:
         """Hide the environments outside the visible set in the OVRTX viewer camera's scene."""
